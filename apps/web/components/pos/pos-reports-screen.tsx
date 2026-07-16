@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, FileArchive, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  fetchPosZAutopilotImports,
+  retryPosZAutopilotImport,
+} from "@/lib/accounting/accounting-api";
+import { PosZAutopilotCell } from "@/components/pos/pos-z-autopilot-cell";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,6 +27,10 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import {
+  hasModuleCreate,
+  hasModuleRead,
+} from "@/lib/permissions/module-crud-permissions";
+import {
   downloadPosBlob,
   downloadPosDsfinvkExport,
   downloadPosSessionDsfinvk,
@@ -33,6 +42,7 @@ import {
   startPosDsfinvkExport,
   type PosWebRegisterSessionDto,
 } from "@/lib/pos/pos-web-api-client";
+import type { PosZAutopilotImportRow } from "@/lib/types/accounting-pos-z-autopilot";
 import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
 import { ModuleDataTableFrame } from "@/lib/ui/module-paginated-data-table";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
@@ -66,8 +76,13 @@ export function PosReportsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canExport = has("pos.kasse.export");
+  const canReadAutopilot = hasModuleRead(has, "accounting");
+  const canRetryAutopilot = hasModuleCreate(has, "accounting");
 
   const [sessions, setSessions] = useState<PosWebRegisterSessionDto[]>([]);
+  const [autopilotBySession, setAutopilotBySession] = useState<
+    Record<string, PosZAutopilotImportRow>
+  >({});
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(!ready || loading || permissionsLoading);
 
@@ -82,6 +97,7 @@ export function PosReportsScreen() {
   const load = useCallback(async () => {
     if (!restaurantId || !canExport) {
       setSessions([]);
+      setAutopilotBySession({});
       setLoading(false);
       return;
     }
@@ -91,17 +107,55 @@ export function PosReportsScreen() {
       if (!result.ok) {
         toast.error(posApiErrorLabel(result.error));
         setSessions([]);
+        setAutopilotBySession({});
         return;
       }
-      setSessions(result.data.data);
+      const nextSessions = result.data.data;
+      setSessions(nextSessions);
+
+      if (canReadAutopilot && nextSessions.length > 0) {
+        try {
+          const imports = await fetchPosZAutopilotImports(
+            restaurantId,
+            nextSessions.map((s) => s.id),
+          );
+          const map: Record<string, PosZAutopilotImportRow> = {};
+          for (const row of imports) {
+            map[row.pos_register_session_id] = row;
+          }
+          setAutopilotBySession(map);
+        } catch {
+          setAutopilotBySession({});
+        }
+      } else {
+        setAutopilotBySession({});
+      }
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, canExport]);
+  }, [restaurantId, canExport, canReadAutopilot]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleAutopilotRetry = async (sessionId: string) => {
+    if (!restaurantId) return;
+    setRowBusyId(`auto-${sessionId}`);
+    try {
+      const row = await retryPosZAutopilotImport(restaurantId, sessionId);
+      if (row) {
+        setAutopilotBySession((prev) => ({ ...prev, [sessionId]: row }));
+        toast.success("Autopilot erneut ausgeführt");
+      } else {
+        toast.message("Autopilot ohne Änderung");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Autopilot fehlgeschlagen");
+    } finally {
+      setRowBusyId(null);
+    }
+  };
 
   const handleXReport = async () => {
     if (!restaurantId) return;
@@ -320,6 +374,9 @@ export function PosReportsScreen() {
                   <th className="px-3 py-2 text-left font-medium">Geschlossen</th>
                   <th className="px-3 py-2 text-right font-medium">Endbestand</th>
                   <th className="px-3 py-2 text-right font-medium">Differenz</th>
+                  {canReadAutopilot ? (
+                    <th className="px-3 py-2 text-left font-medium">Autopilot</th>
+                  ) : null}
                   <th className="px-3 py-2 text-right font-medium">Aktionen</th>
                 </tr>
               </thead>
@@ -327,6 +384,7 @@ export function PosReportsScreen() {
                 {sessions.map((session) => {
                   const zBusy = rowBusyId === `z-${session.id}`;
                   const zipBusy = rowBusyId === `zip-${session.id}`;
+                  const autoBusy = rowBusyId === `auto-${session.id}`;
                   return (
                     <tr key={session.id} className="border-t border-border/40">
                       <td className="px-3 py-2.5 tabular-nums font-medium">
@@ -341,6 +399,16 @@ export function PosReportsScreen() {
                       <td className="px-3 py-2.5 text-right tabular-nums">
                         {formatCents(session.cashDifferenceCents)}
                       </td>
+                      {canReadAutopilot ? (
+                        <td className="px-3 py-2.5">
+                          <PosZAutopilotCell
+                            row={autopilotBySession[session.id]}
+                            canRetry={canRetryAutopilot}
+                            retrying={autoBusy}
+                            onRetry={() => void handleAutopilotRetry(session.id)}
+                          />
+                        </td>
+                      ) : null}
                       <td className="px-3 py-2.5">
                         <div className="flex justify-end gap-1.5">
                           <Button
@@ -348,7 +416,7 @@ export function PosReportsScreen() {
                             size="sm"
                             variant="outline"
                             className="rounded-lg"
-                            disabled={zBusy || zipBusy}
+                            disabled={zBusy || zipBusy || autoBusy}
                             onClick={() => void handleZPdf(session.id)}
                           >
                             {zBusy ? (
@@ -366,7 +434,7 @@ export function PosReportsScreen() {
                             size="sm"
                             variant="outline"
                             className="rounded-lg"
-                            disabled={zBusy || zipBusy}
+                            disabled={zBusy || zipBusy || autoBusy}
                             onClick={() => void handleSessionZip(session)}
                           >
                             {zipBusy ? (

@@ -380,41 +380,44 @@ export function AccountingSettingsForm() {
                 </>
               ) : null}
 
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
+              <div className="space-y-2.5 rounded-xl border border-border/40 bg-muted/10 px-3 py-3">
                 <div>
-                  <p className="text-sm font-medium">
-                    POS-Tagesabschluss ins Kassenbuch
-                  </p>
+                  <p className="text-sm font-medium">POS-Autopilot (Z-Abschluss)</p>
                   <p className="text-xs text-muted-foreground">
-                    Nach dem Z-Abschluss Barverkauf und Trinkgeld automatisch als
-                    Einnahmen im Kassenbuch buchen (MwSt. anteilig). Standard aus.
+                    Nach dem Z: Bar immer ins Kassenbuch, Umsatz optional an Lexoffice.
+                    Unbar und Payment-Gebühren folgen mit PSP-Settlement (z. B. 1.200 €
+                    Unbar − Gebühr → Netto). Standard aus.
                   </p>
                 </div>
-                <Switch
-                  checked={importPosZToCashBook}
-                  onCheckedChange={setImportPosZToCashBook}
-                  disabled={loading || saving}
-                />
-              </div>
-
-              {activeConnectorKey === "lexoffice" ? (
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border/30 bg-background/60 px-3 py-2">
                   <div>
-                    <p className="text-sm font-medium">
-                      POS-Tagesabschluss an Lexoffice
-                    </p>
+                    <p className="text-sm font-medium">Kassenbuch (Bar)</p>
                     <p className="text-xs text-muted-foreground">
-                      Zusätzlich Verkaufsbeleg mit Umsatz je MwSt.-Satz und Trinkgeld
-                      an Lexoffice senden. Nur mit verbundener Lexoffice-Integration.
+                      Barverkauf und Trinkgeld automatisch buchen (MwSt. anteilig).
                     </p>
                   </div>
                   <Switch
-                    checked={pushPosZToLexoffice}
-                    onCheckedChange={setPushPosZToLexoffice}
+                    checked={importPosZToCashBook}
+                    onCheckedChange={setImportPosZToCashBook}
                     disabled={loading || saving}
                   />
                 </div>
-              ) : null}
+                {activeConnectorKey === "lexoffice" ? (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-border/30 bg-background/60 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">Lexoffice Umsatz</p>
+                      <p className="text-xs text-muted-foreground">
+                        Verkaufsbeleg je MwSt.-Satz und Trinkgeld an Lexoffice senden.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={pushPosZToLexoffice}
+                      onCheckedChange={setPushPosZToLexoffice}
+                      disabled={loading || saving}
+                    />
+                  </div>
+                ) : null}
+              </div>
 
               <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
                 <div>

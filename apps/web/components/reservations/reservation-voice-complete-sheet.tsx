@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSpeechRecognition } from "@/lib/hooks/use-speech-recognition";
 import {
+  isReservationVoiceConfirmUtterance,
   mergeReservationVoiceDrafts,
   parseReservationVoiceDraftWithAlternatives,
   reservationVoiceDraftToParsed,
@@ -61,8 +62,8 @@ type ReservationVoiceCompleteSheetProps = {
   onOpenChange: (open: boolean) => void;
   initialDraft: ReservationVoiceDraft | null;
   onConfirm: (parsed: ParsedReservationVoice) => Promise<void>;
-  /** Optional: Speech direkt starten wenn Sheet öffnet und Felder fehlen. */
-  autoListenMissing?: boolean;
+  /** Speech beim Öffnen starten (fehlende Felder oder „Ja“-Bestätigung). */
+  autoListen?: boolean;
 };
 
 export function ReservationVoiceCompleteSheet({
@@ -70,7 +71,7 @@ export function ReservationVoiceCompleteSheet({
   onOpenChange,
   initialDraft,
   onConfirm,
-  autoListenMissing = true,
+  autoListen = true,
 }: ReservationVoiceCompleteSheetProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -81,9 +82,31 @@ export function ReservationVoiceCompleteSheet({
   const [submitting, setSubmitting] = useState(false);
   const [speechHint, setSpeechHint] = useState<string | null>(null);
   const typedDuringListenRef = useRef(false);
+  const userStoppedRef = useRef(false);
+  const openRef = useRef(open);
+  const submittingRef = useRef(false);
   const partyInputRef = useRef<HTMLInputElement>(null);
   const dateWrapRef = useRef<HTMLDivElement>(null);
   const timeInputRef = useRef<HTMLInputElement>(null);
+  const fieldsRef = useRef({
+    firstName: "",
+    lastName: "",
+    partySize: null as number | null,
+    dateYmd: "",
+    timeHm: "",
+    heardText: "",
+  });
+
+  openRef.current = open;
+  submittingRef.current = submitting;
+  fieldsRef.current = {
+    firstName,
+    lastName,
+    partySize,
+    dateYmd,
+    timeHm,
+    heardText,
+  };
 
   const applyDraft = useCallback((draft: ReservationVoiceDraft) => {
     setFirstName(draft.guestFirstName);
@@ -98,6 +121,7 @@ export function ReservationVoiceCompleteSheet({
     if (!open || !initialDraft) return;
     applyDraft(initialDraft);
     typedDuringListenRef.current = false;
+    userStoppedRef.current = false;
     setSpeechHint(null);
   }, [open, initialDraft, applyDraft]);
 
@@ -110,58 +134,100 @@ export function ReservationVoiceCompleteSheet({
     rawTranscript: heardText,
   });
   const missing = currentDraft.missing;
-  const canSubmit = missing.length === 0 && !submitting;
+  const isComplete = missing.length === 0;
+  const canSubmit = isComplete && !submitting;
 
-  const handleFinalTranscript = useCallback(
-    (transcript: string, alternatives?: string[]) => {
+  const handleSubmitRef = useRef<() => Promise<void>>(async () => {});
+
+  const { supported, listening, interim, start, stop } = useSpeechRecognition({
+    lang: "de-DE",
+    silenceFinalizeMs: isComplete ? 1400 : 2400,
+    onError: (message) => setSpeechHint(message),
+    onFinal: (transcript, alternatives) => {
+      if (submittingRef.current || !openRef.current) return;
+
+      const candidates = [transcript, ...(alternatives ?? [])].filter(Boolean);
+      const fields = fieldsRef.current;
+      const base = draftFromFields({
+        firstName: fields.firstName,
+        lastName: fields.lastName,
+        partySize: fields.partySize,
+        dateYmd: fields.dateYmd,
+        timeHm: fields.timeHm,
+        rawTranscript: fields.heardText,
+      });
+
+      if (base.missing.length === 0) {
+        const confirmHit = candidates.some((c) =>
+          isReservationVoiceConfirmUtterance(c),
+        );
+        if (confirmHit) {
+          void handleSubmitRef.current();
+          return;
+        }
+      } else if (
+        candidates.every(
+          (c) => !c.trim() || isReservationVoiceConfirmUtterance(c),
+        )
+      ) {
+        setSpeechHint(
+          `Noch offen: ${base.missing.map((m) => MISSING_HINT[m]).join(", ")}`,
+        );
+        return;
+      }
+
       const incoming = parseReservationVoiceDraftWithAlternatives(
         transcript,
         alternatives ?? [],
       );
-      const base = draftFromFields({
-        firstName,
-        lastName,
-        partySize,
-        dateYmd,
-        timeHm,
-        rawTranscript: heardText,
-      });
-      // Tippen hat Vorrang: bereits gesetzte Felder nicht mit leerem Speech überschreiben.
       const merged = mergeReservationVoiceDrafts(base, incoming);
       applyDraft(merged);
-      setSpeechHint(
-        merged.missing.length > 0
-          ? `Noch offen: ${merged.missing.map((m) => MISSING_HINT[m]).join(", ")}`
-          : null,
-      );
-    },
-    [applyDraft, dateYmd, firstName, heardText, lastName, partySize, timeHm],
-  );
 
-  const { supported, listening, interim, start, stop } = useSpeechRecognition({
-    lang: "de-DE",
-    onFinal: handleFinalTranscript,
-    onError: (message) => setSpeechHint(message),
-    silenceFinalizeMs: 2400,
+      if (merged.missing.length > 0) {
+        setSpeechHint(
+          `Noch offen: ${merged.missing.map((m) => MISSING_HINT[m]).join(", ")}`,
+        );
+      } else {
+        setSpeechHint('Sag „Ja“ oder tippe Anlegen.');
+      }
+
+      if (
+        !typedDuringListenRef.current &&
+        !userStoppedRef.current &&
+        openRef.current
+      ) {
+        window.setTimeout(() => {
+          if (
+            typedDuringListenRef.current ||
+            userStoppedRef.current ||
+            submittingRef.current ||
+            !openRef.current
+          ) {
+            return;
+          }
+          start();
+        }, 420);
+      }
+    },
   });
 
   const abortSpeechForTyping = useCallback(() => {
     if (!listening) return;
     typedDuringListenRef.current = true;
+    userStoppedRef.current = true;
     stop("flush");
   }, [listening, stop]);
 
   useEffect(() => {
-    if (!open || !autoListenMissing || !supported || !initialDraft) return;
-    if (initialDraft.missing.length === 0) return;
+    if (!open || !autoListen || !supported || !initialDraft) return;
     const timer = window.setTimeout(() => {
-      if (!typedDuringListenRef.current) start();
+      if (!typedDuringListenRef.current && !userStoppedRef.current) start();
     }, 280);
     return () => window.clearTimeout(timer);
-  }, [autoListenMissing, initialDraft, open, start, supported]);
+  }, [autoListen, initialDraft, open, start, supported]);
 
   useEffect(() => {
-    if (!open || listening || !initialDraft) return;
+    if (!open || listening || !initialDraft || isComplete) return;
     const firstMissing = currentDraft.missing[0];
     if (!firstMissing) return;
     const timer = window.setTimeout(() => {
@@ -176,9 +242,19 @@ export function ReservationVoiceCompleteSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
   }, [open, listening]);
 
-  const handleSubmit = async () => {
-    const parsed = reservationVoiceDraftToParsed(currentDraft);
+  const handleSubmit = useCallback(async () => {
+    const fields = fieldsRef.current;
+    const draft = draftFromFields({
+      firstName: fields.firstName,
+      lastName: fields.lastName,
+      partySize: fields.partySize,
+      dateYmd: fields.dateYmd,
+      timeHm: fields.timeHm,
+      rawTranscript: fields.heardText,
+    });
+    const parsed = reservationVoiceDraftToParsed(draft);
     if (!parsed) return;
+    stop("discard");
     setSubmitting(true);
     try {
       await onConfirm(parsed);
@@ -186,15 +262,22 @@ export function ReservationVoiceCompleteSheet({
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [onConfirm, onOpenChange, stop]);
+
+  handleSubmitRef.current = handleSubmit;
 
   const toggleListen = () => {
-    if (listening) stop("flush");
-    else {
-      typedDuringListenRef.current = false;
-      setSpeechHint(null);
-      start();
+    if (listening) {
+      userStoppedRef.current = true;
+      stop("flush");
+      return;
     }
+    typedDuringListenRef.current = false;
+    userStoppedRef.current = false;
+    setSpeechHint(
+      isComplete ? 'Sag „Ja“ oder tippe Anlegen.' : null,
+    );
+    start();
   };
 
   return (
@@ -209,11 +292,13 @@ export function ReservationVoiceCompleteSheet({
     >
       <DrawerContent className="mx-auto max-h-[92vh] max-w-lg">
         <DrawerHeader className="pb-2 text-left">
-          <DrawerTitle className="text-xl">Reservierung ergänzen</DrawerTitle>
+          <DrawerTitle className="text-xl">
+            {isComplete ? "Reservierung anlegen?" : "Reservierung ergänzen"}
+          </DrawerTitle>
           <p className="text-sm text-muted-foreground">
             {missing.length > 0
               ? `Noch nötig: ${missing.map((m) => MISSING_HINT[m]).join(", ")}. Tippen bricht die Sprache ab.`
-              : "Alles da — du kannst anlegen."}
+              : "Werte prüfen oder kurz ändern. Sag „Ja“ / „Anlegen“ oder tippe Anlegen."}
           </p>
           {heardText ? (
             <p className="mt-1 text-xs italic text-muted-foreground">
@@ -323,8 +408,8 @@ export function ReservationVoiceCompleteSheet({
               <DatePickerField
                 id="voice-res-date"
                 value={dateYmd || null}
-                onOpenChange={(open) => {
-                  if (open) abortSpeechForTyping();
+                onOpenChange={(pickerOpen) => {
+                  if (pickerOpen) abortSpeechForTyping();
                 }}
                 onChange={(v) => {
                   abortSpeechForTyping();
@@ -375,7 +460,7 @@ export function ReservationVoiceCompleteSheet({
               ) : (
                 <>
                   <Mic className="size-4" aria-hidden />
-                  Nochmal sprechen
+                  {isComplete ? "„Ja“ hören" : "Nochmal sprechen"}
                 </>
               )}
             </Button>

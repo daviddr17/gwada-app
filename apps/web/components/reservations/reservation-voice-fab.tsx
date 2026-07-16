@@ -5,14 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { ReservationVoiceCompleteSheet } from "@/components/reservations/reservation-voice-complete-sheet";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useSpeechRecognition } from "@/lib/hooks/use-speech-recognition";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
-  formatParsedReservationVoiceLabel,
-  parseReservationVoiceTextWithAlternatives,
+  parseReservationVoiceDraftWithAlternatives,
   type ParsedReservationVoice,
   type ReservationVoiceDraft,
 } from "@/lib/reservations/parse-reservation-voice-text";
@@ -33,12 +31,8 @@ export function ReservationVoiceFab() {
   const { isSuperadmin } = useIsSuperadmin();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const [mounted, setMounted] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [completeOpen, setCompleteOpen] = useState(false);
-  const [pending, setPending] = useState<ParsedReservationVoice | null>(null);
-  const [incompleteDraft, setIncompleteDraft] =
-    useState<ReservationVoiceDraft | null>(null);
-  const [heardText, setHeardText] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [draft, setDraft] = useState<ReservationVoiceDraft | null>(null);
   const defaultDwellRef = useRef(120);
 
   useEffect(() => {
@@ -69,33 +63,25 @@ export function ReservationVoiceFab() {
         throw new Error(result.error);
       }
       toast.success(`Reservierung #${result.reservationNumber} angelegt.`);
-      setPending(null);
-      setIncompleteDraft(null);
-      setHeardText("");
+      setDraft(null);
     },
     [isSuperadmin, restaurantId, restaurantTimeZone],
   );
 
   const handleFinalTranscript = useCallback(
     (transcript: string, alternatives?: string[]) => {
-      setHeardText(transcript);
-      const result = parseReservationVoiceTextWithAlternatives(
+      const next = parseReservationVoiceDraftWithAlternatives(
         transcript,
         alternatives ?? [],
       );
-      if (result.ok) {
-        setPending(result.parsed);
-        setConfirmOpen(true);
+      if (!next.rawTranscript) {
+        toast.error("Kein Text erkannt.", {
+          description: "Beispiel: Max Mustermann, 3 Personen, 18.7., 19 Uhr",
+        });
         return;
       }
-      if (result.draft) {
-        setIncompleteDraft(result.draft);
-        setCompleteOpen(true);
-        return;
-      }
-      toast.error(result.error, {
-        description: "Beispiel: Max Mustermann, 3 Personen, 18.7., 19 Uhr",
-      });
+      setDraft(next);
+      setSheetOpen(true);
     },
     [],
   );
@@ -116,48 +102,17 @@ export function ReservationVoiceFab() {
     else start();
   };
 
-  const handleConfirm = async () => {
-    if (!pending) return;
-    await createFromParsed(pending);
-  };
-
   if (!mounted || !ready || !restaurantId || !supported) return null;
-
-  const preview = pending ? formatParsedReservationVoiceLabel(pending) : null;
 
   return createPortal(
     <>
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={(open) => {
-          setConfirmOpen(open);
-          if (!open) setPending(null);
-        }}
-        title="Reservierung anlegen?"
-        description={
-          <div className="space-y-2 text-sm text-muted-foreground">
-            {preview ? (
-              <p className="font-medium text-foreground">{preview}</p>
-            ) : null}
-            {heardText ? (
-              <p className="text-xs italic">„{heardText}"</p>
-            ) : null}
-            <p>Ein Tippen legt die Reservierung an — ohne weiteres Formular.</p>
-          </div>
-        }
-        confirmLabel="Anlegen"
-        cancelLabel="Abbrechen"
-        destructive={false}
-        onConfirm={handleConfirm}
-      />
-
       <ReservationVoiceCompleteSheet
-        open={completeOpen}
+        open={sheetOpen}
         onOpenChange={(open) => {
-          setCompleteOpen(open);
-          if (!open) setIncompleteDraft(null);
+          setSheetOpen(open);
+          if (!open) setDraft(null);
         }}
-        initialDraft={incompleteDraft}
+        initialDraft={draft}
         onConfirm={createFromParsed}
       />
 

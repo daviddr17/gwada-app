@@ -37,9 +37,36 @@ function similarityRatio(a: string, b: string): number {
   return 1 - d / Math.max(a.length, b.length, 1);
 }
 
+function fuzzySingleTokenMatches(
+  textNorm: string,
+  queryNorm: string,
+  threshold: number,
+): boolean {
+  if (!queryNorm) return true;
+  if (textNorm.includes(queryNorm)) return true;
+  if (similarityRatio(textNorm, queryNorm) >= threshold) return true;
+
+  for (const w of textNorm.split(" ")) {
+    if (w.length < 2) continue;
+    if (similarityRatio(w, queryNorm) >= threshold) return true;
+  }
+
+  const tScan = textNorm.length > 160 ? textNorm.slice(0, 160) : textNorm;
+  const maxWindow = Math.min(tScan.length, Math.max(queryNorm.length + 3, 24));
+  for (let len = Math.max(2, queryNorm.length - 2); len <= maxWindow; len++) {
+    for (let i = 0; i + len <= tScan.length; i++) {
+      const sub = tScan.slice(i, i + len);
+      if (similarityRatio(sub, queryNorm) >= threshold) return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * Treffer, wenn Teilstring vorkommt oder Ähnlichkeit ≥ Schwellwert
  * (Wortweise + Fenster über den gesamten Text, max. Fensterlänge begrenzt).
+ * Mehrwort-Queries: jedes Wort muss gegen den Text matchen (Tippfehler ok).
  */
 export function fuzzyTextMatchesQuery(
   text: string,
@@ -49,23 +76,23 @@ export function fuzzyTextMatchesQuery(
   const t = normalize(text);
   const q = normalize(query);
   if (!q) return true;
-  if (t.includes(q)) return true;
+  if (fuzzySingleTokenMatches(t, q, threshold)) return true;
 
-  if (similarityRatio(t, q) >= threshold) return true;
-
-  for (const w of t.split(" ")) {
-    if (w.length < 2) continue;
-    if (similarityRatio(w, q) >= threshold) return true;
-  }
-
-  const tScan = t.length > 160 ? t.slice(0, 160) : t;
-  const maxWindow = Math.min(tScan.length, Math.max(q.length + 3, 24));
-  for (let len = Math.max(2, q.length - 2); len <= maxWindow; len++) {
-    for (let i = 0; i + len <= tScan.length; i++) {
-      const sub = tScan.slice(i, i + len);
-      if (similarityRatio(sub, q) >= threshold) return true;
-    }
+  const tokens = q.split(" ").filter((token) => token.length > 0);
+  if (tokens.length > 1) {
+    return tokens.every((token) => fuzzySingleTokenMatches(t, token, threshold));
   }
 
   return false;
+}
+
+/** Exakter Teilstring (normalisiert), ohne Fuzzy — für Ranking. */
+export function textIncludesQueryExact(text: string, query: string): boolean {
+  const t = normalize(text);
+  const q = normalize(query);
+  if (!q) return true;
+  if (t.includes(q)) return true;
+  const tokens = q.split(" ").filter((token) => token.length > 0);
+  if (tokens.length <= 1) return false;
+  return tokens.every((token) => t.includes(token));
 }

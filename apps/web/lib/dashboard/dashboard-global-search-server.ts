@@ -30,6 +30,10 @@ import {
   DASHBOARD_GLOBAL_SEARCH_LIMIT_PER_CATEGORY,
   DASHBOARD_GLOBAL_SEARCH_MIN_QUERY_LENGTH,
 } from "@/lib/types/dashboard-global-search";
+import {
+  fuzzyTextMatchesQuery,
+  textIncludesQueryExact,
+} from "@/lib/utils/fuzzy-search";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const GALLERY_READ_KEYS: RestaurantPermissionKey[] = [
@@ -38,6 +42,11 @@ const GALLERY_READ_KEYS: RestaurantPermissionKey[] = [
   "gallery.update",
   "gallery.delete",
 ];
+
+/** Kandidaten vor Fuzzy-Filter — groß genug für leichte Tippfehler. */
+const FUZZY_CANDIDATE_LIMIT = 120;
+/** Mitarbeiter: meist wenige Zeilen → vollständig laden und fuzzy filtern. */
+const STAFF_FUZZY_FETCH_LIMIT = 500;
 
 function escapeIlikeTerm(term: string): string {
   return term
@@ -60,26 +69,63 @@ function splitSearchTokens(query: string): string[] {
     .filter((token) => token.length > 0);
 }
 
-function tokenOrClause(fields: readonly string[], token: string): string {
-  const pattern = ilikePattern(token);
-  return fields.map((field) => `${field}.ilike."${pattern}"`).join(",");
+/** Varianten für DB-Kandidaten bei Tippfehlern (Präfix / ohne letztes Zeichen). */
+function typoTolerantTerms(token: string): string[] {
+  const t = token.trim();
+  if (t.length < 2) return t ? [t] : [];
+  const terms = new Set<string>([t]);
+  if (t.length >= 4) {
+    terms.add(t.slice(0, -1));
+    terms.add(t.slice(0, Math.max(3, t.length - 2)));
+  }
+  if (t.length >= 5) {
+    terms.add(t.slice(0, 3));
+  }
+  return [...terms];
 }
 
 /**
- * PostgREST-Filter: jedes Suchwort muss in mind. einem Feld vorkommen.
- * „Max Mustermann“ matcht so getrennte Vor-/Nachnamenspalten.
+ * Breite OR-Filter über Felder × typotolerante Terme — liefert Kandidaten,
+ * die danach mit Fuzzy nachgeschärft werden.
  */
-function tokenFieldsFilter(fields: readonly string[], query: string): string {
+function broadFieldsOrFilter(
+  fields: readonly string[],
+  query: string,
+): string {
   const tokens = splitSearchTokens(query);
-  const effective = tokens.length > 0 ? tokens : [query.trim()].filter(Boolean);
-  if (effective.length === 0) return "";
-  if (effective.length === 1) {
-    return tokenOrClause(fields, effective[0]!);
+  const terms = new Set<string>();
+  for (const token of tokens.length > 0 ? tokens : [query.trim()]) {
+    for (const term of typoTolerantTerms(token)) {
+      terms.add(term);
+    }
   }
-  const andParts = effective.map(
-    (token) => `or(${tokenOrClause(fields, token)})`,
-  );
-  return `and(${andParts.join(",")})`;
+  const clauses: string[] = [];
+  for (const term of terms) {
+    const pattern = ilikePattern(term);
+    for (const field of fields) {
+      clauses.push(`${field}.ilike."${pattern}"`);
+    }
+  }
+  return clauses.join(",");
+}
+
+function pickFuzzyMatches<T>(
+  rows: T[],
+  query: string,
+  haystack: (row: T) => string,
+  limit: number,
+): T[] {
+  const exact: T[] = [];
+  const fuzzy: T[] = [];
+  for (const row of rows) {
+    const text = haystack(row);
+    if (textIncludesQueryExact(text, query)) {
+      exact.push(row);
+    } else if (fuzzyTextMatchesQuery(text, query)) {
+      fuzzy.push(row);
+    }
+  }
+  return [...exact, ...fuzzy].slice(0, limit);
 }
 
 function formatDeDate(
@@ -185,18 +231,26 @@ function makeItem(
 async function searchMenu(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
 ): Promise<DashboardGlobalSearchResultItem[]> {
+  const filter = broadFieldsOrFilter(["name"], query);
   const { data } = await sb
     .from("menu_items")
     .select("id, name, price, is_active")
     .eq("restaurant_id", restaurantId)
-    .ilike("name", pattern)
+    .or(filter)
     .order("name", { ascending: true })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) =>
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) => row.name,
+    limit,
+  );
+
+  return matched.map((row) =>
     makeItem(
       "menu",
       row.id,
@@ -224,7 +278,7 @@ async function searchReservations(
     "guest_phone",
   ] as const;
   const tokens = splitSearchTokens(query);
-  const nameFilter = tokenFieldsFilter(nameFields, query);
+  const nameFilter = broadFieldsOrFilter(nameFields, query);
   const numeric = query.replace(/\D/g, "");
   const reservationNumber =
     numeric.length >= 2 && tokens.length === 1
@@ -240,14 +294,33 @@ async function searchReservations(
   const { data } = await sb
     .from("reservations")
     .select(
-      "id, guest_first_name, guest_last_name, guest_name, starts_at, party_size, reservation_number",
+      "id, guest_first_name, guest_last_name, guest_name, guest_email, guest_phone, starts_at, party_size, reservation_number",
     )
     .eq("restaurant_id", restaurantId)
     .or(filters)
     .order("starts_at", { ascending: false })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) => {
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) => {
+      const guest =
+        row.guest_name?.trim() ||
+        `${row.guest_first_name} ${row.guest_last_name}`.trim();
+      return [
+        guest,
+        row.guest_email,
+        row.guest_phone,
+        String(row.reservation_number ?? ""),
+      ]
+        .filter(Boolean)
+        .join(" ");
+    },
+    limit,
+  );
+
+  return matched.map((row) => {
     const guest =
       row.guest_name?.trim() ||
       `${row.guest_first_name} ${row.guest_last_name}`.trim();
@@ -270,11 +343,21 @@ async function searchContacts(
     .from("contacts")
     .select("id, first_name, last_name, company, last_interaction_at")
     .eq("restaurant_id", restaurantId)
-    .or(tokenFieldsFilter(["first_name", "last_name", "company"], query))
+    .or(broadFieldsOrFilter(["first_name", "last_name", "company"], query))
     .order("last_interaction_at", { ascending: false, nullsFirst: false })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) => {
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) =>
+      [`${row.first_name} ${row.last_name}`.trim(), row.company]
+        .filter(Boolean)
+        .join(" "),
+    limit,
+  );
+
+  return matched.map((row) => {
     const name = `${row.first_name} ${row.last_name}`.trim();
     const subtitle =
       row.company?.trim() ||
@@ -287,7 +370,7 @@ async function searchContacts(
 async function searchReviews(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
@@ -295,11 +378,19 @@ async function searchReviews(
     .from("gwada_reviews")
     .select("id, guest_display_name, comment, rating, created_at")
     .eq("restaurant_id", restaurantId)
-    .or(`guest_display_name.ilike."${pattern}",comment.ilike."${pattern}"`)
+    .or(broadFieldsOrFilter(["guest_display_name", "comment"], query))
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) => {
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) =>
+      [row.guest_display_name, row.comment].filter(Boolean).join(" "),
+    limit,
+  );
+
+  return matched.map((row) => {
     const title = row.guest_display_name?.trim() || "Gast";
     const comment = row.comment?.trim();
     const subtitle = [
@@ -319,15 +410,25 @@ async function searchStaff(
   query: string,
   limit: number,
 ): Promise<DashboardGlobalSearchResultItem[]> {
+  // Volle Liste: Tippfehler am Wortanfang wären sonst oft unsichtbar für ilike.
   const { data } = await sb
     .from("restaurant_staff")
     .select("id, given_name, family_name, email, is_active")
     .eq("restaurant_id", restaurantId)
-    .or(tokenFieldsFilter(["given_name", "family_name", "email"], query))
     .order("given_name", { ascending: true })
-    .limit(limit);
+    .limit(STAFF_FUZZY_FETCH_LIMIT);
 
-  return (data ?? []).map((row) => {
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) =>
+      [`${row.given_name} ${row.family_name}`.trim(), row.email]
+        .filter(Boolean)
+        .join(" "),
+    limit,
+  );
+
+  return matched.map((row) => {
     const title = `${row.given_name} ${row.family_name}`.trim();
     const subtitle = row.is_active
       ? row.email?.trim() || null
@@ -339,18 +440,25 @@ async function searchStaff(
 async function searchInventory(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const { data } = await sb
     .from("inventory_ingredients")
     .select("id, name, current_stock, unit, is_active")
     .eq("restaurant_id", restaurantId)
-    .ilike("name", pattern)
+    .or(broadFieldsOrFilter(["name"], query))
     .order("name", { ascending: true })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) =>
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) => row.name,
+    limit,
+  );
+
+  return matched.map((row) =>
     makeItem(
       "inventory",
       row.id,
@@ -365,7 +473,7 @@ async function searchInventory(
 async function searchDocuments(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
@@ -373,11 +481,18 @@ async function searchDocuments(
     .from("restaurant_documents")
     .select("id, title, file_name, updated_at")
     .eq("restaurant_id", restaurantId)
-    .or(`title.ilike."${pattern}",file_name.ilike."${pattern}"`)
+    .or(broadFieldsOrFilter(["title", "file_name"], query))
     .order("updated_at", { ascending: false })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) =>
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) => [row.title, row.file_name].filter(Boolean).join(" "),
+    limit,
+  );
+
+  return matched.map((row) =>
     makeItem(
       "documents",
       row.id,
@@ -390,7 +505,7 @@ async function searchDocuments(
 async function searchNews(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
@@ -398,11 +513,18 @@ async function searchNews(
     .from("gwada_news_posts")
     .select("id, title, status, published_at, created_at")
     .eq("restaurant_id", restaurantId)
-    .ilike("title", pattern)
+    .or(broadFieldsOrFilter(["title"], query))
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) =>
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) => row.title ?? "",
+    limit,
+  );
+
+  return matched.map((row) =>
     makeItem(
       "news",
       row.id,
@@ -417,7 +539,7 @@ async function searchNews(
 async function searchEvents(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
@@ -425,11 +547,18 @@ async function searchEvents(
     .from("gwada_events")
     .select("id, title, status, start_at")
     .eq("restaurant_id", restaurantId)
-    .ilike("title", pattern)
+    .or(broadFieldsOrFilter(["title"], query))
     .order("start_at", { ascending: false })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) =>
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) => row.title ?? "",
+    limit,
+  );
+
+  return matched.map((row) =>
     makeItem(
       "events",
       row.id,
@@ -444,68 +573,105 @@ async function searchEvents(
 async function searchAccounting(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
-  const perTable = Math.max(3, Math.ceil(limit / 2));
+  const perTable = Math.max(
+    FUZZY_CANDIDATE_LIMIT / 2,
+    Math.ceil(FUZZY_CANDIDATE_LIMIT / 2),
+  );
+  const invoiceFilter = broadFieldsOrFilter(
+    ["voucher_number", "recipient_snapshot->>name"],
+    query,
+  );
+  const voucherFilter = broadFieldsOrFilter(
+    ["voucher_number", "contact_name"],
+    query,
+  );
   const [invoices, vouchers] = await Promise.all([
     sb
       .from("accounting_invoices")
       .select("id, voucher_number, status, recipient_snapshot, voucher_date")
       .eq("restaurant_id", restaurantId)
-      .or(
-        `voucher_number.ilike."${pattern}",recipient_snapshot->>name.ilike."${pattern}"`,
-      )
+      .or(invoiceFilter)
       .order("voucher_date", { ascending: false })
       .limit(perTable),
     sb
       .from("accounting_vouchers")
       .select("id, voucher_number, status, contact_name, voucher_date")
       .eq("restaurant_id", restaurantId)
-      .or(`voucher_number.ilike."${pattern}",contact_name.ilike."${pattern}"`)
+      .or(voucherFilter)
       .order("voucher_date", { ascending: false })
       .limit(perTable),
   ]);
 
-  const items: DashboardGlobalSearchResultItem[] = [];
+  type AccRow = {
+    kind: "invoice" | "voucher";
+    id: string;
+    voucher_number: string;
+    status: string;
+    voucher_date: string | null;
+    recipient?: string | null;
+    contact_name?: string | null;
+  };
 
-  for (const row of invoices.data ?? []) {
-    const recipient = (
-      row.recipient_snapshot as { name?: string | null } | null
-    )?.name?.trim();
-    items.push(
-      makeItem(
-        "accounting",
-        row.id,
-        `Rechnung ${row.voucher_number}`,
-        [recipient, row.status, formatDeDate(row.voucher_date, timeZone)]
-          .filter(Boolean)
-          .join(" · "),
-      ),
-    );
-  }
+  const rows: AccRow[] = [
+    ...(invoices.data ?? []).map((row) => ({
+      kind: "invoice" as const,
+      id: row.id as string,
+      voucher_number: row.voucher_number as string,
+      status: row.status as string,
+      voucher_date: row.voucher_date as string | null,
+      recipient: (
+        row.recipient_snapshot as { name?: string | null } | null
+      )?.name?.trim(),
+    })),
+    ...(vouchers.data ?? []).map((row) => ({
+      kind: "voucher" as const,
+      id: row.id as string,
+      voucher_number: row.voucher_number as string,
+      status: row.status as string,
+      voucher_date: row.voucher_date as string | null,
+      contact_name: row.contact_name as string | null,
+    })),
+  ];
 
-  for (const row of vouchers.data ?? []) {
-    items.push(
-      makeItem(
-        "accounting",
-        row.id,
-        `Beleg ${row.voucher_number}`,
-        [row.contact_name, row.status, formatDeDate(row.voucher_date, timeZone)]
-          .filter(Boolean)
-          .join(" · "),
-      ),
-    );
-  }
+  const matched = pickFuzzyMatches(
+    rows,
+    query,
+    (row) =>
+      [
+        row.voucher_number,
+        row.kind === "invoice" ? row.recipient : row.contact_name,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    limit,
+  );
 
-  return items.slice(0, limit);
+  return matched.map((row) =>
+    makeItem(
+      "accounting",
+      row.id,
+      row.kind === "invoice"
+        ? `Rechnung ${row.voucher_number}`
+        : `Beleg ${row.voucher_number}`,
+      [
+        row.kind === "invoice" ? row.recipient : row.contact_name,
+        row.status,
+        formatDeDate(row.voucher_date, timeZone),
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    ),
+  );
 }
 
 async function searchGallery(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
@@ -513,11 +679,18 @@ async function searchGallery(
     .from("gwada_gallery_items")
     .select("id, title, caption, category, created_at")
     .eq("restaurant_id", restaurantId)
-    .or(`title.ilike."${pattern}",caption.ilike."${pattern}"`)
+    .or(broadFieldsOrFilter(["title", "caption"], query))
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) =>
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) => [row.title, row.caption].filter(Boolean).join(" "),
+    limit,
+  );
+
+  return matched.map((row) =>
     makeItem(
       "gallery",
       row.id,
@@ -530,7 +703,7 @@ async function searchGallery(
 async function searchStaffTodos(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const { data } = await sb
@@ -538,11 +711,18 @@ async function searchStaffTodos(
     .select("id, title, priority, description")
     .eq("restaurant_id", restaurantId)
     .is("archived_at", null)
-    .ilike("title", pattern)
+    .or(broadFieldsOrFilter(["title", "description"], query))
     .order("updated_at", { ascending: false })
-    .limit(limit);
+    .limit(FUZZY_CANDIDATE_LIMIT);
 
-  return (data ?? []).map((row) =>
+  const matched = pickFuzzyMatches(
+    data ?? [],
+    query,
+    (row) => [row.title, row.description].filter(Boolean).join(" "),
+    limit,
+  );
+
+  return matched.map((row) =>
     makeItem(
       "staff_todos",
       row.id,
@@ -565,30 +745,30 @@ const CATEGORY_SEARCHERS: Record<
   DashboardGlobalSearchCategory,
   CategorySearcher
 > = {
-  menu: (sb, restaurantId, _query, pattern, limit, _timeZone) =>
-    searchMenu(sb, restaurantId, pattern, limit),
+  menu: (sb, restaurantId, query, _pattern, limit, _timeZone) =>
+    searchMenu(sb, restaurantId, query, limit),
   reservations: (sb, restaurantId, query, pattern, limit, timeZone) =>
     searchReservations(sb, restaurantId, query, pattern, limit, timeZone),
   contacts: (sb, restaurantId, query, _pattern, limit, timeZone) =>
     searchContacts(sb, restaurantId, query, limit, timeZone),
-  reviews: (sb, restaurantId, _query, pattern, limit, timeZone) =>
-    searchReviews(sb, restaurantId, pattern, limit, timeZone),
+  reviews: (sb, restaurantId, query, _pattern, limit, timeZone) =>
+    searchReviews(sb, restaurantId, query, limit, timeZone),
   staff: (sb, restaurantId, query, _pattern, limit, _timeZone) =>
     searchStaff(sb, restaurantId, query, limit),
-  inventory: (sb, restaurantId, _query, pattern, limit, _timeZone) =>
-    searchInventory(sb, restaurantId, pattern, limit),
-  documents: (sb, restaurantId, _query, pattern, limit, timeZone) =>
-    searchDocuments(sb, restaurantId, pattern, limit, timeZone),
-  news: (sb, restaurantId, _query, pattern, limit, timeZone) =>
-    searchNews(sb, restaurantId, pattern, limit, timeZone),
-  events: (sb, restaurantId, _query, pattern, limit, timeZone) =>
-    searchEvents(sb, restaurantId, pattern, limit, timeZone),
-  accounting: (sb, restaurantId, _query, pattern, limit, timeZone) =>
-    searchAccounting(sb, restaurantId, pattern, limit, timeZone),
-  gallery: (sb, restaurantId, _query, pattern, limit, timeZone) =>
-    searchGallery(sb, restaurantId, pattern, limit, timeZone),
-  staff_todos: (sb, restaurantId, _query, pattern, limit, _timeZone) =>
-    searchStaffTodos(sb, restaurantId, pattern, limit),
+  inventory: (sb, restaurantId, query, _pattern, limit, _timeZone) =>
+    searchInventory(sb, restaurantId, query, limit),
+  documents: (sb, restaurantId, query, _pattern, limit, timeZone) =>
+    searchDocuments(sb, restaurantId, query, limit, timeZone),
+  news: (sb, restaurantId, query, _pattern, limit, timeZone) =>
+    searchNews(sb, restaurantId, query, limit, timeZone),
+  events: (sb, restaurantId, query, _pattern, limit, timeZone) =>
+    searchEvents(sb, restaurantId, query, limit, timeZone),
+  accounting: (sb, restaurantId, query, _pattern, limit, timeZone) =>
+    searchAccounting(sb, restaurantId, query, limit, timeZone),
+  gallery: (sb, restaurantId, query, _pattern, limit, timeZone) =>
+    searchGallery(sb, restaurantId, query, limit, timeZone),
+  staff_todos: (sb, restaurantId, query, _pattern, limit, _timeZone) =>
+    searchStaffTodos(sb, restaurantId, query, limit),
 };
 
 export async function searchDashboardGlobal(

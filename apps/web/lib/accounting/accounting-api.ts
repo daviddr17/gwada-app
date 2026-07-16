@@ -231,6 +231,8 @@ export async function saveAccountingSettings(
     };
     deductInventoryOnInvoice?: boolean;
     reverseInventoryOnInvoiceCorrection?: boolean;
+    importPosZToCashBook?: boolean;
+    pushPosZToLexoffice?: boolean;
     documentDesign?: import("@/lib/types/accounting-settings").AccountingDocumentDesign;
     invoiceNumberPrefix?: string;
     invoiceCorrectionNumberPrefix?: string;

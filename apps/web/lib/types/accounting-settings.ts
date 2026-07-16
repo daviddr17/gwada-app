@@ -49,6 +49,10 @@ export type AccountingSettingsRow = {
   auto_sync_lexoffice: boolean;
   deduct_inventory_on_invoice: boolean;
   reverse_inventory_on_invoice_correction: boolean;
+  /** POS-Z → Gwada-Kassenbuch (opt-in). */
+  import_pos_z_to_cash_book: boolean;
+  /** POS-Z → Lexoffice Verkaufsbeleg (opt-in, nur mit Lexoffice). */
+  push_pos_z_to_lexoffice: boolean;
   document_design: AccountingDocumentDesign;
   invoice_number_prefix: string;
   quotation_number_prefix: string;

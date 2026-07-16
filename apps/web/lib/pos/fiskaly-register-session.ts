@@ -14,6 +14,24 @@ import {
 import { fetchPlatformFiskalySecretsAdmin } from "@/lib/supabase/platform-fiskaly-secrets-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+async function schedulePosZAccountingImport(params: {
+  restaurantId: string;
+  sessionId: string;
+  actorUserId?: string | null;
+}): Promise<void> {
+  try {
+    const { postPosRegisterSessionToAccounting } = await import(
+      "@/lib/accounting/accounting-pos-z-import-server"
+    );
+    const result = await postPosRegisterSessionToAccounting(params);
+    if (result.error) {
+      console.warn("[pos] Z→Buchführung Import:", result.error);
+    }
+  } catch (e) {
+    console.error("[pos] Z→Buchführung Import fehlgeschlagen", e);
+  }
+}
+
 export type RegisterSessionResult =
   | {
       ok: true;
@@ -289,6 +307,13 @@ export async function closeRegisterSession(
   if (saveError) {
     return { ok: false, error: saveError.message, status: 500 };
   }
+
+  // Opt-in Buchführung/Lexoffice — Fehler blockieren den Z-Abschluss nicht.
+  void schedulePosZAccountingImport({
+    restaurantId,
+    sessionId: session.id,
+    actorUserId: params.closedByProfileId ?? null,
+  });
 
   return {
     ok: true,

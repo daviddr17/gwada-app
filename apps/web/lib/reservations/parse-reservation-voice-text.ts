@@ -11,9 +11,23 @@ export type ParsedReservationVoice = {
   rawName: string;
 };
 
+export type ReservationVoiceMissingField = "partySize" | "dateYmd" | "timeHm";
+
+/** Teil- oder Voll-Ergebnis — fehlende Pflichtfelder werden nachgefragt. */
+export type ReservationVoiceDraft = {
+  guestFirstName: string;
+  guestLastName: string;
+  partySize: number | null;
+  dateYmd: string | null;
+  timeHm: string | null;
+  rawName: string;
+  rawTranscript: string;
+  missing: ReservationVoiceMissingField[];
+};
+
 export type ParseReservationVoiceResult =
   | { ok: true; parsed: ParsedReservationVoice }
-  | { ok: false; error: string };
+  | { ok: false; error: string; draft?: ReservationVoiceDraft };
 
 const WORD_NUM: Record<string, number> = {
   eins: 1,
@@ -337,59 +351,136 @@ function splitGuestName(raw: string): {
   };
 }
 
+function buildDraftFromText(
+  input: string,
+  options?: { referenceDate?: Date },
+): ReservationVoiceDraft {
+  const ref = options?.referenceDate ?? new Date();
+  const rawTranscript = normalizeText(input);
+  let text = stripPrefixes(rawTranscript);
+
+  let partySize: number | null = null;
+  let dateYmd: string | null = null;
+  let timeHm: string | null = null;
+
+  const party = parsePartySize(text);
+  if (party) {
+    partySize = party.size;
+    text = party.rest;
+  }
+
+  const date = parseDateYmd(text, ref);
+  if (date) {
+    dateYmd = date.ymd;
+    text = date.rest;
+  }
+
+  const time = parseTimeHm(text);
+  if (time) {
+    timeHm = time.hm;
+    text = time.rest;
+  }
+
+  const { guestFirstName, guestLastName, rawName } = splitGuestName(text);
+  const missing: ReservationVoiceMissingField[] = [];
+  if (partySize == null) missing.push("partySize");
+  if (!dateYmd) missing.push("dateYmd");
+  if (!timeHm) missing.push("timeHm");
+
+  return {
+    guestFirstName,
+    guestLastName,
+    partySize,
+    dateYmd,
+    timeHm,
+    rawName,
+    rawTranscript,
+    missing,
+  };
+}
+
+export function reservationVoiceDraftToParsed(
+  draft: ReservationVoiceDraft,
+): ParsedReservationVoice | null {
+  if (
+    draft.partySize == null ||
+    !draft.dateYmd ||
+    !draft.timeHm ||
+    draft.missing.length > 0
+  ) {
+    return null;
+  }
+  return {
+    guestFirstName: draft.guestFirstName,
+    guestLastName: draft.guestLastName,
+    partySize: draft.partySize,
+    dateYmd: draft.dateYmd,
+    timeHm: draft.timeHm,
+    rawName: draft.rawName,
+  };
+}
+
+export function mergeReservationVoiceDrafts(
+  base: ReservationVoiceDraft,
+  incoming: ReservationVoiceDraft,
+): ReservationVoiceDraft {
+  const guestFirstName =
+    incoming.guestFirstName.trim() || base.guestFirstName;
+  const guestLastName = incoming.guestLastName.trim() || base.guestLastName;
+  const rawName =
+    [guestFirstName, guestLastName].filter(Boolean).join(" ") ||
+    incoming.rawName ||
+    base.rawName;
+  const partySize = incoming.partySize ?? base.partySize;
+  const dateYmd = incoming.dateYmd ?? base.dateYmd;
+  const timeHm = incoming.timeHm ?? base.timeHm;
+  const missing: ReservationVoiceMissingField[] = [];
+  if (partySize == null) missing.push("partySize");
+  if (!dateYmd) missing.push("dateYmd");
+  if (!timeHm) missing.push("timeHm");
+  const rawTranscript = [base.rawTranscript, incoming.rawTranscript]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    guestFirstName,
+    guestLastName,
+    partySize,
+    dateYmd,
+    timeHm,
+    rawName,
+    rawTranscript,
+    missing,
+  };
+}
+
 export function parseReservationVoiceText(
   input: string,
   options?: { referenceDate?: Date },
 ): ParseReservationVoiceResult {
-  const ref = options?.referenceDate ?? new Date();
-  let text = stripPrefixes(normalizeText(input));
-  if (!text) {
+  const draft = buildDraftFromText(input, options);
+  if (!draft.rawTranscript) {
     return {
       ok: false,
       error: "Kein Text erkannt. Bitte Name, Personen, Datum und Uhrzeit nennen.",
+      draft,
     };
   }
 
-  const party = parsePartySize(text);
-  if (!party) {
-    return {
-      ok: false,
-      error: "Personenzahl fehlt (z. B. „3 Personen“ oder „für 3“).",
-    };
+  const parsed = reservationVoiceDraftToParsed(draft);
+  if (parsed) {
+    return { ok: true, parsed };
   }
-  text = party.rest;
 
-  const date = parseDateYmd(text, ref);
-  if (!date) {
-    return {
-      ok: false,
-      error:
-        "Datum fehlt (z. B. „heute“, „18.7.“, „18. Juli“ — Jahr optional, sonst aktuelles Jahr).",
-    };
-  }
-  text = date.rest;
-
-  const time = parseTimeHm(text);
-  if (!time) {
-    return {
-      ok: false,
-      error: "Uhrzeit fehlt (z. B. „19 Uhr“, „19:00“ oder „19 30“).",
-    };
-  }
-  text = time.rest;
-
-  const { guestFirstName, guestLastName, rawName } = splitGuestName(text);
-
+  const labels: Record<ReservationVoiceMissingField, string> = {
+    partySize: "Personenzahl",
+    dateYmd: "Datum",
+    timeHm: "Uhrzeit",
+  };
+  const missingLabel = draft.missing.map((key) => labels[key]).join(", ");
   return {
-    ok: true,
-    parsed: {
-      guestFirstName,
-      guestLastName,
-      partySize: party.size,
-      dateYmd: date.ymd,
-      timeHm: time.hm,
-      rawName,
-    },
+    ok: false,
+    error: `Noch unvollständig: ${missingLabel}.`,
+    draft,
   };
 }
 
@@ -401,24 +492,66 @@ export function parseReservationVoiceTextWithAlternatives(
 ): ParseReservationVoiceResult {
   const tried = new Set<string>();
   const candidates = [primary, ...alternatives];
+  let bestIncomplete: ParseReservationVoiceResult | null = null;
 
-  for (const raw of candidates) {
-    const text = normalizeText(raw);
-    if (!text || tried.has(text)) continue;
+  const consider = (text: string) => {
+    if (!text || tried.has(text)) return null;
     tried.add(text);
     const result = parseReservationVoiceText(text, options);
     if (result.ok) return result;
+    const filled =
+      (result.draft?.partySize != null ? 1 : 0) +
+      (result.draft?.dateYmd ? 1 : 0) +
+      (result.draft?.timeHm ? 1 : 0);
+    const bestFilled =
+      (bestIncomplete && !bestIncomplete.ok
+        ? (bestIncomplete.draft?.partySize != null ? 1 : 0) +
+          (bestIncomplete.draft?.dateYmd ? 1 : 0) +
+          (bestIncomplete.draft?.timeHm ? 1 : 0)
+        : -1);
+    if (filled > bestFilled) bestIncomplete = result;
+    return null;
+  };
+
+  for (const raw of candidates) {
+    const hit = consider(normalizeText(raw));
+    if (hit?.ok) return hit;
   }
 
   for (const raw of candidates) {
-    const text = normalizeSpokenReservationText(raw);
-    if (!text || tried.has(text)) continue;
-    tried.add(text);
-    const result = parseReservationVoiceText(text, options);
-    if (result.ok) return result;
+    const hit = consider(normalizeSpokenReservationText(raw));
+    if (hit?.ok) return hit;
   }
 
-  return parseReservationVoiceText(primary, options);
+  return bestIncomplete ?? parseReservationVoiceText(primary, options);
+}
+
+export function parseReservationVoiceDraftWithAlternatives(
+  primary: string,
+  alternatives: string[] = [],
+  options?: { referenceDate?: Date },
+): ReservationVoiceDraft {
+  const result = parseReservationVoiceTextWithAlternatives(
+    primary,
+    alternatives,
+    options,
+  );
+  if (result.ok) {
+    return {
+      guestFirstName: result.parsed.guestFirstName,
+      guestLastName: result.parsed.guestLastName,
+      partySize: result.parsed.partySize,
+      dateYmd: result.parsed.dateYmd,
+      timeHm: result.parsed.timeHm,
+      rawName: result.parsed.rawName,
+      rawTranscript: normalizeText(primary),
+      missing: [],
+    };
+  }
+  return (
+    result.draft ??
+    buildDraftFromText(primary, options)
+  );
 }
 
 export function formatParsedReservationVoiceLabel(

@@ -29,7 +29,8 @@ type BrowserSpeechRecognition = {
   stop: () => void;
 };
 
-const SAFARI_FINALIZE_MS = 750;
+/** Pause nach dem letzten Ergebnis, bevor die Aufnahme abgeschlossen wird. */
+const SILENCE_FINALIZE_MS = 2200;
 
 let sharedIosRecognition: BrowserSpeechRecognition | null = null;
 let heldMicStream: MediaStream | null = null;
@@ -287,7 +288,8 @@ function createRecognition(
   recognition.lang = lang;
   recognition.interimResults = true;
   recognition.maxAlternatives = 5;
-  recognition.continuous = isIosWebKitBrowser();
+  // Continuous: nicht nach dem ersten finalen Chunk abbrechen (Chrome).
+  recognition.continuous = true;
 
   if (shouldReuseIosRecognitionSingleton()) {
     sharedIosRecognition = recognition;
@@ -323,12 +325,17 @@ function preloadIosRecognition(Ctor: SpeechRecognitionCtor, lang: string): void 
   }
 }
 
+export type SpeechStopMode = "flush" | "discard";
+
 export function useSpeechRecognition(params?: {
   lang?: string;
   onFinal?: (transcript: string, alternatives?: string[]) => void;
   onError?: (message: string) => void;
+  /** Stille nach letztem Ergebnis, bevor abgeschlossen wird (ms). */
+  silenceFinalizeMs?: number;
 }) {
   const lang = params?.lang ?? "de-DE";
+  const silenceFinalizeMs = params?.silenceFinalizeMs ?? SILENCE_FINALIZE_MS;
   const onFinalRef = useRef(params?.onFinal);
   const onErrorRef = useRef(params?.onError);
   onFinalRef.current = params?.onFinal;
@@ -338,43 +345,27 @@ export function useSpeechRecognition(params?: {
   const [interim, setInterim] = useState("");
   const [supported] = useState(() => speechRecognitionUsable());
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
-  const safariFinalizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+  const silenceFinalizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const safariAudioEndedRef = useRef(false);
   const sessionDeliveredRef = useRef(false);
   const latestResultsEventRef = useRef<SpeechResultEvent | null>(null);
   const lastHeardTranscriptRef = useRef("");
+  const lastAlternativesRef = useRef<string[]>([]);
+  const intentionalStopRef = useRef(false);
 
-  const clearSafariFinalizeTimer = useCallback(() => {
-    if (safariFinalizeTimerRef.current != null) {
-      clearTimeout(safariFinalizeTimerRef.current);
-      safariFinalizeTimerRef.current = null;
+  const clearSilenceFinalizeTimer = useCallback(() => {
+    if (silenceFinalizeTimerRef.current != null) {
+      clearTimeout(silenceFinalizeTimerRef.current);
+      silenceFinalizeTimerRef.current = null;
     }
   }, []);
 
-  const stop = useCallback(() => {
-    clearSafariFinalizeTimer();
-    const recognition = recognitionRef.current;
-    if (recognition) {
-      stopSafariRecognition(recognition);
-    }
-    recognitionRef.current = null;
-    if (isStandalonePwaClient() && isIosWebKitBrowser()) {
-      sharedIosRecognition = null;
-    }
-    safariAudioEndedRef.current = false;
-    sessionDeliveredRef.current = false;
-    latestResultsEventRef.current = null;
-    lastHeardTranscriptRef.current = "";
-    releaseHeldMicrophone();
-    setListening(false);
-  }, [clearSafariFinalizeTimer]);
-
   const deliverFinalTranscript = useCallback(
     (transcript: string, alternatives?: string[]) => {
+      if (sessionDeliveredRef.current) return;
       if (!transcript) {
-        onErrorRef.current?.(speechRecognitionErrorMessage("no-speech"));
+        // Kein Toast bei leerem Stop — vermeidet „jede 2. Aufnahme“-Fehler.
         return;
       }
       sessionDeliveredRef.current = true;
@@ -384,34 +375,90 @@ export function useSpeechRecognition(params?: {
     [],
   );
 
-  const scheduleSafariFinalize = useCallback(
+  const readBestHeard = useCallback((): {
+    transcript: string;
+    alternatives: string[];
+  } => {
+    const ev = latestResultsEventRef.current;
+    if (ev) {
+      const best = extractBestTranscript(ev);
+      if (best.transcript) return best;
+    }
+    const fallback = lastHeardTranscriptRef.current.trim();
+    return {
+      transcript: fallback,
+      alternatives: lastAlternativesRef.current,
+    };
+  }, []);
+
+  const finishRecognition = useCallback(
+    (mode: SpeechStopMode) => {
+      clearSilenceFinalizeTimer();
+      const recognition = recognitionRef.current;
+      intentionalStopRef.current = true;
+      if (recognition) {
+        stopSafariRecognition(recognition);
+      }
+      recognitionRef.current = null;
+      if (isStandalonePwaClient() && isIosWebKitBrowser()) {
+        sharedIosRecognition = null;
+      }
+
+      const heard = readBestHeard();
+      releaseHeldMicrophone();
+      setListening(false);
+      setInterim("");
+
+      if (mode === "flush") {
+        deliverFinalTranscript(
+          heard.transcript,
+          heard.alternatives.length > 0 ? heard.alternatives : undefined,
+        );
+      }
+
+      latestResultsEventRef.current = null;
+      lastHeardTranscriptRef.current = "";
+      lastAlternativesRef.current = [];
+      window.setTimeout(() => {
+        intentionalStopRef.current = false;
+      }, 0);
+    },
+    [clearSilenceFinalizeTimer, deliverFinalTranscript, readBestHeard],
+  );
+
+  const stop = useCallback(
+    (mode: SpeechStopMode = "flush") => {
+      finishRecognition(mode);
+    },
+    [finishRecognition],
+  );
+
+  const scheduleSilenceFinalize = useCallback(
     (recognition: BrowserSpeechRecognition) => {
-      const finalize = () => {
-        clearSafariFinalizeTimer();
-        const ev = latestResultsEventRef.current;
-        const { transcript, alternatives } = ev
-          ? extractBestTranscript(ev)
-          : { transcript: lastHeardTranscriptRef.current.trim(), alternatives: [] as string[] };
+      clearSilenceFinalizeTimer();
+      silenceFinalizeTimerRef.current = setTimeout(() => {
+        if (sessionDeliveredRef.current) return;
+        if (recognitionRef.current !== recognition) return;
+        const heard = readBestHeard();
         stopSafariRecognition(recognition);
         recognitionRef.current = null;
-        safariAudioEndedRef.current = false;
         releaseHeldMicrophone();
         setListening(false);
         deliverFinalTranscript(
-          transcript,
-          alternatives.length > 0 ? alternatives : undefined,
+          heard.transcript,
+          heard.alternatives.length > 0 ? heard.alternatives : undefined,
         );
-      };
-
-      if (safariAudioEndedRef.current) {
-        finalize();
-        return;
-      }
-
-      clearSafariFinalizeTimer();
-      safariFinalizeTimerRef.current = setTimeout(finalize, SAFARI_FINALIZE_MS);
+        latestResultsEventRef.current = null;
+        lastHeardTranscriptRef.current = "";
+        lastAlternativesRef.current = [];
+      }, silenceFinalizeMs);
     },
-    [clearSafariFinalizeTimer, deliverFinalTranscript],
+    [
+      clearSilenceFinalizeTimer,
+      deliverFinalTranscript,
+      readBestHeard,
+      silenceFinalizeMs,
+    ],
   );
 
   const startRecognition = useCallback(() => {
@@ -423,32 +470,39 @@ export function useSpeechRecognition(params?: {
       return;
     }
 
-    clearSafariFinalizeTimer();
+    clearSilenceFinalizeTimer();
     const previous = recognitionRef.current;
     if (previous) {
+      intentionalStopRef.current = true;
       stopSafariRecognition(previous);
     }
     recognitionRef.current = null;
     setInterim("");
-    safariAudioEndedRef.current = false;
     sessionDeliveredRef.current = false;
     latestResultsEventRef.current = null;
     lastHeardTranscriptRef.current = "";
+    lastAlternativesRef.current = [];
+    intentionalStopRef.current = false;
 
     const recognition = createRecognition(Ctor, lang);
-    const useSafariWebKitWorkaround =
-      isSafariWebKitBrowser() && !isEmbeddedPreviewBrowser();
 
     recognition.onstart = () => setListening(true);
     recognition.onend = () => {
-      clearSafariFinalizeTimer();
+      clearSilenceFinalizeTimer();
+      if (intentionalStopRef.current) {
+        setListening(false);
+        if (recognitionRef.current === recognition) {
+          recognitionRef.current = null;
+        }
+        return;
+      }
       if (!sessionDeliveredRef.current) {
-        const ev = latestResultsEventRef.current;
-        const transcript = ev
-          ? extractBestTranscript(ev).transcript
-          : lastHeardTranscriptRef.current.trim();
-        if (transcript) {
-          deliverFinalTranscript(transcript);
+        const heard = readBestHeard();
+        if (heard.transcript) {
+          deliverFinalTranscript(
+            heard.transcript,
+            heard.alternatives.length > 0 ? heard.alternatives : undefined,
+          );
         } else {
           releaseHeldMicrophone();
         }
@@ -459,61 +513,57 @@ export function useSpeechRecognition(params?: {
       if (recognitionRef.current === recognition) {
         recognitionRef.current = null;
       }
-      safariAudioEndedRef.current = false;
     };
     recognition.onerror = (ev) => {
       if (ev.error === "aborted") return;
       if (sessionDeliveredRef.current) return;
+      if (intentionalStopRef.current) return;
+
       if (ev.error === "no-speech") {
-        const fallback = lastHeardTranscriptRef.current.trim();
-        if (fallback) {
-          clearSafariFinalizeTimer();
+        const fallback = readBestHeard();
+        if (fallback.transcript) {
+          clearSilenceFinalizeTimer();
           stopSafariRecognition(recognition);
           recognitionRef.current = null;
-          safariAudioEndedRef.current = false;
           releaseHeldMicrophone();
           setListening(false);
-          deliverFinalTranscript(fallback);
+          deliverFinalTranscript(
+            fallback.transcript,
+            fallback.alternatives.length > 0
+              ? fallback.alternatives
+              : undefined,
+          );
           return;
         }
+        // Leeres no-speech: still beenden, ohne Toast (häufig bei Neustart).
+        clearSilenceFinalizeTimer();
+        recognitionRef.current = null;
+        releaseHeldMicrophone();
+        setListening(false);
+        setInterim("");
+        return;
       }
+
       onErrorRef.current?.(speechRecognitionErrorMessage(ev.error));
       setInterim("");
       releaseHeldMicrophone();
       setListening(false);
     };
 
-    if (useSafariWebKitWorkaround) {
-      recognition.onaudioend = () => {
-        safariAudioEndedRef.current = true;
-      };
-    }
-
     recognition.onresult = (ev) => {
       latestResultsEventRef.current = ev;
       const interimText = extractInterimTranscript(ev);
-      const best = extractBestTranscript(ev).transcript;
+      const best = extractBestTranscript(ev);
       if (interimText) setInterim(interimText);
-      else if (best) setInterim(best);
+      else if (best.transcript) setInterim(best.transcript);
 
-      if (best) lastHeardTranscriptRef.current = best;
-
-      if (useSafariWebKitWorkaround) {
-        scheduleSafariFinalize(recognition);
-        return;
+      if (best.transcript) {
+        lastHeardTranscriptRef.current = best.transcript;
+        lastAlternativesRef.current = best.alternatives;
       }
 
-      const { transcript, alternatives } = extractFinalWithAlternatives(ev);
-      if (transcript) {
-        stopSafariRecognition(recognition);
-        recognitionRef.current = null;
-        releaseHeldMicrophone();
-        setListening(false);
-        deliverFinalTranscript(
-          transcript,
-          alternatives.length > 0 ? alternatives : undefined,
-        );
-      }
+      // Nicht beim ersten Final abbrechen — auf Stille warten.
+      scheduleSilenceFinalize(recognition);
     };
 
     recognitionRef.current = recognition;
@@ -525,11 +575,11 @@ export function useSpeechRecognition(params?: {
       setListening(false);
     }
   }, [
-    clearSafariFinalizeTimer,
+    clearSilenceFinalizeTimer,
     deliverFinalTranscript,
     lang,
-    scheduleSafariFinalize,
-    stop,
+    readBestHeard,
+    scheduleSilenceFinalize,
   ]);
 
   const start = useCallback(() => {
@@ -576,11 +626,11 @@ export function useSpeechRecognition(params?: {
     })();
   }, [lang, startRecognition]);
 
-  useEffect(() => () => stop(), [stop]);
+  useEffect(() => () => stop("discard"), [stop]);
 
   useEffect(() => {
     const onHide = () => {
-      if (document.hidden) stop();
+      if (document.hidden) stop("discard");
     };
     document.addEventListener("visibilitychange", onHide);
     return () => document.removeEventListener("visibilitychange", onHide);
@@ -591,6 +641,7 @@ export function useSpeechRecognition(params?: {
     listening,
     interim,
     start,
+    /** Standard: flush — gehörten Text noch ausliefern (Mic-Stop / Tippen). */
     stop,
   };
 }

@@ -4,6 +4,7 @@ import { Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { ReservationVoiceCompleteSheet } from "@/components/reservations/reservation-voice-complete-sheet";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
@@ -13,6 +14,7 @@ import {
   formatParsedReservationVoiceLabel,
   parseReservationVoiceTextWithAlternatives,
   type ParsedReservationVoice,
+  type ReservationVoiceDraft,
 } from "@/lib/reservations/parse-reservation-voice-text";
 import { createReservationFromVoiceParsed } from "@/lib/reservations/reservation-voice-create-client";
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
@@ -32,7 +34,10 @@ export function ReservationVoiceFab() {
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const [mounted, setMounted] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
   const [pending, setPending] = useState<ParsedReservationVoice | null>(null);
+  const [incompleteDraft, setIncompleteDraft] =
+    useState<ReservationVoiceDraft | null>(null);
   const [heardText, setHeardText] = useState("");
   const defaultDwellRef = useRef(120);
 
@@ -49,6 +54,28 @@ export function ReservationVoiceFab() {
     });
   }, [restaurantId]);
 
+  const createFromParsed = useCallback(
+    async (parsed: ParsedReservationVoice) => {
+      if (!restaurantId) return;
+      const result = await createReservationFromVoiceParsed({
+        restaurantId,
+        parsed,
+        defaultDwellMinutes: defaultDwellRef.current,
+        restaurantTimeZone,
+        isSuperadmin,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        throw new Error(result.error);
+      }
+      toast.success(`Reservierung #${result.reservationNumber} angelegt.`);
+      setPending(null);
+      setIncompleteDraft(null);
+      setHeardText("");
+    },
+    [isSuperadmin, restaurantId, restaurantTimeZone],
+  );
+
   const handleFinalTranscript = useCallback(
     (transcript: string, alternatives?: string[]) => {
       setHeardText(transcript);
@@ -56,14 +83,19 @@ export function ReservationVoiceFab() {
         transcript,
         alternatives ?? [],
       );
-      if (!result.ok) {
-        toast.error(result.error, {
-          description: "Beispiel: Max Mustermann, 3 Personen, 18.7., 19 Uhr",
-        });
+      if (result.ok) {
+        setPending(result.parsed);
+        setConfirmOpen(true);
         return;
       }
-      setPending(result.parsed);
-      setConfirmOpen(true);
+      if (result.draft) {
+        setIncompleteDraft(result.draft);
+        setCompleteOpen(true);
+        return;
+      }
+      toast.error(result.error, {
+        description: "Beispiel: Max Mustermann, 3 Personen, 18.7., 19 Uhr",
+      });
     },
     [],
   );
@@ -76,29 +108,17 @@ export function ReservationVoiceFab() {
     lang: "de-DE",
     onFinal: handleFinalTranscript,
     onError: handleSpeechError,
+    silenceFinalizeMs: 2400,
   });
 
   const toggleListening = () => {
-    if (listening) stop();
+    if (listening) stop("flush");
     else start();
   };
 
   const handleConfirm = async () => {
-    if (!restaurantId || !pending) return;
-    const result = await createReservationFromVoiceParsed({
-      restaurantId,
-      parsed: pending,
-      defaultDwellMinutes: defaultDwellRef.current,
-      restaurantTimeZone,
-      isSuperadmin,
-    });
-    if (!result.ok) {
-      toast.error(result.error);
-      throw new Error(result.error);
-    }
-    toast.success(`Reservierung #${result.reservationNumber} angelegt.`);
-    setPending(null);
-    setHeardText("");
+    if (!pending) return;
+    await createFromParsed(pending);
   };
 
   if (!mounted || !ready || !restaurantId || !supported) return null;
@@ -129,6 +149,16 @@ export function ReservationVoiceFab() {
         cancelLabel="Abbrechen"
         destructive={false}
         onConfirm={handleConfirm}
+      />
+
+      <ReservationVoiceCompleteSheet
+        open={completeOpen}
+        onOpenChange={(open) => {
+          setCompleteOpen(open);
+          if (!open) setIncompleteDraft(null);
+        }}
+        initialDraft={incompleteDraft}
+        onConfirm={createFromParsed}
       />
 
       <div

@@ -4,6 +4,7 @@ import { Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { ReservationVoiceCompleteSheet } from "@/components/reservations/reservation-voice-complete-sheet";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { createDisplayReservationFromVoiceParsed } from "@/lib/display/display-reservation-voice-create-client";
@@ -14,6 +15,7 @@ import {
   formatParsedReservationVoiceLabel,
   parseReservationVoiceTextWithAlternatives,
   type ParsedReservationVoice,
+  type ReservationVoiceDraft,
 } from "@/lib/reservations/parse-reservation-voice-text";
 import type { ReservationStatusJoin } from "@/lib/supabase/reservations-db";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
@@ -39,12 +41,47 @@ export function DisplayReservationVoiceButton({
 }: DisplayReservationVoiceButtonProps) {
   const [mounted, setMounted] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
   const [pending, setPending] = useState<ParsedReservationVoice | null>(null);
+  const [incompleteDraft, setIncompleteDraft] =
+    useState<ReservationVoiceDraft | null>(null);
   const [heardText, setHeardText] = useState("");
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const createFromParsed = useCallback(
+    async (parsed: ParsedReservationVoice) => {
+      const result = await createDisplayReservationFromVoiceParsed({
+        parsed,
+        defaultDwellMinutes,
+        bookingTimeStepMinutes,
+        timeZone,
+        statuses,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        throw new Error(result.error);
+      }
+      toast.success(
+        result.reservationNumber
+          ? `Reservierung #${result.reservationNumber} angelegt.`
+          : "Reservierung angelegt.",
+      );
+      onCreated(result.reservation);
+      setPending(null);
+      setIncompleteDraft(null);
+      setHeardText("");
+    },
+    [
+      bookingTimeStepMinutes,
+      defaultDwellMinutes,
+      onCreated,
+      statuses,
+      timeZone,
+    ],
+  );
 
   const handleFinalTranscript = useCallback(
     (transcript: string, alternatives?: string[]) => {
@@ -53,14 +90,19 @@ export function DisplayReservationVoiceButton({
         transcript,
         alternatives ?? [],
       );
-      if (!result.ok) {
-        toast.error(result.error, {
-          description: "Beispiel: Max Mustermann, 3 Personen, 18.7., 19 Uhr",
-        });
+      if (result.ok) {
+        setPending(result.parsed);
+        setConfirmOpen(true);
         return;
       }
-      setPending(result.parsed);
-      setConfirmOpen(true);
+      if (result.draft) {
+        setIncompleteDraft(result.draft);
+        setCompleteOpen(true);
+        return;
+      }
+      toast.error(result.error, {
+        description: "Beispiel: Max Mustermann, 3 Personen, 18.7., 19 Uhr",
+      });
     },
     [],
   );
@@ -73,34 +115,17 @@ export function DisplayReservationVoiceButton({
     lang: "de-DE",
     onFinal: handleFinalTranscript,
     onError: handleSpeechError,
+    silenceFinalizeMs: 2400,
   });
 
   const toggleListening = () => {
-    if (listening) stop();
+    if (listening) stop("flush");
     else start();
   };
 
   const handleConfirm = async () => {
     if (!pending) return;
-    const result = await createDisplayReservationFromVoiceParsed({
-      parsed: pending,
-      defaultDwellMinutes,
-      bookingTimeStepMinutes,
-      timeZone,
-      statuses,
-    });
-    if (!result.ok) {
-      toast.error(result.error);
-      throw new Error(result.error);
-    }
-    toast.success(
-      result.reservationNumber
-        ? `Reservierung #${result.reservationNumber} angelegt.`
-        : "Reservierung angelegt.",
-    );
-    onCreated(result.reservation);
-    setPending(null);
-    setHeardText("");
+    await createFromParsed(pending);
   };
 
   if (!mounted || !supported || statuses.length === 0) return null;
@@ -141,6 +166,16 @@ export function DisplayReservationVoiceButton({
         cancelLabel="Abbrechen"
         destructive={false}
         onConfirm={handleConfirm}
+      />
+
+      <ReservationVoiceCompleteSheet
+        open={completeOpen}
+        onOpenChange={(open) => {
+          setCompleteOpen(open);
+          if (!open) setIncompleteDraft(null);
+        }}
+        initialDraft={incompleteDraft}
+        onConfirm={createFromParsed}
       />
 
       <Button

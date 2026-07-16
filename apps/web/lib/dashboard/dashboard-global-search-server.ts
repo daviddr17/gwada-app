@@ -32,6 +32,7 @@ import {
 } from "@/lib/types/dashboard-global-search";
 import {
   fuzzyTextMatchesQuery,
+  queryAllowsFuzzy,
   textIncludesQueryExact,
 } from "@/lib/utils/fuzzy-search";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -43,10 +44,12 @@ const GALLERY_READ_KEYS: RestaurantPermissionKey[] = [
   "gallery.delete",
 ];
 
-/** Kandidaten vor Fuzzy-Filter — groß genug für leichte Tippfehler. */
-const FUZZY_CANDIDATE_LIMIT = 120;
-/** Mitarbeiter: meist wenige Zeilen → vollständig laden und fuzzy filtern. */
-const STAFF_FUZZY_FETCH_LIMIT = 500;
+/** Kandidaten vor Fuzzy — klein halten für stabile Latenz. */
+const FUZZY_CANDIDATE_LIMIT = 48;
+/** Exakte Kurzsuche: knapp über Ergebnis-Limit. */
+const EXACT_CANDIDATE_LIMIT = 24;
+/** Mitarbeiter-Vollscan nur bei Fuzzy, hart gedeckelt. */
+const STAFF_FUZZY_FETCH_LIMIT = 300;
 
 function escapeIlikeTerm(term: string): string {
   return term
@@ -69,24 +72,46 @@ function splitSearchTokens(query: string): string[] {
     .filter((token) => token.length > 0);
 }
 
-/** Varianten für DB-Kandidaten bei Tippfehlern (Präfix / ohne letztes Zeichen). */
+function tokenOrClause(fields: readonly string[], token: string): string {
+  const pattern = ilikePattern(token);
+  return fields.map((field) => `${field}.ilike."${pattern}"`).join(",");
+}
+
+/**
+ * Enger Filter: jedes Wort muss in mind. einem Feld vorkommen (kein Fuzzy).
+ */
+function strictTokenFieldsFilter(
+  fields: readonly string[],
+  query: string,
+): string {
+  const tokens = splitSearchTokens(query);
+  const effective = tokens.length > 0 ? tokens : [query.trim()].filter(Boolean);
+  if (effective.length === 0) return "";
+  if (effective.length === 1) {
+    return tokenOrClause(fields, effective[0]!);
+  }
+  const andParts = effective.map(
+    (token) => `or(${tokenOrClause(fields, token)})`,
+  );
+  return `and(${andParts.join(",")})`;
+}
+
+/** Wenige DB-Varianten pro Token — genug für Tippfehler, wenig Scan-Breite. */
 function typoTolerantTerms(token: string): string[] {
   const t = token.trim();
   if (t.length < 2) return t ? [t] : [];
   const terms = new Set<string>([t]);
   if (t.length >= 4) {
     terms.add(t.slice(0, -1));
-    terms.add(t.slice(0, Math.max(3, t.length - 2)));
   }
-  if (t.length >= 5) {
-    terms.add(t.slice(0, 3));
+  if (t.length >= 6) {
+    terms.add(t.slice(0, Math.max(4, t.length - 2)));
   }
   return [...terms];
 }
 
 /**
- * Breite OR-Filter über Felder × typotolerante Terme — liefert Kandidaten,
- * die danach mit Fuzzy nachgeschärft werden.
+ * Breite OR-Filter für Fuzzy-Kandidaten (nur wenn Fuzzy aktiv).
  */
 function broadFieldsOrFilter(
   fields: readonly string[],
@@ -109,6 +134,19 @@ function broadFieldsOrFilter(
   return clauses.join(",");
 }
 
+function fieldsFilterForQuery(
+  fields: readonly string[],
+  query: string,
+): string {
+  return queryAllowsFuzzy(query)
+    ? broadFieldsOrFilter(fields, query)
+    : strictTokenFieldsFilter(fields, query);
+}
+
+function candidateLimitForQuery(query: string): number {
+  return queryAllowsFuzzy(query) ? FUZZY_CANDIDATE_LIMIT : EXACT_CANDIDATE_LIMIT;
+}
+
 function pickFuzzyMatches<T>(
   rows: T[],
   query: string,
@@ -117,14 +155,17 @@ function pickFuzzyMatches<T>(
 ): T[] {
   const exact: T[] = [];
   const fuzzy: T[] = [];
+  const allowFuzzy = queryAllowsFuzzy(query);
   for (const row of rows) {
     const text = haystack(row);
     if (textIncludesQueryExact(text, query)) {
       exact.push(row);
-    } else if (fuzzyTextMatchesQuery(text, query)) {
+    } else if (allowFuzzy && fuzzyTextMatchesQuery(text, query)) {
       fuzzy.push(row);
     }
+    if (exact.length >= limit) break;
   }
+  if (exact.length >= limit) return exact.slice(0, limit);
   return [...exact, ...fuzzy].slice(0, limit);
 }
 
@@ -234,14 +275,14 @@ async function searchMenu(
   query: string,
   limit: number,
 ): Promise<DashboardGlobalSearchResultItem[]> {
-  const filter = broadFieldsOrFilter(["name"], query);
+  const filter = fieldsFilterForQuery(["name"], query);
   const { data } = await sb
     .from("menu_items")
     .select("id, name, price, is_active")
     .eq("restaurant_id", restaurantId)
     .or(filter)
     .order("name", { ascending: true })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
@@ -278,7 +319,7 @@ async function searchReservations(
     "guest_phone",
   ] as const;
   const tokens = splitSearchTokens(query);
-  const nameFilter = broadFieldsOrFilter(nameFields, query);
+  const nameFilter = fieldsFilterForQuery(nameFields, query);
   const numeric = query.replace(/\D/g, "");
   const reservationNumber =
     numeric.length >= 2 && tokens.length === 1
@@ -299,7 +340,7 @@ async function searchReservations(
     .eq("restaurant_id", restaurantId)
     .or(filters)
     .order("starts_at", { ascending: false })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
@@ -343,9 +384,9 @@ async function searchContacts(
     .from("contacts")
     .select("id, first_name, last_name, company, last_interaction_at")
     .eq("restaurant_id", restaurantId)
-    .or(broadFieldsOrFilter(["first_name", "last_name", "company"], query))
+    .or(fieldsFilterForQuery(["first_name", "last_name", "company"], query))
     .order("last_interaction_at", { ascending: false, nullsFirst: false })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
@@ -374,19 +415,19 @@ async function searchReviews(
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
+  // Nur Gastname — lange Kommentare wären teuer und unruhig in der Globalsuche.
   const { data } = await sb
     .from("gwada_reviews")
     .select("id, guest_display_name, comment, rating, created_at")
     .eq("restaurant_id", restaurantId)
-    .or(broadFieldsOrFilter(["guest_display_name", "comment"], query))
+    .or(fieldsFilterForQuery(["guest_display_name"], query))
     .order("created_at", { ascending: false })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
     query,
-    (row) =>
-      [row.guest_display_name, row.comment].filter(Boolean).join(" "),
+    (row) => row.guest_display_name?.trim() || "",
     limit,
   );
 
@@ -410,13 +451,23 @@ async function searchStaff(
   query: string,
   limit: number,
 ): Promise<DashboardGlobalSearchResultItem[]> {
-  // Volle Liste: Tippfehler am Wortanfang wären sonst oft unsichtbar für ilike.
-  const { data } = await sb
+  const staffFields = ["given_name", "family_name", "email"] as const;
+  let request = sb
     .from("restaurant_staff")
     .select("id, given_name, family_name, email, is_active")
     .eq("restaurant_id", restaurantId)
-    .order("given_name", { ascending: true })
-    .limit(STAFF_FUZZY_FETCH_LIMIT);
+    .order("given_name", { ascending: true });
+
+  // Fuzzy: begrenzter Vollscan (Tippfehler am Wortanfang). Kurzquery: enger Filter.
+  if (queryAllowsFuzzy(query)) {
+    request = request.limit(STAFF_FUZZY_FETCH_LIMIT);
+  } else {
+    request = request
+      .or(strictTokenFieldsFilter(staffFields, query))
+      .limit(EXACT_CANDIDATE_LIMIT);
+  }
+
+  const { data } = await request;
 
   const matched = pickFuzzyMatches(
     data ?? [],
@@ -447,9 +498,9 @@ async function searchInventory(
     .from("inventory_ingredients")
     .select("id, name, current_stock, unit, is_active")
     .eq("restaurant_id", restaurantId)
-    .or(broadFieldsOrFilter(["name"], query))
+    .or(fieldsFilterForQuery(["name"], query))
     .order("name", { ascending: true })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
@@ -481,9 +532,9 @@ async function searchDocuments(
     .from("restaurant_documents")
     .select("id, title, file_name, updated_at")
     .eq("restaurant_id", restaurantId)
-    .or(broadFieldsOrFilter(["title", "file_name"], query))
+    .or(fieldsFilterForQuery(["title", "file_name"], query))
     .order("updated_at", { ascending: false })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
@@ -513,9 +564,9 @@ async function searchNews(
     .from("gwada_news_posts")
     .select("id, title, status, published_at, created_at")
     .eq("restaurant_id", restaurantId)
-    .or(broadFieldsOrFilter(["title"], query))
+    .or(fieldsFilterForQuery(["title"], query))
     .order("created_at", { ascending: false })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
@@ -547,9 +598,9 @@ async function searchEvents(
     .from("gwada_events")
     .select("id, title, status, start_at")
     .eq("restaurant_id", restaurantId)
-    .or(broadFieldsOrFilter(["title"], query))
+    .or(fieldsFilterForQuery(["title"], query))
     .order("start_at", { ascending: false })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
@@ -577,15 +628,12 @@ async function searchAccounting(
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
-  const perTable = Math.max(
-    FUZZY_CANDIDATE_LIMIT / 2,
-    Math.ceil(FUZZY_CANDIDATE_LIMIT / 2),
-  );
-  const invoiceFilter = broadFieldsOrFilter(
+  const perTable = Math.ceil(candidateLimitForQuery(query) / 2);
+  const invoiceFilter = fieldsFilterForQuery(
     ["voucher_number", "recipient_snapshot->>name"],
     query,
   );
-  const voucherFilter = broadFieldsOrFilter(
+  const voucherFilter = fieldsFilterForQuery(
     ["voucher_number", "contact_name"],
     query,
   );
@@ -675,18 +723,19 @@ async function searchGallery(
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
+  // Titel reicht für Globalsuche — Captions können lang sein.
   const { data } = await sb
     .from("gwada_gallery_items")
     .select("id, title, caption, category, created_at")
     .eq("restaurant_id", restaurantId)
-    .or(broadFieldsOrFilter(["title", "caption"], query))
+    .or(fieldsFilterForQuery(["title"], query))
     .order("created_at", { ascending: false })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
     query,
-    (row) => [row.title, row.caption].filter(Boolean).join(" "),
+    (row) => row.title?.trim() || "",
     limit,
   );
 
@@ -706,19 +755,20 @@ async function searchStaffTodos(
   query: string,
   limit: number,
 ): Promise<DashboardGlobalSearchResultItem[]> {
+  // Nur Titel — Beschreibungen nicht in den Fuzzy-Hot-Path.
   const { data } = await sb
     .from("restaurant_staff_todos")
     .select("id, title, priority, description")
     .eq("restaurant_id", restaurantId)
     .is("archived_at", null)
-    .or(broadFieldsOrFilter(["title", "description"], query))
+    .or(fieldsFilterForQuery(["title"], query))
     .order("updated_at", { ascending: false })
-    .limit(FUZZY_CANDIDATE_LIMIT);
+    .limit(candidateLimitForQuery(query));
 
   const matched = pickFuzzyMatches(
     data ?? [],
     query,
-    (row) => [row.title, row.description].filter(Boolean).join(" "),
+    (row) => row.title?.trim() || "",
     limit,
   );
 

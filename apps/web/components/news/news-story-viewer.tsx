@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { UnifiedNewsStoryRing } from "@/lib/news/unified-news-story";
 import { appMobileBottomSafePbLgClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
+import { acquireAppScrollLock } from "@/lib/layout/app-scroll-root";
 
 const STORY_OPEN_MS = 340;
 const STORY_CLOSE_MS = 280;
@@ -76,14 +77,7 @@ export function NewsStoryViewer({ ring, open, onOpenChange }: Props) {
 
   useEffect(() => {
     if (!mounted) return;
-    const prevOverflow = document.body.style.overflow;
-    const prevOverscroll = document.body.style.overscrollBehavior;
-    document.body.style.overflow = "hidden";
-    document.body.style.overscrollBehavior = "none";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.overscrollBehavior = prevOverscroll;
-    };
+    return acquireAppScrollLock();
   }, [mounted]);
 
   useEffect(() => {

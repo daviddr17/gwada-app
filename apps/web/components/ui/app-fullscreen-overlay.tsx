@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 import { FullscreenOverlayFloatingPortalContext } from "@/lib/contexts/fullscreen-overlay-floating-portal";
 import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { APP_LAYER_Z_INDEX, appLayerFloatingInFullscreenOverlayZClassName } from "@/lib/ui/app-layer-z-index";
+import { acquireAppScrollLock } from "@/lib/layout/app-scroll-root";
 import { cn } from "@/lib/utils";
 
 const APP_FULLSCREEN_OVERLAY_OPEN_MS = 300;
@@ -74,14 +75,7 @@ export function AppFullscreenOverlay({
 
   useEffect(() => {
     if (!mounted) return;
-    const prevOverflow = document.body.style.overflow;
-    const prevOverscroll = document.body.style.overscrollBehavior;
-    document.body.style.overflow = "hidden";
-    document.body.style.overscrollBehavior = "none";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.overscrollBehavior = prevOverscroll;
-    };
+    return acquireAppScrollLock();
   }, [mounted]);
 
   useEffect(() => {

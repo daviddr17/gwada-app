@@ -7,6 +7,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
+import { acquireAppScrollLock } from "@/lib/layout/app-scroll-root";
 import { cn } from "@/lib/utils";
 import {
   APP_LAYER_Z_INDEX,
@@ -84,11 +85,7 @@ export function ContactInboxThreadOverlay({
 
   useEffect(() => {
     if (!mounted) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
+    return acquireAppScrollLock();
   }, [mounted]);
 
   useEffect(() => {

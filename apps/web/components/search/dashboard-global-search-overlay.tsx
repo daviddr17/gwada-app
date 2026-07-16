@@ -44,6 +44,7 @@ import type {
 } from "@/lib/types/dashboard-global-search";
 import { DASHBOARD_GLOBAL_SEARCH_MIN_QUERY_LENGTH } from "@/lib/types/dashboard-global-search";
 import { cn } from "@/lib/utils";
+import { acquireAppScrollLock } from "@/lib/layout/app-scroll-root";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -128,13 +129,10 @@ export function DashboardGlobalSearchOverlay() {
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [open]);
+    // Mobile: AppMobileChromeScreen sperrt bereits via acquireAppScrollLock.
+    if (!open || isMobile) return;
+    return acquireAppScrollLock();
+  }, [open, isMobile]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

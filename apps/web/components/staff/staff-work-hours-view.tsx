@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { StaffCollapsibleCard } from "@/components/staff/staff-collapsible-card";
 import { StaffWorkHoursSkeleton } from "@/components/staff/staff-work-hours-skeleton";
 import { StaffWorkEntryDrawer } from "@/components/staff/staff-work-entry-drawer";
 import {
@@ -36,6 +37,7 @@ import type {
 } from "@/lib/types/staff";
 import { summarizeStaffWorkEntries } from "@/lib/staff/staff-work-hours-summary";
 import {
+  computeStaffPeriodPayrollLines,
   computeStaffPeriodWageSummary,
   formatStaffAvgHourlyWage,
   formatStaffEuroCents,
@@ -57,6 +59,12 @@ import {
 } from "@/lib/types/staff";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import {
+  moduleDataTableHeadCellClassName,
+  moduleDataTableHeadRowClassName,
+  moduleDataTableShellClassName,
+} from "@/lib/ui/module-data-table";
+import { cn } from "@/lib/utils";
 import { STAFF_CONTRACTS_UPDATED_EVENT } from "@/lib/staff/staff-contract-events";
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 
@@ -247,6 +255,18 @@ export function StaffWorkHoursView({
     [entries, contracts, monthStart, monthEnd],
   );
 
+  const payrollLines = useMemo(
+    () =>
+      computeStaffPeriodPayrollLines({
+        entries,
+        contracts,
+        periodStart: monthStart,
+        periodEnd: monthEnd,
+        now: new Date(),
+      }),
+    [entries, contracts, monthStart, monthEnd],
+  );
+
   const staffNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const row of staffList) {
@@ -254,6 +274,11 @@ export function StaffWorkHoursView({
     }
     return map;
   }, [staffList]);
+
+  const payrollWageTotalCents = useMemo(
+    () => payrollLines.reduce((sum, line) => sum + line.wageCents, 0),
+    [payrollLines],
+  );
 
   const drawerStaffId = editEntry?.staff_id ?? staffId ?? null;
 
@@ -329,16 +354,21 @@ export function StaffWorkHoursView({
         <StaffWorkHoursSkeleton />
       ) : (
         <>
-          <Card className="mb-4 border-border/50 shadow-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                Zusammenfassung
-                {staff
-                  ? ` — ${staffFamilyFirstDisplayName(staff)}`
-                  : " — Alle Mitarbeiter"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <StaffCollapsibleCard
+            title={
+              staff
+                ? `Zusammenfassung — ${staffFamilyFirstDisplayName(staff)}`
+                : "Zusammenfassung — Alle Mitarbeiter"
+            }
+            defaultOpen={false}
+            collapsedSummary={
+              <span className="tabular-nums">
+                Netto {summary.netWorkH.toFixed(1)} h · Lohn{" "}
+                {formatStaffEuroCents(wageSummary.totalWageCents)}
+              </span>
+            }
+          >
+            <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <p className="flex items-center gap-2">
                 <StaffWorkEntryTypeStripe
                   color={STAFF_SUMMARY_LOGGED_COLOR}
@@ -438,8 +468,124 @@ export function StaffWorkHoursView({
                   </span>
                 </p>
               ) : null}
-            </CardContent>
-          </Card>
+            </div>
+          </StaffCollapsibleCard>
+
+          <StaffCollapsibleCard
+            title="Abrechnung"
+            defaultOpen={false}
+            collapsedSummary={
+              payrollLines.length === 0 ? (
+                <span>Keine erfassten Arbeitszeiten</span>
+              ) : (
+                <span className="tabular-nums">
+                  {payrollLines.length} Mitarbeiter · Summe{" "}
+                  {formatStaffEuroCents(payrollWageTotalCents)}
+                </span>
+              )
+            }
+          >
+            {payrollLines.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Im gewählten Monat sind keine Arbeitszeiten erfasst.
+              </p>
+            ) : (
+              <div className={cn(moduleDataTableShellClassName, "ring-1 ring-border/40")}>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[36rem] text-sm">
+                    <thead>
+                      <tr className={moduleDataTableHeadRowClassName}>
+                        <th className={moduleDataTableHeadCellClassName}>
+                          Name
+                        </th>
+                        <th
+                          className={cn(
+                            moduleDataTableHeadCellClassName,
+                            "text-right",
+                          )}
+                        >
+                          Eingeloggt
+                        </th>
+                        <th
+                          className={cn(
+                            moduleDataTableHeadCellClassName,
+                            "text-right",
+                          )}
+                        >
+                          Pause
+                        </th>
+                        <th
+                          className={cn(
+                            moduleDataTableHeadCellClassName,
+                            "text-right",
+                          )}
+                        >
+                          Netto
+                        </th>
+                        <th
+                          className={cn(
+                            moduleDataTableHeadCellClassName,
+                            "text-right",
+                          )}
+                        >
+                          Lohn
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payrollLines.map((line) => {
+                        const name =
+                          staffNameById.get(line.staffId) ?? "Mitarbeiter";
+                        const canSelect =
+                          Boolean(staffSelection) && !staffId;
+                        return (
+                          <tr
+                            key={line.staffId}
+                            className={cn(
+                              "border-b border-border/40 last:border-0",
+                              canSelect &&
+                                "cursor-pointer hover:bg-muted/40",
+                            )}
+                            onClick={
+                              canSelect
+                                ? () =>
+                                    staffSelection?.setSelectedStaffId(
+                                      line.staffId,
+                                    )
+                                : undefined
+                            }
+                          >
+                            <td className="px-4 py-2.5">
+                              <span className="font-medium">{name}</span>
+                              {line.note ? (
+                                <span className="mt-0.5 block text-xs text-muted-foreground">
+                                  {line.note}
+                                </span>
+                              ) : null}
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">
+                              {line.loggedH.toFixed(1)} h
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">
+                              {line.breakH.toFixed(1)} h
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">
+                              {line.netWorkH.toFixed(1)} h
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums font-medium">
+                              {line.wageCents > 0
+                                ? formatStaffEuroCents(line.wageCents)
+                                : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </StaffCollapsibleCard>
 
           <Card className="mb-4 border-border/50 shadow-card">
             <CardContent className="flex items-center px-4 py-3">

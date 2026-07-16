@@ -25,6 +25,7 @@ final class PosRuntime: ObservableObject {
     @Published private(set) var dataSourceLabel = "—"
     /// Aktiver Restaurant-Akzent (Gwada-Gold oder Tenant).
     @Published private(set) var brandAccentHex = PosDesign.defaultAccentHex
+    @Published private(set) var pendingPrintJobs = 0
 
     var brandTint: Color {
         PosDesign.color(hex: brandAccentHex)
@@ -92,6 +93,7 @@ final class PosRuntime: ObservableObject {
         if let snap {
             applyBrandAccent(fromHex: snap.brandAccentHex)
         }
+        pendingPrintJobs = PosHubState.shared.pendingPrintJobCount
     }
 
     func signOut() {
@@ -221,17 +223,8 @@ final class PosRuntime: ObservableObject {
         let addCents = lines.reduce(0) { $0 + $1.lineTotalCents }
         PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
         let localOrderNumber = (snapshot?.floor.orderCountBySessionId[sessionId] ?? 0) + 1
-        PosHubState.shared.appendLocalTicket(
-            orderNumber: localOrderNumber,
-            lines: lines.map { line in
-                [
-                    "id": line.id,
-                    "name": line.name,
-                    "quantity": line.quantity,
-                    "detail": line.subtitle,
-                ]
-            }
-        )
+        PosHubState.shared.routeKitchenOutput(orderNumber: localOrderNumber, cartLines: lines)
+        pendingPrintJobs = PosHubState.shared.pendingPrintJobCount
         publishSnapshot(PosHubState.shared.makeSnapshot())
 
         do {
@@ -540,6 +533,9 @@ final class PosRuntime: ObservableObject {
             if path == PosLanProtocol.kdsTicketsPath {
                 return (200, PosHubState.shared.kdsTicketsJSON())
             }
+            if path == PosLanProtocol.printJobsPath {
+                return (200, PosHubState.shared.printJobsJSON())
+            }
             return (404, Data(#"{"error":"not_found"}"#.utf8))
         }
 
@@ -597,6 +593,22 @@ final class PosRuntime: ObservableObject {
                     }
                 }
                 PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
+                let orderNumber = (PosHubState.shared.makeSnapshot().floor.orderCountBySessionId[sessionId] ?? 1)
+                let cartLines: [PosCartLine] = req.items.compactMap { item in
+                    guard let menuItem = PosHubState.shared.menu?.items.first(where: { $0.id == item.menuItemId }) else {
+                        return nil
+                    }
+                    return PosCartLine(
+                        menuItemId: menuItem.id,
+                        name: menuItem.name,
+                        unitPriceCents: menuItem.priceCents,
+                        quantity: item.quantity,
+                        course: .other,
+                        notes: item.notes ?? "",
+                        modifiers: []
+                    )
+                }
+                PosHubState.shared.routeKitchenOutput(orderNumber: orderNumber, cartLines: cartLines)
                 let restaurantId = PosHubState.shared.restaurantId
                 let localOrderId = UUID().uuidString
                 Task { @MainActor in

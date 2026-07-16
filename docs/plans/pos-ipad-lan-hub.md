@@ -106,4 +106,5 @@ Simulator oder Gerät: iPad = Server, iPhone = Client (gleiches WLAN / Simulator
 - [x] Persistente Sync-Queue auf dem iPad
 - [x] Periodischer Flush bei Verbindung
 - [ ] Session-ID-Mapping robust bei reinem Offline-Open + späteren Orders
-- [ ] Bondrucker, Schublade
+- [x] Bondrucker-Registry + Kategorie-Routing (Web + Hub-Queue)
+- [ ] ESC/POS Hardware-Treiber / Schublade

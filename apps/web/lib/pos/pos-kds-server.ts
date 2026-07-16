@@ -2,6 +2,11 @@ import "server-only";
 
 import type { PosOrderCourse } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  categoryAllowsKds,
+  listPosCategoryRoutes,
+  type PosCategoryRoute,
+} from "@/lib/pos/pos-category-routes-server";
 import { loadActivePosOrders, type PosOrderDto } from "@/lib/pos/pos-responses";
 
 export type PosKdsDevice = {
@@ -143,11 +148,11 @@ export function filterOrdersForKds(
   orders: PosOrderDto[],
   device: PosKdsDevice,
   categoryByMenuItemId: Map<string, string>,
+  categoryRoutes: PosCategoryRoute[] = [],
 ): PosKdsTicket[] {
   const catFilter = new Set(device.menuCategoryIds);
   const courseFilter = new Set(device.courses);
   const kitchenStatuses = new Set(["received", "preparing", "ready"]);
-
   const tickets: PosKdsTicket[] = [];
   for (const order of orders) {
     if (!kitchenStatuses.has(order.status)) continue;
@@ -155,10 +160,20 @@ export function filterOrdersForKds(
       if (courseFilter.size > 0 && !courseFilter.has(line.course as PosOrderCourse)) {
         return false;
       }
+      const cat = line.menuItemId
+        ? categoryByMenuItemId.get(line.menuItemId)
+        : undefined;
+      if (!categoryAllowsKds(categoryRoutes, cat)) return false;
+      const route = categoryRoutes.find((r) => r.menuCategoryId === cat);
+      if (
+        device.id !== "all" &&
+        route &&
+        route.kdsDeviceIds.length > 0 &&
+        !route.kdsDeviceIds.includes(device.id)
+      ) {
+        return false;
+      }
       if (catFilter.size > 0) {
-        const cat = line.menuItemId
-          ? categoryByMenuItemId.get(line.menuItemId)
-          : undefined;
         if (!cat || !catFilter.has(cat)) return false;
       }
       return true;
@@ -190,9 +205,10 @@ export async function loadKdsTickets(params: {
   restaurantId: string;
   deviceId?: string | null;
 }): Promise<{ devices: PosKdsDevice[]; tickets: PosKdsTicket[] }> {
-  const [devices, orders] = await Promise.all([
+  const [devices, orders, categoryRoutes] = await Promise.all([
     listPosKdsDevices(params.supabase, params.restaurantId),
     loadActivePosOrders(params.supabase, params.restaurantId),
+    listPosCategoryRoutes(params.supabase, params.restaurantId),
   ]);
 
   const { data: menuItems } = await params.supabase
@@ -209,7 +225,7 @@ export async function loadKdsTickets(params: {
       : devices.find((d) => d.isActive)) ?? null;
 
   const tickets = device
-    ? filterOrdersForKds(orders, device, categoryByMenuItemId)
+    ? filterOrdersForKds(orders, device, categoryByMenuItemId, categoryRoutes)
     : filterOrdersForKds(
         orders,
         {
@@ -222,6 +238,7 @@ export async function loadKdsTickets(params: {
           isActive: true,
         },
         categoryByMenuItemId,
+        categoryRoutes,
       );
 
   return { devices, tickets };

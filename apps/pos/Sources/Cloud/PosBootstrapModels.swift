@@ -55,6 +55,36 @@ struct PosCloudMenuCatalog: Codable, Equatable, Sendable {
     var optionGroups: [PosCloudMenuOptionGroup]
 }
 
+struct PosCloudKdsDevice: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var name: String
+    var menuCategoryIds: [String]
+    var courses: [String]
+    var isActive: Bool
+}
+
+struct PosCloudPrinter: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var name: String
+    var connectionType: String
+    var isActive: Bool
+}
+
+struct PosCloudCategoryRoute: Codable, Equatable, Identifiable, Sendable {
+    var menuCategoryId: String
+    var destination: String
+    var kdsDeviceIds: [String]
+    var printerIds: [String]
+
+    var id: String { menuCategoryId }
+}
+
+struct PosCloudKitchenConfig: Codable, Equatable, Sendable {
+    var kdsDevices: [PosCloudKdsDevice]
+    var printers: [PosCloudPrinter]
+    var categoryRoutes: [PosCloudCategoryRoute]
+}
+
 struct PosCloudBootstrap: Codable, Equatable, Sendable {
     var restaurantId: String
     var restaurantName: String
@@ -64,6 +94,8 @@ struct PosCloudBootstrap: Codable, Equatable, Sendable {
     var register: PosCloudRegisterStatus
     var floor: PosLanFloorSnapshot
     var menu: PosCloudMenuCatalog
+    /// Optional für ältere Caches / Server.
+    var kitchen: PosCloudKitchenConfig?
 
     var resolvedAccentHex: String {
         PosDesign.resolveAccentHex(brandAccentHex)

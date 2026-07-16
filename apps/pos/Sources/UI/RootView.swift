@@ -41,7 +41,11 @@ struct RootView: View {
                             value: runtime.bonjourPublishing ? "Aktiv (_gwada-pos._tcp)" : "—"
                         )
                         LabeledContent("Daten", value: runtime.dataSourceLabel)
-                        Text("Handgeräte & KDS über lokales WLAN — auch ohne Internet.")
+                        LabeledContent(
+                            "Druck-Queue",
+                            value: "\(runtime.pendingPrintJobs) offen"
+                        )
+                        Text("Handgeräte, KDS & Druck-Jobs über lokales WLAN — auch ohne Internet.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         Button {

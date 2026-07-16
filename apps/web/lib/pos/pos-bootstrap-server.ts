@@ -1,5 +1,8 @@
 import "server-only";
 
+import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
+import { normalizeHex } from "@/lib/theme/color-utils";
+
 import {
   allocationAmountCents,
   openLineQuantity,
@@ -60,6 +63,8 @@ export type PosBootstrapMenuItem = {
 export type PosBootstrapPayload = {
   restaurantId: string;
   restaurantName: string;
+  /** `restaurants.brand_accent_hex` — native POS tint */
+  brandAccentHex: string | null;
   generatedAt: string;
   register: Awaited<ReturnType<typeof loadRegisterStatus>>;
   floor: {
@@ -82,7 +87,7 @@ export async function loadPosBootstrap(
 ): Promise<PosBootstrapPayload | { error: string; status: number }> {
   const { data: restaurant, error: restaurantError } = await supabase
     .from("restaurants")
-    .select("id, name")
+    .select("id, name, brand_accent_hex")
     .eq("id", restaurantId)
     .maybeSingle();
 
@@ -327,9 +332,18 @@ export async function loadPosBootstrap(
     })
     .filter((g) => g.choices.length > 0);
 
+  const brandAccentHex =
+    normalizeHex(
+      String(
+        (restaurant as { brand_accent_hex?: string | null }).brand_accent_hex ??
+          "",
+      ),
+    ) ?? DEFAULT_ACCENT_HEX;
+
   return {
     restaurantId,
     restaurantName: String(restaurant.name ?? ""),
+    brandAccentHex,
     generatedAt: new Date().toISOString(),
     register,
     floor: {

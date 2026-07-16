@@ -14,6 +14,7 @@ struct TableSessionView: View {
     @State private var showMove = false
     @State private var sending = false
     @State private var openLines: [SessionOpenLine] = []
+    @State private var sendPulse = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,17 +37,20 @@ struct TableSessionView: View {
                     Image(systemName: "arrow.left.arrow.right")
                 }
                 .disabled(openLines.isEmpty)
+                .accessibilityLabel("Umziehen")
                 Button {
                     showSplit = true
                 } label: {
                     Image(systemName: "scissors")
                 }
                 .disabled(openLines.isEmpty)
+                .accessibilityLabel("Rechnung splitten")
             }
         }
         .safeAreaInset(edge: .bottom) {
             bottomBar
         }
+        .sensoryFeedback(.success, trigger: sendPulse)
         .sheet(isPresented: $showMenu) {
             if let menu = runtime.snapshot?.menu {
                 NavigationStack {
@@ -54,6 +58,7 @@ struct TableSessionView: View {
                         configuring = item
                     }
                     .navigationTitle("Speisekarte")
+                    .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Fertig") { showMenu = false }
@@ -61,6 +66,7 @@ struct TableSessionView: View {
                     }
                 }
                 .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
         }
         .sheet(item: $configuring) { item in
@@ -75,6 +81,8 @@ struct TableSessionView: View {
                 },
                 onCancel: { configuring = nil }
             )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showSplit) {
             SplitPayView(
@@ -122,11 +130,17 @@ struct TableSessionView: View {
 
     private var header: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(table.label).font(.title2.weight(.bold))
-                Text(sessionId == nil ? "Frei · \(table.capacity) Plätze" : "Besetzt · \(table.capacity) Plätze")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    PosStatusBadge(
+                        title: sessionId == nil ? "Frei" : "Besetzt",
+                        emphasized: sessionId != nil
+                    )
+                    Text("\(table.capacity) Plätze")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             Text(PosMoney.format(cartTotal + openTotal))
@@ -136,21 +150,20 @@ struct TableSessionView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            Image(systemName: "cart")
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(.secondary)
-            Text("Warenkorb leer")
-                .font(.headline)
+        ContentUnavailableView {
+            Label("Warenkorb leer", systemImage: "cart")
+        } description: {
             Text("Gerichte hinzufügen — Gang, Ohne-Zutaten und Hinweise wählbar.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            Spacer()
+        } actions: {
+            Button {
+                showMenu = true
+            } label: {
+                Label("Gericht hinzufügen", systemImage: "plus")
+            }
+            .buttonStyle(PosPrimaryButtonStyle())
+            .frame(maxWidth: 280)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var cartList: some View {
@@ -179,6 +192,20 @@ struct TableSessionView: View {
                             Spacer()
                             Text(PosMoney.format(line.openCents))
                                 .font(.body.monospacedDigit())
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button {
+                                showSplit = true
+                            } label: {
+                                Label("Split", systemImage: "scissors")
+                            }
+                            .tint(.orange)
+                            Button {
+                                showMove = true
+                            } label: {
+                                Label("Umziehen", systemImage: "arrow.left.arrow.right")
+                            }
+                            .tint(.accentColor)
                         }
                     }
                 }
@@ -251,6 +278,7 @@ struct TableSessionView: View {
         let ok = await runtime.sendCart(tableId: table.id, lines: cart)
         if ok {
             cart.removeAll()
+            sendPulse.toggle()
             await refreshOpenLines()
         }
     }

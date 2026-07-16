@@ -9,6 +9,7 @@ struct SplitPayView: View {
     @State private var selected: Set<String> = []
     @State private var method: PosPaymentMethodKind = .cash
     @State private var tipEuro = ""
+    @State private var payPulse = false
 
     var body: some View {
         NavigationStack {
@@ -89,6 +90,7 @@ struct SplitPayView: View {
             .safeAreaInset(edge: .bottom) {
                 Button {
                     let picked = lines.filter { selected.contains($0.id) }
+                    payPulse.toggle()
                     onPay(picked, method, tipCents)
                 } label: {
                     Text(method == .cash ? "Bar kassieren · \(PosMoney.format(selectionTotal + tipCents))" : "Zahlen")
@@ -98,6 +100,7 @@ struct SplitPayView: View {
                 .padding()
                 .background(.ultraThinMaterial)
             }
+            .sensoryFeedback(.success, trigger: payPulse)
         }
     }
 

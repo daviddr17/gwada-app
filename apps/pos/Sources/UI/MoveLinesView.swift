@@ -11,6 +11,7 @@ struct MoveLinesView: View {
 
     @State private var selected: Set<String> = []
     @State private var targetTableId: String?
+    @State private var movePulse = false
 
     var body: some View {
         NavigationStack {
@@ -71,6 +72,7 @@ struct MoveLinesView: View {
                 Button {
                     guard let targetTableId else { return }
                     let picked = lines.filter { selected.contains($0.id) }
+                    movePulse.toggle()
                     onMove(
                         picked.map(\.orderLineId),
                         picked.map(\.openQuantity),
@@ -84,6 +86,7 @@ struct MoveLinesView: View {
                 .padding()
                 .background(.ultraThinMaterial)
             }
+            .sensoryFeedback(.success, trigger: movePulse)
         }
     }
 

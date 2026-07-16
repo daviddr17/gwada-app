@@ -58,8 +58,14 @@ struct PosCloudMenuCatalog: Codable, Equatable, Sendable {
 struct PosCloudBootstrap: Codable, Equatable, Sendable {
     var restaurantId: String
     var restaurantName: String
+    /// Restaurant-Akzent (`restaurants.brand_accent_hex`), Fallback Gwada-Gold.
+    var brandAccentHex: String?
     var generatedAt: String
     var register: PosCloudRegisterStatus
     var floor: PosLanFloorSnapshot
     var menu: PosCloudMenuCatalog
+
+    var resolvedAccentHex: String {
+        PosDesign.resolveAccentHex(brandAccentHex)
+    }
 }

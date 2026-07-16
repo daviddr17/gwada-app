@@ -13,20 +13,12 @@ struct KdsView: View {
             settingsBar
             Divider()
             if tickets.isEmpty {
-                VStack(spacing: 10) {
-                    Spacer()
-                    Image(systemName: "flame")
-                        .font(.system(size: 36, weight: .light))
-                        .foregroundStyle(.secondary)
-                    Text("Keine Tickets")
-                        .font(.headline)
+                ContentUnavailableView {
+                    Label("Keine Tickets", systemImage: "flame")
+                } description: {
                     Text(status)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                    Spacer()
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVGrid(
@@ -91,7 +83,7 @@ struct KdsView: View {
         .padding(14)
         .frame(minHeight: dense ? 120 : 160, alignment: .topLeading)
         .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous))
     }
 
     private func statusColor(_ status: String) -> Color {

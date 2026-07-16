@@ -4,14 +4,23 @@ struct RootView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var hubIP = ""
     @State private var showKds = false
+    @State private var confirmSignOut = false
+    @State private var tableSearch = ""
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Gerät") {
+                Section {
                     LabeledContent("Erkennung", value: runtime.detectionLabel)
                     LabeledContent("Rolle", value: runtime.role.title)
-                    LabeledContent("Status", value: phaseLabel)
+                    HStack {
+                        Text("Status")
+                        Spacer()
+                        PosStatusBadge(
+                            title: phaseLabel,
+                            emphasized: runtime.phase == .hubReady || runtime.phase == .connected
+                        )
+                    }
                     if runtime.role == .hub {
                         LabeledContent("Sync-Queue", value: "\(runtime.syncPending) offen")
                     }
@@ -20,6 +29,8 @@ struct RootView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
+                } header: {
+                    Text("Gerät")
                 }
 
                 if runtime.role == .hub {
@@ -33,7 +44,11 @@ struct RootView: View {
                         Text("Handgeräte & KDS über lokales WLAN — auch ohne Internet.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Button("KDS öffnen") { showKds = true }
+                        Button {
+                            showKds = true
+                        } label: {
+                            Label("KDS öffnen", systemImage: "flame")
+                        }
                     }
 
                     if !runtime.isSignedIn {
@@ -41,7 +56,9 @@ struct RootView: View {
                             TextField("E-Mail", text: $runtime.email)
                                 .textInputAutocapitalization(.never)
                                 .keyboardType(.emailAddress)
+                                .textContentType(.username)
                             SecureField("Passwort", text: $runtime.password)
+                                .textContentType(.password)
                             TextField("Restaurant-ID (UUID)", text: $runtime.restaurantIdInput)
                                 .textInputAutocapitalization(.never)
                             DisclosureGroup("Erweitert") {
@@ -51,15 +68,21 @@ struct RootView: View {
                                     .textInputAutocapitalization(.never)
                                 SecureField("Supabase Anon Key", text: $runtime.supabaseAnonInput)
                             }
-                            Button("Anmelden & Daten laden") {
+                            Button {
                                 Task { await runtime.signInAndStartHub() }
+                            } label: {
+                                Text("Anmelden & Daten laden")
+                                    .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(PosPrimaryButtonStyle())
+                            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                            .listRowBackground(Color.clear)
                         }
                     } else {
                         Section {
-                            Button("Abmelden") { runtime.signOut() }
-                                .foregroundStyle(.red)
+                            Button("Abmelden", role: .destructive) {
+                                confirmSignOut = true
+                            }
                         }
                     }
                 } else {
@@ -82,42 +105,86 @@ struct RootView: View {
 
                 Section("Tische") {
                     if let floor = runtime.snapshot?.floor {
-                        ForEach(floor.tables) { table in
-                            let open = floor.openSessions.first { $0.dining_table_id == table.id }
-                            NavigationLink {
-                                TableSessionView(table: table, sessionId: open?.id)
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(table.label).font(.headline)
-                                        Text("Nr. \(table.table_number) · \(table.capacity) Plätze")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                        let tables = filteredTables(floor.tables)
+                        if tables.isEmpty {
+                            ContentUnavailableView.search(text: tableSearch)
+                        } else {
+                            ForEach(tables) { table in
+                                let open = floor.openSessions.first { $0.dining_table_id == table.id }
+                                let meta = open.flatMap { floor.sessionMetaBySessionId[$0.id] }
+                                NavigationLink {
+                                    TableSessionView(table: table, sessionId: open?.id)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: open == nil ? "fork.knife" : "person.2.fill")
+                                            .font(.body.weight(.semibold))
+                                            .foregroundStyle(open == nil ? .secondary : Color.accentColor)
+                                            .frame(width: 36, height: 36)
+                                            .background(
+                                                (open == nil ? Color(.tertiarySystemFill) : Color.accentColor.opacity(0.14))
+                                            )
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(table.label).font(.headline)
+                                            Text("Nr. \(table.table_number) · \(table.capacity) Plätze")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        VStack(alignment: .trailing, spacing: 4) {
+                                            PosStatusBadge(
+                                                title: open == nil ? "Frei" : "Besetzt",
+                                                emphasized: open != nil
+                                            )
+                                            if let meta, meta.openCents > 0 {
+                                                Text(PosMoney.format(meta.openCents))
+                                                    .font(.caption.weight(.semibold).monospacedDigit())
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
                                     }
-                                    Spacer()
-                                    Text(open == nil ? "Frei" : "Besetzt")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(open == nil ? .secondary : Color.accentColor)
+                                    .padding(.vertical, 2)
                                 }
                             }
                         }
                     } else {
-                        Text(
-                            runtime.role == .handheld
-                                ? "Keine Kasse — Handgerät wartet."
-                                : "Kein Snapshot"
-                        )
-                        .foregroundStyle(.secondary)
+                        ContentUnavailableView {
+                            Label(
+                                runtime.role == .handheld ? "Keine Kasse" : "Kein Snapshot",
+                                systemImage: runtime.role == .handheld ? "wifi.exclamationmark" : "tray"
+                            )
+                        } description: {
+                            Text(
+                                runtime.role == .handheld
+                                    ? "Handgerät wartet auf die iPad-Kasse im WLAN."
+                                    : "Nach dem Login werden Tische und Speisekarte geladen."
+                            )
+                        }
                     }
                 }
             }
-            .navigationTitle("Gwada POS")
+            .navigationTitle(navigationTitle)
+            .navigationBarTitleDisplayMode(.large)
+            .searchable(text: $tableSearch, prompt: "Tische suchen")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Aktualisieren") {
+                    Button {
                         Task { await runtime.refresh() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
                     }
+                    .accessibilityLabel("Aktualisieren")
                 }
+            }
+            .confirmationDialog(
+                "Wirklich abmelden?",
+                isPresented: $confirmSignOut,
+                titleVisibility: .visible
+            ) {
+                Button("Abmelden", role: .destructive) { runtime.signOut() }
+                Button("Abbrechen", role: .cancel) {}
+            } message: {
+                Text("Die lokale Kasse stoppt; Handgeräte verlieren die Verbindung.")
             }
             .sheet(isPresented: $showKds) {
                 NavigationStack {
@@ -133,6 +200,13 @@ struct RootView: View {
         }
     }
 
+    private var navigationTitle: String {
+        if let name = runtime.snapshot?.restaurantName, !name.isEmpty, name != "Demo Restaurant" {
+            return name
+        }
+        return "Gwada POS"
+    }
+
     private var phaseLabel: String {
         switch runtime.phase {
         case .idle: return "Bereit"
@@ -142,6 +216,15 @@ struct RootView: View {
         case .searching: return "Suche Kasse …"
         case .connected: return "Mit Kasse verbunden"
         case .error(let message): return message
+        }
+    }
+
+    private func filteredTables(_ tables: [PosLanFloorTable]) -> [PosLanFloorTable] {
+        let q = tableSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return tables }
+        return tables.filter {
+            $0.label.localizedCaseInsensitiveContains(q)
+                || "\($0.table_number)".contains(q)
         }
     }
 }

@@ -13,6 +13,7 @@ struct LineConfigureSheet: View {
     @State private var notes = ""
     @State private var selectedOhne: Set<String> = []
     @State private var selectedChoices: Set<String> = []
+    @State private var confirmPulse = false
 
     var body: some View {
         NavigationStack {
@@ -116,6 +117,7 @@ struct LineConfigureSheet: View {
                 }
             }
             .onAppear { course = initialCourse }
+            .sensoryFeedback(.success, trigger: confirmPulse)
         }
     }
 
@@ -144,6 +146,7 @@ struct LineConfigureSheet: View {
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
             modifiers: mods
         )
+        confirmPulse.toggle()
         onConfirm(line)
     }
 }

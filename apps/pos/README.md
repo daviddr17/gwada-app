@@ -46,4 +46,12 @@ Im Login-Bereich setzen:
 
 - `apps/web` — APIs / Dashboard / POS-Modul  
 - `apps/staff` — Mitarbeiter-App (Expo), unberührt  
-- `apps/pos` — diese native Kasse  
+- `apps/pos` — diese native Kasse
+
+## Design
+
+- **Gwada-Akzent** `#EAB308` als `AccentColor` (Asset) + Tenant-Override via Bootstrap `brandAccentHex`
+- Primär-CTAs: weicher Brand-Tint (wie Web `brand-action-button`), nicht solid blau/weiß
+- Surfaces: System Grouped / Material — native Light/Dark
+- Native iOS: Large Title, `.searchable`, `ContentUnavailableView`, Sheets/Detents, `.sensoryFeedback`, Swipe Actions
+

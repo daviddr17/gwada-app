@@ -23,6 +23,13 @@ final class PosRuntime: ObservableObject {
     @Published private(set) var syncPending: Int = 0
     @Published private(set) var isSignedIn = false
     @Published private(set) var dataSourceLabel = "—"
+    /// Aktiver Restaurant-Akzent (Gwada-Gold oder Tenant).
+    @Published private(set) var brandAccentHex = PosDesign.defaultAccentHex
+
+    var brandTint: Color {
+        PosDesign.color(hex: brandAccentHex)
+    }
+
     @Published var email = ""
     @Published var password = ""
     @Published var restaurantIdInput = ""
@@ -50,6 +57,7 @@ final class PosRuntime: ObservableObject {
         email = PosAuthStore.shared.session?.email ?? ""
         isSignedIn = PosAuthStore.shared.isSignedIn
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
+        applyBrandAccent(fromHex: PosHubState.shared.brandAccentHex)
     }
 
     func start() async {
@@ -74,6 +82,18 @@ final class PosRuntime: ObservableObject {
         }
     }
 
+
+    private func applyBrandAccent(fromHex raw: String?) {
+        brandAccentHex = PosDesign.resolveAccentHex(raw)
+    }
+
+    private func publishSnapshot(_ snap: PosLanHubSnapshot?) {
+        snapshot = snap
+        if let snap {
+            applyBrandAccent(fromHex: snap.brandAccentHex)
+        }
+    }
+
     func signOut() {
         PosAuthStore.shared.clear()
         isSignedIn = false
@@ -87,7 +107,7 @@ final class PosRuntime: ObservableObject {
         switch role {
         case .hub:
             await pullCloudBootstrap(forceDemoFallback: false)
-            snapshot = PosHubState.shared.makeSnapshot()
+            publishSnapshot(PosHubState.shared.makeSnapshot())
             await PosSyncQueue.shared.flushIfPossible()
             syncPending = PosSyncQueue.shared.pendingCount
             statusMessage = PosSyncQueue.shared.lastFlushMessage.isEmpty
@@ -119,7 +139,7 @@ final class PosRuntime: ObservableObject {
                     coverCount: covers
                 )
                 let snap = try await HandheldHubClient.fetchSnapshot(baseURL: base, restaurantId: nil)
-                snapshot = snap
+                publishSnapshot(snap)
                 statusMessage = "Tisch geöffnet."
             } catch {
                 statusMessage = error.localizedDescription
@@ -146,7 +166,7 @@ final class PosRuntime: ObservableObject {
             coverCount: covers,
             preferredSessionId: cloudSessionId
         )
-        snapshot = PosHubState.shared.makeSnapshot()
+        publishSnapshot(PosHubState.shared.makeSnapshot())
 
         if cloudSessionId == nil {
             PosSyncQueue.shared.enqueueOpenSession(PosSyncOpenSessionPayload(
@@ -212,7 +232,7 @@ final class PosRuntime: ObservableObject {
                 ]
             }
         )
-        snapshot = PosHubState.shared.makeSnapshot()
+        publishSnapshot(PosHubState.shared.makeSnapshot())
 
         do {
             _ = try await PosCloudClient.createOrder(
@@ -300,7 +320,7 @@ final class PosRuntime: ObservableObject {
             )
             statusMessage = "Teilzahlung kassiert."
             await pullCloudBootstrap(forceDemoFallback: false)
-            snapshot = PosHubState.shared.makeSnapshot()
+            publishSnapshot(PosHubState.shared.makeSnapshot())
         } catch {
             PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
                 restaurantId: restaurantId,
@@ -339,7 +359,7 @@ final class PosRuntime: ObservableObject {
             )
             statusMessage = "\(lineIds.count) Position(en) umgezogen."
             await pullCloudBootstrap(forceDemoFallback: false)
-            snapshot = PosHubState.shared.makeSnapshot()
+            publishSnapshot(PosHubState.shared.makeSnapshot())
         } catch {
             statusMessage = "Umziehen fehlgeschlagen: \(error.localizedDescription)"
         }
@@ -368,7 +388,7 @@ final class PosRuntime: ObservableObject {
         }
 
         PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: menuItem.priceCents)
-        snapshot = PosHubState.shared.makeSnapshot()
+        publishSnapshot(PosHubState.shared.makeSnapshot())
 
         do {
             _ = try await PosCloudClient.createOrder(
@@ -412,7 +432,7 @@ final class PosRuntime: ObservableObject {
 
         isSignedIn = PosAuthStore.shared.isSignedIn
         await pullCloudBootstrap(forceDemoFallback: true)
-        snapshot = PosHubState.shared.makeSnapshot()
+        publishSnapshot(PosHubState.shared.makeSnapshot())
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
 
         let server = HubHTTPServer { method, path, body in
@@ -606,7 +626,7 @@ final class PosRuntime: ObservableObject {
     private func connectHandheld(preferredHost: String? = nil) async {
         phase = .searching
         statusMessage = "Suche iPad-Kasse im WLAN …"
-        snapshot = nil
+        publishSnapshot(nil)
         hubBaseURL = nil
 
         var candidates: [URL] = []
@@ -641,7 +661,7 @@ final class PosRuntime: ObservableObject {
                     UserDefaults.standard.set(host, forKey: manualHostKey)
                 }
                 hubBaseURL = base
-                snapshot = snap
+                publishSnapshot(snap)
                 phase = .connected
                 statusMessage = "Verbunden mit \(snap.hub.displayName)."
                 return

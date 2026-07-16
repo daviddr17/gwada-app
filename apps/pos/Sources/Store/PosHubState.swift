@@ -49,6 +49,12 @@ final class PosHubState: @unchecked Sendable {
         return bootstrap?.restaurantName ?? DemoSnapshotFactory.restaurantName
     }
 
+    var brandAccentHex: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return bootstrap?.resolvedAccentHex ?? PosDesign.defaultAccentHex
+    }
+
     var menu: PosCloudMenuCatalog? {
         lock.lock()
         defer { lock.unlock() }
@@ -69,6 +75,7 @@ final class PosHubState: @unchecked Sendable {
                 protocolVersion: PosLanProtocol.version,
                 restaurantId: bootstrap.restaurantId,
                 restaurantName: bootstrap.restaurantName,
+                brandAccentHex: bootstrap.resolvedAccentHex,
                 generatedAt: ISO8601DateFormatter().string(from: Date()),
                 register: PosLanRegisterState(
                     isOpen: bootstrap.register.isOpen,

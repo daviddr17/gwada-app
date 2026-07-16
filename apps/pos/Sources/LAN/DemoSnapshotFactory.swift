@@ -14,6 +14,7 @@ enum DemoSnapshotFactory {
             protocolVersion: PosLanProtocol.version,
             restaurantId: restaurantId,
             restaurantName: restaurantName,
+            brandAccentHex: PosDesign.defaultAccentHex,
             generatedAt: ISO8601DateFormatter().string(from: Date()),
             register: PosLanRegisterState(
                 isOpen: true,

@@ -8,6 +8,7 @@ struct GwadaPOSApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(runtime)
+                .tint(runtime.brandTint)
                 .task {
                     await runtime.start()
                 }

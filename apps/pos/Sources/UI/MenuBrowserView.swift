@@ -8,11 +8,42 @@ struct MenuBrowserView: View {
     @State private var categoryId: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            SearchField(text: $search, placeholder: "Gericht suchen")
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-
+        List(filteredItems) { item in
+            Button {
+                onSelect(item)
+            } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        if !item.description.isEmpty {
+                            Text(item.description)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        if !(item.recipe ?? []).isEmpty {
+                            Text("Rezept · Ohne-Auswahl")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.teal)
+                        }
+                    }
+                    Spacer()
+                    Text(PosMoney.format(item.priceCents))
+                        .font(.body.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .listStyle(.plain)
+        .overlay {
+            if filteredItems.isEmpty {
+                ContentUnavailableView.search(text: search)
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Button {
@@ -31,40 +62,11 @@ struct MenuBrowserView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+                .padding(.vertical, 10)
             }
-
-            List(filteredItems) { item in
-                Button {
-                    onSelect(item)
-                } label: {
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.name)
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.primary)
-                            if !item.description.isEmpty {
-                                Text(item.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-                            if !(item.recipe ?? []).isEmpty {
-                                Text("Rezept · Ohne-Auswahl")
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(.teal)
-                            }
-                        }
-                        Spacer()
-                        Text(PosMoney.format(item.priceCents))
-                            .font(.body.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(.primary)
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-            .listStyle(.plain)
+            .background(.bar)
         }
+        .searchable(text: $search, prompt: "Gericht suchen")
     }
 
     private var filteredItems: [PosCloudMenuItem] {
@@ -76,22 +78,5 @@ struct MenuBrowserView: View {
             return item.name.localizedCaseInsensitiveContains(q)
                 || item.description.localizedCaseInsensitiveContains(q)
         }
-    }
-}
-
-private struct SearchField: View {
-    @Binding var text: String
-    var placeholder: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField(placeholder, text: $text)
-                .textInputAutocapitalization(.never)
-        }
-        .padding(12)
-        .background(Color(.tertiarySystemFill))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

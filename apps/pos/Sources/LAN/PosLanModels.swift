@@ -59,12 +59,18 @@ struct PosLanHubSnapshot: Codable, Equatable, Sendable {
     var protocolVersion: Int
     var restaurantId: String
     var restaurantName: String
+    /// Optional für ältere Hubs — Handgeräte fallen auf Gwada-Gold zurück.
+    var brandAccentHex: String?
     var generatedAt: String
     var register: PosLanRegisterState
     var floor: PosLanFloorSnapshot
     /// Speisekarte für Handgeräte (optional für ältere Hubs).
     var menu: PosCloudMenuCatalog?
     var hub: PosLanHubInfo
+
+    var resolvedAccentHex: String {
+        PosDesign.resolveAccentHex(brandAccentHex)
+    }
 }
 
 struct PosLanHealthResponse: Codable, Equatable, Sendable {

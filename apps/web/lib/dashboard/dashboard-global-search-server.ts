@@ -51,6 +51,37 @@ function ilikePattern(term: string): string {
   return `%${escapeIlikeTerm(term)}%`;
 }
 
+/** Wörter der Sucheingabe — „Max Mustermann“ → ["Max", "Mustermann"]. */
+function splitSearchTokens(query: string): string[] {
+  return query
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+function tokenOrClause(fields: readonly string[], token: string): string {
+  const pattern = ilikePattern(token);
+  return fields.map((field) => `${field}.ilike."${pattern}"`).join(",");
+}
+
+/**
+ * PostgREST-Filter: jedes Suchwort muss in mind. einem Feld vorkommen.
+ * „Max Mustermann“ matcht so getrennte Vor-/Nachnamenspalten.
+ */
+function tokenFieldsFilter(fields: readonly string[], query: string): string {
+  const tokens = splitSearchTokens(query);
+  const effective = tokens.length > 0 ? tokens : [query.trim()].filter(Boolean);
+  if (effective.length === 0) return "";
+  if (effective.length === 1) {
+    return tokenOrClause(fields, effective[0]!);
+  }
+  const andParts = effective.map(
+    (token) => `or(${tokenOrClause(fields, token)})`,
+  );
+  return `and(${andParts.join(",")})`;
+}
+
 function formatDeDate(
   iso: string | null | undefined,
   timeZone: string,
@@ -181,24 +212,30 @@ async function searchReservations(
   sb: SupabaseClient,
   restaurantId: string,
   query: string,
-  pattern: string,
+  _pattern: string,
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
-  const filters = [
-    `guest_first_name.ilike."${pattern}"`,
-    `guest_last_name.ilike."${pattern}"`,
-    `guest_name.ilike."${pattern}"`,
-    `guest_email.ilike."${pattern}"`,
-    `guest_phone.ilike."${pattern}"`,
-  ];
+  const nameFields = [
+    "guest_first_name",
+    "guest_last_name",
+    "guest_name",
+    "guest_email",
+    "guest_phone",
+  ] as const;
+  const tokens = splitSearchTokens(query);
+  const nameFilter = tokenFieldsFilter(nameFields, query);
   const numeric = query.replace(/\D/g, "");
-  if (numeric.length >= 2) {
-    const reservationNumber = Number.parseInt(numeric, 10);
-    if (Number.isFinite(reservationNumber)) {
-      filters.push(`reservation_number.eq.${reservationNumber}`);
-    }
-  }
+  const reservationNumber =
+    numeric.length >= 2 && tokens.length === 1
+      ? Number.parseInt(numeric, 10)
+      : NaN;
+  const filters =
+    Number.isFinite(reservationNumber) && nameFilter
+      ? `${nameFilter},reservation_number.eq.${reservationNumber}`
+      : Number.isFinite(reservationNumber)
+        ? `reservation_number.eq.${reservationNumber}`
+        : nameFilter;
 
   const { data } = await sb
     .from("reservations")
@@ -206,7 +243,7 @@ async function searchReservations(
       "id, guest_first_name, guest_last_name, guest_name, starts_at, party_size, reservation_number",
     )
     .eq("restaurant_id", restaurantId)
-    .or(filters.join(","))
+    .or(filters)
     .order("starts_at", { ascending: false })
     .limit(limit);
 
@@ -225,7 +262,7 @@ async function searchReservations(
 async function searchContacts(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
   timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
@@ -233,9 +270,7 @@ async function searchContacts(
     .from("contacts")
     .select("id, first_name, last_name, company, last_interaction_at")
     .eq("restaurant_id", restaurantId)
-    .or(
-      `first_name.ilike."${pattern}",last_name.ilike."${pattern}",company.ilike."${pattern}"`,
-    )
+    .or(tokenFieldsFilter(["first_name", "last_name", "company"], query))
     .order("last_interaction_at", { ascending: false, nullsFirst: false })
     .limit(limit);
 
@@ -281,16 +316,14 @@ async function searchReviews(
 async function searchStaff(
   sb: SupabaseClient,
   restaurantId: string,
-  pattern: string,
+  query: string,
   limit: number,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const { data } = await sb
     .from("restaurant_staff")
     .select("id, given_name, family_name, email, is_active")
     .eq("restaurant_id", restaurantId)
-    .or(
-      `given_name.ilike."${pattern}",family_name.ilike."${pattern}",email.ilike."${pattern}"`,
-    )
+    .or(tokenFieldsFilter(["given_name", "family_name", "email"], query))
     .order("given_name", { ascending: true })
     .limit(limit);
 
@@ -536,12 +569,12 @@ const CATEGORY_SEARCHERS: Record<
     searchMenu(sb, restaurantId, pattern, limit),
   reservations: (sb, restaurantId, query, pattern, limit, timeZone) =>
     searchReservations(sb, restaurantId, query, pattern, limit, timeZone),
-  contacts: (sb, restaurantId, _query, pattern, limit, timeZone) =>
-    searchContacts(sb, restaurantId, pattern, limit, timeZone),
+  contacts: (sb, restaurantId, query, _pattern, limit, timeZone) =>
+    searchContacts(sb, restaurantId, query, limit, timeZone),
   reviews: (sb, restaurantId, _query, pattern, limit, timeZone) =>
     searchReviews(sb, restaurantId, pattern, limit, timeZone),
-  staff: (sb, restaurantId, _query, pattern, limit, _timeZone) =>
-    searchStaff(sb, restaurantId, pattern, limit),
+  staff: (sb, restaurantId, query, _pattern, limit, _timeZone) =>
+    searchStaff(sb, restaurantId, query, limit),
   inventory: (sb, restaurantId, _query, pattern, limit, _timeZone) =>
     searchInventory(sb, restaurantId, pattern, limit),
   documents: (sb, restaurantId, _query, pattern, limit, timeZone) =>

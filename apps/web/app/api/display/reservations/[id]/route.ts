@@ -103,6 +103,7 @@ export async function PATCH(
   const result = await updateDisplayReservation(
     admin,
     access.restaurantId,
+    access.staffId,
     id,
     {
       guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
@@ -157,7 +158,12 @@ export async function DELETE(
   }
 
   const { id } = await context.params;
-  const result = await deleteDisplayReservation(admin, access.restaurantId, id);
+  const result = await deleteDisplayReservation(
+    admin,
+    access.restaurantId,
+    access.staffId,
+    id,
+  );
 
   if (!result.ok) {
     const status = result.error === "not_found" ? 404 : 500;

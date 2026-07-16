@@ -46,11 +46,13 @@ export async function POST(
       ? await approveDisplayReservationChangeRequest(
           admin,
           access.restaurantId,
+          access.staffId,
           id,
         )
       : await declineDisplayReservationChangeRequest(
           admin,
           access.restaurantId,
+          access.staffId,
           id,
         );
 

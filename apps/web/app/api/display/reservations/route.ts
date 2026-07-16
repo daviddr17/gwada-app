@@ -115,7 +115,11 @@ export async function POST(request: Request) {
 
     const names = walkInGuestNamesFromOptionalLabel(body.guest_name);
 
-    const result = await createDisplayReservation(admin, access.restaurantId, {
+    const result = await createDisplayReservation(
+      admin,
+      access.restaurantId,
+      access.staffId,
+      {
       guest_first_name: names.guest_first_name,
       guest_last_name: names.guest_last_name,
       guest_phone: null,
@@ -131,7 +135,8 @@ export async function POST(request: Request) {
       terms_accepted: true,
       notes: null,
       is_walk_in: true,
-    });
+      },
+    );
 
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 500 });
@@ -192,7 +197,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "status_missing" }, { status: 500 });
   }
 
-  const result = await createDisplayReservation(admin, access.restaurantId, {
+  const result = await createDisplayReservation(
+    admin,
+    access.restaurantId,
+    access.staffId,
+    {
     guest_first_name: given,
     guest_last_name: family,
     guest_phone: body.guest_phone?.trim() || null,
@@ -207,7 +216,8 @@ export async function POST(request: Request) {
     notify_whatsapp: body.notify_whatsapp === true,
     terms_accepted: body.terms_accepted !== false,
     notes: body.notes?.trim() || null,
-  });
+    },
+  );
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 500 });

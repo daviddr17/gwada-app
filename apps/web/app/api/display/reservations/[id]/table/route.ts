@@ -36,6 +36,7 @@ export async function PATCH(
   const result = await updateDisplayReservationTable(
     admin,
     access.restaurantId,
+    access.staffId,
     id,
     tableId,
   );

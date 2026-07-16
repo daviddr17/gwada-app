@@ -834,6 +834,8 @@ export function ReservationEditDrawer({
                 </DrawerDescription>
                 {isEdit && reservation ? (
                   <ReservationCreatedHint
+                    restaurantId={reservation.restaurant_id}
+                    reservationId={reservation.id}
                     createdAt={reservation.created_at}
                     createdByProfileId={reservation.created_by_profile_id}
                     createdByProfile={reservation.created_by_profile}

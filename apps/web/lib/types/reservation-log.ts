@@ -45,15 +45,23 @@ export function formatReservationGuestLabel(
   return `#${reservationNumber} · ${name}`;
 }
 
+function reservationLogLooksLikeDisplay(details: ReservationLogDetails): boolean {
+  if (details.actorSource === "display") return true;
+  const summary = details.summary?.toLowerCase() ?? "";
+  return summary.includes("display");
+}
+
 export function formatReservationLogActorLabel(
   details: ReservationLogDetails,
   fallback = "—",
 ): string {
-  if (details.actorSource === "guest") return "Gast";
-  if (details.actorSource === "display") return "Display";
   const name = [details.actorGivenName?.trim(), details.actorFamilyName?.trim()]
     .filter(Boolean)
     .join(" ");
+  if (reservationLogLooksLikeDisplay(details)) {
+    return name ? `${name} · Display` : "Display";
+  }
+  if (details.actorSource === "guest") return "Gast";
   return name || fallback;
 }
 

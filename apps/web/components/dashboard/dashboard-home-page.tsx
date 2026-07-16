@@ -9,7 +9,6 @@ import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-wi
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
-import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
@@ -115,12 +114,10 @@ export function DashboardHomePage() {
     permissionsError,
     reloadPermissions,
   } = useDashboardEffectiveWidgetPrefs();
-  const { loading: permissionsLoading, permissions } = useRestaurantPermissions();
-
-  const permissionsPending = permissionsLoading && permissions.size === 0;
-  const prefsLoading = !isReady || permissionsPending;
-
-  if (prefsLoading) {
+  // Permissions nicht blockieren: während Loading sind Widgets optimistisch erlaubt
+  // (accessOptions.permissionsLoading) — Batch-LS/placeholder kann sofort malen.
+  // Nur Widget-Prefs müssen ready sein (meist sync aus LS).
+  if (!isReady) {
     return <DashboardHomeSkeleton />;
   }
 

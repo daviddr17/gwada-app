@@ -36,6 +36,47 @@ function toQueryData(payload: DashboardBatchCachePayload): DashboardBatchQueryDa
   return { data: payload.data, errors: payload.errors };
 }
 
+function isFreshPayload(
+  payload: DashboardBatchCachePayload,
+  maxAgeMs: number,
+): boolean {
+  return Date.now() - payload.at <= maxAgeMs;
+}
+
+/** Neueste gültige Batch-Payload fürs Restaurant (Widget-Set darf abweichen). */
+function peekAnyDashboardBatchSummaryCache(
+  restaurantId: string,
+  maxAgeMs: number,
+): DashboardBatchQueryData | null {
+  let best: DashboardBatchCachePayload | null = null;
+
+  for (const [key, payload] of memory) {
+    if (!key.startsWith(`${restaurantId}:`)) continue;
+    if (!isFreshPayload(payload, maxAgeMs)) continue;
+    if (!best || payload.at > best.at) best = payload;
+  }
+
+  if (typeof window !== "undefined") {
+    try {
+      const prefix = `${CACHE_PREFIX}${restaurantId}:`;
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const k = localStorage.key(i);
+        if (!k?.startsWith(prefix)) continue;
+        const raw = localStorage.getItem(k);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw) as DashboardBatchCachePayload;
+        if (!isFreshPayload(parsed, maxAgeMs)) continue;
+        memory.set(`${restaurantId}:${parsed.widgets}`, parsed);
+        if (!best || parsed.at > best.at) best = parsed;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return best ? toQueryData(best) : null;
+}
+
 export function peekDashboardBatchSummaryCache(
   restaurantId: string,
   widgets: readonly DashboardBatchWidgetId[],
@@ -43,23 +84,34 @@ export function peekDashboardBatchSummaryCache(
 ): DashboardBatchQueryData | null {
   const key = memoryKey(restaurantId, widgets);
   const fromMemory = memory.get(key);
-  if (fromMemory && Date.now() - fromMemory.at <= maxAgeMs) {
+  if (fromMemory && isFreshPayload(fromMemory, maxAgeMs)) {
     return toQueryData(fromMemory);
   }
 
-  if (typeof window === "undefined") return fromMemory ? toQueryData(fromMemory) : null;
+  if (typeof window === "undefined") {
+    return fromMemory && isFreshPayload(fromMemory, maxAgeMs)
+      ? toQueryData(fromMemory)
+      : peekAnyDashboardBatchSummaryCache(restaurantId, maxAgeMs);
+  }
 
   try {
     const raw = localStorage.getItem(storageKey(restaurantId, widgets));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as DashboardBatchCachePayload;
-    if (parsed.widgets !== widgetsKey(widgets)) return null;
-    if (Date.now() - parsed.at > maxAgeMs) return null;
-    memory.set(key, parsed);
-    return toQueryData(parsed);
+    if (raw) {
+      const parsed = JSON.parse(raw) as DashboardBatchCachePayload;
+      if (
+        parsed.widgets === widgetsKey(widgets) &&
+        isFreshPayload(parsed, maxAgeMs)
+      ) {
+        memory.set(key, parsed);
+        return toQueryData(parsed);
+      }
+    }
   } catch {
-    return fromMemory ? toQueryData(fromMemory) : null;
+    /* fall through */
   }
+
+  // Widget-Key wechselt oft während Permissions laden — trotzdem KPIs sofort zeigen.
+  return peekAnyDashboardBatchSummaryCache(restaurantId, maxAgeMs);
 }
 
 export function writeDashboardBatchSummaryCache(

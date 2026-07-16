@@ -3,7 +3,7 @@ import Network
 
 /// Minimaler HTTP/1.1-Server für die iPad-Kasse (Network.framework).
 final class HubHTTPServer: @unchecked Sendable {
-    typealias Handler = @Sendable (String, String) -> (status: Int, body: Data)
+    typealias Handler = @Sendable (String, String, Data) -> (status: Int, body: Data)
 
     private let port: NWEndpoint.Port
     private let handler: Handler
@@ -45,7 +45,7 @@ final class HubHTTPServer: @unchecked Sendable {
     }
 
     private func receive(on connection: NWConnection, buffer: Data) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, isComplete, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 256 * 1024) { [weak self] data, _, isComplete, error in
             guard let self else { return }
             if let error {
                 print("[HubHTTP] receive error: \(error)")
@@ -59,7 +59,7 @@ final class HubHTTPServer: @unchecked Sendable {
             }
 
             if let request = Self.parseRequest(next) {
-                let result = self.handler(request.method, request.path)
+                let result = self.handler(request.method, request.path, request.body)
                 let response = Self.serializeResponse(status: result.status, body: result.body)
                 connection.send(content: response, completion: .contentProcessed { _ in
                     connection.cancel()
@@ -79,6 +79,7 @@ final class HubHTTPServer: @unchecked Sendable {
     private struct ParsedRequest {
         var method: String
         var path: String
+        var body: Data
     }
 
     private static func parseRequest(_ data: Data) -> ParsedRequest? {
@@ -105,14 +106,17 @@ final class HubHTTPServer: @unchecked Sendable {
 
         let bodyStart = raw.distance(from: raw.startIndex, to: headerEnd.upperBound)
         guard data.count >= bodyStart + contentLength else { return nil }
-        return ParsedRequest(method: method, path: path)
+        let body = data.subdata(in: bodyStart ..< (bodyStart + contentLength))
+        return ParsedRequest(method: method, path: path, body: body)
     }
 
     private static func serializeResponse(status: Int, body: Data) -> Data {
         let statusText: String
         switch status {
         case 200: statusText = "OK"
+        case 201: statusText = "Created"
         case 204: statusText = "No Content"
+        case 400: statusText = "Bad Request"
         case 404: statusText = "Not Found"
         case 405: statusText = "Method Not Allowed"
         case 503: statusText = "Service Unavailable"
@@ -125,6 +129,8 @@ final class HubHTTPServer: @unchecked Sendable {
         Content-Length: \(body.count)\r
         Connection: close\r
         Access-Control-Allow-Origin: *\r
+        Access-Control-Allow-Methods: GET, POST, OPTIONS\r
+        Access-Control-Allow-Headers: Content-Type, \(PosLanProtocol.headerProtocol), \(PosLanProtocol.headerRestaurantId)\r
         \(PosLanProtocol.headerProtocol): \(PosLanProtocol.version)\r
         \r
         """

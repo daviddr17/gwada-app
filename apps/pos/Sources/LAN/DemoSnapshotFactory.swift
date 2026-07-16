@@ -61,6 +61,7 @@ enum DemoSnapshotFactory {
                     sessionId: PosLanSessionFloorMeta(orderCount: 1, openCents: 2450),
                 ]
             ),
+            menu: nil,
             hub: PosLanHubInfo(
                 deviceId: hubDeviceId,
                 displayName: PosLanProtocol.bonjourName(restaurantName: restaurantName),

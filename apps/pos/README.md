@@ -9,6 +9,13 @@ Native iPad-Kasse + iPhone-Handgeräte. **Getrennt** von `apps/staff` (Expo, Kol
 | Rolle | automatisch: iPad → Hub/Server, iPhone → Handgerät |
 | LAN | Hub `http://<ip>:8787` · `_gwada-pos._tcp` |
 
+## Betriebsmodell
+
+1. **iPad** meldet sich an (Cloud), lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal.
+2. Danach läuft die Kasse **lokal**; Handgeräte holen Snapshot / Sessions / Orders nur über WLAN.
+3. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
+4. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE.
+
 ## Öffnen (Mac)
 
 ```bash
@@ -20,16 +27,23 @@ open GwadaPOS.xcodeproj
 
 In Xcode: Team wählen, auf **iPad** und **iPhone** (gleiches WLAN) installieren.
 
-## Test Phase 1
+### Erste Anmeldung (Kasse)
+
+Im Login-Bereich setzen:
+
+- E-Mail / Passwort (Restaurant-Mitarbeiter)
+- Restaurant-ID (UUID)
+- Erweitert: API-Basis (`https://gwada.app` oder Dev), Supabase-URL, Anon Key
+
+## Test
 
 1. App auf dem **iPad** starten → Server Port 8787 + Bonjour  
-2. App auf dem **iPhone** starten → findet Kasse, zeigt Demo-Tische  
-3. Optional: Hub-IP manuell im Handgerät eintragen  
-
-Demo-Snapshot ist lokal — Cloud-Login/Floor-API als Nächstes.
+2. Anmelden → Cloud-Bootstrap (oder Cache/Demo ohne Netz)  
+3. App auf dem **iPhone** starten → findet Kasse, zeigt Tische  
+4. Ohne Internet: Handgerät ↔ iPad weiter nutzbar; Sync später  
 
 ## Abgrenzung
 
-- `apps/web` — APIs / Dashboard  
+- `apps/web` — APIs / Dashboard / POS-Modul  
 - `apps/staff` — Mitarbeiter-App (Expo), unberührt  
 - `apps/pos` — diese native Kasse  

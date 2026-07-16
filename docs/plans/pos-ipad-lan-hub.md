@@ -71,22 +71,31 @@ Simulator oder Gerät: iPad = Server, iPhone = Client (gleiches WLAN / Simulator
 - [x] Auto-Rolle iPad/iPhone
 - [x] Hub-HTTP (`/v1/health`, `/v1/snapshot`) + Bonjour
 - [x] Handgerät: Discovery + Snapshot-Abruf
-- [ ] Cloud-Login / echte Floor-Daten (statt Demo-Snapshot)
+- [x] Cloud-Login (GoTrue) + `GET /api/pos/bootstrap` (Floor, Speisekarte, Optionen, Register)
+- [x] Lokaler Bootstrap-Cache auf dem iPad
+- [x] Sync-Queue (openSession / createOrder / collectCash) → Web-API → DB/Fiskaly
+- [x] LAN writes: `POST /v1/sessions`, `POST /v1/orders`
+- [x] Handgerät startet nur mit erreichbarer Kasse
+- [x] Web-Modul `/dashboard/pos` mit Live-Bestellungen / Tagesumsatz
 - [ ] TestFlight Bundle `app.gwada.pos` (eigene App, getrennt von Staff)
 
 ### Speisekarte → POS (Web)
 
 - [x] Optionsgruppen (Beilagen/Extras) mit Positionen + optionalem Aufpreis
 - [x] Chip „Optionen“ + Zuordnung am Gericht
-- [ ] POS liest Optionsgruppen und lässt Choices wählen
+- [x] Bootstrap liefert Optionen an die Kasse
+- [ ] POS-UI: Choices pro Gericht wählen (Aufpreis)
 
 ### Phase 2 — Bestell-Flow nativ
 
-- [ ] Tische, Warenkorb, Optionen wählen, senden über Hub
-- [ ] Barzahlung / Beleg über Web-API vom Hub
+- [x] Tisch öffnen (Hub + Handgerät über LAN)
+- [x] Einfache Position buchen (+ Gericht) inkl. Cloud/Queue
+- [ ] Warenkorb-UI, Optionen wählen, Split-Bill
+- [ ] Barzahlung / Beleg über Hub → `collect-cash-allocations`
 
 ### Phase 3 — Offline-Queue / Hardware
 
-- [ ] Persistente Sync-Queue auf dem iPad (Bestellungen, Zahlungen, Fiskal) → DB + Fiskaly bei Verbindung
-- [ ] Handgerät: kein Neustart ohne Hub; laufender Snapshot bei kurzem WLAN-Wackler tolerant
+- [x] Persistente Sync-Queue auf dem iPad
+- [x] Periodischer Flush bei Verbindung
+- [ ] Session-ID-Mapping robust bei reinem Offline-Open + späteren Orders
 - [ ] Bondrucker, Schublade

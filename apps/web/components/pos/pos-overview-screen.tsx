@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import {
   BarChart3,
   MonitorSmartphone,
   Receipt,
   ShoppingBag,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -14,12 +16,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import {
+  fetchPosActiveOrders,
+  fetchPosPaidTodayOrders,
+  fetchPosRegisterStatus,
+} from "@/lib/pos/pos-web-api-client";
 
 const HUB_LINKS = [
   {
@@ -42,8 +51,55 @@ const HUB_LINKS = [
   },
 ] as const;
 
+function formatCents(cents: number): string {
+  return new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: "EUR",
+  }).format(cents / 100);
+}
+
 export function PosOverviewScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const [loading, setLoading] = useState(true);
+  const [activeCount, setActiveCount] = useState<number | null>(null);
+  const [paidTodayCents, setPaidTodayCents] = useState<number | null>(null);
+  const [registerOpen, setRegisterOpen] = useState<boolean | null>(null);
+  const showSkeleton = useDeferredSkeleton(!ready || loading);
+
+  const load = useCallback(async () => {
+    if (!restaurantId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const [active, paid, register] = await Promise.all([
+        fetchPosActiveOrders(restaurantId),
+        fetchPosPaidTodayOrders(restaurantId),
+        fetchPosRegisterStatus(restaurantId),
+      ]);
+      if (active.ok) setActiveCount(active.data.orders.length);
+      else {
+        toast.error(active.error);
+        setActiveCount(null);
+      }
+      if (paid.ok) {
+        setPaidTodayCents(
+          paid.data.orders.reduce((sum, o) => sum + o.totalCents + o.tipCents, 0),
+        );
+      } else {
+        setPaidTodayCents(null);
+      }
+      if (register.ok) setRegisterOpen(register.data.isOpen);
+      else setRegisterOpen(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [restaurantId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (!ready) {
     return <WorkspaceRestaurantResolvePlaceholder className="py-10" />;
@@ -51,26 +107,37 @@ export function PosOverviewScreen() {
   if (!restaurantId) {
     return <WorkspaceRestaurantMissingMessage className="py-10" />;
   }
+  if (showSkeleton) {
+    return (
+      <div className="grid gap-3 pt-2 sm:grid-cols-3">
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pt-2">
       <div className="grid gap-3 sm:grid-cols-3">
         <KpiCard
           label="Umsatz heute"
-          value="—"
-          hint="Live-Daten folgen"
+          value={paidTodayCents == null ? "—" : formatCents(paidTodayCents)}
+          hint="Bezahlte Bestellungen"
           icon={Receipt}
         />
         <KpiCard
-          label="Bestellungen heute"
-          value="—"
-          hint="Live-Daten folgen"
+          label="Offene Bestellungen"
+          value={activeCount == null ? "—" : String(activeCount)}
+          hint="Noch nicht abgeschlossen"
           icon={ShoppingBag}
         />
         <KpiCard
-          label="Offene Tische"
-          value="—"
-          hint="Live-Daten folgen"
+          label="Kasse"
+          value={
+            registerOpen == null ? "—" : registerOpen ? "Geöffnet" : "Geschlossen"
+          }
+          hint="Register-Status"
           icon={MonitorSmartphone}
         />
       </div>
@@ -83,7 +150,8 @@ export function PosOverviewScreen() {
           <p>
             Hier laufen Bestellungen, Auswertungen und Fiskal-Einstellungen
             zusammen. Die Bedienung an Tisch und Theke bleibt in der nativen
-            POS-App (iPad als Hub, iPhone als Handgerät).
+            POS-App (iPad als Hub, iPhone als Handgerät — lokal auch ohne
+            Internet).
           </p>
           <ul className="space-y-2">
             {HUB_LINKS.map((item) => {

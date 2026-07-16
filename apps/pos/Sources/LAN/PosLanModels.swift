@@ -62,6 +62,8 @@ struct PosLanHubSnapshot: Codable, Equatable, Sendable {
     var generatedAt: String
     var register: PosLanRegisterState
     var floor: PosLanFloorSnapshot
+    /// Speisekarte für Handgeräte (optional für ältere Hubs).
+    var menu: PosCloudMenuCatalog?
     var hub: PosLanHubInfo
 }
 

@@ -8,6 +8,8 @@ enum PosLanProtocol {
     static let bonjourDomain = "local."
     static let healthPath = "/v1/health"
     static let snapshotPath = "/v1/snapshot"
+    static let openSessionPath = "/v1/sessions"
+    static let createOrderPath = "/v1/orders"
     static let headerProtocol = "X-Gwada-Pos-Lan"
     static let headerRestaurantId = "X-Gwada-Restaurant-Id"
 

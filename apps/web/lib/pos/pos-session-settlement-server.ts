@@ -10,6 +10,7 @@ import {
 } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { runPosPaymentPipelineForPayment } from "@/lib/pos/pos-payment-pipeline";
+import { applyGiftVoucherRedemption } from "@/lib/pos/pos-gift-vouchers-server";
 import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
 import { tryGeneratePosPaymentReceipt } from "@/lib/pos/generate-pos-receipt";
 import { resolvePosReceiptSignedUrl } from "@/lib/pos/receipt-storage";
@@ -641,6 +642,201 @@ export async function collectCashAllocations(params: {
   }
 
   return { ok: true, paymentId };
+}
+
+/**
+ * Teilzahlung mit Wertgutschein (Split möglich). Betrag ≤ offene Positionen und ≤ Guthaben.
+ * MwSt entsteht über die Speisen-Positionen (TSE Unbar); Gutschein-Guthaben sinkt.
+ */
+export async function collectVoucherAllocations(params: {
+  supabase: SupabaseClient;
+  restaurantId: string;
+  tableSessionId: string;
+  allocations: CollectAllocationInput[];
+  giftVoucherId: string;
+  tipCents?: number;
+  actorProfileId?: string | null;
+}): Promise<
+  | {
+      ok: true;
+      paymentId: string;
+      remainingVoucherCents: number;
+      voucherCode: string;
+    }
+  | { ok: false; error: string; status: number }
+> {
+  const register = await getOpenRegisterSession(params.restaurantId);
+  if (!register) {
+    return { ok: false, error: "register_closed", status: 403 };
+  }
+
+  const { data: session, error: sessionError } = await params.supabase
+    .from("pos_table_sessions")
+    .select("id, restaurant_id, status")
+    .eq("id", params.tableSessionId)
+    .maybeSingle();
+
+  if (sessionError || !session) {
+    return { ok: false, error: "session_not_found", status: 404 };
+  }
+  if (session.restaurant_id !== params.restaurantId) {
+    return { ok: false, error: "forbidden", status: 403 };
+  }
+  if (session.status !== "open") {
+    return { ok: false, error: "session_closed", status: 400 };
+  }
+
+  const normalized = params.allocations
+    .map((a) => ({
+      orderLineId: a.orderLineId.trim(),
+      quantity: Number(a.quantity),
+    }))
+    .filter((a) => a.orderLineId && Number.isFinite(a.quantity) && a.quantity > 0);
+
+  if (normalized.length === 0) {
+    return { ok: false, error: "empty_allocations", status: 400 };
+  }
+
+  const linesResult = await loadSessionLines(
+    params.supabase,
+    params.tableSessionId,
+    params.restaurantId,
+  );
+  if (!linesResult.ok) return linesResult;
+
+  const lineById = new Map(linesResult.lines.map((l) => [l.id, l]));
+  const merged = new Map<string, number>();
+  for (const alloc of normalized) {
+    merged.set(
+      alloc.orderLineId,
+      (merged.get(alloc.orderLineId) ?? 0) + alloc.quantity,
+    );
+  }
+
+  let amountCents = 0;
+  const resolved: Array<{
+    orderLineId: string;
+    quantity: number;
+    amountCents: number;
+    orderId: string;
+  }> = [];
+
+  for (const [orderLineId, qty] of merged) {
+    const line = lineById.get(orderLineId);
+    if (!line) {
+      return { ok: false, error: "invalid_order_line", status: 400 };
+    }
+    const openQty = openLineQuantity(
+      Number(line.quantity),
+      Number(line.paid_quantity ?? 0),
+    );
+    if (qty > openQty + 1e-9) {
+      return { ok: false, error: "allocation_exceeds_open_quantity", status: 400 };
+    }
+    const cents = allocationAmountCents(
+      Number(line.line_total_cents),
+      Number(line.quantity),
+      qty,
+    );
+    amountCents += cents;
+    resolved.push({
+      orderLineId,
+      quantity: qty,
+      amountCents: cents,
+      orderId: line.order_id,
+    });
+  }
+
+  if (amountCents <= 0) {
+    return { ok: false, error: "zero_amount", status: 400 };
+  }
+
+  const tipCents = Math.max(0, Math.round(params.tipCents ?? 0));
+  const chargeCents = amountCents + tipCents;
+  const primaryOrderId = resolved[0]!.orderId;
+
+  const { data: payment, error: payError } = await params.supabase
+    .from("pos_payments")
+    .insert({
+      restaurant_id: params.restaurantId,
+      order_id: primaryOrderId,
+      amount_cents: chargeCents,
+      tip_cents: tipCents,
+      method: "voucher",
+      status: "paid",
+      paid_at: new Date().toISOString(),
+      gift_voucher_id: params.giftVoucherId,
+    })
+    .select("id")
+    .single();
+
+  if (payError || !payment) {
+    console.warn("[pos] collect voucher payment", payError?.message);
+    return { ok: false, error: "payment_failed", status: 500 };
+  }
+
+  const paymentId = payment.id as string;
+  await params.supabase
+    .from("pos_payments")
+    .update({ split_group: paymentId })
+    .eq("id", paymentId);
+
+  const { error: allocError } = await params.supabase
+    .from("pos_payment_line_allocations")
+    .insert(
+      resolved.map((r) => ({
+        payment_id: paymentId,
+        order_line_id: r.orderLineId,
+        quantity: r.quantity,
+        amount_cents: r.amountCents,
+      })),
+    );
+
+  if (allocError) {
+    console.warn("[pos] voucher allocations", allocError.message);
+    await params.supabase.from("pos_payments").delete().eq("id", paymentId);
+    return { ok: false, error: "allocation_failed", status: 500 };
+  }
+
+  const redeem = await applyGiftVoucherRedemption({
+    supabase: params.supabase,
+    restaurantId: params.restaurantId,
+    voucherId: params.giftVoucherId,
+    amountCents: chargeCents,
+    paymentId,
+    actorProfileId: params.actorProfileId,
+  });
+
+  if (!redeem.ok) {
+    await params.supabase.from("pos_payments").delete().eq("id", paymentId);
+    return redeem;
+  }
+
+  for (const r of resolved) {
+    const line = lineById.get(r.orderLineId)!;
+    const nextPaid = Number(line.paid_quantity ?? 0) + r.quantity;
+    const { error: lineError } = await params.supabase
+      .from("pos_order_lines")
+      .update({ paid_quantity: nextPaid })
+      .eq("id", r.orderLineId);
+
+    if (lineError) {
+      console.warn("[pos] voucher paid_quantity", lineError.message);
+      return { ok: false, error: "update_line_failed", status: 500 };
+    }
+  }
+
+  const pipeline = await runPosPaymentPipelineForPayment(paymentId);
+  if (!pipeline.ok) {
+    return { ok: false, error: pipeline.error, status: 500 };
+  }
+
+  return {
+    ok: true,
+    paymentId,
+    remainingVoucherCents: redeem.remainingCents,
+    voucherCode: redeem.voucher.code,
+  };
 }
 
 export async function closePosTableSession(params: {

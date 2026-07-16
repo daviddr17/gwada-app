@@ -27,6 +27,11 @@ const POS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: APP_ROUTES.pos.giftVouchers,
+    label: "Gutscheine",
+    matchMode: "exact",
+  },
+  {
     href: APP_ROUTES.pos.statistics,
     label: "Statistiken",
     matchMode: "exact",

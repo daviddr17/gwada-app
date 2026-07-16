@@ -17,6 +17,7 @@ import {
   CreditCard,
   HandCoins,
   Receipt,
+  Ticket,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -101,6 +102,7 @@ const revenueConfig = {
 const tenderConfig = {
   cash: { label: "Bar", color: "var(--chart-2)" },
   card: { label: "Karte", color: "var(--chart-1)" },
+  voucher: { label: "Gutschein", color: "var(--chart-4)" },
   other: { label: "Sonstig", color: "var(--chart-3)" },
 } satisfies ChartConfig;
 
@@ -176,6 +178,11 @@ export function PosStatisticsScreen() {
         name: "Karte",
         value: stats.byMethod.cardCents / 100,
         fill: "var(--color-card)",
+      },
+      {
+        name: "Gutschein",
+        value: (stats.byMethod.voucherCents ?? 0) / 100,
+        fill: "var(--color-voucher)",
       },
       {
         name: "Sonstig",
@@ -302,7 +309,7 @@ export function PosStatisticsScreen() {
             />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard
               label="Bar"
               value={stats ? formatCents(stats.byMethod.cashCents) : "—"}
@@ -314,6 +321,14 @@ export function PosStatisticsScreen() {
               value={stats ? formatCents(stats.byMethod.cardCents) : "—"}
               hint={`${stats?.byMethod.cardCount ?? 0} Zahlungen`}
               icon={CreditCard}
+            />
+            <KpiCard
+              label="Gutschein"
+              value={
+                stats ? formatCents(stats.byMethod.voucherCents ?? 0) : "—"
+              }
+              hint={`${stats?.byMethod.voucherCount ?? 0} Zahlungen`}
+              icon={Ticket}
             />
             <KpiCard
               label="Sonstig"

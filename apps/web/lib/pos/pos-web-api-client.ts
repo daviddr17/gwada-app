@@ -53,9 +53,11 @@ export type PosWebStatisticsDto = {
   byMethod: {
     cashCents: number;
     cardCents: number;
+    voucherCents: number;
     otherCents: number;
     cashCount: number;
     cardCount: number;
+    voucherCount: number;
     otherCount: number;
   };
   byDay: Array<{
@@ -66,6 +68,7 @@ export type PosWebStatisticsDto = {
     paymentCount: number;
     cashCents: number;
     cardCents: number;
+    voucherCents: number;
     otherCents: number;
   }>;
   zSessions: Array<{

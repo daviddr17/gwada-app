@@ -46,6 +46,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSLocalNetworkUsageDescription: Gwada POS verbindet iPhone-Handgeräte mit der iPad-Kasse im lokalen WLAN.
+        NSCameraUsageDescription: Gwada POS scannt Gutschein-QR-Codes zum Einlösen an der Kasse.
         NSBonjourServices:
           - _gwada-pos._tcp
         NSAppTransportSecurity:

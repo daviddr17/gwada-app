@@ -134,6 +134,113 @@ enum PosCloudClient {
         )
     }
 
+    struct GiftVoucherLookupDto: Decodable, Sendable {
+        var id: String
+        var code: String
+        var balanceCents: Int
+        var initialAmountCents: Int
+        var expiresAt: String
+        var status: String
+    }
+
+    @MainActor
+    static func lookupGiftVoucher(
+        restaurantId: String,
+        code: String
+    ) async throws -> GiftVoucherLookupDto {
+        struct Body: Encodable {
+            var restaurantId: String
+            var code: String
+        }
+        struct Res: Decodable {
+            var voucher: GiftVoucherLookupDto
+        }
+        let res: Res = try await post(
+            "/api/pos/gift-vouchers/lookup",
+            body: Body(restaurantId: restaurantId, code: code)
+        )
+        return res.voucher
+    }
+
+    struct CollectVoucherResult: Decodable, Sendable {
+        var paymentId: String
+        var remainingVoucherCents: Int
+        var voucherCode: String
+    }
+
+    @MainActor
+    static func collectVoucher(
+        restaurantId: String,
+        tableSessionId: String,
+        giftVoucherId: String,
+        allocations: [(orderLineId: String, quantity: Int)],
+        tipCents: Int = 0
+    ) async throws -> CollectVoucherResult {
+        struct Allocation: Encodable {
+            var orderLineId: String
+            var quantity: Int
+        }
+        struct Body: Encodable {
+            var restaurantId: String
+            var tableSessionId: String
+            var giftVoucherId: String
+            var allocations: [Allocation]
+            var tipCents: Int
+        }
+        return try await post(
+            "/api/pos/payments/collect-voucher-allocations",
+            body: Body(
+                restaurantId: restaurantId,
+                tableSessionId: tableSessionId,
+                giftVoucherId: giftVoucherId,
+                allocations: allocations.map {
+                    Allocation(orderLineId: $0.orderLineId, quantity: $0.quantity)
+                },
+                tipCents: tipCents
+            )
+        )
+    }
+
+    struct IssuedGiftVoucherDto: Decodable, Sendable {
+        var id: String
+        var code: String
+        var balanceCents: Int
+        var initialAmountCents: Int
+        var expiresAt: String
+    }
+
+    @MainActor
+    static func issueGiftVoucher(
+        restaurantId: String,
+        amountCents: Int
+    ) async throws -> IssuedGiftVoucherDto {
+        struct Body: Encodable {
+            var restaurantId: String
+            var amountCents: Int
+        }
+        struct Res: Decodable {
+            var voucher: VoucherBody
+            struct VoucherBody: Decodable {
+                var id: String
+                var code: String
+                var balance_cents: Int
+                var initial_amount_cents: Int
+                var expires_at: String
+            }
+        }
+        let res: Res = try await post(
+            "/api/pos/gift-vouchers",
+            body: Body(restaurantId: restaurantId, amountCents: amountCents)
+        )
+        return IssuedGiftVoucherDto(
+            id: res.voucher.id,
+            code: res.voucher.code,
+            balanceCents: res.voucher.balance_cents,
+            initialAmountCents: res.voucher.initial_amount_cents,
+            expiresAt: res.voucher.expires_at
+        )
+    }
+
     struct PosTodayReceiptDto: Decodable, Identifiable, Sendable {
         var paymentId: String
         var orderId: String

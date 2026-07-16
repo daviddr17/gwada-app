@@ -17,6 +17,7 @@ export type PosStatisticsDayBucket = {
   paymentCount: number;
   cashCents: number;
   cardCents: number;
+  voucherCents: number;
   otherCents: number;
 };
 
@@ -45,21 +46,26 @@ export type PosStatisticsBundle = {
   byMethod: {
     cashCents: number;
     cardCents: number;
+    voucherCents: number;
     otherCents: number;
     cashCount: number;
     cardCount: number;
+    voucherCount: number;
     otherCount: number;
   };
   byDay: PosStatisticsDayBucket[];
   zSessions: PosStatisticsZSession[];
 };
 
-function methodBucket(method: string): "cash" | "card" | "other" {
+function methodBucket(
+  method: string,
+): "cash" | "card" | "voucher" | "other" {
   const m = method.trim().toLowerCase();
   if (m === "cash" || m === "bar") return "cash";
   if (m === "card" || m === "karte" || m === "mollie" || m === "terminal") {
     return "card";
   }
+  if (m === "voucher" || m === "gutschein") return "voucher";
   return "other";
 }
 
@@ -113,6 +119,7 @@ export async function loadPosStatisticsBundle(
       paymentCount: 0,
       cashCents: 0,
       cardCents: 0,
+      voucherCents: 0,
       otherCents: 0,
     });
   }
@@ -124,9 +131,11 @@ export async function loadPosStatisticsBundle(
   let refundedCount = 0;
   let cashCents = 0;
   let cardCents = 0;
+  let voucherCents = 0;
   let otherCents = 0;
   let cashCount = 0;
   let cardCount = 0;
+  let voucherCount = 0;
   let otherCount = 0;
 
   for (const p of payments ?? []) {
@@ -155,6 +164,9 @@ export async function loadPosStatisticsBundle(
     } else if (method === "card") {
       cardCents += amount + tip;
       cardCount += 1;
+    } else if (method === "voucher") {
+      voucherCents += amount + tip;
+      voucherCount += 1;
     } else {
       otherCents += amount + tip;
       otherCount += 1;
@@ -167,6 +179,7 @@ export async function loadPosStatisticsBundle(
       bucket.paymentCount += 1;
       if (method === "cash") bucket.cashCents += amount + tip;
       else if (method === "card") bucket.cardCents += amount + tip;
+      else if (method === "voucher") bucket.voucherCents += amount + tip;
       else bucket.otherCents += amount + tip;
     }
   }
@@ -209,9 +222,11 @@ export async function loadPosStatisticsBundle(
     byMethod: {
       cashCents,
       cardCents,
+      voucherCents,
       otherCents,
       cashCount,
       cardCount,
+      voucherCount,
       otherCount,
     },
     byDay: [...dayMap.values()],

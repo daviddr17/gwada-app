@@ -302,14 +302,43 @@ final class PosRuntime: ObservableObject {
         lines: [SessionOpenLine],
         method: PosPaymentMethodKind,
         tipCents: Int,
-        receivedAmountCents: Int? = nil
+        receivedAmountCents: Int? = nil,
+        giftVoucherId: String? = nil
     ) async {
-        guard method == .cash else {
-            statusMessage = "\(method.label) folgt — bitte Bar nutzen."
-            return
-        }
         let restaurantId = PosHubState.shared.restaurantId
         let allocations = lines.map { ($0.orderLineId, $0.openQuantity) }
+
+        if method == .voucher {
+            guard let giftVoucherId, !giftVoucherId.isEmpty else {
+                statusMessage = "Gutschein fehlt — bitte scannen oder Code eingeben."
+                return
+            }
+            do {
+                let result = try await PosCloudClient.collectVoucher(
+                    restaurantId: restaurantId,
+                    tableSessionId: sessionId,
+                    giftVoucherId: giftVoucherId,
+                    allocations: allocations,
+                    tipCents: tipCents
+                )
+                if result.remainingVoucherCents > 0 {
+                    statusMessage =
+                        "Gutschein \(result.voucherCode) · Rest \(PosMoney.format(result.remainingVoucherCents)). Nachdruck?"
+                } else {
+                    statusMessage = "Gutschein \(result.voucherCode) vollständig eingelöst."
+                }
+                await pullCloudBootstrap(forceDemoFallback: false)
+                publishSnapshot(PosHubState.shared.makeSnapshot())
+            } catch {
+                statusMessage = "Gutschein-Zahlung fehlgeschlagen — \(error.localizedDescription)"
+            }
+            return
+        }
+
+        guard method == .cash else {
+            statusMessage = "\(method.label) folgt — bitte Bar oder Gutschein nutzen."
+            return
+        }
         do {
             try await PosCloudClient.collectCash(
                 restaurantId: restaurantId,

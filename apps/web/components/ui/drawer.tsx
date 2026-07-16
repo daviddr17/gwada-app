@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { usePathname } from "next/navigation"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { DrawerFloatingPortalContext } from "@/lib/contexts/drawer-floating-portal"
@@ -10,12 +11,26 @@ import { cn } from "@/lib/utils"
 
 function Drawer({
   repositionInputs = false,
+  open,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
+  const pathname = usePathname()
+  const prevPathnameRef = React.useRef(pathname)
+
+  // Soft-Nav: Drawer schließen, damit Vaul-Scroll-Lock nicht hängen bleibt.
+  React.useEffect(() => {
+    if (prevPathnameRef.current === pathname) return
+    prevPathnameRef.current = pathname
+    if (open) onOpenChange?.(false)
+  }, [pathname, open, onOpenChange])
+
   return (
     <DrawerPrimitive.Root
       data-slot="drawer"
       repositionInputs={repositionInputs}
+      open={open}
+      onOpenChange={onOpenChange}
       {...props}
     />
   )

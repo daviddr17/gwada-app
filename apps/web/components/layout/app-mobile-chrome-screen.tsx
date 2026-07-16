@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { acquireAppScrollLock } from "@/lib/layout/app-scroll-root";
 import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import { cn } from "@/lib/utils";
 
@@ -26,24 +27,6 @@ const BACKDROP_CLOSE_MS = 320;
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-function lockAppScroll(): () => void {
-  const root = document.querySelector("[data-app-scroll-root]");
-  if (root instanceof HTMLElement) {
-    const scrollTop = root.scrollTop;
-    const prev = root.style.overflow;
-    root.style.overflow = "hidden";
-    return () => {
-      root.style.overflow = prev;
-      root.scrollTop = scrollTop;
-    };
-  }
-  const prevBody = document.body.style.overflow;
-  document.body.style.overflow = "hidden";
-  return () => {
-    document.body.style.overflow = prevBody;
-  };
 }
 
 function cancelAnimations(el: HTMLElement | null) {
@@ -104,7 +87,7 @@ export function AppMobileChromeScreen({
 
   useEffect(() => {
     if (!mounted) return;
-    unlockScrollRef.current = lockAppScroll();
+    unlockScrollRef.current = acquireAppScrollLock();
     return () => {
       unlockScrollRef.current?.();
       unlockScrollRef.current = null;

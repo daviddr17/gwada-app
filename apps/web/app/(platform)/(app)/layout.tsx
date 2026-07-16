@@ -8,6 +8,7 @@ import { AppShellReadinessProvider } from "@/components/providers/app-shell-read
 import { AuthCookieCleanupMount } from "@/components/providers/auth-cookie-cleanup-mount";
 import { DashboardBatchPrefetchMount } from "@/components/providers/dashboard-batch-prefetch-mount";
 import { UnifiedInboxBackgroundSyncMount } from "@/components/contacts/unified-inbox-background-sync-mount";
+import { AppScrollUnlockOnNavigate } from "@/components/providers/app-scroll-unlock-on-navigate";
 import { SoftNavLockProvider } from "@/components/providers/soft-nav-lock-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
@@ -78,6 +79,7 @@ export default function AppLayout({
                   <AccentColorProvider>
                     <AppShellReadinessProvider>
                       <SoftNavLockProvider>
+                        <AppScrollUnlockOnNavigate />
                         <DashboardPwaSetup />
                         <AuthCookieCleanupMount />
                         <DashboardBatchPrefetchMount />

@@ -1,0 +1,394 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Download, FileArchive, FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { DatePickerField } from "@/components/ui/date-picker";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  WorkspaceRestaurantMissingMessage,
+  WorkspaceRestaurantResolvePlaceholder,
+} from "@/components/workspace/workspace-restaurant-placeholder";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
+import {
+  downloadPosBlob,
+  downloadPosDsfinvkExport,
+  downloadPosSessionDsfinvk,
+  fetchPosRegisterSessions,
+  openPosXReportPdf,
+  openPosZReportPdf,
+  pollPosDsfinvkExport,
+  posApiErrorLabel,
+  startPosDsfinvkExport,
+  type PosWebRegisterSessionDto,
+} from "@/lib/pos/pos-web-api-client";
+import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
+import { ModuleDataTableFrame } from "@/lib/ui/module-paginated-data-table";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { cn } from "@/lib/utils";
+
+function formatCents(cents: number | null | undefined): string {
+  if (cents == null) return "—";
+  return new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: "EUR",
+  }).format(cents / 100);
+}
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("de-DE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function todayYmdLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function PosReportsScreen() {
+  const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const canExport = has("pos.kasse.export");
+
+  const [sessions, setSessions] = useState<PosWebRegisterSessionDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const showSkeleton = useDeferredSkeleton(!ready || loading || permissionsLoading);
+
+  const [xBusy, setXBusy] = useState(false);
+  const [rowBusyId, setRowBusyId] = useState<string | null>(null);
+  const [exportFrom, setExportFrom] = useState(todayYmdLocal);
+  const [exportTo, setExportTo] = useState(todayYmdLocal);
+  const [exportBusy, setExportBusy] = useState(false);
+
+  const rangeInvalid = exportFrom > exportTo;
+
+  const load = useCallback(async () => {
+    if (!restaurantId || !canExport) {
+      setSessions([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await fetchPosRegisterSessions(restaurantId, 40);
+      if (!result.ok) {
+        toast.error(posApiErrorLabel(result.error));
+        setSessions([]);
+        return;
+      }
+      setSessions(result.data.data);
+    } finally {
+      setLoading(false);
+    }
+  }, [restaurantId, canExport]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const handleXReport = async () => {
+    if (!restaurantId) return;
+    setXBusy(true);
+    try {
+      const result = await openPosXReportPdf(restaurantId);
+      if (!result.ok) toast.error(posApiErrorLabel(result.error));
+    } finally {
+      setXBusy(false);
+    }
+  };
+
+  const handleZPdf = async (sessionId: string) => {
+    if (!restaurantId) return;
+    setRowBusyId(`z-${sessionId}`);
+    try {
+      const result = await openPosZReportPdf(restaurantId, sessionId);
+      if (!result.ok) toast.error(posApiErrorLabel(result.error));
+    } finally {
+      setRowBusyId(null);
+    }
+  };
+
+  const handleSessionZip = async (session: PosWebRegisterSessionDto) => {
+    if (!restaurantId) return;
+    setRowBusyId(`zip-${session.id}`);
+    try {
+      const dateStr = session.closedAt?.slice(0, 10) ?? session.id.slice(0, 8);
+      const result = await downloadPosSessionDsfinvk(
+        restaurantId,
+        session.id,
+        `dsfinvk-${dateStr}.zip`,
+      );
+      if (!result.ok) toast.error(posApiErrorLabel(result.error));
+      else toast.success("DSFinV-K-Download gestartet");
+    } finally {
+      setRowBusyId(null);
+    }
+  };
+
+  const handleRangeExport = async () => {
+    if (!restaurantId || rangeInvalid) return;
+    setExportBusy(true);
+    try {
+      const started = await startPosDsfinvkExport(
+        restaurantId,
+        exportFrom,
+        exportTo,
+      );
+      if (!started.ok) {
+        toast.error(posApiErrorLabel(started.error));
+        return;
+      }
+      if (started.mode === "zip") {
+        downloadPosBlob(
+          started.blob,
+          `dsfinvk-${exportFrom}${exportFrom !== exportTo ? `-${exportTo}` : ""}.zip`,
+        );
+        toast.success("DSFinV-K-Export heruntergeladen");
+        return;
+      }
+
+      let ready = started.ready;
+      let exportId = started.exportId;
+      for (let i = 0; i < 20 && !ready; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const status = await pollPosDsfinvkExport(restaurantId, exportId);
+        if (!status.ok) {
+          toast.error(posApiErrorLabel(status.error));
+          return;
+        }
+        ready = status.data.ready;
+        exportId = status.data.exportId;
+      }
+      if (!ready) {
+        toast.error("Export noch nicht fertig — später erneut versuchen.");
+        return;
+      }
+      const dl = await downloadPosDsfinvkExport(restaurantId, exportId);
+      if (!dl.ok) toast.error(posApiErrorLabel(dl.error));
+      else toast.success("DSFinV-K-Export heruntergeladen");
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  const sessionCountLabel = useMemo(
+    () =>
+      sessions.length === 0
+        ? "Keine abgeschlossenen Sessions"
+        : `${sessions.length} Abschlüsse`,
+    [sessions.length],
+  );
+
+  if (!ready || permissionsLoading) {
+    return <WorkspaceRestaurantResolvePlaceholder className="py-10" />;
+  }
+  if (!restaurantId) {
+    return <WorkspaceRestaurantMissingMessage className="py-10" />;
+  }
+  if (!canExport) {
+    return <ModuleAccessDenied label="Kassenberichte" />;
+  }
+  if (showSkeleton) {
+    return (
+      <div className="space-y-4 pt-2">
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-56 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pt-2">
+      <Card className="border-border/50 shadow-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold">X-Bericht</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Zwischenbericht der offenen Kassensession (PDF).
+          </p>
+          <Button
+            type="button"
+            className={cn(brandActionButtonRoundedClassName, "rounded-xl")}
+            disabled={xBusy}
+            onClick={() => void handleXReport()}
+          >
+            {xBusy ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <FileText className="size-4" aria-hidden />
+            )}
+            X-Bericht öffnen
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 shadow-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold">
+            DSFinV-K Zeitraum
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="pos-dsfinvk-from">Von</Label>
+              <DatePickerField
+                id="pos-dsfinvk-from"
+                value={exportFrom}
+                onChange={(v) => setExportFrom(v ?? exportFrom)}
+                fullWidth
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pos-dsfinvk-to">Bis</Label>
+              <DatePickerField
+                id="pos-dsfinvk-to"
+                value={exportTo}
+                onChange={(v) => setExportTo(v ?? exportTo)}
+                minYmd={exportFrom}
+                fullWidth
+              />
+            </div>
+          </div>
+          {rangeInvalid ? (
+            <p className="text-sm text-destructive">
+              Das Enddatum muss am oder nach dem Startdatum liegen.
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-xl"
+            disabled={exportBusy || rangeInvalid}
+            onClick={() => void handleRangeExport()}
+          >
+            {exportBusy ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <FileArchive className="size-4" aria-hidden />
+            )}
+            ZIP exportieren
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">{sessionCountLabel}</p>
+        {sessions.length === 0 ? (
+          <Card className="border-border/50 shadow-card">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-12 text-center">
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-muted">
+                  <FileText
+                    className="size-6 text-muted-foreground"
+                    aria-hidden
+                  />
+                </div>
+                <p className="text-sm font-medium">Noch keine Z-Abschlüsse</p>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Nach dem ersten Kassenabschluss erscheinen hier Z-PDF und
+                  DSFinV-K-Download.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <ModuleDataTableFrame>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className={moduleDataTableHeadRowClassName}>
+                  <th className="px-3 py-2 text-left font-medium">Z-Nr.</th>
+                  <th className="px-3 py-2 text-left font-medium">Geschlossen</th>
+                  <th className="px-3 py-2 text-right font-medium">Endbestand</th>
+                  <th className="px-3 py-2 text-right font-medium">Differenz</th>
+                  <th className="px-3 py-2 text-right font-medium">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.map((session) => {
+                  const zBusy = rowBusyId === `z-${session.id}`;
+                  const zipBusy = rowBusyId === `zip-${session.id}`;
+                  return (
+                    <tr key={session.id} className="border-t border-border/40">
+                      <td className="px-3 py-2.5 tabular-nums font-medium">
+                        {session.zNr ?? "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground">
+                        {formatDateTime(session.closedAt)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        {formatCents(session.closingCashCents)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        {formatCents(session.cashDifferenceCents)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="rounded-lg"
+                            disabled={zBusy || zipBusy}
+                            onClick={() => void handleZPdf(session.id)}
+                          >
+                            {zBusy ? (
+                              <Loader2
+                                className="size-3.5 animate-spin"
+                                aria-hidden
+                              />
+                            ) : (
+                              <FileText className="size-3.5" aria-hidden />
+                            )}
+                            Z-PDF
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="rounded-lg"
+                            disabled={zBusy || zipBusy}
+                            onClick={() => void handleSessionZip(session)}
+                          >
+                            {zipBusy ? (
+                              <Loader2
+                                className="size-3.5 animate-spin"
+                                aria-hidden
+                              />
+                            ) : (
+                              <Download className="size-3.5" aria-hidden />
+                            )}
+                            DSFinV-K
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ModuleDataTableFrame>
+        )}
+      </div>
+    </div>
+  );
+}

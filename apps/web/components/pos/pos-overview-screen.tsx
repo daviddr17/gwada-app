@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   BarChart3,
+  FileText,
   MonitorSmartphone,
   Receipt,
   ShoppingBag,
@@ -34,20 +35,32 @@ const HUB_LINKS = [
   {
     href: APP_ROUTES.pos.orders,
     label: "Bestellungen",
-    description: "Offene und abgeschlossene Bestellungen aus Kasse und Online.",
+    description: "Offene Bestellungen aus Kasse und Online.",
     icon: ShoppingBag,
+  },
+  {
+    href: APP_ROUTES.pos.receipts,
+    label: "Quittungen",
+    description: "Bezahlte Bons, PDF und Bar-Storno mit Tisch wieder öffnen.",
+    icon: FileText,
   },
   {
     href: APP_ROUTES.pos.statistics,
     label: "Statistiken",
-    description: "Umsatz, Zahlungsmittel und Tagesabschlüsse.",
+    description: "Umsatz, Trinkgeld, Zahlungsmittel und Z-Abschlüsse.",
     icon: BarChart3,
+  },
+  {
+    href: APP_ROUTES.pos.reports,
+    label: "Berichte",
+    description: "X-/Z-PDF und DSFinV-K-Export.",
+    icon: Receipt,
   },
   {
     href: APP_ROUTES.pos.settings,
     label: "Einstellungen",
-    description: "TSE, Fiskalisierung und Kassen-Konfiguration.",
-    icon: Receipt,
+    description: "TSE, Drucker, Routing und KDS.",
+    icon: MonitorSmartphone,
   },
 ] as const;
 

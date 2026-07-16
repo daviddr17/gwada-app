@@ -44,7 +44,7 @@ Dieselbe Binary: `UIDevice.current.userInterfaceIdiom == .pad` → Hub, sonst Ha
 | **Handgeräte** | Kommunizieren nur mit dem Kassen-iPad (lokales WLAN). Start nur, wenn die Kasse erreichbar ist; Snapshot beim Start vom Hub. |
 | **Ohne Internet** | Service läuft weiter (Handgerät ↔ iPad lokal). Kein frischer Cloud-Pull, kein Sofort-Sync zu DB/Fiskaly. |
 | **Sync** | Sobald Internet wieder da: iPad schiebt lokale Queue → DB + Fiskaly. |
-| **Web-App (`/dashboard/pos`)** | Verwaltung & Überblick (Bestellungen, Statistiken, TSE/Einstellungen) — nicht die Tischbedienung. |
+| **Web-App (`/dashboard/pos`)** | Verwaltung & Überblick (Bestellungen, Quittungen, Statistiken, Berichte/DSFinV-K, TSE/Einstellungen) — nicht die Tischbedienung. |
 
 ---
 
@@ -76,7 +76,7 @@ Simulator oder Gerät: iPad = Server, iPhone = Client (gleiches WLAN / Simulator
 - [x] Sync-Queue (openSession / createOrder / collectCash) → Web-API → DB/Fiskaly
 - [x] LAN writes: `POST /v1/sessions`, `POST /v1/orders`
 - [x] Handgerät startet nur mit erreichbarer Kasse
-- [x] Web-Modul `/dashboard/pos` mit Live-Bestellungen / Tagesumsatz
+- [x] Web-Modul `/dashboard/pos` mit Live-Bestellungen / Quittungen / Statistiken / Berichte (X/Z, DSFinV-K)
 - [ ] TestFlight Bundle `app.gwada.pos` (eigene App, getrennt von Staff)
 
 ### Speisekarte → POS (Web)

@@ -30,7 +30,9 @@ export const APP_ROUTES = {
     root: "/dashboard/pos",
     overview: "/dashboard/pos/uebersicht",
     orders: "/dashboard/pos/bestellungen",
+    receipts: "/dashboard/pos/quittungen",
     statistics: "/dashboard/pos/statistiken",
+    reports: "/dashboard/pos/berichte",
     settings: "/dashboard/pos/einstellungen",
   },
   kontakte: {

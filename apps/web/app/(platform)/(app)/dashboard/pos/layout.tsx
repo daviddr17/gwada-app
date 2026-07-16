@@ -22,8 +22,18 @@ const POS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: APP_ROUTES.pos.receipts,
+    label: "Quittungen",
+    matchMode: "exact",
+  },
+  {
     href: APP_ROUTES.pos.statistics,
     label: "Statistiken",
+    matchMode: "exact",
+  },
+  {
+    href: APP_ROUTES.pos.reports,
+    label: "Berichte",
     matchMode: "exact",
   },
   {

@@ -1,6 +1,11 @@
 import "server-only";
 
 import {
+  displayReservationLogActorFields,
+  resolveDisplayReservationActor,
+  type DisplayReservationActor,
+} from "@/lib/display/display-reservation-actor-server";
+import {
   parseReservationPendingChange,
   type ReservationPendingChange,
 } from "@/lib/reservations/reservation-pending-change";
@@ -86,13 +91,14 @@ async function logChangeRequestAction(
     action: ReservationLogAction;
     before: ReservationLogSnapshot;
     after: ReservationLogSnapshot;
+    actor: DisplayReservationActor;
   },
 ) {
   const changes = buildReservationLogChanges(params.before, params.after);
   await insertReservationLogEntry(admin, {
     restaurantId: params.restaurantId,
     reservationId: params.reservationId,
-    actorUserId: null,
+    actorUserId: params.actor.profileId,
     action: params.action,
     reservationNumber: params.reservationNumber,
     guestLabel: formatReservationGuestLabel(
@@ -101,7 +107,7 @@ async function logChangeRequestAction(
       params.guestLastName,
     ),
     details: buildReservationLogDetails(changes, {
-      actorSource: "display",
+      ...displayReservationLogActorFields(params.actor),
       summary:
         params.action === "change_request_declined"
           ? "Änderungsanfrage abgelehnt"
@@ -113,8 +119,10 @@ async function logChangeRequestAction(
 export async function approveDisplayReservationChangeRequest(
   admin: SupabaseClient,
   restaurantId: string,
+  staffId: string,
   reservationId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const actor = await resolveDisplayReservationActor(admin, staffId);
   const { data: row, error: loadErr } = await admin
     .from("reservations")
     .select(
@@ -200,6 +208,7 @@ export async function approveDisplayReservationChangeRequest(
     action: "change_request_approved",
     before: beforeSnapshot,
     after: afterSnapshot,
+    actor,
   });
 
   const restoreStatusCode = (restoreStatus?.code as string | undefined) ?? "";
@@ -231,8 +240,10 @@ export async function approveDisplayReservationChangeRequest(
 export async function declineDisplayReservationChangeRequest(
   admin: SupabaseClient,
   restaurantId: string,
+  staffId: string,
   reservationId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const actor = await resolveDisplayReservationActor(admin, staffId);
   const { data: row, error: loadErr } = await admin
     .from("reservations")
     .select(
@@ -272,7 +283,7 @@ export async function declineDisplayReservationChangeRequest(
   await insertReservationLogEntry(admin, {
     restaurantId,
     reservationId,
-    actorUserId: null,
+    actorUserId: actor.profileId,
     action: "change_request_declined",
     reservationNumber: row.reservation_number as number,
     guestLabel: formatReservationGuestLabel(
@@ -281,7 +292,7 @@ export async function declineDisplayReservationChangeRequest(
       row.guest_last_name as string,
     ),
     details: buildReservationLogDetails([], {
-      actorSource: "display",
+      ...displayReservationLogActorFields(actor),
       summary: "Änderungsanfrage abgelehnt",
     }),
   });

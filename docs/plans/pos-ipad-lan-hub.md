@@ -21,18 +21,30 @@
 ```text
 ┌─────────────────────────────┐         Cloud (gwada.app / Supabase)
 │  iPad — Rolle: hub (auto)   │◄─────── Auth, Speisekarte, TSE, Sync
-│  SwiftUI + NWListener :8787 │
+│  SwiftUI + NWListener :8787 │         (wenn Internet verfügbar)
 │  Bonjour _gwada-pos._tcp    │
+│  lokaler Store + Sync-Queue │
 └──────────────▲──────────────┘
-               │ lokales WLAN
+               │ lokales WLAN (kein Internet nötig)
 ┌──────────────┴──────────────┐
 │  iPhone — Rolle: handheld   │
-│  Beim Start: Hub finden     │
-│  Snapshot von der Kasse     │
+│  Nur startbar, wenn Hub da  │
+│  Snapshot / Bestellungen    │
+│  über Kassen-iPad           │
 └─────────────────────────────┘
 ```
 
 Dieselbe Binary: `UIDevice.current.userInterfaceIdiom == .pad` → Hub, sonst Handgerät.
+
+### Betriebsmodell (verbindlich)
+
+| Schicht | Verhalten |
+|--------|-----------|
+| **iPad-Kasse** | Beim Start mit Internet: Daten aus der DB laden (Speisekarte, Tische, Config). Danach lokal arbeiten. |
+| **Handgeräte** | Kommunizieren nur mit dem Kassen-iPad (lokales WLAN). Start nur, wenn die Kasse erreichbar ist; Snapshot beim Start vom Hub. |
+| **Ohne Internet** | Service läuft weiter (Handgerät ↔ iPad lokal). Kein frischer Cloud-Pull, kein Sofort-Sync zu DB/Fiskaly. |
+| **Sync** | Sobald Internet wieder da: iPad schiebt lokale Queue → DB + Fiskaly. |
+| **Web-App (`/dashboard/pos`)** | Verwaltung & Überblick (Bestellungen, Statistiken, TSE/Einstellungen) — nicht die Tischbedienung. |
 
 ---
 
@@ -73,6 +85,8 @@ Simulator oder Gerät: iPad = Server, iPhone = Client (gleiches WLAN / Simulator
 - [ ] Tische, Warenkorb, Optionen wählen, senden über Hub
 - [ ] Barzahlung / Beleg über Web-API vom Hub
 
-### Phase 3 — Offline / Hardware
+### Phase 3 — Offline-Queue / Hardware
 
-- [ ] Queue, Bondrucker, Schublade
+- [ ] Persistente Sync-Queue auf dem iPad (Bestellungen, Zahlungen, Fiskal) → DB + Fiskaly bei Verbindung
+- [ ] Handgerät: kein Neustart ohne Hub; laufender Snapshot bei kurzem WLAN-Wackler tolerant
+- [ ] Bondrucker, Schublade

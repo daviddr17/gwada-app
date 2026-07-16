@@ -8,7 +8,6 @@ import {
   dashboardPwaIconPath,
 } from "@/lib/dashboard/dashboard-pwa-config";
 import { PWA_APP_LABEL_DASHBOARD } from "@/lib/pwa/pwa-app-labels";
-import { isStandalonePwaClient } from "@/lib/pwa/is-standalone-pwa-client";
 import { installDisplayModeAttributeSync } from "@/lib/pwa/sync-display-mode-attribute";
 import { syncAppleTouchIcon } from "@/lib/pwa/sync-apple-touch-icon";
 import { syncAppleWebAppTitle } from "@/lib/pwa/sync-apple-web-app-title";
@@ -21,9 +20,8 @@ export function DashboardPwaSetup() {
 
   useEffect(() => {
     syncAppleWebAppTitle(PWA_APP_LABEL_DASHBOARD);
-    if (isStandalonePwaClient()) {
-      syncAppleTouchIcon(dashboardPwaIconPath(180));
-    }
+    // Immer setzen (nicht nur standalone): Add-to-Home-Screen liest das Icon im Browser.
+    syncAppleTouchIcon(dashboardPwaIconPath(180));
   }, []);
 
   useEffect(() => {

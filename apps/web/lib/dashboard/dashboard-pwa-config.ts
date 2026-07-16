@@ -17,3 +17,9 @@ export function isDashboardPwaIconSize(value: number): value is DashboardPwaIcon
 export function dashboardPwaIconPath(size: DashboardPwaIconSize): string {
   return `/dashboard/icon/${size}`;
 }
+
+export const DASHBOARD_PWA_SPLASH_PATH_PREFIX = "/dashboard/splash";
+
+export function dashboardPwaSplashPath(width: number, height: number): string {
+  return `${DASHBOARD_PWA_SPLASH_PATH_PREFIX}/${width}x${height}`;
+}

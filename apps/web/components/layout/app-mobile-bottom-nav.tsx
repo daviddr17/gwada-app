@@ -1,10 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { Menu, Search, UserRound, X } from "lucide-react";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
+import {
+  normalizeNavHref,
+  useSoftNavLock,
+} from "@/components/providers/soft-nav-lock-provider";
 import {
   isRestaurantDashboardPath,
   useDashboardGlobalSearchOptional,
@@ -29,10 +33,17 @@ const itemActiveClassName = "text-foreground";
  */
 export function AppMobileBottomNav() {
   const pathname = usePathname();
+  const { pendingHref } = useSoftNavLock();
   const { openMobile, setOpenMobile, toggleSidebar } = useSidebar();
   const search = useDashboardGlobalSearchOptional();
   const showSearch = isRestaurantDashboardPath(pathname) && Boolean(search);
   const searchOpen = Boolean(search?.open);
+  const profileHref = APP_ROUTES.profile.personal;
+  const profilePending =
+    pendingHref != null &&
+    normalizeNavHref(pendingHref).startsWith(APP_ROUTES.profile.root);
+  const profileActive =
+    pathname.startsWith(APP_ROUTES.profile.root) || profilePending;
 
   return (
     <nav
@@ -114,12 +125,10 @@ export function AppMobileBottomNav() {
         <Button
           type="button"
           variant="ghost"
-          className={cn(
-            itemClassName,
-            pathname.startsWith(APP_ROUTES.profile.root) && itemActiveClassName,
-          )}
+          className={cn(itemClassName, profileActive && itemActiveClassName)}
           aria-label="Profil"
-          render={<Link href={APP_ROUTES.profile.root} prefetch />}
+          aria-current={profileActive ? "page" : undefined}
+          render={<AppNavLink href={profileHref} prefetch />}
         >
           <UserRound className="size-5 shrink-0" aria-hidden />
           <span>Profil</span>

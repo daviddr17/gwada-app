@@ -8,7 +8,7 @@ export const DISPLAY_PWA_START_URL = DISPLAY_PWA_PAIR_START_URL;
 export const DISPLAY_PWA_MANIFEST_PATH = "/display/manifest.webmanifest";
 export const DISPLAY_PWA_SW_PATH = "/display/sw.js";
 
-const DISPLAY_PWA_RESERVED_SEGMENTS = new Set(["pair", "icon"]);
+const DISPLAY_PWA_RESERVED_SEGMENTS = new Set(["pair", "icon", "splash"]);
 
 /** Restaurant-Slug für Display-PWA (nicht Pair/Icon-Routen). */
 export function normalizeDisplayPwaRestaurantSlug(
@@ -46,4 +46,10 @@ export function isDisplayPwaIconSize(value: number): value is DisplayPwaIconSize
 
 export function displayPwaIconPath(size: DisplayPwaIconSize): string {
   return `/display/icon/${size}`;
+}
+
+export const DISPLAY_PWA_SPLASH_PATH_PREFIX = "/display/splash";
+
+export function displayPwaSplashPath(width: number, height: number): string {
+  return `${DISPLAY_PWA_SPLASH_PATH_PREFIX}/${width}x${height}`;
 }

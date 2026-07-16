@@ -67,13 +67,7 @@ export default async function RootLayout({
               type={faviconMime ?? "image/png"}
               data-platform-branding="favicon"
             />
-            <link
-              rel="apple-touch-icon"
-              href={faviconHref}
-              sizes="180x180"
-              type={faviconMime ?? "image/png"}
-              data-platform-branding="favicon"
-            />
+            {/* apple-touch-icon: Marketing via PlatformFaviconSync; PWA via Zone-Metadata */}
           </>
         ) : null}
       </head>

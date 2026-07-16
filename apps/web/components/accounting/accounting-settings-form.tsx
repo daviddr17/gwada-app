@@ -53,6 +53,8 @@ export function AccountingSettingsForm() {
   const [deductInventoryOnInvoice, setDeductInventoryOnInvoice] = useState(false);
   const [reverseInventoryOnInvoiceCorrection, setReverseInventoryOnInvoiceCorrection] =
     useState(false);
+  const [importPosZToCashBook, setImportPosZToCashBook] = useState(false);
+  const [pushPosZToLexoffice, setPushPosZToLexoffice] = useState(false);
   const [documentDesign, setDocumentDesign] = useState<AccountingDocumentDesign>(
     DEFAULT_ACCOUNTING_DOCUMENT_DESIGN,
   );
@@ -84,6 +86,8 @@ export function AccountingSettingsForm() {
         connectorAutoSyncEnabledState,
         deductInventoryOnInvoice,
         reverseInventoryOnInvoiceCorrection,
+        importPosZToCashBook,
+        pushPosZToLexoffice,
         documentDesign,
         invoiceNumberPrefix,
         invoiceCorrectionNumberPrefix,
@@ -101,6 +105,8 @@ export function AccountingSettingsForm() {
       connectorAutoSyncEnabledState,
       deductInventoryOnInvoice,
       reverseInventoryOnInvoiceCorrection,
+      importPosZToCashBook,
+      pushPosZToLexoffice,
       documentDesign,
       invoiceNumberPrefix,
       invoiceCorrectionNumberPrefix,
@@ -129,6 +135,8 @@ export function AccountingSettingsForm() {
         row.connector_settings.lexoffice?.autoSync ?? row.auto_sync_lexoffice;
       const nextDeductInventory = row.deduct_inventory_on_invoice;
       const nextReverseInventory = row.reverse_inventory_on_invoice_correction;
+      const nextImportPosZ = row.import_pos_z_to_cash_book ?? false;
+      const nextPushPosZ = row.push_pos_z_to_lexoffice ?? false;
       const nextDesign = parseAccountingDocumentDesign(row.document_design);
       const lex = row.connector_settings.lexoffice;
       const nextPushContacts = lex?.pushContactUpdates ?? false;
@@ -139,6 +147,8 @@ export function AccountingSettingsForm() {
       setConnectorAutoSyncEnabledState(nextAutoSync);
       setDeductInventoryOnInvoice(nextDeductInventory);
       setReverseInventoryOnInvoiceCorrection(nextReverseInventory);
+      setImportPosZToCashBook(nextImportPosZ);
+      setPushPosZToLexoffice(nextPushPosZ);
       setDocumentDesign(nextDesign);
       setInvoiceNumberPrefix(row.invoice_number_prefix);
       setInvoiceCorrectionNumberPrefix(row.invoice_correction_number_prefix);
@@ -155,6 +165,8 @@ export function AccountingSettingsForm() {
         connectorAutoSyncEnabledState: nextAutoSync,
         deductInventoryOnInvoice: nextDeductInventory,
         reverseInventoryOnInvoiceCorrection: nextReverseInventory,
+        importPosZToCashBook: nextImportPosZ,
+        pushPosZToLexoffice: nextPushPosZ,
         documentDesign: nextDesign,
         invoiceNumberPrefix: row.invoice_number_prefix,
         invoiceCorrectionNumberPrefix: row.invoice_correction_number_prefix,
@@ -194,6 +206,9 @@ export function AccountingSettingsForm() {
           : {}),
         deductInventoryOnInvoice,
         reverseInventoryOnInvoiceCorrection,
+        importPosZToCashBook,
+        pushPosZToLexoffice:
+          activeConnectorKey === "lexoffice" ? pushPosZToLexoffice : false,
         documentDesign,
         invoiceNumberPrefix,
         invoiceCorrectionNumberPrefix,
@@ -364,6 +379,45 @@ export function AccountingSettingsForm() {
                   </div>
                 </>
               ) : null}
+
+              <div className="space-y-2.5 rounded-xl border border-border/40 bg-muted/10 px-3 py-3">
+                <div>
+                  <p className="text-sm font-medium">POS-Autopilot (Z-Abschluss)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Nach dem Z: Bar immer ins Kassenbuch, Umsatz optional an Lexoffice.
+                    Unbar und Payment-Gebühren folgen mit PSP-Settlement (z. B. 1.200 €
+                    Unbar − Gebühr → Netto). Standard aus.
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border/30 bg-background/60 px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">Kassenbuch (Bar)</p>
+                    <p className="text-xs text-muted-foreground">
+                      Barverkauf und Trinkgeld automatisch buchen (MwSt. anteilig).
+                    </p>
+                  </div>
+                  <Switch
+                    checked={importPosZToCashBook}
+                    onCheckedChange={setImportPosZToCashBook}
+                    disabled={loading || saving}
+                  />
+                </div>
+                {activeConnectorKey === "lexoffice" ? (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-border/30 bg-background/60 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">Lexoffice Umsatz</p>
+                      <p className="text-xs text-muted-foreground">
+                        Verkaufsbeleg je MwSt.-Satz und Trinkgeld an Lexoffice senden.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={pushPosZToLexoffice}
+                      onCheckedChange={setPushPosZToLexoffice}
+                      disabled={loading || saving}
+                    />
+                  </div>
+                ) : null}
+              </div>
 
               <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
                 <div>

@@ -124,6 +124,29 @@ export async function ensureAccountingCashBookDefaults(
         ...row,
       })),
     );
+  } else {
+    const { data: existingCats } = await sb
+      .from("accounting_cash_categories")
+      .select("name, direction")
+      .eq("restaurant_id", restaurantId);
+    const have = new Set(
+      (existingCats ?? []).map(
+        (row) =>
+          `${String(row.direction).toLowerCase()}:${String(row.name).toLowerCase()}`,
+      ),
+    );
+    const missing = DEFAULT_ACCOUNTING_CASH_CATEGORIES.filter(
+      (row) =>
+        !have.has(`${row.direction.toLowerCase()}:${row.name.toLowerCase()}`),
+    );
+    if (missing.length > 0) {
+      await sb.from("accounting_cash_categories").insert(
+        missing.map((row) => ({
+          restaurant_id: restaurantId,
+          ...row,
+        })),
+      );
+    }
   }
 
   const { data: settings } = await sb

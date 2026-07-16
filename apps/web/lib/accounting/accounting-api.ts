@@ -17,6 +17,10 @@ import type {
   AccountingTaxRateRow,
   AccountingUnitRow,
 } from "@/lib/types/accounting";
+import type {
+  AccountingPspProvider,
+  PosZAutopilotImportRow,
+} from "@/lib/types/accounting-pos-z-autopilot";
 
 export async function fetchAccountingCatalog(restaurantId: string): Promise<{
   taxRates: AccountingTaxRateRow[];
@@ -231,6 +235,8 @@ export async function saveAccountingSettings(
     };
     deductInventoryOnInvoice?: boolean;
     reverseInventoryOnInvoiceCorrection?: boolean;
+    importPosZToCashBook?: boolean;
+    pushPosZToLexoffice?: boolean;
     documentDesign?: import("@/lib/types/accounting-settings").AccountingDocumentDesign;
     invoiceNumberPrefix?: string;
     invoiceCorrectionNumberPrefix?: string;
@@ -858,4 +864,70 @@ export async function deleteAccountingCashEntry(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "delete_failed");
+}
+
+export async function fetchPosZAutopilotImports(
+  restaurantId: string,
+  sessionIds: string[],
+): Promise<PosZAutopilotImportRow[]> {
+  if (sessionIds.length === 0) return [];
+  const params = new URLSearchParams({
+    restaurantId,
+    sessionIds: sessionIds.join(","),
+  });
+  const res = await fetch(`/api/accounting/pos-z-autopilot?${params}`, {
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error ?? "load_failed");
+  }
+  return ((data as { imports?: PosZAutopilotImportRow[] }).imports ?? []);
+}
+
+export async function retryPosZAutopilotImport(
+  restaurantId: string,
+  sessionId: string,
+): Promise<PosZAutopilotImportRow | null> {
+  const res = await fetch("/api/accounting/pos-z-autopilot/retry", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ restaurantId, sessionId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error ?? "retry_failed");
+  }
+  const result = (data as { result?: { importRow?: PosZAutopilotImportRow | null } })
+    .result;
+  return result?.importRow ?? null;
+}
+
+export async function bookAccountingPspSettlement(
+  restaurantId: string,
+  input: {
+    provider: AccountingPspProvider;
+    externalSettlementId: string;
+    settlementDate: string;
+    grossCents: number;
+    feeCents: number;
+    currency?: string;
+    posRegisterSessionId?: string | null;
+  },
+) {
+  const res = await fetch("/api/accounting/psp-settlements", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ restaurantId, ...input }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error ?? "settlement_failed");
+  }
+  return data as {
+    ok: true;
+    settlementId: string;
+    feeVoucherId: string | null;
+    feeCashEntryId: string | null;
+  };
 }

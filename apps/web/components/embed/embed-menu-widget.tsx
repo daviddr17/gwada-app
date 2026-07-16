@@ -42,12 +42,17 @@ import type {
   MenuCategoryDefinition,
   MenuItem,
   MenuMainCategoryDefinition,
+  MenuOptionGroup,
   MenuTaxonomyDefinition,
 } from "@/lib/types/menu";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import { fuzzyTextMatchesQuery } from "@/lib/utils/fuzzy-search";
 import { formatMenuPrice } from "@/lib/menu/format-menu-price";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
+import {
+  PublicMenuItemOptionsDisplay,
+  resolveMenuItemOptionGroups,
+} from "@/components/menu/public-menu-item-options-display";
 import { cn } from "@/lib/utils";
 
 export type EmbedMenuWidgetProps = {
@@ -58,6 +63,8 @@ export type EmbedMenuWidgetProps = {
   categories: MenuCategoryDefinition[];
   items: MenuItem[];
   tagDefinitions: readonly MenuTaxonomyDefinition[];
+  /** Optionsgruppen (Beilagen/Extras) — öffentlich ausgeschrieben; Auswahl nur Ordering/POS. */
+  optionGroups?: readonly MenuOptionGroup[];
   /** Profil-Sheet: kein Embed-Header, Sticky/Scroll am Sheet-Viewport. */
   variant?: "embed" | "profileSheet";
   textTheme?: EmbedTextTheme;
@@ -67,11 +74,18 @@ function EmbedMenuItemRow({
   item,
   tagDefinitions,
   currencyCode,
+  optionGroupsById,
 }: {
   item: MenuItem;
   tagDefinitions: readonly MenuTaxonomyDefinition[];
   currencyCode?: string;
+  optionGroupsById: ReadonlyMap<string, MenuOptionGroup>;
 }) {
+  const itemOptionGroups = resolveMenuItemOptionGroups(
+    item.optionGroupIds,
+    optionGroupsById,
+  );
+
   return (
     <article className="border-b border-border/40 py-4 last:border-b-0">
       <div className="flex items-start justify-between gap-4">
@@ -83,6 +97,12 @@ function EmbedMenuItemRow({
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
               {item.description}
             </p>
+          ) : null}
+          {itemOptionGroups.length > 0 ? (
+            <PublicMenuItemOptionsDisplay
+              groups={itemOptionGroups}
+              currencyCode={currencyCode}
+            />
           ) : null}
           {item.tags.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -212,6 +232,7 @@ function EmbedMenuSections({
   anyFilteredMatch,
   tagDefinitions,
   currencyCode,
+  optionGroupsById,
 }: {
   sections: { cat: MenuCategoryDefinition; items: MenuItem[] }[];
   visibleCategories: MenuCategoryDefinition[];
@@ -219,6 +240,7 @@ function EmbedMenuSections({
   anyFilteredMatch: boolean;
   tagDefinitions: readonly MenuTaxonomyDefinition[];
   currencyCode?: string;
+  optionGroupsById: ReadonlyMap<string, MenuOptionGroup>;
 }) {
   if (hasSearch && !anyFilteredMatch) {
     return (
@@ -271,6 +293,7 @@ function EmbedMenuSections({
                     item={item}
                     tagDefinitions={tagDefinitions}
                     currencyCode={currencyCode}
+                    optionGroupsById={optionGroupsById}
                   />
                 ))}
               </div>
@@ -290,6 +313,7 @@ export function EmbedMenuWidget({
   categories,
   items,
   tagDefinitions,
+  optionGroups = [],
   variant = "embed",
   textTheme = "dark",
 }: EmbedMenuWidgetProps) {
@@ -299,6 +323,15 @@ export function EmbedMenuWidget({
   const [profileScrollRoot, setProfileScrollRoot] = useState<HTMLElement | null>(
     null,
   );
+
+  const optionGroupsById = useMemo(() => {
+    const map = new Map<string, MenuOptionGroup>();
+    for (const group of optionGroups) {
+      if (group.active === false) continue;
+      map.set(group.id, group);
+    }
+    return map;
+  }, [optionGroups]);
 
   useEffect(() => {
     setHostMode(isGwadaEmbedHostMode());
@@ -657,6 +690,7 @@ export function EmbedMenuWidget({
                 anyFilteredMatch={anyFilteredMatch}
                 tagDefinitions={tagDefinitions}
                 currencyCode={currencyCode}
+                optionGroupsById={optionGroupsById}
               />
             </div>
           </>

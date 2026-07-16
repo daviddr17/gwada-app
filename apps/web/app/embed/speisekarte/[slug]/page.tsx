@@ -51,8 +51,16 @@ export default async function EmbedSpeisekartePage({
     );
   }
 
-  const { name, accentHex, currencyCode, mainCategories, categories, items, tagDefinitions } =
-    result.data;
+  const {
+    name,
+    accentHex,
+    currencyCode,
+    mainCategories,
+    categories,
+    items,
+    tagDefinitions,
+    optionGroups,
+  } = result.data;
 
   const isPreview = Boolean(sp[EMBED_PREVIEW_TEXT_THEME_PARAM]);
 
@@ -69,6 +77,7 @@ export default async function EmbedSpeisekartePage({
         categories={categories}
         items={items}
         tagDefinitions={tagDefinitions}
+        optionGroups={optionGroups}
         textTheme={resolveEmbedTextTheme(
           textTheme,
           sp[EMBED_PREVIEW_TEXT_THEME_PARAM],

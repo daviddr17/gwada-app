@@ -17,6 +17,7 @@ export type RegisterSessionRow = {
   cash_difference_cents: number | null;
   z_nr: number | null;
   cash_point_closing_id: string | null;
+  closed_by_profile_id?: string | null;
 };
 
 export type RegisterSessionAggregate = {
@@ -46,7 +47,7 @@ export async function getOpenRegisterSession(
   if (!admin) return null;
 
   const selectCols =
-    "id, restaurant_id, opened_at, closed_at, opening_cash_cents, closing_cash_cents, expected_cash_cents, cash_difference_cents, z_nr, cash_point_closing_id";
+    "id, restaurant_id, opened_at, closed_at, opening_cash_cents, closing_cash_cents, expected_cash_cents, cash_difference_cents, z_nr, cash_point_closing_id, closed_by_profile_id";
 
   const { data } = await admin
     .from("pos_register_sessions")
@@ -96,7 +97,7 @@ export async function getRegisterSessionById(
   const { data } = await admin
     .from("pos_register_sessions")
     .select(
-      "id, restaurant_id, opened_at, closed_at, opening_cash_cents, closing_cash_cents, expected_cash_cents, cash_difference_cents, z_nr, cash_point_closing_id",
+      "id, restaurant_id, opened_at, closed_at, opening_cash_cents, closing_cash_cents, expected_cash_cents, cash_difference_cents, z_nr, cash_point_closing_id, closed_by_profile_id",
     )
     .eq("id", sessionId)
     .eq("restaurant_id", restaurantId)

@@ -33,6 +33,8 @@ export async function PATCH(req: Request) {
     };
     deductInventoryOnInvoice?: boolean;
     reverseInventoryOnInvoiceCorrection?: boolean;
+    importPosZToCashBook?: boolean;
+    pushPosZToLexoffice?: boolean;
     documentDesign?: import("@/lib/types/accounting-settings").AccountingDocumentDesign;
     invoiceNumberPrefix?: string;
     invoiceCorrectionNumberPrefix?: string;
@@ -55,6 +57,8 @@ export async function PATCH(req: Request) {
     connectorAutoSync: body.connectorAutoSync,
     deductInventoryOnInvoice: body.deductInventoryOnInvoice,
     reverseInventoryOnInvoiceCorrection: body.reverseInventoryOnInvoiceCorrection,
+    importPosZToCashBook: body.importPosZToCashBook,
+    pushPosZToLexoffice: body.pushPosZToLexoffice,
     documentDesign: body.documentDesign,
     invoiceNumberPrefix: body.invoiceNumberPrefix,
     invoiceCorrectionNumberPrefix: body.invoiceCorrectionNumberPrefix,

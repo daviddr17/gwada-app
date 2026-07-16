@@ -58,6 +58,8 @@ export async function upsertAccountingSettings(
     };
     deductInventoryOnInvoice?: boolean;
     reverseInventoryOnInvoiceCorrection?: boolean;
+    importPosZToCashBook?: boolean;
+    pushPosZToLexoffice?: boolean;
     documentDesign?: AccountingDocumentDesign;
     invoiceNumberPrefix?: string;
     invoiceCorrectionNumberPrefix?: string;
@@ -100,6 +102,12 @@ export async function upsertAccountingSettings(
   if (patch.reverseInventoryOnInvoiceCorrection !== undefined) {
     payload.reverse_inventory_on_invoice_correction =
       patch.reverseInventoryOnInvoiceCorrection;
+  }
+  if (patch.importPosZToCashBook !== undefined) {
+    payload.import_pos_z_to_cash_book = patch.importPosZToCashBook;
+  }
+  if (patch.pushPosZToLexoffice !== undefined) {
+    payload.push_pos_z_to_lexoffice = patch.pushPosZToLexoffice;
   }
   if (patch.documentDesign !== undefined) {
     payload.document_design = patch.documentDesign;

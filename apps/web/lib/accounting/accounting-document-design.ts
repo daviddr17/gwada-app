@@ -168,6 +168,8 @@ export function mergeAccountingSettingsRow(
       ...legacy,
       deduct_inventory_on_invoice: false,
       reverse_inventory_on_invoice_correction: false,
+      import_pos_z_to_cash_book: false,
+      push_pos_z_to_lexoffice: false,
       document_design: parseAccountingDocumentDesign(null),
       invoice_number_prefix: "RE",
       quotation_number_prefix: "AN",
@@ -200,6 +202,10 @@ export function mergeAccountingSettingsRow(
     reverse_inventory_on_invoice_correction:
       (data.reverse_inventory_on_invoice_correction as boolean | undefined) ??
       false,
+    import_pos_z_to_cash_book:
+      (data.import_pos_z_to_cash_book as boolean | undefined) ?? false,
+    push_pos_z_to_lexoffice:
+      (data.push_pos_z_to_lexoffice as boolean | undefined) ?? false,
     invoice_number_prefix:
       (data.invoice_number_prefix as string | undefined)?.trim() || "RE",
     quotation_number_prefix:

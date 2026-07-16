@@ -303,7 +303,8 @@ final class PosRuntime: ObservableObject {
         method: PosPaymentMethodKind,
         tipCents: Int,
         receivedAmountCents: Int? = nil,
-        giftVoucherId: String? = nil
+        giftVoucherId: String? = nil,
+        customPaymentMethodId: String? = nil
     ) async {
         let restaurantId = PosHubState.shared.restaurantId
         let allocations = lines.map { ($0.orderLineId, $0.openQuantity) }
@@ -335,8 +336,30 @@ final class PosRuntime: ObservableObject {
             return
         }
 
+        if method == .other {
+            guard let customPaymentMethodId, !customPaymentMethodId.isEmpty else {
+                statusMessage = "Zahlungsart fehlt."
+                return
+            }
+            do {
+                try await PosCloudClient.collectCustomMethod(
+                    restaurantId: restaurantId,
+                    tableSessionId: sessionId,
+                    paymentMethodId: customPaymentMethodId,
+                    allocations: allocations,
+                    tipCents: tipCents
+                )
+                statusMessage = "Teilzahlung kassiert."
+                await pullCloudBootstrap(forceDemoFallback: false)
+                publishSnapshot(PosHubState.shared.makeSnapshot())
+            } catch {
+                statusMessage = "Zahlung fehlgeschlagen — \(error.localizedDescription)"
+            }
+            return
+        }
+
         guard method == .cash else {
-            statusMessage = "\(method.label) folgt — bitte Bar oder Gutschein nutzen."
+            statusMessage = "Unbar folgt — bitte Bar, Gutschein oder eigene Art nutzen."
             return
         }
         do {

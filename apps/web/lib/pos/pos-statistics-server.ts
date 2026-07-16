@@ -32,6 +32,14 @@ export type PosStatisticsZSession = {
   zNr: number | null;
 };
 
+export type PosStatisticsPaymentMethodBucket = {
+  id: string | null;
+  label: string;
+  kind: string | null;
+  cents: number;
+  count: number;
+};
+
 export type PosStatisticsBundle = {
   fromYmd: string;
   toYmd: string;
@@ -53,19 +61,28 @@ export type PosStatisticsBundle = {
     voucherCount: number;
     otherCount: number;
   };
+  /** Aufschlüsselung inkl. eigener Zahlungsarten. */
+  byPaymentMethods: PosStatisticsPaymentMethodBucket[];
   byDay: PosStatisticsDayBucket[];
   zSessions: PosStatisticsZSession[];
 };
 
 function methodBucket(
   method: string,
+  kind: string | null | undefined,
 ): "cash" | "card" | "voucher" | "other" {
+  const k = (kind ?? "").trim().toLowerCase();
+  if (k === "cash") return "cash";
+  if (k === "voucher") return "voucher";
+  if (k === "unbar") return "card";
+  if (k === "custom") return "other";
+
   const m = method.trim().toLowerCase();
   if (m === "cash" || m === "bar") return "cash";
+  if (m === "voucher" || m === "gutschein") return "voucher";
   if (m === "card" || m === "karte" || m === "mollie" || m === "terminal") {
     return "card";
   }
-  if (m === "voucher" || m === "gutschein") return "voucher";
   return "other";
 }
 
@@ -97,7 +114,9 @@ export async function loadPosStatisticsBundle(
 
   const { data: payments, error } = await supabase
     .from("pos_payments")
-    .select("id, method, status, amount_cents, tip_cents, paid_at")
+    .select(
+      "id, method, status, amount_cents, tip_cents, paid_at, restaurant_payment_method_id, pos_restaurant_payment_methods(id, label, kind)",
+    )
     .eq("restaurant_id", restaurantId)
     .in("status", ["paid", "refunded"])
     .gte("paid_at", bounds.startAt)
@@ -137,6 +156,10 @@ export async function loadPosStatisticsBundle(
   let cardCount = 0;
   let voucherCount = 0;
   let otherCount = 0;
+  const methodDetail = new Map<
+    string,
+    PosStatisticsPaymentMethodBucket
+  >();
 
   for (const p of payments ?? []) {
     const amount = Number(p.amount_cents);
@@ -146,7 +169,15 @@ export async function loadPosStatisticsBundle(
       ? restaurantZonedDateKey(new Date(paidAt), bounds.timeZone)
       : fromYmd;
     const bucket = dayMap.get(ymd);
-    const method = methodBucket(String(p.method ?? ""));
+    const nested = p.pos_restaurant_payment_methods as
+      | { id?: string; label?: string; kind?: string }
+      | { id?: string; label?: string; kind?: string }[]
+      | null;
+    const methodRow = Array.isArray(nested) ? nested[0] : nested;
+    const method = methodBucket(
+      String(p.method ?? ""),
+      methodRow?.kind ?? null,
+    );
 
     if (p.status === "refunded") {
       refundedCents += amount + tip;
@@ -171,6 +202,29 @@ export async function loadPosStatisticsBundle(
       otherCents += amount + tip;
       otherCount += 1;
     }
+
+    const detailKey =
+      methodRow?.id ??
+      `legacy:${method}`;
+    const detailLabel =
+      methodRow?.label ??
+      (method === "cash"
+        ? "Bar"
+        : method === "voucher"
+          ? "Gutschein"
+          : method === "card"
+            ? "Unbar"
+            : "Sonstig");
+    const existing = methodDetail.get(detailKey) ?? {
+      id: methodRow?.id ?? null,
+      label: detailLabel,
+      kind: methodRow?.kind ?? method,
+      cents: 0,
+      count: 0,
+    };
+    existing.cents += amount + tip;
+    existing.count += 1;
+    methodDetail.set(detailKey, existing);
 
     if (bucket) {
       bucket.netCents += amount;
@@ -229,6 +283,9 @@ export async function loadPosStatisticsBundle(
       voucherCount,
       otherCount,
     },
+    byPaymentMethods: [...methodDetail.values()].sort(
+      (a, b) => b.cents - a.cents || a.label.localeCompare(b.label),
+    ),
     byDay: [...dayMap.values()],
     zSessions,
   };

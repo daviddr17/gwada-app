@@ -168,6 +168,23 @@ export function PosStatisticsScreen() {
 
   const tenderChartData = useMemo(() => {
     if (!stats) return [];
+    const detailed = stats.byPaymentMethods ?? [];
+    if (detailed.length > 0) {
+      const palette = [
+        "var(--color-cash)",
+        "var(--color-card)",
+        "var(--color-voucher)",
+        "var(--color-other)",
+        "var(--chart-5)",
+      ];
+      return detailed
+        .filter((r) => r.cents > 0)
+        .map((r, i) => ({
+          name: r.label,
+          value: r.cents / 100,
+          fill: palette[i % palette.length]!,
+        }));
+    }
     return [
       {
         name: "Bar",
@@ -175,7 +192,7 @@ export function PosStatisticsScreen() {
         fill: "var(--color-cash)",
       },
       {
-        name: "Karte",
+        name: "Unbar",
         value: stats.byMethod.cardCents / 100,
         fill: "var(--color-card)",
       },
@@ -317,7 +334,7 @@ export function PosStatisticsScreen() {
               icon={Banknote}
             />
             <KpiCard
-              label="Karte"
+              label="Unbar"
               value={stats ? formatCents(stats.byMethod.cardCents) : "—"}
               hint={`${stats?.byMethod.cardCount ?? 0} Zahlungen`}
               icon={CreditCard}
@@ -331,12 +348,37 @@ export function PosStatisticsScreen() {
               icon={Ticket}
             />
             <KpiCard
-              label="Sonstig"
+              label="Weitere"
               value={stats ? formatCents(stats.byMethod.otherCents) : "—"}
               hint={`${stats?.byMethod.otherCount ?? 0} Zahlungen`}
               icon={Receipt}
             />
           </div>
+
+          {stats?.byPaymentMethods && stats.byPaymentMethods.length > 0 ? (
+            <Card className="border-border/50 shadow-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">
+                  Nach Zahlungsart
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {stats.byPaymentMethods.map((row) => (
+                  <div
+                    key={row.id ?? row.label}
+                    className="flex items-baseline justify-between gap-3 rounded-lg border border-border/40 px-3 py-2 text-sm"
+                  >
+                    <span className="min-w-0 truncate font-medium">
+                      {row.label}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                      {formatCents(row.cents)} · {row.count}
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card className="border-border/50 shadow-card">
             <CardHeader className="pb-2">

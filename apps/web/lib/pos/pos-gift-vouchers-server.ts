@@ -7,6 +7,7 @@ import {
   upsertAccountingCashEntry,
 } from "@/lib/accounting/accounting-cash-book-server";
 import { createAccountingVoucher } from "@/lib/accounting/accounting-vouchers-server";
+import { getSystemPosPaymentMethod } from "@/lib/pos/pos-payment-methods-server";
 import { runPosPaymentPipelineForPayment } from "@/lib/pos/pos-payment-pipeline";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
@@ -513,6 +514,12 @@ export async function issuePosGiftVoucher(params: {
     return { ok: false, error: "line_create_failed", status: 500 };
   }
 
+  const cashMethod = await getSystemPosPaymentMethod(
+    admin,
+    params.restaurantId,
+    "cash",
+  );
+
   const { data: payment, error: payError } = await admin
     .from("pos_payments")
     .insert({
@@ -525,6 +532,7 @@ export async function issuePosGiftVoucher(params: {
       status: "paid",
       paid_at: issuedAt.toISOString(),
       gift_voucher_id: voucherId,
+      restaurant_payment_method_id: cashMethod?.id ?? null,
     })
     .select("id")
     .single();

@@ -8,7 +8,8 @@ struct SplitPayView: View {
         _ method: PosPaymentMethodKind,
         _ tipCents: Int,
         _ receivedAmountCents: Int?,
-        _ giftVoucherId: String?
+        _ giftVoucherId: String?,
+        _ customPaymentMethodId: String?
     ) -> Void
     var onCancel: () -> Void
 
@@ -38,6 +39,8 @@ struct SplitPayView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var selected: Set<String> = []
     @State private var method: PosPaymentMethodKind = .cash
+    @State private var selectedMethodId: String?
+    @State private var payMethods: [PosCloudClient.PaymentMethodDto] = []
     @State private var tipMode: TipMode = .none
     @State private var tipPercent: Int = 10
     @State private var tipAmountCents: Int = 0
@@ -95,21 +98,25 @@ struct SplitPayView: View {
                 }
 
                 Section("Zahlungsart") {
-                    ForEach(PosPaymentMethodKind.allCases) { m in
+                    ForEach(payMethods) { m in
+                        let kind = mapKind(m.kind)
+                        let selectedRow = selectedMethodId == m.id
                         Button {
-                            if m.available { method = m }
+                            guard m.collectable else { return }
+                            selectedMethodId = m.id
+                            method = kind
                         } label: {
                             HStack {
-                                PosChip(title: m.label, selected: method == m)
-                                if !m.available {
-                                    Text("folgt")
+                                PosChip(title: m.label, selected: selectedRow)
+                                if !m.collectable {
+                                    Text(m.kind == "unbar" ? "folgt" : "inaktiv")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
                             }
                         }
-                        .disabled(!m.available)
+                        .disabled(!m.collectable)
                         .buttonStyle(.plain)
                     }
                 }
@@ -181,7 +188,7 @@ struct SplitPayView: View {
                     }
                 }
 
-                if method == .voucher {
+                if method == .voucher || method == .other {
                     Section("Betrag") {
                         LabeledContent("Summe", value: PosMoney.format(selectionTotal))
                         tipControls
@@ -205,7 +212,8 @@ struct SplitPayView: View {
                     } else {
                         let picked = lines.filter { selected.contains($0.id) }
                         let received = method == .cash ? effectiveTendered : nil
-                        onPay(picked, method, tipCents, received, nil)
+                        let customId = method == .other ? selectedMethodId : nil
+                        onPay(picked, method, tipCents, received, nil, customId)
                     }
                 } label: {
                     Text(payButtonTitle)
@@ -218,6 +226,7 @@ struct SplitPayView: View {
             .sensoryFeedback(.success, trigger: payPulse)
             .onAppear {
                 if selected.isEmpty { selected = Set(lines.map(\.id)) }
+                Task { await loadPayMethods() }
             }
             .onChange(of: tipMode) { _, mode in
                 if mode != .amount && keypadTarget == .tip {
@@ -246,7 +255,7 @@ struct SplitPayView: View {
                 Button("Jetzt mit Gutschein bezahlen") {
                     guard let voucher = lookedUpVoucher else { return }
                     let picked = lines.filter { selected.contains($0.id) }
-                    onPay(picked, .voucher, tipCents, nil, voucher.id)
+                    onPay(picked, .voucher, tipCents, nil, voucher.id, nil)
                 }
                 Button("Abbrechen", role: .cancel) {}
             } message: {
@@ -316,12 +325,14 @@ struct SplitPayView: View {
     private var changeCents: Int { effectiveTendered - grandTotal }
 
     private var canPay: Bool {
-        guard !selected.isEmpty, method.available else { return false }
+        guard !selected.isEmpty else { return false }
         if method == .cash { return changeCents >= 0 }
         if method == .voucher {
             guard let v = lookedUpVoucher else { return false }
-            // Volle Auswahl muss vom Guthaben gedeckt sein (Rest danach separat splitten).
             return v.balanceCents >= grandTotal && grandTotal > 0
+        }
+        if method == .other {
+            return selectedMethodId != nil && grandTotal > 0
         }
         return false
     }
@@ -332,6 +343,10 @@ struct SplitPayView: View {
                 return "Gutschein · \(PosMoney.format(min(grandTotal, v.balanceCents)))"
             }
             return "Gutschein prüfen"
+        }
+        if method == .other {
+            let label = payMethods.first(where: { $0.id == selectedMethodId })?.label ?? "Zahlung"
+            return "\(label) · \(PosMoney.format(grandTotal))"
         }
         if method != .cash {
             return "Zahlen"
@@ -380,6 +395,35 @@ struct SplitPayView: View {
             lookedUpVoucher = voucher
         } catch {
             voucherLookupError = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func loadPayMethods() async {
+        do {
+            let methods = try await PosCloudClient.fetchPaymentMethods(
+                restaurantId: PosHubState.shared.restaurantId
+            )
+            payMethods = methods
+            if selectedMethodId == nil,
+               let cash = methods.first(where: { $0.kind == "cash" && $0.collectable })
+            {
+                selectedMethodId = cash.id
+                method = .cash
+            }
+        } catch {
+            // Fallback: Bar + Gutschein lokal
+            payMethods = []
+            method = .cash
+        }
+    }
+
+    private func mapKind(_ kind: String) -> PosPaymentMethodKind {
+        switch kind {
+        case "cash": return .cash
+        case "voucher": return .voucher
+        case "unbar": return .card
+        default: return .other
         }
     }
 }

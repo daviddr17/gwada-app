@@ -60,6 +60,13 @@ export type PosWebStatisticsDto = {
     voucherCount: number;
     otherCount: number;
   };
+  byPaymentMethods?: Array<{
+    id: string | null;
+    label: string;
+    kind: string | null;
+    cents: number;
+    count: number;
+  }>;
   byDay: Array<{
     ymd: string;
     netCents: number;

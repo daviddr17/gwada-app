@@ -103,6 +103,60 @@ enum PosCloudClient {
         return res.orderId
     }
 
+    struct PaymentMethodDto: Decodable, Identifiable, Sendable {
+        var id: String
+        var kind: String
+        var label: String
+        var sort_order: Int
+        var is_active: Bool
+        var is_system: Bool
+        var collectable: Bool
+        var fiscalClass: String
+    }
+
+    @MainActor
+    static func fetchPaymentMethods(restaurantId: String) async throws -> [PaymentMethodDto] {
+        struct Res: Decodable { var methods: [PaymentMethodDto] }
+        let res: Res = try await get(
+            "/api/pos/payment-methods?activeOnly=1",
+            restaurantId: restaurantId
+        )
+        return res.methods.sorted { $0.sort_order < $1.sort_order }
+    }
+
+    @MainActor
+    static func collectCustomMethod(
+        restaurantId: String,
+        tableSessionId: String,
+        paymentMethodId: String,
+        allocations: [(orderLineId: String, quantity: Int)],
+        tipCents: Int = 0
+    ) async throws {
+        struct Allocation: Encodable {
+            var orderLineId: String
+            var quantity: Int
+        }
+        struct Body: Encodable {
+            var restaurantId: String
+            var tableSessionId: String
+            var paymentMethodId: String
+            var allocations: [Allocation]
+            var tipCents: Int
+        }
+        try await postVoid(
+            "/api/pos/payments/collect-custom-allocations",
+            body: Body(
+                restaurantId: restaurantId,
+                tableSessionId: tableSessionId,
+                paymentMethodId: paymentMethodId,
+                allocations: allocations.map {
+                    Allocation(orderLineId: $0.orderLineId, quantity: $0.quantity)
+                },
+                tipCents: tipCents
+            )
+        )
+    }
+
     @MainActor
     static func collectCash(
         restaurantId: String,

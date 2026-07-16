@@ -21,6 +21,7 @@ const MODULE_DESCRIPTIONS: Record<SidebarModuleId, string> = {
     "Zutaten, Lieferanten und Bestände im Blick — verknüpft mit Speisekarte und Einkauf.",
   reservierungen:
     "Tischplan, Slots und Übersicht — klar für Service und Küche, ohne visuelles Rauschen.",
+  pos: "Bestellungen, Kassenläufe und Auswertungen — Web-Hub zur nativen POS-App.",
   events:
     "Veranstaltungen planen, Gäste und Ablauf — strukturiert im Betriebsalltag.",
   kontakte:
@@ -46,6 +47,7 @@ const MODULE_ACCENTS: Record<SidebarModuleId, string> = {
   menu: "from-violet-500/20 via-fuchsia-500/10 to-transparent",
   inventory: "from-amber-500/20 via-orange-500/10 to-transparent",
   reservierungen: "from-sky-500/20 via-blue-500/10 to-transparent",
+  pos: "from-orange-500/20 via-amber-500/10 to-transparent",
   events: "from-pink-500/20 via-rose-500/10 to-transparent",
   kontakte: "from-emerald-500/20 via-teal-500/10 to-transparent",
   news: "from-indigo-500/20 via-violet-500/10 to-transparent",

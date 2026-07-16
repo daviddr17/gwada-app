@@ -19,6 +19,7 @@ import {
   InventoryVisual,
   MessagesVisual,
   NewsVisual,
+  PosVisual,
   ReviewsVisual,
   StaffVisual,
 } from "@/components/landing/landing-sidebar-module-visuals";
@@ -265,6 +266,7 @@ const VISUALS: Record<LandingFeatureVisualKey, ComponentType<SceneProps>> = {
   menu: MenuVisual,
   inventory: InventoryVisual,
   reservierungen: ReservierungenVisual,
+  pos: PosVisual,
   events: EventsVisual,
   kontakte: MessagesVisual,
   news: NewsVisual,
@@ -275,7 +277,7 @@ const VISUALS: Record<LandingFeatureVisualKey, ComponentType<SceneProps>> = {
   dokumente: DocumentsVisual,
   checklisten: ChecklistsVisual,
   mitarbeiter: StaffVisual,
-};
+}
 
 export function LandingFeatureVisual({ visual, icon, active, className }: Props) {
   const Visual = VISUALS[visual];

@@ -340,6 +340,55 @@ export function AccountingVisual({ icon, active }: SceneProps) {
   );
 }
 
+export function PosVisual({ icon, active }: SceneProps) {
+  const tickets = [
+    { table: "T4", total: "42,50" },
+    { table: "Bar", total: "18,00" },
+  ];
+  return (
+    <SceneStage active={active}>
+      <GlowOrb active={active} className="left-1/3 top-1/4 size-40 bg-orange-500/20" />
+      <motion.div
+        className="absolute left-1/2 top-14 z-20 w-48 -translate-x-1/2"
+        animate={active ? { y: [0, -5, 0] } : {}}
+        transition={scrollSceneLoop(active, { duration: 4.4, ease: "easeInOut" })}
+      >
+        <GlassPanel active={active} className="p-3">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase">
+            Bestellungen
+          </p>
+          <div className="mt-2 space-y-2">
+            {tickets.map((ticket, i) => (
+              <motion.div
+                key={ticket.table}
+                className="flex items-center justify-between gap-2 border-b border-border/30 pb-2 last:border-0 last:pb-0"
+                animate={active ? { x: [6, 0, 6] } : {}}
+                transition={scrollSceneLoop(active, {
+                  duration: 2.7,
+                  delay: i * 0.15,
+                  ease: "easeInOut",
+                })}
+              >
+                <span className="text-[10px] font-medium text-foreground">
+                  {ticket.table}
+                </span>
+                <span className="text-[10px] font-bold tabular-nums text-accent">
+                  €{ticket.total}
+                </span>
+              </motion.div>
+            ))}
+          </div>
+        </GlassPanel>
+      </motion.div>
+      <HeroMonolith
+        icon={icon}
+        active={active}
+        className="absolute left-1/2 bottom-10 -translate-x-1/2"
+      />
+    </SceneStage>
+  );
+}
+
 export function DocumentsVisual({ icon, active }: SceneProps) {
   const docs = ["HACCP", "Vertrag", "Schulung"];
   return (

@@ -26,6 +26,13 @@ export const APP_ROUTES = {
     embed: "/dashboard/reservierungen/einbinden",
     protokoll: "/dashboard/reservierungen/protokoll",
   },
+  pos: {
+    root: "/dashboard/pos",
+    overview: "/dashboard/pos/uebersicht",
+    orders: "/dashboard/pos/bestellungen",
+    statistics: "/dashboard/pos/statistiken",
+    settings: "/dashboard/pos/einstellungen",
+  },
   kontakte: {
     root: "/dashboard/kontakte",
     messages: "/dashboard/kontakte/nachrichten",

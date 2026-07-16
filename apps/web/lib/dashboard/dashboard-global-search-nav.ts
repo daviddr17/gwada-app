@@ -49,7 +49,7 @@ export function dashboardGlobalSearchResultHref(
     case "reviews":
       return APP_ROUTES.bewertungen.overview;
     case "staff":
-      return `${APP_ROUTES.mitarbeiter.documents}?staff=${encodeURIComponent(id)}`;
+      return `${APP_ROUTES.mitarbeiter.hours}?staff=${encodeURIComponent(id)}`;
     case "inventory":
       return APP_ROUTES.inventory.overview;
     case "documents":

@@ -22,6 +22,13 @@ import {
 import { useDiningFloorLive } from "@/src/lib/hooks/use-dining-floor-live";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { useStaffPermissions } from "@/src/lib/hooks/use-staff-permissions";
+import { usePosDeviceRoleStore } from "@/src/lib/pos-lan/device-role-store";
+import { diningFloorFromHubSnapshot } from "@/src/lib/pos-lan/floor-from-hub";
+import { usePosHubConnectionStore } from "@/src/lib/pos-lan/hub-connection-store";
+import {
+  bootstrapPosHandheldFromHub,
+  refreshPosHubSnapshot,
+} from "@/src/lib/pos-lan/hub-runtime";
 import { fetchRegisterStatus, openTableSession } from "@/src/lib/pos-api";
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useAuthStore } from "@/src/stores/auth-store";
@@ -34,6 +41,15 @@ export default function TablesScreen() {
   const restaurantId = useAuthStore((s) => s.activeRestaurantId);
   const { has, loading: permsLoading } = useStaffPermissions();
   const canManageKasse = has("pos.kasse.manage");
+  const deviceRole = usePosDeviceRoleStore((s) => s.role);
+  const hubStatus = usePosHubConnectionStore((s) => s.status);
+  const hubSnapshot = usePosHubConnectionStore((s) => s.snapshot);
+  const hubError = usePosHubConnectionStore((s) => s.lastError);
+  const isHandheld = deviceRole === "handheld";
+  const hubFloor = useMemo(
+    () => (hubSnapshot ? diningFloorFromHubSnapshot(hubSnapshot) : null),
+    [hubSnapshot],
+  );
 
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [pendingTable, setPendingTable] = useState<DiningTableRow | null>(null);
@@ -47,25 +63,52 @@ export default function TablesScreen() {
   const [detailReservation, setDetailReservation] =
     useState<TableReservationRow | null>(null);
 
-  const { refetchInterval } = useDiningFloorLive(restaurantId);
+  const { refetchInterval } = useDiningFloorLive(
+    isHandheld && hubStatus === "connected" ? null : restaurantId,
+  );
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data: cloudData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["dining-floor", restaurantId],
-    enabled: Boolean(restaurantId),
+    enabled: Boolean(restaurantId) && !(isHandheld && hubStatus === "connected"),
     queryFn: () => fetchDiningFloorSnapshot(restaurantId!),
     refetchInterval,
   });
 
+  const data = isHandheld && hubFloor ? hubFloor : cloudData;
+
   const { data: registerStatus } = useQuery({
     queryKey: ["register-status", restaurantId],
-    enabled: Boolean(restaurantId),
+    enabled: Boolean(restaurantId) && !(isHandheld && hubSnapshot),
     queryFn: () => fetchRegisterStatus(restaurantId!),
   });
+
+  const effectiveRegisterStatus = useMemo(() => {
+    if (isHandheld && hubSnapshot) {
+      return {
+        isOpen: hubSnapshot.register.isOpen,
+        sessionId: hubSnapshot.register.sessionId,
+        openedAt: hubSnapshot.register.openedAt,
+      };
+    }
+    return registerStatus;
+  }, [isHandheld, hubSnapshot, registerStatus]);
 
   useEffect(() => {
     if (!data?.areas.length || selectedAreaId) return;
     setSelectedAreaId(data.areas[0]!.id);
   }, [data?.areas, selectedAreaId]);
+
+  const refreshFloor = useCallback(async () => {
+    if (isHandheld) {
+      if (hubStatus === "connected") {
+        await refreshPosHubSnapshot();
+      } else {
+        await bootstrapPosHandheldFromHub(restaurantId);
+      }
+      return;
+    }
+    await refetch();
+  }, [isHandheld, hubStatus, restaurantId, refetch]);
 
   const sessionByTableId = useMemo(() => {
     const map = new Map<string, OpenTableSessionRow>();
@@ -132,7 +175,7 @@ export default function TablesScreen() {
         return;
       }
 
-      if (!registerStatus?.isOpen) {
+      if (!effectiveRegisterStatus?.isOpen) {
         if (!canManageKasse) {
           Alert.alert(
             "Kasse geschlossen",
@@ -150,7 +193,7 @@ export default function TablesScreen() {
       setCoverCount(Math.min(2, table.capacity));
       setCoverSheetVisible(true);
     },
-    [sessionByTableId, registerStatus?.isOpen, canManageKasse, router],
+    [sessionByTableId, effectiveRegisterStatus?.isOpen, canManageKasse, router],
   );
 
   const handleRegisterConfirm = (openingCashCents: number) => {
@@ -169,7 +212,20 @@ export default function TablesScreen() {
   };
 
   const styles = useThemedStyles(createStyles);
-  const showSkeleton = useDeferredSkeleton(isLoading || permsLoading);
+  const floorLoading =
+    isHandheld && (hubStatus === "searching" || hubStatus === "connecting")
+      ? !hubFloor
+      : isLoading && !hubFloor;
+  const showSkeleton = useDeferredSkeleton(floorLoading || permsLoading);
+  const hubBanner =
+    isHandheld && hubStatus === "connected"
+      ? "Verbunden mit iPad-Kasse (WLAN)"
+      : isHandheld && hubStatus === "error"
+        ? hubError ?? "Kasse nicht erreichbar"
+        : isHandheld &&
+            (hubStatus === "searching" || hubStatus === "connecting")
+          ? "Suche iPad-Kasse im WLAN …"
+          : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -179,7 +235,19 @@ export default function TablesScreen() {
             title="Tische"
             subtitle="Bereich wählen, Tisch antippen und Bestellung starten"
           />
-          {!showSkeleton && !isLoading ? (
+          {hubBanner ? (
+            <Text
+              allowFontScaling
+              style={[
+                styles.hubBanner,
+                hubStatus === "error" && styles.hubBannerError,
+                hubStatus === "connected" && styles.hubBannerOk,
+              ]}
+            >
+              {hubBanner}
+            </Text>
+          ) : null}
+          {!showSkeleton && !floorLoading ? (
             <DiningAreaFilter
               areas={data?.areas ?? []}
               activeAreaId={selectedAreaId}
@@ -192,7 +260,7 @@ export default function TablesScreen() {
           <View style={styles.listBody}>
             <SkeletonList count={6} />
           </View>
-        ) : isLoading ? (
+        ) : floorLoading ? (
           <View style={styles.listBody}>
             <View style={styles.listPlaceholder} aria-busy />
           </View>
@@ -201,8 +269,8 @@ export default function TablesScreen() {
             style={styles.list}
             data={filteredTables}
             keyExtractor={(item) => item.id}
-            refreshing={isRefetching}
-            onRefresh={() => void refetch()}
+            refreshing={isRefetching || hubStatus === "connecting"}
+            onRefresh={() => void refreshFloor()}
             contentContainerStyle={[
               styles.listContent,
               filteredTables.length === 0 && styles.listContentEmpty,
@@ -323,6 +391,19 @@ function createStyles(colors: GwadaColors) {
       paddingHorizontal: gwadaSpacing.lg,
       paddingTop: gwadaSpacing.lg,
       gap: gwadaSpacing.md,
+    },
+    hubBanner: {
+      fontSize: 13,
+      lineHeight: 18,
+      color: colors.textMuted,
+    },
+    hubBannerOk: {
+      color: colors.accent,
+      fontWeight: "600",
+    },
+    hubBannerError: {
+      color: colors.destructive,
+      fontWeight: "600",
     },
     listBody: {
       flex: 1,

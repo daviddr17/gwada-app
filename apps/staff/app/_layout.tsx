@@ -3,6 +3,8 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
+import { syncPosLanRuntime } from "@/src/lib/pos-lan/hub-runtime";
+import { usePosDeviceRoleStore } from "@/src/lib/pos-lan/device-role-store";
 import { initStaffLanHost } from "@/src/lib/staff-lan-host";
 import { checkForStaffUpdatesOnLaunch } from "@/src/lib/staff-updates";
 import { useAuthStore } from "@/src/stores/auth-store";
@@ -30,6 +32,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void (async () => {
       await initStaffLanHost();
+      await usePosDeviceRoleStore.getState().init();
       await checkForStaffUpdatesOnLaunch();
       await init();
     })().finally(() => SplashScreen.hideAsync());
@@ -60,6 +63,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       router.replace("/(tabs)/tables");
     }
   }, [session, activeRestaurantId, isLoading, segments, router]);
+
+  // iPad-Hub starten bzw. Handgerät: Snapshot von der Kasse holen
+  useEffect(() => {
+    if (isLoading) return;
+    void syncPosLanRuntime();
+  }, [isLoading, session, activeRestaurantId]);
 
   return children;
 }

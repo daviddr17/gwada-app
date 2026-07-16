@@ -4,6 +4,7 @@ import { AppearanceSegment } from "@/src/components/menu/AppearanceSegment";
 import { MenuRow } from "@/src/components/menu/MenuRow";
 import type { MenuSectionDef } from "@/src/components/menu/MenuScreen";
 import { MenuSection } from "@/src/components/menu/MenuSection";
+import { PosLanSection } from "@/src/components/PosLanSection";
 import { ListSeparator } from "@/src/components/ui/ListSeparator";
 import { useStaffPermissions } from "@/src/lib/hooks/use-staff-permissions";
 import { useAuthStore } from "@/src/stores/auth-store";
@@ -80,6 +81,10 @@ function AppearanceSection() {
   );
 }
 
+function PosLanMenuSection() {
+  return <PosLanSection />;
+}
+
 function AppInfoSection() {
   return (
     <MenuSection title="App">
@@ -93,6 +98,10 @@ export function useStaffMenuSections(): MenuSectionDef[] {
     {
       id: "operations",
       render: () => <OperationsSection />,
+    },
+    {
+      id: "pos-lan",
+      render: () => <PosLanMenuSection />,
     },
     {
       id: "appearance",

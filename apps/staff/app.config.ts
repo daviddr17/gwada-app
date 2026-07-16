@@ -47,8 +47,6 @@ const buildProfile =
   process.env.EAS_BUILD_PROFILE ??
   "";
 
-const isLanPreview = buildProfile === "preview-lan";
-
 const dotenv = loadStaffDotEnv();
 
 const supabaseUrl =
@@ -83,13 +81,13 @@ const config: ExpoConfig = {
     buildNumber: "5",
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
-      ...(isLanPreview
-        ? {
-            NSAppTransportSecurity: {
-              NSAllowsLocalNetworking: true,
-            },
-          }
-        : {}),
+      // iPad-Kasse ↔ iPhone-Handgeräte (lokales WLAN / Bonjour)
+      NSLocalNetworkUsageDescription:
+        "Gwada Staff verbindet iPhone-Handgeräte mit der iPad-Kasse im lokalen WLAN.",
+      NSBonjourServices: ["_gwada-pos._tcp"],
+      NSAppTransportSecurity: {
+        NSAllowsLocalNetworking: true,
+      },
     },
   },
   android: {
@@ -112,6 +110,7 @@ const config: ExpoConfig = {
     "expo-router",
     "expo-secure-store",
     "expo-updates",
+    "expo-zeroconf",
     [
       "expo-splash-screen",
       {

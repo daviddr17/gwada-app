@@ -312,4 +312,5 @@ Details: [`expo-staff-salvage-audit.md` → Mollie-Strategie](./expo-staff-salva
 6. ~~Phase 5 MVP~~ — Staff-App lauffähig; Branding/Magic-Link offen
 7. **Phase 6 (läuft):** TC-06 abschließen → `expo run:ios` / TestFlight ([`staff-app-testflight.md`](./staff-app-testflight.md))
 8. **Danach:** Mollie auf Staging/Live-Domain (Superadmin + Pay + Webhook)
-9. **Später:** Gäste-App (Phase 7)
+9. **iPad-Kasse LAN-Hub:** siehe [`pos-ipad-lan-hub.md`](./pos-ipad-lan-hub.md) (Phase 1: lokaler Server + Handgerät-Abruf)
+10. **Später:** Gäste-App (Phase 7)

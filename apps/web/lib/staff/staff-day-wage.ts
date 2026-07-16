@@ -3,6 +3,7 @@ import type {
   RestaurantStaffWorkEntryRow,
 } from "@/lib/types/staff";
 import { isStaffFixedPayType } from "@/lib/staff/staff-contract-pay";
+import { summarizeStaffWorkEntries } from "@/lib/staff/staff-work-hours-summary";
 import { addDays, localDayKey } from "@/lib/staff/shift-schedule-range";
 import { startOfLocalDay } from "@/lib/reservations/month-range";
 
@@ -207,6 +208,16 @@ export type StaffPeriodWageSummary = {
   sickDaysWithPay: number;
 };
 
+/** Eine Zeile in der Monats-/Perioden-Abrechnungsübersicht. */
+export type StaffPeriodPayrollLine = {
+  staffId: string;
+  loggedH: number;
+  breakH: number;
+  netWorkH: number;
+  wageCents: number;
+  note: string | null;
+};
+
 /** Tages-Soll aus Vertrags-Wochenstunden (Soll ÷ 7). */
 export function staffSickDayPaidHours(
   contract: Pick<RestaurantStaffContractRow, "target_weekly_minutes">,
@@ -348,4 +359,98 @@ export function computeStaffPeriodWageSummary(params: {
 export function formatStaffAvgHourlyWage(cents: number | null | undefined): string {
   if (cents == null) return "—";
   return `${formatStaffEuroCents(cents)}/h`;
+}
+
+/**
+ * Pro Mitarbeiter mit erfasster Arbeit im Zeitraum: Zeiten + Lohn
+ * (für Abrechnungsübersicht unter Arbeitszeiten).
+ */
+export function computeStaffPeriodPayrollLines(params: {
+  entries: readonly RestaurantStaffWorkEntryRow[];
+  contracts: readonly RestaurantStaffContractRow[];
+  periodStart: Date;
+  periodEnd: Date;
+  now?: Date;
+}): StaffPeriodPayrollLine[] {
+  const now = params.now ?? new Date();
+  const staffIds = new Set<string>();
+  for (const e of params.entries) {
+    if (e.entry_type === "work" || e.entry_type === "break") {
+      staffIds.add(e.staff_id);
+    }
+  }
+
+  const wageByStaff = new Map<string, number>();
+  const noteByStaff = new Map<string, string | null>();
+
+  for (
+    let day = startOfLocalDay(params.periodStart);
+    day <= params.periodEnd;
+    day = addDays(day, 1)
+  ) {
+    const dayYmd = localDayKey(day);
+    for (const staffId of staffIds) {
+      const workHours = sumStaffWorkHoursForDay(
+        params.entries,
+        staffId,
+        dayYmd,
+        now,
+      );
+      if (workHours <= 0) continue;
+
+      const contract = findStaffContractForDay(
+        params.contracts,
+        staffId,
+        dayYmd,
+      );
+      if (!contract) {
+        if (!noteByStaff.has(staffId)) {
+          noteByStaff.set(staffId, "Kein gültiger Vertrag");
+        }
+        continue;
+      }
+      if (isStaffFixedPayType(contract.pay_type)) {
+        noteByStaff.set(staffId, "Festlohn — nicht stundenbasiert");
+        continue;
+      }
+      const hourlyRateCents = contract.hourly_rate_cents;
+      if (hourlyRateCents == null || hourlyRateCents <= 0) {
+        if (!noteByStaff.has(staffId)) {
+          noteByStaff.set(staffId, "Kein Stundenlohn hinterlegt");
+        }
+        continue;
+      }
+
+      const wageCents = Math.round(workHours * hourlyRateCents);
+      wageByStaff.set(staffId, (wageByStaff.get(staffId) ?? 0) + wageCents);
+      if (noteByStaff.get(staffId) !== "Festlohn — nicht stundenbasiert") {
+        noteByStaff.set(staffId, null);
+      }
+    }
+  }
+
+  const lines: StaffPeriodPayrollLine[] = [];
+  for (const staffId of staffIds) {
+    const staffEntries = params.entries.filter((e) => e.staff_id === staffId);
+    const hours = summarizeStaffWorkEntries([...staffEntries], now);
+    if (hours.loggedH <= 0 && hours.breakH <= 0 && hours.netWorkH <= 0) {
+      continue;
+    }
+    lines.push({
+      staffId,
+      loggedH: Math.round(hours.loggedH * 10) / 10,
+      breakH: Math.round(hours.breakH * 10) / 10,
+      netWorkH: Math.round(hours.netWorkH * 10) / 10,
+      wageCents: wageByStaff.get(staffId) ?? 0,
+      note: noteByStaff.get(staffId) ?? null,
+    });
+  }
+
+  lines.sort(
+    (a, b) =>
+      b.wageCents - a.wageCents ||
+      b.netWorkH - a.netWorkH ||
+      a.staffId.localeCompare(b.staffId),
+  );
+  return lines;
 }

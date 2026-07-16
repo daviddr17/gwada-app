@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSpeechRecognition } from "@/lib/hooks/use-speech-recognition";
 import {
-  isReservationVoiceConfirmUtterance,
   mergeReservationVoiceDrafts,
   parseReservationVoiceDraftWithAlternatives,
   reservationVoiceDraftToParsed,
@@ -25,6 +24,7 @@ import {
 } from "@/lib/reservations/parse-reservation-voice-text";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { SpeechLiveCaption } from "@/lib/ui/speech-live-caption";
+import { isVoiceConfirmUtterance } from "@/lib/voice/voice-confirm-utterance";
 import { cn } from "@/lib/utils";
 
 const MISSING_HINT: Record<ReservationVoiceMissingField, string> = {
@@ -159,7 +159,7 @@ export function ReservationVoiceCompleteSheet({
 
       if (base.missing.length === 0) {
         const confirmHit = candidates.some((c) =>
-          isReservationVoiceConfirmUtterance(c),
+          isVoiceConfirmUtterance(c),
         );
         if (confirmHit) {
           void handleSubmitRef.current();
@@ -167,7 +167,7 @@ export function ReservationVoiceCompleteSheet({
         }
       } else if (
         candidates.every(
-          (c) => !c.trim() || isReservationVoiceConfirmUtterance(c),
+          (c) => !c.trim() || isVoiceConfirmUtterance(c),
         )
       ) {
         setSpeechHint(

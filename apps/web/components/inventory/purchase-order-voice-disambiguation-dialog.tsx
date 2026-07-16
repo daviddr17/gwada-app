@@ -10,7 +10,7 @@ export type PurchaseOrderVoiceDisambiguationDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   heardQuery: string;
-  quantity: number;
+  quantity: number | null;
   candidates: IngredientVoiceMatchCandidate[];
   onSelect: (ingredientId: string) => void;
 };
@@ -23,9 +23,12 @@ export function PurchaseOrderVoiceDisambiguationDialog({
   candidates,
   onSelect,
 }: PurchaseOrderVoiceDisambiguationDialogProps) {
-  const qtyLabel = Number.isInteger(quantity)
-    ? String(quantity)
-    : String(quantity).replace(".", ",");
+  const qtyLabel =
+    quantity == null
+      ? "Menge offen"
+      : Number.isInteger(quantity)
+        ? `${quantity}×`
+        : `${String(quantity).replace(".", ",")}×`;
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal>
@@ -45,7 +48,7 @@ export function PurchaseOrderVoiceDisambiguationDialog({
             Welche Zutat?
           </Dialog.Title>
           <Dialog.Description className="mt-2 text-sm text-muted-foreground">
-            Für „{heardQuery}" ({qtyLabel}×) gibt es mehrere Treffer — bitte
+            Für „{heardQuery}" ({qtyLabel}) gibt es mehrere Treffer — bitte
             antippen.
           </Dialog.Description>
 

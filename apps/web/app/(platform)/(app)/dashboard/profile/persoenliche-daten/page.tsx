@@ -1,7 +1,9 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,8 +20,10 @@ import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
+import { type AppLocale, normalizeAppLocale } from "@/i18n/config";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
+import { applyAppLocale } from "@/lib/i18n/apply-app-locale";
 import { cn } from "@/lib/utils";
 
 type ProfileBaseline = {
@@ -31,33 +35,19 @@ type ProfileBaseline = {
   postalCode: string;
   city: string;
   country: string;
+  locale: AppLocale;
 };
 
-function snapshotFromHook(p: {
-  firstName: string;
-  lastName: string;
-  nickname: string;
-  birthDate: string;
-  street: string;
-  postalCode: string;
-  city: string;
-  country: string;
-}): ProfileBaseline {
-  return {
-    firstName: p.firstName,
-    lastName: p.lastName,
-    nickname: p.nickname,
-    birthDate: p.birthDate,
-    street: p.street,
-    postalCode: p.postalCode,
-    city: p.city,
-    country: p.country,
-  };
+function snapshotFromFields(p: ProfileBaseline): string {
+  return JSON.stringify(p);
 }
 
 export default function ProfilePersoenlicheDatenPage() {
   const t = useTranslations("Profile.personal");
+  const tLang = useTranslations("Profile.language");
   const tCommon = useTranslations("Common");
+  const activeLocale = normalizeAppLocale(useLocale());
+  const router = useRouter();
   const {
     email,
     userId,
@@ -85,23 +75,28 @@ export default function ProfilePersoenlicheDatenPage() {
     isRemoteLoaded,
   } = usePersonalProfileNames();
 
+  const [draftLocale, setDraftLocale] = useState<AppLocale>(activeLocale);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [saving, setSaving] = useState(false);
   const savedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setDraftLocale(activeLocale);
+  }, [activeLocale]);
 
   const profileSnapshot = useMemo(
     () =>
-      JSON.stringify(
-        snapshotFromHook({
-          firstName,
-          lastName,
-          nickname,
-          birthDate,
-          street,
-          postalCode,
-          city,
-          country,
-        }),
-      ),
+      snapshotFromFields({
+        firstName,
+        lastName,
+        nickname,
+        birthDate,
+        street,
+        postalCode,
+        city,
+        country,
+        locale: draftLocale,
+      }),
     [
       firstName,
       lastName,
@@ -111,6 +106,7 @@ export default function ProfilePersoenlicheDatenPage() {
       postalCode,
       city,
       country,
+      draftLocale,
     ],
   );
 
@@ -120,32 +116,22 @@ export default function ProfilePersoenlicheDatenPage() {
       return;
     }
     if (savedRef.current === null) {
-      savedRef.current = profileSnapshot;
+      savedRef.current = snapshotFromFields({
+        firstName,
+        lastName,
+        nickname,
+        birthDate,
+        street,
+        postalCode,
+        city,
+        country,
+        locale: activeLocale,
+      });
+      setDraftLocale(activeLocale);
     }
-  }, [isHydrated, isRemoteLoaded, profileSnapshot]);
-
-  const profileDirty =
-    savedRef.current !== null && profileSnapshot !== savedRef.current;
-
-  const handleSave = useCallback(async () => {
-    const ok = await save();
-    if (!ok) return;
-    savedRef.current = JSON.stringify(
-      snapshotFromHook({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        nickname: nickname.trim(),
-        birthDate: birthDate.trim(),
-        street: street.trim(),
-        postalCode: postalCode.trim(),
-        city: city.trim(),
-        country: country.trim() || "DE",
-      }),
-    );
-    setSavedFlash(true);
-    window.setTimeout(() => setSavedFlash(false), 2000);
   }, [
-    save,
+    isHydrated,
+    isRemoteLoaded,
     firstName,
     lastName,
     nickname,
@@ -154,6 +140,63 @@ export default function ProfilePersoenlicheDatenPage() {
     postalCode,
     city,
     country,
+    activeLocale,
+  ]);
+
+  const profileDirty =
+    savedRef.current !== null && profileSnapshot !== savedRef.current;
+
+  const handleSave = useCallback(async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const localeChanged = draftLocale !== activeLocale;
+      const ok = await save();
+      if (!ok) return;
+
+      if (localeChanged) {
+        const localeResult = await applyAppLocale(draftLocale);
+        if (!localeResult.ok) {
+          toast.error(tLang("updateFailed"));
+          return;
+        }
+      }
+
+      savedRef.current = snapshotFromFields({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        nickname: nickname.trim(),
+        birthDate: birthDate.trim(),
+        street: street.trim(),
+        postalCode: postalCode.trim(),
+        city: city.trim(),
+        country: country.trim() || "DE",
+        locale: draftLocale,
+      });
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 2000);
+
+      if (localeChanged) {
+        router.refresh();
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    saving,
+    draftLocale,
+    activeLocale,
+    save,
+    tLang,
+    firstName,
+    lastName,
+    nickname,
+    birthDate,
+    street,
+    postalCode,
+    city,
+    country,
+    router,
   ]);
 
   // Lokal hydratisierte Daten sofort zeigen (Sidebar hat oft schon warm gemacht).
@@ -203,12 +246,16 @@ export default function ProfilePersoenlicheDatenPage() {
           onLastNameChange={setLastName}
           onNicknameChange={setNickname}
           onImagePathsChange={patchImagePaths}
-          disabled={!isHydrated}
+          disabled={!isHydrated || saving}
         />
 
         <ProfileDocumentsSummaryCard />
 
-        <ProfileLanguageCard />
+        <ProfileLanguageCard
+          value={draftLocale}
+          onChange={setDraftLocale}
+          disabled={!isHydrated || saving}
+        />
 
         <Card className="border-border/50 shadow-card">
           <CardContent className="space-y-4">
@@ -229,7 +276,7 @@ export default function ProfilePersoenlicheDatenPage() {
               <Input
                 id="profile-birthday"
                 type="date"
-                disabled={!isHydrated}
+                disabled={!isHydrated || saving}
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
                 className="h-11 rounded-xl"
@@ -242,7 +289,7 @@ export default function ProfilePersoenlicheDatenPage() {
               <Input
                 id="profile-street"
                 autoComplete="street-address"
-                disabled={!isHydrated}
+                disabled={!isHydrated || saving}
                 value={street}
                 onChange={(e) => setStreet(e.target.value)}
                 className="h-11 rounded-xl"
@@ -254,7 +301,7 @@ export default function ProfilePersoenlicheDatenPage() {
                 <Input
                   id="profile-zip"
                   autoComplete="postal-code"
-                  disabled={!isHydrated}
+                  disabled={!isHydrated || saving}
                   value={postalCode}
                   onChange={(e) => setPostalCode(e.target.value)}
                   className="h-11 rounded-xl"
@@ -265,7 +312,7 @@ export default function ProfilePersoenlicheDatenPage() {
                 <Input
                   id="profile-city"
                   autoComplete="address-level2"
-                  disabled={!isHydrated}
+                  disabled={!isHydrated || saving}
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   className="h-11 rounded-xl"
@@ -277,7 +324,7 @@ export default function ProfilePersoenlicheDatenPage() {
               <Input
                 id="profile-country"
                 autoComplete="country-name"
-                disabled={!isHydrated}
+                disabled={!isHydrated || saving}
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 placeholder={t("countryPlaceholder")}
@@ -290,7 +337,7 @@ export default function ProfilePersoenlicheDatenPage() {
         <SettingsStickySaveBar show={profileDirty}>
           <Button
             type="submit"
-            disabled={!isHydrated}
+            disabled={!isHydrated || saving}
             className={cn(
               "h-11 w-full min-w-[12rem] sm:w-auto",
               settingsAccentSaveButtonClassName,

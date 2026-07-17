@@ -20,7 +20,7 @@
     },
     "language": {
       "heading": "Idioma",
-      "description": "Idioma de la interfaz. Se aplica a esta cuenta en todos los dispositivos.",
+      "description": "Idioma de la interfaz. Guarda con el botón de abajo: se aplica a esta cuenta en todos los dispositivos.",
       "label": "Idioma",
       "updated": "Idioma actualizado",
       "updateFailed": "No se pudo guardar el idioma"

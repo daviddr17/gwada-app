@@ -20,7 +20,7 @@
     },
     "language": {
       "heading": "Langue",
-      "description": "Langue de l’interface. S’applique à ce compte sur tous les appareils.",
+      "description": "Langue de l’interface. Enregistrez avec le bouton en bas — s’applique à ce compte sur tous les appareils.",
       "label": "Langue",
       "updated": "Langue mise à jour",
       "updateFailed": "Impossible d’enregistrer la langue"

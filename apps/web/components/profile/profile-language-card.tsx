@@ -1,9 +1,6 @@
 "use client";
 
-import { useLocale, useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -17,38 +14,22 @@ import {
   APP_LOCALE_NATIVE_LABELS,
   APP_LOCALES,
   type AppLocale,
+  normalizeAppLocale,
 } from "@/i18n/config";
-import { applyAppLocale } from "@/lib/i18n/apply-app-locale";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 
-export function ProfileLanguageCard() {
+export function ProfileLanguageCard({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: AppLocale;
+  onChange: (locale: AppLocale) => void;
+  disabled?: boolean;
+}) {
   const t = useTranslations("Profile.language");
-  const locale = useLocale() as AppLocale;
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [busy, setBusy] = useState(false);
-
   const selectedLabel =
-    APP_LOCALE_NATIVE_LABELS[locale] ?? APP_LOCALE_NATIVE_LABELS.de;
-
-  const onChange = (value: unknown) => {
-    const next = typeof value === "string" ? value : null;
-    if (!next || next === locale || busy) return;
-    setBusy(true);
-    void (async () => {
-      const result = await applyAppLocale(next);
-      if (!result.ok) {
-        toast.error(t("updateFailed"));
-        setBusy(false);
-        return;
-      }
-      toast.success(t("updated"));
-      startTransition(() => {
-        router.refresh();
-        setBusy(false);
-      });
-    })();
-  };
+    APP_LOCALE_NATIVE_LABELS[value] ?? APP_LOCALE_NATIVE_LABELS.de;
 
   return (
     <Card className="border-border/50 shadow-card">
@@ -60,9 +41,12 @@ export function ProfileLanguageCard() {
         <div className="space-y-2">
           <Label htmlFor="profile-language">{t("label")}</Label>
           <Select
-            value={locale}
-            onValueChange={onChange}
-            disabled={busy || pending}
+            value={value}
+            onValueChange={(v) => {
+              if (typeof v !== "string") return;
+              onChange(normalizeAppLocale(v));
+            }}
+            disabled={disabled}
           >
             <SelectTrigger
               id="profile-language"

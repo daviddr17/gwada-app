@@ -186,7 +186,61 @@
       "hintNotifyChannel": "Attiva almeno e-mail o WhatsApp.",
       "hintTerms": "Accetta le condizioni.",
       "hintManageNumber": "Inserisci il numero di prenotazione.",
-      "hintManagePin": "Inserisci il PIN."
+      "hintManagePin": "Inserisci il PIN.",
+      "termsSheet": {
+        "title": "Condizioni di prenotazione",
+        "description": "{restaurantName} · Privacy e condizioni di prenotazione",
+        "restaurantFallback": "Ristorante",
+        "nameFallback": "il ristorante",
+        "close": "Chiudi",
+        "scope": {
+          "title": "1. Ambito di applicazione",
+          "p1": "Queste condizioni regolano la prenotazione online del tavolo presso {name} («Ristorante») tramite il modulo incorporato. Inviando la prenotazione, accetti queste condizioni.",
+          "p2": "La controparte contrattuale è il ristorante come fornitore del servizio di ristorazione; la fornitura tecnica del modulo può avvenire tramite un responsabile del trattamento."
+        },
+        "contract": {
+          "title": "2. Prenotazione e conclusione del contratto",
+          "p1": "La tua richiesta costituisce un’offerta di conclusione di un contratto di ristorazione (prenotazione del tavolo) con i dati indicati. Il contratto si conclude quando il ristorante conferma la prenotazione (ad es. via e-mail, WhatsApp o telefono) o la registra come confermata nel proprio sistema.",
+          "p2": "Fino alla conferma, il ristorante può rifiutare la prenotazione, soprattutto in caso di sold out, eventi o dati mancanti. Modifiche e cancellazioni sono possibili tramite numero di prenotazione e PIN del modulo, se previsti dal ristorante."
+        },
+        "guestDuties": {
+          "title": "3. Obblighi dell’ospite",
+          "p1": "Fornisci dati veritieri (nome, contatto, numero di persone, data/ora) e ti presenti all’orario prenotato oppure annulli per tempo.",
+          "p2": "In caso di assenze ripetute o gravi violazioni, il ristorante può rifiutare prenotazioni future."
+        },
+        "privacy": {
+          "title": "4. Protezione dei dati (GDPR)",
+          "p1": "Il titolare del trattamento ai sensi del Regolamento generale sulla protezione dei dati (GDPR) è {name} in qualità di gestore della prenotazione. I dati di contatto del titolare (indirizzo, e-mail) sono disponibili presso il ristorante o sul suo sito.",
+          "p2": "Le basi giuridiche del trattamento includono in particolare l’art. 6(1)(b) GDPR (contratto o misure precontrattuali), l’art. 6(1)(a) GDPR (consenso, ad es. notifiche e-mail/WhatsApp se le attivi) e l’art. 6(1)(f) GDPR (interesse legittimo a una corretta gestione degli ospiti e alla comunicazione).",
+          "p3": "I dati trattati possono includere: nome e cognome, telefono, e-mail, numero di persone, data/ora desiderata, numero di prenotazione e PIN, metadati tecnici (ad es. momento dell’invio) e preferenze di notifica.",
+          "p4": "Finalità: ricezione e gestione della prenotazione, assegnazione dei tavoli, contatto per chiarimenti, invio di messaggi di stato (ricezione, conferma, promemoria, modifica, cancellazione), obblighi di conservazione e prevenzione degli abusi.",
+          "p5": "Conservazione: i dati di prenotazione sono conservati solo per il tempo necessario a gestione, prova e termini di legge; poi cancellati o anonimizzati, salvo obblighi di legge diversi.",
+          "p6": "Destinatari: i dati sono trattati nel sistema di prenotazione; possono intervenire responsabili del trattamento (hosting, invio e-mail/WhatsApp) con contratti ex art. 28 GDPR. Trasferimenti verso Paesi terzi solo se sussistono i requisiti degli artt. 44 ss. GDPR.",
+          "p7": "I tuoi diritti: accesso, rettifica, cancellazione, limitazione del trattamento, portabilità, opposizione (in particolare al trattamento basato su interessi legittimi) e revoca del consenso con effetto per il futuro. Diritto di reclamare presso un’autorità di controllo.",
+          "p8": "Se il trattamento si basa sul consenso, questo è volontario; tuttavia per la prenotazione sono necessari i dati richiesti dal contratto e l’accettazione di queste condizioni."
+        },
+        "notifications": {
+          "title": "5. Notifiche",
+          "p1": "Se attivi le notifiche e-mail o WhatsApp, acconsenti all’invio di messaggi relativi alla prenotazione sul canale scelto. Puoi scegliere i canali nel modulo; almeno un canale deve essere attivo per informarti sui cambi di stato.",
+          "p2": "Puoi revocare il consenso in qualsiasi momento con effetto per il futuro (ad es. disiscrivendoti o contattando il ristorante)."
+        },
+        "cancellation": {
+          "title": "6. Cancellazione e no-show",
+          "p1": "Cancellazioni e modifiche seguono le regole del ristorante; usa le funzioni del modulo (numero di prenotazione e PIN) se offerte.",
+          "p2": "In caso di assenza ingiustificata (no-show), il ristorante può chiedere il risarcimento dei danni nei limiti di legge."
+        },
+        "liability": {
+          "title": "7. Responsabilità",
+          "p1": "Il ristorante risponde senza limiti per dolo e colpa grave nonché per lesioni alla vita, al corpo o alla salute. Per il resto risponde solo per violazione di obblighi contrattuali essenziali, limitata al danno prevedibile e tipico.",
+          "p2": "Nessuna responsabilità è accettata per interruzioni del modulo online al di fuori del controllo del ristorante, nei limiti di legge."
+        },
+        "final": {
+          "title": "8. Disposizioni finali",
+          "p1": "Si applica il diritto della Repubblica Federale di Germania, con esclusione della Convenzione delle Nazioni Unite sui contratti di vendita internazionale di merci, salvo norme imperative di tutela del consumatore del tuo Paese di residenza.",
+          "p2": "Se singole disposizioni fossero invalide, le altre restano efficaci.",
+          "p3": "Versione: maggio 2026. Il ristorante può aggiornare queste condizioni; fa fede la versione consultabile al momento della prenotazione."
+        }
+      }
     },
     "filterAll": "Tutti",
     "images": "Foto",

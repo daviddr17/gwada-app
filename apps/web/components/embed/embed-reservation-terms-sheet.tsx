@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { cn } from "@/lib/utils";
@@ -10,8 +11,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
-import { reservationBookingTermsSections } from "@/lib/legal/reservation-booking-terms-de";
+import {
+  drawerScrollAreaClassName,
+  drawerFormHeaderClassName,
+  drawerFormFullWidthButtonClassName,
+} from "@/lib/ui/drawer-form-section";
+import { reservationBookingTermsSections } from "@/lib/legal/reservation-booking-terms";
 
 /** Über Profil-App-Sheet (z-[60]) und Dock (z-[9999]). */
 const profileElevatedDrawerClassName = "z-[10001]";
@@ -28,8 +33,13 @@ export function EmbedReservationTermsSheet({
   /** Nested drawer inside profile app sheet — above sheet chrome. */
   elevated?: boolean;
 }) {
-  const sections = reservationBookingTermsSections(restaurantName);
+  const t = useTranslations("Embed.reservation.termsSheet");
+  const sections = reservationBookingTermsSections(
+    (key, values) => t(key as Parameters<typeof t>[0], values),
+    restaurantName,
+  );
   const elevatedClassName = elevated ? profileElevatedDrawerClassName : undefined;
+  const displayName = restaurantName.trim() || t("restaurantFallback");
 
   return (
     <Drawer
@@ -47,11 +57,10 @@ export function EmbedReservationTermsSheet({
       >
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Bedingungen zur Reservierung
+            {t("title")}
           </DrawerTitle>
           <DrawerDescription className="text-sm text-muted-foreground">
-            {restaurantName.trim() || "Restaurant"} · Datenschutz und
-            Reservierungsbedingungen
+            {t("description", { restaurantName: displayName })}
           </DrawerDescription>
         </DrawerHeader>
         <div className={drawerScrollAreaClassName(6)}>
@@ -77,7 +86,7 @@ export function EmbedReservationTermsSheet({
             className={drawerFormFullWidthButtonClassName}
             onClick={() => onOpenChange(false)}
           >
-            Schließen
+            {t("close")}
           </Button>
         </div>
       </DrawerContent>

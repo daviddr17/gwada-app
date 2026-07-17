@@ -186,7 +186,61 @@
       "hintNotifyChannel": "Enable at least email or WhatsApp notifications.",
       "hintTerms": "Please accept the terms.",
       "hintManageNumber": "Enter reservation number.",
-      "hintManagePin": "Enter PIN."
+      "hintManagePin": "Enter PIN.",
+      "termsSheet": {
+        "title": "Reservation terms",
+        "description": "{restaurantName} · Privacy and reservation terms",
+        "restaurantFallback": "Restaurant",
+        "nameFallback": "the restaurant",
+        "close": "Close",
+        "scope": {
+          "title": "1. Scope",
+          "p1": "These terms govern online table reservations at {name} (“Restaurant”) via the embedded reservation form. By submitting a reservation, you agree to these terms.",
+          "p2": "The contracting party is the restaurant as the provider of the hospitality service; technical provision of the form may be handled by a processor."
+        },
+        "contract": {
+          "title": "2. Reservation and contract formation",
+          "p1": "Your request is an offer to conclude a hospitality contract (table reservation) for the stated details. The contract is formed when the restaurant confirms the reservation (e.g. by email, WhatsApp, or phone) or records it as confirmed in its system.",
+          "p2": "Until confirmation, the restaurant may decline the reservation, especially if fully booked, for events, or if details are missing. Changes and cancellations are possible via the reservation number and PIN provided in the form, where the restaurant offers this."
+        },
+        "guestDuties": {
+          "title": "3. Guest obligations",
+          "p1": "You provide accurate details (name, contact, party size, date/time) and arrive at the reserved time or cancel in good time.",
+          "p2": "For repeated no-shows or serious breaches, the restaurant may refuse future reservations."
+        },
+        "privacy": {
+          "title": "4. Privacy (GDPR)",
+          "p1": "The controller under the General Data Protection Regulation (GDPR) is {name} as the operator of the reservation. Contact details of the controller (address, email) are available from the restaurant on site or on its website.",
+          "p2": "Legal bases for processing include in particular Art. 6(1)(b) GDPR (contract or pre-contractual steps for the reservation), Art. 6(1)(a) GDPR (consent, e.g. for email/WhatsApp notifications if you enable them), and Art. 6(1)(f) GDPR (legitimate interest in proper guest management and communication).",
+          "p3": "Processed data may include: first and last name, phone number, email address, party size, requested date/time, reservation number and PIN, technical metadata (e.g. submission time), and notification preferences.",
+          "p4": "Purposes of processing: receiving and managing your reservation, assigning tables, contacting you with questions, sending status messages (receipt, confirmation, reminder, change, cancellation), meeting legal retention duties, and preventing abuse.",
+          "p5": "Retention: reservation data are stored only as long as needed for handling, proof, and legal retention periods; then deleted or anonymized unless legal retention duties require otherwise.",
+          "p6": "Recipients: data are processed within the reservation system; processors (hosting, email/WhatsApp delivery) may be used under Art. 28 GDPR contracts. Transfers to third countries occur only where Art. 44 et seq. GDPR requirements are met.",
+          "p7": "Your rights: access, rectification, erasure, restriction of processing, data portability, objection (especially to processing based on legitimate interests), and withdrawal of consent for the future. You may lodge a complaint with a supervisory authority (e.g. in Germany, the competent state authority).",
+          "p8": "Where processing is based on consent, consent is voluntary; however, details required for the contract and acceptance of these terms are necessary for the reservation."
+        },
+        "notifications": {
+          "title": "5. Notifications",
+          "p1": "If you enable email or WhatsApp notifications, you consent to receiving reservation-related messages via the chosen channel. You can select channels in the form; at least one channel must be active so you can be informed of status changes.",
+          "p2": "You may withdraw consent at any time with effect for the future (e.g. by unsubscribing or contacting the restaurant)."
+        },
+        "cancellation": {
+          "title": "6. Cancellation and no-show",
+          "p1": "Cancellations and changes follow the restaurant’s rules; use the functions in the form (reservation number and PIN) where offered.",
+          "p2": "For an unexcused absence (no-show), the restaurant may claim damages where not restricted by law."
+        },
+        "liability": {
+          "title": "7. Liability",
+          "p1": "The restaurant is fully liable for intent and gross negligence and for injury to life, body, or health. Otherwise, the restaurant is liable only for breach of essential contractual duties, limited to foreseeable, typical damage.",
+          "p2": "No liability is accepted for disruptions of the online form outside the restaurant’s control, to the extent permitted by law."
+        },
+        "final": {
+          "title": "8. Final provisions",
+          "p1": "The law of the Federal Republic of Germany applies, excluding the UN Convention on Contracts for the International Sale of Goods, unless mandatory consumer protection rules of your country of residence require otherwise.",
+          "p2": "If any provision is invalid, the remaining terms remain effective.",
+          "p3": "Version: May 2026. The restaurant may update these terms; the version available at the time of your reservation applies."
+        }
+      }
     },
     "filterAll": "All",
     "images": "Photos",

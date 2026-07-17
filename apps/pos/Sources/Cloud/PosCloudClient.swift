@@ -66,6 +66,25 @@ enum PosCloudClient {
     }
 
     @MainActor
+    static func fetchReservationsDay(
+        restaurantId: String,
+        dayYmd: String
+    ) async throws -> PosReservationsDayDto {
+        try await get(
+            "/api/pos/reservations",
+            restaurantId: restaurantId,
+            extraQuery: ["day": dayYmd]
+        )
+    }
+
+    @MainActor
+    static func createReservation(
+        payload: PosCreateReservationPayload
+    ) async throws -> PosCreateReservationResponse {
+        try await post("/api/pos/reservations", body: payload)
+    }
+
+    @MainActor
     static func openTableSession(
         restaurantId: String,
         diningTableId: String,
@@ -475,8 +494,12 @@ enum PosCloudClient {
     }
 
     @MainActor
-    private static func get<T: Decodable>(_ path: String, restaurantId: String?) async throws -> T {
-        var request = URLRequest(url: url(path, restaurantId: restaurantId))
+    private static func get<T: Decodable>(
+        _ path: String,
+        restaurantId: String?,
+        extraQuery: [String: String] = [:]
+    ) async throws -> T {
+        var request = URLRequest(url: url(path, restaurantId: restaurantId, extraQuery: extraQuery))
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let token = try await PosAuthStore.shared.validAccessToken()
@@ -512,11 +535,25 @@ enum PosCloudClient {
         }
     }
 
-    private static func url(_ path: String, restaurantId: String?) -> URL {
+    private static func url(
+        _ path: String,
+        restaurantId: String?,
+        extraQuery: [String: String] = [:]
+    ) -> URL {
         let base = PosCloudConfig.apiBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         var full = "\(base)\(path.hasPrefix("/") ? path : "/\(path)")"
+        var parts: [String] = []
         if let restaurantId {
-            full += (full.contains("?") ? "&" : "?") + "restaurantId=\(restaurantId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? restaurantId)"
+            let enc = restaurantId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? restaurantId
+            parts.append("restaurantId=\(enc)")
+        }
+        for (key, value) in extraQuery {
+            let k = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
+            let v = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
+            parts.append("\(k)=\(v)")
+        }
+        if !parts.isEmpty {
+            full += (full.contains("?") ? "&" : "?") + parts.joined(separator: "&")
         }
         return URL(string: full)!
     }

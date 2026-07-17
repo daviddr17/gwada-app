@@ -4,6 +4,7 @@ enum PosSyncQueueItemKind: String, Codable, Sendable {
     case openSession
     case createOrder
     case collectCash
+    case createReservation
 }
 
 struct PosSyncQueueItem: Codable, Identifiable, Equatable, Sendable {
@@ -114,6 +115,18 @@ final class PosSyncQueue: ObservableObject {
         ))
     }
 
+    func enqueueCreateReservation(_ payload: PosCreateReservationPayload) {
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .createReservation,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
     func flushIfPossible() async {
         guard !isFlushing, !items.isEmpty else { return }
         guard PosAuthStore.shared.isSignedIn else {
@@ -177,6 +190,9 @@ final class PosSyncQueue: ObservableObject {
                 tipCents: payload.tipCents,
                 receivedAmountCents: payload.receivedAmountCents
             )
+        case .createReservation:
+            let payload = try decoder.decode(PosCreateReservationPayload.self, from: item.payload)
+            _ = try await PosCloudClient.createReservation(payload: payload)
         }
     }
 

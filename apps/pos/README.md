@@ -64,3 +64,10 @@ Web **POS → Einstellungen**: Bondrucker anlegen, pro Speisekarten-Kategorie Zi
 - Sidebar **Quittungen**: heutige Zahlungen, Bar-Storno, Tisch wieder öffnen
 - Beim Kassieren: Trinkgeld (% oder €), gegebenes Bargeld per Ziffernblock, automatisches Rückgeld
 
+## Reservierungen
+
+- Sidebar **Reservierungen** (iPad-Kasse + iPhone-Handheld): Tagesliste mit Datumspicker, neue Reservierung anlegen
+- **Start:** heutiger Tag wird auf die Kasse geladen und lokal gecacht (offline)
+- **Aktualisieren:** lädt den gewählten Tag neu (Kasse → Cloud; Handheld → Kasse)
+- **Anlegen:** Handheld → Kasse (LAN) → Sync-Queue → DB; an der Kasse direkt Cloud/DB (sonst Queue)
+

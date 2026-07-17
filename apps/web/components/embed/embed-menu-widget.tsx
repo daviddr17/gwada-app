@@ -10,6 +10,7 @@ import {
   type RefObject,
 } from "react";
 import { UtensilsCrossed } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedMenuCategoryTabs } from "@/components/embed/embed-menu-category-tabs";
@@ -174,6 +175,7 @@ function EmbedMenuToolbar({
   activeCategoryId: string;
   onCategorySelect: (id: string) => void;
 }) {
+  const t = useTranslations("Embed.menu");
   return (
     <div
       ref={outerRef}
@@ -207,12 +209,11 @@ function EmbedMenuToolbar({
             <MenuSearchFilters
               search={search}
               onSearchChange={onSearchChange}
-              placeholder="Gerichte suchen"
+              placeholder={t("searchPlaceholder")}
+              ariaLabel={t("searchAria")}
             />
             {hasSearch ? (
-              <p className="text-xs text-muted-foreground">
-                Suche in Gericht und Beschreibung (ca. 80&nbsp;% Übereinstimmung).
-              </p>
+              <p className="text-xs text-muted-foreground">{t("searchHint")}</p>
             ) : null}
             <EmbedMenuMainCategoryTabs
               mainCategories={visibleMainCategories}
@@ -250,6 +251,7 @@ function EmbedMenuSections({
   currencyCode?: string;
   optionGroupsById: ReadonlyMap<string, MenuOptionGroup>;
 }) {
+  const t = useTranslations("Embed.menu");
   if (hasSearch && !anyFilteredMatch) {
     return (
       <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-10 text-center">
@@ -259,9 +261,9 @@ function EmbedMenuSections({
             aria-hidden
           />
         </div>
-        <p className="text-sm font-medium">Keine Treffer</p>
+        <p className="text-sm font-medium">{t("noResultsTitle")}</p>
         <p className="max-w-xs text-sm text-muted-foreground">
-          Passe die Suche an — für diesen Begriff gibt es keine Gerichte.
+          {t("noResultsHint")}
         </p>
       </div>
     );
@@ -289,9 +291,7 @@ function EmbedMenuSections({
             </h2>
             {secItems.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                {hasSearch
-                  ? "In dieser Kategorie keine Treffer — Suche anpassen."
-                  : "Keine Gerichte in dieser Kategorie."}
+                {hasSearch ? t("categoryNoResults") : t("categoryEmpty")}
               </p>
             ) : (
               <div>
@@ -326,6 +326,39 @@ export function EmbedMenuWidget({
   textTheme = "dark",
   sourceLocale = "de",
 }: EmbedMenuWidgetProps) {
+  return (
+    <EmbedAccentRoot
+      accentHex={accentHex}
+      textTheme={textTheme}
+      brandFooter={variant !== "profileSheet"}
+      sourceLocale={sourceLocale}
+      showLocalePicker={variant === "embed"}
+    >
+      <EmbedMenuWidgetBody
+        restaurantName={restaurantName}
+        currencyCode={currencyCode}
+        mainCategories={mainCategories}
+        categories={categories}
+        items={items}
+        tagDefinitions={tagDefinitions}
+        optionGroups={optionGroups}
+        variant={variant}
+      />
+    </EmbedAccentRoot>
+  );
+}
+
+function EmbedMenuWidgetBody({
+  restaurantName,
+  currencyCode,
+  mainCategories,
+  categories,
+  items,
+  tagDefinitions,
+  optionGroups = [],
+  variant = "embed",
+}: Omit<EmbedMenuWidgetProps, "accentHex" | "textTheme" | "sourceLocale">) {
+  const t = useTranslations("Embed.menu");
   const [hostMode, setHostMode] = useState(false);
   const [embedId, setEmbedId] = useState<string | null>(null);
   const widgetRootRef = useRef<HTMLDivElement>(null);
@@ -662,13 +695,7 @@ export function EmbedMenuWidget({
   };
 
   return (
-    <EmbedAccentRoot
-      accentHex={accentHex}
-      textTheme={textTheme}
-      brandFooter={variant !== "profileSheet"}
-      sourceLocale={sourceLocale}
-      showLocalePicker={variant === "embed"}
-    >
+    <>
       <EmbedResizeReporter deps={resizeDeps} widget="menu" />
       <div
         ref={widgetRootRef}
@@ -679,7 +706,7 @@ export function EmbedMenuWidget({
       >
         {visibleCategoriesAll.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Aktuell sind keine Gerichte veröffentlicht.
+            {t("empty")}
           </p>
         ) : (
           <>
@@ -708,6 +735,6 @@ export function EmbedMenuWidget({
           </>
         )}
       </div>
-    </EmbedAccentRoot>
+    </>
   );
 }

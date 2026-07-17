@@ -188,6 +188,53 @@
       "hintTerms": "请接受条款。",
       "hintManageNumber": "请输入预订编号。",
       "hintManagePin": "请输入 PIN。"
+    },
+    "filterAll": "全部",
+    "images": "图片",
+    "feedPinned": "置顶",
+    "menu": {
+      "searchPlaceholder": "搜索菜品",
+      "searchHint": "搜索菜名与描述（约 80% 匹配）。",
+      "searchAria": "搜索",
+      "noResultsTitle": "无结果",
+      "noResultsHint": "请调整搜索 — 没有匹配的菜品。",
+      "categoryNoResults": "此分类无匹配 — 请调整搜索。",
+      "categoryEmpty": "此分类暂无菜品。",
+      "empty": "当前没有已发布的菜品。"
+    },
+    "reviewsUi": {
+      "noComment": "无评论",
+      "replyLabel": "回复：",
+      "average": "平均",
+      "count": "数量",
+      "starsAria": "{rating} / 5 星"
+    },
+    "gallery": {
+      "images": "图片",
+      "empty": "暂无图片。"
+    },
+    "hours": {
+      "business": "餐厅",
+      "kitchen": "厨房",
+      "exception": "特殊营业",
+      "closed": "休息",
+      "weekday": {
+        "monday": "星期一",
+        "tuesday": "星期二",
+        "wednesday": "星期三",
+        "thursday": "星期四",
+        "friday": "星期五",
+        "saturday": "星期六",
+        "sunday": "星期日"
+      }
+    },
+    "eventsUi": {
+      "past": "已过",
+      "tickets": "门票"
+    },
+    "newsUi": {
+      "showMore": "显示更多",
+      "showLess": "收起"
     }
   }
 }

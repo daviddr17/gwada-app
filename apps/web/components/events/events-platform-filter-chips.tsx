@@ -17,12 +17,14 @@ export function EventsPlatformFilterChips({
   onChange,
   availablePlatforms,
   showAllChip = true,
+  allLabel = EVENTS_FILTER_LABELS.all,
   disabled,
 }: {
   value: EventsPlatformFilter;
   onChange: (next: EventsPlatformFilter) => void;
   availablePlatforms: Set<string>;
   showAllChip?: boolean;
+  allLabel?: string;
   disabled?: boolean;
 }) {
   return (
@@ -42,7 +44,7 @@ export function EventsPlatformFilterChips({
           aria-pressed={value === EVENTS_FILTER_ALL}
         >
           <LayoutGrid className="size-4 shrink-0" aria-hidden />
-          <span>{EVENTS_FILTER_LABELS.all}</span>
+          <span>{allLabel}</span>
         </button>
       ) : null}
       {EVENTS_PLATFORM_ORDER.filter(

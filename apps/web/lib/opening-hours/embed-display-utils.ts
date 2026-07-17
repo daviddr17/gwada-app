@@ -16,8 +16,11 @@ export function weekdayFromDateYmd(dateYmd: string): Weekday {
   return JS_DAY_TO_WEEKDAY[dayIndex] ?? "monday";
 }
 
-export function formatDayHoursLabel(hours: DayHours): string {
-  if (hours.closed) return "Geschlossen";
+export function formatDayHoursLabel(
+  hours: DayHours,
+  closedLabel = "Geschlossen",
+): string {
+  if (hours.closed) return closedLabel;
   if (hours.open && hours.close) return `${hours.open} – ${hours.close}`;
   return "—";
 }
@@ -84,10 +87,16 @@ export function groupUpcomingExceptionsByWeekday(
 
 export function openingHoursWeekdayRows(
   weeklyHours: Record<Weekday, DayHours>,
+  options?: {
+    weekdayLabels?: Record<Weekday, string>;
+    closedLabel?: string;
+  },
 ): Array<{ day: Weekday; label: string; value: string }> {
+  const labels = options?.weekdayLabels ?? WEEKDAY_LABEL_DE;
+  const closedLabel = options?.closedLabel ?? "Geschlossen";
   return WEEKDAY_ORDER.map((day) => ({
     day,
-    label: WEEKDAY_LABEL_DE[day],
-    value: formatDayHoursLabel(weeklyHours[day]),
+    label: labels[day],
+    value: formatDayHoursLabel(weeklyHours[day], closedLabel),
   }));
 }

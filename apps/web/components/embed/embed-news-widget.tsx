@@ -227,6 +227,7 @@ function EmbedNewsWidgetBody({
                 onChange={setPlatformFilter}
                 availablePlatforms={availablePlatforms}
                 showAllChip={showAllChip}
+                allLabel={t("filterAll")}
               />
             </div>
           ) : null}

@@ -188,6 +188,53 @@
       "hintTerms": "Accetta le condizioni.",
       "hintManageNumber": "Inserisci il numero di prenotazione.",
       "hintManagePin": "Inserisci il PIN."
+    },
+    "filterAll": "Tutti",
+    "images": "Foto",
+    "feedPinned": "In evidenza",
+    "menu": {
+      "searchPlaceholder": "Cerca piatti",
+      "searchHint": "Cerca nel nome e nella descrizione (circa 80% di corrispondenza).",
+      "searchAria": "Cerca",
+      "noResultsTitle": "Nessun risultato",
+      "noResultsHint": "Modifica la ricerca: nessun piatto corrisponde.",
+      "categoryNoResults": "Nessun risultato in questa categoria: modifica la ricerca.",
+      "categoryEmpty": "Nessun piatto in questa categoria.",
+      "empty": "Nessun piatto pubblicato al momento."
+    },
+    "reviewsUi": {
+      "noComment": "Nessun commento",
+      "replyLabel": "Risposta:",
+      "average": "Media",
+      "count": "Numero",
+      "starsAria": "{rating} su 5 stelle"
+    },
+    "gallery": {
+      "images": "Foto",
+      "empty": "Ancora nessuna foto."
+    },
+    "hours": {
+      "business": "Ristorante",
+      "kitchen": "Cucina",
+      "exception": "Orario speciale",
+      "closed": "Chiuso",
+      "weekday": {
+        "monday": "Lunedì",
+        "tuesday": "Martedì",
+        "wednesday": "Mercoledì",
+        "thursday": "Giovedì",
+        "friday": "Venerdì",
+        "saturday": "Sabato",
+        "sunday": "Domenica"
+      }
+    },
+    "eventsUi": {
+      "past": "Passato",
+      "tickets": "Biglietti"
+    },
+    "newsUi": {
+      "showMore": "Mostra di più",
+      "showLess": "Meno"
     }
   }
 }

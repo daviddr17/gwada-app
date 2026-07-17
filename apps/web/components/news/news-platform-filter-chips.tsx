@@ -17,6 +17,7 @@ export function NewsPlatformFilterChips({
   onChange,
   availablePlatforms,
   showAllChip = true,
+  allLabel = NEWS_FILTER_LABELS.all,
   disabled,
 }: {
   value: NewsPlatformFilter;
@@ -24,6 +25,7 @@ export function NewsPlatformFilterChips({
   availablePlatforms: Set<string>;
   /** Chip „Alle“ (gemeinsame Übersicht) — Standard: an. */
   showAllChip?: boolean;
+  allLabel?: string;
   disabled?: boolean;
 }) {
   return (
@@ -43,7 +45,7 @@ export function NewsPlatformFilterChips({
           aria-pressed={value === NEWS_FILTER_ALL}
         >
           <LayoutGrid className="size-4 shrink-0" aria-hidden />
-          <span>{NEWS_FILTER_LABELS.all}</span>
+          <span>{allLabel}</span>
         </button>
       ) : null}
       {NEWS_PLATFORM_ORDER.filter((platform) =>

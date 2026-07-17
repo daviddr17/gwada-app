@@ -15,12 +15,14 @@ type Props = {
   value: GalleryPlatformFilter;
   onChange: (value: GalleryPlatformFilter) => void;
   availablePlatforms: Set<GalleryPlatform>;
+  allLabel?: string;
 };
 
 export function GalleryPlatformFilterChips({
   value,
   onChange,
   availablePlatforms,
+  allLabel = GALLERY_FILTER_LABELS.all,
 }: Props) {
   const platforms = GALLERY_PLATFORM_ORDER.filter(
     (p) => p === "gwada" || availablePlatforms.has(p),
@@ -30,7 +32,7 @@ export function GalleryPlatformFilterChips({
     <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <GalleryPlatformChip
         selected={value === GALLERY_FILTER_ALL}
-        label={GALLERY_FILTER_LABELS.all}
+        label={allLabel}
         onClick={() => onChange(GALLERY_FILTER_ALL)}
         icon={<LayoutGrid className="size-3.5 shrink-0 opacity-80" aria-hidden />}
       />

@@ -127,7 +127,7 @@
     "menuUnavailable": "Ce menu est indisponible.",
     "reviewsEmpty": "Aucun avis pour le moment.",
     "eventsEmpty": "Aucun événement à venir pour le moment.",
-    "galleryEmpty": "Aucune photo pour le moment.",
+    "galleryEmpty": "Pas encore de photos.",
     "hoursUnavailable": "Horaires indisponibles.",
     "reservationBook": "Réserver",
     "reservationChange": "Modifier",
@@ -188,6 +188,53 @@
       "hintTerms": "Veuillez accepter les conditions.",
       "hintManageNumber": "Saisissez le numéro de réservation.",
       "hintManagePin": "Saisissez le PIN."
+    },
+    "filterAll": "Tous",
+    "images": "Photos",
+    "feedPinned": "Épinglé",
+    "menu": {
+      "searchPlaceholder": "Rechercher des plats",
+      "searchHint": "Recherche dans le nom et la description (env. 80 % de correspondance).",
+      "searchAria": "Recherche",
+      "noResultsTitle": "Aucun résultat",
+      "noResultsHint": "Modifiez la recherche — aucun plat ne correspond.",
+      "categoryNoResults": "Aucun résultat dans cette catégorie — modifiez la recherche.",
+      "categoryEmpty": "Aucun plat dans cette catégorie.",
+      "empty": "Aucun plat n’est publié pour le moment."
+    },
+    "reviewsUi": {
+      "noComment": "Pas de commentaire",
+      "replyLabel": "Réponse :",
+      "average": "Moyenne",
+      "count": "Nombre",
+      "starsAria": "{rating} sur 5 étoiles"
+    },
+    "gallery": {
+      "images": "Photos",
+      "empty": "Pas encore de photos."
+    },
+    "hours": {
+      "business": "Restaurant",
+      "kitchen": "Cuisine",
+      "exception": "Horaire spécial",
+      "closed": "Fermé",
+      "weekday": {
+        "monday": "Lundi",
+        "tuesday": "Mardi",
+        "wednesday": "Mercredi",
+        "thursday": "Jeudi",
+        "friday": "Vendredi",
+        "saturday": "Samedi",
+        "sunday": "Dimanche"
+      }
+    },
+    "eventsUi": {
+      "past": "Passé",
+      "tickets": "Billets"
+    },
+    "newsUi": {
+      "showMore": "Afficher plus",
+      "showLess": "Moins"
     }
   }
 }

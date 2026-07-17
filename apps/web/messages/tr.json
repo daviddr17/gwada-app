@@ -127,7 +127,7 @@
     "menuUnavailable": "Bu menü şu an kullanılamıyor.",
     "reviewsEmpty": "Henüz değerlendirme yok.",
     "eventsEmpty": "Şu an yaklaşan etkinlik yok.",
-    "galleryEmpty": "Henüz fotoğraf yok.",
+    "galleryEmpty": "Henüz görsel yok.",
     "hoursUnavailable": "Çalışma saatleri yok.",
     "reservationBook": "Rezervasyon",
     "reservationChange": "Değiştir",
@@ -188,6 +188,53 @@
       "hintTerms": "Lütfen koşulları kabul edin.",
       "hintManageNumber": "Rezervasyon numarasını girin.",
       "hintManagePin": "PIN girin."
+    },
+    "filterAll": "Tümü",
+    "images": "Görseller",
+    "feedPinned": "Sabitlenmiş",
+    "menu": {
+      "searchPlaceholder": "Yemek ara",
+      "searchHint": "Yemek adı ve açıklamada ara (yaklaşık %80 eşleşme).",
+      "searchAria": "Ara",
+      "noResultsTitle": "Sonuç yok",
+      "noResultsHint": "Aramayı değiştirin — bu terime uygun yemek yok.",
+      "categoryNoResults": "Bu kategoride sonuç yok — aramayı değiştirin.",
+      "categoryEmpty": "Bu kategoride yemek yok.",
+      "empty": "Şu an yayınlanmış yemek yok."
+    },
+    "reviewsUi": {
+      "noComment": "Yorum yok",
+      "replyLabel": "Yanıt:",
+      "average": "Ortalama",
+      "count": "Sayı",
+      "starsAria": "5 üzerinden {rating} yıldız"
+    },
+    "gallery": {
+      "images": "Görseller",
+      "empty": "Henüz görsel yok."
+    },
+    "hours": {
+      "business": "Restoran",
+      "kitchen": "Mutfak",
+      "exception": "Özel saat",
+      "closed": "Kapalı",
+      "weekday": {
+        "monday": "Pazartesi",
+        "tuesday": "Salı",
+        "wednesday": "Çarşamba",
+        "thursday": "Perşembe",
+        "friday": "Cuma",
+        "saturday": "Cumartesi",
+        "sunday": "Pazar"
+      }
+    },
+    "eventsUi": {
+      "past": "Geçmiş",
+      "tickets": "Biletler"
+    },
+    "newsUi": {
+      "showMore": "Daha fazla",
+      "showLess": "Daha az"
     }
   }
 }

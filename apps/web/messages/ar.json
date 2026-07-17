@@ -127,7 +127,7 @@
     "menuUnavailable": "هذه القائمة غير متاحة حاليًا.",
     "reviewsEmpty": "لا توجد تقييمات بعد.",
     "eventsEmpty": "لا توجد فعاليات قادمة حالياً.",
-    "galleryEmpty": "لا توجد صور بعد.",
+    "galleryEmpty": "لا صور بعد.",
     "hoursUnavailable": "ساعات العمل غير متاحة.",
     "reservationBook": "احجز",
     "reservationChange": "عدّل",
@@ -188,6 +188,53 @@
       "hintTerms": "يرجى قبول الشروط.",
       "hintManageNumber": "أدخل رقم الحجز.",
       "hintManagePin": "أدخل رمز PIN."
+    },
+    "filterAll": "الكل",
+    "images": "صور",
+    "feedPinned": "مثبّت",
+    "menu": {
+      "searchPlaceholder": "ابحث عن أطباق",
+      "searchHint": "ابحث في الاسم والوصف (تطابق تقريبي 80٪).",
+      "searchAria": "بحث",
+      "noResultsTitle": "لا نتائج",
+      "noResultsHint": "عدّل البحث — لا أطباق لهذا المصطلح.",
+      "categoryNoResults": "لا نتائج في هذه الفئة — عدّل البحث.",
+      "categoryEmpty": "لا أطباق في هذه الفئة.",
+      "empty": "لا أطباق منشورة حالياً."
+    },
+    "reviewsUi": {
+      "noComment": "بدون تعليق",
+      "replyLabel": "رد:",
+      "average": "المتوسط",
+      "count": "العدد",
+      "starsAria": "{rating} من 5 نجوم"
+    },
+    "gallery": {
+      "images": "صور",
+      "empty": "لا صور بعد."
+    },
+    "hours": {
+      "business": "المطعم",
+      "kitchen": "المطبخ",
+      "exception": "موعد خاص",
+      "closed": "مغلق",
+      "weekday": {
+        "monday": "الاثنين",
+        "tuesday": "الثلاثاء",
+        "wednesday": "الأربعاء",
+        "thursday": "الخميس",
+        "friday": "الجمعة",
+        "saturday": "السبت",
+        "sunday": "الأحد"
+      }
+    },
+    "eventsUi": {
+      "past": "سابق",
+      "tickets": "تذاكر"
+    },
+    "newsUi": {
+      "showMore": "عرض المزيد",
+      "showLess": "أقل"
     }
   }
 }

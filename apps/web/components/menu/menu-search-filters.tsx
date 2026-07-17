@@ -7,12 +7,14 @@ type MenuSearchFiltersProps = {
   search: string;
   onSearchChange: (value: string) => void;
   placeholder?: string;
+  ariaLabel?: string;
 };
 
 export function MenuSearchFilters({
   search,
   onSearchChange,
   placeholder = "Gerichte oder Zutaten suchen",
+  ariaLabel = "Suche",
 }: MenuSearchFiltersProps) {
   return (
     <div className="relative">
@@ -27,7 +29,7 @@ export function MenuSearchFilters({
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
         className="h-12 rounded-2xl border-border/50 bg-card pl-11 text-base shadow-none dark:shadow-sm"
-        aria-label="Suche"
+        aria-label={ariaLabel}
       />
     </div>
   );

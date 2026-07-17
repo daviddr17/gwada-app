@@ -2,7 +2,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
+import createNextIntlPlugin from "next-intl/plugin";
 import { LEGACY_MODULE_REDIRECTS } from "./lib/navigation/app-routes";
+
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(appRoot, "../..");
@@ -162,4 +165,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

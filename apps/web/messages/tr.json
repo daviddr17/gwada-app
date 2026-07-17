@@ -1,0 +1,118 @@
+{
+  "Common": {
+    "save": "Kaydet",
+    "saved": "Kaydedildi",
+    "cancel": "İptal",
+    "loading": "Yükleniyor"
+  },
+  "Profile": {
+    "title": "Profil",
+    "subnavAriaLabel": "Profil bölümleri",
+    "nav": {
+      "overview": "Genel bakış",
+      "login": "Giriş",
+      "notifications": "Bildirimler",
+      "workHours": "Çalışma saatlerim",
+      "schedule": "Vardiya planı",
+      "availability": "Müsaitlik",
+      "documents": "Belgelerim",
+      "displayPin": "Ekran PIN’i"
+    },
+    "language": {
+      "heading": "Dil",
+      "description": "Uygulama arayüz dili. Bu hesaba tüm cihazlarda uygulanır.",
+      "label": "Dil",
+      "updated": "Dil güncellendi",
+      "updateFailed": "Dil kaydedilemedi"
+    },
+    "personal": {
+      "email": "E-posta",
+      "birthday": "Doğum günü",
+      "addressHeading": "Kişisel adres",
+      "street": "Sokak ve numara",
+      "postalCode": "Posta kodu",
+      "city": "Şehir",
+      "country": "Ülke",
+      "countryPlaceholder": "örn. TR veya Türkiye",
+      "saveProfile": "Profili kaydet",
+      "loadingAria": "Profil verileri yükleniyor"
+    }
+  },
+  "SetupWizard": {
+    "ariaLabel": "Restoran kurulumu",
+    "brand": "Gwada",
+    "tagline": "Hoş geldiniz",
+    "stepOf": "Adım {current} / {total}",
+    "close": "Kapat",
+    "back": "Geri",
+    "continue": "Devam",
+    "finish": "Restoran oluştur",
+    "creating": "Oluşturuluyor…",
+    "launch": "Başlayalım",
+    "welcome": {
+      "eyebrow": "Başlangıcın",
+      "title": "Restoranını kur",
+      "description": "Ad, adres, saatler ve renk — birkaç adımda hazırsın. Gerisini istediğin zaman düzenlersin."
+    },
+    "identity": {
+      "title": "Restoranının adı ne?",
+      "description": "Bu ad uygulamada, menüde ve herkese açık profilde görünür.",
+      "nameLabel": "Restoran adı",
+      "namePlaceholder": "örn. Lion Bistro",
+      "slugHint": "Herkese açık URL: gwada.app/{slug}"
+    },
+    "location": {
+      "title": "Sizi nerede bulurlar?",
+      "description": "Adres ve ülke saat dilimini, haritayı ve herkese açık bilgileri belirler. Sonra da tamamlayabilirsin.",
+      "streetLabel": "Sokak ve numara",
+      "streetPlaceholder": "Örnek Cad. 1",
+      "postalLabel": "Posta kodu",
+      "cityLabel": "Şehir",
+      "countryLabel": "Ülke",
+      "countryPlaceholder": "TR"
+    },
+    "hours": {
+      "title": "Ne zaman açıksınız?",
+      "description": "Tipik saatleri seç — istisnalar ve mutfak saatleri sonra ayarlardan girilir.",
+      "openLabel": "Açılış",
+      "closeLabel": "Kapanış"
+    },
+    "look": {
+      "title": "Rengin",
+      "description": "Vurgu rengi düğmeleri, vurguları ve markanı uygulamada boyar.",
+        "previewFallback": "Restoranınız",
+      "previewHint": "Çalışma alanın böyle hissedecek."
+    },
+    "done": {
+      "title": "Her şey hazır",
+      "description": "{name} aktif. Aramıza hoş geldin."
+    },
+    "weekdays": {
+      "monday": "Pzt",
+      "tuesday": "Sal",
+      "wednesday": "Çar",
+      "thursday": "Per",
+      "friday": "Cum",
+      "saturday": "Cmt",
+      "sunday": "Paz"
+    },
+    "errors": {
+      "nameRequired": "Lütfen bir restoran adı gir.",
+      "hoursRequired": "Lütfen en az bir açık gün seç.",
+      "authRequired": "Lütfen önce giriş yap.",
+      "membershipFailed": "Restorana bağlanamadın.",
+      "activeFailed": "Aktif restoran ayarlanamadı.",
+      "createFailed": "Restoran oluşturulamadı."
+    }
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "it": "Italiano",
+    "tr": "Türkçe",
+    "ar": "العربية",
+    "zh": "中文"
+  }
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppMain } from "@/components/layout/app-main";
@@ -9,12 +10,15 @@ import { useStaffProfileVisibility } from "@/lib/hooks/use-staff-profile-visibil
 import {
   buildProfileNavItems,
   isProfileRouteAllowed,
+  type ProfileNavLabelKey,
 } from "@/lib/profile/profile-nav";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export default function ProfileLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const t = useTranslations("Profile");
+  const tNav = useTranslations("Profile.nav");
   const pathname = usePathname();
   const router = useRouter();
   const { staff, loading: staffLoading } = useMyRestaurantStaff();
@@ -24,13 +28,31 @@ export default function ProfileLayout({
   const hasStaffProfile = Boolean(staff);
   const navReady = !staffLoading && !visibilityLoading;
 
+  const navLabels = useMemo(() => {
+    const keys: ProfileNavLabelKey[] = [
+      "overview",
+      "login",
+      "notifications",
+      "workHours",
+      "schedule",
+      "availability",
+      "documents",
+      "displayPin",
+    ];
+    return Object.fromEntries(keys.map((k) => [k, tNav(k)])) as Record<
+      ProfileNavLabelKey,
+      string
+    >;
+  }, [tNav]);
+
   const subnavItems = useMemo(
     () =>
       buildProfileNavItems({
         visibility,
         hasStaffProfile,
+        labels: navLabels,
       }),
-    [visibility, hasStaffProfile],
+    [visibility, hasStaffProfile, navLabels],
   );
 
   useEffect(() => {
@@ -50,8 +72,8 @@ export default function ProfileLayout({
   return (
     <>
       <RegisterModuleChrome
-        title="Profil"
-        subnavAriaLabel="Profilbereiche"
+        title={t("title")}
+        subnavAriaLabel={t("subnavAriaLabel")}
         subnavItems={subnavItems}
       />
       <AppMain>{children}</AppMain>

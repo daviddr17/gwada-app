@@ -3,13 +3,17 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Building2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { NewRestaurantDrawer } from "@/components/workspace/new-restaurant-drawer";
+import { useRestaurantSetupWizard } from "@/components/onboarding/restaurant-setup-wizard-provider";
 import { WorkspaceRestaurantCard } from "@/components/workspace/workspace-restaurant-card";
 import { WorkspaceRestaurantsSkeleton } from "@/components/workspace/workspace-restaurants-skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useMyRestaurants } from "@/lib/hooks/use-my-restaurants";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  modulePrimaryAddButtonClassName,
+  modulePrimaryAddButtonFullWidthClassName,
+} from "@/lib/ui/module-primary-add-button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   getWorkspaceRestaurantId,
@@ -19,11 +23,12 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function WorkspaceRestaurantsPage() {
+  const t = useTranslations("SetupWizard");
+  const { openWizard } = useRestaurantSetupWizard();
   const { session, rows, loading, refresh } = useMyRestaurants();
   const showSkeleton = useDeferredSkeleton(loading);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeBusy, setActiveBusy] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -47,6 +52,7 @@ export default function WorkspaceRestaurantsPage() {
       notifyWorkspaceRestaurantChanged();
       setActiveId(restaurantId);
       toast.success("Aktives Restaurant gewechselt.");
+      refresh();
     } finally {
       setActiveBusy(false);
     }
@@ -66,30 +72,32 @@ export default function WorkspaceRestaurantsPage() {
             "shrink-0 self-start sm:self-auto",
             modulePrimaryAddButtonClassName,
           )}
-          onClick={() => setDrawerOpen(true)}
+          onClick={openWizard}
         >
           <Building2 className="size-4" />
           Neues Restaurant anlegen
         </Button>
       </div>
 
-      <NewRestaurantDrawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        onCreated={() => {
-          refresh();
-          void getWorkspaceRestaurantId().then(setActiveId);
-        }}
-      />
-
       {loading && !showSkeleton ? (
         <div className="min-h-[12rem]" aria-busy />
       ) : showSkeleton ? (
         <WorkspaceRestaurantsSkeleton />
       ) : rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Du bist noch keinem Restaurant zugeordnet.
-        </p>
+        <div className="space-y-4 rounded-2xl border border-border/50 bg-muted/20 px-5 py-6">
+          <p className="text-sm text-muted-foreground">
+            Du bist noch keinem Restaurant zugeordnet.
+          </p>
+          <Button
+            type="button"
+            size="lg"
+            className={modulePrimaryAddButtonFullWidthClassName}
+            onClick={openWizard}
+          >
+            <Building2 className="size-4" />
+            {t("finish")}
+          </Button>
+        </div>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2">
           {rows.map((r) => (

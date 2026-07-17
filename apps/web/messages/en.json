@@ -1,0 +1,118 @@
+{
+  "Common": {
+    "save": "Save",
+    "saved": "Saved",
+    "cancel": "Cancel",
+    "loading": "Loading"
+  },
+  "Profile": {
+    "title": "Profile",
+    "subnavAriaLabel": "Profile sections",
+    "nav": {
+      "overview": "Overview",
+      "login": "Sign-in",
+      "notifications": "Notifications",
+      "workHours": "My work hours",
+      "schedule": "Shift plan",
+      "availability": "Availability",
+      "documents": "My documents",
+      "displayPin": "Display PIN"
+    },
+    "language": {
+      "heading": "Language",
+      "description": "App interface language. Applies to this account on all devices.",
+      "label": "Language",
+      "updated": "Language updated",
+      "updateFailed": "Could not save language"
+    },
+    "personal": {
+      "email": "Email",
+      "birthday": "Birthday",
+      "addressHeading": "Personal address",
+      "street": "Street & house number",
+      "postalCode": "Postal code",
+      "city": "City",
+      "country": "Country",
+      "countryPlaceholder": "e.g. DE or Germany",
+      "saveProfile": "Save profile",
+      "loadingAria": "Loading profile data"
+    }
+  },
+  "SetupWizard": {
+    "ariaLabel": "Set up restaurant",
+    "brand": "Gwada",
+    "tagline": "Welcome",
+    "stepOf": "Step {current} of {total}",
+    "close": "Close",
+    "back": "Back",
+    "continue": "Continue",
+    "finish": "Create restaurant",
+    "creating": "Creating…",
+    "launch": "Let’s go",
+    "welcome": {
+      "eyebrow": "Your start",
+      "title": "Set up your restaurant",
+      "description": "Name, address, hours, and color — a few steps and you’re ready. You can refine everything later."
+    },
+    "identity": {
+      "title": "What’s your restaurant called?",
+      "description": "This name appears in the app, on the menu, and on your public profile.",
+      "nameLabel": "Restaurant name",
+      "namePlaceholder": "e.g. Lion Bistro",
+      "slugHint": "Public URL: gwada.app/{slug}"
+    },
+    "location": {
+      "title": "Where can people find you?",
+      "description": "Address and country drive timezone, maps, and public details. You can fill gaps later.",
+      "streetLabel": "Street & house number",
+      "streetPlaceholder": "Main Street 1",
+      "postalLabel": "Postal code",
+      "cityLabel": "City",
+      "countryLabel": "Country",
+      "countryPlaceholder": "DE"
+    },
+    "hours": {
+      "title": "When are you open?",
+      "description": "Pick your usual hours — exceptions and kitchen times can be set later in settings.",
+      "openLabel": "Opens",
+      "closeLabel": "Closes"
+    },
+    "look": {
+      "title": "Your color",
+      "description": "The accent tints buttons, highlights, and branding across the app.",
+      "previewFallback": "Your restaurant",
+      "previewHint": "This is how your workspace will feel."
+    },
+    "done": {
+      "title": "You’re ready",
+      "description": "{name} is active. Welcome aboard."
+    },
+    "weekdays": {
+      "monday": "Mon",
+      "tuesday": "Tue",
+      "wednesday": "Wed",
+      "thursday": "Thu",
+      "friday": "Fri",
+      "saturday": "Sat",
+      "sunday": "Sun"
+    },
+    "errors": {
+      "nameRequired": "Please enter a restaurant name.",
+      "hoursRequired": "Please select at least one open day.",
+      "authRequired": "Please sign in first.",
+      "membershipFailed": "Could not link you to the restaurant.",
+      "activeFailed": "Could not set the active restaurant.",
+      "createFailed": "Could not create the restaurant."
+    }
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "it": "Italiano",
+    "tr": "Türkçe",
+    "ar": "العربية",
+    "zh": "中文"
+  }
+}

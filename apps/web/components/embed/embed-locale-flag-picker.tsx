@@ -68,31 +68,20 @@ function EmbedLocalePickerInner({
           </SelectValue>
         </SelectTrigger>
         <SelectContent align="end" className="min-w-[10.5rem]">
-          {options.map((opt) => {
-            const isSource = opt.locale === ctx.sourceLocale;
-            return (
-              <SelectItem
-                key={opt.locale}
-                value={opt.locale}
-                dir={opt.locale === "ar" ? "rtl" : "ltr"}
-              >
-                <span className="flex items-center gap-2">
-                  <span aria-hidden className="text-base leading-none">
-                    {opt.flag}
-                  </span>
-                  <span>
-                    {opt.label}
-                    {isSource ? (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        · {t("restaurantDefault")}
-                      </span>
-                    ) : null}
-                  </span>
+          {options.map((opt) => (
+            <SelectItem
+              key={opt.locale}
+              value={opt.locale}
+              dir={opt.locale === "ar" ? "rtl" : "ltr"}
+            >
+              <span className="flex items-center gap-2">
+                <span aria-hidden className="text-base leading-none">
+                  {opt.flag}
                 </span>
-              </SelectItem>
-            );
-          })}
+                <span>{opt.label}</span>
+              </span>
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       {ctx.contentBusy ? (

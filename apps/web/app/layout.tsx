@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale } from "next-intl/server";
 import {
   DOCUMENT_TITLE_BRAND,
   formatDocumentTitle,
@@ -31,6 +33,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
   const branding = await getCachedRootLayoutBranding();
   const faviconHref = platformFaviconHref(branding.faviconPath);
   const faviconMime = faviconMimeTypeFromPath(branding.faviconPath);
@@ -43,7 +46,7 @@ export default async function RootLayout({
 
   return (
     <html
-      lang="de"
+      lang={locale}
       suppressHydrationWarning
       className={dmSans.variable}
       data-platform-favicon={faviconHref ?? undefined}
@@ -71,7 +74,9 @@ export default async function RootLayout({
           </>
         ) : null}
       </head>
-      <body className="min-h-dvh font-sans">{children}</body>
+      <body className="min-h-dvh font-sans">
+        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+      </body>
     </html>
   );
 }

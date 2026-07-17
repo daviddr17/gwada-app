@@ -11,6 +11,7 @@ import { UnifiedInboxBackgroundSyncMount } from "@/components/contacts/unified-i
 import { AppScrollUnlockOnNavigate } from "@/components/providers/app-scroll-unlock-on-navigate";
 import { SoftNavLockProvider } from "@/components/providers/soft-nav-lock-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { ProfileLocaleSyncMount } from "@/components/providers/profile-locale-sync-mount";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
 import { WorkspaceShellProviders } from "@/components/providers/workspace-shell-providers";
 import { AccentColorProvider } from "@/lib/contexts/accent-color-context";
@@ -87,6 +88,7 @@ export default function AppLayout({
                         <UnifiedInboxBackgroundSyncMount />
                         <AppDashboardLivePatchMount />
                         <ProfilePresenceHeartbeat />
+                        <ProfileLocaleSyncMount />
                         <AppModuleLiveProviders />
                         <AppShell>{children}</AppShell>
                       </SoftNavLockProvider>

@@ -30,64 +30,80 @@ export function parseProfileVisibility(
   };
 }
 
-const PROFILE_ALWAYS_ITEMS: readonly ModuleSubnavItem[] = [
+export type ProfileNavLabelKey =
+  | "overview"
+  | "login"
+  | "notifications"
+  | "workHours"
+  | "schedule"
+  | "availability"
+  | "documents"
+  | "displayPin";
+
+export type ProfileNavItemDef = {
+  href: string;
+  matchMode: ModuleSubnavItem["matchMode"];
+  labelKey: ProfileNavLabelKey;
+};
+
+const PROFILE_ALWAYS_ITEMS: readonly ProfileNavItemDef[] = [
   {
     href: APP_ROUTES.profile.personal,
-    label: "Übersicht",
+    labelKey: "overview",
     matchMode: "exact",
   },
   {
     href: APP_ROUTES.profile.login,
-    label: "Anmeldung",
+    labelKey: "login",
     matchMode: "exact",
   },
   {
     href: APP_ROUTES.profile.notifications,
-    label: "Benachrichtigungen",
+    labelKey: "notifications",
     matchMode: "exact",
   },
 ];
 
-const PROFILE_STAFF_ITEMS: readonly (ModuleSubnavItem & {
+const PROFILE_STAFF_ITEMS: readonly (ProfileNavItemDef & {
   visibilityKey: keyof ProfileVisibilitySettings;
 })[] = [
   {
     href: APP_ROUTES.profile.workHours,
-    label: "Meine Arbeitszeiten",
+    labelKey: "workHours",
     matchMode: "exact",
     visibilityKey: "profile_show_work_hours",
   },
   {
     href: APP_ROUTES.profile.schedule,
-    label: "Dienstplan",
+    labelKey: "schedule",
     matchMode: "exact",
     visibilityKey: "profile_show_shift_plan",
   },
   {
     href: APP_ROUTES.profile.availability,
-    label: "Verfügbarkeit",
+    labelKey: "availability",
     matchMode: "exact",
     visibilityKey: "profile_show_availability",
   },
   {
     href: APP_ROUTES.profile.documents,
-    label: "Meine Dokumente",
+    labelKey: "documents",
     matchMode: "exact",
     visibilityKey: "profile_show_documents",
   },
   {
     href: APP_ROUTES.profile.displayPin,
-    label: "Display-PIN",
+    labelKey: "displayPin",
     matchMode: "exact",
     visibilityKey: "profile_allow_display_pin_self_service",
   },
 ];
 
-export function buildProfileNavItems(params: {
+export function buildProfileNavItemDefs(params: {
   visibility: ProfileVisibilitySettings;
   hasStaffProfile: boolean;
-}): ModuleSubnavItem[] {
-  const items: ModuleSubnavItem[] = [...PROFILE_ALWAYS_ITEMS];
+}): ProfileNavItemDef[] {
+  const items: ProfileNavItemDef[] = [...PROFILE_ALWAYS_ITEMS];
 
   if (!params.hasStaffProfile) {
     return items;
@@ -97,13 +113,26 @@ export function buildProfileNavItems(params: {
     if (params.visibility[entry.visibilityKey]) {
       items.push({
         href: entry.href,
-        label: entry.label,
+        labelKey: entry.labelKey,
         matchMode: entry.matchMode,
       });
     }
   }
 
   return items;
+}
+
+/** @deprecated Prefer buildProfileNavItemDefs + translations. */
+export function buildProfileNavItems(params: {
+  visibility: ProfileVisibilitySettings;
+  hasStaffProfile: boolean;
+  labels: Record<ProfileNavLabelKey, string>;
+}): ModuleSubnavItem[] {
+  return buildProfileNavItemDefs(params).map((entry) => ({
+    href: entry.href,
+    matchMode: entry.matchMode,
+    label: params.labels[entry.labelKey],
+  }));
 }
 
 export function isProfileRouteAllowed(params: {

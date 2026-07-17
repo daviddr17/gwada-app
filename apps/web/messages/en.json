@@ -1,0 +1,46 @@
+{
+  "Common": {
+    "save": "Save",
+    "saved": "Saved",
+    "cancel": "Cancel",
+    "loading": "Loading"
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "fr": "Français"
+  },
+  "Profile": {
+    "title": "Profile",
+    "subnavAriaLabel": "Profile sections",
+    "nav": {
+      "overview": "Overview",
+      "login": "Sign-in",
+      "notifications": "Notifications",
+      "workHours": "My work hours",
+      "schedule": "Shift plan",
+      "availability": "Availability",
+      "documents": "My documents",
+      "displayPin": "Display PIN"
+    },
+    "language": {
+      "heading": "Language",
+      "description": "App interface language. Applies to this account on all devices.",
+      "label": "Language",
+      "updated": "Language updated",
+      "updateFailed": "Could not save language"
+    },
+    "personal": {
+      "email": "Email",
+      "birthday": "Birthday",
+      "addressHeading": "Personal address",
+      "street": "Street & house number",
+      "postalCode": "Postal code",
+      "city": "City",
+      "country": "Country",
+      "countryPlaceholder": "e.g. DE or Germany",
+      "saveProfile": "Save profile",
+      "loadingAria": "Loading profile data"
+    }
+  }
+}

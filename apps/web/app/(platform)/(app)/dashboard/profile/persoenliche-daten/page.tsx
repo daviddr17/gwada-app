@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { PersonalProfileHeader } from "@/components/profile/personal-profile-header";
 import { ProfileDocumentsSummaryCard } from "@/components/profile/profile-documents-summary-card";
+import { ProfileLanguageCard } from "@/components/profile/profile-language-card";
 import { ProfilePersoenlicheDatenSkeleton } from "@/components/profile/profile-persoenliche-daten-skeleton";
 import {
   SettingsStickySaveBar,
@@ -54,6 +56,8 @@ function snapshotFromHook(p: {
 }
 
 export default function ProfilePersoenlicheDatenPage() {
+  const t = useTranslations("Profile.personal");
+  const tCommon = useTranslations("Common");
   const {
     email,
     userId,
@@ -174,7 +178,7 @@ export default function ProfilePersoenlicheDatenPage() {
       <div
         className="min-h-[28rem] w-full"
         aria-busy="true"
-        aria-label="Profildaten werden geladen"
+        aria-label={t("loadingAria")}
       />
     );
   }
@@ -204,10 +208,12 @@ export default function ProfilePersoenlicheDatenPage() {
 
         <ProfileDocumentsSummaryCard />
 
+        <ProfileLanguageCard />
+
         <Card className="border-border/50 shadow-card">
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="profile-email">E-Mail</Label>
+              <Label htmlFor="profile-email">{t("email")}</Label>
               <Input
                 id="profile-email"
                 type="email"
@@ -219,7 +225,7 @@ export default function ProfilePersoenlicheDatenPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="profile-birthday">Geburtstag</Label>
+              <Label htmlFor="profile-birthday">{t("birthday")}</Label>
               <Input
                 id="profile-birthday"
                 type="date"
@@ -230,9 +236,9 @@ export default function ProfilePersoenlicheDatenPage() {
               />
             </div>
             <Separator />
-            <p className="text-sm font-medium">Persönliche Adresse</p>
+            <p className="text-sm font-medium">{t("addressHeading")}</p>
             <div className="space-y-2">
-              <Label htmlFor="profile-street">Straße &amp; Hausnummer</Label>
+              <Label htmlFor="profile-street">{t("street")}</Label>
               <Input
                 id="profile-street"
                 autoComplete="street-address"
@@ -244,7 +250,7 @@ export default function ProfilePersoenlicheDatenPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="profile-zip">PLZ</Label>
+                <Label htmlFor="profile-zip">{t("postalCode")}</Label>
                 <Input
                   id="profile-zip"
                   autoComplete="postal-code"
@@ -255,7 +261,7 @@ export default function ProfilePersoenlicheDatenPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="profile-city">Ort</Label>
+                <Label htmlFor="profile-city">{t("city")}</Label>
                 <Input
                   id="profile-city"
                   autoComplete="address-level2"
@@ -267,14 +273,14 @@ export default function ProfilePersoenlicheDatenPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="profile-country">Land</Label>
+              <Label htmlFor="profile-country">{t("country")}</Label>
               <Input
                 id="profile-country"
                 autoComplete="country-name"
                 disabled={!isHydrated}
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
-                placeholder="z. B. DE oder Deutschland"
+                placeholder={t("countryPlaceholder")}
                 className="h-11 rounded-xl"
               />
             </div>
@@ -290,7 +296,7 @@ export default function ProfilePersoenlicheDatenPage() {
               settingsAccentSaveButtonClassName,
             )}
           >
-            {savedFlash ? "Gespeichert" : "Profil speichern"}
+            {savedFlash ? tCommon("saved") : t("saveProfile")}
           </Button>
         </SettingsStickySaveBar>
       </form>

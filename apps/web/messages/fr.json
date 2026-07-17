@@ -1,0 +1,46 @@
+{
+  "Common": {
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "cancel": "Annuler",
+    "loading": "Chargement"
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "fr": "Français"
+  },
+  "Profile": {
+    "title": "Profil",
+    "subnavAriaLabel": "Sections du profil",
+    "nav": {
+      "overview": "Aperçu",
+      "login": "Connexion",
+      "notifications": "Notifications",
+      "workHours": "Mes horaires",
+      "schedule": "Planning",
+      "availability": "Disponibilité",
+      "documents": "Mes documents",
+      "displayPin": "PIN d’affichage"
+    },
+    "language": {
+      "heading": "Langue",
+      "description": "Langue de l’interface. S’applique à ce compte sur tous les appareils.",
+      "label": "Langue",
+      "updated": "Langue mise à jour",
+      "updateFailed": "Impossible d’enregistrer la langue"
+    },
+    "personal": {
+      "email": "E-mail",
+      "birthday": "Date de naissance",
+      "addressHeading": "Adresse personnelle",
+      "street": "Rue et numéro",
+      "postalCode": "Code postal",
+      "city": "Ville",
+      "country": "Pays",
+      "countryPlaceholder": "p. ex. FR ou France",
+      "saveProfile": "Enregistrer le profil",
+      "loadingAria": "Chargement des données du profil"
+    }
+  }
+}

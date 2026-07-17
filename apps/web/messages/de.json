@@ -1,0 +1,46 @@
+{
+  "Common": {
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "cancel": "Abbrechen",
+    "loading": "Wird geladen"
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "fr": "Français"
+  },
+  "Profile": {
+    "title": "Profil",
+    "subnavAriaLabel": "Profilbereiche",
+    "nav": {
+      "overview": "Übersicht",
+      "login": "Anmeldung",
+      "notifications": "Benachrichtigungen",
+      "workHours": "Meine Arbeitszeiten",
+      "schedule": "Dienstplan",
+      "availability": "Verfügbarkeit",
+      "documents": "Meine Dokumente",
+      "displayPin": "Display-PIN"
+    },
+    "language": {
+      "heading": "Sprache",
+      "description": "Oberflächensprache der App. Gilt für dieses Konto auf allen Geräten.",
+      "label": "Sprache",
+      "updated": "Sprache aktualisiert",
+      "updateFailed": "Sprache konnte nicht gespeichert werden"
+    },
+    "personal": {
+      "email": "E-Mail",
+      "birthday": "Geburtstag",
+      "addressHeading": "Persönliche Adresse",
+      "street": "Straße & Hausnummer",
+      "postalCode": "PLZ",
+      "city": "Ort",
+      "country": "Land",
+      "countryPlaceholder": "z. B. DE oder Deutschland",
+      "saveProfile": "Profil speichern",
+      "loadingAria": "Profildaten werden geladen"
+    }
+  }
+}

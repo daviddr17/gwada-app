@@ -93,48 +93,54 @@ type EmbedFieldErrors = {
   managePin?: boolean;
 };
 
-const ERROR_DE: Record<string, string> = {
-  invalid_request: "Bitte alle Pflichtfelder prüfen.",
-  terms_required: "Bitte die Bedingungen bestätigen.",
-  contact_required: "Bitte Telefon oder E-Mail angeben.",
-  notify_channel_required:
-    "Bitte mindestens E-Mail- oder WhatsApp-Benachrichtigung aktivieren.",
-  outside_opening_hours: "Diese Uhrzeit liegt außerhalb der Öffnungszeiten.",
-  booking_lead_time:
-    "Der gewählte Termin liegt vor der Mindest-Vorlaufzeit des Restaurants.",
-  invalid_credentials: "Nummer oder PIN ist ungültig.",
-  not_editable: "Diese Reservierung kann nicht mehr geändert werden.",
-  not_found: "Restaurant nicht gefunden oder nicht veröffentlicht.",
-  create_failed: "Reservierung konnte nicht angelegt werden.",
-  update_failed: "Änderung konnte nicht gespeichert werden.",
+const FIELD_HINT_KEYS: Record<
+  keyof EmbedFieldErrors,
+  | "hintDate"
+  | "hintTime"
+  | "hintParty"
+  | "hintLastName"
+  | "hintContact"
+  | "hintNotifyChannel"
+  | "hintTerms"
+  | "hintManageNumber"
+  | "hintManagePin"
+> = {
+  date: "hintDate",
+  time: "hintTime",
+  party: "hintParty",
+  lastName: "hintLastName",
+  contact: "hintContact",
+  notifyChannel: "hintNotifyChannel",
+  terms: "hintTerms",
+  manageNumber: "hintManageNumber",
+  managePin: "hintManagePin",
 };
 
-const FIELD_ERROR_HINTS: Record<keyof EmbedFieldErrors, string> = {
-  date: "Bitte ein Datum wählen.",
-  time: "Bitte eine gültige Uhrzeit wählen.",
-  party: "Bitte Personenzahl angeben (mindestens 1).",
-  lastName: "Nachname ist Pflicht.",
-  contact: "Telefon oder E-Mail angeben.",
-  notifyChannel: "Mindestens E-Mail- oder WhatsApp-Benachrichtigung aktivieren.",
-  terms: "Bitte die Bedingungen bestätigen.",
-  manageNumber: "Reservierungsnummer eingeben.",
-  managePin: "PIN eingeben.",
+const API_ERROR_KEYS: Record<string, string> = {
+  invalid_request: "errorInvalidRequest",
+  terms_required: "errorTermsRequired",
+  contact_required: "errorContactRequired",
+  notify_channel_required: "errorNotifyChannel",
+  outside_opening_hours: "errorOutsideHours",
+  booking_lead_time: "errorLeadTime",
+  invalid_credentials: "errorCredentials",
+  not_editable: "errorNotEditable",
+  not_found: "errorNotFound",
+  create_failed: "errorCreateFailed",
+  update_failed: "errorUpdateFailed",
 };
 
 function EmbedFieldErrorHint({
   field,
   errors,
+  message,
 }: {
   field: keyof EmbedFieldErrors;
   errors: EmbedFieldErrors;
+  message: string;
 }) {
   if (!errors[field]) return null;
-  return <p className="text-xs text-destructive">{FIELD_ERROR_HINTS[field]}</p>;
-}
-
-function errorMessage(code: string | undefined): string {
-  if (!code) return "Ein Fehler ist aufgetreten.";
-  return ERROR_DE[code] ?? ERROR_DE.invalid_request;
+  return <p className="text-xs text-destructive">{message}</p>;
 }
 
 function buildEndsIso(startsIso: string, dwellMinutes: number): string {
@@ -199,6 +205,7 @@ function EmbedReservationWidgetBody({
   profileTermsSheet?: EmbedReservationProfileTermsSheet;
 }) {
   const t = useTranslations("Embed");
+  const tr = useTranslations("Embed.reservation");
   const profileSheet = variant === "profileSheet";
   const [hostMode, setHostMode] = useState(false);
   const [internalTermsSheetOpen, setInternalTermsSheetOpen] = useState(false);
@@ -208,6 +215,20 @@ function EmbedReservationWidgetBody({
       { id: "manage", label: t("reservationChange"), icon: Pencil },
     ],
     [t],
+  );
+
+  const fieldHint = useCallback(
+    (field: keyof EmbedFieldErrors) => tr(FIELD_HINT_KEYS[field]),
+    [tr],
+  );
+
+  const errorMessage = useCallback(
+    (code: string | undefined) => {
+      if (!code) return tr("genericError");
+      const key = API_ERROR_KEYS[code];
+      return key ? tr(key as Parameters<typeof tr>[0]) : tr("errorInvalidRequest");
+    },
+    [tr],
   );
 
   const termsSheetOpen = profileTermsSheet?.open ?? internalTermsSheetOpen;
@@ -451,13 +472,13 @@ function EmbedReservationWidgetBody({
         time: timeSlots.length === 0,
         party: true,
       });
-      setError("Bitte markierte Felder prüfen.");
+      setError(tr("checkFields"));
       return;
     }
     const errors = collectFieldErrors(payload);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setError("Bitte markierte Felder prüfen.");
+      setError(tr("checkFields"));
       return;
     }
     setFieldErrors({});
@@ -489,7 +510,7 @@ function EmbedReservationWidgetBody({
       resetBookForm();
     } catch {
       setBookPhase("idle");
-      setError("Netzwerkfehler. Bitte erneut versuchen.");
+      setError(tr("networkError"));
     }
   };
 
@@ -503,7 +524,7 @@ function EmbedReservationWidgetBody({
     if (managePin.length !== 6) loadErrors.managePin = true;
     if (Object.keys(loadErrors).length > 0) {
       setFieldErrors(loadErrors);
-      setError("Bitte markierte Felder prüfen.");
+      setError(tr("checkFields"));
       return;
     }
     setFieldErrors({});
@@ -533,7 +554,7 @@ function EmbedReservationWidgetBody({
       applyReservationToForm(body.reservation);
     } catch {
       setManagePhase("idle");
-      setError("Netzwerkfehler. Bitte erneut versuchen.");
+      setError(tr("networkError"));
     }
   };
 
@@ -549,7 +570,7 @@ function EmbedReservationWidgetBody({
     const errors = collectFieldErrors(payload);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setError("Bitte markierte Felder prüfen.");
+      setError(tr("checkFields"));
       return;
     }
     setFieldErrors({});
@@ -587,7 +608,7 @@ function EmbedReservationWidgetBody({
       });
     } catch {
       setManagePhase("idle");
-      setError("Netzwerkfehler. Bitte erneut versuchen.");
+      setError(tr("networkError"));
     }
   };
 
@@ -595,7 +616,7 @@ function EmbedReservationWidgetBody({
     <div className="w-full min-w-0 space-y-4">
       <div className="grid w-full min-w-0 grid-cols-3 gap-2 sm:gap-3">
         <div className="min-w-0 space-y-1.5">
-          <Label className="text-xs sm:text-sm">Datum</Label>
+          <Label className="text-xs sm:text-sm">{tr("date")}</Label>
           <DatePickerField
             fullWidth
             minYmd={enforceBookingLead ? earliestYmd : undefined}
@@ -616,10 +637,10 @@ function EmbedReservationWidgetBody({
                 "border-destructive ring-3 ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
             )}
           />
-          <EmbedFieldErrorHint field="date" errors={fieldErrors} />
+          <EmbedFieldErrorHint field="date" errors={fieldErrors} message={fieldHint("date")} />
         </div>
         <div className="min-w-0 space-y-1.5">
-          <Label className="text-xs sm:text-sm">Uhrzeit</Label>
+          <Label className="text-xs sm:text-sm">{tr("time")}</Label>
           {timeSlots.length === 0 ? (
             <p
               className={cn(
@@ -628,7 +649,7 @@ function EmbedReservationWidgetBody({
                   "border border-destructive ring-3 ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
               )}
             >
-              Geschlossen
+              {tr("closed")}
             </p>
           ) : (
             <Select
@@ -653,11 +674,11 @@ function EmbedReservationWidgetBody({
               </SelectContent>
             </Select>
           )}
-          <EmbedFieldErrorHint field="time" errors={fieldErrors} />
+          <EmbedFieldErrorHint field="time" errors={fieldErrors} message={fieldHint("time")} />
         </div>
         <div className="min-w-0 space-y-1.5">
           <Label htmlFor="embed-party" className="text-xs sm:text-sm">
-            Pers.
+            {tr("party")}
           </Label>
           <Input
             id="embed-party"
@@ -672,13 +693,13 @@ function EmbedReservationWidgetBody({
             aria-invalid={fieldErrors.party || undefined}
             className="h-10 rounded-xl"
           />
-          <EmbedFieldErrorHint field="party" errors={fieldErrors} />
+          <EmbedFieldErrorHint field="party" errors={fieldErrors} message={fieldHint("party")} />
         </div>
       </div>
 
       <div className="grid w-full min-w-0 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="embed-last">Nachname</Label>
+          <Label htmlFor="embed-last">{tr("lastName")}</Label>
           <Input
             id="embed-last"
             value={lastName}
@@ -690,10 +711,10 @@ function EmbedReservationWidgetBody({
             aria-invalid={fieldErrors.lastName || undefined}
             className="h-10 rounded-xl"
           />
-          <EmbedFieldErrorHint field="lastName" errors={fieldErrors} />
+          <EmbedFieldErrorHint field="lastName" errors={fieldErrors} message={fieldHint("lastName")} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="embed-first">Vorname</Label>
+          <Label htmlFor="embed-first">{tr("firstName")}</Label>
           <Input
             id="embed-first"
             value={firstName}
@@ -706,7 +727,7 @@ function EmbedReservationWidgetBody({
 
       <div className="w-full min-w-0 space-y-3">
         <div className="space-y-1.5">
-          <Label>Telefon</Label>
+          <Label>{tr("phone")}</Label>
           <div className="flex gap-2">
             <GuestPhoneCountrySelect
               value={phoneCountryIso}
@@ -731,7 +752,7 @@ function EmbedReservationWidgetBody({
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="embed-email">E-Mail</Label>
+          <Label htmlFor="embed-email">{tr("email")}</Label>
           <Input
             id="embed-email"
             type="email"
@@ -745,7 +766,7 @@ function EmbedReservationWidgetBody({
             className="h-10 rounded-xl"
           />
         </div>
-        <EmbedFieldErrorHint field="contact" errors={fieldErrors} />
+        <EmbedFieldErrorHint field="contact" errors={fieldErrors} message={fieldHint("contact")} />
       </div>
 
       <div className="flex w-full min-w-0 flex-col gap-3 rounded-xl border border-border/50 bg-muted/20 p-3">
@@ -763,7 +784,7 @@ function EmbedReservationWidgetBody({
               className={reservationNotifyRowMailIconClassName}
               aria-hidden
             />
-            E-Mail-Benachrichtigung
+            {tr("notifyEmail")}
           </span>
           <Switch
             checked={notifyEmail}
@@ -790,7 +811,7 @@ function EmbedReservationWidgetBody({
             <WhatsAppGlyph
               className={reservationNotifyRowWhatsAppIconClassName}
             />
-            WhatsApp-Benachrichtigung
+            {tr("notifyWhatsapp")}
           </span>
           <Switch
             checked={notifyWhatsapp}
@@ -805,7 +826,7 @@ function EmbedReservationWidgetBody({
           />
         </div>
       </div>
-      <EmbedFieldErrorHint field="notifyChannel" errors={fieldErrors} />
+      <EmbedFieldErrorHint field="notifyChannel" errors={fieldErrors} message={fieldHint("notifyChannel")} />
 
       <div
         className="flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 p-3"
@@ -817,14 +838,17 @@ function EmbedReservationWidgetBody({
         >
           <TermsGlyph className={reservationNotifyRowTermsIconClassName} />
           <span>
-            <button
-              type="button"
-              className="font-medium text-foreground underline decoration-foreground/50 underline-offset-2 hover:decoration-foreground"
-              onClick={() => scheduleTermsSheetOpen(setTermsSheetOpen)}
-            >
-              Bedingungen
-            </button>{" "}
-            akzeptieren
+            {tr.rich("termsAccept", {
+              terms: (chunks) => (
+                <button
+                  type="button"
+                  className="font-medium text-foreground underline decoration-foreground/50 underline-offset-2 hover:decoration-foreground"
+                  onClick={() => scheduleTermsSheetOpen(setTermsSheetOpen)}
+                >
+                  {chunks}
+                </button>
+              ),
+            })}
           </span>
         </span>
         <Switch
@@ -844,7 +868,7 @@ function EmbedReservationWidgetBody({
           aria-labelledby="embed-terms-label"
         />
       </div>
-      <EmbedFieldErrorHint field="terms" errors={fieldErrors} />
+      <EmbedFieldErrorHint field="terms" errors={fieldErrors} message={fieldHint("terms")} />
       <input
         type="text"
         name="website"
@@ -924,7 +948,7 @@ function EmbedReservationWidgetBody({
                 {embedFormFooter}
                 <EmbedSubmitButton
                   phase={bookPhase}
-                  idleLabel="Reservierung absenden"
+                  idleLabel={tr("submit")}
                   disabled={timeSlots.length === 0}
                   onClick={() => void handleBook()}
                 />
@@ -935,7 +959,7 @@ function EmbedReservationWidgetBody({
           <div className="w-full min-w-0 space-y-4">
             <div className="grid w-full min-w-0 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="embed-nr">Reservierungs-Nr.</Label>
+                <Label htmlFor="embed-nr">{tr("reservationNumber")}</Label>
                 <Input
                   id="embed-nr"
                   inputMode="numeric"
@@ -951,10 +975,10 @@ function EmbedReservationWidgetBody({
                       "border-destructive ring-3 ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
                   )}
                 />
-                <EmbedFieldErrorHint field="manageNumber" errors={fieldErrors} />
+                <EmbedFieldErrorHint field="manageNumber" errors={fieldErrors} message={fieldHint("manageNumber")} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="embed-pin">PIN (6 Ziffern)</Label>
+                <Label htmlFor="embed-pin">{tr("pinDigits")}</Label>
                 <Input
                   id="embed-pin"
                   inputMode="numeric"
@@ -971,7 +995,7 @@ function EmbedReservationWidgetBody({
                       "border-destructive ring-3 ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
                   )}
                 />
-                <EmbedFieldErrorHint field="managePin" errors={fieldErrors} />
+                <EmbedFieldErrorHint field="managePin" errors={fieldErrors} message={fieldHint("managePin")} />
               </div>
             </div>
             {manageSuccess ? (
@@ -983,21 +1007,23 @@ function EmbedReservationWidgetBody({
             ) : !loadedReservation ? (
               <EmbedSubmitButton
                 phase={managePhase === "loading" ? "loading" : "idle"}
-                idleLabel="Reservierung laden"
-                loadingLabel="Prüfe…"
+                idleLabel={tr("load")}
+                loadingLabel={tr("checking")}
                 onClick={() => void handleManageLoad()}
               />
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Reservierung #{loadedReservation.reservation_number}
+                  {tr("loadedReservation", {
+                    number: loadedReservation.reservation_number,
+                  })}
                 </p>
                 {formFields}
                 {embedFormFooter}
                 <EmbedSubmitButton
                   phase={managePhase}
-                  idleLabel="Änderungen absenden"
-                  loadingLabel="Wird gesendet…"
+                  idleLabel={tr("saveChanges")}
+                  loadingLabel={tr("sending")}
                   disabled={timeSlots.length === 0}
                   onClick={() => void handleManageSave()}
                 />
@@ -1008,7 +1034,7 @@ function EmbedReservationWidgetBody({
 
         {hostMode ? (
           <p className="mt-4 text-center text-[10px] text-muted-foreground">
-            Bereitgestellt von gwada
+            {tr("poweredBy")}
           </p>
         ) : null}
       </div>

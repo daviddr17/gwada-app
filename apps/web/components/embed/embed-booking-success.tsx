@@ -1,7 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import { motion } from "framer-motion";
-import { formatReservationSlotDe } from "@/lib/reservations/reservation-pending-change";
+import { APP_LOCALE_TO_PROFILE, normalizeAppLocale } from "@/i18n/config";
 import {
   formatReservationTimeInRestaurantTz,
   DEFAULT_RESTAURANT_TIMEZONE,
@@ -19,6 +20,24 @@ export type EmbedBookingSuccessDetails = {
   ends_at: string;
 };
 
+function formatSlotForLocale(
+  iso: string,
+  timeZone: string,
+  locale: string,
+): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(locale, {
+    timeZone,
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export function EmbedBookingSuccess({
   details,
   changeRequest,
@@ -28,9 +47,12 @@ export function EmbedBookingSuccess({
   changeRequest?: boolean;
   timeZone?: string;
 }) {
+  const t = useTranslations("Embed.reservation");
+  const appLocale = normalizeAppLocale(useLocale());
+  const intlLocale = APP_LOCALE_TO_PROFILE[appLocale] ?? "de-DE";
   const guest =
     `${details.guest_first_name} ${details.guest_last_name}`.trim();
-  const slot = formatReservationSlotDe(details.starts_at, timeZone);
+  const slot = formatSlotForLocale(details.starts_at, timeZone, intlLocale);
   const endHm = formatReservationTimeInRestaurantTz(details.ends_at, timeZone);
 
   return (
@@ -42,44 +64,38 @@ export function EmbedBookingSuccess({
     >
       <div className="space-y-1">
         <p className="text-base font-semibold text-foreground">
-          {changeRequest
-            ? "Änderungsanfrage eingereicht"
-            : "Reservierung erfolgreich abgesendet"}
+          {changeRequest ? t("changeRequestTitle") : t("successTitle")}
         </p>
         <p className="text-sm text-muted-foreground">
-          {changeRequest
-            ? "Das Restaurant prüft deine Wünsche und meldet sich bei Bedarf."
-            : "Bitte notiere Reservierungsnummer und PIN für spätere Änderungen."}
+          {changeRequest ? t("changeRequestHint") : t("successHint")}
         </p>
       </div>
 
       <dl className="grid gap-2 rounded-xl border border-border/40 bg-card/80 p-3 text-sm">
         <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Reservierungs-Nr.</dt>
+          <dt className="text-muted-foreground">{t("reservationNumber")}</dt>
           <dd className="font-mono font-semibold tabular-nums">
             #{details.reservation_number}
           </dd>
         </div>
         {changeRequest ? (
-          <p className="text-xs text-muted-foreground">
-            Deine bestehende PIN bleibt unverändert gültig.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("pinUnchanged")}</p>
         ) : (
           <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">PIN</dt>
+            <dt className="text-muted-foreground">{t("pin")}</dt>
             <dd className="font-mono font-semibold tracking-widest">
               {details.guest_pin}
             </dd>
           </div>
         )}
         <div className="border-t border-border/40 pt-2">
-          <dt className="sr-only">Übersicht</dt>
+          <dt className="sr-only">Overview</dt>
           <dd className="space-y-1">
             <p className="font-medium">{guest}</p>
             <p className="text-muted-foreground">
               {details.party_size}{" "}
-              {details.party_size === 1 ? "Person" : "Personen"} · {slot} –{" "}
-              {endHm}
+              {details.party_size === 1 ? t("person") : t("persons")} · {slot}{" "}
+              – {endHm}
             </p>
             {details.guest_phone ? (
               <p className="text-muted-foreground">{details.guest_phone}</p>

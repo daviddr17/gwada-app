@@ -47,7 +47,7 @@ export function EmbedAccentRoot({
       >
         <div className="flex w-full min-w-0 flex-col">
           {showLocalePicker ? (
-            <div className="px-4 pt-3 sm:px-6">
+            <div className="px-4 pt-2 sm:px-6">
               <EmbedLocaleFlagPicker />
             </div>
           ) : null}

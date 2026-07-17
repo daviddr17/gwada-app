@@ -34,6 +34,11 @@ export type RestaurantProfile = {
   /** Eindeutiger Nickname → `restaurants.slug` (URL-Kennung). */
   slug: string;
   name: string;
+  /**
+   * Gäste-Standardsprache (Embed-UI + Quellsprache für Browser-Übersetzung).
+   * Kurzcode: de | en | es | fr | it | tr | ar | zh
+   */
+  defaultLocale: string;
   street: string;
   postalCode: string;
   city: string;

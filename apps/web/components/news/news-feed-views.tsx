@@ -150,6 +150,7 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
   const bodyBlock = item.body ? (
     <div className="space-y-1">
       <p
+        data-embed-mt
         className={cn(
           "text-sm text-muted-foreground",
           showClampedBody ? "line-clamp-2" : inlineExpandBody ? "whitespace-pre-wrap" : "line-clamp-2",
@@ -213,7 +214,9 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
             </time>
           </div>
           {item.title ? (
-            <p className="font-medium leading-snug">{item.title}</p>
+            <p className="font-medium leading-snug" data-embed-mt>
+              {item.title}
+            </p>
           ) : null}
           {bodyBlock}
         </div>
@@ -316,6 +319,7 @@ const NewsCard = memo(function NewsCard({
   const bodyBlock = item.body ? (
     <div className="space-y-1.5">
       <p
+        data-embed-mt
         className={cn(
           "text-sm text-muted-foreground",
           showClampedBody ? "line-clamp-4" : "whitespace-pre-wrap",
@@ -370,7 +374,9 @@ const NewsCard = memo(function NewsCard({
           </time>
         </div>
         {item.title ? (
-          <p className="font-medium leading-snug">{item.title}</p>
+          <p className="font-medium leading-snug" data-embed-mt>
+            {item.title}
+          </p>
         ) : null}
         {bodyBlock}
       </div>

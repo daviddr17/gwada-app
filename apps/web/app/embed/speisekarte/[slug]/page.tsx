@@ -7,6 +7,7 @@ import {
   resolveEmbedTextTheme,
 } from "@/lib/embed/embed-appearance";
 import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
+import { fetchRestaurantDefaultLocaleForSlug } from "@/lib/embed/fetch-restaurant-default-locale";
 import { fetchPublicEmbedMenu } from "@/lib/menu/public-menu-server";
 
 const EmbedMenuWidget = nextDynamic(
@@ -36,9 +37,10 @@ export default async function EmbedSpeisekartePage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const [result, textTheme] = await Promise.all([
+  const [result, textTheme, sourceLocale] = await Promise.all([
     fetchPublicEmbedMenu(slug),
     fetchEmbedTextThemeForSlug(slug, "menu"),
+    fetchRestaurantDefaultLocaleForSlug(slug),
   ]);
 
   if (!result.data) {
@@ -78,6 +80,7 @@ export default async function EmbedSpeisekartePage({
         items={items}
         tagDefinitions={tagDefinitions}
         optionGroups={optionGroups}
+        sourceLocale={sourceLocale}
         textTheme={resolveEmbedTextTheme(
           textTheme,
           sp[EMBED_PREVIEW_TEXT_THEME_PARAM],

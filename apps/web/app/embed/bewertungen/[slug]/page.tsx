@@ -8,6 +8,7 @@ import {
   resolveEmbedTextTheme,
 } from "@/lib/embed/embed-appearance";
 import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
+import { fetchRestaurantDefaultLocaleForSlug } from "@/lib/embed/fetch-restaurant-default-locale";
 import { fetchPublicEmbedReviews } from "@/lib/reviews/public-reviews-server";
 
 const EmbedReviewsWidget = nextDynamic(
@@ -41,12 +42,13 @@ export default async function EmbedBewertungenPage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const [result, textTheme] = await Promise.all([
+  const [result, textTheme, sourceLocale] = await Promise.all([
     fetchPublicEmbedReviews(slug, {
       paginate: true,
       page: parseListPageParam(sp.page),
     }),
     fetchEmbedTextThemeForSlug(slug, "reviews"),
+    fetchRestaurantDefaultLocaleForSlug(slug),
   ]);
 
   if (!result.data) {
@@ -75,6 +77,7 @@ export default async function EmbedBewertungenPage({
         summary={summary}
         viewMode={viewMode}
         pagination={pagination}
+        sourceLocale={sourceLocale}
         textTheme={resolveEmbedTextTheme(
           textTheme,
           sp[EMBED_PREVIEW_TEXT_THEME_PARAM],

@@ -71,6 +71,7 @@ export function createDefaultRestaurant(id: string): RestaurantProfile {
     id,
     slug: "",
     name: "Mein Restaurant",
+    defaultLocale: "de",
     street: "",
     postalCode: "",
     city: "",

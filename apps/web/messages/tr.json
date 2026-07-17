@@ -114,5 +114,27 @@
     "tr": "Türkçe",
     "ar": "العربية",
     "zh": "中文"
+  },
+  "Embed": {
+    "languageLabel": "Dil",
+    "restaurantDefault": "Restoran dili",
+    "translating": "İçerik çevriliyor…",
+    "posts": "Gönderiler",
+    "newsEmptyAll": "Henüz haber yok.",
+    "newsEmptyPlatform": "Bu platform için haber yok.",
+    "newsUnavailable": "Bu haberler şu an kullanılamıyor.",
+    "newsLoadError": "Haberler yüklenemedi.",
+    "menuUnavailable": "Bu menü şu an kullanılamıyor.",
+    "reviewsEmpty": "Henüz değerlendirme yok.",
+    "eventsEmpty": "Şu an yaklaşan etkinlik yok.",
+    "galleryEmpty": "Henüz fotoğraf yok.",
+    "hoursUnavailable": "Çalışma saatleri yok.",
+    "reservationBook": "Rezervasyon",
+    "reservationChange": "Değiştir",
+    "reviews": "Yorumlar",
+    "events": "Etkinlikler",
+    "eventsShowPast": "Geçmişleri göster",
+    "eventsPastHidden": "{count} geçmiş etkinlik gizlendi.",
+    "reservationAria": "Rezervasyon"
   }
 }

@@ -15,10 +15,24 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePickerField, formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import {
+  APP_LOCALE_NATIVE_LABELS,
+  APP_LOCALES,
+  type AppLocale,
+  normalizeAppLocale,
+} from "@/i18n/config";
+import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { SettingsBrandingCard } from "@/components/settings/settings-branding-panel";
 import { RestaurantProfileHeader } from "@/components/settings/restaurant-profile-header";
 import { RestaurantBusinessCardDrawer } from "@/components/settings/restaurant-business-card-drawer";
@@ -110,6 +124,7 @@ function pickStammdaten(p: RestaurantProfile) {
   return {
     slug: p.slug,
     name: p.name,
+    defaultLocale: p.defaultLocale,
     street: p.street,
     postalCode: p.postalCode,
     city: p.city,
@@ -582,6 +597,51 @@ export function RestaurantSettingsPanel({
           profile={draft}
           accentHex={accentDraft}
         />
+        <Card className="border-border/50 shadow-card">
+          <CardHeader className="gap-2">
+            <CardTitle className="text-xl">Gäste-Sprache</CardTitle>
+            <CardDescription>
+              Standardsprache für Embeds und Profil. Inhalte werden im Browser
+              in die gewählte Gästesprache übersetzt — nicht in der Datenbank
+              gespeichert.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label htmlFor="rs-default-locale">Sprache der Inhalte</Label>
+            <Select
+              value={normalizeAppLocale(draft.defaultLocale)}
+              onValueChange={(v) => {
+                if (typeof v !== "string") return;
+                const locale = normalizeAppLocale(v) as AppLocale;
+                setDraft((p) => (p ? { ...p, defaultLocale: locale } : p));
+              }}
+            >
+              <SelectTrigger
+                id="rs-default-locale"
+                className={appSelectTriggerAccentCn(
+                  "h-11 w-full rounded-xl [&_[data-slot=select-value]]:min-w-0",
+                )}
+              >
+                <SelectValue>
+                  {APP_LOCALE_NATIVE_LABELS[
+                    normalizeAppLocale(draft.defaultLocale)
+                  ]}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {APP_LOCALES.map((code) => (
+                  <SelectItem
+                    key={code}
+                    value={code}
+                    dir={code === "ar" ? "rtl" : "ltr"}
+                  >
+                    {APP_LOCALE_NATIVE_LABELS[code]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
         <Card className="border-border/50 shadow-card">
           <CardHeader className="gap-2">
             <CardTitle className="text-xl">Adresse & Kontakt</CardTitle>

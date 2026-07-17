@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Star } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import type { AppLocale } from "@/i18n/config";
 import { REVIEW_PLATFORM_LABELS } from "@/lib/constants/review-platforms";
 import type {
   PublicEmbedReview,
@@ -30,6 +32,7 @@ export type EmbedReviewsWidgetProps = {
   viewMode?: "grid" | "list";
   /** Server-Pagination (Embed-Route) — x/y + Seiten unten. */
   pagination?: PublicEmbedReviewsPagination;
+  sourceLocale?: AppLocale;
 };
 
 function StarsDisplay({ rating, size = "md" }: { rating: number; size?: "sm" | "md" }) {
@@ -84,7 +87,10 @@ function EmbedReviewCard({ review }: { review: PublicEmbedReview }) {
         <p className="mt-2 text-sm font-medium leading-snug">{review.authorName}</p>
       ) : null}
       {review.comment ? (
-        <p className="mt-2 line-clamp-4 flex-1 text-sm leading-relaxed text-muted-foreground">
+        <p
+          className="mt-2 line-clamp-4 flex-1 text-sm leading-relaxed text-muted-foreground"
+          data-embed-mt
+        >
           {review.comment}
         </p>
       ) : (
@@ -93,7 +99,9 @@ function EmbedReviewCard({ review }: { review: PublicEmbedReview }) {
       {review.reply ? (
         <div className="mt-3 rounded-lg border border-border/50 bg-muted/25 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
           <span className="font-medium text-foreground/80">Antwort: </span>
-          <span className="line-clamp-3">{review.reply}</span>
+          <span className="line-clamp-3" data-embed-mt>
+            {review.reply}
+          </span>
         </div>
       ) : null}
     </article>
@@ -125,7 +133,10 @@ function EmbedReviewRow({ review }: { review: PublicEmbedReview }) {
         <p className="mt-2 text-sm font-medium">{review.authorName}</p>
       ) : null}
       {review.comment ? (
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+        <p
+          className="mt-2 text-sm leading-relaxed text-muted-foreground"
+          data-embed-mt
+        >
           {review.comment}
         </p>
       ) : (
@@ -134,7 +145,7 @@ function EmbedReviewRow({ review }: { review: PublicEmbedReview }) {
       {review.reply ? (
         <div className="mt-3 rounded-lg border border-border/50 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
           <span className="font-medium text-foreground/80">Antwort: </span>
-          {review.reply}
+          <span data-embed-mt>{review.reply}</span>
         </div>
       ) : null}
     </article>
@@ -201,7 +212,33 @@ export function EmbedReviewsWidget({
   summary,
   viewMode = "grid",
   pagination,
+  sourceLocale = "de",
 }: EmbedReviewsWidgetProps) {
+  return (
+    <EmbedAccentRoot
+      accentHex={accentHex}
+      textTheme={textTheme}
+      sourceLocale={sourceLocale}
+    >
+      <EmbedReviewsWidgetBody
+        restaurantName={restaurantName}
+        reviews={reviews}
+        summary={summary}
+        viewMode={viewMode}
+        pagination={pagination}
+      />
+    </EmbedAccentRoot>
+  );
+}
+
+function EmbedReviewsWidgetBody({
+  restaurantName,
+  reviews,
+  summary,
+  viewMode = "grid",
+  pagination,
+}: Omit<EmbedReviewsWidgetProps, "accentHex" | "textTheme" | "sourceLocale">) {
+  const t = useTranslations("Embed");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -283,9 +320,12 @@ export function EmbedReviewsWidget({
     );
 
   return (
-    <EmbedAccentRoot accentHex={accentHex} textTheme={textTheme}>
+    <>
       <EmbedResizeReporter deps={resizeDeps} widget="reviews" />
-      <div className="w-full min-w-0 px-4 py-5 sm:px-6">
+      <div
+        className="w-full min-w-0 px-4 py-5 sm:px-6"
+        data-gwada-embed-content
+      >
         {summary.count > 0 ? (
           <div className="border-b border-border/40 pb-5">
             <EmbedReviewsSummary summary={summary} />
@@ -295,8 +335,7 @@ export function EmbedReviewsWidget({
         <section className={cn(summary.count > 0 && "mt-5")}>
           {reviews.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Noch keine Bewertungen — Gäste können nach dem Besuch über Gwada
-              bewerten.
+              {t("reviewsEmpty")}
             </p>
           ) : showPagination && pagination ? (
             <ListPaginationSurround
@@ -306,7 +345,7 @@ export function EmbedReviewsWidget({
               totalPages={pagination.totalPages}
               shown={reviews.length}
               totalCount={pagination.totalCount}
-              itemLabel="Bewertungen"
+              itemLabel={t("reviews")}
               canPrevious={pagination.page > 1}
               canNext={pagination.page < pagination.totalPages}
               busy={navigating}
@@ -319,11 +358,7 @@ export function EmbedReviewsWidget({
             reviewList
           )}
         </section>
-
-        <p className="mt-6 text-center text-[11px] text-muted-foreground/80">
-          Bewertungen über Gwada und verbundene Plattformen
-        </p>
       </div>
-    </EmbedAccentRoot>
+    </>
   );
 }

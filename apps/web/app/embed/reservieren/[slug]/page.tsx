@@ -7,6 +7,7 @@ import {
   resolveEmbedTextTheme,
 } from "@/lib/embed/embed-appearance";
 import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
+import { fetchRestaurantDefaultLocaleForSlug } from "@/lib/embed/fetch-restaurant-default-locale";
 import { publicCountries } from "@/lib/reservations/public-embed-shared";
 import { fetchPublicEmbedRestaurant } from "@/lib/reservations/public-reservation-server";
 
@@ -39,9 +40,10 @@ export default async function EmbedReservierenPage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const [result, textTheme] = await Promise.all([
+  const [result, textTheme, sourceLocale] = await Promise.all([
     fetchPublicEmbedRestaurant(slug),
     fetchEmbedTextThemeForSlug(slug, "reservation"),
+    fetchRestaurantDefaultLocaleForSlug(slug),
   ]);
 
   if (!result.data) {
@@ -68,6 +70,7 @@ export default async function EmbedReservierenPage({
       <EmbedReservationWidget
         config={result.data}
         countries={publicCountries()}
+        sourceLocale={sourceLocale}
         textTheme={resolveEmbedTextTheme(
           textTheme,
           sp[EMBED_PREVIEW_TEXT_THEME_PARAM],

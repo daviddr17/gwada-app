@@ -114,5 +114,27 @@
     "tr": "Türkçe",
     "ar": "العربية",
     "zh": "中文"
+  },
+  "Embed": {
+    "languageLabel": "Language",
+    "restaurantDefault": "Restaurant language",
+    "translating": "Translating content…",
+    "posts": "Posts",
+    "newsEmptyAll": "No news published yet.",
+    "newsEmptyPlatform": "No news for this platform.",
+    "newsUnavailable": "These news are currently unavailable.",
+    "newsLoadError": "Could not load the news.",
+    "menuUnavailable": "This menu is currently unavailable.",
+    "reviewsEmpty": "No reviews yet.",
+    "eventsEmpty": "No upcoming events right now.",
+    "galleryEmpty": "No photos yet.",
+    "hoursUnavailable": "Opening hours unavailable.",
+    "reservationBook": "Book",
+    "reservationChange": "Modify",
+    "reviews": "Reviews",
+    "events": "Events",
+    "eventsShowPast": "Show past",
+    "eventsPastHidden": "{count} past events hidden.",
+    "reservationAria": "Reservation"
   }
 }

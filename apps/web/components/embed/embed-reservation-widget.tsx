@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Mail, Pencil } from "lucide-react";
 import { GuestPhoneCountrySelect } from "@/components/phone/guest-phone-country-select";
+import { useTranslations } from "next-intl";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import {
   EmbedSlidingSegmentTabs,
@@ -14,6 +15,7 @@ import {
 } from "@/components/embed/embed-booking-success";
 import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
+import type { AppLocale } from "@/i18n/config";
 import { isGwadaEmbedHostMode } from "@/lib/embed/embed-menu-scroll";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 import {
@@ -78,11 +80,6 @@ function scheduleTermsSheetOpen(onOpenChange: (open: boolean) => void) {
     onOpenChange(true);
   });
 }
-
-const RESERVATION_SEGMENT_TABS: readonly EmbedSlidingSegmentTab<Tab>[] = [
-  { id: "book", label: "Buchen", icon: CalendarDays },
-  { id: "manage", label: "Ändern", icon: Pencil },
-];
 
 type EmbedFieldErrors = {
   date?: boolean;
@@ -162,6 +159,7 @@ export function EmbedReservationWidget({
   variant = "embed",
   profileTermsSheet,
   textTheme = "dark",
+  sourceLocale = "de",
 }: {
   config: PublicEmbedRestaurant;
   countries: CountryReference[];
@@ -169,10 +167,48 @@ export function EmbedReservationWidget({
   /** Profil-App-Sheet: Terms-Drawer auf Overlay-Ebene (nicht im Scroll-Inhalt). */
   profileTermsSheet?: EmbedReservationProfileTermsSheet;
   textTheme?: EmbedTextTheme;
+  sourceLocale?: AppLocale;
 }) {
+  return (
+    <EmbedAccentRoot
+      accentHex={config.accentHex}
+      textTheme={textTheme}
+      brandFooter={variant !== "profileSheet"}
+      sourceLocale={sourceLocale}
+      showLocalePicker={variant === "embed"}
+    >
+      <EmbedReservationWidgetBody
+        config={config}
+        countries={countries}
+        variant={variant}
+        profileTermsSheet={profileTermsSheet}
+      />
+    </EmbedAccentRoot>
+  );
+}
+
+function EmbedReservationWidgetBody({
+  config,
+  countries,
+  variant = "embed",
+  profileTermsSheet,
+}: {
+  config: PublicEmbedRestaurant;
+  countries: CountryReference[];
+  variant?: "embed" | "profileSheet";
+  profileTermsSheet?: EmbedReservationProfileTermsSheet;
+}) {
+  const t = useTranslations("Embed");
   const profileSheet = variant === "profileSheet";
   const [hostMode, setHostMode] = useState(false);
   const [internalTermsSheetOpen, setInternalTermsSheetOpen] = useState(false);
+  const reservationTabs = useMemo<readonly EmbedSlidingSegmentTab<Tab>[]>(
+    () => [
+      { id: "book", label: t("reservationBook"), icon: CalendarDays },
+      { id: "manage", label: t("reservationChange"), icon: Pencil },
+    ],
+    [t],
+  );
 
   const termsSheetOpen = profileTermsSheet?.open ?? internalTermsSheetOpen;
   const setTermsSheetOpen =
@@ -826,11 +862,7 @@ export function EmbedReservationWidget({
   ];
 
   return (
-    <EmbedAccentRoot
-      accentHex={config.accentHex}
-      textTheme={textTheme}
-      brandFooter={!profileSheet}
-    >
+    <>
       {renderTermsSheetInsideWidget ? (
         <EmbedReservationTermsSheet
           open={termsSheetOpen}
@@ -846,11 +878,11 @@ export function EmbedReservationWidget({
         )}
       >
         <EmbedSlidingSegmentTabs
-          tabs={RESERVATION_SEGMENT_TABS}
+          tabs={reservationTabs}
           value={tab}
           onChange={handleTabChange}
           className="mb-4"
-          aria-label="Reservierung"
+          aria-label={t("reservationAria")}
         />
 
         {error ? (
@@ -960,6 +992,6 @@ export function EmbedReservationWidget({
           </p>
         ) : null}
       </div>
-    </EmbedAccentRoot>
+    </>
   );
 }

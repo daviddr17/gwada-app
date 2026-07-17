@@ -34,7 +34,10 @@ function OpeningHoursWeekdayExceptionLine({
       <dd className="text-right tabular-nums">
         <span>{formatDayHoursLabel(exception)}</span>
         {note ? (
-          <span className="text-muted-foreground/85"> · {note}</span>
+          <span className="text-muted-foreground/85">
+            {" · "}
+            <span data-embed-mt>{note}</span>
+          </span>
         ) : (
           <span className="text-muted-foreground/70"> · Sondertermin</span>
         )}
@@ -143,7 +146,10 @@ export function PublicOpeningHoursDisplay({
       ) : null}
 
       {footerText ? (
-        <p className="mt-5 border-t border-border/50 pt-4 text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+        <p
+          className="mt-5 border-t border-border/50 pt-4 text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap"
+          data-embed-mt
+        >
           {footerText}
         </p>
       ) : null}

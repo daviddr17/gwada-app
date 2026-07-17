@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
@@ -8,6 +9,7 @@ import { EventsPlatformFilterChips } from "@/components/events/events-platform-f
 import { Label } from "@/components/ui/label";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { Switch } from "@/components/ui/switch";
+import type { AppLocale } from "@/i18n/config";
 import {
   EVENTS_FILTER_ALL,
   type EventsPlatformFilter,
@@ -27,17 +29,48 @@ export type EmbedEventsWidgetProps = {
   pastItems?: PublicEmbedEvents["pastItems"];
   variant?: "embed" | "profileSheet";
   showAllPlatformFilter?: boolean;
+  sourceLocale?: AppLocale;
 };
 
 export function EmbedEventsWidget({
   accentHex,
   textTheme = "dark",
+  viewMode,
   connectedPlatforms,
   items,
   pastItems = [],
   variant = "embed",
   showAllPlatformFilter = true,
+  sourceLocale = "de",
 }: EmbedEventsWidgetProps) {
+  return (
+    <EmbedAccentRoot
+      accentHex={accentHex}
+      textTheme={textTheme}
+      brandFooter={variant !== "profileSheet"}
+      sourceLocale={sourceLocale}
+      showLocalePicker={variant === "embed"}
+    >
+      <EmbedEventsWidgetBody
+        viewMode={viewMode}
+        connectedPlatforms={connectedPlatforms}
+        items={items}
+        pastItems={pastItems}
+        variant={variant}
+        showAllPlatformFilter={showAllPlatformFilter}
+      />
+    </EmbedAccentRoot>
+  );
+}
+
+function EmbedEventsWidgetBody({
+  connectedPlatforms,
+  items,
+  pastItems = [],
+  variant = "embed",
+  showAllPlatformFilter = true,
+}: Omit<EmbedEventsWidgetProps, "accentHex" | "textTheme" | "sourceLocale">) {
+  const t = useTranslations("Embed");
   const showAllChip = showAllPlatformFilter !== false;
   const availablePlatforms = useMemo(
     () => new Set(connectedPlatforms),
@@ -148,13 +181,9 @@ export function EmbedEventsWidget({
     variant === "profileSheet" ? "px-0 py-0" : "px-4 py-5 sm:px-6";
 
   return (
-    <EmbedAccentRoot
-      accentHex={accentHex}
-      textTheme={textTheme}
-      brandFooter={variant !== "profileSheet"}
-    >
+    <>
       <EmbedResizeReporter widget="events" deps={resizeDeps} />
-      <div className={paddingClass}>
+      <div className={paddingClass} data-gwada-embed-content>
         {connectedPlatforms.length > 1 ? (
           <div className="mb-4">
             <EventsPlatformFilterChips
@@ -173,7 +202,7 @@ export function EmbedEventsWidget({
                 htmlFor="embed-show-past-events"
                 className="cursor-pointer text-xs text-muted-foreground"
               >
-                Vergangene anzeigen
+                {t("eventsShowPast")}
               </Label>
               <Switch
                 id="embed-show-past-events"
@@ -187,8 +216,7 @@ export function EmbedEventsWidget({
             </div>
             {!showPastEvents ? (
               <p className="text-xs text-muted-foreground">
-                {visiblePast.length} vergangene{" "}
-                {visiblePast.length === 1 ? "Event" : "Events"} ausgeblendet.
+                {t("eventsPastHidden", { count: visiblePast.length })}
               </p>
             ) : null}
           </div>
@@ -201,19 +229,19 @@ export function EmbedEventsWidget({
           totalPages={clientPagination.totalPages}
           shown={displayItems.length}
           totalCount={clientPagination.totalCount}
-          itemLabel="Events"
+          itemLabel={t("events")}
           canPrevious={clientPagination.page > 1}
           canNext={clientPagination.page < clientPagination.totalPages}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(clientPagination.totalPages, p + 1))}
         >
           {visibleItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Derzeit keine kommenden Events.</p>
+            <p className="text-sm text-muted-foreground">{t("eventsEmpty")}</p>
           ) : (
             <EventsListView items={displayItems} />
           )}
         </ListPaginationSurround>
       </div>
-    </EmbedAccentRoot>
+    </>
   );
 }

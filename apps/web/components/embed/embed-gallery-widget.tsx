@@ -22,6 +22,7 @@ import {
   clampListPage,
   totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
+import type { AppLocale } from "@/i18n/config";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 import { GALLERY_FEED_PAGE_SIZE } from "@/lib/gallery/gallery-feed-pagination";
 import type { PublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
@@ -31,12 +32,14 @@ type Props = {
   data: PublicEmbedGallery;
   variant?: "embed" | "profileSheet";
   textTheme?: EmbedTextTheme;
+  sourceLocale?: AppLocale;
 };
 
 export function EmbedGalleryWidget({
   data,
   variant = "embed",
   textTheme = "dark",
+  sourceLocale = "de",
 }: Props) {
   const [platformFilter, setPlatformFilter] = useState<GalleryPlatformFilter>(GALLERY_FILTER_ALL);
   const [page, setPage] = useState(1);
@@ -114,7 +117,11 @@ export function EmbedGalleryWidget({
   }
 
   return (
-    <EmbedAccentRoot accentHex={data.accentHex} textTheme={textTheme}>
+    <EmbedAccentRoot
+      accentHex={data.accentHex}
+      textTheme={textTheme}
+      sourceLocale={sourceLocale}
+    >
       <FeedScreenLayoutStable imageCount={countGalleryFeedImages(paginated)}>
         <EmbedFeedResizeReporter widget="gallery" deps={resizeDeps} />
         <div className="space-y-4 p-4" data-gwada-embed-content>

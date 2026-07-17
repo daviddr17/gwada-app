@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -30,6 +29,10 @@ import {
 } from "@gwada/pos-domain";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import {
+  moduleDataTableHeadRowClassName,
+  moduleDataTableShellClassName,
+} from "@/lib/ui/module-data-table";
 import { cn } from "@/lib/utils";
 
 type MenuCategory = { id: string; name: string };
@@ -49,6 +52,44 @@ function emptyRoute(categoryId: string): RouteRow {
     kdsDeviceIds: [],
     printerIds: [],
   };
+}
+
+function DeviceChipRow({
+  items,
+  selectedIds,
+  emptyHint,
+  onToggle,
+}: {
+  items: Array<{ id: string; name: string }>;
+  selectedIds: string[];
+  emptyHint: string;
+  onToggle: (id: string) => void;
+}) {
+  if (items.length === 0) {
+    return <span className="text-xs text-muted-foreground">{emptyHint}</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((item) => {
+        const on = selectedIds.includes(item.id);
+        return (
+          <button
+            key={item.id}
+            type="button"
+            className={cn(
+              "rounded-md border px-2 py-0.5 text-xs font-medium",
+              on
+                ? "border-accent/50 bg-accent/10 text-accent"
+                : "border-border/60 text-muted-foreground",
+            )}
+            onClick={() => onToggle(item.id)}
+          >
+            {item.name}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function PosCategoryRoutingPanel() {
@@ -201,128 +242,115 @@ export function PosCategoryRoutingPanel() {
             Keine Kategorien — zuerst in der Speisekarte anlegen.
           </p>
         ) : (
-          <ul className="space-y-4">
-            {categories.map((cat) => {
-              const row = routes[cat.id] ?? emptyRoute(cat.id);
-              const showKds = routeIncludesKds(row.destination);
-              const showPrinter = routeIncludesPrinter(row.destination);
-              return (
-                <li
-                  key={cat.id}
-                  className="space-y-3 rounded-xl border border-border/50 bg-muted/15 p-4"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="font-medium">{cat.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {POS_ROUTE_DESTINATION_LABELS_DE[row.destination]}
-                      </p>
-                    </div>
-                    <div className="w-full space-y-1.5 sm:max-w-xs">
-                      <Label>Ziel</Label>
-                      <Select
-                        value={row.destination}
-                        onValueChange={(v) =>
-                          patchRoute(cat.id, {
-                            destination: (String(
-                              v ?? DEFAULT_POS_ROUTE_DESTINATION,
-                            ) || DEFAULT_POS_ROUTE_DESTINATION) as PosRouteDestination,
-                          })
-                        }
+          <div className={moduleDataTableShellClassName}>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[44rem] text-sm">
+                <thead>
+                  <tr className={moduleDataTableHeadRowClassName}>
+                    <th className="px-3 py-2.5 font-medium">Kategorie</th>
+                    <th className="px-3 py-2.5 font-medium">Ziel</th>
+                    <th className="px-3 py-2.5 font-medium">KDS</th>
+                    <th className="px-3 py-2.5 font-medium">Drucker</th>
+                    <th className="w-[7.5rem] px-3 py-2.5 font-medium" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((cat) => {
+                    const row = routes[cat.id] ?? emptyRoute(cat.id);
+                    const showKds = routeIncludesKds(row.destination);
+                    const showPrinter = routeIncludesPrinter(row.destination);
+                    return (
+                      <tr
+                        key={cat.id}
+                        className="border-b border-border/40 last:border-b-0"
                       >
-                        <SelectTrigger
-                          className={appSelectTriggerAccentCn("h-9 w-full")}
-                        >
-                          <SelectValue>
-                            {POS_ROUTE_DESTINATION_LABELS_DE[row.destination]}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {POS_ROUTE_DESTINATIONS.map((d) => (
-                            <SelectItem key={d} value={d}>
-                              {POS_ROUTE_DESTINATION_LABELS_DE[d]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {showKds && devices.length > 0 ? (
-                    <div className="space-y-2">
-                      <Label>KDS-Geräte</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {devices.map((d) => {
-                          const on = row.kdsDeviceIds.includes(d.id);
-                          return (
-                            <button
-                              key={d.id}
-                              type="button"
-                              className={cn(
-                                "rounded-full border px-3 py-1 text-xs font-medium",
-                                on
-                                  ? "border-accent/50 bg-accent/10 text-accent"
-                                  : "border-border/60 text-muted-foreground",
+                        <td className="px-3 py-3 align-top font-medium">
+                          {cat.name}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <Select
+                            value={row.destination}
+                            onValueChange={(v) =>
+                              patchRoute(cat.id, {
+                                destination: (String(
+                                  v ?? DEFAULT_POS_ROUTE_DESTINATION,
+                                ) ||
+                                  DEFAULT_POS_ROUTE_DESTINATION) as PosRouteDestination,
+                              })
+                            }
+                          >
+                            <SelectTrigger
+                              className={appSelectTriggerAccentCn(
+                                "h-9 w-full min-w-[9.5rem]",
                               )}
-                              onClick={() =>
-                                toggleId(cat.id, "kdsDeviceIds", d.id)
-                              }
                             >
-                              {d.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {showPrinter && printers.length > 0 ? (
-                    <div className="space-y-2">
-                      <Label>Drucker</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {printers.map((p) => {
-                          const on = row.printerIds.includes(p.id);
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              className={cn(
-                                "rounded-full border px-3 py-1 text-xs font-medium",
-                                on
-                                  ? "border-accent/50 bg-accent/10 text-accent"
-                                  : "border-border/60 text-muted-foreground",
-                              )}
-                              onClick={() =>
-                                toggleId(cat.id, "printerIds", p.id)
+                              <SelectValue>
+                                {
+                                  POS_ROUTE_DESTINATION_LABELS_DE[
+                                    row.destination
+                                  ]
+                                }
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {POS_ROUTE_DESTINATIONS.map((d) => (
+                                <SelectItem key={d} value={d}>
+                                  {POS_ROUTE_DESTINATION_LABELS_DE[d]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          {showKds ? (
+                            <DeviceChipRow
+                              items={devices}
+                              selectedIds={row.kdsDeviceIds}
+                              emptyHint="Kein KDS-Gerät"
+                              onToggle={(id) =>
+                                toggleId(cat.id, "kdsDeviceIds", id)
                               }
-                            >
-                              {p.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {showPrinter && printers.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      Noch kein Drucker angelegt — oben unter Bondrucker
-                      erfassen.
-                    </p>
-                  ) : null}
-
-                  <Button
-                    type="button"
-                    className={brandActionButtonRoundedClassName}
-                    disabled={savingId === cat.id}
-                    onClick={() => void saveOne(cat.id)}
-                  >
-                    Speichern
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          {showPrinter ? (
+                            <DeviceChipRow
+                              items={printers}
+                              selectedIds={row.printerIds}
+                              emptyHint="Kein Drucker"
+                              onToggle={(id) =>
+                                toggleId(cat.id, "printerIds", id)
+                              }
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className={brandActionButtonRoundedClassName}
+                            disabled={savingId === cat.id}
+                            onClick={() => void saveOne(cat.id)}
+                          >
+                            Speichern
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

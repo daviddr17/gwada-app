@@ -1,9 +1,6 @@
-import { PosSettingsScreen } from "@/components/pos/pos-settings-screen";
+import { redirect } from "next/navigation";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export default function PosEinstellungenPage() {
-  return (
-    <div className="px-4 pb-8 sm:px-6">
-      <PosSettingsScreen />
-    </div>
-  );
+  redirect(APP_ROUTES.pos.settingsFiscalPayment);
 }

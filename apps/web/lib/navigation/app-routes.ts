@@ -35,6 +35,11 @@ export const APP_ROUTES = {
     statistics: "/dashboard/pos/statistiken",
     reports: "/dashboard/pos/berichte",
     settings: "/dashboard/pos/einstellungen",
+    settingsFiscalPayment: "/dashboard/pos/einstellungen/fiskal-zahlung",
+    settingsPrintersRouting: "/dashboard/pos/einstellungen/drucker-routing",
+    settingsKitchen: "/dashboard/pos/einstellungen/kueche",
+    settingsInventoryVoid: "/dashboard/pos/einstellungen/bestand-storno",
+    settingsGiftVouchers: "/dashboard/pos/einstellungen/gutscheine",
   },
   kontakte: {
     root: "/dashboard/kontakte",

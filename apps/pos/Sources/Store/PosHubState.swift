@@ -471,8 +471,22 @@ final class PosHubState: @unchecked Sendable {
                 return copy
             }
         }
-        let payload: [String: Any] = ["tickets": tickets]
-        return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data(#"{"tickets":[]}"#.utf8)
+        let statusPayload: [[String: Any]] = (bootstrap?.kitchen?.activeKdsStatuses ?? []).map { s in
+            [
+                "id": s.id,
+                "name": s.name,
+                "color": s.color,
+                "sortOrder": s.sortOrder,
+                "printOnEnter": s.printOnEnter,
+                "printerIds": s.printerIds,
+                "isActive": s.isActive,
+            ]
+        }
+        let payload: [String: Any] = [
+            "tickets": tickets,
+            "statuses": statusPayload,
+        ]
+        return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data(#"{"tickets":[],"statuses":[]}"#.utf8)
     }
 
     func printJobsJSON() -> Data {

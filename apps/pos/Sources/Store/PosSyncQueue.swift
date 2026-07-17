@@ -49,6 +49,7 @@ struct PosSyncCashAllocation: Codable, Sendable {
 }
 
 /// FIFO-Queue: lokale Aktionen → Cloud (DB + Fiskaly über Web-API), sobald online.
+/// Offline-Open: lokale Session-ID wird beim Flush gemappt; nachfolgende Orders nutzen die Cloud-ID.
 @MainActor
 final class PosSyncQueue: ObservableObject {
     static let shared = PosSyncQueue()
@@ -91,7 +92,9 @@ final class PosSyncQueue: ObservableObject {
     }
 
     func enqueueCreateOrder(_ payload: PosSyncCreateOrderPayload) {
-        let data = (try? encoder.encode(payload)) ?? Data()
+        var resolved = payload
+        resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+        let data = (try? encoder.encode(resolved)) ?? Data()
         enqueue(PosSyncQueueItem(
             id: UUID().uuidString,
             kind: .createOrder,
@@ -103,7 +106,9 @@ final class PosSyncQueue: ObservableObject {
     }
 
     func enqueueCollectCash(_ payload: PosSyncCollectCashPayload) {
-        let data = (try? encoder.encode(payload)) ?? Data()
+        var resolved = payload
+        resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+        let data = (try? encoder.encode(resolved)) ?? Data()
         enqueue(PosSyncQueueItem(
             id: UUID().uuidString,
             kind: .collectCash,
@@ -123,17 +128,22 @@ final class PosSyncQueue: ObservableObject {
         isFlushing = true
         defer { isFlushing = false }
 
+        // Arbeitskopie: nach openSession werden noch ausstehende Items umgeschrieben.
+        var working = items
         var remaining: [PosSyncQueueItem] = []
         var synced = 0
         var stoppedOffline = false
+        var index = 0
 
-        for var item in items {
+        while index < working.count {
             if stoppedOffline {
-                remaining.append(item)
-                continue
+                remaining.append(contentsOf: working[index...])
+                break
             }
+
+            var item = working[index]
             do {
-                try await process(item)
+                try await process(&item, working: &working, index: index)
                 synced += 1
             } catch {
                 item.attempts += 1
@@ -141,8 +151,13 @@ final class PosSyncQueue: ObservableObject {
                 remaining.append(item)
                 if case PosCloudError.offline = error {
                     stoppedOffline = true
+                    if index + 1 < working.count {
+                        remaining.append(contentsOf: working[(index + 1)...])
+                    }
+                    break
                 }
             }
+            index += 1
         }
 
         items = remaining
@@ -152,24 +167,40 @@ final class PosSyncQueue: ObservableObject {
             : (remaining.isEmpty ? "Queue leer." : "Sync ausstehend (\(remaining.count)).")
     }
 
-    private func process(_ item: PosSyncQueueItem) async throws {
+    private func process(
+        _ item: inout PosSyncQueueItem,
+        working: inout [PosSyncQueueItem],
+        index: Int
+    ) async throws {
         switch item.kind {
         case .openSession:
             let payload = try decoder.decode(PosSyncOpenSessionPayload.self, from: item.payload)
-            _ = try await PosCloudClient.openTableSession(
+            let cloudSessionId = try await PosCloudClient.openTableSession(
                 restaurantId: payload.restaurantId,
                 diningTableId: payload.diningTableId,
                 coverCount: payload.coverCount
             )
+            applySessionMapping(
+                localSessionId: payload.localSessionId,
+                cloudSessionId: cloudSessionId,
+                working: &working,
+                afterIndex: index
+            )
+
         case .createOrder:
-            let payload = try decoder.decode(PosSyncCreateOrderPayload.self, from: item.payload)
+            var payload = try decoder.decode(PosSyncCreateOrderPayload.self, from: item.payload)
+            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
             _ = try await PosCloudClient.createOrder(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
                 items: payload.items.map { ($0.menuItemId, $0.quantity, $0.notes) }
             )
+
         case .collectCash:
-            let payload = try decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
+            var payload = try decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
+            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
             try await PosCloudClient.collectCash(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
@@ -178,6 +209,59 @@ final class PosSyncQueue: ObservableObject {
                 receivedAmountCents: payload.receivedAmountCents
             )
         }
+    }
+
+    private func applySessionMapping(
+        localSessionId: String,
+        cloudSessionId: String,
+        working: inout [PosSyncQueueItem],
+        afterIndex: Int
+    ) {
+        PosSessionIdMap.shared.remember(
+            localSessionId: localSessionId,
+            cloudSessionId: cloudSessionId
+        )
+        PosHubState.shared.remapSessionId(from: localSessionId, to: cloudSessionId)
+
+        guard localSessionId != cloudSessionId else { return }
+
+        // Noch nicht verarbeitete Queue-Einträge auf Cloud-ID umschreiben.
+        if afterIndex + 1 < working.count {
+            for i in (afterIndex + 1) ..< working.count {
+                working[i] = remapQueueItem(working[i], from: localSessionId, to: cloudSessionId)
+            }
+        }
+    }
+
+    private func remapQueueItem(
+        _ item: PosSyncQueueItem,
+        from localSessionId: String,
+        to cloudSessionId: String
+    ) -> PosSyncQueueItem {
+        var copy = item
+        switch item.kind {
+        case .createOrder:
+            guard var payload = try? decoder.decode(PosSyncCreateOrderPayload.self, from: item.payload)
+            else { return item }
+            if payload.tableSessionId == localSessionId {
+                payload.tableSessionId = cloudSessionId
+                if let data = try? encoder.encode(payload) {
+                    copy.payload = data
+                }
+            }
+        case .collectCash:
+            guard var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
+            else { return item }
+            if payload.tableSessionId == localSessionId {
+                payload.tableSessionId = cloudSessionId
+                if let data = try? encoder.encode(payload) {
+                    copy.payload = data
+                }
+            }
+        case .openSession:
+            break
+        }
+        return copy
     }
 
     private func load() {

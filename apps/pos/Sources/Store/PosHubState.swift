@@ -136,6 +136,42 @@ final class PosHubState: @unchecked Sendable {
         return sessionId
     }
 
+    /// Nach Offline-Open: lokale Session-ID durch Cloud-ID ersetzen (Floor + Metas).
+    func remapSessionId(from localSessionId: String, to cloudSessionId: String) {
+        let local = localSessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cloud = cloudSessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !local.isEmpty, !cloud.isEmpty, local != cloud else { return }
+
+        lock.lock()
+        defer { lock.unlock() }
+        guard var bootstrap else { return }
+
+        if let idx = bootstrap.floor.openSessions.firstIndex(where: { $0.id == local }) {
+            let old = bootstrap.floor.openSessions[idx]
+            bootstrap.floor.openSessions[idx] = PosLanOpenSession(
+                id: cloud,
+                dining_table_id: old.dining_table_id,
+                cover_count: old.cover_count,
+                opened_at: old.opened_at
+            )
+        }
+
+        if let count = bootstrap.floor.orderCountBySessionId.removeValue(forKey: local) {
+            bootstrap.floor.orderCountBySessionId[cloud] =
+                (bootstrap.floor.orderCountBySessionId[cloud] ?? 0) + count
+        }
+        if let meta = bootstrap.floor.sessionMetaBySessionId.removeValue(forKey: local) {
+            var merged = bootstrap.floor.sessionMetaBySessionId[cloud]
+                ?? PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
+            merged.orderCount += meta.orderCount
+            merged.openCents += meta.openCents
+            bootstrap.floor.sessionMetaBySessionId[cloud] = merged
+        }
+
+        self.bootstrap = bootstrap
+        PosLocalStore.saveBootstrap(bootstrap)
+    }
+
     func bumpLocalOrder(sessionId: String, addCents: Int) {
         lock.lock()
         defer { lock.unlock() }

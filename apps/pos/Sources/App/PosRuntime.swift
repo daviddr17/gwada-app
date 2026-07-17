@@ -276,11 +276,24 @@ final class PosRuntime: ObservableObject {
             }
         }
 
-        let sessionId = PosHubState.shared.openLocalSession(
+        var sessionId = PosHubState.shared.openLocalSession(
             diningTableId: tableId,
             coverCount: covers,
             preferredSessionId: cloudSessionId
         )
+
+        // Online nach Offline-Open: lokale ID → Cloud-ID mappen (Floor + Queue).
+        if let cloudSessionId {
+            if sessionId != cloudSessionId {
+                PosHubState.shared.remapSessionId(from: sessionId, to: cloudSessionId)
+                sessionId = cloudSessionId
+            }
+            PosSessionIdMap.shared.remember(
+                localSessionId: sessionId,
+                cloudSessionId: cloudSessionId
+            )
+        }
+
         publishSnapshot(PosHubState.shared.makeSnapshot())
 
         if cloudSessionId == nil {

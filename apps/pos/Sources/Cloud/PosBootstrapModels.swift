@@ -162,10 +162,40 @@ struct PosCloudCategoryRoute: Codable, Equatable, Identifiable, Sendable {
     var id: String { menuCategoryId }
 }
 
+struct PosCloudKdsStatus: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var name: String
+    var color: String
+    var sortOrder: Int
+    var printOnEnter: Bool
+    var printerIds: [String]
+    var isActive: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, color, sortOrder, printOnEnter, printerIds, isActive
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        color = try c.decodeIfPresent(String.self, forKey: .color) ?? "#3b82f6"
+        sortOrder = try c.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        printOnEnter = try c.decodeIfPresent(Bool.self, forKey: .printOnEnter) ?? false
+        printerIds = try c.decodeIfPresent([String].self, forKey: .printerIds) ?? []
+        isActive = try c.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
+    }
+}
+
 struct PosCloudKitchenConfig: Codable, Equatable, Sendable {
     var kdsDevices: [PosCloudKdsDevice]
+    var kdsStatuses: [PosCloudKdsStatus]?
     var printers: [PosCloudPrinter]
     var categoryRoutes: [PosCloudCategoryRoute]
+
+    var activeKdsStatuses: [PosCloudKdsStatus] {
+        (kdsStatuses ?? []).filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
+    }
 }
 
 struct PosCloudBootstrap: Codable, Equatable, Sendable {

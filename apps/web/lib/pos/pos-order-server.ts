@@ -215,12 +215,21 @@ export async function createPosOrder(params: {
     });
   }
 
+  const { firstActiveKdsStatusId } = await import(
+    "@/lib/pos/pos-kds-statuses-server"
+  );
+  const kdsStatusId = await firstActiveKdsStatusId(
+    params.supabase,
+    params.restaurantId,
+  );
+
   const { data: order, error: orderError } = await params.supabase
     .from("pos_orders")
     .insert({
       restaurant_id: params.restaurantId,
       table_session_id: params.tableSessionId,
       status: "received",
+      kds_status_id: kdsStatusId,
       subtotal_cents: subtotalCents,
       total_cents: subtotalCents,
       notes: params.notes?.trim() || null,

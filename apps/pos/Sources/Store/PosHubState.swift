@@ -160,6 +160,8 @@ final class PosHubState: @unchecked Sendable {
     }
 
     /// Routet Positionen nach Kategorie → KDS / Drucker / beide / keines.
+    /// Bondruck bei Status-Konfiguration: nur wenn erster Status `printOnEnter` hat
+    /// (sonst sofort über Kategorie-Routing wie bisher).
     func routeKitchenOutput(orderNumber: Int, cartLines: [PosCartLine]) {
         lock.lock()
         defer { lock.unlock() }
@@ -169,6 +171,9 @@ final class PosHubState: @unchecked Sendable {
         let routeByCat = Dictionary(uniqueKeysWithValues: routes.map { ($0.menuCategoryId, $0) })
         let printers = (bootstrap?.kitchen?.printers ?? []).filter(\.isActive)
         let kdsDevices = (bootstrap?.kitchen?.kdsDevices ?? []).filter(\.isActive)
+        let statuses = bootstrap?.kitchen?.activeKdsStatuses ?? []
+        let firstStatus = statuses.first
+        let statusPrintConfigured = statuses.contains(where: \.printOnEnter)
 
         var kdsLines: [[String: Any]] = []
         var printLinesByPrinter: [String: [[String: Any]]] = [:]
@@ -190,14 +195,12 @@ final class PosHubState: @unchecked Sendable {
             let toPrinter = destination == "printer" || destination == "both"
 
             if toKds {
-                // Optional: nur bestimmte KDS-Geräte
                 if let ids = route?.kdsDeviceIds, !ids.isEmpty {
                     let allowed = Set(ids)
                     let matching = kdsDevices.filter { allowed.contains($0.id) }
                     if matching.isEmpty {
                         kdsLines.append(payload)
                     } else {
-                        // Ticket bleibt global; Gerätefilter später via deviceId-Query
                         kdsLines.append(payload)
                     }
                 } else {
@@ -205,9 +208,18 @@ final class PosHubState: @unchecked Sendable {
                 }
             }
 
-            if toPrinter {
+            // Sofort-Druck nur ohne Status-printOnEnter-Konfiguration
+            // (sonst übernimmt der Status-Tap / erster Status).
+            let printNow =
+                toPrinter
+                && (!statusPrintConfigured || (firstStatus?.printOnEnter == true))
+            if printNow {
                 let targetIds: [String]
-                if let ids = route?.printerIds, !ids.isEmpty {
+                if let statusPrinters = firstStatus?.printerIds, !statusPrinters.isEmpty,
+                   firstStatus?.printOnEnter == true
+                {
+                    targetIds = statusPrinters
+                } else if let ids = route?.printerIds, !ids.isEmpty {
                     targetIds = ids
                 } else {
                     targetIds = printers.map(\.id)
@@ -219,18 +231,124 @@ final class PosHubState: @unchecked Sendable {
         }
 
         if !kdsLines.isEmpty {
-            localTickets.insert([
+            let ticket: [String: Any] = [
                 "orderId": UUID().uuidString,
                 "orderNumber": orderNumber,
-                "status": "received",
+                "status": firstStatus?.name ?? "Neu",
+                "statusId": firstStatus?.id ?? "",
+                "statusName": firstStatus?.name ?? "Neu",
+                "statusColor": firstStatus?.color ?? "#3b82f6",
                 "lines": kdsLines,
-            ], at: 0)
+            ]
+            localTickets.insert(ticket, at: 0)
             if localTickets.count > 40 {
                 localTickets = Array(localTickets.prefix(40))
             }
         }
 
+        enqueuePrintJobsLocked(
+            orderNumber: orderNumber,
+            printLinesByPrinter: printLinesByPrinter,
+            printers: printers
+        )
+    }
+
+    /// Tippen auf KDS-Ticket: nächster Status; nach dem letzten Ticket entfernen.
+    /// Optional Bondruck beim Erreichen des neuen Status.
+    @discardableResult
+    func advanceLocalTicket(orderId: String) -> [String: Any] {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let idx = localTickets.firstIndex(where: { ($0["orderId"] as? String) == orderId })
+        else {
+            return ["ok": false, "error": "not_found"]
+        }
+        let statuses = bootstrap?.kitchen?.activeKdsStatuses ?? []
+        let printers = (bootstrap?.kitchen?.printers ?? []).filter(\.isActive)
+        var ticket = localTickets[idx]
+        let currentId = ticket["statusId"] as? String ?? ""
+        let currentIndex = statuses.firstIndex(where: { $0.id == currentId }) ?? -1
+        let nextIndex = currentIndex + 1
+
+        if nextIndex >= statuses.count || statuses.isEmpty {
+            localTickets.remove(at: idx)
+            return [
+                "ok": true,
+                "done": true,
+                "orderId": orderId,
+                "printRequested": false,
+            ]
+        }
+
+        let next = statuses[nextIndex]
+        ticket["statusId"] = next.id
+        ticket["status"] = next.name
+        ticket["statusName"] = next.name
+        ticket["statusColor"] = next.color
+        localTickets[idx] = ticket
+
+        var printRequested = false
+        if next.printOnEnter, let lines = ticket["lines"] as? [[String: Any]], !lines.isEmpty {
+            printRequested = true
+            let orderNumber = ticket["orderNumber"] as? Int ?? 0
+            let targetIds: [String]
+            if !next.printerIds.isEmpty {
+                targetIds = next.printerIds
+            } else {
+                targetIds = printers.map(\.id)
+            }
+            var byPrinter: [String: [[String: Any]]] = [:]
+            for pid in targetIds {
+                byPrinter[pid] = lines
+            }
+            enqueuePrintJobsLocked(
+                orderNumber: orderNumber,
+                printLinesByPrinter: byPrinter,
+                printers: printers
+            )
+        }
+
+        return [
+            "ok": true,
+            "done": false,
+            "ticket": ticket,
+            "printRequested": printRequested,
+        ]
+    }
+
+    /// Cloud-Advance hat Druck angefordert → Jobs lokal einreihen.
+    func enqueueKitchenPrintFromCloud(
+        orderNumber: Int,
+        printerIds: [String],
+        lines: [[String: Any]]
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        let printers = (bootstrap?.kitchen?.printers ?? []).filter(\.isActive)
+        let targets: [String]
+        if !printerIds.isEmpty {
+            targets = printerIds
+        } else {
+            targets = printers.map(\.id)
+        }
+        var byPrinter: [String: [[String: Any]]] = [:]
+        for pid in targets {
+            byPrinter[pid] = lines
+        }
+        enqueuePrintJobsLocked(
+            orderNumber: orderNumber,
+            printLinesByPrinter: byPrinter,
+            printers: printers
+        )
+    }
+
+    private func enqueuePrintJobsLocked(
+        orderNumber: Int,
+        printLinesByPrinter: [String: [[String: Any]]],
+        printers: [PosCloudPrinter]
+    ) {
         for (printerId, lines) in printLinesByPrinter {
+            guard !lines.isEmpty else { continue }
             let printer = printers.first(where: { $0.id == printerId })
             let printerName = printer?.name ?? printerId
             localPrintJobs.insert([
@@ -306,10 +424,14 @@ final class PosHubState: @unchecked Sendable {
     func appendLocalTicket(orderNumber: Int, lines: [[String: Any]]) {
         lock.lock()
         defer { lock.unlock() }
+        let first = bootstrap?.kitchen?.activeKdsStatuses.first
         localTickets.insert([
             "orderId": UUID().uuidString,
             "orderNumber": orderNumber,
-            "status": "received",
+            "status": first?.name ?? "Neu",
+            "statusId": first?.id ?? "",
+            "statusName": first?.name ?? "Neu",
+            "statusColor": first?.color ?? "#3b82f6",
             "lines": lines,
         ], at: 0)
         if localTickets.count > 40 {

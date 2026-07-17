@@ -188,6 +188,53 @@
       "hintTerms": "Bitte die Bedingungen bestätigen.",
       "hintManageNumber": "Reservierungsnummer eingeben.",
       "hintManagePin": "PIN eingeben."
+    },
+    "filterAll": "Alle",
+    "images": "Bilder",
+    "feedPinned": "Angepinnt",
+    "menu": {
+      "searchPlaceholder": "Gerichte suchen",
+      "searchHint": "Suche in Gericht und Beschreibung (ca. 80 % Übereinstimmung).",
+      "searchAria": "Suche",
+      "noResultsTitle": "Keine Treffer",
+      "noResultsHint": "Passe die Suche an — für diesen Begriff gibt es keine Gerichte.",
+      "categoryNoResults": "In dieser Kategorie keine Treffer — Suche anpassen.",
+      "categoryEmpty": "Keine Gerichte in dieser Kategorie.",
+      "empty": "Aktuell sind keine Gerichte veröffentlicht."
+    },
+    "reviewsUi": {
+      "noComment": "Kein Kommentar",
+      "replyLabel": "Antwort:",
+      "average": "Durchschnitt",
+      "count": "Anzahl",
+      "starsAria": "{rating} von 5 Sternen"
+    },
+    "gallery": {
+      "images": "Bilder",
+      "empty": "Noch keine Bilder."
+    },
+    "hours": {
+      "business": "Restaurant",
+      "kitchen": "Küche",
+      "exception": "Sondertermin",
+      "closed": "Geschlossen",
+      "weekday": {
+        "monday": "Montag",
+        "tuesday": "Dienstag",
+        "wednesday": "Mittwoch",
+        "thursday": "Donnerstag",
+        "friday": "Freitag",
+        "saturday": "Samstag",
+        "sunday": "Sonntag"
+      }
+    },
+    "eventsUi": {
+      "past": "Vergangen",
+      "tickets": "Tickets"
+    },
+    "newsUi": {
+      "showMore": "Mehr anzeigen",
+      "showLess": "Weniger"
     }
   }
 }

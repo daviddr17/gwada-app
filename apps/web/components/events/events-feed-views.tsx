@@ -2,6 +2,7 @@
 
 import { Fragment, memo, useState } from "react";
 import { CalendarDays, ExternalLink, Ticket } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
 import { EVENTS_PLATFORM_LABELS } from "@/lib/constants/events-platforms";
 import {
@@ -74,6 +75,7 @@ const EventTimelineRow = memo(function EventTimelineRow({
   onClick?: () => void;
   showConnectorBelow: boolean;
 }) {
+  const t = useTranslations("Embed.eventsUi");
   const fullRange = formatEventDateRange(item);
   const timeLabel = formatEventCardDate(item);
   const past = isEventPast(item);
@@ -121,7 +123,7 @@ const EventTimelineRow = memo(function EventTimelineRow({
               {item.isPinned ? <FeedPinnedBadge /> : null}
               {past ? (
                 <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Vergangen
+                  {t("past")}
                 </span>
               ) : null}
             </div>
@@ -153,7 +155,7 @@ const EventTimelineRow = memo(function EventTimelineRow({
             {item.ticketUrl ? (
               <span className="inline-flex items-center gap-1 font-medium text-accent">
                 <Ticket className="size-3.5 shrink-0" />
-                Tickets
+                {t("tickets")}
               </span>
             ) : null}
           </div>
@@ -228,6 +230,7 @@ export function EventsListView(props: {
 }
 
 export function EventsDetailActions({ item }: { item: UnifiedEventItem }) {
+  const t = useTranslations("Embed.eventsUi");
   const ticketUrl = item.ticketUrl?.trim();
   const externalUrl = item.externalUrl?.trim();
   if (!ticketUrl && !externalUrl) return null;
@@ -241,7 +244,7 @@ export function EventsDetailActions({ item }: { item: UnifiedEventItem }) {
           className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 px-3 py-2 text-sm font-medium hover:border-border"
         >
           <Ticket className="size-4" />
-          Tickets
+          {t("tickets")}
         </a>
       ) : null}
       {externalUrl ? (

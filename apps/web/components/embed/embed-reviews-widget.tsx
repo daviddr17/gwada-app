@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Star } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
@@ -36,9 +36,10 @@ export type EmbedReviewsWidgetProps = {
 };
 
 function StarsDisplay({ rating, size = "md" }: { rating: number; size?: "sm" | "md" }) {
+  const t = useTranslations("Embed.reviewsUi");
   const full = Math.round(Math.min(5, Math.max(0, rating)));
   return (
-    <div className="flex gap-0.5" aria-label={`${rating} von 5 Sternen`}>
+    <div className="flex gap-0.5" aria-label={t("starsAria", { rating })}>
       {Array.from({ length: 5 }, (_, i) => (
         <Star
           key={i}
@@ -54,8 +55,8 @@ function StarsDisplay({ rating, size = "md" }: { rating: number; size?: "sm" | "
   );
 }
 
-function formatReviewDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("de-DE", {
+function formatReviewDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -63,7 +64,9 @@ function formatReviewDate(iso: string): string {
 }
 
 function EmbedReviewCard({ review }: { review: PublicEmbedReview }) {
-  const date = formatReviewDate(review.createdAt);
+  const t = useTranslations("Embed.reviewsUi");
+  const locale = useLocale();
+  const date = formatReviewDate(review.createdAt, locale);
 
   return (
     <article className="mb-4 flex w-full break-inside-avoid flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
@@ -94,11 +97,11 @@ function EmbedReviewCard({ review }: { review: PublicEmbedReview }) {
           {review.comment}
         </p>
       ) : (
-        <p className="mt-2 text-sm text-muted-foreground/80">Kein Kommentar</p>
+        <p className="mt-2 text-sm text-muted-foreground/80">{t("noComment")}</p>
       )}
       {review.reply ? (
         <div className="mt-3 rounded-lg border border-border/50 bg-muted/25 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          <span className="font-medium text-foreground/80">Antwort: </span>
+          <span className="font-medium text-foreground/80">{t("replyLabel")} </span>
           <span className="line-clamp-3" data-embed-mt>
             {review.reply}
           </span>
@@ -109,7 +112,9 @@ function EmbedReviewCard({ review }: { review: PublicEmbedReview }) {
 }
 
 function EmbedReviewRow({ review }: { review: PublicEmbedReview }) {
-  const date = formatReviewDate(review.createdAt);
+  const t = useTranslations("Embed.reviewsUi");
+  const locale = useLocale();
+  const date = formatReviewDate(review.createdAt, locale);
 
   return (
     <article className="border-b border-border/40 py-4 last:border-b-0">
@@ -140,11 +145,11 @@ function EmbedReviewRow({ review }: { review: PublicEmbedReview }) {
           {review.comment}
         </p>
       ) : (
-        <p className="mt-2 text-sm text-muted-foreground/80">Kein Kommentar</p>
+        <p className="mt-2 text-sm text-muted-foreground/80">{t("noComment")}</p>
       )}
       {review.reply ? (
         <div className="mt-3 rounded-lg border border-border/50 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground/80">Antwort: </span>
+          <span className="font-medium text-foreground/80">{t("replyLabel")} </span>
           <span data-embed-mt>{review.reply}</span>
         </div>
       ) : null}
@@ -157,6 +162,8 @@ function EmbedReviewsSummary({
 }: {
   summary: EmbedReviewsWidgetProps["summary"];
 }) {
+  const t = useTranslations("Embed.reviewsUi");
+  const locale = useLocale();
   const maxBar = Math.max(1, ...Object.values(summary.distribution));
 
   if (summary.count <= 0) return null;
@@ -165,16 +172,16 @@ function EmbedReviewsSummary({
     <div className="mt-4 grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-end">
       <div className="flex flex-wrap items-end gap-6">
         <div>
-          <p className="text-xs text-muted-foreground">Durchschnitt</p>
+          <p className="text-xs text-muted-foreground">{t("average")}</p>
           <p className="mt-0.5 flex items-baseline gap-2">
             <span className="text-3xl font-semibold tabular-nums">
-              {summary.average?.toLocaleString("de-DE") ?? "—"}
+              {summary.average?.toLocaleString(locale) ?? "—"}
             </span>
             <Star className="size-5 fill-amber-400 text-amber-400" aria-hidden />
           </p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Anzahl</p>
+          <p className="text-xs text-muted-foreground">{t("count")}</p>
           <p className="mt-0.5 text-3xl font-semibold tabular-nums">
             {summary.count}
           </p>

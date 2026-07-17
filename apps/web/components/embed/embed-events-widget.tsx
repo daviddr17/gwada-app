@@ -191,6 +191,7 @@ function EmbedEventsWidgetBody({
               onChange={setPlatformFilter}
               availablePlatforms={availablePlatforms}
               showAllChip={showAllChip}
+              allLabel={t("filterAll")}
             />
           </div>
         ) : null}

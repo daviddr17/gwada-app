@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedFeedResizeReporter } from "@/components/embed/embed-feed-resize-reporter";
 import { EmbedMeasureEnd } from "@/components/embed/embed-measure-boundary";
@@ -41,6 +42,29 @@ export function EmbedGalleryWidget({
   textTheme = "dark",
   sourceLocale = "de",
 }: Props) {
+  if (variant === "profileSheet") {
+    return <EmbedGalleryWidgetBody data={data} variant={variant} />;
+  }
+
+  return (
+    <EmbedAccentRoot
+      accentHex={data.accentHex}
+      textTheme={textTheme}
+      sourceLocale={sourceLocale}
+    >
+      <EmbedGalleryWidgetBody data={data} variant={variant} />
+    </EmbedAccentRoot>
+  );
+}
+
+function EmbedGalleryWidgetBody({
+  data,
+  variant = "embed",
+}: {
+  data: PublicEmbedGallery;
+  variant?: "embed" | "profileSheet";
+}) {
+  const t = useTranslations("Embed");
   const [platformFilter, setPlatformFilter] = useState<GalleryPlatformFilter>(GALLERY_FILTER_ALL);
   const [page, setPage] = useState(1);
   const [activeHighlight, setActiveHighlight] = useState<UnifiedGalleryHighlight | null>(null);
@@ -78,6 +102,7 @@ export function EmbedGalleryWidget({
           setPage(1);
         }}
         availablePlatforms={availablePlatforms}
+        allLabel={t("filterAll")}
       />
       <GalleryHighlightsRow
         highlights={data.highlights}
@@ -86,19 +111,25 @@ export function EmbedGalleryWidget({
           setHighlightOpen(true);
         }}
       />
-      <ListPaginationSurround
-        page={currentPage}
-        totalPages={totalPages}
-        shown={paginated.length}
-        totalCount={filtered.length}
-        itemLabel="Bilder"
-        canPrevious={currentPage > 1}
-        canNext={currentPage < totalPages}
-        onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-        onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-      >
-        <GalleryMasonryGrid items={paginated} onItemClick={() => undefined} />
-      </ListPaginationSurround>
+      {filtered.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          {t("gallery.empty")}
+        </p>
+      ) : (
+        <ListPaginationSurround
+          page={currentPage}
+          totalPages={totalPages}
+          shown={paginated.length}
+          totalCount={filtered.length}
+          itemLabel={t("gallery.images")}
+          canPrevious={currentPage > 1}
+          canNext={currentPage < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
+          <GalleryMasonryGrid items={paginated} onItemClick={() => undefined} />
+        </ListPaginationSurround>
+      )}
 
       <GalleryHighlightViewer
         highlight={activeHighlight}
@@ -117,18 +148,12 @@ export function EmbedGalleryWidget({
   }
 
   return (
-    <EmbedAccentRoot
-      accentHex={data.accentHex}
-      textTheme={textTheme}
-      sourceLocale={sourceLocale}
-    >
-      <FeedScreenLayoutStable imageCount={countGalleryFeedImages(paginated)}>
-        <EmbedFeedResizeReporter widget="gallery" deps={resizeDeps} />
-        <div className="space-y-4 p-4" data-gwada-embed-content>
-          {content}
-          <EmbedMeasureEnd />
-        </div>
-      </FeedScreenLayoutStable>
-    </EmbedAccentRoot>
+    <FeedScreenLayoutStable imageCount={countGalleryFeedImages(paginated)}>
+      <EmbedFeedResizeReporter widget="gallery" deps={resizeDeps} />
+      <div className="space-y-4 p-4" data-gwada-embed-content>
+        {content}
+        <EmbedMeasureEnd />
+      </div>
+    </FeedScreenLayoutStable>
   );
 }

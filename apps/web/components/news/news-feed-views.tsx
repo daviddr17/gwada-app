@@ -2,6 +2,7 @@
 
 import { Fragment, memo, useCallback, useMemo, useState, type MouseEvent } from "react";
 import { ExternalLink, Newspaper } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
@@ -31,6 +32,11 @@ export { newsBodyNeedsExpand } from "@/lib/news/news-feed-preview";
 const newsFeedExternalLinkChipClassName =
   "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-muted/20 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-border hover:bg-muted/40";
 
+function NewsExpandLabel({ expanded }: { expanded: boolean }) {
+  const t = useTranslations("Embed.newsUi");
+  return <>{expanded ? t("showLess") : t("showMore")}</>;
+}
+
 function NewsFeedBodyActions({
   canExpandBody,
   expanded,
@@ -54,7 +60,7 @@ function NewsFeedBodyActions({
           onClick={onToggleExpanded}
           className="text-xs font-medium text-accent hover:underline"
         >
-          {expanded ? "Weniger" : "Mehr anzeigen"}
+          <NewsExpandLabel expanded={expanded} />
         </button>
       ) : null}
       {expanded && externalUrl ? (

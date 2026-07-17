@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import {
   formatDayHoursLabel,
   formatExceptionDateShortDe,
@@ -25,6 +26,7 @@ function OpeningHoursWeekdayExceptionLine({
 }: {
   exception: DateHoursException;
 }) {
+  const t = useTranslations("Embed.hours");
   const note = exception.note?.trim();
   return (
     <div className="flex items-baseline justify-between gap-4 text-xs text-muted-foreground">
@@ -32,14 +34,14 @@ function OpeningHoursWeekdayExceptionLine({
         {formatExceptionDateShortDe(exception.date)}
       </dt>
       <dd className="text-right tabular-nums">
-        <span>{formatDayHoursLabel(exception)}</span>
+        <span>{formatDayHoursLabel(exception, t("closed"))}</span>
         {note ? (
           <span className="text-muted-foreground/85">
             {" · "}
             <span data-embed-mt>{note}</span>
           </span>
         ) : (
-          <span className="text-muted-foreground/70"> · Sondertermin</span>
+          <span className="text-muted-foreground/70"> · {t("exception")}</span>
         )}
       </dd>
     </div>
@@ -76,13 +78,37 @@ export function PublicOpeningHoursDisplay({
   settings,
   className,
 }: PublicOpeningHoursDisplayProps) {
+  const t = useTranslations("Embed.hours");
+  const weekdayLabels = useMemo(
+    () =>
+      ({
+        monday: t("weekday.monday"),
+        tuesday: t("weekday.tuesday"),
+        wednesday: t("weekday.wednesday"),
+        thursday: t("weekday.thursday"),
+        friday: t("weekday.friday"),
+        saturday: t("weekday.saturday"),
+        sunday: t("weekday.sunday"),
+      }) satisfies Record<Weekday, string>,
+    [t],
+  );
+  const closedLabel = t("closed");
+
   const businessRows = useMemo(
-    () => openingHoursWeekdayRows(weeklyHours),
-    [weeklyHours],
+    () =>
+      openingHoursWeekdayRows(weeklyHours, {
+        weekdayLabels,
+        closedLabel,
+      }),
+    [weeklyHours, weekdayLabels, closedLabel],
   );
   const kitchenRows = useMemo(
-    () => openingHoursWeekdayRows(kitchenWeeklyHours),
-    [kitchenWeeklyHours],
+    () =>
+      openingHoursWeekdayRows(kitchenWeeklyHours, {
+        weekdayLabels,
+        closedLabel,
+      }),
+    [kitchenWeeklyHours, weekdayLabels, closedLabel],
   );
   const upcomingByWeekday = useMemo(
     () =>
@@ -104,7 +130,7 @@ export function PublicOpeningHoursDisplay({
           id="public-hours-business-heading"
           className="mb-2 text-sm font-semibold"
         >
-          Restaurant
+          {t("business")}
         </h2>
         <dl className="space-y-1.5">
           {businessRows.map((row) => (
@@ -127,7 +153,7 @@ export function PublicOpeningHoursDisplay({
             id="public-hours-kitchen-heading"
             className="mb-2 text-sm font-semibold"
           >
-            Küche
+            {t("kitchen")}
           </h2>
           <dl className="space-y-1.5">
             {kitchenRows.map((row) => (

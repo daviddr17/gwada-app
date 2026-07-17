@@ -188,6 +188,53 @@
       "hintTerms": "Please accept the terms.",
       "hintManageNumber": "Enter reservation number.",
       "hintManagePin": "Enter PIN."
+    },
+    "filterAll": "All",
+    "images": "Photos",
+    "feedPinned": "Pinned",
+    "menu": {
+      "searchPlaceholder": "Search dishes",
+      "searchHint": "Search dish name and description (approx. 80% match).",
+      "searchAria": "Search",
+      "noResultsTitle": "No results",
+      "noResultsHint": "Try a different search — no dishes match this term.",
+      "categoryNoResults": "No matches in this category — adjust your search.",
+      "categoryEmpty": "No dishes in this category.",
+      "empty": "No dishes are published right now."
+    },
+    "reviewsUi": {
+      "noComment": "No comment",
+      "replyLabel": "Reply:",
+      "average": "Average",
+      "count": "Count",
+      "starsAria": "{rating} out of 5 stars"
+    },
+    "gallery": {
+      "images": "Photos",
+      "empty": "No photos yet."
+    },
+    "hours": {
+      "business": "Restaurant",
+      "kitchen": "Kitchen",
+      "exception": "Special hours",
+      "closed": "Closed",
+      "weekday": {
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday",
+        "sunday": "Sunday"
+      }
+    },
+    "eventsUi": {
+      "past": "Past",
+      "tickets": "Tickets"
+    },
+    "newsUi": {
+      "showMore": "Show more",
+      "showLess": "Show less"
     }
   }
 }

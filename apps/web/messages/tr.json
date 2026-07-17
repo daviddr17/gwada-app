@@ -186,7 +186,61 @@
       "hintNotifyChannel": "En az e-posta veya WhatsApp’ı açın.",
       "hintTerms": "Lütfen koşulları kabul edin.",
       "hintManageNumber": "Rezervasyon numarasını girin.",
-      "hintManagePin": "PIN girin."
+      "hintManagePin": "PIN girin.",
+      "termsSheet": {
+        "title": "Rezervasyon koşulları",
+        "description": "{restaurantName} · Gizlilik ve rezervasyon koşulları",
+        "restaurantFallback": "Restoran",
+        "nameFallback": "restoran",
+        "close": "Kapat",
+        "scope": {
+          "title": "1. Kapsam",
+          "p1": "Bu koşullar, gömülü rezervasyon formu aracılığıyla {name} (“Restoran”) için çevrimiçi masa rezervasyonunu düzenler. Rezervasyonu göndererek bu koşulları kabul etmiş olursunuz.",
+          "p2": "Sözleşme tarafı, gastronomi hizmetinin sağlayıcısı olarak restorandır; formun teknik sağlanması bir işleyen aracılığıyla yapılabilir."
+        },
+        "contract": {
+          "title": "2. Rezervasyon ve sözleşmenin kurulması",
+          "p1": "Talebiniz, belirtilen bilgilere göre bir gastronomi sözleşmesi (masa rezervasyonu) kurma teklifidir. Sözleşme, restoran rezervasyonu onayladığında (ör. e-posta, WhatsApp veya telefon) veya sisteminde onaylı olarak kaydettiğinde kurulur.",
+          "p2": "Onaya kadar restoran rezervasyonu reddedebilir; özellikle doluluk, etkinlikler veya eksik bilgiler durumunda. Değişiklik ve iptaller, restoran bunu öngörüyorsa formdaki rezervasyon numarası ve PIN ile mümkündür."
+        },
+        "guestDuties": {
+          "title": "3. Misafirin yükümlülükleri",
+          "p1": "Doğru bilgiler (ad, iletişim, kişi sayısı, tarih/saat) verir ve rezervasyon saatinde gelir veya zamanında iptal edersiniz.",
+          "p2": "Tekrarlayan gelmeme veya ağır ihlallerde restoran gelecekteki rezervasyonları reddedebilir."
+        },
+        "privacy": {
+          "title": "4. Veri koruma (KVKK/GDPR)",
+          "p1": "Genel Veri Koruma Yönetmeliği (GDPR) anlamında veri sorumlusu, rezervasyon işletmecisi sıfatıyla {name}’dir. Sorumlunun iletişim bilgileri (adres, e-posta) restoranda veya web sitesinde yer alır.",
+          "p2": "İşlemenin hukuki dayanakları özellikle GDPR md. 6(1)(b) (sözleşme / ön sözleşme adımları), md. 6(1)(a) (rıza, örn. e-posta/WhatsApp bildirimlerini açarsanız) ve md. 6(1)(f) (meşru menfaat: düzgün misafir yönetimi ve iletişim) hükümleridir.",
+          "p3": "İşlenen veriler şunları içerebilir: ad ve soyad, telefon, e-posta, kişi sayısı, istenen tarih/saat, rezervasyon numarası ve PIN, teknik meta veriler (örn. gönderim zamanı) ve bildirim tercihleri.",
+          "p4": "Amaçlar: rezervasyonun alınması ve yönetimi, masa atama, sorular için iletişim, durum mesajları (alındı, onay, hatırlatma, değişiklik, iptal), yasal saklama yükümlülükleri ve kötüye kullanımın önlenmesi.",
+          "p5": "Saklama: rezervasyon verileri yalnızca işlem, ispat ve yasal saklama süreleri için gerekli olduğu sürece tutulur; ardından silinir veya anonimleştirilir (yasal saklama yoksa).",
+          "p6": "Alıcılar: veriler rezervasyon sistemi içinde işlenir; GDPR md. 28 sözleşmeleriyle işleyenler (barındırma, e-posta/WhatsApp gönderimi) kullanılabilir. Üçüncü ülkelere aktarım yalnızca md. 44 vd. şartları varsa yapılır.",
+          "p7": "Haklarınız: erişim, düzeltme, silme, işlemeyi kısıtlama, veri taşınabilirliği, itiraz (özellikle meşru menfaate dayalı işlemeye) ve rızayı geleceğe etkili olarak geri çekme. Bir denetim makamına şikayet hakkı.",
+          "p8": "İşleme rızaya dayanıyorsa rıza gönüllüdür; ancak rezervasyon için sözleşmenin gerektirdiği bilgiler ve bu koşulların kabulü zorunludur."
+        },
+        "notifications": {
+          "title": "5. Bildirimler",
+          "p1": "E-posta veya WhatsApp bildirimlerini açarsanız, seçilen kanal üzerinden rezervasyonla ilgili mesajların gönderilmesine rıza verirsiniz. Kanalları formda seçebilirsiniz; durum değişikliklerinden haberdar olmak için en az bir kanal aktif olmalıdır.",
+          "p2": "Rızayı geleceğe etkili olmak üzere istediğiniz zaman geri çekebilirsiniz (örn. abonelikten çıkarak veya restoranla iletişime geçerek)."
+        },
+        "cancellation": {
+          "title": "6. İptal ve gelmeme (no-show)",
+          "p1": "İptal ve değişiklikler restoranın kurallarına tabidir; sunuluyorsa formdaki işlevleri (rezervasyon numarası ve PIN) kullanın.",
+          "p2": "Mazeretsiz gelmeme (no-show) durumunda restoran, yasal sınırlamalar saklı kalmak kaydıyla tazminat talep edebilir."
+        },
+        "liability": {
+          "title": "7. Sorumluluk",
+          "p1": "Restoran, kast ve ağır ihmal ile yaşam, vücut veya sağlığa zararlarda sınırsız sorumludur. Bunun dışında yalnızca esaslı sözleşme yükümlülüklerinin ihlalinde, öngörülebilir ve tipik zararla sınırlı sorumludur.",
+          "p2": "Restoranın kontrolü dışındaki çevrimiçi form aksaklıkları için, yasaların izin verdiği ölçüde sorumluluk kabul edilmez."
+        },
+        "final": {
+          "title": "8. Son hükümler",
+          "p1": "İkamet ülkenizin zorunlu tüketici koruma kuralları saklı kalmak kaydıyla, Birleşmiş Milletler Mal Satım Sözleşmeleri Konvansiyonu hariç Federal Almanya Cumhuriyeti hukuku uygulanır.",
+          "p2": "Tek tek hükümler geçersiz olsa bile diğerleri geçerliliğini korur.",
+          "p3": "Sürüm: Mayıs 2026. Restoran bu koşulları güncelleyebilir; rezervasyonunuz sırasında görülebilen sürüm geçerlidir."
+        }
+      }
     },
     "filterAll": "Tümü",
     "images": "Görseller",

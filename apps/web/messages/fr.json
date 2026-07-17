@@ -186,7 +186,61 @@
       "hintNotifyChannel": "Activez au moins e-mail ou WhatsApp.",
       "hintTerms": "Veuillez accepter les conditions.",
       "hintManageNumber": "Saisissez le numéro de réservation.",
-      "hintManagePin": "Saisissez le PIN."
+      "hintManagePin": "Saisissez le PIN.",
+      "termsSheet": {
+        "title": "Conditions de réservation",
+        "description": "{restaurantName} · Confidentialité et conditions de réservation",
+        "restaurantFallback": "Restaurant",
+        "nameFallback": "le restaurant",
+        "close": "Fermer",
+        "scope": {
+          "title": "1. Champ d’application",
+          "p1": "Ces conditions régissent la réservation de table en ligne chez {name} (« Restaurant ») via le formulaire intégré. En envoyant une réservation, vous acceptez ces conditions.",
+          "p2": "Le cocontractant est le restaurant en tant que prestataire du service de restauration ; la mise à disposition technique du formulaire peut être assurée par un sous-traitant."
+        },
+        "contract": {
+          "title": "2. Réservation et formation du contrat",
+          "p1": "Votre demande constitue une offre de conclusion d’un contrat de restauration (réservation de table) selon les informations indiquées. Le contrat est formé lorsque le restaurant confirme la réservation (p. ex. par e-mail, WhatsApp ou téléphone) ou l’enregistre comme confirmée dans son système.",
+          "p2": "Jusqu’à confirmation, le restaurant peut refuser la réservation, notamment en cas de complet, d’événements ou de données manquantes. Les modifications et annulations sont possibles via le numéro de réservation et le PIN indiqués dans le formulaire, si le restaurant le prévoit."
+        },
+        "guestDuties": {
+          "title": "3. Obligations du client",
+          "p1": "Vous fournissez des informations exactes (nom, contact, nombre de personnes, date/heure) et vous présentez à l’heure réservée ou annulez à temps.",
+          "p2": "En cas d’absences répétées ou de manquements graves, le restaurant peut refuser de futures réservations."
+        },
+        "privacy": {
+          "title": "4. Protection des données (RGPD)",
+          "p1": "Le responsable du traitement au sens du Règlement général sur la protection des données (RGPD) est {name} en tant qu’opérateur de la réservation. Les coordonnées du responsable (adresse, e-mail) figurent auprès du restaurant ou sur son site.",
+          "p2": "Les bases juridiques du traitement comprennent notamment l’art. 6(1)(b) RGPD (contrat ou mesures précontractuelles), l’art. 6(1)(a) RGPD (consentement, p. ex. notifications e-mail/WhatsApp si vous les activez) et l’art. 6(1)(f) RGPD (intérêt légitime à une gestion correcte des clients et à la communication).",
+          "p3": "Les données traitées peuvent inclure : prénom et nom, téléphone, e-mail, nombre de personnes, date/heure souhaitées, numéro de réservation et PIN, métadonnées techniques (p. ex. moment de l’envoi) et préférences de notification.",
+          "p4": "Finalités : réception et gestion de votre réservation, attribution des tables, contact en cas de questions, envoi de messages de statut (réception, confirmation, rappel, modification, annulation), respect des obligations de conservation et prévention des abus.",
+          "p5": "Durée de conservation : les données de réservation ne sont conservées que le temps nécessaire au traitement, à la preuve et aux délais légaux ; elles sont ensuite supprimées ou anonymisées, sauf obligation légale contraire.",
+          "p6": "Destinataires : les données sont traitées dans le système de réservation ; des sous-traitants (hébergement, envoi e-mail/WhatsApp) peuvent intervenir avec des contrats conformes à l’art. 28 RGPD. Les transferts vers des pays tiers n’ont lieu que si les conditions des art. 44 et s. RGPD sont remplies.",
+          "p7": "Vos droits : accès, rectification, effacement, limitation du traitement, portabilité, opposition (notamment au traitement fondé sur l’intérêt légitime) et retrait du consentement pour l’avenir. Droit de réclamation auprès d’une autorité de contrôle.",
+          "p8": "Lorsque le traitement repose sur le consentement, celui-ci est libre ; toutefois, les données nécessaires au contrat et l’acceptation de ces conditions sont requises pour la réservation."
+        },
+        "notifications": {
+          "title": "5. Notifications",
+          "p1": "Si vous activez les notifications par e-mail ou WhatsApp, vous consentez à recevoir des messages liés à la réservation via le canal choisi. Vous pouvez choisir les canaux dans le formulaire ; au moins un canal doit être actif pour vous informer des changements de statut.",
+          "p2": "Vous pouvez retirer votre consentement à tout moment pour l’avenir (p. ex. en vous désabonnant ou en contactant le restaurant)."
+        },
+        "cancellation": {
+          "title": "6. Annulation et no-show",
+          "p1": "Les annulations et modifications suivent les règles du restaurant ; utilisez les fonctions du formulaire (numéro de réservation et PIN) lorsqu’elles sont proposées.",
+          "p2": "En cas d’absence non justifiée (no-show), le restaurant peut demander des dommages-intérêts dans la mesure où la loi ne s’y oppose pas."
+        },
+        "liability": {
+          "title": "7. Responsabilité",
+          "p1": "Le restaurant répond sans limitation en cas de dol et de faute lourde ainsi que pour les atteintes à la vie, au corps ou à la santé. Pour le reste, il ne répond qu’en cas de violation d’obligations contractuelles essentielles, limitée au préjudice prévisible et typique.",
+          "p2": "Aucune responsabilité n’est acceptée pour les dysfonctionnements du formulaire en ligne hors du contrôle du restaurant, dans la mesure permise par la loi."
+        },
+        "final": {
+          "title": "8. Dispositions finales",
+          "p1": "Le droit de la République fédérale d’Allemagne s’applique, à l’exclusion de la Convention des Nations Unies sur les contrats de vente internationale de marchandises, sauf dispositions impératives de protection des consommateurs de votre pays de résidence.",
+          "p2": "Si une disposition est invalide, les autres restent en vigueur.",
+          "p3": "Version : mai 2026. Le restaurant peut adapter ces conditions ; la version consultable au moment de votre réservation fait foi."
+        }
+      }
     },
     "filterAll": "Tous",
     "images": "Photos",

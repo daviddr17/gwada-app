@@ -186,7 +186,61 @@
       "hintNotifyChannel": "Activa al menos correo o WhatsApp.",
       "hintTerms": "Acepta las condiciones.",
       "hintManageNumber": "Introduce el número de reserva.",
-      "hintManagePin": "Introduce el PIN."
+      "hintManagePin": "Introduce el PIN.",
+      "termsSheet": {
+        "title": "Condiciones de reserva",
+        "description": "{restaurantName} · Privacidad y condiciones de reserva",
+        "restaurantFallback": "Restaurante",
+        "nameFallback": "el restaurante",
+        "close": "Cerrar",
+        "scope": {
+          "title": "1. Ámbito de aplicación",
+          "p1": "Estas condiciones regulan la reserva online de mesa en {name} («Restaurante») a través del formulario integrado. Al enviar la reserva, acepta estas condiciones.",
+          "p2": "La parte contratante es el restaurante como prestador del servicio gastronómico; la provisión técnica del formulario puede realizarse mediante un encargado del tratamiento."
+        },
+        "contract": {
+          "title": "2. Reserva y celebración del contrato",
+          "p1": "Su solicitud constituye una oferta de celebración de un contrato gastronómico (reserva de mesa) con los datos indicados. El contrato se celebra cuando el restaurante confirma la reserva (p. ej. por correo, WhatsApp o teléfono) o la registra como confirmada en su sistema.",
+          "p2": "Hasta la confirmación, el restaurante puede rechazar la reserva, especialmente si está completo, por eventos o por falta de datos. Los cambios y cancelaciones son posibles mediante el número de reserva y el PIN del formulario, si el restaurante lo ofrece."
+        },
+        "guestDuties": {
+          "title": "3. Obligaciones del huésped",
+          "p1": "Facilita datos veraces (nombre, contacto, número de personas, fecha/hora) y acude a la hora reservada o cancela a tiempo.",
+          "p2": "Ante inasistencias reiteradas o incumplimientos graves, el restaurante puede rechazar reservas futuras."
+        },
+        "privacy": {
+          "title": "4. Protección de datos (RGPD)",
+          "p1": "El responsable del tratamiento según el Reglamento General de Protección de Datos (RGPD) es {name} como operador de la reserva. Los datos de contacto del responsable (dirección, correo) figuran en el restaurante o en su sitio web.",
+          "p2": "Las bases jurídicas del tratamiento incluyen en particular el art. 6(1)(b) RGPD (contrato o medidas precontractuales), el art. 6(1)(a) RGPD (consentimiento, p. ej. notificaciones por correo/WhatsApp si las activa) y el art. 6(1)(f) RGPD (interés legítimo en la gestión de huéspedes y la comunicación).",
+          "p3": "Los datos tratados pueden incluir: nombre y apellidos, teléfono, correo electrónico, número de personas, fecha/hora deseada, número de reserva y PIN, metadatos técnicos (p. ej. momento del envío) y preferencias de notificación.",
+          "p4": "Finalidades: recepción y gestión de su reserva, asignación de mesas, contacto ante consultas, envío de mensajes de estado (recepción, confirmación, recordatorio, cambio, cancelación), cumplimiento de obligaciones de conservación y prevención de abusos.",
+          "p5": "Conservación: los datos de reserva se almacenan solo el tiempo necesario para la gestión, la prueba y los plazos legales; después se eliminan o anonimizan, salvo obligación legal en contrario.",
+          "p6": "Destinatarios: los datos se tratan en el sistema de reservas; pueden intervenir encargados (hosting, envío de correo/WhatsApp) con contratos conforme al art. 28 RGPD. Las transferencias a terceros países solo si se cumplen los arts. 44 y ss. RGPD.",
+          "p7": "Sus derechos: acceso, rectificación, supresión, limitación del tratamiento, portabilidad, oposición (en particular al tratamiento basado en intereses legítimos) y retirada del consentimiento con efectos futuros. Derecho a reclamar ante una autoridad de control.",
+          "p8": "Si el tratamiento se basa en el consentimiento, este es voluntario; no obstante, para la reserva son necesarios los datos contractuales y la aceptación de estas condiciones."
+        },
+        "notifications": {
+          "title": "5. Notificaciones",
+          "p1": "Si activa notificaciones por correo o WhatsApp, consiente el envío de mensajes relacionados con la reserva por el canal elegido. Puede elegir los canales en el formulario; al menos uno debe estar activo para informarle de cambios de estado.",
+          "p2": "Puede retirar el consentimiento en cualquier momento con efectos futuros (p. ej. cancelando la suscripción o contactando al restaurante)."
+        },
+        "cancellation": {
+          "title": "6. Cancelación y no-show",
+          "p1": "Las cancelaciones y cambios se rigen por las normas del restaurante; utilice las funciones del formulario (número de reserva y PIN) si se ofrecen.",
+          "p2": "Ante una ausencia injustificada (no-show), el restaurante puede reclamar daños y perjuicios en la medida en que la ley no lo limite."
+        },
+        "liability": {
+          "title": "7. Responsabilidad",
+          "p1": "El restaurante responde sin límite por dolo y negligencia grave, así como por daños a la vida, la integridad física o la salud. En lo demás, solo responde por el incumplimiento de obligaciones contractuales esenciales, limitado al daño previsible y típico.",
+          "p2": "No se asume responsabilidad por incidencias del formulario online ajenas al control del restaurante, en la medida permitida por la ley."
+        },
+        "final": {
+          "title": "8. Disposiciones finales",
+          "p1": "Se aplica el derecho de la República Federal de Alemania, con exclusión de la Convención de las Naciones Unidas sobre los Contratos de Compraventa Internacional de Mercaderías, salvo normas imperativas de protección del consumidor de su país de residencia.",
+          "p2": "Si alguna disposición fuera inválida, las demás seguirán vigentes.",
+          "p3": "Versión: mayo de 2026. El restaurante puede adaptar estas condiciones; prevalece la versión disponible en el momento de su reserva."
+        }
+      }
     },
     "filterAll": "Todos",
     "images": "Fotos",

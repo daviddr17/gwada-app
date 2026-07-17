@@ -186,7 +186,61 @@
       "hintNotifyChannel": "Mindestens E-Mail- oder WhatsApp-Benachrichtigung aktivieren.",
       "hintTerms": "Bitte die Bedingungen bestätigen.",
       "hintManageNumber": "Reservierungsnummer eingeben.",
-      "hintManagePin": "PIN eingeben."
+      "hintManagePin": "PIN eingeben.",
+      "termsSheet": {
+        "title": "Bedingungen zur Reservierung",
+        "description": "{restaurantName} · Datenschutz und Reservierungsbedingungen",
+        "restaurantFallback": "Restaurant",
+        "nameFallback": "das Restaurant",
+        "close": "Schließen",
+        "scope": {
+          "title": "1. Geltungsbereich",
+          "p1": "Diese Bedingungen regeln die Online-Tischreservierung bei {name} („Restaurant“) über das eingebettete Reservierungsformular. Mit Absenden der Reservierung erklären Sie sich mit diesen Bedingungen einverstanden.",
+          "p2": "Vertragspartner ist das Restaurant als Anbieter der Gastronomie-Leistung; technische Bereitstellung des Formulars kann über einen Auftragsverarbeiter erfolgen."
+        },
+        "contract": {
+          "title": "2. Reservierung und Vertragsschluss",
+          "p1": "Ihre Anfrage stellt ein Angebot auf Abschluss eines Gastronomievertrags (Tischreservierung) zu den angegebenen Daten dar. Der Vertrag kommt zustande, wenn das Restaurant die Reservierung bestätigt (z. B. per E-Mail, WhatsApp oder telefonisch) oder die Reservierung in seinem System als bestätigt führt.",
+          "p2": "Bis zur Bestätigung kann das Restaurant die Reservierung ablehnen, insbesondere bei Ausgebuchtsein, bei Veranstaltungen oder bei fehlenden Angaben. Änderungen und Stornierungen sind über die im Formular mitgeteilte Reservierungsnummer und PIN möglich, soweit das Restaurant dies vorsieht."
+        },
+        "guestDuties": {
+          "title": "3. Pflichten des Gastes",
+          "p1": "Sie geben wahrheitsgemäße Angaben (Name, Kontakt, Personenzahl, Termin) an und erscheinen zum reservierten Zeitpunkt oder sagen rechtzeitig ab.",
+          "p2": "Bei wiederholten No-Shows oder groben Verstößen kann das Restaurant künftige Reservierungen ablehnen."
+        },
+        "privacy": {
+          "title": "4. Datenschutz (DSGVO)",
+          "p1": "Verantwortlicher im Sinne der Datenschutz-Grundverordnung (DSGVO) ist {name} in seiner Eigenschaft als Betreiber der Reservierung. Kontaktdaten des Verantwortlichen (Anschrift, E-Mail) entnehmen Sie den Angaben des Restaurants vor Ort oder auf dessen Website.",
+          "p2": "Rechtsgrundlagen der Verarbeitung sind insbesondere Art. 6 Abs. 1 lit. b DSGVO (Vertrag bzw. vorvertragliche Maßnahmen zur Reservierung), Art. 6 Abs. 1 lit. a DSGVO (Einwilligung, z. B. in Benachrichtigungen per E-Mail/WhatsApp, sofern Sie diese aktivieren) sowie Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an ordnungsgemäßer Gästeverwaltung und Kommunikation).",
+          "p3": "Verarbeitete Daten können sein: Vor- und Nachname, Telefonnummer, E-Mail-Adresse, Personenzahl, gewünschter Termin (Datum/Uhrzeit), Reservierungsnummer und PIN, technische Metadaten (z. B. Zeitpunkt der Übermittlung), sowie Einstellungen zu Benachrichtigungen.",
+          "p4": "Zweck der Verarbeitung: Entgegennahme und Verwaltung Ihrer Reservierung, Zuordnung zu Tischen, Kontaktaufnahme bei Rückfragen, Versand von Statusnachrichten (Eingang, Bestätigung, Erinnerung, Änderung, Stornierung), Erfüllung gesetzlicher Aufbewahrungspflichten und Missbrauchsprävention.",
+          "p5": "Speicherdauer: Reservierungsdaten werden nur so lange gespeichert, wie es für die Abwicklung, Nachweisführung und gesetzliche Aufbewahrungsfristen erforderlich ist; danach Löschung oder Anonymisierung, sofern keine gesetzlichen Aufbewahrungspflichten entgegenstehen.",
+          "p6": "Empfänger: Daten werden im Rahmen des Reservierungssystems verarbeitet; ggf. Auftragsverarbeiter (Hosting, E-Mail-/WhatsApp-Versand) mit vertraglichen Auftragsverarbeitungsverträgen gemäß Art. 28 DSGVO. Eine Übermittlung in Drittländer erfolgt nur bei Vorliegen der Voraussetzungen der Art. 44 ff. DSGVO.",
+          "p7": "Ihre Rechte: Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit, Widerspruch (insbesondere gegen Verarbeitung auf Basis berechtigter Interessen) und Widerruf erteilter Einwilligungen mit Wirkung für die Zukunft. Beschwerderecht bei einer Aufsichtsbehörde (z. B. für Deutschland die für Sie zuständige Landesbehörde).",
+          "p8": "Sofern die Verarbeitung auf Einwilligung beruht, ist die Einwilligung freiwillig; für die Reservierung sind jedoch die für den Vertrag erforderlichen Angaben und die Annahme dieser Bedingungen notwendig."
+        },
+        "notifications": {
+          "title": "5. Benachrichtigungen",
+          "p1": "Wenn Sie E-Mail- oder WhatsApp-Benachrichtigungen aktivieren, willigen Sie in die Zusendung reservierungsbezogener Nachrichten über den gewählten Kanal ein. Sie können die Kanäle im Formular wählen; mindestens ein Kanal muss aktiv sein, damit Sie über Statusänderungen informiert werden können.",
+          "p2": "Sie können Einwilligungen jederzeit mit Wirkung für die Zukunft widerrufen (z. B. durch Abmeldung oder Mitteilung an das Restaurant)."
+        },
+        "cancellation": {
+          "title": "6. Stornierung und No-Show",
+          "p1": "Stornierungen und Änderungen richten sich nach den Regeln des Restaurants; nutzen Sie hierfür die im Formular bereitgestellten Funktionen (Reservierungsnummer und PIN), sofern angeboten.",
+          "p2": "Bei unentschuldigtem Ausbleiben (No-Show) kann das Restaurant Schadensersatz verlangen, soweit dem nicht gesetzliche Beschränkungen entgegenstehen."
+        },
+        "liability": {
+          "title": "7. Haftung",
+          "p1": "Das Restaurant haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei Verletzung von Leben, Körper oder Gesundheit. Im Übrigen haftet das Restaurant nur bei Verletzung wesentlicher Vertragspflichten, begrenzt auf den vorhersehbaren, typischerweise eintretenden Schaden.",
+          "p2": "Für Störungen des Online-Formulars, die nicht im Einflussbereich des Restaurants liegen, wird keine Haftung übernommen, soweit gesetzlich zulässig."
+        },
+        "final": {
+          "title": "8. Schlussbestimmungen",
+          "p1": "Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts, sofern dem keine zwingenden Verbraucherschutzvorschriften Ihres Wohnsitzstaates entgegenstehen.",
+          "p2": "Sollten einzelne Bestimmungen unwirksam sein, bleibt die Wirksamkeit der übrigen Regelungen unberührt.",
+          "p3": "Stand: Mai 2026. Das Restaurant kann diese Bedingungen anpassen; maßgeblich ist die zum Zeitpunkt Ihrer Reservierung einsehbare Fassung."
+        }
+      }
     },
     "filterAll": "Alle",
     "images": "Bilder",

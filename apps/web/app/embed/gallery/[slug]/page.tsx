@@ -7,6 +7,7 @@ import {
   resolveEmbedTextTheme,
 } from "@/lib/embed/embed-appearance";
 import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
+import { fetchRestaurantDefaultLocaleForSlug } from "@/lib/embed/fetch-restaurant-default-locale";
 import { fetchPublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 
 export const dynamic = "force-dynamic";
@@ -30,9 +31,10 @@ export default async function EmbedGalleryPage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const [result, textTheme] = await Promise.all([
+  const [result, textTheme, sourceLocale] = await Promise.all([
     fetchPublicEmbedGallery(slug),
     fetchEmbedTextThemeForSlug(slug, "gallery"),
+    fetchRestaurantDefaultLocaleForSlug(slug),
   ]);
 
   if (!result.data) {
@@ -55,6 +57,7 @@ export default async function EmbedGalleryPage({
       <EmbedGalleryWidget
         data={result.data}
         variant="embed"
+        sourceLocale={sourceLocale}
         textTheme={resolveEmbedTextTheme(
           textTheme,
           sp[EMBED_PREVIEW_TEXT_THEME_PARAM],

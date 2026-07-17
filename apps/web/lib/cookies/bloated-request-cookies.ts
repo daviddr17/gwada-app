@@ -1,6 +1,7 @@
 import "server-only";
 
 import { APP_LOCALE_COOKIE } from "@/i18n/config";
+import { EMBED_LOCALE_COOKIE } from "@/lib/embed/embed-locale";
 import {
   DISPLAY_DEVICE_COOKIE,
   DISPLAY_SESSION_COOKIE,
@@ -44,7 +45,7 @@ export function shouldStripCookieFromSupabaseProxy(name: string): boolean {
   if (name === DISPLAY_DEVICE_COOKIE || name === DISPLAY_SESSION_COOKIE) return false;
   if (name === GOOGLE_AUTH_NONCE_COOKIE) return false;
   // UI-Locale muss die App-Zone erreichen (proxy slimmt sonst alle gwada_*).
-  if (name === APP_LOCALE_COOKIE) return false;
+  if (name === APP_LOCALE_COOKIE || name === EMBED_LOCALE_COOKIE) return false;
   if (isSupabaseSessionCookie(name)) return false;
   if (
     (AUTH_ENTRY_COOKIES_TO_CLEAR as readonly string[]).includes(name) ||

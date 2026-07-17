@@ -114,5 +114,27 @@
     "tr": "Türkçe",
     "ar": "العربية",
     "zh": "中文"
+  },
+  "Embed": {
+    "languageLabel": "Idioma",
+    "restaurantDefault": "Idioma del restaurante",
+    "translating": "Traduciendo contenido…",
+    "posts": "Publicaciones",
+    "newsEmptyAll": "Aún no hay noticias.",
+    "newsEmptyPlatform": "No hay noticias para esta plataforma.",
+    "newsUnavailable": "Estas noticias no están disponibles.",
+    "newsLoadError": "No se pudieron cargar las noticias.",
+    "menuUnavailable": "Esta carta no está disponible.",
+    "reviewsEmpty": "Aún no hay reseñas.",
+    "eventsEmpty": "No hay eventos próximos.",
+    "galleryEmpty": "Aún no hay fotos.",
+    "hoursUnavailable": "Horario no disponible.",
+    "reservationBook": "Reservar",
+    "reservationChange": "Modificar",
+    "reviews": "Reseñas",
+    "events": "Eventos",
+    "eventsShowPast": "Mostrar pasados",
+    "eventsPastHidden": "{count} eventos pasados ocultos.",
+    "reservationAria": "Reserva"
   }
 }

@@ -7,6 +7,7 @@ import {
   resolveEmbedTextTheme,
 } from "@/lib/embed/embed-appearance";
 import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
+import { fetchRestaurantDefaultLocaleForSlug } from "@/lib/embed/fetch-restaurant-default-locale";
 import { fetchPublicEmbedEvents } from "@/lib/events/public-events-server";
 
 const EmbedEventsWidget = nextDynamic(
@@ -38,9 +39,10 @@ export default async function EmbedEventsPage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const [result, textTheme] = await Promise.all([
+  const [result, textTheme, sourceLocale] = await Promise.all([
     fetchPublicEmbedEvents(slug),
     fetchEmbedTextThemeForSlug(slug, "events"),
+    fetchRestaurantDefaultLocaleForSlug(slug),
   ]);
 
   if (!result.data) {
@@ -70,6 +72,7 @@ export default async function EmbedEventsPage({
         items={items}
         pastItems={pastItems}
         showAllPlatformFilter={showAllPlatformFilter}
+        sourceLocale={sourceLocale}
         textTheme={resolveEmbedTextTheme(
           textTheme,
           sp[EMBED_PREVIEW_TEXT_THEME_PARAM],

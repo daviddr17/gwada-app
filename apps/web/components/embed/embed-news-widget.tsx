@@ -1,7 +1,9 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
+import type { AppLocale } from "@/i18n/config";
 import { EmbedFeedResizeReporter } from "@/components/embed/embed-feed-resize-reporter";
 import { EmbedMeasureEnd } from "@/components/embed/embed-measure-boundary";
 import {
@@ -39,6 +41,7 @@ export type EmbedNewsWidgetProps = {
   variant?: "embed" | "profileSheet";
   /** Chip „Alle“ in Profil & Einbindung — Standard: an. */
   showAllPlatformFilter?: boolean;
+  sourceLocale?: AppLocale;
 };
 
 export function EmbedNewsWidget({
@@ -50,7 +53,37 @@ export function EmbedNewsWidget({
   storyRings = [],
   variant = "embed",
   showAllPlatformFilter = true,
+  sourceLocale = "de",
 }: EmbedNewsWidgetProps) {
+  return (
+    <EmbedAccentRoot
+      accentHex={accentHex}
+      textTheme={textTheme}
+      brandFooter={variant !== "profileSheet"}
+      sourceLocale={sourceLocale}
+      showLocalePicker={variant === "embed"}
+    >
+      <EmbedNewsWidgetBody
+        viewMode={viewMode}
+        connectedPlatforms={connectedPlatforms}
+        items={items}
+        storyRings={storyRings}
+        variant={variant}
+        showAllPlatformFilter={showAllPlatformFilter}
+      />
+    </EmbedAccentRoot>
+  );
+}
+
+function EmbedNewsWidgetBody({
+  viewMode,
+  connectedPlatforms,
+  items,
+  storyRings = [],
+  variant = "embed",
+  showAllPlatformFilter = true,
+}: Omit<EmbedNewsWidgetProps, "accentHex" | "textTheme" | "sourceLocale">) {
+  const t = useTranslations("Embed");
   const showAllChip = showAllPlatformFilter !== false;
 
   const availablePlatforms = useMemo(
@@ -67,7 +100,9 @@ export function EmbedNewsWidget({
     () => (showAllChip ? NEWS_FILTER_ALL : fallbackPlatformFilter),
   );
   const [page, setPage] = useState(1);
-  const [activeRing, setActiveRing] = useState<UnifiedNewsStoryRing | null>(null);
+  const [activeRing, setActiveRing] = useState<UnifiedNewsStoryRing | null>(
+    null,
+  );
   const [storyOpen, setStoryOpen] = useState(false);
 
   useEffect(() => {
@@ -87,7 +122,10 @@ export function EmbedNewsWidget({
 
   const resolvedPlatformFilter = useMemo(() => {
     if (!showAllChip) {
-      if (platformFilter === NEWS_FILTER_ALL || !availablePlatforms.has(platformFilter)) {
+      if (
+        platformFilter === NEWS_FILTER_ALL ||
+        !availablePlatforms.has(platformFilter)
+      ) {
         return fallbackPlatformFilter;
       }
       return platformFilter;
@@ -110,7 +148,9 @@ export function EmbedNewsWidget({
     if (resolvedPlatformFilter === NEWS_FILTER_ALL) {
       return dedupeCrossPlatformNewsItems(visibleItems);
     }
-    return visibleItems.filter((item) => item.platform === resolvedPlatformFilter);
+    return visibleItems.filter(
+      (item) => item.platform === resolvedPlatformFilter,
+    );
   }, [visibleItems, resolvedPlatformFilter]);
 
   const setPlatformFilter = useCallback(
@@ -144,7 +184,13 @@ export function EmbedNewsWidget({
       clientPagination.totalCount,
       displayItems.map((i) => i.id).join(","),
     ],
-    [viewMode, resolvedPlatformFilter, displayItems, storyRings.length, clientPagination],
+    [
+      viewMode,
+      resolvedPlatformFilter,
+      displayItems,
+      storyRings.length,
+      clientPagination,
+    ],
   );
 
   const paddingClass =
@@ -161,86 +207,84 @@ export function EmbedNewsWidget({
     );
 
   return (
-    <EmbedAccentRoot
-      accentHex={accentHex}
-      textTheme={textTheme}
-      brandFooter={variant !== "profileSheet"}
-    >
+    <>
       <FeedScreenLayoutStable imageCount={countNewsFeedImages(displayItems)}>
         <EmbedFeedResizeReporter
           widget="news"
           deps={[...resizeDeps, storyOpen]}
           resizeMode={storyOpen && variant === "embed" ? "viewport" : "content"}
           viewportHeightPx={
-            storyOpen && variant === "embed" ? EMBED_NEWS_STORY_VIEWPORT_PX : undefined
+            storyOpen && variant === "embed"
+              ? EMBED_NEWS_STORY_VIEWPORT_PX
+              : undefined
           }
         />
         <div className={paddingClass} data-gwada-embed-content>
-        {connectedPlatforms.length > 1 ? (
-          <div className="mb-4">
-            <NewsPlatformFilterChips
-              value={resolvedPlatformFilter}
-              onChange={setPlatformFilter}
-              availablePlatforms={availablePlatforms}
-              showAllChip={showAllChip}
-            />
-          </div>
-        ) : null}
+          {connectedPlatforms.length > 1 ? (
+            <div className="mb-4">
+              <NewsPlatformFilterChips
+                value={resolvedPlatformFilter}
+                onChange={setPlatformFilter}
+                availablePlatforms={availablePlatforms}
+                showAllChip={showAllChip}
+              />
+            </div>
+          ) : null}
 
-        {storyRings.length > 0 ? (
-          <div className="mb-4">
-            <NewsStoriesRow
-              storyRings={storyRings}
-              onRingClick={(ring) => {
-                setActiveRing(ring);
-                setStoryOpen(true);
-              }}
-            />
-          </div>
-        ) : null}
+          {storyRings.length > 0 ? (
+            <div className="mb-4">
+              <NewsStoriesRow
+                storyRings={storyRings}
+                onRingClick={(ring) => {
+                  setActiveRing(ring);
+                  setStoryOpen(true);
+                }}
+              />
+            </div>
+          ) : null}
 
-        {filtered.length === 0 ? (
-          <ListPaginationSurround
-            classNameAbove="mb-4 border-b-0 pb-0"
-            classNameBelow="mt-4 border-t-0 pt-0"
-            page={clientPagination.page}
-            totalPages={clientPagination.totalPages}
-            shown={0}
-            totalCount={0}
-            itemLabel="Beiträge"
-            canPrevious={false}
-            canNext={false}
-            onPrevious={() => setPage(1)}
-            onNext={() => setPage(1)}
-          >
-            <p className="text-sm text-muted-foreground">
-              {resolvedPlatformFilter === NEWS_FILTER_ALL
-                ? "Noch keine News veröffentlicht."
-                : "Keine News für diese Plattform."}
-            </p>
-          </ListPaginationSurround>
-        ) : showPagination ? (
-          <ListPaginationSurround
-            classNameAbove="mb-4 border-b-0 pb-0"
-            classNameBelow="mt-4 border-t-0 pt-0"
-            page={clientPagination.page}
-            totalPages={clientPagination.totalPages}
-            shown={displayItems.length}
-            totalCount={clientPagination.totalCount}
-            itemLabel="Beiträge"
-            canPrevious={clientPagination.page > 1}
-            canNext={clientPagination.page < clientPagination.totalPages}
-            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() =>
-              setPage((p) => Math.min(clientPagination.totalPages, p + 1))
-            }
-          >
-            {newsContent}
-          </ListPaginationSurround>
-        ) : (
-          newsContent
-        )}
-        <EmbedMeasureEnd />
+          {filtered.length === 0 ? (
+            <ListPaginationSurround
+              classNameAbove="mb-4 border-b-0 pb-0"
+              classNameBelow="mt-4 border-t-0 pt-0"
+              page={clientPagination.page}
+              totalPages={clientPagination.totalPages}
+              shown={0}
+              totalCount={0}
+              itemLabel={t("posts")}
+              canPrevious={false}
+              canNext={false}
+              onPrevious={() => setPage(1)}
+              onNext={() => setPage(1)}
+            >
+              <p className="text-sm text-muted-foreground">
+                {resolvedPlatformFilter === NEWS_FILTER_ALL
+                  ? t("newsEmptyAll")
+                  : t("newsEmptyPlatform")}
+              </p>
+            </ListPaginationSurround>
+          ) : showPagination ? (
+            <ListPaginationSurround
+              classNameAbove="mb-4 border-b-0 pb-0"
+              classNameBelow="mt-4 border-t-0 pt-0"
+              page={clientPagination.page}
+              totalPages={clientPagination.totalPages}
+              shown={displayItems.length}
+              totalCount={clientPagination.totalCount}
+              itemLabel={t("posts")}
+              canPrevious={clientPagination.page > 1}
+              canNext={clientPagination.page < clientPagination.totalPages}
+              onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() =>
+                setPage((p) => Math.min(clientPagination.totalPages, p + 1))
+              }
+            >
+              {newsContent}
+            </ListPaginationSurround>
+          ) : (
+            newsContent
+          )}
+          <EmbedMeasureEnd />
         </div>
       </FeedScreenLayoutStable>
       <NewsStoryViewer
@@ -248,6 +292,6 @@ export function EmbedNewsWidget({
         open={storyOpen}
         onOpenChange={setStoryOpen}
       />
-    </EmbedAccentRoot>
+    </>
   );
 }

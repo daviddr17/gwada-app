@@ -7,6 +7,7 @@ import {
   resolveEmbedTextTheme,
 } from "@/lib/embed/embed-appearance";
 import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
+import { fetchRestaurantDefaultLocaleForSlug } from "@/lib/embed/fetch-restaurant-default-locale";
 import { fetchPublicEmbedOpeningHours } from "@/lib/opening-hours/public-opening-hours-server";
 
 const EmbedOpeningHoursWidget = nextDynamic(
@@ -38,9 +39,10 @@ export default async function EmbedOeffnungszeitenPage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const [result, textTheme] = await Promise.all([
+  const [result, textTheme, sourceLocale] = await Promise.all([
     fetchPublicEmbedOpeningHours(slug),
     fetchEmbedTextThemeForSlug(slug, "opening_hours"),
+    fetchRestaurantDefaultLocaleForSlug(slug),
   ]);
 
   if (!result.data) {
@@ -66,6 +68,7 @@ export default async function EmbedOeffnungszeitenPage({
       ) : null}
       <EmbedOpeningHoursWidget
         {...result.data}
+        sourceLocale={sourceLocale}
         textTheme={resolveEmbedTextTheme(
           textTheme,
           sp[EMBED_PREVIEW_TEXT_THEME_PARAM],

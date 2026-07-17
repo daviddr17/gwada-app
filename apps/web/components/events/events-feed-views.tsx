@@ -133,14 +133,23 @@ const EventTimelineRow = memo(function EventTimelineRow({
               {timeLabel}
             </time>
           </div>
-          <p className="font-medium leading-snug">{item.title}</p>
+          <p className="font-medium leading-snug" data-embed-mt>
+            {item.title}
+          </p>
           {item.description ? (
-            <p className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-wrap">
+            <p
+              className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-wrap"
+              data-embed-mt
+            >
               {item.description}
             </p>
           ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {item.location ? <span className="truncate">📍 {item.location}</span> : null}
+            {item.location ? (
+              <span className="truncate">
+                📍 <span data-embed-mt>{item.location}</span>
+              </span>
+            ) : null}
             {item.ticketUrl ? (
               <span className="inline-flex items-center gap-1 font-medium text-accent">
                 <Ticket className="size-3.5 shrink-0" />

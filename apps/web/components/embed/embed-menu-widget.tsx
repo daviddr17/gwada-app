@@ -16,6 +16,7 @@ import { EmbedMenuCategoryTabs } from "@/components/embed/embed-menu-category-ta
 import { EmbedMenuMainCategoryTabs } from "@/components/embed/embed-menu-main-category-tabs";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { MenuSearchFilters } from "@/components/menu/menu-search-filters";
+import type { AppLocale } from "@/i18n/config";
 import type { GwadaEmbedFrameViewportMessage } from "@/lib/embed/embed-protocol";
 import {
   findProfileScrollRootContaining,
@@ -68,6 +69,7 @@ export type EmbedMenuWidgetProps = {
   /** Profil-Sheet: kein Embed-Header, Sticky/Scroll am Sheet-Viewport. */
   variant?: "embed" | "profileSheet";
   textTheme?: EmbedTextTheme;
+  sourceLocale?: AppLocale;
 };
 
 function EmbedMenuItemRow({
@@ -90,11 +92,17 @@ function EmbedMenuItemRow({
     <article className="border-b border-border/40 py-4 last:border-b-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold leading-snug tracking-tight">
+          <h3
+            className="text-base font-semibold leading-snug tracking-tight"
+            data-embed-mt
+          >
             {item.name}
           </h3>
           {item.description ? (
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            <p
+              className="mt-1 text-sm leading-relaxed text-muted-foreground"
+              data-embed-mt
+            >
               {item.description}
             </p>
           ) : null}
@@ -277,7 +285,7 @@ function EmbedMenuSections({
               <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
                 {pos}
               </span>
-              <span>{cat.name}</span>
+              <span data-embed-mt>{cat.name}</span>
             </h2>
             {secItems.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -316,6 +324,7 @@ export function EmbedMenuWidget({
   optionGroups = [],
   variant = "embed",
   textTheme = "dark",
+  sourceLocale = "de",
 }: EmbedMenuWidgetProps) {
   const [hostMode, setHostMode] = useState(false);
   const [embedId, setEmbedId] = useState<string | null>(null);
@@ -657,10 +666,13 @@ export function EmbedMenuWidget({
       accentHex={accentHex}
       textTheme={textTheme}
       brandFooter={variant !== "profileSheet"}
+      sourceLocale={sourceLocale}
+      showLocalePicker={variant === "embed"}
     >
       <EmbedResizeReporter deps={resizeDeps} widget="menu" />
       <div
         ref={widgetRootRef}
+        data-gwada-embed-content
         className={cn(
           profileSheet ? "w-full min-w-0 pb-6" : "w-full min-w-0 py-6",
         )}

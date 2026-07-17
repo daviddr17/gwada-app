@@ -114,5 +114,27 @@
     "tr": "Türkçe",
     "ar": "العربية",
     "zh": "中文"
+  },
+  "Embed": {
+    "languageLabel": "اللغة",
+    "restaurantDefault": "لغة المطعم",
+    "translating": "جارٍ ترجمة المحتوى…",
+    "posts": "منشورات",
+    "newsEmptyAll": "لا توجد أخبار بعد.",
+    "newsEmptyPlatform": "لا أخبار لهذه المنصة.",
+    "newsUnavailable": "هذه الأخبار غير متاحة حاليًا.",
+    "newsLoadError": "تعذّر تحميل الأخبار.",
+    "menuUnavailable": "هذه القائمة غير متاحة حاليًا.",
+    "reviewsEmpty": "لا توجد تقييمات بعد.",
+    "eventsEmpty": "لا توجد فعاليات قادمة حالياً.",
+    "galleryEmpty": "لا توجد صور بعد.",
+    "hoursUnavailable": "ساعات العمل غير متاحة.",
+    "reservationBook": "احجز",
+    "reservationChange": "عدّل",
+    "reviews": "التقييمات",
+    "events": "الفعاليات",
+    "eventsShowPast": "عرض السابقة",
+    "eventsPastHidden": "{count} فعاليات سابقة مخفية.",
+    "reservationAria": "الحجز"
   }
 }

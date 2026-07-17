@@ -114,5 +114,27 @@
     "tr": "Türkçe",
     "ar": "العربية",
     "zh": "中文"
+  },
+  "Embed": {
+    "languageLabel": "语言",
+    "restaurantDefault": "餐厅语言",
+    "translating": "正在翻译内容…",
+    "posts": "动态",
+    "newsEmptyAll": "暂无动态。",
+    "newsEmptyPlatform": "该平台暂无动态。",
+    "newsUnavailable": "这些动态暂不可用。",
+    "newsLoadError": "无法加载动态。",
+    "menuUnavailable": "该菜单暂不可用。",
+    "reviewsEmpty": "暂无评价。",
+    "eventsEmpty": "目前没有即将举行的活动。",
+    "galleryEmpty": "暂无图片。",
+    "hoursUnavailable": "营业时间不可用。",
+    "reservationBook": "预订",
+    "reservationChange": "修改",
+    "reviews": "评价",
+    "events": "活动",
+    "eventsShowPast": "显示往期",
+    "eventsPastHidden": "已隐藏 {count} 个往期活动。",
+    "reservationAria": "预订"
   }
 }

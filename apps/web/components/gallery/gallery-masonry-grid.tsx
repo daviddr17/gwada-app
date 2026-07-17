@@ -54,7 +54,7 @@ const GalleryMasonryTile = memo(function GalleryMasonryTile({
           imgClassName="transition duration-300 group-hover:scale-[1.02]"
         />
       )}
-      <span className="sr-only">
+      <span className="sr-only" data-embed-mt>
         {item.title ?? item.caption ?? "Galeriebild"}
       </span>
     </button>

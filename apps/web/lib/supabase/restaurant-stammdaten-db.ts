@@ -1,4 +1,5 @@
 import { RESTAURANT_STORAGE_KEY } from "@/lib/constants/restaurant-profile";
+import { parseRestaurantDefaultLocale } from "@/lib/embed/embed-locale";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { resolveRestaurantTimezone } from "@/lib/restaurant/restaurant-timezone";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -14,6 +15,7 @@ export function restaurantRowFromProfile(
   return {
     name: profile.name.trim() || "Restaurant",
     slug: normalizeRestaurantSlugInput(profile.slug),
+    default_locale: parseRestaurantDefaultLocale(profile.defaultLocale),
     address_line1: profile.street.trim() || null,
     postal_code: profile.postalCode.trim() || null,
     city: profile.city.trim() || null,
@@ -50,7 +52,7 @@ export async function fetchRestaurantStammdatenFromDb(
   const { data, error } = await sb
     .from("restaurants")
     .select(
-      "name, slug, address_line1, postal_code, city, country, phone, website, vat_number, legal_name, legal_representative, legal_form, commercial_register, receipt_footer, social_handle, avatar_storage_path, cover_storage_path",
+      "name, slug, default_locale, address_line1, postal_code, city, country, phone, website, vat_number, legal_name, legal_representative, legal_form, commercial_register, receipt_footer, social_handle, avatar_storage_path, cover_storage_path",
     )
     .eq("id", restaurantId)
     .maybeSingle();
@@ -62,6 +64,9 @@ export async function fetchRestaurantStammdatenFromDb(
   return {
     name: typeof data.name === "string" ? data.name : "Restaurant",
     slug: typeof data.slug === "string" ? data.slug : "",
+    defaultLocale: parseRestaurantDefaultLocale(
+      typeof data.default_locale === "string" ? data.default_locale : null,
+    ),
     street: typeof data.address_line1 === "string" ? data.address_line1 : "",
     postalCode: typeof data.postal_code === "string" ? data.postal_code : "",
     city: typeof data.city === "string" ? data.city : "",

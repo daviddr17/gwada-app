@@ -448,6 +448,7 @@ enum PosCloudClient {
         var printerIds: [String]?
         var orderNumber: Int?
         var lines: [KdsAdvanceLine]?
+        var ticket: KdsAdvanceTicket?
         struct KdsAdvanceLine: Decodable {
             var id: String
             var name: String
@@ -455,6 +456,14 @@ enum PosCloudClient {
             var course: String?
             var notes: String?
             var detail: String?
+        }
+        struct KdsAdvanceTicket: Decodable {
+            var orderId: String?
+            var orderNumber: Int?
+            var status: String?
+            var statusId: String?
+            var statusName: String?
+            var statusColor: String?
         }
     }
 

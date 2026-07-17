@@ -191,10 +191,13 @@ export function EmbedLocaleProvider({
     [sourceLocale, locale, setLocale, contentBusy, messages],
   );
 
+  // Wait for the first catalog before mounting children. Switching between
+  // "no NextIntl wrapper" and "wrapped" remounted forms (e.g. reservation)
+  // and wiped in-flight submits / filled fields.
   if (!messages) {
     return (
       <EmbedLocaleContext.Provider value={value}>
-        {children}
+        <div className="min-h-[12rem] w-full" aria-busy="true" />
       </EmbedLocaleContext.Provider>
     );
   }

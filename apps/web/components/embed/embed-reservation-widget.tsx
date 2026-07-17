@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Mail, Pencil } from "lucide-react";
 import { GuestPhoneCountrySelect } from "@/components/phone/guest-phone-country-select";
 import { useTranslations } from "next-intl";
@@ -404,6 +404,26 @@ function EmbedReservationWidgetBody({
       return next;
     });
   };
+
+  // Guests often fill email/phone but miss the notify toggles (defaults off) —
+  // submit then fails with a generic "check fields" message. Auto-enable the
+  // matching channel once contact data appears; user can still turn it off.
+  const prevHasEmailRef = useRef(false);
+  const prevHasPhoneRef = useRef(false);
+  useEffect(() => {
+    if (hasEmail && !prevHasEmailRef.current) {
+      setNotifyEmail(true);
+      clearFieldError("notifyChannel");
+    }
+    prevHasEmailRef.current = hasEmail;
+  }, [hasEmail]);
+  useEffect(() => {
+    if (hasPhone && !prevHasPhoneRef.current) {
+      setNotifyWhatsapp(true);
+      clearFieldError("notifyChannel");
+    }
+    prevHasPhoneRef.current = hasPhone;
+  }, [hasPhone]);
 
   const successDetailsFromPayload = (
     payload: NonNullable<ReturnType<typeof buildPayload>>,

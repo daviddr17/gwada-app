@@ -321,25 +321,47 @@ enum PosCloudClient {
         return res.receipts
     }
 
+    struct PosVoidReasonDto: Decodable, Identifiable, Sendable, Hashable {
+        var id: String
+        var name: String
+        var restoreInventory: Bool
+        var sortOrder: Int
+        var isActive: Bool
+    }
+
+    @MainActor
+    static func fetchVoidReasons(restaurantId: String) async throws -> [PosVoidReasonDto] {
+        struct Res: Decodable { var reasons: [PosVoidReasonDto] }
+        let res: Res = try await get("/api/pos/void-reasons", restaurantId: restaurantId)
+        return res.reasons.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     @MainActor
     static func voidCashPayment(
         restaurantId: String,
         paymentId: String,
-        reopenTable: Bool = true
-    ) async throws -> (reopened: Bool, tableSessionId: String) {
+        reopenTable: Bool = true,
+        voidReasonId: String? = nil
+    ) async throws -> (reopened: Bool, tableSessionId: String, inventoryRestored: Bool) {
         struct Body: Encodable {
             var restaurantId: String
             var reopenTable: Bool
+            var voidReasonId: String?
         }
         struct Res: Decodable {
             var reopened: Bool
             var tableSessionId: String
+            var inventoryRestored: Bool?
         }
         let res: Res = try await post(
             "/api/pos/payments/\(paymentId)/void-cash",
-            body: Body(restaurantId: restaurantId, reopenTable: reopenTable)
+            body: Body(
+                restaurantId: restaurantId,
+                reopenTable: reopenTable,
+                voidReasonId: voidReasonId
+            )
         )
-        return (res.reopened, res.tableSessionId)
+        return (res.reopened, res.tableSessionId, res.inventoryRestored ?? false)
     }
 
     @MainActor
@@ -379,10 +401,14 @@ enum PosCloudClient {
 
     struct KdsTicketsResponse: Decodable {
         var tickets: [KdsTicketDto]
+        var statuses: [PosCloudKdsStatus]?
         struct KdsTicketDto: Decodable {
             var orderId: String
             var orderNumber: Int
             var status: String
+            var statusId: String?
+            var statusName: String?
+            var statusColor: String?
             var lines: [KdsLineDto]
         }
         struct KdsLineDto: Decodable {
@@ -392,17 +418,29 @@ enum PosCloudClient {
             var course: String?
             var notes: String?
             var modifiers: [PosCloudModifierDecoded]?
+            var detail: String?
+        }
+    }
+
+    struct KdsAdvanceResponse: Decodable {
+        var ok: Bool?
+        var done: Bool?
+        var printRequested: Bool?
+        var printerIds: [String]?
+        var orderNumber: Int?
+        var lines: [KdsAdvanceLine]?
+        struct KdsAdvanceLine: Decodable {
+            var id: String
+            var name: String
+            var quantity: Int
+            var course: String?
+            var notes: String?
+            var detail: String?
         }
     }
 
     @MainActor
     static func fetchKdsTickets(restaurantId: String, deviceId: String? = nil) async throws -> KdsTicketsResponse {
-        var path = "/api/pos/kds/tickets"
-        if let deviceId, !deviceId.isEmpty {
-            path += path.contains("?") ? "&" : "?"
-            // restaurantId added in get(); append deviceId manually after
-        }
-        // Build URL with both query params
         let base = PosCloudConfig.apiBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         var full = "\(base)/api/pos/kds/tickets?restaurantId=\(restaurantId)"
         if let deviceId, !deviceId.isEmpty {
@@ -417,6 +455,23 @@ enum PosCloudClient {
             throw PosCloudError.invalidResponse
         }
         return try decoder.decode(KdsTicketsResponse.self, from: data)
+    }
+
+    @MainActor
+    static func advanceKdsTicket(
+        restaurantId: String,
+        orderId: String,
+        deviceId: String? = nil
+    ) async throws -> KdsAdvanceResponse {
+        struct Body: Encodable {
+            var restaurantId: String
+            var orderId: String
+            var deviceId: String?
+        }
+        return try await post(
+            "/api/pos/kds/tickets/advance",
+            body: Body(restaurantId: restaurantId, orderId: orderId, deviceId: deviceId)
+        )
     }
 
     @MainActor

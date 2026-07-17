@@ -64,7 +64,7 @@ const HUB_LINKS = [
     icon: Receipt,
   },
   {
-    href: APP_ROUTES.pos.settings,
+    href: APP_ROUTES.pos.settingsFiscalPayment,
     label: "Einstellungen",
     description: "TSE, Drucker, Routing und KDS.",
     icon: MonitorSmartphone,

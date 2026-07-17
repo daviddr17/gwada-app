@@ -600,6 +600,17 @@ final class PosRuntime: ObservableObject {
         }
 
         if method == "POST" {
+            if path == PosLanProtocol.kdsAdvancePath {
+                struct Req: Decodable { var orderId: String }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                let result = PosHubState.shared.advanceLocalTicket(orderId: req.orderId)
+                let data =
+                    (try? JSONSerialization.data(withJSONObject: result))
+                    ?? Data(#"{"ok":false}"#.utf8)
+                return (200, data)
+            }
             if path == PosLanProtocol.openSessionPath {
                 struct Req: Decodable {
                     var diningTableId: String

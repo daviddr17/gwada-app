@@ -10,6 +10,10 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadRegisterStatus } from "@/lib/pos/register-status-server";
 import { listPosKdsDevices } from "@/lib/pos/pos-kds-server";
+import {
+  ensureDefaultPosKdsStatuses,
+  listPosKdsStatuses,
+} from "@/lib/pos/pos-kds-statuses-server";
 import { listPosPrinters } from "@/lib/pos/pos-printers-server";
 import { listPosCategoryRoutes } from "@/lib/pos/pos-category-routes-server";
 import type { MenuOptionChoice, MenuOptionGroup } from "@/lib/types/menu";
@@ -85,6 +89,7 @@ export type PosBootstrapPayload = {
   /** KDS/Drucker-Routing für Hub (auch offline). */
   kitchen: {
     kdsDevices: Awaited<ReturnType<typeof listPosKdsDevices>>;
+    kdsStatuses: Awaited<ReturnType<typeof listPosKdsStatuses>>;
     printers: Awaited<ReturnType<typeof listPosPrinters>>;
     categoryRoutes: Awaited<ReturnType<typeof listPosCategoryRoutes>>;
   };
@@ -341,8 +346,9 @@ export async function loadPosBootstrap(
     })
     .filter((g) => g.choices.length > 0);
 
-  const [kdsDevices, printers, categoryRoutes] = await Promise.all([
+  const [kdsDevices, kdsStatuses, printers, categoryRoutes] = await Promise.all([
     listPosKdsDevices(supabase, restaurantId),
+    ensureDefaultPosKdsStatuses(supabase, restaurantId),
     listPosPrinters(supabase, restaurantId),
     listPosCategoryRoutes(supabase, restaurantId),
   ]);
@@ -379,6 +385,7 @@ export async function loadPosBootstrap(
     },
     kitchen: {
       kdsDevices,
+      kdsStatuses,
       printers,
       categoryRoutes,
     },

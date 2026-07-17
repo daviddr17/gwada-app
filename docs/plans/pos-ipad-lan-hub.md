@@ -99,7 +99,7 @@ Simulator oder Gerät: iPad = Server, iPhone = Client (gleiches WLAN / Simulator
 
 - [x] `pos_kds_devices` + Web-Einstellungen (Kategorien/Gänge)
 - [x] Tickets-API + Swift-KDS + Hub-Seite `:8787/v1/kds`
-- [ ] Status tippen (preparing/ready) + Offline-Filter am Hub verfeinern
+- [x] Status tippen (konfigurierbare Stages + Farbe + optional Bondruck) + Hub-HTML Tap
 
 ### Phase 3 — Offline-Queue / Hardware
 

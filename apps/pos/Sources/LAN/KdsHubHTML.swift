@@ -14,28 +14,46 @@ enum KdsHubHTML {
             :root { color-scheme: light dark; --bg:#0f1115; --card:#1a1d24; --fg:#f4f4f5; --muted:#a1a1aa; --accent:#eab308; }
             * { box-sizing: border-box; }
             body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--fg); }
-            header { display:flex; gap:12px; align-items:center; padding:14px 18px; border-bottom:1px solid #27272a; position:sticky; top:0; background:rgba(15,17,21,.92); backdrop-filter: blur(8px); }
+            header { display:flex; gap:12px; align-items:center; padding:14px 18px; border-bottom:1px solid #27272a; position:sticky; top:0; background:rgba(15,17,21,.92); backdrop-filter: blur(8px); z-index:2; }
             h1 { font-size:18px; margin:0; font-weight:700; letter-spacing:-.02em; }
             .muted { color:var(--muted); font-size:13px; }
-            button { background:#27272a; color:var(--fg); border:0; border-radius:999px; padding:8px 12px; font-weight:600; }
+            button { background:#27272a; color:var(--fg); border:0; border-radius:999px; padding:8px 12px; font-weight:600; cursor:pointer; }
             .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; padding:16px; }
-            .card { background:var(--card); border-radius:16px; padding:14px; min-height:140px; border:1px solid #27272a; }
-            .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+            .card { background:var(--card); border-radius:16px; padding:14px; min-height:140px; border:1px solid #27272a; cursor:pointer; transition: transform .08s ease, border-color .12s ease; text-align:left; width:100%; color:inherit; font:inherit; }
+            .card:active { transform: scale(.985); }
+            .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; }
             .num { font-size:22px; font-weight:800; font-variant-numeric: tabular-nums; }
-            .badge { font-size:11px; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(234,179,8,.18); color:var(--accent); }
+            .badge { font-size:11px; font-weight:800; padding:4px 8px; border-radius:999px; }
             .line { font-weight:650; margin:6px 0 2px; }
             .detail { font-size:12px; color:var(--muted); }
+            .hint { font-size:11px; color:var(--muted); margin-top:10px; }
           </style>
         </head>
         <body>
           <header>
             <h1>Gwada KDS</h1>
-            <span class="muted" id="meta">Lokaler Hub</span>
+            <span class="muted" id="meta">Lokaler Hub · Tippen = nächster Status</span>
             <span style="flex:1"></span>
-            <button onclick="load()">Aktualisieren</button>
+            <button type="button" onclick="load()">Aktualisieren</button>
           </header>
           <div class="grid" id="grid"></div>
           <script>
+            function hexToRgba(hex, a) {
+              const h = String(hex || '#eab308').replace('#','');
+              if (h.length !== 6) return 'rgba(234,179,8,' + a + ')';
+              const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+              return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+            }
+            async function advance(orderId) {
+              try {
+                await fetch('/v1/kds/tickets/advance', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderId }),
+                });
+              } catch (e) {}
+              load();
+            }
             async function load() {
               const meta = document.getElementById('meta');
               const grid = document.getElementById('grid');
@@ -43,16 +61,25 @@ enum KdsHubHTML {
                 const res = await fetch('/v1/kds/tickets');
                 const data = await res.json();
                 const tickets = data.tickets || [];
-                meta.textContent = tickets.length ? (tickets.length + ' Tickets') : 'Keine Tickets — Bestellungen von der Kasse';
-                grid.innerHTML = tickets.map(t => `
-                  <article class="card">
-                    <div class="top"><div class="num">#${t.orderNumber}</div><div class="badge">${(t.status||'').toUpperCase()}</div></div>
+                meta.textContent = tickets.length
+                  ? (tickets.length + ' Tickets · Tippen = nächster Status')
+                  : 'Keine Tickets — Bestellungen von der Kasse';
+                grid.innerHTML = tickets.map(t => {
+                  const color = t.statusColor || '#eab308';
+                  const label = t.statusName || t.status || '';
+                  return `
+                  <button type="button" class="card" style="border-color:${hexToRgba(color,0.45)}" onclick="advance('${escapeAttr(t.orderId)}')">
+                    <div class="top">
+                      <div class="num">#${t.orderNumber}</div>
+                      <div class="badge" style="background:${hexToRgba(color,0.2)};color:${color}">${escapeHtml(label).toUpperCase()}</div>
+                    </div>
                     ${(t.lines||[]).map(l => `
                       <div class="line">${l.quantity}× ${escapeHtml(l.name)}</div>
                       <div class="detail">${escapeHtml(l.detail||'')}</div>
                     `).join('')}
-                  </article>
-                `).join('');
+                    <div class="hint">Tippen → nächster Status</div>
+                  </button>
+                `}).join('');
               } catch (e) {
                 meta.textContent = 'Fehler beim Laden';
                 grid.innerHTML = '';
@@ -60,6 +87,9 @@ enum KdsHubHTML {
             }
             function escapeHtml(s) {
               return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            }
+            function escapeAttr(s) {
+              return String(s).replace(/['"\\\\]/g, '');
             }
             load();
             setInterval(load, 5000);

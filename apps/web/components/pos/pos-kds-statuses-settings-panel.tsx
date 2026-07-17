@@ -25,6 +25,7 @@ type KdsStatus = {
   color: string;
   sortOrder: number;
   printOnEnter: boolean;
+  deductInventoryOnEnter: boolean;
   printerIds: string[];
   isActive: boolean;
 };
@@ -39,6 +40,7 @@ export function PosKdsStatusesSettingsPanel() {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#3b82f6");
   const [printOnEnter, setPrintOnEnter] = useState(false);
+  const [deductInventoryOnEnter, setDeductInventoryOnEnter] = useState(false);
   const [printerIds, setPrinterIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const showSkeleton = useDeferredSkeleton(!ready || loading);
@@ -92,6 +94,7 @@ export function PosKdsStatusesSettingsPanel() {
           name: name.trim(),
           color,
           printOnEnter,
+          deductInventoryOnEnter,
           printerIds,
         }),
       });
@@ -104,6 +107,7 @@ export function PosKdsStatusesSettingsPanel() {
       setName("");
       setColor("#3b82f6");
       setPrintOnEnter(false);
+      setDeductInventoryOnEnter(false);
       setPrinterIds([]);
       void load();
     } finally {
@@ -114,7 +118,14 @@ export function PosKdsStatusesSettingsPanel() {
   const patchStatus = async (
     status: KdsStatus,
     patch: Partial<
-      Pick<KdsStatus, "name" | "color" | "printOnEnter" | "printerIds">
+      Pick<
+        KdsStatus,
+        | "name"
+        | "color"
+        | "printOnEnter"
+        | "deductInventoryOnEnter"
+        | "printerIds"
+      >
     >,
   ) => {
     if (!restaurantId) return;
@@ -127,6 +138,8 @@ export function PosKdsStatusesSettingsPanel() {
         name: patch.name ?? status.name,
         color: patch.color ?? status.color,
         printOnEnter: patch.printOnEnter ?? status.printOnEnter,
+        deductInventoryOnEnter:
+          patch.deductInventoryOnEnter ?? status.deductInventoryOnEnter,
         printerIds: patch.printerIds ?? status.printerIds,
       }),
     });
@@ -190,8 +203,9 @@ export function PosKdsStatusesSettingsPanel() {
       <CardContent className="space-y-5">
         <p className="text-sm text-muted-foreground">
           Reihenfolge, Namen und Farben für die Küchenanzeige. Tippen auf ein
-          Ticket wechselt zum nächsten Status. Optional: Bondruck beim
-          Erreichen eines Status.
+          Ticket wechselt zum nächsten Status. Optional: Bondruck und
+          Bestandsbuchung beim Erreichen eines Status (Bestandsbuchung muss
+          unter „Bestand &amp; POS“ aktiv sein).
         </p>
 
         <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4">
@@ -234,6 +248,19 @@ export function PosKdsStatusesSettingsPanel() {
             <Switch
               checked={printOnEnter}
               onCheckedChange={(v) => setPrintOnEnter(v === true)}
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/60 px-3 py-2.5">
+            <div>
+              <p className="text-sm font-medium">Bestand buchen</p>
+              <p className="text-xs text-muted-foreground">
+                Rezept-Zutaten vom Bestand abziehen, wenn Ticket diesen Status
+                erreicht
+              </p>
+            </div>
+            <Switch
+              checked={deductInventoryOnEnter}
+              onCheckedChange={(v) => setDeductInventoryOnEnter(v === true)}
             />
           </div>
           {printOnEnter && printers.length > 0 ? (
@@ -348,6 +375,25 @@ export function PosKdsStatusesSettingsPanel() {
                           }}
                         />
                         Bondruck
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={Boolean(s.deductInventoryOnEnter)}
+                          onCheckedChange={(v) => {
+                            const on = v === true;
+                            setStatuses((prev) =>
+                              prev.map((x) =>
+                                x.id === s.id
+                                  ? { ...x, deductInventoryOnEnter: on }
+                                  : x,
+                              ),
+                            );
+                            void patchStatus(s, {
+                              deductInventoryOnEnter: on,
+                            });
+                          }}
+                        />
+                        Bestand buchen
                       </label>
                       {s.printOnEnter && printers.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">

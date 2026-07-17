@@ -8,6 +8,7 @@ export type PosKdsStatus = {
   color: string;
   sortOrder: number;
   printOnEnter: boolean;
+  deductInventoryOnEnter: boolean;
   printerIds: string[];
   isActive: boolean;
 };
@@ -17,15 +18,29 @@ const DEFAULT_STATUSES: Array<{
   color: string;
   sortOrder: number;
   printOnEnter: boolean;
+  deductInventoryOnEnter: boolean;
 }> = [
-  { name: "Neu", color: "#3b82f6", sortOrder: 0, printOnEnter: false },
+  {
+    name: "Neu",
+    color: "#3b82f6",
+    sortOrder: 0,
+    printOnEnter: false,
+    deductInventoryOnEnter: false,
+  },
   {
     name: "In Zubereitung",
     color: "#f97316",
     sortOrder: 1,
     printOnEnter: false,
+    deductInventoryOnEnter: false,
   },
-  { name: "Fertig", color: "#22c55e", sortOrder: 2, printOnEnter: false },
+  {
+    name: "Fertig",
+    color: "#22c55e",
+    sortOrder: 2,
+    printOnEnter: false,
+    deductInventoryOnEnter: false,
+  },
 ];
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -43,6 +58,7 @@ function mapStatus(row: Record<string, unknown>): PosKdsStatus {
     color: String(row.color ?? "#3b82f6"),
     sortOrder: Number(row.sort_order ?? 0),
     printOnEnter: Boolean(row.print_on_enter),
+    deductInventoryOnEnter: Boolean(row.deduct_inventory_on_enter),
     printerIds: (row.printer_ids as string[] | null) ?? [],
     isActive: Boolean(row.is_active),
   };
@@ -55,7 +71,7 @@ export async function listPosKdsStatuses(
   const { data, error } = await supabase
     .from("pos_kds_statuses")
     .select(
-      "id, name, color, sort_order, print_on_enter, printer_ids, is_active",
+      "id, name, color, sort_order, print_on_enter, deduct_inventory_on_enter, printer_ids, is_active",
     )
     .eq("restaurant_id", restaurantId)
     .order("sort_order", { ascending: true });
@@ -81,6 +97,7 @@ export async function ensureDefaultPosKdsStatuses(
     color: s.color,
     sort_order: s.sortOrder,
     print_on_enter: s.printOnEnter,
+    deduct_inventory_on_enter: s.deductInventoryOnEnter,
     printer_ids: [] as string[],
     is_active: true,
   }));
@@ -100,6 +117,7 @@ export async function upsertPosKdsStatus(params: {
   name: string;
   color: string;
   printOnEnter?: boolean;
+  deductInventoryOnEnter?: boolean;
   printerIds?: string[];
   isActive?: boolean;
   sortOrder?: number;
@@ -114,6 +132,7 @@ export async function upsertPosKdsStatus(params: {
     name,
     color,
     print_on_enter: params.printOnEnter ?? false,
+    deduct_inventory_on_enter: params.deductInventoryOnEnter ?? false,
     printer_ids: params.printerIds ?? [],
     is_active: params.isActive ?? true,
   };
@@ -129,7 +148,7 @@ export async function upsertPosKdsStatus(params: {
       .eq("id", params.id)
       .eq("restaurant_id", params.restaurantId)
       .select(
-        "id, name, color, sort_order, print_on_enter, printer_ids, is_active",
+        "id, name, color, sort_order, print_on_enter, deduct_inventory_on_enter, printer_ids, is_active",
       )
       .maybeSingle();
     if (error || !data) {
@@ -155,7 +174,7 @@ export async function upsertPosKdsStatus(params: {
     .from("pos_kds_statuses")
     .insert({ ...payload, sort_order: sortOrder })
     .select(
-      "id, name, color, sort_order, print_on_enter, printer_ids, is_active",
+      "id, name, color, sort_order, print_on_enter, deduct_inventory_on_enter, printer_ids, is_active",
     )
     .single();
 

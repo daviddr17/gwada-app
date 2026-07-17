@@ -8,6 +8,10 @@ struct ReceiptsView: View {
     @State private var loading = false
     @State private var errorText = ""
     @State private var voidTarget: PosCloudClient.PosTodayReceiptDto?
+    @State private var voidReasons: [PosCloudClient.PosVoidReasonDto] = []
+    @State private var selectedVoidReasonId: String?
+    @State private var reopenTable = true
+    @State private var showVoidSheet = false
     @State private var busyId: String?
 
     var body: some View {
@@ -51,24 +55,76 @@ struct ReceiptsView: View {
         }
         .task { await reload() }
         .refreshable { await reload() }
-        .confirmationDialog(
-            "Bar-Zahlung stornieren?",
-            isPresented: Binding(
-                get: { voidTarget != nil },
-                set: { if !$0 { voidTarget = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: voidTarget
-        ) { receipt in
-            Button("Stornieren & Tisch öffnen", role: .destructive) {
-                Task { await voidReceipt(receipt, reopen: true) }
+        .sheet(isPresented: $showVoidSheet) {
+            NavigationStack {
+                Form {
+                    if let receipt = voidTarget {
+                        Section {
+                            Text("\(receipt.tableLabel) · #\(receipt.orderNumber)")
+                            Text(PosMoney.format(receipt.amountCents))
+                                .font(.body.monospacedDigit())
+                        }
+                    }
+                    if !voidReasons.isEmpty {
+                        Section("Storno-Grund") {
+                            ForEach(voidReasons) { reason in
+                                Button {
+                                    selectedVoidReasonId = reason.id
+                                } label: {
+                                    HStack(alignment: .top) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(reason.name)
+                                                .foregroundStyle(.primary)
+                                            Text(
+                                                reason.restoreInventory
+                                                    ? "Bestand wird zurückgebucht"
+                                                    : "Bestand bleibt abgezogen"
+                                            )
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        if selectedVoidReasonId == reason.id {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(.accentColor)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Section {
+                        Toggle("Tisch wieder öffnen", isOn: $reopenTable)
+                    }
+                }
+                .navigationTitle("Stornieren")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Abbrechen") {
+                            showVoidSheet = false
+                            voidTarget = nil
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Stornieren", role: .destructive) {
+                            guard let receipt = voidTarget else { return }
+                            Task {
+                                await voidReceipt(
+                                    receipt,
+                                    reopen: reopenTable,
+                                    voidReasonId: selectedVoidReasonId
+                                )
+                            }
+                        }
+                        .disabled(
+                            busyId != nil
+                                || (!voidReasons.isEmpty && selectedVoidReasonId == nil)
+                        )
+                    }
+                }
             }
-            Button("Nur stornieren") {
-                Task { await voidReceipt(receipt, reopen: false) }
-            }
-            Button("Abbrechen", role: .cancel) { voidTarget = nil }
-        } message: { receipt in
-            Text("\(receipt.tableLabel) · #\(receipt.orderNumber) · \(PosMoney.format(receipt.amountCents))")
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -115,7 +171,7 @@ struct ReceiptsView: View {
 
             if receipt.canVoidCash {
                 Button {
-                    voidTarget = receipt
+                    Task { await prepareVoid(receipt) }
                 } label: {
                     Label(
                         busyId == receipt.paymentId ? "Storniere …" : "Stornieren",
@@ -162,24 +218,49 @@ struct ReceiptsView: View {
         }
     }
 
-    private func voidReceipt(_ receipt: PosCloudClient.PosTodayReceiptDto, reopen: Bool) async {
+    private func prepareVoid(_ receipt: PosCloudClient.PosTodayReceiptDto) async {
+        voidTarget = receipt
+        reopenTable = true
+        selectedVoidReasonId = nil
+        let restaurantId = PosHubState.shared.restaurantId
+        do {
+            voidReasons = try await PosCloudClient.fetchVoidReasons(restaurantId: restaurantId)
+            if voidReasons.count == 1 {
+                selectedVoidReasonId = voidReasons.first?.id
+            }
+        } catch {
+            voidReasons = []
+            runtime.announce("Storno-Gründe konnten nicht geladen werden.")
+        }
+        showVoidSheet = true
+    }
+
+    private func voidReceipt(
+        _ receipt: PosCloudClient.PosTodayReceiptDto,
+        reopen: Bool,
+        voidReasonId: String?
+    ) async {
         busyId = receipt.paymentId
         defer {
             busyId = nil
             voidTarget = nil
+            showVoidSheet = false
         }
         let restaurantId = PosHubState.shared.restaurantId
         do {
             let result = try await PosCloudClient.voidCashPayment(
                 restaurantId: restaurantId,
                 paymentId: receipt.paymentId,
-                reopenTable: reopen
+                reopenTable: reopen,
+                voidReasonId: voidReasonId
             )
-            runtime.announce(
-                result.reopened
-                    ? "Storniert — Tisch wieder geöffnet."
-                    : "Bar-Zahlung storniert."
-            )
+            var message = result.reopened
+                ? "Storniert — Tisch wieder geöffnet."
+                : "Bar-Zahlung storniert."
+            if result.inventoryRestored {
+                message += " Bestand zurückgebucht."
+            }
+            runtime.announce(message)
             await runtime.refresh()
             await reload()
         } catch {

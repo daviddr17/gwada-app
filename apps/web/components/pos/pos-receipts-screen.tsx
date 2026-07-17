@@ -17,6 +17,13 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -33,11 +40,14 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
   fetchPosReceipts,
+  fetchPosVoidReasons,
   posApiErrorLabel,
   regeneratePosReceipt,
   voidPosCashPayment,
+  type PosVoidReasonDto,
   type PosWebReceiptDto,
 } from "@/lib/pos/pos-web-api-client";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 
@@ -84,6 +94,11 @@ export function PosReceiptsScreen() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [voidTarget, setVoidTarget] = useState<PosWebReceiptDto | null>(null);
+  const [voidReasons, setVoidReasons] = useState<PosVoidReasonDto[]>([]);
+  const [voidReasonId, setVoidReasonId] = useState<string | null>(null);
+  const [voidReasonsLoading, setVoidReasonsLoading] = useState(false);
+  const [reopenTable, setReopenTable] = useState(true);
   const showSkeleton = useDeferredSkeleton(!ready || loading);
 
   const rangeInvalid = fromYmd > toYmd;
@@ -120,28 +135,55 @@ export function PosReceiptsScreen() {
     return receipts.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
   }, [receipts, currentPage]);
 
-  const handleVoid = async (receipt: PosWebReceiptDto) => {
+  const openVoidDrawer = async (receipt: PosWebReceiptDto) => {
     if (!restaurantId || !canManage) return;
-    const ok = window.confirm(
-      `Barzahlung #${receipt.orderNumber} stornieren und Tisch ggf. wieder öffnen?`,
-    );
-    if (!ok) return;
-    setBusyId(`void-${receipt.paymentId}`);
+    setVoidTarget(receipt);
+    setVoidReasonId(null);
+    setReopenTable(true);
+    setVoidReasonsLoading(true);
+    try {
+      const result = await fetchPosVoidReasons(restaurantId);
+      if (!result.ok) {
+        toast.error(posApiErrorLabel(result.error));
+        setVoidReasons([]);
+        return;
+      }
+      const active = (result.data.reasons ?? []).filter((r) => r.isActive);
+      setVoidReasons(active);
+      if (active.length === 1) setVoidReasonId(active[0]!.id);
+    } finally {
+      setVoidReasonsLoading(false);
+    }
+  };
+
+  const confirmVoid = async () => {
+    if (!restaurantId || !canManage || !voidTarget) return;
+    if (voidReasons.length > 0 && !voidReasonId) {
+      toast.error("Bitte einen Storno-Grund wählen.");
+      return;
+    }
+    setBusyId(`void-${voidTarget.paymentId}`);
     try {
       const result = await voidPosCashPayment(
         restaurantId,
-        receipt.paymentId,
-        true,
+        voidTarget.paymentId,
+        reopenTable,
+        voidReasonId,
       );
       if (!result.ok) {
         toast.error(posApiErrorLabel(result.error));
         return;
       }
-      toast.success(
+      const parts = [
         result.data.reopened
           ? "Storniert — Tisch wieder geöffnet"
           : "Barzahlung storniert",
-      );
+      ];
+      if (result.data.inventoryRestored) {
+        parts.push("Bestand zurückgebucht");
+      }
+      toast.success(parts.join(" · "));
+      setVoidTarget(null);
       await load();
     } finally {
       setBusyId(null);
@@ -336,7 +378,7 @@ export function PosReceiptsScreen() {
                             variant="outline"
                             className="rounded-lg"
                             disabled={voidBusy || pdfBusy}
-                            onClick={() => void handleVoid(receipt)}
+                            onClick={() => void openVoidDrawer(receipt)}
                           >
                             {voidBusy ? (
                               <Loader2
@@ -358,6 +400,98 @@ export function PosReceiptsScreen() {
           </table>
         </ModulePaginatedDataTable>
       )}
+
+      <Drawer
+        open={voidTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setVoidTarget(null);
+        }}
+        direction="bottom"
+        repositionInputs={false}
+      >
+        <DrawerContent className="mx-auto max-w-lg">
+          <DrawerHeader>
+            <DrawerTitle>Barzahlung stornieren</DrawerTitle>
+          </DrawerHeader>
+          <div className="space-y-4 px-4 pb-2">
+            {voidTarget ? (
+              <p className="text-sm text-muted-foreground">
+                #{voidTarget.orderNumber} · {formatCents(voidTarget.amountCents)}
+              </p>
+            ) : null}
+            {voidReasonsLoading ? (
+              <Skeleton className="h-24 w-full rounded-xl" />
+            ) : voidReasons.length > 0 ? (
+              <div className="space-y-2">
+                <Label>Storno-Grund</Label>
+                <div className="flex flex-col gap-2">
+                  {voidReasons.map((reason) => {
+                    const selected = voidReasonId === reason.id;
+                    return (
+                      <button
+                        key={reason.id}
+                        type="button"
+                        className={cn(
+                          "rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                          selected
+                            ? "border-accent/50 bg-accent/10"
+                            : "border-border/50 bg-muted/20",
+                        )}
+                        onClick={() => setVoidReasonId(reason.id)}
+                      >
+                        <span className="font-medium">{reason.name}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {reason.restoreInventory
+                            ? "Bestand wird zurückgebucht"
+                            : "Bestand bleibt abgezogen"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Kein Storno-Grund hinterlegt — Storno ohne Grund-Auswahl.
+              </p>
+            )}
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-border"
+                checked={reopenTable}
+                onChange={(e) => setReopenTable(e.target.checked)}
+              />
+              Tisch wieder öffnen
+            </label>
+          </div>
+          <DrawerFooter className="flex-row gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 rounded-xl"
+              onClick={() => setVoidTarget(null)}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              className={cn("flex-1", brandActionButtonRoundedClassName)}
+              disabled={
+                Boolean(busyId) ||
+                voidReasonsLoading ||
+                (voidReasons.length > 0 && !voidReasonId)
+              }
+              onClick={() => void confirmVoid()}
+            >
+              {busyId ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : null}
+              Stornieren
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

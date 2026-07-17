@@ -326,6 +326,7 @@ export async function advanceKdsTicketStatus(params: {
   restaurantId: string;
   orderId: string;
   deviceId?: string | null;
+  userId?: string | null;
 }): Promise<AdvanceKdsTicketResult> {
   const statuses = (
     await ensureDefaultPosKdsStatuses(params.supabase, params.restaurantId)
@@ -385,6 +386,22 @@ export async function advanceKdsTicketStatus(params: {
   if (updateError) {
     console.warn("[pos] advance kds", updateError.message);
     return { ok: false, error: "advance_failed", status: 500 };
+  }
+
+  if (params.userId) {
+    const { maybeDeductInventoryForPosOrder } = await import(
+      "@/lib/pos/pos-inventory-booking-server"
+    );
+    const deduct = await maybeDeductInventoryForPosOrder({
+      supabase: params.supabase,
+      restaurantId: params.restaurantId,
+      orderId: params.orderId,
+      kdsStatusId: next.id,
+      userId: params.userId,
+    });
+    if (deduct.error) {
+      console.warn("[pos] kds inventory deduct", deduct.error);
+    }
   }
 
   const loaded = await loadKdsTickets({

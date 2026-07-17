@@ -184,19 +184,40 @@ export async function fetchPosReceipts(
   });
 }
 
+export type PosVoidReasonDto = {
+  id: string;
+  name: string;
+  restoreInventory: boolean;
+  sortOrder: number;
+  isActive: boolean;
+};
+
+export async function fetchPosVoidReasons(restaurantId: string) {
+  return posWebFetch<{ reasons: PosVoidReasonDto[] }>(
+    "/api/pos/void-reasons",
+    restaurantId,
+  );
+}
+
 export async function voidPosCashPayment(
   restaurantId: string,
   paymentId: string,
   reopenTable = true,
+  voidReasonId?: string | null,
 ) {
   return posWebFetch<{
     ok: true;
     paymentId: string;
     tableSessionId: string;
     reopened: boolean;
+    inventoryRestored: boolean;
   }>(`/api/pos/payments/${paymentId}/void-cash`, restaurantId, {
     method: "POST",
-    body: JSON.stringify({ restaurantId, reopenTable }),
+    body: JSON.stringify({
+      restaurantId,
+      reopenTable,
+      ...(voidReasonId ? { voidReasonId } : {}),
+    }),
   });
 }
 
@@ -406,6 +427,10 @@ export function posApiErrorLabel(error: string): string {
       return "Kassensession nicht gefunden.";
     case "receipt_generation_failed":
       return "Quittung konnte nicht erzeugt werden.";
+    case "void_reason_required":
+      return "Bitte einen Storno-Grund wählen.";
+    case "invalid_void_reason":
+      return "Ungültiger Storno-Grund.";
     default:
       return error.replace(/_/g, " ");
   }

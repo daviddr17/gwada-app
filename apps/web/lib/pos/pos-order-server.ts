@@ -253,6 +253,22 @@ export async function createPosOrder(params: {
     return { ok: false, error: "create_order_lines_failed", status: 500 };
   }
 
+  if (kdsStatusId && params.createdByProfileId) {
+    const { maybeDeductInventoryForPosOrder } = await import(
+      "@/lib/pos/pos-inventory-booking-server"
+    );
+    const deduct = await maybeDeductInventoryForPosOrder({
+      supabase: params.supabase,
+      restaurantId: params.restaurantId,
+      orderId: order.id as string,
+      kdsStatusId,
+      userId: params.createdByProfileId,
+    });
+    if (deduct.error) {
+      console.warn("[pos] create order inventory", deduct.error);
+    }
+  }
+
   return {
     ok: true,
     orderId: order.id as string,

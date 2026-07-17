@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     restaurantId: authResult.auth.restaurantId,
     orderId,
     deviceId: body.deviceId?.trim() || null,
+    userId: authResult.auth.userId,
   });
 
   if (!result.ok) return posError(result.error, result.status);

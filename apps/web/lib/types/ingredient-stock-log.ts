@@ -83,12 +83,50 @@ export type IngredientStockLogFromInvoiceCorrection = {
   articleName: string;
 };
 
+/** Bestandsreduktion durch POS-Bestellung (Rezept am Gericht). */
+export type IngredientStockLogFromPosOrder = {
+  id: string;
+  at: string;
+  userFirstName: string;
+  userLastName: string;
+  userSource?: ProtocolUserSource;
+  kind: "stock_from_pos_order";
+  fromQuantity: number;
+  toQuantity: number;
+  unitId: string;
+  unitLabel: string;
+  orderId: string;
+  orderNumber: number;
+  dishName: string;
+};
+
+/** Bestandserhöhung durch POS-Storno (wenn Storno-Grund Bestand zurückbucht). */
+export type IngredientStockLogFromPosVoid = {
+  id: string;
+  at: string;
+  userFirstName: string;
+  userLastName: string;
+  userSource?: ProtocolUserSource;
+  kind: "stock_from_pos_void";
+  fromQuantity: number;
+  toQuantity: number;
+  unitId: string;
+  unitLabel: string;
+  orderId: string;
+  orderNumber: number;
+  paymentId: string;
+  voidReasonName: string;
+  dishName: string;
+};
+
 export type IngredientStockLogEntry =
   | IngredientStockLogManual
   | IngredientStockLogFromDelivery
   | IngredientStockLogDeliveryReverted
   | IngredientStockLogFromInvoice
-  | IngredientStockLogFromInvoiceCorrection;
+  | IngredientStockLogFromInvoiceCorrection
+  | IngredientStockLogFromPosOrder
+  | IngredientStockLogFromPosVoid;
 
 export function resolveIngredientStockLogUserLabel(
   e: IngredientStockLogEntry,
@@ -114,6 +152,10 @@ export function ingredientStockActionColumn(e: IngredientStockLogEntry): string 
       return "Rechnung";
     case "stock_from_invoice_correction":
       return "Rechnungskorrektur";
+    case "stock_from_pos_order":
+      return "POS-Bestellung";
+    case "stock_from_pos_void":
+      return "POS-Storno";
     default:
       return "—";
   }

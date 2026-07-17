@@ -1,10 +1,9 @@
 import {
-  deletePosKdsStatus,
-  ensureDefaultPosKdsStatuses,
-  normalizeKdsStatusColor,
-  reorderPosKdsStatuses,
-  upsertPosKdsStatus,
-} from "@/lib/pos/pos-kds-statuses-server";
+  deletePosVoidReason,
+  ensureDefaultPosVoidReasons,
+  reorderPosVoidReasons,
+  upsertPosVoidReason,
+} from "@/lib/pos/pos-void-reasons-server";
 import { posError, posJson } from "@/lib/pos/pos-responses";
 import { authorizePosRestaurant } from "@/lib/pos/pos-route-auth";
 
@@ -16,11 +15,11 @@ export async function GET(request: Request) {
   const authResult = await authorizePosRestaurant(request, restaurantId);
   if (!authResult.ok) return posError(authResult.error, authResult.status);
 
-  const statuses = await ensureDefaultPosKdsStatuses(
+  const reasons = await ensureDefaultPosVoidReasons(
     authResult.auth.supabase,
     authResult.auth.restaurantId,
   );
-  return posJson({ statuses });
+  return posJson({ reasons });
 }
 
 export async function POST(request: Request) {
@@ -28,10 +27,7 @@ export async function POST(request: Request) {
     restaurantId?: string;
     id?: string;
     name?: string;
-    color?: string;
-    printOnEnter?: boolean;
-    deductInventoryOnEnter?: boolean;
-    printerIds?: string[];
+    restoreInventory?: boolean;
     isActive?: boolean;
     sortOrder?: number;
     orderedIds?: string[];
@@ -51,7 +47,7 @@ export async function POST(request: Request) {
   if (!authResult.ok) return posError(authResult.error, authResult.status);
 
   if (body.reorder && Array.isArray(body.orderedIds)) {
-    const ok = await reorderPosKdsStatuses({
+    const ok = await reorderPosVoidReasons({
       supabase: authResult.auth.supabase,
       restaurantId: authResult.auth.restaurantId,
       orderedIds: body.orderedIds.filter(
@@ -62,7 +58,7 @@ export async function POST(request: Request) {
   }
 
   if (body.delete && body.id) {
-    const ok = await deletePosKdsStatus(
+    const ok = await deletePosVoidReason(
       authResult.auth.supabase,
       authResult.auth.restaurantId,
       body.id,
@@ -72,22 +68,16 @@ export async function POST(request: Request) {
 
   const name = body.name?.trim() ?? "";
   if (!name) return posError("invalid_name", 400);
-  const color = normalizeKdsStatusColor(body.color ?? "");
-  if (!color) return posError("invalid_color", 400);
 
-  const status = await upsertPosKdsStatus({
+  const reason = await upsertPosVoidReason({
     supabase: authResult.auth.supabase,
     restaurantId: authResult.auth.restaurantId,
     id: body.id,
     name,
-    color,
-    printOnEnter: body.printOnEnter,
-    deductInventoryOnEnter: body.deductInventoryOnEnter,
-    printerIds: body.printerIds,
+    restoreInventory: body.restoreInventory,
     isActive: body.isActive,
     sortOrder: body.sortOrder,
   });
-
-  if (!status) return posError("save_failed", 500);
-  return posJson({ status });
+  if (!reason) return posError("save_failed", 500);
+  return posJson({ reason });
 }

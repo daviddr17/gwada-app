@@ -321,25 +321,47 @@ enum PosCloudClient {
         return res.receipts
     }
 
+    struct PosVoidReasonDto: Decodable, Identifiable, Sendable, Hashable {
+        var id: String
+        var name: String
+        var restoreInventory: Bool
+        var sortOrder: Int
+        var isActive: Bool
+    }
+
+    @MainActor
+    static func fetchVoidReasons(restaurantId: String) async throws -> [PosVoidReasonDto] {
+        struct Res: Decodable { var reasons: [PosVoidReasonDto] }
+        let res: Res = try await get("/api/pos/void-reasons", restaurantId: restaurantId)
+        return res.reasons.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     @MainActor
     static func voidCashPayment(
         restaurantId: String,
         paymentId: String,
-        reopenTable: Bool = true
-    ) async throws -> (reopened: Bool, tableSessionId: String) {
+        reopenTable: Bool = true,
+        voidReasonId: String? = nil
+    ) async throws -> (reopened: Bool, tableSessionId: String, inventoryRestored: Bool) {
         struct Body: Encodable {
             var restaurantId: String
             var reopenTable: Bool
+            var voidReasonId: String?
         }
         struct Res: Decodable {
             var reopened: Bool
             var tableSessionId: String
+            var inventoryRestored: Bool?
         }
         let res: Res = try await post(
             "/api/pos/payments/\(paymentId)/void-cash",
-            body: Body(restaurantId: restaurantId, reopenTable: reopenTable)
+            body: Body(
+                restaurantId: restaurantId,
+                reopenTable: reopenTable,
+                voidReasonId: voidReasonId
+            )
         )
-        return (res.reopened, res.tableSessionId)
+        return (res.reopened, res.tableSessionId, res.inventoryRestored ?? false)
     }
 
     @MainActor

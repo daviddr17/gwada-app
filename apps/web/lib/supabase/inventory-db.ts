@@ -171,6 +171,74 @@ export function parseStockLogEntryFromJson(raw: unknown): IngredientStockLogEntr
       articleName: raw.articleName,
     };
   }
+  if (raw.kind === "stock_from_pos_order") {
+    if (
+      typeof raw.fromQuantity !== "number" ||
+      typeof raw.toQuantity !== "number" ||
+      Number.isNaN(raw.fromQuantity) ||
+      Number.isNaN(raw.toQuantity)
+    )
+      return null;
+    if (typeof raw.unitId !== "string" || typeof raw.unitLabel !== "string")
+      return null;
+    if (
+      typeof raw.orderId !== "string" ||
+      typeof raw.orderNumber !== "number" ||
+      typeof raw.dishName !== "string"
+    )
+      return null;
+    return {
+      id: raw.id,
+      at: raw.at,
+      userFirstName,
+      userLastName,
+      ...(userSource ? { userSource } : {}),
+      kind: "stock_from_pos_order",
+      fromQuantity: raw.fromQuantity,
+      toQuantity: raw.toQuantity,
+      unitId: raw.unitId,
+      unitLabel: raw.unitLabel,
+      orderId: raw.orderId,
+      orderNumber: raw.orderNumber,
+      dishName: raw.dishName,
+    };
+  }
+  if (raw.kind === "stock_from_pos_void") {
+    if (
+      typeof raw.fromQuantity !== "number" ||
+      typeof raw.toQuantity !== "number" ||
+      Number.isNaN(raw.fromQuantity) ||
+      Number.isNaN(raw.toQuantity)
+    )
+      return null;
+    if (typeof raw.unitId !== "string" || typeof raw.unitLabel !== "string")
+      return null;
+    if (
+      typeof raw.orderId !== "string" ||
+      typeof raw.orderNumber !== "number" ||
+      typeof raw.paymentId !== "string" ||
+      typeof raw.voidReasonName !== "string" ||
+      typeof raw.dishName !== "string"
+    )
+      return null;
+    return {
+      id: raw.id,
+      at: raw.at,
+      userFirstName,
+      userLastName,
+      ...(userSource ? { userSource } : {}),
+      kind: "stock_from_pos_void",
+      fromQuantity: raw.fromQuantity,
+      toQuantity: raw.toQuantity,
+      unitId: raw.unitId,
+      unitLabel: raw.unitLabel,
+      orderId: raw.orderId,
+      orderNumber: raw.orderNumber,
+      paymentId: raw.paymentId,
+      voidReasonName: raw.voidReasonName,
+      dishName: raw.dishName,
+    };
+  }
   return null;
 }
 

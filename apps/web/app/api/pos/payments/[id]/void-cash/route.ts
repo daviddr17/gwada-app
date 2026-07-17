@@ -11,11 +11,16 @@ export async function POST(
 ) {
   const { id: paymentId } = await context.params;
 
-  let body: { restaurantId?: string; reopenTable?: boolean };
+  let body: {
+    restaurantId?: string;
+    reopenTable?: boolean;
+    voidReasonId?: string;
+  };
   try {
     body = (await request.json()) as {
       restaurantId?: string;
       reopenTable?: boolean;
+      voidReasonId?: string;
     };
   } catch {
     return posError("invalid_request", 400);
@@ -34,6 +39,8 @@ export async function POST(
     restaurantId: authResult.auth.restaurantId,
     paymentId,
     reopenTable: body.reopenTable !== false,
+    voidReasonId: body.voidReasonId?.trim() || null,
+    userId: authResult.auth.userId,
   });
 
   if (!result.ok) return posError(result.error, result.status);

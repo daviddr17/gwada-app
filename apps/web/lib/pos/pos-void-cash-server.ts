@@ -12,12 +12,15 @@ export async function voidCashPayment(params: {
   restaurantId: string;
   paymentId: string;
   reopenTable?: boolean;
+  voidReasonId?: string | null;
+  userId?: string | null;
 }): Promise<
   | {
       ok: true;
       paymentId: string;
       tableSessionId: string;
       reopened: boolean;
+      inventoryRestored: boolean;
     }
   | { ok: false; error: string; status: number }
 > {
@@ -40,6 +43,28 @@ export async function voidCashPayment(params: {
   }
   if (payment.status !== "paid") {
     return { ok: false, error: "payment_not_paid", status: 400 };
+  }
+
+  const voidReasonId = params.voidReasonId?.trim() || null;
+  if (voidReasonId) {
+    const { data: reason } = await params.supabase
+      .from("pos_void_reasons")
+      .select("id, is_active")
+      .eq("id", voidReasonId)
+      .eq("restaurant_id", params.restaurantId)
+      .maybeSingle();
+    if (!reason || reason.is_active === false) {
+      return { ok: false, error: "invalid_void_reason", status: 400 };
+    }
+  } else {
+    const { count } = await params.supabase
+      .from("pos_void_reasons")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", params.restaurantId)
+      .eq("is_active", true);
+    if ((count ?? 0) > 0) {
+      return { ok: false, error: "void_reason_required", status: 400 };
+    }
   }
 
   const { data: order, error: orderError } = await params.supabase
@@ -93,13 +118,39 @@ export async function voidCashPayment(params: {
     return { ok: false, error: "delete_allocations_failed", status: 500 };
   }
 
+  const voidedAt = new Date().toISOString();
   const { error: refundError } = await params.supabase
     .from("pos_payments")
-    .update({ status: "refunded" })
+    .update({
+      status: "refunded",
+      void_reason_id: voidReasonId,
+      voided_at: voidedAt,
+      voided_by_profile_id: params.userId ?? null,
+    })
     .eq("id", params.paymentId);
   if (refundError) {
     console.warn("[pos] void cash refund status", refundError.message);
     return { ok: false, error: "refund_update_failed", status: 500 };
+  }
+
+  let inventoryRestored = false;
+  if (voidReasonId) {
+    const { maybeRestoreInventoryForPosVoid } = await import(
+      "@/lib/pos/pos-inventory-booking-server"
+    );
+    const restore = await maybeRestoreInventoryForPosVoid({
+      supabase: params.supabase,
+      restaurantId: params.restaurantId,
+      orderId: order.id as string,
+      paymentId: params.paymentId,
+      voidReasonId,
+      userId: params.userId ?? "",
+    });
+    if (restore.error) {
+      console.warn("[pos] void inventory restore", restore.error);
+    } else {
+      inventoryRestored = restore.restored;
+    }
   }
 
   // Order ggf. wieder in Küchen-Lifecycle, wenn schon delivered
@@ -153,6 +204,7 @@ export async function voidCashPayment(params: {
     paymentId: params.paymentId,
     tableSessionId,
     reopened,
+    inventoryRestored,
   };
 }
 

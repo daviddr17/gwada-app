@@ -24,4 +24,20 @@ enum PosLocalStore {
         guard let data = try? Data(contentsOf: bootstrapURL) else { return nil }
         return try? JSONDecoder().decode(PosCloudBootstrap.self, from: data)
     }
+
+    private static var reservationsURL: URL {
+        directory.appendingPathComponent("reservations-cache.json")
+    }
+
+    static func saveReservationsCache(_ cache: [String: PosReservationsDayDto]) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(cache) else { return }
+        try? data.write(to: reservationsURL, options: [.atomic])
+    }
+
+    static func loadReservationsCache() -> [String: PosReservationsDayDto]? {
+        guard let data = try? Data(contentsOf: reservationsURL) else { return nil }
+        return try? JSONDecoder().decode([String: PosReservationsDayDto].self, from: data)
+    }
 }

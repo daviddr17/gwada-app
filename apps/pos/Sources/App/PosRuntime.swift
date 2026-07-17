@@ -68,6 +68,9 @@ final class PosRuntime: ObservableObject {
             await startHub()
         case .handheld:
             await connectHandheld()
+            if phase == .connected {
+                await pullReservationsDay(PosReservationsStore.todayYmd())
+            }
         }
     }
 
@@ -114,6 +117,7 @@ final class PosRuntime: ObservableObject {
         case .hub:
             await pullCloudBootstrap(forceDemoFallback: false)
             publishSnapshot(PosHubState.shared.makeSnapshot())
+            await pullReservationsDay(PosReservationsStore.shared.selectedDayYmd)
             await PosSyncQueue.shared.flushIfPossible()
             syncPending = PosSyncQueue.shared.pendingCount
             statusMessage = PosSyncQueue.shared.lastFlushMessage.isEmpty
@@ -121,6 +125,111 @@ final class PosRuntime: ObservableObject {
                 : PosSyncQueue.shared.lastFlushMessage
         case .handheld:
             await connectHandheld()
+            await pullReservationsDay(PosReservationsStore.shared.selectedDayYmd)
+        }
+    }
+
+    func selectReservationsDay(_ ymd: String) {
+        PosReservationsStore.shared.selectDay(ymd)
+    }
+
+    func pullReservationsDay(_ ymd: String) async {
+        switch role {
+        case .hub:
+            guard PosAuthStore.shared.isSignedIn else { return }
+            guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else { return }
+            do {
+                let day = try await PosCloudClient.fetchReservationsDay(
+                    restaurantId: restaurantId,
+                    dayYmd: ymd
+                )
+                PosReservationsStore.shared.applyDay(day)
+            } catch {
+                if let cached = PosReservationsStore.shared.cachedDay(ymd) {
+                    PosReservationsStore.shared.applyDay(cached)
+                }
+                statusMessage = "Reservierungen offline — Cache: \(error.localizedDescription)"
+            }
+        case .handheld:
+            guard let base = hubBaseURL else {
+                statusMessage = "Keine Kasse verbunden."
+                return
+            }
+            do {
+                let day = try await HandheldHubClient.fetchReservationsDay(
+                    baseURL: base,
+                    dayYmd: ymd
+                )
+                PosReservationsStore.shared.applyDay(day)
+            } catch {
+                if let cached = PosReservationsStore.shared.cachedDay(ymd) {
+                    PosReservationsStore.shared.applyDay(cached)
+                }
+                statusMessage = "Reservierungen von Kasse nicht geladen: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func createReservation(_ draft: PosCreateReservationPayload) async -> Bool {
+        var payload = draft
+        if payload.localId.isEmpty {
+            payload.localId = UUID().uuidString
+        }
+        if payload.restaurantId.isEmpty {
+            payload.restaurantId = PosHubState.shared.restaurantId
+        }
+
+        let dayYmd = String(payload.startsAt.prefix(10))
+        let optimistic = PosReservationFactory.optimistic(
+            from: payload,
+            day: PosReservationsStore.shared.cachedDay(dayYmd)
+                ?? PosReservationsStore.shared.currentDay
+        )
+        PosReservationsStore.shared.upsertLocalReservation(optimistic, dayYmd: dayYmd)
+
+        if role == .handheld {
+            guard let base = hubBaseURL else {
+                statusMessage = "Keine Kasse verbunden."
+                return false
+            }
+            do {
+                let res = try await HandheldHubClient.createReservation(baseURL: base, payload: payload)
+                if let reservation = res.reservation {
+                    PosReservationsStore.shared.upsertLocalReservation(
+                        reservation,
+                        dayYmd: dayYmd,
+                        replacingLocalId: payload.localId
+                    )
+                }
+                statusMessage = res.reservationNumber > 0
+                    ? "Reservierung #\(res.reservationNumber) angelegt."
+                    : "Reservierung an Kasse übergeben."
+                return true
+            } catch {
+                statusMessage = "Reservierung fehlgeschlagen: \(error.localizedDescription)"
+                return false
+            }
+        }
+
+        // Hub: online direkt in DB, sonst Queue
+        do {
+            let res = try await PosCloudClient.createReservation(payload: payload)
+            if let reservation = res.reservation {
+                PosReservationsStore.shared.upsertLocalReservation(
+                    reservation,
+                    dayYmd: dayYmd,
+                    replacingLocalId: payload.localId
+                )
+            } else {
+                await pullReservationsDay(dayYmd)
+            }
+            statusMessage = "Reservierung #\(res.reservationNumber) gespeichert."
+            return true
+        } catch {
+            PosSyncQueue.shared.enqueueCreateReservation(payload)
+            syncPending = PosSyncQueue.shared.pendingCount
+            statusMessage = "Reservierung lokal — Sync später (\(error.localizedDescription))"
+            return true
         }
     }
 
@@ -487,6 +596,7 @@ final class PosRuntime: ObservableObject {
         await pullCloudBootstrap(forceDemoFallback: true)
         publishSnapshot(PosHubState.shared.makeSnapshot())
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
+        await pullReservationsDay(PosReservationsStore.todayYmd())
 
         let server = HubHTTPServer { method, path, body in
             Self.handleHubRequest(method: method, path: path, body: body)
@@ -563,6 +673,21 @@ final class PosRuntime: ObservableObject {
         bonjourPublishing = false
     }
 
+    private nonisolated static func lanPathOnly(_ pathWithQuery: String) -> String {
+        pathWithQuery.split(separator: "?").first.map(String.init) ?? pathWithQuery
+    }
+
+    private nonisolated static func lanQueryValue(_ pathWithQuery: String, key: String) -> String? {
+        guard let qIndex = pathWithQuery.firstIndex(of: "?") else { return nil }
+        let query = pathWithQuery[pathWithQuery.index(after: qIndex)...]
+        for part in query.split(separator: "&") {
+            let kv = part.split(separator: "=", maxSplits: 1).map(String.init)
+            guard kv.count == 2, kv[0] == key else { continue }
+            return kv[1].removingPercentEncoding ?? kv[1]
+        }
+        return nil
+    }
+
     private nonisolated static func handleHubRequest(
         method: String,
         path: String,
@@ -572,35 +697,74 @@ final class PosRuntime: ObservableObject {
             return (204, Data())
         }
 
+        let pathOnly = lanPathOnly(path)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let decoder = JSONDecoder()
 
         if method == "GET" {
-            if path == PosLanProtocol.healthPath {
+            if pathOnly == PosLanProtocol.healthPath {
                 let health = PosHubState.shared.makeHealth()
                 let data = (try? encoder.encode(health)) ?? Data(#"{"ok":false}"#.utf8)
                 return (200, data)
             }
-            if path == PosLanProtocol.snapshotPath {
+            if pathOnly == PosLanProtocol.snapshotPath {
                 let snap = PosHubState.shared.makeSnapshot()
                 let data = (try? encoder.encode(snap)) ?? Data(#"{"error":"encode"}"#.utf8)
                 return (200, data)
             }
-            if path == PosLanProtocol.kdsPath {
+            if pathOnly == PosLanProtocol.reservationsPath {
+                let day = lanQueryValue(path, key: "day") ?? PosReservationsStore.todayYmd()
+                if let cached = PosReservationsStore.shared.cachedDay(day) {
+                    let data = (try? encoder.encode(cached)) ?? Data(#"{"error":"encode"}"#.utf8)
+                    return (200, data)
+                }
+                return (404, Data(#"{"error":"day_not_cached"}"#.utf8))
+            }
+            if pathOnly == PosLanProtocol.kdsPath {
                 return (200, KdsHubHTML.page())
             }
-            if path == PosLanProtocol.kdsTicketsPath {
+            if pathOnly == PosLanProtocol.kdsTicketsPath {
                 return (200, PosHubState.shared.kdsTicketsJSON())
             }
-            if path == PosLanProtocol.printJobsPath {
+            if pathOnly == PosLanProtocol.printJobsPath {
                 return (200, PosHubState.shared.printJobsJSON())
             }
             return (404, Data(#"{"error":"not_found"}"#.utf8))
         }
 
         if method == "POST" {
-            if path == PosLanProtocol.kdsAdvancePath {
+            if pathOnly == PosLanProtocol.reservationsPath {
+                guard let payload = try? decoder.decode(PosCreateReservationPayload.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                var local = payload
+                if local.localId.isEmpty { local.localId = UUID().uuidString }
+                if local.restaurantId.isEmpty {
+                    local.restaurantId = PosHubState.shared.restaurantId
+                }
+                let dayYmd = String(local.startsAt.prefix(10))
+                let optimistic = PosReservationFactory.optimistic(
+                    from: local,
+                    day: PosReservationsStore.shared.cachedDay(dayYmd)
+                        ?? PosReservationsStore.shared.currentDay
+                )
+                PosReservationsStore.shared.upsertLocalReservation(optimistic, dayYmd: dayYmd)
+                Task { @MainActor in
+                    PosSyncQueue.shared.enqueueCreateReservation(local)
+                    await PosSyncQueue.shared.flushIfPossible()
+                }
+                let response = PosCreateReservationResponse(
+                    ok: true,
+                    id: local.localId,
+                    reservationNumber: 0,
+                    guestPin: nil,
+                    reservation: optimistic
+                )
+                let data = (try? encoder.encode(response)) ?? Data(#"{"ok":true}"#.utf8)
+                return (200, data)
+            }
+            if pathOnly == PosLanProtocol.kdsAdvancePath {
                 struct Req: Decodable { var orderId: String }
                 guard let req = try? decoder.decode(Req.self, from: body) else {
                     return (400, Data(#"{"error":"invalid_body"}"#.utf8))
@@ -611,7 +775,7 @@ final class PosRuntime: ObservableObject {
                     ?? Data(#"{"ok":false}"#.utf8)
                 return (200, data)
             }
-            if path == PosLanProtocol.openSessionPath {
+            if pathOnly == PosLanProtocol.openSessionPath {
                 struct Req: Decodable {
                     var diningTableId: String
                     var coverCount: Int?
@@ -638,7 +802,7 @@ final class PosRuntime: ObservableObject {
                 return (200, data)
             }
 
-            if path == PosLanProtocol.createOrderPath {
+            if pathOnly == PosLanProtocol.createOrderPath {
                 struct Item: Decodable {
                     var menuItemId: String
                     var quantity: Int
@@ -748,6 +912,7 @@ final class PosRuntime: ObservableObject {
                 publishSnapshot(snap)
                 phase = .connected
                 statusMessage = "Verbunden mit \(snap.hub.displayName)."
+                await pullReservationsDay(PosReservationsStore.todayYmd())
                 return
             } catch {
                 lastError = error.localizedDescription

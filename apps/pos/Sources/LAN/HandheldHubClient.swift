@@ -72,6 +72,39 @@ enum HandheldHubClient {
         return try decoder.decode(Response.self, from: data).sessionId
     }
 
+    static func fetchReservationsDay(
+        baseURL: URL,
+        dayYmd: String
+    ) async throws -> PosReservationsDayDto {
+        var components = URLComponents(
+            url: url(baseURL, path: PosLanProtocol.reservationsPath),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "day", value: dayYmd)]
+        guard let target = components?.url else { throw HandheldHubClientError.invalidResponse }
+        var request = URLRequest(url: target)
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
+        return try decoder.decode(PosReservationsDayDto.self, from: data)
+    }
+
+    static func createReservation(
+        baseURL: URL,
+        payload: PosCreateReservationPayload
+    ) async throws -> PosCreateReservationResponse {
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.reservationsPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        request.httpBody = try encoder.encode(payload)
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
+        return try decoder.decode(PosCreateReservationResponse.self, from: data)
+    }
+
     static func createOrder(
         baseURL: URL,
         diningTableId: String,

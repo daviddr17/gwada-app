@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
     enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
         case tables
+        case reservations
         case receipts
         case giftVouchers
         case kds
@@ -14,6 +15,7 @@ struct RootView: View {
         var title: String {
             switch self {
             case .tables: return "Tische"
+            case .reservations: return "Reservierungen"
             case .receipts: return "Quittungen"
             case .giftVouchers: return "Gutscheine"
             case .kds: return "KDS"
@@ -24,6 +26,7 @@ struct RootView: View {
         var systemImage: String {
             switch self {
             case .tables: return "fork.knife"
+            case .reservations: return "calendar"
             case .receipts: return "doc.text"
             case .giftVouchers: return "gift"
             case .kds: return "flame"
@@ -78,6 +81,8 @@ struct RootView: View {
         switch selection ?? .tables {
         case .tables:
             TablesHomeView()
+        case .reservations:
+            ReservationsView()
         case .receipts:
             ReceiptsView()
         case .giftVouchers:

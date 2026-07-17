@@ -59,7 +59,7 @@ final class HubHTTPServer: @unchecked Sendable {
             }
 
             if let request = Self.parseRequest(next) {
-                let result = self.handler(request.method, request.path, request.body)
+                let result = self.handler(request.method, request.pathWithQuery, request.body)
                 let response = Self.serializeResponse(status: result.status, body: result.body)
                 connection.send(content: response, completion: .contentProcessed { _ in
                     connection.cancel()
@@ -78,7 +78,8 @@ final class HubHTTPServer: @unchecked Sendable {
 
     private struct ParsedRequest {
         var method: String
-        var path: String
+        /// Path inkl. Query (z. B. `/v1/reservations?day=2026-07-17`).
+        var pathWithQuery: String
         var body: Data
     }
 
@@ -92,7 +93,6 @@ final class HubHTTPServer: @unchecked Sendable {
         guard parts.count >= 2 else { return nil }
         let method = String(parts[0]).uppercased()
         let pathWithQuery = String(parts[1])
-        let path = pathWithQuery.split(separator: "?").first.map(String.init) ?? pathWithQuery
 
         var contentLength = 0
         for line in lines.dropFirst() {
@@ -107,7 +107,7 @@ final class HubHTTPServer: @unchecked Sendable {
         let bodyStart = raw.distance(from: raw.startIndex, to: headerEnd.upperBound)
         guard data.count >= bodyStart + contentLength else { return nil }
         let body = data.subdata(in: bodyStart ..< (bodyStart + contentLength))
-        return ParsedRequest(method: method, path: path, body: body)
+        return ParsedRequest(method: method, pathWithQuery: pathWithQuery, body: body)
     }
 
     private static func serializeResponse(status: Int, body: Data) -> Data {

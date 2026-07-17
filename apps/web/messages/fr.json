@@ -42,5 +42,72 @@
       "saveProfile": "Enregistrer le profil",
       "loadingAria": "Chargement des données du profil"
     }
+  },
+  "SetupWizard": {
+    "ariaLabel": "Configurer le restaurant",
+    "brand": "Gwada",
+    "tagline": "Bienvenue",
+    "stepOf": "Étape {current} sur {total}",
+    "close": "Fermer",
+    "back": "Retour",
+    "continue": "Continuer",
+    "finish": "Créer le restaurant",
+    "creating": "Création…",
+    "launch": "C’est parti",
+    "welcome": {
+      "eyebrow": "Votre démarrage",
+      "title": "Configurez votre restaurant",
+      "description": "Nom, adresse, horaires et couleur — quelques étapes et vous êtes prêt. Vous pourrez tout affiner ensuite."
+    },
+    "identity": {
+      "title": "Comment s’appelle votre restaurant ?",
+      "description": "Ce nom apparaît dans l’app, sur la carte et sur le profil public.",
+      "nameLabel": "Nom du restaurant",
+      "namePlaceholder": "p. ex. Lion Bistro",
+      "slugHint": "URL publique : gwada.app/{slug}"
+    },
+    "location": {
+      "title": "Où vous trouve-t-on ?",
+      "description": "Adresse et pays définissent le fuseau, la carte et les infos publiques. Vous pourrez compléter plus tard.",
+      "streetLabel": "Rue et numéro",
+      "streetPlaceholder": "1 rue Exemple",
+      "postalLabel": "Code postal",
+      "cityLabel": "Ville",
+      "countryLabel": "Pays",
+      "countryPlaceholder": "FR"
+    },
+    "hours": {
+      "title": "Quels sont vos horaires ?",
+      "description": "Choisissez vos horaires habituels — exceptions et cuisine se règlent plus tard dans les paramètres.",
+      "openLabel": "Ouverture",
+      "closeLabel": "Fermeture"
+    },
+    "look": {
+      "title": "Votre couleur",
+      "description": "L’accent colore boutons, highlights et branding dans l’app.",
+      "previewFallback": "Votre restaurant",
+      "previewHint": "Voici l’ambiance de votre espace."
+    },
+    "done": {
+      "title": "Tout est prêt",
+      "description": "{name} est actif. Bienvenue à bord."
+    },
+    "weekdays": {
+      "monday": "Lun",
+      "tuesday": "Mar",
+      "wednesday": "Mer",
+      "thursday": "Jeu",
+      "friday": "Ven",
+      "saturday": "Sam",
+      "sunday": "Dim"
+    },
+    "errors": {
+      "nameRequired": "Veuillez saisir un nom de restaurant.",
+      "hoursRequired": "Veuillez choisir au moins un jour d’ouverture.",
+      "authRequired": "Veuillez d’abord vous connecter.",
+      "membershipFailed": "Impossible de vous associer au restaurant.",
+      "activeFailed": "Impossible de définir le restaurant actif.",
+      "createFailed": "Impossible de créer le restaurant."
+    }
   }
 }

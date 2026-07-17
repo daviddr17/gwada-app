@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRestaurantSetupWizardOptional } from "@/components/onboarding/restaurant-setup-wizard-provider";
 import { cn } from "@/lib/utils";
 
 /** Kurzer Platzhalter, solange die Workspace-Restaurant-ID noch aufgelöst wird. */
@@ -23,15 +24,27 @@ export function WorkspaceRestaurantMissingMessage({
 }: {
   className?: string;
 }) {
+  const wizard = useRestaurantSetupWizardOptional();
+
   return (
     <p className={cn("text-sm text-muted-foreground", className)}>
       Kein Workspace-Restaurant —{" "}
-      <Link
-        href="/workspace/restaurants"
-        className="font-medium text-foreground underline underline-offset-2"
-      >
-        hier auswählen
-      </Link>
+      {wizard ? (
+        <button
+          type="button"
+          className="font-medium text-foreground underline underline-offset-2"
+          onClick={() => wizard.openWizard()}
+        >
+          Restaurant einrichten
+        </button>
+      ) : (
+        <Link
+          href="/workspace/restaurants"
+          className="font-medium text-foreground underline underline-offset-2"
+        >
+          hier auswählen
+        </Link>
+      )}
       .
     </p>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { toast } from "sonner";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
@@ -17,42 +17,26 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  RESTAURANT_SLUG_TAKEN_MESSAGE,
-  restaurantSlugFromName,
-} from "@/lib/restaurant/restaurant-slug";
-import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-slugs";
-import { isRestaurantSlugAvailable } from "@/lib/supabase/restaurant-stammdaten-db";
-import { seedRestaurantDefaultPositions } from "@/lib/supabase/restaurant-positions-db";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import {
-  invalidateWorkspaceRestaurantCache,
-  notifyWorkspaceRestaurantChanged,
-} from "@/lib/supabase/workspace-persistence";
+  createWorkspaceRestaurant,
+  createWorkspaceRestaurantErrorKey,
+} from "@/lib/restaurant/create-workspace-restaurant";
+import { RESTAURANT_SLUG_TAKEN_MESSAGE } from "@/lib/restaurant/restaurant-slug";
 
-async function pickUniqueRestaurantSlug(
-  baseSlug: string,
-): Promise<string | null> {
-  const sb = createSupabaseBrowserClient();
-  let candidate = baseSlug;
-  let n = 2;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (isReservedRestaurantSlug(candidate)) {
-      candidate = `${baseSlug}-${n}`;
-      n += 1;
-      continue;
-    }
-    const { available, error } = await isRestaurantSlugAvailable(sb, candidate);
-    if (error) {
-      console.warn("[gwada] pickUniqueRestaurantSlug", error);
-      return null;
-    }
-    if (available) return candidate;
-    candidate = `${baseSlug}-${n}`;
-    n += 1;
-  }
-  return null;
-}
+const DRAWER_ERROR_DE: Record<
+  Exclude<ReturnType<typeof createWorkspaceRestaurantErrorKey>, "slug_taken">,
+  string
+> = {
+  "errors.nameRequired": "Bitte einen Restaurantnamen eintragen.",
+  "errors.authRequired": "Bitte zuerst anmelden.",
+  "errors.membershipFailed": "Zuordnung zum Restaurant ist fehlgeschlagen.",
+  "errors.activeFailed": "Aktives Restaurant konnte nicht gesetzt werden.",
+  "errors.createFailed": "Restaurant konnte nicht angelegt werden.",
+};
 
+/**
+ * Legacy compact create drawer — prefer `RestaurantSetupWizardOverlay`
+ * via `useRestaurantSetupWizard().openWizard()`.
+ */
 export function NewRestaurantDrawer({
   open,
   onOpenChange,
@@ -72,97 +56,21 @@ export function NewRestaurantDrawer({
   };
 
   const handleSubmit = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      toast.error("Bitte einen Restaurantnamen eintragen.");
-      return;
-    }
-
-    const sb = createSupabaseBrowserClient();
-    const {
-      data: { user },
-    } = await sb.auth.getUser();
-    if (!user) {
-      toast.error("Bitte zuerst anmelden.");
-      return;
-    }
-
-    const base =
-      slugOverride.trim().length > 0
-        ? restaurantSlugFromName(slugOverride.trim())
-        : restaurantSlugFromName(trimmedName);
-
     setBusy(true);
     try {
-      const slug = await pickUniqueRestaurantSlug(base);
-      if (!slug) {
-        toast.error(RESTAURANT_SLUG_TAKEN_MESSAGE);
-        return;
-      }
-
-      const { data: inserted, error: insErr } = await sb
-        .from("restaurants")
-        .insert({
-          name: trimmedName,
-          slug,
-          owner_profile_id: user.id,
-          timezone: "Europe/Berlin",
-          country: "DE",
-          is_published: true,
-        })
-        .select("id")
-        .single();
-
-      if (insErr || !inserted?.id) {
-        console.warn(insErr);
-        const msg = insErr?.message ?? "";
+      const result = await createWorkspaceRestaurant({
+        name,
+        slugOverride,
+      });
+      if (!result.ok) {
+        const errKey = createWorkspaceRestaurantErrorKey(result.error);
         toast.error(
-          msg.includes("duplicate key") || msg.includes("restaurants_slug")
+          errKey === "slug_taken"
             ? RESTAURANT_SLUG_TAKEN_MESSAGE
-            : msg || "Restaurant konnte nicht angelegt werden.",
+            : DRAWER_ERROR_DE[errKey],
         );
         return;
       }
-
-      const newId = inserted.id as string;
-
-      const { error: empErr } = await sb.from("restaurant_employees").insert({
-        restaurant_id: newId,
-        profile_id: user.id,
-        role: "owner",
-        is_active: true,
-      });
-
-      if (empErr) {
-        console.warn(empErr);
-        toast.error("Zuordnung zum Restaurant ist fehlgeschlagen.");
-        return;
-      }
-
-      const { error: seedErr } = await seedRestaurantDefaultPositions(sb, newId);
-      if (seedErr) {
-        console.warn("seed_restaurant_default_positions", seedErr);
-      }
-
-      const { error: profErr } = await sb
-        .from("profiles")
-        .update({ active_restaurant_id: newId })
-        .eq("id", user.id);
-
-      if (profErr) {
-        console.warn(profErr);
-        toast.error("Aktives Restaurant konnte nicht gesetzt werden.");
-        return;
-      }
-
-      void fetch(`/api/pos/fiskaly/provision?restaurantId=${encodeURIComponent(newId)}`, {
-        method: "POST",
-      }).catch((err) => {
-        console.warn("fiskaly provision after restaurant create", err);
-      });
-
-      invalidateWorkspaceRestaurantCache();
-      notifyWorkspaceRestaurantChanged();
       toast.success("Restaurant angelegt und als aktiv gesetzt.");
       reset();
       onOpenChange(false);
@@ -210,17 +118,21 @@ export function NewRestaurantDrawer({
             </DrawerFormSection>
           </div>
           <DrawerFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Abbrechen
-          </Button>
-          <Button type="button" onClick={() => void handleSubmit()} disabled={busy}>
-            {busy ? "Wird angelegt…" : "Anlegen"}
-          </Button>
-        </DrawerFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleSubmit()}
+              disabled={busy}
+            >
+              {busy ? "Wird angelegt…" : "Anlegen"}
+            </Button>
+          </DrawerFooter>
         </div>
       </DrawerContent>
     </Drawer>

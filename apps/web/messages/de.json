@@ -42,5 +42,72 @@
       "saveProfile": "Profil speichern",
       "loadingAria": "Profildaten werden geladen"
     }
+  },
+  "SetupWizard": {
+    "ariaLabel": "Restaurant einrichten",
+    "brand": "Gwada",
+    "tagline": "Willkommen",
+    "stepOf": "Schritt {current} von {total}",
+    "close": "Schließen",
+    "back": "Zurück",
+    "continue": "Weiter",
+    "finish": "Restaurant anlegen",
+    "creating": "Wird angelegt…",
+    "launch": "Los geht’s",
+    "welcome": {
+      "eyebrow": "Dein Start",
+      "title": "Richte dein Restaurant ein",
+      "description": "Name, Adresse, Öffnungszeiten und Farbe — in wenigen Schritten bist du startklar. Den Rest kannst du jederzeit verfeinern."
+    },
+    "identity": {
+      "title": "Wie heißt dein Restaurant?",
+      "description": "Dieser Name erscheint in der App, auf der Speisekarte und im öffentlichen Profil.",
+      "nameLabel": "Restaurantname",
+      "namePlaceholder": "z. B. Lion Bistro",
+      "slugHint": "Öffentliche URL: gwada.app/{slug}"
+    },
+    "location": {
+      "title": "Wo findet man euch?",
+      "description": "Adresse und Land steuern Zeitzone, Karte und öffentliche Angaben. Du kannst Felder auch später ergänzen.",
+      "streetLabel": "Straße & Hausnummer",
+      "streetPlaceholder": "Musterstraße 1",
+      "postalLabel": "PLZ",
+      "cityLabel": "Ort",
+      "countryLabel": "Land",
+      "countryPlaceholder": "DE"
+    },
+    "hours": {
+      "title": "Wann habt ihr geöffnet?",
+      "description": "Wähle die typischen Zeiten — Ausnahmen und Küchenzeiten stellst du später in den Einstellungen ein.",
+      "openLabel": "Öffnung",
+      "closeLabel": "Schluss"
+    },
+    "look": {
+      "title": "Deine Farbe",
+      "description": "Der Akzent färbt Buttons, Highlights und dein Branding in der App.",
+      "previewFallback": "Dein Restaurant",
+      "previewHint": "So fühlt sich dein Workspace an."
+    },
+    "done": {
+      "title": "Alles bereit",
+      "description": "{name} ist aktiv. Willkommen an Bord."
+    },
+    "weekdays": {
+      "monday": "Mo",
+      "tuesday": "Di",
+      "wednesday": "Mi",
+      "thursday": "Do",
+      "friday": "Fr",
+      "saturday": "Sa",
+      "sunday": "So"
+    },
+    "errors": {
+      "nameRequired": "Bitte einen Restaurantnamen eintragen.",
+      "hoursRequired": "Bitte mindestens einen Öffnungstag wählen.",
+      "authRequired": "Bitte zuerst anmelden.",
+      "membershipFailed": "Zuordnung zum Restaurant ist fehlgeschlagen.",
+      "activeFailed": "Aktives Restaurant konnte nicht gesetzt werden.",
+      "createFailed": "Restaurant konnte nicht angelegt werden."
+    }
   }
 }

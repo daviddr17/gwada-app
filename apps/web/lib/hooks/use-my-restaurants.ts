@@ -7,6 +7,7 @@ import {
   GWADA_SUPABASE_FETCH_TIMEOUT_MS,
   raceWithTimeout,
 } from "@/lib/supabase/race-timeout";
+import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
 export type MyRestaurantRow = {
   restaurantId: string;
@@ -57,6 +58,22 @@ export function useMyRestaurants() {
     });
     return () => {
       subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const onWorkspaceChange = () => {
+      setVersion((v) => v + 1);
+    };
+    window.addEventListener(
+      GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
+      onWorkspaceChange,
+    );
+    return () => {
+      window.removeEventListener(
+        GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
+        onWorkspaceChange,
+      );
     };
   }, []);
 

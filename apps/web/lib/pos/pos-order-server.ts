@@ -254,19 +254,15 @@ export async function createPosOrder(params: {
   }
 
   if (kdsStatusId && params.createdByProfileId) {
-    const { maybeDeductInventoryForPosOrder } = await import(
+    const { schedulePosInventoryDeduct } = await import(
       "@/lib/pos/pos-inventory-booking-server"
     );
-    const deduct = await maybeDeductInventoryForPosOrder({
-      supabase: params.supabase,
+    schedulePosInventoryDeduct({
       restaurantId: params.restaurantId,
       orderId: order.id as string,
       kdsStatusId,
       userId: params.createdByProfileId,
     });
-    if (deduct.error) {
-      console.warn("[pos] create order inventory", deduct.error);
-    }
   }
 
   return {

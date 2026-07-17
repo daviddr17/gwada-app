@@ -389,19 +389,15 @@ export async function advanceKdsTicketStatus(params: {
   }
 
   if (params.userId) {
-    const { maybeDeductInventoryForPosOrder } = await import(
+    const { schedulePosInventoryDeduct } = await import(
       "@/lib/pos/pos-inventory-booking-server"
     );
-    const deduct = await maybeDeductInventoryForPosOrder({
-      supabase: params.supabase,
+    schedulePosInventoryDeduct({
       restaurantId: params.restaurantId,
       orderId: params.orderId,
       kdsStatusId: next.id,
       userId: params.userId,
     });
-    if (deduct.error) {
-      console.warn("[pos] kds inventory deduct", deduct.error);
-    }
   }
 
   const loaded = await loadKdsTickets({

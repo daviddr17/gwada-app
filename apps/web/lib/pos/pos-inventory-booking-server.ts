@@ -1,5 +1,6 @@
 import "server-only";
 
+import { after } from "next/server";
 import { parseStockLogEntryFromJson } from "@/lib/supabase/inventory-db";
 import type {
   IngredientStockLogFromPosOrder,
@@ -8,6 +9,7 @@ import type {
 import type { Ingredient } from "@/lib/types/inventory";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getRestaurantPosSettings } from "@/lib/pos/pos-restaurant-settings-server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 async function loadIngredientsForServer(
   sb: SupabaseClient,
@@ -422,4 +424,91 @@ export async function maybeRestoreInventoryForPosVoid(params: {
   if (markErr) return { error: markErr.message, restored: false };
 
   return { error: null, restored: true };
+}
+
+type PosInventoryDeductJob = {
+  restaurantId: string;
+  orderId: string;
+  kdsStatusId: string;
+  userId: string;
+};
+
+type PosInventoryRestoreJob = {
+  restaurantId: string;
+  orderId: string;
+  paymentId: string;
+  voidReasonId: string;
+  userId: string;
+};
+
+/**
+ * Bestandsabzug nach HTTP-Antwort — Kasse/KDS warten nicht auf Lagerlogik.
+ * Nutzt Service-Role, damit der Request-Client schon weg sein darf.
+ */
+export function schedulePosInventoryDeduct(job: PosInventoryDeductJob): void {
+  const run = () => {
+    void (async () => {
+      const admin = createSupabaseAdminClient();
+      if (!admin) {
+        console.warn("[pos] inventory deduct skipped: no admin client");
+        return;
+      }
+      const result = await maybeDeductInventoryForPosOrder({
+        supabase: admin,
+        restaurantId: job.restaurantId,
+        orderId: job.orderId,
+        kdsStatusId: job.kdsStatusId,
+        userId: job.userId,
+      });
+      if (result.error) {
+        console.warn("[pos] inventory deduct", result.error);
+      }
+    })().catch((err) => {
+      console.warn(
+        "[pos] inventory deduct",
+        err instanceof Error ? err.message : err,
+      );
+    });
+  };
+
+  try {
+    after(run);
+  } catch {
+    run();
+  }
+}
+
+/** Bestandsrückbuchung nach Storno — ebenfalls hinter der Antwort. */
+export function schedulePosInventoryRestore(job: PosInventoryRestoreJob): void {
+  const run = () => {
+    void (async () => {
+      const admin = createSupabaseAdminClient();
+      if (!admin) {
+        console.warn("[pos] inventory restore skipped: no admin client");
+        return;
+      }
+      const result = await maybeRestoreInventoryForPosVoid({
+        supabase: admin,
+        restaurantId: job.restaurantId,
+        orderId: job.orderId,
+        paymentId: job.paymentId,
+        voidReasonId: job.voidReasonId,
+        userId: job.userId,
+      });
+      if (result.error) {
+        console.warn("[pos] inventory restore", result.error);
+      }
+    })().catch((err) => {
+      console.warn(
+        "[pos] inventory restore",
+        err instanceof Error ? err.message : err,
+      );
+    });
+  };
+
+  try {
+    after(run);
+  } catch {
+    run();
+  }
 }

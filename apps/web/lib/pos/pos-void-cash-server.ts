@@ -46,16 +46,18 @@ export async function voidCashPayment(params: {
   }
 
   const voidReasonId = params.voidReasonId?.trim() || null;
+  let voidReasonRestoresInventory = false;
   if (voidReasonId) {
     const { data: reason } = await params.supabase
       .from("pos_void_reasons")
-      .select("id, is_active")
+      .select("id, is_active, restore_inventory")
       .eq("id", voidReasonId)
       .eq("restaurant_id", params.restaurantId)
       .maybeSingle();
     if (!reason || reason.is_active === false) {
       return { ok: false, error: "invalid_void_reason", status: 400 };
     }
+    voidReasonRestoresInventory = reason.restore_inventory === true;
   } else {
     const { count } = await params.supabase
       .from("pos_void_reasons")
@@ -69,7 +71,9 @@ export async function voidCashPayment(params: {
 
   const { data: order, error: orderError } = await params.supabase
     .from("pos_orders")
-    .select("id, table_session_id, restaurant_id, status")
+    .select(
+      "id, table_session_id, restaurant_id, status, inventory_deducted_at, inventory_restored_at",
+    )
     .eq("id", payment.order_id)
     .maybeSingle();
 
@@ -134,23 +138,24 @@ export async function voidCashPayment(params: {
   }
 
   let inventoryRestored = false;
-  if (voidReasonId) {
-    const { maybeRestoreInventoryForPosVoid } = await import(
+  if (
+    voidReasonId &&
+    voidReasonRestoresInventory &&
+    order.inventory_deducted_at &&
+    !order.inventory_restored_at
+  ) {
+    const { schedulePosInventoryRestore } = await import(
       "@/lib/pos/pos-inventory-booking-server"
     );
-    const restore = await maybeRestoreInventoryForPosVoid({
-      supabase: params.supabase,
+    schedulePosInventoryRestore({
       restaurantId: params.restaurantId,
       orderId: order.id as string,
       paymentId: params.paymentId,
       voidReasonId,
       userId: params.userId ?? "",
     });
-    if (restore.error) {
-      console.warn("[pos] void inventory restore", restore.error);
-    } else {
-      inventoryRestored = restore.restored;
-    }
+    // Antwort sofort; echte Rückbuchung läuft in `after()`.
+    inventoryRestored = true;
   }
 
   // Order ggf. wieder in Küchen-Lifecycle, wenn schon delivered

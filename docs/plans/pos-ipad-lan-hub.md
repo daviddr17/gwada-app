@@ -105,7 +105,7 @@ Simulator oder Gerät: iPad = Server, iPhone = Client (gleiches WLAN / Simulator
 
 - [x] Persistente Sync-Queue auf dem iPad
 - [x] Periodischer Flush bei Verbindung
-- [ ] Session-ID-Mapping robust bei reinem Offline-Open + späteren Orders
+- [x] Session-ID-Mapping robust bei reinem Offline-Open + späteren Orders
 - [x] Bondrucker-Registry + Kategorie-Routing (Web + Hub-Queue)
 - [x] ESC/POS TCP 9100 vom iPad-Hub (async Queue)
 - [x] Native Sidebar + Quittungen (Bar-Storno, Tisch wieder öffnen)

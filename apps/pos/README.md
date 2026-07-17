@@ -14,7 +14,8 @@ Native iPad-Kasse + iPhone-Handgeräte. **Getrennt** von `apps/staff` (Expo, Kol
 1. **iPad** meldet sich an (Cloud), lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal.
 2. Danach läuft die Kasse **lokal**; Handgeräte holen Snapshot / Sessions / Orders nur über WLAN.
 3. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
-4. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE.
+4. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt; wartende Orders/Kassierungen werden umgeschrieben (`session-id-map.json`).
+5. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE.
 
 ## Öffnen (Mac)
 

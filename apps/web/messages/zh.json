@@ -1,0 +1,118 @@
+{
+  "Common": {
+    "save": "保存",
+    "saved": "已保存",
+    "cancel": "取消",
+    "loading": "加载中"
+  },
+  "Profile": {
+    "title": "个人资料",
+    "subnavAriaLabel": "个人资料分区",
+    "nav": {
+      "overview": "概览",
+      "login": "登录",
+      "notifications": "通知",
+      "workHours": "我的工时",
+      "schedule": "排班",
+      "availability": "可用时间",
+      "documents": "我的文件",
+      "displayPin": "显示屏 PIN"
+    },
+    "language": {
+      "heading": "语言",
+      "description": "应用界面语言。适用于此账户的所有设备。",
+      "label": "语言",
+      "updated": "语言已更新",
+      "updateFailed": "无法保存语言"
+    },
+    "personal": {
+      "email": "电子邮件",
+      "birthday": "生日",
+      "addressHeading": "个人地址",
+      "street": "街道和门牌号",
+      "postalCode": "邮编",
+      "city": "城市",
+      "country": "国家/地区",
+      "countryPlaceholder": "例如 CN 或中国",
+      "saveProfile": "保存资料",
+      "loadingAria": "正在加载个人资料"
+    }
+  },
+  "SetupWizard": {
+    "ariaLabel": "设置餐厅",
+    "brand": "Gwada",
+    "tagline": "欢迎",
+    "stepOf": "第 {current} 步，共 {total} 步",
+    "close": "关闭",
+    "back": "返回",
+    "continue": "继续",
+    "finish": "创建餐厅",
+    "creating": "正在创建…",
+    "launch": "开始使用",
+    "welcome": {
+      "eyebrow": "开始",
+      "title": "设置你的餐厅",
+      "description": "名称、地址、营业时间和颜色——几步即可就绪。其余内容随时可以完善。"
+    },
+    "identity": {
+      "title": "餐厅叫什么名字？",
+      "description": "此名称将显示在应用、菜单和公开主页中。",
+      "nameLabel": "餐厅名称",
+      "namePlaceholder": "例如 Lion Bistro",
+      "slugHint": "公开链接：gwada.app/{slug}"
+    },
+    "location": {
+      "title": "顾客在哪里找到你们？",
+      "description": "地址和国家/地区决定时区、地图和公开信息。也可以稍后补充。",
+      "streetLabel": "街道和门牌号",
+      "streetPlaceholder": "示例路 1 号",
+      "postalLabel": "邮编",
+      "cityLabel": "城市",
+      "countryLabel": "国家/地区",
+      "countryPlaceholder": "CN"
+    },
+    "hours": {
+      "title": "营业时间是？",
+      "description": "选择常规时间——例外和厨房时间可稍后在设置中配置。",
+      "openLabel": "开门",
+      "closeLabel": "关门"
+    },
+    "look": {
+      "title": "你的颜色",
+      "description": "强调色会影响应用中的按钮、高亮和品牌呈现。",
+      "previewFallback": "你的餐厅",
+      "previewHint": "工作区大致会是这种感觉。"
+    },
+    "done": {
+      "title": "一切就绪",
+      "description": "{name} 已激活。欢迎加入。"
+    },
+    "weekdays": {
+      "monday": "周一",
+      "tuesday": "周二",
+      "wednesday": "周三",
+      "thursday": "周四",
+      "friday": "周五",
+      "saturday": "周六",
+      "sunday": "周日"
+    },
+    "errors": {
+      "nameRequired": "请输入餐厅名称。",
+      "hoursRequired": "请至少选择一个营业日。",
+      "authRequired": "请先登录。",
+      "membershipFailed": "无法将你关联到餐厅。",
+      "activeFailed": "无法设置当前餐厅。",
+      "createFailed": "无法创建餐厅。"
+    }
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "it": "Italiano",
+    "tr": "Türkçe",
+    "ar": "العربية",
+    "zh": "中文"
+  }
+}

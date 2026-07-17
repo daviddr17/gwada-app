@@ -5,11 +5,6 @@
     "cancel": "Cancel",
     "loading": "Loading"
   },
-  "Locale": {
-    "de": "Deutsch",
-    "en": "English",
-    "fr": "Français"
-  },
   "Profile": {
     "title": "Profile",
     "subnavAriaLabel": "Profile sections",
@@ -109,5 +104,15 @@
       "activeFailed": "Could not set the active restaurant.",
       "createFailed": "Could not create the restaurant."
     }
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "it": "Italiano",
+    "tr": "Türkçe",
+    "ar": "العربية",
+    "zh": "中文"
   }
 }

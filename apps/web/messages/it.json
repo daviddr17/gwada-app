@@ -1,0 +1,118 @@
+{
+  "Common": {
+    "save": "Salva",
+    "saved": "Salvato",
+    "cancel": "Annulla",
+    "loading": "Caricamento"
+  },
+  "Profile": {
+    "title": "Profilo",
+    "subnavAriaLabel": "Sezioni del profilo",
+    "nav": {
+      "overview": "Panoramica",
+      "login": "Accesso",
+      "notifications": "Notifiche",
+      "workHours": "Le mie ore di lavoro",
+      "schedule": "Turni",
+      "availability": "Disponibilità",
+      "documents": "I miei documenti",
+      "displayPin": "PIN display"
+    },
+    "language": {
+      "heading": "Lingua",
+      "description": "Lingua dell’interfaccia. Vale per questo account su tutti i dispositivi.",
+      "label": "Lingua",
+      "updated": "Lingua aggiornata",
+      "updateFailed": "Impossibile salvare la lingua"
+    },
+    "personal": {
+      "email": "E-mail",
+      "birthday": "Data di nascita",
+      "addressHeading": "Indirizzo personale",
+      "street": "Via e numero",
+      "postalCode": "CAP",
+      "city": "Città",
+      "country": "Paese",
+      "countryPlaceholder": "es. IT o Italia",
+      "saveProfile": "Salva profilo",
+      "loadingAria": "Caricamento dati del profilo"
+    }
+  },
+  "SetupWizard": {
+    "ariaLabel": "Configura ristorante",
+    "brand": "Gwada",
+    "tagline": "Benvenuto",
+    "stepOf": "Passo {current} di {total}",
+    "close": "Chiudi",
+    "back": "Indietro",
+    "continue": "Continua",
+    "finish": "Crea ristorante",
+    "creating": "Creazione…",
+    "launch": "Iniziamo",
+    "welcome": {
+      "eyebrow": "Il tuo inizio",
+      "title": "Configura il tuo ristorante",
+      "description": "Nome, indirizzo, orari e colore: in pochi passi sei pronto. Potrai rifinire tutto dopo."
+    },
+    "identity": {
+      "title": "Come si chiama il tuo ristorante?",
+      "description": "Questo nome appare nell’app, sul menu e nel profilo pubblico.",
+      "nameLabel": "Nome del ristorante",
+      "namePlaceholder": "es. Lion Bistro",
+      "slugHint": "URL pubblica: gwada.app/{slug}"
+    },
+    "location": {
+      "title": "Dove vi trovano?",
+      "description": "Indirizzo e paese determinano fuso orario, mappa e dati pubblici. Puoi completarli dopo.",
+      "streetLabel": "Via e numero",
+      "streetPlaceholder": "Via Roma 1",
+      "postalLabel": "CAP",
+      "cityLabel": "Città",
+      "countryLabel": "Paese",
+      "countryPlaceholder": "IT"
+    },
+    "hours": {
+      "title": "Quando siete aperti?",
+      "description": "Scegli gli orari abituali: eccezioni e cucina si impostano dopo nelle impostazioni.",
+      "openLabel": "Apertura",
+      "closeLabel": "Chiusura"
+    },
+    "look": {
+      "title": "Il tuo colore",
+      "description": "L’accento colora pulsanti, evidenziazioni e branding nell’app.",
+      "previewFallback": "Il tuo ristorante",
+      "previewHint": "Così si sentirà il tuo workspace."
+    },
+    "done": {
+      "title": "Tutto pronto",
+      "description": "{name} è attivo. Benvenuto a bordo."
+    },
+    "weekdays": {
+      "monday": "Lun",
+      "tuesday": "Mar",
+      "wednesday": "Mer",
+      "thursday": "Gio",
+      "friday": "Ven",
+      "saturday": "Sab",
+      "sunday": "Dom"
+    },
+    "errors": {
+      "nameRequired": "Inserisci il nome del ristorante.",
+      "hoursRequired": "Seleziona almeno un giorno di apertura.",
+      "authRequired": "Accedi prima.",
+      "membershipFailed": "Impossibile associarti al ristorante.",
+      "activeFailed": "Impossibile impostare il ristorante attivo.",
+      "createFailed": "Impossibile creare il ristorante."
+    }
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "it": "Italiano",
+    "tr": "Türkçe",
+    "ar": "العربية",
+    "zh": "中文"
+  }
+}

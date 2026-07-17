@@ -1,0 +1,118 @@
+{
+  "Common": {
+    "save": "حفظ",
+    "saved": "تم الحفظ",
+    "cancel": "إلغاء",
+    "loading": "جارٍ التحميل"
+  },
+  "Profile": {
+    "title": "الملف الشخصي",
+    "subnavAriaLabel": "أقسام الملف الشخصي",
+    "nav": {
+      "overview": "نظرة عامة",
+      "login": "تسجيل الدخول",
+      "notifications": "الإشعارات",
+      "workHours": "ساعات عملي",
+      "schedule": "جدول الورديات",
+      "availability": "التوفر",
+      "documents": "مستنداتي",
+      "displayPin": "رمز الشاشة"
+    },
+    "language": {
+      "heading": "اللغة",
+      "description": "لغة واجهة التطبيق. تنطبق على هذا الحساب على جميع الأجهزة.",
+      "label": "اللغة",
+      "updated": "تم تحديث اللغة",
+      "updateFailed": "تعذّر حفظ اللغة"
+    },
+    "personal": {
+      "email": "البريد الإلكتروني",
+      "birthday": "تاريخ الميلاد",
+      "addressHeading": "العنوان الشخصي",
+      "street": "الشارع ورقم المنزل",
+      "postalCode": "الرمز البريدي",
+      "city": "المدينة",
+      "country": "البلد",
+      "countryPlaceholder": "مثل SA أو السعودية",
+      "saveProfile": "حفظ الملف الشخصي",
+      "loadingAria": "جارٍ تحميل بيانات الملف الشخصي"
+    }
+  },
+  "SetupWizard": {
+    "ariaLabel": "إعداد المطعم",
+    "brand": "Gwada",
+    "tagline": "مرحبًا",
+    "stepOf": "الخطوة {current} من {total}",
+    "close": "إغلاق",
+    "back": "رجوع",
+    "continue": "متابعة",
+    "finish": "إنشاء المطعم",
+    "creating": "جارٍ الإنشاء…",
+    "launch": "هيا نبدأ",
+    "welcome": {
+      "eyebrow": "بدايتك",
+      "title": "أعد مطعمك",
+      "description": "الاسم والعنوان وساعات العمل واللون — بضع خطوات وتكون جاهزًا. يمكنك تحسين الباقي لاحقًا."
+    },
+    "identity": {
+      "title": "ما اسم مطعمك؟",
+      "description": "يظهر هذا الاسم في التطبيق والقائمة والملف العام.",
+      "nameLabel": "اسم المطعم",
+      "namePlaceholder": "مثل Lion Bistro",
+      "slugHint": "الرابط العام: gwada.app/{slug}"
+    },
+    "location": {
+      "title": "أين يجدكم الزبائن؟",
+      "description": "العنوان والبلد يحددان المنطقة الزمنية والخريطة والبيانات العامة. يمكنك إكمالها لاحقًا.",
+      "streetLabel": "الشارع ورقم المنزل",
+      "streetPlaceholder": "شارع المثال 1",
+      "postalLabel": "الرمز البريدي",
+      "cityLabel": "المدينة",
+      "countryLabel": "البلد",
+      "countryPlaceholder": "SA"
+    },
+    "hours": {
+      "title": "متى تكونون مفتوحين؟",
+      "description": "اختر الساعات المعتادة — الاستثناءات وساعات المطبخ تُضبط لاحقًا في الإعدادات.",
+      "openLabel": "الفتح",
+      "closeLabel": "الإغلاق"
+    },
+    "look": {
+      "title": "لونك",
+      "description": "يُلون التمييز الأزرار والتمييزات وهويتك في التطبيق.",
+      "previewFallback": "مطعمك",
+      "previewHint": "هكذا سيشعر مساحة العمل."
+    },
+    "done": {
+      "title": "كل شيء جاهز",
+      "description": "{name} نشط. مرحبًا بك."
+    },
+    "weekdays": {
+      "monday": "الإثنين",
+      "tuesday": "الثلاثاء",
+      "wednesday": "الأربعاء",
+      "thursday": "الخميس",
+      "friday": "الجمعة",
+      "saturday": "السبت",
+      "sunday": "الأحد"
+    },
+    "errors": {
+      "nameRequired": "يرجى إدخال اسم المطعم.",
+      "hoursRequired": "يرجى اختيار يوم فتح واحد على الأقل.",
+      "authRequired": "يرجى تسجيل الدخول أولاً.",
+      "membershipFailed": "تعذّر ربطك بالمطعم.",
+      "activeFailed": "تعذّر تعيين المطعم النشط.",
+      "createFailed": "تعذّر إنشاء المطعم."
+    }
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "it": "Italiano",
+    "tr": "Türkçe",
+    "ar": "العربية",
+    "zh": "中文"
+  }
+}

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
+import { isRtlLocale } from "@/i18n/config";
 import {
   DOCUMENT_TITLE_BRAND,
   formatDocumentTitle,
@@ -47,6 +48,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
+      dir={isRtlLocale(locale) ? "rtl" : "ltr"}
       suppressHydrationWarning
       className={dmSans.variable}
       data-platform-favicon={faviconHref ?? undefined}

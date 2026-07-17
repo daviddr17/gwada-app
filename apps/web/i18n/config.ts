@@ -1,5 +1,14 @@
 /** App UI locales (short codes). Stored on `profiles.locale` as BCP-47 (e.g. de-DE). */
-export const APP_LOCALES = ["de", "en", "fr"] as const;
+export const APP_LOCALES = [
+  "de",
+  "en",
+  "es",
+  "fr",
+  "it",
+  "tr",
+  "ar",
+  "zh",
+] as const;
 
 export type AppLocale = (typeof APP_LOCALES)[number];
 
@@ -11,19 +20,40 @@ export const APP_LOCALE_COOKIE = "gwada_locale";
 
 export const APP_LOCALE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
+/** Native labels for the language picker (same in every catalog). */
+export const APP_LOCALE_NATIVE_LABELS: Record<AppLocale, string> = {
+  de: "Deutsch",
+  en: "English",
+  es: "Español",
+  fr: "Français",
+  it: "Italiano",
+  tr: "Türkçe",
+  ar: "العربية",
+  zh: "中文",
+};
+
 /** Map short UI locale → value written to `profiles.locale`. */
 export const APP_LOCALE_TO_PROFILE: Record<AppLocale, string> = {
   de: "de-DE",
   en: "en-US",
+  es: "es-ES",
   fr: "fr-FR",
+  it: "it-IT",
+  tr: "tr-TR",
+  ar: "ar",
+  zh: "zh-CN",
 };
 
 export function isAppLocale(value: string): value is AppLocale {
   return (APP_LOCALES as readonly string[]).includes(value);
 }
 
+export function isRtlLocale(locale: string): boolean {
+  return normalizeAppLocale(locale) === "ar";
+}
+
 /**
- * Normalize cookie / Accept-Language / `profiles.locale` (e.g. `de-DE`, `fr-GP`)
+ * Normalize cookie / Accept-Language / `profiles.locale` (e.g. `de-DE`, `zh-Hans`)
  * to a supported app locale.
  */
 export function normalizeAppLocale(
@@ -37,6 +67,7 @@ export function normalizeAppLocale(
   if (isAppLocale(lower)) return lower;
 
   const primary = lower.split("-")[0] ?? "";
+  if (primary === "zh") return "zh";
   if (isAppLocale(primary)) return primary;
 
   return DEFAULT_APP_LOCALE;

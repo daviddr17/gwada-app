@@ -13,19 +13,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { APP_LOCALES, type AppLocale } from "@/i18n/config";
+import {
+  APP_LOCALE_NATIVE_LABELS,
+  APP_LOCALES,
+  type AppLocale,
+} from "@/i18n/config";
 import { applyAppLocale } from "@/lib/i18n/apply-app-locale";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 
 export function ProfileLanguageCard() {
   const t = useTranslations("Profile.language");
-  const tLocale = useTranslations("Locale");
   const locale = useLocale() as AppLocale;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
 
-  const selectedLabel = tLocale(locale);
+  const selectedLabel =
+    APP_LOCALE_NATIVE_LABELS[locale] ?? APP_LOCALE_NATIVE_LABELS.de;
 
   const onChange = (value: unknown) => {
     const next = typeof value === "string" ? value : null;
@@ -70,8 +74,12 @@ export function ProfileLanguageCard() {
             </SelectTrigger>
             <SelectContent>
               {APP_LOCALES.map((code) => (
-                <SelectItem key={code} value={code}>
-                  {tLocale(code)}
+                <SelectItem
+                  key={code}
+                  value={code}
+                  dir={code === "ar" ? "rtl" : "ltr"}
+                >
+                  {APP_LOCALE_NATIVE_LABELS[code]}
                 </SelectItem>
               ))}
             </SelectContent>

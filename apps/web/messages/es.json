@@ -1,0 +1,118 @@
+{
+  "Common": {
+    "save": "Guardar",
+    "saved": "Guardado",
+    "cancel": "Cancelar",
+    "loading": "Cargando"
+  },
+  "Profile": {
+    "title": "Perfil",
+    "subnavAriaLabel": "Secciones del perfil",
+    "nav": {
+      "overview": "Resumen",
+      "login": "Inicio de sesión",
+      "notifications": "Notificaciones",
+      "workHours": "Mis horas de trabajo",
+      "schedule": "Turnos",
+      "availability": "Disponibilidad",
+      "documents": "Mis documentos",
+      "displayPin": "PIN de pantalla"
+    },
+    "language": {
+      "heading": "Idioma",
+      "description": "Idioma de la interfaz. Se aplica a esta cuenta en todos los dispositivos.",
+      "label": "Idioma",
+      "updated": "Idioma actualizado",
+      "updateFailed": "No se pudo guardar el idioma"
+    },
+    "personal": {
+      "email": "Correo electrónico",
+      "birthday": "Fecha de nacimiento",
+      "addressHeading": "Dirección personal",
+      "street": "Calle y número",
+      "postalCode": "Código postal",
+      "city": "Ciudad",
+      "country": "País",
+      "countryPlaceholder": "p. ej. ES o España",
+      "saveProfile": "Guardar perfil",
+      "loadingAria": "Cargando datos del perfil"
+    }
+  },
+  "SetupWizard": {
+    "ariaLabel": "Configurar restaurante",
+    "brand": "Gwada",
+    "tagline": "Bienvenido",
+    "stepOf": "Paso {current} de {total}",
+    "close": "Cerrar",
+    "back": "Atrás",
+    "continue": "Continuar",
+    "finish": "Crear restaurante",
+    "creating": "Creando…",
+    "launch": "Empezar",
+    "welcome": {
+      "eyebrow": "Tu inicio",
+      "title": "Configura tu restaurante",
+      "description": "Nombre, dirección, horario y color: en unos pasos estarás listo. Podrás perfeccionarlo después."
+    },
+    "identity": {
+      "title": "¿Cómo se llama tu restaurante?",
+      "description": "Este nombre aparece en la app, en la carta y en el perfil público.",
+      "nameLabel": "Nombre del restaurante",
+      "namePlaceholder": "p. ej. Lion Bistro",
+      "slugHint": "URL pública: gwada.app/{slug}"
+    },
+    "location": {
+      "title": "¿Dónde os encuentran?",
+      "description": "La dirección y el país definen zona horaria, mapa e información pública. Puedes completarlos más tarde.",
+      "streetLabel": "Calle y número",
+      "streetPlaceholder": "Calle Mayor 1",
+      "postalLabel": "Código postal",
+      "cityLabel": "Ciudad",
+      "countryLabel": "País",
+      "countryPlaceholder": "ES"
+    },
+    "hours": {
+      "title": "¿Cuándo estáis abiertos?",
+      "description": "Elige el horario habitual: excepciones y cocina se configuran después en ajustes.",
+      "openLabel": "Apertura",
+      "closeLabel": "Cierre"
+    },
+    "look": {
+      "title": "Tu color",
+      "description": "El acento colorea botones, destacados y tu marca en la app.",
+      "previewFallback": "Tu restaurante",
+      "previewHint": "Así se sentirá tu espacio de trabajo."
+    },
+    "done": {
+      "title": "Todo listo",
+      "description": "{name} está activo. Bienvenido a bordo."
+    },
+    "weekdays": {
+      "monday": "Lun",
+      "tuesday": "Mar",
+      "wednesday": "Mié",
+      "thursday": "Jue",
+      "friday": "Vie",
+      "saturday": "Sáb",
+      "sunday": "Dom"
+    },
+    "errors": {
+      "nameRequired": "Introduce el nombre del restaurante.",
+      "hoursRequired": "Selecciona al menos un día de apertura.",
+      "authRequired": "Inicia sesión primero.",
+      "membershipFailed": "No se pudo asociarte al restaurante.",
+      "activeFailed": "No se pudo activar el restaurante.",
+      "createFailed": "No se pudo crear el restaurante."
+    }
+  },
+  "Locale": {
+    "de": "Deutsch",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "it": "Italiano",
+    "tr": "Türkçe",
+    "ar": "العربية",
+    "zh": "中文"
+  }
+}

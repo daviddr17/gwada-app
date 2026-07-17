@@ -949,6 +949,7 @@ function EmbedReservationWidgetBody({
                 <EmbedSubmitButton
                   phase={bookPhase}
                   idleLabel={tr("submit")}
+                  loadingLabel={tr("sending")}
                   disabled={timeSlots.length === 0}
                   onClick={() => void handleBook()}
                 />

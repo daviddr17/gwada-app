@@ -20,7 +20,7 @@
     },
     "language": {
       "heading": "Sprache",
-      "description": "Oberflächensprache der App. Gilt für dieses Konto auf allen Geräten.",
+      "description": "Oberflächensprache der App. Speichern über den Button unten — gilt für dieses Konto auf allen Geräten.",
       "label": "Sprache",
       "updated": "Sprache aktualisiert",
       "updateFailed": "Sprache konnte nicht gespeichert werden"

@@ -3,14 +3,13 @@
 import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { normalizeAppLocale } from "@/i18n/config";
 import { readAppLocaleCookie, writeAppLocaleCookie } from "@/i18n/locale-cookie";
 import { fetchProfileAppLocale } from "@/lib/i18n/apply-app-locale";
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
 
 /**
- * After sign-in: align cookie with `profiles.locale` so the preference
- * follows the account across devices (cookie remains request source of truth).
+ * After sign-in on a device without locale cookie: hydrate from `profiles.locale`.
+ * Never overwrite an existing cookie (that caused iOS PWA to snap back to de).
  */
 export function ProfileLocaleSyncMount() {
   const locale = useLocale();
@@ -30,16 +29,11 @@ export function ProfileLocaleSyncMount() {
 
     let cancelled = false;
     void (async () => {
+      const cookieRaw = readAppLocaleCookie();
+      if (cookieRaw) return;
+
       const profileLocale = await fetchProfileAppLocale();
       if (cancelled || !profileLocale) return;
-
-      const cookieRaw = readAppLocaleCookie();
-      const cookieLocale = cookieRaw
-        ? normalizeAppLocale(cookieRaw)
-        : null;
-
-      // Prefer DB when cookie missing or differs (account wins).
-      if (cookieLocale === profileLocale) return;
 
       writeAppLocaleCookie(profileLocale);
       if (profileLocale !== locale) {

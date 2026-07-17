@@ -20,7 +20,7 @@
     },
     "language": {
       "heading": "Dil",
-      "description": "Uygulama arayüz dili. Bu hesaba tüm cihazlarda uygulanır.",
+      "description": "Uygulama arayüz dili. Aşağıdaki düğmeyle kaydet — bu hesaba tüm cihazlarda uygulanır.",
       "label": "Dil",
       "updated": "Dil güncellendi",
       "updateFailed": "Dil kaydedilemedi"
@@ -80,7 +80,7 @@
     "look": {
       "title": "Rengin",
       "description": "Vurgu rengi düğmeleri, vurguları ve markanı uygulamada boyar.",
-        "previewFallback": "Restoranınız",
+      "previewFallback": "Restoranınız",
       "previewHint": "Çalışma alanın böyle hissedecek."
     },
     "done": {

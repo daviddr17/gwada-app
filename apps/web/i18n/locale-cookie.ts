@@ -4,10 +4,14 @@ import {
   type AppLocale,
 } from "./config";
 
-/** Client-side: persist UI locale for subsequent RSC/request config. */
+/** Client-side fallback — prefer `/api/profile/locale` Set-Cookie for PWA. */
 export function writeAppLocaleCookie(locale: AppLocale): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${APP_LOCALE_COOKIE}=${locale}; path=/; max-age=${APP_LOCALE_COOKIE_MAX_AGE_SECONDS}; samesite=lax`;
+  const secure =
+    typeof window !== "undefined" && window.location.protocol === "https:"
+      ? "; Secure"
+      : "";
+  document.cookie = `${APP_LOCALE_COOKIE}=${encodeURIComponent(locale)}; path=/; max-age=${APP_LOCALE_COOKIE_MAX_AGE_SECONDS}; samesite=lax${secure}`;
 }
 
 export function readAppLocaleCookie(): string | null {

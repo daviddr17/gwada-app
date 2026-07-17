@@ -20,7 +20,7 @@
     },
     "language": {
       "heading": "Lingua",
-      "description": "Lingua dell’interfaccia. Vale per questo account su tutti i dispositivi.",
+      "description": "Lingua dell’interfaccia. Salva con il pulsante in basso: vale per questo account su tutti i dispositivi.",
       "label": "Lingua",
       "updated": "Lingua aggiornata",
       "updateFailed": "Impossibile salvare la lingua"

@@ -20,7 +20,7 @@
     },
     "language": {
       "heading": "语言",
-      "description": "应用界面语言。适用于此账户的所有设备。",
+      "description": "应用界面语言。请用下方按钮保存——适用于此账户的所有设备。",
       "label": "语言",
       "updated": "语言已更新",
       "updateFailed": "无法保存语言"

@@ -20,7 +20,7 @@
     },
     "language": {
       "heading": "Language",
-      "description": "App interface language. Applies to this account on all devices.",
+      "description": "App interface language. Save with the button below — applies to this account on all devices.",
       "label": "Language",
       "updated": "Language updated",
       "updateFailed": "Could not save language"

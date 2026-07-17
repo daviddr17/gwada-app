@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  appLocaleToProfileLocale,
   type AppLocale,
   normalizeAppLocale,
 } from "@/i18n/config";
@@ -14,37 +13,36 @@ export type ApplyAppLocaleResult =
   | { ok: false; locale: AppLocale; error: string };
 
 /**
- * Persist UI locale: cookie (request) + `profiles.locale` (cross-device).
+ * Persist UI locale via API (Set-Cookie + `profiles.locale`).
  * Caller should `router.refresh()` after success so RSC messages reload.
  */
 export async function applyAppLocale(
   nextLocale: string,
 ): Promise<ApplyAppLocaleResult> {
   const locale = normalizeAppLocale(nextLocale);
-  writeAppLocaleCookie(locale);
-
-  if (!workspacePersistenceConfigured()) {
-    return { ok: true, locale };
-  }
 
   try {
-    const supabase = createSupabaseBrowserClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    const res = await fetch("/api/profile/locale", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale }),
+      credentials: "same-origin",
+    });
+
+    if (res.ok) {
+      // Mirror for client reads; server Set-Cookie is source of truth for RSC.
+      writeAppLocaleCookie(locale);
       return { ok: true, locale };
     }
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ locale: appLocaleToProfileLocale(locale) })
-      .eq("id", user.id);
-
-    if (error) {
-      return { ok: false, locale, error: error.message };
-    }
-    return { ok: true, locale };
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    return {
+      ok: false,
+      locale,
+      error: body?.error || `http_${res.status}`,
+    };
   } catch (e) {
     const message = e instanceof Error ? e.message : "unknown";
     return { ok: false, locale, error: message };

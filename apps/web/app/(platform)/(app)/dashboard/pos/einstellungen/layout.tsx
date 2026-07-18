@@ -1,7 +1,7 @@
 "use client";
 
-import { ModuleChipNav } from "@/components/layout/module-subnav";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
+import { RegisterModuleSecondarySubnav } from "@/lib/contexts/app-module-chrome-context";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 const POS_SETTINGS_NAV: readonly ModuleSubnavItem[] = [
@@ -38,13 +38,12 @@ export default function PosEinstellungenLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-6 px-4 pb-8 sm:px-6">
-      <ModuleChipNav
+    <>
+      <RegisterModuleSecondarySubnav
         items={POS_SETTINGS_NAV}
-        aria-label="POS-Einstellungen"
-        className="pt-2"
+        ariaLabel="POS-Einstellungen"
       />
-      {children}
-    </div>
+      <div className="space-y-6 px-4 pb-8 sm:px-6">{children}</div>
+    </>
   );
 }

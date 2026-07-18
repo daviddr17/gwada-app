@@ -50,10 +50,12 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
   const { accentHex } = useAccentColor();
   const { chrome } = useAppModuleChrome();
   const showChipRow = Boolean(chrome.subnav?.items.length);
+  const showSecondaryChipRow = Boolean(chrome.secondarySubnav?.items.length);
+  const showChipStrip = showChipRow || showSecondaryChipRow;
   const showDashboardBrandedBackground = isRestaurantDashboardPath(pathname);
 
   React.useLayoutEffect(() => {
-    if (!showChipRow) {
+    if (!showChipStrip) {
       document.documentElement.style.removeProperty("--app-module-chip-sticky-h");
       return;
     }
@@ -83,7 +85,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
       window.removeEventListener("resize", measure);
       document.documentElement.style.removeProperty("--app-module-chip-sticky-h");
     };
-  }, [showChipRow, chrome.subnav]);
+  }, [showChipStrip, chrome.subnav, chrome.secondarySubnav]);
 
   return (
     <SidebarInset className="min-w-0">
@@ -151,17 +153,32 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {showChipRow && chrome.subnav ? (
-        <div
-          data-module-chip-sticky
-          className="z-20 flex min-h-12 w-full shrink-0 items-center border-b border-border/50 bg-app-chrome px-1.5 py-2"
-          role="navigation"
-        >
-          <ModuleChipNav
-            items={chrome.subnav.items}
-            aria-label={chrome.subnav.ariaLabel}
-            className="min-w-0 flex-1"
-          />
+      {showChipStrip ? (
+        <div data-module-chip-sticky className="z-20 w-full shrink-0">
+          {showChipRow && chrome.subnav ? (
+            <div
+              className="flex min-h-12 w-full items-center border-b border-border/50 bg-app-chrome px-1.5 py-2"
+              role="navigation"
+            >
+              <ModuleChipNav
+                items={chrome.subnav.items}
+                aria-label={chrome.subnav.ariaLabel}
+                className="min-w-0 flex-1"
+              />
+            </div>
+          ) : null}
+          {showSecondaryChipRow && chrome.secondarySubnav ? (
+            <div
+              className="flex min-h-12 w-full items-center border-b border-border/50 bg-app-chrome px-1.5 py-2"
+              role="navigation"
+            >
+              <ModuleChipNav
+                items={chrome.secondarySubnav.items}
+                aria-label={chrome.secondarySubnav.ariaLabel}
+                className="min-w-0 flex-1"
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
 

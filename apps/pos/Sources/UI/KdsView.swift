@@ -219,7 +219,7 @@ struct KdsView: View {
         status = "Aktualisiere …"
         guard runtime.isSignedIn, let restaurantId = PosCloudConfig.restaurantId else {
             tickets = []
-            status = "KDS: Kasse anmelden. Lokal: http://<Kassen-IP>:8787/v1/kds"
+            status = "KDS: Kasse anmelden. Lokal: http://<Kassen-IP>:8787/v1/kds?deviceId=…"
             return
         }
         do {

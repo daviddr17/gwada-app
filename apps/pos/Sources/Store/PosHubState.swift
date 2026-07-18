@@ -518,10 +518,18 @@ final class PosHubState: @unchecked Sendable {
                 "isActive": s.isActive,
             ]
         }
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "tickets": tickets,
             "statuses": statusPayload,
         ]
+        if let deviceId,
+           let device = bootstrap?.kitchen?.kdsDevices.first(where: { $0.id == deviceId && $0.isActive })
+        {
+            payload["device"] = [
+                "id": device.id,
+                "name": device.name,
+            ]
+        }
         return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data(#"{"tickets":[],"statuses":[]}"#.utf8)
     }
 

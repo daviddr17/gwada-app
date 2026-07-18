@@ -249,7 +249,7 @@ export function PosCategoryRoutingPanel() {
                   <tr className={moduleDataTableHeadRowClassName}>
                     <th className="px-3 py-2.5 font-medium">Kategorie</th>
                     <th className="px-3 py-2.5 font-medium">Ziel</th>
-                    <th className="px-3 py-2.5 font-medium">KDS</th>
+                    <th className="px-3 py-2.5 font-medium">Station</th>
                     <th className="px-3 py-2.5 font-medium">Drucker</th>
                     <th className="w-[7.5rem] px-3 py-2.5 font-medium" />
                   </tr>
@@ -306,7 +306,7 @@ export function PosCategoryRoutingPanel() {
                             <DeviceChipRow
                               items={devices}
                               selectedIds={row.kdsDeviceIds}
-                              emptyHint="Kein KDS-Gerät"
+                              emptyHint="Keine Station"
                               onToggle={(id) =>
                                 toggleId(cat.id, "kdsDeviceIds", id)
                               }

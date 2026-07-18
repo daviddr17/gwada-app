@@ -738,7 +738,8 @@ final class PosRuntime: ObservableObject {
                 return (200, KdsHubHTML.page())
             }
             if pathOnly == PosLanProtocol.kdsTicketsPath {
-                return (200, PosHubState.shared.kdsTicketsJSON())
+                let deviceId = lanQueryValue(path, key: "deviceId")
+                return (200, PosHubState.shared.kdsTicketsJSON(deviceId: deviceId))
             }
             if pathOnly == PosLanProtocol.printJobsPath {
                 return (200, PosHubState.shared.printJobsJSON())

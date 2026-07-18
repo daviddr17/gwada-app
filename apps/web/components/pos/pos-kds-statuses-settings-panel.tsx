@@ -202,10 +202,10 @@ export function PosKdsStatusesSettingsPanel() {
       </CardHeader>
       <CardContent className="space-y-5">
         <p className="text-sm text-muted-foreground">
-          Reihenfolge, Namen und Farben für die Küchenanzeige. Tippen auf ein
-          Ticket wechselt zum nächsten Status. Optional: Bondruck und
-          Bestandsbuchung beim Erreichen eines Status (Bestandsbuchung muss
-          unter „Bestand &amp; POS“ aktiv sein).
+          Eine Status-Pipeline für alle Stationen. Tippen auf ein Ticket
+          wechselt zum nächsten Status. Optional: Bondruck und Bestandsbuchung
+          beim Erreichen (Bestandsbuchung muss unter „Bestand &amp; Storno“
+          aktiv sein).
         </p>
 
         <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4">

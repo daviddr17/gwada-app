@@ -69,7 +69,7 @@ export async function createDisplayReservationFromVoiceParsed(params: {
       status_id: statusId,
       dining_table_id: null,
       dwell_minutes: dwell,
-      notify_email: true,
+      notify_email: false,
       notify_whatsapp: false,
       terms_accepted: true,
       notes: null,

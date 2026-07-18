@@ -163,7 +163,7 @@ export function DisplayReservationEditDrawer({
   const [dateYmd, setDateYmd] = useState("");
   const [timeHm, setTimeHm] = useState("19:00");
   const [statusId, setStatusId] = useState("");
-  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [notifyEmail, setNotifyEmail] = useState(false);
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [dwellDraft, setDwellDraft] = useState("");

@@ -32,6 +32,9 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
   https://gwada.app/api/cron/notification-deliver
 
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+  https://gwada.app/api/cron/newsletter-send
+
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
   https://gwada.app/api/cron/staff-shift-notifications
 
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" \

@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { NewsletterSubscriptionCard } from "@/components/notifications/newsletter-subscription-card";
 import { NotificationPushHistorySection } from "@/components/notifications/notification-push-history-section";
 import { NotificationPreferencesPanelSkeleton } from "@/components/notifications/notification-preferences-panel-skeleton";
 import {
@@ -211,6 +212,8 @@ export function NotificationPreferencesPanel() {
   return (
     <div className="space-y-6">
       <NotificationPushHistorySection />
+
+      <NewsletterSubscriptionCard />
 
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">

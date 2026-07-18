@@ -37,6 +37,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/display/")) return true;
   if (pathname.startsWith("/einladung/")) return true;
   if (pathname.startsWith("/bewertung/")) return true;
+  if (pathname.startsWith("/newsletter/")) return true;
   if (pathname.startsWith("/nachrichten/")) return true;
   if (pathname.startsWith("/sb")) return true;
   if (isDashboardPwaAssetPath(pathname)) return true;
@@ -97,6 +98,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/api/display/") ||
     pathname.startsWith("/einladung/") ||
     pathname.startsWith("/bewertung/") ||
+    pathname.startsWith("/newsletter/") ||
     pathname.startsWith("/nachrichten/") ||
     isDashboardPwaAssetPath(pathname) ||
     isPublicRestaurantProfilePath(pathname)

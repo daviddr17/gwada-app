@@ -15,6 +15,7 @@ import {
   Hourglass,
   LayoutDashboard,
   LogOut,
+  Mail,
   Palette,
   Plug,
   RefreshCw,
@@ -351,6 +352,18 @@ export function AppSidebar() {
                     >
                       <Bell />
                       <span>Benachrichtigungen</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/newsletter")}
+                      tooltip="Newsletter"
+                      render={
+                        <Link href="/superadmin/newsletter" prefetch />
+                      }
+                    >
+                      <Mail />
+                      <span>Newsletter</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

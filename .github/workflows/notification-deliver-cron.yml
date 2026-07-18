@@ -23,3 +23,15 @@ jobs:
           curl -sfS --max-time 130 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/notification-deliver"
+
+      - name: Call newsletter-send
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set — skipped."
+            exit 1
+          fi
+          curl -sfS --max-time 130 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_BASE_URL/api/cron/newsletter-send"

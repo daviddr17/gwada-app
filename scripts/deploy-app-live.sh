@@ -88,6 +88,9 @@ fi
 if [[ -n "${GHCR_PULL_TOKEN:-}" ]]; then
   REMOTE_ENV+=("GHCR_PULL_TOKEN=$(printf '%q' "${GHCR_PULL_TOKEN}")")
 fi
+if [[ -n "${GHCR_PULL_USER:-}" ]]; then
+  REMOTE_ENV+=("GHCR_PULL_USER=$(printf '%q' "${GHCR_PULL_USER}")")
+fi
 if [[ -n "${CRON_SECRET:-}" ]]; then
   REMOTE_ENV+=("CRON_SECRET=$(printf '%q' "${CRON_SECRET}")")
 fi

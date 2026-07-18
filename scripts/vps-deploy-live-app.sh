@@ -60,9 +60,12 @@ ghcr_login() {
   local user="${GHCR_PULL_USER:-daviddr17}"
   if [[ -z "${token}" ]]; then
     echo "GHCR_PULL_TOKEN/GITHUB_DEPLOY_TOKEN fehlt — Pull schlägt fehl, wenn das Image privat ist." >&2
-    return 0
+    return 1
   fi
-  echo "${token}" | docker login ghcr.io -u "${user}" --password-stdin
+  if ! echo "${token}" | docker login ghcr.io -u "${user}" --password-stdin; then
+    echo "docker login ghcr.io fehlgeschlagen (User ${user})." >&2
+    return 1
+  fi
 }
 
 force_clear_deploy_lock
@@ -82,11 +85,27 @@ if [[ ! -d "${COMPOSE_DIR}" ]]; then
   exit 1
 fi
 
+# CI/SSH-Env vor Coolify-.env sichern — sonst überschreibt ein veraltetes
+# GITHUB_DEPLOY_TOKEN im Compose-.env den frischen Pull-Token und GHCR → denied.
+_DEPLOY_GHCR_PULL_TOKEN="${GHCR_PULL_TOKEN:-}"
+_DEPLOY_GITHUB_DEPLOY_TOKEN="${GITHUB_DEPLOY_TOKEN:-}"
+_DEPLOY_GHCR_PULL_USER="${GHCR_PULL_USER:-}"
+
 if [[ -f "${COMPOSE_DIR}/.env" ]]; then
   set -a
   # shellcheck disable=SC1090
   source "${COMPOSE_DIR}/.env"
   set +a
+fi
+
+if [[ -n "${_DEPLOY_GHCR_PULL_TOKEN}" ]]; then
+  export GHCR_PULL_TOKEN="${_DEPLOY_GHCR_PULL_TOKEN}"
+fi
+if [[ -n "${_DEPLOY_GITHUB_DEPLOY_TOKEN}" ]]; then
+  export GITHUB_DEPLOY_TOKEN="${_DEPLOY_GITHUB_DEPLOY_TOKEN}"
+fi
+if [[ -n "${_DEPLOY_GHCR_PULL_USER}" ]]; then
+  export GHCR_PULL_USER="${_DEPLOY_GHCR_PULL_USER}"
 fi
 
 APP_ORIGIN="${NEXT_PUBLIC_SITE_URL:-${APP_ORIGIN}}"

@@ -1,7 +1,7 @@
 import Foundation
 
 enum KdsHubHTML {
-    /// Minimalistisches KDS im Browser über http://<kasse-ip>:8787/v1/kds
+    /// Minimalistisches KDS im Browser über http://<kasse-ip>:8787/v1/kds[?deviceId=…]
     static func page() -> Data {
         let html = """
         <!doctype html>
@@ -32,17 +32,25 @@ enum KdsHubHTML {
         </head>
         <body>
           <header>
-            <h1>Gwada KDS</h1>
+            <h1 id="title">Gwada KDS</h1>
             <span class="muted" id="meta">Lokaler Hub · Tippen = nächster Status</span>
             <span style="flex:1"></span>
             <button type="button" onclick="load()">Aktualisieren</button>
           </header>
           <div class="grid" id="grid"></div>
           <script>
+            const params = new URLSearchParams(location.search);
+            const deviceId = (params.get('deviceId') || '').trim();
             let tickets = [];
             let statuses = [];
+            let stationName = '';
             const advancing = new Set();
 
+            function ticketsUrl() {
+              return deviceId
+                ? '/v1/kds/tickets?deviceId=' + encodeURIComponent(deviceId)
+                : '/v1/kds/tickets';
+            }
             function hexToRgba(hex, a) {
               const h = String(hex || '#eab308').replace('#','');
               if (h.length !== 6) return 'rgba(234,179,8,' + a + ')';
@@ -85,10 +93,12 @@ enum KdsHubHTML {
               advancing.add(orderId);
               applyOptimistic(orderId);
               try {
+                const body = { orderId };
+                if (deviceId) body.deviceId = deviceId;
                 const res = await fetch('/v1/kds/tickets/advance', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ orderId }),
+                  body: JSON.stringify(body),
                 });
                 const data = await res.json().catch(() => ({}));
                 if (data && data.done) {
@@ -113,11 +123,17 @@ enum KdsHubHTML {
               }
             }
             function render() {
+              const title = document.getElementById('title');
               const meta = document.getElementById('meta');
               const grid = document.getElementById('grid');
+              title.textContent = stationName ? ('KDS · ' + stationName) : 'Gwada KDS';
+              document.title = title.textContent;
+              const stationHint = stationName
+                ? (stationName + ' · ')
+                : (deviceId ? 'Station · ' : 'Alle Tickets · ');
               meta.textContent = tickets.length
-                ? (tickets.length + ' Tickets · Tippen = nächster Status')
-                : 'Keine Tickets — Bestellungen von der Kasse';
+                ? (stationHint + tickets.length + ' Tickets · Tippen = nächster Status')
+                : (stationHint + 'Keine Tickets — Bestellungen von der Kasse');
               grid.innerHTML = tickets.map(t => {
                 const color = t.statusColor || '#eab308';
                 const label = t.statusName || t.status || '';
@@ -139,11 +155,14 @@ enum KdsHubHTML {
             async function load() {
               const meta = document.getElementById('meta');
               try {
-                const res = await fetch('/v1/kds/tickets');
+                const res = await fetch(ticketsUrl());
                 const data = await res.json();
                 tickets = data.tickets || [];
                 if (Array.isArray(data.statuses) && data.statuses.length) {
                   statuses = data.statuses;
+                }
+                if (data.device && data.device.name) {
+                  stationName = String(data.device.name);
                 }
                 render();
               } catch (e) {

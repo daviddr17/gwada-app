@@ -85,9 +85,10 @@ export function PosInventorySettingsPanel() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Optional Rezept-Zutaten aus Speisekarte vom Bestand abziehen, wenn ein
-          Ticket einen KDS-Status mit „Bestand buchen“ erreicht. Storno-Gründe
-          steuern, ob der Bestand zurückgebucht wird.
+          Master-Schalter: Rezept-Zutaten vom Bestand abziehen. Wann genau
+          gebucht wird, legst du pro Status unter{" "}
+          <span className="font-medium text-foreground">Küche → KDS-Status</span>{" "}
+          fest. Storno-Gründe (unten) steuern die Rückbuchung.
         </p>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/20 px-3 py-2.5">
           <div className="space-y-0.5">
@@ -95,7 +96,7 @@ export function PosInventorySettingsPanel() {
               Bestandsbuchung bei Bestellungen
             </Label>
             <p className="text-xs text-muted-foreground">
-              Pro KDS-Status festlegen, wann gebucht wird
+              Aus = nie buchen, egal welcher KDS-Status
             </p>
           </div>
           <Switch

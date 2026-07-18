@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +23,7 @@ import {
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
-type KdsDevice = {
+type KdsStation = {
   id: string;
   name: string;
   menuCategoryIds: string[];
@@ -33,9 +33,13 @@ type KdsDevice = {
 
 type MenuCategory = { id: string; name: string };
 
+function stationHubUrl(deviceId: string): string {
+  return `http://<Kassen-IP>:8787/v1/kds?deviceId=${deviceId}`;
+}
+
 export function PosKdsSettingsPanel() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
-  const [devices, setDevices] = useState<KdsDevice[]>([]);
+  const [stations, setStations] = useState<KdsStation[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -61,15 +65,18 @@ export function PosKdsSettingsPanel() {
         ),
       ]);
       const devJson = (await devRes.json()) as {
-        devices?: KdsDevice[];
+        devices?: KdsStation[];
         error?: string;
       };
       const bootJson = (await bootRes.json()) as {
         menu?: { categories?: MenuCategory[] };
         error?: string;
       };
-      if (!devRes.ok) toast.error(devJson.error ?? "KDS laden fehlgeschlagen");
-      else setDevices(devJson.devices ?? []);
+      if (!devRes.ok) {
+        toast.error(devJson.error ?? "Stationen laden fehlgeschlagen");
+      } else {
+        setStations(devJson.devices ?? []);
+      }
       if (bootRes.ok) setCategories(bootJson.menu?.categories ?? []);
     } finally {
       setLoading(false);
@@ -97,7 +104,7 @@ export function PosKdsSettingsPanel() {
       toast.error(data.error ?? "Speichern fehlgeschlagen");
       return;
     }
-    toast.success("KDS angelegt");
+    toast.success("Station angelegt");
     setName("");
     setCourses([]);
     setCategoryIds([]);
@@ -118,6 +125,16 @@ export function PosKdsSettingsPanel() {
     void load();
   };
 
+  const copyUrl = async (deviceId: string) => {
+    const url = stationHubUrl(deviceId);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("URL kopiert — Kassen-IP einsetzen");
+    } catch {
+      toast.error("Kopieren fehlgeschlagen");
+    }
+  };
+
   if (!ready || showSkeleton) {
     return <Skeleton className="mt-4 h-40 w-full rounded-xl" />;
   }
@@ -125,22 +142,22 @@ export function PosKdsSettingsPanel() {
   return (
     <Card className="border-border/50 shadow-card">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold">KDS-Geräte</CardTitle>
+        <CardTitle className="text-base font-semibold">KDS-Stationen</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
         <p className="text-sm text-muted-foreground">
-          Küchen-Displays filtern Bestellungen nach Kategorie und Gang. Lokal
-          im WLAN:{" "}
-          <span className="font-medium text-foreground">
-            http://&lt;Kassen-IP&gt;:8787/v1/kds
-          </span>
+          Eine Station speichert Filter (Kategorien/Gänge) und die Aufruf-URL.
+          Jeder Bildschirm im WLAN kann den Hub öffnen — mit{" "}
+          <span className="font-medium text-foreground">deviceId</span> sieht er
+          nur seine Tickets. Ohne ID: alle Tickets. Status-Pipeline ist
+          restaurantweit (unten).
         </p>
 
         <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4">
           <div className="space-y-1.5">
-            <Label htmlFor="kds-name">Name</Label>
+            <Label htmlFor="kds-station-name">Name</Label>
             <Input
-              id="kds-name"
+              id="kds-station-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="z. B. Hot Kitchen"
@@ -172,9 +189,7 @@ export function PosKdsSettingsPanel() {
                 );
               })}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Leer = alle Gänge
-            </p>
+            <p className="text-xs text-muted-foreground">Leer = alle Gänge</p>
           </div>
           {categories.length > 0 ? (
             <div className="space-y-2">
@@ -217,45 +232,60 @@ export function PosKdsSettingsPanel() {
             disabled={!name.trim()}
           >
             <Plus className="size-4" />
-            KDS anlegen
+            Station anlegen
           </Button>
         </div>
 
         <ul className="divide-y divide-border/40">
-          {devices.length === 0 ? (
+          {stations.length === 0 ? (
             <li className="py-4 text-sm text-muted-foreground">
-              Noch keine KDS-Geräte.
+              Noch keine Station — ohne Station zeigt der Hub alle Tickets.
             </li>
           ) : (
-            devices.map((d) => (
-              <li
-                key={d.id}
-                className="flex items-start justify-between gap-3 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium">{d.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {d.courses.length
-                      ? d.courses
-                          .map((c) => POS_ORDER_COURSE_LABELS_DE[c] ?? c)
-                          .join(", ")
-                      : "Alle Gänge"}
-                    {" · "}
-                    {d.menuCategoryIds.length
-                      ? `${d.menuCategoryIds.length} Kategorien`
-                      : "Alle Kategorien"}
-                  </p>
+            stations.map((d) => (
+              <li key={d.id} className="space-y-2 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">{d.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {d.courses.length
+                        ? d.courses
+                            .map((c) => POS_ORDER_COURSE_LABELS_DE[c] ?? c)
+                            .join(", ")
+                        : "Alle Gänge"}
+                      {" · "}
+                      {d.menuCategoryIds.length
+                        ? `${d.menuCategoryIds.length} Kategorien`
+                        : "Alle Kategorien"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => void copyUrl(d.id)}
+                      aria-label="Hub-URL kopieren"
+                      title="Hub-URL kopieren"
+                    >
+                      <Copy className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => void remove(d.id)}
+                      aria-label="Löschen"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="outline"
-                  className="rounded-full"
-                  onClick={() => void remove(d.id)}
-                  aria-label="Löschen"
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                <p className="break-all font-mono text-[11px] text-muted-foreground">
+                  {stationHubUrl(d.id)}
+                </p>
               </li>
             ))
           )}

@@ -6,8 +6,8 @@ import { PosKdsStatusesSettingsPanel } from "@/components/pos/pos-kds-statuses-s
 export function PosSettingsKitchenScreen() {
   return (
     <div className="space-y-6">
-      <PosKdsStatusesSettingsPanel />
       <PosKdsSettingsPanel />
+      <PosKdsStatusesSettingsPanel />
     </div>
   );
 }

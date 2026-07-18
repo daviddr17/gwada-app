@@ -18,3 +18,7 @@ SMTP-Passwörter liegen nur in der DB (Service-Role), nie im Client-Bundle.
 - Reservierungen: `lib/reservations/reservation-email-dispatch.ts` → `sendReservationEmail`
 
 Geplanter Versand (Erinnerung / Danke): Cron `GET /api/cron/reservation-email`.
+
+## Platform-Newsletter
+
+Superadmin → Newsletter. Opt-in-Empfänger, Batches über Cron `GET /api/cron/newsletter-send` (alle 2 Min. mit notification-deliver). Layout: `lib/email/newsletter-email-layout.ts` (anders als Transaktionsmails). Absender: Platform-SMTP (`contact@gwada.app`).

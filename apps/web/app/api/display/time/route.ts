@@ -63,7 +63,11 @@ export async function GET() {
     return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const state = await getStaffDisplayTimeState(admin, access.staffId);
+  const state = await getStaffDisplayTimeState(
+    admin,
+    access.staffId,
+    access.restaurantId,
+  );
   const canViewTeamPresence = await staffHasDisplayPermission(
     admin,
     access.staffId,

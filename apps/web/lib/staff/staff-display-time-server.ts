@@ -3,6 +3,8 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { signStaffAvatarUrl } from "@/lib/display/display-storage-urls";
 import { emitStaffDisplayClockNotification } from "@/lib/notifications/notification-staff-display-clock-server";
+import { isSameRestaurantCalendarDay } from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import type {
   DisplayTeamPresenceMember,
   StaffPresenceStatus,
@@ -69,10 +71,47 @@ async function shiftClockedInAt(
   return (data?.starts_at as string | undefined) ?? fallback;
 }
 
+/**
+ * Offene Display-Pause vom Vortag (typisch nach „Pause starten“ + Logout).
+ * Wird still geschlossen — sonst folgt „Schicht beenden“ + „starten“ mit
+ * doppelter WhatsApp-Nachricht, obwohl in den Arbeitszeiten „heute“ nur Start steht.
+ */
+function isOvernightOpenDisplayBreak(
+  open: { entry_type: "work" | "break"; starts_at: string },
+  timeZone: string,
+  now: Date = new Date(),
+): boolean {
+  return (
+    open.entry_type === "break" &&
+    !isSameRestaurantCalendarDay(open.starts_at, now, timeZone)
+  );
+}
+
+async function silentCloseOvernightOpenDisplayBreak(
+  admin: SupabaseClient,
+  params: { staffId: string; restaurantId: string; timeZone?: string },
+): Promise<boolean> {
+  const timeZone =
+    params.timeZone ??
+    (await fetchRestaurantTimezoneServer(admin, params.restaurantId));
+  const open = await findOpenDisplayEntry(admin, params.staffId);
+  if (!open || !isOvernightOpenDisplayBreak(open, timeZone)) return false;
+  await closeOpenEntry(admin, open.id, new Date().toISOString());
+  return true;
+}
+
 export async function getStaffDisplayTimeState(
   admin: SupabaseClient,
   staffId: string,
+  restaurantId?: string,
 ): Promise<StaffDisplayTimeState> {
+  if (restaurantId) {
+    await silentCloseOvernightOpenDisplayBreak(admin, {
+      staffId,
+      restaurantId,
+    });
+  }
+
   const open = await findOpenDisplayEntry(admin, staffId);
   if (!open) {
     return { status: "off", clocked_in_at: null, break_started_at: null };
@@ -98,19 +137,34 @@ export async function listStaffLivePresence(
   admin: SupabaseClient,
   restaurantId: string,
 ): Promise<StaffLivePresenceRow[]> {
+  const timeZone = await fetchRestaurantTimezoneServer(admin, restaurantId);
+  const nowDate = new Date();
+  const nowIso = nowDate.toISOString();
+
   const { data: openEntries } = await admin
     .from("restaurant_staff_work_entries")
-    .select("staff_id, shift_id, entry_type, starts_at")
+    .select("id, staff_id, shift_id, entry_type, starts_at")
     .eq("restaurant_id", restaurantId)
     .eq("is_open", true)
     .not("shift_id", "is", null);
 
   const out: StaffLivePresenceRow[] = [];
   for (const row of openEntries ?? []) {
+    const entryId = row.id as string;
     const shiftId = row.shift_id as string;
     const staffId = row.staff_id as string;
     const entryType = row.entry_type as "work" | "break";
     const startsAt = row.starts_at as string;
+    if (
+      isOvernightOpenDisplayBreak(
+        { entry_type: entryType, starts_at: startsAt },
+        timeZone,
+        nowDate,
+      )
+    ) {
+      await closeOpenEntry(admin, entryId, nowIso);
+      continue;
+    }
     const clockedInAt = await shiftClockedInAt(admin, shiftId, startsAt);
     out.push({
       staff_id: staffId,
@@ -245,10 +299,19 @@ export async function runDisplayTimeAction(
   | { ok: true; state: StaffDisplayTimeState }
   | { ok: false; error: string; status: number }
 > {
-  const now = new Date().toISOString();
-  const open = await findOpenDisplayEntry(admin, params.staffId);
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+  const timeZone = await fetchRestaurantTimezoneServer(
+    admin,
+    params.restaurantId,
+  );
+  let open = await findOpenDisplayEntry(admin, params.staffId);
 
   if (params.action === "clock_in") {
+    if (open && isOvernightOpenDisplayBreak(open, timeZone, nowDate)) {
+      await closeOpenEntry(admin, open.id, now);
+      open = null;
+    }
     if (open) {
       return { ok: false, error: "already_clocked_in", status: 409 };
     }
@@ -304,6 +367,13 @@ export async function runDisplayTimeAction(
     if (open.entry_type !== "break") {
       return { ok: false, error: "not_on_break", status: 409 };
     }
+    if (isOvernightOpenDisplayBreak(open, timeZone, nowDate)) {
+      await closeOpenEntry(admin, open.id, now);
+      return {
+        ok: true,
+        state: { status: "off", clocked_in_at: null, break_started_at: null },
+      };
+    }
     await closeOpenEntry(admin, open.id, now);
     await openSegment(admin, {
       restaurantId: params.restaurantId,
@@ -320,14 +390,17 @@ export async function runDisplayTimeAction(
   }
 
   if (params.action === "clock_out") {
+    const skipNotify = isOvernightOpenDisplayBreak(open, timeZone, nowDate);
     await closeOpenEntry(admin, open.id, now);
-    await emitStaffDisplayClockNotification(admin, {
-      restaurantId: params.restaurantId,
-      staffId: params.staffId,
-      shiftId: open.shift_id,
-      action: "clock_out",
-      at: now,
-    });
+    if (!skipNotify) {
+      await emitStaffDisplayClockNotification(admin, {
+        restaurantId: params.restaurantId,
+        staffId: params.staffId,
+        shiftId: open.shift_id,
+        action: "clock_out",
+        at: now,
+      });
+    }
     return {
       ok: true,
       state: { status: "off", clocked_in_at: null, break_started_at: null },

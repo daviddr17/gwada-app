@@ -209,7 +209,7 @@ export function ReservationEditDrawer({
   const [dateYmd, setDateYmd] = useState("");
   const [timeHm, setTimeHm] = useState("19:00");
   const [statusId, setStatusId] = useState("");
-  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [notifyEmail, setNotifyEmail] = useState(false);
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [tables, setTables] = useState<DiningTableRow[]>([]);
@@ -430,7 +430,7 @@ export function ReservationEditDrawer({
           : "19:00";
       setTimeHm(hm);
       setStatusId("");
-      setNotifyEmail(true);
+      setNotifyEmail(false);
       setNotifyWhatsapp(false);
       setTermsAccepted(true);
       setDwellDraft(String(defaultDwellMinutes));
@@ -562,8 +562,8 @@ export function ReservationEditDrawer({
       dining_table_id:
         tableAssignmentAllowed && tableId !== "__none__" ? tableId : null,
       dwell_minutes: dwellStored,
-      notify_email: notifyEmail,
-      notify_whatsapp: notifyWhatsapp,
+      notify_email: notifyEmail && hasEmail,
+      notify_whatsapp: notifyWhatsapp && hasPhone,
       terms_accepted: termsAccepted,
       notes: internalNote.trim() || null,
     };

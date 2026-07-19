@@ -163,7 +163,7 @@ export function DisplayReservationEditDrawer({
   const [dateYmd, setDateYmd] = useState("");
   const [timeHm, setTimeHm] = useState("19:00");
   const [statusId, setStatusId] = useState("");
-  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [notifyEmail, setNotifyEmail] = useState(false);
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [dwellDraft, setDwellDraft] = useState("");
@@ -347,8 +347,8 @@ export function DisplayReservationEditDrawer({
       dining_table_id:
         tableAssignmentAllowed && tableId !== "__none__" ? tableId : null,
       dwell_minutes: minutesForEnd,
-      notify_email: notifyEmail,
-      notify_whatsapp: notifyWhatsapp,
+      notify_email: notifyEmail && hasEmail,
+      notify_whatsapp: notifyWhatsapp && hasPhone,
       terms_accepted: termsAccepted,
       notes: internalNote.trim() || null,
     };

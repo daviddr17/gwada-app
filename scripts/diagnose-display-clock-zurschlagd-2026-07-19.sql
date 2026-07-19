@@ -27,7 +27,7 @@ select
   s.id::text as staff_id,
   s.given_name,
   s.family_name,
-  s.active::text as active
+  s.is_active::text as is_active
 from public.restaurant_staff s
 join rest r on r.id = s.restaurant_id
 where (
@@ -139,3 +139,5 @@ join win w on w.restaurant_id = e.restaurant_id
 where e.starts_at >= w.t0
   and e.starts_at < w.t1
 order by st.family_name, e.starts_at;
+
+-- trigger run

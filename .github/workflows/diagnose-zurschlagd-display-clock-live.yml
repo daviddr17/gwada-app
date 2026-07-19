@@ -2,6 +2,11 @@ name: Diagnose zurschlagd display clock live
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/diagnose-display-clock-zurschlagd-2026-07-19.sql'
+      - '.github/workflows/diagnose-zurschlagd-display-clock-live.yml'
 
 concurrency:
   group: diagnose-zurschlagd-display-clock-live

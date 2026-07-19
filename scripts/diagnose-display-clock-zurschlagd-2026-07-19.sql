@@ -139,3 +139,5 @@ join win w on w.restaurant_id = e.restaurant_id
 where e.starts_at >= w.t0
   and e.starts_at < w.t1
 order by st.family_name, e.starts_at;
+
+-- trigger run

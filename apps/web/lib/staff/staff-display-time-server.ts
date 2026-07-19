@@ -3,6 +3,11 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { signStaffAvatarUrl } from "@/lib/display/display-storage-urls";
 import { emitStaffDisplayClockNotification } from "@/lib/notifications/notification-staff-display-clock-server";
+import {
+  isDisplayAutoClockOutDue,
+  type StaffDisplayAutoClockOutPolicy,
+} from "@/lib/staff/staff-display-auto-clock-out";
+import { fetchStaffModuleSettingsServer } from "@/lib/staff/staff-module-settings-server";
 import type {
   DisplayTeamPresenceMember,
   StaffPresenceStatus,
@@ -69,10 +74,81 @@ async function shiftClockedInAt(
   return (data?.starts_at as string | undefined) ?? fallback;
 }
 
+async function closeOpenEntry(
+  admin: SupabaseClient,
+  entryId: string,
+  endsAt: string,
+): Promise<void> {
+  await admin
+    .from("restaurant_staff_work_entries")
+    .update({ ends_at: endsAt, is_open: false })
+    .eq("id", entryId);
+}
+
+async function loadDisplayAutoClockOutPolicy(
+  restaurantId: string,
+): Promise<StaffDisplayAutoClockOutPolicy> {
+  const { displayAutoClockOut } =
+    await fetchStaffModuleSettingsServer(restaurantId);
+  return displayAutoClockOut;
+}
+
+async function closeOpenEntryWithAutoClockOutNotify(
+  admin: SupabaseClient,
+  params: {
+    restaurantId: string;
+    staffId: string;
+    entryId: string;
+    shiftId: string;
+    at: string;
+  },
+): Promise<void> {
+  await closeOpenEntry(admin, params.entryId, params.at);
+  await emitStaffDisplayClockNotification(admin, {
+    restaurantId: params.restaurantId,
+    staffId: params.staffId,
+    shiftId: params.shiftId,
+    action: "clock_out",
+    at: params.at,
+    auto: true,
+  });
+}
+
+async function silentCloseAutoClockOutEntry(
+  admin: SupabaseClient,
+  params: {
+    staffId: string;
+    restaurantId: string;
+    policy?: StaffDisplayAutoClockOutPolicy;
+  },
+): Promise<boolean> {
+  const policy =
+    params.policy ?? (await loadDisplayAutoClockOutPolicy(params.restaurantId));
+  const open = await findOpenDisplayEntry(admin, params.staffId);
+  if (!open || !isDisplayAutoClockOutDue(open, policy)) return false;
+  const at = new Date().toISOString();
+  await closeOpenEntryWithAutoClockOutNotify(admin, {
+    restaurantId: params.restaurantId,
+    staffId: params.staffId,
+    entryId: open.id,
+    shiftId: open.shift_id,
+    at,
+  });
+  return true;
+}
+
 export async function getStaffDisplayTimeState(
   admin: SupabaseClient,
   staffId: string,
+  restaurantId?: string,
 ): Promise<StaffDisplayTimeState> {
+  if (restaurantId) {
+    await silentCloseAutoClockOutEntry(admin, {
+      staffId,
+      restaurantId,
+    });
+  }
+
   const open = await findOpenDisplayEntry(admin, staffId);
   if (!open) {
     return { status: "off", clocked_in_at: null, break_started_at: null };
@@ -98,19 +174,34 @@ export async function listStaffLivePresence(
   admin: SupabaseClient,
   restaurantId: string,
 ): Promise<StaffLivePresenceRow[]> {
+  const policy = await loadDisplayAutoClockOutPolicy(restaurantId);
+  const nowDate = new Date();
+  const nowIso = nowDate.toISOString();
+
   const { data: openEntries } = await admin
     .from("restaurant_staff_work_entries")
-    .select("staff_id, shift_id, entry_type, starts_at")
+    .select("id, staff_id, shift_id, entry_type, starts_at")
     .eq("restaurant_id", restaurantId)
     .eq("is_open", true)
     .not("shift_id", "is", null);
 
   const out: StaffLivePresenceRow[] = [];
   for (const row of openEntries ?? []) {
+    const entryId = row.id as string;
     const shiftId = row.shift_id as string;
     const staffId = row.staff_id as string;
     const entryType = row.entry_type as "work" | "break";
     const startsAt = row.starts_at as string;
+    if (isDisplayAutoClockOutDue({ starts_at: startsAt }, policy, nowDate)) {
+      await closeOpenEntryWithAutoClockOutNotify(admin, {
+        restaurantId,
+        staffId,
+        entryId,
+        shiftId,
+        at: nowIso,
+      });
+      continue;
+    }
     const clockedInAt = await shiftClockedInAt(admin, shiftId, startsAt);
     out.push({
       staff_id: staffId,
@@ -201,17 +292,6 @@ export async function listDisplayTeamPresence(
   return members;
 }
 
-async function closeOpenEntry(
-  admin: SupabaseClient,
-  entryId: string,
-  endsAt: string,
-): Promise<void> {
-  await admin
-    .from("restaurant_staff_work_entries")
-    .update({ ends_at: endsAt, is_open: false })
-    .eq("id", entryId);
-}
-
 async function openSegment(
   admin: SupabaseClient,
   params: {
@@ -245,10 +325,22 @@ export async function runDisplayTimeAction(
   | { ok: true; state: StaffDisplayTimeState }
   | { ok: false; error: string; status: number }
 > {
-  const now = new Date().toISOString();
-  const open = await findOpenDisplayEntry(admin, params.staffId);
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+  const autoClockOut = await loadDisplayAutoClockOutPolicy(params.restaurantId);
+  let open = await findOpenDisplayEntry(admin, params.staffId);
 
   if (params.action === "clock_in") {
+    if (open && isDisplayAutoClockOutDue(open, autoClockOut, nowDate)) {
+      await closeOpenEntryWithAutoClockOutNotify(admin, {
+        restaurantId: params.restaurantId,
+        staffId: params.staffId,
+        entryId: open.id,
+        shiftId: open.shift_id,
+        at: now,
+      });
+      open = null;
+    }
     if (open) {
       return { ok: false, error: "already_clocked_in", status: 409 };
     }
@@ -304,6 +396,19 @@ export async function runDisplayTimeAction(
     if (open.entry_type !== "break") {
       return { ok: false, error: "not_on_break", status: 409 };
     }
+    if (isDisplayAutoClockOutDue(open, autoClockOut, nowDate)) {
+      await closeOpenEntryWithAutoClockOutNotify(admin, {
+        restaurantId: params.restaurantId,
+        staffId: params.staffId,
+        entryId: open.id,
+        shiftId: open.shift_id,
+        at: now,
+      });
+      return {
+        ok: true,
+        state: { status: "off", clocked_in_at: null, break_started_at: null },
+      };
+    }
     await closeOpenEntry(admin, open.id, now);
     await openSegment(admin, {
       restaurantId: params.restaurantId,
@@ -320,14 +425,20 @@ export async function runDisplayTimeAction(
   }
 
   if (params.action === "clock_out") {
+    const isAuto = isDisplayAutoClockOutDue(open, autoClockOut, nowDate);
+    // Pause am gleichen Tag beenden: kein Push. Auto-Abmeldung: Push mit Hinweis.
+    const skipNotify = open.entry_type === "break" && !isAuto;
     await closeOpenEntry(admin, open.id, now);
-    await emitStaffDisplayClockNotification(admin, {
-      restaurantId: params.restaurantId,
-      staffId: params.staffId,
-      shiftId: open.shift_id,
-      action: "clock_out",
-      at: now,
-    });
+    if (!skipNotify) {
+      await emitStaffDisplayClockNotification(admin, {
+        restaurantId: params.restaurantId,
+        staffId: params.staffId,
+        shiftId: open.shift_id,
+        action: "clock_out",
+        at: now,
+        ...(isAuto ? { auto: true } : {}),
+      });
+    }
     return {
       ok: true,
       state: { status: "off", clocked_in_at: null, break_started_at: null },

@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -27,6 +28,11 @@ import {
 } from "@/components/settings/settings-sticky-save-bar";
 import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import {
+  DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
+  DISPLAY_AUTO_CLOCK_OUT_HOURS_MAX,
+  DISPLAY_AUTO_CLOCK_OUT_HOURS_MIN,
+} from "@/lib/staff/staff-display-auto-clock-out";
 import {
   fetchStaffModuleSettings,
   STAFF_CONTRACT_DEFAULT_DOCUMENT_TAG_NAME,
@@ -52,6 +58,8 @@ type SettingsSnapshot = {
   profileShowAvailability: boolean;
   profileAllowDisplayPinSelfService: boolean;
   contractTwoStepSigning: boolean;
+  displayAutoClockOutEnabled: boolean;
+  displayAutoClockOutHours: string;
 };
 
 export function StaffSettingsForm() {
@@ -68,6 +76,11 @@ export function StaffSettingsForm() {
   const [profileAllowDisplayPinSelfService, setProfileAllowDisplayPinSelfService] =
     useState(false);
   const [contractTwoStepSigning, setContractTwoStepSigning] = useState(false);
+  const [displayAutoClockOutEnabled, setDisplayAutoClockOutEnabled] =
+    useState(true);
+  const [displayAutoClockOutHours, setDisplayAutoClockOutHours] = useState(
+    String(DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT),
+  );
   const [platformImportOpen, setPlatformImportOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -82,6 +95,8 @@ export function StaffSettingsForm() {
       profileShowAvailability,
       profileAllowDisplayPinSelfService,
       contractTwoStepSigning,
+      displayAutoClockOutEnabled,
+      displayAutoClockOutHours,
     }),
     [
       contractDocumentTagId,
@@ -91,6 +106,8 @@ export function StaffSettingsForm() {
       profileShowAvailability,
       profileAllowDisplayPinSelfService,
       contractTwoStepSigning,
+      displayAutoClockOutEnabled,
+      displayAutoClockOutHours,
     ],
   );
 
@@ -107,6 +124,8 @@ export function StaffSettingsForm() {
     setProfileShowAvailability(next.profileShowAvailability);
     setProfileAllowDisplayPinSelfService(next.profileAllowDisplayPinSelfService);
     setContractTwoStepSigning(next.contractTwoStepSigning);
+    setDisplayAutoClockOutEnabled(next.displayAutoClockOutEnabled);
+    setDisplayAutoClockOutHours(next.displayAutoClockOutHours);
     savedRef.current = JSON.stringify(next);
   };
 
@@ -132,6 +151,12 @@ export function StaffSettingsForm() {
         profileAllowDisplayPinSelfService:
           data?.profile_allow_display_pin_self_service ?? false,
         contractTwoStepSigning: data?.contract_two_step_signing ?? false,
+        displayAutoClockOutEnabled:
+          data?.display_auto_clock_out_enabled !== false,
+        displayAutoClockOutHours: String(
+          data?.display_auto_clock_out_hours ??
+            DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
+        ),
       });
     })();
     return () => {
@@ -141,6 +166,18 @@ export function StaffSettingsForm() {
 
   const save = () => {
     if (!restaurantId) return;
+    const hours = Number.parseInt(displayAutoClockOutHours.trim(), 10);
+    if (
+      displayAutoClockOutEnabled &&
+      (!Number.isFinite(hours) ||
+        hours < DISPLAY_AUTO_CLOCK_OUT_HOURS_MIN ||
+        hours > DISPLAY_AUTO_CLOCK_OUT_HOURS_MAX)
+    ) {
+      toast.error(
+        `Auto-Abmeldung: ${DISPLAY_AUTO_CLOCK_OUT_HOURS_MIN}–${DISPLAY_AUTO_CLOCK_OUT_HOURS_MAX} Stunden.`,
+      );
+      return;
+    }
     setSaving(true);
     void (async () => {
       const { error } = await upsertStaffModuleSettings({
@@ -152,6 +189,10 @@ export function StaffSettingsForm() {
         profileShowAvailability,
         profileAllowDisplayPinSelfService,
         contractTwoStepSigning,
+        displayAutoClockOutEnabled,
+        displayAutoClockOutHours: Number.isFinite(hours)
+          ? hours
+          : DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
       });
       setSaving(false);
       if (error) toast.error(error.message);
@@ -275,6 +316,63 @@ export function StaffSettingsForm() {
                 disabled={loading}
                 aria-label="Display-PIN Self-Service im Profil erlauben"
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 shadow-card">
+          <CardHeader className="gap-2">
+            <CardTitle className="text-xl">Display-Zeiterfassung</CardTitle>
+            <CardDescription>
+              Automatische Abmeldung offener Stempel am Display — verhindert
+              vergessene Schichten über Nacht und doppelte WhatsApp-Meldungen.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-muted/15 p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Automatisch abmelden</p>
+                <p className="text-xs text-muted-foreground">
+                  Offene Schicht oder Pause wird nach der eingestellten Dauer
+                  geschlossen. Benachrichtigung wie bei Abmeldung mit Hinweis
+                  „Auto-Abmeldung“ — in der Glocke, per WhatsApp und E-Mail,
+                  sofern unter Profil → Benachrichtigungen für
+                  „Display-Schichtende“ aktiv.
+                </p>
+              </div>
+              <Switch
+                checked={displayAutoClockOutEnabled}
+                onCheckedChange={setDisplayAutoClockOutEnabled}
+                disabled={loading}
+                aria-label="Automatische Display-Abmeldung aktivieren"
+              />
+            </div>
+            <div
+              className={cn(
+                "space-y-2",
+                !displayAutoClockOutEnabled && "opacity-50",
+              )}
+            >
+              <Label htmlFor="display-auto-clock-out-hours">
+                Nach Stunden
+              </Label>
+              <Input
+                id="display-auto-clock-out-hours"
+                type="number"
+                inputMode="numeric"
+                min={DISPLAY_AUTO_CLOCK_OUT_HOURS_MIN}
+                max={DISPLAY_AUTO_CLOCK_OUT_HOURS_MAX}
+                step={1}
+                value={displayAutoClockOutHours}
+                disabled={loading || !displayAutoClockOutEnabled}
+                onChange={(e) => setDisplayAutoClockOutHours(e.target.value)}
+                className="h-11 max-w-[8rem] rounded-xl tabular-nums"
+              />
+              <p className="text-xs text-muted-foreground">
+                {DISPLAY_AUTO_CLOCK_OUT_HOURS_MIN}–
+                {DISPLAY_AUTO_CLOCK_OUT_HOURS_MAX} Stunden (Empfehlung:{" "}
+                {DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT}).
+              </p>
             </div>
           </CardContent>
         </Card>

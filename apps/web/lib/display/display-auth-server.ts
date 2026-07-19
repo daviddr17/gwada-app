@@ -332,6 +332,7 @@ export async function buildDisplayContext(
     timeSession = await getStaffDisplayTimeState(
       admin,
       sessionResult.session.staff_id,
+      deviceResult.display.restaurant_id,
     );
   }
 

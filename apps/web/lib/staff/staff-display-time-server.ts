@@ -82,22 +82,26 @@ async function closeOpenEntry(
     .eq("id", entryId);
 }
 
+/** Vergessene offene Display-Segmente (Arbeit/Pause) vom Vortag — nicht echte Nachtschicht. */
+const STALE_OPEN_DISPLAY_ENTRY_MS = 12 * 60 * 60 * 1000;
+
 /**
- * Offene Display-Pause vom Vortag (nach „Pause starten“ + Logout über Mitternacht).
- * Still schließen, damit am nächsten Tag direkt „Schicht starten“ möglich ist.
+ * Offenes Display-Segment vom Vortag und ≥12h alt (Live: Lukas/Pascal 2026-07-19
+ * hatten seit gestern offene Arbeit, dann beenden→starten → doppeltes WhatsApp).
+ * Nachtschicht (z. B. 22–06) bleibt darunter und behält Notify.
  */
-function isOvernightOpenDisplayBreak(
-  open: { entry_type: "work" | "break"; starts_at: string },
+function isStaleOvernightOpenDisplayEntry(
+  open: { starts_at: string },
   timeZone: string,
   now: Date = new Date(),
 ): boolean {
-  return (
-    open.entry_type === "break" &&
-    !isSameRestaurantCalendarDay(open.starts_at, now, timeZone)
-  );
+  if (isSameRestaurantCalendarDay(open.starts_at, now, timeZone)) return false;
+  const started = new Date(open.starts_at);
+  if (Number.isNaN(started.getTime())) return false;
+  return now.getTime() - started.getTime() >= STALE_OPEN_DISPLAY_ENTRY_MS;
 }
 
-async function silentCloseOvernightOpenDisplayBreak(
+async function silentCloseStaleOvernightOpenDisplayEntry(
   admin: SupabaseClient,
   params: { staffId: string; restaurantId: string; timeZone?: string },
 ): Promise<boolean> {
@@ -105,7 +109,7 @@ async function silentCloseOvernightOpenDisplayBreak(
     params.timeZone ??
     (await fetchRestaurantTimezoneServer(admin, params.restaurantId));
   const open = await findOpenDisplayEntry(admin, params.staffId);
-  if (!open || !isOvernightOpenDisplayBreak(open, timeZone)) return false;
+  if (!open || !isStaleOvernightOpenDisplayEntry(open, timeZone)) return false;
   await closeOpenEntry(admin, open.id, new Date().toISOString());
   return true;
 }
@@ -116,7 +120,7 @@ export async function getStaffDisplayTimeState(
   restaurantId?: string,
 ): Promise<StaffDisplayTimeState> {
   if (restaurantId) {
-    await silentCloseOvernightOpenDisplayBreak(admin, {
+    await silentCloseStaleOvernightOpenDisplayEntry(admin, {
       staffId,
       restaurantId,
     });
@@ -166,8 +170,8 @@ export async function listStaffLivePresence(
     const entryType = row.entry_type as "work" | "break";
     const startsAt = row.starts_at as string;
     if (
-      isOvernightOpenDisplayBreak(
-        { entry_type: entryType, starts_at: startsAt },
+      isStaleOvernightOpenDisplayEntry(
+        { starts_at: startsAt },
         timeZone,
         nowDate,
       )
@@ -307,7 +311,7 @@ export async function runDisplayTimeAction(
   let open = await findOpenDisplayEntry(admin, params.staffId);
 
   if (params.action === "clock_in") {
-    if (open && isOvernightOpenDisplayBreak(open, timeZone, nowDate)) {
+    if (open && isStaleOvernightOpenDisplayEntry(open, timeZone, nowDate)) {
       await closeOpenEntry(admin, open.id, now);
       open = null;
     }
@@ -366,7 +370,7 @@ export async function runDisplayTimeAction(
     if (open.entry_type !== "break") {
       return { ok: false, error: "not_on_break", status: 409 };
     }
-    if (isOvernightOpenDisplayBreak(open, timeZone, nowDate)) {
+    if (isStaleOvernightOpenDisplayEntry(open, timeZone, nowDate)) {
       await closeOpenEntry(admin, open.id, now);
       return {
         ok: true,
@@ -389,10 +393,11 @@ export async function runDisplayTimeAction(
   }
 
   if (params.action === "clock_out") {
-    // Aus offener Pause beenden (nach Pause+Logout oft vor erneutem Start):
-    // kein WhatsApp „beendet“ — Pausen selbst feuern nie, und das Paar
-    // beenden→starten wäre nur Noise. Echtes Schichtende aus „In Schicht“ bleibt.
-    const skipNotify = open.entry_type === "break";
+    // Kein WhatsApp „beendet“ bei: Pause-Ende, oder vergessener Vortags-Schicht
+    // (sonst beenden→starten in derselben Minute; App zeigt heute nur den Start).
+    const skipNotify =
+      open.entry_type === "break" ||
+      isStaleOvernightOpenDisplayEntry(open, timeZone, nowDate);
     await closeOpenEntry(admin, open.id, now);
     if (!skipNotify) {
       await emitStaffDisplayClockNotification(admin, {

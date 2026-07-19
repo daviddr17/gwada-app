@@ -334,8 +334,10 @@ export function StaffSettingsForm() {
                 <p className="text-sm font-medium">Automatisch abmelden</p>
                 <p className="text-xs text-muted-foreground">
                   Offene Schicht oder Pause wird nach der eingestellten Dauer
-                  geschlossen. Es kommt eine Benachrichtigung wie bei Abmeldung
-                  mit Hinweis „Auto-Abmeldung“.
+                  geschlossen. Benachrichtigung wie bei Abmeldung mit Hinweis
+                  „Auto-Abmeldung“ — in der Glocke, per WhatsApp und E-Mail,
+                  sofern unter Profil → Benachrichtigungen für
+                  „Display-Schichtende“ aktiv.
                 </p>
               </div>
               <Switch

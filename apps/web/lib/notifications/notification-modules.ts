@@ -260,9 +260,11 @@ export const NOTIFICATION_MODULES: Record<
     labelPlural: "Display-Schichtende",
     href: "/dashboard/mitarbeiter/uebersicht",
     icon: CircleStop,
-    settingsInAppLabel: "Display: Schicht beendet in der Glocke",
-    settingsPushWhatsappLabel: "WhatsApp bei Display-Schichtende",
-    settingsPushEmailLabel: "E-Mail bei Display-Schichtende",
+    settingsInAppLabel:
+      "Display: Schicht beendet / Auto-Abmeldung in der Glocke",
+    settingsPushWhatsappLabel:
+      "WhatsApp bei Display-Schichtende / Auto-Abmeldung",
+    settingsPushEmailLabel: "E-Mail bei Display-Schichtende / Auto-Abmeldung",
   },
 };
 

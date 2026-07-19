@@ -83,9 +83,8 @@ async function closeOpenEntry(
 }
 
 /**
- * Offene Display-Pause vom Vortag (typisch nach „Pause starten“ + Logout).
- * Wird still geschlossen — sonst folgt „Schicht beenden“ + „starten“ mit
- * doppelter WhatsApp-Nachricht, obwohl in den Arbeitszeiten „heute“ nur Start steht.
+ * Offene Display-Pause vom Vortag (nach „Pause starten“ + Logout über Mitternacht).
+ * Still schließen, damit am nächsten Tag direkt „Schicht starten“ möglich ist.
  */
 function isOvernightOpenDisplayBreak(
   open: { entry_type: "work" | "break"; starts_at: string },

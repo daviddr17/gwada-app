@@ -71,6 +71,17 @@ async function shiftClockedInAt(
   return (data?.starts_at as string | undefined) ?? fallback;
 }
 
+async function closeOpenEntry(
+  admin: SupabaseClient,
+  entryId: string,
+  endsAt: string,
+): Promise<void> {
+  await admin
+    .from("restaurant_staff_work_entries")
+    .update({ ends_at: endsAt, is_open: false })
+    .eq("id", entryId);
+}
+
 /**
  * Offene Display-Pause vom Vortag (typisch nach „Pause starten“ + Logout).
  * Wird still geschlossen — sonst folgt „Schicht beenden“ + „starten“ mit
@@ -255,17 +266,6 @@ export async function listDisplayTeamPresence(
   return members;
 }
 
-async function closeOpenEntry(
-  admin: SupabaseClient,
-  entryId: string,
-  endsAt: string,
-): Promise<void> {
-  await admin
-    .from("restaurant_staff_work_entries")
-    .update({ ends_at: endsAt, is_open: false })
-    .eq("id", entryId);
-}
-
 async function openSegment(
   admin: SupabaseClient,
   params: {
@@ -390,7 +390,10 @@ export async function runDisplayTimeAction(
   }
 
   if (params.action === "clock_out") {
-    const skipNotify = isOvernightOpenDisplayBreak(open, timeZone, nowDate);
+    // Aus offener Pause beenden (nach Pause+Logout oft vor erneutem Start):
+    // kein WhatsApp „beendet“ — Pausen selbst feuern nie, und das Paar
+    // beenden→starten wäre nur Noise. Echtes Schichtende aus „In Schicht“ bleibt.
+    const skipNotify = open.entry_type === "break";
     await closeOpenEntry(admin, open.id, now);
     if (!skipNotify) {
       await emitStaffDisplayClockNotification(admin, {

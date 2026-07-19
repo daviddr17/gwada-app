@@ -469,6 +469,8 @@ export function buildNotificationPushText(
       const staffName = pickString(p.staffName) ?? "Mitarbeiter";
       const at = pickString(p.at);
       const staffId = pickString(p.staffId);
+      const autoClockOut =
+        event.module === "staff_display_clock_out" && p.auto === true;
       const clockHref = absoluteAppUrl(
         staffId
           ? `${moduleDef.href}?staff=${encodeURIComponent(staffId)}`
@@ -476,13 +478,20 @@ export function buildNotificationPushText(
       );
       const isStart = event.module === "staff_display_clock_in";
       const atLabel = formatPushTime(at, timeZone);
+      const endHeadline = autoClockOut
+        ? "Display: Auto-Abmeldung"
+        : "Display: Schicht beendet";
+      const endSubjectBit = autoClockOut
+        ? "Auto-Abmeldung"
+        : "Schicht beendet";
       return buildPushMessage({
         prefix,
-        headline: isStart ? "Display: Schicht gestartet" : "Display: Schicht beendet",
-        subject: `${prefix}Display: ${isStart ? "Schicht gestartet" : "Schicht beendet"} — ${staffName}`,
+        headline: isStart ? "Display: Schicht gestartet" : endHeadline,
+        subject: `${prefix}Display: ${isStart ? "Schicht gestartet" : endSubjectBit} — ${staffName}`,
         href: clockHref,
         details: detailLines([
           staffName,
+          autoClockOut ? "Hinweis: Auto-Abmeldung" : null,
           atLabel ? `Uhrzeit: ${atLabel}` : null,
         ]),
       });

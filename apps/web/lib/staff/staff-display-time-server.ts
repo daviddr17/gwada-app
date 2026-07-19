@@ -93,6 +93,27 @@ async function loadDisplayAutoClockOutPolicy(
   return displayAutoClockOut;
 }
 
+async function closeOpenEntryWithAutoClockOutNotify(
+  admin: SupabaseClient,
+  params: {
+    restaurantId: string;
+    staffId: string;
+    entryId: string;
+    shiftId: string;
+    at: string;
+  },
+): Promise<void> {
+  await closeOpenEntry(admin, params.entryId, params.at);
+  await emitStaffDisplayClockNotification(admin, {
+    restaurantId: params.restaurantId,
+    staffId: params.staffId,
+    shiftId: params.shiftId,
+    action: "clock_out",
+    at: params.at,
+    auto: true,
+  });
+}
+
 async function silentCloseAutoClockOutEntry(
   admin: SupabaseClient,
   params: {
@@ -105,7 +126,14 @@ async function silentCloseAutoClockOutEntry(
     params.policy ?? (await loadDisplayAutoClockOutPolicy(params.restaurantId));
   const open = await findOpenDisplayEntry(admin, params.staffId);
   if (!open || !isDisplayAutoClockOutDue(open, policy)) return false;
-  await closeOpenEntry(admin, open.id, new Date().toISOString());
+  const at = new Date().toISOString();
+  await closeOpenEntryWithAutoClockOutNotify(admin, {
+    restaurantId: params.restaurantId,
+    staffId: params.staffId,
+    entryId: open.id,
+    shiftId: open.shift_id,
+    at,
+  });
   return true;
 }
 
@@ -165,7 +193,13 @@ export async function listStaffLivePresence(
     const entryType = row.entry_type as "work" | "break";
     const startsAt = row.starts_at as string;
     if (isDisplayAutoClockOutDue({ starts_at: startsAt }, policy, nowDate)) {
-      await closeOpenEntry(admin, entryId, nowIso);
+      await closeOpenEntryWithAutoClockOutNotify(admin, {
+        restaurantId,
+        staffId,
+        entryId,
+        shiftId,
+        at: nowIso,
+      });
       continue;
     }
     const clockedInAt = await shiftClockedInAt(admin, shiftId, startsAt);
@@ -298,7 +332,13 @@ export async function runDisplayTimeAction(
 
   if (params.action === "clock_in") {
     if (open && isDisplayAutoClockOutDue(open, autoClockOut, nowDate)) {
-      await closeOpenEntry(admin, open.id, now);
+      await closeOpenEntryWithAutoClockOutNotify(admin, {
+        restaurantId: params.restaurantId,
+        staffId: params.staffId,
+        entryId: open.id,
+        shiftId: open.shift_id,
+        at: now,
+      });
       open = null;
     }
     if (open) {
@@ -357,7 +397,13 @@ export async function runDisplayTimeAction(
       return { ok: false, error: "not_on_break", status: 409 };
     }
     if (isDisplayAutoClockOutDue(open, autoClockOut, nowDate)) {
-      await closeOpenEntry(admin, open.id, now);
+      await closeOpenEntryWithAutoClockOutNotify(admin, {
+        restaurantId: params.restaurantId,
+        staffId: params.staffId,
+        entryId: open.id,
+        shiftId: open.shift_id,
+        at: now,
+      });
       return {
         ok: true,
         state: { status: "off", clocked_in_at: null, break_started_at: null },
@@ -379,11 +425,9 @@ export async function runDisplayTimeAction(
   }
 
   if (params.action === "clock_out") {
-    // Kein WhatsApp „beendet“ bei Pause-Ende oder Auto-Abmeldung nach X Stunden
-    // (sonst oft beenden→starten-Noise; App zeigt den alten Start unter dem Vortag).
-    const skipNotify =
-      open.entry_type === "break" ||
-      isDisplayAutoClockOutDue(open, autoClockOut, nowDate);
+    const isAuto = isDisplayAutoClockOutDue(open, autoClockOut, nowDate);
+    // Pause am gleichen Tag beenden: kein Push. Auto-Abmeldung: Push mit Hinweis.
+    const skipNotify = open.entry_type === "break" && !isAuto;
     await closeOpenEntry(admin, open.id, now);
     if (!skipNotify) {
       await emitStaffDisplayClockNotification(admin, {
@@ -392,6 +436,7 @@ export async function runDisplayTimeAction(
         shiftId: open.shift_id,
         action: "clock_out",
         at: now,
+        ...(isAuto ? { auto: true } : {}),
       });
     }
     return {

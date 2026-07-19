@@ -107,18 +107,27 @@ export async function loadStaffDisplayClockNotificationItems(
         : row.created_at;
     const staffId =
       typeof payload.staffId === "string" ? payload.staffId.trim() : "";
+    const autoClockOut = payload.auto === true;
     const href =
       staffId.length > 0
         ? `${def.href}?staff=${encodeURIComponent(staffId)}`
         : def.href;
 
+    const title =
+      params.module === "staff_display_clock_in"
+        ? "Display: Schicht gestartet"
+        : autoClockOut
+          ? "Display: Auto-Abmeldung"
+          : "Display: Schicht beendet";
+    const timeLabel = formatClockTime(at, timeZone);
+    const subtitle = autoClockOut
+      ? `${staffName} · Auto-Abmeldung${timeLabel ? ` · ${timeLabel}` : ""}`
+      : `${staffName}${timeLabel ? ` · ${timeLabel}` : ""}`;
+
     return {
       id: row.reference_id,
-      title:
-        params.module === "staff_display_clock_in"
-          ? "Display: Schicht gestartet"
-          : "Display: Schicht beendet",
-      subtitle: `${staffName} · ${formatClockTime(at, timeZone)}`,
+      title,
+      subtitle,
       href,
       at,
       meta: {
@@ -211,6 +220,8 @@ export async function emitStaffDisplayClockNotification(
     shiftId: string;
     action: "clock_in" | "clock_out";
     at: string;
+    /** Automatische Abmeldung nach eingestellter Dauer. */
+    auto?: boolean;
   },
 ): Promise<void> {
   const module: DisplayClockModule =
@@ -242,6 +253,7 @@ export async function emitStaffDisplayClockNotification(
         staffName,
         action: params.action,
         at: params.at,
+        ...(params.auto ? { auto: true } : {}),
       },
     })
     .select("id")

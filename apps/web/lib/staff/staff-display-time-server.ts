@@ -3,8 +3,11 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { signStaffAvatarUrl } from "@/lib/display/display-storage-urls";
 import { emitStaffDisplayClockNotification } from "@/lib/notifications/notification-staff-display-clock-server";
-import { isSameRestaurantCalendarDay } from "@/lib/restaurant/restaurant-timezone";
-import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
+import {
+  isDisplayAutoClockOutDue,
+  type StaffDisplayAutoClockOutPolicy,
+} from "@/lib/staff/staff-display-auto-clock-out";
+import { fetchStaffModuleSettingsServer } from "@/lib/staff/staff-module-settings-server";
 import type {
   DisplayTeamPresenceMember,
   StaffPresenceStatus,
@@ -82,34 +85,26 @@ async function closeOpenEntry(
     .eq("id", entryId);
 }
 
-/** Vergessene offene Display-Segmente (Arbeit/Pause) vom Vortag — nicht echte Nachtschicht. */
-const STALE_OPEN_DISPLAY_ENTRY_MS = 12 * 60 * 60 * 1000;
-
-/**
- * Offenes Display-Segment vom Vortag und ≥12h alt (Live: Lukas/Pascal 2026-07-19
- * hatten seit gestern offene Arbeit, dann beenden→starten → doppeltes WhatsApp).
- * Nachtschicht (z. B. 22–06) bleibt darunter und behält Notify.
- */
-function isStaleOvernightOpenDisplayEntry(
-  open: { starts_at: string },
-  timeZone: string,
-  now: Date = new Date(),
-): boolean {
-  if (isSameRestaurantCalendarDay(open.starts_at, now, timeZone)) return false;
-  const started = new Date(open.starts_at);
-  if (Number.isNaN(started.getTime())) return false;
-  return now.getTime() - started.getTime() >= STALE_OPEN_DISPLAY_ENTRY_MS;
+async function loadDisplayAutoClockOutPolicy(
+  restaurantId: string,
+): Promise<StaffDisplayAutoClockOutPolicy> {
+  const { displayAutoClockOut } =
+    await fetchStaffModuleSettingsServer(restaurantId);
+  return displayAutoClockOut;
 }
 
-async function silentCloseStaleOvernightOpenDisplayEntry(
+async function silentCloseAutoClockOutEntry(
   admin: SupabaseClient,
-  params: { staffId: string; restaurantId: string; timeZone?: string },
+  params: {
+    staffId: string;
+    restaurantId: string;
+    policy?: StaffDisplayAutoClockOutPolicy;
+  },
 ): Promise<boolean> {
-  const timeZone =
-    params.timeZone ??
-    (await fetchRestaurantTimezoneServer(admin, params.restaurantId));
+  const policy =
+    params.policy ?? (await loadDisplayAutoClockOutPolicy(params.restaurantId));
   const open = await findOpenDisplayEntry(admin, params.staffId);
-  if (!open || !isStaleOvernightOpenDisplayEntry(open, timeZone)) return false;
+  if (!open || !isDisplayAutoClockOutDue(open, policy)) return false;
   await closeOpenEntry(admin, open.id, new Date().toISOString());
   return true;
 }
@@ -120,7 +115,7 @@ export async function getStaffDisplayTimeState(
   restaurantId?: string,
 ): Promise<StaffDisplayTimeState> {
   if (restaurantId) {
-    await silentCloseStaleOvernightOpenDisplayEntry(admin, {
+    await silentCloseAutoClockOutEntry(admin, {
       staffId,
       restaurantId,
     });
@@ -151,7 +146,7 @@ export async function listStaffLivePresence(
   admin: SupabaseClient,
   restaurantId: string,
 ): Promise<StaffLivePresenceRow[]> {
-  const timeZone = await fetchRestaurantTimezoneServer(admin, restaurantId);
+  const policy = await loadDisplayAutoClockOutPolicy(restaurantId);
   const nowDate = new Date();
   const nowIso = nowDate.toISOString();
 
@@ -169,13 +164,7 @@ export async function listStaffLivePresence(
     const staffId = row.staff_id as string;
     const entryType = row.entry_type as "work" | "break";
     const startsAt = row.starts_at as string;
-    if (
-      isStaleOvernightOpenDisplayEntry(
-        { starts_at: startsAt },
-        timeZone,
-        nowDate,
-      )
-    ) {
+    if (isDisplayAutoClockOutDue({ starts_at: startsAt }, policy, nowDate)) {
       await closeOpenEntry(admin, entryId, nowIso);
       continue;
     }
@@ -304,14 +293,11 @@ export async function runDisplayTimeAction(
 > {
   const nowDate = new Date();
   const now = nowDate.toISOString();
-  const timeZone = await fetchRestaurantTimezoneServer(
-    admin,
-    params.restaurantId,
-  );
+  const autoClockOut = await loadDisplayAutoClockOutPolicy(params.restaurantId);
   let open = await findOpenDisplayEntry(admin, params.staffId);
 
   if (params.action === "clock_in") {
-    if (open && isStaleOvernightOpenDisplayEntry(open, timeZone, nowDate)) {
+    if (open && isDisplayAutoClockOutDue(open, autoClockOut, nowDate)) {
       await closeOpenEntry(admin, open.id, now);
       open = null;
     }
@@ -370,7 +356,7 @@ export async function runDisplayTimeAction(
     if (open.entry_type !== "break") {
       return { ok: false, error: "not_on_break", status: 409 };
     }
-    if (isStaleOvernightOpenDisplayEntry(open, timeZone, nowDate)) {
+    if (isDisplayAutoClockOutDue(open, autoClockOut, nowDate)) {
       await closeOpenEntry(admin, open.id, now);
       return {
         ok: true,
@@ -393,11 +379,11 @@ export async function runDisplayTimeAction(
   }
 
   if (params.action === "clock_out") {
-    // Kein WhatsApp „beendet“ bei: Pause-Ende, oder vergessener Vortags-Schicht
-    // (sonst beenden→starten in derselben Minute; App zeigt heute nur den Start).
+    // Kein WhatsApp „beendet“ bei Pause-Ende oder Auto-Abmeldung nach X Stunden
+    // (sonst oft beenden→starten-Noise; App zeigt den alten Start unter dem Vortag).
     const skipNotify =
       open.entry_type === "break" ||
-      isStaleOvernightOpenDisplayEntry(open, timeZone, nowDate);
+      isDisplayAutoClockOutDue(open, autoClockOut, nowDate);
     await closeOpenEntry(admin, open.id, now);
     if (!skipNotify) {
       await emitStaffDisplayClockNotification(admin, {

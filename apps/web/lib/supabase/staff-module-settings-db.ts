@@ -2,6 +2,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { parseProfileVisibility } from "@/lib/profile/profile-nav";
 import { insertDocumentTag } from "@/lib/supabase/documents-db";
+import {
+  DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
+  normalizeDisplayAutoClockOutHours,
+} from "@/lib/staff/staff-display-auto-clock-out";
 
 export type RestaurantStaffModuleSettingsRow = {
   restaurant_id: string;
@@ -12,7 +16,15 @@ export type RestaurantStaffModuleSettingsRow = {
   profile_show_availability: boolean;
   profile_allow_display_pin_self_service: boolean;
   contract_two_step_signing: boolean;
+  display_auto_clock_out_enabled: boolean;
+  display_auto_clock_out_hours: number;
 };
+
+export {
+  DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
+  DISPLAY_AUTO_CLOCK_OUT_HOURS_MAX,
+  DISPLAY_AUTO_CLOCK_OUT_HOURS_MIN,
+} from "@/lib/staff/staff-display-auto-clock-out";
 
 export const STAFF_CONTRACT_DEFAULT_DOCUMENT_TAG_NAME = "Mitarbeiter";
 
@@ -26,7 +38,7 @@ export async function fetchStaffModuleSettings(
   const { data, error } = await sb
     .from("restaurant_staff_module_settings")
     .select(
-      "restaurant_id, contract_document_tag_id, profile_show_work_hours, profile_show_shift_plan, profile_show_documents, profile_show_availability, profile_allow_display_pin_self_service, contract_two_step_signing",
+      "restaurant_id, contract_document_tag_id, profile_show_work_hours, profile_show_shift_plan, profile_show_documents, profile_show_availability, profile_allow_display_pin_self_service, contract_two_step_signing, display_auto_clock_out_enabled, display_auto_clock_out_hours",
     )
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
@@ -42,6 +54,8 @@ export async function fetchStaffModuleSettings(
         contract_document_tag_id: null,
         ...parseProfileVisibility(null),
         contract_two_step_signing: false,
+        display_auto_clock_out_enabled: true,
+        display_auto_clock_out_hours: DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
       },
       error: null,
     };
@@ -54,6 +68,13 @@ export async function fetchStaffModuleSettings(
       contract_two_step_signing:
         (data as { contract_two_step_signing?: boolean }).contract_two_step_signing ??
         false,
+      display_auto_clock_out_enabled:
+        (data as { display_auto_clock_out_enabled?: boolean })
+          .display_auto_clock_out_enabled !== false,
+      display_auto_clock_out_hours: normalizeDisplayAutoClockOutHours(
+        (data as { display_auto_clock_out_hours?: number })
+          .display_auto_clock_out_hours,
+      ),
     },
     error: null,
   };
@@ -68,6 +89,8 @@ export async function upsertStaffModuleSettings(params: {
   profileShowAvailability?: boolean;
   profileAllowDisplayPinSelfService?: boolean;
   contractTwoStepSigning?: boolean;
+  displayAutoClockOutEnabled?: boolean;
+  displayAutoClockOutHours?: number;
 }): Promise<{ error: Error | null }> {
   if (!isUuidRestaurantId(params.restaurantId)) {
     return { error: new Error("Ungültige Restaurant-ID.") };
@@ -96,6 +119,12 @@ export async function upsertStaffModuleSettings(params: {
   }
   if (params.contractTwoStepSigning !== undefined) {
     patch.contract_two_step_signing = params.contractTwoStepSigning;
+  }
+  if (params.displayAutoClockOutEnabled !== undefined) {
+    patch.display_auto_clock_out_enabled = params.displayAutoClockOutEnabled;
+  }
+  if (params.displayAutoClockOutHours !== undefined) {
+    patch.display_auto_clock_out_hours = params.displayAutoClockOutHours;
   }
 
   const { error } = await sb

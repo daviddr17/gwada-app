@@ -22,6 +22,7 @@ final class PosRuntime: ObservableObject {
     @Published private(set) var statusMessage: String = ""
     @Published private(set) var syncPending: Int = 0
     @Published private(set) var isSignedIn = false
+    @Published private(set) var isPaired = false
     @Published private(set) var dataSourceLabel = "—"
     /// Aktiver Restaurant-Akzent (Gwada-Gold oder Tenant).
     @Published private(set) var brandAccentHex = PosDesign.defaultAccentHex
@@ -36,7 +37,6 @@ final class PosRuntime: ObservableObject {
     @Published var apiBaseInput = ""
     @Published var restaurantIdInput = ""
 
-    var isPaired: Bool { PosAuthStore.shared.isPaired }
     var staffDisplayName: String { PosAuthStore.shared.pinSession?.staffName ?? "" }
     var restaurantDisplayName: String {
         PosAuthStore.shared.device?.restaurantName
@@ -60,6 +60,7 @@ final class PosRuntime: ObservableObject {
         PosHubState.shared.loadCachedOrDemo()
         restaurantIdInput = PosAuthStore.shared.restaurantId ?? PosCloudConfig.restaurantId ?? ""
         apiBaseInput = PosCloudConfig.apiBaseURL.absoluteString
+        isPaired = PosAuthStore.shared.isPaired
         isSignedIn = PosAuthStore.shared.isSignedIn
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
         applyBrandAccent(fromHex: PosHubState.shared.brandAccentHex)
@@ -68,10 +69,11 @@ final class PosRuntime: ObservableObject {
     func start() async {
         phase = .starting
         await PosAuthStore.shared.restoreDeviceIfNeeded()
+        isPaired = PosAuthStore.shared.isPaired
         isSignedIn = PosAuthStore.shared.isSignedIn
         restaurantIdInput = PosAuthStore.shared.restaurantId ?? restaurantIdInput
 
-        guard PosAuthStore.shared.isPaired else {
+        guard isPaired else {
             phase = .needsLogin
             statusMessage = "Gerät noch nicht gekoppelt — Kopplungscode aus dem Dashboard eingeben."
             return
@@ -110,6 +112,7 @@ final class PosRuntime: ObservableObject {
             try await PosAuthStore.shared.pair(code: code)
             pairingCodeInput = ""
             restaurantIdInput = PosAuthStore.shared.restaurantId ?? ""
+            isPaired = true
             isSignedIn = false
             phase = .needsLogin
             statusMessage = "Gerät gekoppelt: \(PosAuthStore.shared.device?.restaurantName ?? "Restaurant"). Bitte PIN eingeben."
@@ -195,6 +198,7 @@ final class PosRuntime: ObservableObject {
         flushTask?.cancel()
         stopHub()
         await PosAuthStore.shared.unpairDevice()
+        isPaired = false
         isSignedIn = false
         phase = .needsLogin
         statusMessage = "Gerät entkoppelt."

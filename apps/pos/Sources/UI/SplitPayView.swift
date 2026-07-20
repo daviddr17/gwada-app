@@ -158,6 +158,9 @@ struct SplitPayView: View {
                         applyShareThenPay(shareCents: share)
                     }
                     .disabled(selectionTotal <= 0 || method == .voucher)
+                    Text("Prototyp: Anteil-State lokal; Server bucht die gewählten Positionen.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
 
                 if method == .voucher {

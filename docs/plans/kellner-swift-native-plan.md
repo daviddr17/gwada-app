@@ -220,6 +220,7 @@ Mindest-Target: mit Produkt klären (Empfehlung: **iOS 26** für Liquid Glass; s
 
 Abhaken = Swift+Hub+Nest decken den Prototyp-Flow ab:
 
+- [ ] Device-Enrollment + PIN-Login offline am Hub *(PIN-Lock lokal ✅; Enrollment-Code Admin Phase 1)*
 - [x] Tischplan Status/Timer/Summe/Res-Hinweis
 - [x] Session eröffnen (Tap / Walk-in / Reservierung)
 - [ ] Bestellung: Kategorien, Ein-Tap vs Modifier-Sheet, Gänge, Fire → Küchenbon
@@ -233,7 +234,6 @@ Abhaken = Swift+Hub+Nest decken den Prototyp-Flow ab:
 - [x] Caps steuern Mehr-Tab
 - [x] Branding-Accent vom Restaurant
 - [x] Hub-Sync Outbox idempotent; Client-Fallback dokumentiert
-- [x] Device-Enrollment + PIN-Login offline am Hub
 
 Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Auto-Lock-Config-UI, Hardware-TSE, Face-ID-Policy-Admin.
 

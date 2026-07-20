@@ -25,12 +25,23 @@ import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button"
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 
+type PosDeviceInstallation = {
+  id: string;
+  installation_id: string;
+  last_seen_at: string;
+  user_agent: string | null;
+  created_at: string;
+};
+
 type PosDeviceRow = {
   id: string;
   name: string;
   auto_lock_seconds: number;
   is_active: boolean;
   is_paired: boolean;
+  installation_count?: number;
+  last_seen_at?: string | null;
+  installations?: PosDeviceInstallation[];
 };
 
 type PairingInfo = {
@@ -223,12 +234,29 @@ export function RestaurantPosDevicesPanel() {
                   <div className="min-w-0">
                     <p className="truncate font-medium">{device.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {device.is_paired ? "Gekoppelt" : "Nicht gekoppelt"}
+                      {device.is_paired
+                        ? `Gekoppelt (${device.installation_count ?? 1} Installation${(device.installation_count ?? 1) === 1 ? "" : "en"})`
+                        : "Nicht gekoppelt"}
                       {" · "}
                       Auto-Sperre {Math.round(device.auto_lock_seconds / 60)}{" "}
                       Min.
                       {!device.is_active ? " · Inaktiv" : null}
+                      {device.last_seen_at
+                        ? ` · Zuletzt ${new Date(device.last_seen_at).toLocaleString("de-DE")}`
+                        : null}
                     </p>
+                    {device.installations && device.installations.length > 0 ? (
+                      <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        {device.installations.map((inst) => (
+                          <li key={inst.id} className="truncate font-mono">
+                            {inst.installation_id.slice(0, 8)}…
+                            {inst.user_agent
+                              ? ` · ${inst.user_agent.slice(0, 48)}`
+                              : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">

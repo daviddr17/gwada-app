@@ -353,8 +353,12 @@ final class PosRuntime: ObservableObject {
     func openTable(tableId: String, covers: Int = 2) async {
         guard role == .hub || role == .handheld else { return }
         if role == .handheld {
+            guard PosAuthStore.shared.isSignedIn else {
+                statusMessage = "Bitte mit Display-PIN anmelden."
+                return
+            }
             guard let base = hubBaseURL else {
-                statusMessage = "Keine Kasse verbunden."
+                statusMessage = "Keine Kasse verbunden — Handgerät nur mit iPad-Kasse."
                 return
             }
             do {
@@ -363,7 +367,7 @@ final class PosRuntime: ObservableObject {
                     diningTableId: tableId,
                     coverCount: covers
                 )
-                let snap = try await HandheldHubClient.fetchSnapshot(baseURL: base, restaurantId: nil)
+                let snap = try await HandheldHubClient.fetchSnapshot(baseURL: base)
                 publishSnapshot(snap)
                 statusMessage = "Tisch geöffnet."
             } catch {
@@ -428,6 +432,53 @@ final class PosRuntime: ObservableObject {
 
     func sendCart(tableId: String, lines: [PosCartLine]) async -> Bool {
         guard !lines.isEmpty else { return false }
+        guard PosAuthStore.shared.isSignedIn else {
+            statusMessage = "Bitte mit Display-PIN anmelden."
+            return false
+        }
+
+        if role == .handheld {
+            guard let base = hubBaseURL else {
+                statusMessage = "Keine Kasse verbunden — Handgerät nur mit iPad-Kasse."
+                return false
+            }
+            do {
+                let items = lines.map {
+                    PosLanOrderItem(
+                        menuItemId: $0.menuItemId,
+                        quantity: $0.quantity,
+                        notes: $0.notes.isEmpty ? nil : $0.notes,
+                        course: $0.course.rawValue,
+                        name: $0.name,
+                        unitPriceCents: $0.unitPriceCents,
+                        ohneIngredientIds: $0.ohneIngredientIds,
+                        modifiers: $0.modifiers.map {
+                            PosCloudModifierPayload(
+                                type: $0.type,
+                                label: $0.label,
+                                ingredientId: $0.ingredientId,
+                                optionChoiceId: $0.optionChoiceId,
+                                priceDeltaCents: $0.priceDeltaCents
+                            )
+                        }
+                    )
+                }
+                try await HandheldHubClient.createOrder(
+                    baseURL: base,
+                    diningTableId: tableId,
+                    coverCount: 2,
+                    items: items
+                )
+                let snap = try await HandheldHubClient.fetchSnapshot(baseURL: base)
+                publishSnapshot(snap)
+                statusMessage = "Bestellung an Kasse (\(lines.count) Positionen)."
+                return true
+            } catch {
+                statusMessage = error.localizedDescription
+                return false
+            }
+        }
+
         let restaurantId = PosHubState.shared.restaurantId
         var sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id
         if sessionId == nil {
@@ -436,6 +487,13 @@ final class PosRuntime: ObservableObject {
                 ?? PosHubState.shared.openLocalSession(diningTableId: tableId, coverCount: 2)
         }
         guard let sessionId else { return false }
+
+        applyHubOrder(
+            sessionId: sessionId,
+            lines: lines,
+            staffId: PosAuthStore.shared.pinSession?.staffId,
+            staffName: PosAuthStore.shared.pinSession?.staffName
+        )
 
         let items: [PosCloudOrderItem] = lines.map { line in
             PosCloudOrderItem(
@@ -456,14 +514,6 @@ final class PosRuntime: ObservableObject {
             )
         }
 
-        let addCents = lines.reduce(0) { $0 + $1.lineTotalCents }
-        PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
-        let localOrderNumber = (snapshot?.floor.orderCountBySessionId[sessionId] ?? 0) + 1
-        PosHubState.shared.routeKitchenOutput(orderNumber: localOrderNumber, cartLines: lines)
-        pendingPrintJobs = PosHubState.shared.pendingPrintJobCount
-        Task { await PosPrintDispatcher.shared.kick() }
-        publishSnapshot(PosHubState.shared.makeSnapshot())
-
         do {
             _ = try await PosCloudClient.createOrder(
                 restaurantId: restaurantId,
@@ -473,30 +523,74 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Bestellung gesendet (\(lines.count) Positionen)."
             return true
         } catch {
-            for line in lines {
-                PosSyncQueue.shared.enqueueCreateOrder(PosSyncCreateOrderPayload(
-                    restaurantId: restaurantId,
-                    tableSessionId: sessionId,
-                    items: [PosSyncOrderItem(
-                        menuItemId: line.menuItemId,
-                        quantity: line.quantity,
-                        notes: line.notes.isEmpty ? nil : line.notes
-                    )],
-                    localOrderId: UUID().uuidString
-                ))
-            }
+            PosSyncQueue.shared.enqueueCreateOrder(PosSyncCreateOrderPayload(
+                restaurantId: restaurantId,
+                tableSessionId: sessionId,
+                items: items.map {
+                    PosSyncOrderItem(
+                        menuItemId: $0.menuItemId,
+                        quantity: $0.quantity,
+                        notes: $0.notes,
+                        course: $0.course,
+                        ohneIngredientIds: $0.ohneIngredientIds,
+                        modifiers: $0.modifiers
+                    )
+                },
+                localOrderId: UUID().uuidString
+            ))
             syncPending = PosSyncQueue.shared.pendingCount
             statusMessage = "Lokal gebucht — Sync später (\(error.localizedDescription))"
             return true
         }
     }
 
+    /// Hub: lokale Buchung + Küche/Druck + offene Zeilen.
+    @discardableResult
+    private func applyHubOrder(
+        sessionId: String,
+        lines: [PosCartLine],
+        staffId: String?,
+        staffName: String?
+    ) -> Int {
+        let addCents = lines.reduce(0) { $0 + $1.lineTotalCents }
+        PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
+        PosHubState.shared.appendLocalOpenLines(sessionId: sessionId, cartLines: lines)
+        let localOrderNumber = (snapshot?.floor.orderCountBySessionId[sessionId] ?? 0) + 1
+        PosHubState.shared.routeKitchenOutput(orderNumber: localOrderNumber, cartLines: lines)
+        pendingPrintJobs = PosHubState.shared.pendingPrintJobCount
+        Task { await PosPrintDispatcher.shared.kick() }
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+        if let staffName, !staffName.isEmpty {
+            statusMessage = "Gebucht von \(staffName)."
+        }
+        _ = staffId
+        return localOrderNumber
+    }
+
     func loadOpenLines(tableId: String) async -> [SessionOpenLine] {
         guard let sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id else {
             return []
         }
-        let restaurantId = PosHubState.shared.restaurantId
         guard PosAuthStore.shared.isSignedIn else { return [] }
+
+        if role == .handheld {
+            guard let base = hubBaseURL else { return [] }
+            do {
+                return try await HandheldHubClient.fetchSessionSummary(
+                    baseURL: base,
+                    sessionId: sessionId
+                )
+            } catch {
+                statusMessage = "Offene Positionen: \(error.localizedDescription)"
+                return []
+            }
+        }
+
+        let local = PosHubState.shared.localOpenLines(sessionId: sessionId)
+        if !local.isEmpty { return local }
+
+        let restaurantId = PosHubState.shared.restaurantId
+        guard !PosAuthStore.shared.isOfflineSession else { return local }
         do {
             let lines = try await PosCloudClient.fetchSessionSummary(
                 restaurantId: restaurantId,
@@ -525,7 +619,7 @@ final class PosRuntime: ObservableObject {
             }
         } catch {
             statusMessage = "Offene Positionen: \(error.localizedDescription)"
-            return []
+            return local
         }
     }
 
@@ -538,8 +632,43 @@ final class PosRuntime: ObservableObject {
         giftVoucherId: String? = nil,
         customPaymentMethodId: String? = nil
     ) async {
+        guard PosAuthStore.shared.isSignedIn else {
+            statusMessage = "Bitte mit Display-PIN anmelden."
+            return
+        }
         let restaurantId = PosHubState.shared.restaurantId
         let allocations = lines.map { ($0.orderLineId, $0.openQuantity) }
+
+        if role == .handheld {
+            guard method == .cash else {
+                statusMessage = "Am Handgerät offline nur Bar über die Kasse — andere Arten an der Kasse."
+                return
+            }
+            guard let base = hubBaseURL else {
+                statusMessage = "Keine Kasse verbunden."
+                return
+            }
+            do {
+                let result = try await HandheldHubClient.collectCash(
+                    baseURL: base,
+                    sessionId: sessionId,
+                    allocations: allocations,
+                    tipCents: tipCents,
+                    receivedAmountCents: receivedAmountCents
+                )
+                let snap = try await HandheldHubClient.fetchSnapshot(baseURL: base)
+                publishSnapshot(snap)
+                if result.fiscalPending {
+                    statusMessage = result.message
+                        ?? "Bar kassiert — Fiskalisierung nicht möglich, Nachsignierung ausstehend."
+                } else {
+                    statusMessage = result.message ?? "Teilzahlung kassiert."
+                }
+            } catch {
+                statusMessage = error.localizedDescription
+            }
+            return
+        }
 
         if method == .voucher {
             guard let giftVoucherId, !giftVoucherId.isEmpty else {
@@ -594,6 +723,28 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Unbar folgt — bitte Bar, Gutschein oder eigene Art nutzen."
             return
         }
+
+        // Immer lokal abbuchen (auch offline), dann Cloud versuchen.
+        let localResult = PosHubState.shared.collectLocalCash(
+            sessionId: sessionId,
+            allocations: allocations
+        )
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+
+        if PosAuthStore.shared.isOfflineSession {
+            PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
+                restaurantId: restaurantId,
+                tableSessionId: sessionId,
+                allocations: allocations.map { PosSyncCashAllocation(orderLineId: $0.0, quantity: $0.1) },
+                tipCents: tipCents,
+                receivedAmountCents: receivedAmountCents
+            ))
+            syncPending = PosSyncQueue.shared.pendingCount
+            statusMessage =
+                "Bar \(PosMoney.format(localResult.amountCents + tipCents)) — Fiskalisierung nicht möglich, Nachsignierung ausstehend."
+            return
+        }
+
         do {
             try await PosCloudClient.collectCash(
                 restaurantId: restaurantId,
@@ -614,7 +765,8 @@ final class PosRuntime: ObservableObject {
                 receivedAmountCents: receivedAmountCents
             ))
             syncPending = PosSyncQueue.shared.pendingCount
-            statusMessage = "Zahlung lokal gequeued — \(error.localizedDescription)"
+            statusMessage =
+                "Bar lokal — Fiskalisierung nicht möglich, Nachsignierung ausstehend (\(error.localizedDescription))"
         }
     }
 
@@ -742,6 +894,7 @@ final class PosRuntime: ObservableObject {
     private func startHub() async {
         stopHub()
         PosHubState.shared.configure(hubDeviceId: hubDeviceId)
+        PosHubState.shared.setLanSharedSecret(PosAuthStore.shared.lanSharedSecret)
         PosHubState.shared.loadCachedOrDemo()
 
         isSignedIn = PosAuthStore.shared.isSignedIn
@@ -750,8 +903,8 @@ final class PosRuntime: ObservableObject {
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
         await pullReservationsDay(PosReservationsStore.todayYmd())
 
-        let server = HubHTTPServer { method, path, body in
-            Self.handleHubRequest(method: method, path: path, body: body)
+        let server = HubHTTPServer { method, path, headers, body in
+            Self.handleHubRequest(method: method, path: path, headers: headers, body: body)
         }
 
         do {
@@ -840,9 +993,22 @@ final class PosRuntime: ObservableObject {
         return nil
     }
 
+    private nonisolated static func lanSecretOK(_ headers: [String: String]) -> Bool {
+        let got = headers[PosLanProtocol.headerLanSecret.lowercased()] ?? ""
+        return PosHubState.shared.lanSharedSecretMatches(got)
+    }
+
+    private nonisolated static func lanStaff(from headers: [String: String]) -> (id: String, name: String)? {
+        let id = headers[PosLanProtocol.headerStaffId.lowercased()]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !id.isEmpty else { return nil }
+        let name = headers[PosLanProtocol.headerStaffName.lowercased()] ?? ""
+        return (id, name)
+    }
+
     private nonisolated static func handleHubRequest(
         method: String,
         path: String,
+        headers: [String: String],
         body: Data
     ) -> (Int, Data) {
         if method == "OPTIONS" {
@@ -854,6 +1020,12 @@ final class PosRuntime: ObservableObject {
         encoder.outputFormatting = [.sortedKeys]
         let decoder = JSONDecoder()
 
+        // Health ohne Secret (Discovery); alles andere braucht LAN-Secret.
+        let needsSecret = pathOnly != PosLanProtocol.healthPath
+        if needsSecret && !lanSecretOK(headers) {
+            return (401, Data(#"{"error":"lan_unauthorized"}"#.utf8))
+        }
+
         if method == "GET" {
             if pathOnly == PosLanProtocol.healthPath {
                 let health = PosHubState.shared.makeHealth()
@@ -863,6 +1035,25 @@ final class PosRuntime: ObservableObject {
             if pathOnly == PosLanProtocol.snapshotPath {
                 let snap = PosHubState.shared.makeSnapshot()
                 let data = (try? encoder.encode(snap)) ?? Data(#"{"error":"encode"}"#.utf8)
+                return (200, data)
+            }
+            if pathOnly == PosLanProtocol.sessionSummaryPath {
+                guard lanStaff(from: headers) != nil else {
+                    return (401, Data(#"{"error":"staff_required"}"#.utf8))
+                }
+                let sessionId = lanQueryValue(path, key: "sessionId") ?? ""
+                let lines = PosHubState.shared.localOpenLines(sessionId: sessionId)
+                let payload = ["lines": lines.map {
+                    [
+                        "id": $0.id,
+                        "orderLineId": $0.orderLineId,
+                        "name": $0.name,
+                        "openQuantity": $0.openQuantity,
+                        "openCents": $0.openCents,
+                        "detail": $0.detail,
+                    ] as [String: Any]
+                }]
+                let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data(#"{"lines":[]}"#.utf8)
                 return (200, data)
             }
             if pathOnly == PosLanProtocol.reservationsPath {
@@ -887,6 +1078,10 @@ final class PosRuntime: ObservableObject {
         }
 
         if method == "POST" {
+            guard let staff = lanStaff(from: headers) else {
+                return (401, Data(#"{"error":"staff_required"}"#.utf8))
+            }
+
             if pathOnly == PosLanProtocol.reservationsPath {
                 guard let payload = try? decoder.decode(PosCreateReservationPayload.self, from: body) else {
                     return (400, Data(#"{"error":"invalid_body"}"#.utf8))
@@ -950,21 +1145,59 @@ final class PosRuntime: ObservableObject {
                     ))
                     await PosSyncQueue.shared.flushIfPossible()
                 }
-                let payload = ["sessionId": sessionId]
+                let payload = ["sessionId": sessionId, "staffId": staff.id, "staffName": staff.name]
+                let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+                return (200, data)
+            }
+
+            if pathOnly == PosLanProtocol.collectCashPath {
+                struct Allocation: Decodable {
+                    var orderLineId: String
+                    var quantity: Int
+                }
+                struct Req: Decodable {
+                    var sessionId: String
+                    var allocations: [Allocation]
+                    var tipCents: Int?
+                    var receivedAmountCents: Int?
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                let result = PosHubState.shared.collectLocalCash(
+                    sessionId: req.sessionId,
+                    allocations: req.allocations.map { ($0.orderLineId, $0.quantity) }
+                )
+                let tip = req.tipCents ?? 0
+                let restaurantId = PosHubState.shared.restaurantId
+                Task { @MainActor in
+                    PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
+                        restaurantId: restaurantId,
+                        tableSessionId: req.sessionId,
+                        allocations: req.allocations.map {
+                            PosSyncCashAllocation(orderLineId: $0.orderLineId, quantity: $0.quantity)
+                        },
+                        tipCents: tip,
+                        receivedAmountCents: req.receivedAmountCents
+                    ))
+                    await PosSyncQueue.shared.flushIfPossible()
+                }
+                let payload: [String: Any] = [
+                    "ok": true,
+                    "fiscalPending": true,
+                    "message": "Bar \(result.amountCents + tip) ct — Fiskalisierung nicht möglich, Nachsignierung ausstehend.",
+                    "staffId": staff.id,
+                    "staffName": staff.name,
+                ]
                 let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
                 return (200, data)
             }
 
             if pathOnly == PosLanProtocol.createOrderPath {
-                struct Item: Decodable {
-                    var menuItemId: String
-                    var quantity: Int
-                    var notes: String?
-                }
                 struct Req: Decodable {
                     var diningTableId: String
                     var coverCount: Int?
-                    var items: [Item]
+                    var items: [PosLanOrderItem]
                 }
                 guard let req = try? decoder.decode(Req.self, from: body), !req.items.isEmpty else {
                     return (400, Data(#"{"error":"invalid_body"}"#.utf8))
@@ -973,29 +1206,34 @@ final class PosRuntime: ObservableObject {
                     diningTableId: req.diningTableId,
                     coverCount: req.coverCount ?? 2
                 )
-                var addCents = 0
-                if let menu = PosHubState.shared.menu {
-                    for item in req.items {
-                        let price = menu.items.first(where: { $0.id == item.menuItemId })?.priceCents ?? 0
-                        addCents += price * item.quantity
-                    }
-                }
-                PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
-                let orderNumber = (PosHubState.shared.makeSnapshot().floor.orderCountBySessionId[sessionId] ?? 1)
                 let cartLines: [PosCartLine] = req.items.compactMap { item in
-                    guard let menuItem = PosHubState.shared.menu?.items.first(where: { $0.id == item.menuItemId }) else {
-                        return nil
-                    }
+                    let menuItem = PosHubState.shared.menu?.items.first(where: { $0.id == item.menuItemId })
+                    let name = item.name ?? menuItem?.name ?? "Artikel"
+                    let price = item.unitPriceCents ?? menuItem?.priceCents ?? 0
+                    let course = PosCourse(rawValue: item.course ?? "") ?? .other
                     return PosCartLine(
-                        menuItemId: menuItem.id,
-                        name: menuItem.name,
-                        unitPriceCents: menuItem.priceCents,
+                        menuItemId: item.menuItemId,
+                        name: name,
+                        unitPriceCents: price,
                         quantity: item.quantity,
-                        course: .other,
+                        course: course,
                         notes: item.notes ?? "",
-                        modifiers: []
+                        modifiers: (item.modifiers ?? []).map {
+                            PosCartModifier(
+                                id: UUID().uuidString,
+                                type: $0.type,
+                                label: $0.label,
+                                ingredientId: $0.ingredientId,
+                                optionChoiceId: $0.optionChoiceId,
+                                priceDeltaCents: $0.priceDeltaCents ?? 0
+                            )
+                        }
                     )
                 }
+                let addCents = cartLines.reduce(0) { $0 + $1.lineTotalCents }
+                PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
+                PosHubState.shared.appendLocalOpenLines(sessionId: sessionId, cartLines: cartLines)
+                let orderNumber = (PosHubState.shared.makeSnapshot().floor.orderCountBySessionId[sessionId] ?? 1)
                 PosHubState.shared.routeKitchenOutput(orderNumber: orderNumber, cartLines: cartLines)
                 Task { await PosPrintDispatcher.shared.kick() }
                 let restaurantId = PosHubState.shared.restaurantId
@@ -1005,7 +1243,14 @@ final class PosRuntime: ObservableObject {
                         restaurantId: restaurantId,
                         tableSessionId: sessionId,
                         items: req.items.map {
-                            PosSyncOrderItem(menuItemId: $0.menuItemId, quantity: $0.quantity, notes: $0.notes)
+                            PosSyncOrderItem(
+                                menuItemId: $0.menuItemId,
+                                quantity: $0.quantity,
+                                notes: $0.notes,
+                                course: $0.course,
+                                ohneIngredientIds: $0.ohneIngredientIds,
+                                modifiers: $0.modifiers
+                            )
                         },
                         localOrderId: localOrderId
                     ))
@@ -1015,6 +1260,8 @@ final class PosRuntime: ObservableObject {
                     "sessionId": sessionId,
                     "localOrderId": localOrderId,
                     "ok": true,
+                    "staffId": staff.id,
+                    "staffName": staff.name,
                 ]
                 let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
                 return (200, data)
@@ -1025,6 +1272,22 @@ final class PosRuntime: ObservableObject {
     }
 
     private func connectHandheld(preferredHost: String? = nil) async {
+        guard PosAuthStore.shared.isPaired else {
+            phase = .needsLogin
+            statusMessage = "Gerät koppeln (Dashboard-Code)."
+            return
+        }
+        guard PosAuthStore.shared.isSignedIn else {
+            phase = .needsLogin
+            statusMessage = "Mit Display-PIN anmelden — dann verbindet sich das Handgerät mit der Kasse."
+            return
+        }
+        guard PosAuthStore.shared.lanSharedSecret != nil else {
+            phase = .needsLogin
+            statusMessage = "LAN-Kopplung unvollständig — Gerät erneut koppeln."
+            return
+        }
+
         phase = .searching
         statusMessage = "Suche iPad-Kasse im WLAN …"
         publishSnapshot(nil)
@@ -1044,7 +1307,7 @@ final class PosRuntime: ObservableObject {
 
         guard !candidates.isEmpty else {
             phase = .error("Keine Kasse gefunden")
-            statusMessage = "Handgerät kann nur starten, wenn die iPad-Kasse im WLAN erreichbar ist."
+            statusMessage = "Handgerät nur mit erreichbarer iPad-Kasse nutzbar."
             return
         }
 
@@ -1054,17 +1317,15 @@ final class PosRuntime: ObservableObject {
                 statusMessage = "Verbinde \(base.host ?? "") …"
                 let health = try await HandheldHubClient.fetchHealth(baseURL: base)
                 guard health.ok else { throw HandheldHubClientError.invalidResponse }
-                let snap = try await HandheldHubClient.fetchSnapshot(
-                    baseURL: base,
-                    restaurantId: health.restaurantId
-                )
+                let snap = try await HandheldHubClient.fetchSnapshot(baseURL: base)
                 if let host = base.host {
                     UserDefaults.standard.set(host, forKey: manualHostKey)
                 }
                 hubBaseURL = base
                 publishSnapshot(snap)
                 phase = .connected
-                statusMessage = "Verbunden mit \(snap.hub.displayName)."
+                let who = staffDisplayName.isEmpty ? "" : " · \(staffDisplayName)"
+                statusMessage = "Verbunden mit \(snap.hub.displayName)\(who)."
                 await pullReservationsDay(PosReservationsStore.todayYmd())
                 return
             } catch {

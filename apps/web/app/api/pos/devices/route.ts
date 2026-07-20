@@ -42,22 +42,47 @@ export async function GET(request: Request) {
   }
 
   const ids = (data ?? []).map((r) => r.id as string);
-  const pairedIds = new Set<string>();
+  const installationsByDevice = new Map<
+    string,
+    {
+      id: string;
+      installation_id: string;
+      last_seen_at: string;
+      user_agent: string | null;
+      created_at: string;
+    }[]
+  >();
   if (ids.length > 0) {
     const { data: instRows } = await auth.sb
       .from("restaurant_pos_installations")
-      .select("device_id")
-      .in("device_id", ids);
+      .select("id, device_id, installation_id, last_seen_at, user_agent, created_at")
+      .in("device_id", ids)
+      .order("last_seen_at", { ascending: false });
     for (const row of instRows ?? []) {
-      pairedIds.add(row.device_id as string);
+      const deviceId = row.device_id as string;
+      const list = installationsByDevice.get(deviceId) ?? [];
+      list.push({
+        id: row.id as string,
+        installation_id: row.installation_id as string,
+        last_seen_at: row.last_seen_at as string,
+        user_agent: (row.user_agent as string | null) ?? null,
+        created_at: row.created_at as string,
+      });
+      installationsByDevice.set(deviceId, list);
     }
   }
 
   return NextResponse.json({
-    devices: (data ?? []).map((row) => ({
-      ...row,
-      is_paired: pairedIds.has(row.id as string),
-    })),
+    devices: (data ?? []).map((row) => {
+      const installations = installationsByDevice.get(row.id as string) ?? [];
+      return {
+        ...row,
+        is_paired: installations.length > 0,
+        installation_count: installations.length,
+        installations,
+        last_seen_at: installations[0]?.last_seen_at ?? null,
+      };
+    }),
   });
 }
 

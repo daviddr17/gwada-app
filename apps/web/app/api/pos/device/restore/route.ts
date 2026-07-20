@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { restorePosInstallation } from "@/lib/pos/pos-device-auth-server";
 import { formatPosDeviceHeader } from "@/lib/pos/pos-device-headers";
+import { ensurePosLanSharedSecret } from "@/lib/pos/pos-lan-secret-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
@@ -43,6 +44,10 @@ export async function POST(request: Request) {
         .maybeSingle()
     : { data: null };
 
+  const lanSharedSecret = await ensurePosLanSharedSecret(
+    restored.device.restaurant_id,
+  );
+
   return NextResponse.json({
     ok: true,
     device_id: restored.device.id,
@@ -51,6 +56,7 @@ export async function POST(request: Request) {
     installation_id: installationId,
     auto_lock_seconds: restored.device.auto_lock_seconds,
     device_name: restored.device.name,
+    lan_shared_secret: lanSharedSecret,
     restaurant: restaurant
       ? {
           id: restaurant.id,

@@ -16,10 +16,12 @@ Native iPad-Kasse + iPhone-Handgeräte. **Getrennt** von `apps/staff` (Expo, Kol
 3. Mitarbeiter melden sich nur noch mit der **Display-PIN** an (Recht `pos.kasse.use` oder `pos.kasse.manage`).
 4. **Online:** PIN live gegen Cloud; Auth-Roster (Offline-Hashes) wird lokal gecacht.
 5. **Offline (nach Kopplung):** PIN gegen den letzten lokalen Roster; Kasse läuft lokal/LAN; bei Netz wieder → Session-Resume + Sync-Queue.
-6. **iPad** lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal; Handgeräte holen Snapshot / Sessions / Orders über WLAN.
-7. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
-8. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt; wartende Orders/Kassierungen werden umgeschrieben (`session-id-map.json`).
-9. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE, Geräte-Kopplung.
+6. **Pro Gerät eigene PIN-Session** (Kasse ≠ Handgerät). Handgerät spricht nur die Kasse (LAN + Shared Secret); die Kasse synct allein zur Cloud.
+7. **KDS/Drucker** lokal an der Kasse; Handgerät holt KDS über WLAN von der Kasse.
+8. **iPad** lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal.
+9. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
+10. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt.
+11. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE, Geräte-Kopplung.
 
 Hinweis Offline-PIN: Nach App-/DB-Update einmal online PIN setzen oder an der Kasse einloggen (füllt den lokalen Roster). Danach funktioniert PIN auch ohne Netz.
 

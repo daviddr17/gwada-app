@@ -8,6 +8,7 @@ final class PosHubState: @unchecked Sendable {
     private var bootstrap: PosCloudBootstrap?
     private var hubDeviceId: String = UUID().uuidString
     private var usingDemo = true
+    private var lanSharedSecret: String?
 
     private init() {}
 
@@ -15,6 +16,19 @@ final class PosHubState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         self.hubDeviceId = hubDeviceId
+    }
+
+    func setLanSharedSecret(_ secret: String?) {
+        lock.lock()
+        defer { lock.unlock() }
+        lanSharedSecret = secret?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func lanSharedSecretMatches(_ got: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let lanSharedSecret, !lanSharedSecret.isEmpty else { return false }
+        return lanSharedSecret == got
     }
 
     func applyBootstrap(_ bootstrap: PosCloudBootstrap) {
@@ -188,6 +202,8 @@ final class PosHubState: @unchecked Sendable {
 
     private var localTickets: [[String: Any]] = []
     private var localPrintJobs: [[String: Any]] = []
+    /// Lokale offene Positionen (für Offline-Kassieren / Handheld über LAN).
+    private var localOpenLinesBySession: [String: [SessionOpenLine]] = [:]
 
     var kitchen: PosCloudKitchenConfig? {
         lock.lock()
@@ -544,5 +560,69 @@ final class PosHubState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return localPrintJobs.filter { ($0["status"] as? String) == "pending" }.count
+    }
+
+    func appendLocalOpenLines(sessionId: String, cartLines: [PosCartLine]) {
+        lock.lock()
+        defer { lock.unlock() }
+        var list = localOpenLinesBySession[sessionId] ?? []
+        for line in cartLines {
+            let id = UUID().uuidString
+            var detailParts: [String] = []
+            if line.course != .other { detailParts.append(line.course.label) }
+            detailParts.append(contentsOf: line.modifiers.map(\.label))
+            if !line.notes.isEmpty { detailParts.append(line.notes) }
+            list.append(SessionOpenLine(
+                id: id,
+                orderLineId: id,
+                name: line.name,
+                openQuantity: line.quantity,
+                openCents: line.lineTotalCents,
+                detail: detailParts.joined(separator: " · ")
+            ))
+        }
+        localOpenLinesBySession[sessionId] = list
+    }
+
+    func localOpenLines(sessionId: String) -> [SessionOpenLine] {
+        lock.lock()
+        defer { lock.unlock() }
+        return (localOpenLinesBySession[sessionId] ?? []).filter { $0.openQuantity > 0 }
+    }
+
+    /// Bar offline: Mengen abziehen. Liefert abgebuchte Zeilen + Betrag.
+    func collectLocalCash(
+        sessionId: String,
+        allocations: [(orderLineId: String, quantity: Int)]
+    ) -> (amountCents: Int, fiscalPending: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        var list = localOpenLinesBySession[sessionId] ?? []
+        var amount = 0
+        for alloc in allocations {
+            guard let idx = list.firstIndex(where: { $0.orderLineId == alloc.orderLineId }) else { continue }
+            let line = list[idx]
+            let qty = min(alloc.quantity, line.openQuantity)
+            guard qty > 0, line.openQuantity > 0 else { continue }
+            let unit = line.openCents / max(line.openQuantity, 1)
+            amount += unit * qty
+            let remaining = line.openQuantity - qty
+            if remaining <= 0 {
+                list.remove(at: idx)
+            } else {
+                list[idx].openQuantity = remaining
+                list[idx].openCents = unit * remaining
+            }
+        }
+        localOpenLinesBySession[sessionId] = list
+        if var bootstrap {
+            var meta = bootstrap.floor.sessionMetaBySessionId[sessionId]
+                ?? PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
+            meta.openCents = max(0, meta.openCents - amount)
+            bootstrap.floor.sessionMetaBySessionId[sessionId] = meta
+            self.bootstrap = bootstrap
+            PosLocalStore.saveBootstrap(bootstrap)
+        }
+        return (amount, true)
     }
 }

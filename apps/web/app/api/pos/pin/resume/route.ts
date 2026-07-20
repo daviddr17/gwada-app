@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { staff_id?: string };
+  let body: { staff_id?: string; offline_pin_proof?: string };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -36,21 +36,32 @@ export async function POST(request: Request) {
   }
 
   const staffId = body.staff_id?.trim() ?? "";
-  if (!staffId) {
+  const proof = body.offline_pin_proof?.trim().toLowerCase() ?? "";
+  if (!staffId || !/^[a-f0-9]{64}$/.test(proof)) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
   const { data: staffRow } = await admin
     .from("restaurant_staff")
-    .select("id, restaurant_id, is_active, display_pin_hash")
+    .select(
+      "id, restaurant_id, is_active, display_pin_hash, display_pin_offline_hash",
+    )
     .eq("id", staffId)
     .maybeSingle();
+
+  const offlineHash = (
+    staffRow?.display_pin_offline_hash as string | null
+  )
+    ?.trim()
+    .toLowerCase();
 
   if (
     !staffRow ||
     !staffRow.is_active ||
     staffRow.restaurant_id !== deviceResult.device.restaurant_id ||
-    !staffRow.display_pin_hash
+    !staffRow.display_pin_hash ||
+    !offlineHash ||
+    offlineHash !== proof
   ) {
     return NextResponse.json({ error: "pin_invalid" }, { status: 401 });
   }

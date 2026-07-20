@@ -34,6 +34,9 @@ struct PosSyncOrderItem: Codable, Sendable {
     var menuItemId: String
     var quantity: Int
     var notes: String?
+    var course: String?
+    var ohneIngredientIds: [String]?
+    var modifiers: [PosCloudModifierPayload]?
 }
 
 struct PosSyncCollectCashPayload: Codable, Sendable {
@@ -138,6 +141,10 @@ final class PosSyncQueue: ObservableObject {
             lastFlushMessage = "Sync wartet auf Login."
             return
         }
+        if PosAuthStore.shared.isOfflineSession {
+            lastFlushMessage = "Sync wartet auf Internet (Offline-PIN)."
+            return
+        }
         isFlushing = true
         defer { isFlushing = false }
 
@@ -207,7 +214,16 @@ final class PosSyncQueue: ObservableObject {
             _ = try await PosCloudClient.createOrder(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
-                items: payload.items.map { ($0.menuItemId, $0.quantity, $0.notes) }
+                items: payload.items.map {
+                    PosCloudOrderItem(
+                        menuItemId: $0.menuItemId,
+                        quantity: $0.quantity,
+                        notes: $0.notes,
+                        course: $0.course,
+                        ohneIngredientIds: $0.ohneIngredientIds,
+                        modifiers: $0.modifiers
+                    )
+                }
             )
 
         case .collectCash:

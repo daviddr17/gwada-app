@@ -11,11 +11,13 @@ Native iPad-Kasse + iPhone-Handgeräte. **Getrennt** von `apps/staff` (Expo, Kol
 
 ## Betriebsmodell
 
-1. **iPad** meldet sich an (Cloud), lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal.
-2. Danach läuft die Kasse **lokal**; Handgeräte holen Snapshot / Sessions / Orders nur über WLAN.
-3. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
-4. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt; wartende Orders/Kassierungen werden umgeschrieben (`session-id-map.json`).
-5. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE.
+1. **Dashboard** (Recht `pos.kasse.manage`): unter POS → Einstellungen → Geräte ein Gerät anlegen und **Kopplungscode** erzeugen.
+2. **iPad / iPhone** einmalig mit dem Code koppeln → Restaurant ist gebunden.
+3. Mitarbeiter melden sich nur noch mit der **Display-PIN** an (Recht `pos.kasse.use` oder `pos.kasse.manage`).
+4. **iPad** lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal; Handgeräte holen Snapshot / Sessions / Orders über WLAN.
+5. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
+6. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt; wartende Orders/Kassierungen werden umgeschrieben (`session-id-map.json`).
+7. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE, Geräte-Kopplung.
 
 ## Öffnen (Mac)
 
@@ -28,19 +30,18 @@ open GwadaPOS.xcodeproj
 
 In Xcode: Team wählen, auf **iPad** und **iPhone** (gleiches WLAN) installieren.
 
-### Erste Anmeldung (Kasse)
+### Erste Anmeldung (Kasse / Handheld)
 
-Im Login-Bereich setzen:
-
-- E-Mail / Passwort (Restaurant-Mitarbeiter)
-- Restaurant-ID (UUID)
-- Erweitert: API-Basis (`https://gwada.app` oder Dev), Supabase-URL, Anon Key
+1. Im Web-Dashboard: **POS → Einstellungen → Geräte** → Gerät anlegen → Kopplungscode  
+2. In der App: Code eingeben → Gerät koppeln  
+3. Display-PIN des Mitarbeiters (mit Recht „Kasse bedienen“)  
+4. Erweitert (nur bei Bedarf): API-Basis (`https://gwada.app` oder Dev)
 
 ## Test
 
-1. App auf dem **iPad** starten → Server Port 8787 + Bonjour  
-2. Anmelden → Cloud-Bootstrap (oder Cache/Demo ohne Netz)  
-3. App auf dem **iPhone** starten → findet Kasse, zeigt Tische  
+1. Gerät im Dashboard anlegen, Code erzeugen  
+2. App auf dem **iPad** starten → koppeln → PIN → Server Port 8787 + Bonjour  
+3. App auf dem **iPhone** starten → ebenfalls koppeln + PIN → findet Kasse, zeigt Tische  
 4. Ohne Internet: Handgerät ↔ iPad weiter nutzbar; Sync später  
 
 ## Abgrenzung

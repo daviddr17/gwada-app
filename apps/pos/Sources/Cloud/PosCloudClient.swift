@@ -476,8 +476,7 @@ enum PosCloudClient {
         }
         var request = URLRequest(url: URL(string: full)!)
         request.httpMethod = "GET"
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applySessionAuth(to: &request)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
             throw PosCloudError.invalidResponse
@@ -503,6 +502,72 @@ enum PosCloudClient {
     }
 
     @MainActor
+    static func unauthenticatedPost<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(body)
+        return try await perform(request)
+    }
+
+    @MainActor
+    static func deviceAuthenticatedPost<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try applyDeviceAuth(to: &request)
+        request.httpBody = try encoder.encode(body)
+        return try await perform(request)
+    }
+
+    @MainActor
+    static func deviceAuthenticatedDelete(_ path: String) async throws {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "DELETE"
+        try applyDeviceAuth(to: &request)
+        try applySessionAuthIfPresent(to: &request)
+        let (data, response) = try await performRaw(request)
+        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+            throw PosCloudError.httpStatus(
+                (response as? HTTPURLResponse)?.statusCode ?? 0,
+                String(data: data, encoding: .utf8)
+            )
+        }
+    }
+
+    @MainActor
+    static func deviceAuthenticatedPatch(_ path: String) async throws {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "PATCH"
+        try await applySessionAuth(to: &request)
+        let (data, response) = try await performRaw(request)
+        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+            throw PosCloudError.httpStatus(
+                (response as? HTTPURLResponse)?.statusCode ?? 0,
+                String(data: data, encoding: .utf8)
+            )
+        }
+    }
+
+    @MainActor
+    private static func applyDeviceAuth(to request: inout URLRequest) throws {
+        request.setValue(try PosAuthStore.shared.deviceHeaderValue(), forHTTPHeaderField: "X-Gwada-Pos-Device")
+    }
+
+    @MainActor
+    private static func applySessionAuth(to request: inout URLRequest) async throws {
+        try applyDeviceAuth(to: &request)
+        request.setValue(try PosAuthStore.shared.sessionHeaderValue(), forHTTPHeaderField: "X-Gwada-Pos-Session")
+    }
+
+    @MainActor
+    private static func applySessionAuthIfPresent(to request: inout URLRequest) {
+        if let value = try? PosAuthStore.shared.sessionHeaderValue() {
+            request.setValue(value, forHTTPHeaderField: "X-Gwada-Pos-Session")
+        }
+    }
+
+    @MainActor
     private static func get<T: Decodable>(
         _ path: String,
         restaurantId: String?,
@@ -511,8 +576,7 @@ enum PosCloudClient {
         var request = URLRequest(url: url(path, restaurantId: restaurantId, extraQuery: extraQuery))
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applySessionAuth(to: &request)
         return try await perform(request)
     }
 
@@ -521,8 +585,7 @@ enum PosCloudClient {
         var request = URLRequest(url: url(path, restaurantId: nil))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applySessionAuth(to: &request)
         request.httpBody = try encoder.encode(body)
         return try await perform(request)
     }
@@ -532,8 +595,7 @@ enum PosCloudClient {
         var request = URLRequest(url: url(path, restaurantId: nil))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applySessionAuth(to: &request)
         request.httpBody = try encoder.encode(body)
         let (data, response) = try await performRaw(request)
         guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {

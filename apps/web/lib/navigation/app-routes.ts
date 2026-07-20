@@ -40,6 +40,7 @@ export const APP_ROUTES = {
     settingsKitchen: "/dashboard/pos/einstellungen/kueche",
     settingsInventoryVoid: "/dashboard/pos/einstellungen/bestand-storno",
     settingsGiftVouchers: "/dashboard/pos/einstellungen/gutscheine",
+    settingsDevices: "/dashboard/pos/einstellungen/geraete",
   },
   kontakte: {
     root: "/dashboard/kontakte",

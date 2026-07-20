@@ -54,6 +54,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.compliance",
   "display.kds",
   "display.module_switch",
+  "pos.kasse.use",
   "pos.kasse.manage",
   "pos.kasse.export",
   "contacts.messages.protocol",
@@ -294,9 +295,17 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       group: "display",
     },
     {
+      key: "pos.kasse.use",
+      label: "Kasse bedienen",
+      description:
+        "An POS-Geräten mit Display-PIN anmelden, Tische und Bestellungen bedienen.",
+      group: "pos",
+    },
+    {
       key: "pos.kasse.manage",
       label: "Kasse öffnen und schließen",
-      description: "Kassenöffnung mit Anfangsbestand und Z-Bon-Abschluss.",
+      description:
+        "Kassenöffnung mit Anfangsbestand, Z-Bon-Abschluss und POS-Geräte koppeln.",
       group: "pos",
     },
     {

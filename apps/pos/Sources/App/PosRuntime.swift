@@ -31,12 +31,18 @@ final class PosRuntime: ObservableObject {
         PosDesign.color(hex: brandAccentHex)
     }
 
-    @Published var email = ""
-    @Published var password = ""
-    @Published var restaurantIdInput = ""
+    @Published var pairingCodeInput = ""
+    @Published var pinInput = ""
     @Published var apiBaseInput = ""
-    @Published var supabaseUrlInput = ""
-    @Published var supabaseAnonInput = ""
+    @Published var restaurantIdInput = ""
+
+    var isPaired: Bool { PosAuthStore.shared.isPaired }
+    var staffDisplayName: String { PosAuthStore.shared.pinSession?.staffName ?? "" }
+    var restaurantDisplayName: String {
+        PosAuthStore.shared.device?.restaurantName
+            ?? snapshot?.restaurantName
+            ?? ""
+    }
 
     private let hubDeviceId = UUID().uuidString
     private var httpServer: HubHTTPServer?
@@ -44,6 +50,7 @@ final class PosRuntime: ObservableObject {
     private let browser = BonjourHubBrowser()
     private let manualHostKey = "gwada_pos_hub_host"
     private var flushTask: Task<Void, Never>?
+    private var heartbeatTask: Task<Void, Never>?
 
     init() {
         let role = PosDeviceRoleDetector.detect()
@@ -51,11 +58,8 @@ final class PosRuntime: ObservableObject {
         self.detectionLabel = "Automatisch: \(PosDeviceRoleDetector.deviceKindLabel) → \(role.title)"
         PosHubState.shared.configure(hubDeviceId: hubDeviceId)
         PosHubState.shared.loadCachedOrDemo()
-        restaurantIdInput = PosCloudConfig.restaurantId ?? ""
+        restaurantIdInput = PosAuthStore.shared.restaurantId ?? PosCloudConfig.restaurantId ?? ""
         apiBaseInput = PosCloudConfig.apiBaseURL.absoluteString
-        supabaseUrlInput = PosCloudConfig.supabaseURL.absoluteString
-        supabaseAnonInput = PosCloudConfig.supabaseAnonKey
-        email = PosAuthStore.shared.session?.email ?? ""
         isSignedIn = PosAuthStore.shared.isSignedIn
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
         applyBrandAccent(fromHex: PosHubState.shared.brandAccentHex)
@@ -63,26 +67,93 @@ final class PosRuntime: ObservableObject {
 
     func start() async {
         phase = .starting
+        await PosAuthStore.shared.restoreDeviceIfNeeded()
+        isSignedIn = PosAuthStore.shared.isSignedIn
+        restaurantIdInput = PosAuthStore.shared.restaurantId ?? restaurantIdInput
+
+        guard PosAuthStore.shared.isPaired else {
+            phase = .needsLogin
+            statusMessage = "Gerät noch nicht gekoppelt — Kopplungscode aus dem Dashboard eingeben."
+            return
+        }
+        guard PosAuthStore.shared.isSignedIn else {
+            phase = .needsLogin
+            statusMessage = "Mit Display-PIN anmelden."
+            if role == .hub {
+                // Hub darf lokal schon laufen, Sync erst nach PIN
+                await startHub()
+            }
+            return
+        }
+
         switch role {
         case .hub:
             await startHub()
+            startHeartbeat()
         case .handheld:
             await connectHandheld()
             if phase == .connected {
                 await pullReservationsDay(PosReservationsStore.todayYmd())
             }
+            startHeartbeat()
         }
     }
 
-    func signInAndStartHub() async {
+    func pairDevice() async {
         saveConfigFromInputs()
+        let code = pairingCodeInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard code.count == 8 else {
+            statusMessage = "Kopplungscode muss 8 Zeichen haben."
+            return
+        }
         do {
-            try await PosAuthStore.shared.signIn(email: email, password: password)
-            isSignedIn = true
-            await startHub()
+            try await PosAuthStore.shared.pair(code: code)
+            pairingCodeInput = ""
+            restaurantIdInput = PosAuthStore.shared.restaurantId ?? ""
+            isSignedIn = false
+            phase = .needsLogin
+            statusMessage = "Gerät gekoppelt: \(PosAuthStore.shared.device?.restaurantName ?? "Restaurant"). Bitte PIN eingeben."
+            if role == .hub {
+                await startHub()
+            }
         } catch {
+            statusMessage = "Kopplung fehlgeschlagen: \(error.localizedDescription)"
             phase = .error(error.localizedDescription)
-            statusMessage = error.localizedDescription
+        }
+    }
+
+    func signInWithPin() async {
+        saveConfigFromInputs()
+        let pin = pinInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard pin.count == 4, pin.allSatisfy(\.isNumber) else {
+            statusMessage = "Bitte 4-stellige Display-PIN eingeben."
+            return
+        }
+        do {
+            try await PosAuthStore.shared.signInWithPin(pin)
+            pinInput = ""
+            isSignedIn = true
+            statusMessage = "Angemeldet als \(staffDisplayName)."
+            switch role {
+            case .hub:
+                await startHub()
+            case .handheld:
+                await connectHandheld()
+                if phase == .connected {
+                    await pullReservationsDay(PosReservationsStore.todayYmd())
+                }
+            }
+            startHeartbeat()
+        } catch {
+            let message = error.localizedDescription
+            if message.contains("forbidden_pos") {
+                statusMessage = "Keine Berechtigung für die Kasse (Recht „Kasse bedienen“)."
+            } else if message.contains("pin_invalid") {
+                statusMessage = "PIN ungültig."
+            } else {
+                statusMessage = "Anmeldung fehlgeschlagen: \(message)"
+            }
+            phase = .needsLogin
         }
     }
 
@@ -104,12 +175,29 @@ final class PosRuntime: ObservableObject {
     }
 
     func signOut() {
-        PosAuthStore.shared.clear()
+        heartbeatTask?.cancel()
+        Task {
+            await PosAuthStore.shared.signOutPin()
+        }
         isSignedIn = false
-        stopHub()
+        if role == .hub {
+            // Hub bleibt gekoppelt und lokal erreichbar; nur PIN-Session weg
+            phase = .hubReady
+            statusMessage = "Abgemeldet — Display-PIN erneut eingeben."
+        } else {
+            phase = .needsLogin
+            statusMessage = "Abgemeldet."
+        }
+    }
+
+    func unpairDevice() async {
+        heartbeatTask?.cancel()
         flushTask?.cancel()
+        stopHub()
+        await PosAuthStore.shared.unpairDevice()
+        isSignedIn = false
         phase = .needsLogin
-        statusMessage = "Abgemeldet."
+        statusMessage = "Gerät entkoppelt."
     }
 
     func refresh() async {
@@ -595,9 +683,23 @@ final class PosRuntime: ObservableObject {
 
     private func saveConfigFromInputs() {
         if !apiBaseInput.isEmpty { PosCloudConfig.setApiBaseURL(apiBaseInput) }
-        if !supabaseUrlInput.isEmpty { PosCloudConfig.setSupabaseURL(supabaseUrlInput) }
-        if !supabaseAnonInput.isEmpty { PosCloudConfig.setSupabaseAnonKey(supabaseAnonInput) }
-        if !restaurantIdInput.isEmpty { PosCloudConfig.setRestaurantId(restaurantIdInput) }
+    }
+
+    private func startHeartbeat() {
+        heartbeatTask?.cancel()
+        heartbeatTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                await PosAuthStore.shared.heartbeat()
+                await MainActor.run {
+                    self?.isSignedIn = PosAuthStore.shared.isSignedIn
+                    if self?.isSignedIn != true {
+                        self?.statusMessage = "Session abgelaufen — bitte PIN erneut eingeben."
+                        self?.phase = .needsLogin
+                    }
+                }
+            }
+        }
     }
 
     private func startHub() async {

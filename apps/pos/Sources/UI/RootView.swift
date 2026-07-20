@@ -74,6 +74,21 @@ struct RootView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .onAppear {
+            if !runtime.isPaired || !runtime.isSignedIn {
+                selection = .device
+            }
+        }
+        .onChange(of: runtime.isSignedIn) { _, signedIn in
+            if !signedIn {
+                selection = .device
+            }
+        }
+        .onChange(of: runtime.isPaired) { _, paired in
+            if !paired {
+                selection = .device
+            }
+        }
     }
 
     @ViewBuilder

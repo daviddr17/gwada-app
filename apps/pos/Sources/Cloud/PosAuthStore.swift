@@ -1,20 +1,35 @@
 import Foundation
 
-struct PosAuthSession: Codable, Equatable, Sendable {
-    var accessToken: String
-    var refreshToken: String
-    var expiresAt: TimeInterval
-    var userId: String
-    var email: String
+struct PosDeviceCredential: Codable, Equatable, Sendable {
+    var deviceId: String
+    var deviceToken: String
+    var installationId: String
+    var restaurantId: String
+    var restaurantName: String?
+    var deviceName: String?
+    var autoLockSeconds: Int
 }
 
+struct PosPinSession: Codable, Equatable, Sendable {
+    var sessionId: String
+    var sessionToken: String
+    var staffId: String
+    var staffName: String
+    var profileId: String?
+    var permissionKeys: [String]
+}
+
+/// Geräte-Kopplung + Display-PIN-Session (ersetzt E-Mail/Passwort am Gerät).
 @MainActor
 final class PosAuthStore: ObservableObject {
     static let shared = PosAuthStore()
 
-    @Published private(set) var session: PosAuthSession?
+    @Published private(set) var device: PosDeviceCredential?
+    @Published private(set) var pinSession: PosPinSession?
 
-    private let storageKey = "gwada_pos_auth_session"
+    private let deviceKey = "gwada_pos_device_credential"
+    private let sessionKey = "gwada_pos_pin_session"
+    private let installationKey = "gwada_pos_installation_id"
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -22,114 +37,205 @@ final class PosAuthStore: ObservableObject {
         load()
     }
 
-    var isSignedIn: Bool { session != nil }
+    var isPaired: Bool { device != nil }
+    var isSignedIn: Bool { pinSession != nil }
+    var restaurantId: String? { device?.restaurantId }
+
+    func installationId() -> String {
+        if let existing = UserDefaults.standard.string(forKey: installationKey),
+           existing.count >= 8 {
+            return existing
+        }
+        let id = UUID().uuidString
+        UserDefaults.standard.set(id, forKey: installationKey)
+        return id
+    }
 
     func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let saved = try? decoder.decode(PosAuthSession.self, from: data) else {
-            session = nil
-            return
+        if let data = UserDefaults.standard.data(forKey: deviceKey),
+           let saved = try? decoder.decode(PosDeviceCredential.self, from: data) {
+            device = saved
+        } else {
+            device = nil
         }
-        session = saved
+        if let data = UserDefaults.standard.data(forKey: sessionKey),
+           let saved = try? decoder.decode(PosPinSession.self, from: data) {
+            pinSession = saved
+        } else {
+            pinSession = nil
+        }
     }
 
-    func save(_ session: PosAuthSession) {
-        self.session = session
+    func saveDevice(_ credential: PosDeviceCredential) {
+        device = credential
+        if let data = try? encoder.encode(credential) {
+            UserDefaults.standard.set(data, forKey: deviceKey)
+        }
+        PosCloudConfig.setRestaurantId(credential.restaurantId)
+    }
+
+    func clearDevice() {
+        device = nil
+        pinSession = nil
+        UserDefaults.standard.removeObject(forKey: deviceKey)
+        UserDefaults.standard.removeObject(forKey: sessionKey)
+    }
+
+    func savePinSession(_ session: PosPinSession) {
+        pinSession = session
         if let data = try? encoder.encode(session) {
-            UserDefaults.standard.set(data, forKey: storageKey)
+            UserDefaults.standard.set(data, forKey: sessionKey)
         }
     }
 
-    func clear() {
-        session = nil
-        UserDefaults.standard.removeObject(forKey: storageKey)
+    func clearPinSession() {
+        pinSession = nil
+        UserDefaults.standard.removeObject(forKey: sessionKey)
     }
 
+    func deviceHeaderValue() throws -> String {
+        guard let device else { throw PosCloudError.unauthorized }
+        return "\(device.deviceId).\(device.deviceToken)"
+    }
+
+    func sessionHeaderValue() throws -> String {
+        guard let pinSession else { throw PosCloudError.unauthorized }
+        return "\(pinSession.sessionId).\(pinSession.sessionToken)"
+    }
+
+    /// Früher: JWT — bleibt für Kompatibilität mit Sync-Checks als „angemeldet“.
     func validAccessToken() async throws -> String {
-        guard var current = session else {
-            throw PosCloudError.unauthorized
-        }
-        let now = Date().timeIntervalSince1970
-        if current.expiresAt - now > 60 {
-            return current.accessToken
-        }
-        current = try await refresh(session: current)
-        save(current)
-        return current.accessToken
+        // Kein JWT mehr; Cloud-Client nutzt Header. Wir werfen nur, wenn keine PIN-Session.
+        guard isSignedIn else { throw PosCloudError.unauthorized }
+        return try sessionHeaderValue()
     }
 
-    func signIn(email: String, password: String) async throws {
-        let anon = PosCloudConfig.supabaseAnonKey
-        guard !anon.isEmpty else { throw PosCloudError.missingConfig("Supabase Anon Key") }
-
-        var request = URLRequest(url: PosCloudConfig.supabaseURL.appendingPathComponent("auth/v1/token"))
-        var components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
-        components.queryItems = [URLQueryItem(name: "grant_type", value: "password")]
-        request.url = components.url
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(anon, forHTTPHeaderField: "apikey")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "email": email.trimmingCharacters(in: .whitespacesAndNewlines),
-            "password": password,
-        ])
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw PosCloudError.invalidResponse }
-        guard http.statusCode == 200 else {
-            throw PosCloudError.httpStatus(http.statusCode, String(data: data, encoding: .utf8))
+    func pair(code: String) async throws {
+        struct Body: Encodable {
+            var code: String
+            var installation_id: String
+        }
+        struct Response: Decodable {
+            var ok: Bool?
+            var device_id: String
+            var device_token: String
+            var installation_id: String
+            var auto_lock_seconds: Int
+            var device_name: String?
+            var restaurant: Restaurant
+            struct Restaurant: Decodable {
+                var id: String
+                var name: String?
+            }
         }
 
-        let payload = try decoder.decode(GoTrueTokenResponse.self, from: data)
-        let expiresAt = Date().timeIntervalSince1970 + TimeInterval(payload.expires_in)
-        save(PosAuthSession(
-            accessToken: payload.access_token,
-            refreshToken: payload.refresh_token,
-            expiresAt: expiresAt,
-            userId: payload.user.id,
-            email: payload.user.email ?? email
+        let response: Response = try await PosCloudClient.unauthenticatedPost(
+            "/api/pos/pair",
+            body: Body(
+                code: code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+                installation_id: installationId()
+            )
+        )
+
+        saveDevice(PosDeviceCredential(
+            deviceId: response.device_id,
+            deviceToken: response.device_token,
+            installationId: response.installation_id,
+            restaurantId: response.restaurant.id,
+            restaurantName: response.restaurant.name,
+            deviceName: response.device_name,
+            autoLockSeconds: response.auto_lock_seconds
+        ))
+        clearPinSession()
+    }
+
+    func restoreDeviceIfNeeded() async {
+        guard let device else { return }
+        struct Body: Encodable {
+            var device_id: String
+            var installation_id: String
+            var device_token: String
+        }
+        struct Response: Decodable {
+            var ok: Bool?
+            var device_id: String
+            var device_token: String
+            var installation_id: String
+            var auto_lock_seconds: Int
+            var device_name: String?
+            var restaurant: Restaurant
+            struct Restaurant: Decodable {
+                var id: String
+                var name: String?
+            }
+        }
+        do {
+            let response: Response = try await PosCloudClient.unauthenticatedPost(
+                "/api/pos/device/restore",
+                body: Body(
+                    device_id: device.deviceId,
+                    installation_id: device.installationId,
+                    device_token: device.deviceToken
+                )
+            )
+            saveDevice(PosDeviceCredential(
+                deviceId: response.device_id,
+                deviceToken: response.device_token,
+                installationId: response.installation_id,
+                restaurantId: response.restaurant.id,
+                restaurantName: response.restaurant.name,
+                deviceName: response.device_name,
+                autoLockSeconds: response.auto_lock_seconds
+            ))
+        } catch {
+            // Offline: lokale Kopplung behalten
+        }
+    }
+
+    func signInWithPin(_ pin: String) async throws {
+        struct Body: Encodable { var pin: String }
+        struct Response: Decodable {
+            var ok: Bool?
+            var session_id: String
+            var session_token: String
+            var staff: Staff
+            var permissions: [String]?
+            struct Staff: Decodable {
+                var id: String
+                var name: String?
+                var profile_id: String?
+            }
+        }
+
+        let response: Response = try await PosCloudClient.deviceAuthenticatedPost(
+            "/api/pos/pin",
+            body: Body(pin: pin.trimmingCharacters(in: .whitespacesAndNewlines))
+        )
+
+        savePinSession(PosPinSession(
+            sessionId: response.session_id,
+            sessionToken: response.session_token,
+            staffId: response.staff.id,
+            staffName: response.staff.name ?? "",
+            profileId: response.staff.profile_id,
+            permissionKeys: response.permissions ?? []
         ))
     }
 
-    private func refresh(session: PosAuthSession) async throws -> PosAuthSession {
-        let anon = PosCloudConfig.supabaseAnonKey
-        guard !anon.isEmpty else { throw PosCloudError.missingConfig("Supabase Anon Key") }
-
-        var request = URLRequest(url: PosCloudConfig.supabaseURL.appendingPathComponent("auth/v1/token"))
-        var components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
-        components.queryItems = [URLQueryItem(name: "grant_type", value: "refresh_token")]
-        request.url = components.url
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(anon, forHTTPHeaderField: "apikey")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "refresh_token": session.refreshToken,
-        ])
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            clear()
-            throw PosCloudError.unauthorized
+    func signOutPin() async {
+        if pinSession != nil {
+            try? await PosCloudClient.deviceAuthenticatedDelete("/api/pos/pin")
         }
-        let payload = try decoder.decode(GoTrueTokenResponse.self, from: data)
-        return PosAuthSession(
-            accessToken: payload.access_token,
-            refreshToken: payload.refresh_token,
-            expiresAt: Date().timeIntervalSince1970 + TimeInterval(payload.expires_in),
-            userId: payload.user.id,
-            email: payload.user.email ?? session.email
-        )
+        clearPinSession()
     }
-}
 
-private struct GoTrueTokenResponse: Decodable {
-    var access_token: String
-    var refresh_token: String
-    var expires_in: Int
-    var user: GoTrueUser
-}
+    func heartbeat() async {
+        guard isSignedIn else { return }
+        try? await PosCloudClient.deviceAuthenticatedPatch("/api/pos/pin")
+    }
 
-private struct GoTrueUser: Decodable {
-    var id: String
-    var email: String?
+    func unpairDevice() async {
+        await signOutPin()
+        clearDevice()
+    }
 }

@@ -5,6 +5,13 @@ import {
   ALL_RESTAURANT_PERMISSION_KEYS,
   type RestaurantPermissionKey,
 } from "@/lib/permissions/restaurant-permissions";
+import {
+  assertPosDeviceFromRequest,
+  assertPosPinSessionFromRequest,
+  staffHasPosPermission,
+  touchPosSession,
+} from "@/lib/pos/pos-device-auth-server";
+import { POS_DEVICE_HEADER } from "@/lib/pos/pos-device-headers";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { getSupabaseAnonKey } from "@/lib/public-env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -13,8 +20,14 @@ import { resolveSupabaseUpstreamUrl } from "@/lib/supabase/supabase-upstream-url
 
 export type PosRouteAuth = {
   restaurantId: string;
-  userId: string;
+  /**
+   * auth.users / profile id when available.
+   * PIN-Login ohne verknüpftes Login-Konto: `null` (FK-Felder setzen null).
+   */
+  userId: string | null;
+  staffId?: string | null;
   supabase: SupabaseClient;
+  authMode: "user" | "pin_session";
 };
 
 function bearerToken(request: Request): string | null {
@@ -197,10 +210,6 @@ async function supabaseFromRequest(
     return authFromBearerToken(token);
   }
 
-  if (process.env.NODE_ENV === "development") {
-    console.warn("[pos] missing Authorization bearer");
-  }
-
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -208,6 +217,58 @@ async function supabaseFromRequest(
   } = await supabase.auth.getUser();
   if (error || !user) return null;
   return { supabase, userId: user.id };
+}
+
+async function authorizeFromPinSession(
+  request: Request,
+  restaurantId: string,
+): Promise<
+  | { ok: true; auth: PosRouteAuth; permissionKeys: Set<string> }
+  | { ok: false; status: number; error: string }
+> {
+  const deviceResult = await assertPosDeviceFromRequest(request);
+  if (!deviceResult.ok) {
+    return {
+      ok: false,
+      status: deviceResult.status,
+      error: deviceResult.error,
+    };
+  }
+
+  if (deviceResult.device.restaurant_id !== restaurantId) {
+    return { ok: false, status: 403, error: "forbidden" };
+  }
+
+  const sessionResult = await assertPosPinSessionFromRequest(
+    request,
+    deviceResult.device,
+  );
+  if (!sessionResult.ok) {
+    return {
+      ok: false,
+      status: sessionResult.status,
+      error: sessionResult.error,
+    };
+  }
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return { ok: false, status: 503, error: "server_misconfigured" };
+  }
+
+  void touchPosSession(sessionResult.session.id);
+
+  return {
+    ok: true,
+    auth: {
+      restaurantId,
+      userId: sessionResult.staff.profile_id,
+      staffId: sessionResult.staff.id,
+      supabase: admin,
+      authMode: "pin_session",
+    },
+    permissionKeys: sessionResult.permissionKeys,
+  };
 }
 
 export async function authorizePosRestaurant(
@@ -220,6 +281,19 @@ export async function authorizePosRestaurant(
   const restaurantId = restaurantIdRaw?.trim() ?? "";
   if (!isUuidRestaurantId(restaurantId)) {
     return { ok: false, status: 400, error: "invalid_restaurant_id" };
+  }
+
+  if (request.headers.get(POS_DEVICE_HEADER)) {
+    const pinAuth = await authorizeFromPinSession(request, restaurantId);
+    if (pinAuth.ok) return { ok: true, auth: pinAuth.auth };
+    // Device header present but session missing/invalid → do not fall through to cookies.
+    if (!bearerToken(request)) {
+      return {
+        ok: false,
+        status: pinAuth.status,
+        error: pinAuth.error,
+      };
+    }
   }
 
   const session = await supabaseFromRequest(request);
@@ -243,6 +317,7 @@ export async function authorizePosRestaurant(
       restaurantId,
       userId: session.userId,
       supabase: session.supabase,
+      authMode: "user",
     },
   };
 }
@@ -255,8 +330,34 @@ export async function authorizePosRestaurantPermission(
   | { ok: true; auth: PosRouteAuth }
   | { ok: false; status: number; error: string }
 > {
+  const restaurantId = restaurantIdRaw?.trim() ?? "";
+  if (!isUuidRestaurantId(restaurantId)) {
+    return { ok: false, status: 400, error: "invalid_restaurant_id" };
+  }
+
+  if (request.headers.get(POS_DEVICE_HEADER)) {
+    const pinAuth = await authorizeFromPinSession(request, restaurantId);
+    if (!pinAuth.ok) {
+      if (!bearerToken(request)) {
+        return {
+          ok: false,
+          status: pinAuth.status,
+          error: pinAuth.error,
+        };
+      }
+    } else {
+      if (!staffHasPosPermission(pinAuth.permissionKeys, permissionKey)) {
+        return { ok: false, status: 403, error: "forbidden" };
+      }
+      return { ok: true, auth: pinAuth.auth };
+    }
+  }
+
   const base = await authorizePosRestaurant(request, restaurantIdRaw);
   if (!base.ok) return base;
+  if (!base.auth.userId) {
+    return { ok: false, status: 403, error: "forbidden" };
+  }
 
   const keys = await userRestaurantPermissionKeys(
     base.auth.supabase,

@@ -452,7 +452,7 @@ enum PosCloudClient {
         return res.receipts
     }
 
-    struct PosVoidReasonDto: Decodable, Identifiable, Sendable, Hashable {
+    struct PosVoidReasonDto: Codable, Identifiable, Sendable, Hashable {
         var id: String
         var name: String
         var restoreInventory: Bool

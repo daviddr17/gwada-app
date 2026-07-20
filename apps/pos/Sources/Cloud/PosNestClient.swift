@@ -51,9 +51,15 @@ enum PosNestClient {
         guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
             throw PosCloudError.missingRestaurant
         }
-        let waiterId = PosCloudConfig.waiterProfileId
-            ?? PosAuthStore.shared.session?.userId
-        guard let waiterId, !waiterId.isEmpty else {
+
+        let waiterId: String
+        if let configured = PosCloudConfig.waiterProfileId, !configured.isEmpty {
+            waiterId = configured
+        } else if let fromAuth = await MainActor.run(body: { PosAuthStore.shared.session?.userId }),
+                  !fromAuth.isEmpty
+        {
+            waiterId = fromAuth
+        } else {
             throw PosCloudError.missingConfig("Waiter Profile-ID")
         }
 

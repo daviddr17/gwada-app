@@ -261,35 +261,15 @@ export function PosFormalInvoiceDrawer({
             <p className="text-sm text-muted-foreground">
               Entwurf nicht verfügbar.
             </p>
-          ) : draft.alreadyInvoiced ? (
+          ) : draft.alreadyInvoiced && !draft.alreadyStornoed ? (
             <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-6 text-sm">
-              <p className="font-medium">
-                {draft.alreadyStornoed
-                  ? "Rechnung storniert"
-                  : "Bereits verrechnet"}
-              </p>
+              <p className="font-medium">Bereits verrechnet</p>
               <p className="mt-1 text-muted-foreground">
-                {draft.alreadyStornoed ? (
-                  <>
-                    Die formale Rechnung
-                    {draft.existingInvoiceNumber
-                      ? ` ${draft.existingInvoiceNumber}`
-                      : ""}{" "}
-                    ist storniert
-                    {draft.existingCorrectionNumber
-                      ? ` (Korrektur ${draft.existingCorrectionNumber})`
-                      : ""}
-                    .
-                  </>
-                ) : (
-                  <>
-                    Für diese Quittung gibt es schon eine formale Rechnung
-                    {draft.existingInvoiceNumber
-                      ? ` (${draft.existingInvoiceNumber})`
-                      : ""}
-                    .
-                  </>
-                )}
+                Für diese Quittung gibt es schon eine formale Rechnung
+                {draft.existingInvoiceNumber
+                  ? ` (${draft.existingInvoiceNumber})`
+                  : ""}
+                .
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {draft.existingInvoiceId ? (
@@ -308,24 +288,35 @@ export function PosFormalInvoiceDrawer({
                     Zur Rechnung
                   </Button>
                 ) : null}
-                {!draft.alreadyStornoed ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-xl"
-                    disabled={stornoBusy}
-                    onClick={() => void stornoInvoice()}
-                  >
-                    {stornoBusy ? (
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
-                    ) : null}
-                    Rechnung stornieren
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl"
+                  disabled={stornoBusy}
+                  onClick={() => void stornoInvoice()}
+                >
+                  {stornoBusy ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                  ) : null}
+                  Rechnung stornieren
+                </Button>
               </div>
             </div>
           ) : (
             <div className="space-y-5">
+              {draft.alreadyStornoed ? (
+                <p className="rounded-xl border border-border/40 bg-muted/15 px-3 py-2 text-sm text-muted-foreground">
+                  Vorherige Rechnung
+                  {draft.existingInvoiceNumber
+                    ? ` ${draft.existingInvoiceNumber}`
+                    : ""}{" "}
+                  ist storniert
+                  {draft.existingCorrectionNumber
+                    ? ` (Korrektur ${draft.existingCorrectionNumber})`
+                    : ""}
+                  . Du kannst eine neue formale Rechnung anlegen.
+                </p>
+              ) : null}
               <div className="rounded-xl border border-border/40 bg-muted/15 px-3 py-3 text-sm">
                 <p className="font-medium">
                   Bon #{draft.orderNumber} ·{" "}
@@ -435,7 +426,7 @@ export function PosFormalInvoiceDrawer({
           >
             Abbrechen
           </Button>
-          {!draft?.alreadyInvoiced ? (
+          {!draft?.alreadyInvoiced || draft.alreadyStornoed ? (
             <Button
               type="button"
               className={cn("flex-1", brandActionButtonRoundedClassName)}
@@ -443,6 +434,7 @@ export function PosFormalInvoiceDrawer({
                 saving ||
                 loading ||
                 !draft ||
+                (draft.alreadyInvoiced && !draft.alreadyStornoed) ||
                 (!companyName.trim() && !personName.trim())
               }
               onClick={() => void createInvoice()}

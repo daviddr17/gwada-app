@@ -599,7 +599,7 @@ final class PosRuntime: ObservableObject {
                 return
             }
             let amount = lines.reduce(0) { $0 + $1.openCents }
-            var body: [String: Any] = [
+            let body: [String: Any] = [
                 "sessionId": sessionId,
                 "method": method == .paypal ? "paypal" : "card",
                 "amountCents": amount,

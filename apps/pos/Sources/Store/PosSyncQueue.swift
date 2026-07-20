@@ -428,7 +428,13 @@ final class PosSyncQueue: ObservableObject {
             _ = try await PosCloudClient.createOrder(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
-                items: payload.items.map { ($0.menuItemId, $0.quantity, $0.notes) }
+                items: payload.items.map {
+                    PosCloudOrderItem(
+                        menuItemId: $0.menuItemId,
+                        quantity: $0.quantity,
+                        notes: $0.notes
+                    )
+                }
             )
 
         case .collectCash:

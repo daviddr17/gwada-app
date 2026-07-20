@@ -387,15 +387,51 @@ struct SplitPayView: View {
         voucherLookupError = nil
         lookedUpVoucher = nil
         defer { voucherLookupBusy = false }
+
+        if PosAuthStore.shared.isOfflineSession {
+            if let cached = PosOfflineCaches.findVoucher(code: code),
+               cached.status == "active" || cached.pendingIssue {
+                lookedUpVoucher = Self.lookupDto(from: cached)
+            } else {
+                voucherLookupError = "Gutschein offline nicht im Cache — einmal online synchronisieren."
+            }
+            return
+        }
+
         do {
             let voucher = try await PosCloudClient.lookupGiftVoucher(
                 restaurantId: PosHubState.shared.restaurantId,
                 code: code
             )
             lookedUpVoucher = voucher
+            PosOfflineCaches.upsertVoucher(PosCachedGiftVoucher(
+                id: voucher.id,
+                code: voucher.code,
+                balanceCents: voucher.balanceCents,
+                initialAmountCents: voucher.initialAmountCents,
+                status: voucher.status,
+                expiresAt: voucher.expiresAt,
+                pendingIssue: false,
+                pendingRedeemCents: 0
+            ))
         } catch {
-            voucherLookupError = error.localizedDescription
+            if let cached = PosOfflineCaches.findVoucher(code: code) {
+                lookedUpVoucher = Self.lookupDto(from: cached)
+            } else {
+                voucherLookupError = error.localizedDescription
+            }
         }
+    }
+
+    private static func lookupDto(from cached: PosCachedGiftVoucher) -> PosCloudClient.GiftVoucherLookupDto {
+        PosCloudClient.GiftVoucherLookupDto(
+            id: cached.id,
+            code: cached.code,
+            balanceCents: cached.balanceCents,
+            initialAmountCents: cached.initialAmountCents,
+            expiresAt: cached.expiresAt ?? "",
+            status: cached.status
+        )
     }
 
     @MainActor

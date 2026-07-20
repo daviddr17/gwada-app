@@ -5,6 +5,11 @@ enum PosSyncQueueItemKind: String, Codable, Sendable {
     case createOrder
     case collectCash
     case createReservation
+    case openRegister
+    case closeRegister
+    case voidCash
+    case issueGiftVoucher
+    case redeemGiftVoucher
 }
 
 struct PosSyncQueueItem: Codable, Identifiable, Equatable, Sendable {
@@ -48,6 +53,45 @@ struct PosSyncCollectCashPayload: Codable, Sendable {
     var allocations: [PosSyncCashAllocation]
     var tipCents: Int
     var receivedAmountCents: Int?
+    /// Lokale Quittungs-ID zum Nachtragen der Cloud-paymentId.
+    var localReceiptId: String?
+}
+
+struct PosSyncOpenRegisterPayload: Codable, Sendable {
+    var restaurantId: String
+    var openingCashCents: Int
+    var localSessionId: String
+}
+
+struct PosSyncCloseRegisterPayload: Codable, Sendable {
+    var restaurantId: String
+    var closingCashCents: Int
+}
+
+struct PosSyncVoidCashPayload: Codable, Sendable {
+    var restaurantId: String
+    var paymentId: String?
+    var localReceiptId: String
+    var reopenTable: Bool
+    var voidReasonId: String?
+}
+
+struct PosSyncIssueGiftVoucherPayload: Codable, Sendable {
+    var restaurantId: String
+    var amountCents: Int
+    var localId: String
+    var localCode: String
+    var note: String?
+}
+
+struct PosSyncRedeemGiftVoucherPayload: Codable, Sendable {
+    var restaurantId: String
+    var giftVoucherId: String
+    var tableSessionId: String
+    var allocations: [PosSyncCashAllocation]
+    var tipCents: Int
+    var localReceiptId: String?
+    var expectedBalanceBefore: Int
 }
 
 struct PosSyncCashAllocation: Codable, Sendable {
@@ -137,6 +181,74 @@ final class PosSyncQueue: ObservableObject {
         enqueue(PosSyncQueueItem(
             id: UUID().uuidString,
             kind: .createReservation,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
+    func enqueueOpenRegister(_ payload: PosSyncOpenRegisterPayload) {
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .openRegister,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
+    func enqueueCloseRegister(_ payload: PosSyncCloseRegisterPayload) {
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .closeRegister,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
+    func enqueueVoidCash(_ payload: PosSyncVoidCashPayload) {
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .voidCash,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
+    func enqueueIssueGiftVoucher(_ payload: PosSyncIssueGiftVoucherPayload) {
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .issueGiftVoucher,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
+    func enqueueRedeemGiftVoucher(_ payload: PosSyncRedeemGiftVoucherPayload) {
+        var resolved = payload
+        resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+        resolved.allocations = payload.allocations.map {
+            PosSyncCashAllocation(
+                orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
+                quantity: $0.quantity
+            )
+        }
+        let data = (try? encoder.encode(resolved)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .redeemGiftVoucher,
             createdAt: ISO8601DateFormatter().string(from: Date()),
             payload: data,
             attempts: 0,
@@ -252,16 +364,143 @@ final class PosSyncQueue: ObservableObject {
                 )
             }
             item.payload = (try? encoder.encode(payload)) ?? item.payload
-            try await PosCloudClient.collectCash(
+            let paymentId = try await PosCloudClient.collectCash(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
                 allocations: payload.allocations.map { ($0.orderLineId, $0.quantity) },
                 tipCents: payload.tipCents,
                 receivedAmountCents: payload.receivedAmountCents
             )
+            if let localId = payload.localReceiptId {
+                PosOfflineCaches.markReceiptSynced(localId: localId, paymentId: paymentId)
+            }
+
         case .createReservation:
             let payload = try decoder.decode(PosCreateReservationPayload.self, from: item.payload)
             _ = try await PosCloudClient.createReservation(payload: payload)
+
+        case .openRegister:
+            let payload = try decoder.decode(PosSyncOpenRegisterPayload.self, from: item.payload)
+            let result = try await PosCloudClient.openRegister(
+                openingCashCents: payload.openingCashCents
+            )
+            var reg = PosOfflineCaches.loadRegister() ?? PosLocalRegisterState(
+                isOpen: true,
+                sessionId: result.sessionId ?? payload.localSessionId,
+                openedAt: PosOfflineCaches.isoNow(),
+                openingCashCents: payload.openingCashCents,
+                fiscalPending: false,
+                pendingClose: false,
+                pendingClosingCashCents: nil,
+                lastClosingZNr: nil,
+                suggestedOpeningCashCents: nil,
+                expectedCashCents: nil
+            )
+            reg.isOpen = true
+            reg.sessionId = result.sessionId ?? payload.localSessionId
+            reg.openingCashCents = payload.openingCashCents
+            reg.fiscalPending = false
+            PosOfflineCaches.saveRegister(reg)
+            PosHubState.shared.applyLocalRegister(reg)
+
+        case .closeRegister:
+            let payload = try decoder.decode(PosSyncCloseRegisterPayload.self, from: item.payload)
+            let result = try await PosCloudClient.closeRegister(
+                closingCashCents: payload.closingCashCents
+            )
+            var reg = PosOfflineCaches.loadRegister() ?? PosLocalRegisterState(
+                isOpen: false,
+                sessionId: nil,
+                openedAt: nil,
+                openingCashCents: nil,
+                fiscalPending: false,
+                pendingClose: false,
+                pendingClosingCashCents: nil,
+                lastClosingZNr: result.zNr,
+                suggestedOpeningCashCents: payload.closingCashCents,
+                expectedCashCents: nil
+            )
+            reg.isOpen = false
+            reg.sessionId = nil
+            reg.pendingClose = false
+            reg.pendingClosingCashCents = nil
+            reg.fiscalPending = false
+            reg.lastClosingZNr = result.zNr
+            reg.suggestedOpeningCashCents = payload.closingCashCents
+            PosOfflineCaches.saveRegister(reg)
+            PosHubState.shared.applyLocalRegister(reg)
+
+        case .voidCash:
+            var payload = try decoder.decode(PosSyncVoidCashPayload.self, from: item.payload)
+            let paymentId = payload.paymentId
+                ?? PosOfflineCaches.loadReceipts().first(where: { $0.localId == payload.localReceiptId })?.paymentId
+            guard let paymentId, !paymentId.isEmpty else {
+                throw PosCloudError.httpStatus(400, "payment_id_pending")
+            }
+            payload.paymentId = paymentId
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            _ = try await PosCloudClient.voidCashPayment(
+                restaurantId: payload.restaurantId,
+                paymentId: paymentId,
+                reopenTable: payload.reopenTable,
+                voidReasonId: payload.voidReasonId
+            )
+            PosOfflineCaches.updateReceipt(localId: payload.localReceiptId) { r in
+                r.status = "refunded"
+                r.canVoidCash = false
+                r.fiscalPending = false
+            }
+
+        case .issueGiftVoucher:
+            let payload = try decoder.decode(PosSyncIssueGiftVoucherPayload.self, from: item.payload)
+            let voucher = try await PosCloudClient.issueGiftVoucher(
+                restaurantId: payload.restaurantId,
+                amountCents: payload.amountCents
+            )
+            var all = PosOfflineCaches.loadVouchers().filter {
+                $0.id != payload.localId && $0.code != payload.localCode
+            }
+            all.insert(
+                PosCachedGiftVoucher(
+                    id: voucher.id,
+                    code: voucher.code,
+                    balanceCents: voucher.balanceCents,
+                    initialAmountCents: voucher.initialAmountCents,
+                    status: "active",
+                    expiresAt: voucher.expiresAt,
+                    pendingIssue: false,
+                    pendingRedeemCents: 0
+                ),
+                at: 0
+            )
+            PosOfflineCaches.saveVouchers(all)
+
+        case .redeemGiftVoucher:
+            var payload = try decoder.decode(PosSyncRedeemGiftVoucherPayload.self, from: item.payload)
+            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            payload.allocations = payload.allocations.map {
+                PosSyncCashAllocation(
+                    orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
+                    quantity: $0.quantity
+                )
+            }
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            let result = try await PosCloudClient.collectVoucher(
+                restaurantId: payload.restaurantId,
+                tableSessionId: payload.tableSessionId,
+                giftVoucherId: payload.giftVoucherId,
+                allocations: payload.allocations.map { ($0.orderLineId, $0.quantity) },
+                tipCents: payload.tipCents
+            )
+            if var v = PosOfflineCaches.findVoucher(id: payload.giftVoucherId) {
+                v.balanceCents = result.remainingVoucherCents
+                v.pendingRedeemCents = 0
+                if v.balanceCents <= 0 { v.status = "redeemed" }
+                PosOfflineCaches.upsertVoucher(v)
+            }
+            if let localId = payload.localReceiptId {
+                PosOfflineCaches.markReceiptSynced(localId: localId, paymentId: result.paymentId)
+            }
         }
     }
 

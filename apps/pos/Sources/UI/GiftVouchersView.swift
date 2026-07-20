@@ -1,19 +1,28 @@
 import SwiftUI
 
-/// Wertgutscheine an der Kasse / am Handheld ausstellen.
+/// Wertgutscheine — Cache bei Start, Offline-Ausstellung mit Sync-Queue.
 struct GiftVouchersView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var amountEuro = "50"
     @State private var busy = false
-    @State private var lastIssued: PosCloudClient.IssuedGiftVoucherDto?
+    @State private var lastIssued: PosCachedGiftVoucher?
+    @State private var cached: [PosCachedGiftVoucher] = []
     @State private var errorText: String?
+
+    private var isOnline: Bool {
+        runtime.isSignedIn && !PosAuthStore.shared.isOfflineSession
+    }
 
     var body: some View {
         Form {
             Section {
-                Text("Barzahlung wird kassiert (0 % MwSt). Umsatzsteuer entsteht erst bei Einlösung.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Text(
+                    isOnline
+                        ? "Barzahlung wird kassiert (0 % MwSt). Umsatzsteuer entsteht erst bei Einlösung. Aktive Gutscheine werden am Hub gecacht."
+                        : "Offline: Ausstellung lokal möglich — Fiskalisierung/Buchung folgt online (Nachsignierung ausstehend)."
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
 
             Section("Neu ausstellen") {
@@ -25,7 +34,7 @@ struct GiftVouchersView: View {
                     if busy {
                         ProgressView()
                     } else {
-                        Text("Bar kassieren & ausstellen")
+                        Text(isOnline ? "Bar kassieren & ausstellen" : "Lokal ausstellen (Sync später)")
                     }
                 }
                 .disabled(busy || !runtime.isSignedIn)
@@ -41,14 +50,51 @@ struct GiftVouchersView: View {
                 Section("Zuletzt ausgestellt") {
                     LabeledContent("Code", value: v.code)
                     LabeledContent("Wert", value: PosMoney.format(v.balanceCents))
-                    LabeledContent("Gültig bis", value: formatDate(v.expiresAt))
-                    Text("PDF-Druck im Dashboard unter POS → Gutscheine, oder A4/Bon dort nachdrucken.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let exp = v.expiresAt {
+                        LabeledContent("Gültig bis", value: formatDate(exp))
+                    }
+                    if v.pendingIssue {
+                        Text("Vorläufig — TSE/Buchung folgt online.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+
+            if !cached.isEmpty {
+                Section("Cache (\(cached.count))") {
+                    ForEach(cached.prefix(20)) { v in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(v.code).font(.body.monospaced())
+                                if v.pendingIssue || v.pendingRedeemCents > 0 {
+                                    Text("Sync ausstehend")
+                                        .font(.caption2)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                            Spacer()
+                            Text(PosMoney.format(v.balanceCents))
+                                .font(.body.monospacedDigit())
+                        }
+                    }
                 }
             }
         }
         .navigationTitle("Gutscheine")
+        .task { reloadCache() }
+        .refreshable {
+            if isOnline {
+                await runtime.refresh()
+            }
+            reloadCache()
+        }
+    }
+
+    private func reloadCache() {
+        cached = PosOfflineCaches.loadVouchers()
+            .filter { $0.status == "active" || $0.pendingIssue }
+            .sorted { $0.code < $1.code }
     }
 
     @MainActor
@@ -59,18 +105,94 @@ struct GiftVouchersView: View {
             errorText = "Mindestbetrag 1,00 €"
             return
         }
+        let amountCents = Int((euros * 100).rounded())
         busy = true
         defer { busy = false }
+        let restaurantId = PosHubState.shared.restaurantId
+
+        if !isOnline {
+            let localId = UUID().uuidString
+            let code = Self.makeLocalCode()
+            let voucher = PosCachedGiftVoucher(
+                id: localId,
+                code: code,
+                balanceCents: amountCents,
+                initialAmountCents: amountCents,
+                status: "active",
+                expiresAt: nil,
+                pendingIssue: true,
+                pendingRedeemCents: 0
+            )
+            PosOfflineCaches.upsertVoucher(voucher)
+            PosSyncQueue.shared.enqueueIssueGiftVoucher(PosSyncIssueGiftVoucherPayload(
+                restaurantId: restaurantId,
+                amountCents: amountCents,
+                localId: localId,
+                localCode: code,
+                note: nil
+            ))
+            runtime.noteSyncPending()
+            lastIssued = voucher
+            reloadCache()
+            runtime.announce("Gutschein \(code) lokal — Fiskalisierung nicht möglich, Nachsignierung ausstehend.")
+            return
+        }
+
         do {
             let voucher = try await PosCloudClient.issueGiftVoucher(
-                restaurantId: PosHubState.shared.restaurantId,
-                amountCents: Int((euros * 100).rounded())
+                restaurantId: restaurantId,
+                amountCents: amountCents
             )
-            lastIssued = voucher
+            let cached = PosCachedGiftVoucher(
+                id: voucher.id,
+                code: voucher.code,
+                balanceCents: voucher.balanceCents,
+                initialAmountCents: voucher.initialAmountCents,
+                status: "active",
+                expiresAt: voucher.expiresAt,
+                pendingIssue: false,
+                pendingRedeemCents: 0
+            )
+            PosOfflineCaches.upsertVoucher(cached)
+            lastIssued = cached
+            reloadCache()
             runtime.statusMessage = "Gutschein \(voucher.code) ausgestellt."
         } catch {
-            errorText = error.localizedDescription
+            // Offline-Fallback
+            let localId = UUID().uuidString
+            let code = Self.makeLocalCode()
+            let voucher = PosCachedGiftVoucher(
+                id: localId,
+                code: code,
+                balanceCents: amountCents,
+                initialAmountCents: amountCents,
+                status: "active",
+                expiresAt: nil,
+                pendingIssue: true,
+                pendingRedeemCents: 0
+            )
+            PosOfflineCaches.upsertVoucher(voucher)
+            PosSyncQueue.shared.enqueueIssueGiftVoucher(PosSyncIssueGiftVoucherPayload(
+                restaurantId: restaurantId,
+                amountCents: amountCents,
+                localId: localId,
+                localCode: code,
+                note: nil
+            ))
+            runtime.noteSyncPending()
+            lastIssued = voucher
+            reloadCache()
+            runtime.announce("Gutschein \(code) lokal — Sync folgt online.")
         }
+    }
+
+    private static func makeLocalCode() -> String {
+        let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+        var chars: [Character] = []
+        for _ in 0 ..< 8 {
+            chars.append(alphabet.randomElement()!)
+        }
+        return "L" + String(chars)
     }
 
     private func formatDate(_ iso: String) -> String {

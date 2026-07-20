@@ -271,7 +271,7 @@ enum PosCloudClient {
         allocations: [(orderLineId: String, quantity: Int)],
         tipCents: Int = 0,
         receivedAmountCents: Int? = nil
-    ) async throws {
+    ) async throws -> String {
         struct Allocation: Encodable {
             var orderLineId: String
             var quantity: Int
@@ -283,7 +283,10 @@ enum PosCloudClient {
             var tipCents: Int
             var receivedAmountCents: Int?
         }
-        try await postVoid(
+        struct Res: Decodable {
+            var paymentId: String
+        }
+        let res: Res = try await post(
             "/api/pos/payments/collect-cash-allocations",
             body: Body(
                 restaurantId: restaurantId,
@@ -293,6 +296,27 @@ enum PosCloudClient {
                 receivedAmountCents: receivedAmountCents
             )
         )
+        return res.paymentId
+    }
+
+    struct GiftVoucherListItemDto: Decodable, Identifiable, Sendable {
+        var id: String
+        var code: String
+        var balance_cents: Int
+        var initial_amount_cents: Int
+        var status: String
+        var expires_at: String?
+    }
+
+    @MainActor
+    static func fetchGiftVouchers(restaurantId: String) async throws -> [GiftVoucherListItemDto] {
+        struct Res: Decodable { var vouchers: [GiftVoucherListItemDto] }
+        let res: Res = try await get(
+            "/api/pos/gift-vouchers",
+            restaurantId: restaurantId,
+            extraQuery: ["status": "active"]
+        )
+        return res.vouchers
     }
 
     struct GiftVoucherLookupDto: Decodable, Sendable {

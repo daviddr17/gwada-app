@@ -45,6 +45,87 @@ final class PosHubState: @unchecked Sendable {
         self.bootstrap = bootstrap
         self.usingDemo = false
         PosLocalStore.saveBootstrap(bootstrap)
+        // Lokalen Kassenstatus nur überschreiben, wenn keine ausstehende Offline-Aktion.
+        let localReg = PosOfflineCaches.loadRegister()
+        if localReg?.fiscalPending != true && localReg?.pendingClose != true {
+            PosOfflineCaches.saveRegister(PosLocalRegisterState(
+                isOpen: bootstrap.register.isOpen,
+                sessionId: bootstrap.register.sessionId,
+                openedAt: bootstrap.register.openedAt,
+                openingCashCents: nil,
+                fiscalPending: false,
+                pendingClose: false,
+                pendingClosingCashCents: nil,
+                lastClosingZNr: nil,
+                suggestedOpeningCashCents: nil,
+                expectedCashCents: nil
+            ))
+        }
+    }
+
+    /// Offline Kasse öffnen/schließen → Bootstrap-Register + LAN-Snapshot.
+    func applyLocalRegister(_ state: PosLocalRegisterState) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var bootstrap else { return }
+        bootstrap.register = PosCloudRegisterStatus(
+            isOpen: state.isOpen,
+            sessionId: state.sessionId,
+            openedAt: state.openedAt
+        )
+        self.bootstrap = bootstrap
+        PosLocalStore.saveBootstrap(bootstrap)
+        PosOfflineCaches.saveRegister(state)
+    }
+
+    func tableLabel(forSessionId sessionId: String) -> (label: String, diningTableId: String, orderNumber: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        let resolved = sessionId
+        guard let bootstrap else {
+            return ("Tisch", "", 0)
+        }
+        let session = bootstrap.floor.openSessions.first(where: { $0.id == resolved })
+        let tableId = session?.dining_table_id ?? ""
+        let table = bootstrap.floor.tables.first(where: { $0.id == tableId })
+        let label = table?.label ?? table?.name ?? "Tisch"
+        let orderNumber = bootstrap.floor.orderCountBySessionId[resolved]
+            ?? bootstrap.floor.sessionMetaBySessionId[resolved]?.orderCount
+            ?? 0
+        return (label, tableId, orderNumber)
+    }
+
+    /// Lokale Quittung nach Barkasse anlegen (auch wenn Cloud später synct).
+    func recordLocalCashReceipt(
+        sessionId: String,
+        amountCents: Int,
+        tipCents: Int,
+        receivedAmountCents: Int?,
+        fiscalPending: Bool,
+        paymentId: String? = nil
+    ) -> String {
+        let meta = tableLabel(forSessionId: sessionId)
+        let localId = UUID().uuidString
+        let receipt = PosLocalReceipt(
+            localId: localId,
+            paymentId: paymentId,
+            orderId: nil,
+            orderNumber: meta.orderNumber,
+            tableSessionId: sessionId,
+            tableLabel: meta.label,
+            diningTableId: meta.diningTableId,
+            method: "cash",
+            status: "paid",
+            amountCents: amountCents,
+            tipCents: tipCents,
+            receivedAmountCents: receivedAmountCents,
+            paidAt: PosOfflineCaches.isoNow(),
+            fiscalPending: fiscalPending,
+            canVoidCash: true,
+            dayYmd: PosOfflineCaches.todayYmd()
+        )
+        PosOfflineCaches.appendReceipt(receipt)
+        return localId
     }
 
     func loadCachedOrDemo() {
@@ -93,6 +174,10 @@ final class PosHubState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         if let bootstrap {
+            let localReg = PosOfflineCaches.loadRegister()
+            let regOpen = localReg?.isOpen ?? bootstrap.register.isOpen
+            let regSession = localReg?.sessionId ?? bootstrap.register.sessionId
+            let regOpened = localReg?.openedAt ?? bootstrap.register.openedAt
             return PosLanHubSnapshot(
                 protocolVersion: PosLanProtocol.version,
                 restaurantId: bootstrap.restaurantId,
@@ -100,9 +185,9 @@ final class PosHubState: @unchecked Sendable {
                 brandAccentHex: bootstrap.resolvedAccentHex,
                 generatedAt: ISO8601DateFormatter().string(from: Date()),
                 register: PosLanRegisterState(
-                    isOpen: bootstrap.register.isOpen,
-                    sessionId: bootstrap.register.sessionId,
-                    openedAt: bootstrap.register.openedAt
+                    isOpen: regOpen,
+                    sessionId: regSession,
+                    openedAt: regOpened
                 ),
                 floor: bootstrap.floor,
                 menu: bootstrap.menu,
@@ -672,7 +757,7 @@ final class PosHubState: @unchecked Sendable {
     func enqueueFiscalPendingCashReceipt(amountCents: Int, tipCents: Int) {
         lock.lock()
         defer { lock.unlock() }
-        let printers = bootstrap?.printers ?? []
+        let printers = bootstrap?.kitchen?.printers ?? []
         let printer = printers.first(where: {
             $0.isActive && ($0.connectionType == "network" || $0.connectionType == "lan")
         }) ?? printers.first(where: \.isActive)

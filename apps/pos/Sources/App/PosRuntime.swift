@@ -190,6 +190,14 @@ final class PosRuntime: ObservableObject {
         brandAccentHex = PosDesign.resolveAccentHex(raw)
     }
 
+    func noteSyncPending() {
+        syncPending = PosSyncQueue.shared.pendingCount
+    }
+
+    func publishHubSnapshot() {
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+    }
+
     private func publishSnapshot(_ snap: PosLanHubSnapshot?) {
         snapshot = snap
         if let snap {
@@ -709,25 +717,13 @@ final class PosRuntime: ObservableObject {
                 statusMessage = "Gutschein fehlt — bitte scannen oder Code eingeben."
                 return
             }
-            do {
-                let result = try await PosCloudClient.collectVoucher(
-                    restaurantId: restaurantId,
-                    tableSessionId: sessionId,
-                    giftVoucherId: giftVoucherId,
-                    allocations: allocations,
-                    tipCents: tipCents
-                )
-                if result.remainingVoucherCents > 0 {
-                    statusMessage =
-                        "Gutschein \(result.voucherCode) · Rest \(PosMoney.format(result.remainingVoucherCents)). Nachdruck?"
-                } else {
-                    statusMessage = "Gutschein \(result.voucherCode) vollständig eingelöst."
-                }
-                await pullCloudBootstrap(forceDemoFallback: false)
-                publishSnapshot(PosHubState.shared.makeSnapshot())
-            } catch {
-                statusMessage = "Gutschein-Zahlung fehlgeschlagen — \(error.localizedDescription)"
-            }
+            await redeemVoucherLocalFirst(
+                restaurantId: restaurantId,
+                sessionId: sessionId,
+                giftVoucherId: giftVoucherId,
+                allocations: allocations,
+                tipCents: tipCents
+            )
             return
         }
 
@@ -766,6 +762,13 @@ final class PosRuntime: ObservableObject {
         publishSnapshot(PosHubState.shared.makeSnapshot())
 
         if PosAuthStore.shared.isOfflineSession {
+            let localReceiptId = PosHubState.shared.recordLocalCashReceipt(
+                sessionId: sessionId,
+                amountCents: localResult.amountCents,
+                tipCents: tipCents,
+                receivedAmountCents: receivedAmountCents,
+                fiscalPending: true
+            )
             PosHubState.shared.enqueueFiscalPendingCashReceipt(
                 amountCents: localResult.amountCents,
                 tipCents: tipCents
@@ -776,7 +779,8 @@ final class PosRuntime: ObservableObject {
                 tableSessionId: sessionId,
                 allocations: allocations.map { PosSyncCashAllocation(orderLineId: $0.0, quantity: $0.1) },
                 tipCents: tipCents,
-                receivedAmountCents: receivedAmountCents
+                receivedAmountCents: receivedAmountCents,
+                localReceiptId: localReceiptId
             ))
             syncPending = PosSyncQueue.shared.pendingCount
             statusMessage =
@@ -785,17 +789,32 @@ final class PosRuntime: ObservableObject {
         }
 
         do {
-            try await PosCloudClient.collectCash(
+            let paymentId = try await PosCloudClient.collectCash(
                 restaurantId: restaurantId,
                 tableSessionId: sessionId,
                 allocations: allocations,
                 tipCents: tipCents,
                 receivedAmountCents: receivedAmountCents
             )
+            _ = PosHubState.shared.recordLocalCashReceipt(
+                sessionId: sessionId,
+                amountCents: localResult.amountCents,
+                tipCents: tipCents,
+                receivedAmountCents: receivedAmountCents,
+                fiscalPending: false,
+                paymentId: paymentId
+            )
             statusMessage = "Teilzahlung kassiert."
             await pullCloudBootstrap(forceDemoFallback: false)
             publishSnapshot(PosHubState.shared.makeSnapshot())
         } catch {
+            let localReceiptId = PosHubState.shared.recordLocalCashReceipt(
+                sessionId: sessionId,
+                amountCents: localResult.amountCents,
+                tipCents: tipCents,
+                receivedAmountCents: receivedAmountCents,
+                fiscalPending: true
+            )
             PosHubState.shared.enqueueFiscalPendingCashReceipt(
                 amountCents: localResult.amountCents,
                 tipCents: tipCents
@@ -806,11 +825,118 @@ final class PosRuntime: ObservableObject {
                 tableSessionId: sessionId,
                 allocations: allocations.map { PosSyncCashAllocation(orderLineId: $0.0, quantity: $0.1) },
                 tipCents: tipCents,
-                receivedAmountCents: receivedAmountCents
+                receivedAmountCents: receivedAmountCents,
+                localReceiptId: localReceiptId
             ))
             syncPending = PosSyncQueue.shared.pendingCount
             statusMessage =
                 "Bar lokal — Fiskalisierung nicht möglich, Nachsignierung ausstehend (\(error.localizedDescription))"
+        }
+    }
+
+    private func redeemVoucherLocalFirst(
+        restaurantId: String,
+        sessionId: String,
+        giftVoucherId: String,
+        allocations: [(String, Int)],
+        tipCents: Int
+    ) async {
+        let localCash = PosHubState.shared.collectLocalCash(
+            sessionId: sessionId,
+            allocations: allocations
+        )
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+
+        let cached = PosOfflineCaches.findVoucher(id: giftVoucherId)
+        let expectedBalance = cached?.balanceCents ?? 0
+
+        if PosAuthStore.shared.isOfflineSession {
+            let redeemAmount = localCash.amountCents + tipCents
+            if var v = cached {
+                v.balanceCents = max(0, v.balanceCents - redeemAmount)
+                v.pendingRedeemCents += redeemAmount
+                if v.balanceCents <= 0 { v.status = "redeemed" }
+                PosOfflineCaches.upsertVoucher(v)
+            }
+            let localReceiptId = PosHubState.shared.recordLocalCashReceipt(
+                sessionId: sessionId,
+                amountCents: localCash.amountCents,
+                tipCents: tipCents,
+                receivedAmountCents: nil,
+                fiscalPending: true
+            )
+            PosOfflineCaches.updateReceipt(localId: localReceiptId) { r in
+                r.method = "voucher"
+                r.canVoidCash = false
+            }
+            PosSyncQueue.shared.enqueueRedeemGiftVoucher(PosSyncRedeemGiftVoucherPayload(
+                restaurantId: restaurantId,
+                giftVoucherId: giftVoucherId,
+                tableSessionId: sessionId,
+                allocations: allocations.map { PosSyncCashAllocation(orderLineId: $0.0, quantity: $0.1) },
+                tipCents: tipCents,
+                localReceiptId: localReceiptId,
+                expectedBalanceBefore: expectedBalance
+            ))
+            syncPending = PosSyncQueue.shared.pendingCount
+            statusMessage =
+                "Gutschein lokal eingelöst — Fiskalisierung nicht möglich, Nachsignierung ausstehend."
+            return
+        }
+
+        do {
+            let result = try await PosCloudClient.collectVoucher(
+                restaurantId: restaurantId,
+                tableSessionId: sessionId,
+                giftVoucherId: giftVoucherId,
+                allocations: allocations,
+                tipCents: tipCents
+            )
+            if var v = PosOfflineCaches.findVoucher(id: giftVoucherId) {
+                v.balanceCents = result.remainingVoucherCents
+                v.pendingRedeemCents = 0
+                if v.balanceCents <= 0 { v.status = "redeemed" }
+                PosOfflineCaches.upsertVoucher(v)
+            }
+            if result.remainingVoucherCents > 0 {
+                statusMessage =
+                    "Gutschein \(result.voucherCode) · Rest \(PosMoney.format(result.remainingVoucherCents))."
+            } else {
+                statusMessage = "Gutschein \(result.voucherCode) vollständig eingelöst."
+            }
+            await pullCloudBootstrap(forceDemoFallback: false)
+            publishSnapshot(PosHubState.shared.makeSnapshot())
+        } catch {
+            // Offline-Fallback wie Bar
+            if var v = cached {
+                let redeemAmount = localCash.amountCents + tipCents
+                v.balanceCents = max(0, v.balanceCents - redeemAmount)
+                v.pendingRedeemCents += redeemAmount
+                PosOfflineCaches.upsertVoucher(v)
+            }
+            let localReceiptId = PosHubState.shared.recordLocalCashReceipt(
+                sessionId: sessionId,
+                amountCents: localCash.amountCents,
+                tipCents: tipCents,
+                receivedAmountCents: nil,
+                fiscalPending: true
+            )
+            PosOfflineCaches.updateReceipt(localId: localReceiptId) { r in
+                r.method = "voucher"
+                r.canVoidCash = false
+            }
+            PosSyncQueue.shared.enqueueRedeemGiftVoucher(PosSyncRedeemGiftVoucherPayload(
+                restaurantId: restaurantId,
+                giftVoucherId: giftVoucherId,
+                tableSessionId: sessionId,
+                allocations: allocations.map { PosSyncCashAllocation(orderLineId: $0.0, quantity: $0.1) },
+                tipCents: tipCents,
+                localReceiptId: localReceiptId,
+                expectedBalanceBefore: expectedBalance
+            ))
+            syncPending = PosSyncQueue.shared.pendingCount
+            statusMessage =
+                "Gutschein lokal — Fiskalisierung nicht möglich, Nachsignierung ausstehend."
         }
     }
 
@@ -1061,10 +1187,46 @@ final class PosRuntime: ObservableObject {
         do {
             let bootstrap = try await PosCloudClient.fetchBootstrap(restaurantId: restaurantId)
             PosHubState.shared.applyBootstrap(bootstrap)
+            await refreshOfflineCaches(restaurantId: restaurantId)
             statusMessage = "Cloud-Daten geladen (\(bootstrap.floor.tables.count) Tische, \(bootstrap.menu.items.count) Gerichte)."
         } catch {
             PosHubState.shared.loadCachedOrDemo()
             statusMessage = "Cloud nicht erreichbar — Cache/Demo: \(error.localizedDescription)"
+        }
+    }
+
+    /// Gutscheine + Storno-Gründe für Offline-Betrieb cachen.
+    private func refreshOfflineCaches(restaurantId: String) async {
+        guard !PosAuthStore.shared.isOfflineSession else { return }
+        do {
+            let vouchers = try await PosCloudClient.fetchGiftVouchers(restaurantId: restaurantId)
+            let pendingLocal = PosOfflineCaches.loadVouchers().filter { $0.pendingIssue || $0.pendingRedeemCents > 0 }
+            var merged: [PosCachedGiftVoucher] = vouchers.map {
+                PosCachedGiftVoucher(
+                    id: $0.id,
+                    code: $0.code,
+                    balanceCents: $0.balance_cents,
+                    initialAmountCents: $0.initial_amount_cents,
+                    status: $0.status,
+                    expiresAt: $0.expires_at,
+                    pendingIssue: false,
+                    pendingRedeemCents: 0
+                )
+            }
+            for local in pendingLocal {
+                if !merged.contains(where: { $0.id == local.id || $0.code == local.code }) {
+                    merged.insert(local, at: 0)
+                }
+            }
+            PosOfflineCaches.saveVouchers(merged)
+        } catch {
+            // Cache behalten
+        }
+        do {
+            let reasons = try await PosCloudClient.fetchVoidReasons(restaurantId: restaurantId)
+            PosOfflineCaches.saveVoidReasons(reasons)
+        } catch {
+            // Cache behalten
         }
     }
 
@@ -1297,6 +1459,13 @@ final class PosRuntime: ObservableObject {
                     allocations: req.allocations.map { ($0.orderLineId, $0.quantity) }
                 )
                 let tip = req.tipCents ?? 0
+                let localReceiptId = PosHubState.shared.recordLocalCashReceipt(
+                    sessionId: req.sessionId,
+                    amountCents: result.amountCents,
+                    tipCents: tip,
+                    receivedAmountCents: req.receivedAmountCents,
+                    fiscalPending: true
+                )
                 PosHubState.shared.enqueueFiscalPendingCashReceipt(
                     amountCents: result.amountCents,
                     tipCents: tip
@@ -1311,7 +1480,8 @@ final class PosRuntime: ObservableObject {
                             PosSyncCashAllocation(orderLineId: $0.orderLineId, quantity: $0.quantity)
                         },
                         tipCents: tip,
-                        receivedAmountCents: req.receivedAmountCents
+                        receivedAmountCents: req.receivedAmountCents,
+                        localReceiptId: localReceiptId
                     ))
                     await PosSyncQueue.shared.flushIfPossible()
                 }

@@ -69,8 +69,11 @@ Web **POS → Einstellungen**: Bondrucker anlegen, pro Speisekarten-Kategorie Zi
 
 ## Quittungen & Bar
 
-- Sidebar **Quittungen**: heutige Zahlungen, Bar-Storno, Tisch wieder öffnen
+- Sidebar **Quittungen**: heutige Zahlungen (Cloud + lokal), Bar-Storno, formale Rechnung
 - Beim Kassieren: Trinkgeld (% oder €), gegebenes Bargeld per Ziffernblock, automatisches Rückgeld
+- **Offline:** Quittungen lokal, Barstorno in Sync-Queue — Hinweis *Fiskalisierung nicht möglich, Nachsignierung ausstehend*
+- **Kasse öffnen/schließen:** lokal möglich, TSE/Z-Bon folgt online
+- **Gutscheine:** aktiver Bestand wird beim Bootstrap gecacht; Ausstellung/Einlösung offline → Sync-Queue
 
 ## Reservierungen
 

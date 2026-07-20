@@ -56,75 +56,80 @@ struct ReceiptsView: View {
         .task { await reload() }
         .refreshable { await reload() }
         .sheet(isPresented: $showVoidSheet) {
-            NavigationStack {
-                Form {
-                    if let receipt = voidTarget {
-                        Section {
-                            Text("\(receipt.tableLabel) · #\(receipt.orderNumber)")
-                            Text(PosMoney.format(receipt.amountCents))
-                                .font(.body.monospacedDigit())
-                        }
-                    }
-                    if !voidReasons.isEmpty {
-                        Section("Storno-Grund") {
-                            ForEach(voidReasons) { reason in
-                                Button {
-                                    selectedVoidReasonId = reason.id
-                                } label: {
-                                    HStack(alignment: .top) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(reason.name)
-                                                .foregroundStyle(.primary)
-                                            Text(
-                                                reason.restoreInventory
-                                                    ? "Bestand wird zurückgebucht"
-                                                    : "Bestand bleibt abgezogen"
-                                            )
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                        }
-                                        Spacer()
-                                        if selectedVoidReasonId == reason.id {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundStyle(.accentColor)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+            voidSheet
+        }
+    }
+
+    private var voidSheet: some View {
+        NavigationStack {
+            Form {
+                if let receipt = voidTarget {
                     Section {
-                        Toggle("Tisch wieder öffnen", isOn: $reopenTable)
+                        Text("\(receipt.tableLabel) · #\(receipt.orderNumber)")
+                        Text(PosMoney.format(receipt.amountCents))
+                            .font(.body.monospacedDigit())
                     }
                 }
-                .navigationTitle("Stornieren")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Abbrechen") {
-                            showVoidSheet = false
-                            voidTarget = nil
+                if !voidReasons.isEmpty {
+                    Section("Storno-Grund") {
+                        ForEach(voidReasons) { reason in
+                            voidReasonButton(reason)
                         }
                     }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Stornieren", role: .destructive) {
-                            guard let receipt = voidTarget else { return }
-                            Task {
-                                await voidReceipt(
-                                    receipt,
-                                    reopen: reopenTable,
-                                    voidReasonId: selectedVoidReasonId
-                                )
-                            }
-                        }
-                        .disabled(
-                            busyId != nil
-                                || (!voidReasons.isEmpty && selectedVoidReasonId == nil)
-                        )
-                    }
+                }
+                Section {
+                    Toggle("Tisch wieder öffnen", isOn: $reopenTable)
                 }
             }
-            .presentationDetents([.medium, .large])
+            .navigationTitle("Stornieren")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") {
+                        showVoidSheet = false
+                        voidTarget = nil
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Stornieren", role: .destructive) {
+                        guard let receipt = voidTarget else { return }
+                        Task {
+                            await voidReceipt(
+                                receipt,
+                                reopen: reopenTable,
+                                voidReasonId: selectedVoidReasonId
+                            )
+                        }
+                    }
+                    .disabled(busyId != nil || (!voidReasons.isEmpty && selectedVoidReasonId == nil))
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func voidReasonButton(_ reason: PosCloudClient.PosVoidReasonDto) -> some View {
+        let selected = selectedVoidReasonId == reason.id
+        let inventoryHint = reason.restoreInventory
+            ? "Bestand wird zurückgebucht"
+            : "Bestand bleibt abgezogen"
+        return Button {
+            selectedVoidReasonId = reason.id
+        } label: {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(reason.name)
+                        .foregroundStyle(Color.primary)
+                    Text(inventoryHint)
+                        .font(.caption)
+                        .foregroundStyle(Color.secondary)
+                }
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
         }
     }
 

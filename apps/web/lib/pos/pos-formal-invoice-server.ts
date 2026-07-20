@@ -23,6 +23,11 @@ export type PosFormalInvoiceDraft = {
   alreadyInvoiced: boolean;
   existingInvoiceId: string | null;
   existingInvoiceNumber: string | null;
+  /** Ursprungsrechnung bereits storniert / Korrektur vorhanden */
+  alreadyStornoed: boolean;
+  existingCorrectionId: string | null;
+  existingCorrectionNumber: string | null;
+  existingInvoiceStatus: string | null;
   lineItems: AccountingLineItem[];
   suggestedRemark: string;
   suggestedIntroduction: string;
@@ -105,10 +110,24 @@ export async function loadPosFormalInvoiceDraft(
 
   const { data: existing } = await admin
     .from("accounting_invoices")
-    .select("id, voucher_number")
+    .select("id, voucher_number, status")
     .eq("restaurant_id", restaurantId)
     .eq("pos_payment_id", paymentId)
     .maybeSingle();
+
+  let existingCorrectionId: string | null = null;
+  let existingCorrectionNumber: string | null = null;
+  if (existing?.id) {
+    const { data: correction } = await admin
+      .from("accounting_invoices")
+      .select("id, voucher_number")
+      .eq("restaurant_id", restaurantId)
+      .eq("corrects_id", existing.id as string)
+      .maybeSingle();
+    existingCorrectionId = (correction?.id as string | null) ?? null;
+    existingCorrectionNumber =
+      (correction?.voucher_number as string | null) ?? null;
+  }
 
   const { data: order } = await admin
     .from("pos_orders")
@@ -189,6 +208,12 @@ export async function loadPosFormalInvoiceDraft(
       existingInvoiceId: (existing?.id as string | null) ?? null,
       existingInvoiceNumber:
         (existing?.voucher_number as string | null) ?? null,
+      alreadyStornoed:
+        Boolean(existingCorrectionId) ||
+        String(existing?.status ?? "") === "voided",
+      existingCorrectionId,
+      existingCorrectionNumber,
+      existingInvoiceStatus: (existing?.status as string | null) ?? null,
       lineItems,
       suggestedRemark: `POS-Bon #${orderNumber} · Zahlung ${payment.id}`,
       suggestedIntroduction:
@@ -217,7 +242,7 @@ export async function createFormalInvoiceFromPosPayment(params: {
   if (draftError || !draft) {
     return { row: null, error: draftError ?? "draft_failed" };
   }
-  if (draft.alreadyInvoiced) {
+  if (draft.alreadyInvoiced && !draft.alreadyStornoed) {
     return {
       row: null,
       error: "Für diese Quittung existiert bereits eine formale Rechnung.",

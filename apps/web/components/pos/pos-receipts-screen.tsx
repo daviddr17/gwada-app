@@ -285,6 +285,27 @@ export function PosReceiptsScreen() {
       if (result.data.inventoryRestored) {
         parts.push("Bestand zurückgebucht");
       }
+      const inv = result.data.formalInvoiceStorno;
+      if (inv?.mode === "correction") {
+        parts.push(
+          inv.correctionNumber
+            ? `Rechnung → Korrektur ${inv.correctionNumber}`
+            : "Formale Rechnung korrigiert",
+        );
+      } else if (inv?.mode === "voided_draft") {
+        parts.push(
+          inv.invoiceNumber
+            ? `Rechnung ${inv.invoiceNumber} storniert`
+            : "Formale Rechnung storniert",
+        );
+      } else if (inv?.error) {
+        toast.warning(
+          `Bar storniert — Rechnungsstorno fehlgeschlagen: ${inv.error}`,
+        );
+        setVoidTarget(null);
+        await load();
+        return;
+      }
       toast.success(parts.join(" · "));
       setVoidTarget(null);
       await load();

@@ -34,6 +34,10 @@ type Draft = {
   alreadyInvoiced: boolean;
   existingInvoiceId: string | null;
   existingInvoiceNumber: string | null;
+  alreadyStornoed: boolean;
+  existingCorrectionId: string | null;
+  existingCorrectionNumber: string | null;
+  existingInvoiceStatus: string | null;
   lineItems: Array<{
     name: string;
     quantity: number;
@@ -75,6 +79,7 @@ export function PosFormalInvoiceDrawer({
 }: PosFormalInvoiceDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [stornoBusy, setStornoBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [personName, setPersonName] = useState("");
@@ -132,6 +137,50 @@ export function PosFormalInvoiceDrawer({
       cancelled = true;
     };
   }, [open, paymentId, restaurantId]);
+
+  const stornoInvoice = async () => {
+    if (!paymentId || !draft?.alreadyInvoiced || draft.alreadyStornoed) return;
+    setStornoBusy(true);
+    try {
+      const res = await fetch(
+        `/api/pos/payments/${encodeURIComponent(paymentId)}/formal-invoice/storno`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ restaurantId }),
+        },
+      );
+      const json = (await res.json()) as {
+        storno?: {
+          mode: string;
+          invoiceNumber?: string | null;
+          correctionNumber?: string | null;
+        };
+        error?: string;
+      };
+      if (!res.ok || !json.storno) {
+        toast.error(json.error ?? "Rechnungsstorno fehlgeschlagen.");
+        return;
+      }
+      if (json.storno.mode === "correction") {
+        toast.success(
+          json.storno.correctionNumber
+            ? `Korrektur ${json.storno.correctionNumber} erstellt`
+            : "Rechnungs-Korrektur erstellt",
+        );
+      } else {
+        toast.success(
+          json.storno.invoiceNumber
+            ? `Rechnung ${json.storno.invoiceNumber} storniert`
+            : "Formale Rechnung storniert",
+        );
+      }
+      onCreated?.(draft.existingInvoiceId ?? paymentId);
+      onOpenChange(false);
+    } finally {
+      setStornoBusy(false);
+    }
+  };
 
   const createInvoice = async () => {
     if (!paymentId || !draft) return;
@@ -214,30 +263,66 @@ export function PosFormalInvoiceDrawer({
             </p>
           ) : draft.alreadyInvoiced ? (
             <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-6 text-sm">
-              <p className="font-medium">Bereits verrechnet</p>
-              <p className="mt-1 text-muted-foreground">
-                Für diese Quittung gibt es schon eine formale Rechnung
-                {draft.existingInvoiceNumber
-                  ? ` (${draft.existingInvoiceNumber})`
-                  : ""}
-                .
+              <p className="font-medium">
+                {draft.alreadyStornoed
+                  ? "Rechnung storniert"
+                  : "Bereits verrechnet"}
               </p>
-              {draft.existingInvoiceId ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-4 rounded-xl"
-                  onClick={() => {
-                    window.open(
-                      `/dashboard/buchfuehrung/rechnungen?highlight=${encodeURIComponent(draft.existingInvoiceId!)}`,
-                      "_blank",
-                      "noopener,noreferrer",
-                    );
-                  }}
-                >
-                  Zur Rechnung
-                </Button>
-              ) : null}
+              <p className="mt-1 text-muted-foreground">
+                {draft.alreadyStornoed ? (
+                  <>
+                    Die formale Rechnung
+                    {draft.existingInvoiceNumber
+                      ? ` ${draft.existingInvoiceNumber}`
+                      : ""}{" "}
+                    ist storniert
+                    {draft.existingCorrectionNumber
+                      ? ` (Korrektur ${draft.existingCorrectionNumber})`
+                      : ""}
+                    .
+                  </>
+                ) : (
+                  <>
+                    Für diese Quittung gibt es schon eine formale Rechnung
+                    {draft.existingInvoiceNumber
+                      ? ` (${draft.existingInvoiceNumber})`
+                      : ""}
+                    .
+                  </>
+                )}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {draft.existingInvoiceId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() => {
+                      window.open(
+                        `/dashboard/buchfuehrung/rechnungen?highlight=${encodeURIComponent(draft.existingInvoiceId!)}`,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }}
+                  >
+                    Zur Rechnung
+                  </Button>
+                ) : null}
+                {!draft.alreadyStornoed ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl"
+                    disabled={stornoBusy}
+                    onClick={() => void stornoInvoice()}
+                  >
+                    {stornoBusy ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                    ) : null}
+                    Rechnung stornieren
+                  </Button>
+                ) : null}
+              </div>
             </div>
           ) : (
             <div className="space-y-5">
@@ -350,23 +435,24 @@ export function PosFormalInvoiceDrawer({
           >
             Abbrechen
           </Button>
-          <Button
-            type="button"
-            className={cn("flex-1", brandActionButtonRoundedClassName)}
-            disabled={
-              saving ||
-              loading ||
-              !draft ||
-              draft.alreadyInvoiced ||
-              (!companyName.trim() && !personName.trim())
-            }
-            onClick={() => void createInvoice()}
-          >
-            {saving ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : null}
-            Rechnung erstellen
-          </Button>
+          {!draft?.alreadyInvoiced ? (
+            <Button
+              type="button"
+              className={cn("flex-1", brandActionButtonRoundedClassName)}
+              disabled={
+                saving ||
+                loading ||
+                !draft ||
+                (!companyName.trim() && !personName.trim())
+              }
+              onClick={() => void createInvoice()}
+            >
+              {saving ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : null}
+              Rechnung erstellen
+            </Button>
+          ) : null}
         </DrawerFooter>
       </DrawerContent>
     </Drawer>

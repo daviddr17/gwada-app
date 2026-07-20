@@ -282,6 +282,14 @@ export async function voidPosCashPayment(
     tableSessionId: string;
     reopened: boolean;
     inventoryRestored: boolean;
+    formalInvoiceStorno?: {
+      mode: "none" | "voided_draft" | "correction";
+      invoiceId?: string;
+      invoiceNumber?: string | null;
+      correctionId?: string;
+      correctionNumber?: string | null;
+      error?: string;
+    };
   }>(`/api/pos/payments/${paymentId}/void-cash`, restaurantId, {
     method: "POST",
     body: JSON.stringify({

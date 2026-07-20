@@ -1368,6 +1368,19 @@ final class PosRuntime: ObservableObject {
         }
 
         if method == "POST" {
+            // Browser-KDS: nur LAN-Secret (kein Staff-Header) — Statuswechsel lokal am Hub.
+            if pathOnly == PosLanProtocol.kdsAdvancePath {
+                struct Req: Decodable { var orderId: String }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                let result = PosHubState.shared.advanceLocalTicket(orderId: req.orderId)
+                let data =
+                    (try? JSONSerialization.data(withJSONObject: result))
+                    ?? Data(#"{"ok":false}"#.utf8)
+                return (200, data)
+            }
+
             guard let staff = lanStaff(from: headers) else {
                 return (401, Data(#"{"error":"staff_required"}"#.utf8))
             }
@@ -1400,17 +1413,6 @@ final class PosRuntime: ObservableObject {
                     reservation: optimistic
                 )
                 let data = (try? encoder.encode(response)) ?? Data(#"{"ok":true}"#.utf8)
-                return (200, data)
-            }
-            if pathOnly == PosLanProtocol.kdsAdvancePath {
-                struct Req: Decodable { var orderId: String }
-                guard let req = try? decoder.decode(Req.self, from: body) else {
-                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
-                }
-                let result = PosHubState.shared.advanceLocalTicket(orderId: req.orderId)
-                let data =
-                    (try? JSONSerialization.data(withJSONObject: result))
-                    ?? Data(#"{"ok":false}"#.utf8)
                 return (200, data)
             }
             if pathOnly == PosLanProtocol.openSessionPath {

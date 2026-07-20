@@ -474,6 +474,13 @@ final class PosSyncQueue: ObservableObject {
                 at: 0
             )
             PosOfflineCaches.saveVouchers(all)
+            // Ausstehende Einlösungen von lokaler ID → Cloud-ID umschreiben.
+            remapQueuedGiftVoucherIds(
+                localId: payload.localId,
+                cloudId: voucher.id,
+                working: &working,
+                afterIndex: index
+            )
 
         case .redeemGiftVoucher:
             var payload = try decoder.decode(PosSyncRedeemGiftVoucherPayload.self, from: item.payload)
@@ -533,19 +540,59 @@ final class PosSyncQueue: ObservableObject {
         _ item: PosSyncQueueItem,
         mappings: [String: String]
     ) -> PosSyncQueueItem {
-        guard item.kind == .collectCash,
-              var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
-        else { return item }
-        var changed = false
-        payload.allocations = payload.allocations.map { alloc in
-            guard let cloud = mappings[alloc.orderLineId] else { return alloc }
-            changed = true
-            return PosSyncCashAllocation(orderLineId: cloud, quantity: alloc.quantity)
+        switch item.kind {
+        case .collectCash:
+            guard var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
+            else { return item }
+            var changed = false
+            payload.allocations = payload.allocations.map { alloc in
+                guard let cloud = mappings[alloc.orderLineId] else { return alloc }
+                changed = true
+                return PosSyncCashAllocation(orderLineId: cloud, quantity: alloc.quantity)
+            }
+            guard changed, let data = try? encoder.encode(payload) else { return item }
+            var copy = item
+            copy.payload = data
+            return copy
+        case .redeemGiftVoucher:
+            guard var payload = try? decoder.decode(PosSyncRedeemGiftVoucherPayload.self, from: item.payload)
+            else { return item }
+            var changed = false
+            payload.allocations = payload.allocations.map { alloc in
+                guard let cloud = mappings[alloc.orderLineId] else { return alloc }
+                changed = true
+                return PosSyncCashAllocation(orderLineId: cloud, quantity: alloc.quantity)
+            }
+            guard changed, let data = try? encoder.encode(payload) else { return item }
+            var copy = item
+            copy.payload = data
+            return copy
+        case .openSession, .createOrder, .createReservation, .openRegister, .closeRegister,
+             .voidCash, .issueGiftVoucher:
+            return item
         }
-        guard changed, let data = try? encoder.encode(payload) else { return item }
-        var copy = item
-        copy.payload = data
-        return copy
+    }
+
+    private func remapQueuedGiftVoucherIds(
+        localId: String,
+        cloudId: String,
+        working: inout [PosSyncQueueItem],
+        afterIndex: Int
+    ) {
+        guard localId != cloudId, afterIndex + 1 < working.count else { return }
+        for i in (afterIndex + 1) ..< working.count {
+            guard working[i].kind == .redeemGiftVoucher,
+                  var payload = try? decoder.decode(
+                      PosSyncRedeemGiftVoucherPayload.self,
+                      from: working[i].payload
+                  ),
+                  payload.giftVoucherId == localId
+            else { continue }
+            payload.giftVoucherId = cloudId
+            if let data = try? encoder.encode(payload) {
+                working[i].payload = data
+            }
+        }
     }
 
     private func applySessionMapping(
@@ -589,17 +636,23 @@ final class PosSyncQueue: ObservableObject {
         case .collectCash:
             guard var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
             else { return item }
-            var changed = false
             if payload.tableSessionId == localSessionId {
                 payload.tableSessionId = cloudSessionId
-                changed = true
+                if let data = try? encoder.encode(payload) {
+                    copy.payload = data
+                }
             }
-            if let data = try? encoder.encode(payload), changed {
-                copy.payload = data
+        case .redeemGiftVoucher:
+            guard var payload = try? decoder.decode(PosSyncRedeemGiftVoucherPayload.self, from: item.payload)
+            else { return item }
+            if payload.tableSessionId == localSessionId {
+                payload.tableSessionId = cloudSessionId
+                if let data = try? encoder.encode(payload) {
+                    copy.payload = data
+                }
             }
-        case .openSession:
-            break
-        case .createReservation:
+        case .openSession, .createReservation, .openRegister, .closeRegister, .voidCash,
+             .issueGiftVoucher:
             break
         }
         return copy

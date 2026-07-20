@@ -326,6 +326,22 @@ enum PosCloudClient {
         var initialAmountCents: Int
         var expiresAt: String
         var status: String
+
+        init(
+            id: String,
+            code: String,
+            balanceCents: Int,
+            initialAmountCents: Int,
+            expiresAt: String,
+            status: String
+        ) {
+            self.id = id
+            self.code = code
+            self.balanceCents = balanceCents
+            self.initialAmountCents = initialAmountCents
+            self.expiresAt = expiresAt
+            self.status = status
+        }
     }
 
     @MainActor

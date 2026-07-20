@@ -129,7 +129,7 @@ final class PosPinLockStore: ObservableObject {
         PosKeychain.set(salt, account: saltAccount)
         UserDefaults.standard.removeObject(forKey: legacyHashKey)
         UserDefaults.standard.removeObject(forKey: legacySaltKey)
-        PosAuditLog.shared.record("pin.migrated_keychain", detail: "from UserDefaults")
+        // Audit nach init — kein record hier (Bootstrap-Reihenfolge).
     }
 
     private static func hash(pin: String, salt: String) -> String {

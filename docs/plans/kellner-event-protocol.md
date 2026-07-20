@@ -114,7 +114,7 @@ Live-Updates = Events ab `snapshotVersion`. Bei Gap: Full Snapshot neu laden.
 
 - Bestell-Events: lokal am Hub, Outbox wenn Nest erreichbar.
 - **`payment.completed` mit TSE**: Nest/Fiskaly braucht Internet. Hub queued Zahlung; bei Ausfall UX blockiert oder Ausfallkennzeichnung (Policy Phase 2).
-- Client-Fallback (Hub down): eigene Outbox → Nest (Phase 4 Feature-Flag).
+- Client-Fallback (Hub down): eigene Outbox → Nest hinter Feature-Flag `PosCloudConfig.nestClientFallbackEnabled` (Phase 4; Open/Move).
 
 ---
 

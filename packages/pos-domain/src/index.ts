@@ -34,6 +34,21 @@ export {
 } from "./settlement";
 
 export {
+  applyPersonPayment,
+  applyRestPayment,
+  applySharePayment,
+  canPayPerson,
+  clampEvenN,
+  computeShareCents,
+  createSplitBillState,
+  isSplitFullyPaid,
+  type SettlementMode,
+  type SplitBillError,
+  type SplitBillState,
+  type SplitPaymentKind,
+  type SplitPaymentResult,
+} from "./split-bill";
+export {
   POS_ORDER_COURSES,
   POS_ORDER_COURSE_LABELS_DE,
   isPosOrderCourse,

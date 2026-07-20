@@ -87,17 +87,16 @@ Web-Admin (apps/web): Speisekarte, Modifier, Caps/Rollen, Geräte-Enrollment,
 apps/
   web/                 # Admin SaaS (bestehend)
   staff/               # Expo — soft-freeze → später löschen
-  pos-api/             # NEU: NestJS
-ios/                   # NEU: Xcode-Workspace
-  Kellner/             # iPhone App
-  Hub/                 # iPad Hub
-  SharedKit/           # Models, Events, Networking, Design Tokens
+  pos/                 # Swift iPad-Hub + iPhone (BESTEHEND, XcodeGen)
+  pos-api/             # NestJS Cloud-API (Phase 0+)
 packages/
-  pos-domain/          # erweitern: Split-SM, Caps-Typen, Modifier-Pricing
+  pos-domain/          # Split-SM, Caps-Typen, Modifier-Pricing (+ fixtures/)
   shared/
 supabase/migrations/   # Schema-Erweiterungen (§3)
 ```
 
+> **Kein paralleles `ios/`:** Swift lebt in `apps/pos` (Bonjour `_gwada-pos._tcp` bereits).  
+> Event-Konvention: [`kellner-event-protocol.md`](./kellner-event-protocol.md).
 ---
 
 ## 3. Datenmodell — Lücken zum Prototyp
@@ -245,12 +244,11 @@ Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Aut
 ### Phase 0 — Fundament (kein Feature-UI)
 1. Soft-Freeze-Notiz in `apps/staff/README` + AGENTS-Hinweis.
 2. Scaffold `apps/pos-api` (NestJS) + CI-Job smoke.
-3. Xcode-Workspace `ios/` (Kellner, Hub, SharedKit) leer lauffähig.
-4. Event-Schema + Idempotency-Konvention schriftlich spezifizieren (`docs/plans/kellner-event-protocol.md`).
+3. Swift-Home = bestehendes `apps/pos` (xcodegen; kein neues `ios/`).
+4. Event-Schema + Idempotency-Konvention (`docs/plans/kellner-event-protocol.md`).
 5. Domain: Split-State-Machine + Tests in `packages/pos-domain` (Golden JSON für Swift).
 
-**Exit:** Nest health, iOS Apps starten, Domain-Tests grün.
-
+**Exit:** Nest health, `apps/pos` öffnet via xcodegen, Domain-Tests grün.
 ### Phase 1 — Schema & Admin
 1. Migrationen: Session-Status/`owner`/`settlement`, Courses/Mods Snapshot, Modifier-Tabellen, Capabilities/Roles.
 2. Web-Admin: Modifier-Editor, Caps/Rollen-UI, Device-Enrollment-Code.
@@ -320,15 +318,15 @@ Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Aut
 
 ## 10. Erste konkrete Tickets (wenn Laptop bereit)
 
-1. `docs`: Soft-Freeze Banner in `apps/staff` + Link auf diesen Plan.
-2. `chore`: NestJS Scaffold `apps/pos-api`.
-3. `chore`: iOS Workspace Skeleton.
-4. `feat(pos-domain)`: Split state machine + golden fixtures.
+1. ~~`docs`: Soft-Freeze Banner in `apps/staff` + Link auf diesen Plan.~~
+2. ~~`chore`: NestJS Scaffold `apps/pos-api`.~~
+3. ~~`chore`: Swift-Home dokumentieren (`apps/pos` + Event-Protokoll).~~
+4. ~~`feat(pos-domain)`: Split state machine + golden fixtures.~~
 5. `feat(db)`: Migration Session owner/status/settlement + modifier tables.
 6. `feat(web)`: Capability Admin + Modifier Admin (minimal).
 7. `feat(api)`: Catalog + Device enroll + Session open/close.
-8. `feat(ios-hub)`: Bonjour listener + ping.
-9. `feat(ios-kellner)`: PIN + Floor gegen Hub Mock.
+8. `feat(ios-hub)`: Event-Envelope an bestehendes LAN-Protokoll anbinden.
+9. `feat(ios-kellner)`: Prototyp-UX (Tabs Tische/Resv/Mehr) in `apps/pos`.
 
 ---
 

@@ -1,0 +1,43 @@
+name: POS API smoke
+
+on:
+  push:
+    paths:
+      - "apps/pos-api/**"
+      - "packages/pos-domain/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/pos-api-smoke.yml"
+  pull_request:
+    paths:
+      - "apps/pos-api/**"
+      - "packages/pos-domain/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/pos-api-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: pos-domain tests
+        run: pnpm --filter @gwada/pos-domain test
+
+      - name: pos-api typecheck
+        run: pnpm --filter @gwada/pos-api typecheck
+
+      - name: pos-api smoke (GET /health)
+        run: pnpm --filter @gwada/pos-api smoke

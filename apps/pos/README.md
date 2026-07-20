@@ -1,6 +1,13 @@
 # Gwada POS (Swift)
 
-Native iPad-Kasse + iPhone-Handgeräte. **Getrennt** von `apps/staff` (Expo, Kollege).
+Native iPad-Kasse + iPhone-Handgeräte. **Getrennt** von `apps/staff` (Expo, soft-freeze).
+
+**Zielbild Kellner-App (Prototyp v3):**  
+[`docs/plans/kellner-swift-native-plan.md`](../../docs/plans/kellner-swift-native-plan.md) ·  
+Event-Protokoll: [`docs/plans/kellner-event-protocol.md`](../../docs/plans/kellner-event-protocol.md) ·  
+Cloud-API (Nest, Phase 0+): [`apps/pos-api`](../pos-api)
+
+Diese App ist die **Swift-Homebase** (kein paralleles `ios/`-Verzeichnis). UX wird schrittweise an den Prototyp angeglichen; Bonjour-Service bleibt `_gwada-pos._tcp`.
 
 | | |
 |--|--|

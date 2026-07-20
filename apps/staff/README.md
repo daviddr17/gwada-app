@@ -2,8 +2,9 @@
 
 **Status:** Soft-Freeze. Keine neuen Features.
 
-Die produktive Kellner-App wird **nativ in Swift** (iPhone + iPad-Hub) gebaut.
-Zielplan: [`docs/plans/kellner-swift-native-plan.md`](../../docs/plans/kellner-swift-native-plan.md).
+Die produktive Kellner-App wird **nativ in Swift** gebaut:
+- Plan: [`docs/plans/kellner-swift-native-plan.md`](../../docs/plans/kellner-swift-native-plan.md)
+- Code-Basis: [`apps/pos`](../pos) (iPad-Hub + iPhone, Bonjour `_gwada-pos._tcp`)
 
 Dieses Expo-Paket bleibt vorübergehend als Backup / Referenz (PIN, POS-API-Nutzung, Fiskaly-Flows).
 Entfernung nach Swift-v1-Parität und Pilot-Signoff.

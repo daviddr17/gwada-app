@@ -1,0 +1,26 @@
+{
+  "name": "@gwada/pos-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NestJS POS cloud API (Fiskaly, Mollie, Hub sync) — Phase 0 scaffold",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "start:dev": "tsx watch src/main.ts",
+    "start:prod": "node dist/main.js",
+    "smoke": "tsx scripts/smoke-health.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.3",
+    "@nestjs/core": "^11.1.3",
+    "@nestjs/platform-express": "^11.1.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

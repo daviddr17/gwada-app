@@ -1,7 +1,6 @@
-import { assertAccountingApi } from "@/lib/accounting/assert-accounting-api";
 import { stornoFormalInvoiceForPosPayment } from "@/lib/pos/pos-formal-invoice-storno-server";
 import { posError, posJson } from "@/lib/pos/pos-responses";
-import { authorizePosRestaurant } from "@/lib/pos/pos-route-auth";
+import { authorizePosRestaurantPermission } from "@/lib/pos/pos-route-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +11,8 @@ type Body = {
 };
 
 /**
- * Explizites Storno einer formalen Rechnung zur POS-Zahlung
- * (ohne Barstorno — z. B. Karte / nachträgliche Korrektur).
+ * Explizites Storno einer formalen Rechnung — Web und iPad-Hub (PIN-Session).
+ * Recht: accounting.create
  */
 export async function POST(request: Request, context: RouteContext) {
   const { id: paymentId } = await context.params;
@@ -25,23 +24,18 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const restaurantId = body.restaurantId ?? null;
-  const posAuth = await authorizePosRestaurant(request, restaurantId);
+  const posAuth = await authorizePosRestaurantPermission(
+    request,
+    restaurantId,
+    "accounting.create",
+  );
   if (!posAuth.ok) return posError(posAuth.error, posAuth.status);
 
-  const accounting = await assertAccountingApi(
-    posAuth.auth.restaurantId,
-    "create",
-  );
-  if (!accounting.ok) {
-    return posError(accounting.error, accounting.status);
-  }
-
-  // Admin-Client im Helper (RLS: accounting.manage); Create-Recht wurde oben geprüft.
   const result = await stornoFormalInvoiceForPosPayment({
     restaurantId: posAuth.auth.restaurantId,
     paymentId,
-    userId: accounting.userId,
-    remarkSuffix: "Manuelles Rechnungsstorno (POS).",
+    userId: posAuth.auth.userId,
+    remarkSuffix: "Manuelles Rechnungsstorno (POS-Hub).",
   });
 
   if (!result.ok) {

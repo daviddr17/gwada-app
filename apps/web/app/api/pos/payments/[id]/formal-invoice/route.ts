@@ -1,34 +1,35 @@
-import { assertAccountingApi } from "@/lib/accounting/assert-accounting-api";
 import {
   createFormalInvoiceFromPosPayment,
   loadPosFormalInvoiceDraft,
 } from "@/lib/pos/pos-formal-invoice-server";
 import { posError, posJson } from "@/lib/pos/pos-responses";
-import { authorizePosRestaurant } from "@/lib/pos/pos-route-auth";
+import { authorizePosRestaurantPermission } from "@/lib/pos/pos-route-auth";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AccountingRecipientSnapshot } from "@/lib/types/accounting";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+/**
+ * Formale Rechnung aus POS-Quittung — Web-Cookie und iPad-Hub (PIN-Session).
+ * Recht: accounting.create
+ */
 export async function GET(request: Request, context: RouteContext) {
   const { id: paymentId } = await context.params;
   const url = new URL(request.url);
   const restaurantId = url.searchParams.get("restaurantId");
 
-  const posAuth = await authorizePosRestaurant(request, restaurantId);
+  const posAuth = await authorizePosRestaurantPermission(
+    request,
+    restaurantId,
+    "accounting.create",
+  );
   if (!posAuth.ok) return posError(posAuth.error, posAuth.status);
 
-  const accounting = await assertAccountingApi(
-    posAuth.auth.restaurantId,
-    "create",
-  );
-  if (!accounting.ok) {
-    return posError(accounting.error, accounting.status);
-  }
-
+  const sb = createSupabaseAdminClient() ?? posAuth.auth.supabase;
   const { draft, error } = await loadPosFormalInvoiceDraft(
-    posAuth.auth.supabase,
+    sb,
     posAuth.auth.restaurantId,
     paymentId,
   );
@@ -62,20 +63,14 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const restaurantId = body.restaurantId ?? null;
-  const posAuth = await authorizePosRestaurant(request, restaurantId);
+  const posAuth = await authorizePosRestaurantPermission(
+    request,
+    restaurantId,
+    "accounting.create",
+  );
   if (!posAuth.ok) return posError(posAuth.error, posAuth.status);
 
-  const accounting = await assertAccountingApi(
-    posAuth.auth.restaurantId,
-    "create",
-  );
-  if (!accounting.ok) {
-    return posError(accounting.error, accounting.status);
-  }
-  if (!accounting.userId) {
-    return posError("forbidden", 403);
-  }
-
+  const sb = createSupabaseAdminClient() ?? posAuth.auth.supabase;
   const company = body.companyName?.trim() || "";
   const person = body.personName?.trim() || "";
   const recipient: AccountingRecipientSnapshot = {
@@ -90,9 +85,9 @@ export async function POST(request: Request, context: RouteContext) {
   };
 
   const { row, error } = await createFormalInvoiceFromPosPayment({
-    supabase: accounting.sb,
+    supabase: sb,
     restaurantId: posAuth.auth.restaurantId,
-    userId: accounting.userId,
+    userId: posAuth.auth.userId ?? "",
     paymentId,
     recipient,
     voucherDate: body.voucherDate?.trim() || undefined,

@@ -443,13 +443,29 @@ enum PosCloudClient {
         return res.reasons.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
     }
 
+    struct FormalInvoiceStornoInfo: Decodable, Sendable {
+        var mode: String
+        var invoiceId: String?
+        var invoiceNumber: String?
+        var correctionId: String?
+        var correctionNumber: String?
+        var error: String?
+    }
+
+    struct VoidCashResult: Sendable {
+        var reopened: Bool
+        var tableSessionId: String
+        var inventoryRestored: Bool
+        var formalInvoiceStorno: FormalInvoiceStornoInfo?
+    }
+
     @MainActor
     static func voidCashPayment(
         restaurantId: String,
         paymentId: String,
         reopenTable: Bool = true,
         voidReasonId: String? = nil
-    ) async throws -> (reopened: Bool, tableSessionId: String, inventoryRestored: Bool) {
+    ) async throws -> VoidCashResult {
         struct Body: Encodable {
             var restaurantId: String
             var reopenTable: Bool
@@ -459,6 +475,7 @@ enum PosCloudClient {
             var reopened: Bool
             var tableSessionId: String
             var inventoryRestored: Bool?
+            var formalInvoiceStorno: FormalInvoiceStornoInfo?
         }
         let res: Res = try await post(
             "/api/pos/payments/\(paymentId)/void-cash",
@@ -468,7 +485,115 @@ enum PosCloudClient {
                 voidReasonId: voidReasonId
             )
         )
-        return (res.reopened, res.tableSessionId, res.inventoryRestored ?? false)
+        return VoidCashResult(
+            reopened: res.reopened,
+            tableSessionId: res.tableSessionId,
+            inventoryRestored: res.inventoryRestored ?? false,
+            formalInvoiceStorno: res.formalInvoiceStorno
+        )
+    }
+
+    struct FormalInvoiceLineDto: Decodable, Sendable, Identifiable {
+        var name: String
+        var quantity: Double
+        var unitPrice: Double
+        var taxRatePercent: Double
+        var lineAmount: Double
+        var id: String { "\(name)-\(quantity)-\(lineAmount)" }
+    }
+
+    struct FormalInvoiceDraftDto: Decodable, Sendable {
+        var paymentId: String
+        var orderId: String
+        var orderNumber: Int
+        var paidAt: String?
+        var amountCents: Int
+        var tipCents: Int
+        var alreadyInvoiced: Bool
+        var existingInvoiceId: String?
+        var existingInvoiceNumber: String?
+        var alreadyStornoed: Bool?
+        var existingCorrectionId: String?
+        var existingCorrectionNumber: String?
+        var lineItems: [FormalInvoiceLineDto]
+
+        var isStornoed: Bool { alreadyStornoed == true }
+    }
+
+    struct FormalInvoiceCreatedDto: Decodable, Sendable {
+        var id: String
+        var voucher_number: String?
+    }
+
+    @MainActor
+    static func fetchFormalInvoiceDraft(
+        restaurantId: String,
+        paymentId: String
+    ) async throws -> FormalInvoiceDraftDto {
+        struct Res: Decodable { var draft: FormalInvoiceDraftDto }
+        let res: Res = try await get(
+            "/api/pos/payments/\(paymentId)/formal-invoice",
+            restaurantId: restaurantId
+        )
+        return res.draft
+    }
+
+    @MainActor
+    static func createFormalInvoice(
+        restaurantId: String,
+        paymentId: String,
+        companyName: String?,
+        personName: String?,
+        street: String,
+        zip: String,
+        city: String,
+        email: String?,
+        phone: String?,
+        voucherDate: String?
+    ) async throws -> FormalInvoiceCreatedDto {
+        struct Body: Encodable {
+            var restaurantId: String
+            var companyName: String?
+            var personName: String?
+            var street: String
+            var zip: String
+            var city: String
+            var countryCode: String
+            var email: String?
+            var phone: String?
+            var voucherDate: String?
+        }
+        struct Res: Decodable { var invoice: FormalInvoiceCreatedDto }
+        let res: Res = try await post(
+            "/api/pos/payments/\(paymentId)/formal-invoice",
+            body: Body(
+                restaurantId: restaurantId,
+                companyName: companyName,
+                personName: personName,
+                street: street,
+                zip: zip,
+                city: city,
+                countryCode: "DE",
+                email: email,
+                phone: phone,
+                voucherDate: voucherDate
+            )
+        )
+        return res.invoice
+    }
+
+    @MainActor
+    static func stornoFormalInvoice(
+        restaurantId: String,
+        paymentId: String
+    ) async throws -> FormalInvoiceStornoInfo {
+        struct Body: Encodable { var restaurantId: String }
+        struct Res: Decodable { var storno: FormalInvoiceStornoInfo }
+        let res: Res = try await post(
+            "/api/pos/payments/\(paymentId)/formal-invoice/storno",
+            body: Body(restaurantId: restaurantId)
+        )
+        return res.storno
     }
 
     @MainActor

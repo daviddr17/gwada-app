@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Heutige Quittungen / Bar-Zahlungen — Storno + Tisch wieder öffnen.
+/// Heutige Quittungen — Barstorno, formale Rechnung (online am Hub).
 struct ReceiptsView: View {
     @EnvironmentObject private var runtime: PosRuntime
 
@@ -12,7 +12,12 @@ struct ReceiptsView: View {
     @State private var selectedVoidReasonId: String?
     @State private var reopenTable = true
     @State private var showVoidSheet = false
+    @State private var invoicePaymentId: String?
     @State private var busyId: String?
+
+    private var isOnlineHub: Bool {
+        runtime.isSignedIn && !PosAuthStore.shared.isOfflineSession
+    }
 
     var body: some View {
         Group {
@@ -30,9 +35,13 @@ struct ReceiptsView: View {
             } else {
                 List {
                     Section {
-                        Text("Bar-Zahlungen können storniert werden — Tisch wird wieder geöffnet. PDF/Fiskaly später.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        Text(
+                            isOnlineHub
+                                ? "Bar stornieren und formale Rechnung (Adresse) — online am Hub."
+                                : "Offline: Quittungen und formale Rechnung nur mit Internet am Hub."
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                     }
                     ForEach(receipts) { receipt in
                         receiptRow(receipt)
@@ -56,76 +65,93 @@ struct ReceiptsView: View {
         .task { await reload() }
         .refreshable { await reload() }
         .sheet(isPresented: $showVoidSheet) {
-            NavigationStack {
-                Form {
-                    if let receipt = voidTarget {
-                        Section {
-                            Text("\(receipt.tableLabel) · #\(receipt.orderNumber)")
-                            Text(PosMoney.format(receipt.amountCents))
-                                .font(.body.monospacedDigit())
-                        }
+            voidSheet
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { invoicePaymentId != nil },
+                set: { if !$0 { invoicePaymentId = nil } }
+            )
+        ) {
+            if let paymentId = invoicePaymentId {
+                FormalInvoiceSheet(paymentId: paymentId) {
+                    Task { await reload() }
+                }
+                .environmentObject(runtime)
+            }
+        }
+    }
+
+    private var voidSheet: some View {
+        NavigationStack {
+            Form {
+                if let receipt = voidTarget {
+                    Section {
+                        Text("\(receipt.tableLabel) · #\(receipt.orderNumber)")
+                        Text(PosMoney.format(receipt.amountCents))
+                            .font(.body.monospacedDigit())
                     }
-                    if !voidReasons.isEmpty {
-                        Section("Storno-Grund") {
-                            ForEach(voidReasons) { reason in
-                                Button {
-                                    selectedVoidReasonId = reason.id
-                                } label: {
-                                    HStack(alignment: .top) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(reason.name)
-                                                .foregroundStyle(.primary)
-                                            Text(
-                                                reason.restoreInventory
-                                                    ? "Bestand wird zurückgebucht"
-                                                    : "Bestand bleibt abgezogen"
-                                            )
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                        }
-                                        Spacer()
-                                        if selectedVoidReasonId == reason.id {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundStyle(.accentColor)
-                                        }
+                }
+                if !voidReasons.isEmpty {
+                    Section("Storno-Grund") {
+                        ForEach(voidReasons) { reason in
+                            Button {
+                                selectedVoidReasonId = reason.id
+                            } label: {
+                                HStack(alignment: .top) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(reason.name)
+                                            .foregroundStyle(.primary)
+                                        Text(
+                                            reason.restoreInventory
+                                                ? "Bestand wird zurückgebucht"
+                                                : "Bestand bleibt abgezogen"
+                                        )
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if selectedVoidReasonId == reason.id {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.accentColor)
                                     }
                                 }
                             }
                         }
                     }
-                    Section {
-                        Toggle("Tisch wieder öffnen", isOn: $reopenTable)
-                    }
                 }
-                .navigationTitle("Stornieren")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Abbrechen") {
-                            showVoidSheet = false
-                            voidTarget = nil
-                        }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Stornieren", role: .destructive) {
-                            guard let receipt = voidTarget else { return }
-                            Task {
-                                await voidReceipt(
-                                    receipt,
-                                    reopen: reopenTable,
-                                    voidReasonId: selectedVoidReasonId
-                                )
-                            }
-                        }
-                        .disabled(
-                            busyId != nil
-                                || (!voidReasons.isEmpty && selectedVoidReasonId == nil)
-                        )
-                    }
+                Section {
+                    Toggle("Tisch wieder öffnen", isOn: $reopenTable)
                 }
             }
-            .presentationDetents([.medium, .large])
+            .navigationTitle("Stornieren")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") {
+                        showVoidSheet = false
+                        voidTarget = nil
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Stornieren", role: .destructive) {
+                        guard let receipt = voidTarget else { return }
+                        Task {
+                            await voidReceipt(
+                                receipt,
+                                reopen: reopenTable,
+                                voidReasonId: selectedVoidReasonId
+                            )
+                        }
+                    }
+                    .disabled(
+                        busyId != nil
+                            || (!voidReasons.isEmpty && selectedVoidReasonId == nil)
+                    )
+                }
+            }
         }
+        .presentationDetents([.medium, .large])
     }
 
     private func receiptRow(_ receipt: PosCloudClient.PosTodayReceiptDto) -> some View {
@@ -169,16 +195,30 @@ struct ReceiptsView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            if receipt.canVoidCash {
-                Button {
-                    Task { await prepareVoid(receipt) }
-                } label: {
-                    Label(
-                        busyId == receipt.paymentId ? "Storniere …" : "Stornieren",
-                        systemImage: "arrow.uturn.backward"
-                    )
+            HStack(spacing: 12) {
+                if receipt.status == "paid" {
+                    Button {
+                        guard isOnlineHub else {
+                            runtime.announce("Formale Rechnung nur online am Hub.")
+                            return
+                        }
+                        invoicePaymentId = receipt.paymentId
+                    } label: {
+                        Label("Rechnung", systemImage: "doc.plaintext")
+                    }
+                    .disabled(busyId != nil)
                 }
-                .disabled(busyId != nil)
+                if receipt.canVoidCash {
+                    Button {
+                        Task { await prepareVoid(receipt) }
+                    } label: {
+                        Label(
+                            busyId == receipt.paymentId ? "Storniere …" : "Stornieren",
+                            systemImage: "arrow.uturn.backward"
+                        )
+                    }
+                    .disabled(busyId != nil || !isOnlineHub)
+                }
             }
         }
         .padding(.vertical, 4)
@@ -209,6 +249,11 @@ struct ReceiptsView: View {
             errorText = "Bitte anmelden, um Quittungen zu laden."
             return
         }
+        if PosAuthStore.shared.isOfflineSession {
+            receipts = []
+            errorText = "Quittungen nur online am Hub verfügbar."
+            return
+        }
         let restaurantId = PosHubState.shared.restaurantId
         do {
             receipts = try await PosCloudClient.fetchTodayReceipts(restaurantId: restaurantId)
@@ -219,6 +264,10 @@ struct ReceiptsView: View {
     }
 
     private func prepareVoid(_ receipt: PosCloudClient.PosTodayReceiptDto) async {
+        guard isOnlineHub else {
+            runtime.announce("Storno nur online am Hub.")
+            return
+        }
         voidTarget = receipt
         reopenTable = true
         selectedVoidReasonId = nil
@@ -259,6 +308,32 @@ struct ReceiptsView: View {
                 : "Bar-Zahlung storniert."
             if result.inventoryRestored {
                 message += " Bestand zurückgebucht."
+            }
+            if let inv = result.formalInvoiceStorno {
+                if let err = inv.error, !err.isEmpty {
+                    runtime.announce(
+                        "\(message) Rechnungsstorno fehlgeschlagen: \(err)"
+                    )
+                    await runtime.refresh()
+                    await reload()
+                    return
+                }
+                switch inv.mode {
+                case "correction":
+                    if let n = inv.correctionNumber, !n.isEmpty {
+                        message += " Rechnung → Korrektur \(n)."
+                    } else {
+                        message += " Formale Rechnung korrigiert."
+                    }
+                case "voided_draft":
+                    if let n = inv.invoiceNumber, !n.isEmpty {
+                        message += " Rechnung \(n) storniert."
+                    } else {
+                        message += " Formale Rechnung storniert."
+                    }
+                default:
+                    break
+                }
             }
             runtime.announce(message)
             await runtime.refresh()

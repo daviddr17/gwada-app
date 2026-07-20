@@ -67,7 +67,7 @@ struct GiftVouchersView: View {
                 amountCents: Int((euros * 100).rounded())
             )
             lastIssued = voucher
-            runtime.statusMessage = "Gutschein \(voucher.code) ausgestellt."
+            runtime.announce("Gutschein \(voucher.code) ausgestellt.")
         } catch {
             errorText = error.localizedDescription
         }

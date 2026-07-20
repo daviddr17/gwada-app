@@ -11,6 +11,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PosFormalInvoiceDrawer } from "@/components/pos/pos-formal-invoice-drawer";
 import {
   countPosDateRangeFilters,
   PosListFilterDrawer,
@@ -107,6 +108,7 @@ export function PosReceiptsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canManage = has("pos.kasse.manage");
+  const canCreateFormalInvoice = has("accounting.create");
   const today = useMemo(() => todayYmdLocal(), []);
 
   const [fromYmd, setFromYmd] = useState(today);
@@ -128,6 +130,9 @@ export function PosReceiptsScreen() {
   const [voidReasonId, setVoidReasonId] = useState<string | null>(null);
   const [voidReasonsLoading, setVoidReasonsLoading] = useState(false);
   const [reopenTable, setReopenTable] = useState(true);
+  const [formalInvoicePaymentId, setFormalInvoicePaymentId] = useState<
+    string | null
+  >(null);
   const showSkeleton = useDeferredSkeleton(!ready || loading);
 
   const rangeInvalid = fromYmd > toYmd;
@@ -504,6 +509,21 @@ export function PosReceiptsScreen() {
                             PDF
                           </Button>
                         ) : null}
+                        {receipt.status === "paid" && canCreateFormalInvoice ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="rounded-lg"
+                            disabled={voidBusy || pdfBusy}
+                            onClick={() =>
+                              setFormalInvoicePaymentId(receipt.paymentId)
+                            }
+                          >
+                            <FileText className="size-3.5" aria-hidden />
+                            Rechnung
+                          </Button>
+                        ) : null}
                         {receipt.canVoidCash && canManage ? (
                           <Button
                             type="button"
@@ -550,6 +570,18 @@ export function PosReceiptsScreen() {
           setFromYmd(today);
           setToYmd(today);
           setMethodFilter("all");
+        }}
+      />
+
+      <PosFormalInvoiceDrawer
+        open={formalInvoicePaymentId != null}
+        onOpenChange={(open) => {
+          if (!open) setFormalInvoicePaymentId(null);
+        }}
+        restaurantId={restaurantId}
+        paymentId={formalInvoicePaymentId}
+        onCreated={() => {
+          void load();
         }}
       />
 

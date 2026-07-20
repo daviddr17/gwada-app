@@ -227,6 +227,8 @@ export async function createAccountingInvoice(
         null,
       remark: params.input.remark ?? null,
       finalize_on_create: params.input.finalizeOnCreate ?? false,
+      pos_payment_id: params.input.posPaymentId?.trim() || null,
+      pos_order_id: params.input.posOrderId?.trim() || null,
       created_by: params.userId,
       updated_by: params.userId,
     })

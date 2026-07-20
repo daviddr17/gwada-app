@@ -256,13 +256,13 @@ Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Aut
 
 **Exit:** Caps/Rollen + Enrollment-Code im Admin; Catalog/Branding am Nest erreichbar (mit Supabase-Env).
 ### Phase 2 — Nest Kern + Fiskaly/Mollie Salvage
-1. Sessions/Orders/Fire/Move/Release.
-2. Payments: Bar + Mollie (Card + PayPal) inkl. Teilzahlungen/Belege.
-3. Fiskaly Cloud Tx an Teilzahlung; Receipt-Payload.
-4. Sync ingest für Hub-Outbox.
-5. Shift transfer mit PIN-Verify.
+1. Sessions/Orders/Fire/Move/Release — Nest `v1/sessions`, `v1/orders`.
+2. Payments: Bar + Mollie-Simulate (Card/PayPal) inkl. Allocations + Receipt-Payload.
+3. TSE: `FISKALY_MODE=simulate` schreibt `pos_fiscal_transactions`; echter Fiskaly-Client folgt (Salvage aus `lib/pos/fiskaly-client.ts`).
+4. Sync ingest `POST /v1/sync/events` + Tabelle `pos_sync_events`.
+5. Shift transfer `POST /v1/shifts/transfer` (Display-PIN / relaxed).
 
-**Exit:** curl/Postman-Flow komplette Session inkl. TSE-Beleg-Daten.
+**Exit:** Curl-Flow `docs/plans/kellner-pos-api-phase2-curl.md` (mit Supabase-Env).
 
 ### Phase 3 — iPad Hub MVP
 1. Bonjour + WS Protokoll.

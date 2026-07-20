@@ -10,6 +10,10 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "paths": {
+      "@gwada/pos-domain": ["../../packages/pos-domain/src/index.ts"],
+      "@gwada/shared": ["../../packages/shared/src/index.ts"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,

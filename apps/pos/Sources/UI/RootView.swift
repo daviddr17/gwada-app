@@ -64,6 +64,9 @@ struct RootView: View {
             if phase == .background {
                 pinLock.lock(reason: "scene_background")
             }
+            if phase == .active {
+                lastInteraction = Date()
+            }
         }
         .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { now in
             guard pinLock.isUnlocked, pinLock.hasPinConfigured else { return }
@@ -72,11 +75,12 @@ struct RootView: View {
                 pinLock.lock(reason: "auto_idle")
             }
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0).onChanged { _ in
-                lastInteraction = Date()
-            }
-        )
+        .onChange(of: runtime.statusMessage) { _, _ in
+            lastInteraction = Date()
+        }
+        .onChange(of: kellnerTab) { _, _ in
+            lastInteraction = Date()
+        }
         .overlay(alignment: .top) {
             if !network.isOnline {
                 Text("Offline — Bestellen OK · Zahlung gesperrt")
@@ -134,11 +138,16 @@ struct RootView: View {
                 }
             }
         } detail: {
+            // `.id(selection)` setzt den Detail-Stack zurück (sonst bleibt „Tisch 1“ nach Sidebar-Wechsel).
             NavigationStack {
                 hubDetailContent
             }
+            .id(selection)
         }
         .navigationSplitViewStyle(.balanced)
+        .onChange(of: selection) { _, _ in
+            lastInteraction = Date()
+        }
     }
 
     @ViewBuilder

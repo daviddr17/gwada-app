@@ -175,6 +175,24 @@ struct PosCloudKdsStatus: Codable, Equatable, Identifiable, Sendable {
         case id, name, color, sortOrder, printOnEnter, printerIds, isActive
     }
 
+    init(
+        id: String,
+        name: String,
+        color: String,
+        sortOrder: Int,
+        printOnEnter: Bool,
+        printerIds: [String],
+        isActive: Bool
+    ) {
+        self.id = id
+        self.name = name
+        self.color = color
+        self.sortOrder = sortOrder
+        self.printOnEnter = printOnEnter
+        self.printerIds = printerIds
+        self.isActive = isActive
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)

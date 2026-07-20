@@ -33,7 +33,7 @@ export async function openPosTableSession(params: {
   restaurantId: string;
   diningTableId: string;
   coverCount?: number;
-  openedByProfileId: string;
+  openedByProfileId: string | null;
   reservationId?: string | null;
 }): Promise<
   | { ok: true; sessionId: string }
@@ -103,7 +103,7 @@ export async function createPosOrder(params: {
   supabase: SupabaseClient;
   restaurantId: string;
   tableSessionId: string;
-  createdByProfileId: string;
+  createdByProfileId: string | null;
   items: CreatePosOrderLineInput[];
   notes?: string | null;
 }): Promise<

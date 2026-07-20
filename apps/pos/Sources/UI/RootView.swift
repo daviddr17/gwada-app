@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
     enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
         case tables
+        case register
         case reservations
         case receipts
         case giftVouchers
@@ -15,6 +16,7 @@ struct RootView: View {
         var title: String {
             switch self {
             case .tables: return "Tische"
+            case .register: return "Kasse"
             case .reservations: return "Reservierungen"
             case .receipts: return "Quittungen"
             case .giftVouchers: return "Gutscheine"
@@ -26,6 +28,7 @@ struct RootView: View {
         var systemImage: String {
             switch self {
             case .tables: return "fork.knife"
+            case .register: return "coloncurrencysign.circle"
             case .reservations: return "calendar"
             case .receipts: return "doc.text"
             case .giftVouchers: return "gift"
@@ -74,6 +77,26 @@ struct RootView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .onAppear {
+            if !runtime.isPaired || !runtime.isSignedIn {
+                selection = .device
+            }
+        }
+        .onChange(of: runtime.isSignedIn) { _, signedIn in
+            if !signedIn {
+                selection = .device
+            }
+        }
+        .onChange(of: runtime.isPaired) { _, paired in
+            if !paired {
+                selection = .device
+            }
+        }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                runtime.noteUserActivity()
+            }
+        )
     }
 
     @ViewBuilder
@@ -81,6 +104,8 @@ struct RootView: View {
         switch selection ?? .tables {
         case .tables:
             TablesHomeView()
+        case .register:
+            RegisterView()
         case .reservations:
             ReservationsView()
         case .receipts:

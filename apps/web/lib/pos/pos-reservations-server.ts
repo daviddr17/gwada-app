@@ -136,7 +136,7 @@ export async function loadPosReservationsDay(
 
 export async function createPosReservation(params: {
   restaurantId: string;
-  profileId: string;
+  profileId: string | null;
   guestFirstName?: string | null;
   guestLastName: string;
   guestPhone?: string | null;
@@ -330,7 +330,7 @@ async function writePosCreateLog(
   admin: SupabaseClient,
   params: {
     restaurantId: string;
-    profileId: string;
+    profileId: string | null;
     reservationId: string;
     reservationNumber: number;
     guestFirstName: string;
@@ -348,11 +348,13 @@ async function writePosCreateLog(
     guestEmail: string | null;
   },
 ) {
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("given_name, family_name")
-    .eq("id", params.profileId)
-    .maybeSingle();
+  const { data: profile } = params.profileId
+    ? await admin
+        .from("profiles")
+        .select("given_name, family_name")
+        .eq("id", params.profileId)
+        .maybeSingle()
+    : { data: null };
 
   const { data: statusRow } = await admin
     .from("reservation_statuses")

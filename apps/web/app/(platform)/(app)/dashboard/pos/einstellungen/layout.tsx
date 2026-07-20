@@ -30,6 +30,11 @@ const POS_SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     label: "Gutscheine",
     matchMode: "exact",
   },
+  {
+    href: APP_ROUTES.pos.settingsDevices,
+    label: "Geräte",
+    matchMode: "exact",
+  },
 ];
 
 export default function PosEinstellungenLayout({

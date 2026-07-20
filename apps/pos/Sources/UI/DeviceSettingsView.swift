@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// Gerät / Login / Hub-Status (Sidebar „Gerät“).
+/// Gerät / Pairing / PIN / Hub-Status (Sidebar „Gerät“).
 struct DeviceSettingsView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var hubIP = ""
     @State private var confirmSignOut = false
+    @State private var confirmUnpair = false
 
     var body: some View {
         List {
@@ -19,6 +20,17 @@ struct DeviceSettingsView: View {
                         emphasized: runtime.phase == .hubReady || runtime.phase == .connected
                     )
                 }
+                if runtime.isPaired {
+                    LabeledContent(
+                        "Restaurant",
+                        value: runtime.restaurantDisplayName.isEmpty
+                            ? (runtime.restaurantIdInput.isEmpty ? "—" : runtime.restaurantIdInput)
+                            : runtime.restaurantDisplayName
+                    )
+                }
+                if runtime.isSignedIn, !runtime.staffDisplayName.isEmpty {
+                    LabeledContent("Mitarbeiter", value: runtime.staffDisplayName)
+                }
                 if runtime.role == .hub {
                     LabeledContent("Sync-Queue", value: "\(runtime.syncPending) offen")
                     LabeledContent("Druck-Queue", value: "\(runtime.pendingPrintJobs) offen")
@@ -27,6 +39,53 @@ struct DeviceSettingsView: View {
                     Text(runtime.statusMessage)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            if !runtime.isPaired {
+                Section("Restaurant koppeln") {
+                    Text("Kopplungscode aus Dashboard → POS → Einstellungen → Geräte.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    TextField("Kopplungscode", text: $runtime.pairingCodeInput)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .font(.body.monospaced())
+                    DisclosureGroup("Erweitert") {
+                        TextField("API-Basis", text: $runtime.apiBaseInput)
+                            .textInputAutocapitalization(.never)
+                    }
+                    Button {
+                        Task { await runtime.pairDevice() }
+                    } label: {
+                        Text("Gerät koppeln")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PosPrimaryButtonStyle())
+                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                    .listRowBackground(Color.clear)
+                }
+            } else if !runtime.isSignedIn {
+                Section("Display-PIN") {
+                    Text(
+                        PosAuthStore.shared.hasOfflineRoster
+                            ? "4-stellige Mitarbeiter-PIN (Recht „Kasse bedienen“). Offline aus lokalem Cache möglich."
+                            : "4-stellige Mitarbeiter-PIN. Für Offline-Login einmal online anmelden oder Roster laden."
+                    )
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    SecureField("PIN", text: $runtime.pinInput)
+                        .keyboardType(.numberPad)
+                        .textContentType(.oneTimeCode)
+                    Button {
+                        Task { await runtime.signInWithPin() }
+                    } label: {
+                        Text("Anmelden")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PosPrimaryButtonStyle())
+                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                    .listRowBackground(Color.clear)
                 }
             }
 
@@ -41,41 +100,6 @@ struct DeviceSettingsView: View {
                     Text("Handgeräte, KDS & Druck-Jobs über lokales WLAN — auch ohne Internet.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                }
-
-                if !runtime.isSignedIn {
-                    Section("Cloud-Login") {
-                        TextField("E-Mail", text: $runtime.email)
-                            .textInputAutocapitalization(.never)
-                            .keyboardType(.emailAddress)
-                            .textContentType(.username)
-                        SecureField("Passwort", text: $runtime.password)
-                            .textContentType(.password)
-                        TextField("Restaurant-ID (UUID)", text: $runtime.restaurantIdInput)
-                            .textInputAutocapitalization(.never)
-                        DisclosureGroup("Erweitert") {
-                            TextField("API-Basis", text: $runtime.apiBaseInput)
-                                .textInputAutocapitalization(.never)
-                            TextField("Supabase-URL", text: $runtime.supabaseUrlInput)
-                                .textInputAutocapitalization(.never)
-                            SecureField("Supabase Anon Key", text: $runtime.supabaseAnonInput)
-                        }
-                        Button {
-                            Task { await runtime.signInAndStartHub() }
-                        } label: {
-                            Text("Anmelden & Daten laden")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(PosPrimaryButtonStyle())
-                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                        .listRowBackground(Color.clear)
-                    }
-                } else {
-                    Section {
-                        Button("Abmelden", role: .destructive) {
-                            confirmSignOut = true
-                        }
-                    }
                 }
             } else {
                 Section("Verbindung zur Kasse") {
@@ -94,6 +118,19 @@ struct DeviceSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            if runtime.isPaired {
+                Section {
+                    if runtime.isSignedIn {
+                        Button("Abmelden", role: .destructive) {
+                            confirmSignOut = true
+                        }
+                    }
+                    Button("Gerät entkoppeln", role: .destructive) {
+                        confirmUnpair = true
+                    }
+                }
+            }
         }
         .navigationTitle("Gerät")
         .navigationBarTitleDisplayMode(.large)
@@ -105,14 +142,27 @@ struct DeviceSettingsView: View {
             Button("Abmelden", role: .destructive) { runtime.signOut() }
             Button("Abbrechen", role: .cancel) {}
         } message: {
-            Text("Die lokale Kasse stoppt; Handgeräte verlieren die Verbindung.")
+            Text("Die PIN-Session endet. Das Gerät bleibt mit dem Restaurant gekoppelt.")
+        }
+        .confirmationDialog(
+            "Gerät entkoppeln?",
+            isPresented: $confirmUnpair,
+            titleVisibility: .visible
+        ) {
+            Button("Entkoppeln", role: .destructive) {
+                Task { await runtime.unpairDevice() }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Restaurant-Zuordnung wird entfernt. Neuer Kopplungscode aus dem Dashboard nötig.")
         }
     }
 
     private var phaseLabel: String {
         switch runtime.phase {
         case .idle: return "Bereit"
-        case .needsLogin: return "Login nötig"
+        case .needsLogin:
+            return runtime.isPaired ? "PIN nötig" : "Kopplung nötig"
         case .starting: return "Startet …"
         case .hubReady: return "Server läuft"
         case .searching: return "Suche Kasse …"

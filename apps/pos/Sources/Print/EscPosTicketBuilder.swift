@@ -49,6 +49,52 @@ enum EscPosTicketBuilder {
         return out
     }
 
+    /// Kunden-/Zwischenbon wenn Bar offline kassiert wurde (TSE noch ausstehend).
+    static func cashReceiptTicket(
+        restaurantName: String,
+        amountCents: Int,
+        tipCents: Int,
+        fiscalPending: Bool,
+        createdAt: Date = Date()
+    ) -> Data {
+        var out = Data()
+        out.append(initPrinter)
+        out.append(alignCenter)
+        out.append(boldOn)
+        out.append(textLine(restaurantName))
+        out.append(boldOff)
+        out.append(textLine(timeString(createdAt)))
+        out.append(textLine(String(repeating: "-", count: 32)))
+        out.append(alignLeft)
+        out.append(textLine("Barzahlung"))
+        out.append(boldOn)
+        out.append(textLine(formatEuros(amountCents + tipCents)))
+        out.append(boldOff)
+        if tipCents > 0 {
+            out.append(textLine("inkl. Tip \(formatEuros(tipCents))"))
+        }
+        if fiscalPending {
+            out.append(lineFeed)
+            out.append(alignCenter)
+            out.append(boldOn)
+            out.append(textLine("*** FISKALISIERUNG FEHLGESCHLAGEN ***"))
+            out.append(textLine("Nachsignierung ausstehend"))
+            out.append(boldOff)
+            out.append(alignLeft)
+            out.append(textLine("Beleg ist vorlaeufig — TSE folgt"))
+            out.append(textLine("sobald die Kasse online ist."))
+        }
+        out.append(lineFeed)
+        out.append(lineFeed)
+        out.append(cutPartial)
+        return out
+    }
+
+    private static func formatEuros(_ cents: Int) -> String {
+        let euros = Double(cents) / 100.0
+        return String(format: "%.2f EUR", euros).replacingOccurrences(of: ".", with: ",")
+    }
+
     private static func textLine(_ string: String) -> Data {
         var data = string.data(using: .utf8) ?? Data(string.utf8)
         data.append(contentsOf: [0x0A])

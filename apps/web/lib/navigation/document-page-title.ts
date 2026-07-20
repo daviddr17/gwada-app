@@ -79,6 +79,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/pos/einstellungen/kueche": "Küche",
   "/dashboard/pos/einstellungen/bestand-storno": "Bestand & Storno",
   "/dashboard/pos/einstellungen/gutscheine": "Gutscheine",
+  "/dashboard/pos/einstellungen/geraete": "Geräte",
   "/dashboard/events": "Events",
   "/dashboard/events/uebersicht": "Übersicht",
   "/dashboard/events/einbinden": "Einbinden",

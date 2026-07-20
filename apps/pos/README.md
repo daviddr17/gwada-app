@@ -11,11 +11,19 @@ Native iPad-Kasse + iPhone-Handgeräte. **Getrennt** von `apps/staff` (Expo, Kol
 
 ## Betriebsmodell
 
-1. **iPad** meldet sich an (Cloud), lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal.
-2. Danach läuft die Kasse **lokal**; Handgeräte holen Snapshot / Sessions / Orders nur über WLAN.
-3. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
-4. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt; wartende Orders/Kassierungen werden umgeschrieben (`session-id-map.json`).
-5. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE.
+1. **Dashboard** (Recht `pos.kasse.manage`): unter POS → Einstellungen → Geräte ein Gerät anlegen und **Kopplungscode** erzeugen.
+2. **iPad / iPhone** einmalig mit dem Code koppeln → Restaurant ist gebunden.
+3. Mitarbeiter melden sich nur noch mit der **Display-PIN** an (Recht `pos.kasse.use` oder `pos.kasse.manage`).
+4. **Online:** PIN live gegen Cloud; Auth-Roster (Offline-Hashes) wird lokal gecacht.
+5. **Offline (nach Kopplung):** PIN gegen den letzten lokalen Roster; Kasse läuft lokal/LAN; bei Netz wieder → Session-Resume + Sync-Queue.
+6. **Pro Gerät eigene PIN-Session** (Kasse ≠ Handgerät). Handgerät spricht nur die Kasse (LAN + Shared Secret); die Kasse synct allein zur Cloud.
+7. **KDS/Drucker** lokal an der Kasse; Handgerät holt KDS über WLAN von der Kasse.
+8. **iPad** lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal.
+9. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
+10. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt.
+11. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE, Geräte-Kopplung.
+
+Hinweis Offline-PIN: Nach App-/DB-Update einmal online PIN setzen oder an der Kasse einloggen (füllt den lokalen Roster). Danach funktioniert PIN auch ohne Netz.
 
 ## Öffnen (Mac)
 
@@ -28,19 +36,18 @@ open GwadaPOS.xcodeproj
 
 In Xcode: Team wählen, auf **iPad** und **iPhone** (gleiches WLAN) installieren.
 
-### Erste Anmeldung (Kasse)
+### Erste Anmeldung (Kasse / Handheld)
 
-Im Login-Bereich setzen:
-
-- E-Mail / Passwort (Restaurant-Mitarbeiter)
-- Restaurant-ID (UUID)
-- Erweitert: API-Basis (`https://gwada.app` oder Dev), Supabase-URL, Anon Key
+1. Im Web-Dashboard: **POS → Einstellungen → Geräte** → Gerät anlegen → Kopplungscode  
+2. In der App: Code eingeben → Gerät koppeln  
+3. Display-PIN des Mitarbeiters (mit Recht „Kasse bedienen“)  
+4. Erweitert (nur bei Bedarf): API-Basis (`https://gwada.app` oder Dev)
 
 ## Test
 
-1. App auf dem **iPad** starten → Server Port 8787 + Bonjour  
-2. Anmelden → Cloud-Bootstrap (oder Cache/Demo ohne Netz)  
-3. App auf dem **iPhone** starten → findet Kasse, zeigt Tische  
+1. Gerät im Dashboard anlegen, Code erzeugen  
+2. App auf dem **iPad** starten → koppeln → PIN → Server Port 8787 + Bonjour  
+3. App auf dem **iPhone** starten → ebenfalls koppeln + PIN → findet Kasse, zeigt Tische  
 4. Ohne Internet: Handgerät ↔ iPad weiter nutzbar; Sync später  
 
 ## Abgrenzung
@@ -62,8 +69,11 @@ Web **POS → Einstellungen**: Bondrucker anlegen, pro Speisekarten-Kategorie Zi
 
 ## Quittungen & Bar
 
-- Sidebar **Quittungen**: heutige Zahlungen, Bar-Storno, Tisch wieder öffnen
+- Sidebar **Quittungen**: heutige Zahlungen (Cloud + lokal), Bar-Storno, formale Rechnung
 - Beim Kassieren: Trinkgeld (% oder €), gegebenes Bargeld per Ziffernblock, automatisches Rückgeld
+- **Offline:** Quittungen lokal, Barstorno in Sync-Queue — Hinweis *Fiskalisierung nicht möglich, Nachsignierung ausstehend*
+- **Kasse öffnen/schließen:** lokal möglich, TSE/Z-Bon folgt online
+- **Gutscheine:** aktiver Bestand wird beim Bootstrap gecacht; Ausstellung/Einlösung offline → Sync-Queue
 
 ## Reservierungen
 

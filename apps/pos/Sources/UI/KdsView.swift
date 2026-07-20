@@ -1,15 +1,16 @@
 import SwiftUI
+import Combine
 
-/// Küchen-Display — Cloud-Tickets; Tippen wechselt zum nächsten konfigurierten Status.
-/// Statuswechsel ist sofort optisch (optimistic), damit niemand doppelt tippt.
+/// Küchen-Display — Tickets lokal von der iPad-Kasse (LAN bzw. Hub-State).
+/// Tippen wechselt zum nächsten Status. Sync zur Cloud nur über die Kasse.
 struct KdsView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var tickets: [KdsTicket] = []
     @State private var statuses: [PosCloudKdsStatus] = []
     @State private var status = "Lädt …"
     @State private var dense = false
-    /// Pro Ticket: Tap gesperrt bis Advance fertig (verhindert Doppel-Advance).
     @State private var advancingIds: Set<String> = []
+    @State private var hubTicketTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,167 +49,84 @@ struct KdsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await reload() }
         .refreshable { await reload() }
-        .sensoryFeedback(.impact(flexibility: .soft), trigger: advancingIds.count)
+        .onReceive(hubTicketTimer) { _ in
+            guard runtime.role == .hub else { return }
+            Task { await reload() }
+        }
     }
 
     private var settingsBar: some View {
-        HStack(spacing: 12) {
-            Toggle("Kompakt", isOn: $dense).toggleStyle(.button)
-            Text("Tippen = nächster Status")
+        HStack {
+            Text(status)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
-            Button { Task { await reload() } } label: {
-                Image(systemName: "arrow.clockwise")
-            }
+            Toggle("Kompakt", isOn: $dense)
+                .labelsHidden()
+            Text("Kompakt")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
 
     private func ticketCard(_ ticket: KdsTicket) -> some View {
-        let color = Color(hex: ticket.statusColor) ?? .accentColor
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("#\(ticket.orderNumber)")
-                    .font(.title3.weight(.bold).monospacedDigit())
+                    .font(.headline)
                 Spacer()
-                Text(ticket.statusName.uppercased())
-                    .font(.caption2.weight(.bold))
+                Text(ticket.statusName)
+                    .font(.caption.weight(.semibold))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(color.opacity(0.18))
-                    .foregroundStyle(color)
+                    .background((Color(hex: ticket.statusColor) ?? .accentColor).opacity(0.2))
                     .clipShape(Capsule())
             }
             ForEach(ticket.lines) { line in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(line.quantity)× \(line.name)")
-                        .font(dense ? .subheadline.weight(.semibold) : .body.weight(.semibold))
-                    if !line.detail.isEmpty {
-                        Text(line.detail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                Text("\(line.quantity)× \(line.name)")
+                    .font(.subheadline)
+                if !line.detail.isEmpty {
+                    Text(line.detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: 0)
-            Text(advancingIds.contains(ticket.orderId) ? "Wird gespeichert …" : "Tippen → weiter")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
         }
-        .padding(14)
-        .frame(minHeight: dense ? 120 : 160, alignment: .topLeading)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
-        .overlay(
-            RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
-                .strokeBorder(color.opacity(0.45), lineWidth: 2)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    /// Synchron vor dem Netzwerk: UI sofort, Tap für dieses Ticket sperren.
     private func handleTap(_ ticket: KdsTicket) {
         guard !advancingIds.contains(ticket.orderId) else { return }
         advancingIds.insert(ticket.orderId)
-
-        let snapshot = ticket
-        applyOptimisticAdvance(for: ticket.orderId)
-
         Task {
-            await persistAdvance(snapshot)
+            await persistAdvance(ticket)
             advancingIds.remove(ticket.orderId)
         }
     }
 
-    private func applyOptimisticAdvance(for orderId: String) {
-        guard let idx = tickets.firstIndex(where: { $0.orderId == orderId }) else { return }
-        let current = tickets[idx]
-        let list = resolvedStatuses()
-        guard !list.isEmpty else {
-            // Keine Statusliste → Ticket kurz markieren, Server entscheidet
-            return
-        }
-
-        let currentIndex: Int = {
-            if let id = current.statusId, let i = list.firstIndex(where: { $0.id == id }) {
-                return i
-            }
-            if let i = list.firstIndex(where: {
-                $0.name.caseInsensitiveCompare(current.statusName) == .orderedSame
-            }) {
-                return i
-            }
-            return -1
-        }()
-
-        let nextIndex = currentIndex + 1
-        if nextIndex >= list.count {
-            withAnimation(.easeOut(duration: 0.15)) {
-                tickets.remove(at: idx)
-            }
-            status = tickets.isEmpty ? "Keine Küchen-Tickets." : "\(tickets.count) Tickets · Tippen = weiter"
-            return
-        }
-
-        let next = list[nextIndex]
-        withAnimation(.easeOut(duration: 0.12)) {
-            tickets[idx].statusId = next.id
-            tickets[idx].statusName = next.name
-            tickets[idx].statusColor = next.color
-        }
-    }
-
-    private func resolvedStatuses() -> [PosCloudKdsStatus] {
-        if !statuses.isEmpty { return statuses }
-        return PosHubState.shared.kitchen?.activeKdsStatuses ?? []
-    }
-
     private func persistAdvance(_ ticket: KdsTicket) async {
-        guard runtime.isSignedIn, let restaurantId = PosCloudConfig.restaurantId else {
-            status = "KDS: Kasse anmelden"
+        guard runtime.isSignedIn else {
+            status = "KDS: PIN anmelden"
             await reload()
             return
         }
         do {
-            let res = try await PosCloudClient.advanceKdsTicket(
-                restaurantId: restaurantId,
-                orderId: ticket.orderId
-            )
-            if res.printRequested == true {
-                let lines: [[String: Any]] = (res.lines ?? []).map { line in
-                    [
-                        "id": line.id,
-                        "name": line.name,
-                        "quantity": line.quantity,
-                        "detail": line.detail ?? "",
-                        "course": line.course ?? "",
-                        "categoryId": "",
-                    ]
+            if runtime.role == .handheld {
+                guard let base = runtime.hubBaseURL else {
+                    status = "Keine Kasse verbunden."
+                    return
                 }
-                PosHubState.shared.enqueueKitchenPrintFromCloud(
-                    orderNumber: res.orderNumber ?? ticket.orderNumber,
-                    printerIds: res.printerIds ?? [],
-                    lines: lines
-                )
+                _ = try await HandheldHubClient.advanceKdsTicket(baseURL: base, orderId: ticket.orderId)
+            } else {
+                _ = PosHubState.shared.advanceLocalTicket(orderId: ticket.orderId)
+                Task { await PosPrintDispatcher.shared.kick() }
             }
-
-            if res.done == true {
-                withAnimation(.easeOut(duration: 0.12)) {
-                    tickets.removeAll { $0.orderId == ticket.orderId }
-                }
-                status = tickets.isEmpty ? "Keine Küchen-Tickets." : "\(tickets.count) Tickets · Tippen = weiter"
-            } else if let next = res.ticket {
-                if let idx = tickets.firstIndex(where: { $0.orderId == ticket.orderId }) {
-                    tickets[idx].statusId = next.statusId ?? tickets[idx].statusId
-                    tickets[idx].statusName = next.statusName ?? next.status ?? tickets[idx].statusName
-                    tickets[idx].statusColor = next.statusColor ?? tickets[idx].statusColor
-                }
-            }
-            // Leichter Abgleich ohne sichtbares Flackern — nur wenn nötig
-            if tickets.isEmpty {
-                await reload()
-            }
+            await reload()
         } catch {
             status = error.localizedDescription
             await reload()
@@ -217,39 +135,60 @@ struct KdsView: View {
 
     private func reload() async {
         status = "Aktualisiere …"
-        guard runtime.isSignedIn, let restaurantId = PosCloudConfig.restaurantId else {
+        guard runtime.isSignedIn else {
             tickets = []
-            status = "KDS: Kasse anmelden. Lokal: http://<Kassen-IP>:8787/v1/kds?deviceId=…"
+            status = "KDS: mit Display-PIN anmelden."
             return
         }
         do {
-            let res = try await PosCloudClient.fetchKdsTickets(restaurantId: restaurantId)
-            if let remoteStatuses = res.statuses, !remoteStatuses.isEmpty {
-                statuses = remoteStatuses.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
+            let data: Data
+            if runtime.role == .handheld {
+                guard let base = runtime.hubBaseURL else {
+                    tickets = []
+                    status = "Keine Kasse — KDS nur über iPad-Kasse im WLAN."
+                    return
+                }
+                data = try await HandheldHubClient.fetchKdsTickets(baseURL: base, deviceId: nil)
+            } else {
+                data = PosHubState.shared.kdsTicketsJSON(deviceId: nil)
+            }
+            let payload = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let rawTickets = payload?["tickets"] as? [[String: Any]] ?? []
+            let rawStatuses = payload?["statuses"] as? [[String: Any]] ?? []
+            if !rawStatuses.isEmpty {
+                statuses = rawStatuses.compactMap { s -> PosCloudKdsStatus? in
+                    guard let id = s["id"] as? String, let name = s["name"] as? String else { return nil }
+                    return PosCloudKdsStatus(
+                        id: id,
+                        name: name,
+                        color: (s["color"] as? String) ?? "#3b82f6",
+                        sortOrder: (s["sortOrder"] as? Int) ?? 0,
+                        printOnEnter: (s["printOnEnter"] as? Bool) ?? false,
+                        printerIds: (s["printerIds"] as? [String]) ?? [],
+                        isActive: (s["isActive"] as? Bool) ?? true
+                    )
+                }.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
             } else if let hub = PosHubState.shared.kitchen?.activeKdsStatuses, !hub.isEmpty {
                 statuses = hub
             }
-            tickets = res.tickets.map { t in
-                KdsTicket(
-                    orderId: t.orderId,
-                    orderNumber: t.orderNumber,
-                    statusId: t.statusId,
-                    statusName: t.statusName ?? t.status,
-                    statusColor: t.statusColor ?? "#3b82f6",
-                    lines: t.lines.map { l in
-                        var parts: [String] = []
-                        if let c = l.course, let course = PosCourse(rawValue: c) {
-                            parts.append(course.label)
-                        }
-                        if let mods = l.modifiers {
-                            parts.append(contentsOf: mods.compactMap(\.label))
-                        }
-                        if let n = l.notes, !n.isEmpty { parts.append(n) }
+            tickets = rawTickets.compactMap { t -> KdsTicket? in
+                guard let orderId = t["orderId"] as? String else { return nil }
+                let linesRaw = t["lines"] as? [[String: Any]] ?? []
+                return KdsTicket(
+                    orderId: orderId,
+                    orderNumber: t["orderNumber"] as? Int ?? 0,
+                    statusId: t["statusId"] as? String,
+                    statusName: (t["statusName"] as? String)
+                        ?? (t["status"] as? String)
+                        ?? "—",
+                    statusColor: (t["statusColor"] as? String) ?? "#3b82f6",
+                    lines: linesRaw.compactMap { l in
+                        guard let id = l["id"] as? String, let name = l["name"] as? String else { return nil }
                         return KdsTicketLine(
-                            id: l.id,
-                            name: l.name,
-                            quantity: l.quantity,
-                            detail: parts.joined(separator: " · ")
+                            id: id,
+                            name: name,
+                            quantity: l["quantity"] as? Int ?? 1,
+                            detail: l["detail"] as? String ?? ""
                         )
                     }
                 )

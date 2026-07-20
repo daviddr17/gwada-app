@@ -21,6 +21,14 @@ export async function voidCashPayment(params: {
       tableSessionId: string;
       reopened: boolean;
       inventoryRestored: boolean;
+      formalInvoiceStorno?: {
+        mode: "none" | "voided_draft" | "correction";
+        invoiceId?: string;
+        invoiceNumber?: string | null;
+        correctionId?: string;
+        correctionNumber?: string | null;
+        error?: string;
+      };
     }
   | { ok: false; error: string; status: number }
 > {
@@ -204,12 +212,60 @@ export async function voidCashPayment(params: {
     }
   }
 
+  // Formale Rechnung (falls vorhanden) stornieren — best effort, Barstorno bleibt gültig.
+  let formalInvoiceStorno:
+    | {
+        mode: "none" | "voided_draft" | "correction";
+        invoiceId?: string;
+        invoiceNumber?: string | null;
+        correctionId?: string;
+        correctionNumber?: string | null;
+        error?: string;
+      }
+    | undefined;
+  try {
+    const { stornoFormalInvoiceForPosPayment } = await import(
+      "@/lib/pos/pos-formal-invoice-storno-server"
+    );
+    const storno = await stornoFormalInvoiceForPosPayment({
+      restaurantId: params.restaurantId,
+      paymentId: params.paymentId,
+      userId: params.userId,
+      remarkSuffix: `POS-Barstorno ${params.paymentId}`,
+    });
+    if (!storno.ok) {
+      console.warn("[pos] formal invoice storno after cash void", storno.error);
+      formalInvoiceStorno = { mode: "none", error: storno.error };
+    } else if (storno.mode === "none") {
+      formalInvoiceStorno = { mode: "none" };
+    } else if (storno.mode === "voided_draft") {
+      formalInvoiceStorno = {
+        mode: "voided_draft",
+        invoiceId: storno.invoiceId,
+        invoiceNumber: storno.invoiceNumber,
+      };
+    } else {
+      formalInvoiceStorno = {
+        mode: "correction",
+        invoiceId: storno.invoiceId,
+        invoiceNumber: storno.invoiceNumber,
+        correctionId: storno.correctionId,
+        correctionNumber: storno.correctionNumber,
+      };
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "formal_invoice_storno_failed";
+    console.warn("[pos] formal invoice storno after cash void", message);
+    formalInvoiceStorno = { mode: "none", error: message };
+  }
+
   return {
     ok: true,
     paymentId: params.paymentId,
     tableSessionId,
     reopened,
     inventoryRestored,
+    formalInvoiceStorno,
   };
 }
 

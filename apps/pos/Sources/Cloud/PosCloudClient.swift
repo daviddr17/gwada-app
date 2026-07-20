@@ -9,7 +9,7 @@ struct PosCloudOrderItem: Encodable {
     var modifiers: [PosCloudModifierPayload]?
 }
 
-struct PosCloudModifierPayload: Encodable {
+struct PosCloudModifierPayload: Codable, Sendable {
     var type: String
     var label: String
     var ingredientId: String?
@@ -65,6 +65,74 @@ enum PosCloudClient {
         try await get("/api/pos/bootstrap", restaurantId: restaurantId)
     }
 
+    struct RegisterStatusDto: Decodable, Sendable {
+        var isOpen: Bool
+        var sessionId: String?
+        var openedAt: String?
+        var openingCashCents: Int?
+        var lastClosingZNr: Int?
+        var lastClosingAt: String?
+        var suggestedOpeningCashCents: Int?
+        var aggregate: Aggregate?
+
+        struct Aggregate: Decodable, Sendable {
+            var expectedCashCents: Int?
+            var cashSalesCents: Int?
+            var tipCashCents: Int?
+        }
+    }
+
+    struct RegisterOpenResult: Decodable, Sendable {
+        var ok: Bool?
+        var sessionId: String?
+        var alreadyOpen: Bool?
+    }
+
+    struct RegisterCloseResult: Decodable, Sendable {
+        var ok: Bool?
+        var sessionId: String?
+        var zNr: Int?
+    }
+
+    @MainActor
+    static func fetchRegisterStatus() async throws -> RegisterStatusDto {
+        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
+            throw PosCloudError.httpStatus(400, "restaurant_id_missing")
+        }
+        return try await get(
+            "/api/pos/fiskaly/register/status",
+            restaurantId: restaurantId
+        )
+    }
+
+    @MainActor
+    static func openRegister(openingCashCents: Int) async throws -> RegisterOpenResult {
+        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
+            throw PosCloudError.httpStatus(400, "restaurant_id_missing")
+        }
+        struct Body: Encodable {
+            var openingCashCents: Int
+        }
+        return try await post(
+            "/api/pos/fiskaly/register/open?restaurantId=\(restaurantId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? restaurantId)",
+            body: Body(openingCashCents: openingCashCents)
+        )
+    }
+
+    @MainActor
+    static func closeRegister(closingCashCents: Int) async throws -> RegisterCloseResult {
+        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
+            throw PosCloudError.httpStatus(400, "restaurant_id_missing")
+        }
+        struct Body: Encodable {
+            var closingCashCents: Int
+        }
+        return try await post(
+            "/api/pos/fiskaly/register/close?restaurantId=\(restaurantId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? restaurantId)",
+            body: Body(closingCashCents: closingCashCents)
+        )
+    }
+
     @MainActor
     static func fetchReservationsDay(
         restaurantId: String,
@@ -108,18 +176,38 @@ enum PosCloudClient {
         restaurantId: String,
         tableSessionId: String,
         items: [PosCloudOrderItem]
-    ) async throws -> String {
+    ) async throws -> PosCloudCreateOrderResult {
         struct Body: Encodable {
             var restaurantId: String
             var tableSessionId: String
             var items: [PosCloudOrderItem]
         }
-        struct Response: Decodable { var orderId: String }
-        let res: Response = try await post(
+        let res: PosCloudCreateOrderResult = try await post(
             "/api/pos/orders",
             body: Body(restaurantId: restaurantId, tableSessionId: tableSessionId, items: items)
         )
-        return res.orderId
+        return res
+    }
+
+    struct PosCloudCreateOrderResult: Decodable, Sendable {
+        var orderId: String
+        var orderNumber: Int?
+        var order: OrderBody?
+
+        struct OrderBody: Decodable, Sendable {
+            var lines: [Line]
+        }
+
+        struct Line: Decodable, Sendable {
+            var id: String
+            var menuItemId: String?
+            var quantity: Int
+            var position: Int
+        }
+
+        var lines: [Line] {
+            order?.lines ?? []
+        }
     }
 
     struct PaymentMethodDto: Decodable, Identifiable, Sendable {
@@ -183,7 +271,7 @@ enum PosCloudClient {
         allocations: [(orderLineId: String, quantity: Int)],
         tipCents: Int = 0,
         receivedAmountCents: Int? = nil
-    ) async throws {
+    ) async throws -> String {
         struct Allocation: Encodable {
             var orderLineId: String
             var quantity: Int
@@ -195,7 +283,10 @@ enum PosCloudClient {
             var tipCents: Int
             var receivedAmountCents: Int?
         }
-        try await postVoid(
+        struct Res: Decodable {
+            var paymentId: String
+        }
+        let res: Res = try await post(
             "/api/pos/payments/collect-cash-allocations",
             body: Body(
                 restaurantId: restaurantId,
@@ -205,6 +296,27 @@ enum PosCloudClient {
                 receivedAmountCents: receivedAmountCents
             )
         )
+        return res.paymentId
+    }
+
+    struct GiftVoucherListItemDto: Decodable, Identifiable, Sendable {
+        var id: String
+        var code: String
+        var balance_cents: Int
+        var initial_amount_cents: Int
+        var status: String
+        var expires_at: String?
+    }
+
+    @MainActor
+    static func fetchGiftVouchers(restaurantId: String) async throws -> [GiftVoucherListItemDto] {
+        struct Res: Decodable { var vouchers: [GiftVoucherListItemDto] }
+        let res: Res = try await get(
+            "/api/pos/gift-vouchers",
+            restaurantId: restaurantId,
+            extraQuery: ["status": "active"]
+        )
+        return res.vouchers
     }
 
     struct GiftVoucherLookupDto: Decodable, Sendable {
@@ -214,6 +326,22 @@ enum PosCloudClient {
         var initialAmountCents: Int
         var expiresAt: String
         var status: String
+
+        init(
+            id: String,
+            code: String,
+            balanceCents: Int,
+            initialAmountCents: Int,
+            expiresAt: String,
+            status: String
+        ) {
+            self.id = id
+            self.code = code
+            self.balanceCents = balanceCents
+            self.initialAmountCents = initialAmountCents
+            self.expiresAt = expiresAt
+            self.status = status
+        }
     }
 
     @MainActor
@@ -340,7 +468,7 @@ enum PosCloudClient {
         return res.receipts
     }
 
-    struct PosVoidReasonDto: Decodable, Identifiable, Sendable, Hashable {
+    struct PosVoidReasonDto: Codable, Identifiable, Sendable, Hashable {
         var id: String
         var name: String
         var restoreInventory: Bool
@@ -355,13 +483,29 @@ enum PosCloudClient {
         return res.reasons.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
     }
 
+    struct FormalInvoiceStornoInfo: Decodable, Sendable {
+        var mode: String
+        var invoiceId: String?
+        var invoiceNumber: String?
+        var correctionId: String?
+        var correctionNumber: String?
+        var error: String?
+    }
+
+    struct VoidCashResult: Sendable {
+        var reopened: Bool
+        var tableSessionId: String
+        var inventoryRestored: Bool
+        var formalInvoiceStorno: FormalInvoiceStornoInfo?
+    }
+
     @MainActor
     static func voidCashPayment(
         restaurantId: String,
         paymentId: String,
         reopenTable: Bool = true,
         voidReasonId: String? = nil
-    ) async throws -> (reopened: Bool, tableSessionId: String, inventoryRestored: Bool) {
+    ) async throws -> VoidCashResult {
         struct Body: Encodable {
             var restaurantId: String
             var reopenTable: Bool
@@ -371,6 +515,7 @@ enum PosCloudClient {
             var reopened: Bool
             var tableSessionId: String
             var inventoryRestored: Bool?
+            var formalInvoiceStorno: FormalInvoiceStornoInfo?
         }
         let res: Res = try await post(
             "/api/pos/payments/\(paymentId)/void-cash",
@@ -380,7 +525,115 @@ enum PosCloudClient {
                 voidReasonId: voidReasonId
             )
         )
-        return (res.reopened, res.tableSessionId, res.inventoryRestored ?? false)
+        return VoidCashResult(
+            reopened: res.reopened,
+            tableSessionId: res.tableSessionId,
+            inventoryRestored: res.inventoryRestored ?? false,
+            formalInvoiceStorno: res.formalInvoiceStorno
+        )
+    }
+
+    struct FormalInvoiceLineDto: Decodable, Sendable, Identifiable {
+        var name: String
+        var quantity: Double
+        var unitPrice: Double
+        var taxRatePercent: Double
+        var lineAmount: Double
+        var id: String { "\(name)-\(quantity)-\(lineAmount)" }
+    }
+
+    struct FormalInvoiceDraftDto: Decodable, Sendable {
+        var paymentId: String
+        var orderId: String
+        var orderNumber: Int
+        var paidAt: String?
+        var amountCents: Int
+        var tipCents: Int
+        var alreadyInvoiced: Bool
+        var existingInvoiceId: String?
+        var existingInvoiceNumber: String?
+        var alreadyStornoed: Bool?
+        var existingCorrectionId: String?
+        var existingCorrectionNumber: String?
+        var lineItems: [FormalInvoiceLineDto]
+
+        var isStornoed: Bool { alreadyStornoed == true }
+    }
+
+    struct FormalInvoiceCreatedDto: Decodable, Sendable {
+        var id: String
+        var voucher_number: String?
+    }
+
+    @MainActor
+    static func fetchFormalInvoiceDraft(
+        restaurantId: String,
+        paymentId: String
+    ) async throws -> FormalInvoiceDraftDto {
+        struct Res: Decodable { var draft: FormalInvoiceDraftDto }
+        let res: Res = try await get(
+            "/api/pos/payments/\(paymentId)/formal-invoice",
+            restaurantId: restaurantId
+        )
+        return res.draft
+    }
+
+    @MainActor
+    static func createFormalInvoice(
+        restaurantId: String,
+        paymentId: String,
+        companyName: String?,
+        personName: String?,
+        street: String,
+        zip: String,
+        city: String,
+        email: String?,
+        phone: String?,
+        voucherDate: String?
+    ) async throws -> FormalInvoiceCreatedDto {
+        struct Body: Encodable {
+            var restaurantId: String
+            var companyName: String?
+            var personName: String?
+            var street: String
+            var zip: String
+            var city: String
+            var countryCode: String
+            var email: String?
+            var phone: String?
+            var voucherDate: String?
+        }
+        struct Res: Decodable { var invoice: FormalInvoiceCreatedDto }
+        let res: Res = try await post(
+            "/api/pos/payments/\(paymentId)/formal-invoice",
+            body: Body(
+                restaurantId: restaurantId,
+                companyName: companyName,
+                personName: personName,
+                street: street,
+                zip: zip,
+                city: city,
+                countryCode: "DE",
+                email: email,
+                phone: phone,
+                voucherDate: voucherDate
+            )
+        )
+        return res.invoice
+    }
+
+    @MainActor
+    static func stornoFormalInvoice(
+        restaurantId: String,
+        paymentId: String
+    ) async throws -> FormalInvoiceStornoInfo {
+        struct Body: Encodable { var restaurantId: String }
+        struct Res: Decodable { var storno: FormalInvoiceStornoInfo }
+        let res: Res = try await post(
+            "/api/pos/payments/\(paymentId)/formal-invoice/storno",
+            body: Body(restaurantId: restaurantId)
+        )
+        return res.storno
     }
 
     @MainActor
@@ -476,8 +729,7 @@ enum PosCloudClient {
         }
         var request = URLRequest(url: URL(string: full)!)
         request.httpMethod = "GET"
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applySessionAuth(to: &request)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
             throw PosCloudError.invalidResponse
@@ -503,6 +755,81 @@ enum PosCloudClient {
     }
 
     @MainActor
+    static func unauthenticatedPost<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(body)
+        return try await perform(request)
+    }
+
+    @MainActor
+    static func deviceAuthenticatedGet<T: Decodable>(_ path: String) async throws -> T {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try applyDeviceAuth(to: &request)
+        return try await perform(request)
+    }
+
+    @MainActor
+    static func deviceAuthenticatedPost<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try applyDeviceAuth(to: &request)
+        request.httpBody = try encoder.encode(body)
+        return try await perform(request)
+    }
+
+    @MainActor
+    static func deviceAuthenticatedDelete(_ path: String) async throws {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "DELETE"
+        try applyDeviceAuth(to: &request)
+        try applySessionAuthIfPresent(to: &request)
+        let (data, response) = try await performRaw(request)
+        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+            throw PosCloudError.httpStatus(
+                (response as? HTTPURLResponse)?.statusCode ?? 0,
+                String(data: data, encoding: .utf8)
+            )
+        }
+    }
+
+    @MainActor
+    static func deviceAuthenticatedPatch(_ path: String) async throws {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "PATCH"
+        try await applySessionAuth(to: &request)
+        let (data, response) = try await performRaw(request)
+        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+            throw PosCloudError.httpStatus(
+                (response as? HTTPURLResponse)?.statusCode ?? 0,
+                String(data: data, encoding: .utf8)
+            )
+        }
+    }
+
+    @MainActor
+    private static func applyDeviceAuth(to request: inout URLRequest) throws {
+        request.setValue(try PosAuthStore.shared.deviceHeaderValue(), forHTTPHeaderField: "X-Gwada-Pos-Device")
+    }
+
+    @MainActor
+    private static func applySessionAuth(to request: inout URLRequest) async throws {
+        try applyDeviceAuth(to: &request)
+        request.setValue(try PosAuthStore.shared.sessionHeaderValue(), forHTTPHeaderField: "X-Gwada-Pos-Session")
+    }
+
+    @MainActor
+    private static func applySessionAuthIfPresent(to request: inout URLRequest) {
+        if let value = try? PosAuthStore.shared.sessionHeaderValue() {
+            request.setValue(value, forHTTPHeaderField: "X-Gwada-Pos-Session")
+        }
+    }
+
+    @MainActor
     private static func get<T: Decodable>(
         _ path: String,
         restaurantId: String?,
@@ -511,8 +838,7 @@ enum PosCloudClient {
         var request = URLRequest(url: url(path, restaurantId: restaurantId, extraQuery: extraQuery))
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applySessionAuth(to: &request)
         return try await perform(request)
     }
 
@@ -521,8 +847,7 @@ enum PosCloudClient {
         var request = URLRequest(url: url(path, restaurantId: nil))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applySessionAuth(to: &request)
         request.httpBody = try encoder.encode(body)
         return try await perform(request)
     }
@@ -532,8 +857,7 @@ enum PosCloudClient {
         var request = URLRequest(url: url(path, restaurantId: nil))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applySessionAuth(to: &request)
         request.httpBody = try encoder.encode(body)
         let (data, response) = try await performRaw(request)
         guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {

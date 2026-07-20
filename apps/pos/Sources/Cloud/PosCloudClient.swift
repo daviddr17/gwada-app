@@ -65,6 +65,74 @@ enum PosCloudClient {
         try await get("/api/pos/bootstrap", restaurantId: restaurantId)
     }
 
+    struct RegisterStatusDto: Decodable, Sendable {
+        var isOpen: Bool
+        var sessionId: String?
+        var openedAt: String?
+        var openingCashCents: Int?
+        var lastClosingZNr: Int?
+        var lastClosingAt: String?
+        var suggestedOpeningCashCents: Int?
+        var aggregate: Aggregate?
+
+        struct Aggregate: Decodable, Sendable {
+            var expectedCashCents: Int?
+            var cashSalesCents: Int?
+            var tipCashCents: Int?
+        }
+    }
+
+    struct RegisterOpenResult: Decodable, Sendable {
+        var ok: Bool?
+        var sessionId: String?
+        var alreadyOpen: Bool?
+    }
+
+    struct RegisterCloseResult: Decodable, Sendable {
+        var ok: Bool?
+        var sessionId: String?
+        var zNr: Int?
+    }
+
+    @MainActor
+    static func fetchRegisterStatus() async throws -> RegisterStatusDto {
+        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
+            throw PosCloudError.httpStatus(400, "restaurant_id_missing")
+        }
+        return try await get(
+            "/api/pos/fiskaly/register/status",
+            restaurantId: restaurantId
+        )
+    }
+
+    @MainActor
+    static func openRegister(openingCashCents: Int) async throws -> RegisterOpenResult {
+        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
+            throw PosCloudError.httpStatus(400, "restaurant_id_missing")
+        }
+        struct Body: Encodable {
+            var openingCashCents: Int
+        }
+        return try await post(
+            "/api/pos/fiskaly/register/open?restaurantId=\(restaurantId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? restaurantId)",
+            body: Body(openingCashCents: openingCashCents)
+        )
+    }
+
+    @MainActor
+    static func closeRegister(closingCashCents: Int) async throws -> RegisterCloseResult {
+        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
+            throw PosCloudError.httpStatus(400, "restaurant_id_missing")
+        }
+        struct Body: Encodable {
+            var closingCashCents: Int
+        }
+        return try await post(
+            "/api/pos/fiskaly/register/close?restaurantId=\(restaurantId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? restaurantId)",
+            body: Body(closingCashCents: closingCashCents)
+        )
+    }
+
     @MainActor
     static func fetchReservationsDay(
         restaurantId: String,

@@ -732,6 +732,11 @@ final class PosRuntime: ObservableObject {
         publishSnapshot(PosHubState.shared.makeSnapshot())
 
         if PosAuthStore.shared.isOfflineSession {
+            PosHubState.shared.enqueueFiscalPendingCashReceipt(
+                amountCents: localResult.amountCents,
+                tipCents: tipCents
+            )
+            await PosPrintDispatcher.shared.kick()
             PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
                 restaurantId: restaurantId,
                 tableSessionId: sessionId,
@@ -757,6 +762,11 @@ final class PosRuntime: ObservableObject {
             await pullCloudBootstrap(forceDemoFallback: false)
             publishSnapshot(PosHubState.shared.makeSnapshot())
         } catch {
+            PosHubState.shared.enqueueFiscalPendingCashReceipt(
+                amountCents: localResult.amountCents,
+                tipCents: tipCents
+            )
+            await PosPrintDispatcher.shared.kick()
             PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
                 restaurantId: restaurantId,
                 tableSessionId: sessionId,
@@ -1169,8 +1179,13 @@ final class PosRuntime: ObservableObject {
                     allocations: req.allocations.map { ($0.orderLineId, $0.quantity) }
                 )
                 let tip = req.tipCents ?? 0
+                PosHubState.shared.enqueueFiscalPendingCashReceipt(
+                    amountCents: result.amountCents,
+                    tipCents: tip
+                )
                 let restaurantId = PosHubState.shared.restaurantId
                 Task { @MainActor in
+                    await PosPrintDispatcher.shared.kick()
                     PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
                         restaurantId: restaurantId,
                         tableSessionId: req.sessionId,

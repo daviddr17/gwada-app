@@ -39,6 +39,14 @@ export type PosWebReceiptDto = {
   receiptPdfUrl: string | null;
 };
 
+export type PosWebStatisticsItemDto = {
+  menuItemId: string | null;
+  name: string;
+  quantity: number;
+  lineTotalCents: number;
+  orderCount: number;
+};
+
 export type PosWebStatisticsDto = {
   fromYmd: string;
   toYmd: string;
@@ -78,6 +86,7 @@ export type PosWebStatisticsDto = {
     voucherCents: number;
     otherCents: number;
   }>;
+  byItem?: PosWebStatisticsItemDto[];
   zSessions: Array<{
     id: string;
     openedAt: string;
@@ -88,6 +97,21 @@ export type PosWebStatisticsDto = {
     cashDifferenceCents: number | null;
     zNr: number | null;
   }>;
+};
+
+export type PosWebOrderListItemDto = {
+  id: string;
+  orderNumber: number;
+  status: string;
+  totalCents: number;
+  tipCents: number;
+  tableSessionId: string;
+  tableLabel: string;
+  createdAt: string;
+  closedAt: string | null;
+  lineCount: number;
+  itemQuantity: number;
+  linePreview: string;
 };
 
 export type PosWebRegisterSessionDto = {
@@ -151,6 +175,23 @@ export async function fetchPosActiveOrders(restaurantId: string) {
     "/api/pos/orders/active",
     restaurantId,
   );
+}
+
+export async function fetchPosOrdersList(
+  restaurantId: string,
+  fromYmd: string,
+  toYmd: string,
+  status: "all" | "open" | "delivered" | "cancelled" = "all",
+) {
+  return posWebFetch<{
+    orders: PosWebOrderListItemDto[];
+    from: string;
+    to: string;
+  }>("/api/pos/orders/list", restaurantId, undefined, {
+    from: fromYmd,
+    to: toYmd,
+    status,
+  });
 }
 
 export async function fetchPosPaidTodayOrders(restaurantId: string) {
@@ -249,12 +290,18 @@ export async function fetchPosStatistics(
 export async function fetchPosRegisterSessions(
   restaurantId: string,
   limit = 30,
+  range?: { fromYmd: string; toYmd: string },
 ) {
   return posWebFetch<{ data: PosWebRegisterSessionDto[] }>(
     "/api/pos/fiskaly/register/sessions",
     restaurantId,
     undefined,
-    { limit: String(limit) },
+    {
+      limit: String(limit),
+      ...(range
+        ? { from: range.fromYmd, to: range.toYmd }
+        : {}),
+    },
   );
 }
 

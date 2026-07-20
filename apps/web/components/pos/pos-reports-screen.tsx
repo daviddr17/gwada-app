@@ -1,12 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, FileArchive, FileText, Loader2 } from "lucide-react";
+import {
+  Download,
+  FileArchive,
+  FileText,
+  Filter,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchPosZAutopilotImports,
   retryPosZAutopilotImport,
 } from "@/lib/accounting/accounting-api";
+import {
+  countPosDateRangeFilters,
+  PosListFilterDrawer,
+} from "@/components/pos/pos-list-filter-drawer";
 import { PosZAutopilotCell } from "@/components/pos/pos-z-autopilot-cell";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +32,11 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
+import {
+  LIST_PAGE_SIZE_DEFAULT,
+  clampListPage,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -44,9 +59,24 @@ import {
 } from "@/lib/pos/pos-web-api-client";
 import type { PosZAutopilotImportRow } from "@/lib/types/accounting-pos-z-autopilot";
 import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
-import { ModuleDataTableFrame } from "@/lib/ui/module-paginated-data-table";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
+import {
+  ModuleTableSortHeader,
+  type ModuleTableSortDir,
+} from "@/lib/ui/module-table-sort-header";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
+
+type SessionSortKey = "zNr" | "closedAt" | "closing" | "diff";
+
+function shiftYmdLocal(ymd: string, deltaDays: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + deltaDays);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
 
 function formatCents(cents: number | null | undefined): string {
   if (cents == null) return "—";
@@ -79,6 +109,9 @@ export function PosReportsScreen() {
   const canReadAutopilot = hasModuleRead(has, "accounting");
   const canRetryAutopilot = hasModuleCreate(has, "accounting");
 
+  const today = useMemo(() => todayYmdLocal(), []);
+  const defaultListFrom = useMemo(() => shiftYmdLocal(today, -89), [today]);
+
   const [sessions, setSessions] = useState<PosWebRegisterSessionDto[]>([]);
   const [autopilotBySession, setAutopilotBySession] = useState<
     Record<string, PosZAutopilotImportRow>
@@ -88,14 +121,28 @@ export function PosReportsScreen() {
 
   const [xBusy, setXBusy] = useState(false);
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
-  const [exportFrom, setExportFrom] = useState(todayYmdLocal);
-  const [exportTo, setExportTo] = useState(todayYmdLocal);
+  const [exportFrom, setExportFrom] = useState(today);
+  const [exportTo, setExportTo] = useState(today);
+  const [listFrom, setListFrom] = useState(defaultListFrom);
+  const [listTo, setListTo] = useState(today);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<SessionSortKey>("closedAt");
+  const [sortDir, setSortDir] = useState<ModuleTableSortDir>("desc");
   const [exportBusy, setExportBusy] = useState(false);
 
   const rangeInvalid = exportFrom > exportTo;
+  const listRangeInvalid = listFrom > listTo;
+  const activeFilterCount = countPosDateRangeFilters({
+    fromYmd: listFrom,
+    toYmd: listTo,
+    defaultFromYmd: defaultListFrom,
+    defaultToYmd: today,
+    selectValue: "all",
+  });
 
   const load = useCallback(async () => {
-    if (!restaurantId || !canExport) {
+    if (!restaurantId || !canExport || listRangeInvalid) {
       setSessions([]);
       setAutopilotBySession({});
       setLoading(false);
@@ -103,7 +150,10 @@ export function PosReportsScreen() {
     }
     setLoading(true);
     try {
-      const result = await fetchPosRegisterSessions(restaurantId, 40);
+      const result = await fetchPosRegisterSessions(restaurantId, 500, {
+        fromYmd: listFrom,
+        toYmd: listTo,
+      });
       if (!result.ok) {
         toast.error(posApiErrorLabel(result.error));
         setSessions([]);
@@ -112,6 +162,7 @@ export function PosReportsScreen() {
       }
       const nextSessions = result.data.data;
       setSessions(nextSessions);
+      setPage(1);
 
       if (canReadAutopilot && nextSessions.length > 0) {
         try {
@@ -133,7 +184,14 @@ export function PosReportsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, canExport, canReadAutopilot]);
+  }, [
+    restaurantId,
+    canExport,
+    canReadAutopilot,
+    listFrom,
+    listTo,
+    listRangeInvalid,
+  ]);
 
   useEffect(() => {
     void load();
@@ -242,13 +300,53 @@ export function PosReportsScreen() {
     }
   };
 
-  const sessionCountLabel = useMemo(
-    () =>
-      sessions.length === 0
-        ? "Keine abgeschlossenen Sessions"
-        : `${sessions.length} Abschlüsse`,
-    [sessions.length],
+  const toggleSort = (key: SessionSortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir("desc");
+      return;
+    }
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+  };
+
+  const sortedSessions = useMemo(() => {
+    const mul = sortDir === "asc" ? 1 : -1;
+    return [...sessions].sort((a, b) => {
+      switch (sortKey) {
+        case "zNr":
+          return ((a.zNr ?? 0) - (b.zNr ?? 0)) * mul;
+        case "closing":
+          return (
+            ((a.closingCashCents ?? 0) - (b.closingCashCents ?? 0)) * mul
+          );
+        case "diff":
+          return (
+            ((a.cashDifferenceCents ?? 0) - (b.cashDifferenceCents ?? 0)) *
+            mul
+          );
+        case "closedAt":
+        default: {
+          const at = a.closedAt ? new Date(a.closedAt).getTime() : 0;
+          const bt = b.closedAt ? new Date(b.closedAt).getTime() : 0;
+          return (at - bt) * mul;
+        }
+      }
+    });
+  }, [sessions, sortKey, sortDir]);
+
+  const totalPages = totalPagesFromCount(
+    sortedSessions.length,
+    LIST_PAGE_SIZE_DEFAULT,
   );
+  const currentPage = clampListPage(page, totalPages);
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
+    return sortedSessions.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
+  }, [sortedSessions, currentPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortKey, sortDir]);
 
   if (!ready || permissionsLoading) {
     return <WorkspaceRestaurantResolvePlaceholder className="py-10" />;
@@ -346,8 +444,30 @@ export function PosReportsScreen() {
       </Card>
 
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">{sessionCountLabel}</p>
-        {sessions.length === 0 ? (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">Z-Abschlüsse</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="relative rounded-full border-border/60"
+            onClick={() => setFilterOpen(true)}
+            aria-label="Filter"
+          >
+            <Filter className="size-4" />
+            {activeFilterCount > 0 ? (
+              <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-accent text-[10px] font-medium text-accent-foreground">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </Button>
+        </div>
+        {listRangeInvalid ? (
+          <p className="text-sm text-destructive">
+            Das Enddatum muss am oder nach dem Startdatum liegen.
+          </p>
+        ) : null}
+        {sortedSessions.length === 0 ? (
           <Card className="border-border/50 shadow-card">
             <CardContent className="pt-6">
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-12 text-center">
@@ -366,14 +486,50 @@ export function PosReportsScreen() {
             </CardContent>
           </Card>
         ) : (
-          <ModuleDataTableFrame>
+          <ModulePaginatedDataTable
+            shown={paginated.length}
+            totalCount={sortedSessions.length}
+            itemLabel="Abschlüsse"
+            page={currentPage}
+            totalPages={totalPages}
+            canPrevious={currentPage > 1}
+            canNext={currentPage < totalPages}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
             <table className="w-full text-sm">
               <thead>
                 <tr className={moduleDataTableHeadRowClassName}>
-                  <th className="px-3 py-2 text-left font-medium">Z-Nr.</th>
-                  <th className="px-3 py-2 text-left font-medium">Geschlossen</th>
-                  <th className="px-3 py-2 text-right font-medium">Endbestand</th>
-                  <th className="px-3 py-2 text-right font-medium">Differenz</th>
+                  <ModuleTableSortHeader
+                    label="Z-Nr."
+                    sortKey="zNr"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={toggleSort}
+                  />
+                  <ModuleTableSortHeader
+                    label="Geschlossen"
+                    sortKey="closedAt"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={toggleSort}
+                  />
+                  <ModuleTableSortHeader
+                    label="Endbestand"
+                    sortKey="closing"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={toggleSort}
+                    align="right"
+                  />
+                  <ModuleTableSortHeader
+                    label="Differenz"
+                    sortKey="diff"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={toggleSort}
+                    align="right"
+                  />
                   {canReadAutopilot ? (
                     <th className="px-3 py-2 text-left font-medium">Autopilot</th>
                   ) : null}
@@ -381,7 +537,7 @@ export function PosReportsScreen() {
                 </tr>
               </thead>
               <tbody>
-                {sessions.map((session) => {
+                {paginated.map((session) => {
                   const zBusy = rowBusyId === `z-${session.id}`;
                   const zipBusy = rowBusyId === `zip-${session.id}`;
                   const autoBusy = rowBusyId === `auto-${session.id}`;
@@ -454,9 +610,23 @@ export function PosReportsScreen() {
                 })}
               </tbody>
             </table>
-          </ModuleDataTableFrame>
+          </ModulePaginatedDataTable>
         )}
       </div>
+
+      <PosListFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        description="Zeitraum für die Z-Abschluss-Liste."
+        fromYmd={listFrom}
+        toYmd={listTo}
+        onFromYmdChange={setListFrom}
+        onToYmdChange={setListTo}
+        onReset={() => {
+          setListFrom(defaultListFrom);
+          setListTo(today);
+        }}
+      />
     </div>
   );
 }

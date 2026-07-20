@@ -4,11 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ExternalLink,
   FileText,
+  Filter,
   Loader2,
   RotateCcw,
+  Search,
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  countPosDateRangeFilters,
+  PosListFilterDrawer,
+} from "@/components/pos/pos-list-filter-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,7 +22,6 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { DatePickerField } from "@/components/ui/date-picker";
 import {
   Drawer,
   DrawerContent,
@@ -24,6 +29,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -50,6 +56,21 @@ import {
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
+import {
+  ModuleTableSortHeader,
+  type ModuleTableSortDir,
+} from "@/lib/ui/module-table-sort-header";
+
+type MethodFilter = "all" | "cash" | "card" | "other" | "refunded";
+type ReceiptSortKey = "paidAt" | "orderNumber" | "table" | "method" | "amount";
+
+const METHOD_OPTIONS = [
+  { value: "all", label: "Alle Zahlungen" },
+  { value: "cash", label: "Bar" },
+  { value: "card", label: "Karte / Unbar" },
+  { value: "other", label: "Sonstige" },
+  { value: "refunded", label: "Nur Stornos" },
+] as const;
 
 function formatCents(cents: number): string {
   return new Intl.NumberFormat("de-DE", {
@@ -83,16 +104,31 @@ function methodLabel(method: string): string {
   return method || "—";
 }
 
+function methodBucket(method: string): "cash" | "card" | "other" {
+  const m = method.trim().toLowerCase();
+  if (m === "cash" || m === "bar") return "cash";
+  if (m === "card" || m === "karte" || m === "mollie" || m === "terminal") {
+    return "card";
+  }
+  return "other";
+}
+
 export function PosReceiptsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canManage = has("pos.kasse.manage");
+  const today = useMemo(() => todayYmdLocal(), []);
 
-  const [fromYmd, setFromYmd] = useState(todayYmdLocal);
-  const [toYmd, setToYmd] = useState(todayYmdLocal);
+  const [fromYmd, setFromYmd] = useState(today);
+  const [toYmd, setToYmd] = useState(today);
+  const [methodFilter, setMethodFilter] = useState<MethodFilter>("all");
+  const [search, setSearch] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [receipts, setReceipts] = useState<PosWebReceiptDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<ReceiptSortKey>("paidAt");
+  const [sortDir, setSortDir] = useState<ModuleTableSortDir>("desc");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [voidTarget, setVoidTarget] = useState<PosWebReceiptDto | null>(null);
   const [voidReasons, setVoidReasons] = useState<PosVoidReasonDto[]>([]);
@@ -102,6 +138,13 @@ export function PosReceiptsScreen() {
   const showSkeleton = useDeferredSkeleton(!ready || loading);
 
   const rangeInvalid = fromYmd > toYmd;
+  const activeFilterCount = countPosDateRangeFilters({
+    fromYmd,
+    toYmd,
+    defaultFromYmd: today,
+    defaultToYmd: today,
+    selectValue: methodFilter,
+  });
 
   const load = useCallback(async () => {
     if (!restaurantId || rangeInvalid) {
@@ -128,12 +171,77 @@ export function PosReceiptsScreen() {
     void load();
   }, [load]);
 
-  const totalPages = totalPagesFromCount(receipts.length, LIST_PAGE_SIZE_DEFAULT);
+  const toggleSort = (key: ReceiptSortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir(
+        key === "paidAt" || key === "amount" || key === "orderNumber"
+          ? "desc"
+          : "asc",
+      );
+      return;
+    }
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+  };
+
+  const filteredSorted = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let rows = receipts;
+    if (methodFilter === "refunded") {
+      rows = rows.filter((r) => r.status === "refunded");
+    } else if (methodFilter !== "all") {
+      rows = rows.filter(
+        (r) =>
+          r.status !== "refunded" && methodBucket(r.method) === methodFilter,
+      );
+    }
+    if (q) {
+      rows = rows.filter(
+        (r) =>
+          String(r.orderNumber).includes(q) ||
+          r.tableLabel.toLowerCase().includes(q) ||
+          methodLabel(r.method).toLowerCase().includes(q),
+      );
+    }
+    const mul = sortDir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      switch (sortKey) {
+        case "orderNumber":
+          return (a.orderNumber - b.orderNumber) * mul;
+        case "table":
+          return a.tableLabel.localeCompare(b.tableLabel, "de") * mul;
+        case "method":
+          return (
+            methodLabel(a.method).localeCompare(methodLabel(b.method), "de") *
+            mul
+          );
+        case "amount":
+          return (
+            (a.amountCents + a.tipCents - (b.amountCents + b.tipCents)) * mul
+          );
+        case "paidAt":
+        default: {
+          const at = a.paidAt ? new Date(a.paidAt).getTime() : 0;
+          const bt = b.paidAt ? new Date(b.paidAt).getTime() : 0;
+          return (at - bt) * mul;
+        }
+      }
+    });
+  }, [receipts, methodFilter, search, sortKey, sortDir]);
+
+  const totalPages = totalPagesFromCount(
+    filteredSorted.length,
+    LIST_PAGE_SIZE_DEFAULT,
+  );
   const currentPage = clampListPage(page, totalPages);
   const paginated = useMemo(() => {
     const start = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
-    return receipts.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
-  }, [receipts, currentPage]);
+    return filteredSorted.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
+  }, [filteredSorted, currentPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, methodFilter, sortKey, sortDir]);
 
   const openVoidDrawer = async (receipt: PosWebReceiptDto) => {
     if (!restaurantId || !canManage) return;
@@ -222,38 +330,42 @@ export function PosReceiptsScreen() {
 
   return (
     <div className="space-y-4 pt-2">
-      <Card className="border-border/50 shadow-card">
-        <CardContent className="grid gap-4 pt-6 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="pos-receipts-from">Von</Label>
-            <DatePickerField
-              id="pos-receipts-from"
-              value={fromYmd}
-              onChange={(v) => setFromYmd(v ?? fromYmd)}
-              fullWidth
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="pos-receipts-to">Bis</Label>
-            <DatePickerField
-              id="pos-receipts-to"
-              value={toYmd}
-              onChange={(v) => setToYmd(v ?? toYmd)}
-              minYmd={fromYmd}
-              fullWidth
-            />
-          </div>
-          {rangeInvalid ? (
-            <p className="text-sm text-destructive sm:col-span-2">
-              Das Enddatum muss am oder nach dem Startdatum liegen.
-            </p>
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Bon-Nr., Tisch, Zahlungsart…"
+            className="h-10 pl-9"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          className="relative rounded-full border-border/60"
+          onClick={() => setFilterOpen(true)}
+          aria-label="Filter"
+        >
+          <Filter className="size-4" />
+          {activeFilterCount > 0 ? (
+            <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-accent text-[10px] font-medium text-accent-foreground">
+              {activeFilterCount}
+            </span>
           ) : null}
-        </CardContent>
-      </Card>
+        </Button>
+      </div>
+
+      {rangeInvalid ? (
+        <p className="text-sm text-destructive">
+          Das Enddatum muss am oder nach dem Startdatum liegen.
+        </p>
+      ) : null}
 
       {showSkeleton ? (
         <Skeleton className="h-56 w-full rounded-xl" />
-      ) : receipts.length === 0 ? (
+      ) : filteredSorted.length === 0 ? (
         <Card className="border-border/50 shadow-card">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-12 text-center">
@@ -274,7 +386,7 @@ export function PosReceiptsScreen() {
       ) : (
         <ModulePaginatedDataTable
           shown={paginated.length}
-          totalCount={receipts.length}
+          totalCount={filteredSorted.length}
           itemLabel="Quittungen"
           page={currentPage}
           totalPages={totalPages}
@@ -286,11 +398,42 @@ export function PosReceiptsScreen() {
           <table className="w-full text-sm">
             <thead>
               <tr className={moduleDataTableHeadRowClassName}>
-                <th className="px-3 py-2 text-left font-medium">Zeit</th>
-                <th className="px-3 py-2 text-left font-medium">Bon</th>
-                <th className="px-3 py-2 text-left font-medium">Tisch</th>
-                <th className="px-3 py-2 text-left font-medium">Art</th>
-                <th className="px-3 py-2 text-right font-medium">Betrag</th>
+                <ModuleTableSortHeader
+                  label="Zeit"
+                  sortKey="paidAt"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <ModuleTableSortHeader
+                  label="Bon"
+                  sortKey="orderNumber"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <ModuleTableSortHeader
+                  label="Tisch"
+                  sortKey="table"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <ModuleTableSortHeader
+                  label="Art"
+                  sortKey="method"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <ModuleTableSortHeader
+                  label="Betrag"
+                  sortKey="amount"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                  align="right"
+                />
                 <th className="px-3 py-2 text-right font-medium">Aktionen</th>
               </tr>
             </thead>
@@ -400,6 +543,25 @@ export function PosReceiptsScreen() {
           </table>
         </ModulePaginatedDataTable>
       )}
+
+      <PosListFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        description="Zeitraum und Zahlungsart für Quittungen."
+        fromYmd={fromYmd}
+        toYmd={toYmd}
+        onFromYmdChange={setFromYmd}
+        onToYmdChange={setToYmd}
+        selectLabel="Zahlungsart"
+        selectValue={methodFilter}
+        selectOptions={[...METHOD_OPTIONS]}
+        onSelectChange={(v) => setMethodFilter(v as MethodFilter)}
+        onReset={() => {
+          setFromYmd(today);
+          setToYmd(today);
+          setMethodFilter("all");
+        }}
+      />
 
       <Drawer
         open={voidTarget != null}

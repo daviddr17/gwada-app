@@ -18,11 +18,12 @@ export type RegisterSessionRow = {
 export async function listClosedRegisterSessions(
   restaurantId: string,
   limit = 30,
+  options?: { fromClosedAt?: string; toClosedAtExclusive?: string },
 ): Promise<RegisterSessionRow[]> {
   const admin = createSupabaseAdminClient();
   if (!admin) return [];
 
-  const { data, error } = await admin
+  let query = admin
     .from("pos_register_sessions")
     .select(
       "id, opened_at, closed_at, opening_cash_cents, closing_cash_cents, expected_cash_cents, cash_difference_cents, z_nr, cash_point_closing_id, dsfinvk_business_date",
@@ -31,6 +32,15 @@ export async function listClosedRegisterSessions(
     .not("closed_at", "is", null)
     .order("closed_at", { ascending: false })
     .limit(limit);
+
+  if (options?.fromClosedAt) {
+    query = query.gte("closed_at", options.fromClosedAt);
+  }
+  if (options?.toClosedAtExclusive) {
+    query = query.lt("closed_at", options.toClosedAtExclusive);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("[pos] list register sessions", error.message);

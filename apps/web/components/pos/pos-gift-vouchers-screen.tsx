@@ -35,14 +35,22 @@ import type {
   PosGiftVoucherListStats,
   PosGiftVoucherRow,
 } from "@/lib/types/pos-gift-vouchers";
-import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
-  moduleDataTableHeadCellClassName,
-  moduleDataTableHeadRowClassName,
-  moduleDataTableShellClassName,
-} from "@/lib/ui/module-data-table";
+  LIST_PAGE_SIZE_DEFAULT,
+  clampListPage,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
+import {
+  ModuleTableSortHeader,
+  type ModuleTableSortDir,
+} from "@/lib/ui/module-table-sort-header";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
+
+type VoucherSortKey = "code" | "status" | "balance" | "expires";
 
 function formatCents(cents: number): string {
   return new Intl.NumberFormat("de-DE", {
@@ -78,6 +86,9 @@ export function PosGiftVouchersScreen() {
   const [amountEuro, setAmountEuro] = useState("50");
   const [issuing, setIssuing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [sortKey, setSortKey] = useState<VoucherSortKey>("code");
+  const [sortDir, setSortDir] = useState<ModuleTableSortDir>("asc");
   const showSkeleton = useDeferredSkeleton(!ready || loading);
 
   const activeFilterCount = statusFilter ? 1 : 0;
@@ -190,7 +201,51 @@ export function PosGiftVouchersScreen() {
     );
   };
 
-  const rows = useMemo(() => vouchers, [vouchers]);
+  const toggleSort = (key: VoucherSortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir(key === "balance" || key === "expires" ? "desc" : "asc");
+      return;
+    }
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+  };
+
+  const rows = useMemo(() => {
+    const mul = sortDir === "asc" ? 1 : -1;
+    return [...vouchers].sort((a, b) => {
+      switch (sortKey) {
+        case "status":
+          return (
+            (STATUS_LABEL[a.status] ?? a.status).localeCompare(
+              STATUS_LABEL[b.status] ?? b.status,
+              "de",
+            ) * mul
+          );
+        case "balance":
+          return (a.balance_cents - b.balance_cents) * mul;
+        case "expires":
+          return (
+            (new Date(a.expires_at).getTime() -
+              new Date(b.expires_at).getTime()) *
+            mul
+          );
+        case "code":
+        default:
+          return a.code.localeCompare(b.code, "de") * mul;
+      }
+    });
+  }, [vouchers, sortKey, sortDir]);
+
+  const totalPages = totalPagesFromCount(rows.length, LIST_PAGE_SIZE_DEFAULT);
+  const currentPage = clampListPage(page, totalPages);
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
+    return rows.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
+  }, [rows, currentPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, sortKey, sortDir]);
 
   if (!ready) {
     return <WorkspaceRestaurantResolvePlaceholder className="py-10" />;
@@ -272,103 +327,119 @@ export function PosGiftVouchersScreen() {
             Gutschein ausstellen
           </Button>
 
-          <div className={cn(moduleDataTableShellClassName, "ring-1 ring-border/40")}>
-            <div className="overflow-x-auto">
+          {rows.length === 0 ? (
+            <Card className="border-border/50 shadow-card">
+              <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                Noch keine Gutscheine.
+              </CardContent>
+            </Card>
+          ) : (
+            <ModulePaginatedDataTable
+              shown={paginated.length}
+              totalCount={rows.length}
+              itemLabel="Gutscheine"
+              page={currentPage}
+              totalPages={totalPages}
+              canPrevious={currentPage > 1}
+              canNext={currentPage < totalPages}
+              onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
               <table className="w-full min-w-[40rem] text-sm">
                 <thead>
                   <tr className={moduleDataTableHeadRowClassName}>
-                    <th className={moduleDataTableHeadCellClassName}>Code</th>
-                    <th className={moduleDataTableHeadCellClassName}>Status</th>
-                    <th
-                      className={cn(
-                        moduleDataTableHeadCellClassName,
-                        "text-right",
-                      )}
-                    >
-                      Guthaben
-                    </th>
-                    <th className={moduleDataTableHeadCellClassName}>
-                      Gültig bis
-                    </th>
-                    <th className={moduleDataTableHeadCellClassName}>
-                      Aktionen
-                    </th>
+                    <ModuleTableSortHeader
+                      label="Code"
+                      sortKey="code"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <ModuleTableSortHeader
+                      label="Status"
+                      sortKey="status"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <ModuleTableSortHeader
+                      label="Guthaben"
+                      sortKey="balance"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                      align="right"
+                    />
+                    <ModuleTableSortHeader
+                      label="Gültig bis"
+                      sortKey="expires"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <th className="px-3 py-2 text-left font-medium">Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-4 py-8 text-center text-muted-foreground"
-                      >
-                        Noch keine Gutscheine.
+                  {paginated.map((v) => (
+                    <tr key={v.id} className="border-t border-border/40">
+                      <td className="px-3 py-2.5 font-medium tabular-nums">
+                        {v.code}
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {formatDate(v.issued_at)} ·{" "}
+                          {formatCents(v.initial_amount_cents)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {STATUS_LABEL[v.status] ?? v.status}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums font-medium">
+                        {formatCents(v.balance_cents)}
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums">
+                        {formatDate(v.expires_at)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={v.status === "voided"}
+                            onClick={() => printVoucher(v, "a4")}
+                          >
+                            <Printer className="size-3.5" />
+                            A4
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={v.status === "voided"}
+                            onClick={() => printVoucher(v, "thermal")}
+                          >
+                            Bon
+                          </Button>
+                          {v.status === "active" &&
+                          v.balance_cents === v.initial_amount_cents ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={busyId === v.id}
+                              onClick={() => void voidVoucher(v)}
+                            >
+                              Storno
+                            </Button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
-                  ) : (
-                    rows.map((v) => (
-                      <tr
-                        key={v.id}
-                        className="border-b border-border/40 last:border-0"
-                      >
-                        <td className="px-4 py-2.5 font-medium tabular-nums">
-                          {v.code}
-                          <span className="mt-0.5 block text-xs text-muted-foreground">
-                            {formatDate(v.issued_at)} ·{" "}
-                            {formatCents(v.initial_amount_cents)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {STATUS_LABEL[v.status] ?? v.status}
-                        </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-medium">
-                          {formatCents(v.balance_cents)}
-                        </td>
-                        <td className="px-4 py-2.5 tabular-nums">
-                          {formatDate(v.expires_at)}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex flex-wrap gap-1.5">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={v.status === "voided"}
-                              onClick={() => printVoucher(v, "a4")}
-                            >
-                              <Printer className="size-3.5" />
-                              A4
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={v.status === "voided"}
-                              onClick={() => printVoucher(v, "thermal")}
-                            >
-                              Bon
-                            </Button>
-                            {v.status === "active" &&
-                            v.balance_cents === v.initial_amount_cents ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                disabled={busyId === v.id}
-                                onClick={() => void voidVoucher(v)}
-                              >
-                                Storno
-                              </Button>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
               </table>
-            </div>
-          </div>
+            </ModulePaginatedDataTable>
+          )}
         </>
       )}
 

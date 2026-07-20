@@ -40,6 +40,15 @@ export type PosStatisticsPaymentMethodBucket = {
   count: number;
 };
 
+/** Verkaufte Speisekarten-/POS-Artikel im Zeitraum (aus bezahlten Bestellungen). */
+export type PosStatisticsItemBucket = {
+  menuItemId: string | null;
+  name: string;
+  quantity: number;
+  lineTotalCents: number;
+  orderCount: number;
+};
+
 export type PosStatisticsBundle = {
   fromYmd: string;
   toYmd: string;
@@ -64,6 +73,8 @@ export type PosStatisticsBundle = {
   /** Aufschlüsselung inkl. eigener Zahlungsarten. */
   byPaymentMethods: PosStatisticsPaymentMethodBucket[];
   byDay: PosStatisticsDayBucket[];
+  /** Artikel nach verkaufter Menge (absteigend). */
+  byItem: PosStatisticsItemBucket[];
   zSessions: PosStatisticsZSession[];
 };
 
@@ -260,6 +271,13 @@ export async function loadPosStatisticsBundle(
     }
   }
 
+  const byItem = await loadPosItemSalesInRange(
+    supabase,
+    restaurantId,
+    bounds.startAt,
+    bounds.endAt,
+  );
+
   const grossCents = netCents + tipCents;
   return {
     fromYmd,
@@ -287,6 +305,85 @@ export async function loadPosStatisticsBundle(
       (a, b) => b.cents - a.cents || a.label.localeCompare(b.label),
     ),
     byDay: [...dayMap.values()],
+    byItem,
     zSessions,
   };
+}
+
+async function loadPosItemSalesInRange(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  startAt: string,
+  endAt: string,
+): Promise<PosStatisticsItemBucket[]> {
+  const { data: orders, error: ordersError } = await supabase
+    .from("pos_orders")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "delivered")
+    .gte("closed_at", startAt)
+    .lt("closed_at", endAt)
+    .limit(5000);
+
+  if (ordersError) {
+    console.warn("[pos] statistics item orders", ordersError.message);
+    return [];
+  }
+  if (!orders?.length) return [];
+
+  const orderIds = orders.map((o) => o.id as string);
+  const itemMap = new Map<string, PosStatisticsItemBucket>();
+  const orderIdsPerKey = new Map<string, Set<string>>();
+
+  // Chunk IN-Queries to stay within PostgREST URL limits.
+  const chunkSize = 200;
+  for (let i = 0; i < orderIds.length; i += chunkSize) {
+    const chunk = orderIds.slice(i, i + chunkSize);
+    const { data: lines, error: linesError } = await supabase
+      .from("pos_order_lines")
+      .select("order_id, menu_item_id, name, quantity, line_total_cents, paid_quantity")
+      .in("order_id", chunk);
+
+    if (linesError) {
+      console.warn("[pos] statistics item lines", linesError.message);
+      continue;
+    }
+
+    for (const line of lines ?? []) {
+      const qty = Number(line.paid_quantity ?? line.quantity ?? 0);
+      if (!(qty > 0)) continue;
+      const name = String(line.name ?? "").trim() || "Artikel";
+      const menuItemId = (line.menu_item_id as string | null) ?? null;
+      const key = menuItemId ?? `name:${name.toLowerCase()}`;
+      const existing = itemMap.get(key) ?? {
+        menuItemId,
+        name,
+        quantity: 0,
+        lineTotalCents: 0,
+        orderCount: 0,
+      };
+      const unitTotal = Number(line.line_total_cents ?? 0);
+      const fullQty = Number(line.quantity ?? 0);
+      const proportional =
+        fullQty > 0 ? Math.round((unitTotal * qty) / fullQty) : unitTotal;
+      existing.quantity += qty;
+      existing.lineTotalCents += proportional;
+      itemMap.set(key, existing);
+
+      const orderSet = orderIdsPerKey.get(key) ?? new Set<string>();
+      orderSet.add(String(line.order_id));
+      orderIdsPerKey.set(key, orderSet);
+    }
+  }
+
+  for (const [key, bucket] of itemMap) {
+    bucket.orderCount = orderIdsPerKey.get(key)?.size ?? 0;
+  }
+
+  return [...itemMap.values()].sort(
+    (a, b) =>
+      b.quantity - a.quantity ||
+      b.lineTotalCents - a.lineTotalCents ||
+      a.name.localeCompare(b.name, "de"),
+  );
 }

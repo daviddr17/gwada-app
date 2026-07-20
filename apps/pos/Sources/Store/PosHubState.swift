@@ -449,7 +449,10 @@ final class PosHubState: @unchecked Sendable {
                     connectionType: job["connectionType"] as? String ?? "virtual",
                     host: job["host"] as? String ?? "",
                     port: UInt16(clamping: max(1, portNum)),
-                    lines: lines
+                    lines: lines,
+                    kind: job["kind"] as? String ?? "kitchen",
+                    amountCents: job["amountCents"] as? Int ?? 0,
+                    tipCents: job["tipCents"] as? Int ?? 0
                 )
             )
             localPrintJobs[i]["status"] = "printing"
@@ -624,5 +627,34 @@ final class PosHubState: @unchecked Sendable {
             PosLocalStore.saveBootstrap(bootstrap)
         }
         return (amount, true)
+    }
+
+    /// Zwischenbon mit Hinweis „Fiskalisierung fehlgeschlagen / Nachsignierung ausstehend“.
+    func enqueueFiscalPendingCashReceipt(amountCents: Int, tipCents: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        let printers = bootstrap?.printers ?? []
+        let printer = printers.first(where: {
+            $0.isActive && ($0.connectionType == "network" || $0.connectionType == "lan")
+        }) ?? printers.first(where: \.isActive)
+        guard let printer else { return }
+        localPrintJobs.insert([
+            "id": UUID().uuidString,
+            "printerId": printer.id,
+            "printerName": printer.name,
+            "orderNumber": 0,
+            "status": "pending",
+            "kind": "cash_fiscal_pending",
+            "amountCents": amountCents,
+            "tipCents": tipCents,
+            "connectionType": printer.connectionType,
+            "host": printer.resolvedHost ?? "",
+            "port": Int(printer.resolvedPort ?? 9100),
+            "lines": [] as [[String: Any]],
+            "createdAt": ISO8601DateFormatter().string(from: Date()),
+        ], at: 0)
+        if localPrintJobs.count > 80 {
+            localPrintJobs = Array(localPrintJobs.prefix(80))
+        }
     }
 }

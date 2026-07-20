@@ -42,10 +42,13 @@ struct RootView: View {
     }
 
     @EnvironmentObject private var runtime: PosRuntime
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var pinLock = PosPinLockStore.shared
+    @ObservedObject private var network = PosNetworkMonitor.shared
     @State private var selection: SidebarItem? = .tables
     @State private var kellnerTab: KellnerTab = .tables
     @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var lastInteraction = Date()
 
     var body: some View {
         Group {
@@ -55,6 +58,35 @@ struct RootView: View {
                 hubSplitView
             } else {
                 kellnerTabView
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                pinLock.lock(reason: "scene_background")
+            }
+        }
+        .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { now in
+            guard pinLock.isUnlocked, pinLock.hasPinConfigured else { return }
+            let idle = now.timeIntervalSince(lastInteraction)
+            if idle >= pinLock.autoLockSeconds {
+                pinLock.lock(reason: "auto_idle")
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0).onChanged { _ in
+                lastInteraction = Date()
+            }
+        )
+        .overlay(alignment: .top) {
+            if !network.isOnline {
+                Text("Offline — Bestellen OK · Zahlung gesperrt")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.red.opacity(0.9), in: Capsule())
+                    .foregroundStyle(.white)
+                    .padding(.top, 4)
+                    .allowsHitTesting(false)
             }
         }
     }
@@ -93,7 +125,7 @@ struct RootView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        pinLock.lock()
+                        pinLock.lock(reason: "toolbar")
                     } label: {
                         Image(systemName: "lock.fill")
                     }

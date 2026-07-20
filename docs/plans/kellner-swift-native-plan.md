@@ -223,13 +223,13 @@ Abhaken = Swift+Hub+Nest decken den Prototyp-Flow ab:
 - [ ] Device-Enrollment + PIN-Login offline am Hub *(PIN-Lock lokal ✅; Enrollment-Code Admin Phase 1)*
 - [x] Tischplan Status/Timer/Summe/Res-Hinweis
 - [x] Session eröffnen (Tap / Walk-in / Reservierung)
-- [ ] Bestellung: Kategorien, Ein-Tap vs Modifier-Sheet, Gänge, Fire → Küchenbon
+- [ ] Bestellung: Kategorien, Ein-Tap vs Modifier-Sheet, Gänge, Fire → Küchenbon *(Fire-UI + Outbox ✅; Ein-Tap-Parität / Bon-Layout Pilot)*
 - [x] Tisch umziehen (Order+Gäste+Timer+Settled wandern)
 - [x] Reservierungs-Timeline + Konflikt <60 min + Platzieren
 - [x] Split Person (1 Einheit/Tap) + Gleich teilen + Sperre Anteile→Person
 - [x] Zahlung Bar / Mollie Karte / Mollie PayPal + Trinkgeld
 - [x] TSE-Felder auf Beleg + Teilen; Belegliste pro Session
-- [ ] Status bezahlt → explizite Freigabe; Abbruch nur vor erstem Fire
+- [x] Status bezahlt → explizite Freigabe; Abbruch nur vor erstem Fire
 - [x] Schichtübergabe 4-Augen-PIN
 - [x] Caps steuern Mehr-Tab
 - [x] Branding-Accent vom Restaurant
@@ -280,13 +280,14 @@ Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Aut
 
 **Exit:** Manueller Walkthrough auf iPhone-Simulator + iPad-Hub (PIN → Tabs → Tisch → Order → Split → Beleg).
 
-### Phase 5 — Härtung & Pilot
-1. Audit-Log, Lockout, Keychain.
-2. Offline-/Online-Matrix testen (Zahlung nur online).
-3. TestFlight Kellner + Hub.
-4. Expo-Entfernungs-PR vorbereiten (nach Pilot-Signoff).
+### Phase 5 — Härtung & Pilot ✅ (Code 2026-07-20; Signoff ausstehend)
+1. Audit-Log, Lockout (eskaliert), Keychain-PIN, Auto-/Background-Lock.
+2. Offline-/Online-Matrix: Zahlung nur online (`PosNetworkMonitor`); Bestellen/LAN weiter offline.
+3. Fire-Course + explizite Freigabe / Abbruch-vor-Fire; TestFlight-Checklist.
+4. Expo-Entfernungs-PR vorbereitet (Doku) — Löschen erst nach Pilot-Signoff.
 
-**Exit:** Ein Standort Pilot-Schicht; Checklist signiert.
+**Exit:** Ein Standort Pilot-Schicht; Checklist [`kellner-phase5-pilot-checklist.md`](./kellner-phase5-pilot-checklist.md) signiert.  
+Expo-Prep: [`expo-staff-removal-prep.md`](./expo-staff-removal-prep.md).
 
 ---
 

@@ -529,6 +529,17 @@ final class PosRuntime: ObservableObject {
         giftVoucherId: String? = nil,
         customPaymentMethodId: String? = nil
     ) async {
+        // Phase 5: Zahlung nur online (TSE / Mollie / Cloud-Persistenz).
+        guard PosNetworkMonitor.shared.canCollectPayment else {
+            statusMessage = "Zahlung nur online — bitte Netz prüfen."
+            PosAuditLog.shared.record(
+                "payment.blocked_offline",
+                detail: method.rawValue,
+                sessionId: sessionId
+            )
+            return
+        }
+
         let restaurantId = PosHubState.shared.restaurantId
         let allocations = lines.map { ($0.orderLineId, $0.openQuantity) }
 
@@ -631,7 +642,9 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Teilzahlung kassiert."
             await pullCloudBootstrap(forceDemoFallback: false)
             publishSnapshot(PosHubState.shared.makeSnapshot())
+            PosAuditLog.shared.record("payment.cash", detail: "ok", sessionId: sessionId)
         } catch {
+            // Online war da, Cloud-Call scheiterte → Queue (Retry), nicht „offline erlaubt“.
             PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
                 restaurantId: restaurantId,
                 tableSessionId: sessionId,
@@ -641,7 +654,63 @@ final class PosRuntime: ObservableObject {
             ))
             syncPending = PosSyncQueue.shared.pendingCount
             statusMessage = "Zahlung lokal gequeued — \(error.localizedDescription)"
+            PosAuditLog.shared.record(
+                "payment.cash_queued",
+                detail: error.localizedDescription,
+                sessionId: sessionId
+            )
         }
+    }
+
+    /// Gang an Küche feuern (Nest Outbox + lokaler KDS/Druck).
+    @discardableResult
+    func fireCourse(sessionId: String, course: String) async -> Bool {
+        let restaurantId = PosHubState.shared.restaurantId
+        PosHubState.shared.markFired(sessionId: sessionId)
+        PosSyncQueue.shared.enqueueFireCourse(PosSyncFireCoursePayload(
+            restaurantId: restaurantId,
+            tableSessionId: sessionId,
+            course: course,
+            fireAttemptId: UUID().uuidString
+        ))
+        syncPending = PosSyncQueue.shared.pendingCount
+        await PosSyncQueue.shared.flushIfPossible()
+        syncPending = PosSyncQueue.shared.pendingCount
+        Task { await PosPrintDispatcher.shared.kick() }
+        PosAuditLog.shared.record("course.fired", detail: course, sessionId: sessionId)
+        statusMessage = "Gang „\(course)“ gefeuert."
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+        return true
+    }
+
+    /// Tisch freigeben (nach bezahlt) oder Abbruch nur vor erstem Fire.
+    @discardableResult
+    func releaseTable(sessionId: String, forceAbort: Bool = false) async -> Bool {
+        if forceAbort, PosHubState.shared.hasFired(sessionId: sessionId) {
+            statusMessage = "Abbruch nur vor erstem Küchen-Fire."
+            PosAuditLog.shared.record("session.abort_blocked", detail: "already_fired", sessionId: sessionId)
+            return false
+        }
+        let ok = PosHubState.shared.releaseLocalSession(sessionId: sessionId)
+        guard ok else {
+            statusMessage = "Session nicht gefunden."
+            return false
+        }
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+        PosSyncQueue.shared.enqueueReleaseSession(PosSyncReleaseSessionPayload(
+            restaurantId: PosHubState.shared.restaurantId,
+            tableSessionId: sessionId
+        ))
+        syncPending = PosSyncQueue.shared.pendingCount
+        await PosSyncQueue.shared.flushIfPossible()
+        syncPending = PosSyncQueue.shared.pendingCount
+        PosAuditLog.shared.record(
+            forceAbort ? "session.aborted" : "session.released",
+            detail: forceAbort ? "abort" : "release",
+            sessionId: sessionId
+        )
+        statusMessage = forceAbort ? "Tisch abgebrochen." : "Tisch freigegeben."
+        return true
     }
 
     func moveLines(

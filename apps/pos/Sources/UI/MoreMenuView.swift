@@ -43,11 +43,16 @@ struct MoreMenuView: View {
                     }
                 }
                 Button {
-                    lock.lock()
+                    lock.lock(reason: "more_menu")
                 } label: {
                     Label("Gerät sperren", systemImage: "lock.fill")
                 }
                 .disabled(!lock.hasPinConfigured)
+                NavigationLink {
+                    AuditLogView()
+                } label: {
+                    Label("Audit-Log", systemImage: "list.bullet.rectangle")
+                }
             }
 
             Section("Belege & Küche") {

@@ -87,6 +87,15 @@ Auf dem iPad unter **Gerät → Erweitert / Nest Sync**: Nest-URL `http://<Mac-L
 
 Features: Floor-Grid (Timer/Summe/Res-Hinweis), Walk-in, Resv-Timeline 17–23, Session-Umzug, Übergabe (Nest), Gleich-teilen, Karte/PayPal via Nest, Gastbeleg-ShareLink, Caps-gefiltertes Mehr-Menü. Nest-Fallback-Flag für Hub-Ausfall.
 
+## Härtung (Phase 5)
+
+- PIN-Hash im **Keychain**; Lockout eskaliert; Auto-Lock + Background-Lock
+- **Audit-Log** (Mehr → Audit, Share/Export)
+- **Zahlung nur online** (Offline-Banner); Bestellen/LAN weiter offline
+- **Fire** + **Freigeben** / Abbruch nur vor erstem Fire
+- Pilot: [`docs/plans/kellner-phase5-pilot-checklist.md`](../../docs/plans/kellner-phase5-pilot-checklist.md)
+- Expo-Entfernung (nach Signoff): [`docs/plans/expo-staff-removal-prep.md`](../../docs/plans/expo-staff-removal-prep.md)
+
 ## Küchen-Routing
 
 Web **POS → Einstellungen**: Bondrucker anlegen, pro Speisekarten-Kategorie Ziel wählen (KDS / Drucker / beides / keines). Bootstrap liefert `kitchen` an den Hub; Bestellungen füllen KDS-Tickets und die lokale Druck-Queue (`/v1/print-jobs`). ESC/POS-Hardware folgt.

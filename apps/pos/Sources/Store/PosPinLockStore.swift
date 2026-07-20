@@ -1,8 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// Lokaler PIN-Lock für Kellner-Geräte (Phase 4 Prototyp).
-/// Speichert nur Hash — kein Klartext. Lockout nach Fehlversuchen.
+/// PIN-Lock mit Keychain, eskalierendem Lockout und Audit (Phase 5).
 @MainActor
 final class PosPinLockStore: ObservableObject {
     static let shared = PosPinLockStore()
@@ -13,14 +12,18 @@ final class PosPinLockStore: ObservableObject {
     @Published private(set) var hasPinConfigured = false
     @Published var activeWaiterProfileId: String?
 
-    private let pinHashKey = "gwada_pos_waiter_pin_sha256"
-    private let saltKey = "gwada_pos_waiter_pin_salt"
+    private let pinHashAccount = "waiter_pin_sha256"
+    private let saltAccount = "waiter_pin_salt"
+    private let lockoutCountKey = "gwada_pos_lockout_streak"
+    private let legacyHashKey = "gwada_pos_waiter_pin_sha256"
+    private let legacySaltKey = "gwada_pos_waiter_pin_salt"
+
     private let maxAttempts = 5
-    private let lockoutSeconds: TimeInterval = 30
+    private let baseLockoutSeconds: TimeInterval = 30
 
     private init() {
-        hasPinConfigured = UserDefaults.standard.string(forKey: pinHashKey) != nil
-        // Hub ohne gesetzte PIN: entsperrt (Enrollment später).
+        migrateFromUserDefaultsIfNeeded()
+        hasPinConfigured = PosKeychain.get(account: pinHashAccount) != nil
         isUnlocked = !hasPinConfigured
     }
 
@@ -34,43 +37,62 @@ final class PosPinLockStore: ObservableObject {
         return max(0, Int(until.timeIntervalSinceNow.rounded(.up)))
     }
 
+    /// Auto-Lock nach Inaktivität (Sekunden). 0 = aus.
+    var autoLockSeconds: TimeInterval {
+        get {
+            let v = UserDefaults.standard.double(forKey: "gwada_pos_auto_lock_seconds")
+            return v > 0 ? v : 120
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "gwada_pos_auto_lock_seconds")
+        }
+    }
+
     func configurePin(_ pin: String) -> Bool {
         let digits = pin.filter(\.isNumber)
         guard digits.count == 6 else { return false }
         let salt = UUID().uuidString
         let hash = Self.hash(pin: digits, salt: salt)
-        UserDefaults.standard.set(salt, forKey: saltKey)
-        UserDefaults.standard.set(hash, forKey: pinHashKey)
+        PosKeychain.set(salt, account: saltAccount)
+        PosKeychain.set(hash, account: pinHashAccount)
         hasPinConfigured = true
         isUnlocked = true
         failedAttempts = 0
         lockedUntil = nil
+        UserDefaults.standard.set(0, forKey: lockoutCountKey)
+        PosAuditLog.shared.record("pin.configured", detail: "PIN gesetzt (Keychain)")
         return true
     }
 
     func clearPin() {
-        UserDefaults.standard.removeObject(forKey: pinHashKey)
-        UserDefaults.standard.removeObject(forKey: saltKey)
+        PosKeychain.delete(account: pinHashAccount)
+        PosKeychain.delete(account: saltAccount)
+        UserDefaults.standard.removeObject(forKey: legacyHashKey)
+        UserDefaults.standard.removeObject(forKey: legacySaltKey)
         hasPinConfigured = false
         isUnlocked = true
         failedAttempts = 0
         lockedUntil = nil
+        PosAuditLog.shared.record("pin.cleared", detail: "PIN entfernt")
     }
 
-    func lock() {
+    func lock(reason: String = "manual") {
         guard hasPinConfigured else { return }
         isUnlocked = false
+        PosAuditLog.shared.record("pin.locked", detail: reason)
     }
 
     @discardableResult
     func unlock(with pin: String) -> Bool {
-        if isInLockout { return false }
+        if isInLockout {
+            PosAuditLog.shared.record("pin.unlock_blocked", detail: "lockout")
+            return false
+        }
         let digits = pin.filter(\.isNumber)
         guard digits.count == 6 else { return false }
-        guard let salt = UserDefaults.standard.string(forKey: saltKey),
-              let expected = UserDefaults.standard.string(forKey: pinHashKey)
+        guard let salt = PosKeychain.get(account: saltAccount),
+              let expected = PosKeychain.get(account: pinHashAccount)
         else {
-            // Kein PIN → Setup nötig
             return false
         }
         let actual = Self.hash(pin: digits, salt: salt)
@@ -78,14 +100,36 @@ final class PosPinLockStore: ObservableObject {
             isUnlocked = true
             failedAttempts = 0
             lockedUntil = nil
+            UserDefaults.standard.set(0, forKey: lockoutCountKey)
+            PosAuditLog.shared.record("pin.unlocked", detail: "ok")
             return true
         }
         failedAttempts += 1
+        PosAuditLog.shared.record("pin.unlock_failed", detail: "attempt \(failedAttempts)")
         if failedAttempts >= maxAttempts {
-            lockedUntil = Date().addingTimeInterval(lockoutSeconds)
+            let streak = UserDefaults.standard.integer(forKey: lockoutCountKey) + 1
+            UserDefaults.standard.set(streak, forKey: lockoutCountKey)
+            let seconds = baseLockoutSeconds * pow(2.0, Double(min(streak - 1, 4)))
+            lockedUntil = Date().addingTimeInterval(seconds)
             failedAttempts = 0
+            PosAuditLog.shared.record(
+                "pin.lockout",
+                detail: "\(Int(seconds))s (streak \(streak))"
+            )
         }
         return false
+    }
+
+    private func migrateFromUserDefaultsIfNeeded() {
+        guard PosKeychain.get(account: pinHashAccount) == nil,
+              let hash = UserDefaults.standard.string(forKey: legacyHashKey),
+              let salt = UserDefaults.standard.string(forKey: legacySaltKey)
+        else { return }
+        PosKeychain.set(hash, account: pinHashAccount)
+        PosKeychain.set(salt, account: saltAccount)
+        UserDefaults.standard.removeObject(forKey: legacyHashKey)
+        UserDefaults.standard.removeObject(forKey: legacySaltKey)
+        PosAuditLog.shared.record("pin.migrated_keychain", detail: "from UserDefaults")
     }
 
     private static func hash(pin: String, salt: String) -> String {

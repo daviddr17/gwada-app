@@ -255,6 +255,45 @@ struct TableSessionView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 10) {
+            if sessionId != nil || !openLines.isEmpty {
+                HStack(spacing: 8) {
+                    Button {
+                        Task {
+                            let sid = ensureSessionId()
+                            _ = await runtime.fireCourse(sessionId: sid, course: "main")
+                        }
+                    } label: {
+                        Label("Fire", systemImage: "flame.fill")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+
+                    Button {
+                        Task {
+                            let sid = ensureSessionId()
+                            let open = openTotal
+                            if open <= 0 {
+                                _ = await runtime.releaseTable(sessionId: sid, forceAbort: false)
+                            } else if !PosHubState.shared.hasFired(sessionId: sid) {
+                                _ = await runtime.releaseTable(sessionId: sid, forceAbort: true)
+                            } else {
+                                runtime.announce("Offener Betrag — erst kassieren, dann freigeben.")
+                            }
+                        }
+                    } label: {
+                        Label(
+                            openTotal <= 0 ? "Freigeben" : "Abbruch",
+                            systemImage: openTotal <= 0 ? "checkmark.circle" : "xmark.circle"
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
             Button {
                 showMenu = true
             } label: {

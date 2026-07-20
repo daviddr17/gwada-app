@@ -226,6 +226,39 @@ final class PosHubState: @unchecked Sendable {
         return true
     }
 
+    /// Session freigeben (nach bezahlt / Abbruch vor Fire).
+    @discardableResult
+    func releaseLocalSession(sessionId: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var bootstrap else { return false }
+        let before = bootstrap.floor.openSessions.count
+        bootstrap.floor.openSessions.removeAll { $0.id == sessionId }
+        bootstrap.floor.orderCountBySessionId.removeValue(forKey: sessionId)
+        bootstrap.floor.sessionMetaBySessionId.removeValue(forKey: sessionId)
+        guard bootstrap.floor.openSessions.count < before else { return false }
+        firedSessionIds.remove(sessionId)
+        self.bootstrap = bootstrap
+        snapshotVersion += 1
+        PosLocalStore.saveBootstrap(bootstrap)
+        return true
+    }
+
+    /// Ob für die Session schon ein Küchen-Fire gelaufen ist (Abbruch-Gate).
+    func hasFired(sessionId: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return firedSessionIds.contains(sessionId)
+    }
+
+    func markFired(sessionId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        firedSessionIds.insert(sessionId)
+    }
+
+    private var firedSessionIds: Set<String> = []
+
     func bumpLocalOrder(sessionId: String, addCents: Int) {
         lock.lock()
         defer { lock.unlock() }

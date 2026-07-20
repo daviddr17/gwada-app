@@ -95,6 +95,7 @@ struct HandoverSheet: View {
             if (200 ... 299).contains(http.statusCode) {
                 message = "Übergabe erfolgreich."
                 runtime.announce("Schicht übergeben.")
+                PosAuditLog.shared.record("shift.transfer", detail: "to \(toId)")
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 dismiss()
             } else {

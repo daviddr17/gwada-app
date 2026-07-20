@@ -37,6 +37,7 @@ struct SplitPayView: View {
     }
 
     @EnvironmentObject private var runtime: PosRuntime
+    @ObservedObject private var network = PosNetworkMonitor.shared
     @State private var selected: Set<String> = []
     @State private var method: PosPaymentMethodKind = .cash
     @State private var selectedMethodId: String?
@@ -247,21 +248,29 @@ struct SplitPayView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button {
-                    payPulse.toggle()
-                    if method == .voucher {
-                        showVoucherConfirm = true
-                    } else {
-                        let picked = lines.filter { selected.contains($0.id) }
-                        let received = method == .cash ? effectiveTendered : nil
-                        let customId = method == .other ? selectedMethodId : nil
-                        onPay(picked, method, tipCents, received, nil, customId)
+                VStack(spacing: 8) {
+                    if !network.canCollectPayment {
+                        Text("Offline — Zahlung gesperrt (Bestellen weiter möglich).")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity)
                     }
-                } label: {
-                    Text(payButtonTitle)
+                    Button {
+                        payPulse.toggle()
+                        if method == .voucher {
+                            showVoucherConfirm = true
+                        } else {
+                            let picked = lines.filter { selected.contains($0.id) }
+                            let received = method == .cash ? effectiveTendered : nil
+                            let customId = method == .other ? selectedMethodId : nil
+                            onPay(picked, method, tipCents, received, nil, customId)
+                        }
+                    } label: {
+                        Text(payButtonTitle)
+                    }
+                    .buttonStyle(PosPrimaryButtonStyle())
+                    .disabled(!canPay || !network.canCollectPayment)
                 }
-                .buttonStyle(PosPrimaryButtonStyle())
-                .disabled(!canPay)
                 .padding()
                 .background(.ultraThinMaterial)
             }

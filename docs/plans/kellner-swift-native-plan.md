@@ -250,12 +250,11 @@ Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Aut
 
 **Exit:** Nest health, `apps/pos` öffnet via xcodegen, Domain-Tests grün.
 ### Phase 1 — Schema & Admin
-1. Migrationen: Session-Status/`owner`/`settlement`, Courses/Mods Snapshot, Modifier-Tabellen, Capabilities/Roles.
-2. Web-Admin: Modifier-Editor, Caps/Rollen-UI, Device-Enrollment-Code.
-3. Catalog-API + Branding-Endpoint (Accent, Venue für Beleg).
+1. Migrationen: Session-Status/`owner`/`settlement`, Side-Config, Capabilities/Roles, Devices.
+2. Web-Admin: POS → Einstellungen → **Geräte & Rechte** (+ Beilagen-Config); Optionsgruppen bleiben Speisekarte.
+3. Nest: `GET /v1/catalog`, `GET /v1/branding` (Service-Role).
 
-**Exit:** Ein Demo-Restaurant hat Caps, Modifier, Enrollment-Code.
-
+**Exit:** Caps/Rollen + Enrollment-Code im Admin; Catalog/Branding am Nest erreichbar (mit Supabase-Env).
 ### Phase 2 — Nest Kern + Fiskaly/Mollie Salvage
 1. Sessions/Orders/Fire/Move/Release.
 2. Payments: Bar + Mollie (Card + PayPal) inkl. Teilzahlungen/Belege.

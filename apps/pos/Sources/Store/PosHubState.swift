@@ -8,6 +8,8 @@ final class PosHubState: @unchecked Sendable {
     private var bootstrap: PosCloudBootstrap?
     private var hubDeviceId: String = UUID().uuidString
     private var usingDemo = true
+    private var snapshotVersion: Int = 1
+    private var waiterCaps: [String: [String]] = [:]
 
     private init() {}
 
@@ -17,11 +19,27 @@ final class PosHubState: @unchecked Sendable {
         self.hubDeviceId = hubDeviceId
     }
 
+    /// Erhöht die Snapshot-Revision (nach lokalen Floor-/Order-Mutationen).
+    func bumpSnapshotVersion() {
+        lock.lock()
+        defer { lock.unlock() }
+        snapshotVersion += 1
+    }
+
+    /// Caps-Snapshot für LAN (ohne Klartext-PINs) — von MainActor nach Login/Cache-Update setzen.
+    func setWaiterCaps(_ caps: [String: [String]]) {
+        lock.lock()
+        defer { lock.unlock() }
+        waiterCaps = caps
+        snapshotVersion += 1
+    }
+
     func applyBootstrap(_ bootstrap: PosCloudBootstrap) {
         lock.lock()
         defer { lock.unlock() }
         self.bootstrap = bootstrap
         self.usingDemo = false
+        snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
     }
 
@@ -70,6 +88,7 @@ final class PosHubState: @unchecked Sendable {
     func makeSnapshot() -> PosLanHubSnapshot {
         lock.lock()
         defer { lock.unlock() }
+        let caps = waiterCaps.isEmpty ? nil : waiterCaps
         if let bootstrap {
             return PosLanHubSnapshot(
                 protocolVersion: PosLanProtocol.version,
@@ -88,10 +107,15 @@ final class PosHubState: @unchecked Sendable {
                     deviceId: hubDeviceId,
                     displayName: PosLanProtocol.bonjourName(restaurantName: bootstrap.restaurantName),
                     role: "hub"
-                )
+                ),
+                snapshotVersion: snapshotVersion,
+                waiterCaps: caps
             )
         }
-        return DemoSnapshotFactory.makeSnapshot(hubDeviceId: hubDeviceId)
+        var demo = DemoSnapshotFactory.makeSnapshot(hubDeviceId: hubDeviceId)
+        demo.snapshotVersion = snapshotVersion
+        demo.waiterCaps = caps
+        return demo
     }
 
     func makeHealth() -> PosLanHealthResponse {
@@ -132,6 +156,7 @@ final class PosHubState: @unchecked Sendable {
         bootstrap.floor.orderCountBySessionId[sessionId] = 0
         bootstrap.floor.sessionMetaBySessionId[sessionId] = PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
         self.bootstrap = bootstrap
+        snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
         return sessionId
     }
@@ -169,6 +194,7 @@ final class PosHubState: @unchecked Sendable {
         }
 
         self.bootstrap = bootstrap
+        snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
     }
 
@@ -183,6 +209,7 @@ final class PosHubState: @unchecked Sendable {
         meta.openCents += addCents
         bootstrap.floor.sessionMetaBySessionId[sessionId] = meta
         self.bootstrap = bootstrap
+        snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
     }
 

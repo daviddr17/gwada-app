@@ -9,6 +9,7 @@ Cloud-API für die native Kellner-/Hub-App.
 | 0 | Health |
 | 1 | Catalog + Branding |
 | 2 | Sessions, Orders, Fire, Move, Release, Cash/Mollie-Simulate, TSE-Simulate, Sync-Ingest, Transfer |
+| 3 | Hub-Outbox-Consumer in `apps/pos` (`PosNestClient` → `POST /v1/sync/events`) |
 
 ## Auth (Phase 2)
 

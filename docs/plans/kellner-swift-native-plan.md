@@ -233,7 +233,7 @@ Abhaken = Swift+Hub+Nest decken den Prototyp-Flow ab:
 - [ ] Schichtübergabe 4-Augen-PIN
 - [ ] Caps steuern Mehr-Tab
 - [ ] Branding-Accent vom Restaurant
-- [ ] Hub-Sync Outbox idempotent; Client-Fallback dokumentiert
+- [x] Hub-Sync Outbox idempotent; Client-Fallback dokumentiert
 
 Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Auto-Lock-Config-UI, Hardware-TSE, Face-ID-Policy-Admin.
 
@@ -264,14 +264,14 @@ Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Aut
 
 **Exit:** Curl-Flow `docs/plans/kellner-pos-api-phase2-curl.md` (mit Supabase-Env).
 
-### Phase 3 — iPad Hub MVP
-1. Bonjour + WS Protokoll.
-2. Lokale Persistenz + Snapshot.
-3. Outbox Sync.
-4. PIN-Cache.
+### Phase 3 — iPad Hub MVP ✅ (2026-07-20)
+1. Bonjour + LAN-HTTP (Bestand `_gwada-pos._tcp` :8787; WS-Push später).
+2. Lokale Persistenz + Snapshot (`snapshotVersion`, `waiterCaps`).
+3. Outbox Sync → Nest `POST /v1/sync/events` wenn Nest-URL gesetzt (`PosNestClient` + stabile `PosDeviceIdentity`); sonst Next `/api/pos`.
+4. PIN-Cache: `PosWaiterPinCache` (Caps/Metadaten, keine Klartext-PINs) → Snapshot.
 5. (Drucker-Stub OK, echter SDK parallel).
 
-**Exit:** Zwei Simulatoren: Hub + Client tauschen Tisch-Events ohne Cloud.
+**Exit:** Zwei Simulatoren: Hub + Client tauschen Tisch-Events ohne Cloud (LAN unverändert). Nest-Outbox optional in Geräteeinstellungen.
 
 ### Phase 4 — iPhone UI 1:1 Prototyp
 1. Design Tokens + Accent Injection.

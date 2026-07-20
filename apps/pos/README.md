@@ -22,7 +22,9 @@ Diese App ist die **Swift-Homebase** (kein paralleles `ios/`-Verzeichnis). UX wi
 2. Danach läuft die Kasse **lokal**; Handgeräte holen Snapshot / Sessions / Orders nur über WLAN.
 3. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
 4. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt; wartende Orders/Kassierungen werden umgeschrieben (`session-id-map.json`).
-5. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE.
+5. **Sync-Ziel (Phase 3):** Wenn in den Geräteeinstellungen eine **Nest API-Basis** gesetzt ist (`apps/pos-api`, z. B. `http://127.0.0.1:3100`), flushed die Outbox idempotent nach `POST /v1/sync/events` (`session.opened`, `order.created`, `payment.completed`, …). Ohne Nest-URL bleibt der bisherige Next-Pfad `/api/pos/*`.
+6. **Gerät-ID** ist stabil (`PosDeviceIdentity` → Header `X-Device-Id`). Waiter-Caps landen im Snapshot (`waiterCaps`) ohne Klartext-PINs.
+7. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE.
 
 ## Öffnen (Mac)
 
@@ -41,7 +43,19 @@ Im Login-Bereich setzen:
 
 - E-Mail / Passwort (Restaurant-Mitarbeiter)
 - Restaurant-ID (UUID)
-- Erweitert: API-Basis (`https://gwada.app` oder Dev), Supabase-URL, Anon Key
+- Erweitert: API-Basis Next (`https://gwada.app` oder Dev), **Nest API-Basis** (optional, Phase-3-Outbox), Waiter Profile-ID, Supabase-URL, Anon Key
+
+### Nest Outbox (lokal)
+
+```bash
+# Terminal: pos-api
+export POS_AUTH_RELAXED=1 POS_SKIP_REGISTER_CHECK=1
+export SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=…
+pnpm --filter @gwada/pos-api start:dev
+# → http://127.0.0.1:3100
+```
+
+Auf dem iPad unter **Gerät → Erweitert / Nest Sync**: Nest-URL `http://<Mac-LAN-IP>:3100` eintragen. Curl-Referenz: [`docs/plans/kellner-pos-api-phase2-curl.md`](../../docs/plans/kellner-pos-api-phase2-curl.md).
 
 ## Test
 

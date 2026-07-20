@@ -1,6 +1,6 @@
 # Kellner / Hub — Event-Protokoll & Idempotency
 
-Stand: Phase 0 · Juli 2026  
+Stand: Phase 3 · Juli 2026  
 Bezug: [`kellner-swift-native-plan.md`](./kellner-swift-native-plan.md), Bonjour-Service **`_gwada-pos._tcp`** (`apps/pos`).
 
 ---
@@ -84,7 +84,8 @@ Format: `{actor}:{action}:{businessId}[:{detail}]`
 | Transfer | `hub:session.transfer:{transferId}` |
 | Outbox-Retry | **derselbe** Key wie Original — Nest antwortet 200 mit gespeichertem Result |
 
-Nest-Endpoint (Ziel Phase 2): `POST /v1/sync/events` mit Array; Antwort pro Key: `applied | duplicate | rejected`.
+Nest-Endpoint: `POST /v1/sync/events` mit Array; Antwort pro Key: `applied | duplicate | rejected`.  
+Hub-Outbox (`PosSyncQueue`): bei gesetzter Nest-URL mappt sie Queue-Kinds auf Event-Typen (`session.opened`, `order.created`, `payment.completed`, `course.fired`, `table.moved`, `table.released`); Idempotency-Keys folgen der Tabelle oben.
 
 ---
 

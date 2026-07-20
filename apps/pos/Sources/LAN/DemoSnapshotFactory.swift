@@ -67,7 +67,9 @@ enum DemoSnapshotFactory {
                 deviceId: hubDeviceId,
                 displayName: PosLanProtocol.bonjourName(restaurantName: restaurantName),
                 role: "hub"
-            )
+            ),
+            snapshotVersion: 1,
+            waiterCaps: nil
         )
     }
 

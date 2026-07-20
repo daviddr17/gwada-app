@@ -54,11 +54,19 @@ struct DeviceSettingsView: View {
                         TextField("Restaurant-ID (UUID)", text: $runtime.restaurantIdInput)
                             .textInputAutocapitalization(.never)
                         DisclosureGroup("Erweitert") {
-                            TextField("API-Basis", text: $runtime.apiBaseInput)
+                            TextField("API-Basis (Next)", text: $runtime.apiBaseInput)
+                                .textInputAutocapitalization(.never)
+                            TextField("Nest API-Basis", text: $runtime.nestApiBaseInput)
+                                .textInputAutocapitalization(.never)
+                                .keyboardType(.URL)
+                            TextField("Waiter Profile-ID", text: $runtime.waiterProfileIdInput)
                                 .textInputAutocapitalization(.never)
                             TextField("Supabase-URL", text: $runtime.supabaseUrlInput)
                                 .textInputAutocapitalization(.never)
                             SecureField("Supabase Anon Key", text: $runtime.supabaseAnonInput)
+                            Text("Nest-URL gesetzt → Outbox sync’t über `POST /v1/sync/events` (sonst Next `/api/pos`).")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                         Button {
                             Task { await runtime.signInAndStartHub() }
@@ -71,6 +79,23 @@ struct DeviceSettingsView: View {
                         .listRowBackground(Color.clear)
                     }
                 } else {
+                    Section("Nest Sync") {
+                        LabeledContent(
+                            "Outbox",
+                            value: PosCloudConfig.nestSyncEnabled ? "Nest aktiv" : "Next `/api/pos`"
+                        )
+                        LabeledContent("Gerät-ID", value: String(PosDeviceIdentity.id.prefix(8)) + "…")
+                        DisclosureGroup("Nest / Waiter") {
+                            TextField("Nest API-Basis", text: $runtime.nestApiBaseInput)
+                                .textInputAutocapitalization(.never)
+                                .keyboardType(.URL)
+                            TextField("Waiter Profile-ID", text: $runtime.waiterProfileIdInput)
+                                .textInputAutocapitalization(.never)
+                            Button("Speichern") {
+                                runtime.saveNestSettingsFromInputs()
+                            }
+                        }
+                    }
                     Section {
                         Button("Abmelden", role: .destructive) {
                             confirmSignOut = true

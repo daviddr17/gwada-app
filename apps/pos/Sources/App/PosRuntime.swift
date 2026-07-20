@@ -37,8 +37,10 @@ final class PosRuntime: ObservableObject {
     @Published var apiBaseInput = ""
     @Published var supabaseUrlInput = ""
     @Published var supabaseAnonInput = ""
+    @Published var nestApiBaseInput = ""
+    @Published var waiterProfileIdInput = ""
 
-    private let hubDeviceId = UUID().uuidString
+    private let hubDeviceId = PosDeviceIdentity.id
     private var httpServer: HubHTTPServer?
     private let advertiser = BonjourHubAdvertiser()
     private let browser = BonjourHubBrowser()
@@ -55,10 +57,13 @@ final class PosRuntime: ObservableObject {
         apiBaseInput = PosCloudConfig.apiBaseURL.absoluteString
         supabaseUrlInput = PosCloudConfig.supabaseURL.absoluteString
         supabaseAnonInput = PosCloudConfig.supabaseAnonKey
+        nestApiBaseInput = PosCloudConfig.nestApiBaseURL?.absoluteString ?? ""
+        waiterProfileIdInput = PosCloudConfig.waiterProfileId ?? ""
         email = PosAuthStore.shared.session?.email ?? ""
         isSignedIn = PosAuthStore.shared.isSignedIn
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
         applyBrandAccent(fromHex: PosHubState.shared.brandAccentHex)
+        syncWaiterCapsToHub()
     }
 
     func start() async {
@@ -79,6 +84,14 @@ final class PosRuntime: ObservableObject {
         do {
             try await PosAuthStore.shared.signIn(email: email, password: password)
             isSignedIn = true
+            if let session = PosAuthStore.shared.session {
+                let profileId = PosCloudConfig.waiterProfileId ?? session.userId
+                PosWaiterPinCache.shared.rememberSignedInUser(
+                    profileId: profileId,
+                    email: session.email
+                )
+                syncWaiterCapsToHub()
+            }
             await startHub()
         } catch {
             phase = .error(error.localizedDescription)
@@ -598,6 +611,20 @@ final class PosRuntime: ObservableObject {
         if !supabaseUrlInput.isEmpty { PosCloudConfig.setSupabaseURL(supabaseUrlInput) }
         if !supabaseAnonInput.isEmpty { PosCloudConfig.setSupabaseAnonKey(supabaseAnonInput) }
         if !restaurantIdInput.isEmpty { PosCloudConfig.setRestaurantId(restaurantIdInput) }
+        PosCloudConfig.setNestApiBaseURL(nestApiBaseInput)
+        PosCloudConfig.setWaiterProfileId(waiterProfileIdInput)
+    }
+
+    func saveNestSettingsFromInputs() {
+        PosCloudConfig.setNestApiBaseURL(nestApiBaseInput)
+        PosCloudConfig.setWaiterProfileId(waiterProfileIdInput)
+        statusMessage = PosCloudConfig.nestSyncEnabled
+            ? "Nest-Sync aktiv (\(PosCloudConfig.nestApiBaseURL?.host ?? "…"))."
+            : "Nest-URL leer — Sync über Next `/api/pos`."
+    }
+
+    private func syncWaiterCapsToHub() {
+        PosHubState.shared.setWaiterCaps(PosWaiterPinCache.shared.capsByProfileId())
     }
 
     private func startHub() async {

@@ -56,9 +56,20 @@ enum PosCloudConfig {
         return raw.isEmpty ? nil : raw
     }
 
-    /// Nest-Outbox aktiv, wenn Nest-URL gesetzt ist (Waiter-ID kann aus Auth kommen).
+    /// Nest-URL gesetzt → Hub-Outbox nutzt Nest Sync.
     static var nestSyncEnabled: Bool {
         nestApiBaseURL != nil
+    }
+
+    /// Handheld: bei Hub-Ausfall direkt Nest anbinden (Phase 4 Feature-Flag).
+    private static let nestClientFallbackKey = "gwada_pos_nest_client_fallback"
+
+    static var nestClientFallbackEnabled: Bool {
+        UserDefaults.standard.bool(forKey: nestClientFallbackKey)
+    }
+
+    static func setNestClientFallbackEnabled(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: nestClientFallbackKey)
     }
 
     static func setApiBaseURL(_ value: String) {

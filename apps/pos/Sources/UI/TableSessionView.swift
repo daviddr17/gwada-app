@@ -12,6 +12,7 @@ struct TableSessionView: View {
     @State private var configuring: PosCloudMenuItem?
     @State private var showSplit = false
     @State private var showMove = false
+    @State private var showMoveSession = false
     @State private var sending = false
     @State private var openLines: [SessionOpenLine] = []
     @State private var sendPulse = false
@@ -31,13 +32,21 @@ struct TableSessionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                if sessionId != nil {
+                    Button {
+                        showMoveSession = true
+                    } label: {
+                        Image(systemName: "arrow.left.arrow.right.circle")
+                    }
+                    .accessibilityLabel("Tisch umziehen")
+                }
                 Button {
                     showMove = true
                 } label: {
                     Image(systemName: "arrow.left.arrow.right")
                 }
                 .disabled(openLines.isEmpty)
-                .accessibilityLabel("Umziehen")
+                .accessibilityLabel("Positionen umziehen")
                 Button {
                     showSplit = true
                 } label: {
@@ -125,6 +134,12 @@ struct TableSessionView: View {
                 },
                 onCancel: { showMove = false }
             )
+        }
+        .sheet(isPresented: $showMoveSession) {
+            if let sid = sessionId ?? openLines.first.map({ _ in ensureSessionId() }) {
+                MoveSessionSheet(sessionId: sid, fromTableId: table.id)
+                    .environmentObject(runtime)
+            }
         }
         .task {
             await refreshOpenLines()

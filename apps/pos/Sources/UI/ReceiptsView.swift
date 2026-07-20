@@ -169,6 +169,15 @@ struct ReceiptsView: View {
                     .foregroundStyle(.tertiary)
             }
 
+            ShareLink(
+                item: guestReceiptText(receipt),
+                subject: Text("Gastbeleg \(receipt.tableLabel)"),
+                message: Text("KassenSichV-Felder folgen (TSE); Beleg teilen.")
+            ) {
+                Label("Gastbeleg teilen", systemImage: "square.and.arrow.up")
+                    .font(.subheadline.weight(.semibold))
+            }
+
             if receipt.canVoidCash {
                 Button {
                     Task { await prepareVoid(receipt) }
@@ -198,6 +207,25 @@ struct ReceiptsView: View {
         case "card": return "Karte"
         default: return method
         }
+    }
+
+    private func guestReceiptText(_ receipt: PosCloudClient.PosTodayReceiptDto) -> String {
+        var lines = [
+            "Gwada POS — Gastbeleg",
+            "Tisch: \(receipt.tableLabel)",
+            "Bestellung #\(receipt.orderNumber)",
+            "Betrag: \(PosMoney.format(receipt.amountCents))",
+        ]
+        if receipt.tipCents > 0 {
+            lines.append("Trinkgeld: \(PosMoney.format(receipt.tipCents))")
+        }
+        lines.append("Zahlung: \(methodLabel(receipt.method))")
+        if let paidAt = receipt.paidAt {
+            lines.append("Zeit: \(Self.formatTime(paidAt))")
+        }
+        lines.append("")
+        lines.append("TSE / KassenSichV: Felder folgen (Fiskaly).")
+        return lines.joined(separator: "\n")
     }
 
     private func reload() async {

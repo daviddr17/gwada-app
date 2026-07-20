@@ -94,6 +94,18 @@ struct DeviceSettingsView: View {
                             Button("Speichern") {
                                 runtime.saveNestSettingsFromInputs()
                             }
+                            if PosCloudConfig.nestSyncEnabled {
+                                Toggle(
+                                    "Nest-Fallback (Hub offline)",
+                                    isOn: Binding(
+                                        get: { PosCloudConfig.nestClientFallbackEnabled },
+                                        set: { PosCloudConfig.setNestClientFallbackEnabled($0) }
+                                    )
+                                )
+                                Text("Handgerät darf bei Hub-Ausfall Open/Move an Nest senden.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                     Section {

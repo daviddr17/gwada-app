@@ -75,7 +75,17 @@ Auf dem iPad unter **Gerät → Erweitert / Nest Sync**: Nest-URL `http://<Mac-L
 - **Gwada-Akzent** `#EAB308` als `AccentColor` (Asset) + Tenant-Override via Bootstrap `brandAccentHex`
 - Primär-CTAs: weicher Brand-Tint (wie Web `brand-action-button`), nicht solid blau/weiß
 - Surfaces: System Grouped / Material — native Light/Dark
+- Tokens: `PosDesign` (Status-Farben, Spacing, Timer-Label)
 - Native iOS: Large Title, `.searchable`, `ContentUnavailableView`, Sheets/Detents, `.sensoryFeedback`, Swipe Actions
+
+## Kellner-UI (Phase 4)
+
+| Gerät | Chrome |
+|---|---|
+| **iPhone** | `TabView`: **Tische · Reservierungen · Mehr** + PIN-Lock |
+| **iPad** | `NavigationSplitView` (Kasse) + optional PIN sperren |
+
+Features: Floor-Grid (Timer/Summe/Res-Hinweis), Walk-in, Resv-Timeline 17–23, Session-Umzug, Übergabe (Nest), Gleich-teilen, Karte/PayPal via Nest, Gastbeleg-ShareLink, Caps-gefiltertes Mehr-Menü. Nest-Fallback-Flag für Hub-Ausfall.
 
 ## Küchen-Routing
 

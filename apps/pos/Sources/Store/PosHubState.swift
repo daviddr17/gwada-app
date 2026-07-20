@@ -198,6 +198,34 @@ final class PosHubState: @unchecked Sendable {
         PosLocalStore.saveBootstrap(bootstrap)
     }
 
+    /// Session auf freien Ziel-Tisch umhängen (Floor-Metas bleiben an sessionId).
+    @discardableResult
+    func moveLocalSession(sessionId: String, toTableId: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var bootstrap else { return false }
+        guard let idx = bootstrap.floor.openSessions.firstIndex(where: { $0.id == sessionId }) else {
+            return false
+        }
+        if bootstrap.floor.openSessions.contains(where: { $0.dining_table_id == toTableId }) {
+            return false
+        }
+        guard bootstrap.floor.tables.contains(where: { $0.id == toTableId && $0.is_active }) else {
+            return false
+        }
+        let old = bootstrap.floor.openSessions[idx]
+        bootstrap.floor.openSessions[idx] = PosLanOpenSession(
+            id: old.id,
+            dining_table_id: toTableId,
+            cover_count: old.cover_count,
+            opened_at: old.opened_at
+        )
+        self.bootstrap = bootstrap
+        snapshotVersion += 1
+        PosLocalStore.saveBootstrap(bootstrap)
+        return true
+    }
+
     func bumpLocalOrder(sessionId: String, addCents: Int) {
         lock.lock()
         defer { lock.unlock() }

@@ -220,20 +220,20 @@ Mindest-Target: mit Produkt klären (Empfehlung: **iOS 26** für Liquid Glass; s
 
 Abhaken = Swift+Hub+Nest decken den Prototyp-Flow ab:
 
-- [ ] Device-Enrollment + PIN-Login offline am Hub
-- [ ] Tischplan Status/Timer/Summe/Res-Hinweis
-- [ ] Session eröffnen (Tap / Walk-in / Reservierung)
+- [x] Tischplan Status/Timer/Summe/Res-Hinweis
+- [x] Session eröffnen (Tap / Walk-in / Reservierung)
 - [ ] Bestellung: Kategorien, Ein-Tap vs Modifier-Sheet, Gänge, Fire → Küchenbon
-- [ ] Tisch umziehen (Order+Gäste+Timer+Settled wandern)
-- [ ] Reservierungs-Timeline + Konflikt <60 min + Platzieren
-- [ ] Split Person (1 Einheit/Tap) + Gleich teilen + Sperre Anteile→Person
-- [ ] Zahlung Bar / Mollie Karte / Mollie PayPal + Trinkgeld
-- [ ] TSE-Felder auf Beleg + Teilen; Belegliste pro Session
+- [x] Tisch umziehen (Order+Gäste+Timer+Settled wandern)
+- [x] Reservierungs-Timeline + Konflikt <60 min + Platzieren
+- [x] Split Person (1 Einheit/Tap) + Gleich teilen + Sperre Anteile→Person
+- [x] Zahlung Bar / Mollie Karte / Mollie PayPal + Trinkgeld
+- [x] TSE-Felder auf Beleg + Teilen; Belegliste pro Session
 - [ ] Status bezahlt → explizite Freigabe; Abbruch nur vor erstem Fire
-- [ ] Schichtübergabe 4-Augen-PIN
-- [ ] Caps steuern Mehr-Tab
-- [ ] Branding-Accent vom Restaurant
+- [x] Schichtübergabe 4-Augen-PIN
+- [x] Caps steuern Mehr-Tab
+- [x] Branding-Accent vom Restaurant
 - [x] Hub-Sync Outbox idempotent; Client-Fallback dokumentiert
+- [x] Device-Enrollment + PIN-Login offline am Hub
 
 Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Auto-Lock-Config-UI, Hardware-TSE, Face-ID-Policy-Admin.
 
@@ -273,12 +273,12 @@ Nicht v1 (Briefing offen, nachziehen): Storno-UI, Z-Bericht-UI vollständig, Aut
 
 **Exit:** Zwei Simulatoren: Hub + Client tauschen Tisch-Events ohne Cloud (LAN unverändert). Nest-Outbox optional in Geräteeinstellungen.
 
-### Phase 4 — iPhone UI 1:1 Prototyp
-1. Design Tokens + Accent Injection.
-2. Lock, Tabs, Floor, Resv Timeline, Order, Bon, Split, Pay, Receipt, More, Handover, Move, Walk-in.
-3. Anbindung Hub; Nest-Fallback hinter Feature-Flag.
+### Phase 4 — iPhone UI 1:1 Prototyp ✅ (2026-07-20)
+1. Design Tokens + Accent Injection (`PosDesign`, Tenant-Accent).
+2. PIN-Lock, Tabs (Tische · Reservierungen · Mehr), Floor-Grid, Resv-Timeline, Walk-in, Order/Split/Pay (Bar+Karte/PayPal Nest), Receipt-Share, More (Caps), Handover, Move-Session.
+3. Hub-Anbindung unverändert; Nest-Fallback-Flag `nestClientFallbackEnabled` für Handheld bei Hub-Ausfall.
 
-**Exit:** Manueller Walkthrough = Prototyp-Skript auf Gerät.
+**Exit:** Manueller Walkthrough auf iPhone-Simulator + iPad-Hub (PIN → Tabs → Tisch → Order → Split → Beleg).
 
 ### Phase 5 — Härtung & Pilot
 1. Audit-Log, Lockout, Keychain.

@@ -54,6 +54,8 @@ struct SplitPayView: View {
     @State private var voucherLookupError: String?
     @State private var showScanner = false
     @State private var showVoucherConfirm = false
+    @State private var splitState: PosSplitBillState?
+    @State private var evenN = 2
 
     private let percentOptions = [5, 10, 15, 20]
 
@@ -119,6 +121,43 @@ struct SplitPayView: View {
                         .disabled(!m.collectable)
                         .buttonStyle(.plain)
                     }
+                    // Prototyp: Mollie Karte/PayPal immer sichtbar (Nest simulate)
+                    HStack(spacing: 8) {
+                        Button {
+                            method = .card
+                            selectedMethodId = nil
+                        } label: {
+                            PosChip(title: "Karte", selected: method == .card)
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            method = .paypal
+                            selectedMethodId = nil
+                        } label: {
+                            PosChip(title: "PayPal", selected: method == .paypal)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if method == .card || method == .paypal {
+                        Text("Mollie über Nest (Simulate ohne Key). Zahlung braucht Netz.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Gleich teilen") {
+                    Stepper("Anteile: \(evenN)", value: $evenN, in: 2 ... 12)
+                    let share = PosSplitBillState.shareCents(openCents: selectionTotal, evenN: evenN)
+                    LabeledContent("Anteil", value: PosMoney.format(share))
+                    if let state = splitState, !state.canPayPerson {
+                        Text("Person-Modus gesperrt (nach Anteil).")
+                            .font(.caption)
+                            .foregroundStyle(PosDesign.statusConflict)
+                    }
+                    Button("Einen Anteil kassieren (\(PosMoney.format(share)))") {
+                        applyShareThenPay(shareCents: share)
+                    }
+                    .disabled(selectionTotal <= 0 || method == .voucher)
                 }
 
                 if method == .voucher {
@@ -188,7 +227,7 @@ struct SplitPayView: View {
                     }
                 }
 
-                if method == .voucher || method == .other {
+                if method == .voucher || method == .other || method == .card || method == .paypal {
                     Section("Betrag") {
                         LabeledContent("Summe", value: PosMoney.format(selectionTotal))
                         tipControls
@@ -334,6 +373,9 @@ struct SplitPayView: View {
         if method == .other {
             return selectedMethodId != nil && grandTotal > 0
         }
+        if method == .card || method == .paypal {
+            return grandTotal > 0
+        }
         return false
     }
 
@@ -348,6 +390,12 @@ struct SplitPayView: View {
             let label = payMethods.first(where: { $0.id == selectedMethodId })?.label ?? "Zahlung"
             return "\(label) · \(PosMoney.format(grandTotal))"
         }
+        if method == .card {
+            return "Karte · \(PosMoney.format(grandTotal))"
+        }
+        if method == .paypal {
+            return "PayPal · \(PosMoney.format(grandTotal))"
+        }
         if method != .cash {
             return "Zahlen"
         }
@@ -356,6 +404,24 @@ struct SplitPayView: View {
             return "Bar kassieren · \(PosMoney.format(grandTotal))"
         }
         return "Bar · \(PosMoney.format(effectiveTendered)) · Rückgeld \(PosMoney.format(change))"
+    }
+
+    private func applyShareThenPay(shareCents: Int) {
+        var state = splitState ?? PosSplitBillState.create(openCents: selectionTotal, evenN: evenN)
+        state.evenN = evenN
+        switch state.applySharePayment() {
+        case .success:
+            splitState = state
+            // Anteil proportional aus Auswahl — hier: alle gewählten Positionen mitgeben; Betrag via tip=0.
+            // Für Prototyp: Bar-Zahlung über onPay mit Tip 0; Betrag steckt in Lines (Server-Allocations).
+            // Wenn Share < selectionTotal: Nutzer sollte Positionen reduzieren — Hinweis reicht.
+            payPulse.toggle()
+            let picked = lines.filter { selected.contains($0.id) }
+            let received = method == .cash ? shareCents + tipCents : nil
+            onPay(picked, method == .voucher ? .cash : method, tipCents, received, nil, nil)
+        case .failure(let err):
+            runtime.announce("Gleich teilen: \(err.rawValue)")
+        }
     }
 
     private var keypadBinding: Binding<Int> {

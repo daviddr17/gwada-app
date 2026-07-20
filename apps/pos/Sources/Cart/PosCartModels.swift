@@ -29,7 +29,7 @@ enum PosCourse: String, Codable, CaseIterable, Identifiable, Sendable {
 }
 
 enum PosPaymentMethodKind: String, CaseIterable, Identifiable, Sendable {
-    case cash, card, voucher, other
+    case cash, card, paypal, voucher, other
 
     var id: String { rawValue }
 
@@ -37,13 +37,16 @@ enum PosPaymentMethodKind: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .cash: return "Bar"
         case .card: return "Karte"
+        case .paypal: return "PayPal"
         case .voucher: return "Gutschein"
         case .other: return "Sonstiges"
         }
     }
 
-    /// Karte/Sonstiges folgen (Mollie/Adyen); Gutschein + Bar aktiv.
-    var available: Bool { self == .cash || self == .voucher }
+    /// Bar + Gutschein lokal; Karte/PayPal über Nest/Mollie (Simulate).
+    var available: Bool {
+        self == .cash || self == .voucher || self == .card || self == .paypal
+    }
 }
 
 struct PosCartModifier: Codable, Equatable, Identifiable, Sendable {

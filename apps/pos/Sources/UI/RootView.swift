@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Native Apple-Sidebar (NavigationSplitView) für iPad-Kasse / iPhone-Collapse.
+/// Root: iPad-Hub = Sidebar; iPhone-Kellner = Tabs Tische · Reservierungen · Mehr + PIN-Lock.
 struct RootView: View {
     enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
         case tables
@@ -35,11 +35,33 @@ struct RootView: View {
         }
     }
 
+    enum KellnerTab: Hashable {
+        case tables
+        case reservations
+        case more
+    }
+
     @EnvironmentObject private var runtime: PosRuntime
+    @StateObject private var pinLock = PosPinLockStore.shared
     @State private var selection: SidebarItem? = .tables
+    @State private var kellnerTab: KellnerTab = .tables
     @State private var columnVisibility = NavigationSplitViewVisibility.all
 
     var body: some View {
+        Group {
+            if !pinLock.isUnlocked {
+                PosPinLockView()
+            } else if runtime.role == .hub {
+                hubSplitView
+            } else {
+                kellnerTabView
+            }
+        }
+    }
+
+    // MARK: - iPad Hub
+
+    private var hubSplitView: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $selection) {
                 Section {
@@ -68,16 +90,27 @@ struct RootView: View {
             .listStyle(.sidebar)
             .navigationTitle("Gwada POS")
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        pinLock.lock()
+                    } label: {
+                        Image(systemName: "lock.fill")
+                    }
+                    .disabled(!pinLock.hasPinConfigured)
+                    .accessibilityLabel("Sperren")
+                }
+            }
         } detail: {
             NavigationStack {
-                detailContent
+                hubDetailContent
             }
         }
         .navigationSplitViewStyle(.balanced)
     }
 
     @ViewBuilder
-    private var detailContent: some View {
+    private var hubDetailContent: some View {
         switch selection ?? .tables {
         case .tables:
             TablesHomeView()
@@ -91,6 +124,30 @@ struct RootView: View {
             KdsView()
         case .device:
             DeviceSettingsView()
+        }
+    }
+
+    // MARK: - iPhone Kellner Tabs
+
+    private var kellnerTabView: some View {
+        TabView(selection: $kellnerTab) {
+            NavigationStack {
+                TablesHomeView()
+            }
+            .tabItem { Label("Tische", systemImage: "square.grid.2x2") }
+            .tag(KellnerTab.tables)
+
+            NavigationStack {
+                ReservationsView()
+            }
+            .tabItem { Label("Reservierungen", systemImage: "calendar") }
+            .tag(KellnerTab.reservations)
+
+            NavigationStack {
+                MoreMenuView()
+            }
+            .tabItem { Label("Mehr", systemImage: "ellipsis.circle") }
+            .tag(KellnerTab.more)
         }
     }
 

@@ -257,7 +257,11 @@ final class PosRuntime: ObservableObject {
         guard role == .hub || role == .handheld else { return }
         if role == .handheld {
             guard let base = hubBaseURL else {
-                statusMessage = "Keine Kasse verbunden."
+                if PosCloudConfig.nestClientFallbackEnabled && PosCloudConfig.nestSyncEnabled {
+                    await openTableViaNestFallback(tableId: tableId, covers: covers)
+                } else {
+                    statusMessage = "Keine Kasse verbunden."
+                }
                 return
             }
             do {
@@ -270,7 +274,11 @@ final class PosRuntime: ObservableObject {
                 publishSnapshot(snap)
                 statusMessage = "Tisch geöffnet."
             } catch {
-                statusMessage = error.localizedDescription
+                if PosCloudConfig.nestClientFallbackEnabled && PosCloudConfig.nestSyncEnabled {
+                    await openTableViaNestFallback(tableId: tableId, covers: covers)
+                } else {
+                    statusMessage = error.localizedDescription
+                }
             }
             return
         }
@@ -323,6 +331,86 @@ final class PosRuntime: ObservableObject {
         } else {
             statusMessage = "Tisch geöffnet und in der Cloud."
         }
+    }
+
+    /// Handheld Nest-Fallback wenn Hub offline (Feature-Flag).
+    private func openTableViaNestFallback(tableId: String, covers: Int) async {
+        let localId = UUID().uuidString
+        PosSyncQueue.shared.enqueueOpenSession(PosSyncOpenSessionPayload(
+            restaurantId: PosCloudConfig.restaurantId ?? "",
+            diningTableId: tableId,
+            coverCount: covers,
+            localSessionId: localId
+        ))
+        await PosSyncQueue.shared.flushIfPossible()
+        syncPending = PosSyncQueue.shared.pendingCount
+        statusMessage = "Tisch via Nest-Fallback — \(PosSyncQueue.shared.lastFlushMessage)"
+        // Optimistic local floor patch on handheld snapshot if present
+        if var snap = snapshot {
+            let session = PosLanOpenSession(
+                id: PosSessionIdMap.shared.resolve(localId),
+                dining_table_id: tableId,
+                cover_count: covers,
+                opened_at: ISO8601DateFormatter().string(from: Date())
+            )
+            if !snap.floor.openSessions.contains(where: { $0.dining_table_id == tableId }) {
+                snap.floor.openSessions.append(session)
+                snap.floor.orderCountBySessionId[session.id] = 0
+                snap.floor.sessionMetaBySessionId[session.id] = PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
+                snap.snapshotVersion = (snap.snapshotVersion ?? 0) + 1
+                publishSnapshot(snap)
+            }
+        }
+    }
+
+    /// Gesamte Session umziehen (Hub lokal + Outbox; Handheld → LAN später).
+    @discardableResult
+    func moveSession(sessionId: String, toTableId: String) async -> Bool {
+        if role == .handheld {
+            statusMessage = "Umziehen am Handgerät: bitte an der Kasse oder Nest."
+            // Nest-Fallback: Queue move event
+            if PosCloudConfig.nestClientFallbackEnabled && PosCloudConfig.nestSyncEnabled {
+                PosSyncQueue.shared.enqueueMoveSession(PosSyncMoveSessionPayload(
+                    restaurantId: PosCloudConfig.restaurantId ?? "",
+                    tableSessionId: sessionId,
+                    toTableId: toTableId
+                ))
+                await PosSyncQueue.shared.flushIfPossible()
+                syncPending = PosSyncQueue.shared.pendingCount
+                if var snap = snapshot,
+                   let idx = snap.floor.openSessions.firstIndex(where: { $0.id == sessionId })
+                {
+                    let old = snap.floor.openSessions[idx]
+                    snap.floor.openSessions[idx] = PosLanOpenSession(
+                        id: old.id,
+                        dining_table_id: toTableId,
+                        cover_count: old.cover_count,
+                        opened_at: old.opened_at
+                    )
+                    publishSnapshot(snap)
+                }
+                statusMessage = "Tisch umgezogen (Nest-Fallback)."
+                return true
+            }
+            return false
+        }
+
+        let ok = PosHubState.shared.moveLocalSession(sessionId: sessionId, toTableId: toTableId)
+        guard ok else {
+            statusMessage = "Ziel-Tisch belegt oder Session unbekannt."
+            return false
+        }
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+        PosSyncQueue.shared.enqueueMoveSession(PosSyncMoveSessionPayload(
+            restaurantId: PosHubState.shared.restaurantId,
+            tableSessionId: sessionId,
+            toTableId: toTableId
+        ))
+        syncPending = PosSyncQueue.shared.pendingCount
+        await PosSyncQueue.shared.flushIfPossible()
+        syncPending = PosSyncQueue.shared.pendingCount
+        statusMessage = "Tisch umgezogen."
+        return true
     }
 
     func ensureLocalSession(tableId: String, covers: Int = 2) -> String {
@@ -489,6 +577,41 @@ final class PosRuntime: ObservableObject {
                 publishSnapshot(PosHubState.shared.makeSnapshot())
             } catch {
                 statusMessage = "Zahlung fehlgeschlagen — \(error.localizedDescription)"
+            }
+            return
+        }
+
+        if method == .card || method == .paypal {
+            // Nest Mollie-Simulate über Sync-Event (oder Next später).
+            guard PosCloudConfig.nestSyncEnabled else {
+                statusMessage = "Karte/PayPal braucht Nest-URL (Mollie Simulate)."
+                return
+            }
+            let amount = lines.reduce(0) { $0 + $1.openCents }
+            var body: [String: Any] = [
+                "sessionId": sessionId,
+                "method": method == .paypal ? "paypal" : "card",
+                "amountCents": amount,
+                "tipCents": tipCents,
+                "allocations": allocations.map { ["orderLineId": $0.0, "quantity": $0.1] },
+            ]
+            let envelope = PosNestClient.eventEnvelope(
+                type: "payment.completed",
+                idempotencyKey: "hub:payment:\(UUID().uuidString)",
+                sessionId: sessionId,
+                payload: body
+            )
+            do {
+                let response = try await PosNestClient.postEvents([envelope])
+                if response.results.first?.status == "rejected" {
+                    statusMessage = response.results.first?.error ?? "Mollie abgelehnt"
+                } else {
+                    statusMessage = method == .paypal ? "PayPal (Nest) gebucht." : "Karte (Nest) gebucht."
+                    await pullCloudBootstrap(forceDemoFallback: false)
+                    publishSnapshot(PosHubState.shared.makeSnapshot())
+                }
+            } catch {
+                statusMessage = "Unbar fehlgeschlagen — \(error.localizedDescription)"
             }
             return
         }

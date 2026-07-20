@@ -18,6 +18,10 @@ struct ReservationsView: View {
     @State private var tableId: String?
     @State private var notes = ""
     @State private var creating = false
+    @State private var showWalkIn = false
+    @State private var timelineTick = Date()
+
+    private let timelineHours = Array(17 ... 23)
 
     var body: some View {
         List {
@@ -40,6 +44,27 @@ struct ReservationsView: View {
                     Text("Cache für diesen Tag leer — Aktualisieren lädt von Kasse/Cloud.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            if let day, Self.isSameDay(selectedDate, as: Date()) {
+                Section("Timeline") {
+                    timelineStrip(day)
+                    if let soon = demnaechst(day) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Demnächst")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text("\(Self.formatTime(soon.startsAt)) · \(soon.guestLabel) · \(soon.partySize) Pers.")
+                                .font(.subheadline.weight(.semibold))
+                            if conflictUnder60(soon) {
+                                Text("Konflikt < 60 min — Platz prüfen")
+                                    .font(.caption)
+                                    .foregroundStyle(PosDesign.statusConflict)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
                 }
             }
 
@@ -71,6 +96,14 @@ struct ReservationsView: View {
         .navigationTitle("Reservierungen")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showWalkIn = true
+                } label: {
+                    Image(systemName: "person.badge.plus")
+                }
+                .accessibilityLabel("Walk-in")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     Task { await reloadFromSource() }
@@ -95,6 +128,95 @@ struct ReservationsView: View {
         .sheet(isPresented: $showCreate) {
             createSheet
         }
+        .sheet(isPresented: $showWalkIn) {
+            WalkInSheet()
+                .environmentObject(runtime)
+        }
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { date in
+            timelineTick = date
+        }
+    }
+
+    private func timelineStrip(_ day: PosReservationsDayDto) -> some View {
+        let now = timelineTick
+        let cal = Calendar.current
+        let currentHour = cal.component(.hour, from: now)
+        let currentMinute = cal.component(.minute, from: now)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(timelineHours, id: \.self) { hour in
+                        let count = countReservations(day, hour: hour)
+                        VStack(spacing: 6) {
+                            Text(String(format: "%02d", hour))
+                                .font(.caption2.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(hour == currentHour ? Color.accentColor : .secondary)
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(count > 0 ? Color.accentColor.opacity(0.2 + 0.15 * Double(min(count, 4))) : Color(.tertiarySystemFill))
+                                .frame(width: 44, height: 36)
+                                .overlay {
+                                    if count > 0 {
+                                        Text("\(count)")
+                                            .font(.caption.weight(.bold).monospacedDigit())
+                                    }
+                                }
+                            if hour == currentHour {
+                                // Jetzt-Marker
+                                Capsule()
+                                    .fill(Color.accentColor)
+                                    .frame(width: 2, height: 10)
+                                    .offset(x: CGFloat(currentMinute) / 60.0 * 22 - 11)
+                            } else {
+                                Color.clear.frame(height: 10)
+                            }
+                        }
+                        .frame(width: 52)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            Text("17–23 Uhr · Marker = jetzt")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func countReservations(_ day: PosReservationsDayDto, hour: Int) -> Int {
+        day.reservations.filter { hourOf($0.startsAt) == hour }.count
+    }
+
+    private func hourOf(_ iso: String) -> Int? {
+        guard let date = Self.parseDate(iso) else { return nil }
+        return Calendar.current.component(.hour, from: date)
+    }
+
+    private func demnaechst(_ day: PosReservationsDayDto) -> PosReservationDto? {
+        let now = timelineTick
+        return day.reservations
+            .compactMap { r -> (PosReservationDto, Date)? in
+                guard let d = Self.parseDate(r.startsAt), d >= now else { return nil }
+                return (r, d)
+            }
+            .sorted { $0.1 < $1.1 }
+            .first?
+            .0
+    }
+
+    private func conflictUnder60(_ r: PosReservationDto) -> Bool {
+        guard let d = Self.parseDate(r.startsAt) else { return false }
+        let delta = d.timeIntervalSince(timelineTick)
+        return delta > 0 && delta < 3600
+    }
+
+    private static func isSameDay(_ a: Date, as b: Date) -> Bool {
+        Calendar.current.isDate(a, inSameDayAs: b)
+    }
+
+    private static func parseDate(_ iso: String) -> Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
     }
 
     private func daySummary(_ day: PosReservationsDayDto) -> String {

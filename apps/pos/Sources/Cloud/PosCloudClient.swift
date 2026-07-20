@@ -176,18 +176,38 @@ enum PosCloudClient {
         restaurantId: String,
         tableSessionId: String,
         items: [PosCloudOrderItem]
-    ) async throws -> String {
+    ) async throws -> PosCloudCreateOrderResult {
         struct Body: Encodable {
             var restaurantId: String
             var tableSessionId: String
             var items: [PosCloudOrderItem]
         }
-        struct Response: Decodable { var orderId: String }
-        let res: Response = try await post(
+        let res: PosCloudCreateOrderResult = try await post(
             "/api/pos/orders",
             body: Body(restaurantId: restaurantId, tableSessionId: tableSessionId, items: items)
         )
-        return res.orderId
+        return res
+    }
+
+    struct PosCloudCreateOrderResult: Decodable, Sendable {
+        var orderId: String
+        var orderNumber: Int?
+        var order: OrderBody?
+
+        struct OrderBody: Decodable, Sendable {
+            var lines: [Line]
+        }
+
+        struct Line: Decodable, Sendable {
+            var id: String
+            var menuItemId: String?
+            var quantity: Int
+            var position: Int
+        }
+
+        var lines: [Line] {
+            order?.lines ?? []
+        }
     }
 
     struct PaymentMethodDto: Decodable, Identifiable, Sendable {

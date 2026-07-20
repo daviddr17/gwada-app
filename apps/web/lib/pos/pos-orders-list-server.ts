@@ -1,6 +1,13 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  clampListPage,
+  clampListPageSize,
+  listPageRange,
+  totalPagesFromCount,
+  type PaginatedListResult,
+} from "@/lib/constants/list-pagination";
 import { posRestaurantYmdRangeBounds } from "@/lib/pos/pos-day-range-server";
 
 export type PosOrderListStatusFilter =
@@ -24,6 +31,13 @@ export type PosOrderListItem = {
   linePreview: string;
 };
 
+export type PosOrderListOptions = {
+  status?: PosOrderListStatusFilter;
+  search?: string | null;
+  page?: number | null;
+  pageSize?: number | null;
+};
+
 const OPEN_STATUSES = [
   "pending_payment",
   "received",
@@ -35,24 +49,51 @@ function isYmd(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-/** Bestellungen im Kalendertag-Bereich (Restaurant-TZ), leichtgewichtig für Dashboard. */
+function emptyPage(
+  page: number,
+  pageSize: number,
+): PaginatedListResult<PosOrderListItem> {
+  return {
+    items: [],
+    page: Math.max(1, page),
+    pageSize,
+    totalCount: 0,
+    totalPages: 1,
+  };
+}
+
+/** Bestellungen im Kalendertag-Bereich (Restaurant-TZ), server-paginiert. */
 export async function listPosOrdersInRange(
   supabase: SupabaseClient,
   restaurantId: string,
   fromYmd: string,
   toYmd: string,
-  status: PosOrderListStatusFilter = "all",
-): Promise<PosOrderListItem[]> {
-  if (!isYmd(fromYmd) || !isYmd(toYmd) || fromYmd > toYmd) return [];
+  options: PosOrderListOptions = {},
+): Promise<PaginatedListResult<PosOrderListItem>> {
+  const pageSize = clampListPageSize(options.pageSize);
+  const requestedPage = Math.max(1, options.page ?? 1);
+  const status = options.status ?? "all";
+  const search = options.search?.trim() ?? "";
+
+  if (!isYmd(fromYmd) || !isYmd(toYmd) || fromYmd > toYmd) {
+    return emptyPage(requestedPage, pageSize);
+  }
 
   const bounds = await posRestaurantYmdRangeBounds(
     restaurantId,
     fromYmd,
     toYmd,
   );
-  if (!bounds) return [];
+  if (!bounds) return emptyPage(requestedPage, pageSize);
 
-  let query = supabase
+  let countQuery = supabase
+    .from("pos_orders")
+    .select("id", { count: "exact", head: true })
+    .eq("restaurant_id", restaurantId)
+    .gte("created_at", bounds.startAt)
+    .lt("created_at", bounds.endAt);
+
+  let dataQuery = supabase
     .from("pos_orders")
     .select(
       "id, order_number, status, total_cents, tip_cents, table_session_id, created_at, closed_at",
@@ -60,23 +101,46 @@ export async function listPosOrdersInRange(
     .eq("restaurant_id", restaurantId)
     .gte("created_at", bounds.startAt)
     .lt("created_at", bounds.endAt)
-    .order("created_at", { ascending: false })
-    .limit(1000);
+    .order("created_at", { ascending: false });
 
   if (status === "open") {
-    query = query.in("status", [...OPEN_STATUSES]);
+    countQuery = countQuery.in("status", [...OPEN_STATUSES]);
+    dataQuery = dataQuery.in("status", [...OPEN_STATUSES]);
   } else if (status === "delivered") {
-    query = query.eq("status", "delivered");
+    countQuery = countQuery.eq("status", "delivered");
+    dataQuery = dataQuery.eq("status", "delivered");
   } else if (status === "cancelled") {
-    query = query.eq("status", "cancelled");
+    countQuery = countQuery.eq("status", "cancelled");
+    dataQuery = dataQuery.eq("status", "cancelled");
   }
 
-  const { data: orders, error } = await query;
+  if (search) {
+    const asNum = Number.parseInt(search, 10);
+    if (Number.isFinite(asNum) && String(asNum) === search) {
+      countQuery = countQuery.eq("order_number", asNum);
+      dataQuery = dataQuery.eq("order_number", asNum);
+    }
+  }
+
+  const { count, error: countError } = await countQuery;
+  if (countError) {
+    console.warn("[pos] orders list count", countError.message);
+    return emptyPage(requestedPage, pageSize);
+  }
+
+  const totalCount = count ?? 0;
+  const totalPages = totalPagesFromCount(totalCount, pageSize);
+  const page = clampListPage(requestedPage, totalPages);
+  const { from, to } = listPageRange(page, pageSize);
+
+  const { data: orders, error } = await dataQuery.range(from, to);
   if (error) {
     console.warn("[pos] orders list", error.message);
-    return [];
+    return emptyPage(page, pageSize);
   }
-  if (!orders?.length) return [];
+  if (!orders?.length) {
+    return { items: [], page, pageSize, totalCount, totalPages };
+  }
 
   const orderIds = orders.map((o) => o.id as string);
   const sessionIds = [
@@ -96,7 +160,9 @@ export async function listPosOrdersInRange(
           .from("pos_table_sessions")
           .select("id, dining_table_id")
           .in("id", sessionIds)
-      : Promise.resolve({ data: [] as { id: string; dining_table_id: string }[] }),
+      : Promise.resolve({
+          data: [] as { id: string; dining_table_id: string }[],
+        }),
   ]);
 
   const tableIds = [
@@ -109,7 +175,13 @@ export async function listPosOrdersInRange(
         .from("dining_tables")
         .select("id, table_number, table_name")
         .in("id", tableIds)
-    : { data: [] as { id: string; table_number: string | null; table_name: string | null }[] };
+    : {
+        data: [] as {
+          id: string;
+          table_number: string | null;
+          table_name: string | null;
+        }[],
+      };
 
   const tableById = new Map(
     (tables ?? []).map((t) => [t.id as string, t] as const),
@@ -132,7 +204,7 @@ export async function listPosOrdersInRange(
     linesByOrder.set(orderId, list);
   }
 
-  return orders.map((order) => {
+  const items = orders.map((order) => {
     const orderLines = linesByOrder.get(order.id as string) ?? [];
     const session = sessionById.get(order.table_session_id as string);
     const table = session
@@ -163,4 +235,6 @@ export async function listPosOrdersInRange(
       linePreview: preview ? `${preview}${more}` : "—",
     };
   });
+
+  return { items, page, pageSize, totalCount, totalPages };
 }

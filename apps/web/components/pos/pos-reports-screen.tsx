@@ -35,7 +35,6 @@ import {
 import {
   LIST_PAGE_SIZE_DEFAULT,
   clampListPage,
-  totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
@@ -127,6 +126,8 @@ export function PosReportsScreen() {
   const [listTo, setListTo] = useState(today);
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [sortKey, setSortKey] = useState<SessionSortKey>("closedAt");
   const [sortDir, setSortDir] = useState<ModuleTableSortDir>("desc");
   const [exportBusy, setExportBusy] = useState(false);
@@ -141,16 +142,24 @@ export function PosReportsScreen() {
     selectValue: "all",
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [listFrom, listTo]);
+
   const load = useCallback(async () => {
     if (!restaurantId || !canExport || listRangeInvalid) {
       setSessions([]);
       setAutopilotBySession({});
+      setTotalCount(0);
+      setTotalPages(1);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const result = await fetchPosRegisterSessions(restaurantId, 500, {
+      const result = await fetchPosRegisterSessions(restaurantId, {
+        page,
+        pageSize: LIST_PAGE_SIZE_DEFAULT,
         fromYmd: listFrom,
         toYmd: listTo,
       });
@@ -158,11 +167,14 @@ export function PosReportsScreen() {
         toast.error(posApiErrorLabel(result.error));
         setSessions([]);
         setAutopilotBySession({});
+        setTotalCount(0);
+        setTotalPages(1);
         return;
       }
       const nextSessions = result.data.data;
       setSessions(nextSessions);
-      setPage(1);
+      setTotalCount(result.data.totalCount);
+      setTotalPages(result.data.totalPages);
 
       if (canReadAutopilot && nextSessions.length > 0) {
         try {
@@ -191,6 +203,7 @@ export function PosReportsScreen() {
     listFrom,
     listTo,
     listRangeInvalid,
+    page,
   ]);
 
   useEffect(() => {
@@ -309,7 +322,7 @@ export function PosReportsScreen() {
     setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   };
 
-  const sortedSessions = useMemo(() => {
+  const paginated = useMemo(() => {
     const mul = sortDir === "asc" ? 1 : -1;
     return [...sessions].sort((a, b) => {
       switch (sortKey) {
@@ -334,19 +347,7 @@ export function PosReportsScreen() {
     });
   }, [sessions, sortKey, sortDir]);
 
-  const totalPages = totalPagesFromCount(
-    sortedSessions.length,
-    LIST_PAGE_SIZE_DEFAULT,
-  );
   const currentPage = clampListPage(page, totalPages);
-  const paginated = useMemo(() => {
-    const start = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
-    return sortedSessions.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
-  }, [sortedSessions, currentPage]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [sortKey, sortDir]);
 
   if (!ready || permissionsLoading) {
     return <WorkspaceRestaurantResolvePlaceholder className="py-10" />;
@@ -467,7 +468,7 @@ export function PosReportsScreen() {
             Das Enddatum muss am oder nach dem Startdatum liegen.
           </p>
         ) : null}
-        {sortedSessions.length === 0 ? (
+        {totalCount === 0 ? (
           <Card className="border-border/50 shadow-card">
             <CardContent className="pt-6">
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-12 text-center">
@@ -488,7 +489,7 @@ export function PosReportsScreen() {
         ) : (
           <ModulePaginatedDataTable
             shown={paginated.length}
-            totalCount={sortedSessions.length}
+            totalCount={totalCount}
             itemLabel="Abschlüsse"
             page={currentPage}
             totalPages={totalPages}

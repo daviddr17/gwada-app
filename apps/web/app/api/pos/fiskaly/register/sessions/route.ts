@@ -2,7 +2,11 @@ import {
   isValidYmd,
   posRestaurantYmdRangeBounds,
 } from "@/lib/pos/pos-day-range-server";
-import { listClosedRegisterSessions } from "@/lib/pos/register-sessions-server";
+import {
+  clampListPageSize,
+  parseListPageParam,
+} from "@/lib/constants/list-pagination";
+import { listClosedRegisterSessionsPage } from "@/lib/pos/register-sessions-server";
 import { authorizePosRestaurantPermission } from "@/lib/pos/pos-route-auth";
 
 export const dynamic = "force-dynamic";
@@ -10,12 +14,14 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const restaurantId = url.searchParams.get("restaurantId");
-  const limit = Math.min(
-    Math.max(Number(url.searchParams.get("limit") ?? 30), 1),
-    500,
-  );
   const fromYmd = url.searchParams.get("from")?.trim() ?? "";
   const toYmd = url.searchParams.get("to")?.trim() ?? "";
+  const page = parseListPageParam(url.searchParams.get("page"));
+  const legacyLimit = Number(url.searchParams.get("limit") ?? "");
+  const pageSize = clampListPageSize(
+    Number(url.searchParams.get("pageSize") ?? "") ||
+      (Number.isFinite(legacyLimit) ? legacyLimit : undefined),
+  );
 
   const auth = await authorizePosRestaurantPermission(
     request,
@@ -46,14 +52,17 @@ export async function GET(request: Request) {
     }
   }
 
-  const sessions = await listClosedRegisterSessions(
+  const result = await listClosedRegisterSessionsPage(
     auth.auth.restaurantId,
-    limit,
-    range,
+    {
+      page,
+      pageSize,
+      ...range,
+    },
   );
 
   return Response.json({
-    data: sessions.map((s) => ({
+    data: result.items.map((s) => ({
       id: s.id,
       openedAt: s.opened_at,
       closedAt: s.closed_at,
@@ -63,5 +72,9 @@ export async function GET(request: Request) {
       cashDifferenceCents: s.cash_difference_cents,
       zNr: s.z_nr,
     })),
+    page: result.page,
+    pageSize: result.pageSize,
+    totalCount: result.totalCount,
+    totalPages: result.totalPages,
   });
 }

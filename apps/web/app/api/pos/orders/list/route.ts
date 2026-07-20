@@ -4,6 +4,10 @@ import {
   posRestaurantTodayYmd,
   shiftYmd,
 } from "@/lib/pos/pos-day-range-server";
+import {
+  clampListPageSize,
+  parseListPageParam,
+} from "@/lib/constants/list-pagination";
 import { posError, posJson } from "@/lib/pos/pos-responses";
 import { authorizePosRestaurant } from "@/lib/pos/pos-route-auth";
 
@@ -33,6 +37,11 @@ export async function GET(request: Request) {
   const status = STATUS_VALUES.has(statusRaw)
     ? (statusRaw as "all" | "open" | "delivered" | "cancelled")
     : "all";
+  const page = parseListPageParam(url.searchParams.get("page"));
+  const pageSize = clampListPageSize(
+    Number(url.searchParams.get("pageSize") ?? ""),
+  );
+  const search = url.searchParams.get("q")?.trim() || null;
 
   if (!isValidYmd(fromYmd) || !isValidYmd(toYmd)) {
     return posError("invalid_date_range", 400);
@@ -44,12 +53,20 @@ export async function GET(request: Request) {
     fromYmd = shiftYmd(toYmd, -(MAX_RANGE_DAYS - 1));
   }
 
-  const orders = await listPosOrdersInRange(
+  const result = await listPosOrdersInRange(
     authResult.auth.supabase,
     authResult.auth.restaurantId,
     fromYmd,
     toYmd,
-    status,
+    { status, page, pageSize, search },
   );
-  return posJson({ orders, from: fromYmd, to: toYmd });
+  return posJson({
+    orders: result.items,
+    from: fromYmd,
+    to: toYmd,
+    page: result.page,
+    pageSize: result.pageSize,
+    totalCount: result.totalCount,
+    totalPages: result.totalPages,
+  });
 }

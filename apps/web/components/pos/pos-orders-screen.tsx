@@ -19,7 +19,6 @@ import {
 import {
   LIST_PAGE_SIZE_DEFAULT,
   clampListPage,
-  totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -97,6 +96,9 @@ export function PosOrdersScreen() {
   const [orders, setOrders] = useState<PosWebOrderListItemDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<ModuleTableSortDir>("desc");
   const showSkeleton = useDeferredSkeleton(!ready || loading);
@@ -110,31 +112,53 @@ export function PosOrdersScreen() {
     selectValue: statusFilter,
   });
 
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => window.clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [fromYmd, toYmd, statusFilter, debouncedSearch]);
+
   const load = useCallback(async () => {
     if (!restaurantId || rangeInvalid) {
       setOrders([]);
+      setTotalCount(0);
+      setTotalPages(1);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const result = await fetchPosOrdersList(
-        restaurantId,
-        fromYmd,
-        toYmd,
-        statusFilter,
-      );
+      const result = await fetchPosOrdersList(restaurantId, fromYmd, toYmd, {
+        status: statusFilter,
+        page,
+        pageSize: LIST_PAGE_SIZE_DEFAULT,
+        search: debouncedSearch || undefined,
+      });
       if (!result.ok) {
         toast.error(posApiErrorLabel(result.error));
         setOrders([]);
+        setTotalCount(0);
+        setTotalPages(1);
         return;
       }
       setOrders(result.data.orders);
-      setPage(1);
+      setTotalCount(result.data.totalCount);
+      setTotalPages(result.data.totalPages);
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, fromYmd, toYmd, statusFilter, rangeInvalid]);
+  }, [
+    restaurantId,
+    fromYmd,
+    toYmd,
+    statusFilter,
+    rangeInvalid,
+    page,
+    debouncedSearch,
+  ]);
 
   useEffect(() => {
     void load();
@@ -149,20 +173,10 @@ export function PosOrdersScreen() {
     setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   };
 
-  const filteredSorted = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let rows = orders;
-    if (q) {
-      rows = rows.filter(
-        (o) =>
-          String(o.orderNumber).includes(q) ||
-          o.tableLabel.toLowerCase().includes(q) ||
-          o.linePreview.toLowerCase().includes(q) ||
-          (STATUS_LABEL[o.status] ?? o.status).toLowerCase().includes(q),
-      );
-    }
+  /** Sort within the current server page (server orders by created_at desc). */
+  const paginated = useMemo(() => {
     const mul = sortDir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => {
+    return [...orders].sort((a, b) => {
       switch (sortKey) {
         case "orderNumber":
           return (a.orderNumber - b.orderNumber) * mul;
@@ -180,26 +194,15 @@ export function PosOrdersScreen() {
         case "createdAt":
         default:
           return (
-            (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) *
+            (new Date(a.createdAt).getTime() -
+              new Date(b.createdAt).getTime()) *
             mul
           );
       }
     });
-  }, [orders, search, sortKey, sortDir]);
+  }, [orders, sortKey, sortDir]);
 
-  const totalPages = totalPagesFromCount(
-    filteredSorted.length,
-    LIST_PAGE_SIZE_DEFAULT,
-  );
   const currentPage = clampListPage(page, totalPages);
-  const paginated = useMemo(() => {
-    const start = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
-    return filteredSorted.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
-  }, [filteredSorted, currentPage]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, sortKey, sortDir]);
 
   if (!ready) {
     return <WorkspaceRestaurantResolvePlaceholder className="py-10" />;
@@ -245,7 +248,7 @@ export function PosOrdersScreen() {
 
       {showSkeleton ? (
         <PosOrdersSkeleton />
-      ) : filteredSorted.length === 0 ? (
+      ) : totalCount === 0 ? (
         <Card className="border-border/50 shadow-card">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-12 text-center">
@@ -265,7 +268,7 @@ export function PosOrdersScreen() {
       ) : (
         <ModulePaginatedDataTable
           shown={paginated.length}
-          totalCount={filteredSorted.length}
+          totalCount={totalCount}
           itemLabel="Bestellungen"
           page={currentPage}
           totalPages={totalPages}

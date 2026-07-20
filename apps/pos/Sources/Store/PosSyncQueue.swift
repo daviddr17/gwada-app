@@ -28,6 +28,9 @@ struct PosSyncCreateOrderPayload: Codable, Sendable {
     var tableSessionId: String
     var items: [PosSyncOrderItem]
     var localOrderId: String
+    var localLineIds: [String]?
+
+    var resolvedLocalLineIds: [String] { localLineIds ?? [] }
 }
 
 struct PosSyncOrderItem: Codable, Sendable {
@@ -112,6 +115,12 @@ final class PosSyncQueue: ObservableObject {
     func enqueueCollectCash(_ payload: PosSyncCollectCashPayload) {
         var resolved = payload
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+        resolved.allocations = payload.allocations.map {
+            PosSyncCashAllocation(
+                orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
+                quantity: $0.quantity
+            )
+        }
         let data = (try? encoder.encode(resolved)) ?? Data()
         enqueue(PosSyncQueueItem(
             id: UUID().uuidString,
@@ -211,7 +220,7 @@ final class PosSyncQueue: ObservableObject {
             var payload = try decoder.decode(PosSyncCreateOrderPayload.self, from: item.payload)
             payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
             item.payload = (try? encoder.encode(payload)) ?? item.payload
-            _ = try await PosCloudClient.createOrder(
+            let result = try await PosCloudClient.createOrder(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
                 items: payload.items.map {
@@ -225,10 +234,23 @@ final class PosSyncQueue: ObservableObject {
                     )
                 }
             )
+            applyLineMapping(
+                sessionId: payload.tableSessionId,
+                localLineIds: payload.resolvedLocalLineIds,
+                cloudLines: result.lines,
+                working: &working,
+                afterIndex: index
+            )
 
         case .collectCash:
             var payload = try decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
             payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            payload.allocations = payload.allocations.map {
+                PosSyncCashAllocation(
+                    orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
+                    quantity: $0.quantity
+                )
+            }
             item.payload = (try? encoder.encode(payload)) ?? item.payload
             try await PosCloudClient.collectCash(
                 restaurantId: payload.restaurantId,
@@ -241,6 +263,50 @@ final class PosSyncQueue: ObservableObject {
             let payload = try decoder.decode(PosCreateReservationPayload.self, from: item.payload)
             _ = try await PosCloudClient.createReservation(payload: payload)
         }
+    }
+
+    private func applyLineMapping(
+        sessionId: String,
+        localLineIds: [String],
+        cloudLines: [PosCloudClient.PosCloudCreateOrderResult.Line],
+        working: inout [PosSyncQueueItem],
+        afterIndex: Int
+    ) {
+        let sorted = cloudLines.sorted { $0.position < $1.position }
+        var mappings: [String: String] = [:]
+        for (local, cloud) in zip(localLineIds, sorted) {
+            PosOrderLineIdMap.shared.remember(localLineId: local, cloudLineId: cloud.id)
+            mappings[local] = cloud.id
+        }
+        if !mappings.isEmpty {
+            PosHubState.shared.remapOpenLineIds(
+                sessionId: sessionId,
+                mappings: mappings.map { (localLineId: $0.key, cloudLineId: $0.value) }
+            )
+        }
+        guard afterIndex + 1 < working.count, !mappings.isEmpty else { return }
+        for i in (afterIndex + 1) ..< working.count {
+            working[i] = remapQueueItemLineIds(working[i], mappings: mappings)
+        }
+    }
+
+    private func remapQueueItemLineIds(
+        _ item: PosSyncQueueItem,
+        mappings: [String: String]
+    ) -> PosSyncQueueItem {
+        guard item.kind == .collectCash,
+              var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
+        else { return item }
+        var changed = false
+        payload.allocations = payload.allocations.map { alloc in
+            guard let cloud = mappings[alloc.orderLineId] else { return alloc }
+            changed = true
+            return PosSyncCashAllocation(orderLineId: cloud, quantity: alloc.quantity)
+        }
+        guard changed, let data = try? encoder.encode(payload) else { return item }
+        var copy = item
+        copy.payload = data
+        return copy
     }
 
     private func applySessionMapping(
@@ -284,13 +350,17 @@ final class PosSyncQueue: ObservableObject {
         case .collectCash:
             guard var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
             else { return item }
+            var changed = false
             if payload.tableSessionId == localSessionId {
                 payload.tableSessionId = cloudSessionId
-                if let data = try? encoder.encode(payload) {
-                    copy.payload = data
-                }
+                changed = true
+            }
+            if let data = try? encoder.encode(payload), changed {
+                copy.payload = data
             }
         case .openSession:
+            break
+        case .createReservation:
             break
         }
         return copy

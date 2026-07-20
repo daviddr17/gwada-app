@@ -39,7 +39,6 @@ import {
 import {
   LIST_PAGE_SIZE_DEFAULT,
   clampListPage,
-  totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
@@ -104,15 +103,6 @@ function methodLabel(method: string): string {
   return method || "—";
 }
 
-function methodBucket(method: string): "cash" | "card" | "other" {
-  const m = method.trim().toLowerCase();
-  if (m === "cash" || m === "bar") return "cash";
-  if (m === "card" || m === "karte" || m === "mollie" || m === "terminal") {
-    return "card";
-  }
-  return "other";
-}
-
 export function PosReceiptsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
@@ -127,6 +117,9 @@ export function PosReceiptsScreen() {
   const [receipts, setReceipts] = useState<PosWebReceiptDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortKey, setSortKey] = useState<ReceiptSortKey>("paidAt");
   const [sortDir, setSortDir] = useState<ModuleTableSortDir>("desc");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -146,26 +139,53 @@ export function PosReceiptsScreen() {
     selectValue: methodFilter,
   });
 
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => window.clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [fromYmd, toYmd, methodFilter, debouncedSearch]);
+
   const load = useCallback(async () => {
     if (!restaurantId || rangeInvalid) {
       setReceipts([]);
+      setTotalCount(0);
+      setTotalPages(1);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const result = await fetchPosReceipts(restaurantId, fromYmd, toYmd);
+      const result = await fetchPosReceipts(restaurantId, fromYmd, toYmd, {
+        page,
+        pageSize: LIST_PAGE_SIZE_DEFAULT,
+        method: methodFilter,
+        search: debouncedSearch || undefined,
+      });
       if (!result.ok) {
         toast.error(posApiErrorLabel(result.error));
         setReceipts([]);
+        setTotalCount(0);
+        setTotalPages(1);
         return;
       }
       setReceipts(result.data.receipts);
-      setPage(1);
+      setTotalCount(result.data.totalCount);
+      setTotalPages(result.data.totalPages);
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, fromYmd, toYmd, rangeInvalid]);
+  }, [
+    restaurantId,
+    fromYmd,
+    toYmd,
+    rangeInvalid,
+    page,
+    methodFilter,
+    debouncedSearch,
+  ]);
 
   useEffect(() => {
     void load();
@@ -184,27 +204,9 @@ export function PosReceiptsScreen() {
     setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   };
 
-  const filteredSorted = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let rows = receipts;
-    if (methodFilter === "refunded") {
-      rows = rows.filter((r) => r.status === "refunded");
-    } else if (methodFilter !== "all") {
-      rows = rows.filter(
-        (r) =>
-          r.status !== "refunded" && methodBucket(r.method) === methodFilter,
-      );
-    }
-    if (q) {
-      rows = rows.filter(
-        (r) =>
-          String(r.orderNumber).includes(q) ||
-          r.tableLabel.toLowerCase().includes(q) ||
-          methodLabel(r.method).toLowerCase().includes(q),
-      );
-    }
+  const paginated = useMemo(() => {
     const mul = sortDir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => {
+    return [...receipts].sort((a, b) => {
       switch (sortKey) {
         case "orderNumber":
           return (a.orderNumber - b.orderNumber) * mul;
@@ -227,21 +229,9 @@ export function PosReceiptsScreen() {
         }
       }
     });
-  }, [receipts, methodFilter, search, sortKey, sortDir]);
+  }, [receipts, sortKey, sortDir]);
 
-  const totalPages = totalPagesFromCount(
-    filteredSorted.length,
-    LIST_PAGE_SIZE_DEFAULT,
-  );
   const currentPage = clampListPage(page, totalPages);
-  const paginated = useMemo(() => {
-    const start = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
-    return filteredSorted.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
-  }, [filteredSorted, currentPage]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, methodFilter, sortKey, sortDir]);
 
   const openVoidDrawer = async (receipt: PosWebReceiptDto) => {
     if (!restaurantId || !canManage) return;
@@ -365,7 +355,7 @@ export function PosReceiptsScreen() {
 
       {showSkeleton ? (
         <Skeleton className="h-56 w-full rounded-xl" />
-      ) : filteredSorted.length === 0 ? (
+      ) : totalCount === 0 ? (
         <Card className="border-border/50 shadow-card">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-12 text-center">
@@ -386,7 +376,7 @@ export function PosReceiptsScreen() {
       ) : (
         <ModulePaginatedDataTable
           shown={paginated.length}
-          totalCount={filteredSorted.length}
+          totalCount={totalCount}
           itemLabel="Quittungen"
           page={currentPage}
           totalPages={totalPages}

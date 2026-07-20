@@ -92,6 +92,11 @@ struct RootView: View {
                 selection = .device
             }
         }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                runtime.noteUserActivity()
+            }
+        )
     }
 
     @ViewBuilder

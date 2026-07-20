@@ -26,9 +26,17 @@ final class PosHubState: @unchecked Sendable {
 
     func lanSharedSecretMatches(_ got: String) -> Bool {
         lock.lock()
-        defer { lock.unlock() }
-        guard let lanSharedSecret, !lanSharedSecret.isEmpty else { return false }
-        return lanSharedSecret == got
+        let expected = lanSharedSecret
+        lock.unlock()
+        guard let expected, !expected.isEmpty else { return false }
+        let a = Array(expected.utf8)
+        let b = Array(got.utf8)
+        guard a.count == b.count else { return false }
+        var diff: UInt8 = 0
+        for i in 0 ..< a.count {
+            diff |= a[i] ^ b[i]
+        }
+        return diff == 0
     }
 
     func applyBootstrap(_ bootstrap: PosCloudBootstrap) {
@@ -182,8 +190,35 @@ final class PosHubState: @unchecked Sendable {
             bootstrap.floor.sessionMetaBySessionId[cloud] = merged
         }
 
+        if let lines = localOpenLinesBySession.removeValue(forKey: local) {
+            var existing = localOpenLinesBySession[cloud] ?? []
+            existing.append(contentsOf: lines)
+            localOpenLinesBySession[cloud] = existing
+        }
+
         self.bootstrap = bootstrap
         PosLocalStore.saveBootstrap(bootstrap)
+    }
+
+    /// Nach Offline-Order: lokale Zeilen-IDs durch Cloud-IDs ersetzen.
+    func remapOpenLineIds(sessionId: String, mappings: [(localLineId: String, cloudLineId: String)]) {
+        let sid = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sid.isEmpty, !mappings.isEmpty else { return }
+
+        lock.lock()
+        defer { lock.unlock() }
+        guard var list = localOpenLinesBySession[sid] else { return }
+        for mapping in mappings {
+            let local = mapping.localLineId.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cloud = mapping.cloudLineId.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !local.isEmpty, !cloud.isEmpty else { continue }
+            guard let idx = list.firstIndex(where: { $0.orderLineId == local || $0.id == local }) else {
+                continue
+            }
+            list[idx].id = cloud
+            list[idx].orderLineId = cloud
+        }
+        localOpenLinesBySession[sid] = list
     }
 
     func bumpLocalOrder(sessionId: String, addCents: Int) {
@@ -565,12 +600,15 @@ final class PosHubState: @unchecked Sendable {
         return localPrintJobs.filter { ($0["status"] as? String) == "pending" }.count
     }
 
-    func appendLocalOpenLines(sessionId: String, cartLines: [PosCartLine]) {
+    @discardableResult
+    func appendLocalOpenLines(sessionId: String, cartLines: [PosCartLine]) -> [String] {
         lock.lock()
         defer { lock.unlock() }
         var list = localOpenLinesBySession[sessionId] ?? []
+        var createdIds: [String] = []
         for line in cartLines {
             let id = UUID().uuidString
+            createdIds.append(id)
             var detailParts: [String] = []
             if line.course != .other { detailParts.append(line.course.label) }
             detailParts.append(contentsOf: line.modifiers.map(\.label))
@@ -585,6 +623,7 @@ final class PosHubState: @unchecked Sendable {
             ))
         }
         localOpenLinesBySession[sessionId] = list
+        return createdIds
     }
 
     func localOpenLines(sessionId: String) -> [SessionOpenLine] {

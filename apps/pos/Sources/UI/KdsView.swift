@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 /// Küchen-Display — Tickets lokal von der iPad-Kasse (LAN bzw. Hub-State).
 /// Tippen wechselt zum nächsten Status. Sync zur Cloud nur über die Kasse.
@@ -9,6 +10,7 @@ struct KdsView: View {
     @State private var status = "Lädt …"
     @State private var dense = false
     @State private var advancingIds: Set<String> = []
+    @State private var hubTicketTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,6 +49,10 @@ struct KdsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await reload() }
         .refreshable { await reload() }
+        .onReceive(hubTicketTimer) { _ in
+            guard runtime.role == .hub else { return }
+            Task { await reload() }
+        }
     }
 
     private var settingsBar: some View {

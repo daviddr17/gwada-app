@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buildPosAuthRoster } from "@/lib/pos/pos-auth-roster-server";
 import {
   generatePosToken,
   upsertPosInstallation,
@@ -84,6 +85,14 @@ export async function POST(request: Request) {
     .delete()
     .eq("id", pairing.id);
 
+  const roster = await buildPosAuthRoster({
+    id: device.id as string,
+    restaurant_id: device.restaurant_id as string,
+    name: device.name as string,
+    auto_lock_seconds: device.auto_lock_seconds as number,
+    is_active: Boolean(device.is_active),
+  });
+
   return NextResponse.json({
     ok: true,
     device_id: device.id,
@@ -97,6 +106,10 @@ export async function POST(request: Request) {
       name: restaurant.name,
       slug: restaurant.slug,
       accent_hex: restaurant.brand_accent_hex,
+    },
+    roster: {
+      fetched_at: roster.fetchedAt,
+      staff: roster.staff,
     },
   });
 }

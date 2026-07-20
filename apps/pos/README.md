@@ -14,10 +14,14 @@ Native iPad-Kasse + iPhone-Handgeräte. **Getrennt** von `apps/staff` (Expo, Kol
 1. **Dashboard** (Recht `pos.kasse.manage`): unter POS → Einstellungen → Geräte ein Gerät anlegen und **Kopplungscode** erzeugen.
 2. **iPad / iPhone** einmalig mit dem Code koppeln → Restaurant ist gebunden.
 3. Mitarbeiter melden sich nur noch mit der **Display-PIN** an (Recht `pos.kasse.use` oder `pos.kasse.manage`).
-4. **iPad** lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal; Handgeräte holen Snapshot / Sessions / Orders über WLAN.
-5. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
-6. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt; wartende Orders/Kassierungen werden umgeschrieben (`session-id-map.json`).
-7. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE, Geräte-Kopplung.
+4. **Online:** PIN live gegen Cloud; Auth-Roster (Offline-Hashes) wird lokal gecacht.
+5. **Offline (nach Kopplung):** PIN gegen den letzten lokalen Roster; Kasse läuft lokal/LAN; bei Netz wieder → Session-Resume + Sync-Queue.
+6. **iPad** lädt Bootstrap (Floor + Speisekarte + Register) → speichert lokal; Handgeräte holen Snapshot / Sessions / Orders über WLAN.
+7. Ohne Internet: Service weiter (LAN). Sync-Queue auf dem iPad → DB + Fiskaly, sobald wieder online.
+8. **Offline-Sessions:** Lokale Tisch-Session-IDs werden beim Sync auf Cloud-IDs gemappt; wartende Orders/Kassierungen werden umgeschrieben (`session-id-map.json`).
+9. **Web** (`/dashboard/pos`): Verwaltung, Bestellungen, Statistiken, TSE, Geräte-Kopplung.
+
+Hinweis Offline-PIN: Nach App-/DB-Update einmal online PIN setzen oder an der Kasse einloggen (füllt den lokalen Roster). Danach funktioniert PIN auch ohne Netz.
 
 ## Öffnen (Mac)
 

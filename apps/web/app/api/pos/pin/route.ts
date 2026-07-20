@@ -6,6 +6,10 @@ import {
   recordDisplayPinFailure,
 } from "@/lib/api/display-pin-rate-limit";
 import {
+  backfillPosOfflinePinHash,
+  buildPosAuthRoster,
+} from "@/lib/pos/pos-auth-roster-server";
+import {
   assertPosDeviceFromRequest,
   endPosSession,
   generatePosToken,
@@ -85,6 +89,12 @@ export async function POST(request: Request) {
 
   clearDisplayPinFailures(deviceResult.device.id);
 
+  await backfillPosOfflinePinHash({
+    staffId,
+    restaurantId: deviceResult.device.restaurant_id,
+    pin,
+  });
+
   await admin
     .from("restaurant_pos_sessions")
     .update({ ended_at: new Date().toISOString() })
@@ -116,6 +126,7 @@ export async function POST(request: Request) {
   const staffName = staff
     ? `${staff.given_name} ${staff.family_name}`.trim()
     : "";
+  const roster = await buildPosAuthRoster(deviceResult.device);
 
   return NextResponse.json({
     ok: true,
@@ -138,6 +149,10 @@ export async function POST(request: Request) {
         }
       : { id: staffId, name: staffName },
     permissions: Array.from(permissionKeys),
+    roster: {
+      fetched_at: roster.fetchedAt,
+      staff: roster.staff,
+    },
   });
 }
 

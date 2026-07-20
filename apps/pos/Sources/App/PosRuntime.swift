@@ -78,11 +78,24 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Gerät noch nicht gekoppelt — Kopplungscode aus dem Dashboard eingeben."
             return
         }
+
+        // Online: Roster aktualisieren; Offline-Session ggf. zur Cloud-Session machen
+        if PosAuthStore.shared.isOfflineSession {
+            if await PosAuthStore.shared.resumeCloudSessionIfNeeded() {
+                isSignedIn = true
+                statusMessage = "Wieder online — Session synchronisiert."
+            }
+        } else {
+            try? await PosAuthStore.shared.refreshAuthRoster()
+        }
+
         guard PosAuthStore.shared.isSignedIn else {
             phase = .needsLogin
-            statusMessage = "Mit Display-PIN anmelden."
+            let rosterHint = PosAuthStore.shared.hasOfflineRoster
+                ? "Mit Display-PIN anmelden (auch offline möglich)."
+                : "Mit Display-PIN anmelden (einmal online für Offline-Cache)."
+            statusMessage = rosterHint
             if role == .hub {
-                // Hub darf lokal schon laufen, Sync erst nach PIN
                 await startHub()
             }
             return
@@ -136,7 +149,10 @@ final class PosRuntime: ObservableObject {
             try await PosAuthStore.shared.signInWithPin(pin)
             pinInput = ""
             isSignedIn = true
-            statusMessage = "Angemeldet als \(staffDisplayName)."
+            let offline = PosAuthStore.shared.isOfflineSession
+            statusMessage = offline
+                ? "Offline angemeldet als \(staffDisplayName) — Sync bei Internet."
+                : "Angemeldet als \(staffDisplayName)."
             switch role {
             case .hub:
                 await startHub()
@@ -153,6 +169,8 @@ final class PosRuntime: ObservableObject {
                 statusMessage = "Keine Berechtigung für die Kasse (Recht „Kasse bedienen“)."
             } else if message.contains("pin_invalid") {
                 statusMessage = "PIN ungültig."
+            } else if message.contains("roster_missing") {
+                statusMessage = "Kein Offline-Login möglich — einmal online anmelden oder koppeln."
             } else {
                 statusMessage = "Anmeldung fehlgeschlagen: \(message)"
             }
@@ -694,7 +712,22 @@ final class PosRuntime: ObservableObject {
         heartbeatTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
-                await PosAuthStore.shared.heartbeat()
+                if PosAuthStore.shared.isOfflineSession {
+                    if await PosAuthStore.shared.resumeCloudSessionIfNeeded() {
+                        await MainActor.run {
+                            self?.isSignedIn = true
+                            self?.statusMessage = "Wieder online — Cloud-Sync aktiv."
+                            self?.syncPending = PosSyncQueue.shared.pendingCount
+                        }
+                        await PosSyncQueue.shared.flushIfPossible()
+                        await MainActor.run {
+                            self?.syncPending = PosSyncQueue.shared.pendingCount
+                        }
+                    }
+                } else {
+                    await PosAuthStore.shared.heartbeat()
+                    try? await PosAuthStore.shared.refreshAuthRoster()
+                }
                 await MainActor.run {
                     self?.isSignedIn = PosAuthStore.shared.isSignedIn
                     if self?.isSignedIn != true {

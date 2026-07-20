@@ -511,6 +511,15 @@ enum PosCloudClient {
     }
 
     @MainActor
+    static func deviceAuthenticatedGet<T: Decodable>(_ path: String) async throws -> T {
+        var request = URLRequest(url: url(path, restaurantId: nil))
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try applyDeviceAuth(to: &request)
+        return try await perform(request)
+    }
+
+    @MainActor
     static func deviceAuthenticatedPost<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
         var request = URLRequest(url: url(path, restaurantId: nil))
         request.httpMethod = "POST"

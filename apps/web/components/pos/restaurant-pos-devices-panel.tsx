@@ -190,8 +190,10 @@ export function RestaurantPosDevicesPanel() {
     <>
       <div className="space-y-3 pb-8">
         <p className="text-sm text-muted-foreground">
-          Restaurant einmal pro Gerät koppeln. Danach melden sich Mitarbeiter
-          nur noch mit ihrer Display-PIN an (Recht „Kasse bedienen“).
+          Restaurant einmal pro Gerät koppeln (Internet nötig). Danach melden
+          sich Mitarbeiter nur noch mit Display-PIN an (Recht „Kasse bedienen“)
+          — auch offline aus dem lokalen Cache. Bestehende PINs: einmal online
+          an der Kasse einloggen oder PIN neu speichern, dann ist Offline bereit.
         </p>
 
         <Button

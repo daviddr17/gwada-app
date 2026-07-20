@@ -67,7 +67,11 @@ struct DeviceSettingsView: View {
                 }
             } else if !runtime.isSignedIn {
                 Section("Display-PIN") {
-                    Text("Mit der 4-stelligen Mitarbeiter-PIN anmelden (Recht „Kasse bedienen“).")
+                    Text(
+                        PosAuthStore.shared.hasOfflineRoster
+                            ? "4-stellige Mitarbeiter-PIN (Recht „Kasse bedienen“). Offline aus lokalem Cache möglich."
+                            : "4-stellige Mitarbeiter-PIN. Für Offline-Login einmal online anmelden oder Roster laden."
+                    )
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     SecureField("PIN", text: $runtime.pinInput)

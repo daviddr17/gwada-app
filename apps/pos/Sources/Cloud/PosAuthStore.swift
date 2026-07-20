@@ -17,9 +17,65 @@ struct PosPinSession: Codable, Equatable, Sendable {
     var staffName: String
     var profileId: String?
     var permissionKeys: [String]
+    /// Lokale Offline-Session (noch keine Cloud-Session).
+    var isOffline: Bool
+
+    init(
+        sessionId: String,
+        sessionToken: String,
+        staffId: String,
+        staffName: String,
+        profileId: String?,
+        permissionKeys: [String],
+        isOffline: Bool
+    ) {
+        self.sessionId = sessionId
+        self.sessionToken = sessionToken
+        self.staffId = staffId
+        self.staffName = staffName
+        self.profileId = profileId
+        self.permissionKeys = permissionKeys
+        self.isOffline = isOffline
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        sessionId = try c.decode(String.self, forKey: .sessionId)
+        sessionToken = try c.decode(String.self, forKey: .sessionToken)
+        staffId = try c.decode(String.self, forKey: .staffId)
+        staffName = try c.decode(String.self, forKey: .staffName)
+        profileId = try c.decodeIfPresent(String.self, forKey: .profileId)
+        permissionKeys = try c.decodeIfPresent([String].self, forKey: .permissionKeys) ?? []
+        isOffline = try c.decodeIfPresent(Bool.self, forKey: .isOffline) ?? false
+    }
 }
 
-/// Geräte-Kopplung + Display-PIN-Session (ersetzt E-Mail/Passwort am Gerät).
+private struct PosPinApiResponse: Decodable {
+    var ok: Bool?
+    var session_id: String
+    var session_token: String
+    var staff: Staff
+    var permissions: [String]?
+    var roster: Roster?
+    struct Staff: Decodable {
+        var id: String
+        var name: String?
+        var profile_id: String?
+    }
+    struct Roster: Decodable {
+        var fetched_at: String
+        var staff: [PosAuthRosterStaff]
+    }
+}
+
+private struct PosRosterApiResponse: Decodable {
+    var ok: Bool?
+    var restaurant_id: String
+    var fetched_at: String
+    var staff: [PosAuthRosterStaff]
+}
+
+/// Geräte-Kopplung + Display-PIN-Session (online live, offline aus lokalem Roster).
 @MainActor
 final class PosAuthStore: ObservableObject {
     static let shared = PosAuthStore()
@@ -39,7 +95,9 @@ final class PosAuthStore: ObservableObject {
 
     var isPaired: Bool { device != nil }
     var isSignedIn: Bool { pinSession != nil }
+    var isOfflineSession: Bool { pinSession?.isOffline == true }
     var restaurantId: String? { device?.restaurantId }
+    var hasOfflineRoster: Bool { !(PosAuthRosterStore.shared.roster?.staff.isEmpty ?? true) }
 
     func installationId() -> String {
         if let existing = UserDefaults.standard.string(forKey: installationKey),
@@ -64,6 +122,7 @@ final class PosAuthStore: ObservableObject {
         } else {
             pinSession = nil
         }
+        PosAuthRosterStore.shared.load()
     }
 
     func saveDevice(_ credential: PosDeviceCredential) {
@@ -79,6 +138,7 @@ final class PosAuthStore: ObservableObject {
         pinSession = nil
         UserDefaults.standard.removeObject(forKey: deviceKey)
         UserDefaults.standard.removeObject(forKey: sessionKey)
+        PosAuthRosterStore.shared.clear()
     }
 
     func savePinSession(_ session: PosPinSession) {
@@ -99,14 +159,15 @@ final class PosAuthStore: ObservableObject {
     }
 
     func sessionHeaderValue() throws -> String {
-        guard let pinSession else { throw PosCloudError.unauthorized }
+        guard let pinSession, !pinSession.isOffline else { throw PosCloudError.unauthorized }
         return "\(pinSession.sessionId).\(pinSession.sessionToken)"
     }
 
-    /// Früher: JWT — bleibt für Kompatibilität mit Sync-Checks als „angemeldet“.
     func validAccessToken() async throws -> String {
-        // Kein JWT mehr; Cloud-Client nutzt Header. Wir werfen nur, wenn keine PIN-Session.
         guard isSignedIn else { throw PosCloudError.unauthorized }
+        if isOfflineSession {
+            throw PosCloudError.offline
+        }
         return try sessionHeaderValue()
     }
 
@@ -123,6 +184,7 @@ final class PosAuthStore: ObservableObject {
             var auto_lock_seconds: Int
             var device_name: String?
             var restaurant: Restaurant
+            var roster: PosPinApiResponse.Roster?
             struct Restaurant: Decodable {
                 var id: String
                 var name: String?
@@ -147,6 +209,15 @@ final class PosAuthStore: ObservableObject {
             autoLockSeconds: response.auto_lock_seconds
         ))
         clearPinSession()
+        if let roster = response.roster {
+            PosAuthRosterStore.shared.applyApiRoster(
+                restaurantId: response.restaurant.id,
+                fetchedAt: roster.fetched_at,
+                staff: roster.staff
+            )
+        } else {
+            try? await refreshAuthRoster()
+        }
     }
 
     func restoreDeviceIfNeeded() async {
@@ -187,50 +258,130 @@ final class PosAuthStore: ObservableObject {
                 deviceName: response.device_name,
                 autoLockSeconds: response.auto_lock_seconds
             ))
+            try? await refreshAuthRoster()
         } catch {
-            // Offline: lokale Kopplung behalten
+            // Offline: lokale Kopplung + Roster behalten
         }
     }
 
+    @discardableResult
+    func refreshAuthRoster() async throws -> PosAuthRoster {
+        let response: PosRosterApiResponse = try await PosCloudClient.deviceAuthenticatedGet(
+            "/api/pos/auth-roster"
+        )
+        let roster = PosAuthRoster(
+            restaurantId: response.restaurant_id,
+            fetchedAt: response.fetched_at,
+            staff: response.staff
+        )
+        PosAuthRosterStore.shared.save(roster)
+        return roster
+    }
+
     func signInWithPin(_ pin: String) async throws {
-        struct Body: Encodable { var pin: String }
-        struct Response: Decodable {
-            var ok: Bool?
-            var session_id: String
-            var session_token: String
-            var staff: Staff
-            var permissions: [String]?
-            struct Staff: Decodable {
-                var id: String
-                var name: String?
-                var profile_id: String?
-            }
+        let trimmed = pin.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count == 4, trimmed.allSatisfy(\.isNumber) else {
+            throw PosCloudError.httpStatus(400, "invalid_request")
         }
 
-        let response: Response = try await PosCloudClient.deviceAuthenticatedPost(
-            "/api/pos/pin",
-            body: Body(pin: pin.trimmingCharacters(in: .whitespacesAndNewlines))
-        )
+        // Online zuerst (live Auth + Roster-Refresh)
+        do {
+            struct Body: Encodable { var pin: String }
+            let response: PosPinApiResponse = try await PosCloudClient.deviceAuthenticatedPost(
+                "/api/pos/pin",
+                body: Body(pin: trimmed)
+            )
+            applyOnlinePinResponse(response)
+            return
+        } catch PosCloudError.offline {
+            // Fallback unten
+        } catch let PosCloudError.httpStatus(code, _) where code == 0 || code >= 500 {
+            // Server/Netz — Fallback
+        } catch {
+            // pin_invalid / forbidden_pos online nicht lokal überschreiben
+            if error.localizedDescription.contains("pin_invalid")
+                || error.localizedDescription.contains("forbidden_pos")
+                || error.localizedDescription.contains("pin_locked") {
+                throw error
+            }
+            // sonst Offline-Fallback versuchen
+        }
 
+        try signInWithPinOffline(trimmed)
+    }
+
+    private func signInWithPinOffline(_ pin: String) throws {
+        guard let device else { throw PosCloudError.unauthorized }
+        guard let roster = PosAuthRosterStore.shared.roster,
+              roster.restaurantId == device.restaurantId else {
+            throw PosCloudError.httpStatus(503, "roster_missing")
+        }
+        guard let staff = PosOfflinePin.resolveStaff(pin: pin, roster: roster) else {
+            throw PosCloudError.httpStatus(401, "pin_invalid")
+        }
+        let canUse = staff.permissions.contains("pos.kasse.use")
+            || staff.permissions.contains("pos.kasse.manage")
+        guard canUse else {
+            throw PosCloudError.httpStatus(403, "forbidden_pos")
+        }
+
+        savePinSession(PosPinSession(
+            sessionId: "offline-\(UUID().uuidString)",
+            sessionToken: "offline",
+            staffId: staff.id,
+            staffName: staff.displayName,
+            profileId: staff.profile_id,
+            permissionKeys: staff.permissions,
+            isOffline: true
+        ))
+    }
+
+    private func applyOnlinePinResponse(_ response: PosPinApiResponse) {
         savePinSession(PosPinSession(
             sessionId: response.session_id,
             sessionToken: response.session_token,
             staffId: response.staff.id,
             staffName: response.staff.name ?? "",
             profileId: response.staff.profile_id,
-            permissionKeys: response.permissions ?? []
+            permissionKeys: response.permissions ?? [],
+            isOffline: false
         ))
+        if let roster = response.roster, let restaurantId = device?.restaurantId {
+            PosAuthRosterStore.shared.applyApiRoster(
+                restaurantId: restaurantId,
+                fetchedAt: roster.fetched_at,
+                staff: roster.staff
+            )
+        }
+    }
+
+    /// Offline-Session zu Cloud-Session upgraden, wenn wieder online.
+    @discardableResult
+    func resumeCloudSessionIfNeeded() async -> Bool {
+        guard let session = pinSession, session.isOffline else { return false }
+        struct Body: Encodable { var staff_id: String }
+        do {
+            let response: PosPinApiResponse = try await PosCloudClient.deviceAuthenticatedPost(
+                "/api/pos/pin/resume",
+                body: Body(staff_id: session.staffId)
+            )
+            applyOnlinePinResponse(response)
+            try? await refreshAuthRoster()
+            return true
+        } catch {
+            return false
+        }
     }
 
     func signOutPin() async {
-        if pinSession != nil {
+        if let session = pinSession, !session.isOffline {
             try? await PosCloudClient.deviceAuthenticatedDelete("/api/pos/pin")
         }
         clearPinSession()
     }
 
     func heartbeat() async {
-        guard isSignedIn else { return }
+        guard isSignedIn, !isOfflineSession else { return }
         try? await PosCloudClient.deviceAuthenticatedPatch("/api/pos/pin")
     }
 

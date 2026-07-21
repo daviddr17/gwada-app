@@ -36,7 +36,7 @@ import { ShiftPlanShiftCard } from "@/components/staff/shift-plan/shift-plan-shi
 import { StaffShiftPlanSkeleton } from "@/components/staff/shift-plan/staff-shift-plan-skeleton";
 import {
   ShiftPlanTemplatePalette,
-  parseShiftPlanCellDropId,
+  parseShiftPlanDropId,
   type ShiftPlanDragData,
 } from "@/components/staff/shift-plan/shift-plan-template-palette";
 import { ShiftPlanSearchField } from "@/components/staff/shift-plan/shift-plan-search-field";
@@ -510,97 +510,41 @@ export function StaffShiftPlanScreen({
     const drop = event.over;
     if (!drop) return;
 
-    const dropData = parseShiftPlanCellDropId(String(drop.id));
+    const dropData = parseShiftPlanDropId(String(drop.id));
     if (!dropData) return;
 
     const dragData = event.active.data.current as ShiftPlanDragData | undefined;
     if (!dragData) return;
 
-    const day = parseLocalDayKey(dropData.dayKey);
-
-    const existingAbsence = findStaffAbsenceOnDay(
-      absenceEntries,
-      dropData.staffId,
-      dropData.dayKey,
-    );
-    if (existingAbsence && dragData.type !== "absence") {
-      toast.error(
-        `An diesem Tag ist ${STAFF_WORK_ENTRY_LABELS[existingAbsence.entry_type]} eingetragen.`,
-      );
-      return;
-    }
-
-    if (dragData.type === "template") {
-      const template = templates.find((t) => t.id === dragData.templateId);
-      if (!template) return;
-      const times = applyTemplateTimesToDay(
-        day,
-        template.start_time,
-        template.end_time,
-      );
-      const { error } = await createScheduledShift({
-        restaurantId,
-        staffId: dropData.staffId,
-        startsAt: times.startsAt,
-        endsAt: times.endsAt,
-        templateId: template.id,
-        label: null,
-        status: requiresAcceptance ? "pending" : "confirmed",
-      });
-      if (error) toast.error(error);
-      else {
-        toast.success("Schicht geplant.");
-        void reload();
-      }
-      return;
-    }
-
-    if (dragData.type === "absence") {
-      const existing = findStaffAbsenceOnDay(
-        absenceEntries,
-        dropData.staffId,
-        dropData.dayKey,
-      );
-      if (existing) {
-        if (existing.entry_type === dragData.entryType) {
-          toast.info(
-            `${STAFF_WORK_ENTRY_LABELS[dragData.entryType]} ist für diesen Tag bereits eingetragen.`,
-          );
-        } else {
-          toast.error(
-            `Für diesen Tag ist bereits ${STAFF_WORK_ENTRY_LABELS[existing.entry_type]} eingetragen.`,
-          );
-        }
-        return;
-      }
-
-      const hasShiftsOnDay = shifts.some(
-        (s) =>
-          s.staff_id === dropData.staffId &&
-          localDayKey(new Date(s.starts_at)) === dropData.dayKey,
-      );
-      if (hasShiftsOnDay) {
-        toast.error("Bitte zuerst geplante Schichten an diesem Tag entfernen.");
-        return;
-      }
-
-      const rangeTimes = absenceEntryRangeForLocalDay(day);
-      const res = await upsertStaffWorkEntry(restaurantId, dropData.staffId, {
-        entry_type: dragData.entryType,
-        starts_at: rangeTimes.starts_at,
-        ends_at: rangeTimes.ends_at,
-        note: null,
-      });
-      if (!res) {
-        toast.error("Eintrag konnte nicht gespeichert werden.");
-        return;
-      }
-      toast.success(`${STAFF_WORK_ENTRY_LABELS[dragData.entryType]} eingetragen.`);
-      void reload();
-      return;
-    }
+    const targetDays: { dayKey: string; day: Date }[] =
+      dropData.kind === "week"
+        ? days.map((day) => ({ dayKey: localDayKey(day), day }))
+        : [
+            {
+              dayKey: dropData.dayKey,
+              day: parseLocalDayKey(dropData.dayKey),
+            },
+          ];
+    const staffId = dropData.staffId;
+    const multiDay = targetDays.length > 1;
 
     if (dragData.type === "shift") {
+      if (multiDay) {
+        toast.info("Schichten bitte auf einen einzelnen Tag ziehen.");
+        return;
+      }
+      const { dayKey, day } = targetDays[0]!;
+      const existingAbsence = findStaffAbsenceOnDay(
+        absenceEntries,
+        staffId,
+        dayKey,
+      );
+      if (existingAbsence) {
+        toast.error(
+          `An diesem Tag ist ${STAFF_WORK_ENTRY_LABELS[existingAbsence.entry_type]} eingetragen.`,
+        );
+        return;
+      }
       const shift = shifts.find((s) => s.id === dragData.shiftId);
       if (!shift) return;
       const oldStart = new Date(shift.starts_at);
@@ -615,13 +559,151 @@ export function StaffShiftPlanScreen({
       const ends = new Date(starts.getTime() + durationMs);
       const { error } = await updateScheduledShift({
         id: shift.id,
-        staffId: dropData.staffId,
+        staffId,
         startsAt: starts.toISOString(),
         endsAt: ends.toISOString(),
         status: requiresAcceptance ? "pending" : shift.status,
       });
       if (error) toast.error(error);
       else void reload();
+      return;
+    }
+
+    if (dragData.type === "template") {
+      const template = templates.find((t) => t.id === dragData.templateId);
+      if (!template) return;
+
+      let created = 0;
+      let skippedAbsence = 0;
+      let lastError: string | null = null;
+
+      for (const { dayKey, day } of targetDays) {
+        if (findStaffAbsenceOnDay(absenceEntries, staffId, dayKey)) {
+          skippedAbsence += 1;
+          continue;
+        }
+        const times = applyTemplateTimesToDay(
+          day,
+          template.start_time,
+          template.end_time,
+        );
+        const { error } = await createScheduledShift({
+          restaurantId,
+          staffId,
+          startsAt: times.startsAt,
+          endsAt: times.endsAt,
+          templateId: template.id,
+          label: null,
+          status: requiresAcceptance ? "pending" : "confirmed",
+        });
+        if (error) lastError = error;
+        else created += 1;
+      }
+
+      if (created === 0) {
+        if (skippedAbsence > 0 && !lastError) {
+          toast.error(
+            multiDay
+              ? "An diesen Tagen ist bereits Urlaub/Krank eingetragen."
+              : `An diesem Tag ist bereits eine Abwesenheit eingetragen.`,
+          );
+        } else {
+          toast.error(lastError ?? "Schicht konnte nicht geplant werden.");
+        }
+        return;
+      }
+
+      if (multiDay) {
+        const skipHint =
+          skippedAbsence > 0
+            ? ` · ${skippedAbsence} Tag${skippedAbsence === 1 ? "" : "e"} übersprungen`
+            : "";
+        toast.success(
+          `${created} Schicht${created === 1 ? "" : "en"} für die Woche geplant.${skipHint}`,
+        );
+      } else {
+        toast.success("Schicht geplant.");
+      }
+      void reload();
+      return;
+    }
+
+    if (dragData.type === "absence") {
+      let created = 0;
+      let skippedSame = 0;
+      let skippedOther = 0;
+      let skippedShifts = 0;
+
+      for (const { dayKey, day } of targetDays) {
+        const existing = findStaffAbsenceOnDay(
+          absenceEntries,
+          staffId,
+          dayKey,
+        );
+        if (existing) {
+          if (existing.entry_type === dragData.entryType) skippedSame += 1;
+          else skippedOther += 1;
+          continue;
+        }
+
+        const hasShiftsOnDay = shifts.some(
+          (s) =>
+            s.staff_id === staffId &&
+            localDayKey(new Date(s.starts_at)) === dayKey,
+        );
+        if (hasShiftsOnDay) {
+          skippedShifts += 1;
+          continue;
+        }
+
+        const rangeTimes = absenceEntryRangeForLocalDay(day);
+        const res = await upsertStaffWorkEntry(restaurantId, staffId, {
+          entry_type: dragData.entryType,
+          starts_at: rangeTimes.starts_at,
+          ends_at: rangeTimes.ends_at,
+          note: null,
+        });
+        if (res) created += 1;
+      }
+
+      if (created === 0) {
+        if (!multiDay) {
+          if (skippedSame > 0) {
+            toast.info(
+              `${STAFF_WORK_ENTRY_LABELS[dragData.entryType]} ist für diesen Tag bereits eingetragen.`,
+            );
+          } else if (skippedOther > 0) {
+            toast.error("Für diesen Tag ist bereits eine Abwesenheit eingetragen.");
+          } else if (skippedShifts > 0) {
+            toast.error(
+              "Bitte zuerst geplante Schichten an diesem Tag entfernen.",
+            );
+          } else {
+            toast.error("Eintrag konnte nicht gespeichert werden.");
+          }
+          return;
+        }
+        toast.error(
+          "Keine Tage belegt — Abwesenheit oder geplante Schichten blockieren.",
+        );
+        return;
+      }
+
+      if (multiDay) {
+        const skipped = skippedSame + skippedOther + skippedShifts;
+        const skipHint =
+          skipped > 0
+            ? ` · ${skipped} Tag${skipped === 1 ? "" : "e"} übersprungen`
+            : "";
+        toast.success(
+          `${STAFF_WORK_ENTRY_LABELS[dragData.entryType]}: ${created} Tag${created === 1 ? "" : "e"}.${skipHint}`,
+        );
+      } else {
+        toast.success(
+          `${STAFF_WORK_ENTRY_LABELS[dragData.entryType]} eingetragen.`,
+        );
+      }
+      void reload();
     }
   };
 
@@ -798,12 +880,13 @@ export function StaffShiftPlanScreen({
         ) : null}
       </div>
 
-      {editable ? (
+      {editable && !planFullscreen ? (
         <ShiftPlanTemplatePalette
           templates={templates}
           referenceDay={referenceDay}
           onCreateTemplate={openCreateTemplate}
           onEditTemplate={openEditTemplate}
+          sticky
         />
       ) : null}
 
@@ -856,6 +939,7 @@ export function StaffShiftPlanScreen({
           onDeleteAbsence={openDeleteAbsence}
           onStaffClick={editable ? openStaffMember : undefined}
           editable={editable}
+          weekDropEnabled={editable && view === "week" && days.length > 1}
         />
       )}
     </div>
@@ -907,6 +991,15 @@ export function StaffShiftPlanScreen({
                 </Tooltip>
               </div>
               {shiftPlanToolbar(false)}
+              {editable ? (
+                <ShiftPlanTemplatePalette
+                  templates={templates}
+                  referenceDay={referenceDay}
+                  onCreateTemplate={openCreateTemplate}
+                  onEditTemplate={openEditTemplate}
+                  className="mt-1"
+                />
+              ) : null}
             </div>
           }
         >

@@ -1,6 +1,9 @@
 "use client";
 
-import { entryDurationHours, formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
+import {
+  entryDurationHours,
+  formatWorkTimeRangeWithHoursDe,
+} from "@/lib/staff/staff-work-hours-summary";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 import { STAFF_WORK_ENTRY_LABELS } from "@/lib/types/staff";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
@@ -38,10 +41,10 @@ export function StaffExportEntryRow({
           {STAFF_WORK_ENTRY_LABELS[entry.entry_type]}
         </span>
         <span className="mt-0.5 block text-xs text-muted-foreground tabular-nums">
-          {timeDe.format(new Date(entry.starts_at))} –{" "}
-          {timeDe.format(new Date(entry.ends_at))}
-          {" · "}
-          {formatHoursDe(entryDurationHours(entry))}
+          {formatWorkTimeRangeWithHoursDe(
+            `${timeDe.format(new Date(entry.starts_at))} – ${timeDe.format(new Date(entry.ends_at))}`,
+            entryDurationHours(entry),
+          )}
         </span>
       </span>
     </div>

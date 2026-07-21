@@ -13,6 +13,10 @@ import {
 } from "@/lib/ui/drawer-form-section";
 import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import {
+  isValidStaffPartySize,
+  RESERVATION_PARTY_SIZE_MAX_STAFF,
+} from "@/lib/reservations/reservation-party-size";
+import {
   displayTouchNumericInputProps,
   displayTouchPhoneLocalInputMode,
   digitsOnlyInput,
@@ -298,8 +302,10 @@ export function DisplayReservationEditDrawer({
 
   const buildPayload = (): BuiltPayload | null => {
     const ps = Number.parseInt(partySize, 10);
-    if (!Number.isFinite(ps) || ps < 1 || ps > 50) {
-      toast.error("Personenzahl zwischen 1 und 50.");
+    if (!isValidStaffPartySize(ps)) {
+      toast.error(
+        `Personenzahl zwischen 1 und ${RESERVATION_PARTY_SIZE_MAX_STAFF}.`,
+      );
       return null;
     }
     if (!dateYmd.trim()) {
@@ -585,7 +591,7 @@ export function DisplayReservationEditDrawer({
                           {...displayTouchNumericInputProps}
                           value={partySize}
                           onChange={(e) =>
-                            setPartySize(digitsOnlyInput(e.target.value, 2))
+                            setPartySize(digitsOnlyInput(e.target.value, 3))
                           }
                           className={cn(fieldClass, "tabular-nums")}
                         />

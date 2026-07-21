@@ -17,6 +17,7 @@ import {
 } from "@/lib/reservations/reservation-guest-name";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
+import { isValidStaffPartySize } from "@/lib/reservations/reservation-party-size";
 import { formatDiningTableLabel } from "@/lib/supabase/dining-floor-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formatReservationGuestLabel } from "@/lib/types/reservation-log";
@@ -175,8 +176,7 @@ export async function createPosReservation(params: {
     !params.startsAt ||
     !params.endsAt ||
     !params.partySize ||
-    params.partySize < 1 ||
-    params.partySize > 50
+    !isValidStaffPartySize(params.partySize)
   ) {
     return { ok: false, error: "invalid_request", status: 400 };
   }

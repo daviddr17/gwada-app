@@ -39,6 +39,10 @@ import {
   checkTableAssignmentForSave,
   type TableAssignmentCheck,
 } from "@/lib/reservations/reservation-table-conflicts";
+import {
+  isValidStaffPartySize,
+  RESERVATION_PARTY_SIZE_MAX_STAFF,
+} from "@/lib/reservations/reservation-party-size";
 import { WALK_IN_DEFAULT_LAST_NAME } from "@/lib/reservations/walk-in";
 import {
   readRestaurantZonedParts,
@@ -210,8 +214,10 @@ export function DisplayWalkInDrawer({
 
   const submitWalkIn = async (confirmedTableId: string, allowShare = false) => {
     const ps = Number.parseInt(partySize, 10);
-    if (!Number.isFinite(ps) || ps < 1 || ps > 50) {
-      toast.error("Personenzahl zwischen 1 und 50.");
+    if (!isValidStaffPartySize(ps)) {
+      toast.error(
+        `Personenzahl zwischen 1 und ${RESERVATION_PARTY_SIZE_MAX_STAFF}.`,
+      );
       return;
     }
     if (!confirmedTableId) {
@@ -320,7 +326,7 @@ export function DisplayWalkInDrawer({
                   {...displayTouchNumericInputProps}
                   value={partySize}
                   onChange={(e) =>
-                    setPartySize(digitsOnlyInput(e.target.value, 2))
+                    setPartySize(digitsOnlyInput(e.target.value, 3))
                   }
                   className={cn(fieldClass, "tabular-nums")}
                 />

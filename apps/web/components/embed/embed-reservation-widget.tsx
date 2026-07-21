@@ -65,6 +65,7 @@ import {
   normalizeReservationGuestLastName,
   reservationGuestFirstNameForForm,
 } from "@/lib/reservations/reservation-guest-name";
+import { RESERVATION_PARTY_SIZE_MAX_PUBLIC } from "@/lib/reservations/reservation-party-size";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -684,7 +685,7 @@ function EmbedReservationWidgetBody({
             id="embed-party"
             type="number"
             min={1}
-            max={30}
+            max={RESERVATION_PARTY_SIZE_MAX_PUBLIC}
             value={partySize}
             onChange={(e) => {
               setPartySize(e.target.value);

@@ -15,6 +15,7 @@ import {
   normalizeReservationGuestLastName,
 } from "@/lib/reservations/reservation-guest-name";
 import { isValidReservationTimeRange } from "@/lib/display/display-reservation-save-times";
+import { isValidStaffPartySize } from "@/lib/reservations/reservation-party-size";
 
 export async function GET(
   _request: Request,
@@ -73,9 +74,7 @@ export async function PATCH(
     typeof body.starts_at !== "string" ||
     typeof body.ends_at !== "string" ||
     typeof body.status_id !== "string" ||
-    !Number.isFinite(partySize) ||
-    partySize < 1 ||
-    partySize > 50
+    !isValidStaffPartySize(partySize)
   ) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }

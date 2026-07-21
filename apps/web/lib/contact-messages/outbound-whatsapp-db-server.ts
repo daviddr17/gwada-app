@@ -59,6 +59,7 @@ export async function insertPendingOutboundWhatsappMessage(
     clientSendId?: string;
     sendBatchId?: string | null;
     deliveryStatus?: string;
+    reservationId?: string | null;
   },
 ): Promise<
   | { ok: true; messageId: string; clientSendId: string }
@@ -103,7 +104,7 @@ export async function insertPendingOutboundWhatsappMessage(
       platform: "whatsapp",
       direction: "outbound",
       body: params.body.trim() || " ",
-      reservation_id: null,
+      reservation_id: params.reservationId ?? null,
       sent_by: params.sentBy ?? null,
       sent_by_label: params.sentByLabel ?? null,
       delivery_status: params.deliveryStatus ?? "pending",

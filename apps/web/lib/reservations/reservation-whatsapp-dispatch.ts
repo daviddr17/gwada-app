@@ -8,6 +8,12 @@ import {
 import type { ReservationMessageContext } from "@/lib/whatsapp/reservation-message-templates";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
+import {
+  finalizeOutboundWhatsappMessage,
+  insertPendingOutboundWhatsappMessage,
+} from "@/lib/contact-messages/outbound-whatsapp-db-server";
+import { wahaPseudoContactIdFromChatId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
+import { resolveContactIdByWhatsappChat } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { fetchRestaurantWhatsappIntegration } from "@/lib/supabase/restaurant-integrations-db";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
@@ -50,6 +56,7 @@ export type ReservationForWhatsapp = {
   ends_at: string;
   notify_whatsapp: boolean;
   status_code: string;
+  contact_id: string | null;
 };
 
 export type OutboxKind = WhatsappMessageKind;
@@ -107,6 +114,7 @@ export async function fetchReservationForWhatsapp(
       starts_at,
       ends_at,
       notify_whatsapp,
+      contact_id,
       ${RESERVATION_STATUS_EMBED} ( code )
     `,
     )
@@ -129,6 +137,7 @@ export async function fetchReservationForWhatsapp(
     ends_at: data.ends_at as string,
     notify_whatsapp: Boolean(data.notify_whatsapp),
     status_code: status?.code ?? "pending",
+    contact_id: (data.contact_id as string | null) ?? null,
   };
 }
 
@@ -247,12 +256,37 @@ export async function sendImmediateKind(
   row: ReservationForWhatsapp,
   kind: WhatsappImmediateKind,
   settings: ReservationWhatsappSettings | null,
-): Promise<{ sent: boolean; error?: string }> {
+): Promise<{
+  sent: boolean;
+  error?: string;
+  messageBody?: string;
+  messageId?: string;
+  wahaMessageId?: string | null;
+  threadContactId?: string;
+}> {
   const chatId = guestPhoneToWhatsAppChatId(row.guest_phone);
   if (!chatId) return { sent: false, error: "no_phone" };
 
   const timeZone = await fetchRestaurantTimezoneServer(sb, row.restaurant_id);
   const text = buildText(kind, row, settings, timeZone);
+
+  const linkedContactId =
+    row.contact_id ??
+    (await resolveContactIdByWhatsappChat(sb, {
+      restaurantId: row.restaurant_id,
+      chatId,
+    }));
+  const threadContactId =
+    linkedContactId ?? wahaPseudoContactIdFromChatId(chatId);
+
+  const pending = await insertPendingOutboundWhatsappMessage(sb, {
+    restaurantId: row.restaurant_id,
+    threadContactId,
+    body: text,
+    reservationId: row.id,
+    deliveryStatus: "pending",
+  });
+
   const result = await wahaSendText({
     restaurantId: row.restaurant_id,
     chatId,
@@ -260,6 +294,13 @@ export async function sendImmediateKind(
   });
 
   if (!result.ok) {
+    if (pending.ok) {
+      await finalizeOutboundWhatsappMessage(sb, {
+        restaurantId: row.restaurant_id,
+        messageId: pending.messageId,
+        deliveryStatus: "failed",
+      });
+    }
     await sb.from("reservation_whatsapp_outbox").upsert(
       {
         restaurant_id: row.restaurant_id,
@@ -271,6 +312,15 @@ export async function sendImmediateKind(
       { onConflict: "reservation_id,message_kind" },
     );
     return { sent: false, error: result.error };
+  }
+
+  if (pending.ok) {
+    await finalizeOutboundWhatsappMessage(sb, {
+      restaurantId: row.restaurant_id,
+      messageId: pending.messageId,
+      deliveryStatus: "sent",
+      wahaMessageId: result.wahaMessageId,
+    });
   }
 
   await sb.from("reservation_whatsapp_outbox").upsert(
@@ -285,7 +335,13 @@ export async function sendImmediateKind(
     },
     { onConflict: "reservation_id,message_kind" },
   );
-  return { sent: true };
+  return {
+    sent: true,
+    messageBody: text,
+    messageId: pending.ok ? pending.messageId : undefined,
+    wahaMessageId: result.wahaMessageId,
+    threadContactId,
+  };
 }
 
 export async function scheduleTimedMessages(
@@ -347,12 +403,22 @@ const EVENT_TO_KIND: Record<
   no_show: "no_show",
 };
 
+export type ReservationWhatsappDispatchResult = {
+  ok: boolean;
+  skipped?: string;
+  error?: string;
+  messageBody?: string;
+  messageId?: string;
+  wahaMessageId?: string | null;
+  threadContactId?: string;
+};
+
 async function sendForEvent(
   sb: SupabaseClient,
   row: ReservationForWhatsapp,
   settings: ReservationWhatsappSettings,
   kind: WhatsappImmediateKind,
-): Promise<{ ok: boolean; skipped?: string; error?: string }> {
+): Promise<ReservationWhatsappDispatchResult> {
   if (!isWhatsappKindEnabled(settings, kind)) {
     return { ok: true, skipped: "disabled" };
   }
@@ -363,14 +429,20 @@ async function sendForEvent(
   if (!send.sent) {
     return { ok: false, error: send.error ?? "send_failed" };
   }
-  return { ok: true };
+  return {
+    ok: true,
+    messageBody: send.messageBody,
+    messageId: send.messageId,
+    wahaMessageId: send.wahaMessageId,
+    threadContactId: send.threadContactId,
+  };
 }
 
 export async function dispatchReservationWhatsapp(
   sb: SupabaseClient,
   reservationId: string,
   event: DispatchEvent,
-): Promise<{ ok: boolean; skipped?: string; error?: string }> {
+): Promise<ReservationWhatsappDispatchResult> {
   const row = await fetchReservationForWhatsapp(sb, reservationId);
   if (!row) return { ok: false, error: "reservation_not_found" };
   if (!row.notify_whatsapp) return { ok: true, skipped: "notify_whatsapp_off" };
@@ -392,24 +464,25 @@ export async function dispatchReservationWhatsapp(
   }
 
   if (event === "created") {
+    let sent: ReservationWhatsappDispatchResult = { ok: true };
     if (row.status_code === "pending") {
-      const r = await sendForEvent(sb, row, settings, "received");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "received");
+      if (!sent.ok) return sent;
     } else if (row.status_code === "confirmed") {
-      const r = await sendForEvent(sb, row, settings, "confirmed");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "confirmed");
+      if (!sent.ok) return sent;
     } else if (row.status_code === "cancelled") {
-      const r = await sendForEvent(sb, row, settings, "cancelled");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "cancelled");
+      if (!sent.ok) return sent;
     } else if (row.status_code === "declined") {
-      const r = await sendForEvent(sb, row, settings, "declined");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "declined");
+      if (!sent.ok) return sent;
     } else if (row.status_code === "no_show") {
-      const r = await sendForEvent(sb, row, settings, "no_show");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "no_show");
+      if (!sent.ok) return sent;
     }
     await scheduleTimedMessages(sb, row, settings);
-    return { ok: true };
+    return sent;
   }
 
   const kind = EVENT_TO_KIND[event];
@@ -418,7 +491,7 @@ export async function dispatchReservationWhatsapp(
   if (event === "confirmed") {
     await scheduleTimedMessages(sb, row, settings);
   }
-  return { ok: true };
+  return result;
 }
 
 const TERMINAL_STATUS = new Set(["cancelled", "declined", "no_show"]);

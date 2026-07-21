@@ -56,6 +56,7 @@ import { ContactMessageChatViewport } from "@/components/contacts/contact-messag
 import {
   ReservationEditDrawer,
   type ReservationEditDrawerCreateContext,
+  type ReservationWhatsappDispatchedPayload,
 } from "@/components/reservations/reservation-edit-drawer";
 import {
   ReviewInvitationSheet,
@@ -131,6 +132,7 @@ import {
   dropOptimisticMatchingAnchors,
   isOptimisticContactMessage,
   mergeLoadedThreadWithOptimistic,
+  OPTIMISTIC_MESSAGE_ID_PREFIX,
   patchWhatsappMessageByWahaId,
   removeOptimisticMessage,
   removeWhatsappMessageByWahaId,
@@ -1793,6 +1795,85 @@ export function ContactsMessagesScreen() {
     ],
   );
 
+  /** Overlay-WhatsApp sofort im offenen Thread — ohne loadThread-Flackern. */
+  const appendOverlayWhatsappOptimistic = useCallback(
+    (params: { clientSendId: string; messageBody: string }) => {
+      if (!restaurantId || !overlayThreadId) return;
+      const optimistic = createOptimisticOutboundWhatsappMessage({
+        restaurantId,
+        contactId: overlayThreadId,
+        body: params.messageBody,
+        clientId: params.clientSendId,
+      });
+      setMessages((prev) => {
+        const next = appendOptimisticMessage(prev, optimistic);
+        patchThreadCache(next);
+        return next;
+      });
+    },
+    [restaurantId, overlayThreadId, patchThreadCache],
+  );
+
+  const confirmOverlayWhatsappOptimistic = useCallback(
+    (params: {
+      clientSendId: string;
+      messageId?: string;
+      wahaMessageId?: string | null;
+    }) => {
+      const optimisticId = `${OPTIMISTIC_MESSAGE_ID_PREFIX}${params.clientSendId}`;
+      setMessages((prev) => {
+        const next = confirmOptimisticWhatsappMessage(prev, {
+          optimisticId,
+          messageId: params.messageId,
+          wahaMessageId: params.wahaMessageId,
+          deliveryStatus: "sent",
+        });
+        if (!contactThreadRowsEqual(prev, next)) {
+          patchThreadCache(next);
+        }
+        return next;
+      });
+      void loadConversations({ silent: true });
+    },
+    [patchThreadCache, loadConversations],
+  );
+
+  const failOverlayWhatsappOptimistic = useCallback(
+    (clientSendId: string) => {
+      const optimisticId = `${OPTIMISTIC_MESSAGE_ID_PREFIX}${clientSendId}`;
+      setMessages((prev) => {
+        const next = removeOptimisticMessage(prev, optimisticId);
+        patchThreadCache(next);
+        return next;
+      });
+    },
+    [patchThreadCache],
+  );
+
+  const handleReservationWhatsappDispatched = useCallback(
+    (payload: ReservationWhatsappDispatchedPayload) => {
+      if (!restaurantId || !overlayThreadId || !payload.messageBody.trim()) {
+        return;
+      }
+      const clientSendId = crypto.randomUUID();
+      appendOverlayWhatsappOptimistic({
+        clientSendId,
+        messageBody: payload.messageBody,
+      });
+      confirmOverlayWhatsappOptimistic({
+        clientSendId,
+        messageId: payload.messageId,
+        wahaMessageId: payload.wahaMessageId,
+      });
+    },
+    [
+      restaurantId,
+      overlayThreadId,
+      appendOverlayWhatsappOptimistic,
+      confirmOverlayWhatsappOptimistic,
+    ],
+  );
+
   const restaurantName = profile.name.trim() || undefined;
   const canSendViaExternal =
     Boolean(contactParam) &&
@@ -2846,11 +2927,12 @@ export function ContactsMessagesScreen() {
         reservation={reservationForDrawer}
         createFor={reservationCreateFor}
         stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
+        onWhatsappDispatched={handleReservationWhatsappDispatched}
         onSaved={() => {
           setReservationDrawerOpen(false);
           setReservationForDrawer(null);
           setReservationCreateFor(null);
-          if (contactParam) void loadThread();
+          if (contactParam) void loadThread({ silent: true });
         }}
       />
 
@@ -2865,6 +2947,23 @@ export function ContactsMessagesScreen() {
         defaultCountryIso2={defaultCountryIso2}
         initialGuest={reviewInviteGuest}
         stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
+        onWhatsappOutboundStart={({ clientSendId, messageBody }) => {
+          appendOverlayWhatsappOptimistic({ clientSendId, messageBody });
+        }}
+        onWhatsappOutboundSuccess={({
+          clientSendId,
+          messageId,
+          wahaMessageId,
+        }) => {
+          confirmOverlayWhatsappOptimistic({
+            clientSendId,
+            messageId,
+            wahaMessageId,
+          });
+        }}
+        onWhatsappOutboundFailure={({ clientSendId }) => {
+          failOverlayWhatsappOptimistic(clientSendId);
+        }}
       />
 
       <ContactMessageProtocolDrawer

@@ -168,8 +168,15 @@ export async function sendManualReviewInvitation(
     sendEmail: boolean;
     sentByUserId: string | null;
     restaurantName?: string | null;
+    clientSendId?: string | null;
   },
-): Promise<{ ok: boolean; errors: string[] }> {
+): Promise<{
+  ok: boolean;
+  errors: string[];
+  messageId?: string;
+  wahaMessageId?: string | null;
+  contactId?: string;
+}> {
   const token = params.invitationToken.trim();
   if (!token) {
     return { ok: false, errors: ["invalid_token"] };
@@ -247,6 +254,7 @@ export async function sendManualReviewInvitation(
     reservationId: null,
     sentBy: params.sentByUserId,
     restaurantName: params.restaurantName,
+    clientSendId: params.clientSendId ?? undefined,
   });
 
   const externalChannels = channels.filter(
@@ -267,5 +275,8 @@ export async function sendManualReviewInvitation(
       .eq("id", inv.id);
   }
 
-  return result;
+  return {
+    ...result,
+    contactId: contactRes.contactId,
+  };
 }

@@ -148,6 +148,13 @@ export type ReservationEditDrawerCreateContext = {
   initialGuestEmail?: string | null;
 };
 
+export type ReservationWhatsappDispatchedPayload = {
+  messageBody: string;
+  messageId?: string;
+  wahaMessageId?: string | null;
+  threadContactId?: string;
+};
+
 type ReservationEditDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -158,6 +165,8 @@ type ReservationEditDrawerProps = {
   /** Über Chat-Vollbild-Overlay legen (z-210). */
   stackAboveInboxOverlay?: boolean;
   onSaved: () => void;
+  /** Nach erfolgreichem WhatsApp-Statusversand (für Chat-Optimistic). */
+  onWhatsappDispatched?: (payload: ReservationWhatsappDispatchedPayload) => void;
 };
 
 type BuiltReservationPayload = {
@@ -185,6 +194,7 @@ export function ReservationEditDrawer({
   overlapReservations = [],
   stackAboveInboxOverlay = false,
   onSaved,
+  onWhatsappDispatched,
 }: ReservationEditDrawerProps) {
   const isEdit = Boolean(reservation);
   const isCreate = Boolean(createFor) && !reservation;
@@ -655,12 +665,20 @@ export function ReservationEditDrawer({
         newStatusCode,
       );
       if (dispatchEvent && payload.notify_whatsapp) {
-        void triggerReservationWhatsappDispatch(reservation.id, dispatchEvent).then(
-          (wa) => {
-            const msg = whatsappDispatchUserMessage(wa);
-            if (msg) toast.warning(msg);
-          },
+        const wa = await triggerReservationWhatsappDispatch(
+          reservation.id,
+          dispatchEvent,
         );
+        const msg = whatsappDispatchUserMessage(wa);
+        if (msg) toast.warning(msg);
+        if (wa?.ok && wa.messageBody?.trim()) {
+          onWhatsappDispatched?.({
+            messageBody: wa.messageBody,
+            messageId: wa.messageId,
+            wahaMessageId: wa.wahaMessageId,
+            threadContactId: wa.threadContactId,
+          });
+        }
       }
       if (dispatchEvent && payload.notify_email) {
         void triggerReservationEmailDispatch(reservation.id, dispatchEvent).then(
@@ -740,10 +758,17 @@ export function ReservationEditDrawer({
         );
       }
       if (created && payload.notify_whatsapp) {
-        void triggerReservationWhatsappDispatch(created.id, "created").then((wa) => {
-          const msg = whatsappDispatchUserMessage(wa);
-          if (msg) toast.warning(msg);
-        });
+        const wa = await triggerReservationWhatsappDispatch(created.id, "created");
+        const msg = whatsappDispatchUserMessage(wa);
+        if (msg) toast.warning(msg);
+        if (wa?.ok && wa.messageBody?.trim()) {
+          onWhatsappDispatched?.({
+            messageBody: wa.messageBody,
+            messageId: wa.messageId,
+            wahaMessageId: wa.wahaMessageId,
+            threadContactId: wa.threadContactId,
+          });
+        }
       }
       if (created && payload.notify_email) {
         void triggerReservationEmailDispatch(created.id, "created").then((em) => {

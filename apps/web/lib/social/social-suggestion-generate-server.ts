@@ -13,6 +13,7 @@ import {
   captionForDish,
   captionForEvent,
   captionForHoliday,
+  titleForAmbient,
 } from "@/lib/social/social-caption-templates";
 import type { SocialTemplateId } from "@/lib/social/social-brand-kit";
 import {
@@ -479,10 +480,14 @@ export async function generateSocialSuggestionsForRestaurant(
       slotKind: "ambient",
       templateId: "food_hero",
       plannedAt: nextPlan(),
-      title: null,
-      caption: captionForAmbient({ kit, restaurantName }),
+      title: titleForAmbient(g.label),
+      caption: captionForAmbient({
+        kit,
+        restaurantName,
+        imageCaption: g.label,
+      }),
       platforms: [...kit.publishPlatforms],
-      source: { galleryItemId: g.id },
+      source: { galleryItemId: g.id, imageCaption: g.label },
       asset: {
         imageUrl: g.imageUrl,
         imageLabel: g.label,

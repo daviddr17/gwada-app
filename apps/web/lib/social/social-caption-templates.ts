@@ -1,5 +1,13 @@
 import type { SocialBrandKit, SocialTone } from "@/lib/social/social-brand-kit";
 
+/**
+ * Content-Wahrheit (ohne Bild-KI):
+ * - Food-/Gericht-Claims NUR bei Slot `menu_dish` mit echtem Speisekarten-Namen.
+ * - Galerie/Ambiente: nur Atmosphäre oder vorhandene Bild-Caption — nichts erfinden
+ *   („Grill“, „Teller“, „Schnitzel“ …), nur weil ein Foto da ist.
+ * - Feiertag/Event: Text bezieht sich auf den Anlass, nicht auf spekulierten Bildinhalt.
+ */
+
 function toneFlavor(tone: SocialTone): string {
   switch (tone) {
     case "casual":
@@ -17,7 +25,6 @@ function toneFlavor(tone: SocialTone): string {
 function voiceHint(kit: SocialBrandKit): string {
   const v = kit.voiceNotes.trim();
   if (!v) return "";
-  // Kurzer Hinweis fließt nicht wörtlich ein — steuert nur leichte Varianten.
   const lower = v.toLowerCase();
   if (lower.includes("siezen") || lower.includes("höflich")) return "formal";
   if (lower.includes("duzen") || lower.includes("locker")) return "du";
@@ -33,7 +40,6 @@ function appendCtaAndTags(body: string, kit: SocialBrandKit): string {
     .filter((s) => s.length >= 3);
 
   for (const b of banned) {
-    // grobe Filter: Zeilen mit verbotenen Phrasen entfernen
     text = text
       .split("\n")
       .filter((line) => !line.toLowerCase().includes(b))
@@ -58,6 +64,16 @@ function pickGold(kit: SocialBrandKit): string | null {
   return gold[Math.floor(Math.random() * gold.length)] ?? gold[0] ?? null;
 }
 
+/** Sinnvolle Galerie-Caption (keine Platzhalter wie „Galerie“). */
+export function usableGalleryCaption(label: string | null | undefined): string | null {
+  const t = label?.trim() ?? "";
+  if (t.length < 3) return null;
+  const lower = t.toLowerCase();
+  if (lower === "galerie" || lower === "gallery" || lower === "foto") return null;
+  if (t.length > 160) return `${t.slice(0, 157).trim()}…`;
+  return t;
+}
+
 export function captionForHoliday(params: {
   kit: SocialBrandKit;
   restaurantName: string;
@@ -65,13 +81,14 @@ export function captionForHoliday(params: {
 }): string {
   const { kit, restaurantName, holidayName } = params;
   const formal = voiceHint(kit) === "formal" || kit.tone === "fine";
+  // Nur Anlass + Ort — kein Bezug zu speziellem Gericht/Bildinhalt.
   const body = formal
-    ? `${holidayName} bei ${restaurantName}.\nEin besonderer Anlass — wir decken für Sie den Tisch.`
+    ? `${holidayName} bei ${restaurantName}.\nEin besonderer Anlass — wir freuen uns auf Sie.`
     : kit.tone === "casual"
       ? `${holidayName} steht vor der Tür.\nBei ${restaurantName} seid ihr genau richtig.`
       : kit.tone === "modern"
-        ? `${holidayName}.\n${restaurantName} — klar, ruhig, gut.`
-        : `${holidayName} bei ${restaurantName}.\n${toneFlavor(kit.tone)} — für einen schönen Abend.`;
+        ? `${holidayName}.\n${restaurantName}.`
+        : `${holidayName} bei ${restaurantName}.\n${toneFlavor(kit.tone)}.`;
   return appendCtaAndTags(body, kit);
 }
 
@@ -90,10 +107,11 @@ export function captionForDish(params: {
   const descLine =
     desc && desc.length > 12 && desc.length < 140 ? `\n${desc}` : "";
   const formal = voiceHint(kit) === "formal" || kit.tone === "fine";
+  // Gerichtname kommt aus der Speisekarte — Bild sollte dasselbe Gericht sein.
   const body = formal
-    ? `${dishName} — frisch zubereitet bei ${restaurantName}.${descLine}`
+    ? `${dishName}\nbei ${restaurantName}.${descLine}`
     : kit.tone === "casual"
-      ? `Heute auf dem Teller: ${dishName}.${descLine}\nLust darauf?`
+      ? `Heute auf dem Teller: ${dishName}.${descLine}`
       : kit.tone === "modern"
         ? `${dishName}.\n${restaurantName}${descLine}`
         : `${dishName} bei ${restaurantName}.${descLine}\n${toneFlavor(kit.tone)}.`;
@@ -121,27 +139,45 @@ export function captionForBrand(params: {
   const { kit, restaurantName } = params;
   const gold = pickGold(kit);
   if (gold) return appendCtaAndTags(gold, kit);
+  // Keine erfundenen Food-Claims — nur Marke / Einladung.
   const body =
     kit.tone === "fine"
-      ? `${restaurantName}.\nGute Küche, ruhige Atmosphäre, ein Abend zum Ankommen.`
+      ? `${restaurantName}.\nEin Ort zum Ankommen.`
       : kit.tone === "casual"
-        ? `${restaurantName} — euer Platz für gutes Essen und gute Laune.`
+        ? `${restaurantName} — wir freuen uns auf euch.`
         : kit.tone === "modern"
-          ? `${restaurantName}.\nWeniger Lärm. Mehr Geschmack.`
-          : `${restaurantName}.\n${toneFlavor(kit.tone)} — heute und die ganze Woche.`;
+          ? `${restaurantName}.`
+          : `${restaurantName}.\n${toneFlavor(kit.tone)}.`;
   return appendCtaAndTags(body, kit);
 }
 
 export function captionForAmbient(params: {
   kit: SocialBrandKit;
   restaurantName: string;
+  /** Vorhandene Bildunterschrift aus Galerie — hat Vorrang. */
+  imageCaption?: string | null;
 }): string {
   const { kit, restaurantName } = params;
+  const fromImage = usableGalleryCaption(params.imageCaption);
+  if (fromImage) {
+    return appendCtaAndTags(
+      `${fromImage}\n${restaurantName}`,
+      kit,
+    );
+  }
+  // Nur Atmosphäre / Einladung — nichts über Speisen behaupten.
   const body =
     kit.tone === "modern"
-      ? `${restaurantName}.\nRaum. Licht. Geschmack.`
+      ? `${restaurantName}.\nEin Moment bei uns.`
       : kit.tone === "fine"
-        ? `Einblicke bei ${restaurantName}.\nAtmosphäre, die bleibt.`
-        : `Einblicke bei ${restaurantName}.\n${toneFlavor(kit.tone)}.`;
+        ? `Einblicke bei ${restaurantName}.`
+        : kit.tone === "casual"
+          ? `Stimmung bei ${restaurantName}.\n${toneFlavor(kit.tone)}.`
+          : `Einblicke bei ${restaurantName}.\n${toneFlavor(kit.tone)}.`;
   return appendCtaAndTags(body, kit);
+}
+
+/** Overlay-Titel: nur wenn er zum Slot passt (Gericht/Event/Feiertag/Galerie-Caption). */
+export function titleForAmbient(imageCaption?: string | null): string | null {
+  return usableGalleryCaption(imageCaption);
 }

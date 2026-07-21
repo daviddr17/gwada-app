@@ -6,7 +6,8 @@ import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/combobox";
-import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Drawer,
   DrawerContent,
@@ -22,7 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import type { ShiftScheduleSortKey } from "@/lib/types/staff-shift-schedule";
 import type { StaffPositionTagDefinition } from "@/lib/types/staff";
@@ -46,6 +46,8 @@ type ShiftPlanFilterDrawerProps = {
   positionTags: StaffPositionTagDefinition[];
   sortKey: ShiftScheduleSortKey;
   onSortKeyChange: (key: ShiftScheduleSortKey) => void;
+  onlyWithShifts: boolean;
+  onOnlyWithShiftsChange: (value: boolean) => void;
 };
 
 export function countShiftPlanActiveFilters(input: {
@@ -53,6 +55,7 @@ export function countShiftPlanActiveFilters(input: {
   staffFilter: string;
   positionFilter: string;
   sortKey: ShiftScheduleSortKey;
+  onlyWithShifts: boolean;
 }): number {
   let n = 0;
   if (input.management) {
@@ -60,6 +63,7 @@ export function countShiftPlanActiveFilters(input: {
     if (input.positionFilter !== "all") n += 1;
   }
   if (input.sortKey !== "name") n += 1;
+  if (input.onlyWithShifts) n += 1;
   return n;
 }
 
@@ -75,6 +79,8 @@ export function ShiftPlanFilterDrawer({
   positionTags,
   sortKey,
   onSortKeyChange,
+  onlyWithShifts,
+  onOnlyWithShiftsChange,
 }: ShiftPlanFilterDrawerProps) {
   const staffFilterOptions = useMemo(
     () => [
@@ -102,6 +108,7 @@ export function ShiftPlanFilterDrawer({
       onPositionFilterChange("all");
     }
     onSortKeyChange("name");
+    onOnlyWithShiftsChange(false);
     toast.success("Filter zurückgesetzt");
   };
 
@@ -147,6 +154,25 @@ export function ShiftPlanFilterDrawer({
               </DrawerFormSection>
             </>
           ) : null}
+
+          <DrawerFormSection title="Anzeige">
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/10 px-4 py-3">
+              <div className="min-w-0 space-y-0.5">
+                <Label htmlFor="shift-plan-only-with-shifts" className="text-sm font-medium">
+                  Nur mit Schicht
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Zeigt nur Mitarbeiter mit geplanter Schicht im aktuellen
+                  Zeitraum.
+                </p>
+              </div>
+              <Switch
+                id="shift-plan-only-with-shifts"
+                checked={onlyWithShifts}
+                onCheckedChange={onOnlyWithShiftsChange}
+              />
+            </div>
+          </DrawerFormSection>
 
           <DrawerFormSection title="Sortierung">
             <Select

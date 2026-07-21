@@ -44,6 +44,19 @@ export type ReviewInvitationGuestPrefill = {
   phone?: string | null;
 };
 
+export type ReviewInvitationWhatsappOutboundStart = {
+  clientSendId: string;
+  messageBody: string;
+};
+
+export type ReviewInvitationWhatsappOutboundSuccess = {
+  clientSendId: string;
+  messageBody: string;
+  messageId?: string;
+  wahaMessageId?: string | null;
+  contactId?: string;
+};
+
 export function ReviewInvitationSheet({
   open,
   onOpenChange,
@@ -52,6 +65,9 @@ export function ReviewInvitationSheet({
   defaultCountryIso2,
   initialGuest,
   stackAboveInboxOverlay = false,
+  onWhatsappOutboundStart,
+  onWhatsappOutboundSuccess,
+  onWhatsappOutboundFailure,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +78,14 @@ export function ReviewInvitationSheet({
   initialGuest?: ReviewInvitationGuestPrefill | null;
   /** Über Chat-Vollbild-Overlay legen (z-210). */
   stackAboveInboxOverlay?: boolean;
+  /** Smooth Chat-Update: Optimistic vor API. */
+  onWhatsappOutboundStart?: (
+    payload: ReviewInvitationWhatsappOutboundStart,
+  ) => void;
+  onWhatsappOutboundSuccess?: (
+    payload: ReviewInvitationWhatsappOutboundSuccess,
+  ) => void;
+  onWhatsappOutboundFailure?: (payload: { clientSendId: string }) => void;
 }) {
   const [creating, setCreating] = useState(false);
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
@@ -230,6 +254,11 @@ export function ReviewInvitationSheet({
     const text = messageBody.trim();
     if (!text) return;
 
+    const clientSendId = crypto.randomUUID();
+    if (sendWhatsapp) {
+      onWhatsappOutboundStart?.({ clientSendId, messageBody: text });
+    }
+
     setSending(true);
     try {
       const res = await fetch("/api/reviews/invitations/send", {
@@ -245,24 +274,45 @@ export function ReviewInvitationSheet({
           sendWhatsapp,
           sendEmail,
           restaurantName,
+          clientSendId: sendWhatsapp ? clientSendId : undefined,
         }),
       });
-      const raw = (await res.json()) as Partial<SendContactMessageApiResult>;
+      const raw = (await res.json()) as Partial<SendContactMessageApiResult> & {
+        contactId?: string;
+        messageId?: string;
+      };
       const data: SendContactMessageApiResult = {
         ok: raw.ok ?? false,
         errors: raw.errors,
         error: raw.error,
+        messageId: raw.messageId,
+        wahaMessageId: raw.wahaMessageId,
       };
       if (!res.ok || !data.ok) {
+        if (sendWhatsapp) {
+          onWhatsappOutboundFailure?.({ clientSendId });
+        }
         const warn = sendContactMessageUserMessage(data);
         toast.error(warn ?? "Senden fehlgeschlagen.");
         return;
+      }
+      if (sendWhatsapp) {
+        onWhatsappOutboundSuccess?.({
+          clientSendId,
+          messageBody: text,
+          messageId: data.messageId ?? raw.messageId,
+          wahaMessageId: data.wahaMessageId,
+          contactId: raw.contactId,
+        });
       }
       const warn = sendContactMessageUserMessage(data);
       if (warn) toast.warning(warn);
       else toast.success("Einladung gesendet.");
       onOpenChange(false);
     } catch {
+      if (sendWhatsapp) {
+        onWhatsappOutboundFailure?.({ clientSendId });
+      }
       toast.error("Senden fehlgeschlagen.");
     } finally {
       setSending(false);

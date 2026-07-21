@@ -4,6 +4,10 @@ export type WhatsappDispatchApiResult = {
   ok: boolean;
   skipped?: string;
   error?: string;
+  messageBody?: string;
+  messageId?: string;
+  wahaMessageId?: string | null;
+  threadContactId?: string;
 };
 
 const SKIP_USER_MESSAGE: Record<string, string> = {

@@ -91,7 +91,8 @@ export async function POST(req: Request) {
     body: messageBody,
     sentBy: auth.userId,
     restaurantName,
-    storeUnderContact: isUuidRestaurantId(contactId) ? storeUnderContact : false,
+    // UUID-Kontakt und email:-Pseudo-Thread: ausgehend in Nachrichten speichern.
+    storeUnderContact,
     attachmentFiles,
   });
 

@@ -1,7 +1,10 @@
 import "server-only";
 
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
-import { emailAddressFromPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
+import {
+  emailAddressFromPseudoContactId,
+  isEmailPseudoContactId,
+} from "@/lib/contact-messages/email-pseudo-contact";
 import {
   resolveRestaurantImapCredentials,
   threadEnvelopesForContact,
@@ -9,6 +12,7 @@ import {
 import { smtpPartsFromOutboundFiles } from "@/lib/contact-messages/send-channel-attachments";
 import type { OutboundAttachmentFile } from "@/lib/contact-messages/outbound-attachment-files";
 import { storeGwadaMessageAttachments } from "@/lib/contact-messages/gwada-message-attachments-server";
+import { mirrorOutboundEmailToContactMessages } from "@/lib/contact-messages/mirror-outbound-email-server";
 import { sendReservationEmail } from "@/lib/email/send-reservation-email";
 import { resolveEmailDeliveryForRestaurant } from "@/lib/reservations/reservation-email-dispatch";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -124,29 +128,26 @@ export async function sendEmailInboxMessageServer(
     return { ok: false, errors: [`email:${result.error}`] };
   }
 
-  if (
+  const shouldStore =
     params.storeUnderContact !== false &&
-    isUuidRestaurantId(params.contactId)
-  ) {
-    const { data: inserted, error } = await admin
-      .from("contact_messages")
-      .insert({
-        restaurant_id: params.restaurantId,
-        contact_id: params.contactId,
-        platform: "email",
-        direction: "outbound",
-        body: text || " ",
-        reservation_id: null,
-        sent_by: params.sentBy ?? null,
-        delivery_status: "sent",
-      })
-      .select("id")
-      .single();
-    if (error) errors.push(`email_db:${error.message}`);
-    else if (inserted?.id && files.length > 0) {
+    (isUuidRestaurantId(params.contactId) ||
+      isEmailPseudoContactId(params.contactId));
+
+  if (shouldStore) {
+    const mirrored = await mirrorOutboundEmailToContactMessages(admin, {
+      restaurantId: params.restaurantId,
+      guestEmail: to,
+      body: text || " ",
+      contactId: isUuidRestaurantId(params.contactId) ? params.contactId : null,
+      sentBy: params.sentBy ?? null,
+      deliveryStatus: "sent",
+    });
+    if (!mirrored.ok) {
+      errors.push(`email_db:${mirrored.error}`);
+    } else if (files.length > 0) {
       const stored = await storeGwadaMessageAttachments(admin, {
         restaurantId: params.restaurantId,
-        messageId: inserted.id as string,
+        messageId: mirrored.messageId,
         files,
       });
       if (stored.error) errors.push(`email_attachments:${stored.error}`);

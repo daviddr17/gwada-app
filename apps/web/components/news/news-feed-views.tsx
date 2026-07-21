@@ -181,7 +181,7 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
   const body = (
     <>
       <div className="relative flex w-14 shrink-0 flex-col items-center self-stretch sm:w-16">
-        <div className="z-10 flex w-full flex-col items-center rounded-lg border border-border/40 bg-background px-1 py-1.5 text-center">
+        <div className={feedTimelineDateChipClassName}>
           <span className="text-xl font-semibold tabular-nums leading-none sm:text-2xl">
             {formatNewsTimelineDay(dateTime)}
           </span>

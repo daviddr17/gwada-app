@@ -16,6 +16,7 @@ import {
 } from "@/lib/events/format-events-display-date";
 import type { UnifiedEventItem } from "@/lib/events/unified-event-item";
 import { Badge } from "@/components/ui/badge";
+import { feedTimelineDateChipClassName } from "@/components/feed/feed-timeline-date-skeleton";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { cn } from "@/lib/utils";

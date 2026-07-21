@@ -23,7 +23,7 @@ type ShiftPlanTemplatePaletteProps = {
 };
 
 const shiftPlanPaletteChipClassName =
-  "inline-flex min-w-[8.5rem] items-stretch rounded-lg border text-left transition-shadow hover:shadow-sm";
+  "inline-flex shrink-0 min-w-[8.5rem] items-stretch rounded-lg border text-left transition-shadow hover:shadow-sm";
 
 function DraggableTemplate({
   template,
@@ -54,7 +54,6 @@ function DraggableTemplate({
         transform: CSS.Translate.toString(transform),
         borderColor: `${template.color}55`,
         backgroundColor: `${template.color}12`,
-        touchAction: "none",
       }}
       className={cn(
         shiftPlanPaletteChipClassName,
@@ -64,6 +63,7 @@ function DraggableTemplate({
     >
       <button
         type="button"
+        style={{ touchAction: "none" }}
         className="flex shrink-0 cursor-grab items-center px-1 text-muted-foreground active:cursor-grabbing"
         aria-label={`${template.name} verschieben`}
         {...listeners}
@@ -116,7 +116,6 @@ function DraggableAbsencePreset({
         transform: CSS.Translate.toString(transform),
         borderColor: `${color}55`,
         backgroundColor: `${color}12`,
-        touchAction: "none",
       }}
       className={cn(
         shiftPlanPaletteChipClassName,
@@ -126,6 +125,7 @@ function DraggableAbsencePreset({
     >
       <button
         type="button"
+        style={{ touchAction: "none" }}
         className="flex shrink-0 cursor-grab items-center px-1 text-muted-foreground active:cursor-grabbing"
         aria-label={`${label} verschieben`}
         {...listeners}
@@ -182,29 +182,45 @@ export function ShiftPlanTemplatePalette({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-muted/10 px-3 py-2",
+        "rounded-xl border border-border/50 bg-muted/10",
         sticky &&
-          "sticky top-0 z-20 border-border/60 bg-background/95 shadow-sm backdrop-blur-md supports-backdrop-filter:bg-background/90",
+          "sticky top-0 z-20 -mx-4 rounded-none border-x-0 border-t-0 border-border/60 bg-background/95 shadow-sm backdrop-blur-md supports-backdrop-filter:bg-background/90 sm:mx-0 sm:rounded-xl sm:border sm:border-border/60",
         className,
       )}
     >
-      <TemplatePaletteNewButton onClick={onCreateTemplate} />
-      {templates.map((t) => (
-        <DraggableTemplate
-          key={t.id}
-          template={t}
-          referenceDay={referenceDay}
-          onEdit={() => onEditTemplate(t)}
-        />
-      ))}
-      {SHIFT_PLAN_ABSENCE_PRESETS.map((preset) => (
-        <DraggableAbsencePreset
-          key={preset.entryType}
-          entryType={preset.entryType}
-          label={preset.label}
-          color={preset.color}
-        />
-      ))}
+      <div
+        className={cn(
+          "min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "sm:overflow-visible",
+        )}
+      >
+        <div
+          className={cn(
+            "flex w-max min-w-full flex-nowrap items-center gap-2 px-3 py-2",
+            sticky && "px-4 sm:px-3",
+            "sm:w-auto sm:min-w-0 sm:flex-wrap",
+          )}
+        >
+          <TemplatePaletteNewButton onClick={onCreateTemplate} />
+          {templates.map((t) => (
+            <DraggableTemplate
+              key={t.id}
+              template={t}
+              referenceDay={referenceDay}
+              onEdit={() => onEditTemplate(t)}
+            />
+          ))}
+          {SHIFT_PLAN_ABSENCE_PRESETS.map((preset) => (
+            <DraggableAbsencePreset
+              key={preset.entryType}
+              entryType={preset.entryType}
+              label={preset.label}
+              color={preset.color}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

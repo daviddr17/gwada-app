@@ -58,7 +58,7 @@ import {
 } from "@/lib/staff/shift-schedule-range";
 import { fetchStaffForRestaurant, fetchStaffContractsForRestaurant, fetchStaffWorkEntriesInRange, deleteStaffWorkEntry, upsertStaffWorkEntry } from "@/lib/supabase/staff-db";
 import {
-  createScheduledShift,
+  createScheduledShiftsBatch,
   deleteScheduledShift,
   fetchScheduledShiftsInRange,
   fetchShiftScheduleSettings,
@@ -248,10 +248,11 @@ export function StaffShiftPlanScreen({
     !bootstrapping && workspaceReady && !!restaurantId,
   );
 
-  const fetchShiftsForRange = useCallback(async () => {
+  const fetchShiftsForRange = useCallback(async (opts?: { quiet?: boolean }) => {
     if (!restaurantId) return;
     const requestId = ++shiftsRequestIdRef.current;
-    setRangeFetching(true);
+    const quiet = opts?.quiet === true;
+    if (!quiet) setRangeFetching(true);
     try {
       const staffScope =
         personalMode && personalStaffId ? personalStaffId : null;
@@ -283,6 +284,7 @@ export function StaffShiftPlanScreen({
       if (availabilityRes.error) toast.error(availabilityRes.error);
       else setAvailabilitySlots(availabilityRes.data);
     } finally {
+      // Auch nach quiet-Reload zurücksetzen, falls zuvor ein sichtbarer Fetch die Dim aktiviert hat.
       if (requestId === shiftsRequestIdRef.current) {
         setRangeFetching(false);
       }
@@ -335,9 +337,12 @@ export function StaffShiftPlanScreen({
     void fetchShiftsForRange();
   }, [restaurantId, bootstrapping, fetchShiftsForRange]);
 
-  const reload = useCallback(async () => {
-    await fetchShiftsForRange();
-  }, [fetchShiftsForRange]);
+  const reload = useCallback(
+    async (opts?: { quiet?: boolean }) => {
+      await fetchShiftsForRange(opts);
+    },
+    [fetchShiftsForRange],
+  );
 
   const reloadStaffRows = useCallback(async () => {
     if (!restaurantId) return;
@@ -573,10 +578,8 @@ export function StaffShiftPlanScreen({
       const template = templates.find((t) => t.id === dragData.templateId);
       if (!template) return;
 
-      let created = 0;
       let skippedAbsence = 0;
-      let lastError: string | null = null;
-
+      const toCreate = [];
       for (const { dayKey, day } of targetDays) {
         if (findStaffAbsenceOnDay(absenceEntries, staffId, dayKey)) {
           skippedAbsence += 1;
@@ -587,32 +590,39 @@ export function StaffShiftPlanScreen({
           template.start_time,
           template.end_time,
         );
-        const { error } = await createScheduledShift({
+        toCreate.push({
           restaurantId,
           staffId,
           startsAt: times.startsAt,
           endsAt: times.endsAt,
           templateId: template.id,
-          label: null,
-          status: requiresAcceptance ? "pending" : "confirmed",
+          label: null as string | null,
+          status: (requiresAcceptance ? "pending" : "confirmed") as
+            | "pending"
+            | "confirmed",
         });
-        if (error) lastError = error;
-        else created += 1;
       }
 
-      if (created === 0) {
-        if (skippedAbsence > 0 && !lastError) {
-          toast.error(
-            multiDay
+      if (toCreate.length === 0) {
+        toast.error(
+          skippedAbsence > 0
+            ? multiDay
               ? "An diesen Tagen ist bereits Urlaub/Krank eingetragen."
-              : `An diesem Tag ist bereits eine Abwesenheit eingetragen.`,
-          );
-        } else {
-          toast.error(lastError ?? "Schicht konnte nicht geplant werden.");
-        }
+              : "An diesem Tag ist bereits eine Abwesenheit eingetragen."
+            : "Schicht konnte nicht geplant werden.",
+        );
         return;
       }
 
+      const { data: createdRows, error } =
+        await createScheduledShiftsBatch(toCreate);
+      if (error || createdRows.length === 0) {
+        toast.error(error ?? "Schicht konnte nicht geplant werden.");
+        return;
+      }
+
+      setShifts((prev) => [...prev, ...createdRows]);
+      const created = createdRows.length;
       if (multiDay) {
         const skipHint =
           skippedAbsence > 0
@@ -624,15 +634,15 @@ export function StaffShiftPlanScreen({
       } else {
         toast.success("Schicht geplant.");
       }
-      void reload();
+      void reload({ quiet: true });
       return;
     }
 
     if (dragData.type === "absence") {
-      let created = 0;
       let skippedSame = 0;
       let skippedOther = 0;
       let skippedShifts = 0;
+      const createJobs: Array<() => Promise<{ id: string } | null>> = [];
 
       for (const { dayKey, day } of targetDays) {
         const existing = findStaffAbsenceOnDay(
@@ -657,16 +667,17 @@ export function StaffShiftPlanScreen({
         }
 
         const rangeTimes = absenceEntryRangeForLocalDay(day);
-        const res = await upsertStaffWorkEntry(restaurantId, staffId, {
-          entry_type: dragData.entryType,
-          starts_at: rangeTimes.starts_at,
-          ends_at: rangeTimes.ends_at,
-          note: null,
-        });
-        if (res) created += 1;
+        createJobs.push(() =>
+          upsertStaffWorkEntry(restaurantId, staffId, {
+            entry_type: dragData.entryType,
+            starts_at: rangeTimes.starts_at,
+            ends_at: rangeTimes.ends_at,
+            note: null,
+          }),
+        );
       }
 
-      if (created === 0) {
+      if (createJobs.length === 0) {
         if (!multiDay) {
           if (skippedSame > 0) {
             toast.info(
@@ -689,6 +700,13 @@ export function StaffShiftPlanScreen({
         return;
       }
 
+      const results = await Promise.all(createJobs.map((job) => job()));
+      const created = results.filter(Boolean).length;
+      if (created === 0) {
+        toast.error("Eintrag konnte nicht gespeichert werden.");
+        return;
+      }
+
       if (multiDay) {
         const skipped = skippedSame + skippedOther + skippedShifts;
         const skipHint =
@@ -703,7 +721,7 @@ export function StaffShiftPlanScreen({
           `${STAFF_WORK_ENTRY_LABELS[dragData.entryType]} eingetragen.`,
         );
       }
-      void reload();
+      void reload({ quiet: multiDay });
     }
   };
 

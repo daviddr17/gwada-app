@@ -67,6 +67,7 @@ import { reservationListRowButtonClassName } from "@/lib/ui/reservation-list-row
 import { DayReservationsDrawer } from "@/components/reservations/day-reservations-drawer";
 import { ReservationDayNoteOverviewChip } from "@/components/reservations/reservation-day-note-overview-chip";
 import { ReservationDayShiftStaffOverviewChip } from "@/components/reservations/reservation-day-shift-staff-overview-chip";
+import { ReservationDayShiftStaffSheet } from "@/components/reservations/reservation-day-shift-staff-sheet";
 import { ReservationDayNotesSheet } from "@/components/reservations/reservation-day-notes-sheet";
 import { fetchReservationDayNoteCountsForRange } from "@/lib/supabase/reservation-day-notes-db";
 import { fetchScheduledStaffCountsByDayForRange } from "@/lib/supabase/staff-shift-schedule-db";
@@ -251,6 +252,10 @@ export function ReservationsOverview() {
   const [dayNotesReloadNonce, setDayNotesReloadNonce] = useState(0);
   const [dayNotesSheetOpen, setDayNotesSheetOpen] = useState(false);
   const [dayNotesSheetDay, setDayNotesSheetDay] = useState<Date | null>(null);
+  const [shiftStaffSheetOpen, setShiftStaffSheetOpen] = useState(false);
+  const [shiftStaffSheetDay, setShiftStaffSheetDay] = useState<Date | null>(
+    null,
+  );
 
   const reservationIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const gwadaReviewsByReservation = useReservationGwadaReviews(
@@ -1034,7 +1039,10 @@ export function ReservationsOverview() {
                           <span aria-hidden>·</span>
                           <ReservationDayShiftStaffOverviewChip
                             count={shiftStaffCountsByDate.get(key) ?? 0}
-                            dayKey={key}
+                            onClick={() => {
+                              setShiftStaffSheetDay(d);
+                              setShiftStaffSheetOpen(true);
+                            }}
                           />
                         </>
                       ) : null}
@@ -1240,6 +1248,24 @@ export function ReservationsOverview() {
         dayLabel={
           dayNotesSheetDay ? formatDayHeadingDe(dayNotesSheetDay) : null
         }
+      />
+
+      <ReservationDayShiftStaffSheet
+        open={shiftStaffSheetOpen}
+        onOpenChange={(open) => {
+          setShiftStaffSheetOpen(open);
+          if (!open) setShiftStaffSheetDay(null);
+        }}
+        restaurantId={workspaceRestaurantId}
+        dayKey={
+          shiftStaffSheetDay
+            ? gridDayKey(shiftStaffSheetDay, restaurantTimeZone)
+            : null
+        }
+        dayLabel={
+          shiftStaffSheetDay ? formatDayHeadingDe(shiftStaffSheetDay) : null
+        }
+        timeZone={restaurantTimeZone}
       />
 
       <ReservationEditDrawer

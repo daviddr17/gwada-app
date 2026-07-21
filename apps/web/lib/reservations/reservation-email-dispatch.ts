@@ -22,6 +22,7 @@ import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email-secrets-db";
 import { fetchRestaurantEmailSmtpConfig } from "@/lib/supabase/restaurant-email-integration-db";
+import { mirrorOutboundEmailToContactMessages } from "@/lib/contact-messages/mirror-outbound-email-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ReservationEmailSettings = {
@@ -55,6 +56,7 @@ export type ReservationEmailSettings = {
 export type ReservationForEmail = {
   id: string;
   restaurant_id: string;
+  contact_id: string | null;
   reservation_number: number;
   guest_pin: string;
   guest_first_name: string;
@@ -168,6 +170,7 @@ export async function fetchReservationForEmail(
       `
       id,
       restaurant_id,
+      contact_id,
       reservation_number,
       guest_pin,
       guest_first_name,
@@ -189,6 +192,7 @@ export async function fetchReservationForEmail(
   return {
     id: data.id as string,
     restaurant_id: data.restaurant_id as string,
+    contact_id: (data.contact_id as string | null) ?? null,
     reservation_number: data.reservation_number as number,
     guest_pin: data.guest_pin as string,
     guest_first_name: data.guest_first_name as string,
@@ -371,6 +375,18 @@ export async function sendImmediateKind(
     },
     { onConflict: "reservation_id,message_kind" },
   );
+
+  // Best-effort: erscheint unter Nachrichten (Kontakt- oder email:-Thread).
+  await mirrorOutboundEmailToContactMessages(sb, {
+    restaurantId: row.restaurant_id,
+    guestEmail: to!,
+    body: text,
+    subject,
+    contactId: row.contact_id,
+    reservationId: row.id,
+    deliveryStatus: "sent",
+  });
+
   return { sent: true };
 }
 
@@ -633,6 +649,15 @@ export async function processDueEmailOutbox(
         .from("reservation_email_outbox")
         .update({ sent_at: new Date().toISOString(), last_error: null })
         .eq("id", item.id);
+      await mirrorOutboundEmailToContactMessages(sb, {
+        restaurantId: row.restaurant_id,
+        guestEmail: to!,
+        body: text,
+        subject,
+        contactId: row.contact_id,
+        reservationId: row.id,
+        deliveryStatus: "sent",
+      });
       sent++;
     } else {
       await sb

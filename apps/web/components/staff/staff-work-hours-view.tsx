@@ -35,7 +35,11 @@ import type {
   RestaurantStaffRow,
   RestaurantStaffWorkEntryRow,
 } from "@/lib/types/staff";
-import { summarizeStaffWorkEntries } from "@/lib/staff/staff-work-hours-summary";
+import {
+  entryDurationHours,
+  formatWorkTimeRangeWithHoursDe,
+  summarizeStaffWorkEntries,
+} from "@/lib/staff/staff-work-hours-summary";
 import {
   computeStaffPeriodPayrollLines,
   computeStaffPeriodWageSummary,
@@ -766,7 +770,10 @@ export function StaffWorkHoursView({
                                 ) : null}
                               </span>
                               <span className="mt-0.5 block text-xs text-muted-foreground tabular-nums">
-                                {timeDe.format(new Date(e.starts_at))} – {endLabel}
+                                {formatWorkTimeRangeWithHoursDe(
+                                  `${timeDe.format(new Date(e.starts_at))} – ${endLabel}`,
+                                  e.is_open ? null : entryDurationHours(e),
+                                )}
                               </span>
                             </span>
                           </button>

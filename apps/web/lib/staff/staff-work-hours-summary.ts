@@ -53,8 +53,18 @@ export function entryDurationHours(e: RestaurantStaffWorkEntryRow): number {
   return Math.max(0, ms / 3_600_000);
 }
 
-export function formatHoursDe(hours: number, fractionDigits = 1): string {
+/** Deutsche Dezimalstunden, Standard 2 Nachkommastellen (z. B. 1,50 h). */
+export function formatHoursDe(hours: number, fractionDigits = 2): string {
   return `${hours.toFixed(fractionDigits).replace(".", ",")} h`;
+}
+
+/** Zeitspanne + Dauer, z. B. „12:00 – 13:30 · 1,50 h“. */
+export function formatWorkTimeRangeWithHoursDe(
+  rangeLabel: string,
+  hours: number | null | undefined,
+): string {
+  if (hours == null || !Number.isFinite(hours)) return rangeLabel;
+  return `${rangeLabel} · ${formatHoursDe(hours)}`;
 }
 
 export function formatStaffWorkHoursSummaryLine(

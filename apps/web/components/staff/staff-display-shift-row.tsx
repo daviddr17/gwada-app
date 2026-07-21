@@ -7,6 +7,7 @@ import {
   createRestaurantDateTimeFormatter,
 } from "@/lib/restaurant/restaurant-timezone";
 import { displayShiftBounds } from "@/lib/staff/staff-work-hours-display";
+import { formatWorkTimeRangeWithHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +42,17 @@ export function StaffDisplayShiftRow({
         ) : null}
       </p>
       <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-        {timeDe.format(new Date(bounds.startsAt))} – {endLabel}
+        {formatWorkTimeRangeWithHoursDe(
+          `${timeDe.format(new Date(bounds.startsAt))} – ${endLabel}`,
+          bounds.isOpen || !bounds.endsAt
+            ? null
+            : Math.max(
+                0,
+                (new Date(bounds.endsAt).getTime() -
+                  new Date(bounds.startsAt).getTime()) /
+                  3_600_000,
+              ),
+        )}
       </p>
       <StaffDisplayShiftSegmentsList
         segments={segments}

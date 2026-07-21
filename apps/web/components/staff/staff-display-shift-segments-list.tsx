@@ -6,6 +6,10 @@ import {
   DEFAULT_RESTAURANT_TIMEZONE,
   createRestaurantDateTimeFormatter,
 } from "@/lib/restaurant/restaurant-timezone";
+import {
+  entryDurationHours,
+  formatWorkTimeRangeWithHoursDe,
+} from "@/lib/staff/staff-work-hours-summary";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 import { STAFF_WORK_ENTRY_LABELS } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
@@ -42,10 +46,14 @@ export function StaffDisplayShiftSegmentsList({
               {STAFF_WORK_ENTRY_LABELS[segment.entry_type]}
             </span>
             <span className="mt-0.5 block text-xs tabular-nums text-muted-foreground">
-              {timeDe.format(new Date(segment.starts_at))} –{" "}
-              {segment.is_open
-                ? "läuft"
-                : timeDe.format(new Date(segment.ends_at))}
+              {formatWorkTimeRangeWithHoursDe(
+                `${timeDe.format(new Date(segment.starts_at))} – ${
+                  segment.is_open
+                    ? "läuft"
+                    : timeDe.format(new Date(segment.ends_at))
+                }`,
+                segment.is_open ? null : entryDurationHours(segment),
+              )}
             </span>
           </span>
         </li>

@@ -51,7 +51,10 @@ import {
 } from "@/components/staff/shift-plan/shift-plan-holiday-label";
 import type { ShiftPlanDayWeather } from "@/lib/weather/shift-plan-day-weather";
 import { ShiftPlanDayWeatherRow } from "@/lib/weather/shift-plan-day-weather";
-import { shiftPlanCellDropId } from "@/components/staff/shift-plan/shift-plan-template-palette";
+import {
+  shiftPlanCellDropId,
+  shiftPlanWeekDropId,
+} from "@/components/staff/shift-plan/shift-plan-template-palette";
 import {
   maxShiftsPerStaffRow,
   ShiftPlanAddShiftSlotButton,
@@ -328,6 +331,59 @@ function ShiftPlanStaffName({
   );
 }
 
+/** Drop auf Namensspalte = Vorlage/Abwesenheit für alle sichtbaren Tage der Zeile. */
+function ShiftPlanWeekStaffDropCell({
+  staff,
+  onStaffClick,
+  plannedMinutes,
+  contracts,
+  targetSummaryDays,
+  viewMode,
+  weekDropEnabled,
+}: {
+  staff: RestaurantStaffRow;
+  onStaffClick?: (staff: RestaurantStaffRow) => void;
+  plannedMinutes: number;
+  contracts: readonly RestaurantStaffContractRow[];
+  targetSummaryDays: readonly Date[];
+  viewMode: ShiftScheduleViewMode;
+  weekDropEnabled: boolean;
+}) {
+  const dropId = shiftPlanWeekDropId(staff.id);
+  const { isOver, setNodeRef } = useDroppable({
+    id: dropId,
+    data: { kind: "week", staffId: staff.id },
+    disabled: !weekDropEnabled,
+  });
+
+  return (
+    <td
+      ref={setNodeRef}
+      className={cn(
+        "sticky left-0 z-10 overflow-hidden border-r border-border/40 bg-card px-3 py-2 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_10px_-4px_rgba(0,0,0,0.45)]",
+        shiftPlanStaffColumnClassName,
+        weekDropEnabled &&
+          isOver &&
+          "bg-accent/10 ring-1 ring-inset ring-accent/40",
+      )}
+    >
+      <ShiftPlanStaffName staff={staff} onClick={onStaffClick} />
+      {weekDropEnabled ? (
+        <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+          {isOver ? "Ganze Woche belegen" : "Drop = ganze Woche"}
+        </p>
+      ) : null}
+      <EmployeeHoursBar
+        plannedMinutes={plannedMinutes}
+        contracts={contracts}
+        staffId={staff.id}
+        targetSummaryDays={targetSummaryDays}
+        viewMode={viewMode}
+      />
+    </td>
+  );
+}
+
 function buildShiftMaps(
   shifts: RestaurantStaffScheduledShiftRow[],
   summaryDayKeys?: ReadonlySet<string>,
@@ -456,6 +512,7 @@ function ShiftPlanGroupGrid({
   onDeleteAbsence,
   onStaffClick,
   editable,
+  weekDropEnabled = false,
 }: {
   days: Date[];
   staffRows: RestaurantStaffRow[];
@@ -478,6 +535,8 @@ function ShiftPlanGroupGrid({
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
   onStaffClick?: (staff: RestaurantStaffRow) => void;
   editable: boolean;
+  /** Drop auf Namensspalte belegt alle `days` (Wochenansicht). */
+  weekDropEnabled?: boolean;
 }) {
   const todayKey = localDayKey(new Date());
   const showWeekNav = onPrevWeek != null && onNextWeek != null;
@@ -573,24 +632,15 @@ function ShiftPlanGroupGrid({
                 shiftPlanLayoutTransitionClassName,
               )}
             >
-              <td
-                className={cn(
-                  "sticky left-0 z-10 overflow-hidden border-r border-border/40 bg-card px-3 py-2 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_10px_-4px_rgba(0,0,0,0.45)]",
-                  shiftPlanStaffColumnClassName,
-                )}
-              >
-                <ShiftPlanStaffName
-                  staff={staff}
-                  onClick={onStaffClick}
-                />
-                <EmployeeHoursBar
-                  plannedMinutes={minutesByStaff.get(staff.id) ?? 0}
-                  contracts={contracts}
-                  staffId={staff.id}
-                  targetSummaryDays={targetSummaryDays}
-                  viewMode={viewMode}
-                />
-              </td>
+              <ShiftPlanWeekStaffDropCell
+                staff={staff}
+                onStaffClick={onStaffClick}
+                plannedMinutes={minutesByStaff.get(staff.id) ?? 0}
+                contracts={contracts}
+                targetSummaryDays={targetSummaryDays}
+                viewMode={viewMode}
+                weekDropEnabled={weekDropEnabled}
+              />
               {showWeekNav ? <ShiftPlanWeekNavSpacer /> : null}
               {days.map((day) => {
                 const cellKey = `${staff.id}__${localDayKey(day)}`;
@@ -645,7 +695,8 @@ export function ShiftPlanGrid({
   onDeleteAbsence,
   onStaffClick,
   editable = true,
-}: ShiftPlanViewProps) {
+  weekDropEnabled = false,
+}: ShiftPlanViewProps & { weekDropEnabled?: boolean }) {
   const groups = groupStaffByPositionTag(staffRows, positionTags);
   const summaryDayKeys = useMemo(
     () => (hoursSummaryDayKeys ? new Set(hoursSummaryDayKeys) : undefined),
@@ -700,6 +751,7 @@ export function ShiftPlanGrid({
               onDeleteAbsence={onDeleteAbsence}
               onStaffClick={onStaffClick}
               editable={editable}
+              weekDropEnabled={weekDropEnabled}
             />
           </PositionGroupShell>
         ))}

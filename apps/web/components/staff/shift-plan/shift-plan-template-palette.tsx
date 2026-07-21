@@ -17,6 +17,9 @@ type ShiftPlanTemplatePaletteProps = {
   referenceDay: Date;
   onCreateTemplate: () => void;
   onEditTemplate: (template: RestaurantShiftTemplateRow) => void;
+  /** Bleibt beim Scrollen oben (Vorlagen weiter ziehbar). */
+  sticky?: boolean;
+  className?: string;
 };
 
 const shiftPlanPaletteChipClassName =
@@ -173,9 +176,18 @@ export function ShiftPlanTemplatePalette({
   referenceDay,
   onCreateTemplate,
   onEditTemplate,
+  sticky = false,
+  className,
 }: ShiftPlanTemplatePaletteProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-muted/10 px-3 py-2">
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-muted/10 px-3 py-2",
+        sticky &&
+          "sticky top-0 z-20 border-border/60 bg-background/95 shadow-sm backdrop-blur-md supports-backdrop-filter:bg-background/90",
+        className,
+      )}
+    >
       <TemplatePaletteNewButton onClick={onCreateTemplate} />
       {templates.map((t) => (
         <DraggableTemplate
@@ -202,7 +214,21 @@ export type ShiftPlanDragData =
   | { type: "shift"; shiftId: string }
   | { type: "absence"; entryType: ShiftPlanAbsenceEntryType };
 
-export type ShiftPlanDropData = {
+export type ShiftPlanDayDropData = {
+  kind: "day";
+  staffId: string;
+  dayKey: string;
+};
+
+export type ShiftPlanWeekDropData = {
+  kind: "week";
+  staffId: string;
+};
+
+export type ShiftPlanDropData = ShiftPlanDayDropData | ShiftPlanWeekDropData;
+
+/** @deprecated Prefer ShiftPlanDayDropData / parseShiftPlanDropId */
+export type ShiftPlanCellDropData = {
   staffId: string;
   dayKey: string;
 };
@@ -211,7 +237,11 @@ export function shiftPlanCellDropId(staffId: string, dayKey: string): string {
   return `cell-${staffId}__${dayKey}`;
 }
 
-export function parseShiftPlanCellDropId(id: string): ShiftPlanDropData | null {
+export function shiftPlanWeekDropId(staffId: string): string {
+  return `week-${staffId}`;
+}
+
+export function parseShiftPlanCellDropId(id: string): ShiftPlanCellDropData | null {
   if (!id.startsWith("cell-")) return null;
   const rest = id.slice(5);
   const parts = rest.split("__");
@@ -219,4 +249,21 @@ export function parseShiftPlanCellDropId(id: string): ShiftPlanDropData | null {
   const [staffId, dayKey] = parts;
   if (!staffId || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return null;
   return { staffId, dayKey };
+}
+
+export function parseShiftPlanWeekDropId(
+  id: string,
+): { staffId: string } | null {
+  if (!id.startsWith("week-")) return null;
+  const staffId = id.slice(5);
+  if (!staffId) return null;
+  return { staffId };
+}
+
+export function parseShiftPlanDropId(id: string): ShiftPlanDropData | null {
+  const week = parseShiftPlanWeekDropId(id);
+  if (week) return { kind: "week", staffId: week.staffId };
+  const day = parseShiftPlanCellDropId(id);
+  if (day) return { kind: "day", staffId: day.staffId, dayKey: day.dayKey };
+  return null;
 }

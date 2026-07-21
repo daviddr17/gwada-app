@@ -1,10 +1,11 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
+import { processDueApprovedSocialSuggestions } from "@/lib/social/social-suggestion-actions-server";
 import { generateSocialSuggestionsForRestaurant } from "@/lib/social/social-suggestion-generate-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-/** Wöchentliche Vorschläge für alle Restaurants mit aktivem Brand Kit. */
+/** Vorschläge erzeugen + fällige Freigaben posten. */
 export async function GET(req: Request) {
   const cronAuth = assertCronAuthorized(req);
   if (cronAuth) return cronAuth;
@@ -14,6 +15,8 @@ export async function GET(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
+  const duePublish = await processDueApprovedSocialSuggestions(sb);
+
   const { data: kits, error } = await sb
     .from("restaurant_social_brand_kit")
     .select("restaurant_id")
@@ -21,7 +24,10 @@ export async function GET(req: Request) {
     .limit(500);
 
   if (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    return Response.json(
+      { error: error.message, duePublish },
+      { status: 500 },
+    );
   }
 
   let restaurants = 0;
@@ -37,5 +43,5 @@ export async function GET(req: Request) {
     created += result.created;
   }
 
-  return Response.json({ restaurants, created });
+  return Response.json({ restaurants, created, duePublish });
 }

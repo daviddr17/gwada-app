@@ -1,4 +1,5 @@
 import { authorizeSocialNewsRestaurant } from "@/lib/social/route-auth";
+import { resolveSocialSuggestionImageUrl } from "@/lib/social/social-asset-resolve-server";
 import { generateSocialSuggestionsForRestaurant } from "@/lib/social/social-suggestion-generate-server";
 import {
   listOpenSocialTasksFromDb,
@@ -29,13 +30,28 @@ export async function GET(req: Request) {
     { force: refresh },
   );
 
-  const [suggestions, tasks] = await Promise.all([
+  const [rawSuggestions, tasks] = await Promise.all([
     listSocialSuggestionsFromDb(admin, restaurantId, {
       statuses: ["pending", "needs_asset", "approved"],
       limit: 40,
     }),
     listOpenSocialTasksFromDb(admin, restaurantId),
   ]);
+
+  // Signierte URLs immer frisch — gespeicherte Preview-URLs laufen ab.
+  const suggestions = await Promise.all(
+    rawSuggestions.map(async (s) => {
+      const imageUrl = await resolveSocialSuggestionImageUrl(
+        admin,
+        restaurantId,
+        s.asset,
+      );
+      return {
+        ...s,
+        asset: { ...s.asset, imageUrl },
+      };
+    }),
+  );
 
   return Response.json({
     suggestions,

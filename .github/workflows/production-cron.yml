@@ -137,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'social-suggestions')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '0 7 * * 1')
+      (github.event_name == 'schedule' && (github.event.schedule == '0 7 * * 1' || github.event.schedule == '*/10 * * * *'))
     steps:
       - name: Call social-suggestions
         env:

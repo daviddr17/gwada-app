@@ -193,7 +193,9 @@ export function SocialBrandKitCard({
           <Switch
             checked={kit.neverAiFood}
             onCheckedChange={(neverAiFood) =>
-              setKit((k) => (k ? { ...k, neverAiFood } : k))
+              setKit((k) =>
+                k ? { ...k, neverAiFood: neverAiFood === true } : k,
+              )
             }
           />
         </div>

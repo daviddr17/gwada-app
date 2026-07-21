@@ -1,7 +1,7 @@
 {
   "title": "Social Autopilot: Marke, Vorlagen & Wochen-Vorschläge",
   "body": "- **Social-Marke:** Unter Einstellungen Tonalität, Bildstrategie, CTA und Hashtags festlegen\n- **Autopilot (News):** Fertige Post-Vorschläge für die Woche freigeben, kurz anpassen oder überspringen\n- **Vorlagen:** Einheitliche Layouts (Food Hero / Brand Card) mit euren Farben und Fotos\n- **Anlässe:** Vorschläge aus Feiertagen, Speisekarte, Events und Galerie — ohne KI-API\n- **Aufgaben:** Push-ähnliche Hinweise, wenn noch Fotos fehlen (z. B. Teller, Raum, außen)",
-  "superadminBody": "- **Schema:** `restaurant_social_brand_kit`, `social_post_suggestions`, `social_media_tasks`\n- **APIs:** `/api/social/brand-kit`, `/api/social/suggestions` (+ approve/skip), Cron `/api/cron/social-suggestions`\n- **Engine:** Menü/Galerie/Events/Feiertage + Caption-Templates; Publish über Share-Kanäle\n- **UI:** News → Autopilot, Brand Kit in Restaurant-Einstellungen",
+  "superadminBody": "- **Schema:** `restaurant_social_brand_kit`, `social_post_suggestions`, `social_media_tasks`\n- **APIs:** `/api/social/brand-kit`, `/api/social/suggestions` (+ approve/skip), Cron `/api/cron/social-suggestions`\n- **Engine:** Menü/Galerie/Events/Feiertage + Caption-Templates; Publish über Share-Kanäle\n- **Härtung:** Asset-URLs neu signieren, Template-JPEG (sharp) beim Publish, geplante Freigaben per Cron\n- **UI:** News → Autopilot, Brand Kit in Restaurant-Einstellungen",
   "audience": "customers",
   "version": "2026.07.21"
 }

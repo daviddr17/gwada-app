@@ -1,3 +1,9 @@
+import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import {
+  parseSocialPublishPlatforms,
+  SOCIAL_DEFAULT_PUBLISH_PLATFORMS,
+} from "@/lib/social/social-publish-platforms";
+
 export const SOCIAL_IMAGE_STRATEGIES = [
   "own_first",
   "mix",
@@ -51,6 +57,8 @@ export type SocialBrandKit = {
   weeklyPostTarget: number;
   goldCaptions: string[];
   heroAssets: SocialHeroAsset[];
+  /** Zielkanäle (News): IG/FB/Google/WhatsApp/Gwada — zur Publish-Zeit gefiltert. */
+  publishPlatforms: NewsPlatform[];
 };
 
 export const SOCIAL_IMAGE_STRATEGY_LABELS: Record<SocialImageStrategy, string> =
@@ -88,6 +96,7 @@ export function defaultSocialBrandKit(restaurantId: string): SocialBrandKit {
     weeklyPostTarget: 3,
     goldCaptions: [],
     heroAssets: [],
+    publishPlatforms: [...SOCIAL_DEFAULT_PUBLISH_PLATFORMS],
   };
 }
 
@@ -171,6 +180,9 @@ export function parseSocialBrandKit(
     weeklyPostTarget: weekly,
     goldCaptions: asStringArray(r.gold_captions).slice(0, 10),
     heroAssets: parseHeroAssets(r.hero_assets),
+    publishPlatforms: parseSocialPublishPlatforms(
+      r.publish_platforms ?? r.publishPlatforms,
+    ),
   };
 }
 
@@ -189,6 +201,7 @@ export function socialBrandKitForPersistence(kit: SocialBrandKit) {
     weekly_post_target: kit.weeklyPostTarget,
     gold_captions: kit.goldCaptions,
     hero_assets: kit.heroAssets,
+    publish_platforms: kit.publishPlatforms,
   };
 }
 
@@ -211,6 +224,7 @@ export function parseSocialBrandKitFromClientBody(
     weekly_post_target: r.weeklyPostTarget ?? r.weekly_post_target,
     gold_captions: r.goldCaptions ?? r.gold_captions,
     hero_assets: r.heroAssets ?? r.hero_assets,
+    publish_platforms: r.publishPlatforms ?? r.publish_platforms,
   };
   return parseSocialBrandKit(restaurantId, merged);
 }

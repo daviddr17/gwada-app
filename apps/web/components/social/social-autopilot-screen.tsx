@@ -31,6 +31,8 @@ import {
   type SocialPostSuggestion,
 } from "@/lib/social/social-suggestion-types";
 import type { SocialStylePreset } from "@/lib/social/social-brand-kit";
+import { socialPublishPlatformLabel } from "@/lib/social/social-publish-platforms";
+import { isNewsPlatform } from "@/lib/constants/news-platforms";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
@@ -287,6 +289,14 @@ export function SocialAutopilotScreen() {
                   <span className="rounded-full border border-border/60 px-2 py-0.5">
                     {SOCIAL_TEMPLATE_LABELS[s.templateId]}
                   </span>
+                  {s.platforms.filter(isNewsPlatform).map((p) => (
+                    <span
+                      key={p}
+                      className="rounded-full border border-border/60 px-2 py-0.5"
+                    >
+                      {socialPublishPlatformLabel(p)}
+                    </span>
+                  ))}
                   <span>{formatPlan(s.plannedAt)}</span>
                   {s.status === "needs_asset" ? (
                     <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-800 dark:text-amber-200">

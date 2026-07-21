@@ -33,6 +33,7 @@ export async function POST(
     suggestionId,
     caption: typeof body.caption === "string" ? body.caption : undefined,
     publishNow: body.publishNow === true,
+    userId: auth.userId,
   });
 
   if (!result.ok) {

@@ -20,10 +20,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import {
   SOCIAL_IMAGE_STRATEGIES,
   SOCIAL_IMAGE_STRATEGY_LABELS,
@@ -37,6 +39,7 @@ import {
   type SocialStylePreset,
   type SocialTone,
 } from "@/lib/social/social-brand-kit";
+import { allSocialPublishPlatformOptions } from "@/lib/social/social-publish-platforms";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -153,6 +156,46 @@ export function SocialBrandKitCard({
               setKit((k) => (k ? { ...k, enabled: enabled === true } : k))
             }
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Kanäle</Label>
+          <p className="text-xs text-muted-foreground">
+            Beim Freigeben nur verbundene Kanäle — Instagram, Facebook, Google,
+            WhatsApp-Kanal und Gwada-Feed.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {allSocialPublishPlatformOptions().map((opt) => {
+              const checked = kit.publishPlatforms.includes(opt.value);
+              return (
+                <label
+                  key={opt.value}
+                  className="flex items-center gap-2 rounded-xl border border-border/50 px-3 py-2 text-sm"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => {
+                      const on = v === true;
+                      setKit((k) => {
+                        if (!k) return k;
+                        const next = new Set(k.publishPlatforms);
+                        if (on) next.add(opt.value);
+                        else next.delete(opt.value);
+                        const list = [...next] as NewsPlatform[];
+                        return {
+                          ...k,
+                          publishPlatforms: list.length
+                            ? list
+                            : (["gwada"] as NewsPlatform[]),
+                        };
+                      });
+                    }}
+                  />
+                  {opt.label}
+                </label>
+              );
+            })}
+          </div>
         </div>
 
         <div className="space-y-2">

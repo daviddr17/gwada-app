@@ -402,7 +402,7 @@ export async function generateSocialSuggestionsForRestaurant(
         restaurantName,
         holidayName: h.name,
       }),
-      platforms: ["facebook", "instagram"],
+      platforms: [...kit.publishPlatforms],
       source: { date: h.date, holidayName: h.name },
       asset,
     });
@@ -428,7 +428,7 @@ export async function generateSocialSuggestionsForRestaurant(
         eventTitle: ev.title,
         whenLabel: formatEventWhen(ev.startAt),
       }),
-      platforms: ["facebook", "instagram"],
+      platforms: [...kit.publishPlatforms],
       source: { eventId: ev.id, startAt: ev.startAt },
       asset: {
         imageUrl: ev.coverUrl,
@@ -458,7 +458,7 @@ export async function generateSocialSuggestionsForRestaurant(
         dishName: dish.name,
         dishDescription: dish.description,
       }),
-      platforms: ["facebook", "instagram"],
+      platforms: [...kit.publishPlatforms],
       source: { dishId: dish.id, dishName: dish.name },
       asset: {
         imageUrl: dish.imageUrl,
@@ -481,7 +481,7 @@ export async function generateSocialSuggestionsForRestaurant(
       plannedAt: nextPlan(),
       title: null,
       caption: captionForAmbient({ kit, restaurantName }),
-      platforms: ["facebook", "instagram"],
+      platforms: [...kit.publishPlatforms],
       source: { galleryItemId: g.id },
       asset: {
         imageUrl: g.imageUrl,
@@ -506,7 +506,7 @@ export async function generateSocialSuggestionsForRestaurant(
       plannedAt: nextPlan(),
       title: restaurantName,
       caption: captionForBrand({ kit, restaurantName }),
-      platforms: ["facebook", "instagram"],
+      platforms: [...kit.publishPlatforms],
       source: { kind: "brand" },
       asset: asset ?? { imageUrl: null, source: "none" },
     });

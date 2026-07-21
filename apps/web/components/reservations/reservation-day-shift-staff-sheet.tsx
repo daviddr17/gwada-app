@@ -171,11 +171,10 @@ export function ReservationDayShiftStaffSheet({
 
         <div className="shrink-0 space-y-2 border-t border-border/50 px-6 pb-6 pt-4">
           <Button
-            type="button"
             size="lg"
-            className={cn("w-full", brandActionButtonRoundedClassName)}
+            className={cn("h-11 w-full", brandActionButtonRoundedClassName)}
             render={
-              <Link
+              <AppNavLink
                 href={scheduleHref}
                 onClick={() => onOpenChange(false)}
               />

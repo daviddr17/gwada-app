@@ -44,12 +44,24 @@ import {
   ContactInboxThreadOverlay,
   CONTACT_INBOX_THREAD_OVERLAY_MS,
 } from "@/components/contacts/contact-inbox-thread-overlay";
+import {
+  ContactInboxThreadShortcutsFab,
+  contactInboxShortcutActions,
+} from "@/components/contacts/contact-inbox-thread-shortcuts-fab";
 import type {
   ContactMessageMetaReactionsConfig,
   ContactMessageWahaReactionsConfig,
 } from "@/components/contacts/contact-message-bubble-list";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
-import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
+import {
+  ReservationEditDrawer,
+  type ReservationEditDrawerCreateContext,
+} from "@/components/reservations/reservation-edit-drawer";
+import {
+  ReviewInvitationSheet,
+  type ReviewInvitationGuestPrefill,
+} from "@/components/reviews/review-invitation-sheet";
+import { buildChatGuestPrefill } from "@/lib/contact-messages/chat-guest-prefill";
 import { ContactConversationAttachmentIcon } from "@/components/contacts/contact-conversation-attachment-icon";
 import { ContactMessageComposer } from "@/components/contacts/contact-message-composer";
 import { ContactInboxFilterChips } from "@/components/contacts/contact-inbox-filter-chips";
@@ -218,6 +230,7 @@ import {
   type ContactMessageRow,
 } from "@/lib/supabase/contact-messages-db";
 import type { ContactListRow } from "@/lib/supabase/contacts-db";
+import { startOfLocalDay } from "@/lib/reservations/month-range";
 import {
   fetchReservationById,
   type ReservationListRow,
@@ -315,6 +328,8 @@ export function ContactsMessagesScreen() {
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "contacts");
   const canViewMessageProtocol = has("contacts.messages.protocol");
+  const canCreateReservation = hasModuleCreate(has, "reservations");
+  const canCreateReviewInvite = hasModuleCreate(has, "reviews");
   const { profile } = useRestaurantProfile();
   const defaultCountryIso2 = useMemo(
     () => resolveCountryIso2FromLabel(profile.country),
@@ -392,6 +407,11 @@ export function ContactsMessagesScreen() {
   const [reservationDrawerOpen, setReservationDrawerOpen] = useState(false);
   const [reservationForDrawer, setReservationForDrawer] =
     useState<ReservationListRow | null>(null);
+  const [reservationCreateFor, setReservationCreateFor] =
+    useState<ReservationEditDrawerCreateContext | null>(null);
+  const [reviewInviteOpen, setReviewInviteOpen] = useState(false);
+  const [reviewInviteGuest, setReviewInviteGuest] =
+    useState<ReviewInvitationGuestPrefill | null>(null);
   const [chatSearch, setChatSearch] = useState("");
   const [readFilter, setReadFilter] = useState<ConversationReadFilter>(() =>
     parseConversationReadFilter(readParam),
@@ -1341,6 +1361,7 @@ export function ContactsMessagesScreen() {
         toast.error("Reservierung nicht gefunden.");
         return;
       }
+      setReservationCreateFor(null);
       setReservationForDrawer(data);
       setReservationDrawerOpen(true);
     },
@@ -1682,6 +1703,95 @@ export function ContactsMessagesScreen() {
       setClosingThreadId(null);
     }, CONTACT_INBOX_THREAD_OVERLAY_MS);
   }, [contactParam, inboxFilter, readFilter, router]);
+
+  const resolveChatGuestPrefill = useCallback(async () => {
+    const threadId = overlayThreadId;
+    if (!threadId || !restaurantId) {
+      return buildChatGuestPrefill({ displayName: contactName });
+    }
+
+    if (isLinkedContactId(threadId)) {
+      const { data } = await fetchContactById({
+        restaurantId,
+        contactId: threadId,
+      });
+      if (data) {
+        return buildChatGuestPrefill({
+          displayName: contactThreadDisplayName(data) || contactName,
+          phone: primaryPhone(data),
+          email: primaryEmail(data),
+        });
+      }
+    }
+
+    const phone =
+      whatsappHeaderSubtitle?.trim() ||
+      whatsappThreadPhone?.trim() ||
+      null;
+    const email = isEmailPseudoContactId(threadId)
+      ? emailAddressFromPseudoContactId(threadId)
+      : null;
+
+    return buildChatGuestPrefill({
+      displayName: contactName,
+      phone,
+      email,
+    });
+  }, [
+    overlayThreadId,
+    restaurantId,
+    contactName,
+    whatsappHeaderSubtitle,
+    whatsappThreadPhone,
+  ]);
+
+  const openReservationFromChat = useCallback(() => {
+    if (!restaurantId || !overlayThreadId) return;
+    void (async () => {
+      const guest = await resolveChatGuestPrefill();
+      const linked = isLinkedContactId(overlayThreadId);
+      setReservationForDrawer(null);
+      setReservationCreateFor({
+        restaurantId,
+        day: startOfLocalDay(new Date()),
+        initialContactId: linked ? overlayThreadId : undefined,
+        initialGuestFirstName: linked ? undefined : guest.firstName || undefined,
+        initialGuestLastName: linked ? undefined : guest.lastName || undefined,
+        initialGuestPhone: linked ? undefined : guest.phone,
+        initialGuestEmail: linked ? undefined : guest.email,
+      });
+      setReservationDrawerOpen(true);
+    })();
+  }, [restaurantId, overlayThreadId, resolveChatGuestPrefill]);
+
+  const openReviewInviteFromChat = useCallback(() => {
+    void (async () => {
+      const guest = await resolveChatGuestPrefill();
+      const name = [guest.firstName, guest.lastName].filter(Boolean).join(" ");
+      setReviewInviteGuest({
+        firstName: name || undefined,
+        email: guest.email || undefined,
+        phone: guest.phone,
+      });
+      setReviewInviteOpen(true);
+    })();
+  }, [resolveChatGuestPrefill]);
+
+  const chatShortcutActions = useMemo(
+    () =>
+      contactInboxShortcutActions({
+        canCreateReservation,
+        canCreateReviewInvite,
+        onReservation: openReservationFromChat,
+        onReviewInvite: openReviewInviteFromChat,
+      }),
+    [
+      canCreateReservation,
+      canCreateReviewInvite,
+      openReservationFromChat,
+      openReviewInviteFromChat,
+    ],
+  );
 
   const restaurantName = profile.name.trim() || undefined;
   const canSendViaExternal =
@@ -2169,6 +2279,11 @@ export function ContactsMessagesScreen() {
           open={threadOverlayOpen}
           onClose={backToList}
           aria-label={contactName ? `Chat mit ${contactName}` : "Chat"}
+          fab={
+            chatShortcutActions.length > 0 ? (
+              <ContactInboxThreadShortcutsFab actions={chatShortcutActions} />
+            ) : null
+          }
           header={
             <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
               <Button
@@ -2723,15 +2838,33 @@ export function ContactsMessagesScreen() {
         open={reservationDrawerOpen}
         onOpenChange={(open) => {
           setReservationDrawerOpen(open);
-          if (!open) setReservationForDrawer(null);
+          if (!open) {
+            setReservationForDrawer(null);
+            setReservationCreateFor(null);
+          }
         }}
         reservation={reservationForDrawer}
-        createFor={null}
+        createFor={reservationCreateFor}
+        stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
         onSaved={() => {
           setReservationDrawerOpen(false);
           setReservationForDrawer(null);
+          setReservationCreateFor(null);
           if (contactParam) void loadThread();
         }}
+      />
+
+      <ReviewInvitationSheet
+        open={reviewInviteOpen}
+        onOpenChange={(open) => {
+          setReviewInviteOpen(open);
+          if (!open) setReviewInviteGuest(null);
+        }}
+        restaurantId={restaurantId}
+        restaurantName={profile.name.trim() || "Restaurant"}
+        defaultCountryIso2={defaultCountryIso2}
+        initialGuest={reviewInviteGuest}
+        stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
       />
 
       <ContactMessageProtocolDrawer

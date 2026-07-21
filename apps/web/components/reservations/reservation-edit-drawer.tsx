@@ -141,6 +141,11 @@ export type ReservationEditDrawerCreateContext = {
   initialDiningTableId?: string | null;
   /** Kontakt-ID — Gastfelder vorausfüllen. */
   initialContactId?: string;
+  /** Ohne Kontakt-ID: Gastfelder aus Chat / Inbox. */
+  initialGuestFirstName?: string;
+  initialGuestLastName?: string;
+  initialGuestPhone?: string | null;
+  initialGuestEmail?: string | null;
 };
 
 type ReservationEditDrawerProps = {
@@ -150,6 +155,8 @@ type ReservationEditDrawerProps = {
   createFor: ReservationEditDrawerCreateContext | null;
   /** Geladene Reservierungen (z. B. Monatsliste) für Tisch-Kapazität / Überlappung. */
   overlapReservations?: ReservationListRow[];
+  /** Über Chat-Vollbild-Overlay legen (z-210). */
+  stackAboveInboxOverlay?: boolean;
   onSaved: () => void;
 };
 
@@ -176,6 +183,7 @@ export function ReservationEditDrawer({
   reservation,
   createFor,
   overlapReservations = [],
+  stackAboveInboxOverlay = false,
   onSaved,
 }: ReservationEditDrawerProps) {
   const isEdit = Boolean(reservation);
@@ -464,6 +472,27 @@ export function ReservationEditDrawer({
           const mail = primaryEmail(data);
           if (mail) setEmail(mail);
         })();
+      } else {
+        if (createFor.initialGuestFirstName?.trim()) {
+          setFirstName(
+            reservationGuestFirstNameForForm(createFor.initialGuestFirstName),
+          );
+        }
+        if (createFor.initialGuestLastName?.trim()) {
+          setLastName(createFor.initialGuestLastName.trim().slice(0, 80));
+        }
+        const phone = createFor.initialGuestPhone?.trim();
+        if (phone) {
+          const parsed = parseGuestPhone(
+            phone,
+            countriesForPhoneRef.current,
+            defaultIso,
+          );
+          setPhoneCountryIso(parsed.iso2);
+          setPhoneLocal(parsed.local);
+        }
+        const mail = createFor.initialGuestEmail?.trim();
+        if (mail?.includes("@")) setEmail(mail);
       }
     }
   }, [
@@ -474,6 +503,10 @@ export function ReservationEditDrawer({
     createFor?.initialTimeHm,
     createFor?.initialDiningTableId,
     createFor?.initialContactId,
+    createFor?.initialGuestFirstName,
+    createFor?.initialGuestLastName,
+    createFor?.initialGuestPhone,
+    createFor?.initialGuestEmail,
     restaurantIdForFetch,
     restaurantTimeZone,
     getProfileForRestaurantId,
@@ -799,6 +832,7 @@ export function ReservationEditDrawer({
   const drawerTwoColClass = "grid gap-3 sm:grid-cols-2 [&>*]:min-w-0";
 
   const canSave = isEdit || isCreate;
+  const stackedSheetZClass = stackAboveInboxOverlay ? "z-[210]" : undefined;
 
   return (
     <>
@@ -809,7 +843,10 @@ export function ReservationEditDrawer({
       repositionInputs={repositionInputs}
       handleOnly
     >
-      <DrawerContent className={drawerContentClassName("formFixed")}>
+      <DrawerContent
+        overlayClassName={stackedSheetZClass}
+        className={cn(drawerContentClassName("formFixed"), stackedSheetZClass)}
+      >
         <DrawerHeader className={cn(drawerFormHeaderClassName(6), "min-w-0 overflow-x-hidden")}>
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1 text-left">

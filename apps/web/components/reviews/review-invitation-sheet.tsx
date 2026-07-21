@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
-import { formatGuestPhone } from "@/lib/phone/guest-phone";
+import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import {
   sendContactMessageUserMessage,
   type SendContactMessageApiResult,
@@ -38,18 +38,30 @@ async function copyText(text: string) {
   }
 }
 
+export type ReviewInvitationGuestPrefill = {
+  firstName?: string;
+  email?: string;
+  phone?: string | null;
+};
+
 export function ReviewInvitationSheet({
   open,
   onOpenChange,
   restaurantId,
   restaurantName,
   defaultCountryIso2,
+  initialGuest,
+  stackAboveInboxOverlay = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantId: string | null;
   restaurantName: string;
   defaultCountryIso2: string;
+  /** Gast aus Chat / Kontakt vorausfüllen. */
+  initialGuest?: ReviewInvitationGuestPrefill | null;
+  /** Über Chat-Vollbild-Overlay legen (z-210). */
+  stackAboveInboxOverlay?: boolean;
 }) {
   const [creating, setCreating] = useState(false);
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
@@ -131,8 +143,32 @@ export function ReviewInvitationSheet({
       setCopied(false);
       return;
     }
+    const first = initialGuest?.firstName?.trim() ?? "";
+    const mail = initialGuest?.email?.trim() ?? "";
+    const phoneRaw = initialGuest?.phone?.trim() ?? "";
+    setGuestFirstName(first.slice(0, 80));
+    setGuestEmail(mail.includes("@") ? mail : "");
+    if (phoneRaw) {
+      const parsed = parseGuestPhone(
+        phoneRaw,
+        COUNTRIES_REFERENCE_FALLBACK,
+        defaultCountryIso2,
+      );
+      setPhoneCountryIso(parsed.iso2);
+      setPhoneLocal(parsed.local);
+    } else {
+      setPhoneLocal("");
+      setPhoneCountryIso(defaultCountryIso2);
+    }
     void createInvitation();
-  }, [open, createInvitation, defaultCountryIso2]);
+  }, [
+    open,
+    createInvitation,
+    defaultCountryIso2,
+    initialGuest?.firstName,
+    initialGuest?.email,
+    initialGuest?.phone,
+  ]);
 
   const guestPhoneForApi = phoneLocal.trim()
     ? (formatGuestPhone(
@@ -242,9 +278,14 @@ export function ReviewInvitationSheet({
       })
     : null;
 
+  const stackedSheetZClass = stackAboveInboxOverlay ? "z-[210]" : undefined;
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className={drawerContentClassName("invitation")}>
+      <DrawerContent
+        overlayClassName={stackedSheetZClass}
+        className={cn(drawerContentClassName("invitation"), stackedSheetZClass)}
+      >
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Neue Bewertungseinladung

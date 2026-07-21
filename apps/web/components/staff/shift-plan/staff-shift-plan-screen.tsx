@@ -142,6 +142,7 @@ export function StaffShiftPlanScreen({
     personalMode && personalStaffId ? personalStaffId : "all",
   );
   const [sortKey, setSortKey] = useState<ShiftScheduleSortKey>("name");
+  const [onlyWithShifts, setOnlyWithShifts] = useState(false);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editShift, setEditShift] = useState<RestaurantStaffScheduledShiftRow | null>(
@@ -433,6 +434,17 @@ export function StaffShiftPlanScreen({
       );
     }
 
+    if (onlyWithShifts) {
+      const dayKeys = new Set(days.map((day) => localDayKey(day)));
+      const staffWithShift = new Set<string>();
+      for (const shift of shifts) {
+        if (shift.status === "declined") continue;
+        if (!dayKeys.has(localDayKey(new Date(shift.starts_at)))) continue;
+        staffWithShift.add(shift.staff_id);
+      }
+      list = list.filter((s) => staffWithShift.has(s.id));
+    }
+
     const minutesByStaff = new Map<string, number>();
     for (const shift of shifts) {
       const min = scheduledShiftDurationMinutes(shift.starts_at, shift.ends_at);
@@ -461,6 +473,8 @@ export function StaffShiftPlanScreen({
     search,
     sortKey,
     shifts,
+    onlyWithShifts,
+    days,
   ]);
 
   const visibleShifts = useMemo(() => {
@@ -839,6 +853,8 @@ export function StaffShiftPlanScreen({
         staffOptions={staffOptions}
         sortKey={sortKey}
         onSortKeyChange={setSortKey}
+        onlyWithShifts={onlyWithShifts}
+        onOnlyWithShiftsChange={setOnlyWithShifts}
         onCopy={() => setCopyOpen(true)}
         onExport={() => setExportOpen(true)}
         onSettings={() => setSettingsOpen(true)}
@@ -862,6 +878,8 @@ export function StaffShiftPlanScreen({
         staffOptions={[]}
         sortKey={sortKey}
         onSortKeyChange={setSortKey}
+        onlyWithShifts={onlyWithShifts}
+        onOnlyWithShiftsChange={setOnlyWithShifts}
         onCopy={() => {}}
         onExport={() => setExportOpen(true)}
         onSettings={() => {}}

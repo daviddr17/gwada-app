@@ -15,16 +15,160 @@ import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 
 const SIZE = 1080;
 
-const PRESET_BG: Record<SocialStylePreset, string> = {
-  modern_plain: "#f4f4f5",
-  warm_gastro: "#2a211c",
-  dark_fine: "#0a0a0a",
+type StyleTheme = {
+  bg: string;
+  fg: string;
+  mutedOpacity: number;
+  nameSize: number;
+  titleSize: number;
+  captionSize: number;
+  accentBarW: number;
+  accentBarH: number;
+  accentBarRx: number;
+  ctaRx: number;
+  ctaW: number;
+  ctaH: number;
+  pad: number;
+  /** food_hero: Rahmen innen */
+  frameInset: number;
+  frameStroke: number;
+  gradientBottomOpacity: number;
+  nameLetterSpacing: number;
+  fontTitle: string;
+  fontBody: string;
+  /** brand_card: weiche Karte über Foto */
+  cardInset: number;
+  cardRx: number;
+  cardFill: string;
+  cardFillOpacity: number;
 };
 
-const PRESET_FG: Record<SocialStylePreset, string> = {
-  modern_plain: "#171717",
-  warm_gastro: "#f7f0e8",
-  dark_fine: "#fafafa",
+const STYLE_THEMES: Record<SocialStylePreset, StyleTheme> = {
+  schlicht: {
+    bg: "#f4f4f5",
+    fg: "#171717",
+    mutedOpacity: 0.72,
+    nameSize: 22,
+    titleSize: 56,
+    captionSize: 28,
+    accentBarW: 72,
+    accentBarH: 6,
+    accentBarRx: 3,
+    ctaRx: 8,
+    ctaW: 168,
+    ctaH: 48,
+    pad: 72,
+    frameInset: 0,
+    frameStroke: 0,
+    gradientBottomOpacity: 0.72,
+    nameLetterSpacing: 3,
+    fontTitle: "Helvetica, Arial, sans-serif",
+    fontBody: "Helvetica, Arial, sans-serif",
+    cardInset: 0,
+    cardRx: 0,
+    cardFill: "#f4f4f5",
+    cardFillOpacity: 1,
+  },
+  modern: {
+    bg: "#eef2f6",
+    fg: "#0f172a",
+    mutedOpacity: 0.7,
+    nameSize: 20,
+    titleSize: 58,
+    captionSize: 28,
+    accentBarW: 140,
+    accentBarH: 10,
+    accentBarRx: 0,
+    ctaRx: 0,
+    ctaW: 180,
+    ctaH: 50,
+    pad: 80,
+    frameInset: 28,
+    frameStroke: 4,
+    gradientBottomOpacity: 0.8,
+    nameLetterSpacing: 6,
+    fontTitle: "Helvetica, Arial, sans-serif",
+    fontBody: "Helvetica, Arial, sans-serif",
+    cardInset: 48,
+    cardRx: 0,
+    cardFill: "#ffffff",
+    cardFillOpacity: 0.92,
+  },
+  warm: {
+    bg: "#2a211c",
+    fg: "#f7f0e8",
+    mutedOpacity: 0.78,
+    nameSize: 22,
+    titleSize: 60,
+    captionSize: 30,
+    accentBarW: 96,
+    accentBarH: 10,
+    accentBarRx: 5,
+    ctaRx: 14,
+    ctaW: 176,
+    ctaH: 50,
+    pad: 88,
+    frameInset: 36,
+    frameStroke: 0,
+    gradientBottomOpacity: 0.78,
+    nameLetterSpacing: 4,
+    fontTitle: "Georgia, 'Times New Roman', serif",
+    fontBody: "Helvetica, Arial, sans-serif",
+    cardInset: 56,
+    cardRx: 28,
+    cardFill: "#2a211c",
+    cardFillOpacity: 0.88,
+  },
+  fancy: {
+    bg: "#1a1220",
+    fg: "#faf5ff",
+    mutedOpacity: 0.82,
+    nameSize: 24,
+    titleSize: 64,
+    captionSize: 30,
+    accentBarW: 120,
+    accentBarH: 8,
+    accentBarRx: 4,
+    ctaRx: 24,
+    ctaW: 200,
+    ctaH: 52,
+    pad: 96,
+    frameInset: 40,
+    frameStroke: 10,
+    gradientBottomOpacity: 0.85,
+    nameLetterSpacing: 8,
+    fontTitle: "Georgia, 'Times New Roman', serif",
+    fontBody: "Helvetica, Arial, sans-serif",
+    cardInset: 64,
+    cardRx: 36,
+    cardFill: "#120c18",
+    cardFillOpacity: 0.78,
+  },
+  fein: {
+    bg: "#0a0a0a",
+    fg: "#fafafa",
+    mutedOpacity: 0.65,
+    nameSize: 18,
+    titleSize: 52,
+    captionSize: 26,
+    accentBarW: 48,
+    accentBarH: 2,
+    accentBarRx: 0,
+    ctaRx: 2,
+    ctaW: 150,
+    ctaH: 44,
+    pad: 100,
+    frameInset: 48,
+    frameStroke: 1,
+    gradientBottomOpacity: 0.68,
+    nameLetterSpacing: 10,
+    fontTitle: "Georgia, 'Times New Roman', serif",
+    fontBody: "Helvetica, Arial, sans-serif",
+    cardInset: 72,
+    cardRx: 4,
+    cardFill: "#0a0a0a",
+    cardFillOpacity: 0.82,
+  },
 };
 
 function escapeXml(value: string): string {
@@ -59,35 +203,46 @@ function foodHeroOverlaySvg(params: {
   restaurantName: string;
   title: string | null;
   captionLine: string;
+  style: StyleTheme;
 }): Buffer {
+  const t = params.style;
   const name = escapeXml(params.restaurantName.slice(0, 42));
   const title = params.title
     ? escapeXml(params.title.slice(0, 48))
     : "";
-  const captionLines = wrapLines(params.captionLine, 42, 2).map(escapeXml);
+  const captionLines = wrapLines(params.captionLine, 40, 2).map(escapeXml);
+  const pad = t.pad;
   const titleBlock = title
-    ? `<text x="72" y="880" fill="#ffffff" font-size="48" font-weight="700" font-family="Georgia, 'Times New Roman', serif">${title}</text>`
+    ? `<text x="${pad}" y="880" fill="#ffffff" font-size="${t.titleSize * 0.75}" font-weight="700" font-family="${t.fontTitle}">${title}</text>`
     : "";
   const captionY0 = title ? 940 : 900;
   const captionTexts = captionLines
     .map(
       (line, i) =>
-        `<text x="72" y="${captionY0 + i * 36}" fill="#ffffff" fill-opacity="0.92" font-size="28" font-family="Helvetica, Arial, sans-serif">${line}</text>`,
+        `<text x="${pad}" y="${captionY0 + i * 36}" fill="#ffffff" fill-opacity="0.92" font-size="${t.captionSize}" font-family="${t.fontBody}">${line}</text>`,
     )
     .join("");
+
+  const frame =
+    t.frameInset > 0 && t.frameStroke > 0
+      ? `<rect x="${t.frameInset}" y="${t.frameInset}" width="${SIZE - t.frameInset * 2}" height="${SIZE - t.frameInset * 2}" fill="none" stroke="${escapeXml(params.accent)}" stroke-width="${t.frameStroke}" opacity="0.85"/>`
+      : t.frameInset > 0
+        ? `<rect x="${t.frameInset}" y="${t.frameInset}" width="${SIZE - t.frameInset * 2}" height="${SIZE - t.frameInset * 2}" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.25"/>`
+        : "";
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
-      <stop offset="45%" stop-color="#000000" stop-opacity="0.15"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.78"/>
+      <stop offset="40%" stop-color="#000000" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="${t.gradientBottomOpacity}"/>
     </linearGradient>
   </defs>
   <rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
-  <rect x="72" y="780" width="88" height="8" rx="4" fill="${escapeXml(params.accent)}"/>
-  <text x="72" y="830" fill="#ffffff" fill-opacity="0.85" font-size="22" letter-spacing="4" font-family="Helvetica, Arial, sans-serif">${name}</text>
+  ${frame}
+  <rect x="${pad}" y="780" width="${t.accentBarW}" height="${t.accentBarH}" rx="${t.accentBarRx}" fill="${escapeXml(params.accent)}"/>
+  <text x="${pad}" y="830" fill="#ffffff" fill-opacity="0.88" font-size="${t.nameSize}" letter-spacing="${t.nameLetterSpacing}" font-family="${t.fontBody}">${name}</text>
   ${titleBlock}
   ${captionTexts}
 </svg>`;
@@ -96,36 +251,55 @@ function foodHeroOverlaySvg(params: {
 
 function brandCardSvg(params: {
   accent: string;
-  bg: string;
-  fg: string;
   restaurantName: string;
   title: string | null;
   caption: string;
   hasPhoto: boolean;
+  style: StyleTheme;
+  ctaLabel: string;
 }): Buffer {
+  const t = params.style;
   const name = escapeXml(params.restaurantName.slice(0, 42));
   const title = escapeXml((params.title?.trim() || "Diese Woche").slice(0, 48));
-  const captionLines = wrapLines(params.caption, 34, 4).map(escapeXml);
+  const captionLines = wrapLines(params.caption, 32, 4).map(escapeXml);
+  const pad = t.pad;
   const captionTexts = captionLines
     .map(
       (line, i) =>
-        `<text x="88" y="${520 + i * 44}" fill="${escapeXml(params.fg)}" fill-opacity="0.9" font-size="30" font-family="Helvetica, Arial, sans-serif">${line}</text>`,
+        `<text x="${pad}" y="${520 + i * 44}" fill="${escapeXml(t.fg)}" fill-opacity="0.9" font-size="${t.captionSize}" font-family="${t.fontBody}">${line}</text>`,
     )
     .join("");
+
   const photoDim = params.hasPhoto
-    ? `<rect width="${SIZE}" height="${SIZE}" fill="#000000" fill-opacity="0.45"/>`
+    ? `<rect width="${SIZE}" height="${SIZE}" fill="#000000" fill-opacity="0.35"/>`
     : "";
+
+  const card =
+    t.cardInset > 0
+      ? `<rect x="${t.cardInset}" y="${t.cardInset}" width="${SIZE - t.cardInset * 2}" height="${SIZE - t.cardInset * 2}" rx="${t.cardRx}" fill="${escapeXml(t.cardFill)}" fill-opacity="${t.cardFillOpacity}"/>`
+      : `<rect width="${SIZE}" height="${SIZE}" fill="${escapeXml(t.bg)}"/>`;
+
+  const frame =
+    t.frameStroke > 0 && t.cardInset > 0
+      ? `<rect x="${t.cardInset}" y="${t.cardInset}" width="${SIZE - t.cardInset * 2}" height="${SIZE - t.cardInset * 2}" rx="${t.cardRx}" fill="none" stroke="${escapeXml(params.accent)}" stroke-width="${t.frameStroke}" opacity="0.9"/>`
+      : "";
+
+  const ctaLabel = escapeXml(params.ctaLabel.slice(0, 18));
+  const ctaX = pad;
+  const ctaY = 920;
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="${SIZE}" height="${SIZE}" fill="${escapeXml(params.bg)}"/>
+  ${params.hasPhoto ? "" : `<rect width="${SIZE}" height="${SIZE}" fill="${escapeXml(t.bg)}"/>`}
   ${photoDim}
-  <rect x="88" y="120" width="96" height="10" rx="5" fill="${escapeXml(params.accent)}"/>
-  <text x="88" y="210" fill="${escapeXml(params.fg)}" fill-opacity="0.75" font-size="24" letter-spacing="5" font-family="Helvetica, Arial, sans-serif">${name}</text>
-  <text x="88" y="320" fill="${escapeXml(params.fg)}" font-size="64" font-weight="700" font-family="Georgia, 'Times New Roman', serif">${title}</text>
+  ${card}
+  ${frame}
+  <rect x="${pad}" y="140" width="${t.accentBarW}" height="${t.accentBarH}" rx="${t.accentBarRx}" fill="${escapeXml(params.accent)}"/>
+  <text x="${pad}" y="220" fill="${escapeXml(t.fg)}" fill-opacity="${t.mutedOpacity}" font-size="${t.nameSize}" letter-spacing="${t.nameLetterSpacing}" font-family="${t.fontBody}">${name}</text>
+  <text x="${pad}" y="320" fill="${escapeXml(t.fg)}" font-size="${t.titleSize}" font-weight="700" font-family="${t.fontTitle}">${title}</text>
   ${captionTexts}
-  <rect x="88" y="920" width="160" height="48" rx="10" fill="${escapeXml(params.accent)}"/>
-  <text x="168" y="952" text-anchor="middle" fill="#ffffff" font-size="22" font-weight="600" font-family="Helvetica, Arial, sans-serif">Reservieren</text>
+  <rect x="${ctaX}" y="${ctaY}" width="${t.ctaW}" height="${t.ctaH}" rx="${t.ctaRx}" fill="${escapeXml(params.accent)}"/>
+  <text x="${ctaX + t.ctaW / 2}" y="${ctaY + t.ctaH / 2 + 8}" text-anchor="middle" fill="#ffffff" font-size="22" font-weight="600" font-family="${t.fontBody}">${ctaLabel}</text>
 </svg>`;
   return Buffer.from(svg);
 }
@@ -140,16 +314,17 @@ export async function renderSocialTemplateImage(params: {
   title: string | null;
   caption: string;
   asset: SocialSuggestionAsset;
+  ctaLabel?: string;
 }): Promise<Buffer> {
   const accent = normalizeHex(params.accentHex) ?? DEFAULT_ACCENT_HEX;
-  const bg = PRESET_BG[params.stylePreset] ?? PRESET_BG.warm_gastro;
-  const fg = PRESET_FG[params.stylePreset] ?? PRESET_FG.warm_gastro;
+  const style = STYLE_THEMES[params.stylePreset] ?? STYLE_THEMES.schlicht;
   const captionLine = params.caption.split("\n").map((l) => l.trim()).filter(Boolean)[0] ?? "";
   const photo = await loadSocialImageBuffer(
     params.sb,
     params.restaurantId,
     params.asset,
   );
+  const ctaLabel = params.ctaLabel?.trim() || "Reservieren";
 
   if (params.templateId === "brand_card" || !photo) {
     const base = photo
@@ -162,7 +337,7 @@ export async function renderSocialTemplateImage(params: {
             width: SIZE,
             height: SIZE,
             channels: 3,
-            background: bg,
+            background: style.bg,
           },
         })
           .png()
@@ -170,12 +345,12 @@ export async function renderSocialTemplateImage(params: {
 
     const overlay = brandCardSvg({
       accent,
-      bg,
-      fg,
       restaurantName: params.restaurantName,
       title: params.title,
       caption: captionLine || params.caption,
       hasPhoto: Boolean(photo),
+      style,
+      ctaLabel,
     });
 
     return sharp(base)
@@ -194,6 +369,7 @@ export async function renderSocialTemplateImage(params: {
     restaurantName: params.restaurantName,
     title: params.title,
     captionLine,
+    style,
   });
 
   return sharp(base)
@@ -214,6 +390,7 @@ export async function renderAndUploadSocialTemplate(params: {
   title: string | null;
   caption: string;
   asset: SocialSuggestionAsset;
+  ctaLabel?: string;
 }): Promise<
   | { ok: true; imageUrl: string; storagePath: string }
   | { ok: false; error: string }

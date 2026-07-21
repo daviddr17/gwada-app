@@ -30,6 +30,7 @@ import {
   SOCIAL_IMAGE_STRATEGIES,
   SOCIAL_IMAGE_STRATEGY_LABELS,
   SOCIAL_STYLE_PRESETS,
+  SOCIAL_STYLE_PRESET_HINTS,
   SOCIAL_STYLE_PRESET_LABELS,
   SOCIAL_TONES,
   SOCIAL_TONE_LABELS,
@@ -283,7 +284,7 @@ export function SocialBrandKitCard({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Stil-Preset</Label>
+            <Label>Design</Label>
             <Select
               value={kit.stylePreset}
               onValueChange={(v) => {
@@ -307,6 +308,9 @@ export function SocialBrandKitCard({
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {SOCIAL_STYLE_PRESET_HINTS[kit.stylePreset]}
+            </p>
           </div>
         </div>
 

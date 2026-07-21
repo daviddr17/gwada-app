@@ -57,7 +57,7 @@ export function SocialAutopilotScreen() {
   const [suggestions, setSuggestions] = useState<SocialPostSuggestion[]>([]);
   const [tasks, setTasks] = useState<SocialMediaTask[]>([]);
   const [stylePreset, setStylePreset] =
-    useState<SocialStylePreset>("warm_gastro");
+    useState<SocialStylePreset>("schlicht");
   const [publishStories, setPublishStories] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);

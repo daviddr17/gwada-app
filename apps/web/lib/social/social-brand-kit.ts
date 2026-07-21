@@ -14,10 +14,13 @@ export type SocialImageStrategy = (typeof SOCIAL_IMAGE_STRATEGIES)[number];
 export const SOCIAL_TONES = ["casual", "warm", "fine", "modern"] as const;
 export type SocialTone = (typeof SOCIAL_TONES)[number];
 
+/** Visueller Stil der Social-Templates — klar unterscheidbar pro Restaurant. */
 export const SOCIAL_STYLE_PRESETS = [
-  "modern_plain",
-  "warm_gastro",
-  "dark_fine",
+  "schlicht",
+  "modern",
+  "warm",
+  "fancy",
+  "fein",
 ] as const;
 export type SocialStylePreset = (typeof SOCIAL_STYLE_PRESETS)[number];
 
@@ -78,10 +81,40 @@ export const SOCIAL_TONE_LABELS: Record<SocialTone, string> = {
 };
 
 export const SOCIAL_STYLE_PRESET_LABELS: Record<SocialStylePreset, string> = {
-  modern_plain: "Modern schlicht",
-  warm_gastro: "Warm gastronomisch",
-  dark_fine: "Dunkel & fein",
+  schlicht: "Schlicht",
+  modern: "Modern",
+  warm: "Warm",
+  fancy: "Fancy",
+  fein: "Fein / Fine Dining",
 };
+
+export const SOCIAL_STYLE_PRESET_HINTS: Record<SocialStylePreset, string> = {
+  schlicht: "Ruhig, viel Bild, wenig Text — passt zu den meisten Gastros.",
+  modern: "Klare Kanten, Akzentbalken, frischer Look.",
+  warm: "Weiche Karten, einladend — wie Stammlokal.",
+  fancy: "Auffällig, starker Rahmen — für Show-Posts.",
+  fein: "Dunkel, dezent, viel Weißraum — Fine Dining / Bar.",
+};
+
+/** Alias für UI-Konsistenz („Design“). */
+export const SOCIAL_STYLE_LABELS = SOCIAL_STYLE_PRESET_LABELS;
+export const SOCIAL_STYLE_HINTS = SOCIAL_STYLE_PRESET_HINTS;
+
+const LEGACY_STYLE_MAP: Record<string, SocialStylePreset> = {
+  modern_plain: "schlicht",
+  warm_gastro: "warm",
+  dark_fine: "fein",
+  schlicht: "schlicht",
+  modern: "modern",
+  warm: "warm",
+  fancy: "fancy",
+  fein: "fein",
+};
+
+export function parseStylePreset(raw: unknown): SocialStylePreset {
+  if (typeof raw !== "string") return "schlicht";
+  return LEGACY_STYLE_MAP[raw] ?? "schlicht";
+}
 
 export function defaultSocialBrandKit(restaurantId: string): SocialBrandKit {
   return {
@@ -90,7 +123,7 @@ export function defaultSocialBrandKit(restaurantId: string): SocialBrandKit {
     imageStrategy: "mix",
     neverAiFood: true,
     tone: "warm",
-    stylePreset: "warm_gastro",
+    stylePreset: "schlicht",
     voiceNotes: "",
     doNot: "",
     hashtags: [],
@@ -152,11 +185,7 @@ export function parseSocialBrandKit(
   const tone = SOCIAL_TONES.includes(r.tone as SocialTone)
     ? (r.tone as SocialTone)
     : base.tone;
-  const stylePreset = SOCIAL_STYLE_PRESETS.includes(
-    r.style_preset as SocialStylePreset,
-  )
-    ? (r.style_preset as SocialStylePreset)
-    : base.stylePreset;
+  const stylePreset = parseStylePreset(r.style_preset);
   const weekly =
     typeof r.weekly_post_target === "number" &&
     Number.isFinite(r.weekly_post_target)

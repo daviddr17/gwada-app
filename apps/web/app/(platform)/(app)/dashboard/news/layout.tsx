@@ -12,6 +12,11 @@ const NEWS_NAV: readonly ModuleSubnavItem[] = [
     activeWhen: ["/dashboard/news"],
   },
   {
+    href: "/dashboard/news/autopilot",
+    label: "Autopilot",
+    matchMode: "prefix",
+  },
+  {
     href: "/dashboard/news/statistiken",
     label: "Statistiken",
     matchMode: "exact",

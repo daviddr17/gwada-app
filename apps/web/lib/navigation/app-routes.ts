@@ -112,6 +112,14 @@ export const APP_ROUTES = {
     statistics: "/dashboard/events/statistiken",
     settings: "/dashboard/events/einstellungen",
   },
+  news: {
+    root: "/dashboard/news",
+    overview: "/dashboard/news/uebersicht",
+    autopilot: "/dashboard/news/autopilot",
+    statistics: "/dashboard/news/statistiken",
+    embed: "/dashboard/news/einbinden",
+    settings: "/dashboard/news/einstellungen",
+  },
   settings: {
     root: "/dashboard/settings",
     restaurant: "/dashboard/settings/restaurant",

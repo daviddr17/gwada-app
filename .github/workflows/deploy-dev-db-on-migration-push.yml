@@ -4,7 +4,7 @@ name: Deploy DB dev (migration push)
 on:
   push:
     # Feature-Branch: Agent kann workflow_dispatch nicht (403); Push triggert Dev-Migrate.
-    branches: [main, cursor/pos-ops-dashboard-kasse-ea36]
+    branches: [main, cursor/social-autopilot-mvp-ea36]
     paths:
       - "supabase/migrations/**"
       - ".github/workflows/deploy-dev-db-on-migration-push.yml"

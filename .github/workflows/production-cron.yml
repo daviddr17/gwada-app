@@ -6,6 +6,8 @@ on:
     - cron: "*/5 * * * *"
     # news-feed-sync, reviews-feed-sync
     - cron: "*/10 * * * *"
+    # social-suggestions (weekly Autopilot queue)
+    - cron: "0 7 * * 1"
   workflow_dispatch:
     inputs:
       target:
@@ -21,6 +23,7 @@ on:
           - staff-shift-notifications
           - contact-inbox-sync
           - accounting-lexoffice-sync
+          - social-suggestions
 
 env:
   CRON_BASE_URL: https://gwada.app
@@ -129,3 +132,21 @@ jobs:
           curl -sfS --max-time 300 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/accounting-lexoffice-sync"
+
+  social-suggestions:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'social-suggestions')) ||
+      (github.event_name == 'schedule' && (github.event.schedule == '0 7 * * 1' || github.event.schedule == '*/10 * * * *'))
+    steps:
+      - name: Call social-suggestions
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set — skipped."
+            exit 0
+          fi
+          curl -sfS --max-time 300 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_BASE_URL/api/cron/social-suggestions"

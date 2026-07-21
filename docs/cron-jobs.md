@@ -42,4 +42,7 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
 
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
   https://gwada.app/api/cron/accounting-lexoffice-sync
+
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+  https://gwada.app/api/cron/social-suggestions
 ```

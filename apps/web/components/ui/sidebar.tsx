@@ -743,7 +743,8 @@ function SidebarMenuSkeleton({
       data-slot="sidebar-menu-skeleton"
       data-sidebar="menu-skeleton"
       className={cn(
-        // Eigenes Flex-Layout — ohne SIDEBAR_LABELS_COLLAPSED (0fr clippt den Textbalken).
+        // Flex statt Label-0fr-Grid — sonst clippt die Textspalte den Balken.
+        // Kein flex-1 am Text: volle Breite + ms-[5px] würde rechts abschneiden.
         "flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2",
         SIDEBAR_ICON_TRACK_MS,
         "group-data-[sidebar-icon-compact]/sidebar-wrapper:w-8 group-data-[sidebar-icon-compact]/sidebar-wrapper:max-w-8 group-data-[sidebar-icon-compact]/sidebar-wrapper:justify-center group-data-[sidebar-icon-compact]/sidebar-wrapper:gap-0 group-data-[sidebar-icon-compact]/sidebar-wrapper:rounded-full group-data-[sidebar-icon-compact]/sidebar-wrapper:px-0 group-data-[sidebar-icon-compact]/sidebar-wrapper:ms-0",
@@ -759,7 +760,7 @@ function SidebarMenuSkeleton({
       ) : null}
       <Skeleton
         className={cn(
-          "h-3.5 min-w-0 flex-1 rounded-md",
+          "h-3.5 w-[70%] max-w-full min-w-0 shrink rounded-md",
           "group-data-[sidebar-icon-compact]/sidebar-wrapper:hidden",
         )}
         data-sidebar="menu-skeleton-text"

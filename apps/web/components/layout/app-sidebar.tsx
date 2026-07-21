@@ -231,7 +231,7 @@ export function AppSidebar() {
                   </span>
                 ) : (
                   <span
-                    className="block h-3.5 w-24 max-w-full rounded-md bg-sidebar-accent/50 skeleton-shimmer"
+                    className="block h-3 w-[4.5rem] max-w-full rounded-md bg-sidebar-accent/50 skeleton-shimmer"
                     aria-hidden
                   />
                 )}
@@ -241,7 +241,7 @@ export function AppSidebar() {
                   </span>
                 ) : profileReady ? null : (
                   <span
-                    className="mt-0.5 block h-2.5 w-28 max-w-full rounded-md bg-sidebar-accent/40 skeleton-shimmer"
+                    className="mt-0.5 block h-2 w-16 max-w-full rounded-md bg-sidebar-accent/40 skeleton-shimmer"
                     aria-hidden
                   />
                 )}

@@ -35,7 +35,7 @@ export function AppShellBootstrapOverlay() {
               className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 ms-[5px]"
             >
               <Skeleton className="size-4 shrink-0 rounded-md" />
-              <Skeleton className="h-3.5 min-w-0 flex-1 rounded-md" />
+              <Skeleton className="h-3.5 w-[70%] max-w-full min-w-0 shrink rounded-md" />
             </div>
           ))}
         </div>

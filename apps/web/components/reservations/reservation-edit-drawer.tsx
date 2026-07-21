@@ -33,6 +33,10 @@ import { ReservationMessagesPanel } from "@/components/contacts/reservation-mess
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import {
+  isValidStaffPartySize,
+  RESERVATION_PARTY_SIZE_MAX_STAFF,
+} from "@/lib/reservations/reservation-party-size";
+import {
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
   reservationGuestFirstNameForForm,
@@ -557,8 +561,10 @@ export function ReservationEditDrawer({
 
   const buildPayload = (): BuiltReservationPayload | null => {
     const ps = Number.parseInt(partySize, 10);
-    if (!Number.isFinite(ps) || ps < 1 || ps > 50) {
-      toast.error("Personenzahl zwischen 1 und 50.");
+    if (!isValidStaffPartySize(ps)) {
+      toast.error(
+        `Personenzahl zwischen 1 und ${RESERVATION_PARTY_SIZE_MAX_STAFF}.`,
+      );
       return null;
     }
     if (!dateYmd.trim()) {
@@ -986,12 +992,16 @@ export function ReservationEditDrawer({
                     id="res-ps"
                     {...(touchTablet
                       ? touchNumericProps
-                      : { type: "number" as const, min: 1, max: 50 })}
+                      : {
+                          type: "number" as const,
+                          min: 1,
+                          max: RESERVATION_PARTY_SIZE_MAX_STAFF,
+                        })}
                     value={partySize}
                     onChange={(e) =>
                       setPartySize(
                         touchTablet
-                          ? digitsOnlyInput(e.target.value, 2)
+                          ? digitsOnlyInput(e.target.value, 3)
                           : e.target.value,
                       )
                     }

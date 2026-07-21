@@ -27,6 +27,7 @@ import {
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
+import { isValidPublicPartySize } from "@/lib/reservations/reservation-party-size";
 import {
   reservationDateTimeChanged,
   shouldRescheduleTimedOutbox,
@@ -231,7 +232,7 @@ function honeypotFilled(website: string | undefined): boolean {
 }
 
 function validatePartySize(n: number): boolean {
-  return Number.isFinite(n) && n >= 1 && n <= 30;
+  return isValidPublicPartySize(n);
 }
 
 function validateIsoRange(startsAt: string, endsAt: string): boolean {

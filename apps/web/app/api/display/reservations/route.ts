@@ -13,6 +13,7 @@ import {
 } from "@/lib/reservations/reservation-guest-name";
 import { isValidReservationTimeRange } from "@/lib/display/display-reservation-save-times";
 import { walkInGuestNamesFromOptionalLabel } from "@/lib/reservations/walk-in";
+import { isValidStaffPartySize } from "@/lib/reservations/reservation-party-size";
 
 export async function GET(request: Request) {
   const cookieStore = await cookies();
@@ -85,7 +86,12 @@ export async function POST(request: Request) {
     const partySize = body.party_size;
     const startsAt = body.starts_at?.trim();
     const endsAt = body.ends_at?.trim();
-    if (!startsAt || !endsAt || !partySize || partySize < 1 || partySize > 50) {
+    if (
+      !startsAt ||
+      !endsAt ||
+      !partySize ||
+      !isValidStaffPartySize(partySize)
+    ) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
     }
 
@@ -166,7 +172,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "last_name_required" }, { status: 400 });
   }
 
-  if (!startsAt || !endsAt || !partySize || partySize < 1 || partySize > 50) {
+  if (
+    !startsAt ||
+    !endsAt ||
+    !partySize ||
+    !isValidStaffPartySize(partySize)
+  ) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 

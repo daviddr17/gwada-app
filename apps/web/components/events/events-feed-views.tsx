@@ -16,6 +16,7 @@ import {
 } from "@/lib/events/format-events-display-date";
 import type { UnifiedEventItem } from "@/lib/events/unified-event-item";
 import { Badge } from "@/components/ui/badge";
+import { feedTimelineDateChipClassName } from "@/components/feed/feed-timeline-date-skeleton";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { cn } from "@/lib/utils";
@@ -85,7 +86,7 @@ const EventTimelineRow = memo(function EventTimelineRow({
       <div className="relative flex w-14 shrink-0 flex-col items-center sm:w-16">
         <div
           className={cn(
-            "z-10 flex w-full flex-col items-center rounded-lg border border-border/40 bg-background px-1 py-1.5 text-center",
+            feedTimelineDateChipClassName,
             past && "opacity-80",
           )}
         >

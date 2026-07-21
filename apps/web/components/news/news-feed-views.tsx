@@ -4,6 +4,7 @@ import { Fragment, memo, useCallback, useMemo, useState, type MouseEvent } from 
 import { ExternalLink, Newspaper } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
+import { feedTimelineDateChipClassName } from "@/components/feed/feed-timeline-date-skeleton";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
 import {

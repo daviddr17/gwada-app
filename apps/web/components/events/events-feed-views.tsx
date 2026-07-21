@@ -86,7 +86,7 @@ const EventTimelineRow = memo(function EventTimelineRow({
       <div className="relative flex w-14 shrink-0 flex-col items-center sm:w-16">
         <div
           className={cn(
-            "z-10 flex w-full flex-col items-center rounded-lg border border-border/40 bg-background px-1 py-1.5 text-center",
+            feedTimelineDateChipClassName,
             past && "opacity-80",
           )}
         >

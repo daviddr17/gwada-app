@@ -4,7 +4,16 @@ import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import { isNewsPlatform } from "@/lib/constants/news-platforms";
 import {
   publishNewsPostToPlatforms,
+  publishNewsStories,
 } from "@/lib/news/news-publish-server";
+import {
+  isNewsStoriesPlatform,
+  type NewsStoriesPlatform,
+} from "@/lib/news/news-stories-cache-constants";
+import {
+  parseNewsMedia,
+  resolveNewsMediaSignedUrls,
+} from "@/lib/news/news-media";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function processDueScheduledNewsPosts(
@@ -14,7 +23,7 @@ export async function processDueScheduledNewsPosts(
 
   const { data: duePosts, error } = await sb
     .from("gwada_news_posts")
-    .select("id, restaurant_id, title, body, media")
+    .select("id, restaurant_id, title, body, media, story_platforms")
     .eq("status", "scheduled")
     .lte("scheduled_at", new Date().toISOString())
     .order("scheduled_at", { ascending: true })
@@ -52,6 +61,27 @@ export async function processDueScheduledNewsPosts(
 
     published += stats.published;
     failed += stats.failed;
+
+    const storyPlatforms = (
+      Array.isArray(post.story_platforms) ? post.story_platforms : []
+    ).filter((p): p is NewsStoriesPlatform =>
+      typeof p === "string" ? isNewsStoriesPlatform(p as NewsPlatform) : false,
+    );
+
+    if (storyPlatforms.length > 0) {
+      const mediaRows = parseNewsMedia(post.media);
+      const mediaUrls = await resolveNewsMediaSignedUrls(
+        mediaRows.map((m) => m.storagePath),
+      );
+      if (mediaUrls.length > 0) {
+        await publishNewsStories(
+          restaurantId,
+          storyPlatforms,
+          mediaUrls,
+          mediaRows.map((m) => m.kind),
+        );
+      }
+    }
 
     const postStatus = stats.published > 0 ? "published" : "failed";
     await sb

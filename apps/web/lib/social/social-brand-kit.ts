@@ -59,6 +59,8 @@ export type SocialBrandKit = {
   heroAssets: SocialHeroAsset[];
   /** Zielkanäle (News): IG/FB/Google/WhatsApp/Gwada — zur Publish-Zeit gefiltert. */
   publishPlatforms: NewsPlatform[];
+  /** Zusätzlich Instagram-/Facebook-Story, wenn Kanal verbunden. */
+  publishStories: boolean;
 };
 
 export const SOCIAL_IMAGE_STRATEGY_LABELS: Record<SocialImageStrategy, string> =
@@ -97,6 +99,7 @@ export function defaultSocialBrandKit(restaurantId: string): SocialBrandKit {
     goldCaptions: [],
     heroAssets: [],
     publishPlatforms: [...SOCIAL_DEFAULT_PUBLISH_PLATFORMS],
+    publishStories: true,
   };
 }
 
@@ -183,6 +186,7 @@ export function parseSocialBrandKit(
     publishPlatforms: parseSocialPublishPlatforms(
       r.publish_platforms ?? r.publishPlatforms,
     ),
+    publishStories: r.publish_stories !== false && r.publishStories !== false,
   };
 }
 
@@ -202,6 +206,7 @@ export function socialBrandKitForPersistence(kit: SocialBrandKit) {
     gold_captions: kit.goldCaptions,
     hero_assets: kit.heroAssets,
     publish_platforms: kit.publishPlatforms,
+    publish_stories: kit.publishStories,
   };
 }
 
@@ -225,6 +230,7 @@ export function parseSocialBrandKitFromClientBody(
     gold_captions: r.goldCaptions ?? r.gold_captions,
     hero_assets: r.heroAssets ?? r.hero_assets,
     publish_platforms: r.publishPlatforms ?? r.publish_platforms,
+    publish_stories: r.publishStories ?? r.publish_stories,
   };
   return parseSocialBrandKit(restaurantId, merged);
 }

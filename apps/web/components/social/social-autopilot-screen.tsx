@@ -58,6 +58,7 @@ export function SocialAutopilotScreen() {
   const [tasks, setTasks] = useState<SocialMediaTask[]>([]);
   const [stylePreset, setStylePreset] =
     useState<SocialStylePreset>("warm_gastro");
+  const [publishStories, setPublishStories] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [draftCaptions, setDraftCaptions] = useState<Record<string, string>>(
@@ -82,7 +83,7 @@ export function SocialAutopilotScreen() {
           error?: string;
         };
         const kitData = (await kitRes.json().catch(() => ({}))) as {
-          kit?: { stylePreset?: SocialStylePreset };
+          kit?: { stylePreset?: SocialStylePreset; publishStories?: boolean };
         };
         if (!sugRes.ok) {
           toast.error("Vorschläge konnten nicht geladen werden");
@@ -92,6 +93,9 @@ export function SocialAutopilotScreen() {
         setSuggestions(list.filter((s) => s.status === "pending" || s.status === "needs_asset"));
         setTasks(sugData.tasks ?? []);
         if (kitData.kit?.stylePreset) setStylePreset(kitData.kit.stylePreset);
+        if (typeof kitData.kit?.publishStories === "boolean") {
+          setPublishStories(kitData.kit.publishStories);
+        }
         setDraftCaptions((prev) => {
           const next = { ...prev };
           for (const s of list) {
@@ -297,6 +301,13 @@ export function SocialAutopilotScreen() {
                       {socialPublishPlatformLabel(p)}
                     </span>
                   ))}
+                  {publishStories &&
+                  (s.platforms.includes("facebook") ||
+                    s.platforms.includes("instagram")) ? (
+                    <span className="rounded-full border border-border/60 px-2 py-0.5">
+                      + Story
+                    </span>
+                  ) : null}
                   <span>{formatPlan(s.plannedAt)}</span>
                   {s.status === "needs_asset" ? (
                     <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-800 dark:text-amber-200">

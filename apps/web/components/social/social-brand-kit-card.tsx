@@ -196,6 +196,22 @@ export function SocialBrandKitCard({
               );
             })}
           </div>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 px-3 py-2.5">
+            <div>
+              <p className="text-sm font-medium">Auch als Story</p>
+              <p className="text-xs text-muted-foreground">
+                Zusätzlich Instagram- und Facebook-Story (wenn verbunden)
+              </p>
+            </div>
+            <Switch
+              checked={kit.publishStories}
+              onCheckedChange={(v) =>
+                setKit((k) =>
+                  k ? { ...k, publishStories: v === true } : k,
+                )
+              }
+            />
+          </div>
         </div>
 
         <div className="space-y-2">

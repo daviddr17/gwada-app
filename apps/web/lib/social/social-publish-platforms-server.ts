@@ -5,6 +5,10 @@ import {
   type NewsPlatform,
 } from "@/lib/constants/news-platforms";
 import { getNewsConnectorPublicInfo } from "@/lib/news/connectors/registry";
+import {
+  isNewsStoriesPlatform,
+  type NewsStoriesPlatform,
+} from "@/lib/news/news-stories-cache-constants";
 import { SOCIAL_DEFAULT_PUBLISH_PLATFORMS } from "@/lib/social/social-publish-platforms";
 
 /**
@@ -28,4 +32,18 @@ export async function resolveConnectedPublishPlatforms(
   const resolved = base.filter((p) => connected.has(p));
   if (resolved.length) return resolved;
   return ["gwada"];
+}
+
+/** Story-Kanäle: nur FB/IG, wenn im Kit aktiv, Story-Toggle an und verbunden. */
+export async function resolveConnectedStoryPlatforms(
+  restaurantId: string,
+  preferredFeedPlatforms: readonly NewsPlatform[],
+  publishStories: boolean,
+): Promise<NewsStoriesPlatform[]> {
+  if (!publishStories) return [];
+  const feed = await resolveConnectedPublishPlatforms(
+    restaurantId,
+    preferredFeedPlatforms,
+  );
+  return feed.filter(isNewsStoriesPlatform);
 }

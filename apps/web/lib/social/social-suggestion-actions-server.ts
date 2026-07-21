@@ -13,7 +13,10 @@ import type { SocialTemplateId } from "@/lib/social/social-brand-kit";
 import {
   captionForMultiPlatformPublish,
 } from "@/lib/social/social-publish-platforms";
-import { resolveConnectedPublishPlatforms } from "@/lib/social/social-publish-platforms-server";
+import {
+  resolveConnectedPublishPlatforms,
+  resolveConnectedStoryPlatforms,
+} from "@/lib/social/social-publish-platforms-server";
 import { renderAndUploadSocialTemplate } from "@/lib/social/social-template-render-server";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
 import {
@@ -190,9 +193,15 @@ export async function publishSocialSuggestionNow(params: {
     params.restaurantId,
     preferred,
   );
+  const storyPlatforms = await resolveConnectedStoryPlatforms(
+    params.restaurantId,
+    preferred,
+    kit.publishStories,
+  );
 
-  // Instagram braucht Bild — wenn IG gewählt, Render ist Pflicht
-  const needsImage = platforms.includes("instagram");
+  // Instagram (Feed oder Story) braucht Bild — Render ist Pflicht
+  const needsImage =
+    platforms.includes("instagram") || storyPlatforms.length > 0;
   const mediaResult = await renderPublishMedia({
     sb: params.sb,
     restaurantId: params.restaurantId,
@@ -227,6 +236,7 @@ export async function publishSocialSuggestionNow(params: {
       media: [],
       scheduledAt: params.scheduledAt ?? null,
       platforms: withoutIg,
+      storyPlatforms: [],
     });
     if (!created.ok) return { ok: false, error: created.error };
     const marked = await markSuggestionPublished(
@@ -263,6 +273,7 @@ export async function publishSocialSuggestionNow(params: {
     media: mediaResult.media,
     scheduledAt: params.scheduledAt ?? null,
     platforms,
+    storyPlatforms,
   });
   if (!created.ok) return { ok: false, error: created.error };
 
@@ -273,6 +284,7 @@ export async function publishSocialSuggestionNow(params: {
     {
       ...suggestion.source,
       publishPlatforms: platforms,
+      storyPlatforms,
     },
     params.caption,
     created.postId,

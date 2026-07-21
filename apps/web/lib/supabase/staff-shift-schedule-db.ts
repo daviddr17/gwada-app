@@ -233,29 +233,45 @@ export type CreateScheduledShiftInput = {
 export async function createScheduledShift(
   input: CreateScheduledShiftInput,
 ): Promise<{ data: RestaurantStaffScheduledShiftRow | null; error: string | null }> {
+  const batch = await createScheduledShiftsBatch([input]);
+  if (batch.error) return { data: null, error: batch.error };
+  return { data: batch.data[0] ?? null, error: null };
+}
+
+/** Mehrere Schichten in einem Insert (z. B. Wochen-Drop) — ein Auth-Check, ein Round-Trip. */
+export async function createScheduledShiftsBatch(
+  inputs: CreateScheduledShiftInput[],
+): Promise<{ data: RestaurantStaffScheduledShiftRow[]; error: string | null }> {
+  if (inputs.length === 0) return { data: [], error: null };
+
   const sb = createSupabaseBrowserClient();
   const { data: auth } = await sb.auth.getUser();
+  const createdBy = auth.user?.id ?? null;
 
   const { data, error } = await sb
     .from("restaurant_staff_scheduled_shifts")
-    .insert({
-      restaurant_id: input.restaurantId,
-      staff_id: input.staffId,
-      starts_at: input.startsAt,
-      ends_at: input.endsAt,
-      template_id: input.templateId ?? null,
-      label: input.label?.trim() || null,
-      position_tag_id: input.positionTagId ?? null,
-      note: input.note?.trim() || null,
-      status: input.status ?? "confirmed",
-      series_id: input.seriesId ?? null,
-      created_by: auth.user?.id ?? null,
-    })
-    .select(SHIFT_SELECT)
-    .single();
+    .insert(
+      inputs.map((input) => ({
+        restaurant_id: input.restaurantId,
+        staff_id: input.staffId,
+        starts_at: input.startsAt,
+        ends_at: input.endsAt,
+        template_id: input.templateId ?? null,
+        label: input.label?.trim() || null,
+        position_tag_id: input.positionTagId ?? null,
+        note: input.note?.trim() || null,
+        status: input.status ?? "confirmed",
+        series_id: input.seriesId ?? null,
+        created_by: createdBy,
+      })),
+    )
+    .select(SHIFT_SELECT);
 
-  if (error) return { data: null, error: error.message };
-  return { data: mapShiftRow(data as Record<string, unknown>), error: null };
+  if (error) return { data: [], error: error.message };
+  return {
+    data: (data ?? []).map((row) => mapShiftRow(row as Record<string, unknown>)),
+    error: null,
+  };
 }
 
 export type UpdateScheduledShiftInput = {

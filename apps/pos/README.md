@@ -107,7 +107,9 @@ Web **POS → Einstellungen**: Bondrucker anlegen, pro Speisekarten-Kategorie Zi
 
 ## Reservierungen
 
-- Sidebar **Reservierungen** (iPad-Kasse + iPhone-Handheld): Tagesliste mit Datumspicker, neue Reservierung anlegen
+- Sidebar / Tab **Reservierungen**: Schedule-Ansicht mit **Wochenstreifen**, Monatswähler und **vertikaler Tages-Timeline** (Standard 17–23 Uhr, erweitert sich bei früheren/späteren Terminen)
+- Karten nach Start/Ende positioniert (Höhe = Dauer); Überlappungen in Spuren; Tippen öffnet Notizen
+- FAB **+** für neue Reservierung; Menü (⋯): Aktualisieren / Heute; Walk-in über Toolbar
 - **Start:** heutiger Tag wird auf die Kasse geladen und lokal gecacht (offline)
 - **Aktualisieren:** lädt den gewählten Tag neu (Kasse → Cloud; Handheld → Kasse)
 - **Anlegen:** Handheld → Kasse (LAN) → Sync-Queue → DB; an der Kasse direkt Cloud/DB (sonst Queue)

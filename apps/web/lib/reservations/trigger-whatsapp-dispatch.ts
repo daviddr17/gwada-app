@@ -52,12 +52,17 @@ export function whatsappDispatchUserMessage(
 export async function triggerReservationWhatsappDispatch(
   reservationId: string,
   event: DispatchEvent,
+  options?: { guestNotifyMessage?: string | null },
 ): Promise<WhatsappDispatchApiResult | null> {
   try {
     const res = await fetch("/api/reservations/whatsapp/dispatch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reservationId, event }),
+      body: JSON.stringify({
+        reservationId,
+        event,
+        guestNotifyMessage: options?.guestNotifyMessage ?? undefined,
+      }),
     });
     const body = (await res.json().catch(() => ({}))) as WhatsappDispatchApiResult & {
       error?: string;

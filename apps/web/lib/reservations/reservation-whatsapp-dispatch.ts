@@ -1,3 +1,7 @@
+import {
+  appendGuestNotifyMessage,
+  type ReservationDispatchOptions,
+} from "@/lib/reservations/append-guest-notify-message";
 import { ensureRestaurantReservationSettings } from "@/lib/reservations/reservation-settings-server";
 import { buildGuestManageUrl } from "@/lib/reservations/guest-manage-url";
 import {
@@ -251,11 +255,14 @@ async function cancelOutboxKinds(
     .is("sent_at", null);
 }
 
+export type { ReservationDispatchOptions };
+
 export async function sendImmediateKind(
   sb: SupabaseClient,
   row: ReservationForWhatsapp,
   kind: WhatsappImmediateKind,
   settings: ReservationWhatsappSettings | null,
+  options?: ReservationDispatchOptions,
 ): Promise<{
   sent: boolean;
   error?: string;
@@ -268,7 +275,10 @@ export async function sendImmediateKind(
   if (!chatId) return { sent: false, error: "no_phone" };
 
   const timeZone = await fetchRestaurantTimezoneServer(sb, row.restaurant_id);
-  const text = buildText(kind, row, settings, timeZone);
+  const text = appendGuestNotifyMessage(
+    buildText(kind, row, settings, timeZone),
+    options?.guestNotifyMessage,
+  );
 
   const linkedContactId =
     row.contact_id ??
@@ -418,6 +428,7 @@ async function sendForEvent(
   row: ReservationForWhatsapp,
   settings: ReservationWhatsappSettings,
   kind: WhatsappImmediateKind,
+  options?: ReservationDispatchOptions,
 ): Promise<ReservationWhatsappDispatchResult> {
   if (!isWhatsappKindEnabled(settings, kind)) {
     return { ok: true, skipped: "disabled" };
@@ -425,7 +436,7 @@ async function sendForEvent(
   if (["cancelled", "declined", "no_show"].includes(kind)) {
     await cancelOutboxKinds(sb, row.id, SCHEDULED_KINDS);
   }
-  const send = await sendImmediateKind(sb, row, kind, settings);
+  const send = await sendImmediateKind(sb, row, kind, settings, options);
   if (!send.sent) {
     return { ok: false, error: send.error ?? "send_failed" };
   }
@@ -442,6 +453,7 @@ export async function dispatchReservationWhatsapp(
   sb: SupabaseClient,
   reservationId: string,
   event: DispatchEvent,
+  options?: ReservationDispatchOptions,
 ): Promise<ReservationWhatsappDispatchResult> {
   const row = await fetchReservationForWhatsapp(sb, reservationId);
   if (!row) return { ok: false, error: "reservation_not_found" };
@@ -466,19 +478,19 @@ export async function dispatchReservationWhatsapp(
   if (event === "created") {
     let sent: ReservationWhatsappDispatchResult = { ok: true };
     if (row.status_code === "pending") {
-      sent = await sendForEvent(sb, row, settings, "received");
+      sent = await sendForEvent(sb, row, settings, "received", options);
       if (!sent.ok) return sent;
     } else if (row.status_code === "confirmed") {
-      sent = await sendForEvent(sb, row, settings, "confirmed");
+      sent = await sendForEvent(sb, row, settings, "confirmed", options);
       if (!sent.ok) return sent;
     } else if (row.status_code === "cancelled") {
-      sent = await sendForEvent(sb, row, settings, "cancelled");
+      sent = await sendForEvent(sb, row, settings, "cancelled", options);
       if (!sent.ok) return sent;
     } else if (row.status_code === "declined") {
-      sent = await sendForEvent(sb, row, settings, "declined");
+      sent = await sendForEvent(sb, row, settings, "declined", options);
       if (!sent.ok) return sent;
     } else if (row.status_code === "no_show") {
-      sent = await sendForEvent(sb, row, settings, "no_show");
+      sent = await sendForEvent(sb, row, settings, "no_show", options);
       if (!sent.ok) return sent;
     }
     await scheduleTimedMessages(sb, row, settings);
@@ -486,7 +498,7 @@ export async function dispatchReservationWhatsapp(
   }
 
   const kind = EVENT_TO_KIND[event];
-  const result = await sendForEvent(sb, row, settings, kind);
+  const result = await sendForEvent(sb, row, settings, kind, options);
   if (!result.ok) return result;
   if (event === "confirmed") {
     await scheduleTimedMessages(sb, row, settings);

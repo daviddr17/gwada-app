@@ -9,6 +9,10 @@ import {
 } from "@/lib/whatsapp/reservation-whatsapp-message-config";
 import type { ReservationMessageContext } from "@/lib/whatsapp/reservation-message-templates";
 import { sendReservationEmail } from "@/lib/email/send-reservation-email";
+import {
+  appendGuestNotifyMessage,
+  type ReservationDispatchOptions,
+} from "@/lib/reservations/append-guest-notify-message";
 import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
 import { isEmailSendConfigured } from "@/lib/email/is-email-send-configured";
 import { smtpCredentialsFromConfig } from "@/lib/integrations/smtp-integration-config";
@@ -329,13 +333,17 @@ export async function sendImmediateKind(
   row: ReservationForEmail,
   kind: WhatsappImmediateKind,
   settings: ReservationEmailSettings | null,
+  options?: ReservationDispatchOptions,
 ): Promise<{ sent: boolean; error?: string }> {
   const to = row.guest_email?.trim();
   if (!isValidGuestEmail(to ?? null)) return { sent: false, error: "no_email" };
 
   const timeZone = await fetchRestaurantTimezoneServer(sb, row.restaurant_id);
   const ctx = messageContext(row, settings, timeZone);
-  const text = buildText(kind, row, settings, timeZone);
+  const text = appendGuestNotifyMessage(
+    buildText(kind, row, settings, timeZone),
+    options?.guestNotifyMessage,
+  );
   const subject = buildEmailSubject(settings, kind, ctx);
   const delivery = await resolveEmailDeliveryForRestaurant(
     row.restaurant_id,
@@ -454,6 +462,7 @@ async function sendForEvent(
   row: ReservationForEmail,
   settings: ReservationEmailSettings,
   kind: WhatsappImmediateKind,
+  options?: ReservationDispatchOptions,
 ): Promise<{ ok: boolean; skipped?: string; error?: string }> {
   if (!isEmailKindEnabled(settings, kind)) {
     return { ok: true, skipped: "disabled" };
@@ -461,7 +470,7 @@ async function sendForEvent(
   if (["cancelled", "declined", "no_show"].includes(kind)) {
     await cancelOutboxKinds(sb, row.id, SCHEDULED_KINDS);
   }
-  const send = await sendImmediateKind(sb, row, kind, settings);
+  const send = await sendImmediateKind(sb, row, kind, settings, options);
   if (!send.sent) {
     return { ok: false, error: send.error ?? "send_failed" };
   }
@@ -472,6 +481,7 @@ export async function dispatchReservationEmail(
   sb: SupabaseClient,
   reservationId: string,
   event: DispatchEvent,
+  options?: ReservationDispatchOptions,
 ): Promise<{ ok: boolean; skipped?: string; error?: string }> {
   const row = await fetchReservationForEmail(sb, reservationId);
   if (!row) return { ok: false, error: "reservation_not_found" };
@@ -491,19 +501,19 @@ export async function dispatchReservationEmail(
 
   if (event === "created") {
     if (row.status_code === "pending") {
-      const r = await sendForEvent(sb, row, settings, "received");
+      const r = await sendForEvent(sb, row, settings, "received", options);
       if (!r.ok) return r;
     } else if (row.status_code === "confirmed") {
-      const r = await sendForEvent(sb, row, settings, "confirmed");
+      const r = await sendForEvent(sb, row, settings, "confirmed", options);
       if (!r.ok) return r;
     } else if (row.status_code === "cancelled") {
-      const r = await sendForEvent(sb, row, settings, "cancelled");
+      const r = await sendForEvent(sb, row, settings, "cancelled", options);
       if (!r.ok) return r;
     } else if (row.status_code === "declined") {
-      const r = await sendForEvent(sb, row, settings, "declined");
+      const r = await sendForEvent(sb, row, settings, "declined", options);
       if (!r.ok) return r;
     } else if (row.status_code === "no_show") {
-      const r = await sendForEvent(sb, row, settings, "no_show");
+      const r = await sendForEvent(sb, row, settings, "no_show", options);
       if (!r.ok) return r;
     }
     await scheduleTimedMessages(sb, row, settings);
@@ -511,7 +521,7 @@ export async function dispatchReservationEmail(
   }
 
   const kind = EVENT_TO_KIND[event];
-  const result = await sendForEvent(sb, row, settings, kind);
+  const result = await sendForEvent(sb, row, settings, kind, options);
   if (!result.ok) return result;
   if (event === "confirmed") {
     await scheduleTimedMessages(sb, row, settings);

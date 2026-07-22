@@ -31,6 +31,10 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ReservationMessagesPanel } from "@/components/contacts/reservation-messages-panel";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
+import {
+  GUEST_NOTIFY_MESSAGE_MAX_CHARS,
+  normalizeGuestNotifyMessage,
+} from "@/lib/reservations/append-guest-notify-message";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import {
   isValidStaffPartySize,
@@ -239,6 +243,8 @@ export function ReservationEditDrawer({
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
   const [internalNote, setInternalNote] = useState("");
+  /** Wird der Status-Benachrichtigung (Vorlage) als „Nachricht:“ angehängt. */
+  const [guestNotifyMessage, setGuestNotifyMessage] = useState("");
   const [protocolRefreshKey, setProtocolRefreshKey] = useState(0);
   const [restaurantTimeZone, setRestaurantTimeZone] = useState(
     DEFAULT_RESTAURANT_TIMEZONE,
@@ -431,10 +437,12 @@ export function ReservationEditDrawer({
       );
       setTableId(reservation.dining_table_id ?? "__none__");
       setInternalNote(reservationInternalNoteText(reservation.notes) ?? "");
+      setGuestNotifyMessage("");
       return;
     }
     if (createFor) {
       setInternalNote("");
+      setGuestNotifyMessage("");
       setFirstName("");
       setLastName("");
       setPhoneCountryIso(defaultIso);
@@ -670,10 +678,15 @@ export function ReservationEditDrawer({
         initialStatusCodeRef.current,
         newStatusCode,
       );
+      const notifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
+      const dispatchOpts = notifyExtra
+        ? { guestNotifyMessage: notifyExtra }
+        : undefined;
       if (dispatchEvent && payload.notify_whatsapp) {
         const wa = await triggerReservationWhatsappDispatch(
           reservation.id,
           dispatchEvent,
+          dispatchOpts,
         );
         const msg = whatsappDispatchUserMessage(wa);
         if (msg) toast.warning(msg);
@@ -687,12 +700,17 @@ export function ReservationEditDrawer({
         }
       }
       if (dispatchEvent && payload.notify_email) {
-        void triggerReservationEmailDispatch(reservation.id, dispatchEvent).then(
-          (em) => {
-            const msg = emailDispatchUserMessage(em, { isSuperadmin });
-            if (msg) toast.warning(msg);
-          },
-        );
+        void triggerReservationEmailDispatch(
+          reservation.id,
+          dispatchEvent,
+          dispatchOpts,
+        ).then((em) => {
+          const msg = emailDispatchUserMessage(em, { isSuperadmin });
+          if (msg) toast.warning(msg);
+        });
+      }
+      if (dispatchEvent && notifyExtra) {
+        setGuestNotifyMessage("");
       }
       const datetimeChanged = reservationDateTimeChanged(
         {
@@ -763,8 +781,16 @@ export function ReservationEditDrawer({
           existingContactBeforeSave,
         );
       }
+      const createNotifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
+      const createDispatchOpts = createNotifyExtra
+        ? { guestNotifyMessage: createNotifyExtra }
+        : undefined;
       if (created && payload.notify_whatsapp) {
-        const wa = await triggerReservationWhatsappDispatch(created.id, "created");
+        const wa = await triggerReservationWhatsappDispatch(
+          created.id,
+          "created",
+          createDispatchOpts,
+        );
         const msg = whatsappDispatchUserMessage(wa);
         if (msg) toast.warning(msg);
         if (wa?.ok && wa.messageBody?.trim()) {
@@ -777,10 +803,17 @@ export function ReservationEditDrawer({
         }
       }
       if (created && payload.notify_email) {
-        void triggerReservationEmailDispatch(created.id, "created").then((em) => {
+        void triggerReservationEmailDispatch(
+          created.id,
+          "created",
+          createDispatchOpts,
+        ).then((em) => {
           const msg = emailDispatchUserMessage(em, { isSuperadmin });
           if (msg) toast.warning(msg);
         });
+      }
+      if (created && createNotifyExtra) {
+        setGuestNotifyMessage("");
       }
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
@@ -1219,6 +1252,29 @@ export function ReservationEditDrawer({
               ) : null}
 
               <DrawerFormSection title="Benachrichtigungen & AGB">
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="res-guest-notify-message"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Nachricht an den Gast
+                  </Label>
+                  <Textarea
+                    id="res-guest-notify-message"
+                    value={guestNotifyMessage}
+                    onChange={(e) => setGuestNotifyMessage(e.target.value)}
+                    rows={3}
+                    maxLength={GUEST_NOTIFY_MESSAGE_MAX_CHARS}
+                    placeholder="Optional — wird der Bestätigung/Benachrichtigung angehängt …"
+                    className="min-h-[4.5rem] resize-y rounded-xl"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Wird bei der nächsten Status-Benachrichtigung (z. B.
+                    Bestätigung) als „Nachricht:“ unter die Vorlage gehängt —
+                    eine Nachricht statt zwei. Der Chat oben sendet weiterhin
+                    sofort separat.
+                  </p>
+                </div>
                 <div
                   className={cn(
                     "flex items-center justify-between gap-3",

@@ -15,10 +15,15 @@ export async function POST(req: Request) {
       | "declined"
       | "no_show"
       | "rescheduled";
+    guestNotifyMessage?: string;
   };
 
   const reservationId = body.reservationId?.trim() ?? "";
   const event = body.event;
+  const guestNotifyMessage =
+    typeof body.guestNotifyMessage === "string"
+      ? body.guestNotifyMessage
+      : undefined;
   const validEvents = new Set([
     "created",
     "confirmed",
@@ -61,6 +66,8 @@ export async function POST(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const result = await dispatchReservationWhatsapp(admin, reservationId, event);
+  const result = await dispatchReservationWhatsapp(admin, reservationId, event, {
+    guestNotifyMessage,
+  });
   return Response.json(result);
 }

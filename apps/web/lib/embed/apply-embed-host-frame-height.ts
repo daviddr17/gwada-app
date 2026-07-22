@@ -19,8 +19,9 @@ export function applyEmbedHostFrameHeight(
     : 0;
   if (prev === px) return;
 
+  const smallDelta = prev > 0 && Math.abs(px - prev) <= 24;
   const immediate = options?.immediate ?? prev <= 0;
-  if (immediate || prefersReducedMotion()) {
+  if (immediate || smallDelta || prefersReducedMotion()) {
     frame.style.transition = "none";
   } else {
     frame.style.transition = EMBED_HOST_HEIGHT_TRANSITION;

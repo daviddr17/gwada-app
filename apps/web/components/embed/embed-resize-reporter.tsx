@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import {
   EMBED_CONTENT_HEIGHT_BUFFER_PX,
+  EMBED_FEED_RESIZE_DEBOUNCE_MS,
   EMBED_RESIZE_DEBOUNCE_MS,
   EMBED_RESIZE_FOLLOWUP_MS,
 } from "@/lib/embed/embed-resize-config";
@@ -82,6 +83,7 @@ export function EmbedResizeReporter({
   resizeMode = "content",
   viewportHeightPx,
   layoutStable = true,
+  feedDebounce = false,
 }: {
   deps: unknown[];
   widget?: GwadaEmbedWidgetId;
@@ -90,12 +92,17 @@ export function EmbedResizeReporter({
   viewportHeightPx?: number;
   /** Feed-Bilder fertig — erst dann aggressive Nachlauf-Messungen. */
   layoutStable?: boolean;
+  /** Längeres Debounce für News/Galerie (weniger Host-Jank beim Scrollen). */
+  feedDebounce?: boolean;
 }) {
   const ctx = useMemo(() => readEmbedContext(), []);
   const widget = widgetProp ?? ctx.widget;
   const embedId = ctx.embedId;
   const layoutStableRef = useRef(layoutStable);
   layoutStableRef.current = layoutStable;
+  const debounceMs = feedDebounce
+    ? EMBED_FEED_RESIZE_DEBOUNCE_MS
+    : EMBED_RESIZE_DEBOUNCE_MS;
 
   useEffect(() => {
     const root = document.getElementById("gwada-embed-root");
@@ -130,7 +137,7 @@ export function EmbedResizeReporter({
 
       debounceTimer = window.setTimeout(() => {
         raf = window.requestAnimationFrame(run);
-      }, EMBED_RESIZE_DEBOUNCE_MS);
+      }, debounceMs);
     };
 
     measureAndSend(true);
@@ -153,7 +160,7 @@ export function EmbedResizeReporter({
       window.clearTimeout(debounceTimer);
       for (const id of followupTimers) window.clearTimeout(id);
     };
-  }, [deps, embedId, widget, resizeMode, viewportHeightPx]);
+  }, [deps, embedId, widget, resizeMode, viewportHeightPx, debounceMs]);
 
   useEffect(() => {
     if (!layoutStable || resizeMode !== "content") return;

@@ -7,8 +7,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const MAX_TEXTS = 40;
-const MAX_CHARS = 4500;
+const MAX_TEXTS = 80;
+const MAX_CHARS = 12_000;
+/** Parallel Google calls — sequentiell hing die Embed-UI spürbar. */
+const TRANSLATE_CONCURRENCY = 8;
 
 async function translateOne(
   text: string,
@@ -43,6 +45,30 @@ async function translateOne(
     }
   }
   return out || text;
+}
+
+async function translateMany(
+  texts: string[],
+  source: AppLocale,
+  target: AppLocale,
+): Promise<string[]> {
+  const out = new Array<string>(texts.length);
+  let next = 0;
+
+  async function worker() {
+    while (next < texts.length) {
+      const i = next;
+      next += 1;
+      out[i] = await translateOne(texts[i]!, source, target);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(TRANSLATE_CONCURRENCY, texts.length) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return out;
 }
 
 export async function POST(req: Request) {
@@ -82,10 +108,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const translations: string[] = [];
-    for (const text of texts) {
-      translations.push(await translateOne(text, source, target));
-    }
+    const translations = await translateMany(texts, source, target);
     return NextResponse.json({ translations });
   } catch (e) {
     const message = e instanceof Error ? e.message : "translate_failed";

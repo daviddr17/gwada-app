@@ -17,9 +17,19 @@
   var PROCESSED = "data-gwada-processed";
   var LAZY_MARGIN = "240px";
   var HOST_RESIZE_DEBOUNCE = 40;
+  /** News/Galerie: weniger Host-Layout-Thrash bei Bild-Nachladen. */
+  var HOST_FEED_RESIZE_DEBOUNCE = 120;
   var HEIGHT_TRANSITION = "height 0.24s cubic-bezier(0.33, 1, 0.68, 1)";
+  /** Kleine Höhen-Deltas ohne Transition (Subpixel / Bild-Nachladen). */
+  var HEIGHT_SNAP_DELTA_PX = 24;
   var BRAND_FOOTER_LOGO_PATH = "/api/platform/favicon";
   var BRAND_FOOTER_ATTR = "data-gwada-brand-footer";
+  var FEED_WIDGETS = {
+    news: true,
+    events: true,
+    gallery: true,
+    reviews: true,
+  };
 
   var WIDGETS = {
     reservation: {
@@ -281,6 +291,12 @@
     container.appendChild(footer);
   }
 
+  function isFeedWidgetFrame(frame) {
+    if (!frame) return false;
+    var key = (frame.getAttribute("data-gwada-widget") || "").toLowerCase();
+    return Boolean(FEED_WIDGETS[key]);
+  }
+
   function applyHeightToFrame(frame, height, immediate) {
     if (!frame || frame.tagName !== "IFRAME") return;
     var px = Math.ceil(height);
@@ -292,7 +308,12 @@
     if (prev === px) return;
 
     var isFirst = prev <= 0;
-    var snap = immediate || isFirst || prefersReducedMotion();
+    var smallDelta = prev > 0 && Math.abs(px - prev) <= HEIGHT_SNAP_DELTA_PX;
+    var snap =
+      immediate ||
+      isFirst ||
+      smallDelta ||
+      prefersReducedMotion();
     frame.style.transition = snap ? "none" : HEIGHT_TRANSITION;
     frame.style.height = px + "px";
     frame.style.minHeight = "0";
@@ -352,11 +373,14 @@
       return;
     }
     if (heightTimers[embedId]) clearTimeout(heightTimers[embedId]);
+    var debounceMs = isFeedWidgetFrame(frame)
+      ? HOST_FEED_RESIZE_DEBOUNCE
+      : HOST_RESIZE_DEBOUNCE;
     heightTimers[embedId] = setTimeout(function () {
       applyHeight(embedId, pendingHeights[embedId], false);
       delete pendingHeights[embedId];
       delete heightTimers[embedId];
-    }, HOST_RESIZE_DEBOUNCE);
+    }, debounceMs);
   }
 
   function postFrameViewport(frame) {
@@ -377,6 +401,8 @@
     );
   }
 
+  var viewportRaf = 0;
+
   function postAllFrameViewports() {
     for (var id in iframesById) {
       if (Object.prototype.hasOwnProperty.call(iframesById, id)) {
@@ -385,8 +411,13 @@
     }
   }
 
+  /** Ein Viewport-Broadcast pro Frame — sonst hängt die Host-Seite beim Scrollen. */
   function onHostScrollOrResize() {
-    postAllFrameViewports();
+    if (viewportRaf) return;
+    viewportRaf = global.requestAnimationFrame(function () {
+      viewportRaf = 0;
+      postAllFrameViewports();
+    });
   }
 
   function onMessage(event) {

@@ -24,6 +24,7 @@ export function EmbedFeedResizeReporter({
       layoutStable={layoutStable}
       resizeMode={resizeMode}
       viewportHeightPx={viewportHeightPx}
+      feedDebounce
     />
   );
 }

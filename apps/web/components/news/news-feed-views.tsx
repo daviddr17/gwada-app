@@ -142,7 +142,10 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
   showConnectorBelow: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const previewBody = useMemo(() => newsCardPreviewBody(item.body), [item.body]);
+  const fullBody = useMemo(
+    () => stripMarkdownBold(item.body).trim(),
+    [item.body],
+  );
   const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
@@ -160,12 +163,15 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
         data-embed-mt
         className={cn(
           "text-sm text-muted-foreground",
-          showClampedBody ? "line-clamp-2" : inlineExpandBody ? "whitespace-pre-wrap" : "line-clamp-2",
+          showClampedBody
+            ? "line-clamp-2"
+            : inlineExpandBody
+              ? "whitespace-pre-wrap"
+              : "line-clamp-2",
         )}
       >
-        {inlineExpandBody && expanded
-          ? stripMarkdownBold(item.body)
-          : previewBody}
+        {/* Voller Text + CSS-Clamp: Embed-MT übersetzt einmal, Expand triggert kein Re-Translate. */}
+        {inlineExpandBody ? fullBody : newsCardPreviewBody(item.body)}
       </p>
       {canExpandBody || (expanded && externalUrl) ? (
         <NewsFeedBodyActions
@@ -313,7 +319,10 @@ const NewsCard = memo(function NewsCard({
   const mediaSrc = preview?.url ?? preview?.thumbUrl ?? null;
   const dateLabel = formatNewsCardDate(item);
   const dateTime = newsDisplayTimestamp(item);
-  const previewBody = useMemo(() => newsCardPreviewBody(item.body), [item.body]);
+  const fullBody = useMemo(
+    () => stripMarkdownBold(item.body).trim(),
+    [item.body],
+  );
   const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
@@ -332,9 +341,7 @@ const NewsCard = memo(function NewsCard({
           showClampedBody ? "line-clamp-4" : "whitespace-pre-wrap",
         )}
       >
-        {inlineExpandBody && expanded
-          ? stripMarkdownBold(item.body)
-          : previewBody}
+        {inlineExpandBody ? fullBody : newsCardPreviewBody(item.body)}
       </p>
       {canExpandBody || (expanded && externalUrl) ? (
         <NewsFeedBodyActions

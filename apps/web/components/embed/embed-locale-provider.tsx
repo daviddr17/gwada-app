@@ -19,7 +19,10 @@ import {
   EMBED_LOCALE_QUERY_PARAM,
   normalizeEmbedLocale,
 } from "@/lib/embed/embed-locale";
-import { applyEmbedContentTranslation } from "@/lib/embed/browser-content-translate";
+import {
+  applyEmbedContentTranslation,
+  EMBED_MT_ATTR,
+} from "@/lib/embed/browser-content-translate";
 
 type EmbedLocaleContextValue = {
   sourceLocale: AppLocale;
@@ -126,45 +129,66 @@ export function EmbedLocaleProvider({
     }
   }, [locale, hydrated]);
 
-  const runContentTranslation = useCallback(async () => {
-    const root = document.querySelector("[data-gwada-embed-content]");
-    if (!root || translatingRef.current) return;
+  const runContentTranslation = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const root = document.querySelector("[data-gwada-embed-content]");
+      if (!root || translatingRef.current) return;
 
-    translatingRef.current = true;
-    setContentBusy(true);
-    try {
-      await applyEmbedContentTranslation({
-        root,
-        sourceLocale,
-        targetLocale: locale,
-      });
-    } finally {
-      translatingRef.current = false;
-      setContentBusy(false);
-    }
-  }, [locale, sourceLocale]);
+      translatingRef.current = true;
+      if (!opts?.silent) setContentBusy(true);
+      try {
+        await applyEmbedContentTranslation({
+          root,
+          sourceLocale,
+          targetLocale: locale,
+        });
+      } finally {
+        translatingRef.current = false;
+        if (!opts?.silent) setContentBusy(false);
+      }
+    },
+    [locale, sourceLocale],
+  );
 
   useEffect(() => {
     if (!hydrated || !messages) return;
     void runContentTranslation();
   }, [hydrated, messages, runContentTranslation]);
 
-  // Re-run when feed content changes (pagination / filter). Debounced + locked
-  // so our own textContent writes do not loop.
+  // Re-run only when new `[data-embed-mt]` nodes appear (pagination / filter).
+  // Text-only swaps (expand, our own writes) must not re-trigger a full batch.
   useEffect(() => {
     if (!hydrated || !messages) return;
     const root = document.querySelector("[data-gwada-embed-content]");
     if (!root) return;
 
-    const observer = new MutationObserver(() => {
+    const hasNewMtNode = (mutations: MutationRecord[]) => {
+      for (const mutation of mutations) {
+        if (mutation.type !== "childList") continue;
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+          const el = node as Element;
+          if (
+            el.hasAttribute(EMBED_MT_ATTR) ||
+            el.querySelector(`[${EMBED_MT_ATTR}]`)
+          ) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    const observer = new MutationObserver((mutations) => {
       if (translatingRef.current) return;
+      if (!hasNewMtNode(mutations)) return;
       if (debounceTimerRef.current != null) {
         window.clearTimeout(debounceTimerRef.current);
       }
       debounceTimerRef.current = window.setTimeout(() => {
         debounceTimerRef.current = null;
-        void runContentTranslation();
-      }, 160);
+        void runContentTranslation({ silent: true });
+      }, 280);
     });
     observer.observe(root, { childList: true, subtree: true });
     return () => {

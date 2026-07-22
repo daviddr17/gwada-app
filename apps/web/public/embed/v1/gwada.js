@@ -17,9 +17,26 @@
   var PROCESSED = "data-gwada-processed";
   var LAZY_MARGIN = "240px";
   var HOST_RESIZE_DEBOUNCE = 40;
+  /** News/Galerie: weniger Host-Layout-Thrash bei Bild-Nachladen. */
+  var HOST_FEED_RESIZE_DEBOUNCE = 200;
   var HEIGHT_TRANSITION = "height 0.24s cubic-bezier(0.33, 1, 0.68, 1)";
+  /** Deltas darunter ignorieren (Subpixel / Fonts). */
+  var HEIGHT_IGNORE_DELTA_PX = 6;
+  /** Kleine Höhen-Deltas ohne Transition (nur Nicht-Feed). */
+  var HEIGHT_SNAP_DELTA_PX = 24;
   var BRAND_FOOTER_LOGO_PATH = "/api/platform/favicon";
   var BRAND_FOOTER_ATTR = "data-gwada-brand-footer";
+  /** Tall content embeds — Höhe nie animieren (sonst reflowt die Host-Seite 240ms). */
+  var FEED_WIDGETS = {
+    news: true,
+    events: true,
+    gallery: true,
+    reviews: true,
+  };
+  /** Nur Speisekarte braucht Scroll-Viewport (Toolbar-Pin). */
+  var VIEWPORT_WIDGETS = {
+    menu: true,
+  };
 
   var WIDGETS = {
     reservation: {
@@ -97,6 +114,8 @@
   var iframesById = Object.create(null);
   var pendingHeights = Object.create(null);
   var heightTimers = Object.create(null);
+  var viewportListenerAttached = false;
+  var viewportRaf = 0;
 
   function normalizeEmbedOrigin(origin) {
     if (!origin) return null;
@@ -193,6 +212,7 @@
     frame.style.minHeight = minHeight + "px";
 
     iframesById[embedId] = frame;
+    if (frameNeedsViewport(frame)) ensureViewportScrollListeners();
     el.setAttribute(PROCESSED, "true");
     el.replaceChildren(frame);
     return frame;
@@ -281,6 +301,19 @@
     container.appendChild(footer);
   }
 
+  function widgetKeyOf(frame) {
+    if (!frame) return "";
+    return (frame.getAttribute("data-gwada-widget") || "").toLowerCase();
+  }
+
+  function isFeedWidgetFrame(frame) {
+    return Boolean(FEED_WIDGETS[widgetKeyOf(frame)]);
+  }
+
+  function frameNeedsViewport(frame) {
+    return Boolean(VIEWPORT_WIDGETS[widgetKeyOf(frame)]);
+  }
+
   function applyHeightToFrame(frame, height, immediate) {
     if (!frame || frame.tagName !== "IFRAME") return;
     var px = Math.ceil(height);
@@ -290,14 +323,24 @@
       ? parseInt(frame.dataset.gwadaHeight, 10)
       : 0;
     if (prev === px) return;
+    if (prev > 0 && Math.abs(px - prev) < HEIGHT_IGNORE_DELTA_PX) return;
 
+    var isFeed = isFeedWidgetFrame(frame);
     var isFirst = prev <= 0;
-    var snap = immediate || isFirst || prefersReducedMotion();
+    // Feed/News: nie height transition — animierte iframe-Höhe reflowt die
+    // gesamte Host-Seite unter dem Embed und fühlt sich wie „Hängen“ an.
+    var smallDelta = prev > 0 && Math.abs(px - prev) <= HEIGHT_SNAP_DELTA_PX;
+    var snap =
+      isFeed ||
+      immediate ||
+      isFirst ||
+      smallDelta ||
+      prefersReducedMotion();
     frame.style.transition = snap ? "none" : HEIGHT_TRANSITION;
     frame.style.height = px + "px";
     frame.style.minHeight = "0";
     frame.dataset.gwadaHeight = String(px);
-    postFrameViewport(frame);
+    if (frameNeedsViewport(frame)) postFrameViewport(frame);
   }
 
   function applyHeight(embedId, height, immediate) {
@@ -352,11 +395,14 @@
       return;
     }
     if (heightTimers[embedId]) clearTimeout(heightTimers[embedId]);
+    var debounceMs = isFeedWidgetFrame(frame)
+      ? HOST_FEED_RESIZE_DEBOUNCE
+      : HOST_RESIZE_DEBOUNCE;
     heightTimers[embedId] = setTimeout(function () {
       applyHeight(embedId, pendingHeights[embedId], false);
       delete pendingHeights[embedId];
       delete heightTimers[embedId];
-    }, HOST_RESIZE_DEBOUNCE);
+    }, debounceMs);
   }
 
   function postFrameViewport(frame) {
@@ -377,16 +423,28 @@
     );
   }
 
-  function postAllFrameViewports() {
+  function postMenuFrameViewports() {
     for (var id in iframesById) {
-      if (Object.prototype.hasOwnProperty.call(iframesById, id)) {
-        postFrameViewport(iframesById[id]);
-      }
+      if (!Object.prototype.hasOwnProperty.call(iframesById, id)) continue;
+      var frame = iframesById[id];
+      if (frameNeedsViewport(frame)) postFrameViewport(frame);
     }
   }
 
+  /** Nur für Speisekarte (Toolbar-Pin). News/Stunden brauchen das nicht. */
   function onHostScrollOrResize() {
-    postAllFrameViewports();
+    if (viewportRaf) return;
+    viewportRaf = global.requestAnimationFrame(function () {
+      viewportRaf = 0;
+      postMenuFrameViewports();
+    });
+  }
+
+  function ensureViewportScrollListeners() {
+    if (viewportListenerAttached) return;
+    viewportListenerAttached = true;
+    global.addEventListener("scroll", onHostScrollOrResize, { passive: true });
+    global.addEventListener("resize", onHostScrollOrResize, { passive: true });
   }
 
   function onMessage(event) {
@@ -445,8 +503,7 @@
   function init() {
     embedOrigin = scriptOrigin();
     global.addEventListener("message", onMessage);
-    global.addEventListener("scroll", onHostScrollOrResize, { passive: true });
-    global.addEventListener("resize", onHostScrollOrResize, { passive: true });
+    // Scroll/Resize-Viewport erst bei Speisekarte (siehe createIframe).
     scan(document);
 
     if ("MutationObserver" in global) {

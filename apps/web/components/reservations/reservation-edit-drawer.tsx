@@ -896,6 +896,33 @@ export function ReservationEditDrawer({
   const drawerTwoColClass = "grid gap-3 sm:grid-cols-2 [&>*]:min-w-0";
 
   const canSave = isEdit || isCreate;
+
+  const submitLabel = useMemo(() => {
+    const draft = normalizeGuestNotifyMessage(guestNotifyMessage);
+    if (!draft) return "Speichern";
+    const channelOn =
+      (notifyEmail && hasEmail) || (notifyWhatsapp && hasPhone);
+    if (!channelOn) return "Speichern";
+    const nextStatusCode =
+      statuses.find((s) => s.id === statusId)?.code ?? "";
+    const willDispatchStatus =
+      isCreate ||
+      (isEdit &&
+        nextStatusCode.length > 0 &&
+        nextStatusCode !== (initialStatusCodeRef.current ?? ""));
+    if (!willDispatchStatus) return "Speichern";
+    return "Speichern und Nachricht senden";
+  }, [
+    guestNotifyMessage,
+    notifyEmail,
+    notifyWhatsapp,
+    hasEmail,
+    hasPhone,
+    statuses,
+    statusId,
+    isCreate,
+    isEdit,
+  ]);
   const stackedSheetZClass = stackAboveInboxOverlay ? "z-[210]" : undefined;
 
   return (
@@ -1346,6 +1373,7 @@ export function ReservationEditDrawer({
               onCancel={() => onOpenChange(false)}
               submitType="button"
               onSubmit={handleSave}
+              submitLabel={submitLabel}
               submitPending={saving}
               submitDisabled={!canSave}
               className="touch-pan-y"

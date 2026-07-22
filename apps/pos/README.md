@@ -85,7 +85,7 @@ Auf dem iPad unter **Gerät → Erweitert / Nest Sync**: Nest-URL `http://<Mac-L
 | **iPhone** | `TabView`: **Tische · Reservierungen · Mehr** + PIN-Lock |
 | **iPad** | `NavigationSplitView` (Kasse) + optional PIN sperren |
 
-Features: Floor-Grid (Timer/Summe/Res-Hinweis), Walk-in, Resv-Timeline 17–23, Session-Umzug, Übergabe (Nest), Gleich-teilen, Karte/PayPal via Nest, Gastbeleg-ShareLink, Caps-gefiltertes Mehr-Menü. Nest-Fallback-Flag für Hub-Ausfall.
+Features: Floor-Grid (Timer/Summe/Res-Hinweis), Walk-in, Resv-Schedule (Wochenstreifen + Tages-Timeline), Session-Umzug, Übergabe (Nest), Gleich-teilen, Karte/PayPal via Nest, Gastbeleg-ShareLink, Caps-gefiltertes Mehr-Menü. Nest-Fallback-Flag für Hub-Ausfall.
 
 ## Härtung (Phase 5)
 

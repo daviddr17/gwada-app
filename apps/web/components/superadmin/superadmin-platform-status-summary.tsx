@@ -18,8 +18,10 @@ import {
   fetchSuperadminDatabaseStatus,
   fetchSuperadminIntegrationHealth,
 } from "@/lib/superadmin/superadmin-ops-status-api";
+import { fetchSuperadminWahaServers } from "@/lib/superadmin/waha-servers-api";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 import type { SuperadminDatabaseStatus } from "@/lib/types/superadmin-ops-status";
+import type { WahaServerCapacityAlert } from "@/lib/waha/waha-server-types";
 import { cn } from "@/lib/utils";
 
 const INTEGRATION_ALERT_LABELS: Record<PlatformIntegrationKey, string> = {
@@ -50,6 +52,7 @@ function collectPlatformAlerts(
     key: PlatformIntegrationKey;
     message?: string;
   }>,
+  wahaCapacityAlerts: WahaServerCapacityAlert[],
 ): PlatformAlert[] {
   const alerts: PlatformAlert[] = [];
 
@@ -92,6 +95,15 @@ function collectPlatformAlerts(
     });
   }
 
+  for (const item of wahaCapacityAlerts) {
+    alerts.push({
+      key: `waha-capacity-${item.server_id}`,
+      label: `WAHA fast voll: ${item.server_name}`,
+      detail: `${item.session_count}/${item.session_limit} Sessions — neuen Server unter Superadmin → WAHA anlegen.`,
+      tone: "warning",
+    });
+  }
+
   return alerts;
 }
 
@@ -99,6 +111,9 @@ export function SuperadminPlatformStatusSummary() {
   const [status, setStatus] = useState<SuperadminDatabaseStatus | null>(null);
   const [integrationErrors, setIntegrationErrors] = useState<
     Array<{ key: PlatformIntegrationKey; message?: string }>
+  >([]);
+  const [wahaCapacityAlerts, setWahaCapacityAlerts] = useState<
+    WahaServerCapacityAlert[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,9 +123,10 @@ export function SuperadminPlatformStatusSummary() {
     if (!silent) setLoading(true);
     else setRefreshing(true);
 
-    const [dbResult, healthResult] = await Promise.all([
+    const [dbResult, healthResult, wahaResult] = await Promise.all([
       fetchSuperadminDatabaseStatus(),
       fetchSuperadminIntegrationHealth(),
+      fetchSuperadminWahaServers(),
     ]);
 
     setStatus(dbResult.status);
@@ -121,6 +137,7 @@ export function SuperadminPlatformStatusSummary() {
         message: health?.message,
       }));
     setIntegrationErrors(errors);
+    setWahaCapacityAlerts(wahaResult.capacityAlerts ?? []);
 
     setLoading(false);
     setRefreshing(false);
@@ -146,8 +163,11 @@ export function SuperadminPlatformStatusSummary() {
   }, [shouldPoll, load]);
 
   const alerts = useMemo(
-    () => (status ? collectPlatformAlerts(status, integrationErrors) : []),
-    [status, integrationErrors],
+    () =>
+      status
+        ? collectPlatformAlerts(status, integrationErrors, wahaCapacityAlerts)
+        : [],
+    [status, integrationErrors, wahaCapacityAlerts],
   );
 
   if (showSkeleton) {

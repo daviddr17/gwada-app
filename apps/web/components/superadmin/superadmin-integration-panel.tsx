@@ -22,7 +22,7 @@ export function SuperadminIntegrationPanel({
   children,
 }: {
   title: ReactNode;
-  description: string;
+  description: ReactNode;
   icon: ReactNode;
   badges?: ReactNode;
   accentColor?: string;

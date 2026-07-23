@@ -17,7 +17,6 @@ import {
 } from "@/lib/notifications/message-push-preview";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
 import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
-import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
 import {
   linkOutboundWhatsappFromWahaWebhook,
@@ -26,6 +25,7 @@ import {
   setMirrorThreadExternalSeenInDb,
   setWhatsappMessageExternalSeenInDb,
 } from "@/lib/contacts/message-thread-external-seen-db";
+import { findRestaurantIdByWahaSessionNameAdmin } from "@/lib/supabase/waha-servers-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WahaWebhookBody = {
@@ -83,12 +83,7 @@ async function restaurantIdFromSessionName(
   admin: SupabaseClient,
   sessionName: string,
 ): Promise<string | null> {
-  const { data: restaurants } = await admin.from("restaurants").select("id");
-  for (const r of restaurants ?? []) {
-    const id = (r as { id: string }).id;
-    if (wahaSessionNameForRestaurant(id) === sessionName) return id;
-  }
-  return null;
+  return findRestaurantIdByWahaSessionNameAdmin(sessionName, admin);
 }
 
 function wahaTimestampToIso(ts: number | undefined): string | undefined {

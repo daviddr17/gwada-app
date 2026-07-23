@@ -27,7 +27,7 @@ import {
 } from "@/lib/whatsapp/reservation-whatsapp-message-config";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
@@ -154,7 +154,9 @@ export async function sendReservationNotificationTestWhatsapp(params: {
     return { ok: false, error: "Ungültige Telefonnummer." };
   }
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    params.restaurantId,
+  );
   if (!config) {
     return { ok: false, error: "WhatsApp ist nicht konfiguriert." };
   }

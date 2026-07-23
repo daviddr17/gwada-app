@@ -22,6 +22,7 @@ import {
   ScrollText,
   FileText,
   Files,
+  MessageCircle,
   Server,
   Settings,
   Settings2,
@@ -314,6 +315,16 @@ export function AppSidebar() {
                     >
                       <Plug />
                       <span>Integrationen</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/waha")}
+                      tooltip="WAHA"
+                      render={<Link href="/superadmin/waha" prefetch />}
+                    >
+                      <MessageCircle />
+                      <span>WAHA</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

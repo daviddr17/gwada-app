@@ -1,7 +1,7 @@
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
 import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summary-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import { isMetaInboxConnected } from "@/lib/contact-messages/meta-inbox-auth-server";
 
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 
   const [wahaConfig, imapCreds, facebookConnected, instagramConnected] =
     await Promise.all([
-      getWahaServerConfigAdmin(),
+      getWahaServerConfigForRestaurantAdmin(auth.restaurantId),
       resolveRestaurantImapCredentials(admin, auth.restaurantId),
       isMetaInboxConnected(admin, auth.restaurantId, "facebook"),
       isMetaInboxConnected(admin, auth.restaurantId, "instagram"),

@@ -11,7 +11,7 @@ import { executeContactIdentityResolution } from "@/lib/contacts/contact-identit
 import { sendContactMessageServer } from "@/lib/contact-messages/send-contact-message-server";
 import { getPublicSiteUrl } from "@/lib/public-env";
 import { wahaCheckNumberExists, wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -137,7 +137,9 @@ export async function checkReviewInviteWhatsappNumber(
   const phone = params.guestPhone.trim();
   if (!phone) return { ok: false, error: "no_phone" };
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    params.restaurantId,
+  );
   if (!config) return { ok: false, error: "waha_not_configured" };
 
   const session = wahaSessionNameForRestaurant(params.restaurantId);

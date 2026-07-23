@@ -7,7 +7,7 @@ import {
 } from "@/lib/integrations/platform-messaging-guard";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
 export async function loadDisplayChannelConnections(restaurantId: string): Promise<{
@@ -31,7 +31,7 @@ export async function loadDisplayChannelConnections(restaurantId: string): Promi
 
   let whatsappConnected = false;
   if (waPlatform.ok) {
-    const config = await getWahaServerConfigAdmin();
+    const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
     if (config) {
       const session = wahaSessionNameForRestaurant(restaurantId);
       const live = await wahaGetSession(config, session);

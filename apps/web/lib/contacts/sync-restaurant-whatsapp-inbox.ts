@@ -6,7 +6,7 @@ import {
   syncContactWhatsappInbound,
   syncPseudoWhatsappThread,
 } from "@/lib/contacts/sync-contact-whatsapp-inbound";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -16,7 +16,7 @@ export async function syncRestaurantWhatsappInbox(
   admin: SupabaseClient,
   restaurantId: string,
 ): Promise<{ imported: number; error: string | null }> {
-  const wahaConfig = await getWahaServerConfigAdmin();
+  const wahaConfig = await getWahaServerConfigForRestaurantAdmin(restaurantId);
   if (!wahaConfig) return { imported: 0, error: null };
 
   const session = wahaSessionNameForRestaurant(restaurantId);

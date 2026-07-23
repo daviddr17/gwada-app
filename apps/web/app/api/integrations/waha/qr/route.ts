@@ -1,5 +1,5 @@
 import { authorizeWahaRestaurantRoute } from "@/lib/integrations/waha-route-auth";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaGetQrBase64 } from "@/lib/waha/waha-client";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const waha = await getWahaServerConfigAdmin();
+  const waha = await getWahaServerConfigForRestaurantAdmin(auth.ctx.restaurantId);
   if (!waha) {
     return Response.json({ error: "waha_not_configured" }, { status: 503 });
   }

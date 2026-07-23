@@ -28,7 +28,7 @@ import {
 import type { OutboundAttachmentFile } from "@/lib/contact-messages/outbound-attachment-files";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { sendMetaMessageServer } from "@/lib/contact-messages/meta-send-message-server";
 import {
   metaPseudoContactIdForSender,
@@ -63,7 +63,7 @@ export type SendContactMessageServerInput = {
 };
 
 async function isWhatsappSessionWorking(restaurantId: string): Promise<boolean> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
   if (!config) return false;
   const name = wahaSessionNameForRestaurant(restaurantId);
   const res = await wahaGetSession(config, name);

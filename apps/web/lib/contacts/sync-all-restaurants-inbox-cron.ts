@@ -3,7 +3,7 @@ import "server-only";
 import { syncLexofficeContactsIfStale } from "@/lib/contacts/lexoffice-contacts-sync-server";
 import { syncRestaurantEmailInbox } from "@/lib/contacts/sync-restaurant-email-inbox";
 import { syncRestaurantWhatsappInbox } from "@/lib/contacts/sync-restaurant-whatsapp-inbox";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { fetchRestaurantEmailSmtpConfig } from "@/lib/supabase/restaurant-email-integration-db";
@@ -22,7 +22,6 @@ async function restaurantIdsWithInbox(
 ): Promise<string[]> {
   const { data: restaurants } = await admin.from("restaurants").select("id");
   const ids: string[] = [];
-  const wahaConfig = await getWahaServerConfigAdmin();
 
   for (const r of restaurants ?? []) {
     const id = (r as { id: string }).id;
@@ -31,6 +30,7 @@ async function restaurantIdsWithInbox(
       ids.push(id);
       continue;
     }
+    const wahaConfig = await getWahaServerConfigForRestaurantAdmin(id);
     if (wahaConfig) {
       const session = wahaSessionNameForRestaurant(id);
       const res = await wahaGetSession(wahaConfig, session);

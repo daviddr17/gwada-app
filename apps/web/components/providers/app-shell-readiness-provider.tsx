@@ -16,13 +16,10 @@ import { AppShellBootstrapOverlay } from "@/components/layout/app-shell-bootstra
 import {
   APP_SHELL_READY_MAX_MS,
   computeAppShellInteractive,
-  ensureCriticalModuleDataReady,
-  seedPriorityModuleQueryCaches,
 } from "@/lib/app-shell/app-shell-readiness";
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
 import { useRestaurantPermissionsContext } from "@/lib/contexts/restaurant-permissions-context";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
 type AppShellReadinessValue = {
   interactive: boolean;
@@ -48,7 +45,7 @@ export function AppShellReadinessProvider({ children }: { children: ReactNode })
     useRestaurantPermissionsContext();
 
   const [interactive, setInteractive] = useState(false);
-  const warmedForRef = useRef<string | null>(null);
+  const unlockedRef = useRef(false);
 
   const readinessInputs = useMemo(
     () => ({
@@ -71,47 +68,29 @@ export function AppShellReadinessProvider({ children }: { children: ReactNode })
     ],
   );
 
+  const markInteractive = useCallback(() => {
+    if (unlockedRef.current) return;
+    unlockedRef.current = true;
+    setInteractive(true);
+  }, []);
+
   const tryMarkInteractive = useCallback(() => {
     if (computeAppShellInteractive(readinessInputs)) {
-      setInteractive(true);
+      markInteractive();
       return true;
     }
     return false;
-  }, [readinessInputs]);
+  }, [markInteractive, readinessInputs]);
+
+  // Failsafe ab Mount — nie endlos pointer-blocking, auch vor Auth-Ready.
+  useEffect(() => {
+    const maxTimer = window.setTimeout(markInteractive, APP_SHELL_READY_MAX_MS);
+    return () => window.clearTimeout(maxTimer);
+  }, [markInteractive]);
 
   useLayoutEffect(() => {
-    if (!authReady || !workspaceReady) {
-      setInteractive(false);
-      return;
-    }
-
-    if (tryMarkInteractive()) {
-      if (
-        restaurantId &&
-        isUuidRestaurantId(restaurantId) &&
-        warmedForRef.current !== restaurantId
-      ) {
-        warmedForRef.current = restaurantId;
-        seedPriorityModuleQueryCaches(queryClient, restaurantId);
-        void ensureCriticalModuleDataReady(queryClient, restaurantId);
-      }
-      return;
-    }
-
-    let cancelled = false;
-    const maxTimer = window.setTimeout(() => {
-      if (!cancelled) setInteractive(true);
-    }, APP_SHELL_READY_MAX_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(maxTimer);
-    };
-  }, [authReady, workspaceReady, restaurantId, queryClient, tryMarkInteractive]);
-
-  useEffect(() => {
     tryMarkInteractive();
-  }, [permissionsLoading, permissions.size, tryMarkInteractive]);
+  }, [tryMarkInteractive]);
 
   const value = useMemo(() => ({ interactive }), [interactive]);
 

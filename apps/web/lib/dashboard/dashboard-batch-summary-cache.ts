@@ -20,6 +20,8 @@ export type DashboardBatchCachePayload = {
 };
 
 const memory = new Map<string, DashboardBatchCachePayload>();
+/** Restaurant-IDs, für die localStorage bereits in den Memory-Cache gescannt wurde. */
+const scannedRestaurants = new Set<string>();
 
 function widgetsKey(widgets: readonly DashboardBatchWidgetId[]): string {
   return [...widgets].sort().join(",");
@@ -57,7 +59,8 @@ function peekAnyDashboardBatchSummaryCache(
     if (!best || payload.at > best.at) best = payload;
   }
 
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && !scannedRestaurants.has(restaurantId)) {
+    scannedRestaurants.add(restaurantId);
     try {
       const prefix = `${CACHE_PREFIX}${restaurantId}:`;
       for (let i = 0; i < localStorage.length; i += 1) {
@@ -72,6 +75,13 @@ function peekAnyDashboardBatchSummaryCache(
       }
     } catch {
       /* ignore */
+    }
+
+    // Nach dem Scan nochmal Memory prüfen (frische Treffer).
+    for (const [key, payload] of memory) {
+      if (!key.startsWith(`${restaurantId}:`)) continue;
+      if (!isFreshPayload(payload, maxAgeMs)) continue;
+      if (!best || payload.at > best.at) best = payload;
     }
   }
 
@@ -148,6 +158,7 @@ export function clearDashboardBatchSummaryCache(restaurantId?: string): void {
     for (const key of [...memory.keys()]) {
       if (key.startsWith(`${restaurantId}:`)) memory.delete(key);
     }
+    scannedRestaurants.delete(restaurantId);
     if (typeof localStorage !== "undefined") {
       const prefix = `${CACHE_PREFIX}${restaurantId}:`;
       for (let i = localStorage.length - 1; i >= 0; i -= 1) {
@@ -159,6 +170,7 @@ export function clearDashboardBatchSummaryCache(restaurantId?: string): void {
   }
 
   memory.clear();
+  scannedRestaurants.clear();
   if (typeof localStorage === "undefined") return;
   for (let i = localStorage.length - 1; i >= 0; i -= 1) {
     const k = localStorage.key(i);

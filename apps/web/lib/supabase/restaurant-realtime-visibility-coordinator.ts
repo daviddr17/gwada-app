@@ -9,6 +9,8 @@ import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
 const HIDDEN_TEARDOWN_MS = 45_000;
 const SUBSCRIBE_STAGGER_MS = 70;
+/** Erst-Mount: kein Subscribe bei 0ms — Klicks/Paint zuerst. */
+const INITIAL_SUBSCRIBE_FLOOR_MS = 550;
 const RESUME_IDLE_TIMEOUT_MS = 1_800;
 
 export type RestaurantRealtimeSubscription = {
@@ -51,12 +53,19 @@ function cancelResumeIdle(): void {
   resumeIdleCancel = null;
 }
 
-function scheduleSubscribe(sub: RestaurantRealtimeSubscription): void {
+function scheduleSubscribe(
+  sub: RestaurantRealtimeSubscription,
+  options?: { floorMs?: number },
+): void {
   if (typeof document === "undefined" || document.visibilityState !== "visible") {
     return;
   }
 
   clearSubscribeTimer(sub);
+  const delay = Math.max(
+    options?.floorMs ?? 0,
+    staggerDelayMs(sub.channelName),
+  );
   const timer = setTimeout(() => {
     subscribeTimers.delete(sub);
     if (typeof document === "undefined" || document.visibilityState !== "visible") {
@@ -64,7 +73,7 @@ function scheduleSubscribe(sub: RestaurantRealtimeSubscription): void {
     }
     sub.subscribe();
     sub.connected = true;
-  }, staggerDelayMs(sub.channelName));
+  }, delay);
   subscribeTimers.set(sub, timer);
 }
 
@@ -169,7 +178,7 @@ export function registerRestaurantRealtimeSubscription(
   attachVisibilityListener();
 
   if (typeof document !== "undefined" && document.visibilityState === "visible") {
-    scheduleSubscribe(sub);
+    scheduleSubscribe(sub, { floorMs: INITIAL_SUBSCRIBE_FLOOR_MS });
   }
 
   return () => {

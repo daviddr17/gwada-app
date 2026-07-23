@@ -6,8 +6,11 @@ import {
   seedPriorityModuleQueryCaches,
 } from "@/lib/hooks/app-module-intent-prefetch";
 
-/** Notfall-Deckel — Shell nie länger als nötig blockieren. */
-export const APP_SHELL_READY_MAX_MS = 2_000;
+/**
+ * Absolute Deckel ab Mount — Overlay darf Klicks nie länger blockieren,
+ * auch nicht während Auth/Workspace noch auflösen.
+ */
+export const APP_SHELL_READY_MAX_MS = 1_200;
 
 export { ensureCriticalModuleDataReady, seedPriorityModuleQueryCaches };
 
@@ -21,21 +24,13 @@ export type AppShellReadinessInputs = {
   queryClient: QueryClient;
 };
 
-/** Bootstrap freigeben sobald Auth/Workspace/Permissions da — Modul-Daten im Hintergrund. */
+/**
+ * Bootstrap freigeben sobald Auth + Workspace da sind.
+ * Permissions/Modul-Daten laden im Hintergrund — nicht die erste Interaktion blockieren.
+ */
 export function computeAppShellInteractive(
   inputs: AppShellReadinessInputs,
 ): boolean {
-  const {
-    authReady,
-    workspaceReady,
-    supabaseEnvOk,
-    restaurantId,
-    permissionsLoading,
-    permissionsCount,
-  } = inputs;
-  if (!authReady || !workspaceReady) return false;
-  if (!supabaseEnvOk) return true;
-  if (!restaurantId) return true;
-  if (permissionsLoading && permissionsCount === 0) return false;
-  return true;
+  const { authReady, workspaceReady } = inputs;
+  return authReady && workspaceReady;
 }

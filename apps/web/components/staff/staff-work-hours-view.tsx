@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -98,6 +98,7 @@ function useMonthCursor() {
     cursor,
     setMonth: (month: number) => setCursor((c) => ({ ...c, month })),
     setYear: (year: number) => setCursor((c) => ({ ...c, year })),
+    goToMonth: (year: number, month: number) => setCursor({ year, month }),
     prevMonth: () =>
       setCursor(({ year, month }) => {
         const d = new Date(year, month - 1, 1);
@@ -109,6 +110,16 @@ function useMonthCursor() {
         return { year: d.getFullYear(), month: d.getMonth() };
       }),
   };
+}
+
+function workHoursDayDomId(dayKey: string): string {
+  return `staff-work-hours-day-${dayKey}`;
+}
+
+function scrollToWorkHoursDay(dayKey: string): void {
+  document
+    .getElementById(workHoursDayDomId(dayKey))
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function localDayKey(d: Date): string {
@@ -138,7 +149,9 @@ export function StaffWorkHoursView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { cursor, setMonth, setYear, prevMonth, nextMonth } = useMonthCursor();
+  const { cursor, setMonth, setYear, goToMonth, prevMonth, nextMonth } =
+    useMonthCursor();
+  const pendingScrollToTodayRef = useRef(false);
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,6 +311,29 @@ export function StaffWorkHoursView({
   }, [entries, drawerStaffId]);
 
   const today = useMemo(() => startOfLocalDay(new Date()), []);
+  const todayKey = useMemo(() => localDayKey(today), [today]);
+  const viewingCurrentMonth =
+    cursor.year === today.getFullYear() && cursor.month === today.getMonth();
+
+  useEffect(() => {
+    if (!pendingScrollToTodayRef.current || !viewingCurrentMonth) return;
+    if (showSkeleton) return;
+    pendingScrollToTodayRef.current = false;
+    const id = window.requestAnimationFrame(() => {
+      scrollToWorkHoursDay(todayKey);
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [viewingCurrentMonth, todayKey, monthDays, showSkeleton]);
+
+  const goToToday = useCallback(() => {
+    if (!viewingCurrentMonth) {
+      pendingScrollToTodayRef.current = true;
+      goToMonth(today.getFullYear(), today.getMonth());
+      return;
+    }
+    scrollToWorkHoursDay(todayKey);
+  }, [viewingCurrentMonth, goToMonth, today, todayKey]);
+
   const yearMin = today.getFullYear() - 1;
   const yearMax = today.getFullYear() + 2;
   const yearItems = useMemo(
@@ -592,7 +628,7 @@ export function StaffWorkHoursView({
           </StaffCollapsibleCard>
 
           <Card className="mb-4 border-border/50 shadow-card">
-            <CardContent className="flex items-center px-4 py-3">
+            <CardContent className="flex flex-wrap items-center gap-2 px-4 py-3">
               <div className="flex min-w-0 items-center gap-1">
                 <Button
                   type="button"
@@ -666,23 +702,47 @@ export function StaffWorkHoursView({
                   <ChevronRight className="size-5" />
                 </Button>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-3 text-sm font-medium text-green-800 hover:bg-green-500/15 hover:text-green-900 dark:text-green-200 dark:hover:text-green-100"
+                onClick={goToToday}
+              >
+                Heute
+              </Button>
             </CardContent>
           </Card>
 
           <div className="space-y-3">
             {monthDays.map((day) => {
               const key = localDayKey(day);
+              const isToday = key === todayKey;
               const dayEntries = byDay.get(key) ?? [];
               const canAddEntry = Boolean(staffId);
               const blockNewTimeEntry = staffId
                 ? findStaffAbsenceOnDay(entries, staffId, key) != null
                 : false;
               return (
-                <Card key={key} className="border-border/50 shadow-card">
+                <Card
+                  key={key}
+                  id={workHoursDayDomId(key)}
+                  className={cn(
+                    "scroll-mt-28 border-border/50 shadow-card",
+                    isToday && "ring-1 ring-green-500/25 dark:ring-green-400/20",
+                  )}
+                >
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                    <CardTitle className="text-base">
-                      {formatDayHeadingDe(day)}
-                    </CardTitle>
+                    <div className="min-w-0 space-y-0.5">
+                      {isToday ? (
+                        <p className="text-sm font-semibold text-green-600 dark:text-green-400">
+                          Heute
+                        </p>
+                      ) : null}
+                      <CardTitle className="text-base">
+                        {formatDayHeadingDe(day)}
+                      </CardTitle>
+                    </div>
                     {allowEdit && canAddEntry && !blockNewTimeEntry ? (
                       <Button
                         type="button"

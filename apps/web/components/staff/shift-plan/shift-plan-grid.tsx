@@ -36,6 +36,12 @@ import {
   positionGroupHeaderStyle,
 } from "@/lib/staff/shift-plan-position-groups";
 import { staffDisplayName } from "@/lib/types/staff";
+import { isStaffOwnerRow } from "@/lib/types/employee-role";
+import {
+  staffOwnerBadgeClassName,
+  staffOwnerRowSurfaceClassName,
+} from "@/lib/ui/staff-owner-row";
+import { Badge } from "@/components/ui/badge";
 import { ShiftPlanShiftCard } from "@/components/staff/shift-plan/shift-plan-shift-card";
 import { ShiftPlanAbsenceCard } from "@/components/staff/shift-plan/shift-plan-absence-card";
 import { ShiftPlanAvailabilityCard } from "@/components/staff/shift-plan/shift-plan-availability-card";
@@ -313,14 +319,12 @@ function ShiftPlanStaffName({
   className?: string;
 }) {
   const name = staffDisplayName(staff);
-  if (!onClick) {
-    return (
-      <p className={cn("truncate font-medium text-foreground", className)}>
-        {name}
-      </p>
-    );
-  }
-  return (
+  const isOwner = isStaffOwnerRow(staff);
+  const nameNode = !onClick ? (
+    <p className={cn("truncate font-medium text-foreground", className)}>
+      {name}
+    </p>
+  ) : (
     <button
       type="button"
       onClick={() => onClick(staff)}
@@ -333,6 +337,18 @@ function ShiftPlanStaffName({
     >
       {name}
     </button>
+  );
+  if (!isOwner) return nameNode;
+  return (
+    <div className="min-w-0 space-y-0.5">
+      {nameNode}
+      <Badge
+        variant="outline"
+        className={cn("text-[0.625rem]", staffOwnerBadgeClassName)}
+      >
+        Inhaber
+      </Badge>
+    </div>
   );
 }
 
@@ -360,12 +376,14 @@ function ShiftPlanWeekStaffDropCell({
   weekHighlight: boolean;
   showWeekHint: boolean;
 }) {
+  const isOwner = isStaffOwnerRow(staff);
   return (
     <td
       ref={setNodeRef}
       className={cn(
         "sticky left-0 z-10 overflow-hidden border-r border-border/40 bg-card px-3 py-2 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_10px_-4px_rgba(0,0,0,0.45)]",
         shiftPlanStaffColumnClassName,
+        isOwner && !weekHighlight && staffOwnerRowSurfaceClassName,
         weekHighlight && "bg-accent/10 ring-1 ring-inset ring-accent/40",
       )}
     >
@@ -888,8 +906,14 @@ function ShiftPlanDayStaffRow({
     shifts.length +
     absences.length +
     (availabilitySlots.length > 0 && !absences.some(isShiftPlanAbsenceEntry) ? 1 : 0);
+  const isOwner = isStaffOwnerRow(staff);
   return (
-    <div className="flex flex-wrap items-start gap-3 border-b border-border/40 px-3 py-2 last:border-0">
+    <div
+      className={cn(
+        "flex flex-wrap items-start gap-3 border-b border-border/40 px-3 py-2 last:border-0",
+        isOwner && staffOwnerRowSurfaceClassName,
+      )}
+    >
       <div className="min-w-[8rem] shrink-0 pt-1">
         <ShiftPlanStaffName
           staff={staff}

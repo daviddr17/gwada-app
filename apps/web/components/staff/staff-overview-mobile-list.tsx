@@ -10,12 +10,20 @@ import {
 } from "@/lib/staff/staff-presence-labels";
 import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restaurant-position-label";
 import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
-import { EMPLOYEE_ROLE_OPTIONS } from "@/lib/types/employee-role";
+import {
+  EMPLOYEE_ROLE_OPTIONS,
+  isStaffOwnerRow,
+} from "@/lib/types/employee-role";
 import {
   staffFamilyFirstDisplayName,
   type RestaurantStaffRow,
 } from "@/lib/types/staff";
+import {
+  staffOwnerBadgeClassName,
+  staffOwnerRowCardClassName,
+} from "@/lib/ui/staff-owner-row";
 import { TagColorStripe } from "@/lib/ui/tag-color-stripe";
+import { cn } from "@/lib/utils";
 
 function staffRoleDisplay(row: RestaurantStaffRow): {
   label: string;
@@ -72,11 +80,15 @@ export function StaffOverviewMobileList({
         );
         const presenceLabel = STAFF_PRESENCE_STATUS_LABELS[presenceStatus];
         const contact = row.email ?? row.phone ?? null;
+        const isOwner = isStaffOwnerRow(row);
 
         return (
           <li
             key={row.id}
-            className="rounded-2xl border border-border/50 bg-card p-4 shadow-card"
+            className={cn(
+              "rounded-2xl border border-border/50 bg-card p-4 shadow-card",
+              isOwner && staffOwnerRowCardClassName,
+            )}
           >
             <div className="flex items-start justify-between gap-3">
               <button
@@ -141,6 +153,11 @@ export function StaffOverviewMobileList({
                   ) : (
                     <Badge variant="outline">Inaktiv</Badge>
                   )}
+                  {isOwner ? (
+                    <Badge variant="outline" className={staffOwnerBadgeClassName}>
+                      Inhaber
+                    </Badge>
+                  ) : null}
                   {presenceStatus !== "off" ? (
                     <Badge
                       variant={

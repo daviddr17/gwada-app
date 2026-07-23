@@ -177,3 +177,14 @@ export async function seedRestaurantDefaultPositions(
   });
   return { error: error?.message ?? null };
 }
+
+/** Stellt sicher, dass aktive Inhaber auch als restaurant_staff existieren. */
+export async function ensureRestaurantOwnerStaff(
+  sb: SupabaseClient,
+  restaurantId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await sb.rpc("ensure_restaurant_owner_staff", {
+    p_restaurant_id: restaurantId,
+  });
+  return { error: error?.message ?? null };
+}

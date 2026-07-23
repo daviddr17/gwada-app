@@ -44,6 +44,7 @@ import type {
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 import { buildStaffSearchableSelectOptions } from "@/lib/staff/staff-select-options";
 import { localDayKey, parseLocalDayKey } from "@/lib/staff/shift-schedule-range";
+import { findOverlappingScheduledShift } from "@/lib/staff/shift-plan-overlap";
 
 type ShiftPlanShiftDrawerProps = {
   open: boolean;
@@ -51,6 +52,8 @@ type ShiftPlanShiftDrawerProps = {
   restaurantId: string;
   staffRows: RestaurantStaffRow[];
   templates: RestaurantShiftTemplateRow[];
+  /** Bestehende Schichten im aktuellen Zeitraum — für Überschneidungsprüfung. */
+  existingShifts: RestaurantStaffScheduledShiftRow[];
   shift: RestaurantStaffScheduledShiftRow | null;
   defaultStaffId: string | null;
   defaultDay: Date | null;
@@ -74,6 +77,7 @@ export function ShiftPlanShiftDrawer({
   restaurantId,
   staffRows,
   templates,
+  existingShifts,
   shift,
   defaultStaffId,
   defaultDay,
@@ -148,6 +152,21 @@ export function ShiftPlanShiftDrawer({
       endsAt = combineLocal(localDayKey(endDate), endTime);
     }
 
+    if (
+      findOverlappingScheduledShift(
+        { startsAt, endsAt },
+        existingShifts,
+        {
+          staffId,
+          dayKey: dateYmd,
+          excludeShiftId: shift?.id,
+        },
+      )
+    ) {
+      toast.error("Zu dieser Zeit gibt es bereits eine Schicht.");
+      return;
+    }
+
     setPending(true);
     if (isEdit && shift) {
       const { error } = await updateScheduledShift({
@@ -199,6 +218,7 @@ export function ShiftPlanShiftDrawer({
     note,
     isEdit,
     shift,
+    existingShifts,
     restaurantId,
     requiresAcceptance,
     onSaved,

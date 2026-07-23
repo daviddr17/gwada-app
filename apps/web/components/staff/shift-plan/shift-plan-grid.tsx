@@ -447,7 +447,9 @@ function ShiftPlanStaffWeekRow({
   const showWeekHint =
     weekDropEnabled &&
     active != null &&
-    (dragType === "template" || dragType === "absence");
+    (dragType === "template" ||
+      dragType === "absence" ||
+      dragType === "shift");
   const weekHighlight = weekDropEnabled && isOver;
 
   return (

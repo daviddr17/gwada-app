@@ -20,3 +20,16 @@ export const EMPLOYEE_ROLE_OPTIONS: readonly { value: EmployeeRole; label: strin
 export function isRestaurantOwnerRole(role: string | null | undefined): boolean {
   return role === "owner";
 }
+
+/** Mitarbeiterzeile ist der Restaurant-Inhaber (für Liste/Schichtplan). */
+export function isStaffOwnerRow(row: {
+  restaurant_position?: { slug: string } | null;
+  linked_employee?: {
+    role: string;
+    restaurant_position?: { slug: string } | null;
+  } | null;
+}): boolean {
+  if (row.restaurant_position?.slug === "owner") return true;
+  if (row.linked_employee?.restaurant_position?.slug === "owner") return true;
+  return isRestaurantOwnerRole(row.linked_employee?.role);
+}

@@ -45,8 +45,15 @@ import {
 import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
 import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restaurant-position-label";
 import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
-import { EMPLOYEE_ROLE_OPTIONS } from "@/lib/types/employee-role";
+import {
+  EMPLOYEE_ROLE_OPTIONS,
+  isStaffOwnerRow,
+} from "@/lib/types/employee-role";
 import { cn } from "@/lib/utils";
+import {
+  staffOwnerBadgeClassName,
+  staffOwnerRowSurfaceClassName,
+} from "@/lib/ui/staff-owner-row";
 import {
   moduleDataTableHeadCellClassName,
   moduleDataTableHeadRowClassName,
@@ -684,15 +691,22 @@ export function StaffOverviewTable({
                 breakIds,
               );
               const presenceLabel = STAFF_PRESENCE_STATUS_LABELS[presenceStatus];
+              const isOwner = isStaffOwnerRow(row);
               return (
                 <tr
                   key={row.id}
-                  className="group/tr cursor-pointer border-b border-border/40 last:border-0 hover:bg-muted/30"
+                  className={cn(
+                    "group/tr cursor-pointer border-b border-border/40 last:border-0 hover:bg-muted/30",
+                    isOwner && staffOwnerRowSurfaceClassName,
+                  )}
                   onClick={() => onEdit(row)}
                 >
                   <ModuleTableStickyBodyCell
                     tone="muted-hover-20"
-                    className="px-4 py-3 font-medium"
+                    className={cn(
+                      "px-4 py-3 font-medium",
+                      isOwner && "bg-accent/[0.08] group-hover/tr:bg-accent/[0.14]",
+                    )}
                   >
                     {row.family_name}
                   </ModuleTableStickyBodyCell>
@@ -736,11 +750,21 @@ export function StaffOverviewTable({
                     <TableCellTruncateTooltip text={row.email ?? row.phone ?? "—"} />
                   </td>
                   <td className="px-4 py-3">
-                    {row.is_active ? (
-                      <Badge variant="secondary">Aktiv</Badge>
-                    ) : (
-                      <Badge variant="outline">Inaktiv</Badge>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {row.is_active ? (
+                        <Badge variant="secondary">Aktiv</Badge>
+                      ) : (
+                        <Badge variant="outline">Inaktiv</Badge>
+                      )}
+                      {isOwner ? (
+                        <Badge
+                          variant="outline"
+                          className={staffOwnerBadgeClassName}
+                        >
+                          Inhaber
+                        </Badge>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     {presenceStatus === "off" ? (

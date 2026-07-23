@@ -7,6 +7,7 @@ import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-s
 import { resolveRestaurantTimezone } from "@/lib/restaurant/restaurant-timezone";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { replaceOpeningHoursForRestaurant } from "@/lib/supabase/opening-hours-db";
+import { ensureRestaurantOwnerStaffClient } from "@/lib/staff/ensure-owner-staff-client";
 import { seedRestaurantDefaultPositions } from "@/lib/supabase/restaurant-positions-db";
 import { updateRestaurantBrandAccentHex } from "@/lib/supabase/restaurant-brand-accent";
 import { isRestaurantSlugAvailable } from "@/lib/supabase/restaurant-stammdaten-db";
@@ -146,6 +147,15 @@ export async function createWorkspaceRestaurant(
   );
   if (seedErr) {
     console.warn("seed_restaurant_default_positions", seedErr);
+  }
+
+  // Inhaber als Mitarbeiter (RPC oder Client-Fallback)
+  const { error: ownerStaffErr } = await ensureRestaurantOwnerStaffClient(
+    restaurantId,
+    { force: true },
+  );
+  if (ownerStaffErr) {
+    console.warn("ensure_restaurant_owner_staff", ownerStaffErr);
   }
 
   const { error: profErr } = await sb

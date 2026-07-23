@@ -18,6 +18,7 @@ import {
   peekStaffListCache,
   writeStaffListCache,
 } from "@/lib/staff/staff-list-client-cache";
+import { ensureRestaurantOwnerStaffClient } from "@/lib/staff/ensure-owner-staff-client";
 
 export type StaffListQueryData = {
   rows: RestaurantStaffRow[];
@@ -27,6 +28,9 @@ export type StaffListQueryData = {
 export async function fetchStaffListForRestaurant(
   restaurantId: string,
 ): Promise<StaffListQueryData> {
+  // Inhaber ohne restaurant_staff nachziehen (Schichtplan / Mitarbeiterliste)
+  await ensureRestaurantOwnerStaffClient(restaurantId);
+
   const [staffRes, contractsRes] = await Promise.all([
     fetchStaffForRestaurant(restaurantId),
     fetchStaffContractsForRestaurant(restaurantId),

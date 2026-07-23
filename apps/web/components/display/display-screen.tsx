@@ -103,6 +103,9 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const pageLoadedAtRef = useRef<number>(Date.now());
   const hiddenAtRef = useRef<number | null>(null);
   const hardReloadInFlightRef = useRef(false);
+  const sessionActiveRef = useRef(false);
+  const pinBusyRef = useRef(false);
+  const pinLengthRef = useRef(0);
   const pinLoginGatePreparingRef = useRef(false);
   const sessionRestoreGatePreparedRef = useRef(false);
   const pendingPinSessionRef = useRef<{
@@ -116,6 +119,10 @@ export function DisplayScreen({ slug }: { slug: string }) {
   );
   const { preparePinLoginGate, prepareAndGate, todoPopupProps } =
     useDisplayShiftGates();
+
+  sessionActiveRef.current = Boolean(context?.session);
+  pinBusyRef.current = pinBusy;
+  pinLengthRef.current = pin.length;
 
   const restaurantTimezone =
     context?.restaurant?.timezone ?? DEFAULT_RESTAURANT_TIMEZONE;
@@ -374,7 +381,12 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   useEffect(() => {
     resetIdleTimer();
-    const onActivity = () => enforceIdleOrResetTimer();
+    const onActivity = () => {
+      // Auch auf dem PIN-Screen: Aktivitätszeit setzen, damit 2h-Reload nicht
+      // mitten in der Eingabe feuert.
+      lastActivityRef.current = Date.now();
+      enforceIdleOrResetTimer();
+    };
     window.addEventListener("pointerdown", onActivity);
     window.addEventListener("keydown", onActivity);
     return () => {
@@ -393,7 +405,12 @@ export function DisplayScreen({ slug }: { slug: string }) {
       const hiddenAt = hiddenAtRef.current;
       hiddenAtRef.current = null;
       const hiddenMs = hiddenAt == null ? 0 : Date.now() - hiddenAt;
-      if (hiddenMs >= DISPLAY_RESUME_RELOAD_HIDDEN_MS) {
+      // Nur reloaden, wenn vorher eine Session aktiv war (stale „eingeloggt“).
+      // Schon am PIN-Screen: kein Reload-Flash beim Aufwachen zum Einloggen.
+      if (
+        hiddenMs >= DISPLAY_RESUME_RELOAD_HIDDEN_MS &&
+        sessionActiveRef.current
+      ) {
         void hardReloadDisplay();
         return;
       }
@@ -416,11 +433,13 @@ export function DisplayScreen({ slug }: { slug: string }) {
     };
   }, [enforceIdleOrResetTimer, hardReloadDisplay]);
 
-  /** Alle 2h: Reload sobald das Tablet idle ist — verhindert Langzeit-Stale-State. */
+  /** Alle 2h: Reload nur im echten Idle — nie während PIN-Eingabe/Login. */
   useEffect(() => {
     const id = window.setInterval(() => {
       const ageMs = Date.now() - pageLoadedAtRef.current;
       if (ageMs < DISPLAY_PAGE_RELOAD_MAX_AGE_MS) return;
+      if (pinBusyRef.current || pinLengthRef.current > 0) return;
+      if (hardReloadInFlightRef.current) return;
       const idleMs = Date.now() - lastActivityRef.current;
       const idleThresholdMs = Math.max(
         (context?.display?.auto_lock_seconds ?? 60) * 1000,

@@ -52,9 +52,12 @@ import {
 } from "@/lib/display/display-module-navigation";
 import { submitDisplayPin } from "@/lib/display/submit-display-pin";
 import {
+  DISPLAY_PAGE_RELOAD_MAX_AGE_MS,
+  DISPLAY_RESUME_RELOAD_HIDDEN_MS,
   DISPLAY_SESSION_EXPIRED_EVENT,
   displaySessionAuthErrorMessage,
   handleDisplaySessionAuthFailure,
+  reloadDisplayPage,
 } from "@/lib/display/display-session-client";
 import { STAFF_WORK_ENTRY_LABELS } from "@/lib/types/staff";
 import {
@@ -97,6 +100,9 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const [lockPinError, setLockPinError] = useState<string | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
+  const pageLoadedAtRef = useRef<number>(Date.now());
+  const hiddenAtRef = useRef<number | null>(null);
+  const hardReloadInFlightRef = useRef(false);
   const pinLoginGatePreparingRef = useRef(false);
   const sessionRestoreGatePreparedRef = useRef(false);
   const pendingPinSessionRef = useRef<{
@@ -324,6 +330,22 @@ export function DisplayScreen({ slug }: { slug: string }) {
     await refreshContext();
   }, [refreshContext]);
 
+  /** Session beenden + Hard-Reload — sicherster Weg gegen stale Tablet-State. */
+  const hardReloadDisplay = useCallback(async (opts?: { toastError?: string }) => {
+    if (hardReloadInFlightRef.current) return;
+    hardReloadInFlightRef.current = true;
+    if (opts?.toastError) {
+      toast.error(opts.toastError);
+    }
+    try {
+      await fetch("/api/display/pin", { method: "DELETE" });
+    } catch {
+      /* Reload trotzdem — Cookie/State werden neu aufgebaut */
+    }
+    // Kurz warten, damit die Toast-Meldung noch sichtbar ist.
+    window.setTimeout(() => reloadDisplayPage(), opts?.toastError ? 450 : 0);
+  }, []);
+
   const resetIdleTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
     if (!context?.display?.auto_lock_seconds || !context.session) return;
@@ -353,26 +375,70 @@ export function DisplayScreen({ slug }: { slug: string }) {
   useEffect(() => {
     resetIdleTimer();
     const onActivity = () => enforceIdleOrResetTimer();
-    const onResume = () => enforceIdleOrResetTimer();
     window.addEventListener("pointerdown", onActivity);
     window.addEventListener("keydown", onActivity);
-    window.addEventListener("focus", onResume);
-    document.addEventListener("visibilitychange", onResume);
     return () => {
       window.removeEventListener("pointerdown", onActivity);
       window.removeEventListener("keydown", onActivity);
-      window.removeEventListener("focus", onResume);
-      document.removeEventListener("visibilitychange", onResume);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
   }, [resetIdleTimer, enforceIdleOrResetTimer]);
 
   useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+      const hiddenAt = hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      const hiddenMs = hiddenAt == null ? 0 : Date.now() - hiddenAt;
+      if (hiddenMs >= DISPLAY_RESUME_RELOAD_HIDDEN_MS) {
+        void hardReloadDisplay();
+        return;
+      }
+      enforceIdleOrResetTimer();
+    };
+    const onFocus = () => {
+      if (document.visibilityState === "hidden") return;
+      const hiddenAt = hiddenAtRef.current;
+      if (hiddenAt != null) {
+        onVisibility();
+        return;
+      }
+      enforceIdleOrResetTimer();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [enforceIdleOrResetTimer, hardReloadDisplay]);
+
+  /** Alle 2h: Reload sobald das Tablet idle ist — verhindert Langzeit-Stale-State. */
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const ageMs = Date.now() - pageLoadedAtRef.current;
+      if (ageMs < DISPLAY_PAGE_RELOAD_MAX_AGE_MS) return;
+      const idleMs = Date.now() - lastActivityRef.current;
+      const idleThresholdMs = Math.max(
+        (context?.display?.auto_lock_seconds ?? 60) * 1000,
+        60_000,
+      );
+      if (idleMs < idleThresholdMs) return;
+      void hardReloadDisplay();
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, [context?.display?.auto_lock_seconds, hardReloadDisplay]);
+
+  useEffect(() => {
     const onSessionExpired = (event: Event) => {
       if (!context?.session) return;
       const detail = (event as CustomEvent<{ error?: string }>).detail;
-      toast.error(displaySessionAuthErrorMessage(detail?.error));
-      void performLogout();
+      void hardReloadDisplay({
+        toastError: displaySessionAuthErrorMessage(detail?.error),
+      });
     };
     window.addEventListener(DISPLAY_SESSION_EXPIRED_EVENT, onSessionExpired);
     return () => {
@@ -381,7 +447,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
         onSessionExpired,
       );
     };
-  }, [context?.session, performLogout]);
+  }, [context?.session, hardReloadDisplay]);
 
   const screenCelebrationRef = useRef<DisplayCelebrationVariant | null>(null);
   screenCelebrationRef.current = screenCelebration;

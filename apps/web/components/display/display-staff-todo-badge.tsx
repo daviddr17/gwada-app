@@ -31,6 +31,7 @@ import { DisplayTodoCapturedValue } from "@/components/display/display-todo-capt
 import type { DisplayTodoClient } from "@/lib/display/display-todo-client";
 import { postDisplayTodoComplete } from "@/lib/display/display-todo-client";
 import { displayTodoErrorMessage } from "@/lib/display/display-todo-errors";
+import { handleDisplaySessionAuthFailure } from "@/lib/display/display-session-client";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { STAFF_TODO_PRIORITY_LABELS } from "@/lib/types/staff-todos";
 import {
@@ -244,6 +245,10 @@ export function DisplayStaffTodoBadge({
         credentials: "include",
       });
       if (!res.ok) {
+        if (await handleDisplaySessionAuthFailure(res)) {
+          setTodos([]);
+          return;
+        }
         toast.error("Checklisten konnten nicht geladen werden.");
         setTodos([]);
         return;

@@ -488,7 +488,22 @@ export function useDisplayTimeTodoGate() {
         });
         if (!res.ok) {
           console.warn("[display] prepare_pin_login failed", res.status);
-          toast.error("Checklisten konnten nicht geladen werden.");
+          if (await handleDisplaySessionAuthFailure(res)) {
+            resolve();
+            return;
+          }
+          let errorCode: string | undefined;
+          try {
+            const body = (await res.json()) as { error?: string };
+            errorCode = body.error;
+          } catch {
+            /* ignore */
+          }
+          toast.error(
+            isDisplaySessionAuthError(errorCode)
+              ? displayTodoErrorMessage(errorCode)
+              : "Checklisten konnten nicht geladen werden.",
+          );
           resolve();
           return;
         }

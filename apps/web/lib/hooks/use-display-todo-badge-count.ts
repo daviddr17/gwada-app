@@ -7,6 +7,7 @@ import {
   GWADA_DISPLAY_TODOS_REFRESH_EVENT,
   type DisplayTodoBadgeSnapshot,
 } from "@/lib/display/display-todos-live-events";
+import { handleDisplaySessionAuthFailure } from "@/lib/display/display-session-client";
 import type { StaffTodoDisplayUrgency } from "@/lib/staff/staff-todo-status";
 
 /** Nach Complete/Defer: veraltete Server-Zähler nicht übernehmen (60 s). */
@@ -64,6 +65,9 @@ export function useDisplayTodoBadgeCount(enabled: boolean): {
         credentials: "include",
       });
       if (!res.ok) {
+        // Abgelaufene PIN-Session → zurück zum PIN, kein „Checklisten“-Toast
+        if (await handleDisplaySessionAuthFailure(res)) return;
+        if (res.status >= 500) return;
         toast.error("Checklisten konnten nicht geladen werden.");
         return;
       }

@@ -858,6 +858,23 @@ final class PosRuntime: ObservableObject {
             : "Nest-URL leer — Sync über Next `/api/pos`."
     }
 
+    /// Bekannte lokale Dev-Werte (Simulator → Mac localhost). Restaurant-ID stabil nach `db reset` mit aktuellem seed.sql.
+    func applyLocalDevDefaults() {
+        email = "dreyer@techlion.de"
+        password = "GwadaLocal2026!"
+        restaurantIdInput = "00000000-0000-4000-8000-000000000001"
+        apiBaseInput = "http://127.0.0.1:3000"
+        nestApiBaseInput = "http://127.0.0.1:3099"
+        waiterProfileIdInput = "a1b2c3d4-e5f6-4789-a012-3456789abcde"
+        supabaseUrlInput = "http://127.0.0.1:54321"
+        supabaseAnonInput =
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+        PosCloudConfig.setNestClientFallbackEnabled(true)
+        saveConfigFromInputs()
+        statusMessage =
+            "Lokal vorausgefüllt. Web (:3000) + Nest (:3099) + Supabase müssen laufen. Bei alter DB: Restaurant-ID in Studio prüfen."
+    }
+
     private func syncWaiterCapsToHub() {
         PosHubState.shared.setWaiterCaps(PosWaiterPinCache.shared.capsByProfileId())
     }

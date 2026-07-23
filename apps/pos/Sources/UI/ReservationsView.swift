@@ -202,33 +202,32 @@ struct ReservationsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            let range = hourRange
             let reservations = day?.reservations ?? []
-            ScrollView {
-                ZStack(alignment: .topLeading) {
-                    hourGrid(startHour: range.start, endHour: range.end)
-                    reservationCardsLayer(
-                        reservations: reservations,
-                        startHour: range.start,
-                        endHour: range.end
-                    )
-                    if Calendar.current.isDateInToday(selectedDate) {
-                        nowLine(startHour: range.start, endHour: range.end)
-                    }
+            if reservations.isEmpty {
+                ContentUnavailableView {
+                    Label("Keine Reservierungen", systemImage: "calendar")
+                } description: {
+                    Text("Neue Reservierung anlegen oder Tag aktualisieren.")
                 }
-                .frame(height: CGFloat(range.end - range.start) * hourHeight + 24)
-                .padding(.horizontal, PosDesign.sectionSpacing)
-                .padding(.top, 12)
-                .padding(.bottom, 96)
-            }
-            .overlay {
-                if reservations.isEmpty, !loading {
-                    ContentUnavailableView {
-                        Label("Keine Reservierungen", systemImage: "calendar")
-                    } description: {
-                        Text("Neue Reservierung anlegen oder Tag aktualisieren.")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                let range = hourRange
+                ScrollView {
+                    ZStack(alignment: .topLeading) {
+                        hourGrid(startHour: range.start, endHour: range.end)
+                        reservationCardsLayer(
+                            reservations: reservations,
+                            startHour: range.start,
+                            endHour: range.end
+                        )
+                        if Calendar.current.isDateInToday(selectedDate) {
+                            nowLine(startHour: range.start, endHour: range.end)
+                        }
                     }
-                    .padding(.bottom, 40)
+                    .frame(height: CGFloat(range.end - range.start) * hourHeight + 24)
+                    .padding(.horizontal, PosDesign.sectionSpacing)
+                    .padding(.top, 12)
+                    .padding(.bottom, 96)
                 }
             }
         }

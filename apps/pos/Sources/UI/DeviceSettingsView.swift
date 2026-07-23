@@ -141,6 +141,9 @@ struct DeviceSettingsView: View {
 
     private func cloudLoginSection(buttonTitle: String) -> some View {
         Section("Cloud-Login") {
+            Button("Lokal vorausfüllen") {
+                runtime.applyLocalDevDefaults()
+            }
             TextField("E-Mail", text: $runtime.email)
                 .textInputAutocapitalization(.never)
                 .keyboardType(.emailAddress)
@@ -160,7 +163,7 @@ struct DeviceSettingsView: View {
                 TextField("Supabase-URL", text: $runtime.supabaseUrlInput)
                     .textInputAutocapitalization(.never)
                 SecureField("Supabase Anon Key", text: $runtime.supabaseAnonInput)
-                Text("Lokal: Nest `http://127.0.0.1:3099`, Supabase `http://127.0.0.1:54321`.")
+                Text("Speisekarte/Reservierungen: Next `http://127.0.0.1:3000`. Nest nur Outbox.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

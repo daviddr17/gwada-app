@@ -22,12 +22,40 @@ import {
 } from "@/lib/restaurant/restaurant-timezone";
 import { formatDashboardStaffTodayWorkLabel } from "@/lib/staff/compute-dashboard-staff-summary";
 import type { CompletedDisplayShift } from "@/lib/staff/staff-work-hours-display";
+import {
+  formatStaffEuroCents,
+  type StaffDayWageBreakdown,
+  type StaffDayWageLine,
+} from "@/lib/staff/staff-day-wage";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import type {
   RestaurantStaffRow,
   StaffLivePresenceRow,
 } from "@/lib/types/staff";
 import { staffDisplayName } from "@/lib/types/staff";
+
+function wageLineByStaffId(
+  breakdown: StaffDayWageBreakdown,
+): Map<string, StaffDayWageLine> {
+  return new Map(breakdown.lines.map((line) => [line.staffId, line]));
+}
+
+function shiftWageCents(
+  workMinutes: number,
+  line: StaffDayWageLine | undefined,
+): number | null {
+  if (!line || line.hourlyRateCents == null || line.hourlyRateCents <= 0) {
+    return null;
+  }
+  return Math.round((workMinutes / 60) * line.hourlyRateCents);
+}
+
+function wageLabelForLine(line: StaffDayWageLine | undefined): string | null {
+  if (!line) return null;
+  if (line.wageCents > 0) return formatStaffEuroCents(line.wageCents);
+  if (line.note) return line.note;
+  return null;
+}
 
 export function DashboardHeuteWorkHoursSheet({
   open,
@@ -37,6 +65,7 @@ export function DashboardHeuteWorkHoursSheet({
   presence,
   completedShifts,
   staffById,
+  wageBreakdown,
   timeZone = DEFAULT_RESTAURANT_TIMEZONE,
 }: {
   open: boolean;
@@ -46,6 +75,7 @@ export function DashboardHeuteWorkHoursSheet({
   presence: StaffLivePresenceRow[];
   completedShifts: CompletedDisplayShift[];
   staffById: Map<string, RestaurantStaffRow>;
+  wageBreakdown: StaffDayWageBreakdown;
   timeZone?: string;
 }) {
   const dayLabel = formatRestaurantDayHeadingDe(dayYmd, timeZone);
@@ -59,27 +89,40 @@ export function DashboardHeuteWorkHoursSheet({
     [timeZone],
   );
 
+  const wageByStaff = useMemo(
+    () => wageLineByStaffId(wageBreakdown),
+    [wageBreakdown],
+  );
+
   const activeRows = useMemo(
     () =>
       presence
         .filter((p) => p.status === "working")
         .map((p) => {
           const staff = staffById.get(p.staff_id);
+          const line = wageByStaff.get(p.staff_id);
           return {
             id: p.staff_id,
             name: staff ? staffDisplayName(staff) : "Unbekannt",
             positionTag: staff?.position_tag?.name ?? null,
             since: timeFmt.format(new Date(p.clocked_in_at)),
+            wageLabel: wageLabelForLine(line),
+            wageCents: line?.wageCents ?? 0,
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name, "de")),
-    [presence, staffById, timeFmt],
+    [presence, staffById, timeFmt, wageByStaff],
   );
 
   const empty =
     todayWorkHours <= 0 &&
     activeRows.length === 0 &&
     completedShifts.length === 0;
+
+  const totalWageLabel =
+    wageBreakdown.totalCents > 0
+      ? formatStaffEuroCents(wageBreakdown.totalCents)
+      : null;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
@@ -90,6 +133,7 @@ export function DashboardHeuteWorkHoursSheet({
           </DrawerTitle>
           <DrawerDescription>
             {dayLabel} · {formatDashboardStaffTodayWorkLabel(todayWorkHours)}
+            {totalWageLabel ? ` · Lohn ${totalWageLabel}` : ""}
           </DrawerDescription>
         </DrawerHeader>
         <div className={drawerScrollAreaClassName(6)}>
@@ -115,10 +159,20 @@ export function DashboardHeuteWorkHoursSheet({
                           className="mt-0.5 self-stretch"
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold leading-snug">{row.name}</p>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <p className="font-semibold leading-snug">{row.name}</p>
+                            {row.wageCents > 0 ? (
+                              <p className="shrink-0 text-sm font-semibold tabular-nums">
+                                {formatStaffEuroCents(row.wageCents)}
+                              </p>
+                            ) : null}
+                          </div>
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             {row.positionTag ? `${row.positionTag} · ` : ""}
                             Schicht seit {row.since}
+                            {row.wageCents <= 0 && row.wageLabel
+                              ? ` · ${row.wageLabel}`
+                              : ""}
                           </p>
                         </div>
                       </li>
@@ -136,12 +190,21 @@ export function DashboardHeuteWorkHoursSheet({
                     {completedShifts.map((shift) => {
                       const staff = staffById.get(shift.staffId);
                       const name = staff ? staffDisplayName(staff) : "Unbekannt";
+                      const line = wageByStaff.get(shift.staffId);
+                      const shiftWage = shiftWageCents(shift.workMinutes, line);
                       return (
                         <li
                           key={shift.shiftId}
                           className="rounded-xl border border-border/50 bg-muted/15 px-4 py-3"
                         >
-                          <p className="font-semibold leading-snug">{name}</p>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <p className="font-semibold leading-snug">{name}</p>
+                            {shiftWage != null ? (
+                              <p className="shrink-0 text-sm font-semibold tabular-nums">
+                                {formatStaffEuroCents(shiftWage)}
+                              </p>
+                            ) : null}
+                          </div>
                           <StaffDisplayShiftSegmentsList
                             segments={shift.segments}
                             timeZone={timeZone}
@@ -152,12 +215,24 @@ export function DashboardHeuteWorkHoursSheet({
                             {shift.breakMinutes > 0
                               ? ` · Pause ${formatHoursDe(shift.breakMinutes / 60)}`
                               : ""}
+                            {shiftWage == null && line?.note
+                              ? ` · ${line.note}`
+                              : ""}
                           </p>
                         </li>
                       );
                     })}
                   </ul>
                 </section>
+              ) : null}
+
+              {totalWageLabel ? (
+                <div className="flex items-baseline justify-between gap-3 rounded-xl border border-border/50 bg-accent/5 px-4 py-3">
+                  <span className="text-sm font-medium">Lohn gesamt</span>
+                  <span className="text-xl font-semibold tabular-nums">
+                    {totalWageLabel}
+                  </span>
+                </div>
               ) : null}
             </div>
           )}

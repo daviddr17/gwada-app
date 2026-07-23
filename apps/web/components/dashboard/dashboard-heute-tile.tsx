@@ -392,6 +392,7 @@ export function DashboardHeuteTile() {
           presence={staff.presence}
           completedShifts={staff.completedShifts}
           staffById={staffById}
+          wageBreakdown={staff.wageBreakdown}
           timeZone={restaurantTimeZone}
         />
       ) : null}

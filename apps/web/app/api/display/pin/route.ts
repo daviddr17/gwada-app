@@ -8,12 +8,11 @@ import {
 } from "@/lib/api/display-pin-rate-limit";
 import {
   assertDisplayDeviceFromCookies,
+  assertDisplaySessionAccess,
   buildDisplayContext,
   endDisplaySession,
   generateDisplayToken,
   hashDisplayToken,
-  loadOpenDisplaySession,
-  touchDisplaySession,
 } from "@/lib/display/display-auth-server";
 import {
   DISPLAY_SESSION_COOKIE,
@@ -139,16 +138,13 @@ export async function DELETE() {
 
 export async function PATCH() {
   const cookieStore = await cookies();
-  const parsed = parseDisplaySessionCookie(
-    cookieStore.get(DISPLAY_SESSION_COOKIE)?.value,
-  );
-  if (!parsed) {
-    return NextResponse.json({ error: "session_locked" }, { status: 401 });
+  /** Wie POS: Idle/Token prüfen — kein „Touch“ auf abgelaufene Sessions. */
+  const access = await assertDisplaySessionAccess(cookieStore);
+  if (!access.ok) {
+    return NextResponse.json(
+      { error: access.error },
+      { status: access.status },
+    );
   }
-  const session = await loadOpenDisplaySession(parsed.sessionId);
-  if (!session) {
-    return NextResponse.json({ error: "session_locked" }, { status: 401 });
-  }
-  await touchDisplaySession(parsed.sessionId);
   return NextResponse.json({ ok: true });
 }

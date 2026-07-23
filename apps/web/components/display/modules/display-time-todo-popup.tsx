@@ -33,6 +33,10 @@ import type { DisplayTodoClient } from "@/lib/display/display-todo-client";
 import { DisplayTodoGateCelebration, type DisplayTodoGateCelebrationVariant } from "@/components/display/display-celebration-overlay";
 import { postDisplayTodoComplete, postDisplayTodoDefer } from "@/lib/display/display-todo-client";
 import { displayTodoErrorMessage } from "@/lib/display/display-todo-errors";
+import {
+  handleDisplaySessionAuthFailure,
+  isDisplaySessionAuthError,
+} from "@/lib/display/display-session-client";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import type { StaffTodoDeferTrigger } from "@/lib/types/staff-todos";
 import { STAFF_TODO_PRIORITY_LABELS } from "@/lib/types/staff-todos";
@@ -401,9 +405,21 @@ export function useDisplayTimeTodoGate() {
         }),
       });
       if (!res.ok) {
+        if (await handleDisplaySessionAuthFailure(res)) {
+          return "blocked";
+        }
         console.warn("[display] prepare_trigger failed", res.status);
+        let errorCode: string | undefined;
+        try {
+          const body = (await res.json()) as { error?: string };
+          errorCode = body.error;
+        } catch {
+          /* ignore */
+        }
         toast.error(
-          "Checklisten konnten nicht geladen werden. Schichtaktion abgebrochen.",
+          isDisplaySessionAuthError(errorCode)
+            ? displayTodoErrorMessage(errorCode)
+            : "Checklisten konnten nicht geladen werden. Schichtaktion abgebrochen.",
         );
         return "blocked";
       }

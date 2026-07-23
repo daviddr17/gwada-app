@@ -51,12 +51,18 @@ import {
   shouldShowDisplayModulePicker,
 } from "@/lib/display/display-module-navigation";
 import { submitDisplayPin } from "@/lib/display/submit-display-pin";
+import {
+  DISPLAY_SESSION_EXPIRED_EVENT,
+  displaySessionAuthErrorMessage,
+  handleDisplaySessionAuthFailure,
+} from "@/lib/display/display-session-client";
 import { STAFF_WORK_ENTRY_LABELS } from "@/lib/types/staff";
 import {
   displayChromeMainClassName,
   displayChromeContentWrapClassName,
   displayChromeShellClassName,
 } from "@/lib/ui/display-chrome";
+import { toast } from "sonner";
 import { useDisplayInventoryLive } from "@/lib/hooks/use-display-inventory-live";
 import { useDisplayRecipesLive } from "@/lib/hooks/use-display-recipes-live";
 import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
@@ -327,17 +333,55 @@ export function DisplayScreen({ slug }: { slug: string }) {
     }, context.display.auto_lock_seconds * 1000);
   }, [context?.display?.auto_lock_seconds, context?.session, performLogout]);
 
+  /** Nach Sleep/PWA-Resume: Idle gegen lastActivity prüfen, bevor der Timer neu startet. */
+  const enforceIdleOrResetTimer = useCallback(() => {
+    const autoLockSeconds = context?.display?.auto_lock_seconds;
+    if (!autoLockSeconds || !context.session) return;
+    const idleMs = Date.now() - lastActivityRef.current;
+    if (idleMs > autoLockSeconds * 1000) {
+      void performLogout();
+      return;
+    }
+    resetIdleTimer();
+  }, [
+    context?.display?.auto_lock_seconds,
+    context?.session,
+    performLogout,
+    resetIdleTimer,
+  ]);
+
   useEffect(() => {
     resetIdleTimer();
-    const onActivity = () => resetIdleTimer();
+    const onActivity = () => enforceIdleOrResetTimer();
+    const onResume = () => enforceIdleOrResetTimer();
     window.addEventListener("pointerdown", onActivity);
     window.addEventListener("keydown", onActivity);
+    window.addEventListener("focus", onResume);
+    document.addEventListener("visibilitychange", onResume);
     return () => {
       window.removeEventListener("pointerdown", onActivity);
       window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("focus", onResume);
+      document.removeEventListener("visibilitychange", onResume);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [resetIdleTimer]);
+  }, [resetIdleTimer, enforceIdleOrResetTimer]);
+
+  useEffect(() => {
+    const onSessionExpired = (event: Event) => {
+      if (!context?.session) return;
+      const detail = (event as CustomEvent<{ error?: string }>).detail;
+      toast.error(displaySessionAuthErrorMessage(detail?.error));
+      void performLogout();
+    };
+    window.addEventListener(DISPLAY_SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => {
+      window.removeEventListener(
+        DISPLAY_SESSION_EXPIRED_EVENT,
+        onSessionExpired,
+      );
+    };
+  }, [context?.session, performLogout]);
 
   const screenCelebrationRef = useRef<DisplayCelebrationVariant | null>(null);
   screenCelebrationRef.current = screenCelebration;
@@ -430,7 +474,12 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   const heartbeat = useCallback(async () => {
     if (!context?.session || locked) return;
-    await fetch("/api/display/pin", { method: "PATCH" });
+    try {
+      const res = await fetch("/api/display/pin", { method: "PATCH" });
+      if (await handleDisplaySessionAuthFailure(res)) return;
+    } catch {
+      /* offline / transient — nächster Heartbeat oder Aktion prüft erneut */
+    }
   }, [context?.session, locked]);
 
   useEffect(() => {

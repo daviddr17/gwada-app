@@ -51,6 +51,7 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import {
   createRestaurantDateTimeFormatter,
+  restaurantDayBoundsIso,
   restaurantTodayYmd,
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
@@ -376,37 +377,6 @@ export function ReservationsOverview() {
     dayNotesReloadNonce,
   ]);
 
-  useEffect(() => {
-    if (!workspaceRestaurantId || !dbOk) {
-      setShiftStaffCountsByDate(new Map());
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const { data, error } = await fetchScheduledStaffCountsByDayForRange(
-        workspaceRestaurantId,
-        rangeStartIso,
-        rangeEndExclusiveIso,
-        restaurantTimeZone,
-      );
-      if (cancelled) return;
-      if (error) {
-        setShiftStaffCountsByDate(new Map());
-        return;
-      }
-      setShiftStaffCountsByDate(data);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    workspaceRestaurantId,
-    dbOk,
-    rangeStartIso,
-    rangeEndExclusiveIso,
-    restaurantTimeZone,
-  ]);
-
   const editReservation = useMemo((): ReservationListRow | null => {
     if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
       return null;
@@ -600,8 +570,12 @@ export function ReservationsOverview() {
   useEffect(() => {
     if (unconfirmedMode) {
       setStatusFilterId("all");
+      // Unbestätigt zeigt alle Termine inkl. Vergangenheit.
       setHidePastReservations(false);
+      return;
     }
+    // Beim Verlassen wieder Standard — sonst bleibt Badge „1“ (Vergangene Tage).
+    setHidePastReservations(true);
   }, [unconfirmedMode]);
 
   const statusFilterOptions = useMemo(() => {
@@ -700,6 +674,60 @@ export function ReservationsOverview() {
       dayCount: visibleDays.length,
     };
   }, [visibleDays, byDay, restaurantTimeZone]);
+
+  /** Schichtplan-Counts unabhängig vom Reservierungsfilter; Unbestätigt kann Monate spannen. */
+  const shiftStaffCountRange = useMemo(() => {
+    if (!unconfirmedMode) {
+      return { start: rangeStartIso, end: rangeEndExclusiveIso };
+    }
+    const keys = [...byDay.keys()].sort();
+    if (keys.length === 0) {
+      return { start: rangeStartIso, end: rangeEndExclusiveIso };
+    }
+    const first = keys[0]!;
+    const last = keys[keys.length - 1]!;
+    return {
+      start: restaurantDayBoundsIso(first, restaurantTimeZone).start,
+      end: restaurantDayBoundsIso(last, restaurantTimeZone).end,
+    };
+  }, [
+    unconfirmedMode,
+    byDay,
+    rangeStartIso,
+    rangeEndExclusiveIso,
+    restaurantTimeZone,
+  ]);
+
+  useEffect(() => {
+    if (!workspaceRestaurantId || !dbOk) {
+      setShiftStaffCountsByDate(new Map());
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await fetchScheduledStaffCountsByDayForRange(
+        workspaceRestaurantId,
+        shiftStaffCountRange.start,
+        shiftStaffCountRange.end,
+        restaurantTimeZone,
+      );
+      if (cancelled) return;
+      if (error) {
+        setShiftStaffCountsByDate(new Map());
+        return;
+      }
+      setShiftStaffCountsByDate(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    workspaceRestaurantId,
+    dbOk,
+    shiftStaffCountRange.start,
+    shiftStaffCountRange.end,
+    restaurantTimeZone,
+  ]);
 
   const filterActiveCount = useMemo(() => {
     if (unconfirmedMode) {
@@ -1022,18 +1050,7 @@ export function ReservationsOverview() {
                           ? "1 Person"
                           : `${partyTotal} Personen`}
                       </span>
-                      {(dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
-                        <>
-                          <span aria-hidden>·</span>
-                          <ReservationDayNoteOverviewChip
-                            count={dayNoteCountsByDate.get(key) ?? 0}
-                            onClick={() => {
-                              setDayNotesSheetDay(d);
-                              setDayNotesSheetOpen(true);
-                            }}
-                          />
-                        </>
-                      ) : null}
+                      {/* Unabhängig vom Reservierungs-Statusfilter — Schichtplan-Stand. */}
                       {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
                         <>
                           <span aria-hidden>·</span>
@@ -1042,6 +1059,18 @@ export function ReservationsOverview() {
                             onClick={() => {
                               setShiftStaffSheetDay(d);
                               setShiftStaffSheetOpen(true);
+                            }}
+                          />
+                        </>
+                      ) : null}
+                      {(dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
+                        <>
+                          <span aria-hidden>·</span>
+                          <ReservationDayNoteOverviewChip
+                            count={dayNoteCountsByDate.get(key) ?? 0}
+                            onClick={() => {
+                              setDayNotesSheetDay(d);
+                              setDayNotesSheetOpen(true);
                             }}
                           />
                         </>

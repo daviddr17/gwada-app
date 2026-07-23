@@ -20,14 +20,14 @@ fi
 
 echo
 echo "== Next :3000 =="
-if ! curl -sf -o /dev/null -w "web HTTP %{http_code}\n" "http://127.0.0.1:3000/" ; then
+if ! curl -sf --connect-timeout 2 --max-time 5 -o /dev/null -w "web HTTP %{http_code}\n" "http://127.0.0.1:3000/" ; then
   echo "Next nicht erreichbar — nach .env.local-Änderung: pnpm --filter web dev neu starten"
   exit 1
 fi
 
 echo
 echo "== Login =="
-TOKEN=$(curl -s "http://127.0.0.1:54321/auth/v1/token?grant_type=password" \
+TOKEN=$(curl -s --connect-timeout 3 --max-time 10 "http://127.0.0.1:54321/auth/v1/token?grant_type=password" \
   -H "apikey: ${ANON}" \
   -H "Content-Type: application/json" \
   -d '{"email":"dreyer@techlion.de","password":"GwadaLocal2026!"}' \
@@ -40,7 +40,7 @@ echo "TOKEN_LEN=${#TOKEN}"
 
 echo
 echo "== Bootstrap restaurantId=${RID} =="
-HTTP=$(curl -s -o /tmp/pos-bootstrap.json -w "%{http_code}" \
+HTTP=$(curl -s --connect-timeout 3 --max-time 30 -o /tmp/pos-bootstrap.json -w "%{http_code}" \
   "http://127.0.0.1:3000/api/pos/bootstrap?restaurantId=${RID}" \
   -H "Authorization: Bearer ${TOKEN}")
 echo "HTTP ${HTTP}"

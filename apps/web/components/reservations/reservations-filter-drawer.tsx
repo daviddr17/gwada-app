@@ -82,9 +82,7 @@ export function ReservationsFilterDrawer({
             Filter
           </DrawerTitle>
           <DrawerDescription className="text-base">
-            {unconfirmedMode
-              ? "Anzeige der unbestätigten Reservierungen (alle Monate)."
-              : "Reservierungen in der Monatsübersicht nach Status und Anzeige filtern."}
+            Status, unbestätigte Termine und Kalenderanzeige.
           </DrawerDescription>
         </DrawerHeader>
 

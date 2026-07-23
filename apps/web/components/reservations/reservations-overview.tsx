@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -10,7 +17,6 @@ import {
   ChevronRight,
   Filter,
   Plus,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -197,8 +203,18 @@ export function ReservationsOverview() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const unconfirmedMode =
+  const urlUnconfirmedMode =
     searchParams.get(RESERVATIONS_UNCONFIRMED_QUERY) === "1";
+  /** Switch / Badge — sofort, damit der Toggle nicht auf Navigation wartet. */
+  const [unconfirmedUi, setUnconfirmedUi] = useState(urlUnconfirmedMode);
+  /** Liste / Query — in startTransition, damit der Drawer nicht einfriert. */
+  const [unconfirmedMode, setUnconfirmedModeCommitted] =
+    useState(urlUnconfirmedMode);
+
+  useEffect(() => {
+    setUnconfirmedUi(urlUnconfirmedMode);
+    setUnconfirmedModeCommitted(urlUnconfirmedMode);
+  }, [urlUnconfirmedMode]);
 
   const monthFromYmd = gridDayKey(monthStart, restaurantTimeZone);
   const monthToYmd = gridDayKey(monthEnd, restaurantTimeZone);
@@ -490,27 +506,27 @@ export function ReservationsOverview() {
     router.replace(pathname, { scroll: false });
   }, [router, pathname, unconfirmedMode]);
 
-  const exitUnconfirmedMode = useCallback(() => {
-    router.replace(pathname, { scroll: false });
-  }, [router, pathname]);
-
   const setUnconfirmedMode = useCallback(
     (enabled: boolean) => {
-      if (enabled) {
+      setUnconfirmedUi(enabled);
+      startTransition(() => {
+        setUnconfirmedModeCommitted(enabled);
+        if (enabled) {
+          const p = new URLSearchParams(searchParams.toString());
+          p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
+          p.delete("reservation");
+          p.delete("new");
+          p.delete("day");
+          p.delete("time");
+          p.delete("table");
+          router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+          return;
+        }
         const p = new URLSearchParams(searchParams.toString());
-        p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
-        p.delete("reservation");
-        p.delete("new");
-        p.delete("day");
-        p.delete("time");
-        p.delete("table");
-        router.replace(`${pathname}?${p.toString()}`, { scroll: false });
-        return;
-      }
-      const p = new URLSearchParams(searchParams.toString());
-      p.delete(RESERVATIONS_UNCONFIRMED_QUERY);
-      const qs = p.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+        p.delete(RESERVATIONS_UNCONFIRMED_QUERY);
+        const qs = p.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      });
     },
     [router, pathname, searchParams],
   );
@@ -730,7 +746,7 @@ export function ReservationsOverview() {
   ]);
 
   const filterActiveCount = useMemo(() => {
-    if (unconfirmedMode) {
+    if (unconfirmedUi) {
       let n = 1;
       if (hideEmptyDays) n++;
       return n;
@@ -741,7 +757,7 @@ export function ReservationsOverview() {
     if (hideEmptyDays) n++;
     return n;
   }, [
-    unconfirmedMode,
+    unconfirmedUi,
     statusFilterId,
     isViewingCurrentMonth,
     hidePastReservations,
@@ -783,58 +799,20 @@ export function ReservationsOverview() {
     <div className="space-y-6 pb-4">
       <Card className="border-border/50 shadow-card">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-          {unconfirmedMode ? (
-            <>
-              <div className="order-2 min-w-0 space-y-1 sm:order-1 sm:flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  Unbestätigte Reservierungen
-                </p>
-                <p className="text-xs text-muted-foreground sm:text-sm">
-                  Offen und „Änderung prüfen“ — alle Monate, nach Termin sortiert.
-                  {hideEmptyDays ? " Leere Tage ausgeblendet." : ""}
-                </p>
-              </div>
-              <div className="order-1 flex w-full shrink-0 items-center justify-end gap-2 sm:order-2 sm:w-auto">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-1.5 rounded-xl"
-                  onClick={() => setFilterOpen(true)}
-                >
-                  <Filter className="size-4" />
-                  Filter
-                  {filterActiveCount > 1 ? (
-                    <Badge
-                      variant="secondary"
-                      className="h-5 min-w-5 rounded-full px-1 text-[10px] tabular-nums"
-                    >
-                      {filterActiveCount}
-                    </Badge>
-                  ) : null}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 gap-1 rounded-xl"
-                  onClick={exitUnconfirmedMode}
-                >
-                  <X className="size-4" />
-                  Monatsansicht
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="order-2 min-w-0 text-xs text-muted-foreground sm:order-1 sm:flex-1">
-                {isViewingCurrentMonth && hidePastReservations
-                  ? "Tage ab heute bis Monatsende."
-                  : "Alle Tage des gewählten Monats."}
-                {hideEmptyDays ? " Tage ohne Reservierungen ausgeblendet." : ""}
-                {statusFilterId !== "all" ? " Nur gewählter Status." : ""}
-              </p>
-              <div className="order-1 flex w-full items-center justify-center gap-1 sm:order-2 sm:w-auto sm:shrink-0 sm:justify-end">
+          <p className="order-2 min-w-0 text-xs text-muted-foreground sm:order-1 sm:flex-1">
+            {unconfirmedUi
+              ? "Offen und „Änderung prüfen“ — alle Monate, nach Termin sortiert."
+              : isViewingCurrentMonth && hidePastReservations
+                ? "Tage ab heute bis Monatsende."
+                : "Alle Tage des gewählten Monats."}
+            {hideEmptyDays ? " Tage ohne Reservierungen ausgeblendet." : ""}
+            {!unconfirmedUi && statusFilterId !== "all"
+              ? " Nur gewählter Status."
+              : ""}
+          </p>
+          <div className="order-1 flex w-full items-center justify-center gap-1 sm:order-2 sm:w-auto sm:shrink-0 sm:justify-end">
+            {!unconfirmedUi ? (
+              <>
                 <Button
                   type="button"
                   variant="ghost"
@@ -906,29 +884,29 @@ export function ReservationsOverview() {
                 >
                   <ChevronRight className="size-5" />
                 </Button>
-                <div className="relative shrink-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="size-9 shrink-0 rounded-lg border-border/60"
-                    aria-label="Filter"
-                    onClick={() => setFilterOpen(true)}
-                  >
-                    <Filter className="size-4" />
-                  </Button>
-                  {filterActiveCount > 0 ? (
-                    <Badge
-                      variant="secondary"
-                      className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
-                    >
-                      {filterActiveCount}
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
-            </>
-          )}
+              </>
+            ) : null}
+            <div className="relative ml-auto shrink-0 sm:ml-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="rounded-full border-border/60"
+                aria-label="Filter"
+                onClick={() => setFilterOpen(true)}
+              >
+                <Filter className="size-4" />
+              </Button>
+              {filterActiveCount > 0 ? (
+                <Badge
+                  variant="secondary"
+                  className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
+                >
+                  {filterActiveCount}
+                </Badge>
+              ) : null}
+            </div>
+          </div>
         </CardHeader>
       </Card>
 
@@ -1215,11 +1193,11 @@ export function ReservationsOverview() {
       <ReservationsFilterDrawer
         open={filterOpen}
         onOpenChange={setFilterOpen}
-        unconfirmedMode={unconfirmedMode}
+        unconfirmedMode={unconfirmedUi}
         statusOptions={statusFilterOptions}
         statusFilterId={statusFilterId}
         onStatusFilterIdChange={setStatusFilterId}
-        showHidePastSection={!unconfirmedMode && isViewingCurrentMonth}
+        showHidePastSection={!unconfirmedUi && isViewingCurrentMonth}
         hidePastReservations={hidePastReservations}
         onHidePastReservationsChange={setHidePastReservations}
         hideEmptyDays={hideEmptyDays}

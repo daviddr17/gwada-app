@@ -17,6 +17,8 @@ final class PosRuntime: ObservableObject {
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var detectionLabel: String
     @Published private(set) var hubBaseURL: URL?
+    /// Handgerät ohne iPad-Kasse (Demo/Cloud lokal) — UI bleibt Kellner-Tabs.
+    @Published private(set) var isSoloMode = false
     @Published private(set) var snapshot: PosLanHubSnapshot?
     @Published private(set) var bonjourPublishing = false
     @Published private(set) var statusMessage: String = ""
@@ -92,11 +94,39 @@ final class PosRuntime: ObservableObject {
                 )
                 syncWaiterCapsToHub()
             }
-            await startHub()
+            if role == .handheld {
+                await startHandheldSolo(preferCloud: true)
+            } else {
+                await startHub()
+            }
         } catch {
             phase = .error(error.localizedDescription)
             statusMessage = error.localizedDescription
         }
+    }
+
+    /// iPhone ohne iPad: lokale Demo-/Cloud-Daten, Kellner-Tabs bleiben.
+    func startHandheldSolo(preferCloud: Bool = false) async {
+        guard role == .handheld else { return }
+        phase = .starting
+        isSoloMode = true
+        hubBaseURL = nil
+        PosCloudConfig.setNestClientFallbackEnabled(true)
+        PosHubState.shared.configure(hubDeviceId: hubDeviceId)
+        isSignedIn = PosAuthStore.shared.isSignedIn
+        if preferCloud || isSignedIn {
+            await pullCloudBootstrap(forceDemoFallback: true)
+        } else {
+            PosHubState.shared.loadCachedOrDemo()
+        }
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+        dataSourceLabel = PosHubState.shared.isDemo ? "Solo · Demo/Cache" : "Solo · Cloud"
+        phase = .connected
+        statusMessage = isSignedIn
+            ? "Solo-Modus (ohne Kasse) — Cloud/Nest aktiv."
+            : "Solo-Modus (ohne Kasse) — Demo-Daten. Optional anmelden für Cloud."
+        await pullReservationsDay(PosReservationsStore.todayYmd())
+        syncPending = PosSyncQueue.shared.pendingCount
     }
 
 
@@ -119,6 +149,7 @@ final class PosRuntime: ObservableObject {
     func signOut() {
         PosAuthStore.shared.clear()
         isSignedIn = false
+        isSoloMode = false
         stopHub()
         flushTask?.cancel()
         phase = .needsLogin
@@ -137,8 +168,12 @@ final class PosRuntime: ObservableObject {
                 ? "Aktualisiert."
                 : PosSyncQueue.shared.lastFlushMessage
         case .handheld:
-            await connectHandheld()
-            await pullReservationsDay(PosReservationsStore.shared.selectedDayYmd)
+            if isSoloMode || hubBaseURL == nil {
+                await startHandheldSolo(preferCloud: isSignedIn)
+            } else {
+                await connectHandheld()
+                await pullReservationsDay(PosReservationsStore.shared.selectedDayYmd)
+            }
         }
     }
 
@@ -149,37 +184,41 @@ final class PosRuntime: ObservableObject {
     func pullReservationsDay(_ ymd: String) async {
         switch role {
         case .hub:
-            guard PosAuthStore.shared.isSignedIn else { return }
-            guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else { return }
-            do {
-                let day = try await PosCloudClient.fetchReservationsDay(
-                    restaurantId: restaurantId,
-                    dayYmd: ymd
-                )
-                PosReservationsStore.shared.applyDay(day)
-            } catch {
-                if let cached = PosReservationsStore.shared.cachedDay(ymd) {
-                    PosReservationsStore.shared.applyDay(cached)
-                }
-                statusMessage = "Reservierungen offline — Cache: \(error.localizedDescription)"
-            }
+            await pullReservationsDayFromCloud(ymd)
         case .handheld:
-            guard let base = hubBaseURL else {
-                statusMessage = "Keine Kasse verbunden."
-                return
-            }
-            do {
-                let day = try await HandheldHubClient.fetchReservationsDay(
-                    baseURL: base,
-                    dayYmd: ymd
-                )
-                PosReservationsStore.shared.applyDay(day)
-            } catch {
-                if let cached = PosReservationsStore.shared.cachedDay(ymd) {
-                    PosReservationsStore.shared.applyDay(cached)
+            if let base = hubBaseURL, !isSoloMode {
+                do {
+                    let day = try await HandheldHubClient.fetchReservationsDay(
+                        baseURL: base,
+                        dayYmd: ymd
+                    )
+                    PosReservationsStore.shared.applyDay(day)
+                } catch {
+                    if let cached = PosReservationsStore.shared.cachedDay(ymd) {
+                        PosReservationsStore.shared.applyDay(cached)
+                    }
+                    statusMessage = "Reservierungen von Kasse nicht geladen: \(error.localizedDescription)"
                 }
-                statusMessage = "Reservierungen von Kasse nicht geladen: \(error.localizedDescription)"
+            } else {
+                await pullReservationsDayFromCloud(ymd)
             }
+        }
+    }
+
+    private func pullReservationsDayFromCloud(_ ymd: String) async {
+        guard PosAuthStore.shared.isSignedIn else { return }
+        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else { return }
+        do {
+            let day = try await PosCloudClient.fetchReservationsDay(
+                restaurantId: restaurantId,
+                dayYmd: ymd
+            )
+            PosReservationsStore.shared.applyDay(day)
+        } catch {
+            if let cached = PosReservationsStore.shared.cachedDay(ymd) {
+                PosReservationsStore.shared.applyDay(cached)
+            }
+            statusMessage = "Reservierungen offline — Cache: \(error.localizedDescription)"
         }
     }
 
@@ -200,11 +239,7 @@ final class PosRuntime: ObservableObject {
         )
         PosReservationsStore.shared.upsertLocalReservation(optimistic, dayYmd: dayYmd)
 
-        if role == .handheld {
-            guard let base = hubBaseURL else {
-                statusMessage = "Keine Kasse verbunden."
-                return false
-            }
+        if role == .handheld, let base = hubBaseURL, !isSoloMode {
             do {
                 let res = try await HandheldHubClient.createReservation(baseURL: base, payload: payload)
                 if let reservation = res.reservation {
@@ -224,7 +259,7 @@ final class PosRuntime: ObservableObject {
             }
         }
 
-        // Hub: online direkt in DB, sonst Queue
+        // Hub oder Solo-Handgerät: online direkt in DB, sonst Queue / lokal
         do {
             let res = try await PosCloudClient.createReservation(payload: payload)
             if let reservation = res.reservation {
@@ -255,15 +290,7 @@ final class PosRuntime: ObservableObject {
 
     func openTable(tableId: String, covers: Int = 2) async {
         guard role == .hub || role == .handheld else { return }
-        if role == .handheld {
-            guard let base = hubBaseURL else {
-                if PosCloudConfig.nestClientFallbackEnabled && PosCloudConfig.nestSyncEnabled {
-                    await openTableViaNestFallback(tableId: tableId, covers: covers)
-                } else {
-                    statusMessage = "Keine Kasse verbunden."
-                }
-                return
-            }
+        if role == .handheld, let base = hubBaseURL, !isSoloMode {
             do {
                 _ = try await HandheldHubClient.openSession(
                     baseURL: base,
@@ -279,6 +306,22 @@ final class PosRuntime: ObservableObject {
                 } else {
                     statusMessage = error.localizedDescription
                 }
+            }
+            return
+        }
+
+        if role == .handheld && isSoloMode {
+            if PosCloudConfig.nestClientFallbackEnabled && PosCloudConfig.nestSyncEnabled {
+                await openTableViaNestFallback(tableId: tableId, covers: covers)
+                // Ensure local floor reflects open even if Nest flush slow
+                if snapshot?.floor.openSessions.contains(where: { $0.dining_table_id == tableId }) != true {
+                    _ = PosHubState.shared.openLocalSession(diningTableId: tableId, coverCount: covers)
+                    publishSnapshot(PosHubState.shared.makeSnapshot())
+                }
+            } else {
+                _ = PosHubState.shared.openLocalSession(diningTableId: tableId, coverCount: covers)
+                publishSnapshot(PosHubState.shared.makeSnapshot())
+                statusMessage = "Tisch lokal geöffnet (Solo)."
             }
             return
         }
@@ -1107,6 +1150,7 @@ final class PosRuntime: ObservableObject {
     private func connectHandheld(preferredHost: String? = nil) async {
         phase = .searching
         statusMessage = "Suche iPad-Kasse im WLAN …"
+        isSoloMode = false
         publishSnapshot(nil)
         hubBaseURL = nil
 
@@ -1123,8 +1167,7 @@ final class PosRuntime: ObservableObject {
         }
 
         guard !candidates.isEmpty else {
-            phase = .error("Keine Kasse gefunden")
-            statusMessage = "Handgerät kann nur starten, wenn die iPad-Kasse im WLAN erreichbar ist."
+            await startHandheldSolo(preferCloud: PosAuthStore.shared.isSignedIn)
             return
         }
 
@@ -1142,6 +1185,7 @@ final class PosRuntime: ObservableObject {
                     UserDefaults.standard.set(host, forKey: manualHostKey)
                 }
                 hubBaseURL = base
+                isSoloMode = false
                 publishSnapshot(snap)
                 phase = .connected
                 statusMessage = "Verbunden mit \(snap.hub.displayName)."
@@ -1152,7 +1196,8 @@ final class PosRuntime: ObservableObject {
             }
         }
 
-        phase = .error(lastError ?? "Kasse nicht erreichbar")
-        statusMessage = lastError ?? "Kasse nicht erreichbar — Handgerät wartet auf die Kasse."
+        // Keine erreichbare Kasse → Solo (iPhone-alone Test / Simulator)
+        statusMessage = lastError ?? "Kasse nicht erreichbar — starte Solo-Modus."
+        await startHandheldSolo(preferCloud: PosAuthStore.shared.isSignedIn)
     }
 }

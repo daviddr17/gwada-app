@@ -32,6 +32,9 @@ struct MoreMenuView: View {
                 if PosCloudConfig.nestClientFallbackEnabled {
                     LabeledContent("Hub-Fallback", value: "Nest aktiv")
                 }
+                if runtime.isSoloMode {
+                    LabeledContent("Modus", value: "Solo (ohne Kasse)")
+                }
             }
 
             Section("Schicht") {

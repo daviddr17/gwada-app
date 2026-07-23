@@ -38,13 +38,19 @@ struct TablesHomeView: View {
             } else {
                 ContentUnavailableView {
                     Label(
-                        runtime.role == .handheld ? "Keine Kasse" : "Kein Snapshot",
-                        systemImage: runtime.role == .handheld ? "wifi.exclamationmark" : "tray"
+                        runtime.role == .handheld
+                            ? (runtime.isSoloMode ? "Keine Tische" : "Keine Kasse")
+                            : "Kein Snapshot",
+                        systemImage: runtime.role == .handheld
+                            ? (runtime.isSoloMode ? "tray" : "wifi.exclamationmark")
+                            : "tray"
                     )
                 } description: {
                     Text(
                         runtime.role == .handheld
-                            ? "Handgerät wartet auf die iPad-Kasse im WLAN."
+                            ? (runtime.isSoloMode
+                                ? "Solo ohne Tischdaten — Mehr → Gerät → Solo neu laden oder anmelden."
+                                : "Kasse suchen oder Solo ohne Kasse (Mehr → Gerät).")
                             : "Nach dem Login werden Tische und Speisekarte geladen."
                     )
                 }

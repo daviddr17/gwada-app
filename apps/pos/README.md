@@ -64,6 +64,16 @@ Auf dem iPad unter **Gerät → Erweitert / Nest Sync**: Nest-URL `http://<Mac-L
 3. App auf dem **iPhone** starten → findet Kasse, zeigt Tische  
 4. Ohne Internet: Handgerät ↔ iPad weiter nutzbar; Sync später  
 
+### iPhone allein (ohne iPad / Hub)
+
+1. Scheme **GwadaPOS** → Destination **iPhone** → Run  
+2. Nach kurzer Kassensuche wechselt die App automatisch in den **Solo-Modus** (Demo-Tische)  
+3. Oder: **Mehr → Gerät → Ohne Kasse starten (Solo)**  
+4. Optional anmelden (Supabase lokal + Nest `http://127.0.0.1:3099`) für Cloud-Reservierungen  
+5. Tabs **Tische · Reservierungen · Mehr** — Schedule-UI ohne Hub testbar  
+
+Hinweis: Zwei Simulatoren teilen kein WLAN; Solo ist der vorgesehene Weg für iPhone-UI ohne physisches iPad.
+
 ## Abgrenzung
 
 - `apps/web` — APIs / Dashboard / POS-Modul  

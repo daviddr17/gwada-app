@@ -12,8 +12,13 @@ export function useDashboardInventoryStats() {
   const batchEnabled = useDashboardBatchQueryEnabled();
   const batchSlice = useDashboardBatchSlice("inventory");
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const { ingredients, isHydrated: ingredientsReady } = useIngredientsStorage();
-  const { orders, isHydrated: ordersReady } = usePurchaseOrdersStorage();
+  // Bei Batch-Pfad keine vollständigen Inventory-Queries (Focus-Refetch nach Tab-Idle).
+  const { ingredients, isHydrated: ingredientsReady } = useIngredientsStorage({
+    enabled: !batchEnabled,
+  });
+  const { orders, isHydrated: ordersReady } = usePurchaseOrdersStorage({
+    enabled: !batchEnabled,
+  });
 
   const standaloneSummary = useMemo(
     () => computeDashboardInventorySummary(ingredients, orders),

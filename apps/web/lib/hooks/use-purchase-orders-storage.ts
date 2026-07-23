@@ -298,12 +298,13 @@ export type OpenLineContext = {
   quantity: number;
 };
 
-export function usePurchaseOrdersStorage() {
+export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const supabaseOnly = isSupabaseOnlyMode();
   const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
   const useDbInventory = inventoryRelationalPersistenceEnabled();
+  const queryEnabled = options?.enabled !== false;
 
   const [localOrders, setLocalOrders] = useState<PurchaseOrder[]>([]);
   const [isLocalHydrated, setIsLocalHydrated] = useState(!useDbInventory);
@@ -311,7 +312,11 @@ export function usePurchaseOrdersStorage() {
   const ordersQuery = useQuery({
     queryKey: queryKeys.inventory.purchaseOrders(restaurantId ?? ""),
     queryFn: fetchPurchaseOrdersForRestaurant,
-    enabled: useDbInventory && workspaceReady && Boolean(restaurantId),
+    enabled:
+      queryEnabled &&
+      useDbInventory &&
+      workspaceReady &&
+      Boolean(restaurantId),
     staleTime: getModuleCacheStaleTime("inventoryModule") ?? 60_000,
     gcTime: getModuleCacheGcTime("inventoryModule") ?? 5 * 60_000,
     placeholderData: (previous) =>

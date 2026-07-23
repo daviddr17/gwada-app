@@ -1,11 +1,15 @@
 /**
  * Entlastet Main Thread bei Tab-Rückkehr und Erst-Load:
  * - Realtime bleibt bei kurzem Tab-Wechsel verbunden (kein Reconnect-Sturm)
- * - Nach längerer Inaktivität: gestaffelter Wiederaufbau statt 14× parallel
+ * - Nach längerer Inaktivität: gestaffelter Wiederaufbau statt parallel
+ * - Resume erst nach Idle, damit Klicks vor dem Subscribe-Sturm kommen
  */
 
+import { runWhenIdle } from "@/lib/ui/run-when-idle";
+
 const HIDDEN_TEARDOWN_MS = 45_000;
-const SUBSCRIBE_STAGGER_MS = 40;
+const SUBSCRIBE_STAGGER_MS = 70;
+const RESUME_IDLE_TIMEOUT_MS = 1_800;
 
 export type RestaurantRealtimeSubscription = {
   channelName: string;
@@ -21,6 +25,7 @@ const subscribeTimers = new Map<
 >();
 
 let hiddenTeardownTimer: ReturnType<typeof setTimeout> | null = null;
+let resumeIdleCancel: (() => void) | null = null;
 let tornDown = false;
 let listenerRefCount = 0;
 let listenerAttached = false;
@@ -41,6 +46,11 @@ function clearSubscribeTimer(sub: RestaurantRealtimeSubscription): void {
   }
 }
 
+function cancelResumeIdle(): void {
+  resumeIdleCancel?.();
+  resumeIdleCancel = null;
+}
+
 function scheduleSubscribe(sub: RestaurantRealtimeSubscription): void {
   if (typeof document === "undefined" || document.visibilityState !== "visible") {
     return;
@@ -59,6 +69,7 @@ function scheduleSubscribe(sub: RestaurantRealtimeSubscription): void {
 }
 
 function teardownAll(): void {
+  cancelResumeIdle();
   for (const sub of subscriptions) {
     clearSubscribeTimer(sub);
     if (sub.connected) {
@@ -78,20 +89,56 @@ function cancelHiddenTeardown(): void {
 
 function onDocumentHidden(): void {
   cancelHiddenTeardown();
+  cancelResumeIdle();
   hiddenTeardownTimer = setTimeout(() => {
     hiddenTeardownTimer = null;
     teardownAll();
   }, HIDDEN_TEARDOWN_MS);
 }
 
-function onDocumentVisible(): void {
-  cancelHiddenTeardown();
+function resumeSubscriptions(): void {
+  if (typeof document === "undefined" || document.visibilityState !== "visible") {
+    return;
+  }
   for (const sub of subscriptions) {
     if (tornDown || !sub.connected) {
       scheduleSubscribe(sub);
     }
   }
   tornDown = false;
+}
+
+function onDocumentVisible(): void {
+  cancelHiddenTeardown();
+  cancelResumeIdle();
+
+  // Sofort markieren, neue Registrierungen nicht als „tornDown“ behandeln.
+  const needsResume =
+    tornDown ||
+    [...subscriptions].some((sub) => !sub.connected);
+
+  if (!needsResume) {
+    tornDown = false;
+    return;
+  }
+
+  // Klicks/Paint vor dem Reconnect-Sturm.
+  if ("requestIdleCallback" in window) {
+    const id = window.requestIdleCallback(
+      () => {
+        resumeIdleCancel = null;
+        resumeSubscriptions();
+      },
+      { timeout: RESUME_IDLE_TIMEOUT_MS },
+    );
+    resumeIdleCancel = () => window.cancelIdleCallback(id);
+    return;
+  }
+
+  runWhenIdle(() => {
+    resumeIdleCancel = null;
+    resumeSubscriptions();
+  }, RESUME_IDLE_TIMEOUT_MS);
 }
 
 function onVisibilityChange(): void {

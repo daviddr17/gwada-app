@@ -6,6 +6,7 @@ import type {
   DashboardBatchSummaryErrors,
 } from "@/lib/dashboard/load-dashboard-batch-summary-server";
 import type { DashboardBatchQueryData } from "@/lib/hooks/use-dashboard-batch-summary-query";
+import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
 const CACHE_PREFIX = "gwada:dashboard-batch:";
 /** Nach 30 Min kein sofortiges Rendern mehr aus dem Speicher. */
@@ -129,11 +130,17 @@ export function writeDashboardBatchSummaryCache(
   memory.set(key, payload);
 
   if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(storageKey(restaurantId, widgets), JSON.stringify(payload));
-  } catch {
-    /* Quota — Memory-Cache reicht für die Session. */
-  }
+  // JSON.stringify + setItem vom Main-Thread weg — sonst Stocken nach Batch-Fetch.
+  const persistKey = storageKey(restaurantId, widgets);
+  runWhenIdle(() => {
+    try {
+      const latest = memory.get(key);
+      if (!latest || latest.at !== payload.at) return;
+      localStorage.setItem(persistKey, JSON.stringify(latest));
+    } catch {
+      /* Quota — Memory-Cache reicht für die Session. */
+    }
+  }, 2_000);
 }
 
 export function clearDashboardBatchSummaryCache(restaurantId?: string): void {

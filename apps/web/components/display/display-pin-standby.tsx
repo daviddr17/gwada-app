@@ -65,10 +65,10 @@ export function DisplayPinStandbyClock({
 
   return (
     <div className={cn("select-none text-center", className)}>
-      <p className="text-[clamp(2.5rem,min(14vw,11dvh),6.5rem)] font-extralight leading-none tracking-tight tabular-nums text-foreground">
+      <p className="text-[clamp(2rem,min(11vw,7.5dvh),4.25rem)] font-extralight leading-none tracking-tight tabular-nums text-foreground">
         {timeLabel}
       </p>
-      <p className="mt-[clamp(0.4rem,1.4dvh,0.75rem)] text-[clamp(0.95rem,2.4dvh,1.25rem)] font-medium capitalize text-foreground/85">
+      <p className="mt-[clamp(0.25rem,0.9dvh,0.5rem)] text-[clamp(0.85rem,1.9dvh,1.1rem)] font-medium capitalize text-foreground/85">
         {dateLabel}
       </p>
     </div>
@@ -96,8 +96,8 @@ export function DisplayPinStandbyScene({
       <DisplayPinStandbyBackground accentHex={accentHex} />
       <div
         className={cn(
-          // Fester Abstand zu sticky Header/Footer; Inhalt skaliert mit dvh statt zu kleben.
-          "relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(0.875rem,3.2dvh,2rem)] px-6 py-[clamp(1rem,3.5dvh,1.75rem)]",
+          // Kompakter Abstand zu sticky Header/Footer — mehr Platz für große PIN-Tasten.
+          "relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(0.4rem,1.4dvh,0.85rem)] px-4 py-[clamp(0.35rem,1.2dvh,0.75rem)]",
           className,
         )}
       >

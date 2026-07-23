@@ -117,22 +117,22 @@ export function DisplayPinPad({
 
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
 
-  /** Skaliert mit Viewport-Höhe — kurze Tablets behalten Abstand zu Header/Footer. */
+  /** Größere Trefferflächen auf Tablets; kompakter Abstand zu Header/Footer. */
   const keySizeClassName =
-    "h-[clamp(2.75rem,min(18vw,9dvh),5rem)] w-[clamp(2.75rem,min(18vw,9dvh),5rem)] p-0";
+    "h-[clamp(3.25rem,min(22vw,12.5dvh),6.25rem)] w-[clamp(3.25rem,min(22vw,12.5dvh),6.25rem)] p-0";
   const keyClassName = cn(
     keySizeClassName,
     "rounded-full border-border/60 shadow-sm",
   );
   const keyDigitClassName = cn(
     keyClassName,
-    "text-[clamp(1.35rem,4.2dvh,1.875rem)] font-semibold",
+    "text-[clamp(1.6rem,5.2dvh,2.35rem)] font-semibold",
   );
 
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-[clamp(0.875rem,3dvh,2rem)]",
+        "flex flex-col items-center gap-[clamp(0.5rem,1.6dvh,1.1rem)]",
         className,
       )}
       role="group"
@@ -140,7 +140,7 @@ export function DisplayPinPad({
       aria-busy={busy}
     >
       <motion.div
-        className="flex gap-[clamp(0.75rem,2dvh,1.25rem)]"
+        className="flex gap-[clamp(0.65rem,1.6dvh,1.1rem)]"
         aria-hidden
         animate={
           rejectActive && !reduceMotion
@@ -159,7 +159,7 @@ export function DisplayPinPad({
             <motion.div
               key={i}
               className={cn(
-                "size-[clamp(1.1rem,2.6dvh,1.75rem)] rounded-full border-[3px]",
+                "size-[clamp(1.15rem,2.8dvh,1.85rem)] rounded-full border-[3px]",
                 rejectActive
                   ? "border-destructive bg-destructive/15"
                   : filled
@@ -191,7 +191,7 @@ export function DisplayPinPad({
       </motion.div>
 
       <motion.div
-        className="grid w-full max-w-[min(19rem,72vw)] grid-cols-3 place-items-center gap-[clamp(0.5rem,1.8dvh,1.25rem)]"
+        className="grid w-full max-w-[min(24rem,86vw)] grid-cols-3 place-items-center gap-[clamp(0.45rem,1.4dvh,1rem)]"
         animate={
           rejectActive && !reduceMotion
             ? { x: PIN_REJECT_SHAKE_X }
@@ -218,7 +218,7 @@ export function DisplayPinPad({
                 onClick={backspace}
                 aria-label="Löschen"
               >
-                <Delete className="size-[clamp(1.25rem,3.2dvh,1.75rem)]" />
+                <Delete className="size-[clamp(1.4rem,3.8dvh,2.1rem)]" />
               </Button>
             );
           }

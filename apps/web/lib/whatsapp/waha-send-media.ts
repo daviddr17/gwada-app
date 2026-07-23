@@ -1,4 +1,4 @@
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
 export type WahaOutboundFile = {
@@ -19,7 +19,7 @@ async function wahaPostSend(
     convert?: boolean;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(params.restaurantId);
   if (!config) {
     return { ok: false, error: "waha_not_configured" };
   }

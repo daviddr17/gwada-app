@@ -14,7 +14,7 @@ import {
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchRestaurantOAuthIntegration } from "@/lib/supabase/restaurant-oauth-integration-db";
 import { wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,9 @@ export async function GET(req: Request) {
   let whatsappConnected = false;
   if (waPlatform.ok) {
     const admin = createSupabaseAdminClient();
-    const config = await getWahaServerConfigAdmin();
+    const config = await getWahaServerConfigForRestaurantAdmin(
+      auth.restaurantId,
+    );
     if (admin && config) {
       const session = wahaSessionNameForRestaurant(auth.restaurantId);
       const live = await wahaGetSession(config, session);

@@ -1,5 +1,5 @@
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import {
   wahaStartRecording,
   wahaStartTyping,
@@ -35,12 +35,14 @@ export async function POST(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    auth.restaurantId,
+  );
   if (!config) {
     return Response.json({ error: "waha_not_configured" }, { status: 503 });
   }
 
-  const base = { config, restaurantId, chatId };
+  const base = { config, restaurantId: auth.restaurantId, chatId };
   const result =
     action === "start"
       ? await wahaStartTyping(base)

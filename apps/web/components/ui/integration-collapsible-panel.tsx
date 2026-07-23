@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 type IntegrationCollapsiblePanelProps = {
   title: ReactNode;
-  description: string;
+  description: React.ReactNode;
   icon: ReactNode;
   badges?: ReactNode;
   /** Plattformfarbe für abgeschwächten Hover-Rand. */

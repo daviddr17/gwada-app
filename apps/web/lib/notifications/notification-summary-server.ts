@@ -35,7 +35,7 @@ import type {
   NotificationSummary,
 } from "@/lib/notifications/notification-types";
 import { loadNotificationPreferences } from "@/lib/supabase/user-restaurant-notification-preferences-db";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import { isMetaInboxConnected } from "@/lib/contact-messages/meta-inbox-auth-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -542,7 +542,7 @@ export async function fetchNotificationSummaryServer(
     instagramConnected === undefined
   ) {
     const [wahaConfig, imapCreds, fbConnected, igConnected] = await Promise.all([
-      getWahaServerConfigAdmin(),
+      getWahaServerConfigForRestaurantAdmin(params.restaurantId),
       resolveRestaurantImapCredentials(admin, params.restaurantId),
       facebookConnected === undefined
         ? isMetaInboxConnected(admin, params.restaurantId, "facebook")

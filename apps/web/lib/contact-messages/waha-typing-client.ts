@@ -1,11 +1,3 @@
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
-import {
-  wahaStartRecording,
-  wahaStartTyping,
-  wahaStopRecording,
-  wahaStopTyping,
-} from "@/lib/waha/waha-presence";
-
 export async function setWahaTypingClient(params: {
   restaurantId: string;
   chatId: string;

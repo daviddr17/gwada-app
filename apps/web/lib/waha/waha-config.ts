@@ -1,22 +1,33 @@
 import "server-only";
 
-import { fetchPlatformWhatsappWahaConfigAdmin } from "@/lib/supabase/platform-whatsapp-secrets-db";
+import {
+  isWahaPoolConfiguredAdmin,
+  resolveDefaultWahaServerConfigAdmin,
+  resolveWahaConfigForRestaurantAdmin,
+} from "@/lib/waha/waha-server-pool";
 
 export type WahaServerConfig = {
   baseUrl: string;
   apiKey: string;
+  /** Pool-Server-ID, wenn aus waha_servers aufgelöst. */
+  serverId?: string;
 };
 
 /**
- * WAHA-Zugangsdaten — nur Plattform-DB (Superadmin), niemals .env-Fallback.
- * Nur serverseitig; Key wird niemals an Restaurant-Clients zurückgegeben.
+ * Default-WAHA aus dem Server-Pool (oder Legacy platform_integrations).
+ * Für Call-Sites ohne Restaurant — bei Multi-Server bevorzugt
+ * `getWahaServerConfigForRestaurantAdmin` nutzen.
  */
 export async function getWahaServerConfigAdmin(): Promise<WahaServerConfig | null> {
-  const platform = await fetchPlatformWhatsappWahaConfigAdmin();
-  if (!platform.waha) return null;
-  return platform.waha;
+  return resolveDefaultWahaServerConfigAdmin();
+}
+
+export async function getWahaServerConfigForRestaurantAdmin(
+  restaurantId: string,
+): Promise<WahaServerConfig | null> {
+  return resolveWahaConfigForRestaurantAdmin(restaurantId);
 }
 
 export async function isWahaConfiguredAdmin(): Promise<boolean> {
-  return (await getWahaServerConfigAdmin()) != null;
+  return isWahaPoolConfiguredAdmin();
 }

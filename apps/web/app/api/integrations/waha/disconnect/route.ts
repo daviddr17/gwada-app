@@ -1,6 +1,6 @@
 import { upsertRestaurantWhatsappIntegration } from "@/lib/supabase/restaurant-integrations-db";
 import { authorizeWahaRestaurantRoute } from "@/lib/integrations/waha-route-auth";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaLogoutSession, wahaStopSession } from "@/lib/waha/waha-client";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const waha = await getWahaServerConfigAdmin();
+  const waha = await getWahaServerConfigForRestaurantAdmin(auth.ctx.restaurantId);
   const sessionName = wahaSessionNameForRestaurant(auth.ctx.restaurantId);
 
   if (waha) {

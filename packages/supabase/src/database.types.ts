@@ -3275,6 +3275,7 @@ export type Database = {
           restaurant_id: string
           status: string
           updated_at: string
+          waha_server_id: string | null
           waha_session_name: string
         }
         Insert: {
@@ -3288,6 +3289,7 @@ export type Database = {
           restaurant_id: string
           status?: string
           updated_at?: string
+          waha_server_id?: string | null
           waha_session_name: string
         }
         Update: {
@@ -3301,6 +3303,7 @@ export type Database = {
           restaurant_id?: string
           status?: string
           updated_at?: string
+          waha_server_id?: string | null
           waha_session_name?: string
         }
         Relationships: [
@@ -3309,6 +3312,13 @@ export type Database = {
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_integrations_waha_server_id_fkey"
+            columns: ["waha_server_id"]
+            isOneToOne: false
+            referencedRelation: "waha_servers"
             referencedColumns: ["id"]
           },
         ]
@@ -4571,6 +4581,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      waha_servers: {
+        Row: {
+          accept_new_sessions: boolean
+          api_key: string
+          base_url: string
+          capacity_warning_active: boolean
+          capacity_warning_at: string | null
+          created_at: string
+          enabled: boolean
+          id: string
+          last_health_error: string | null
+          last_health_ok_at: string | null
+          name: string
+          notes: string | null
+          session_limit: number
+          sort_order: number
+          updated_at: string
+          warn_remaining: number
+        }
+        Insert: {
+          accept_new_sessions?: boolean
+          api_key?: string
+          base_url: string
+          capacity_warning_active?: boolean
+          capacity_warning_at?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_health_error?: string | null
+          last_health_ok_at?: string | null
+          name: string
+          notes?: string | null
+          session_limit?: number
+          sort_order?: number
+          updated_at?: string
+          warn_remaining?: number
+        }
+        Update: {
+          accept_new_sessions?: boolean
+          api_key?: string
+          base_url?: string
+          capacity_warning_active?: boolean
+          capacity_warning_at?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_health_error?: string | null
+          last_health_ok_at?: string | null
+          name?: string
+          notes?: string | null
+          session_limit?: number
+          sort_order?: number
+          updated_at?: string
+          warn_remaining?: number
+        }
+        Relationships: []
       }
     }
     Views: {

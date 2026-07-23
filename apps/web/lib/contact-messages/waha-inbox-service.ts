@@ -37,7 +37,7 @@ import {
 } from "@/lib/waha/waha-inbox";
 import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
 import { wahaLastMessagePreview } from "@/lib/waha/waha-last-message-preview";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import type {
   ContactMessageReaction,
@@ -81,7 +81,7 @@ export async function fetchWahaInboxConversations(
   restaurantId: string,
   options?: { skipDisplayNameResolve?: boolean; overviewLimit?: number },
 ): Promise<{ data: ContactConversationPreview[]; error: string | null }> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
   if (!config) {
     return { data: [], error: "waha_not_configured" };
   }
@@ -307,7 +307,9 @@ export async function fetchWahaThreadMessages(
   hasMore: boolean;
   error: string | null;
 }> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    params.restaurantId,
+  );
   if (!config) {
     return { data: [], hasMore: false, error: "waha_not_configured" };
   }

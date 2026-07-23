@@ -38,7 +38,7 @@ jobs:
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
-          bash scripts/run-live-sql-ci.sh scripts/diagnose-display-todos-zurschlagd.sql
+          bash scripts/run-live-sql-ci.sh scripts/diagnose-display-todos-zurschlagd-detail.sql
 
       - name: Grep live app logs for display todos
         env:
@@ -47,15 +47,21 @@ jobs:
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" bash <<'REMOTE'
           set -euo pipefail
-          c="$(docker ps --format '{{.Names}}' | grep -E 'gwada|coolify' | head -20 || true)"
-          echo "containers:"
-          echo "$c"
+          echo "=== all containers ==="
+          docker ps --format '{{.Names}}\t{{.Image}}' | head -80
+          echo "=== recent app logs ==="
           for name in $(docker ps --format '{{.Names}}'); do
-            case "$name" in
-              *gwada*|*web*|*app*)
-                echo "=== logs $name ==="
-                docker logs --since 2h "$name" 2>&1 | grep -E 'display todos|todos_fetch|/api/display/todos|Checklisten' | tail -40 || true
+            img="$(docker inspect -f '{{.Config.Image}}' "$name" 2>/dev/null || true)"
+            case "$img" in
+              *gwada-app*|*daviddr17/gwada*)
+                echo "=== logs $name ($img) ==="
+                docker logs --since 6h "$name" 2>&1 | grep -Ei 'display todos|todos_fetch|/api/display/todos|staff todo|Checklisten|prepare_pin|prepare_trigger|Error|ERROR' | tail -60 || true
                 ;;
             esac
           done
+          # also Traefik/coolify proxy access if any
+          if docker ps --format '{{.Names}}' | grep -qx coolify-proxy; then
+            echo "=== coolify-proxy recent display/todos ==="
+            docker logs --since 6h coolify-proxy 2>&1 | grep -E 'display/todos' | tail -30 || true
+          fi
           REMOTE

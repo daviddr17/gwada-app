@@ -56,6 +56,11 @@ import {
   parseLocalDayKey,
   viewRangeUtcIso,
 } from "@/lib/staff/shift-schedule-range";
+import {
+  clockTimesFromScheduledShift,
+  findOverlappingScheduledShift,
+  formatShiftPlanWeekApplyToast,
+} from "@/lib/staff/shift-plan-overlap";
 import { fetchStaffForRestaurant, fetchStaffContractsForRestaurant, fetchStaffWorkEntriesInRange, deleteStaffWorkEntry, upsertStaffWorkEntry } from "@/lib/supabase/staff-db";
 import {
   createScheduledShiftsBatch,
@@ -548,10 +553,77 @@ export function StaffShiftPlanScreen({
     const multiDay = targetDays.length > 1;
 
     if (dragData.type === "shift") {
+      const shift = shifts.find((s) => s.id === dragData.shiftId);
+      if (!shift) return;
+      const clock = clockTimesFromScheduledShift(shift);
+
       if (multiDay) {
-        toast.info("Schichten bitte auf einen einzelnen Tag ziehen.");
+        let skippedAbsence = 0;
+        let skippedOverlap = 0;
+        const toCreate = [];
+        for (const { dayKey, day } of targetDays) {
+          if (findStaffAbsenceOnDay(absenceEntries, staffId, dayKey)) {
+            skippedAbsence += 1;
+            continue;
+          }
+          const times = applyTemplateTimesToDay(
+            day,
+            clock.startTime,
+            clock.endTime,
+          );
+          if (
+            findOverlappingScheduledShift(times, shifts, {
+              staffId,
+              dayKey,
+            })
+          ) {
+            skippedOverlap += 1;
+            continue;
+          }
+          toCreate.push({
+            restaurantId,
+            staffId,
+            startsAt: times.startsAt,
+            endsAt: times.endsAt,
+            templateId: shift.template_id,
+            label: shift.label,
+            status: (requiresAcceptance ? "pending" : "confirmed") as
+              | "pending"
+              | "confirmed",
+          });
+        }
+
+        const feedback = formatShiftPlanWeekApplyToast({
+          created: toCreate.length,
+          skippedAbsence,
+          skippedOverlap,
+          multiDay: true,
+        });
+        if (toCreate.length === 0) {
+          toast.error(feedback.message);
+          return;
+        }
+
+        const { data: createdRows, error } =
+          await createScheduledShiftsBatch(toCreate);
+        if (error || createdRows.length === 0) {
+          toast.error(error ?? "Schicht konnte nicht geplant werden.");
+          return;
+        }
+
+        setShifts((prev) => [...prev, ...createdRows]);
+        const finalFeedback = formatShiftPlanWeekApplyToast({
+          created: createdRows.length,
+          skippedAbsence,
+          skippedOverlap,
+          multiDay: true,
+        });
+        if (finalFeedback.type === "info") toast.info(finalFeedback.message);
+        else toast.success(finalFeedback.message);
+        void reload({ quiet: true });
         return;
       }
+
       const { dayKey, day } = targetDays[0]!;
       const existingAbsence = findStaffAbsenceOnDay(
         absenceEntries,
@@ -564,23 +636,35 @@ export function StaffShiftPlanScreen({
         );
         return;
       }
-      const shift = shifts.find((s) => s.id === dragData.shiftId);
-      if (!shift) return;
       const oldStart = new Date(shift.starts_at);
       const oldEnd = new Date(shift.ends_at);
       const durationMs = oldEnd.getTime() - oldStart.getTime();
       const newStart = applyTemplateTimesToDay(
         day,
-        `${String(oldStart.getHours()).padStart(2, "0")}:${String(oldStart.getMinutes()).padStart(2, "0")}:00`,
-        `${String(oldEnd.getHours()).padStart(2, "0")}:${String(oldEnd.getMinutes()).padStart(2, "0")}:00`,
+        clock.startTime,
+        clock.endTime,
       );
       const starts = new Date(newStart.startsAt);
       const ends = new Date(starts.getTime() + durationMs);
+      const moveTimes = {
+        startsAt: starts.toISOString(),
+        endsAt: ends.toISOString(),
+      };
+      if (
+        findOverlappingScheduledShift(moveTimes, shifts, {
+          staffId,
+          dayKey,
+          excludeShiftId: shift.id,
+        })
+      ) {
+        toast.error("Zu dieser Zeit gibt es bereits eine Schicht.");
+        return;
+      }
       const { error } = await updateScheduledShift({
         id: shift.id,
         staffId,
-        startsAt: starts.toISOString(),
-        endsAt: ends.toISOString(),
+        startsAt: moveTimes.startsAt,
+        endsAt: moveTimes.endsAt,
         status: requiresAcceptance ? "pending" : shift.status,
       });
       if (error) toast.error(error);
@@ -593,6 +677,7 @@ export function StaffShiftPlanScreen({
       if (!template) return;
 
       let skippedAbsence = 0;
+      let skippedOverlap = 0;
       const toCreate = [];
       for (const { dayKey, day } of targetDays) {
         if (findStaffAbsenceOnDay(absenceEntries, staffId, dayKey)) {
@@ -604,6 +689,15 @@ export function StaffShiftPlanScreen({
           template.start_time,
           template.end_time,
         );
+        if (
+          findOverlappingScheduledShift(times, shifts, {
+            staffId,
+            dayKey,
+          })
+        ) {
+          skippedOverlap += 1;
+          continue;
+        }
         toCreate.push({
           restaurantId,
           staffId,
@@ -617,14 +711,14 @@ export function StaffShiftPlanScreen({
         });
       }
 
+      const feedback = formatShiftPlanWeekApplyToast({
+        created: toCreate.length,
+        skippedAbsence,
+        skippedOverlap,
+        multiDay,
+      });
       if (toCreate.length === 0) {
-        toast.error(
-          skippedAbsence > 0
-            ? multiDay
-              ? "An diesen Tagen ist bereits Urlaub/Krank eingetragen."
-              : "An diesem Tag ist bereits eine Abwesenheit eingetragen."
-            : "Schicht konnte nicht geplant werden.",
-        );
+        toast.error(feedback.message);
         return;
       }
 
@@ -636,18 +730,14 @@ export function StaffShiftPlanScreen({
       }
 
       setShifts((prev) => [...prev, ...createdRows]);
-      const created = createdRows.length;
-      if (multiDay) {
-        const skipHint =
-          skippedAbsence > 0
-            ? ` · ${skippedAbsence} Tag${skippedAbsence === 1 ? "" : "e"} übersprungen`
-            : "";
-        toast.success(
-          `${created} Schicht${created === 1 ? "" : "en"} für die Woche geplant.${skipHint}`,
-        );
-      } else {
-        toast.success("Schicht geplant.");
-      }
+      const finalFeedback = formatShiftPlanWeekApplyToast({
+        created: createdRows.length,
+        skippedAbsence,
+        skippedOverlap,
+        multiDay,
+      });
+      if (finalFeedback.type === "info") toast.info(finalFeedback.message);
+      else toast.success(finalFeedback.message);
       void reload({ quiet: true });
       return;
     }
@@ -1091,6 +1181,7 @@ export function StaffShiftPlanScreen({
             restaurantId={restaurantId}
             staffRows={staffRows}
             templates={templates}
+            existingShifts={shifts}
             shift={editShift}
             defaultStaffId={defaultStaffId}
             defaultDay={defaultDay}

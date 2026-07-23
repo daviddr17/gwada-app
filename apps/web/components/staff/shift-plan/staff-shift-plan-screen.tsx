@@ -61,6 +61,7 @@ import {
   findOverlappingScheduledShift,
   formatShiftPlanWeekApplyToast,
 } from "@/lib/staff/shift-plan-overlap";
+import { ensureRestaurantOwnerStaffClient } from "@/lib/staff/ensure-owner-staff-client";
 import { fetchStaffForRestaurant, fetchStaffContractsForRestaurant, fetchStaffWorkEntriesInRange, deleteStaffWorkEntry, upsertStaffWorkEntry } from "@/lib/supabase/staff-db";
 import {
   createScheduledShiftsBatch,
@@ -313,6 +314,8 @@ export function StaffShiftPlanScreen({
     setBootstrapping(true);
 
     void (async () => {
+      await ensureRestaurantOwnerStaffClient(restaurantId);
+      if (cancelled) return;
       const [staffRes, templateRes, settingsRes, contractsRes] =
         await Promise.all([
           fetchStaffForRestaurant(restaurantId),
@@ -352,6 +355,7 @@ export function StaffShiftPlanScreen({
 
   const reloadStaffRows = useCallback(async () => {
     if (!restaurantId) return;
+    await ensureRestaurantOwnerStaffClient(restaurantId);
     const { data, error } = await fetchStaffForRestaurant(restaurantId);
     if (error) toast.error(error);
     else setStaffRows(data.filter((s) => s.is_active));

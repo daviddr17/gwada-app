@@ -6,6 +6,11 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCssVarElementHeight } from "@/lib/hooks/use-css-var-element-height";
+import {
+  STAFF_MODULE_STICKY_BAR_H_VAR,
+  STAFF_WORK_HOURS_MONTH_BAR_H_VAR,
+} from "@/lib/staff/staff-sticky-chrome";
 import {
   Select,
   SelectContent,
@@ -152,6 +157,8 @@ export function StaffWorkHoursView({
   const { cursor, setMonth, setYear, goToMonth, prevMonth, nextMonth } =
     useMonthCursor();
   const pendingScrollToTodayRef = useRef(false);
+  const monthStickyRef = useRef<HTMLDivElement>(null);
+  useCssVarElementHeight(monthStickyRef, STAFF_WORK_HOURS_MONTH_BAR_H_VAR);
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -394,18 +401,28 @@ export function StaffWorkHoursView({
         <StaffWorkHoursSkeleton />
       ) : (
         <>
-          <Card className="mb-4 border-border/50 shadow-card">
-            <CardContent className="flex flex-wrap items-center gap-2 px-4 py-3">
-              <div className="flex min-w-0 items-center gap-1">
+          <div
+            ref={monthStickyRef}
+            style={{
+              top: `var(${STAFF_MODULE_STICKY_BAR_H_VAR}, 4.75rem)`,
+            }}
+            className={cn(
+              "sticky z-20 -mx-4 mb-4 border-b border-border/50 bg-app-chrome px-4 py-1.5 sm:-mx-6 sm:px-6 sm:py-2.5",
+              "transition-[padding,top] duration-200 ease-out",
+              "supports-[backdrop-filter]:bg-app-chrome/95 supports-[backdrop-filter]:backdrop-blur",
+            )}
+          >
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-9 shrink-0 rounded-lg"
+                  className="size-8 shrink-0 rounded-lg transition-[width,height] duration-200 ease-out sm:size-9"
                   onClick={prevMonth}
                   aria-label="Vorheriger Monat"
                 >
-                  <ChevronLeft className="size-5" />
+                  <ChevronLeft className="size-4 sm:size-5" />
                 </Button>
                 <Select
                   value={String(cursor.month)}
@@ -417,7 +434,7 @@ export function StaffWorkHoursView({
                   <SelectTrigger
                     size="sm"
                     className={appSelectTriggerAccentCn(
-                      "h-9 min-h-9 min-w-[9.5rem] max-w-[12rem] shrink-0 rounded-xl px-2.5 text-left text-sm font-normal",
+                      "h-8 min-h-8 min-w-[8.25rem] max-w-[11rem] shrink-0 rounded-xl px-2 text-left text-sm font-normal transition-[height,min-height,min-width] duration-200 ease-out sm:h-9 sm:min-h-9 sm:min-w-[9.5rem] sm:max-w-[12rem] sm:px-2.5",
                       selectValueNoShrink,
                     )}
                   >
@@ -441,7 +458,7 @@ export function StaffWorkHoursView({
                   <SelectTrigger
                     size="sm"
                     className={appSelectTriggerAccentCn(
-                      "h-9 min-h-9 min-w-[4.75rem] w-auto shrink-0 rounded-xl px-2.5 text-left text-sm font-normal tabular-nums",
+                      "h-8 min-h-8 min-w-[4.25rem] w-auto shrink-0 rounded-xl px-2 text-left text-sm font-normal tabular-nums transition-[height,min-height] duration-200 ease-out sm:h-9 sm:min-h-9 sm:min-w-[4.75rem] sm:px-2.5",
                       selectValueNoShrink,
                     )}
                   >
@@ -462,24 +479,24 @@ export function StaffWorkHoursView({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-9 shrink-0 rounded-lg"
+                  className="size-8 shrink-0 rounded-lg transition-[width,height] duration-200 ease-out sm:size-9"
                   onClick={nextMonth}
                   aria-label="Nächster Monat"
                 >
-                  <ChevronRight className="size-5" />
+                  <ChevronRight className="size-4 sm:size-5" />
                 </Button>
               </div>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-3 text-sm font-medium text-green-800 hover:bg-green-500/15 hover:text-green-900 dark:text-green-200 dark:hover:text-green-100"
+                className="h-7 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-2.5 text-xs font-medium text-green-800 transition-[height,padding,font-size] duration-200 ease-out hover:bg-green-500/15 hover:text-green-900 sm:h-8 sm:px-3 sm:text-sm dark:text-green-200 dark:hover:text-green-100"
                 onClick={goToToday}
               >
                 Heute
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <StaffCollapsibleCard
             title={
@@ -727,8 +744,11 @@ export function StaffWorkHoursView({
                 <Card
                   key={key}
                   id={workHoursDayDomId(key)}
+                  style={{
+                    scrollMarginTop: `calc(var(${STAFF_MODULE_STICKY_BAR_H_VAR}, 4.75rem) + var(${STAFF_WORK_HOURS_MONTH_BAR_H_VAR}, 3rem) + 0.5rem)`,
+                  }}
                   className={cn(
-                    "scroll-mt-28 border-border/50 shadow-card",
+                    "border-border/50 shadow-card",
                     isToday && "ring-1 ring-green-500/25 dark:ring-green-400/20",
                   )}
                 >

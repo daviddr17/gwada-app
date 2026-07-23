@@ -238,6 +238,18 @@ export type RestaurantStaffWorkEntryRow = {
   shift_id?: string | null;
 };
 
+/** Lohnvorschuss — Abzug in der Monatsabrechnung (paid_on). */
+export type RestaurantStaffWageAdvanceRow = {
+  id: string;
+  restaurant_id: string;
+  staff_id: string;
+  amount_cents: number;
+  paid_on: string;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type StaffLivePresenceRow = {
   staff_id: string;
   status: Exclude<StaffPresenceStatus, "off">;

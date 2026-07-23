@@ -4282,6 +4282,57 @@ export type Database = {
           },
         ]
       }
+      restaurant_staff_wage_advances: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          paid_on: string
+          restaurant_id: string
+          staff_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_on: string
+          restaurant_id: string
+          staff_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_on?: string
+          restaurant_id?: string
+          staff_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_staff_wage_advances_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_staff_wage_advances_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_staff_work_entries: {
         Row: {
           created_at: string

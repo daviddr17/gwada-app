@@ -21,6 +21,7 @@ import {
 import { StaffCollapsibleCard } from "@/components/staff/staff-collapsible-card";
 import { StaffWorkHoursSkeleton } from "@/components/staff/staff-work-hours-skeleton";
 import { StaffWorkEntryDrawer } from "@/components/staff/staff-work-entry-drawer";
+import { StaffWageAdvancesSection } from "@/components/staff/staff-wage-advances-section";
 import {
   daysInclusive,
   exclusiveUtcIsoAfterLocalVisibleEnd,
@@ -729,6 +730,16 @@ export function StaffWorkHoursView({
                 </div>
               </div>
             )}
+            {staffId ? (
+              <StaffWageAdvancesSection
+                restaurantId={restaurantId}
+                staffId={staffId}
+                paidOnFromYmd={localDayKey(monthStart)}
+                paidOnToYmd={localDayKey(monthEnd)}
+                wageCents={payrollWageTotalCents}
+                allowEdit={allowEdit}
+              />
+            ) : null}
           </StaffCollapsibleCard>
 
           <div className="space-y-3">

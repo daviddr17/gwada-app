@@ -394,6 +394,93 @@ export function StaffWorkHoursView({
         <StaffWorkHoursSkeleton />
       ) : (
         <>
+          <Card className="mb-4 border-border/50 shadow-card">
+            <CardContent className="flex flex-wrap items-center gap-2 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-lg"
+                  onClick={prevMonth}
+                  aria-label="Vorheriger Monat"
+                >
+                  <ChevronLeft className="size-5" />
+                </Button>
+                <Select
+                  value={String(cursor.month)}
+                  items={GERMAN_MONTH_ITEMS}
+                  onValueChange={(v) => {
+                    if (typeof v === "string") setMonth(Number.parseInt(v, 10));
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className={appSelectTriggerAccentCn(
+                      "h-9 min-h-9 min-w-[9.5rem] max-w-[12rem] shrink-0 rounded-xl px-2.5 text-left text-sm font-normal",
+                      selectValueNoShrink,
+                    )}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, m) => (
+                      <SelectItem key={m} value={String(m)}>
+                        {GERMAN_MONTH_ITEMS[String(m)]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(cursor.year)}
+                  items={yearItems}
+                  onValueChange={(v) => {
+                    if (typeof v === "string") setYear(Number.parseInt(v, 10));
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className={appSelectTriggerAccentCn(
+                      "h-9 min-h-9 min-w-[4.75rem] w-auto shrink-0 rounded-xl px-2.5 text-left text-sm font-normal tabular-nums",
+                      selectValueNoShrink,
+                    )}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: yearMax - yearMin + 1 }, (_, i) => {
+                      const y = yearMin + i;
+                      return (
+                        <SelectItem key={y} value={String(y)}>
+                          {y}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-lg"
+                  onClick={nextMonth}
+                  aria-label="Nächster Monat"
+                >
+                  <ChevronRight className="size-5" />
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-3 text-sm font-medium text-green-800 hover:bg-green-500/15 hover:text-green-900 dark:text-green-200 dark:hover:text-green-100"
+                onClick={goToToday}
+              >
+                Heute
+              </Button>
+            </CardContent>
+          </Card>
+
           <StaffCollapsibleCard
             title={
               staff
@@ -626,93 +713,6 @@ export function StaffWorkHoursView({
               </div>
             )}
           </StaffCollapsibleCard>
-
-          <Card className="mb-4 border-border/50 shadow-card">
-            <CardContent className="flex flex-wrap items-center gap-2 px-4 py-3">
-              <div className="flex min-w-0 items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-9 shrink-0 rounded-lg"
-                  onClick={prevMonth}
-                  aria-label="Vorheriger Monat"
-                >
-                  <ChevronLeft className="size-5" />
-                </Button>
-                <Select
-                  value={String(cursor.month)}
-                  items={GERMAN_MONTH_ITEMS}
-                  onValueChange={(v) => {
-                    if (typeof v === "string") setMonth(Number.parseInt(v, 10));
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className={appSelectTriggerAccentCn(
-                      "h-9 min-h-9 min-w-[9.5rem] max-w-[12rem] shrink-0 rounded-xl px-2.5 text-left text-sm font-normal",
-                      selectValueNoShrink,
-                    )}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 12 }, (_, m) => (
-                      <SelectItem key={m} value={String(m)}>
-                        {GERMAN_MONTH_ITEMS[String(m)]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={String(cursor.year)}
-                  items={yearItems}
-                  onValueChange={(v) => {
-                    if (typeof v === "string") setYear(Number.parseInt(v, 10));
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className={appSelectTriggerAccentCn(
-                      "h-9 min-h-9 min-w-[4.75rem] w-auto shrink-0 rounded-xl px-2.5 text-left text-sm font-normal tabular-nums",
-                      selectValueNoShrink,
-                    )}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: yearMax - yearMin + 1 }, (_, i) => {
-                      const y = yearMin + i;
-                      return (
-                        <SelectItem key={y} value={String(y)}>
-                          {y}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-9 shrink-0 rounded-lg"
-                  onClick={nextMonth}
-                  aria-label="Nächster Monat"
-                >
-                  <ChevronRight className="size-5" />
-                </Button>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-3 text-sm font-medium text-green-800 hover:bg-green-500/15 hover:text-green-900 dark:text-green-200 dark:hover:text-green-100"
-                onClick={goToToday}
-              >
-                Heute
-              </Button>
-            </CardContent>
-          </Card>
 
           <div className="space-y-3">
             {monthDays.map((day) => {

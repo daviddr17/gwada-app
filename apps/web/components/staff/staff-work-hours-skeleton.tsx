@@ -27,6 +27,16 @@ export function StaffWorkHoursSkeleton({
       className={cn("pointer-events-none space-y-4", className)}
       {...props}
     >
+      <SkeletonCardFrame className="flex items-center gap-2 px-4 py-3 shadow-card">
+        <div className="flex items-center gap-1">
+          <Skeleton className="size-9 rounded-lg" />
+          <Skeleton className="h-9 w-[9.5rem] rounded-xl" />
+          <Skeleton className="h-9 w-[4.75rem] rounded-xl" />
+          <Skeleton className="size-9 rounded-lg" />
+        </div>
+        <Skeleton className="h-8 w-16 rounded-full" />
+      </SkeletonCardFrame>
+
       <SkeletonCardFrame className="shadow-card">
         <Skeleton className="mb-3 h-5 w-48 max-w-[75%]" />
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -36,13 +46,8 @@ export function StaffWorkHoursSkeleton({
         </div>
       </SkeletonCardFrame>
 
-      <SkeletonCardFrame className="flex items-center px-4 py-3 shadow-card">
-        <div className="flex items-center gap-1">
-          <Skeleton className="size-9 rounded-lg" />
-          <Skeleton className="h-9 w-[9.5rem] rounded-xl" />
-          <Skeleton className="h-9 w-[4.75rem] rounded-xl" />
-          <Skeleton className="size-9 rounded-lg" />
-        </div>
+      <SkeletonCardFrame className="shadow-card">
+        <Skeleton className="h-5 w-36 max-w-[60%]" />
       </SkeletonCardFrame>
 
       <div className="space-y-3">

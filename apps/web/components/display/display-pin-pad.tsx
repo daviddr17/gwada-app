@@ -117,15 +117,30 @@ export function DisplayPinPad({
 
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
 
+  /** Skaliert mit Viewport-Höhe — kurze Tablets behalten Abstand zu Header/Footer. */
+  const keySizeClassName =
+    "h-[clamp(2.75rem,min(18vw,9dvh),5rem)] w-[clamp(2.75rem,min(18vw,9dvh),5rem)] p-0";
+  const keyClassName = cn(
+    keySizeClassName,
+    "rounded-full border-border/60 shadow-sm",
+  );
+  const keyDigitClassName = cn(
+    keyClassName,
+    "text-[clamp(1.35rem,4.2dvh,1.875rem)] font-semibold",
+  );
+
   return (
     <div
-      className={cn("flex flex-col items-center gap-8", className)}
+      className={cn(
+        "flex flex-col items-center gap-[clamp(0.875rem,3dvh,2rem)]",
+        className,
+      )}
       role="group"
       aria-label="PIN-Eingabe. Zifferntasten der Tastatur werden ebenfalls akzeptiert."
       aria-busy={busy}
     >
       <motion.div
-        className="flex gap-5"
+        className="flex gap-[clamp(0.75rem,2dvh,1.25rem)]"
         aria-hidden
         animate={
           rejectActive && !reduceMotion
@@ -144,7 +159,7 @@ export function DisplayPinPad({
             <motion.div
               key={i}
               className={cn(
-                "size-7 rounded-full border-[3px]",
+                "size-[clamp(1.1rem,2.6dvh,1.75rem)] rounded-full border-[3px]",
                 rejectActive
                   ? "border-destructive bg-destructive/15"
                   : filled
@@ -176,7 +191,7 @@ export function DisplayPinPad({
       </motion.div>
 
       <motion.div
-        className="grid w-full max-w-[17rem] grid-cols-3 place-items-center gap-4 sm:max-w-[19rem] sm:gap-5"
+        className="grid w-full max-w-[min(19rem,72vw)] grid-cols-3 place-items-center gap-[clamp(0.5rem,1.8dvh,1.25rem)]"
         animate={
           rejectActive && !reduceMotion
             ? { x: PIN_REJECT_SHAKE_X }
@@ -190,7 +205,7 @@ export function DisplayPinPad({
       >
         {digits.map((d, idx) => {
           if (d === "") {
-            return <div key={`empty-${idx}`} className="size-[4.5rem] sm:size-20" />;
+            return <div key={`empty-${idx}`} className={keyEmptyClassName} />;
           }
           if (d === "del") {
             return (
@@ -198,12 +213,12 @@ export function DisplayPinPad({
                 key="del"
                 type="button"
                 variant="outline"
-                className="size-[4.5rem] rounded-full border-border/60 text-lg shadow-sm sm:size-20"
+                className={keyClassName}
                 disabled={disabled || busy || value.length === 0}
                 onClick={backspace}
                 aria-label="Löschen"
               >
-                <Delete className="size-7" />
+                <Delete className="size-[clamp(1.25rem,3.2dvh,1.75rem)]" />
               </Button>
             );
           }
@@ -212,7 +227,7 @@ export function DisplayPinPad({
               key={d}
               type="button"
               variant="outline"
-              className="size-[4.5rem] rounded-full border-border/60 text-3xl font-semibold shadow-sm sm:size-20"
+              className={keyDigitClassName}
               disabled={disabled || busy}
               onClick={() => pushDigit(d)}
             >
@@ -223,7 +238,6 @@ export function DisplayPinPad({
       </motion.div>
     </div>
   );
-}
 
 export function DisplayLockOverlay({
   open,
@@ -278,7 +292,6 @@ export function DisplayLockOverlay({
           <DisplayPinStandbyScene
             accentHex={accentHex}
             enabled={open}
-            className="gap-5 py-8"
           >
             <div className="flex items-center gap-2 text-muted-foreground">
               <Lock className="size-5" />

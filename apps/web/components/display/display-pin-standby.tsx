@@ -65,10 +65,10 @@ export function DisplayPinStandbyClock({
 
   return (
     <div className={cn("select-none text-center", className)}>
-      <p className="text-[clamp(3.5rem,14vw,6.5rem)] font-extralight leading-none tracking-tight tabular-nums text-foreground">
+      <p className="text-[clamp(2.5rem,min(14vw,11dvh),6.5rem)] font-extralight leading-none tracking-tight tabular-nums text-foreground">
         {timeLabel}
       </p>
-      <p className="mt-3 text-lg font-medium capitalize text-foreground/85 sm:text-xl">
+      <p className="mt-[clamp(0.4rem,1.4dvh,0.75rem)] text-[clamp(0.95rem,2.4dvh,1.25rem)] font-medium capitalize text-foreground/85">
         {dateLabel}
       </p>
     </div>
@@ -92,11 +92,12 @@ export function DisplayPinStandbyScene({
   }
 
   return (
-    <div className="relative flex min-h-0 w-full flex-1 flex-col">
+    <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
       <DisplayPinStandbyBackground accentHex={accentHex} />
       <div
         className={cn(
-          "relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-6 py-6",
+          // Fester Abstand zu sticky Header/Footer; Inhalt skaliert mit dvh statt zu kleben.
+          "relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(0.875rem,3.2dvh,2rem)] px-6 py-[clamp(1rem,3.5dvh,1.75rem)]",
           className,
         )}
       >

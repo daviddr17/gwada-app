@@ -130,7 +130,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "DashboardBatchPrefetchMount im App-Layout (Workspace ready)",
       "Mount Dashboard-Startseite (nur sichtbare Widgets)",
       "React Query refetchInterval 60s (sichtbarer Tab)",
-      "Tab-Focus nach staleTime",
+      "Kein Tab-Focus-Refetch (außer Realtime/Invalidierung)",
     ],
     invalidateTriggers: [
       "Realtime Reservierungen / Team / Nachrichten",

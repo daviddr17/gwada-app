@@ -6,7 +6,10 @@ import { APP_MOBILE_BOTTOM_NAV_BAR_H, appMobileBottomSafePbClassName } from "@/l
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import { cn } from "@/lib/utils";
 
-/** Vollflächiger Bootstrap — blockiert Klicks bis Shell wirklich bereit ist. */
+/**
+ * Vollflächiger Bootstrap-Skeleton.
+ * Wird nur kurz gemountet (AppShellReadiness) — Failsafe begrenzt die Klick-Sperre.
+ */
 export function AppShellBootstrapOverlay() {
   return (
     <div

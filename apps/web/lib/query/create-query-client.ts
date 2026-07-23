@@ -1,7 +1,11 @@
 import { QueryClient, focusManager } from "@tanstack/react-query";
 
-/** Kurz nach Tab-Fokus — Klicks/Navigation vor dem Refetch-Burst. */
-const FOCUS_REFETCH_DEFER_MS = 280;
+/**
+ * Nach Tab-Rückkehr: erst Klicks/Paint, dann Refetch-Burst.
+ * visibilitychange + focus werden zu einem Lauf zusammengeführt.
+ */
+const FOCUS_REFETCH_MIN_DELAY_MS = 600;
+const FOCUS_REFETCH_IDLE_TIMEOUT_MS = 2_500;
 
 /** Standard-SWR: Modulwechsel zeigt Cache sofort, Refetch nur wenn stale. */
 const DEFAULT_QUERY_STALE_MS = 60_000;
@@ -14,17 +18,62 @@ function configureDeferredFocusRefetch(): void {
   focusListenerConfigured = true;
 
   focusManager.setEventListener((handleFocus) => {
-    const onFocus = () => {
-      if (document.visibilityState !== "visible") return;
-      window.setTimeout(handleFocus, FOCUS_REFETCH_DEFER_MS);
+    let delayTimer: number | null = null;
+    let idleId: number | null = null;
+
+    const clearPending = () => {
+      if (delayTimer != null) {
+        window.clearTimeout(delayTimer);
+        delayTimer = null;
+      }
+      if (idleId != null && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+        idleId = null;
+      }
     };
 
-    window.addEventListener("visibilitychange", onFocus, false);
-    window.addEventListener("focus", onFocus, false);
+    const runFocusedTrue = () => {
+      delayTimer = null;
+      idleId = null;
+      // Boolean → setFocused nur bei Wechsel (kein Doppel-Refetch).
+      handleFocus(true);
+    };
+
+    const scheduleVisibleFocus = () => {
+      // visibilitychange + window focus → ein einziger deferred Lauf.
+      if (delayTimer != null || idleId != null) return;
+
+      delayTimer = window.setTimeout(() => {
+        delayTimer = null;
+        if (document.visibilityState !== "visible") return;
+
+        if ("requestIdleCallback" in window) {
+          idleId = window.requestIdleCallback(runFocusedTrue, {
+            timeout: FOCUS_REFETCH_IDLE_TIMEOUT_MS,
+          });
+          return;
+        }
+        runFocusedTrue();
+      }, FOCUS_REFETCH_MIN_DELAY_MS);
+    };
+
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState !== "visible") {
+        clearPending();
+        // Explizit unfocused — sonst bleibt der Manager „true“ und Resume ist wirkungslos.
+        handleFocus(false);
+        return;
+      }
+      scheduleVisibleFocus();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityOrFocus, false);
+    window.addEventListener("focus", onVisibilityOrFocus, false);
 
     return () => {
-      window.removeEventListener("visibilitychange", onFocus);
-      window.removeEventListener("focus", onFocus);
+      clearPending();
+      document.removeEventListener("visibilitychange", onVisibilityOrFocus);
+      window.removeEventListener("focus", onVisibilityOrFocus);
     };
   });
 }

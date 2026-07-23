@@ -291,12 +291,13 @@ export type UpdateIngredientOptions = {
   stockDeliveryRevert?: { orderId: string; supplierName: string };
 };
 
-export function useIngredientsStorage() {
+export function useIngredientsStorage(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const supabaseOnly = isSupabaseOnlyMode();
   const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
   const useDbInventory = inventoryRelationalPersistenceEnabled();
+  const queryEnabled = options?.enabled !== false;
 
   const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(() =>
     supabaseOnly ? [] : [...SEED_INGREDIENTS],
@@ -309,7 +310,11 @@ export function useIngredientsStorage() {
   const ingredientsQuery = useQuery({
     queryKey: queryKeys.inventory.ingredients(restaurantId ?? ""),
     queryFn: fetchIngredientsForRestaurant,
-    enabled: useDbInventory && workspaceReady && Boolean(restaurantId),
+    enabled:
+      queryEnabled &&
+      useDbInventory &&
+      workspaceReady &&
+      Boolean(restaurantId),
     staleTime: getModuleCacheStaleTime("inventoryModule") ?? 60_000,
     gcTime: getModuleCacheGcTime("inventoryModule") ?? 5 * 60_000,
     placeholderData: (previous) =>

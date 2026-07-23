@@ -66,6 +66,11 @@ export function dashboardBatchSummaryQueryOptions(
     },
     staleTime: DASHBOARD_SUMMARY_STALE_MS,
     gcTime: DASHBOARD_SUMMARY_GC_MS,
+    /**
+     * Kein Focus-Refetch: Batch ist teuer und blockiert sonst Klicks nach Tab-Idle.
+     * Frische kommt über refetchInterval (sichtbarer Tab), Realtime-Patches und Invalidierung.
+     */
+    refetchOnWindowFocus: false as const,
     refetchInterval: () =>
       typeof document !== "undefined" &&
       document.visibilityState === "visible"

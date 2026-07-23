@@ -93,6 +93,7 @@ final class PosRuntime: ObservableObject {
                     email: session.email
                 )
                 syncWaiterCapsToHub()
+                await resolveRestaurantIdIfNeeded(userId: session.userId)
             }
             if role == .handheld {
                 await startHandheldSolo(preferCloud: true)
@@ -114,19 +115,68 @@ final class PosRuntime: ObservableObject {
         PosCloudConfig.setNestClientFallbackEnabled(true)
         PosHubState.shared.configure(hubDeviceId: hubDeviceId)
         isSignedIn = PosAuthStore.shared.isSignedIn
+        var cloudNote = ""
         if preferCloud || isSignedIn {
-            await pullCloudBootstrap(forceDemoFallback: true)
+            cloudNote = await pullCloudBootstrap(forceDemoFallback: true)
         } else {
             PosHubState.shared.loadCachedOrDemo()
         }
         publishSnapshot(PosHubState.shared.makeSnapshot())
         dataSourceLabel = PosHubState.shared.isDemo ? "Solo · Demo/Cache" : "Solo · Cloud"
         phase = .connected
-        statusMessage = isSignedIn
-            ? "Solo-Modus (ohne Kasse) — Cloud/Nest aktiv."
-            : "Solo-Modus (ohne Kasse) — Demo-Daten. Optional anmelden für Cloud."
+        let menuCount = PosHubState.shared.menu?.items.count ?? 0
+        let tableCount = snapshot?.floor.tables.count ?? 0
+        if cloudNote.isEmpty {
+            statusMessage = isSignedIn
+                ? "Solo — \(tableCount) Tische, \(menuCount) Gerichte."
+                : "Solo-Modus (ohne Kasse) — Demo-Daten. Optional anmelden für Cloud."
+        } else {
+            statusMessage = cloudNote
+        }
         await pullReservationsDay(PosReservationsStore.todayYmd())
         syncPending = PosSyncQueue.shared.pendingCount
+    }
+
+    /// Erzwingt Bootstrap + heutigen Reservierungstag neu (nach Login / wenn Web gerade startet).
+    func reloadCloudData() async {
+        saveConfigFromInputs()
+        if let userId = PosAuthStore.shared.session?.userId {
+            await resolveRestaurantIdIfNeeded(userId: userId)
+        }
+        let note = await pullCloudBootstrap(forceDemoFallback: true)
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+        dataSourceLabel = PosHubState.shared.isDemo
+            ? (role == .handheld ? "Solo · Demo/Cache" : "Demo/Cache")
+            : (role == .handheld ? "Solo · Cloud" : "Cloud-Cache")
+        await pullReservationsDay(PosReservationsStore.todayYmd())
+        let resCount = PosReservationsStore.shared.cachedDay(PosReservationsStore.todayYmd())?.reservations.count ?? 0
+        if note.contains("geladen") {
+            statusMessage = "\(note) · \(resCount) Res. heute."
+        } else if !note.isEmpty {
+            statusMessage = note
+        }
+    }
+
+    private func resolveRestaurantIdIfNeeded(userId: String) async {
+        let current = PosCloudConfig.restaurantId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        // Feste Seed-UUID nur nutzen, wenn DB wirklich darauf steht — sonst Profil gewinnen.
+        do {
+            if let resolved = try await PosCloudClient.resolveActiveRestaurantId(userId: userId),
+               !resolved.isEmpty
+            {
+                if resolved != current {
+                    restaurantIdInput = resolved
+                    PosCloudConfig.setRestaurantId(resolved)
+                    statusMessage = "Restaurant-ID aus Profil: \(resolved.prefix(8))…"
+                }
+                return
+            }
+        } catch {
+            // Profil-Lookup optional — manuelle ID bleibt.
+        }
+        if current.isEmpty {
+            statusMessage = "Restaurant-ID fehlt — Studio → restaurants (slug gwada-demo)."
+        }
     }
 
 
@@ -206,19 +256,29 @@ final class PosRuntime: ObservableObject {
     }
 
     private func pullReservationsDayFromCloud(_ ymd: String) async {
-        guard PosAuthStore.shared.isSignedIn else { return }
-        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else { return }
+        guard PosAuthStore.shared.isSignedIn else {
+            statusMessage = "Reservierungen: nicht angemeldet."
+            return
+        }
+        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
+            statusMessage = "Reservierungen: Restaurant-ID fehlt."
+            return
+        }
         do {
             let day = try await PosCloudClient.fetchReservationsDay(
                 restaurantId: restaurantId,
                 dayYmd: ymd
             )
             PosReservationsStore.shared.applyDay(day)
+            if day.reservations.isEmpty {
+                statusMessage = "Keine Reservierungen am \(ymd) (TZ \(day.timezone))."
+            }
         } catch {
             if let cached = PosReservationsStore.shared.cachedDay(ymd) {
                 PosReservationsStore.shared.applyDay(cached)
             }
-            statusMessage = "Reservierungen offline — Cache: \(error.localizedDescription)"
+            let api = PosCloudConfig.apiBaseURL.absoluteString
+            statusMessage = "Reservierungen fehlgeschlagen (\(api)): \(error.localizedDescription)"
         }
     }
 
@@ -937,24 +997,32 @@ final class PosRuntime: ObservableObject {
         }
     }
 
-    private func pullCloudBootstrap(forceDemoFallback: Bool) async {
+    private func pullCloudBootstrap(forceDemoFallback: Bool) async -> String {
         guard PosAuthStore.shared.isSignedIn else {
             if forceDemoFallback {
                 PosHubState.shared.loadCachedOrDemo()
             }
-            return
+            return ""
         }
         guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
-            statusMessage = "Restaurant-ID fehlt in den Einstellungen."
-            return
+            let msg = "Restaurant-ID fehlt in den Einstellungen."
+            statusMessage = msg
+            return msg
         }
         do {
             let bootstrap = try await PosCloudClient.fetchBootstrap(restaurantId: restaurantId)
             PosHubState.shared.applyBootstrap(bootstrap)
-            statusMessage = "Cloud-Daten geladen (\(bootstrap.floor.tables.count) Tische, \(bootstrap.menu.items.count) Gerichte)."
+            let msg = "Cloud-Daten geladen (\(bootstrap.floor.tables.count) Tische, \(bootstrap.menu.items.count) Gerichte)."
+            statusMessage = msg
+            return msg
         } catch {
-            PosHubState.shared.loadCachedOrDemo()
-            statusMessage = "Cloud nicht erreichbar — Cache/Demo: \(error.localizedDescription)"
+            if forceDemoFallback {
+                PosHubState.shared.loadCachedOrDemo()
+            }
+            let api = PosCloudConfig.apiBaseURL.absoluteString
+            let msg = "Bootstrap fehlgeschlagen (\(api)): \(error.localizedDescription)"
+            statusMessage = msg
+            return msg
         }
     }
 

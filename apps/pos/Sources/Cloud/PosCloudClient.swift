@@ -65,6 +65,62 @@ enum PosCloudClient {
         try await get("/api/pos/bootstrap", restaurantId: restaurantId)
     }
 
+    /// Liest `profiles.active_restaurant_id` (Fallback: erste aktive Employee-Zeile).
+    @MainActor
+    static func resolveActiveRestaurantId(userId: String) async throws -> String? {
+        struct ProfileRow: Decodable { var active_restaurant_id: String? }
+        struct EmployeeRow: Decodable { var restaurant_id: String }
+
+        let anon = PosCloudConfig.supabaseAnonKey
+        guard !anon.isEmpty else { throw PosCloudError.missingConfig("Supabase Anon Key") }
+        let token = try await PosAuthStore.shared.validAccessToken()
+        let base = PosCloudConfig.supabaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        // 1) active_restaurant_id
+        if var comps = URLComponents(string: "\(base)/rest/v1/profiles") {
+            comps.queryItems = [
+                URLQueryItem(name: "select", value: "active_restaurant_id"),
+                URLQueryItem(name: "id", value: "eq.\(userId)"),
+                URLQueryItem(name: "limit", value: "1"),
+            ]
+            if let url = comps.url {
+                var request = URLRequest(url: url)
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.setValue(anon, forHTTPHeaderField: "apikey")
+                request.setValue("application/json", forHTTPHeaderField: "Accept")
+                if let rows: [ProfileRow] = try? await perform(request),
+                   let rid = rows.first?.active_restaurant_id?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !rid.isEmpty
+                {
+                    return rid
+                }
+            }
+        }
+
+        // 2) restaurant_employees
+        if var comps = URLComponents(string: "\(base)/rest/v1/restaurant_employees") {
+            comps.queryItems = [
+                URLQueryItem(name: "select", value: "restaurant_id"),
+                URLQueryItem(name: "profile_id", value: "eq.\(userId)"),
+                URLQueryItem(name: "is_active", value: "eq.true"),
+                URLQueryItem(name: "limit", value: "1"),
+            ]
+            if let url = comps.url {
+                var request = URLRequest(url: url)
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.setValue(anon, forHTTPHeaderField: "apikey")
+                request.setValue("application/json", forHTTPHeaderField: "Accept")
+                if let rows: [EmployeeRow] = try? await perform(request),
+                   let rid = rows.first?.restaurant_id.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !rid.isEmpty
+                {
+                    return rid
+                }
+            }
+        }
+        return nil
+    }
+
     @MainActor
     static func fetchReservationsDay(
         restaurantId: String,

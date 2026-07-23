@@ -188,6 +188,10 @@ struct DeviceSettingsView: View {
             )
             LabeledContent("Gerät-ID", value: String(PosDeviceIdentity.id.prefix(8)) + "…")
             LabeledContent("Daten", value: runtime.dataSourceLabel)
+            LabeledContent("API", value: PosCloudConfig.apiBaseURL.host ?? PosCloudConfig.apiBaseURL.absoluteString)
+            Button("Cloud-Daten neu laden") {
+                Task { await runtime.reloadCloudData() }
+            }
             DisclosureGroup("Nest / Waiter") {
                 TextField("Nest API-Basis", text: $runtime.nestApiBaseInput)
                     .textInputAutocapitalization(.never)

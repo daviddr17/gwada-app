@@ -8,10 +8,11 @@ ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZ
 
 echo "== Env (sollte 127.0.0.1:54321 sein) =="
 grep -E '^NEXT_PUBLIC_SUPABASE_URL=' .env.local 2>/dev/null || echo "FEHLT: .env.local"
+echo "(Hinweis: pnpm --filter web dev muss .env.local NACH .env.development laden — Script dev:docker = nur lokal)"
 
 echo
 echo "== Supabase :54321 =="
-if curl -sf -o /dev/null -w "auth health HTTP %{http_code}\n" "http://127.0.0.1:54321/auth/v1/health"; then
+if curl -sf --connect-timeout 2 --max-time 5 -o /dev/null -w "auth health HTTP %{http_code}\n" "http://127.0.0.1:54321/auth/v1/health"; then
   :
 else
   echo "Supabase nicht erreichbar — npx supabase start"
@@ -20,8 +21,13 @@ fi
 
 echo
 echo "== Next :3000 =="
-if ! curl -sf --connect-timeout 2 --max-time 5 -o /dev/null -w "web HTTP %{http_code}\n" "http://127.0.0.1:3000/" ; then
-  echo "Next nicht erreichbar — nach .env.local-Änderung: pnpm --filter web dev neu starten"
+# Leichter API-Hit (kein Seiten-Compile); 400 = Server lebt
+CODE=$(curl -s --connect-timeout 3 --max-time 60 -o /dev/null -w "%{http_code}" \
+  "http://127.0.0.1:3000/api/pos/bootstrap?restaurantId=test" || true)
+echo "web API HTTP ${CODE}"
+if [[ "$CODE" == "000" || -z "$CODE" ]]; then
+  echo "Next nicht erreichbar auf 127.0.0.1:3000"
+  echo "Start: pnpm --filter web dev:docker   # nutzt nur .env.local"
   exit 1
 fi
 
@@ -40,7 +46,7 @@ echo "TOKEN_LEN=${#TOKEN}"
 
 echo
 echo "== Bootstrap restaurantId=${RID} =="
-HTTP=$(curl -s --connect-timeout 3 --max-time 30 -o /tmp/pos-bootstrap.json -w "%{http_code}" \
+HTTP=$(curl -s --connect-timeout 3 --max-time 60 -o /tmp/pos-bootstrap.json -w "%{http_code}" \
   "http://127.0.0.1:3000/api/pos/bootstrap?restaurantId=${RID}" \
   -H "Authorization: Bearer ${TOKEN}")
 echo "HTTP ${HTTP}"

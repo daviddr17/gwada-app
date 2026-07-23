@@ -18,6 +18,7 @@ import {
 import type { DisplayPrepareAndGate } from "@/components/display/modules/display-shift-gates";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import { GWADA_DISPLAY_TIME_REFRESH_EVENT } from "@/lib/display/display-time-live-events";
+import { handleDisplaySessionAuthFailure } from "@/lib/display/display-session-client";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import {
   displayTimeActionButtonOutlineClassName,
@@ -184,6 +185,7 @@ export function DisplayTimeModule({
         cache: "no-store",
         credentials: "include",
       });
+      if (await handleDisplaySessionAuthFailure(res)) return;
       if (!res.ok) return;
       const data = (await res.json()) as TimePayload;
       setState((prev) => {
@@ -249,6 +251,9 @@ export function DisplayTimeModule({
         credentials: "include",
         body: JSON.stringify({ action }),
       });
+      if (await handleDisplaySessionAuthFailure(res)) {
+        return false;
+      }
       const data = (await res.json()) as { error?: string; status?: TimeState["status"] };
       if (!res.ok) {
         toast.error(

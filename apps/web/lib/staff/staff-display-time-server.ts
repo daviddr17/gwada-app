@@ -301,8 +301,8 @@ async function openSegment(
     entryType: "work" | "break";
     startsAt: string;
   },
-): Promise<void> {
-  await admin.from("restaurant_staff_work_entries").insert({
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await admin.from("restaurant_staff_work_entries").insert({
     restaurant_id: params.restaurantId,
     staff_id: params.staffId,
     entry_type: params.entryType,
@@ -312,6 +312,10 @@ async function openSegment(
     shift_id: params.shiftId,
     note: DISPLAY_NOTE,
   });
+  if (error) {
+    return { ok: false, error: error.message || "work_entry_insert_failed" };
+  }
+  return { ok: true };
 }
 
 export async function runDisplayTimeAction(
@@ -345,13 +349,16 @@ export async function runDisplayTimeAction(
       return { ok: false, error: "already_clocked_in", status: 409 };
     }
     const shiftId = randomUUID();
-    await openSegment(admin, {
+    const opened = await openSegment(admin, {
       restaurantId: params.restaurantId,
       staffId: params.staffId,
       shiftId,
       entryType: "work",
       startsAt: now,
     });
+    if (!opened.ok) {
+      return { ok: false, error: opened.error, status: 500 };
+    }
     await emitStaffDisplayClockNotification(admin, {
       restaurantId: params.restaurantId,
       staffId: params.staffId,
@@ -374,13 +381,16 @@ export async function runDisplayTimeAction(
       return { ok: false, error: "already_on_break", status: 409 };
     }
     await closeOpenEntry(admin, open.id, now);
-    await openSegment(admin, {
+    const opened = await openSegment(admin, {
       restaurantId: params.restaurantId,
       staffId: params.staffId,
       shiftId: open.shift_id,
       entryType: "break",
       startsAt: now,
     });
+    if (!opened.ok) {
+      return { ok: false, error: opened.error, status: 500 };
+    }
     const clockedInAt = await shiftClockedInAt(admin, open.shift_id, open.starts_at);
     return {
       ok: true,
@@ -410,13 +420,16 @@ export async function runDisplayTimeAction(
       };
     }
     await closeOpenEntry(admin, open.id, now);
-    await openSegment(admin, {
+    const opened = await openSegment(admin, {
       restaurantId: params.restaurantId,
       staffId: params.staffId,
       shiftId: open.shift_id,
       entryType: "work",
       startsAt: now,
     });
+    if (!opened.ok) {
+      return { ok: false, error: opened.error, status: 500 };
+    }
     const clockedInAt = await shiftClockedInAt(admin, open.shift_id, open.starts_at);
     return {
       ok: true,

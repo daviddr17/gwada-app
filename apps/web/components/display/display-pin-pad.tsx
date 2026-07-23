@@ -205,7 +205,7 @@ export function DisplayPinPad({
       >
         {digits.map((d, idx) => {
           if (d === "") {
-            return <div key={`empty-${idx}`} className={keyEmptyClassName} />;
+            return <div key={`empty-${idx}`} className={keySizeClassName} />;
           }
           if (d === "del") {
             return (
@@ -238,6 +238,7 @@ export function DisplayPinPad({
       </motion.div>
     </div>
   );
+}
 
 export function DisplayLockOverlay({
   open,

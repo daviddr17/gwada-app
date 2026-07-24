@@ -18,6 +18,7 @@ import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-ove
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
+import { SoftNavPendingOverlay } from "@/components/navigation/soft-nav-pending-overlay";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -199,6 +200,8 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             {children}
           </WorkspaceZoneTransition>
         </div>
+        {/* Sibling — deckt alten Content sofort ab, unmountet den Flight nicht */}
+        <SoftNavPendingOverlay />
       </div>
 
       <AppMobileBottomNav />

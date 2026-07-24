@@ -85,6 +85,11 @@ export const AppNavLink = forwardRef<
       aria-label={ariaLabel}
       onPointerEnter={warmOnIntent}
       onFocus={warmOnIntent}
+      onPointerDown={(event) => {
+        // Früher als click: Skeleton/Sidebar sofort (nur Primär-Taste).
+        if (event.button !== 0 || !crossModuleNav) return;
+        tryAcquireNavLock(event, hrefStr);
+      }}
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;
@@ -92,7 +97,7 @@ export const AppNavLink = forwardRef<
           event.preventDefault();
           return;
         }
-        // Pending-Highlight ohne Lock/preventDefault (Locks haben Flights gekillt).
+        // Pending ohne preventDefault — harte Locks haben Flights gekillt.
         if (crossModuleNav) {
           tryAcquireNavLock(event, hrefStr);
         }

@@ -67,12 +67,14 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@gwada/shared", "@gwada/pos-domain", "@gwada/supabase"],
   // pdfkit is Node/CJS-only — avoid Turbopack wrapping the constructor export.
   serverExternalPackages: ["pdfkit"],
-  // Soft-Nav: dynamische Segmente im Client-Cache halten (Next-Default dynamic=0).
+  // Soft-Nav: Client-Cache + optimistische/cached Navigations (Next 16).
   experimental: {
     staleTimes: {
-      dynamic: 30,
-      static: 180,
+      dynamic: 60,
+      static: 300,
     },
+    optimisticRouting: true,
+    cachedNavigations: true,
   },
 
   // Docker/standalone (next build): Monorepo-Root — nicht in dev setzen, sonst überschreibt

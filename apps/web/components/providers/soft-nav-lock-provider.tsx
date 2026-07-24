@@ -2,7 +2,6 @@
 
 import {
   createContext,
-  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -17,7 +16,7 @@ type SoftNavLockValue = {
     event: { preventDefault: () => void },
     targetHref: string,
   ) => boolean;
-  /** Ziel-Route während Soft-Nav — Sidebar/Mobile Active-Feedback. */
+  /** Ziel-Route während Soft-Nav — Sidebar + Pending-Overlay. */
   pendingHref: string | null;
 };
 
@@ -32,7 +31,11 @@ export function normalizeNavHref(href: string): string {
 }
 
 /**
- * Soft-Nav Pending für Sidebar-Highlight — nur Optik, kein Navigations-Lock.
+ * Soft-Nav Pending — sofortiges UI-Feedback (Sidebar + Overlay).
+ * Kein preventDefault / kein harter Lock (hat Next-Flights gekillt).
+ *
+ * Provider-State: nur Consumer (Sidebar/Overlay) re-rendern; {children}
+ * bleibt referenzstabil und unmountet nicht.
  */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -57,21 +60,16 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     (_event: { preventDefault: () => void }, targetHref: string) => {
       const target = normalizeNavHref(targetHref);
       pendingTargetRef.current = target;
+      // Synchron im Klick — Overlay im selben Frame, Flight läuft weiter
+      // (kein Unmount des Router-Outlets, kein preventDefault).
+      setPendingHref(target);
       if (clearTimerRef.current != null) {
         window.clearTimeout(clearTimerRef.current);
       }
-      // startTransition: Pending-Highlight ohne Flight-Abbruch (synchrone
-      // Sidebar-Re-Renders während router.push waren ~12–15s „hängend“).
-      clearTimerRef.current = window.setTimeout(() => {
-        if (pendingTargetRef.current !== target) return;
-        startTransition(() => {
-          setPendingHref(target);
-        });
-        clearTimerRef.current = window.setTimeout(
-          clearPending,
-          PENDING_CLEAR_FAILSAFE_MS,
-        );
-      }, 0);
+      clearTimerRef.current = window.setTimeout(
+        clearPending,
+        PENDING_CLEAR_FAILSAFE_MS,
+      );
       return true;
     },
     [clearPending],

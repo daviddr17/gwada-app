@@ -828,6 +828,7 @@ export function MenuOverviewScreen() {
         onUpdate={updateItem}
         onDelete={deleteItem}
         categories={categories}
+        optionGroups={menuOptionGroups.items}
         restaurantId={workspaceRestaurantId ?? undefined}
         restaurantName={restaurantName}
         restaurantSlug={restaurantSlug}

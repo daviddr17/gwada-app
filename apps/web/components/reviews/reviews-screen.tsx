@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Filter, GalleryVerticalEnd, Link2, List, ScrollText, Search } from "lucide-react";
 import {
@@ -77,6 +84,11 @@ import {
   patchReviewInFeedCache,
   type ReviewsFeedClientCache,
 } from "@/lib/reviews/reviews-feed-client-cache";
+import {
+  peekReviewsFeedSessionCache,
+  writeReviewsFeedSessionCache,
+  type ReviewsFeedGoogleLocationSummary,
+} from "@/lib/reviews/reviews-feed-session-cache";
 import { isReviewsCacheablePlatform } from "@/lib/reviews/reviews-cache-constants";
 import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
 import {
@@ -147,13 +159,7 @@ type ReviewsApiResponse = {
   sync?: ReviewsFeedSyncMeta;
 };
 
-type GoogleLocationSummary = {
-  count: number;
-  average: number | null;
-  median: null;
-  distribution: Record<1 | 2 | 3 | 4 | 5, number>;
-  scope: "google_location";
-};
+type GoogleLocationSummary = ReviewsFeedGoogleLocationSummary;
 
 function withNextPageToken(
   currentPage: number,
@@ -268,7 +274,9 @@ export function ReviewsScreen() {
   const tripadvisorPagination = feedCache.tripadvisorPagination;
   const mergedLoadErrors = feedCache.loadErrors;
   const mergedPlatformTotals = feedCache.platformTotals;
-  const showSkeleton = useDeferredSkeleton(feedPrefetchLoading);
+  const showSkeleton = useDeferredSkeleton(
+    feedPrefetchLoading && !feedCache.ready,
+  );
   const readAllStartedRef = useRef<string | null>(null);
 
   const markLoadedReviewsRead = useCallback(
@@ -474,7 +482,14 @@ export function ReviewsScreen() {
       if (!options?.silent) setFeedPrefetchLoading(false);
       return;
     }
-    if (!options?.silent) {
+    const cached = peekReviewsFeedSessionCache(
+      restaurantId,
+      feedListQueryKeyValue,
+    );
+    const hasReadyCache = Boolean(cached?.feed.ready);
+    const silent = Boolean(options?.silent || hasReadyCache);
+
+    if (!silent) {
       setFeedPrefetchLoading(true);
       setFeedCache(createEmptyReviewsFeedClientCache());
       setGooglePage(1);
@@ -483,6 +498,11 @@ export function ReviewsScreen() {
       setTripadvisorPage(1);
       setGoogleLocationSummary(null);
       setGoogleStatsError(null);
+    } else if (hasReadyCache && cached) {
+      setFeedCache(cached.feed);
+      setGoogleLocationSummary(cached.googleLocationSummary);
+      setGoogleStatsError(cached.googleStatsError);
+      setFeedPrefetchLoading(false);
     }
 
     try {
@@ -684,19 +704,52 @@ export function ReviewsScreen() {
       await Promise.all(requests);
       setFeedCache((prev) => ({ ...prev, ready: true }));
     } catch {
-      if (!options?.silent) {
+      if (!silent) {
         toast.error("Netzwerkfehler beim Laden der Bewertungen.");
       }
     } finally {
-      if (!options?.silent) setFeedPrefetchLoading(false);
+      setFeedPrefetchLoading(false);
     }
   }, [
     restaurantId,
+    feedListQueryKeyValue,
     googleVisible,
     facebookVisible,
     tripadvisorVisible,
     fetchReviewsJson,
     markLoadedReviewsRead,
+  ]);
+
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    const cached = peekReviewsFeedSessionCache(
+      restaurantId,
+      feedListQueryKeyValue,
+    );
+    if (!cached?.feed.ready) return;
+    setFeedCache(cached.feed);
+    setGoogleLocationSummary(cached.googleLocationSummary);
+    setGoogleStatsError(cached.googleStatsError);
+    setFeedPrefetchLoading(false);
+  }, [restaurantId, feedListQueryKeyValue]);
+
+  useEffect(() => {
+    if (!restaurantId || !feedCache.ready) return;
+    writeReviewsFeedSessionCache(
+      restaurantId,
+      {
+        feed: feedCache,
+        googleLocationSummary,
+        googleStatsError,
+      },
+      feedListQueryKeyValue,
+    );
+  }, [
+    restaurantId,
+    feedCache,
+    googleLocationSummary,
+    googleStatsError,
+    feedListQueryKeyValue,
   ]);
 
   usePlatformFeedSyncRealtime(

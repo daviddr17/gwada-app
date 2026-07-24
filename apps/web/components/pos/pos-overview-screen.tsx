@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import {
   BarChart3,
   FileText,
@@ -26,6 +26,10 @@ import {
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import {
+  peekPosOverviewCache,
+  writePosOverviewCache,
+} from "@/lib/pos/pos-overview-client-cache";
 import {
   fetchPosActiveOrders,
   fetchPosPaidTodayOrders,
@@ -84,34 +88,59 @@ export function PosOverviewScreen() {
   const [activeCount, setActiveCount] = useState<number | null>(null);
   const [paidTodayCents, setPaidTodayCents] = useState<number | null>(null);
   const [registerOpen, setRegisterOpen] = useState<boolean | null>(null);
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const hasCachedKpis =
+    activeCount != null || paidTodayCents != null || registerOpen != null;
+  const showSkeleton = useDeferredSkeleton(
+    (!ready || loading) && !hasCachedKpis,
+  );
+
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    const cached = peekPosOverviewCache(restaurantId);
+    if (!cached) return;
+    setActiveCount(cached.activeCount);
+    setPaidTodayCents(cached.paidTodayCents);
+    setRegisterOpen(cached.registerOpen);
+    setLoading(false);
+  }, [restaurantId]);
 
   const load = useCallback(async () => {
     if (!restaurantId) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    const cached = peekPosOverviewCache(restaurantId);
+    if (cached) {
+      setActiveCount(cached.activeCount);
+      setPaidTodayCents(cached.paidTodayCents);
+      setRegisterOpen(cached.registerOpen);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       const [active, paid, register] = await Promise.all([
         fetchPosActiveOrders(restaurantId),
         fetchPosPaidTodayOrders(restaurantId),
         fetchPosRegisterStatus(restaurantId),
       ]);
-      if (active.ok) setActiveCount(active.data.orders.length);
+      const nextActive = active.ok ? active.data.orders.length : null;
+      const nextPaid = paid.ok
+        ? paid.data.orders.reduce((sum, o) => sum + o.totalCents + o.tipCents, 0)
+        : null;
+      const nextRegister = register.ok ? register.data.isOpen : null;
+      if (active.ok) setActiveCount(nextActive);
       else {
         toast.error(active.error);
         setActiveCount(null);
       }
-      if (paid.ok) {
-        setPaidTodayCents(
-          paid.data.orders.reduce((sum, o) => sum + o.totalCents + o.tipCents, 0),
-        );
-      } else {
-        setPaidTodayCents(null);
-      }
-      if (register.ok) setRegisterOpen(register.data.isOpen);
-      else setRegisterOpen(null);
+      setPaidTodayCents(nextPaid);
+      setRegisterOpen(nextRegister);
+      writePosOverviewCache(restaurantId, {
+        activeCount: nextActive,
+        paidTodayCents: nextPaid,
+        registerOpen: nextRegister,
+      });
     } finally {
       setLoading(false);
     }

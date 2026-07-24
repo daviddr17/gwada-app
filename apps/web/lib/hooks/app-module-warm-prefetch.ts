@@ -53,6 +53,20 @@ import {
   isStaffTodosCacheFresh,
   writeStaffTodosCache,
 } from "@/lib/staff/staff-todos-client-cache";
+import {
+  isInsightsOverviewCacheFresh,
+  writeInsightsOverviewCache,
+} from "@/lib/insights/insights-overview-client-cache";
+import type { InsightsStatisticsResult } from "@/lib/insights/compute-insights-statistics";
+import {
+  isPosOverviewCacheFresh,
+  writePosOverviewCache,
+} from "@/lib/pos/pos-overview-client-cache";
+import {
+  fetchPosActiveOrders,
+  fetchPosPaidTodayOrders,
+  fetchPosRegisterStatus,
+} from "@/lib/pos/pos-web-api-client";
 import type { QueryClient } from "@tanstack/react-query";
 
 const FEED_STALE_MS = 5 * 60_000;
@@ -181,6 +195,59 @@ export async function warmStaffTodos(restaurantId: string): Promise<void> {
   });
 }
 
+const DEFAULT_INSIGHTS_PERIOD = { mode: "months" as const, value: 3 as const };
+
+export async function warmInsightsOverview(restaurantId: string): Promise<void> {
+  if (
+    isInsightsOverviewCacheFresh(
+      restaurantId,
+      DEFAULT_INSIGHTS_PERIOD,
+      FEED_STALE_MS,
+    )
+  ) {
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      restaurantId,
+      monthsBack: String(DEFAULT_INSIGHTS_PERIOD.value),
+    });
+    const res = await fetch(`/api/insights/statistics?${params}`);
+    const body = (await res.json()) as InsightsStatisticsResult & {
+      error?: string;
+    };
+    if (!res.ok) return;
+    writeInsightsOverviewCache(restaurantId, DEFAULT_INSIGHTS_PERIOD, body);
+  } catch {
+    /* background warm */
+  }
+}
+
+export async function warmPosOverview(restaurantId: string): Promise<void> {
+  if (isPosOverviewCacheFresh(restaurantId, FEED_STALE_MS)) return;
+
+  try {
+    const [active, paid, register] = await Promise.all([
+      fetchPosActiveOrders(restaurantId),
+      fetchPosPaidTodayOrders(restaurantId),
+      fetchPosRegisterStatus(restaurantId),
+    ]);
+    writePosOverviewCache(restaurantId, {
+      activeCount: active.ok ? active.data.orders.length : null,
+      paidTodayCents: paid.ok
+        ? paid.data.orders.reduce(
+            (sum, o) => sum + o.totalCents + o.tipCents,
+            0,
+          )
+        : null,
+      registerOpen: register.ok ? register.data.isOpen : null,
+    });
+  } catch {
+    /* background warm */
+  }
+}
+
 /** React-Query + Modul-Caches — Mitarbeiter/Reservierungen in prefetchCriticalModuleQueries. */
 export function warmAppModulePriorityCaches(
   queryClient: QueryClient,
@@ -201,6 +268,8 @@ export function warmAppModuleSecondaryCaches(
   void warmReservationsCurrentMonth(restaurantId);
   void warmDocumentsList(restaurantId);
   void warmStaffTodos(restaurantId);
+  void warmInsightsOverview(restaurantId);
+  void warmPosOverview(restaurantId);
 }
 
 export function warmAppModuleCaches(

@@ -37,22 +37,12 @@ open GwadaPOS.xcodeproj
 
 In Xcode: Team wählen, auf **iPad** und **iPhone** (gleiches WLAN) installieren.
 
+**Onboarding (Dev-VPS):** siehe [`docs/plans/kellner-onboarding-enrollment.md`](../../docs/plans/kellner-onboarding-enrollment.md).  
+iPad startet den **Kasse-einrichten**-Wizard (Login → Standort). Cloud-Defaults: `PosEnvironment` → VPS `:8100`. API-Basis: Info.plist `POSDevApiBaseURL` (Simulator-Default `http://127.0.0.1:3000`, Next gegen Dev-DB).
+
 ### Erste Anmeldung (Kasse)
 
-Im Login-Bereich **Lokal vorausfüllen** tippen, oder manuell:
-
-| Feld | Lokal |
-|---|---|
-| E-Mail | `dreyer@techlion.de` |
-| Passwort | `GwadaLocal2026!` |
-| Restaurant-ID | `00000000-0000-4000-8000-000000000001` (nach frischem `db reset`; sonst Studio → `restaurants` / slug `gwada-demo`) |
-| API-Basis (Next) | `http://127.0.0.1:3000` — **Speisekarte + Reservierungen** |
-| Nest API-Basis | `http://127.0.0.1:3099` — Outbox-Sync |
-| Waiter Profile-ID | `a1b2c3d4-e5f6-4789-a012-3456789abcde` |
-| Supabase-URL | `http://127.0.0.1:54321` |
-| Anon Key | lokaler Demo-Anon-Key (`npx supabase status` / `.env.example`) |
-
-Voraussetzungen lokal: `supabase start` (+ ggf. `db reset`), `pnpm --filter web dev`, optional `pnpm --filter @gwada/pos-api start:dev`.
+Kundenpfad: **Wizard**, keine UUIDs. DEBUG: optional „Lokal vorausfüllen“ nur E-Mail/Passwort.
 
 ### Nest Outbox (lokal)
 

@@ -144,6 +144,10 @@ struct DeviceSettingsView: View {
             Button("Lokal vorausfüllen") {
                 runtime.applyLocalDevDefaults()
             }
+            #if DEBUG
+            #else
+            .hidden()
+            #endif
             TextField("E-Mail", text: $runtime.email)
                 .textInputAutocapitalization(.never)
                 .keyboardType(.emailAddress)

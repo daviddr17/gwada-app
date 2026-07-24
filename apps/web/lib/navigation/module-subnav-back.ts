@@ -133,14 +133,3 @@ export function applyModuleSubnavBackStack(
   writeStack(prefix, [home]);
 }
 
-/**
- * Ziel für den Zurück-Pfeil im Untermenü — keine `history.back()` (Login/OAuth/extern).
- * @deprecated Prefer `peekModuleSubnavBackTarget` + native `<Link>`.
- */
-export function resolveModuleSubnavBackTarget(
-  items: readonly ModuleSubnavItem[],
-  pathname: string,
-): string {
-  applyModuleSubnavBackStack(items, pathname);
-  return peekModuleSubnavBackTarget(items, pathname);
-}

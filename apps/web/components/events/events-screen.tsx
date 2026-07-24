@@ -38,9 +38,35 @@ import { EVENTS_FEED_PAGE_SIZE } from "@/lib/events/events-feed-pagination";
 import type { EventsFeedSyncMeta } from "@/lib/events/events-feed-sync-meta";
 import type { UnifiedEventItem } from "@/lib/events/unified-event-item";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persistence";
 
 const EVENTS_SYNC_POLL_MS = 5_000;
 const EVENTS_SYNC_POLL_MAX = 3;
+
+function initialEventsRestaurantId(): string | null {
+  const cached = peekCachedWorkspaceRestaurantId();
+  return cached && isUuidRestaurantId(cached) ? cached : null;
+}
+
+function initialEventsFeedFromCache(restaurantId: string | null): {
+  items: UnifiedEventItem[];
+  syncMeta: EventsFeedSyncMeta | null;
+  loading: boolean;
+} {
+  if (!restaurantId) {
+    return { items: [], syncMeta: null, loading: true };
+  }
+  const cached = peekEventsFeedCache(restaurantId);
+  if (!cached) {
+    return { items: [], syncMeta: null, loading: true };
+  }
+  return {
+    items: cached.items,
+    syncMeta: cached.sync,
+    loading: false,
+  };
+}
 
 export function EventsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -48,11 +74,23 @@ export function EventsScreen() {
   const canRead = hasModuleRead(has, "events");
   const canManage = hasModuleCreate(has, "events");
 
+  const initialFeedRef = useRef<ReturnType<typeof initialEventsFeedFromCache> | null>(
+    null,
+  );
+  if (!initialFeedRef.current) {
+    initialFeedRef.current = initialEventsFeedFromCache(
+      initialEventsRestaurantId(),
+    );
+  }
+  const initialFeed = initialFeedRef.current;
+
   const [platformFilter, setPlatformFilter] = useState<EventsPlatformFilter>(EVENTS_FILTER_ALL);
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState<UnifiedEventItem[]>([]);
-  const [syncMeta, setSyncMeta] = useState<EventsFeedSyncMeta | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<UnifiedEventItem[]>(() => initialFeed.items);
+  const [syncMeta, setSyncMeta] = useState<EventsFeedSyncMeta | null>(
+    () => initialFeed.syncMeta,
+  );
+  const [loading, setLoading] = useState(() => initialFeed.loading);
   const [syncing, setSyncing] = useState(false);
   const showFeedSkeleton = useDeferredSkeleton(loading && items.length === 0);
   const [composeOpen, setComposeOpen] = useState(false);

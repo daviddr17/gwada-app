@@ -21,7 +21,6 @@ import type {
   UnifiedGalleryHighlight,
   UnifiedGalleryItem,
 } from "@/lib/gallery/unified-gallery-item";
-import { prefetchAppModuleQueryCaches } from "@/lib/hooks/app-module-query-prefetch";
 import {
   isNewsFeedClientCacheFresh,
   writeNewsFeedCache,
@@ -29,26 +28,10 @@ import {
 import type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import {
-  currentMonthReservationRange,
-  isReservationsMonthCacheFresh,
-  writeReservationsMonthCache,
-} from "@/lib/reservations/reservations-month-client-cache";
-import {
   fetchDocumentsForRestaurant,
   fetchDocumentsStorageUsage,
 } from "@/lib/supabase/documents-db";
-import {
-  fetchReservationsForRestaurant,
-} from "@/lib/supabase/reservations-db";
-import {
-  fetchStaffContractsForRestaurant,
-  fetchStaffForRestaurant,
-} from "@/lib/supabase/staff-db";
 import { fetchStaffTodosForRestaurant } from "@/lib/supabase/staff-todos-db";
-import {
-  isStaffListCacheFresh,
-  writeStaffListCache,
-} from "@/lib/staff/staff-list-client-cache";
 import {
   isStaffTodosCacheFresh,
   writeStaffTodosCache,
@@ -143,33 +126,6 @@ export async function warmGalleryFeed(restaurantId: string): Promise<void> {
   }
 }
 
-async function warmStaffList(restaurantId: string): Promise<void> {
-  if (isStaffListCacheFresh(restaurantId, FEED_STALE_MS)) return;
-
-  const [staffRes, contractsRes] = await Promise.all([
-    fetchStaffForRestaurant(restaurantId),
-    fetchStaffContractsForRestaurant(restaurantId),
-  ]);
-  if (staffRes.error && contractsRes.error) return;
-  writeStaffListCache(restaurantId, {
-    rows: staffRes.data,
-    contracts: contractsRes.data,
-  });
-}
-
-async function warmReservationsCurrentMonth(restaurantId: string): Promise<void> {
-  const range = currentMonthReservationRange();
-  if (isReservationsMonthCacheFresh(restaurantId, range, FEED_STALE_MS)) return;
-
-  const { data, error } = await fetchReservationsForRestaurant({
-    restaurantId,
-    rangeStartIso: range.rangeStartIso,
-    rangeEndExclusiveIso: range.rangeEndExclusiveIso,
-  });
-  if (error) return;
-  writeReservationsMonthCache(restaurantId, range, data);
-}
-
 export async function warmDocumentsList(restaurantId: string): Promise<void> {
   if (isDocumentsListCacheFresh(restaurantId, FEED_STALE_MS)) return;
 
@@ -248,34 +204,16 @@ export async function warmPosOverview(restaurantId: string): Promise<void> {
   }
 }
 
-/** React-Query + Modul-Caches — Mitarbeiter/Reservierungen in prefetchCriticalModuleQueries. */
-export function warmAppModulePriorityCaches(
-  queryClient: QueryClient,
-  restaurantId: string,
-): void {
-  prefetchAppModuleQueryCaches(queryClient, restaurantId);
-}
-
-/** Feeds, Dokumente, Todos — nach den kritischen Modulen. */
+/** Feeds, Dokumente, Todos, Insights, POS — Staff/Reservierungen schon via prefetchCriticalModuleQueries. */
 export function warmAppModuleSecondaryCaches(
-  queryClient: QueryClient,
+  _queryClient: QueryClient,
   restaurantId: string,
 ): void {
   void warmEventsFeed(restaurantId);
   void warmNewsFeed(restaurantId);
   void warmGalleryFeed(restaurantId);
-  void warmStaffList(restaurantId);
-  void warmReservationsCurrentMonth(restaurantId);
   void warmDocumentsList(restaurantId);
   void warmStaffTodos(restaurantId);
   void warmInsightsOverview(restaurantId);
   void warmPosOverview(restaurantId);
-}
-
-export function warmAppModuleCaches(
-  queryClient: QueryClient,
-  restaurantId: string,
-): void {
-  warmAppModulePriorityCaches(queryClient, restaurantId);
-  warmAppModuleSecondaryCaches(queryClient, restaurantId);
 }

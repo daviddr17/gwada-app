@@ -1,4 +1,3 @@
-import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 
@@ -21,23 +20,3 @@ export function assignCrossAppWorkspaceZone(fromPath: string, toPath: string): b
   window.location.assign(workspaceZoneEnterHref(target));
   return true;
 }
-
-type AppRouter = {
-  push: (href: string) => void;
-};
-
-/**
- * App-Navigation: nur Zonenwechsel (App ↔ Superadmin) per Full-Load via /zone/enter;
- * Modul-Wechsel und Untermenü per Soft-Nav (Provider + Caches bleiben gemountet).
- */
-export function navigateAppPath(
-  router: AppRouter,
-  fromPath: string,
-  toPath: string,
-): void {
-  const target = safeInternalPath(toPath.trim() || "/dashboard");
-  if (assignCrossAppWorkspaceZone(fromPath, target)) return;
-  router.push(target);
-}
-
-export { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";

@@ -137,14 +137,3 @@ export function DisplayPinStandbyScene({
     </div>
   );
 }
-
-/** @deprecated Alias — Hintergrund separat. */
-export function DisplayPinScreensaverBackground({
-  accentHex,
-  className,
-}: {
-  accentHex: string;
-  className?: string;
-}) {
-  return <DisplayPinStandbyBackground accentHex={accentHex} className={className} />;
-}

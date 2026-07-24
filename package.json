@@ -56,7 +56,6 @@
     "db:setup:live-url": "node scripts/set-supabase-db-url.mjs",
     "db:tunnel:live": "bash scripts/db-tunnel-live.sh",
     "db:push:live": "bash scripts/db-push-live-guarded.sh",
-    "db:push:dev": "dotenv -e .env.development -- bash scripts/db-push-live.sh",
     "db:tunnel:dev": "bash scripts/db-tunnel-dev.sh",
     "db:setup:dev-url": "GWADA_ENV_FILE=.env.development node scripts/set-supabase-db-url.mjs",
     "provision:dev": "gh workflow run provision-dev-supabase.yml --ref main",

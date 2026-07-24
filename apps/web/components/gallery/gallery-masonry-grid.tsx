@@ -166,7 +166,3 @@ export function GalleryMasonryGridSkeleton({
     </div>
   );
 }
-
-/** @deprecated Alias — Spalten-Klassen nicht mehr für Layout genutzt. */
-export const galleryMasonryGridColumnsClassName =
-  "columns-2 gap-px sm:columns-3 lg:columns-4";

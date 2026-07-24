@@ -1,18 +1,12 @@
 "use client";
 
 import type { QueryClient } from "@tanstack/react-query";
-import {
-  ensureCriticalModuleDataReady,
-  seedPriorityModuleQueryCaches,
-} from "@/lib/hooks/app-module-intent-prefetch";
 
 /**
  * Absolute Deckel ab Mount — Overlay darf Klicks nie länger blockieren,
  * auch nicht während Auth/Workspace noch auflösen.
  */
 export const APP_SHELL_READY_MAX_MS = 1_200;
-
-export { ensureCriticalModuleDataReady, seedPriorityModuleQueryCaches };
 
 export type AppShellReadinessInputs = {
   authReady: boolean;

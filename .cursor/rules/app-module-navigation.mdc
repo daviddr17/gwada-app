@@ -18,7 +18,7 @@ alwaysApply: true
 ## Implementierung
 
 - `components/navigation/app-nav-link.tsx` — nur `assignCrossAppWorkspaceZone` im `onClick`, **kein** Modul-Full-Load
-- `lib/navigation/workspace-zone-enter.ts` — `navigateAppPath`: Zone-Full-Load, sonst `router.push`
+- `lib/navigation/workspace-zone-enter.ts` — `assignCrossAppWorkspaceZone` / `/zone/enter` für Zonenwechsel
 - `lib/navigation/app-module-navigation.ts` — `crossAppModuleNavigation` nur zur Erkennung, **nicht** für `window.location.assign`
 
 ## Warum

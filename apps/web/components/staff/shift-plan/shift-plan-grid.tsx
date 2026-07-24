@@ -1130,6 +1130,3 @@ export function ShiftPlanMonthView({
     </div>
   );
 }
-
-/** @deprecated Use ShiftPlanMonthView */
-export const ShiftPlanMonthList = ShiftPlanMonthView;

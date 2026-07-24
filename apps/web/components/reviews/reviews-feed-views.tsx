@@ -469,17 +469,6 @@ export function ReviewsTimelineView({
   );
 }
 
-/** @deprecated Alias — Dashboard nutzt die Timeline. */
-export function ReviewsGridView(props: {
-  reviews: UnifiedReview[];
-  showPlatform: boolean;
-  getReviewProps: (
-    review: UnifiedReview,
-  ) => Omit<ReviewCardActions, "review" | "showPlatform" | "variant">;
-}) {
-  return <ReviewsTimelineView {...props} />;
-}
-
 export function ReviewsListView({
   reviews,
   showPlatform,

@@ -74,22 +74,6 @@ export function prefetchCriticalModuleQueries(
   void ensureCriticalModuleDataReady(queryClient, restaurantId);
 }
 
-export function isCriticalModuleDataReady(
-  queryClient: QueryClient,
-  restaurantId: string,
-): boolean {
-  const staff = queryClient.getQueryData(queryKeys.staff.list(restaurantId));
-  const range = currentMonthReservationRange();
-  const reservations = queryClient.getQueryData(
-    queryKeys.reservations.month(
-      restaurantId,
-      range.rangeStartIso,
-      range.rangeEndExclusiveIso,
-    ),
-  );
-  return staff != null && reservations != null;
-}
-
 export async function ensureCriticalModuleDataReady(
   queryClient: QueryClient,
   restaurantId: string,

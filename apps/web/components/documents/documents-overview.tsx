@@ -47,11 +47,14 @@ import { formatStorageBytes } from "@/lib/documents/format-storage";
 import {
   peekDocumentsListCache,
   writeDocumentsListCache,
+  type DocumentsListCachePayload,
 } from "@/lib/documents/documents-list-client-cache";
 import { WORKSPACE_STORAGE_MODULE_LABELS } from "@/lib/constants/workspace-storage";
 import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persistence";
 import {
   hasModuleCreate,
   hasModuleDelete,
@@ -227,6 +230,39 @@ function DocumentTagChip({
   );
 }
 
+const EMPTY_DOCUMENTS_USAGE = {
+  usedBytes: 0,
+  quotaBytes: 3 * 1024 * 1024 * 1024,
+  documentsBytes: 0,
+  galleryBytes: 0,
+  newsBytes: 0,
+  accountingBytes: 0,
+};
+
+function initialDocumentsRestaurantId(): string | null {
+  const cached = peekCachedWorkspaceRestaurantId();
+  return cached && isUuidRestaurantId(cached) ? cached : null;
+}
+
+function initialDocumentsFromCache(restaurantId: string | null): {
+  rows: RestaurantDocumentRow[];
+  usage: DocumentsListCachePayload["usage"];
+  loading: boolean;
+} {
+  if (!restaurantId) {
+    return { rows: [], usage: EMPTY_DOCUMENTS_USAGE, loading: true };
+  }
+  const cached = peekDocumentsListCache(restaurantId);
+  if (!cached) {
+    return { rows: [], usage: EMPTY_DOCUMENTS_USAGE, loading: true };
+  }
+  return {
+    rows: cached.rows,
+    usage: cached.usage,
+    loading: false,
+  };
+}
+
 export function DocumentsOverview() {
   const router = useRouter();
   const pathname = usePathname();
@@ -240,16 +276,19 @@ export function DocumentsOverview() {
   const canEditDocumentNotes = hasPermission("documents.notes.edit");
   const documentTags = useDocumentTagsStorage(restaurantId);
 
-  const [rows, setRows] = useState<RestaurantDocumentRow[]>([]);
-  const [usage, setUsage] = useState({
-    usedBytes: 0,
-    quotaBytes: 3 * 1024 * 1024 * 1024,
-    documentsBytes: 0,
-    galleryBytes: 0,
-    newsBytes: 0,
-    accountingBytes: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  const initialDocsRef = useRef<ReturnType<typeof initialDocumentsFromCache> | null>(
+    null,
+  );
+  if (!initialDocsRef.current) {
+    initialDocsRef.current = initialDocumentsFromCache(
+      initialDocumentsRestaurantId(),
+    );
+  }
+  const initialDocs = initialDocsRef.current;
+
+  const [rows, setRows] = useState<RestaurantDocumentRow[]>(() => initialDocs.rows);
+  const [usage, setUsage] = useState(() => initialDocs.usage);
+  const [loading, setLoading] = useState(() => initialDocs.loading);
   const showSkeleton = useDeferredSkeleton(loading && rows.length === 0);
 
   const [search, setSearch] = useState("");

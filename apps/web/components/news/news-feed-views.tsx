@@ -470,9 +470,6 @@ export function NewsMasonryGrid({
   );
 }
 
-/** @deprecated Alias — bitte `NewsMasonryGrid` verwenden. */
-export const NewsGridView = NewsMasonryGrid;
-
 export function NewsListView({
   items,
   onItemClick,

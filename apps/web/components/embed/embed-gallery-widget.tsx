@@ -127,7 +127,11 @@ function EmbedGalleryWidgetBody({
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
         >
-          <GalleryMasonryGrid items={paginated} onItemClick={() => undefined} />
+          <GalleryMasonryGrid
+            items={paginated}
+            onItemClick={() => undefined}
+            edgeToEdge={variant === "profileSheet"}
+          />
         </ListPaginationSurround>
       )}
 
@@ -142,7 +146,7 @@ function EmbedGalleryWidgetBody({
   if (variant === "profileSheet") {
     return (
       <FeedScreenLayoutStable imageCount={countGalleryFeedImages(paginated)}>
-        <div className="space-y-4 py-4">{content}</div>
+        <div className="space-y-4 py-2">{content}</div>
       </FeedScreenLayoutStable>
     );
   }

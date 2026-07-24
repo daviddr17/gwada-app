@@ -83,8 +83,9 @@ const timeDe = new Intl.DateTimeFormat("de-DE", {
   minute: "2-digit",
 });
 
+/** Select-Wert nicht in die Chevron-Zelle quetschen (Basis-Trigger: grow/basis-0). */
 const selectValueNoShrink =
-  "[&_[data-slot=select-value]]:!min-w-0 [&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
+  "[&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:!basis-auto [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
 
 const GERMAN_MONTH_ITEMS = Object.fromEntries(
   Array.from({ length: 12 }, (_, m) => [
@@ -413,8 +414,8 @@ export function StaffWorkHoursView({
               "supports-[backdrop-filter]:bg-app-chrome/95 supports-[backdrop-filter]:backdrop-blur",
             )}
           >
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-2.5">
+              <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
                 <Button
                   type="button"
                   variant="ghost"
@@ -459,7 +460,8 @@ export function StaffWorkHoursView({
                   <SelectTrigger
                     size="sm"
                     className={appSelectTriggerAccentCn(
-                      "h-8 min-h-8 min-w-[4.25rem] w-auto shrink-0 rounded-xl px-2 text-left text-sm font-normal tabular-nums transition-[height,min-height] duration-200 ease-out sm:h-9 sm:min-h-9 sm:min-w-[4.75rem] sm:px-2.5",
+                      // Jahr + Chevron brauchen mehr als 4.25rem — sonst liegt „Heute“ über dem Pfeil.
+                      "h-8 min-h-8 min-w-[5.75rem] w-auto shrink-0 rounded-xl px-2.5 text-left text-sm font-normal tabular-nums transition-[height,min-height] duration-200 ease-out sm:h-9 sm:min-h-9 sm:min-w-[6.25rem] sm:px-3",
                       selectValueNoShrink,
                     )}
                   >
@@ -491,7 +493,7 @@ export function StaffWorkHoursView({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-2.5 text-xs font-medium text-green-800 transition-[height,padding,font-size] duration-200 ease-out hover:bg-green-500/15 hover:text-green-900 sm:h-8 sm:px-3 sm:text-sm dark:text-green-200 dark:hover:text-green-100"
+                className="ml-auto h-7 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-2.5 text-xs font-medium text-green-800 transition-[height,padding,font-size] duration-200 ease-out hover:bg-green-500/15 hover:text-green-900 sm:ml-0 sm:h-8 sm:px-3 sm:text-sm dark:text-green-200 dark:hover:text-green-100"
                 onClick={goToToday}
               >
                 Heute

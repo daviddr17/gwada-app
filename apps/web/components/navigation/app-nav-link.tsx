@@ -115,7 +115,8 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
         }}
         onPointerDown={(event) => {
           onPointerDown?.(event);
-          // Früher als click: Skeleton/Sidebar sofort (nur Primär-Taste).
+          // Pending nur anstoßen (deferred im Provider) — nicht synchron setzen,
+          // sonst re-rendert das Overlay im selben Tick und bricht den Flight ab.
           if (event.button !== 0 || !crossModuleNav) return;
           tryAcquireNavLock(event, hrefStr);
         }}

@@ -124,6 +124,7 @@ const API_ERROR_KEYS: Record<string, string> = {
   notify_channel_required: "errorNotifyChannel",
   outside_opening_hours: "errorOutsideHours",
   booking_lead_time: "errorLeadTime",
+  rate_limit_exceeded: "errorRateLimit",
   invalid_credentials: "errorCredentials",
   not_editable: "errorNotEditable",
   not_found: "errorNotFound",
@@ -308,12 +309,17 @@ function EmbedReservationWidgetBody({
   const notifyWhatsappInvalid =
     Boolean(fieldErrors.notifyChannel) && !notifyWhatsapp && hasPhone;
 
-  useEffect(() => {
-    if (timeSlots.length === 0) return;
-    if (!timeSlots.includes(timeHm)) {
-      setTimeHm(timeSlots[0]!);
-    }
+  // Nur Slot-Werte an Select binden — Base UI kann bei value∉items hängen/crashen.
+  const selectedTimeHm = useMemo(() => {
+    if (timeSlots.length === 0) return "";
+    if (timeSlots.includes(timeHm)) return timeHm;
+    return timeSlots[0]!;
   }, [timeSlots, timeHm]);
+
+  useEffect(() => {
+    if (!selectedTimeHm || selectedTimeHm === timeHm) return;
+    setTimeHm(selectedTimeHm);
+  }, [selectedTimeHm, timeHm]);
 
   const handleTabChange = useCallback((next: Tab) => {
     setTab(next);
@@ -365,8 +371,16 @@ function EmbedReservationWidgetBody({
   const buildPayload = () => {
     const ps = Number(partySize);
     if (!Number.isFinite(ps) || ps < 1) return null;
+    const hm = selectedTimeHm || timeHm;
+    if (!dateYmd.trim() || !hm.trim()) return null;
     const timeZone = config.timezone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
-    const startsIso = ymdHmToRestaurantIso(dateYmd, timeHm, timeZone);
+    // ymdHmToRestaurantIso wirft bei ungültigem Datum/Zeit — nie uncaught am Submit.
+    let startsIso: string;
+    try {
+      startsIso = ymdHmToRestaurantIso(dateYmd, hm, timeZone);
+    } catch {
+      return null;
+    }
     const endsIso = buildEndsIso(startsIso, config.defaultDwellMinutes);
     return {
       guest_first_name: normalizeReservationGuestFirstName(firstName),
@@ -401,7 +415,7 @@ function EmbedReservationWidgetBody({
       enforceBookingLead &&
       dateYmd.trim() &&
       timeSlots.length > 0 &&
-      !isYmdHmPublicBookable(config, dateYmd, timeHm)
+      !isYmdHmPublicBookable(config, dateYmd, selectedTimeHm || timeHm)
     ) {
       errors.time = true;
     }
@@ -654,7 +668,7 @@ function EmbedReservationWidgetBody({
             </p>
           ) : (
             <Select
-              value={timeHm}
+              value={selectedTimeHm || timeSlots[0]}
               onValueChange={(v) => {
                 setTimeHm(String(v));
                 clearFieldError("time");

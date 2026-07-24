@@ -178,6 +178,7 @@
       "errorNotFound": "未找到餐厅或未发布。",
       "errorCreateFailed": "无法创建预订。",
       "errorUpdateFailed": "无法保存更改。",
+      "errorRateLimit": "请求过于频繁。请稍候再试。",
       "hintDate": "请选择日期。",
       "hintTime": "请选择有效时间。",
       "hintParty": "请输入人数（至少 1）。",

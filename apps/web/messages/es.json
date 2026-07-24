@@ -178,6 +178,7 @@
       "errorNotFound": "Restaurante no encontrado o no publicado.",
       "errorCreateFailed": "No se pudo crear la reserva.",
       "errorUpdateFailed": "No se pudieron guardar los cambios.",
+      "errorRateLimit": "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.",
       "hintDate": "Elige una fecha.",
       "hintTime": "Elige una hora válida.",
       "hintParty": "Indica el número de personas (mín. 1).",

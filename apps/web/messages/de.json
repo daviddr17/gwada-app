@@ -178,6 +178,7 @@
       "errorNotFound": "Restaurant nicht gefunden oder nicht veröffentlicht.",
       "errorCreateFailed": "Reservierung konnte nicht angelegt werden.",
       "errorUpdateFailed": "Änderung konnte nicht gespeichert werden.",
+      "errorRateLimit": "Zu viele Anfragen. Bitte kurz warten und erneut versuchen.",
       "hintDate": "Bitte ein Datum wählen.",
       "hintTime": "Bitte eine gültige Uhrzeit wählen.",
       "hintParty": "Bitte Personenzahl angeben (mindestens 1).",

@@ -33,12 +33,14 @@ import { DisplayReservationsModule } from "@/components/display/modules/display-
 import { DisplayInventoryModule } from "@/components/display/modules/display-inventory-module";
 import { DisplayComplianceModule } from "@/components/display/modules/display-compliance-module";
 import { DisplayRecipesModule } from "@/components/display/modules/display-recipes-module";
+import { DisplayScreenSkeleton } from "@/components/display/display-screen-skeleton";
 import { Button } from "@/components/ui/button";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
 import { cn } from "@/lib/utils";
-import { Loader2, MonitorOff } from "lucide-react";
+import { MonitorOff } from "lucide-react";
 import Link from "next/link";
 import {
   readDisplayDeviceCredential,
@@ -86,6 +88,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
     : DISPLAY_CELEBRATION_EXIT_MS;
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const showBootstrapSkeleton = useDeferredSkeleton(loading);
   const [pin, setPin] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
   const [screenCelebration, setScreenCelebration] =
@@ -588,17 +591,16 @@ export function DisplayScreen({ slug }: { slug: string }) {
   let contentKey = "shell";
 
   if (loading) {
-    content = (
-      <div className={displayChromeShellClassName}>
+    content = showBootstrapSkeleton ? (
+      <DisplayScreenSkeleton />
+    ) : (
+      <div
+        className={displayChromeShellClassName}
+        aria-busy
+        aria-label="Display wird geladen"
+      >
         <DisplayChromeHeader />
-        <main
-          className={cn(
-            displayChromeMainClassName,
-            "flex items-center justify-center",
-          )}
-        >
-          <Loader2 className="size-10 animate-spin text-muted-foreground" />
-        </main>
+        <main className={cn(displayChromeMainClassName, "min-h-[40vh]")} />
       </div>
     );
   } else if (!context?.paired) {

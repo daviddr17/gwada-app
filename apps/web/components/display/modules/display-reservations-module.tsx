@@ -75,6 +75,8 @@ import { formatDiningTableSelectLabel } from "@/lib/supabase/dining-floor-db";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import type { DayHours, DateHoursException, Weekday } from "@/lib/types/restaurant";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
+import { displayFilterChipClassName } from "@/lib/ui/display-filter-chip";
+import { getAccentForeground } from "@/lib/theme/color-utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -989,12 +991,7 @@ export function DisplayReservationsModule() {
       key={id}
       type="button"
       onClick={() => setViewMode(id)}
-      className={cn(
-        "relative shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-        viewMode === id
-          ? "border-accent bg-accent text-accent-foreground"
-          : "border-border/60 bg-muted/30 text-muted-foreground",
-      )}
+      className={cn("relative", displayFilterChipClassName(viewMode === id))}
     >
       {label}
       {badge != null && badge > 0 ? (
@@ -1002,7 +999,7 @@ export function DisplayReservationsModule() {
           className={cn(
             "ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums",
             viewMode === id
-              ? "bg-accent-foreground/15 text-accent-foreground"
+              ? "bg-accent/25 text-foreground"
               : "bg-amber-500/15 text-amber-800 dark:text-amber-200",
           )}
         >
@@ -1015,9 +1012,9 @@ export function DisplayReservationsModule() {
   return (
     <div className={displayModuleContentClassName}>
       <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-3">
           <div
-            className="relative z-10 flex min-w-0 flex-wrap items-center gap-2"
+            className="flex min-w-0 flex-wrap items-center gap-2"
             onPointerDownCapture={() => {
               if (dayPickerOpen) setDayPickerOpen(false);
             }}
@@ -1026,7 +1023,7 @@ export function DisplayReservationsModule() {
               type="button"
               variant="ghost"
               size="icon"
-              className="relative z-10 size-11 shrink-0 touch-manipulation rounded-xl"
+              className="size-11 shrink-0 touch-manipulation rounded-xl"
               aria-label="Vorheriger Tag"
               onPointerDown={handleShiftDayPointerDown(-1)}
               onClick={handleShiftDay(-1)}
@@ -1042,7 +1039,7 @@ export function DisplayReservationsModule() {
               type="button"
               variant="ghost"
               size="icon"
-              className="relative z-10 size-11 shrink-0 touch-manipulation rounded-xl"
+              className="size-11 shrink-0 touch-manipulation rounded-xl"
               aria-label="Nächster Tag"
               onPointerDown={handleShiftDayPointerDown(1)}
               onClick={handleShiftDay(1)}
@@ -1054,7 +1051,7 @@ export function DisplayReservationsModule() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="relative z-10 h-9 rounded-lg"
+                className="ml-auto h-9 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-3 text-green-800 hover:bg-green-500/15 dark:text-green-200"
                 onClick={() => {
                   setDayPickerOpen(false);
                   setSelectedDayYmd(restaurantTodayYmd(timeZone));
@@ -1064,14 +1061,14 @@ export function DisplayReservationsModule() {
               </Button>
             ) : null}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="ghost"
               size="icon"
               className={cn(
                 reservationsDayDrawerHeaderActionButtonClassName,
-                "h-12 w-12 rounded-full",
+                "size-12 rounded-2xl",
               )}
               aria-label="Tagesliste drucken"
               disabled={showDataSkeleton || printReservations.length === 0}
@@ -1332,12 +1329,7 @@ export function DisplayReservationsModule() {
                   key={a.id}
                   type="button"
                   onClick={() => setSelectedAreaId(a.id)}
-                  className={cn(
-                    "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium",
-                    selectedAreaId === a.id
-                      ? "border-accent bg-accent/10 font-medium text-foreground"
-                      : "border-border/50 bg-muted/30 text-muted-foreground",
-                  )}
+                  className={displayFilterChipClassName(selectedAreaId === a.id)}
                 >
                   {a.name}
                 </button>
@@ -1353,22 +1345,30 @@ export function DisplayReservationsModule() {
                 const list = occupancy.get(t.id) ?? [];
                 const label = formatDiningTableSelectLabel(t);
                 const bg = list.length > 0 ? t.color_hex : undefined;
+                const onColor =
+                  list.length > 0 && bg ? getAccentForeground(bg) : undefined;
+                const darkFg = onColor === "#171717";
                 return (
                   <div
                     key={t.id}
                     className={cn(
                       "rounded-xl border border-border/50 p-2.5 shadow-card",
-                      list.length > 0 ? "text-white" : "bg-card min-h-[4.5rem]",
+                      list.length > 0 ? undefined : "min-h-[4.5rem] bg-card",
                     )}
                     style={
                       list.length > 0 && bg
-                        ? { backgroundColor: bg }
+                        ? { backgroundColor: bg, color: onColor }
                         : undefined
                     }
                   >
                     <div className="flex items-start justify-between gap-1.5">
                       <p className="text-sm font-semibold leading-tight">{label}</p>
-                      <span className="shrink-0 rounded-full bg-black/10 px-1.5 py-px text-[10px] tabular-nums">
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full px-1.5 py-px text-[10px] tabular-nums",
+                          darkFg ? "bg-black/10" : "bg-white/15",
+                        )}
+                      >
                         {t.capacity}
                       </span>
                     </div>

@@ -299,7 +299,7 @@ function DisplayInventoryCard({
       role="group"
       aria-label={row.name}
       className={cn(
-        "flex min-h-[10.5rem] flex-col rounded-3xl border border-border/50 bg-card p-4 text-left shadow-card transition-colors",
+        "flex min-h-[10.5rem] flex-col rounded-2xl border border-border/50 bg-card p-4 text-left shadow-card transition-colors",
         focused && "border-accent ring-2 ring-accent/30",
         disabledOrder && "opacity-55",
       )}

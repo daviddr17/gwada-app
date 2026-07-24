@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import {
   DASHBOARD_GLOBAL_SEARCH_CATEGORY_LABELS,
+  dashboardGlobalSearchEntityCtaLabel,
+  dashboardGlobalSearchHasEntityDeepLink,
+  dashboardGlobalSearchModuleCtaLabel,
+  dashboardGlobalSearchModuleHref,
   dashboardGlobalSearchReservationDayHref,
 } from "@/lib/dashboard/dashboard-global-search-nav";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
@@ -34,30 +38,45 @@ export function DashboardGlobalSearchResultSheet({
   onOpenChange,
 }: DashboardGlobalSearchResultSheetProps) {
   const router = useRouter();
-  const categoryLabel = item
-    ? DASHBOARD_GLOBAL_SEARCH_CATEGORY_LABELS[item.category]
+  const category = item?.category;
+  const categoryLabel = category
+    ? DASHBOARD_GLOBAL_SEARCH_CATEGORY_LABELS[category]
     : "";
+  const hasEntityLink = category
+    ? dashboardGlobalSearchHasEntityDeepLink(category)
+    : false;
+  const entityCta = category
+    ? dashboardGlobalSearchEntityCtaLabel(category)
+    : "Öffnen";
+  const moduleCta = category
+    ? dashboardGlobalSearchModuleCtaLabel(category)
+    : "Zum Modul";
+  const moduleHref = category ? dashboardGlobalSearchModuleHref(category) : null;
   const dayHref =
-    item?.category === "reservations" &&
-    item.dayYmd &&
+    category === "reservations" &&
+    item?.dayYmd &&
     /^\d{4}-\d{2}-\d{2}$/.test(item.dayYmd)
       ? dashboardGlobalSearchReservationDayHref(item.dayYmd)
       : null;
 
-  const goToModule = () => {
-    if (!item) return;
-    const href = item.href;
+  const navigate = (href: string) => {
     onOpenChange(false);
     forceResetAppScrollLocks();
     router.push(href);
   };
 
-  const goToDay = () => {
-    if (!dayHref) return;
-    onOpenChange(false);
-    forceResetAppScrollLocks();
-    router.push(dayHref);
+  const goToEntity = () => {
+    if (!item) return;
+    navigate(item.href);
   };
+
+  const goToModule = () => {
+    if (!moduleHref) return;
+    navigate(moduleHref);
+  };
+
+  const primaryLabel = hasEntityLink ? entityCta : moduleCta;
+  const primaryAction = hasEntityLink ? goToEntity : goToModule;
 
   return (
     <Drawer
@@ -89,17 +108,28 @@ export function DashboardGlobalSearchResultSheet({
 
         <div className={drawerScrollAreaClassName(6, "space-y-3 pb-2")}>
           <p className="text-sm text-muted-foreground">
-            Im Modul öffnen, um den Eintrag im gewohnten Kontext zu sehen und zu
-            bearbeiten.
+            {hasEntityLink
+              ? "Eintrag direkt öffnen oder nur zum Modul wechseln."
+              : "Im Modul öffnen, um den Eintrag im gewohnten Kontext zu sehen."}
           </p>
           {dayHref ? (
             <Button
               type="button"
               variant="outline"
               className="h-11 w-full rounded-xl border-border/60"
-              onClick={goToDay}
+              onClick={() => navigate(dayHref)}
             >
               Zum Tag
+            </Button>
+          ) : null}
+          {hasEntityLink && moduleHref ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full rounded-xl border-border/60"
+              onClick={goToModule}
+            >
+              {moduleCta}
             </Button>
           ) : null}
         </div>
@@ -109,8 +139,8 @@ export function DashboardGlobalSearchResultSheet({
           cancelLabel="Zurück"
           showSubmit
           submitType="button"
-          submitLabel={categoryLabel ? `Zu ${categoryLabel}` : "Im Modul öffnen"}
-          onSubmit={goToModule}
+          submitLabel={primaryLabel}
+          onSubmit={primaryAction}
           contentPadding={6}
         />
       </DrawerContent>

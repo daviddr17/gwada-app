@@ -63,6 +63,7 @@ import {
 } from "@/lib/constants/sidebar-modules";
 import { useSidebarModuleOrder } from "@/lib/contexts/sidebar-module-order-context";
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
+import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 import { formatSidebarMenuLabel } from "@/lib/navigation/format-sidebar-menu-label";
 import {
   sidebarChangelogUnreadCount,
@@ -165,7 +166,7 @@ export function AppSidebar() {
 
   useEffect(() => {
     for (const href of APP_MODULE_PRIORITY_ROUTES) {
-      router.prefetch(href);
+      prefetchAppModuleHref(router, href);
     }
   }, [router]);
 

@@ -25,6 +25,7 @@ import { peekMenuItemsCache } from "@/lib/menu/menu-items-query";
 import { peekMenuCategoriesCache } from "@/lib/menu/menu-categories-query";
 import { peekMenuMainCategoriesCache } from "@/lib/menu/menu-main-categories-query";
 import { peekIngredientsCache } from "@/lib/inventory/ingredients-query";
+import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 
 function normalizeModuleHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -162,13 +163,13 @@ function warmModuleData(
   }
 }
 
-/** Hover/Focus: RSC-Flight + Modul-Daten vor dem Klick wärmen. */
+/** Hover/Focus: volles Page-Segment + Modul-Daten vor dem Klick wärmen. */
 export function warmModuleRouteIntent(
   router: AppRouterInstance,
   queryClient: QueryClient,
   restaurantId: string,
   href: string,
 ): void {
-  router.prefetch(href);
+  prefetchAppModuleHref(router, href);
   warmModuleData(queryClient, restaurantId, href);
 }

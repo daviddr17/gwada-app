@@ -24,6 +24,8 @@ on:
           - contact-inbox-sync
           - accounting-lexoffice-sync
           - social-suggestions
+          - reservation-whatsapp
+          - reservation-email
 
 env:
   CRON_BASE_URL: https://gwada.app
@@ -150,3 +152,41 @@ jobs:
           curl -sfS --max-time 300 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/social-suggestions"
+
+  # Erinnerung + Danke/Bewertung (WhatsApp-Outbox)
+  reservation-whatsapp:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'reservation-whatsapp')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *')
+    steps:
+      - name: Call reservation-whatsapp
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set — skipped."
+            exit 0
+          fi
+          curl -sfS --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_BASE_URL/api/cron/reservation-whatsapp"
+
+  # Erinnerung + Danke/Bewertung (E-Mail-Outbox)
+  reservation-email:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'reservation-email')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *')
+    steps:
+      - name: Call reservation-email
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set — skipped."
+            exit 0
+          fi
+          curl -sfS --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_BASE_URL/api/cron/reservation-email"

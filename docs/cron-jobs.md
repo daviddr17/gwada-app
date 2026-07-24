@@ -12,8 +12,8 @@ Authorization: Bearer <CRON_SECRET>
 
 ## GitHub Actions (empfohlen)
 
-- `production-cron.yml` — Feed-Syncs, Staff-Shift, Kontakte, Lexoffice
-- `notification-deliver-cron.yml` — Push/WhatsApp/E-Mail-Zustellung
+- `production-cron.yml` — Feed-Syncs, Staff-Shift, Kontakte, Lexoffice, **Reservierungs-Erinnerung/Danke** (WhatsApp + E-Mail Outbox)
+- `notification-deliver-cron.yml` — Push/WhatsApp/E-Mail-Zustellung (Staff/In-App-Notifications)
 
 `CRON_BASE_URL: https://gwada.app` in den Workflows.
 
@@ -45,4 +45,15 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
 
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
   https://gwada.app/api/cron/social-suggestions
+
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+  https://gwada.app/api/cron/reservation-whatsapp
+
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+  https://gwada.app/api/cron/reservation-email
 ```
+
+### Reservierungen: Erinnerung / Danke & Bewertung
+
+Geplante Nachrichten liegen in `reservation_whatsapp_outbox` / `reservation_email_outbox`.
+Die Settings-Toggles allein versenden nicht — der Cron muss fällige Zeilen drainen (alle 5 Min. über `production-cron.yml`).

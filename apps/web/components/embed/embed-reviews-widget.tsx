@@ -27,8 +27,6 @@ export type EmbedReviewsWidgetProps = {
     median: number | null;
     distribution: Record<1 | 2 | 3 | 4 | 5, number>;
   };
-  /** Beibehalten für API-Kompatibilität — Feed ist immer Timeline. */
-  viewMode?: "grid" | "list";
   /** Server-Pagination (Embed-Route) — x/y + Seiten unten. */
   pagination?: PublicEmbedReviewsPagination;
   sourceLocale?: AppLocale;
@@ -70,7 +68,10 @@ function EmbedReviewsSummary({
           const pct = Math.round((n / maxBar) * 100);
           return (
             <div key={stars} className="flex items-center gap-2 text-sm">
-              <span className="w-8 shrink-0 text-muted-foreground">{stars}★</span>
+              <span className="inline-flex w-10 shrink-0 items-center gap-0.5 text-muted-foreground">
+                {stars}
+                <Star className="size-3.5" aria-hidden />
+              </span>
               <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
                 <div
                   className="h-full rounded-full bg-accent/80"
@@ -94,7 +95,6 @@ export function EmbedReviewsWidget({
   textTheme = "dark",
   reviews,
   summary,
-  viewMode = "grid",
   pagination,
   sourceLocale = "de",
 }: EmbedReviewsWidgetProps) {
@@ -108,7 +108,6 @@ export function EmbedReviewsWidget({
         restaurantName={restaurantName}
         reviews={reviews}
         summary={summary}
-        viewMode={viewMode}
         pagination={pagination}
       />
     </EmbedAccentRoot>
@@ -119,7 +118,6 @@ function EmbedReviewsWidgetBody({
   restaurantName,
   reviews,
   summary,
-  viewMode = "grid",
   pagination,
 }: Omit<EmbedReviewsWidgetProps, "accentHex" | "textTheme" | "sourceLocale">) {
   const t = useTranslations("Embed");
@@ -130,7 +128,6 @@ function EmbedReviewsWidgetBody({
   const searchParams = useSearchParams();
   const [navigating, startTransition] = useTransition();
   const paginated = pagination != null;
-  void viewMode;
 
   const pushPage = useCallback(
     (page: number) => {
@@ -158,7 +155,6 @@ function EmbedReviewsWidgetBody({
   const resizeDeps = useMemo(
     () => [
       restaurantName,
-      viewMode,
       reviews.length,
       pagination?.page ?? 1,
       pagination?.totalCount ?? reviews.length,
@@ -177,7 +173,7 @@ function EmbedReviewsWidgetBody({
         )
         .join("|"),
     ],
-    [restaurantName, viewMode, reviews, pagination, summary],
+    [restaurantName, reviews, pagination, summary],
   );
 
   const showPagination =

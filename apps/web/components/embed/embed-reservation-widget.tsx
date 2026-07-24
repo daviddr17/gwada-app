@@ -933,7 +933,7 @@ function EmbedReservationWidgetBody({
       <div
         className={cn(
           "w-full min-w-0",
-          profileSheet ? "px-0 py-0" : "px-4 py-5 sm:px-5",
+          profileSheet ? "px-0 py-0" : "px-4 py-5 sm:px-6",
         )}
       >
         <EmbedSlidingSegmentTabs

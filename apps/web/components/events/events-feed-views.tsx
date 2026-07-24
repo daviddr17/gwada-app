@@ -180,10 +180,22 @@ const EventTimelineRow = memo(function EventTimelineRow({
               </span>
             ) : null}
             {item.ticketUrl ? (
-              <span className="inline-flex items-center gap-1 font-medium text-accent">
-                <Ticket className="size-3.5 shrink-0" />
-                {t("tickets")}
-              </span>
+              onClick ? (
+                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                  <Ticket className="size-3.5 shrink-0" />
+                  {t("tickets")}
+                </span>
+              ) : (
+                <a
+                  href={item.ticketUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-medium text-accent underline-offset-2 hover:underline"
+                >
+                  <Ticket className="size-3.5 shrink-0" />
+                  {t("tickets")}
+                </a>
+              )
             ) : null}
           </div>
         </div>

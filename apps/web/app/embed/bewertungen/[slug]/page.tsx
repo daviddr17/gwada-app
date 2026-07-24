@@ -61,7 +61,7 @@ export default async function EmbedBewertungenPage({
     );
   }
 
-  const { name, accentHex, reviews, summary, viewMode, pagination } = result.data;
+  const { name, accentHex, reviews, summary, pagination } = result.data;
 
   const isPreview = Boolean(sp[EMBED_PREVIEW_TEXT_THEME_PARAM]);
 
@@ -75,7 +75,6 @@ export default async function EmbedBewertungenPage({
         accentHex={accentHex}
         reviews={reviews}
         summary={summary}
-        viewMode={viewMode}
         pagination={pagination}
         sourceLocale={sourceLocale}
         textTheme={resolveEmbedTextTheme(

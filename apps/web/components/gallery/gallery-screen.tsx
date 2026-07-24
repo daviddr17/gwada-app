@@ -319,14 +319,14 @@ export function GalleryScreen() {
   }
   if (!permissionsLoading && !canRead) {
     return (
-      <p className="px-4 py-8 text-sm text-muted-foreground">
+      <p className="py-8 text-sm text-muted-foreground">
         Keine Berechtigung für die Galerie.
       </p>
     );
   }
 
   return (
-    <div className="space-y-4 px-4 pb-8 sm:px-6">
+    <div className="space-y-4 pb-8">
       <GalleryPlatformFilterChips
         value={platformFilter}
         onChange={setPlatformFilter}

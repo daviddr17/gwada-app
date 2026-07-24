@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import type { MenuOptionGroupSaveInput } from "@/lib/supabase/menu-db";
 import type { MenuOptionGroup } from "@/lib/types/menu";
@@ -32,8 +33,13 @@ import {
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
 import { formatEuroAmount } from "@/lib/menu/recipe-cost-utils";
+import { cn } from "@/lib/utils";
+
+const SELECTION_ITEMS = {
+  single: "Eine Position",
+  multiple: "Mehrere Positionen",
+} as const;
 
 type ChoiceDraft = {
   key: string;
@@ -101,6 +107,28 @@ type Props = {
   onDelete?: (id: string) => void | Promise<void>;
 };
 
+function OptionSwitchRow({
+  title,
+  description,
+  checked,
+  onCheckedChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (next: boolean) => void;
+}) {
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-border/50 px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
 export function MenuOptionGroupDrawer({
   open,
   onOpenChange,
@@ -142,8 +170,7 @@ export function MenuOptionGroupDrawer({
         const name = c.name.trim();
         if (!name) return null;
         const raw = c.price.trim().replace(",", ".");
-        const priceDelta =
-          raw === "" ? 0 : Number.parseFloat(raw);
+        const priceDelta = raw === "" ? 0 : Number.parseFloat(raw);
         if (Number.isNaN(priceDelta) || priceDelta < 0) {
           next[`choice_${c.key}`] = "Preis ≥ 0 oder leer";
           return null;
@@ -179,6 +206,14 @@ export function MenuOptionGroupDrawer({
     onOpenChange(false);
   };
 
+  const updateChoice = (index: number, patch: Partial<ChoiceDraft>) => {
+    setForm((p) => {
+      const choices = [...p.choices];
+      choices[index] = { ...choices[index]!, ...patch };
+      return { ...p, choices };
+    });
+  };
+
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
@@ -188,17 +223,15 @@ export function MenuOptionGroupDrawer({
               {mode === "create" ? "Neue Option" : "Option bearbeiten"}
             </DrawerTitle>
             <DrawerDescription>
-              Gruppe mit wählbaren Positionen (z. B. Beilagen). Preis je Position
-              optional als Aufpreis.
+              Gruppe mit wählbaren Positionen (z. B. Beilagen). Aufpreis je
+              Position optional.
             </DrawerDescription>
           </DrawerHeader>
 
           <div className={drawerScrollAreaClassName(6)}>
             <DrawerFormSection title="Allgemein">
               <div className="space-y-2">
-                <Label htmlFor="option-name" className="text-xs text-muted-foreground">
-                  Name
-                </Label>
+                <Label htmlFor="option-name">Name</Label>
                 <Input
                   id="option-name"
                   value={form.name}
@@ -206,174 +239,161 @@ export function MenuOptionGroupDrawer({
                     setForm((p) => ({ ...p, name: e.target.value }))
                   }
                   placeholder="z. B. Beilagen"
-                  className="h-12 rounded-xl"
+                  className={staffDrawerFieldClassName}
                 />
                 {errors.name ? (
                   <p className="text-xs text-destructive">{errors.name}</p>
                 ) : null}
               </div>
 
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 px-3 py-2.5">
-                <div>
-                  <p className="text-sm font-medium">Aktiv</p>
-                  <p className="text-xs text-muted-foreground">
-                    Inaktive Optionen stehen bei Gerichten nicht zur Auswahl.
-                  </p>
-                </div>
-                <Switch
-                  checked={form.active}
-                  onCheckedChange={(active) =>
-                    setForm((p) => ({ ...p, active }))
+              <div className="space-y-2">
+                <Label htmlFor="option-selection">Auswahl</Label>
+                <Select
+                  value={form.selection}
+                  items={SELECTION_ITEMS}
+                  onValueChange={(v) =>
+                    setForm((p) => ({
+                      ...p,
+                      selection:
+                        String(v) === "multiple" ? "multiple" : "single",
+                    }))
                   }
-                />
+                >
+                  <SelectTrigger
+                    id="option-selection"
+                    className={appSelectTriggerAccentCn(staffDrawerFieldClassName)}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single">
+                      {SELECTION_ITEMS.single}
+                    </SelectItem>
+                    <SelectItem value="multiple">
+                      {SELECTION_ITEMS.multiple}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {form.selection === "single"
+                    ? "Gäste wählen genau eine Position."
+                    : "Gäste können mehrere Positionen kombinieren."}
+                </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Auswahl</Label>
-                  <Select
-                    value={form.selection}
-                    onValueChange={(v) =>
-                      setForm((p) => ({
-                        ...p,
-                        selection:
-                          String(v) === "multiple" ? "multiple" : "single",
-                      }))
-                    }
-                  >
-                    <SelectTrigger
-                      className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="single">Eine Position</SelectItem>
-                      <SelectItem value="multiple">Mehrere Positionen</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">Pflicht</p>
-                    <p className="text-xs text-muted-foreground">
-                      Mindestens eine Wahl nötig
-                    </p>
-                  </div>
-                  <Switch
-                    checked={form.required}
-                    onCheckedChange={(required) =>
-                      setForm((p) => ({ ...p, required }))
-                    }
-                  />
-                </div>
-              </div>
+              <OptionSwitchRow
+                title="Aktiv"
+                description="Inaktive Optionen stehen bei Gerichten nicht zur Auswahl."
+                checked={form.active}
+                onCheckedChange={(active) =>
+                  setForm((p) => ({ ...p, active }))
+                }
+              />
+              <OptionSwitchRow
+                title="Pflicht"
+                description="Mindestens eine Wahl ist nötig."
+                checked={form.required}
+                onCheckedChange={(required) =>
+                  setForm((p) => ({ ...p, required }))
+                }
+              />
             </DrawerFormSection>
 
             <DrawerFormSection title="Positionen">
+              <p className="text-xs text-muted-foreground">
+                Jede Zeile ist eine wählbare Variante. Aufpreis leer = ohne
+                Aufpreis.
+              </p>
               {errors.choices ? (
                 <p className="text-xs text-destructive">{errors.choices}</p>
               ) : null}
-              <div className="overflow-x-auto rounded-lg border border-border/50 bg-muted/10">
-                <table className="w-full min-w-[280px] text-sm">
-                  <thead>
-                    <tr className={moduleDataTableHeadRowMutedClassName}>
-                      <th className="px-2 py-1.5 text-left font-medium">Name</th>
-                      <th className="w-28 px-2 py-1.5 text-left font-medium">
-                        Aufpreis
-                      </th>
-                      <th className="w-16 px-1 py-1.5 text-center font-medium">
-                        Aktiv
-                      </th>
-                      <th className="w-10 px-1 py-1.5" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {form.choices.map((c, i) => (
-                      <tr
-                        key={c.key}
-                        className="border-b border-border/35 last:border-b-0"
+
+              <ul className="space-y-3">
+                {form.choices.map((c, i) => (
+                  <li
+                    key={c.key}
+                    className="space-y-3 rounded-xl border border-border/50 bg-muted/10 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Position {i + 1}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8 text-muted-foreground hover:text-destructive"
+                        aria-label={`Position ${i + 1} entfernen`}
+                        onClick={() =>
+                          setForm((p) => ({
+                            ...p,
+                            choices:
+                              p.choices.length <= 1
+                                ? [emptyChoice()]
+                                : p.choices.filter((_, j) => j !== i),
+                          }))
+                        }
                       >
-                        <td className="p-1">
-                          <Input
-                            value={c.name}
-                            onChange={(e) =>
-                              setForm((p) => {
-                                const choices = [...p.choices];
-                                choices[i] = {
-                                  ...choices[i]!,
-                                  name: e.target.value,
-                                };
-                                return { ...p, choices };
-                              })
-                            }
-                            placeholder="z. B. Pommes"
-                            className="h-9 rounded-lg"
-                          />
-                        </td>
-                        <td className="p-1">
-                          <Input
-                            value={c.price}
-                            onChange={(e) =>
-                              setForm((p) => {
-                                const choices = [...p.choices];
-                                choices[i] = {
-                                  ...choices[i]!,
-                                  price: e.target.value,
-                                };
-                                return { ...p, choices };
-                              })
-                            }
-                            placeholder="0"
-                            inputMode="decimal"
-                            className="h-9 rounded-lg"
-                          />
-                          {errors[`choice_${c.key}`] ? (
-                            <p className="mt-0.5 text-[11px] text-destructive">
-                              {errors[`choice_${c.key}`]}
-                            </p>
-                          ) : null}
-                        </td>
-                        <td className="p-1 text-center">
-                          <Switch
-                            checked={c.active}
-                            onCheckedChange={(active) =>
-                              setForm((p) => {
-                                const choices = [...p.choices];
-                                choices[i] = { ...choices[i]!, active };
-                                return { ...p, choices };
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="p-1 text-center">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="Position entfernen"
-                            onClick={() =>
-                              setForm((p) => ({
-                                ...p,
-                                choices:
-                                  p.choices.length <= 1
-                                    ? [emptyChoice()]
-                                    : p.choices.filter((_, j) => j !== i),
-                              }))
-                            }
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`option-choice-name-${c.key}`}>Name</Label>
+                      <Input
+                        id={`option-choice-name-${c.key}`}
+                        value={c.name}
+                        onChange={(e) =>
+                          updateChoice(i, { name: e.target.value })
+                        }
+                        placeholder="z. B. Pommes"
+                        className={staffDrawerFieldClassName}
+                      />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                      <div className="space-y-2">
+                        <Label htmlFor={`option-choice-price-${c.key}`}>
+                          Aufpreis (€)
+                        </Label>
+                        <Input
+                          id={`option-choice-price-${c.key}`}
+                          value={c.price}
+                          onChange={(e) =>
+                            updateChoice(i, { price: e.target.value })
+                          }
+                          placeholder="0"
+                          inputMode="decimal"
+                          className={cn(
+                            staffDrawerFieldClassName,
+                            "tabular-nums",
+                          )}
+                        />
+                        {errors[`choice_${c.key}`] ? (
+                          <p className="text-xs text-destructive">
+                            {errors[`choice_${c.key}`]}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-border/50 px-3 sm:min-w-[8.5rem]">
+                        <span className="text-sm font-medium">Aktiv</span>
+                        <Switch
+                          checked={c.active}
+                          onCheckedChange={(active) =>
+                            updateChoice(i, { active })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="rounded-xl"
+                size="lg"
+                className="w-full rounded-xl"
                 onClick={() =>
                   setForm((p) => ({
                     ...p,
@@ -382,10 +402,16 @@ export function MenuOptionGroupDrawer({
                 }
               >
                 <Plus className="size-4" />
-                Position
+                Position hinzufügen
               </Button>
+
               {choicePreview ? (
-                <p className="text-xs text-muted-foreground">{choicePreview}</p>
+                <div className="rounded-xl border border-border/40 bg-background/80 px-3 py-2.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Vorschau
+                  </p>
+                  <p className="mt-0.5 text-sm text-foreground">{choicePreview}</p>
+                </div>
               ) : null}
             </DrawerFormSection>
           </div>

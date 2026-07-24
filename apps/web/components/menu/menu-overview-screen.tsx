@@ -852,7 +852,7 @@ export function MenuOverviewScreen() {
       )}
 
       <DishDrawer
-        open={drawerOpen && (drawerMode === "create" || !!editItem)}
+        open={drawerOpen && (drawerMode === "create" || editItem != null)}
         onOpenChange={handleDishDrawerOpenChange}
         mode={drawerMode}
         editItem={editItem}
@@ -860,6 +860,7 @@ export function MenuOverviewScreen() {
         onUpdate={updateItem}
         onDelete={deleteItem}
         categories={categories}
+        optionGroups={menuOptionGroups.items}
         restaurantId={workspaceRestaurantId ?? undefined}
         restaurantName={restaurantName}
         restaurantSlug={restaurantSlug}
@@ -1059,7 +1060,7 @@ export function MenuOverviewScreen() {
         copy={{
           title: "Optionen",
           description:
-            "Gruppen wie Beilagen oder Extras. Positionen und Aufpreise im Editor. Danach Gerichten zuordnen.",
+            "Beilagen, Extras & Co. — Reihenfolge per Ziehen. Tippen zum Bearbeiten der Positionen und Aufpreise; danach im Gericht zuordnen.",
           newButton: "Neue Option",
         }}
       />

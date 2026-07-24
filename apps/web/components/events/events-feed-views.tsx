@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useState } from "react";
-import { CalendarDays, ExternalLink, Ticket } from "lucide-react";
+import { CalendarDays, ExternalLink, MapPin, Ticket } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
 import { EVENTS_PLATFORM_LABELS } from "@/lib/constants/events-platforms";
@@ -24,22 +24,33 @@ import { cn } from "@/lib/utils";
 const timelineRowSurfaceClassName =
   "flex min-w-0 flex-1 gap-3 rounded-xl border border-border/50 bg-card p-3 text-left shadow-card transition sm:gap-4 sm:p-3.5";
 
+const timelineRowSurfaceCompactClassName =
+  "flex min-w-0 flex-1 gap-2.5 rounded-xl border border-border/50 bg-card p-2.5 text-left shadow-card transition sm:gap-3 sm:p-3";
+
 const timelineThumbClassName =
   "size-[4.5rem] shrink-0 overflow-hidden rounded-lg bg-muted/30 sm:size-20";
+
+const timelineThumbCompactClassName =
+  "size-14 shrink-0 overflow-hidden rounded-lg bg-muted/30 sm:size-16";
 
 const EventTimelineThumb = memo(function EventTimelineThumb({
   coverUrl,
   title,
+  compact = false,
 }: {
   coverUrl: string | null;
   title: string;
+  compact?: boolean;
 }) {
   const [coverBroken, setCoverBroken] = useState(false);
   const showCover = Boolean(coverUrl) && !coverBroken;
+  const thumbClass = compact
+    ? timelineThumbCompactClassName
+    : timelineThumbClassName;
 
   if (showCover) {
     return (
-      <div className={timelineThumbClassName}>
+      <div className={thumbClass}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={coverUrl!}
@@ -56,12 +67,12 @@ const EventTimelineThumb = memo(function EventTimelineThumb({
   return (
     <div
       className={cn(
-        timelineThumbClassName,
+        thumbClass,
         "flex items-center justify-center text-muted-foreground/70",
       )}
       aria-hidden
     >
-      <CalendarDays className="size-6 sm:size-7" />
+      <CalendarDays className={compact ? "size-5" : "size-6 sm:size-7"} />
       <span className="sr-only">{title}</span>
     </div>
   );
@@ -71,15 +82,18 @@ const EventTimelineRow = memo(function EventTimelineRow({
   item,
   onClick,
   showConnectorBelow,
+  density = "comfortable",
 }: {
   item: UnifiedEventItem;
   onClick?: () => void;
   showConnectorBelow: boolean;
+  density?: "comfortable" | "compact";
 }) {
   const t = useTranslations("Embed.eventsUi");
   const fullRange = formatEventDateRange(item);
   const timeLabel = formatEventCardDate(item);
   const past = isEventPast(item);
+  const compact = density === "compact";
 
   const body = (
     <>
@@ -107,14 +121,20 @@ const EventTimelineRow = memo(function EventTimelineRow({
 
       <div
         className={cn(
-          timelineRowSurfaceClassName,
+          compact
+            ? timelineRowSurfaceCompactClassName
+            : timelineRowSurfaceClassName,
           item.isPinned && feedPinnedItemSurfaceClassName,
           past && "opacity-90",
           onClick && "group-hover/row:border-border group-active/row:scale-[0.995]",
         )}
       >
-        <EventTimelineThumb coverUrl={item.coverUrl} title={item.title} />
-        <div className="min-w-0 flex-1 space-y-1.5">
+        <EventTimelineThumb
+          coverUrl={item.coverUrl}
+          title={item.title}
+          compact={compact}
+        />
+        <div className={cn("min-w-0 flex-1", compact ? "space-y-1" : "space-y-1.5")}>
           <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <Badge variant="secondary" className="gap-1.5">
@@ -141,7 +161,10 @@ const EventTimelineRow = memo(function EventTimelineRow({
           </p>
           {item.description ? (
             <p
-              className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-wrap"
+              className={cn(
+                "text-sm text-muted-foreground whitespace-pre-wrap",
+                compact ? "line-clamp-1" : "line-clamp-2",
+              )}
               data-embed-mt
             >
               {item.description}
@@ -149,8 +172,11 @@ const EventTimelineRow = memo(function EventTimelineRow({
           ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {item.location ? (
-              <span className="truncate">
-                📍 <span data-embed-mt>{item.location}</span>
+              <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                <MapPin className="size-3.5 shrink-0 text-accent" aria-hidden />
+                <span className="truncate" data-embed-mt>
+                  {item.location}
+                </span>
               </span>
             ) : null}
             {item.ticketUrl ? (
@@ -183,10 +209,13 @@ const EventTimelineRow = memo(function EventTimelineRow({
 export function EventsTimelineView({
   items,
   onItemClick,
+  density = "comfortable",
 }: {
   items: UnifiedEventItem[];
   onItemClick?: (item: UnifiedEventItem) => void;
+  density?: "comfortable" | "compact";
 }) {
+  const compact = density === "compact";
   return (
     <ul className="space-y-0">
       {items.map((item, index) => {
@@ -199,8 +228,13 @@ export function EventsTimelineView({
             {showMonthHeader ? (
               <li
                 className={cn(
-                  "pb-2",
-                  index === 0 ? "pt-0" : "border-t border-border/40 pt-4",
+                  compact ? "pb-1.5" : "pb-2",
+                  index === 0
+                    ? "pt-0"
+                    : cn(
+                        "border-t border-border/40",
+                        compact ? "pt-3" : "pt-4",
+                      ),
                 )}
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -208,9 +242,10 @@ export function EventsTimelineView({
                 </p>
               </li>
             ) : null}
-            <li className="pb-3 last:pb-0">
+            <li className={cn(compact ? "pb-2 last:pb-0" : "pb-3 last:pb-0")}>
               <EventTimelineRow
                 item={item}
+                density={density}
                 showConnectorBelow={index < items.length - 1}
                 onClick={onItemClick ? () => onItemClick(item) : undefined}
               />
@@ -226,6 +261,7 @@ export function EventsTimelineView({
 export function EventsListView(props: {
   items: UnifiedEventItem[];
   onItemClick?: (item: UnifiedEventItem) => void;
+  density?: "comfortable" | "compact";
 }) {
   return <EventsTimelineView {...props} />;
 }

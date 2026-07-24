@@ -35,14 +35,10 @@ const reviewsSortSelectClass = appSelectTriggerAccentCn(
 export function RestaurantPublicProfileReviews({
   reviews,
   connectedPlatforms,
-  viewMode: _viewMode = "grid",
 }: {
   reviews: PublicEmbedReview[];
   connectedPlatforms: ReviewPlatform[];
-  /** Beibehalten für API-Kompatibilität — Feed ist immer Timeline. */
-  viewMode?: "grid" | "list";
 }) {
-  void _viewMode;
   const [platformFilter, setPlatformFilter] = useState<ReviewPlatform | "all">(
     "all",
   );
@@ -81,7 +77,7 @@ export function RestaurantPublicProfileReviews({
   const showPlatformChips = connectedPlatforms.length > 1;
 
   return (
-    <div className="px-4 py-5 sm:px-6">
+    <div className="px-0 py-0">
       <div className="flex flex-col gap-3">
         {showPlatformChips ? (
           <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

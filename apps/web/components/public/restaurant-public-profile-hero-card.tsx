@@ -8,7 +8,7 @@ import {
   useTransform,
 } from "framer-motion";
 import { MapPin, Phone } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePointerFine } from "@/hooks/use-pointer-fine";
 import { PublicProfileOpeningStatusChip } from "@/components/public/public-profile-opening-status-chip";
 import { PublicProfileSocialChip } from "@/components/public/public-profile-social-chip";
@@ -42,6 +42,52 @@ function restaurantInitials(name: string): string {
     );
   }
   return name.trim().slice(0, 2).toLocaleUpperCase("de-DE") || "?";
+}
+
+function HeroDescriptionExpandable({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [needsExpand, setNeedsExpand] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (expanded) {
+      setNeedsExpand(true);
+      return;
+    }
+    setNeedsExpand(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+
+  return (
+    <div className={className}>
+      <p
+        ref={ref}
+        className={
+          expanded
+            ? "whitespace-pre-wrap"
+            : "line-clamp-2"
+        }
+      >
+        {text}
+      </p>
+      {needsExpand ? (
+        <button
+          type="button"
+          className="mt-1 text-xs font-medium text-accent underline-offset-4 hover:underline"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "Weniger" : "Mehr"}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export function RestaurantPublicProfileHeroCard({
@@ -165,9 +211,10 @@ export function RestaurantPublicProfileHeroCard({
             {profile.name}
           </h1>
           {profile.description ? (
-            <p className={publicProfileHeroDescriptionClassName}>
-              {profile.description}
-            </p>
+            <HeroDescriptionExpandable
+              text={profile.description}
+              className={publicProfileHeroDescriptionClassName}
+            />
           ) : null}
         </div>
 

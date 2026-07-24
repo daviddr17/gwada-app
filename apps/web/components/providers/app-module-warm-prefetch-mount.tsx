@@ -58,6 +58,7 @@ export function AppModuleWarmPrefetchMount() {
       warmAppModuleSecondaryCaches(queryClient, restaurantId);
     }, 1_200);
 
+    // Restliche Module früher FULL-prefetchen — Idle 1.5s ließ Erstbesuche kalt.
     runWhenIdle(() => {
       let index = 0;
       for (const route of APP_MODULE_PREFETCH_ROUTES) {
@@ -67,7 +68,7 @@ export function AppModuleWarmPrefetchMount() {
         }, index * ROUTE_PREFETCH_STAGGER_MS);
         index += 1;
       }
-    }, 1_500);
+    }, 400);
   }, [queryClient, restaurantId, router, workspaceReady]);
 
   return null;

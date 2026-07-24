@@ -57,7 +57,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 const FEED_STALE_MS = 5 * 60_000;
 
-async function warmEventsFeed(restaurantId: string): Promise<void> {
+export async function warmEventsFeed(restaurantId: string): Promise<void> {
   const cached = peekEventsFeedCache(restaurantId);
   if (cached && Date.now() - cached.at <= FEED_STALE_MS) return;
 
@@ -79,7 +79,7 @@ async function warmEventsFeed(restaurantId: string): Promise<void> {
   }
 }
 
-async function warmNewsFeed(restaurantId: string): Promise<void> {
+export async function warmNewsFeed(restaurantId: string): Promise<void> {
   if (isNewsFeedClientCacheFresh(restaurantId, NEWS_FILTER_ALL, FEED_STALE_MS)) {
     return;
   }
@@ -104,7 +104,7 @@ async function warmNewsFeed(restaurantId: string): Promise<void> {
   }
 }
 
-async function warmGalleryFeed(restaurantId: string): Promise<void> {
+export async function warmGalleryFeed(restaurantId: string): Promise<void> {
   if (isGalleryFeedClientCacheFresh(restaurantId, FEED_STALE_MS)) return;
 
   try {
@@ -156,7 +156,7 @@ async function warmReservationsCurrentMonth(restaurantId: string): Promise<void>
   writeReservationsMonthCache(restaurantId, range, data);
 }
 
-async function warmDocumentsList(restaurantId: string): Promise<void> {
+export async function warmDocumentsList(restaurantId: string): Promise<void> {
   if (isDocumentsListCacheFresh(restaurantId, FEED_STALE_MS)) return;
 
   const [docs, storage] = await Promise.all([
@@ -170,7 +170,7 @@ async function warmDocumentsList(restaurantId: string): Promise<void> {
   });
 }
 
-async function warmStaffTodos(restaurantId: string): Promise<void> {
+export async function warmStaffTodos(restaurantId: string): Promise<void> {
   if (isStaffTodosCacheFresh(restaurantId, FEED_STALE_MS)) return;
 
   const todoRes = await fetchStaffTodosForRestaurant(restaurantId);

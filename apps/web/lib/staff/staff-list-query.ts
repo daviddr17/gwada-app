@@ -28,12 +28,11 @@ export type StaffListQueryData = {
 export async function fetchStaffListForRestaurant(
   restaurantId: string,
 ): Promise<StaffListQueryData> {
-  // Inhaber ohne restaurant_staff nachziehen (Schichtplan / Mitarbeiterliste)
-  await ensureRestaurantOwnerStaffClient(restaurantId);
-
+  // Ensure parallel zu den Listen — nicht als Wasserfall davor.
   const [staffRes, contractsRes] = await Promise.all([
     fetchStaffForRestaurant(restaurantId),
     fetchStaffContractsForRestaurant(restaurantId),
+    ensureRestaurantOwnerStaffClient(restaurantId),
   ]);
   if (staffRes.error) throw new Error(staffRes.error);
   if (contractsRes.error) throw new Error(contractsRes.error);

@@ -15,6 +15,16 @@ import {
 } from "@/lib/staff/staff-list-query";
 import { queryKeys } from "@/lib/query/query-keys";
 import { warmPublicHolidaysForCurrentMonth } from "@/lib/reservations/public-holidays-range-cache";
+import {
+  inventoryIngredientsPrefetchOptions,
+  menuCategoriesPrefetchOptions,
+  menuItemsPrefetchOptions,
+  menuMainCategoriesPrefetchOptions,
+} from "@/lib/hooks/app-module-query-prefetch";
+import { peekMenuItemsCache } from "@/lib/menu/menu-items-query";
+import { peekMenuCategoriesCache } from "@/lib/menu/menu-categories-query";
+import { peekMenuMainCategoriesCache } from "@/lib/menu/menu-main-categories-query";
+import { peekIngredientsCache } from "@/lib/inventory/ingredients-query";
 
 function normalizeModuleHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -89,11 +99,23 @@ export async function ensureCriticalModuleDataReady(
   ]);
 }
 
-const MODULE_HREF_PREFIX: readonly { prefix: string; warm: "staff" | "reservations" }[] =
-  [
-    { prefix: "/dashboard/mitarbeiter", warm: "staff" },
-    { prefix: "/dashboard/reservierungen", warm: "reservations" },
-  ];
+function seedMenuQueryCaches(
+  queryClient: QueryClient,
+  restaurantId: string,
+): void {
+  const items = peekMenuItemsCache();
+  if (items) {
+    queryClient.setQueryData(queryKeys.menu.items(restaurantId), items);
+  }
+  const main = peekMenuMainCategoriesCache();
+  if (main) {
+    queryClient.setQueryData(queryKeys.menu.mainCategories(restaurantId), main);
+  }
+  const cats = peekMenuCategoriesCache();
+  if (cats) {
+    queryClient.setQueryData(queryKeys.menu.categories(restaurantId), cats);
+  }
+}
 
 function warmModuleData(
   queryClient: QueryClient,
@@ -101,24 +123,42 @@ function warmModuleData(
   href: string,
 ): void {
   const path = normalizeModuleHref(href);
-  for (const { prefix, warm } of MODULE_HREF_PREFIX) {
-    if (!path.startsWith(prefix)) continue;
-    if (warm === "staff") {
-      seedPriorityModuleQueryCaches(queryClient, restaurantId);
-      prefetchCriticalModuleQueries(queryClient, restaurantId);
-      return;
-    }
-    if (warm === "reservations") {
-      seedPriorityModuleQueryCaches(queryClient, restaurantId);
-      void queryClient.prefetchQuery(
-        reservationsMonthQueryOptions(
-          restaurantId,
-          currentMonthReservationRange(),
-        ),
+  if (path.startsWith("/dashboard/mitarbeiter")) {
+    seedPriorityModuleQueryCaches(queryClient, restaurantId);
+    prefetchCriticalModuleQueries(queryClient, restaurantId);
+    return;
+  }
+  if (path.startsWith("/dashboard/reservierungen")) {
+    seedPriorityModuleQueryCaches(queryClient, restaurantId);
+    void queryClient.prefetchQuery(
+      reservationsMonthQueryOptions(
+        restaurantId,
+        currentMonthReservationRange(),
+      ),
+    );
+    void warmPublicHolidaysForCurrentMonth(restaurantId);
+    return;
+  }
+  if (path.startsWith("/dashboard/menu")) {
+    seedMenuQueryCaches(queryClient, restaurantId);
+    void queryClient.prefetchQuery(menuItemsPrefetchOptions(restaurantId));
+    void queryClient.prefetchQuery(
+      menuMainCategoriesPrefetchOptions(restaurantId),
+    );
+    void queryClient.prefetchQuery(menuCategoriesPrefetchOptions(restaurantId));
+    return;
+  }
+  if (path.startsWith("/dashboard/inventory")) {
+    const ingredients = peekIngredientsCache();
+    if (ingredients) {
+      queryClient.setQueryData(
+        queryKeys.inventory.ingredients(restaurantId),
+        ingredients,
       );
-      void warmPublicHolidaysForCurrentMonth(restaurantId);
-      return;
     }
+    void queryClient.prefetchQuery(
+      inventoryIngredientsPrefetchOptions(restaurantId),
+    );
   }
 }
 

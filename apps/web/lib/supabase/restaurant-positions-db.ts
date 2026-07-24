@@ -136,7 +136,11 @@ export async function updateRestaurantPosition(
 ): Promise<{ error: string | null }> {
   const updates: { color?: string; name?: string } = {};
   if (patch.color != null) updates.color = patch.color;
-  if (patch.name != null) updates.name = patch.name.trim();
+  if (patch.name != null) {
+    const trimmed = patch.name.trim();
+    if (!trimmed) return { error: "name_required" };
+    updates.name = trimmed;
+  }
   if (Object.keys(updates).length === 0) return { error: null };
 
   const { error } = await sb

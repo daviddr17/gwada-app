@@ -15,10 +15,13 @@ import {
 } from "@/components/ui/drawer";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   RestaurantPositionColorField,
   resolvePositionColorInput,
+  restaurantPositionDrawerLabelClassName,
 } from "@/components/settings/restaurant-position-color-field";
 import {
   permissionSetsEqual,
@@ -80,6 +83,8 @@ export function RestaurantPositionEditDrawer({
   const [permBaseline, setPermBaseline] = useState<
     Set<RestaurantPermissionKey>
   >(new Set());
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameBaseline, setNameBaseline] = useState("");
   const [colorDraft, setColorDraft] = useState("#64748b");
   const [colorBaseline, setColorBaseline] = useState("#64748b");
   const [usageCounts, setUsageCounts] = useState<PositionUsageCounts>({
@@ -98,12 +103,15 @@ export function RestaurantPositionEditDrawer({
   const canDelete = position != null && !isOwner;
   const deleteDialogOpen = deleteOpen && deleteTarget != null;
 
+  const trimmedName = nameDraft.trim();
+  const nameDirty = trimmedName !== nameBaseline.trim();
   const colorDirty = colorDraft !== colorBaseline;
   const permDirty = useMemo(() => {
     if (!position || isOwner) return false;
     return !permissionSetsEqual(permDraft, permBaseline);
   }, [permDraft, permBaseline, isOwner, position]);
-  const dirty = colorDirty || permDirty;
+  const dirty = nameDirty || colorDirty || permDirty;
+  const canSave = dirty && trimmedName.length > 0;
 
   const usageHint = formatUsageHint(usageCounts);
 
@@ -127,6 +135,9 @@ export function RestaurantPositionEditDrawer({
     const { counts, error: usageError } = usageResult;
     if (permError) toast.error(permError);
     if (usageError) toast.error(usageError);
+    const nextName = position.name;
+    setNameDraft(nextName);
+    setNameBaseline(nextName);
     const nextColor = normalizeRestaurantPositionColor(
       position.color,
       position.id,
@@ -161,20 +172,34 @@ export function RestaurantPositionEditDrawer({
   };
 
   const save = async () => {
-    if (!position || !dirty) return;
+    if (!position || !canSave) return;
+    if (nameDirty && !trimmedName) {
+      toast.error("Bitte einen Namen eingeben.");
+      return;
+    }
     setSaving(true);
     const sb = createSupabaseBrowserClient();
 
-    if (colorDirty) {
+    if (nameDirty || colorDirty) {
+      const nextColor = resolvePositionColorInput(colorDraft, position.id);
       const { error } = await updateRestaurantPosition(sb, position.id, {
-        color: resolvePositionColorInput(colorDraft, position.id),
+        ...(nameDirty ? { name: trimmedName } : {}),
+        ...(colorDirty ? { color: nextColor } : {}),
       });
       if (error) {
         setSaving(false);
-        toast.error(error);
+        toast.error(
+          error === "name_required"
+            ? "Bitte einen Namen eingeben."
+            : error,
+        );
         return;
       }
-      setColorBaseline(resolvePositionColorInput(colorDraft, position.id));
+      if (nameDirty) {
+        setNameDraft(trimmedName);
+        setNameBaseline(trimmedName);
+      }
+      if (colorDirty) setColorBaseline(nextColor);
     }
 
     if (permDirty && !isOwner) {
@@ -256,7 +281,7 @@ export function RestaurantPositionEditDrawer({
                     color={positionColor}
                     className="mr-0 h-5 shrink-0"
                   />
-                  <span>{position.name}</span>
+                  <span>{trimmedName || position.name}</span>
                 </>
               ) : (
                 "Position"
@@ -264,8 +289,8 @@ export function RestaurantPositionEditDrawer({
             </DrawerTitle>
             <DrawerDescription className="text-base">
               {isOwner
-                ? "Inhaber hat alle Rechte. Farbe ist anpassbar."
-                : "Farbe und Berechtigungen für diese Position."}
+                ? "Inhaber hat alle Rechte. Name und Farbe sind anpassbar."
+                : "Name, Farbe und Berechtigungen für diese Position."}
             </DrawerDescription>
           </DrawerHeader>
 
@@ -280,7 +305,24 @@ export function RestaurantPositionEditDrawer({
                 </div>
               ) : (
                 <>
-                  <DrawerFormSection title="Darstellung">
+                  <DrawerFormSection title="Stammdaten">
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="position-edit-name"
+                        className={restaurantPositionDrawerLabelClassName}
+                      >
+                        Name
+                      </Label>
+                      <Input
+                        id="position-edit-name"
+                        value={nameDraft}
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        placeholder="z. B. Bar"
+                        className="h-12 rounded-xl"
+                        autoFocus
+                      />
+                    </div>
+
                     <RestaurantPositionColorField
                       idPrefix="position-edit"
                       color={colorDraft}
@@ -319,7 +361,7 @@ export function RestaurantPositionEditDrawer({
               onSubmit={() => void save()}
               submitLabel="Speichern"
               submitPending={saving}
-              submitDisabled={!dirty || loading}
+              submitDisabled={!canSave || loading}
               showDelete={canDelete}
               onDelete={() => {
                 if (!position) return;

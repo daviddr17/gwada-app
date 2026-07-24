@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardCheck, ChevronRight } from "lucide-react";
+import { ChevronLeft, ClipboardCheck, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -143,14 +143,15 @@ export function DisplayComplianceModule() {
 
   if (active) {
     return (
-      <div className={cn(displayModuleContentClassName, "space-y-4")}>
+      <div className={displayModuleContentClassName}>
         <Button
           type="button"
           variant="ghost"
-          className="rounded-xl px-0"
+          className="w-fit gap-1.5 rounded-xl px-0"
           onClick={() => setActive(null)}
         >
-          ← Zurück
+          <ChevronLeft className="size-4" aria-hidden />
+          Zurück
         </Button>
         <div>
           <h2 className="text-xl font-semibold">{active.title}</h2>
@@ -189,7 +190,14 @@ export function DisplayComplianceModule() {
           disabled={saving}
           onClick={() => void save()}
         >
-          {saving ? "Speichern …" : "Eintrag speichern"}
+          {saving ? (
+            <>
+              <Loader2 className="mr-2 size-5 animate-spin" aria-hidden />
+              Speichern …
+            </>
+          ) : (
+            "Eintrag speichern"
+          )}
         </Button>
       </div>
     );
@@ -207,7 +215,7 @@ export function DisplayComplianceModule() {
   }
 
   return (
-    <div className={cn(displayModuleContentClassName, "space-y-3")}>
+    <div className={displayModuleContentClassName}>
       {todos.map((todo) => {
         const recurrence = staffTodoRecurrenceLabel(todo.recurrence);
         const captureLabel = staffTodoCaptureLabel(todo.capture_type);
@@ -220,7 +228,7 @@ export function DisplayComplianceModule() {
           <button
             key={todo.id}
             type="button"
-            className="flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-card p-4 text-left shadow-sm transition-colors hover:bg-muted/20 active:scale-[0.99]"
+            className="flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-card p-4 text-left shadow-card transition-colors hover:bg-muted/20 active:scale-[0.99]"
             onClick={() => openTodo(todo)}
           >
             <ClipboardCheck className="size-6 shrink-0 text-muted-foreground" />

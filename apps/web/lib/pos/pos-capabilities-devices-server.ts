@@ -35,6 +35,10 @@ function hashEnrollmentCode(code: string): string {
   return createHash("sha256").update(code.trim().toUpperCase(), "utf8").digest("hex");
 }
 
+function hashDeviceToken(token: string): string {
+  return createHash("sha256").update(token, "utf8").digest("hex");
+}
+
 function generateEnrollmentCode(): string {
   // 8 chars, unambiguous alphabet
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -45,6 +49,19 @@ function generateEnrollmentCode(): string {
   }
   return out;
 }
+
+function generateDeviceToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+export type PosEnrollmentClaim = {
+  deviceId: string;
+  deviceToken: string;
+  restaurantId: string;
+  restaurantName: string;
+  kind: "hub" | "handheld";
+  brandAccentHex: string | null;
+};
 
 export async function listPosCapabilities(
   supabase: SupabaseClient,
@@ -226,4 +243,156 @@ export async function deactivatePosDevice(
   return !error;
 }
 
-export { hashEnrollmentCode };
+/**
+ * Löst einen Einrichtungs-Code ein (ohne User-Session — Service-Role).
+ * Code ist einmalig; setzt device_token_hash und leert enrollment_*.
+ */
+export async function claimPosDeviceEnrollment(params: {
+  admin: SupabaseClient;
+  code: string;
+  installationId: string;
+  preferredName?: string | null;
+}): Promise<
+  | { ok: true; claim: PosEnrollmentClaim }
+  | { ok: false; error: string; status: number }
+> {
+  const code = params.code.trim().toUpperCase();
+  if (!/^[A-Z0-9]{8}$/.test(code)) {
+    return { ok: false, error: "invalid_code", status: 400 };
+  }
+  const installationId = params.installationId.trim();
+  if (installationId.length < 8) {
+    return { ok: false, error: "invalid_installation_id", status: 400 };
+  }
+
+  const codeHash = hashEnrollmentCode(code);
+  const { data: device, error } = await params.admin
+    .from("pos_devices")
+    .select(
+      "id, restaurant_id, name, kind, enrollment_expires_at, device_token_hash, is_active",
+    )
+    .eq("enrollment_code_hash", codeHash)
+    .maybeSingle();
+
+  if (error || !device) {
+    return { ok: false, error: "code_not_found", status: 404 };
+  }
+  if (!device.is_active) {
+    return { ok: false, error: "device_inactive", status: 403 };
+  }
+  if (device.device_token_hash) {
+    return { ok: false, error: "already_enrolled", status: 409 };
+  }
+  const expiresAt = device.enrollment_expires_at as string | null;
+  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+    await params.admin
+      .from("pos_devices")
+      .update({
+        enrollment_code_hash: null,
+        enrollment_code_hint: null,
+        enrollment_expires_at: null,
+      })
+      .eq("id", device.id);
+    return { ok: false, error: "code_expired", status: 410 };
+  }
+
+  const { data: restaurant } = await params.admin
+    .from("restaurants")
+    .select("id, name, brand_accent_hex")
+    .eq("id", device.restaurant_id)
+    .maybeSingle();
+  if (!restaurant) {
+    return { ok: false, error: "restaurant_not_found", status: 404 };
+  }
+
+  const deviceToken = generateDeviceToken();
+  const name =
+    params.preferredName?.trim() ||
+    (device.name as string) ||
+    (device.kind === "hub" ? "Kasse" : "Handgerät");
+
+  const { error: updErr } = await params.admin
+    .from("pos_devices")
+    .update({
+      name,
+      device_token_hash: hashDeviceToken(deviceToken),
+      enrolled_at: new Date().toISOString(),
+      last_seen_at: new Date().toISOString(),
+      enrollment_code_hash: null,
+      enrollment_code_hint: null,
+      enrollment_expires_at: null,
+      // installation id stored only client-side for now; token binds device
+    })
+    .eq("id", device.id)
+    .is("device_token_hash", null);
+
+  if (updErr) {
+    return { ok: false, error: "claim_failed", status: 500 };
+  }
+
+  return {
+    ok: true,
+    claim: {
+      deviceId: device.id as string,
+      deviceToken,
+      restaurantId: restaurant.id as string,
+      restaurantName: (restaurant.name as string) || "Restaurant",
+      kind: device.kind as "hub" | "handheld",
+      brandAccentHex: (restaurant.brand_accent_hex as string | null) ?? null,
+    },
+  };
+}
+
+export async function verifyPosDeviceToken(params: {
+  admin: SupabaseClient;
+  deviceId: string;
+  deviceToken: string;
+  restaurantId?: string | null;
+}): Promise<
+  | {
+      ok: true;
+      deviceId: string;
+      restaurantId: string;
+      kind: "hub" | "handheld";
+    }
+  | { ok: false; error: string; status: number }
+> {
+  const deviceId = params.deviceId.trim();
+  const token = params.deviceToken.trim();
+  if (!deviceId || !token) {
+    return { ok: false, error: "unauthorized", status: 401 };
+  }
+  const tokenHash = hashDeviceToken(token);
+  const { data: device, error } = await params.admin
+    .from("pos_devices")
+    .select("id, restaurant_id, kind, is_active, device_token_hash")
+    .eq("id", deviceId)
+    .eq("device_token_hash", tokenHash)
+    .maybeSingle();
+
+  if (error || !device || !device.is_active) {
+    return { ok: false, error: "unauthorized", status: 401 };
+  }
+  const restaurantId = device.restaurant_id as string;
+  if (
+    params.restaurantId &&
+    params.restaurantId.trim() &&
+    params.restaurantId.trim() !== restaurantId
+  ) {
+    return { ok: false, error: "forbidden", status: 403 };
+  }
+
+  await params.admin
+    .from("pos_devices")
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq("id", deviceId);
+
+  return {
+    ok: true,
+    deviceId,
+    restaurantId,
+    kind: device.kind as "hub" | "handheld",
+  };
+}
+
+export { hashEnrollmentCode, hashDeviceToken };

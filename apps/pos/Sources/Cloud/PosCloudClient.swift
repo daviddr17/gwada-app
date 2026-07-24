@@ -598,6 +598,54 @@ enum PosCloudClient {
         )
     }
 
+    struct PosEnrollmentClaimResponse: Decodable {
+        var ok: Bool?
+        var deviceId: String
+        var deviceToken: String
+        var restaurantId: String
+        var restaurantName: String
+        var kind: String
+        var brandAccentHex: String?
+    }
+
+    /// Einrichtungs-Code einlösen (ohne User-Login).
+    @MainActor
+    static func claimDeviceEnrollment(
+        code: String,
+        preferredName: String? = nil
+    ) async throws -> PosEnrollmentClaimResponse {
+        struct Body: Encodable {
+            var code: String
+            var installationId: String
+            var preferredName: String?
+        }
+        var request = URLRequest(url: url("/api/pos/devices/enroll", restaurantId: nil))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(Body(
+            code: code,
+            installationId: PosDeviceIdentity.id,
+            preferredName: preferredName
+        ))
+        return try await perform(request)
+    }
+
+    @MainActor
+    private static func applyAuthHeaders(to request: inout URLRequest) async throws {
+        if PosAuthStore.shared.isSignedIn {
+            let token = try await PosAuthStore.shared.validAccessToken()
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            return
+        }
+        guard let deviceToken = PosDeviceCredential.deviceToken,
+              let rowId = PosDeviceCredential.enrolledDeviceRowId
+        else {
+            throw PosCloudError.unauthorized
+        }
+        request.setValue(rowId, forHTTPHeaderField: "X-Pos-Device-Id")
+        request.setValue(deviceToken, forHTTPHeaderField: "X-Pos-Device-Token")
+    }
+
     @MainActor
     private static func get<T: Decodable>(
         _ path: String,
@@ -607,8 +655,7 @@ enum PosCloudClient {
         var request = URLRequest(url: url(path, restaurantId: restaurantId, extraQuery: extraQuery))
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applyAuthHeaders(to: &request)
         return try await perform(request)
     }
 
@@ -617,8 +664,7 @@ enum PosCloudClient {
         var request = URLRequest(url: url(path, restaurantId: nil))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applyAuthHeaders(to: &request)
         request.httpBody = try encoder.encode(body)
         return try await perform(request)
     }
@@ -628,8 +674,7 @@ enum PosCloudClient {
         var request = URLRequest(url: url(path, restaurantId: nil))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let token = try await PosAuthStore.shared.validAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        try await applyAuthHeaders(to: &request)
         request.httpBody = try encoder.encode(body)
         let (data, response) = try await performRaw(request)
         guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {

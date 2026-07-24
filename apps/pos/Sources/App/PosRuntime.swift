@@ -73,11 +73,13 @@ final class PosRuntime: ObservableObject {
         phase = .starting
         switch role {
         case .hub:
-            if PosEnrollmentStore.shared.isHubEnrolled, PosAuthStore.shared.isSignedIn {
+            if PosEnrollmentStore.shared.isHubEnrolled,
+               PosAuthStore.shared.isSignedIn || PosDeviceCredential.hasCredential
+            {
                 await startHub()
             } else if PosEnrollmentStore.shared.isHubEnrolled {
                 phase = .needsLogin
-                statusMessage = "Bitte erneut anmelden."
+                statusMessage = "Bitte erneut anmelden oder Einrichtungs-Code."
             } else {
                 phase = .needsLogin
                 statusMessage = "Kasse einrichten."
@@ -298,7 +300,8 @@ final class PosRuntime: ObservableObject {
     }
 
     private func pullReservationsDayFromCloud(_ ymd: String) async {
-        guard PosAuthStore.shared.isSignedIn else {
+        let canCloud = PosAuthStore.shared.isSignedIn || PosDeviceCredential.hasCredential
+        guard canCloud else {
             statusMessage = "Reservierungen: nicht angemeldet."
             return
         }
@@ -1040,7 +1043,8 @@ final class PosRuntime: ObservableObject {
     }
 
     private func pullCloudBootstrap(forceDemoFallback: Bool) async -> String {
-        guard PosAuthStore.shared.isSignedIn else {
+        let canCloud = PosAuthStore.shared.isSignedIn || PosDeviceCredential.hasCredential
+        guard canCloud else {
             if forceDemoFallback {
                 PosHubState.shared.loadCachedOrDemo()
             }

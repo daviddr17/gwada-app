@@ -290,6 +290,11 @@ export function PosRolesDevicesSettingsPanel() {
               </Button>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Typ <strong>Hub</strong>: 8-stelligen Code einmalig auf dem iPad unter
+            „Kasse einrichten → Einrichtungs-Code“ eingeben. Danach ist der Code
+            ungültig.
+          </p>
 
           <div className="space-y-2">
             {devices.length === 0 && !showSkeleton && (

@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// iPad: Kasse einrichten — Willkommen → Login/Code → Standort → Fertig.
 struct HubOnboardingWizardView: View {
@@ -209,7 +212,18 @@ struct HubOnboardingWizardView: View {
                 errorText = "Bitte Einrichtungs-Code eingeben."
                 return
             }
-            errorText = "Einrichtungs-Code wird in Schritt 2 angebunden. Bitte vorerst E-Mail & Passwort nutzen."
+            do {
+                let claim = try await PosCloudClient.claimDeviceEnrollment(
+                    code: code,
+                    preferredName: UIDevice.current.name
+                )
+                PosDeviceCredential.store(deviceRowId: claim.deviceId, token: claim.deviceToken)
+                PosCloudConfig.setRestaurantId(claim.restaurantId)
+                runtime.restaurantIdInput = claim.restaurantId
+                await runtime.completeHubOnboarding(restaurantName: claim.restaurantName)
+            } catch {
+                errorText = error.localizedDescription
+            }
             return
         }
 

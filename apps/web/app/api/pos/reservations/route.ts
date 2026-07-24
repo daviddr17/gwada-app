@@ -2,24 +2,57 @@ import {
   createPosReservation,
   loadPosReservationsDay,
 } from "@/lib/pos/pos-reservations-server";
+import { verifyPosDeviceToken } from "@/lib/pos/pos-capabilities-devices-server";
 import { posError, posJson } from "@/lib/pos/pos-responses";
 import { authorizePosRestaurant } from "@/lib/pos/pos-route-auth";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+
+async function resolvePosReadAuth(request: Request, restaurantId: string) {
+  const authResult = await authorizePosRestaurant(request, restaurantId);
+  if (authResult.ok) {
+    return {
+      ok: true as const,
+      restaurantId: authResult.auth.restaurantId,
+    };
+  }
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return {
+      ok: false as const,
+      error: authResult.error,
+      status: authResult.status,
+    };
+  }
+  const deviceId = request.headers.get("x-pos-device-id")?.trim() ?? "";
+  const deviceToken = request.headers.get("x-pos-device-token")?.trim() ?? "";
+  const deviceAuth = await verifyPosDeviceToken({
+    admin,
+    deviceId,
+    deviceToken,
+    restaurantId,
+  });
+  if (!deviceAuth.ok) {
+    return {
+      ok: false as const,
+      error: authResult.error,
+      status: authResult.status,
+    };
+  }
+  return { ok: true as const, restaurantId: deviceAuth.restaurantId };
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const restaurantId = url.searchParams.get("restaurantId")?.trim() ?? "";
   const day = url.searchParams.get("day")?.trim() || null;
 
-  const authResult = await authorizePosRestaurant(request, restaurantId);
-  if (!authResult.ok) return posError(authResult.error, authResult.status);
+  const auth = await resolvePosReadAuth(request, restaurantId);
+  if (!auth.ok) return posError(auth.error, auth.status);
 
-  const data = await loadPosReservationsDay(
-    authResult.auth.restaurantId,
-    day,
-  );
+  const data = await loadPosReservationsDay(auth.restaurantId, day);
   if ("error" in data) return posError(data.error, 500);
   return posJson(data);
 }

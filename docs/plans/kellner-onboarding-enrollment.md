@@ -71,17 +71,17 @@ Ohne Freigabe/Hub: Block-Screen, kein Demo-Floor.
 
 ## Umsetzungsschritte
 
-1. **Dev-Defaults + iPad-Login-Wizard** (Zugang Passwort, Standort, Bootstrap) — *in Arbeit*  
-2. Setup-Code-Pfad (Web + API + Wizard-Schritt)  
+1. **Dev-Defaults + iPad-Login-Wizard** (Zugang Passwort, Standort, Bootstrap) — ✅  
+2. **Setup-Code API + Claim + Wizard** — ✅ (`POST /api/pos/devices/enroll`, Device-Token-Auth für Bootstrap/Resv)  
 3. Pairing QR/Code + Freigabe pro Gerät auf dem iPad  
 4. iPhone-Wizard + PIN → Quittungsname  
-5. Web Geräte-UI  
+5. Web Geräte-UI Feinschliff  
 6. Polish Branding, Fehlertexte, Widerruf; Solo nur DEBUG  
 
 ## Akzeptanz
 
-- [ ] iPad-Wizard → Kasse auf Dev, Speisekarte/Tische, ohne UUID-Tippen  
-- [ ] Setup-Code ≈ Passwort  
+- [x] iPad-Wizard → Login-Pfad  
+- [x] Setup-Code Claim → Device-Token → Bootstrap ohne User-Bearer  
 - [ ] iPhone: QR → wartet → iPad genehmigt → Tabs  
 - [ ] Zweites iPhone = eigene Freigabe  
 - [ ] Abgelaufene Codes klar abgelehnt  

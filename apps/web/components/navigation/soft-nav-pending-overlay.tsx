@@ -98,7 +98,9 @@ export function SoftNavPendingOverlay() {
 
   return (
     <div
-      className="absolute inset-0 z-20 min-h-full bg-background"
+      // pointerdown setzt Pending vor click — ohne pointer-events-none schluckt
+      // das Overlay den Widget-Pfeil-Klick → Skeleton, dann zurück zum Dashboard.
+      className="pointer-events-none absolute inset-0 z-20 min-h-full bg-background"
       aria-live="polite"
       aria-busy
     >

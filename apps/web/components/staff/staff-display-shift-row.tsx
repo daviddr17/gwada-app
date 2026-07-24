@@ -6,7 +6,10 @@ import {
   DEFAULT_RESTAURANT_TIMEZONE,
   createRestaurantDateTimeFormatter,
 } from "@/lib/restaurant/restaurant-timezone";
-import { displayShiftBounds } from "@/lib/staff/staff-work-hours-display";
+import {
+  displayShiftBounds,
+  displayShiftTitle,
+} from "@/lib/staff/staff-work-hours-display";
 import { formatWorkTimeRangeWithHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
@@ -29,6 +32,7 @@ export function StaffDisplayShiftRow({
     [timeZone],
   );
   const bounds = displayShiftBounds(segments);
+  const title = displayShiftTitle(segments);
   const endLabel = bounds.isOpen
     ? "läuft"
     : timeDe.format(new Date(bounds.endsAt!));
@@ -41,7 +45,7 @@ export function StaffDisplayShiftRow({
       )}
     >
       <p className="font-medium">
-        Display-Schicht
+        {title}
         {bounds.isOpen ? (
           <span className="ml-1.5 text-xs font-normal text-accent">(läuft)</span>
         ) : null}

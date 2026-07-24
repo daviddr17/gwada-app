@@ -21,10 +21,73 @@ function workHoursListItemStartIso(item: WorkHoursListItem): string {
   return item.segments[0]!.starts_at;
 }
 
+function sortSegmentsByStart(
+  segments: RestaurantStaffWorkEntryRow[],
+): RestaurantStaffWorkEntryRow[] {
+  return [...segments].sort(
+    (a, b) =>
+      new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+  );
+}
+
+/** Max. Lücke zwischen Segmenten, die noch als eine Schicht gelten (Bubble/Legacy). */
+const LEGACY_SHIFT_GAP_MS = 2 * 60_000;
+
+function segmentEndMs(e: RestaurantStaffWorkEntryRow): number {
+  if (e.is_open) return Number.POSITIVE_INFINITY;
+  return new Date(e.ends_at).getTime();
+}
+
+/**
+ * Bubble-/manuelle Arbeit+Pause ohne `shift_id`: zeitlich aneinandergrenzende
+ * Segmente desselben Mitarbeiters zu einer Schicht-Zeile clustern.
+ */
+function clusterLegacyWorkBreakShifts(
+  entries: RestaurantStaffWorkEntryRow[],
+): WorkHoursListItem[] {
+  const items: WorkHoursListItem[] = [];
+  const byStaff = new Map<string, RestaurantStaffWorkEntryRow[]>();
+
+  for (const e of entries) {
+    if (e.entry_type !== "work" && e.entry_type !== "break") {
+      items.push({ kind: "entry", entry: e });
+      continue;
+    }
+    const list = byStaff.get(e.staff_id) ?? [];
+    list.push(e);
+    byStaff.set(e.staff_id, list);
+  }
+
+  for (const list of byStaff.values()) {
+    const sorted = sortSegmentsByStart(list);
+    let i = 0;
+    while (i < sorted.length) {
+      const segments: RestaurantStaffWorkEntryRow[] = [sorted[i]!];
+      let clusterEnd = segmentEndMs(sorted[i]!);
+      i += 1;
+      while (i < sorted.length) {
+        const next = sorted[i]!;
+        const nextStart = new Date(next.starts_at).getTime();
+        if (nextStart > clusterEnd + LEGACY_SHIFT_GAP_MS) break;
+        segments.push(next);
+        clusterEnd = Math.max(clusterEnd, segmentEndMs(next));
+        i += 1;
+      }
+      items.push({
+        kind: "display_shift",
+        shiftId: `legacy-${segments[0]!.id}`,
+        segments,
+      });
+    }
+  }
+
+  return items;
+}
+
 /**
  * Gruppiert Segmente einer Schicht (`shift_id`) zu einer Zeile pro Tag.
- * Display-Zeilen ohne `shift_id` (älter / Freigabe-Pfad) werden als
- * Ein-Segment-Schicht dargestellt — nicht als flache manuelle Zeile.
+ * Display ohne `shift_id` und Legacy Arbeit/Pause (Bubble) werden ebenfalls
+ * als Schicht-Block dargestellt — nicht als flache manuelle Zeilen.
  */
 export function groupWorkHoursDayEntries(
   entries: RestaurantStaffWorkEntryRow[],
@@ -33,9 +96,9 @@ export function groupWorkHoursDayEntries(
     staffNameById?: ReadonlyMap<string, string>;
   },
 ): WorkHoursListItem[] {
-  const manual: WorkHoursListItem[] = [];
   const displayByShift = new Map<string, RestaurantStaffWorkEntryRow[]>();
   const displayLone: WorkHoursListItem[] = [];
+  const legacyRaw: RestaurantStaffWorkEntryRow[] = [];
 
   for (const e of entries) {
     if (e.shift_id) {
@@ -52,23 +115,20 @@ export function groupWorkHoursDayEntries(
       });
       continue;
     }
-    manual.push({ kind: "entry", entry: e });
+    legacyRaw.push(e);
   }
 
   const display: WorkHoursListItem[] = [
     ...[...displayByShift.entries()].map(([shiftId, segments]) => ({
       kind: "display_shift" as const,
       shiftId,
-      segments: [...segments].sort(
-        (a, b) =>
-          new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-      ),
+      segments: sortSegmentsByStart(segments),
     })),
     ...displayLone,
+    ...clusterLegacyWorkBreakShifts(legacyRaw),
   ];
 
-  const out = [...manual, ...display];
-  out.sort((a, b) => {
+  display.sort((a, b) => {
     if (options?.staffNameById) {
       const nameA = options.staffNameById.get(workHoursListItemStaffId(a)) ?? "";
       const nameB = options.staffNameById.get(workHoursListItemStaffId(b)) ?? "";
@@ -80,16 +140,14 @@ export function groupWorkHoursDayEntries(
       new Date(workHoursListItemStartIso(b)).getTime()
     );
   });
-  return out;
+  return display;
 }
 
 export function displayShiftBounds(
   segments: RestaurantStaffWorkEntryRow[],
   now: Date = new Date(),
 ): { startsAt: string; endsAt: string | null; isOpen: boolean } {
-  const sorted = [...segments].sort(
-    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-  );
+  const sorted = sortSegmentsByStart(segments);
   const startsAt = sorted[0]!.starts_at;
   const last = sorted[sorted.length - 1]!;
   const isOpen = Boolean(last.is_open);
@@ -98,6 +156,12 @@ export function displayShiftBounds(
     endsAt: isOpen ? null : last.ends_at,
     isOpen,
   };
+}
+
+export function displayShiftTitle(
+  segments: RestaurantStaffWorkEntryRow[],
+): string {
+  return segments.some(isDisplayWorkEntry) ? "Display-Schicht" : "Schicht";
 }
 
 export type CompletedDisplayShift = {
@@ -145,10 +209,7 @@ export function listCompletedDisplayShifts(
       endsAt: bounds.endsAt,
       workMinutes: workMs / 60_000,
       breakMinutes: breakMs / 60_000,
-      segments: [...segments].sort(
-        (a, b) =>
-          new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-      ),
+      segments: sortSegmentsByStart(segments),
     });
   }
 

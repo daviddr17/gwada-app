@@ -21,7 +21,11 @@ function workHoursListItemStartIso(item: WorkHoursListItem): string {
   return item.segments[0]!.starts_at;
 }
 
-/** Gruppiert Display-Segmente einer Schicht (shift_id) zu einer Zeile pro Tag. */
+/**
+ * Gruppiert Segmente einer Schicht (`shift_id`) zu einer Zeile pro Tag.
+ * Display-Zeilen ohne `shift_id` (älter / Freigabe-Pfad) werden als
+ * Ein-Segment-Schicht dargestellt — nicht als flache manuelle Zeile.
+ */
 export function groupWorkHoursDayEntries(
   entries: RestaurantStaffWorkEntryRow[],
   options?: {
@@ -31,27 +35,37 @@ export function groupWorkHoursDayEntries(
 ): WorkHoursListItem[] {
   const manual: WorkHoursListItem[] = [];
   const displayByShift = new Map<string, RestaurantStaffWorkEntryRow[]>();
+  const displayLone: WorkHoursListItem[] = [];
 
   for (const e of entries) {
-    if (e.shift_id && e.note === "Display") {
+    if (e.shift_id) {
       const list = displayByShift.get(e.shift_id) ?? [];
       list.push(e);
       displayByShift.set(e.shift_id, list);
       continue;
     }
+    if (e.note === "Display") {
+      displayLone.push({
+        kind: "display_shift",
+        shiftId: e.id,
+        segments: [e],
+      });
+      continue;
+    }
     manual.push({ kind: "entry", entry: e });
   }
 
-  const display: WorkHoursListItem[] = [...displayByShift.entries()].map(
-    ([shiftId, segments]) => ({
+  const display: WorkHoursListItem[] = [
+    ...[...displayByShift.entries()].map(([shiftId, segments]) => ({
       kind: "display_shift" as const,
       shiftId,
       segments: [...segments].sort(
         (a, b) =>
           new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
       ),
-    }),
-  );
+    })),
+    ...displayLone,
+  ];
 
   const out = [...manual, ...display];
   out.sort((a, b) => {

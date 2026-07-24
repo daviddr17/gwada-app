@@ -35,30 +35,32 @@ export function StaffDisplayShiftRow({
 
   return (
     <div className={cn("min-w-0 flex-1 text-sm", className)}>
-      <p className="font-medium">
-        Display-Schicht
-        {bounds.isOpen ? (
-          <span className="ml-1.5 text-xs font-normal text-accent">(läuft)</span>
-        ) : null}
-      </p>
-      <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-        {formatWorkTimeRangeWithHoursDe(
-          `${timeDe.format(new Date(bounds.startsAt))} – ${endLabel}`,
-          bounds.isOpen || !bounds.endsAt
-            ? null
-            : Math.max(
-                0,
-                (new Date(bounds.endsAt).getTime() -
-                  new Date(bounds.startsAt).getTime()) /
-                  3_600_000,
-              ),
-        )}
-      </p>
-      <StaffDisplayShiftSegmentsList
-        segments={segments}
-        timeZone={timeZone}
-        className="mt-2"
-      />
+      <div className="rounded-lg border border-border/40 bg-muted/15 px-2.5 py-2">
+        <p className="font-medium">
+          Display-Schicht
+          {bounds.isOpen ? (
+            <span className="ml-1.5 text-xs font-normal text-accent">(läuft)</span>
+          ) : null}
+        </p>
+        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+          {formatWorkTimeRangeWithHoursDe(
+            `${timeDe.format(new Date(bounds.startsAt))} – ${endLabel}`,
+            bounds.isOpen || !bounds.endsAt
+              ? null
+              : Math.max(
+                  0,
+                  (new Date(bounds.endsAt).getTime() -
+                    new Date(bounds.startsAt).getTime()) /
+                    3_600_000,
+                ),
+          )}
+        </p>
+        <StaffDisplayShiftSegmentsList
+          segments={segments}
+          timeZone={timeZone}
+          className="mt-2"
+        />
+      </div>
     </div>
   );
 }

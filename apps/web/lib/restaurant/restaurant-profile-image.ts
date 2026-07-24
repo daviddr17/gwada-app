@@ -31,7 +31,7 @@ export async function resolveRestaurantProfileImageSignedUrl(
     return null;
   }
 
-  return data.signedUrl;
+  return rewriteAdminSignedStorageUrl(data.signedUrl);
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {

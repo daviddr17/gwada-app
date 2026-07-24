@@ -71,9 +71,6 @@ async function signedUrlsForMedia(
         .from(NEWS_MEDIA_BUCKET)
         .createSignedUrl(path, 3600);
       if (data?.signedUrl) {
-        const { rewriteAdminSignedStorageUrl } = await import(
-          "@/lib/auth/rewrite-admin-auth-action-link"
-        );
         map.set(path, rewriteAdminSignedStorageUrl(data.signedUrl));
       }
     }),

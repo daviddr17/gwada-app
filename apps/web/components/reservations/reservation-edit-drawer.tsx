@@ -172,6 +172,8 @@ type ReservationEditDrawerProps = {
   overlapReservations?: ReservationListRow[];
   /** Über Chat-Vollbild-Overlay legen (z-210). */
   stackAboveInboxOverlay?: boolean;
+  /** Optional: Chip „Zum Tag“ (z. B. aus App-Suche). */
+  dayOverviewHref?: string | null;
   onSaved: () => void;
   /** Nach erfolgreichem WhatsApp-Statusversand (für Chat-Optimistic). */
   onWhatsappDispatched?: (payload: ReservationWhatsappDispatchedPayload) => void;
@@ -201,6 +203,7 @@ export function ReservationEditDrawer({
   createFor,
   overlapReservations = [],
   stackAboveInboxOverlay = false,
+  dayOverviewHref = null,
   onSaved,
   onWhatsappDispatched,
 }: ReservationEditDrawerProps) {
@@ -971,19 +974,38 @@ export function ReservationEditDrawer({
                 ) : null}
               </div>
             </div>
-            {isEdit && reservation ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0 text-muted-foreground hover:text-destructive"
-                aria-label="Reservierung löschen"
-                disabled={saving}
-                onClick={() => setConfirmDeleteOpen(true)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            ) : null}
+            <div className="flex shrink-0 items-center gap-1">
+              {dayOverviewHref ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-full border-border/60 px-3 text-xs font-medium"
+                  render={
+                    <Link
+                      href={dayOverviewHref}
+                      prefetch={false}
+                      onClick={() => onOpenChange(false)}
+                    />
+                  }
+                >
+                  Zum Tag
+                </Button>
+              ) : null}
+              {isEdit && reservation ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label="Reservierung löschen"
+                  disabled={saving}
+                  onClick={() => setConfirmDeleteOpen(true)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              ) : null}
+            </div>
           </div>
         </DrawerHeader>
 

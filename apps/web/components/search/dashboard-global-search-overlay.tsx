@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   BookOpen,
   CalendarDays,
@@ -28,13 +29,21 @@ import {
   X,
 } from "lucide-react";
 import { AppMobileChromeScreen } from "@/components/layout/app-mobile-chrome-screen";
+import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDashboardGlobalSearch } from "@/lib/contexts/dashboard-global-search-context";
+import { dashboardGlobalSearchReservationDayHref } from "@/lib/dashboard/dashboard-global-search-nav";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { restaurantZonedDateKey } from "@/lib/restaurant/restaurant-timezone";
+import {
+  fetchReservationById,
+  type ReservationListRow,
+} from "@/lib/supabase/reservations-db";
 import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import type {
   DashboardGlobalSearchCategory,
@@ -93,6 +102,7 @@ export function DashboardGlobalSearchOverlay() {
   const { open, closeSearch } = useDashboardGlobalSearch();
   const isMobile = useIsMobile();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -105,8 +115,53 @@ export function DashboardGlobalSearchOverlay() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const showSkeleton = useDeferredSkeleton(loading);
+  const [reservationOpen, setReservationOpen] = useState(false);
+  const [reservationRow, setReservationRow] =
+    useState<ReservationListRow | null>(null);
+  const [reservationDayYmd, setReservationDayYmd] = useState<string | null>(
+    null,
+  );
 
   const flatItems = useMemo(() => flattenGroups(groups), [groups]);
+
+  const resolvedReservationDayYmd = useMemo(() => {
+    if (reservationDayYmd && /^\d{4}-\d{2}-\d{2}$/.test(reservationDayYmd)) {
+      return reservationDayYmd;
+    }
+    if (reservationRow?.starts_at) {
+      return restaurantZonedDateKey(
+        new Date(reservationRow.starts_at),
+        restaurantTimeZone,
+      );
+    }
+    return null;
+  }, [reservationDayYmd, reservationRow?.starts_at, restaurantTimeZone]);
+
+  const reservationDayHref = resolvedReservationDayYmd
+    ? dashboardGlobalSearchReservationDayHref(resolvedReservationDayYmd)
+    : null;
+
+  const openReservationFromSearch = useCallback(
+    async (item: DashboardGlobalSearchResultItem) => {
+      if (!restaurantId) return;
+      closeSearch();
+      setReservationDayYmd(item.dayYmd ?? null);
+      setReservationOpen(true);
+      setReservationRow(null);
+      const { data, error } = await fetchReservationById({
+        restaurantId,
+        id: item.id,
+      });
+      if (error || !data) {
+        toast.error("Reservierung nicht gefunden.");
+        setReservationOpen(false);
+        setReservationDayYmd(null);
+        return;
+      }
+      setReservationRow(data);
+    },
+    [restaurantId, closeSearch],
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -197,10 +252,14 @@ export function DashboardGlobalSearchOverlay() {
 
   const navigateTo = useCallback(
     (item: DashboardGlobalSearchResultItem) => {
+      if (item.category === "reservations") {
+        void openReservationFromSearch(item);
+        return;
+      }
       closeSearch();
       router.push(item.href);
     },
-    [closeSearch, router],
+    [closeSearch, router, openReservationFromSearch],
   );
 
   const moveSelection = useCallback(
@@ -382,8 +441,31 @@ export function DashboardGlobalSearchOverlay() {
     </div>
   );
 
+  const reservationDrawer = (
+    <ReservationEditDrawer
+      open={reservationOpen}
+      onOpenChange={(nextOpen) => {
+        setReservationOpen(nextOpen);
+        if (!nextOpen) {
+          setReservationRow(null);
+          setReservationDayYmd(null);
+        }
+      }}
+      reservation={reservationRow}
+      createFor={null}
+      overlapReservations={[]}
+      dayOverviewHref={reservationDayHref}
+      onSaved={() => {
+        setReservationOpen(false);
+        setReservationRow(null);
+        setReservationDayYmd(null);
+      }}
+    />
+  );
+
   if (isMobile) {
     return (
+      <>
       <AppMobileChromeScreen
         open={open}
         onClose={closeSearch}
@@ -400,95 +482,105 @@ export function DashboardGlobalSearchOverlay() {
           </div>
         </div>
       </AppMobileChromeScreen>
+      {reservationDrawer}
+      </>
     );
   }
 
-  if (!mounted || !open) return null;
+  return (
+    <>
+      {mounted && open
+        ? createPortal(
+            <div
+              className={cn(
+                "fixed inset-0 flex items-center justify-center p-4 sm:p-5",
+                presented ? "opacity-100" : "opacity-0",
+              )}
+              style={{ zIndex: APP_LAYER_Z_INDEX.stackedSurface }}
+              role="presentation"
+            >
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/35 backdrop-blur-xl motion-reduce:backdrop-blur-sm"
+                aria-label="Suche schließen"
+                onClick={closeSearch}
+              />
 
-  return createPortal(
-    <div
-      className={cn(
-        "fixed inset-0 flex items-center justify-center p-4 sm:p-5",
-        presented ? "opacity-100" : "opacity-0",
-      )}
-      style={{ zIndex: APP_LAYER_Z_INDEX.stackedSurface }}
-      role="presentation"
-    >
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/35 backdrop-blur-xl motion-reduce:backdrop-blur-sm"
-        aria-label="Suche schließen"
-        onClick={closeSearch}
-      />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Globale Suche"
+                className={cn(
+                  "relative flex h-[90vh] w-[90vw] max-w-5xl flex-col overflow-hidden rounded-2xl border border-border/50 bg-background/95 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.45)] backdrop-blur-2xl supports-backdrop-filter:bg-background/85",
+                  "transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none",
+                  presented ? "scale-100 opacity-100" : "scale-[0.98] opacity-0",
+                )}
+              >
+                <div className="flex shrink-0 items-center gap-3 border-b border-border/50 px-4 py-4 sm:px-5">
+                  <Search
+                    className="size-5 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <Input
+                    ref={inputRef}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Gerichte, Reservierungen, Kontakte, Mitarbeiter …"
+                    className="h-12 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 rounded-full"
+                    aria-label="Schließen"
+                    onClick={closeSearch}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
 
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Globale Suche"
-        className={cn(
-          "relative flex h-[90vh] w-[90vw] max-w-5xl flex-col overflow-hidden rounded-2xl border border-border/50 bg-background/95 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.45)] backdrop-blur-2xl supports-backdrop-filter:bg-background/85",
-          "transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none",
-          presented ? "scale-100 opacity-100" : "scale-[0.98] opacity-0",
-        )}
-      >
-        <div className="flex shrink-0 items-center gap-3 border-b border-border/50 px-4 py-4 sm:px-5">
-          <Search className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-          <Input
-            ref={inputRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Gerichte, Reservierungen, Kontakte, Mitarbeiter …"
-            className="h-12 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 rounded-full"
-            aria-label="Schließen"
-            onClick={closeSearch}
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
+                <div
+                  ref={listRef}
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4"
+                >
+                  {results}
+                </div>
 
-        <div
-          ref={listRef}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4"
-        >
-          {results}
-        </div>
-
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/50 px-4 py-2.5 text-[11px] text-muted-foreground sm:px-5">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1">
-              <kbd className="rounded-md border border-border/60 bg-muted/50 px-1.5 py-0.5 font-sans text-[10px]">
-                ↑
-              </kbd>
-              <kbd className="rounded-md border border-border/60 bg-muted/50 px-1.5 py-0.5 font-sans text-[10px]">
-                ↓
-              </kbd>
-              <span>Navigieren</span>
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <kbd className="rounded-md border border-border/60 bg-muted/50 px-1.5 py-0.5 font-sans text-[10px]">
-                ↵
-              </kbd>
-              <span>Öffnen</span>
-            </span>
-          </div>
-          <span className="hidden items-center gap-1 sm:inline-flex">
-            <kbd className="rounded-md border border-border/60 bg-muted/50 px-1.5 py-0.5 font-sans text-[10px]">
-              esc
-            </kbd>
-            <span>Schließen</span>
-          </span>
-        </div>
-      </div>
-    </div>,
-    document.body,
+                <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/50 px-4 py-2.5 text-[11px] text-muted-foreground sm:px-5">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center gap-1">
+                      <kbd className="rounded-md border border-border/60 bg-muted/50 px-1.5 py-0.5 font-sans text-[10px]">
+                        ↑
+                      </kbd>
+                      <kbd className="rounded-md border border-border/60 bg-muted/50 px-1.5 py-0.5 font-sans text-[10px]">
+                        ↓
+                      </kbd>
+                      <span>Navigieren</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <kbd className="rounded-md border border-border/60 bg-muted/50 px-1.5 py-0.5 font-sans text-[10px]">
+                        ↵
+                      </kbd>
+                      <span>Öffnen</span>
+                    </span>
+                  </div>
+                  <span className="hidden items-center gap-1 sm:inline-flex">
+                    <kbd className="rounded-md border border-border/60 bg-muted/50 px-1.5 py-0.5 font-sans text-[10px]">
+                      esc
+                    </kbd>
+                    <span>Schließen</span>
+                  </span>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+      {reservationDrawer}
+    </>
   );
 }

@@ -35,15 +35,28 @@ export const DASHBOARD_GLOBAL_SEARCH_CATEGORY_ORDER: DashboardGlobalSearchCatego
     "staff_todos",
   ];
 
+export function dashboardGlobalSearchReservationDayHref(dayYmd: string): string {
+  const p = new URLSearchParams();
+  p.set("day", dayYmd);
+  return `${APP_ROUTES.reservierungen.overview}?${p.toString()}`;
+}
+
 export function dashboardGlobalSearchResultHref(
   category: DashboardGlobalSearchCategory,
   id: string,
+  options?: { dayYmd?: string | null },
 ): string {
   switch (category) {
     case "menu":
       return `${APP_ROUTES.menu.overview}?dish=${encodeURIComponent(id)}`;
-    case "reservations":
-      return `${APP_ROUTES.reservierungen.overview}?reservation=${encodeURIComponent(id)}`;
+    case "reservations": {
+      const p = new URLSearchParams();
+      p.set("reservation", id);
+      if (options?.dayYmd && /^\d{4}-\d{2}-\d{2}$/.test(options.dayYmd)) {
+        p.set("day", options.dayYmd);
+      }
+      return `${APP_ROUTES.reservierungen.overview}?${p.toString()}`;
+    }
     case "contacts":
       return `${APP_ROUTES.kontakte.overview}?contact=${encodeURIComponent(id)}`;
     case "reviews":

@@ -253,7 +253,6 @@ struct HubOnboardingWizardView: View {
         PosCloudConfig.setRestaurantId(rid)
         runtime.restaurantIdInput = rid
         await runtime.completeHubOnboarding(restaurantName: site.name)
-        enrollment.markHubEnrolled(restaurantName: site.name)
-        step = .done
+        // RootView wechselt auf Hub-UI sobald enrolled
     }
 }

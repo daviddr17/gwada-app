@@ -2,7 +2,7 @@ name: Production cron jobs
 
 on:
   schedule:
-    # staff-shift-notifications, contact-inbox-sync
+    # staff-shift-notifications, contact-inbox-sync, reservation-whatsapp/email
     - cron: "*/5 * * * *"
     # news-feed-sync, reviews-feed-sync
     - cron: "*/10 * * * *"
@@ -26,6 +26,9 @@ on:
           - social-suggestions
           - reservation-whatsapp
           - reservation-email
+  # Agent / one-shot (workflow_dispatch oft 403)
+  repository_dispatch:
+    types: [production-cron, production-cron-reservation-outbox]
 
 env:
   CRON_BASE_URL: https://gwada.app
@@ -157,6 +160,7 @@ jobs:
   reservation-whatsapp:
     runs-on: ubuntu-latest
     if: |
+      (github.event_name == 'repository_dispatch' && (github.event.action == 'production-cron' || github.event.action == 'production-cron-reservation-outbox')) ||
       (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'reservation-whatsapp')) ||
       (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *')
     steps:
@@ -176,6 +180,7 @@ jobs:
   reservation-email:
     runs-on: ubuntu-latest
     if: |
+      (github.event_name == 'repository_dispatch' && (github.event.action == 'production-cron' || github.event.action == 'production-cron-reservation-outbox')) ||
       (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'reservation-email')) ||
       (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *')
     steps:

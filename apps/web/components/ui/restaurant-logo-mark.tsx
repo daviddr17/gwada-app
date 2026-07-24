@@ -1,6 +1,11 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   restaurantLogoCardImageClassName,
   restaurantLogoFrameClassName,
@@ -90,7 +95,11 @@ export function RestaurantLogoMark({
   imageClassName?: string;
   innerClassName?: string;
 }) {
-  const hasImage = Boolean(src);
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+  const hasImage = Boolean(src) && !imageFailed;
 
   if (variant === "card") {
     return (
@@ -110,6 +119,7 @@ export function RestaurantLogoMark({
             src={src!}
             alt={alt}
             decoding="async"
+            onError={() => setImageFailed(true)}
             className={cn(restaurantLogoCardImageClassName, imageClassName)}
           />
         ) : (
@@ -137,6 +147,7 @@ export function RestaurantLogoMark({
           alt={alt}
           decoding="async"
           fetchPriority={variant === "profile" ? "high" : undefined}
+          onError={() => setImageFailed(true)}
           className={cn(restaurantLogoImageClassName, imageClassName)}
         />
       ) : (

@@ -23,7 +23,14 @@ export const displayRestaurantLogoCompactClassName = cn(
 
 /** Fußzeile unten links — klein, aber mit object-contain wie Hero. */
 export const displayRestaurantLogoFooterClassName = cn(
-  "size-7",
+  "size-8",
+  displayRestaurantLogoFrameClassName,
+);
+
+/** PIN-/Sperrbildschirm — gut sichtbar über der Uhr. */
+export const displayRestaurantLogoPinClassName = cn(
+  "size-14 sm:size-16",
+  displayRestaurantLogoMaxClassName,
   displayRestaurantLogoFrameClassName,
 );
 

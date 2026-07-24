@@ -207,6 +207,15 @@ export function DisplayScreen({ slug }: { slug: string }) {
     })();
   }, [refreshContext, tryRestoreDeviceCookie]);
 
+  /** Signed Avatar-/Cover-URLs erneuern, bevor sie auf Dauer-Tablets ablaufen. */
+  useEffect(() => {
+    if (!context?.paired) return;
+    const id = window.setInterval(() => {
+      void refreshContext();
+    }, 45 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [context?.paired, refreshContext]);
+
   useEffect(() => {
     if (!context?.session) {
       setActiveModule(null);
@@ -692,7 +701,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
         </DisplayChromeHeader>
 
         <div className={displayChromeContentWrapClassName}>
-          <DisplayPinStandbyScene accentHex={restaurantAccent}>
+          <DisplayPinStandbyScene
+            accentHex={restaurantAccent}
+            restaurantName={context.restaurant?.name}
+            restaurantAvatarUrl={context.restaurant?.avatar_url}
+          >
             <DisplayPinPad
               value={pin}
               onChange={setPin}
@@ -788,6 +801,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
               open={locked}
               placement="content"
               accentHex={restaurantAccent}
+              restaurantName={context.restaurant?.name}
+              restaurantAvatarUrl={context.restaurant?.avatar_url}
               onUnlock={(p) => void unlockWithPin(p)}
               busy={pinBusy}
               error={lockPinError}

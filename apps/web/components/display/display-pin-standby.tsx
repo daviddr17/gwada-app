@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DisplayBrandedBackground } from "@/components/display/display-branded-background";
+import { DisplayRestaurantLogo } from "@/components/display/display-restaurant-logo";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
+import { displayRestaurantInitials } from "@/lib/display/display-avatar-utils";
+import { displayRestaurantLogoPinClassName } from "@/lib/ui/display-restaurant-branding";
 import { cn } from "@/lib/utils";
 
 export function DisplayPinStandbyBackground({
@@ -78,11 +81,15 @@ export function DisplayPinStandbyClock({
 /** Profil-Mesh + Uhr für Display-PIN / Sperrbildschirm. */
 export function DisplayPinStandbyScene({
   accentHex,
+  restaurantName,
+  restaurantAvatarUrl,
   enabled = true,
   className,
   children,
 }: {
   accentHex: string;
+  restaurantName?: string | null;
+  restaurantAvatarUrl?: string | null;
   enabled?: boolean;
   className?: string;
   children?: ReactNode;
@@ -90,6 +97,9 @@ export function DisplayPinStandbyScene({
   if (!enabled) {
     return <>{children}</>;
   }
+
+  const trimmedName = restaurantName?.trim() ?? "";
+  const showBrand = Boolean(trimmedName) || Boolean(restaurantAvatarUrl);
 
   return (
     <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
@@ -101,6 +111,26 @@ export function DisplayPinStandbyScene({
           className,
         )}
       >
+        {showBrand ? (
+          <div className="flex max-w-full flex-col items-center gap-1.5">
+            <DisplayRestaurantLogo
+              src={restaurantAvatarUrl}
+              initials={displayRestaurantInitials(trimmedName || "?")}
+              alt={trimmedName}
+              size="lg"
+              className={cn(
+                displayRestaurantLogoPinClassName,
+                !restaurantAvatarUrl && "text-sm font-semibold text-muted-foreground sm:text-base",
+              )}
+              imageClassName="!max-h-full !max-w-full p-0 object-contain"
+            />
+            {trimmedName ? (
+              <p className="max-w-[min(20rem,90vw)] truncate text-center text-sm font-medium tracking-tight text-foreground/90 sm:text-base">
+                {trimmedName}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <DisplayPinStandbyClock />
         {children}
       </div>

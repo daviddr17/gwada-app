@@ -279,11 +279,10 @@ export async function listDisplayTeamPresence(
     })
     .filter((row): row is DisplayTeamPresenceMember => row != null);
 
+  // Frühester Schichtbeginn zuerst; Pause-Status bleibt in der UI markiert.
   members.sort((a, b) => {
-    const statusOrder = (s: DisplayTeamPresenceMember["status"]) =>
-      s === "working" ? 0 : 1;
-    const byStatus = statusOrder(a.status) - statusOrder(b.status);
-    if (byStatus !== 0) return byStatus;
+    const byStart = a.clocked_in_at.localeCompare(b.clocked_in_at);
+    if (byStart !== 0) return byStart;
     const nameA = `${a.family_name} ${a.given_name}`.trim();
     const nameB = `${b.family_name} ${b.given_name}`.trim();
     return nameA.localeCompare(nameB, "de");

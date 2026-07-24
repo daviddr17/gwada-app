@@ -200,7 +200,15 @@ export function AppSidebar() {
         className="flex h-full w-full flex-col"
         onClickCapture={closeMobileSidebarOnNav}
       >
-      <SidebarHeader className={cn("box-border flex h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] shrink-0 justify-center gap-0 border-b border-border/50 p-2", appChromeFixedZoneBgClassName)}>
+      <SidebarHeader
+        className={cn(
+          "box-border flex shrink-0 justify-center gap-0 border-b border-border/50 p-2",
+          isMobile
+            ? "h-auto min-h-0"
+            : "h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)]",
+          appChromeFixedZoneBgClassName,
+        )}
+      >
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton

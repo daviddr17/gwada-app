@@ -185,7 +185,7 @@ function EmbedMenuToolbar({
         profileSheet &&
           "top-[var(--profile-sheet-module-title-h,0px)]",
         profileSheet &&
-          "z-30 -mx-4 border-b border-border/40 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80 sm:-mx-5",
+          "z-30 border-b border-border/40 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80",
       )}
     >
       <div

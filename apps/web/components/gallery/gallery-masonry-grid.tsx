@@ -18,7 +18,8 @@ export const galleryMasonryGridShellClassName =
 
 type Props = {
   items: UnifiedGalleryItem[];
-  onItemClick: (item: UnifiedGalleryItem) => void;
+  /** Ohne Handler: reine Bildwand ohne Klick-/Hover-Affordance. */
+  onItemClick?: (item: UnifiedGalleryItem) => void;
   className?: string;
   /** Profil-Sheet: Wand bis an den Sheet-Rand. */
   edgeToEdge?: boolean;
@@ -29,21 +30,13 @@ const GalleryMasonryTile = memo(function GalleryMasonryTile({
   onItemClick,
 }: {
   item: UnifiedGalleryItem;
-  onItemClick: (item: UnifiedGalleryItem) => void;
+  onItemClick?: (item: UnifiedGalleryItem) => void;
 }) {
   const { src, thumbSrc } = galleryItemDisplayUrls(item);
   const videoSrc = item.fullUrl?.trim() || item.previewUrl;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onItemClick(item)}
-      className={cn(
-        feedGalleryMasonryItemClassName,
-        "group relative block overflow-hidden rounded-md bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-        item.isPinned && feedPinnedItemSurfaceClassName,
-      )}
-    >
+  const interactive = typeof onItemClick === "function";
+  const media = (
+    <>
       {item.mediaKind === "video" ? (
         <FeedVideoTile src={videoSrc} />
       ) : (
@@ -55,19 +48,46 @@ const GalleryMasonryTile = memo(function GalleryMasonryTile({
           height={item.height}
           alt={item.title ?? item.caption ?? ""}
           naturalSize
-          imgClassName="transition duration-500 ease-out group-hover:scale-[1.015] group-hover:brightness-[1.03]"
+          imgClassName={
+            interactive
+              ? "transition duration-500 ease-out group-hover:scale-[1.015] group-hover:brightness-[1.03]"
+              : undefined
+          }
         />
       )}
-      {/* Leichter Hover-Scrim — ohne Layout-Ruckeln */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-      />
+      {interactive ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        />
+      ) : null}
       <span className="sr-only" data-embed-mt>
         {item.title ?? item.caption ?? "Galeriebild"}
       </span>
-    </button>
+    </>
   );
+
+  const tileClassName = cn(
+    feedGalleryMasonryItemClassName,
+    "relative block overflow-hidden rounded-md bg-muted",
+    item.isPinned && feedPinnedItemSurfaceClassName,
+    interactive &&
+      "group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+  );
+
+  if (interactive) {
+    return (
+      <button
+        type="button"
+        onClick={() => onItemClick(item)}
+        className={tileClassName}
+      >
+        {media}
+      </button>
+    );
+  }
+
+  return <div className={tileClassName}>{media}</div>;
 });
 
 export function GalleryMasonryGrid({

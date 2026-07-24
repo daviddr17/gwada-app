@@ -97,13 +97,13 @@ const EmbedReservationWidget = dynamic(
     import("@/components/embed/embed-reservation-widget").then(
       (mod) => mod.EmbedReservationWidget,
     ),
-  { loading: () => <RestaurantPublicProfileModuleSkeleton /> },
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="form" /> },
 );
 
 const EmbedMenuWidget = dynamic(
   () =>
     import("@/components/embed/embed-menu-widget").then((mod) => mod.EmbedMenuWidget),
-  { loading: () => <RestaurantPublicProfileModuleSkeleton /> },
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="menu" /> },
 );
 
 const IOS_SHEET_BACKDROP_BLUR_PX = 12;
@@ -835,25 +835,24 @@ function ProfileAppContent({
     );
   }
 
-  const cardClass =
-    "overflow-hidden rounded-2xl border border-border/50 bg-card/95 shadow-card backdrop-blur-sm";
+  /** Einheitlicher flacher Sheet-Chrome — Padding nur hier, keine Nested-Cards. */
+  const sheetPadClassName = "p-4 pb-8 sm:p-5";
 
   if (appId === "reserve") {
     return (
-      <div className="p-4 pb-8 sm:p-5">
+      <div className={sheetPadClassName}>
         <ModulePanel
           showLoading={deferHeavyWidgets || (!reservation && loading.reservation)}
+          loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="form" />}
           error={errors.reservation}
         >
           {reservation ? (
-            <div className={cardClass}>
-              <EmbedReservationWidget
-                config={reservation}
-                countries={publicCountries()}
-                variant="profileSheet"
-                profileTermsSheet={reservationTermsSheet}
-              />
-            </div>
+            <EmbedReservationWidget
+              config={reservation}
+              countries={publicCountries()}
+              variant="profileSheet"
+              profileTermsSheet={reservationTermsSheet}
+            />
           ) : null}
         </ModulePanel>
       </div>
@@ -862,9 +861,14 @@ function ProfileAppContent({
 
   if (appId === "menu") {
     return (
-      <div className="px-4 pb-8 pt-0 sm:px-5">
+      <div className="pb-8 pt-0">
         <ModulePanel
           showLoading={deferHeavyWidgets || (!menu && loading.menu)}
+          loadingFallback={
+            <div className={sheetPadClassName}>
+              <RestaurantPublicProfileModuleSkeleton variant="menu" />
+            </div>
+          }
           error={errors.menu}
         >
           {menu ? (
@@ -887,9 +891,10 @@ function ProfileAppContent({
 
   if (appId === "news") {
     return (
-      <div className="p-4 pb-8 sm:p-5">
+      <div className={sheetPadClassName}>
         <ModulePanel
           showLoading={deferHeavyWidgets || (!news && loading.news)}
+          loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="news" />}
           error={errors.news}
         >
           {news ? <RestaurantPublicProfileNews news={news} /> : null}
@@ -900,9 +905,10 @@ function ProfileAppContent({
 
   if (appId === "events") {
     return (
-      <div className="p-4 pb-8 sm:p-5">
+      <div className={sheetPadClassName}>
         <ModulePanel
           showLoading={deferHeavyWidgets || (!events && loading.events)}
+          loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="events" />}
           error={errors.events}
         >
           {events ? <RestaurantPublicProfileEvents events={events} /> : null}
@@ -913,7 +919,7 @@ function ProfileAppContent({
 
   if (appId === "gallery") {
     return (
-      <div className="p-4 pb-8 sm:p-5">
+      <div className={sheetPadClassName}>
         <ModulePanel
           // Mit Cache sofort die Wand zeigen — kein Form-Skeleton-Flash beim Sheet-Open.
           showLoading={!gallery && (deferHeavyWidgets || loading.gallery)}
@@ -927,19 +933,17 @@ function ProfileAppContent({
   }
 
   return (
-    <div className="p-4 pb-8 sm:p-5">
+    <div className={sheetPadClassName}>
       <ModulePanel
         showLoading={deferHeavyWidgets || (!reviews && loading.reviews)}
+        loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="timeline" />}
         error={errors.reviews}
       >
         {reviews ? (
-          <div className={cardClass}>
-            <RestaurantPublicProfileReviews
-              reviews={reviews.reviews}
-              connectedPlatforms={reviews.connectedPlatforms}
-              viewMode={reviews.viewMode}
-            />
-          </div>
+          <RestaurantPublicProfileReviews
+            reviews={reviews.reviews}
+            connectedPlatforms={reviews.connectedPlatforms}
+          />
         ) : null}
       </ModulePanel>
     </div>

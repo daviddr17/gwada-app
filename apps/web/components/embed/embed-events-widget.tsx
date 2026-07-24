@@ -239,7 +239,10 @@ function EmbedEventsWidgetBody({
           {visibleItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("eventsEmpty")}</p>
           ) : (
-            <EventsListView items={displayItems} />
+            <EventsListView
+              items={displayItems}
+              density={variant === "profileSheet" ? "compact" : "comfortable"}
+            />
           )}
         </ListPaginationSurround>
       </div>

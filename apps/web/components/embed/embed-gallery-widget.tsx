@@ -11,6 +11,7 @@ import {
 } from "@/components/feed/feed-screen-layout-stable";
 import { GalleryHighlightViewer } from "@/components/gallery/gallery-highlight-viewer";
 import { GalleryHighlightsRow } from "@/components/gallery/gallery-highlights-row";
+import { GalleryItemViewer } from "@/components/gallery/gallery-item-viewer";
 import { GalleryMasonryGrid } from "@/components/gallery/gallery-masonry-grid";
 import { GalleryPlatformFilterChips } from "@/components/gallery/gallery-platform-filter-chips";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
@@ -27,7 +28,10 @@ import type { AppLocale } from "@/i18n/config";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 import { GALLERY_FEED_PAGE_SIZE } from "@/lib/gallery/gallery-feed-pagination";
 import type { PublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
-import type { UnifiedGalleryHighlight } from "@/lib/gallery/unified-gallery-item";
+import type {
+  UnifiedGalleryHighlight,
+  UnifiedGalleryItem,
+} from "@/lib/gallery/unified-gallery-item";
 
 type Props = {
   data: PublicEmbedGallery;
@@ -69,6 +73,8 @@ function EmbedGalleryWidgetBody({
   const [page, setPage] = useState(1);
   const [activeHighlight, setActiveHighlight] = useState<UnifiedGalleryHighlight | null>(null);
   const [highlightOpen, setHighlightOpen] = useState(false);
+  const [activeItem, setActiveItem] = useState<UnifiedGalleryItem | null>(null);
+  const [itemOpen, setItemOpen] = useState(false);
 
   const availablePlatforms = useMemo(() => {
     const set = new Set<GalleryPlatform>(["gwada"]);
@@ -89,8 +95,22 @@ function EmbedGalleryWidgetBody({
   }, [filtered, currentPage]);
 
   const resizeDeps = useMemo(
-    () => [platformFilter, currentPage, paginated.length, filtered.length, highlightOpen],
-    [platformFilter, currentPage, paginated.length, filtered.length, highlightOpen],
+    () => [
+      platformFilter,
+      currentPage,
+      paginated.length,
+      filtered.length,
+      highlightOpen,
+      itemOpen,
+    ],
+    [
+      platformFilter,
+      currentPage,
+      paginated.length,
+      filtered.length,
+      highlightOpen,
+      itemOpen,
+    ],
   );
 
   const content = (
@@ -129,7 +149,10 @@ function EmbedGalleryWidgetBody({
         >
           <GalleryMasonryGrid
             items={paginated}
-            onItemClick={() => undefined}
+            onItemClick={(item) => {
+              setActiveItem(item);
+              setItemOpen(true);
+            }}
             edgeToEdge={variant === "profileSheet"}
           />
         </ListPaginationSurround>
@@ -139,6 +162,15 @@ function EmbedGalleryWidgetBody({
         highlight={activeHighlight}
         open={highlightOpen}
         onOpenChange={setHighlightOpen}
+        onItemClick={(item) => {
+          setActiveItem(item);
+          setItemOpen(true);
+        }}
+      />
+      <GalleryItemViewer
+        item={activeItem}
+        open={itemOpen}
+        onOpenChange={setItemOpen}
       />
     </>
   );

@@ -1,19 +1,34 @@
 "use client";
 
-import { CalendarDays, Eye, EyeOff, Pin, PinOff, ScrollText, Share2, Star } from "lucide-react";
+import { Fragment } from "react";
+import {
+  CalendarDays,
+  Eye,
+  EyeOff,
+  Pin,
+  PinOff,
+  ScrollText,
+  Share2,
+  Star,
+} from "lucide-react";
 import { ReviewCommentExpandable } from "@/components/reviews/review-comment-expandable";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
+import { feedTimelineDateChipClassName } from "@/components/feed/feed-timeline-date-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-  REVIEW_PLATFORM_LABELS,
-} from "@/lib/constants/review-platforms";
+import { Card, CardContent } from "@/components/ui/card";
+import { REVIEW_PLATFORM_LABELS } from "@/lib/constants/review-platforms";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
-import { reviewsEditorialGridClassName } from "@/lib/ui/reviews-editorial-grid";
+import {
+  formatReviewTimelineDay,
+  formatReviewTimelineMonthShort,
+  formatReviewTimelineMonthYear,
+  formatReviewTimelineTimeLabel,
+  reviewTimelineSameMonthYear,
+} from "@/lib/reviews/format-reviews-timeline-date";
 import { cn } from "@/lib/utils";
 
 function StarsDisplay({ rating }: { rating: number }) {
@@ -39,7 +54,7 @@ export type ReviewCardActions = {
   review: UnifiedReview;
   isUnread?: boolean;
   showPlatform?: boolean;
-  variant?: "grid" | "list";
+  variant?: "grid" | "list" | "timeline";
   visibilityBusy?: boolean;
   onReply?: () => void;
   onProtocol?: () => void;
@@ -156,15 +171,176 @@ function ReviewActionsRow({
           )}
         </Button>
       ) : null}
+      {onProtocol ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-muted-foreground"
+          onClick={onProtocol}
+        >
+          <ScrollText className="size-3.5" />
+          Protokoll
+        </Button>
+      ) : null}
     </div>
   );
 }
 
+function ReviewAuthor({
+  review,
+  isUnread,
+  onOpenContact,
+}: {
+  review: UnifiedReview;
+  isUnread: boolean;
+  onOpenContact?: () => void;
+}) {
+  if (!review.authorName) return null;
+  if (review.contactId && onOpenContact) {
+    return (
+      <button
+        type="button"
+        className="min-w-0 text-left text-sm font-medium text-foreground underline-offset-4 hover:underline"
+        onClick={onOpenContact}
+      >
+        {review.authorName}
+      </button>
+    );
+  }
+  return (
+    <p className={cn("min-w-0 text-sm font-medium", isUnread && "font-semibold")}>
+      {review.authorName}
+    </p>
+  );
+}
+
+const timelineRowSurfaceClassName =
+  "relative min-w-0 flex-1 overflow-hidden rounded-xl border border-border/50 bg-card p-3.5 text-left shadow-card transition sm:p-4";
+
+function ReviewTimelineRow({
+  review,
+  isUnread = false,
+  showPlatform = false,
+  showConnectorBelow,
+  visibilityBusy = false,
+  onReply,
+  onProtocol,
+  onOpenContact,
+  onOpenReservation,
+  onToggleHidden,
+  onTogglePin,
+  onShare,
+  pinBusy,
+}: ReviewCardActions & { showConnectorBelow: boolean }) {
+  const timeLabel = formatReviewTimelineTimeLabel(review.createdAt);
+
+  return (
+    <article className="flex w-full gap-3 sm:gap-4">
+      <div className="relative flex w-14 shrink-0 flex-col items-center self-stretch sm:w-16">
+        <div className={feedTimelineDateChipClassName}>
+          <span className="text-xl font-semibold tabular-nums leading-none sm:text-2xl">
+            {formatReviewTimelineDay(review.createdAt)}
+          </span>
+          <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {formatReviewTimelineMonthShort(review.createdAt)}
+          </span>
+        </div>
+        {showConnectorBelow ? (
+          <div
+            className="mt-1 w-px min-h-3 flex-1 bg-border/60"
+            aria-hidden
+          />
+        ) : null}
+      </div>
+
+      <div
+        className={cn(
+          timelineRowSurfaceClassName,
+          isUnread && "border-accent/35 bg-accent/[0.03]",
+          review.hiddenFromPublic && "opacity-80",
+          review.isPinned && feedPinnedItemSurfaceClassName,
+        )}
+      >
+        <span
+          className="pointer-events-none absolute -left-0.5 top-1 select-none font-serif text-5xl leading-none text-accent/25"
+          aria-hidden
+        >
+          “
+        </span>
+        <div className="relative space-y-2.5 pl-3 sm:pl-4">
+          <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              {showPlatform || isUnread ? (
+                <Badge variant="secondary" className="gap-1.5">
+                  <ReviewPlatformIcon
+                    platform={review.platform}
+                    className="size-3"
+                    aria-label={
+                      isUnread
+                        ? `${REVIEW_PLATFORM_LABELS[review.platform]}, ungelesen`
+                        : REVIEW_PLATFORM_LABELS[review.platform]
+                    }
+                  />
+                  {REVIEW_PLATFORM_LABELS[review.platform]}
+                </Badge>
+              ) : null}
+              <StarsDisplay rating={review.rating} />
+              {review.hiddenFromPublic ? (
+                <Badge variant="secondary" className="text-[10px]">
+                  Ausgeblendet
+                </Badge>
+              ) : null}
+              {review.isPinned ? <FeedPinnedBadge /> : null}
+            </div>
+            <time
+              className="shrink-0 text-xs text-muted-foreground tabular-nums"
+              dateTime={review.createdAt}
+            >
+              {timeLabel}
+            </time>
+          </div>
+
+          <ReviewAuthor
+            review={review}
+            isUnread={isUnread}
+            onOpenContact={onOpenContact}
+          />
+
+          <ReviewCommentExpandable
+            text={formatReviewCommentDisplay(review.comment)}
+          />
+
+          {review.reply ? (
+            <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
+              <span className="font-medium text-muted-foreground">Antwort: </span>
+              {review.reply}
+            </div>
+          ) : null}
+
+          <ReviewActionsRow
+            review={review}
+            onReply={onReply}
+            onProtocol={onProtocol}
+            onOpenContact={onOpenContact}
+            onOpenReservation={onOpenReservation}
+            onToggleHidden={onToggleHidden}
+            onTogglePin={onTogglePin}
+            onShare={onShare}
+            pinBusy={pinBusy}
+            visibilityBusy={visibilityBusy}
+          />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Kompakte Listen-Karte (Ansicht „Liste“). */
 export function ReviewCard({
   review,
   isUnread = false,
   showPlatform = false,
-  variant = "grid",
   visibilityBusy = false,
   onReply,
   onProtocol,
@@ -175,117 +351,25 @@ export function ReviewCard({
   onShare,
   pinBusy,
 }: ReviewCardActions) {
-  const date = new Date(review.createdAt).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-
-  if (variant === "list") {
-    return (
-      <Card
-        className={cn(
-          "border-border/50 shadow-card",
-          isUnread && "border-accent/35 bg-accent/[0.03]",
-          review.hiddenFromPublic && "opacity-80",
-          review.isPinned && feedPinnedItemSurfaceClassName,
-        )}
-      >
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              {showPlatform || isUnread ? (
-                <ReviewPlatformIcon
-                  platform={review.platform}
-                  className="size-4 shrink-0"
-                  aria-label={REVIEW_PLATFORM_LABELS[review.platform]}
-                />
-              ) : null}
-              <StarsDisplay rating={review.rating} />
-              {review.hiddenFromPublic ? (
-                <Badge variant="secondary" className="text-[10px]">
-                  Ausgeblendet
-                </Badge>
-              ) : null}
-              {review.isPinned ? <FeedPinnedBadge /> : null}
-              <span className="text-xs text-muted-foreground">{date}</span>
-            </div>
-            {review.authorName ? (
-              review.contactId && onOpenContact ? (
-                <button
-                  type="button"
-                  className="min-w-0 text-left text-sm font-medium text-foreground underline-offset-4 hover:underline"
-                  onClick={onOpenContact}
-                >
-                  {review.authorName}
-                </button>
-              ) : (
-                <p className={cn("min-w-0 text-sm font-medium", isUnread && "font-semibold")}>
-                  {review.authorName}
-                </p>
-              )
-            ) : null}
-            <ReviewCommentExpandable
-              text={formatReviewCommentDisplay(review.comment)}
-            />
-            {review.reply ? (
-              <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
-                <span className="font-medium text-muted-foreground">Antwort: </span>
-                {review.reply}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-            {onProtocol ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-8 self-end rounded-md text-muted-foreground"
-                aria-label="Bewertungsprotokoll"
-                onClick={onProtocol}
-              >
-                <ScrollText className="size-4" />
-              </Button>
-            ) : null}
-            <ReviewActionsRow
-              review={review}
-              onReply={onReply}
-              onOpenContact={onOpenContact}
-              onOpenReservation={onOpenReservation}
-              onToggleHidden={onToggleHidden}
-              onTogglePin={onTogglePin}
-              onShare={onShare}
-              pinBusy={pinBusy}
-              visibilityBusy={visibilityBusy}
-            />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const date = formatReviewTimelineTimeLabel(review.createdAt);
 
   return (
     <Card
       className={cn(
-        "h-full border-border/50 shadow-card",
+        "border-border/50 shadow-card",
         isUnread && "border-accent/35 bg-accent/[0.03]",
         review.hiddenFromPublic && "opacity-80",
         review.isPinned && feedPinnedItemSurfaceClassName,
       )}
     >
-      <CardHeader className="space-y-2 pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
             {showPlatform || isUnread ? (
               <ReviewPlatformIcon
                 platform={review.platform}
                 className="size-4 shrink-0"
-                aria-label={
-                  isUnread
-                    ? `${REVIEW_PLATFORM_LABELS[review.platform]}, ungelesen`
-                    : REVIEW_PLATFORM_LABELS[review.platform]
-                }
+                aria-label={REVIEW_PLATFORM_LABELS[review.platform]}
               />
             ) : null}
             <StarsDisplay rating={review.rating} />
@@ -295,91 +379,111 @@ export function ReviewCard({
               </Badge>
             ) : null}
             {review.isPinned ? <FeedPinnedBadge /> : null}
+            <span className="text-xs text-muted-foreground">{date}</span>
           </div>
+          <ReviewAuthor
+            review={review}
+            isUnread={isUnread}
+            onOpenContact={onOpenContact}
+          />
+          <ReviewCommentExpandable
+            text={formatReviewCommentDisplay(review.comment)}
+          />
+          {review.reply ? (
+            <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
+              <span className="font-medium text-muted-foreground">Antwort: </span>
+              {review.reply}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
           {onProtocol ? (
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="size-6 shrink-0 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-muted-foreground"
+              className="size-8 self-end rounded-md text-muted-foreground"
               aria-label="Bewertungsprotokoll"
               onClick={onProtocol}
             >
-              <ScrollText className="size-3" />
+              <ScrollText className="size-4" />
             </Button>
           ) : null}
+          <ReviewActionsRow
+            review={review}
+            onReply={onReply}
+            onOpenContact={onOpenContact}
+            onOpenReservation={onOpenReservation}
+            onToggleHidden={onToggleHidden}
+            onTogglePin={onTogglePin}
+            onShare={onShare}
+            pinBusy={pinBusy}
+            visibilityBusy={visibilityBusy}
+          />
         </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-          {review.authorName ? (
-            review.contactId && onOpenContact ? (
-              <button
-                type="button"
-                className="min-w-0 text-left text-sm font-medium text-foreground underline-offset-4 hover:underline"
-                onClick={onOpenContact}
-              >
-                {review.authorName}
-              </button>
-            ) : (
-              <p className={cn("min-w-0 text-sm font-medium", isUnread && "font-semibold")}>
-                {review.authorName}
-              </p>
-            )
-          ) : (
-            <span className="min-w-0 flex-1" aria-hidden />
-          )}
-          <div className="flex shrink-0 items-center gap-1">
-            <span className="text-xs text-muted-foreground">{date}</span>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 pt-0">
-        <ReviewCommentExpandable
-          text={formatReviewCommentDisplay(review.comment)}
-        />
-        {review.reply ? (
-          <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
-            <span className="font-medium text-muted-foreground">Antwort: </span>
-            {review.reply}
-          </div>
-        ) : null}
-        <ReviewActionsRow
-          review={review}
-          onReply={onReply}
-          onOpenContact={onOpenContact}
-          onOpenReservation={onOpenReservation}
-          onToggleHidden={onToggleHidden}
-          onTogglePin={onTogglePin}
-          onShare={onShare}
-          pinBusy={pinBusy}
-          visibilityBusy={visibilityBusy}
-        />
       </CardContent>
     </Card>
   );
 }
 
-export function ReviewsGridView({
+/** Gästebuch-Timeline — Standardansicht (Dashboard „Kacheln“/Grid). */
+export function ReviewsTimelineView({
   reviews,
   showPlatform,
   getReviewProps,
 }: {
   reviews: UnifiedReview[];
   showPlatform: boolean;
-  getReviewProps: (review: UnifiedReview) => Omit<ReviewCardActions, "review" | "showPlatform">;
+  getReviewProps: (
+    review: UnifiedReview,
+  ) => Omit<ReviewCardActions, "review" | "showPlatform" | "variant">;
 }) {
   return (
-    <div className={reviewsEditorialGridClassName}>
-      {reviews.map((review) => (
-        <ReviewCard
-          key={`${review.platform}:${review.id}`}
-          review={review}
-          showPlatform={showPlatform}
-          variant="grid"
-          {...getReviewProps(review)}
-        />
-      ))}
-    </div>
+    <ul className="space-y-0">
+      {reviews.map((review, index) => {
+        const previous = reviews[index - 1];
+        const showMonthHeader =
+          !previous ||
+          !reviewTimelineSameMonthYear(previous.createdAt, review.createdAt);
+
+        return (
+          <Fragment key={`${review.platform}:${review.id}`}>
+            {showMonthHeader ? (
+              <li
+                className={cn(
+                  "pb-2",
+                  index === 0 ? "pt-0" : "border-t border-border/40 pt-4",
+                )}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {formatReviewTimelineMonthYear(review.createdAt)}
+                </p>
+              </li>
+            ) : null}
+            <li className="pb-3 last:pb-0">
+              <ReviewTimelineRow
+                review={review}
+                showPlatform={showPlatform}
+                showConnectorBelow={index < reviews.length - 1}
+                {...getReviewProps(review)}
+              />
+            </li>
+          </Fragment>
+        );
+      })}
+    </ul>
   );
+}
+
+/** @deprecated Alias — Dashboard nutzt die Timeline. */
+export function ReviewsGridView(props: {
+  reviews: UnifiedReview[];
+  showPlatform: boolean;
+  getReviewProps: (
+    review: UnifiedReview,
+  ) => Omit<ReviewCardActions, "review" | "showPlatform" | "variant">;
+}) {
+  return <ReviewsTimelineView {...props} />;
 }
 
 export function ReviewsListView({
@@ -389,7 +493,9 @@ export function ReviewsListView({
 }: {
   reviews: UnifiedReview[];
   showPlatform: boolean;
-  getReviewProps: (review: UnifiedReview) => Omit<ReviewCardActions, "review" | "showPlatform">;
+  getReviewProps: (
+    review: UnifiedReview,
+  ) => Omit<ReviewCardActions, "review" | "showPlatform" | "variant">;
 }) {
   return (
     <div className="space-y-3">

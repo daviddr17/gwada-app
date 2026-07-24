@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Filter, LayoutGrid, Link2, List, ScrollText, Search } from "lucide-react";
+import { Filter, GalleryVerticalEnd, Link2, List, ScrollText, Search } from "lucide-react";
 import {
   countReviewsDrawerActiveFilters,
   ReviewsFilterDrawer,
 } from "@/components/reviews/reviews-filter-drawer";
 import { ReviewInboxFilterChips } from "@/components/reviews/review-inbox-filter-chips";
 import {
-  ReviewsGridView,
   ReviewsListView,
+  ReviewsTimelineView,
 } from "@/components/reviews/reviews-feed-views";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -1738,9 +1738,9 @@ export function ReviewsScreen() {
                     className="rounded-full"
                     aria-pressed={viewMode === "grid"}
                     onClick={() => setViewMode("grid")}
-                    aria-label="Raster"
+                    aria-label="Timeline"
                   >
-                    <LayoutGrid className="size-4" />
+                    <GalleryVerticalEnd className="size-4" />
                   </Button>
                   <Button
                     type="button"
@@ -1852,7 +1852,7 @@ export function ReviewsScreen() {
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
-                    <ReviewsGridView
+                    <ReviewsTimelineView
                       reviews={filteredSortedReviews}
                       showPlatform={false}
                       getReviewProps={getReviewCardProps}
@@ -1879,7 +1879,7 @@ export function ReviewsScreen() {
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
-                    <ReviewsGridView
+                    <ReviewsTimelineView
                       reviews={filteredSortedReviews}
                       showPlatform={true}
                       getReviewProps={getReviewCardProps}
@@ -1906,7 +1906,7 @@ export function ReviewsScreen() {
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
-                    <ReviewsGridView
+                    <ReviewsTimelineView
                       reviews={filteredSortedReviews}
                       showPlatform={false}
                       getReviewProps={getReviewCardProps}
@@ -1935,7 +1935,7 @@ export function ReviewsScreen() {
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
-                    <ReviewsGridView
+                    <ReviewsTimelineView
                       reviews={filteredSortedReviews}
                       showPlatform={false}
                       getReviewProps={getReviewCardProps}
@@ -1949,7 +1949,7 @@ export function ReviewsScreen() {
                   getReviewProps={getReviewCardProps}
                 />
               ) : (
-                <ReviewsGridView
+                <ReviewsTimelineView
                   reviews={filteredSortedReviews}
                   showPlatform={platformFilter === REVIEW_FILTER_ALL}
                   getReviewProps={getReviewCardProps}

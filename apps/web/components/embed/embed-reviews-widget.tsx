@@ -6,17 +6,14 @@ import { Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
-import { ReviewCommentExpandable } from "@/components/reviews/review-comment-expandable";
-import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
+import { PublicReviewsTimelineView } from "@/components/reviews/reviews-public-timeline";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import type { AppLocale } from "@/i18n/config";
-import { REVIEW_PLATFORM_LABELS } from "@/lib/constants/review-platforms";
 import type {
   PublicEmbedReview,
   PublicEmbedReviewsPagination,
 } from "@/lib/reviews/public-reviews-server";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
-import { reviewsEditorialGridClassName } from "@/lib/ui/reviews-editorial-grid";
 import { cn } from "@/lib/utils";
 
 export type EmbedReviewsWidgetProps = {
@@ -30,132 +27,12 @@ export type EmbedReviewsWidgetProps = {
     median: number | null;
     distribution: Record<1 | 2 | 3 | 4 | 5, number>;
   };
-  /** Editorial-Raster (Standard) oder Liste — Einbindung nutzt Raster. */
+  /** Beibehalten für API-Kompatibilität — Feed ist immer Timeline. */
   viewMode?: "grid" | "list";
   /** Server-Pagination (Embed-Route) — x/y + Seiten unten. */
   pagination?: PublicEmbedReviewsPagination;
   sourceLocale?: AppLocale;
 };
-
-function StarsDisplay({ rating, size = "md" }: { rating: number; size?: "sm" | "md" }) {
-  const t = useTranslations("Embed.reviewsUi");
-  const full = Math.round(Math.min(5, Math.max(0, rating)));
-  return (
-    <div className="flex gap-0.5" aria-label={t("starsAria", { rating })}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <Star
-          key={i}
-          className={cn(
-            size === "sm" ? "size-3.5" : "size-4",
-            i < full
-              ? "fill-amber-400 text-amber-400"
-              : "text-muted-foreground/30",
-          )}
-        />
-      ))}
-    </div>
-  );
-}
-
-function formatReviewDate(iso: string, locale: string): string {
-  return new Date(iso).toLocaleDateString(locale, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function EmbedReviewCard({ review }: { review: PublicEmbedReview }) {
-  const t = useTranslations("Embed.reviewsUi");
-  const locale = useLocale();
-  const date = formatReviewDate(review.createdAt, locale);
-
-  return (
-    <article className="flex h-full w-full flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <ReviewPlatformIcon
-            platform={review.platform}
-            className="size-4 shrink-0"
-            aria-label={REVIEW_PLATFORM_LABELS[review.platform]}
-          />
-          <StarsDisplay rating={review.rating} size="sm" />
-        </div>
-        <time
-          className="shrink-0 text-xs text-muted-foreground"
-          dateTime={review.createdAt}
-        >
-          {date}
-        </time>
-      </div>
-      {review.authorName ? (
-        <p className="mt-2 text-sm font-medium leading-snug">{review.authorName}</p>
-      ) : null}
-      <div className="mt-2 flex-1" data-embed-mt>
-        <ReviewCommentExpandable
-          text={review.comment}
-          emptyLabel={t("noComment")}
-          moreLabel={t("more")}
-          lessLabel={t("less")}
-          textClassName="text-muted-foreground"
-        />
-      </div>
-      {review.reply ? (
-        <div className="mt-3 rounded-lg border border-border/50 bg-muted/25 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          <span className="font-medium text-foreground/80">{t("replyLabel")} </span>
-          <span className="line-clamp-3" data-embed-mt>
-            {review.reply}
-          </span>
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function EmbedReviewRow({ review }: { review: PublicEmbedReview }) {
-  const t = useTranslations("Embed.reviewsUi");
-  const locale = useLocale();
-  const date = formatReviewDate(review.createdAt, locale);
-
-  return (
-    <article className="border-b border-border/40 py-4 last:border-b-0">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <ReviewPlatformIcon
-            platform={review.platform}
-            className="size-4 shrink-0"
-            aria-label={REVIEW_PLATFORM_LABELS[review.platform]}
-          />
-          <StarsDisplay rating={review.rating} />
-        </div>
-        <time
-          className="shrink-0 text-xs text-muted-foreground"
-          dateTime={review.createdAt}
-        >
-          {date}
-        </time>
-      </div>
-      {review.authorName ? (
-        <p className="mt-2 text-sm font-medium">{review.authorName}</p>
-      ) : null}
-      <div className="mt-2" data-embed-mt>
-        <ReviewCommentExpandable
-          text={review.comment}
-          emptyLabel={t("noComment")}
-          moreLabel={t("more")}
-          lessLabel={t("less")}
-          textClassName="text-muted-foreground"
-        />
-      </div>
-      {review.reply ? (
-        <div className="mt-3 rounded-lg border border-border/50 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground/80">{t("replyLabel")} </span>
-          <span data-embed-mt>{review.reply}</span>
-        </div>
-      ) : null}
-    </article>
-  );
-}
 
 function EmbedReviewsSummary({
   summary,
@@ -246,11 +123,14 @@ function EmbedReviewsWidgetBody({
   pagination,
 }: Omit<EmbedReviewsWidgetProps, "accentHex" | "textTheme" | "sourceLocale">) {
   const t = useTranslations("Embed");
+  const tUi = useTranslations("Embed.reviewsUi");
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [navigating, startTransition] = useTransition();
   const paginated = pagination != null;
+  void viewMode;
 
   const pushPage = useCallback(
     (page: number) => {
@@ -305,26 +185,16 @@ function EmbedReviewsWidgetBody({
     pagination != null &&
     (pagination.totalPages > 1 || pagination.totalCount > 0);
 
-  const reviewList =
-    viewMode === "list" ? (
-      <div>
-        {reviews.map((review) => (
-          <EmbedReviewRow
-            key={`${review.platform}-${review.id}`}
-            review={review}
-          />
-        ))}
-      </div>
-    ) : (
-      <div className={reviewsEditorialGridClassName}>
-        {reviews.map((review) => (
-          <EmbedReviewCard
-            key={`${review.platform}-${review.id}`}
-            review={review}
-          />
-        ))}
-      </div>
-    );
+  const reviewList = (
+    <PublicReviewsTimelineView
+      reviews={reviews}
+      locale={locale}
+      emptyCommentLabel={tUi("noComment")}
+      moreLabel={tUi("more")}
+      lessLabel={tUi("less")}
+      replyLabel={tUi("replyLabel")}
+    />
+  );
 
   return (
     <>

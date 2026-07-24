@@ -1,6 +1,6 @@
 /**
- * Bewertungs-Raster: chronologisch zeilenweise (nicht CSS-Columns-Masonry).
- * Alle Karten gleichbreit — kein halb/voll-Mix.
+ * @deprecated Bewertungen nutzen die Gästebuch-Timeline (ReviewsTimelineView).
+ * Export bleibt für Übergangsimporte — bevorzugt Timeline-Komponenten.
  */
 
 export const reviewsEditorialGridClassName =

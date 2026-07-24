@@ -1,10 +1,9 @@
 "use client";
 
-import { Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { ReviewCommentExpandable } from "@/components/reviews/review-comment-expandable";
 import { ReviewPlatformChip } from "@/components/reviews/review-platform-chip";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
+import { PublicReviewsTimelineView } from "@/components/reviews/reviews-public-timeline";
 import {
   Select,
   SelectContent,
@@ -27,121 +26,23 @@ import {
 import type { PublicEmbedReview } from "@/lib/reviews/public-reviews-server";
 import { PUBLIC_EMBED_REVIEWS_PAGE_SIZE } from "@/lib/reviews/public-embed-reviews-pagination";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { reviewsEditorialGridClassName } from "@/lib/ui/reviews-editorial-grid";
 import { cn } from "@/lib/utils";
 
 const reviewsSortSelectClass = appSelectTriggerAccentCn(
   "h-auto min-h-0 w-full rounded-full px-3 py-1.5 text-sm font-medium leading-none sm:w-auto sm:min-w-[11rem] [&_[data-slot=select-value]]:truncate",
 );
 
-function StarsDisplay({ rating }: { rating: number }) {
-  const full = Math.round(Math.min(5, Math.max(0, rating)));
-  return (
-    <div className="flex gap-0.5" aria-label={`${rating} von 5 Sternen`}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <Star
-          key={i}
-          className={cn(
-            "size-4",
-            i < full
-              ? "fill-amber-400 text-amber-400"
-              : "text-muted-foreground/30",
-          )}
-        />
-      ))}
-    </div>
-  );
-}
-
-function PublicReviewRow({ review }: { review: PublicEmbedReview }) {
-  const date = new Date(review.createdAt).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-
-  return (
-    <article className="border-b border-border/40 py-4 last:border-b-0">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <StarsDisplay rating={review.rating} />
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            <ReviewPlatformIcon platform={review.platform} className="size-3" />
-            {REVIEW_PLATFORM_LABELS[review.platform]}
-          </span>
-        </div>
-        <time
-          className="shrink-0 text-xs text-muted-foreground"
-          dateTime={review.createdAt}
-        >
-          {date}
-        </time>
-      </div>
-      {review.authorName ? (
-        <p className="mt-2 text-sm font-medium">{review.authorName}</p>
-      ) : null}
-      <div className="mt-2">
-        <ReviewCommentExpandable text={review.comment} />
-      </div>
-      {review.reply ? (
-        <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
-          <span className="font-medium text-muted-foreground">Antwort: </span>
-          {review.reply}
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function PublicReviewCard({ review }: { review: PublicEmbedReview }) {
-  const date = new Date(review.createdAt).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-
-  return (
-    <article className="flex h-full w-full flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <StarsDisplay rating={review.rating} />
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            <ReviewPlatformIcon platform={review.platform} className="size-3" />
-            {REVIEW_PLATFORM_LABELS[review.platform]}
-          </span>
-        </div>
-        <time
-          className="shrink-0 text-xs text-muted-foreground"
-          dateTime={review.createdAt}
-        >
-          {date}
-        </time>
-      </div>
-      {review.authorName ? (
-        <p className="mt-2 text-sm font-medium leading-snug">{review.authorName}</p>
-      ) : null}
-      <div className="mt-2 flex-1">
-        <ReviewCommentExpandable text={review.comment} />
-      </div>
-      {review.reply ? (
-        <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
-          <span className="font-medium text-muted-foreground">Antwort: </span>
-          <span className="line-clamp-3">{review.reply}</span>
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
 export function RestaurantPublicProfileReviews({
   reviews,
   connectedPlatforms,
-  viewMode = "grid",
+  viewMode: _viewMode = "grid",
 }: {
   reviews: PublicEmbedReview[];
   connectedPlatforms: ReviewPlatform[];
+  /** Beibehalten für API-Kompatibilität — Feed ist immer Timeline. */
   viewMode?: "grid" | "list";
 }) {
+  void _viewMode;
   const [platformFilter, setPlatformFilter] = useState<ReviewPlatform | "all">(
     "all",
   );
@@ -173,23 +74,9 @@ export function RestaurantPublicProfileReviews({
   const showPagination =
     pagination.totalPages > 1 || pagination.totalCount > 0;
 
-  const reviewList =
-    viewMode === "list" ? (
-      <div>
-        {pagination.items.map((review) => (
-          <PublicReviewRow key={`${review.platform}-${review.id}`} review={review} />
-        ))}
-      </div>
-    ) : (
-      <div className={reviewsEditorialGridClassName}>
-        {pagination.items.map((review) => (
-          <PublicReviewCard
-            key={`${review.platform}-${review.id}`}
-            review={review}
-          />
-        ))}
-      </div>
-    );
+  const reviewList = (
+    <PublicReviewsTimelineView reviews={pagination.items} />
+  );
 
   const showPlatformChips = connectedPlatforms.length > 1;
 

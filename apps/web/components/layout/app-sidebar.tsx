@@ -75,6 +75,7 @@ import { hasSidebarModuleAccess } from "@/lib/permissions/sidebar-module-permiss
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import {
+  appMobileSidebarFooterClassName,
   appMobileSidebarFooterMenuButtonClassName,
   appMobileSidebarFooterMenuClassName,
   appMobileSidebarGroupClassName,
@@ -218,7 +219,8 @@ export function AppSidebar() {
               render={<Link href="/workspace/restaurants" prefetch />}
               className={cn(
                 isMobile && appMobileSidebarHeaderButtonClassName,
-                "!p-0 [--sidebar-menu-icon-col:2rem] grid-cols-[2rem_minmax(0,1fr)] group-data-[sidebar-labels-collapsed]/sidebar-wrapper:grid-cols-[2rem_0fr] ms-[5px]",
+                "!p-0 [--sidebar-menu-icon-col:2rem] grid-cols-[2rem_minmax(0,1fr)] group-data-[sidebar-labels-collapsed]/sidebar-wrapper:grid-cols-[2rem_0fr]",
+                !isMobile && "ms-[5px]",
                 SIDEBAR_COMPACT_BUTTON,
               )}
             >
@@ -487,8 +489,14 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarSeparator className="mx-0 w-full" />
-      <SidebarFooter className={cn("shrink-0", appChromeFixedZoneBgClassName)}>
+      {isMobile ? null : <SidebarSeparator className="mx-0 w-full" />}
+      <SidebarFooter
+        className={cn(
+          "shrink-0",
+          appChromeFixedZoneBgClassName,
+          isMobile && appMobileSidebarFooterClassName,
+        )}
+      >
         <SidebarMenu className={mobileFooterMenuClassName}>
           {isSuperadmin && !inSuperadmin ? (
             <SidebarMenuItem>

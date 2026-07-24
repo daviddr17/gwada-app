@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { AccountingCashCategoryToolbar } from "@/components/accounting/accounting-cash-category-toolbar";
@@ -30,6 +37,11 @@ import { fetchAllPaginatedItems } from "@/lib/export/fetch-all-paginated";
 import { LIST_PAGE_SIZE_MAX } from "@/lib/constants/list-pagination";
 import { ACCOUNTING_CASH_DIRECTION_LABELS } from "@/lib/accounting/accounting-cash-book-defaults";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import {
+  accountingCashBookCacheKey,
+  peekAccountingCashBookCache,
+  writeAccountingCashBookCache,
+} from "@/lib/accounting/accounting-list-client-cache";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import {
   hasModuleCreate,
@@ -138,11 +150,39 @@ export function AccountingCashBookScreen() {
     null,
   );
 
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showSkeleton = useDeferredSkeleton(loading && entries.length === 0);
+
+  const listCacheKey = useMemo(() => {
+    if (!restaurantId) return null;
+    return accountingCashBookCacheKey({ restaurantId, page, search });
+  }, [restaurantId, page, search]);
+
+  const applyCachedList = useCallback(
+    (cached: ReturnType<typeof peekAccountingCashBookCache>) => {
+      if (!cached) return false;
+      setEntries(cached.entries);
+      setSummary(cached.summary);
+      setTotalPages(cached.totalPages);
+      setTotalCount(cached.totalCount);
+      setCategories(cached.categories);
+      setTaxRates(cached.taxRates);
+      setVoucherStatuses(cached.voucherStatuses);
+      setLoading(false);
+      return true;
+    },
+    [],
+  );
+
+  useLayoutEffect(() => {
+    if (!listCacheKey) return;
+    applyCachedList(peekAccountingCashBookCache(listCacheKey));
+  }, [listCacheKey, applyCachedList]);
 
   const loadList = useCallback(async () => {
-    if (!restaurantId) return;
-    setLoading(true);
+    if (!restaurantId || !listCacheKey) return;
+    const cached = peekAccountingCashBookCache(listCacheKey);
+    if (cached) applyCachedList(cached);
+    else setLoading(true);
     try {
       const [list, cats, catalog, statuses] = await Promise.all([
         fetchAccountingCashBook(restaurantId, { page, search }),
@@ -157,12 +197,22 @@ export function AccountingCashBookScreen() {
       setCategories(cats);
       setTaxRates(catalog.taxRates);
       setVoucherStatuses(statuses);
+      writeAccountingCashBookCache(listCacheKey, {
+        entries: list.entries,
+        summary: list.summary,
+        page: list.page,
+        totalPages: list.totalPages,
+        totalCount: list.totalCount,
+        categories: cats,
+        taxRates: catalog.taxRates,
+        voucherStatuses: statuses,
+      });
     } catch {
       toast.error("Kassenbuch konnte nicht geladen werden.");
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, page, search]);
+  }, [restaurantId, listCacheKey, page, search, applyCachedList]);
 
   useEffect(() => {
     void loadList();

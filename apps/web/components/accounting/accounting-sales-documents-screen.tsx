@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -45,6 +45,11 @@ import { isDefaultSalesDocumentSort } from "@/lib/accounting/accounting-list-sor
 import { useMarkNotificationModuleReadOnOpen } from "@/lib/hooks/use-mark-notification-module-read-on-open";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
+import {
+  accountingSalesListCacheKey,
+  peekAccountingSalesListCache,
+  writeAccountingSalesListCache,
+} from "@/lib/accounting/accounting-list-client-cache";
 import {
   accountingSourceDisplayLabel,
   isExternalAccountingSource,
@@ -155,16 +160,63 @@ export function AccountingSalesDocumentsScreen({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showSkeleton = useDeferredSkeleton(loading && rows.length === 0);
+
+  const listCacheKey = useMemo(() => {
+    if (!restaurantId) return null;
+    return accountingSalesListCacheKey({
+      restaurantId,
+      kind: isInvoice ? "invoice" : "quotation",
+      source: platformFilter,
+      status: statusFilter,
+      variant: variantFilter,
+      search,
+      page,
+      sortKey,
+      sortDir,
+    });
+  }, [
+    restaurantId,
+    isInvoice,
+    platformFilter,
+    statusFilter,
+    variantFilter,
+    search,
+    page,
+    sortKey,
+    sortDir,
+  ]);
 
   useMarkNotificationModuleReadOnOpen(
     isInvoice ? "accounting_invoice" : "accounting_quotation",
     Boolean(restaurantId && canRead),
   );
 
+  const applyCachedList = useCallback(
+    (cached: ReturnType<typeof peekAccountingSalesListCache>) => {
+      if (!cached) return false;
+      setRows(cached.rows as SalesDocumentRow[]);
+      setListMeta(cached.listMeta);
+      setTaxRates(cached.catalog.taxRates);
+      setUnits(cached.catalog.units);
+      setArticles(cached.catalog.articles);
+      setStatuses(cached.statuses);
+      setLoading(false);
+      return true;
+    },
+    [],
+  );
+
+  useLayoutEffect(() => {
+    if (!listCacheKey) return;
+    applyCachedList(peekAccountingSalesListCache(listCacheKey));
+  }, [listCacheKey, applyCachedList]);
+
   const load = useCallback(async () => {
-    if (!restaurantId) return;
-    setLoading(true);
+    if (!restaurantId || !listCacheKey) return;
+    const cached = peekAccountingSalesListCache(listCacheKey);
+    if (cached) applyCachedList(cached);
+    else setLoading(true);
     try {
       const source =
         platformFilter === "all" ? undefined : platformFilter;
@@ -200,6 +252,20 @@ export function AccountingSalesDocumentsScreen({
       setUnits(catalog.units);
       setArticles(catalog.articles);
       setStatuses(statusRows);
+      writeAccountingSalesListCache(listCacheKey, {
+        rows: list.items,
+        listMeta: {
+          page: list.page,
+          totalPages: list.totalPages,
+          totalCount: list.totalCount,
+        },
+        catalog: {
+          taxRates: catalog.taxRates,
+          units: catalog.units,
+          articles: catalog.articles,
+        },
+        statuses: statusRows,
+      });
     } catch {
       toast.error(
         isInvoice
@@ -211,6 +277,7 @@ export function AccountingSalesDocumentsScreen({
     }
   }, [
     restaurantId,
+    listCacheKey,
     platformFilter,
     statusFilter,
     variantFilter,
@@ -220,6 +287,7 @@ export function AccountingSalesDocumentsScreen({
     sortDir,
     isInvoice,
     syncPageFromServer,
+    applyCachedList,
   ]);
 
   useEffect(() => {

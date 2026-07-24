@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   Bar,
   BarChart,
@@ -49,6 +55,10 @@ import {
   type InsightsPlatform,
 } from "@/lib/constants/insights-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import {
+  peekInsightsOverviewCache,
+  writeInsightsOverviewCache,
+} from "@/lib/insights/insights-overview-client-cache";
 import type {
   InsightsStatisticsResult,
   InsightsStatsDays,
@@ -208,6 +218,14 @@ export function InsightsOverviewScreen() {
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading && !data);
 
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    const cached = peekInsightsOverviewCache(restaurantId, period);
+    if (!cached) return;
+    setData(cached.data);
+    setLoading(false);
+  }, [restaurantId, period]);
+
   const setPlatform = useCallback(
     (next: InsightsPlatform) => {
       setPlatformState(next);
@@ -232,7 +250,13 @@ export function InsightsOverviewScreen() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    const cached = peekInsightsOverviewCache(restaurantId, period);
+    if (cached) {
+      setData(cached.data);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       const params = new URLSearchParams({ restaurantId });
       if (period.mode === "days") {
@@ -250,6 +274,7 @@ export function InsightsOverviewScreen() {
         return;
       }
       setData(body);
+      writeInsightsOverviewCache(restaurantId, period, body);
     } catch {
       toast.error("Netzwerkfehler beim Laden der Insights.");
     }

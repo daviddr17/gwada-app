@@ -29,7 +29,9 @@ import {
   warmDocumentsList,
   warmEventsFeed,
   warmGalleryFeed,
+  warmInsightsOverview,
   warmNewsFeed,
+  warmPosOverview,
   warmStaffTodos,
 } from "@/lib/hooks/app-module-warm-prefetch";
 import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
@@ -187,6 +189,14 @@ function warmModuleData(
   }
   if (path.startsWith("/dashboard/checklisten")) {
     void warmStaffTodos(restaurantId);
+    return;
+  }
+  if (path.startsWith("/dashboard/insights")) {
+    void warmInsightsOverview(restaurantId);
+    return;
+  }
+  if (path.startsWith("/dashboard/pos")) {
+    void warmPosOverview(restaurantId);
   }
 }
 

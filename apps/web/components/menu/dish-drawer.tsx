@@ -89,6 +89,8 @@ export function DishDrawer({
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
+  /** Formular erst nach Sheet-Start mounten — sonst ruckelt die Vaul-Animation. */
+  const [mountForm, setMountForm] = React.useState(false);
 
   const sharePayload = React.useMemo(() => {
     if (!editItem) return null;
@@ -106,7 +108,17 @@ export function DishDrawer({
     if (!open) {
       setConfirmDeleteOpen(false);
       setShareOpen(false);
+      setMountForm(false);
+      return;
     }
+    let raf2 = 0;
+    const raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => setMountForm(true));
+    });
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+    };
   }, [open]);
 
   const handleSubmit = (item: NewMenuItem) => {
@@ -178,18 +190,26 @@ export function DishDrawer({
             ) : null}
           </div>
         </DrawerHeader>
-        <DishForm
-          key={formKey}
-          mode={mode}
-          initialItem={editItem}
-          categories={categories}
-          ingredients={ingredients}
-          tagDefinitions={tagDefinitions}
-          optionGroups={optionGroups}
-          stockUnits={stockUnits}
-          onSubmit={handleSubmit}
-          onCancel={() => onOpenChange(false)}
-        />
+        {mountForm ? (
+          <DishForm
+            key={formKey}
+            mode={mode}
+            initialItem={editItem}
+            categories={categories}
+            ingredients={ingredients}
+            tagDefinitions={tagDefinitions}
+            optionGroups={optionGroups}
+            stockUnits={stockUnits}
+            onSubmit={handleSubmit}
+            onCancel={() => onOpenChange(false)}
+          />
+        ) : (
+          <div
+            className={drawerScrollAreaClassName(6)}
+            aria-hidden
+            aria-busy
+          />
+        )}
       </DrawerContent>
     </Drawer>
 

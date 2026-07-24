@@ -246,6 +246,8 @@ export function DisplayLockOverlay({
   busy,
   error,
   accentHex,
+  restaurantName,
+  restaurantAvatarUrl,
   /** `content` = nur Header/Hauptbereich; Fußzeile bleibt sichtbar. */
   placement = "fullscreen",
 }: {
@@ -254,6 +256,8 @@ export function DisplayLockOverlay({
   busy?: boolean;
   error?: string | null;
   accentHex: string;
+  restaurantName?: string | null;
+  restaurantAvatarUrl?: string | null;
   placement?: "fullscreen" | "content";
 }) {
   const reduceMotion = useReducedMotion() ?? false;
@@ -292,6 +296,8 @@ export function DisplayLockOverlay({
         >
           <DisplayPinStandbyScene
             accentHex={accentHex}
+            restaurantName={restaurantName}
+            restaurantAvatarUrl={restaurantAvatarUrl}
             enabled={open}
           >
             <div className="flex items-center gap-2 text-muted-foreground">

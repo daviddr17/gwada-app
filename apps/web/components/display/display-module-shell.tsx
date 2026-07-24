@@ -141,6 +141,8 @@ export function DisplayModuleShell({
             open={locked}
             placement="content"
             accentHex={accentHex}
+            restaurantName={restaurantName}
+            restaurantAvatarUrl={restaurantAvatarUrl}
             onUnlock={onUnlock}
             busy={lockBusy}
             error={lockError}

@@ -42,8 +42,7 @@ export function StaffDisplayShiftSegmentsList({
             key={segment.id}
             className={cn(
               "flex items-start gap-2",
-              isBreak &&
-                "ml-4 border-l-2 border-sky-500/35 pl-3 dark:border-sky-400/40",
+              isBreak && "ml-4",
             )}
           >
             <StaffWorkEntryTypeStripe

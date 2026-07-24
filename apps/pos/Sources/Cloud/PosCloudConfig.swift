@@ -8,28 +8,41 @@ enum PosCloudConfig {
     private static let nestApiBaseKey = "gwada_pos_nest_api_base"
     private static let waiterProfileIdKey = "gwada_pos_waiter_profile_id"
 
-    /// Default: Live-API. Für Dev in den Einstellungen / UserDefaults überschreiben.
+    /// API (Next). UserDefaults nur DEBUG-Override; sonst `PosEnvironment`.
     static var apiBaseURL: URL {
+        #if DEBUG
         if let raw = UserDefaults.standard.string(forKey: apiBaseKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
            !raw.isEmpty,
-           let url = URL(string: raw.replacingOccurrences(of: "/$", with: "", options: .regularExpression)) {
+           let url = URL(string: raw.replacingOccurrences(of: "/$", with: "", options: .regularExpression))
+        {
             return url
         }
-        return URL(string: "https://gwada.app")!
+        #endif
+        return PosEnvironment.apiBaseURL
     }
 
     static var supabaseURL: URL {
+        #if DEBUG
         if let raw = UserDefaults.standard.string(forKey: supabaseUrlKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
            !raw.isEmpty,
-           let url = URL(string: raw) {
+           let url = URL(string: raw)
+        {
             return url
         }
-        // Dev-Default — bei Login aus UserDefaults überschreibbar
-        return URL(string: "https://supabase.gwada.app")!
+        #endif
+        return PosEnvironment.supabaseURL
     }
 
     static var supabaseAnonKey: String {
-        UserDefaults.standard.string(forKey: supabaseAnonKeyKey)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        #if DEBUG
+        if let raw = UserDefaults.standard.string(forKey: supabaseAnonKeyKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty
+        {
+            return raw
+        }
+        #endif
+        return PosEnvironment.supabaseAnonKey
     }
 
     static var restaurantId: String? {
@@ -37,7 +50,7 @@ enum PosCloudConfig {
         return raw.isEmpty ? nil : raw
     }
 
-    /// Nest `apps/pos-api` Basis-URL (z. B. `http://127.0.0.1:3100`). Leer = Sync weiter über Next `/api/pos`.
+    /// Nest `apps/pos-api` Basis-URL. Leer = Sync weiter über Next `/api/pos`.
     static var nestApiBaseURL: URL? {
         guard let raw = UserDefaults.standard.string(forKey: nestApiBaseKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -49,19 +62,16 @@ enum PosCloudConfig {
         return url
     }
 
-    /// Waiter-Profil-UUID für Nest `X-Waiter-Profile-Id` (Fallback: Auth-User-ID im Client).
     static var waiterProfileId: String? {
         let raw = UserDefaults.standard.string(forKey: waiterProfileIdKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return raw.isEmpty ? nil : raw
     }
 
-    /// Nest-URL gesetzt → Hub-Outbox nutzt Nest Sync.
     static var nestSyncEnabled: Bool {
         nestApiBaseURL != nil
     }
 
-    /// Handheld: bei Hub-Ausfall direkt Nest anbinden (Phase 4 Feature-Flag).
     private static let nestClientFallbackKey = "gwada_pos_nest_client_fallback"
 
     static var nestClientFallbackEnabled: Bool {
@@ -104,5 +114,13 @@ enum PosCloudConfig {
         } else {
             UserDefaults.standard.set(trimmed, forKey: waiterProfileIdKey)
         }
+    }
+
+    /// Stellt sicher, dass Dev-Defaults greifen (löscht veraltete manuelle Overrides in DEBUG optional nicht).
+    static func applyEnvironmentDefaultsIfNeeded() {
+        // Restaurant bleibt User-Wahl; URLs/Keys kommen aus PosEnvironment sofern keine DEBUG-Overrides.
+        _ = supabaseURL
+        _ = supabaseAnonKey
+        _ = apiBaseURL
     }
 }

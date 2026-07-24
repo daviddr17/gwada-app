@@ -121,6 +121,46 @@ enum PosCloudClient {
         return nil
     }
 
+    struct PosRestaurantOption: Identifiable, Hashable, Sendable {
+        var id: String
+        var name: String
+    }
+
+    /// Aktive Mitarbeiter-Restaurants (Klarnamen für Wizard-Standortwahl).
+    @MainActor
+    static func listStaffRestaurants(userId: String) async throws -> [PosRestaurantOption] {
+        struct EmpRow: Decodable {
+            var restaurant_id: String
+            var restaurants: RestName?
+            struct RestName: Decodable { var name: String? }
+        }
+        let anon = PosCloudConfig.supabaseAnonKey
+        guard !anon.isEmpty else { throw PosCloudError.missingConfig("Supabase Anon Key") }
+        let token = try await PosAuthStore.shared.validAccessToken()
+        let base = PosCloudConfig.supabaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        var comps = URLComponents(string: "\(base)/rest/v1/restaurant_employees")!
+        comps.queryItems = [
+            URLQueryItem(name: "select", value: "restaurant_id,restaurants(name)"),
+            URLQueryItem(name: "profile_id", value: "eq.\(userId)"),
+            URLQueryItem(name: "is_active", value: "eq.true"),
+        ]
+        var request = URLRequest(url: comps.url!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(anon, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let rows: [EmpRow] = try await perform(request)
+        var seen = Set<String>()
+        var out: [PosRestaurantOption] = []
+        for row in rows {
+            let id = row.restaurant_id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty, !seen.contains(id) else { continue }
+            seen.insert(id)
+            let name = row.restaurants?.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            out.append(PosRestaurantOption(id: id, name: (name?.isEmpty == false) ? name! : "Restaurant"))
+        }
+        return out.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
     @MainActor
     static func fetchReservationsDay(
         restaurantId: String,

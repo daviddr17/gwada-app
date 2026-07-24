@@ -69,16 +69,58 @@ final class PosRuntime: ObservableObject {
     }
 
     func start() async {
+        PosCloudConfig.applyEnvironmentDefaultsIfNeeded()
         phase = .starting
         switch role {
         case .hub:
-            await startHub()
+            if PosEnrollmentStore.shared.isHubEnrolled, PosAuthStore.shared.isSignedIn {
+                await startHub()
+            } else if PosEnrollmentStore.shared.isHubEnrolled {
+                phase = .needsLogin
+                statusMessage = "Bitte erneut anmelden."
+            } else {
+                phase = .needsLogin
+                statusMessage = "Kasse einrichten."
+            }
         case .handheld:
-            await connectHandheld()
-            if phase == .connected {
-                await pullReservationsDay(PosReservationsStore.todayYmd())
+            if PosEnrollmentStore.shared.isHandheldPaired {
+                await connectHandheld()
+                if phase == .connected {
+                    await pullReservationsDay(PosReservationsStore.todayYmd())
+                }
+            } else {
+                // Kurz Bonjour versuchen; ohne Treffer bleibt Gate sichtbar
+                await connectHandheld()
+                if phase == .connected {
+                    PosEnrollmentStore.shared.markHandheldPaired()
+                    await pullReservationsDay(PosReservationsStore.todayYmd())
+                } else {
+                    phase = .needsLogin
+                    statusMessage = "Keine Kasse gefunden — iPad einschalten oder QR scannen."
+                }
             }
         }
+    }
+
+    func noteSignedInFromWizard() {
+        isSignedIn = true
+        if let session = PosAuthStore.shared.session {
+            let profileId = PosCloudConfig.waiterProfileId ?? session.userId
+            PosWaiterPinCache.shared.rememberSignedInUser(
+                profileId: profileId,
+                email: session.email
+            )
+            syncWaiterCapsToHub()
+        }
+    }
+
+    /// Wizard: Standort gewählt → Bootstrap + Hub-Server.
+    func completeHubOnboarding(restaurantName: String) async {
+        PosCloudConfig.applyEnvironmentDefaultsIfNeeded()
+        isSignedIn = PosAuthStore.shared.isSignedIn
+        await startHub()
+        PosEnrollmentStore.shared.markHubEnrolled(restaurantName: restaurantName)
+        statusMessage = "Kasse eingerichtet (\(restaurantName))."
     }
 
     func signInAndStartHub() async {
@@ -918,21 +960,21 @@ final class PosRuntime: ObservableObject {
             : "Nest-URL leer — Sync über Next `/api/pos`."
     }
 
-    /// Bekannte lokale Dev-Werte (Simulator → Mac localhost). Restaurant-ID stabil nach `db reset` mit aktuellem seed.sql.
+    /// Bekannte lokale Dev-Werte — nur DEBUG; Kundenpfad nutzt `PosEnvironment` + Wizard.
     func applyLocalDevDefaults() {
+        #if DEBUG
         email = "dreyer@techlion.de"
         password = "GwadaLocal2026!"
-        restaurantIdInput = "00000000-0000-4000-8000-000000000001"
-        apiBaseInput = "http://127.0.0.1:3000"
-        nestApiBaseInput = "http://127.0.0.1:3099"
+        // Keine URL-Overrides — Dev-VPS aus PosEnvironment
+        UserDefaults.standard.removeObject(forKey: "gwada_pos_api_base")
+        UserDefaults.standard.removeObject(forKey: "gwada_pos_supabase_url")
+        UserDefaults.standard.removeObject(forKey: "gwada_pos_supabase_anon_key")
+        nestApiBaseInput = ""
         waiterProfileIdInput = "a1b2c3d4-e5f6-4789-a012-3456789abcde"
-        supabaseUrlInput = "http://127.0.0.1:54321"
-        supabaseAnonInput =
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
         PosCloudConfig.setNestClientFallbackEnabled(true)
-        saveConfigFromInputs()
-        statusMessage =
-            "Lokal vorausgefüllt. Web (:3000) + Nest (:3099) + Supabase müssen laufen. Bei alter DB: Restaurant-ID in Studio prüfen."
+        PosCloudConfig.applyEnvironmentDefaultsIfNeeded()
+        statusMessage = "DEBUG: Login-Felder vorausgefüllt. Cloud = \(PosEnvironment.channelLabel) (\(PosEnvironment.supabaseURL.host ?? "?"))."
+        #endif
     }
 
     private func syncWaiterCapsToHub() {
@@ -1252,7 +1294,8 @@ final class PosRuntime: ObservableObject {
         }
 
         guard !candidates.isEmpty else {
-            await startHandheldSolo(preferCloud: PosAuthStore.shared.isSignedIn)
+            phase = .error("Keine Kasse gefunden")
+            statusMessage = "iPad-Kasse einschalten oder QR scannen."
             return
         }
 
@@ -1274,6 +1317,7 @@ final class PosRuntime: ObservableObject {
                 publishSnapshot(snap)
                 phase = .connected
                 statusMessage = "Verbunden mit \(snap.hub.displayName)."
+                PosEnrollmentStore.shared.markHandheldPaired()
                 await pullReservationsDay(PosReservationsStore.todayYmd())
                 return
             } catch {
@@ -1281,8 +1325,7 @@ final class PosRuntime: ObservableObject {
             }
         }
 
-        // Keine erreichbare Kasse → Solo (iPhone-alone Test / Simulator)
-        statusMessage = lastError ?? "Kasse nicht erreichbar — starte Solo-Modus."
-        await startHandheldSolo(preferCloud: PosAuthStore.shared.isSignedIn)
+        phase = .error(lastError ?? "Kasse nicht erreichbar")
+        statusMessage = lastError ?? "Kasse nicht erreichbar — iPad einschalten?"
     }
 }

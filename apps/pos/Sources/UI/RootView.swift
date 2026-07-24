@@ -44,6 +44,7 @@ struct RootView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var pinLock = PosPinLockStore.shared
+    @StateObject private var enrollment = PosEnrollmentStore.shared
     @ObservedObject private var network = PosNetworkMonitor.shared
     @State private var selection: SidebarItem? = .tables
     @State private var kellnerTab: KellnerTab = .tables
@@ -55,7 +56,13 @@ struct RootView: View {
             if !pinLock.isUnlocked {
                 PosPinLockView()
             } else if runtime.role == .hub {
-                hubSplitView
+                if !enrollment.isHubEnrolled {
+                    HubOnboardingWizardView()
+                } else {
+                    hubSplitView
+                }
+            } else if !enrollment.isHandheldPaired, runtime.hubBaseURL == nil, !runtime.isSoloMode {
+                HandheldPairingGateView()
             } else {
                 kellnerTabView
             }

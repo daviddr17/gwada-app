@@ -60,6 +60,12 @@ export async function appendReviewRequestToMessage(
       reservationId: params.reservationId,
     });
     invitationToken = inv?.token ?? null;
+    if (!invitationToken) {
+      console.warn(
+        "appendReviewRequest: Gwada-Einladung fehlgeschlagen",
+        params.reservationId,
+      );
+    }
   }
 
   const fbRow = settings.includeFacebook
@@ -73,7 +79,7 @@ export async function appendReviewRequestToMessage(
   const origin =
     params.origin?.replace(/\/$/, "") ??
     getPublicSiteUrl()?.replace(/\/$/, "") ??
-    "http://localhost:3000";
+    "https://gwada.app";
 
   const block = buildReviewRequestBlock({
     origin,
@@ -85,6 +91,19 @@ export async function appendReviewRequestToMessage(
       facebookReviewUrl(fbRow?.config.page_id),
   });
 
-  if (!block.trim()) return params.text;
+  if (!block.trim()) {
+    if (hasAnyReviewInclude(settings)) {
+      console.warn(
+        "appendReviewRequest: keine Links gebaut (Token/URL fehlt)",
+        {
+          reservationId: params.reservationId,
+          channel: params.channel,
+          includeGwada: settings.includeGwada,
+          hasToken: Boolean(invitationToken),
+        },
+      );
+    }
+    return params.text;
+  }
   return `${params.text.trim()}${block}`;
 }

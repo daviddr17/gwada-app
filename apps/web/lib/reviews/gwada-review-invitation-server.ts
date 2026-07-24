@@ -58,7 +58,7 @@ export async function ensureGwadaReviewInvitation(
 ): Promise<{ token: string } | null> {
   const { data: existing } = await admin
     .from("gwada_review_invitations")
-    .select("token, completed_at, expires_at")
+    .select("id, token, completed_at, expires_at")
     .eq("reservation_id", params.reservationId)
     .maybeSingle();
 
@@ -72,24 +72,52 @@ export async function ensureGwadaReviewInvitation(
   const token = newToken();
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + INVITE_TTL_DAYS);
+  const expiresIso = expiresAt.toISOString();
 
-  const { error } = await admin.from("gwada_review_invitations").upsert(
-    {
-      restaurant_id: params.restaurantId,
-      reservation_id: params.reservationId,
-      token,
-      expires_at: expiresAt.toISOString(),
-      completed_at: null,
-    },
-    { onConflict: "reservation_id" },
-  );
-
-  if (error) {
-    console.warn("gwada review invitation", error.message);
-    return null;
+  // Partial unique index (WHERE reservation_id IS NOT NULL) — PostgREST-upsert
+  // mit onConflict: "reservation_id" schlägt dort fehl → Token blieb null →
+  // Danke-Nachricht ohne Bewertungslink. Deshalb insert/update statt upsert.
+  if (existing?.id) {
+    const { error } = await admin
+      .from("gwada_review_invitations")
+      .update({
+        token,
+        expires_at: expiresIso,
+        completed_at: null,
+      })
+      .eq("id", existing.id);
+    if (error) {
+      console.warn("gwada review invitation update", error.message);
+      return null;
+    }
+    return { token };
   }
 
-  return { token };
+  const { error: insertErr } = await admin.from("gwada_review_invitations").insert({
+    restaurant_id: params.restaurantId,
+    reservation_id: params.reservationId,
+    token,
+    expires_at: expiresIso,
+    completed_at: null,
+  });
+
+  if (!insertErr) return { token };
+
+  // Race: parallel angelegt — vorhandenen gültigen Token nutzen
+  const { data: raced } = await admin
+    .from("gwada_review_invitations")
+    .select("token, completed_at, expires_at")
+    .eq("reservation_id", params.reservationId)
+    .maybeSingle();
+  if (raced?.token && !raced.completed_at) {
+    const exp = new Date(raced.expires_at as string);
+    if (exp.getTime() > Date.now()) {
+      return { token: raced.token as string };
+    }
+  }
+
+  console.warn("gwada review invitation insert", insertErr.message);
+  return null;
 }
 
 export function buildReviewRequestBlock(params: {

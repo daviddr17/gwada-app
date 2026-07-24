@@ -3,17 +3,18 @@
 import { useMemo } from "react";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import {
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterSwitchRow,
+  DrawerFilterZone,
+} from "@/components/ui/drawer-filter-sheet";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -21,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 
 export type ReservationStatusFilterOption = {
@@ -77,116 +77,79 @@ export function ReservationsFilterDrawer({
       <DrawerContent
         className={drawerContentClassName("template")}
       >
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Filter
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            Status, unbestätigte Termine und Kalenderanzeige.
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter" />
 
         <div className={drawerScrollAreaClassName(6)}>
-          {!unconfirmedMode ? (
-            <DrawerFormSection title="Status">
-              <Select
-                value={statusFilterId}
-                items={statusItems}
-                onValueChange={(v) => {
-                  if (typeof v === "string") onStatusFilterIdChange(v);
-                }}
-              >
-                <SelectTrigger
-                  id="res-filter-status"
-                  className="h-12 w-full rounded-2xl text-left text-base font-medium"
+          <DrawerFilterZone showLabel={false}>
+            {!unconfirmedMode ? (
+              <DrawerFilterField label="Status">
+                <Select
+                  value={statusFilterId}
+                  items={statusItems}
+                  onValueChange={(v) => {
+                    if (typeof v === "string") onStatusFilterIdChange(v);
+                  }}
                 >
-                  <SelectValue placeholder="Status wählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Status</SelectItem>
-                  {statusOptions.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </DrawerFormSection>
-          ) : null}
+                  <SelectTrigger
+                    id="res-filter-status"
+                    className="h-12 w-full rounded-2xl text-left text-base font-medium"
+                  >
+                    <SelectValue placeholder="Status wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Status</SelectItem>
+                    {statusOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </DrawerFilterField>
+            ) : null}
 
-          <DrawerFormSection title="Unbestätigt">
-            <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <span
-                id="res-filter-unconfirmed"
-                className="min-w-0 text-sm font-medium leading-snug"
-              >
+            <DrawerFilterSwitchRow>
+              <Label htmlFor="res-filter-unconfirmed" className="text-sm font-medium">
                 Alle unbestätigten
-              </span>
+              </Label>
               <Switch
+                id="res-filter-unconfirmed"
                 checked={unconfirmedMode}
                 onCheckedChange={(v) =>
                   onUnconfirmedModeChange(v === true)
                 }
                 size="sm"
-                aria-labelledby="res-filter-unconfirmed"
               />
-            </div>
-            <p className="text-xs text-muted-foreground leading-snug">
-              Status Offen oder Änderung prüfen — über alle Monate, wie vom
-              Dashboard.
-            </p>
-            </div>
-          </DrawerFormSection>
+            </DrawerFilterSwitchRow>
 
-          <DrawerFormSection title="Kalender">
-            <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <span
-                id="res-filter-empty-days"
-                className="min-w-0 text-sm font-medium leading-snug"
-              >
+            <DrawerFilterSwitchRow>
+              <Label htmlFor="res-filter-empty-days" className="text-sm font-medium">
                 Tage ohne Reservierungen ausblenden
-              </span>
+              </Label>
               <Switch
+                id="res-filter-empty-days"
                 checked={hideEmptyDays}
                 onCheckedChange={(v) => onHideEmptyDaysChange(v === true)}
                 size="sm"
-                aria-labelledby="res-filter-empty-days"
               />
-            </div>
-            <p className="text-xs text-muted-foreground leading-snug">
-              Blendet Kalendertage aus, an denen nach den aktuellen Filtern keine
-              Reservierung angezeigt wird.
-            </p>
-            </div>
+            </DrawerFilterSwitchRow>
 
-          {showHidePastSection ? (
-            <div className="space-y-2 pt-1">
-                <div className="flex items-center justify-between gap-3">
-                  <span
-                    id="res-filter-hide-past"
-                    className="min-w-0 text-sm font-medium leading-snug"
-                  >
-                    Vergangene Tage ausblenden
-                  </span>
-                  <Switch
-                    checked={hidePastReservations}
-                    onCheckedChange={(v) =>
-                      onHidePastReservationsChange(v === true)
-                    }
-                    size="sm"
-                    aria-labelledby="res-filter-hide-past"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground leading-snug">
-                  Wenn aktiv, erscheinen im aktuellen Monat nur noch Tage ab heute.
-                  Wenn aus, wird der komplette Monat ab dem 1. Tag geladen und
-                  angezeigt.
-                </p>
-              </div>
-          ) : null}
-          </DrawerFormSection>
+            {showHidePastSection ? (
+              <DrawerFilterSwitchRow>
+                <Label htmlFor="res-filter-hide-past" className="text-sm font-medium">
+                  Vergangene Tage ausblenden
+                </Label>
+                <Switch
+                  id="res-filter-hide-past"
+                  checked={hidePastReservations}
+                  onCheckedChange={(v) =>
+                    onHidePastReservationsChange(v === true)
+                  }
+                  size="sm"
+                />
+              </DrawerFilterSwitchRow>
+            ) : null}
+          </DrawerFilterZone>
         </div>
 
         <DrawerFilterFooter

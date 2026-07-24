@@ -3,22 +3,20 @@
 import { useMemo } from "react";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/combobox";
-import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
-import { Separator } from "@/components/ui/separator";
+import {
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterZone,
+} from "@/components/ui/drawer-filter-sheet";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { cn } from "@/lib/utils";
 
 const purchaseOrderFilterSelectClassName = appSelectTriggerAccentCn(
   staffDrawerFieldClassName,
@@ -102,51 +100,48 @@ export function PurchaseOrdersFilterDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent className={drawerContentClassName("filter")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Filter
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            Bestellungen nach Zeitraum, Lieferant und Produktionsstelle
-            eingrenzen.
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter" />
 
         <div className={drawerScrollAreaClassName(6)}>
-          <DrawerFormSection title="Zeitraum">
-            <SearchableSelect
-              options={scopeOptions}
-              value={scope}
-              onValueChange={(v) => {
-                if (v === "active" || v === "past") onScopeChange(v);
-              }}
-              placeholder="Zeitraum"
-              searchPlaceholder="Zeitraum suchen…"
-              aria-label="Aktive oder vergangene Bestellungen filtern"
-              className={purchaseOrderFilterSelectClassName}
-            />
-          </DrawerFormSection>
+          <DrawerFilterZone showLabel={false}>
+            <DrawerFilterField label="Zeitraum">
+              <SearchableSelect
+                options={scopeOptions}
+                value={scope}
+                onValueChange={(v) => {
+                  if (v === "active" || v === "past") onScopeChange(v);
+                }}
+                placeholder="Zeitraum"
+                searchPlaceholder="Zeitraum suchen…"
+                aria-label="Aktive oder vergangene Bestellungen filtern"
+                className={purchaseOrderFilterSelectClassName}
+              />
+            </DrawerFilterField>
 
-          <DrawerFormSection title="Lieferant & Produktion">
-            <SearchableSelect
-              options={supplierOptions}
-              value={supplierFilterId}
-              onValueChange={onSupplierFilterIdChange}
-              placeholder="Alle Lieferanten"
-              searchPlaceholder="Lieferant suchen…"
-              aria-label="Nach Lieferant filtern"
-              className={purchaseOrderFilterSelectClassName}
-            />
-            <SearchableSelect
-              options={productionOptions}
-              value={productionFilterId}
-              onValueChange={onProductionFilterIdChange}
-              placeholder="Alle Produktionsstellen"
-              searchPlaceholder="Stelle suchen…"
-              aria-label="Nach Produktionsstelle filtern"
-              className={purchaseOrderFilterSelectClassName}
-            />
-          </DrawerFormSection>
+            <DrawerFilterField label="Lieferant">
+              <SearchableSelect
+                options={supplierOptions}
+                value={supplierFilterId}
+                onValueChange={onSupplierFilterIdChange}
+                placeholder="Alle Lieferanten"
+                searchPlaceholder="Lieferant suchen…"
+                aria-label="Nach Lieferant filtern"
+                className={purchaseOrderFilterSelectClassName}
+              />
+            </DrawerFilterField>
+
+            <DrawerFilterField label="Produktion">
+              <SearchableSelect
+                options={productionOptions}
+                value={productionFilterId}
+                onValueChange={onProductionFilterIdChange}
+                placeholder="Alle Produktionsstellen"
+                searchPlaceholder="Stelle suchen…"
+                aria-label="Nach Produktionsstelle filtern"
+                className={purchaseOrderFilterSelectClassName}
+              />
+            </DrawerFilterField>
+          </DrawerFilterZone>
         </div>
         <DrawerFilterFooter onReset={resetFilters} onDone={() => onOpenChange(false)} />
       </DrawerContent>

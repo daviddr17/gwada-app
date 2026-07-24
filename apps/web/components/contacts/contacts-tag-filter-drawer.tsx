@@ -4,18 +4,19 @@ import { useMemo } from "react";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import {
-  drawerFormHeaderClassName,
+  drawerFormFieldClassName,
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
 import { SearchableSelect } from "@/components/ui/combobox";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
+import {
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterZone,
+} from "@/components/ui/drawer-filter-sheet";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
   CONTACT_TAG_FILTER_ALL,
@@ -23,7 +24,6 @@ import {
   type ContactTagFilterValue,
 } from "@/lib/constants/contact-tag-presets";
 import type { ContactTagRow } from "@/lib/supabase/contact-tags-db";
-import { drawerFormFieldClassName } from "@/lib/ui/drawer-form-section";
 
 type ContactsTagFilterDrawerProps = {
   open: boolean;
@@ -64,17 +64,10 @@ export function ContactsTagFilterDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent className={drawerContentClassName("form")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Filter
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            Kontakte nach Tag einschränken.
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter" />
         <div className={drawerScrollAreaClassName(6)}>
-          <DrawerFormBody>
-            <DrawerFormSection title="Tag">
+          <DrawerFilterZone showLabel={false}>
+            <DrawerFilterField label="Tag">
               <SearchableSelect
                 value={tagFilter}
                 onValueChange={(v) => onTagFilterChange(v as ContactTagFilterValue)}
@@ -82,8 +75,8 @@ export function ContactsTagFilterDrawer({
                 className={appSelectTriggerAccentCn(drawerFormFieldClassName)}
                 placeholder="Tag wählen"
               />
-            </DrawerFormSection>
-          </DrawerFormBody>
+            </DrawerFilterField>
+          </DrawerFilterZone>
         </div>
         <DrawerFilterFooter onReset={reset} onDone={() => onOpenChange(false)} />
       </DrawerContent>

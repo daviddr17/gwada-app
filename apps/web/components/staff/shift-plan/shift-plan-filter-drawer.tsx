@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
@@ -11,11 +11,14 @@ import { Switch } from "@/components/ui/switch";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import {
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterSwitchRow,
+  DrawerFilterZone,
+  DrawerSortZone,
+} from "@/components/ui/drawer-filter-sheet";
 import {
   Select,
   SelectContent,
@@ -115,66 +118,51 @@ export function ShiftPlanFilterDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent className={drawerContentClassName("filter")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Filter & Sortierung
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            {management
-              ? "Mitarbeiter eingrenzen und die Anzeige im Schichtplan sortieren."
-              : "Sortierung der Mitarbeiterzeilen im Schichtplan."}
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter & Sortierung" />
 
         <div className={drawerScrollAreaClassName(6)}>
-          {management ? (
-            <>
-              <DrawerFormSection title="Mitarbeiter">
-                <SearchableSelect
-                  options={staffFilterOptions}
-                  value={staffFilter}
-                  onValueChange={onStaffFilterChange}
-                  placeholder="Alle Mitarbeiter"
-                  searchPlaceholder="Mitarbeiter suchen…"
-                  aria-label="Mitarbeiter filtern"
-                  className={appSelectTriggerAccentCn(staffDrawerFieldClassName)}
-                />
-              </DrawerFormSection>
+          <DrawerFilterZone>
+            {management ? (
+              <>
+                <DrawerFilterField label="Mitarbeiter">
+                  <SearchableSelect
+                    options={staffFilterOptions}
+                    value={staffFilter}
+                    onValueChange={onStaffFilterChange}
+                    placeholder="Alle Mitarbeiter"
+                    searchPlaceholder="Mitarbeiter suchen…"
+                    aria-label="Mitarbeiter filtern"
+                    className={appSelectTriggerAccentCn(staffDrawerFieldClassName)}
+                  />
+                </DrawerFilterField>
 
-              <DrawerFormSection title="Bereich">
-                <SearchableSelect
-                  options={positionFilterOptions}
-                  value={positionFilter}
-                  onValueChange={onPositionFilterChange}
-                  placeholder="Alle Bereiche"
-                  searchPlaceholder="Bereich suchen…"
-                  aria-label="Bereich filtern"
-                  className={appSelectTriggerAccentCn(staffDrawerFieldClassName)}
-                />
-              </DrawerFormSection>
-            </>
-          ) : null}
+                <DrawerFilterField label="Bereich">
+                  <SearchableSelect
+                    options={positionFilterOptions}
+                    value={positionFilter}
+                    onValueChange={onPositionFilterChange}
+                    placeholder="Alle Bereiche"
+                    searchPlaceholder="Bereich suchen…"
+                    aria-label="Bereich filtern"
+                    className={appSelectTriggerAccentCn(staffDrawerFieldClassName)}
+                  />
+                </DrawerFilterField>
+              </>
+            ) : null}
 
-          <DrawerFormSection title="Anzeige">
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/10 px-4 py-3">
-              <div className="min-w-0 space-y-0.5">
-                <Label htmlFor="shift-plan-only-with-shifts" className="text-sm font-medium">
-                  Nur mit Schicht
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Zeigt nur Mitarbeiter mit geplanter Schicht im aktuellen
-                  Zeitraum.
-                </p>
-              </div>
+            <DrawerFilterSwitchRow>
+              <Label htmlFor="shift-plan-only-with-shifts" className="text-sm font-medium">
+                Nur mit Schicht
+              </Label>
               <Switch
                 id="shift-plan-only-with-shifts"
                 checked={onlyWithShifts}
                 onCheckedChange={onOnlyWithShiftsChange}
               />
-            </div>
-          </DrawerFormSection>
+            </DrawerFilterSwitchRow>
+          </DrawerFilterZone>
 
-          <DrawerFormSection title="Sortierung">
+          <DrawerSortZone>
             <Select
               value={sortKey}
               onValueChange={(v) => onSortKeyChange(v as ShiftScheduleSortKey)}
@@ -194,12 +182,7 @@ export function ShiftPlanFilterDrawer({
                 <SelectItem value="hours">Stunden</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              {sortKey === "hours"
-                ? "Mitarbeiter mit den meisten geplanten Stunden oben."
-                : "Alphabetisch nach Anzeigenamen."}
-            </p>
-          </DrawerFormSection>
+          </DrawerSortZone>
         </div>
         <DrawerFilterFooter onReset={resetFilters} onDone={() => onOpenChange(false)} />
       </DrawerContent>

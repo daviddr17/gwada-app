@@ -227,6 +227,18 @@ export function ReservationsOverview() {
 
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [daySheetDay, setDaySheetDay] = useState<Date | null>(null);
+  /** Lokal öffnen (sofort) — URL nur sync, sonst wartet das Sheet auf router.push. */
+  const [reservationSheet, setReservationSheet] = useState<
+    | null
+    | { mode: "edit"; id: string }
+    | {
+        mode: "create";
+        day: Date;
+        timeHm?: string;
+        diningTableId?: string;
+        contactId?: string;
+      }
+  >(null);
   const pendingReopenDaySheetRef = useRef<Date | null>(null);
   const [urlReservation, setUrlReservation] = useState<ReservationListRow | null>(
     null,
@@ -393,69 +405,89 @@ export function ReservationsOverview() {
     dayNotesReloadNonce,
   ]);
 
+  const editReservationId =
+    reservationSheet?.mode === "edit" ? reservationSheet.id : null;
+
   const editReservation = useMemo((): ReservationListRow | null => {
-    if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
+    if (!editReservationId || !isUuidRestaurantId(editReservationId)) {
       return null;
     }
-    return rows.find((r) => r.id === reservationIdParam) ?? urlReservation;
-  }, [reservationIdParam, rows, urlReservation]);
-
-  const createForDayFromUrl = useMemo(() => {
-    if (!isNewParam) return null;
-    if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
-      const [y, m, dd] = dayParam.split("-").map(Number);
-      return new Date(y, m - 1, dd);
-    }
-    return startOfLocalDay(new Date());
-  }, [isNewParam, dayParam]);
-
-  const createForInitialTimeHm = useMemo(() => {
-    if (
-      !createTimeParam ||
-      !/^\d{2}:\d{2}$/.test(createTimeParam.trim())
-    ) {
-      return undefined;
-    }
-    return createTimeParam.trim();
-  }, [createTimeParam]);
-
-  const createForInitialTableId = useMemo(() => {
-    if (!createTableParam || !isUuidRestaurantId(createTableParam)) {
-      return undefined;
-    }
-    return createTableParam;
-  }, [createTableParam]);
-
-  const createForInitialContactId = useMemo(() => {
-    if (!createContactParam || !isUuidRestaurantId(createContactParam)) {
-      return undefined;
-    }
-    return createContactParam;
-  }, [createContactParam]);
+    return rows.find((r) => r.id === editReservationId) ?? urlReservation;
+  }, [editReservationId, rows, urlReservation]);
 
   const createFor =
-    isNewParam && workspaceRestaurantId && createForDayFromUrl
+    reservationSheet?.mode === "create" && workspaceRestaurantId
       ? {
           restaurantId: workspaceRestaurantId,
-          day: createForDayFromUrl,
-          ...(createForInitialTimeHm
-            ? { initialTimeHm: createForInitialTimeHm }
+          day: reservationSheet.day,
+          ...(reservationSheet.timeHm
+            ? { initialTimeHm: reservationSheet.timeHm }
             : {}),
-          ...(createForInitialTableId
-            ? { initialDiningTableId: createForInitialTableId }
+          ...(reservationSheet.diningTableId
+            ? { initialDiningTableId: reservationSheet.diningTableId }
             : {}),
-          ...(createForInitialContactId
-            ? { initialContactId: createForInitialContactId }
+          ...(reservationSheet.contactId
+            ? { initialContactId: reservationSheet.contactId }
             : {}),
         }
       : null;
 
   const editOpen = Boolean(
-    (reservationIdParam &&
-      isUuidRestaurantId(reservationIdParam) &&
-      editReservation) ||
-      (isNewParam && Boolean(workspaceRestaurantId)),
+    (reservationSheet?.mode === "edit" && editReservation) ||
+      (reservationSheet?.mode === "create" && Boolean(workspaceRestaurantId)),
   );
+
+  // Deep-Link / Zurück: URL → Sheet (Öffnen per Klick setzt State schon vorher).
+  useEffect(() => {
+    if (isNewParam) {
+      let day = startOfLocalDay(new Date());
+      if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
+        const [y, m, dd] = dayParam.split("-").map(Number);
+        day = new Date(y!, m! - 1, dd);
+      }
+      const timeHm =
+        createTimeParam && /^\d{2}:\d{2}$/.test(createTimeParam.trim())
+          ? createTimeParam.trim()
+          : undefined;
+      const diningTableId =
+        createTableParam && isUuidRestaurantId(createTableParam)
+          ? createTableParam
+          : undefined;
+      const contactId =
+        createContactParam && isUuidRestaurantId(createContactParam)
+          ? createContactParam
+          : undefined;
+      setReservationSheet((prev) => {
+        if (prev?.mode === "create") {
+          return {
+            mode: "create",
+            day: prev.day,
+            timeHm: timeHm ?? prev.timeHm,
+            diningTableId: diningTableId ?? prev.diningTableId,
+            contactId: contactId ?? prev.contactId,
+          };
+        }
+        return { mode: "create", day, timeHm, diningTableId, contactId };
+      });
+      return;
+    }
+    if (reservationIdParam && isUuidRestaurantId(reservationIdParam)) {
+      setReservationSheet((prev) =>
+        prev?.mode === "edit" && prev.id === reservationIdParam
+          ? prev
+          : { mode: "edit", id: reservationIdParam },
+      );
+      return;
+    }
+    setReservationSheet(null);
+  }, [
+    isNewParam,
+    dayParam,
+    reservationIdParam,
+    createTimeParam,
+    createTableParam,
+    createContactParam,
+  ]);
 
   const withUnconfirmedParam = useCallback(
     (p: URLSearchParams) => {
@@ -468,6 +500,7 @@ export function ReservationsOverview() {
 
   const pushReservationEdit = useCallback(
     (id: string) => {
+      setReservationSheet({ mode: "edit", id });
       const p = new URLSearchParams();
       p.set("reservation", id);
       withUnconfirmedParam(p);
@@ -481,6 +514,16 @@ export function ReservationsOverview() {
       d: Date,
       extras?: { timeHm?: string; diningTableId?: string },
     ) => {
+      setReservationSheet({
+        mode: "create",
+        day: d,
+        ...(extras?.timeHm && /^\d{2}:\d{2}$/.test(extras.timeHm)
+          ? { timeHm: extras.timeHm }
+          : {}),
+        ...(extras?.diningTableId && isUuidRestaurantId(extras.diningTableId)
+          ? { diningTableId: extras.diningTableId }
+          : {}),
+      });
       const p = new URLSearchParams();
       p.set("new", "1");
       p.set("day", gridDayKey(d, restaurantTimeZone));
@@ -493,10 +536,11 @@ export function ReservationsOverview() {
       withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
     },
-    [router, pathname, withUnconfirmedParam],
+    [router, pathname, withUnconfirmedParam, restaurantTimeZone],
   );
 
   const clearReservationUrl = useCallback(() => {
+    setReservationSheet(null);
     if (unconfirmedMode) {
       const p = new URLSearchParams();
       p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");

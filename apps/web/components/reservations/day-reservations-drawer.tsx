@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import {
   Download,
@@ -437,6 +438,7 @@ export function DayReservationsDrawer({
     guestLabel: string;
     reservationNumber: number | null;
   } | null>(null);
+  const mountContent = useDeferredDrawerMount(open);
 
   const reservationIds = useMemo(
     () => reservations.map((r) => r.id),
@@ -995,6 +997,8 @@ export function DayReservationsDrawer({
           )}
         </DrawerHeader>
 
+        {mountContent ? (
+        <>
         <ReservationDayNotesSection
           open={open}
           restaurantId={restaurantId}
@@ -1558,6 +1562,10 @@ export function DayReservationsDrawer({
             Schließen
           </Button>
         </div>
+        </>
+        ) : (
+          <div className="min-h-[40vh] flex-1" aria-hidden aria-busy />
+        )}
       </DrawerContent>
     </Drawer>
     <DayReservationsExportSheet

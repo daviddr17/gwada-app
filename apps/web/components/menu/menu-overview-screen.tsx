@@ -221,15 +221,19 @@ export function MenuOverviewScreen() {
     | { mode: "create" }
     | { mode: "edit"; cat: MenuMainCategoryDefinition }
   >(null);
+  /** Lokal öffnen (sofort) — URL nur sync, sonst wartet das Sheet auf router.push. */
+  const [dishSheet, setDishSheet] = useState<
+    | null
+    | { mode: "create" }
+    | { mode: "edit"; item: MenuItem }
+  >(null);
 
   const stickyRef = useRef<HTMLDivElement>(null);
   const skipScrollSpyRef = useRef(false);
 
-  const dishId = searchParams.get("dish");
-  const isNew = searchParams.get("new") === "1";
-  const drawerOpen = Boolean(dishId || isNew);
-  const drawerMode = dishId ? "edit" : "create";
-  const editItem = dishId ? getItemById(dishId) : undefined;
+  const drawerOpen = dishSheet != null;
+  const drawerMode = dishSheet?.mode === "edit" ? "edit" : "create";
+  const editItem = dishSheet?.mode === "edit" ? dishSheet.item : undefined;
 
   const priceSliderMax = useMemo(() => {
     if (items.length === 0) return 50;
@@ -446,21 +450,26 @@ export function MenuOverviewScreen() {
   }, []);
 
   const closeDishDrawer = useCallback(() => {
+    setDishSheet(null);
     router.replace(MENU_BASE, { scroll: false });
   }, [router]);
 
   const openCreateDrawer = useCallback(() => {
+    setDishSheet({ mode: "create" });
     router.push(`${MENU_BASE}?new=1`, { scroll: false });
   }, [router]);
 
   const openEditDrawer = useCallback(
     (id: string) => {
+      const item = getItemById(id);
+      if (!item) return;
+      setDishSheet({ mode: "edit", item });
       router.push(
         `${MENU_BASE}?dish=${encodeURIComponent(id)}`,
         { scroll: false },
       );
     },
-    [router],
+    [getItemById, router],
   );
 
   const handleDishDrawerOpenChange = useCallback(
@@ -469,6 +478,29 @@ export function MenuOverviewScreen() {
     },
     [closeDishDrawer],
   );
+
+  // Deep-Link / Zurück: URL → Sheet (Öffnen per Klick setzt State schon vorher).
+  useEffect(() => {
+    const dishId = searchParams.get("dish");
+    const isNew = searchParams.get("new") === "1";
+    if (isNew) {
+      setDishSheet((prev) =>
+        prev?.mode === "create" ? prev : { mode: "create" },
+      );
+      return;
+    }
+    if (dishId) {
+      const item = getItemById(dishId);
+      if (!item) return;
+      setDishSheet((prev) =>
+        prev?.mode === "edit" && prev.item.id === dishId
+          ? prev
+          : { mode: "edit", item },
+      );
+      return;
+    }
+    setDishSheet(null);
+  }, [searchParams, getItemById, items]);
 
   const filterActiveCount = useMemo(() => {
     let n = 0;

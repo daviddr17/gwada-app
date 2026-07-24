@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Camera, ChevronRight, Link2, Loader2, LogOut, Mail, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -204,6 +205,7 @@ export function StaffFormDrawer({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
+  const mountContent = useDeferredDrawerMount(open);
 
   const [givenName, setGivenName] = useState("");
   const [familyName, setFamilyName] = useState("");
@@ -843,6 +845,7 @@ export function StaffFormDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
+        {mountContent ? (
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div ref={scrollRef} className={staffDrawerScrollClassName}>
             <DrawerFormSection contentPadding={5} className="pt-2 pb-5">
@@ -1394,6 +1397,9 @@ export function StaffFormDrawer({
             onDelete={() => setDeleteOpen(true)}
           />
         </form>
+        ) : (
+          <div className={staffDrawerScrollClassName} aria-hidden aria-busy />
+        )}
       </DrawerContent>
 
       <ConfirmDialog

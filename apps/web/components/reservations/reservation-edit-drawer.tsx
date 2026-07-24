@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFieldClassName } from "@/lib/ui/drawer-form-section";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import Link from "next/link";
@@ -924,6 +925,7 @@ export function ReservationEditDrawer({
     isEdit,
   ]);
   const stackedSheetZClass = stackAboveInboxOverlay ? "z-[210]" : undefined;
+  const mountContent = useDeferredDrawerMount(open);
 
   return (
     <>
@@ -987,7 +989,7 @@ export function ReservationEditDrawer({
           </div>
         </DrawerHeader>
 
-        {open ? (
+        {mountContent ? (
           <DrawerFormBody>
             <div
               ref={scrollRef}
@@ -1379,7 +1381,13 @@ export function ReservationEditDrawer({
               className="touch-pan-y"
             />
           </DrawerFormBody>
-        ) : null}
+        ) : (
+          <div
+            className={drawerScrollAreaClassName(6)}
+            aria-hidden
+            aria-busy
+          />
+        )}
       </DrawerContent>
     </Drawer>
 

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -110,16 +110,19 @@ export function DashboardWidgetShell({
           ) : null}
         </div>
         {href ? (
-          <Button
-            variant="ghost"
-            size={isCompact ? "icon-sm" : "sm"}
-            className={
+          <AppNavLink
+            href={href}
+            prefetch
+            aria-label={linkLabel}
+            className={cn(
+              buttonVariants({
+                variant: "ghost",
+                size: isCompact ? "icon-sm" : "sm",
+              }),
               isCompact
                 ? "size-8 shrink-0 rounded-lg text-muted-foreground"
-                : "h-9 shrink-0 gap-1 rounded-xl"
-            }
-            aria-label={linkLabel}
-            render={<AppNavLink href={href} prefetch />}
+                : "h-9 shrink-0 gap-1 rounded-xl",
+            )}
           >
             {isCompact ? (
               <ChevronRight className="size-4" aria-hidden />
@@ -129,7 +132,7 @@ export function DashboardWidgetShell({
                 <ChevronRight className="size-4" aria-hidden />
               </>
             )}
-          </Button>
+          </AppNavLink>
         ) : null}
       </CardHeader>
       <CardContent

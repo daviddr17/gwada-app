@@ -4,13 +4,14 @@ import {
   getGoogleBusinessAccessTokenForRestaurant,
   googleReviewsParentPath,
 } from "@/lib/integrations/google-business-access";
-
+import { parseRestaurantDefaultLocale } from "@/lib/embed/embed-locale";
 import {
   GOOGLE_REVIEWS_PAGE_SIZE,
   type GoogleReviewsPaginationMeta,
 } from "@/lib/reviews/google-reviews-pagination";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type GoogleReviewRaw = {
   name?: string;
@@ -43,11 +44,32 @@ function mapGoogleReviewRaw(
       comment: formatReviewCommentDisplay(r.comment?.trim() || null),
       authorName: r.reviewer?.displayName?.trim() || null,
       createdAt: r.createTime ?? r.updateTime ?? new Date().toISOString(),
-      reply: r.reviewReply?.comment?.trim() || null,
+      reply: formatReviewCommentDisplay(r.reviewReply?.comment?.trim() || null),
       canReply: true,
       externalUrl: null,
     };
   });
+}
+
+/**
+ * Ohne Accept-Language liefert Google oft DE+EN hintereinander
+ * (`Text (Translated by Google) Text`). Restaurant-Sprache zuerst → meist nur Original.
+ */
+async function acceptLanguageForRestaurant(
+  restaurantId: string,
+): Promise<string> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return "de, en;q=0.4";
+  const { data } = await admin
+    .from("restaurants")
+    .select("default_locale")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  const locale = parseRestaurantDefaultLocale(
+    typeof data?.default_locale === "string" ? data.default_locale : null,
+  );
+  if (locale === "en") return "en, de;q=0.4";
+  return `${locale}, en;q=0.4`;
 }
 
 /** Standort-Aggregate von Google (kommen bei jedem reviews.list mit, auch bei pageSize=1). */
@@ -96,8 +118,12 @@ export async function fetchGoogleReviewsForRestaurant(
   if (pageToken) params.set("pageToken", pageToken);
 
   const url = `https://mybusiness.googleapis.com/v4/${parent}/reviews?${params}`;
+  const acceptLanguage = await acceptLanguageForRestaurant(restaurantId);
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${auth.accessToken}` },
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      "Accept-Language": acceptLanguage,
+    },
     cache: "no-store",
   });
   const body = (await res.json()) as {

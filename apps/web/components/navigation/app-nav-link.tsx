@@ -63,7 +63,8 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
       onPointerDown,
       onPointerEnter,
       onFocus,
-      prefetch = true,
+      /** Default false: Next AUTO stoppt an loading.tsx — FULL über warmOnIntent. */
+      prefetch = false,
       "aria-label": ariaLabel,
       ...rest
     },
@@ -115,7 +116,10 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
         }}
         onPointerDown={(event) => {
           onPointerDown?.(event);
-          // Früher als click: Skeleton/Sidebar sofort (nur Primär-Taste).
+          // Touch/schneller Klick: FULL + Daten vor dem Flight (Hover fehlt oft).
+          warmOnIntent();
+          // Pending nur anstoßen (deferred im Provider) — nicht synchron setzen,
+          // sonst re-rendert das Overlay im selben Tick und bricht den Flight ab.
           if (event.button !== 0 || !crossModuleNav) return;
           tryAcquireNavLock(event, hrefStr);
         }}

@@ -14,14 +14,15 @@ import { prefetchAppModuleQueryCaches } from "@/lib/hooks/app-module-query-prefe
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { APP_MODULE_PREFETCH_ROUTES } from "@/lib/navigation/app-module-route-prefetch";
+import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
 const ROUTE_PREFETCH_STAGGER_MS = 40;
 
 /**
- * Workspace ready → Cache seed leicht, schwere Prefetches erst im Idle,
- * damit der erste Klick nicht gegen useLayoutEffect/Netzwerk-Sturm konkurriert.
+ * Workspace ready → Full-Route-Prefetch sofort, kritische Modul-Daten kurz danach.
+ * AUTO-Prefetch stoppt an loading.tsx — FULL lädt das Page-Segment vor dem Klick.
  */
 export function AppModuleWarmPrefetchMount() {
   const queryClient = useQueryClient();
@@ -42,30 +43,32 @@ export function AppModuleWarmPrefetchMount() {
 
     seedPriorityModuleQueryCaches(queryClient, restaurantId);
 
-    // Route-Prefetch sofort — ohne Idle-Delay, sonst fühlt sich der erste Klick kalt an.
     for (const route of APP_MODULE_PRIORITY_ROUTES) {
-      router.prefetch(route);
+      prefetchAppModuleHref(router, route);
     }
 
+    // Kritische Daten sofort anstoßen — nicht 800ms Idle hinter Dashboard-Batch warten.
+    prefetchCriticalModuleQueries(queryClient, restaurantId);
+
     runWhenIdle(() => {
-      prefetchCriticalModuleQueries(queryClient, restaurantId);
       prefetchAppModuleQueryCaches(queryClient, restaurantId);
-    }, 800);
+    }, 200);
 
     runWhenIdle(() => {
       warmAppModuleSecondaryCaches(queryClient, restaurantId);
-    }, 1_500);
+    }, 1_200);
 
+    // Restliche Module früher FULL-prefetchen — Idle 1.5s ließ Erstbesuche kalt.
     runWhenIdle(() => {
       let index = 0;
       for (const route of APP_MODULE_PREFETCH_ROUTES) {
         if (APP_MODULE_PRIORITY_ROUTES.includes(route)) continue;
         window.setTimeout(() => {
-          router.prefetch(route);
+          prefetchAppModuleHref(router, route);
         }, index * ROUTE_PREFETCH_STAGGER_MS);
         index += 1;
       }
-    }, 2_000);
+    }, 400);
   }, [queryClient, restaurantId, router, workspaceReady]);
 
   return null;

@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -31,21 +32,26 @@ export function normalizeNavHref(href: string): string {
 }
 
 /**
- * Soft-Nav Pending — sofortiges UI-Feedback (Sidebar + Overlay).
- * Kein preventDefault / kein harter Lock (hat Next-Flights gekillt).
+ * Soft-Nav Pending — UI-Feedback (Sidebar + Overlay), kein Navigations-Lock.
  *
- * Provider-State: nur Consumer (Sidebar/Overlay) re-rendern; {children}
- * bleibt referenzstabil und unmountet nicht.
+ * Pending darf nicht synchron in pointerdown/click gesetzt werden: schwere
+ * Overlay-/Sidebar-Re-Renders im selben Tick haben Next-Flights abgebrochen
+ * → kurzer Modulwechsel, dann Rücksprung zum vorherigen Modul.
  */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const pendingTargetRef = useRef<string | null>(null);
+  const scheduleTimerRef = useRef<number | null>(null);
   const clearTimerRef = useRef<number | null>(null);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   const clearPending = useCallback(() => {
     pendingTargetRef.current = null;
     setPendingHref(null);
+    if (scheduleTimerRef.current != null) {
+      window.clearTimeout(scheduleTimerRef.current);
+      scheduleTimerRef.current = null;
+    }
     if (clearTimerRef.current != null) {
       window.clearTimeout(clearTimerRef.current);
       clearTimerRef.current = null;
@@ -59,17 +65,29 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const tryAcquireNavLock = useCallback(
     (_event: { preventDefault: () => void }, targetHref: string) => {
       const target = normalizeNavHref(targetHref);
+      if (pendingTargetRef.current === target) return true;
+
       pendingTargetRef.current = target;
-      // Synchron im Klick — Overlay im selben Frame, Flight läuft weiter
-      // (kein Unmount des Router-Outlets, kein preventDefault).
-      setPendingHref(target);
+      if (scheduleTimerRef.current != null) {
+        window.clearTimeout(scheduleTimerRef.current);
+      }
       if (clearTimerRef.current != null) {
         window.clearTimeout(clearTimerRef.current);
+        clearTimerRef.current = null;
       }
-      clearTimerRef.current = window.setTimeout(
-        clearPending,
-        PENDING_CLEAR_FAILSAFE_MS,
-      );
+
+      // Nach dem Tick: Flight darf starten, bevor Overlay/Sidebar re-rendern.
+      scheduleTimerRef.current = window.setTimeout(() => {
+        scheduleTimerRef.current = null;
+        if (pendingTargetRef.current !== target) return;
+        startTransition(() => {
+          setPendingHref(target);
+        });
+        clearTimerRef.current = window.setTimeout(
+          clearPending,
+          PENDING_CLEAR_FAILSAFE_MS,
+        );
+      }, 0);
       return true;
     },
     [clearPending],
@@ -77,6 +95,9 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
 
   useEffect(
     () => () => {
+      if (scheduleTimerRef.current != null) {
+        window.clearTimeout(scheduleTimerRef.current);
+      }
       if (clearTimerRef.current != null) {
         window.clearTimeout(clearTimerRef.current);
       }

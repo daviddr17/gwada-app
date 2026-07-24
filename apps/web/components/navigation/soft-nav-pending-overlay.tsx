@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { AppMain } from "@/components/layout/app-main";
 import { AccountingListScreenSkeleton } from "@/components/accounting/accounting-list-screen-skeleton";
@@ -81,25 +81,41 @@ export function SoftNavPendingOverlay() {
   const pathname = usePathname();
   const { pendingHref } = useSoftNavLock();
   const { setChrome } = useAppModuleChrome();
+  const prevTitleRef = useRef<string | null>(null);
+  const optimisticTargetRef = useRef<string | null>(null);
 
   const pending =
     pendingHref != null &&
     normalizeNavHref(pendingHref) !== normalizeNavHref(pathname);
 
-  // Header-Titel sofort mitziehen (Chip-Subnav kommt mit dem echten Layout).
+  // Optimistischen Titel setzen; bei abgebrochenem Nav wiederherstellen.
   useLayoutEffect(() => {
-    if (!pending || !pendingHref) return;
-    const title = titleForHref(pendingHref);
-    if (!title) return;
-    setChrome((prev) => ({ ...prev, title }));
-  }, [pending, pendingHref, setChrome]);
+    if (pending && pendingHref) {
+      const title = titleForHref(pendingHref);
+      if (!title) return;
+      optimisticTargetRef.current = normalizeNavHref(pendingHref);
+      setChrome((prev) => {
+        if (prevTitleRef.current == null) prevTitleRef.current = prev.title;
+        return { ...prev, title };
+      });
+      return;
+    }
+
+    const target = optimisticTargetRef.current;
+    const restore = prevTitleRef.current;
+    optimisticTargetRef.current = null;
+    prevTitleRef.current = null;
+    if (!target || restore == null) return;
+    // Navigation erfolgreich — Modul-Chrome setzt den Titel.
+    if (normalizeNavHref(pathname) === target) return;
+    setChrome((prev) => ({ ...prev, title: restore }));
+  }, [pending, pendingHref, pathname, setChrome]);
 
   if (!pending || !pendingHref) return null;
 
   return (
     <div
-      // pointerdown setzt Pending vor click — ohne pointer-events-none schluckt
-      // das Overlay den Widget-Pfeil-Klick → Skeleton, dann zurück zum Dashboard.
+      // pointer-events-none: Overlay darf den aktivierenden Link-Klick nicht schlucken.
       className="pointer-events-none absolute inset-0 z-20 min-h-full bg-background"
       aria-live="polite"
       aria-busy

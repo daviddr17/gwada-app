@@ -25,6 +25,14 @@ import { peekMenuItemsCache } from "@/lib/menu/menu-items-query";
 import { peekMenuCategoriesCache } from "@/lib/menu/menu-categories-query";
 import { peekMenuMainCategoriesCache } from "@/lib/menu/menu-main-categories-query";
 import { peekIngredientsCache } from "@/lib/inventory/ingredients-query";
+import {
+  warmDocumentsList,
+  warmEventsFeed,
+  warmGalleryFeed,
+  warmNewsFeed,
+  warmStaffTodos,
+} from "@/lib/hooks/app-module-warm-prefetch";
+import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 
 function normalizeModuleHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -159,16 +167,36 @@ function warmModuleData(
     void queryClient.prefetchQuery(
       inventoryIngredientsPrefetchOptions(restaurantId),
     );
+    return;
+  }
+  if (path.startsWith("/dashboard/news")) {
+    void warmNewsFeed(restaurantId);
+    return;
+  }
+  if (path.startsWith("/dashboard/events")) {
+    void warmEventsFeed(restaurantId);
+    return;
+  }
+  if (path.startsWith("/dashboard/galerie")) {
+    void warmGalleryFeed(restaurantId);
+    return;
+  }
+  if (path.startsWith("/dashboard/dokumente")) {
+    void warmDocumentsList(restaurantId);
+    return;
+  }
+  if (path.startsWith("/dashboard/checklisten")) {
+    void warmStaffTodos(restaurantId);
   }
 }
 
-/** Hover/Focus: RSC-Flight + Modul-Daten vor dem Klick wärmen. */
+/** Hover/Focus: volles Page-Segment + Modul-Daten vor dem Klick wärmen. */
 export function warmModuleRouteIntent(
   router: AppRouterInstance,
   queryClient: QueryClient,
   restaurantId: string,
   href: string,
 ): void {
-  router.prefetch(href);
+  prefetchAppModuleHref(router, href);
   warmModuleData(queryClient, restaurantId, href);
 }

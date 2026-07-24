@@ -109,20 +109,24 @@ export function DashboardGlobalSearchOverlay() {
   const showSkeleton = useDeferredSkeleton(loading);
   const [resultSheetItem, setResultSheetItem] =
     useState<DashboardGlobalSearchResultItem | null>(null);
+  /** Getrennt vom Item — Drawer bleibt gemountet, open flippt → Vaul animiert snappy. */
+  const [resultSheetOpen, setResultSheetOpen] = useState(false);
 
   const flatItems = useMemo(() => flattenGroups(groups), [groups]);
-  const resultSheetOpen = resultSheetItem != null;
 
   const closeResultSheet = useCallback(() => {
+    setResultSheetOpen(false);
     setResultSheetItem(null);
     forceResetAppScrollLocks();
   }, []);
 
   const openResultSheet = useCallback(
     (item: DashboardGlobalSearchResultItem) => {
-      closeSearch();
-      forceResetAppScrollLocks();
+      // Zuerst Sheet öffnen (lokaler State), Suche danach schließen —
+      // kein Mount-mit-open=true und kein Lock-Reset im Open-Frame.
       setResultSheetItem(item);
+      setResultSheetOpen(true);
+      closeSearch();
     },
     [closeSearch],
   );
@@ -402,7 +406,7 @@ export function DashboardGlobalSearchOverlay() {
     </div>
   );
 
-  const resultSheet = resultSheetOpen ? (
+  const resultSheet = (
     <DashboardGlobalSearchResultSheet
       open={resultSheetOpen}
       item={resultSheetItem}
@@ -410,7 +414,7 @@ export function DashboardGlobalSearchOverlay() {
         if (!nextOpen) closeResultSheet();
       }}
     />
-  ) : null;
+  );
 
   if (isMobile) {
     return (

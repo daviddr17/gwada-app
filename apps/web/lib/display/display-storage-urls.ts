@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { rewriteAdminSignedStorageUrl } from "@/lib/auth/rewrite-admin-auth-action-link";
 import { RESTAURANT_PROFILE_IMAGES_BUCKET } from "@/lib/restaurant/restaurant-profile-image";
 
 export const DISPLAY_STAFF_AVATARS_BUCKET = "restaurant-staff-avatars";
@@ -19,7 +20,7 @@ export async function signDisplayStorageUrl(
     .createSignedUrl(trimmed, expiresIn);
 
   if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+  return rewriteAdminSignedStorageUrl(data.signedUrl);
 }
 
 export async function signRestaurantAvatarUrl(

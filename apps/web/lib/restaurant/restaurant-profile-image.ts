@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { rewriteAdminSignedStorageUrl } from "@/lib/auth/rewrite-admin-auth-action-link";
 
 export const RESTAURANT_PROFILE_IMAGES_BUCKET = "restaurant-profile-images";
 

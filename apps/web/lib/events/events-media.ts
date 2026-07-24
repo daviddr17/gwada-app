@@ -1,5 +1,6 @@
 import "server-only";
 
+import { rewriteAdminSignedStorageUrl } from "@/lib/auth/rewrite-admin-auth-action-link";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const EVENTS_MEDIA_BUCKET = "events-media";
@@ -23,5 +24,7 @@ export async function resolveEventsCoverSignedUrl(
   const { data } = await admin.storage
     .from(EVENTS_MEDIA_BUCKET)
     .createSignedUrl(storagePath, expiresIn);
-  return data?.signedUrl ?? null;
+  return data?.signedUrl
+    ? rewriteAdminSignedStorageUrl(data.signedUrl)
+    : null;
 }

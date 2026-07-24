@@ -1,5 +1,6 @@
 import "server-only";
 
+import { rewriteAdminSignedStorageUrl } from "@/lib/auth/rewrite-admin-auth-action-link";
 import type { NewsPlatformConnector } from "@/lib/news/connectors/types";
 import {
   NEWS_MEDIA_BUCKET,
@@ -69,7 +70,12 @@ async function signedUrlsForMedia(
       const { data } = await admin.storage
         .from(NEWS_MEDIA_BUCKET)
         .createSignedUrl(path, 3600);
-      if (data?.signedUrl) map.set(path, data.signedUrl);
+      if (data?.signedUrl) {
+        const { rewriteAdminSignedStorageUrl } = await import(
+          "@/lib/auth/rewrite-admin-auth-action-link"
+        );
+        map.set(path, rewriteAdminSignedStorageUrl(data.signedUrl));
+      }
     }),
   );
   return map;

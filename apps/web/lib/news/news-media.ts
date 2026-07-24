@@ -1,5 +1,6 @@
 import "server-only";
 
+import { rewriteAdminSignedStorageUrl } from "@/lib/auth/rewrite-admin-auth-action-link";
 import type { NewsMediaPreview } from "@/lib/news/unified-news-item";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -92,7 +93,9 @@ export async function resolveNewsMediaSignedUrls(
     const { data } = await admin.storage
       .from(NEWS_MEDIA_BUCKET)
       .createSignedUrl(path, expiresIn);
-    if (data?.signedUrl) urls.push(data.signedUrl);
+    if (data?.signedUrl) {
+      urls.push(rewriteAdminSignedStorageUrl(data.signedUrl));
+    }
   }
   return urls;
 }

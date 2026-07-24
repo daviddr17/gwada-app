@@ -1,5 +1,6 @@
 import "server-only";
 
+import { rewriteAdminSignedStorageUrl } from "@/lib/auth/rewrite-admin-auth-action-link";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const GALLERY_MEDIA_BUCKET = "gallery-media";
@@ -34,7 +35,9 @@ export async function resolveGalleryMediaSignedUrl(
   const { data } = await admin.storage
     .from(GALLERY_MEDIA_BUCKET)
     .createSignedUrl(storagePath, expiresIn);
-  return data?.signedUrl ?? null;
+  return data?.signedUrl
+    ? rewriteAdminSignedStorageUrl(data.signedUrl)
+    : null;
 }
 
 export async function resolveGalleryMediaSignedUrls(

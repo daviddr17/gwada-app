@@ -9,6 +9,7 @@ import {
   buildReviewRequestPreviewBlock,
   type ReviewRequestSettings,
 } from "@/lib/reviews/gwada-review-invitation-server";
+import { resolveGoogleReviewUrlFromBusiness } from "@/lib/reviews/google-review-url-server";
 import {
   hasAnyReviewInclude,
   type ReviewRequestIncludes,
@@ -114,9 +115,16 @@ async function appendPreviewReviewBlock(params: {
       )
     : null;
 
+  let googleReviewUrl = settings.review_google_url;
+  if (settings.includeGoogle && !googleReviewUrl) {
+    googleReviewUrl = await resolveGoogleReviewUrlFromBusiness(
+      params.restaurantId,
+    );
+  }
+
   const block = buildReviewRequestPreviewBlock({
     settings,
-    googleReviewUrl: settings.review_google_url,
+    googleReviewUrl,
     facebookReviewUrl:
       settings.review_facebook_url ??
       facebookReviewUrl(fbRow?.config.page_id),

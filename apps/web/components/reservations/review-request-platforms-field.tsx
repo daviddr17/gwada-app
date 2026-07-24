@@ -139,6 +139,16 @@ export function ReviewRequestPlatformsField({
         </p>
       ) : null}
 
+      {!connectionsLoading &&
+      includes.includeGoogle &&
+      googleConnected &&
+      !googleUrl.trim() ? (
+        <p className="text-xs text-muted-foreground">
+          Ohne URL wird der Google-Link beim Versand aus dem verbundenen
+          Standort geladen. Optional unten fest eintragen.
+        </p>
+      ) : null}
+
       {!connectionsLoading && includes.includeFacebook && !facebookConnected ? (
         <p className="text-xs text-muted-foreground">
           Facebook unter Einstellungen → Integrationen verbinden, damit der

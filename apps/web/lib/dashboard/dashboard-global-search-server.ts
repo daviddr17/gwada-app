@@ -19,6 +19,7 @@ import {
   DEFAULT_RESTAURANT_TIMEZONE,
   formatReservationSlotInRestaurantTz,
   formatRestaurantDateTime,
+  restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
 import type {
   DashboardGlobalSearchCategory,
@@ -259,13 +260,15 @@ function makeItem(
   id: string,
   title: string,
   subtitle: string | null,
+  options?: { dayYmd?: string | null },
 ): DashboardGlobalSearchResultItem {
   return {
     id,
     category,
     title,
     subtitle,
-    href: dashboardGlobalSearchResultHref(category, id),
+    href: dashboardGlobalSearchResultHref(category, id, options),
+    ...(options?.dayYmd ? { dayYmd: options.dayYmd } : {}),
   };
 }
 
@@ -369,7 +372,10 @@ async function searchReservations(
     const subtitle = [date, `${row.party_size} Pers.`, `#${row.reservation_number}`]
       .filter(Boolean)
       .join(" · ");
-    return makeItem("reservations", row.id, guest, subtitle);
+    const dayYmd = row.starts_at
+      ? restaurantZonedDateKey(new Date(row.starts_at), timeZone)
+      : null;
+    return makeItem("reservations", row.id, guest, subtitle, { dayYmd });
   });
 }
 

@@ -128,6 +128,10 @@ function useMonthCursor() {
     setCursor((c) => ({ year, month: c.month }));
   };
 
+  const setYearMonth = (year: number, month: number) => {
+    setCursor({ year, month });
+  };
+
   const prevMonth = () => {
     setCursor(({ year, month }) => {
       const d = new Date(year, month - 1, 1);
@@ -142,11 +146,12 @@ function useMonthCursor() {
     });
   };
 
-  return { cursor, setMonth, setYear, prevMonth, nextMonth };
+  return { cursor, setMonth, setYear, setYearMonth, prevMonth, nextMonth };
 }
 
 export function ReservationsOverview() {
-  const { cursor, setMonth, setYear, prevMonth, nextMonth } = useMonthCursor();
+  const { cursor, setMonth, setYear, setYearMonth, prevMonth, nextMonth } =
+    useMonthCursor();
 
   const monthStart = useMemo(
     () => startOfLocalDay(new Date(cursor.year, cursor.month, 1)),
@@ -487,6 +492,69 @@ export function ReservationsOverview() {
     createTimeParam,
     createTableParam,
     createContactParam,
+  ]);
+
+  /** `?day=YYYY-MM-DD` (ohne new): Monat springen + Tagesblatt — z. B. Suche „Zum Tag“. */
+  const appliedDayDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (isNewParam) return;
+    if (!dayParam || !/^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
+      appliedDayDeepLinkRef.current = null;
+      return;
+    }
+    if (appliedDayDeepLinkRef.current === dayParam) return;
+    appliedDayDeepLinkRef.current = dayParam;
+
+    const [y, m, dd] = dayParam.split("-").map(Number);
+    if (
+      !Number.isFinite(y) ||
+      !Number.isFinite(m) ||
+      !Number.isFinite(dd)
+    ) {
+      return;
+    }
+    setYearMonth(y!, m! - 1);
+    const hasReservation =
+      Boolean(reservationIdParam) && isUuidRestaurantId(reservationIdParam!);
+    if (!hasReservation) {
+      setDaySheetDay(new Date(y!, m! - 1, dd!));
+      setDaySheetOpen(true);
+    }
+
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("day");
+    const qs = p.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [
+    dayParam,
+    isNewParam,
+    reservationIdParam,
+    searchParams,
+    pathname,
+    router,
+    setYearMonth,
+  ]);
+
+  /** Edit-Deep-Link: Monat der Reservierung zeigen (nicht immer „heute“). */
+  const syncedMonthForReservationRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editReservationId) {
+      syncedMonthForReservationRef.current = null;
+      return;
+    }
+    if (!editReservation?.starts_at) return;
+    if (syncedMonthForReservationRef.current === editReservation.id) return;
+    syncedMonthForReservationRef.current = editReservation.id;
+    const ymd = dayKeyFromIso(editReservation.starts_at, restaurantTimeZone);
+    const [y, m] = ymd.split("-").map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(m)) return;
+    setYearMonth(y!, m! - 1);
+  }, [
+    editReservationId,
+    editReservation?.id,
+    editReservation?.starts_at,
+    restaurantTimeZone,
+    setYearMonth,
   ]);
 
   const withUnconfirmedParam = useCallback(

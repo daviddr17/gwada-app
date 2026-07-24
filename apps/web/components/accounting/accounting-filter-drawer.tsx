@@ -3,19 +3,18 @@
 import { useMemo } from "react";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/combobox";
-import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
-import { Separator } from "@/components/ui/separator";
+import {
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterZone,
+} from "@/components/ui/drawer-filter-sheet";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import {
   ACCOUNTING_FILTER_ALL,
@@ -32,7 +31,6 @@ import {
 import { accountingStatusSelectOptions } from "@/lib/accounting/accounting-status-labels";
 import type { AccountingDocumentStatusRow } from "@/lib/types/accounting";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { cn } from "@/lib/utils";
 
 const accountingFilterSelectClassName = appSelectTriggerAccentCn(
   staffDrawerFieldClassName,
@@ -54,12 +52,6 @@ type AccountingFilterDrawerProps = {
   onVoucherKindFilterChange: (value: AccountingVoucherKindFilter) => void;
   statuses: AccountingDocumentStatusRow[];
   connectorConnected: boolean;
-};
-
-const MODE_DESCRIPTION: Record<AccountingFilterDrawerMode, string> = {
-  invoice: "Rechnungen nach Quelle, Status und Dokumenttyp eingrenzen.",
-  quotation: "Angebote nach Quelle und Status eingrenzen.",
-  voucher: "Belege nach Quelle, Status, Belegart und Dokumenttyp eingrenzen.",
 };
 
 export function AccountingFilterDrawer({
@@ -140,73 +132,68 @@ export function AccountingFilterDrawer({
       repositionInputs={false}
     >
       <DrawerContent className={drawerContentClassName("filter")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Filter
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            {MODE_DESCRIPTION[mode]}
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter" />
 
         <div className={drawerScrollAreaClassName(6)}>
-          <DrawerFormSection title="Quelle">
-            <SearchableSelect
-              options={platformOptions}
-              value={platformFilter}
-              onValueChange={(value) =>
-                onPlatformFilterChange(value as AccountingPlatformFilter)
-              }
-              placeholder="Alle Quellen"
-              searchPlaceholder="Quelle suchen …"
-              aria-label="Quelle filtern"
-              className={accountingFilterSelectClassName}
-            />
-          </DrawerFormSection>
-
-          <DrawerFormSection title="Status">
-            <SearchableSelect
-              options={statusOptions}
-              value={statusFilter}
-              onValueChange={onStatusFilterChange}
-              placeholder="Alle Status"
-              searchPlaceholder="Status suchen …"
-              aria-label="Status filtern"
-              className={accountingFilterSelectClassName}
-            />
-          </DrawerFormSection>
-
-          {mode === "voucher" ? (
-            <DrawerFormSection title="Belegart">
+          <DrawerFilterZone showLabel={false}>
+            <DrawerFilterField label="Quelle">
               <SearchableSelect
-                options={voucherKindOptions}
-                value={voucherKindFilter}
+                options={platformOptions}
+                value={platformFilter}
                 onValueChange={(value) =>
-                  onVoucherKindFilterChange(value as AccountingVoucherKindFilter)
+                  onPlatformFilterChange(value as AccountingPlatformFilter)
                 }
-                placeholder="Alle Belegarten"
-                searchPlaceholder="Belegart suchen …"
-                aria-label="Belegart filtern"
+                placeholder="Alle Quellen"
+                searchPlaceholder="Quelle suchen …"
+                aria-label="Quelle filtern"
                 className={accountingFilterSelectClassName}
               />
-            </DrawerFormSection>
-          ) : null}
+            </DrawerFilterField>
 
-          {mode === "invoice" || mode === "voucher" ? (
-            <DrawerFormSection title="Dokumenttyp">
+            <DrawerFilterField label="Status">
               <SearchableSelect
-                options={variantOptions}
-                value={variantFilter}
-                onValueChange={(value) =>
-                  onVariantFilterChange(value as AccountingDocumentVariantFilter)
-                }
-                placeholder="Alle Typen"
-                searchPlaceholder="Typ suchen …"
-                aria-label="Dokumenttyp filtern"
+                options={statusOptions}
+                value={statusFilter}
+                onValueChange={onStatusFilterChange}
+                placeholder="Alle Status"
+                searchPlaceholder="Status suchen …"
+                aria-label="Status filtern"
                 className={accountingFilterSelectClassName}
               />
-            </DrawerFormSection>
-          ) : null}
+            </DrawerFilterField>
+
+            {mode === "voucher" ? (
+              <DrawerFilterField label="Belegart">
+                <SearchableSelect
+                  options={voucherKindOptions}
+                  value={voucherKindFilter}
+                  onValueChange={(value) =>
+                    onVoucherKindFilterChange(value as AccountingVoucherKindFilter)
+                  }
+                  placeholder="Alle Belegarten"
+                  searchPlaceholder="Belegart suchen …"
+                  aria-label="Belegart filtern"
+                  className={accountingFilterSelectClassName}
+                />
+              </DrawerFilterField>
+            ) : null}
+
+            {mode === "invoice" || mode === "voucher" ? (
+              <DrawerFilterField label="Dokumenttyp">
+                <SearchableSelect
+                  options={variantOptions}
+                  value={variantFilter}
+                  onValueChange={(value) =>
+                    onVariantFilterChange(value as AccountingDocumentVariantFilter)
+                  }
+                  placeholder="Alle Typen"
+                  searchPlaceholder="Typ suchen …"
+                  aria-label="Dokumenttyp filtern"
+                  className={accountingFilterSelectClassName}
+                />
+              </DrawerFilterField>
+            ) : null}
+          </DrawerFilterZone>
         </div>
         <DrawerFilterFooter onReset={resetFilters} onDone={() => onOpenChange(false)} />
       </DrawerContent>

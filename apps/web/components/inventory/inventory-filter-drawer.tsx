@@ -3,23 +3,21 @@
 import { useMemo } from "react";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/combobox";
-import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
-import { Separator } from "@/components/ui/separator";
+import {
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterZone,
+} from "@/components/ui/drawer-filter-sheet";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { cn } from "@/lib/utils";
 
 const inventoryFilterSelectClassName = appSelectTriggerAccentCn(
   staffDrawerFieldClassName,
@@ -115,31 +113,22 @@ export function InventoryFilterDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent className={drawerContentClassName("filter")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Filter
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            Zutaten nach Lieferant, Kategorie, Produktionsstelle und Marke
-            eingrenzen.
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter" />
 
-        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(6)}>
-          <DrawerFormSection title="Lieferant & Kategorie">
-            <div className="space-y-3">
+          <DrawerFilterZone showLabel={false}>
+            <DrawerFilterField label="Lieferant">
               <SearchableSelect
-              options={supplierOptions}
-              value={filterSupplier}
-              onValueChange={onFilterSupplierChange}
-              placeholder="Alle Lieferanten"
-              searchPlaceholder="Lieferant suchen…"
-              aria-label="Lieferant filtern"
-              className={inventoryFilterSelectClassName}
-            />
-            </div>
-            <div className="space-y-3">
+                options={supplierOptions}
+                value={filterSupplier}
+                onValueChange={onFilterSupplierChange}
+                placeholder="Alle Lieferanten"
+                searchPlaceholder="Lieferant suchen…"
+                aria-label="Lieferant filtern"
+                className={inventoryFilterSelectClassName}
+              />
+            </DrawerFilterField>
+            <DrawerFilterField label="Kategorie">
               <SearchableSelect
                 options={categoryOptions}
                 value={filterCategory}
@@ -149,22 +138,19 @@ export function InventoryFilterDrawer({
                 aria-label="Kategorie filtern"
                 className={inventoryFilterSelectClassName}
               />
-            </div>
-          </DrawerFormSection>
-
-          <DrawerFormSection title="Produktion & Marke">
-            <div className="space-y-3">
+            </DrawerFilterField>
+            <DrawerFilterField label="Produktion">
               <SearchableSelect
-              options={productionOptions}
-              value={filterProduction}
-              onValueChange={onFilterProductionChange}
-              placeholder="Alle Produktionsstellen"
-              searchPlaceholder="Stelle suchen…"
-              aria-label="Produktionsstelle filtern"
-              className={inventoryFilterSelectClassName}
-            />
-            </div>
-            <div className="space-y-3">
+                options={productionOptions}
+                value={filterProduction}
+                onValueChange={onFilterProductionChange}
+                placeholder="Alle Produktionsstellen"
+                searchPlaceholder="Stelle suchen…"
+                aria-label="Produktionsstelle filtern"
+                className={inventoryFilterSelectClassName}
+              />
+            </DrawerFilterField>
+            <DrawerFilterField label="Marke">
               <SearchableSelect
                 options={brandOptions}
                 value={filterBrand}
@@ -174,11 +160,10 @@ export function InventoryFilterDrawer({
                 aria-label="Marke filtern"
                 className={inventoryFilterSelectClassName}
               />
-            </div>
-          </DrawerFormSection>
+            </DrawerFilterField>
+          </DrawerFilterZone>
         </div>
         <DrawerFilterFooter onReset={resetFilters} onDone={() => onOpenChange(false)} />
-        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

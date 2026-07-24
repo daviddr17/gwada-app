@@ -4,22 +4,16 @@ import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
 import {
-  DrawerFormBody,
-  DrawerFormSection,
-} from "@/components/ui/drawer-form-section";
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterZone,
+} from "@/components/ui/drawer-filter-sheet";
 import { DatePickerField } from "@/components/ui/date-picker";
-import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import {
-  drawerFormHeaderClassName,
-  drawerScrollAreaClassName,
-} from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 
 export type PosListFilterSelectOption = {
   value: string;
@@ -46,7 +40,6 @@ export function PosListFilterDrawer({
   open,
   onOpenChange,
   title = "Filter",
-  description = "Zeitraum und weitere Filter für die Liste.",
   fromYmd,
   toYmd,
   onFromYmdChange,
@@ -70,43 +63,30 @@ export function PosListFilterDrawer({
       repositionInputs={false}
     >
       <DrawerContent className={drawerContentClassName("template")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            {title}
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            {description}
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title={title} />
 
         <div className={drawerScrollAreaClassName(6)}>
-          <DrawerFormBody>
-            <DrawerFormSection title="Zeitraum">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="pos-list-filter-from">Von</Label>
-                  <DatePickerField
-                    id="pos-list-filter-from"
-                    value={fromYmd}
-                    onChange={(v) => onFromYmdChange(v ?? fromYmd)}
-                    fullWidth
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pos-list-filter-to">Bis</Label>
-                  <DatePickerField
-                    id="pos-list-filter-to"
-                    value={toYmd}
-                    onChange={(v) => onToYmdChange(v ?? toYmd)}
-                    minYmd={fromYmd}
-                    fullWidth
-                  />
-                </div>
-              </div>
-            </DrawerFormSection>
+          <DrawerFilterZone showLabel={title !== "Filter"}>
+            <DrawerFilterField label="Von">
+              <DatePickerField
+                id="pos-list-filter-from"
+                value={fromYmd}
+                onChange={(v) => onFromYmdChange(v ?? fromYmd)}
+                fullWidth
+              />
+            </DrawerFilterField>
+            <DrawerFilterField label="Bis">
+              <DatePickerField
+                id="pos-list-filter-to"
+                value={toYmd}
+                onChange={(v) => onToYmdChange(v ?? toYmd)}
+                minYmd={fromYmd}
+                fullWidth
+              />
+            </DrawerFilterField>
 
             {showSelect ? (
-              <DrawerFormSection title={selectLabel}>
+              <DrawerFilterField label={selectLabel}>
                 <SearchableSelect
                   value={selectValue}
                   onValueChange={onSelectChange}
@@ -117,9 +97,9 @@ export function PosListFilterDrawer({
                   className="w-full"
                   aria-label={selectLabel}
                 />
-              </DrawerFormSection>
+              </DrawerFilterField>
             ) : null}
-          </DrawerFormBody>
+          </DrawerFilterZone>
         </div>
 
         <DrawerFilterFooter

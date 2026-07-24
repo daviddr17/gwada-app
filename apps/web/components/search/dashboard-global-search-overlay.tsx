@@ -8,8 +8,6 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import {
   BookOpen,
   CalendarDays,
@@ -29,21 +27,18 @@ import {
   X,
 } from "lucide-react";
 import { AppMobileChromeScreen } from "@/components/layout/app-mobile-chrome-screen";
-import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
+import { DashboardGlobalSearchResultSheet } from "@/components/search/dashboard-global-search-result-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDashboardGlobalSearch } from "@/lib/contexts/dashboard-global-search-context";
-import { dashboardGlobalSearchReservationDayHref } from "@/lib/dashboard/dashboard-global-search-nav";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { restaurantZonedDateKey } from "@/lib/restaurant/restaurant-timezone";
 import {
-  fetchReservationById,
-  type ReservationListRow,
-} from "@/lib/supabase/reservations-db";
+  acquireAppScrollLock,
+  forceResetAppScrollLocks,
+} from "@/lib/layout/app-scroll-root";
 import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import type {
   DashboardGlobalSearchCategory,
@@ -53,10 +48,6 @@ import type {
 } from "@/lib/types/dashboard-global-search";
 import { DASHBOARD_GLOBAL_SEARCH_MIN_QUERY_LENGTH } from "@/lib/types/dashboard-global-search";
 import { cn } from "@/lib/utils";
-import {
-  acquireAppScrollLock,
-  forceResetAppScrollLocks,
-} from "@/lib/layout/app-scroll-root";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -101,11 +92,9 @@ function DashboardGlobalSearchSkeleton() {
 }
 
 export function DashboardGlobalSearchOverlay() {
-  const router = useRouter();
   const { open, closeSearch } = useDashboardGlobalSearch();
   const isMobile = useIsMobile();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -118,60 +107,25 @@ export function DashboardGlobalSearchOverlay() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const showSkeleton = useDeferredSkeleton(loading);
-  const [reservationOpen, setReservationOpen] = useState(false);
-  const [reservationRow, setReservationRow] =
-    useState<ReservationListRow | null>(null);
-  const [reservationDayYmd, setReservationDayYmd] = useState<string | null>(
-    null,
-  );
+  const [resultSheetItem, setResultSheetItem] =
+    useState<DashboardGlobalSearchResultItem | null>(null);
 
   const flatItems = useMemo(() => flattenGroups(groups), [groups]);
+  const resultSheetOpen = resultSheetItem != null;
 
-  const resolvedReservationDayYmd = useMemo(() => {
-    if (reservationDayYmd && /^\d{4}-\d{2}-\d{2}$/.test(reservationDayYmd)) {
-      return reservationDayYmd;
-    }
-    if (reservationRow?.starts_at) {
-      return restaurantZonedDateKey(
-        new Date(reservationRow.starts_at),
-        restaurantTimeZone,
-      );
-    }
-    return null;
-  }, [reservationDayYmd, reservationRow?.starts_at, restaurantTimeZone]);
-
-  const reservationDayHref = resolvedReservationDayYmd
-    ? dashboardGlobalSearchReservationDayHref(resolvedReservationDayYmd)
-    : null;
-
-  const openReservationFromSearch = useCallback(
-    async (item: DashboardGlobalSearchResultItem) => {
-      if (!restaurantId) return;
-      setReservationDayYmd(item.dayYmd ?? null);
-      const { data, error } = await fetchReservationById({
-        restaurantId,
-        id: item.id,
-      });
-      if (error || !data) {
-        toast.error("Reservierung nicht gefunden.");
-        setReservationDayYmd(null);
-        return;
-      }
-      // Suche erst schließen, wenn Daten da sind — sonst Vaul-/Scroll-Lock-Race.
-      closeSearch();
-      forceResetAppScrollLocks();
-      setReservationRow(data);
-      setReservationOpen(true);
-    },
-    [restaurantId, closeSearch],
-  );
-
-  const closeReservationDrawer = useCallback(() => {
-    setReservationOpen(false);
-    setReservationRow(null);
-    setReservationDayYmd(null);
+  const closeResultSheet = useCallback(() => {
+    setResultSheetItem(null);
     forceResetAppScrollLocks();
   }, []);
+
+  const openResultSheet = useCallback(
+    (item: DashboardGlobalSearchResultItem) => {
+      closeSearch();
+      forceResetAppScrollLocks();
+      setResultSheetItem(item);
+    },
+    [closeSearch],
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -262,18 +216,6 @@ export function DashboardGlobalSearchOverlay() {
     return () => controller.abort();
   }, [open, workspaceReady, restaurantId, debouncedQuery]);
 
-  const navigateTo = useCallback(
-    (item: DashboardGlobalSearchResultItem) => {
-      if (item.category === "reservations") {
-        void openReservationFromSearch(item);
-        return;
-      }
-      closeSearch();
-      router.push(item.href);
-    },
-    [closeSearch, router, openReservationFromSearch],
-  );
-
   const moveSelection = useCallback(
     (delta: number) => {
       if (flatItems.length === 0) return;
@@ -298,7 +240,7 @@ export function DashboardGlobalSearchOverlay() {
   );
 
   useEffect(() => {
-    if (!open || reservationOpen) return;
+    if (!open || resultSheetOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -319,7 +261,7 @@ export function DashboardGlobalSearchOverlay() {
         const item = flatItems.find((entry) => resultKey(entry) === activeKey);
         if (item) {
           event.preventDefault();
-          navigateTo(item);
+          openResultSheet(item);
         }
       }
     };
@@ -327,14 +269,13 @@ export function DashboardGlobalSearchOverlay() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     open,
-    reservationOpen,
+    resultSheetOpen,
     closeSearch,
     moveSelection,
-    navigateTo,
+    openResultSheet,
     flatItems,
     activeKey,
   ]);
-
 
   const trimmedQuery = query.trim();
   const showMinCharsHint =
@@ -412,7 +353,7 @@ export function DashboardGlobalSearchOverlay() {
                               : "border-transparent hover:border-border/50 hover:bg-muted/40",
                           )}
                           onMouseEnter={() => setActiveKey(key)}
-                          onClick={() => navigateTo(item)}
+                          onClick={() => openResultSheet(item)}
                         >
                           <span
                             className={cn(
@@ -461,17 +402,13 @@ export function DashboardGlobalSearchOverlay() {
     </div>
   );
 
-  const reservationDrawer = reservationOpen ? (
-    <ReservationEditDrawer
-      open={reservationOpen}
+  const resultSheet = resultSheetOpen ? (
+    <DashboardGlobalSearchResultSheet
+      open={resultSheetOpen}
+      item={resultSheetItem}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) closeReservationDrawer();
+        if (!nextOpen) closeResultSheet();
       }}
-      reservation={reservationRow}
-      createFor={null}
-      overlapReservations={[]}
-      dayOverviewHref={reservationDayHref}
-      onSaved={closeReservationDrawer}
     />
   ) : null;
 
@@ -494,17 +431,17 @@ export function DashboardGlobalSearchOverlay() {
             </div>
           </div>
         </AppMobileChromeScreen>
-        {reservationDrawer}
+        {resultSheet}
       </>
     );
   }
 
   // Suche zuletzt portalen — liegt über evtl. Drawer-Resten; geschlossen: null wie zuvor.
-  if (!mounted) return reservationDrawer;
+  if (!mounted) return resultSheet;
 
   return (
     <>
-      {reservationDrawer}
+      {resultSheet}
       {open
         ? createPortal(
             <div

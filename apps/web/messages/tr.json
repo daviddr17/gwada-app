@@ -178,6 +178,7 @@
       "errorNotFound": "Restoran bulunamadı veya yayınlanmadı.",
       "errorCreateFailed": "Rezervasyon oluşturulamadı.",
       "errorUpdateFailed": "Değişiklikler kaydedilemedi.",
+      "errorRateLimit": "Çok fazla istek. Lütfen biraz bekleyip tekrar deneyin.",
       "hintDate": "Lütfen bir tarih seçin.",
       "hintTime": "Lütfen geçerli bir saat seçin.",
       "hintParty": "Kişi sayısını girin (en az 1).",

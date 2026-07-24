@@ -195,7 +195,9 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
         <div className="relative z-[1]">
-          <WorkspaceZoneTransition>{children}</WorkspaceZoneTransition>
+          <WorkspaceZoneTransition>
+            {children}
+          </WorkspaceZoneTransition>
         </div>
       </div>
 

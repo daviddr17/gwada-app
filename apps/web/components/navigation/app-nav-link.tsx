@@ -92,8 +92,9 @@ export const AppNavLink = forwardRef<
           event.preventDefault();
           return;
         }
-        if (crossModuleNav && !tryAcquireNavLock(event, hrefStr)) {
-          return;
+        // Pending-Highlight ohne Lock/preventDefault (Locks haben Flights gekillt).
+        if (crossModuleNav) {
+          tryAcquireNavLock(event, hrefStr);
         }
       }}
     >

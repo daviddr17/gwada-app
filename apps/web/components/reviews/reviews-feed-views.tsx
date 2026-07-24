@@ -216,7 +216,7 @@ function ReviewAuthor({
 }
 
 const timelineRowSurfaceClassName =
-  "relative min-w-0 flex-1 overflow-hidden rounded-xl border border-border/50 bg-card p-3.5 text-left shadow-card transition sm:p-4";
+  "min-w-0 flex-1 rounded-xl border border-border/50 bg-card p-3.5 text-left shadow-card transition sm:p-4";
 
 function ReviewTimelineRow({
   review,
@@ -262,13 +262,7 @@ function ReviewTimelineRow({
           review.isPinned && feedPinnedItemSurfaceClassName,
         )}
       >
-        <span
-          className="pointer-events-none absolute -left-0.5 top-1 select-none font-serif text-5xl leading-none text-accent/25"
-          aria-hidden
-        >
-          “
-        </span>
-        <div className="relative space-y-2.5 pl-3 sm:pl-4">
+        <div className="space-y-2.5">
           <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               {showPlatform || isUnread ? (

@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -16,13 +17,13 @@ type SoftNavLockValue = {
     event: { preventDefault: () => void },
     targetHref: string,
   ) => boolean;
-  /** Ziel-Route während RSC-Flight — sofortiges Sidebar-Feedback. */
+  /** Ziel-Route während Soft-Nav — Sidebar/Mobile Active-Feedback. */
   pendingHref: string | null;
 };
 
 const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
 
-const NAV_LOCK_FAILSAFE_MS = 12_000;
+const PENDING_CLEAR_FAILSAFE_MS = 8_000;
 
 export function normalizeNavHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -30,51 +31,56 @@ export function normalizeNavHref(href: string): string {
   return path || "/dashboard";
 }
 
-/** Blockiert Doppel-Klicks auf dasselbe Modul; neues Ziel darf vorherigen Flight ersetzen. */
+/**
+ * Soft-Nav Pending für Sidebar-Highlight — nur Optik, kein Navigations-Lock.
+ */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const lockedRef = useRef(false);
-  const lockedTargetRef = useRef<string | null>(null);
-  const lockTimerRef = useRef<number | null>(null);
+  const pendingTargetRef = useRef<string | null>(null);
+  const clearTimerRef = useRef<number | null>(null);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
 
-  const releaseLock = useCallback(() => {
-    lockedRef.current = false;
-    lockedTargetRef.current = null;
+  const clearPending = useCallback(() => {
+    pendingTargetRef.current = null;
     setPendingHref(null);
-    if (lockTimerRef.current != null) {
-      window.clearTimeout(lockTimerRef.current);
-      lockTimerRef.current = null;
+    if (clearTimerRef.current != null) {
+      window.clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = null;
     }
   }, []);
 
   useEffect(() => {
-    releaseLock();
-  }, [pathname, releaseLock]);
+    clearPending();
+  }, [pathname, clearPending]);
 
   const tryAcquireNavLock = useCallback(
-    (event: { preventDefault: () => void }, targetHref: string) => {
+    (_event: { preventDefault: () => void }, targetHref: string) => {
       const target = normalizeNavHref(targetHref);
-      if (lockedRef.current) {
-        if (lockedTargetRef.current === target) {
-          event.preventDefault();
-          return false;
-        }
-        releaseLock();
+      pendingTargetRef.current = target;
+      if (clearTimerRef.current != null) {
+        window.clearTimeout(clearTimerRef.current);
       }
-      lockedRef.current = true;
-      lockedTargetRef.current = target;
-      setPendingHref(target);
-      lockTimerRef.current = window.setTimeout(releaseLock, NAV_LOCK_FAILSAFE_MS);
+      // startTransition: Pending-Highlight ohne Flight-Abbruch (synchrone
+      // Sidebar-Re-Renders während router.push waren ~12–15s „hängend“).
+      clearTimerRef.current = window.setTimeout(() => {
+        if (pendingTargetRef.current !== target) return;
+        startTransition(() => {
+          setPendingHref(target);
+        });
+        clearTimerRef.current = window.setTimeout(
+          clearPending,
+          PENDING_CLEAR_FAILSAFE_MS,
+        );
+      }, 0);
       return true;
     },
-    [releaseLock],
+    [clearPending],
   );
 
   useEffect(
     () => () => {
-      if (lockTimerRef.current != null) {
-        window.clearTimeout(lockTimerRef.current);
+      if (clearTimerRef.current != null) {
+        window.clearTimeout(clearTimerRef.current);
       }
     },
     [],

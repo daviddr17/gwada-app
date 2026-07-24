@@ -18,7 +18,6 @@ import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-ove
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
-import { SoftNavPendingGate } from "@/components/navigation/soft-nav-pending-gate";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -197,7 +196,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
         ) : null}
         <div className="relative z-[1]">
           <WorkspaceZoneTransition>
-            <SoftNavPendingGate>{children}</SoftNavPendingGate>
+            {children}
           </WorkspaceZoneTransition>
         </div>
       </div>

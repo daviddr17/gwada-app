@@ -42,10 +42,12 @@ export function AppModuleWarmPrefetchMount() {
 
     seedPriorityModuleQueryCaches(queryClient, restaurantId);
 
+    // Route-Prefetch sofort — ohne Idle-Delay, sonst fühlt sich der erste Klick kalt an.
+    for (const route of APP_MODULE_PRIORITY_ROUTES) {
+      router.prefetch(route);
+    }
+
     runWhenIdle(() => {
-      for (const route of APP_MODULE_PRIORITY_ROUTES) {
-        router.prefetch(route);
-      }
       prefetchCriticalModuleQueries(queryClient, restaurantId);
       prefetchAppModuleQueryCaches(queryClient, restaurantId);
     }, 800);

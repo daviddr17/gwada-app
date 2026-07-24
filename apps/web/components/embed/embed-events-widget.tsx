@@ -23,7 +23,6 @@ import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 export type EmbedEventsWidgetProps = {
   accentHex: string;
   textTheme?: EmbedTextTheme;
-  viewMode: "grid" | "list";
   connectedPlatforms: PublicEmbedEvents["connectedPlatforms"];
   items: PublicEmbedEvents["items"];
   pastItems?: PublicEmbedEvents["pastItems"];
@@ -35,7 +34,6 @@ export type EmbedEventsWidgetProps = {
 export function EmbedEventsWidget({
   accentHex,
   textTheme = "dark",
-  viewMode,
   connectedPlatforms,
   items,
   pastItems = [],
@@ -52,7 +50,6 @@ export function EmbedEventsWidget({
       showLocalePicker={variant === "embed"}
     >
       <EmbedEventsWidgetBody
-        viewMode={viewMode}
         connectedPlatforms={connectedPlatforms}
         items={items}
         pastItems={pastItems}

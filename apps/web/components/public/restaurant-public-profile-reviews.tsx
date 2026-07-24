@@ -35,14 +35,10 @@ const reviewsSortSelectClass = appSelectTriggerAccentCn(
 export function RestaurantPublicProfileReviews({
   reviews,
   connectedPlatforms,
-  viewMode: _viewMode = "grid",
 }: {
   reviews: PublicEmbedReview[];
   connectedPlatforms: ReviewPlatform[];
-  /** Beibehalten für API-Kompatibilität — Feed ist immer Timeline. */
-  viewMode?: "grid" | "list";
 }) {
-  void _viewMode;
   const [platformFilter, setPlatformFilter] = useState<ReviewPlatform | "all">(
     "all",
   );

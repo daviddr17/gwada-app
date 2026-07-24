@@ -932,8 +932,8 @@ function EmbedReservationWidgetBody({
       <EmbedResizeReporter deps={resizeDeps} widget="reservation" />
       <div
         className={cn(
-          "w-full min-w-0 px-4 py-5 sm:px-5",
-          profileSheet && "pt-3",
+          "w-full min-w-0",
+          profileSheet ? "px-0 py-0" : "px-4 py-5 sm:px-6",
         )}
       >
         <EmbedSlidingSegmentTabs

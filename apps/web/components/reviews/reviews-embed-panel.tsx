@@ -8,13 +8,6 @@ import { EmbedDualThemePreviewPane, embedPreviewSectionHint } from "@/components
 import { EmbedReviewsWidget } from "@/components/embed/embed-reviews-widget";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
@@ -24,13 +17,7 @@ import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
-  defaultReviewEmbedSettingsRow,
-  type ReviewEmbedSettingsRow,
-} from "@/lib/reviews/review-embed-settings-db";
-import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import {
   publicSurfaceProfileAndEmbedDescription,
-  publicSurfaceScopeHint,
 } from "@/lib/ui/public-surface-settings-copy";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -65,11 +52,9 @@ const PREVIEW_REVIEWS = [
 ];
 
 function EmbedReviewsDualPreview({
-  viewMode,
   accentHex,
   restaurantName,
 }: {
-  viewMode: ReviewEmbedSettingsRow["defaultEmbedView"];
   accentHex: string;
   restaurantName: string;
 }) {
@@ -83,7 +68,6 @@ function EmbedReviewsDualPreview({
       median: 4.5,
       distribution: { 5: 1, 4: 1, 3: 0, 2: 0, 1: 0 },
     } as const,
-    viewMode,
   };
 
   return (
@@ -105,13 +89,7 @@ export function ReviewsEmbedPanel() {
     useRestaurantProfile();
   const [published, setPublished] = useState<boolean | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
-  const [loadingSettings, setLoadingSettings] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [settings, setSettings] = useState(defaultReviewEmbedSettingsRow());
-  const [savedSettings, setSavedSettings] = useState(
-    defaultReviewEmbedSettingsRow(),
-  );
 
   const profile = useMemo(() => {
     if (!restaurantUuid || !profileReady) return null;
@@ -149,84 +127,18 @@ export function ReviewsEmbedPanel() {
     };
   }, [restaurantUuid]);
 
-  useEffect(() => {
-    if (!restaurantUuid) {
-      setLoadingSettings(false);
-      return;
-    }
-    let cancelled = false;
-    setLoadingSettings(true);
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/reviews/embed-settings?${new URLSearchParams({ restaurantId: restaurantUuid })}`,
-        );
-        const json = (await res.json()) as {
-          defaultEmbedView?: ReviewEmbedSettingsRow["defaultEmbedView"];
-          error?: string;
-        };
-        if (cancelled) return;
-        if (!res.ok) {
-          toast.error(json.error ?? "Einstellungen konnten nicht geladen werden.");
-          return;
-        }
-        const next: ReviewEmbedSettingsRow = {
-          defaultEmbedView:
-            json.defaultEmbedView === "list" ? "list" : "grid",
-        };
-        setSettings(next);
-        setSavedSettings(next);
-      } catch {
-        if (!cancelled) toast.error("Netzwerkfehler beim Laden.");
-      } finally {
-        if (!cancelled) setLoadingSettings(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [restaurantUuid]);
-
   const origin =
     typeof window !== "undefined" ? window.location.origin : undefined;
   const snippet = slug ? buildReviewsEmbedSnippet(slug, origin) : null;
 
-  const showSkeleton = useDeferredSkeleton(!ready || loadingMeta || loadingSettings);
-  const dirty =
-    settings.defaultEmbedView !== savedSettings.defaultEmbedView;
+  const showSkeleton = useDeferredSkeleton(!ready || loadingMeta);
 
   const markCopied = useCallback((key: string) => {
     setCopiedKey(key);
     window.setTimeout(() => setCopiedKey(null), 2000);
   }, []);
 
-  const saveSettings = async () => {
-    if (!restaurantUuid || !dirty) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/reviews/embed-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurantId: restaurantUuid,
-          defaultEmbedView: settings.defaultEmbedView,
-        }),
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        toast.error(json.error ?? "Speichern fehlgeschlagen.");
-        return;
-      }
-      setSavedSettings(settings);
-      toast.success("Einstellungen gespeichert.");
-    } catch {
-      toast.error("Netzwerkfehler beim Speichern.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!ready || loadingMeta || loadingSettings || showSkeleton) {
+  if (!ready || loadingMeta || showSkeleton) {
     return (
       <SkeletonCardFrame className="rounded-2xl border border-border/50 p-6 shadow-card">
         <Skeleton className="h-6 w-48" />
@@ -261,42 +173,16 @@ export function ReviewsEmbedPanel() {
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label>Ansicht</Label>
-          <Select
-            value={settings.defaultEmbedView}
-            onValueChange={(value) => {
-              if (value === "grid" || value === "list") {
-                setSettings((prev) => ({ ...prev, defaultEmbedView: value }));
-              }
-            }}
-          >
-            <SelectTrigger className={appSelectTriggerAccentCn("h-10 w-full rounded-xl")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="grid">Raster (Editorial)</SelectItem>
-              <SelectItem value="list">Liste</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="space-y-1">
+          <Label>Standard-Ansicht in der Einbindung</Label>
+          <p className="text-sm text-foreground">Timeline</p>
           <p className="text-xs text-muted-foreground">
-            {publicSurfaceScopeHint("both")} Raster: Pinterest-Layout mit
-            unterschiedlich hohen Karten. Liste: chronologisch untereinander.
+            Chronologische Darstellung mit Datumsspalte — im öffentlichen Profil und in
+            der Website-Einbindung identisch.
           </p>
         </div>
 
         <EmbedTextThemeSetting restaurantId={restaurantUuid} widget="reviews" />
-
-        {dirty ? (
-          <Button
-            type="button"
-            className="rounded-xl"
-            disabled={saving}
-            onClick={() => void saveSettings()}
-          >
-            {saving ? "Speichern …" : "Einstellungen speichern"}
-          </Button>
-        ) : null}
       </section>
 
       <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
@@ -344,7 +230,6 @@ export function ReviewsEmbedPanel() {
         <p className="text-xs text-muted-foreground">{embedPreviewSectionHint}</p>
         {snippet ? (
           <EmbedReviewsDualPreview
-            viewMode={settings.defaultEmbedView}
             accentHex={accentHex}
             restaurantName={restaurantName}
           />

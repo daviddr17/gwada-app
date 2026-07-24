@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
-import { Trash2, Upload, X } from "lucide-react";
+import { MapPin, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -412,7 +412,12 @@ export function EventsDetailDrawer({
                   {item.description}
                 </p>
               ) : null}
-              {item.location ? <p className="text-sm">📍 {item.location}</p> : null}
+              {item.location ? (
+                <p className="inline-flex items-start gap-1.5 text-sm">
+                  <MapPin className="mt-0.5 size-3.5 shrink-0 text-accent" aria-hidden />
+                  <span>{item.location}</span>
+                </p>
+              ) : null}
               <EventsDetailActions item={item} />
               </DrawerFormSection>
               {canManage ? (

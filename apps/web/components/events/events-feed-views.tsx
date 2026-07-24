@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useState } from "react";
-import { CalendarDays, ExternalLink, Ticket } from "lucide-react";
+import { CalendarDays, ExternalLink, MapPin, Ticket } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
 import { EVENTS_PLATFORM_LABELS } from "@/lib/constants/events-platforms";
@@ -149,15 +149,30 @@ const EventTimelineRow = memo(function EventTimelineRow({
           ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {item.location ? (
-              <span className="truncate">
-                📍 <span data-embed-mt>{item.location}</span>
+              <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                <MapPin className="size-3.5 shrink-0 text-accent" aria-hidden />
+                <span className="truncate" data-embed-mt>
+                  {item.location}
+                </span>
               </span>
             ) : null}
             {item.ticketUrl ? (
-              <span className="inline-flex items-center gap-1 font-medium text-accent">
-                <Ticket className="size-3.5 shrink-0" />
-                {t("tickets")}
-              </span>
+              onClick ? (
+                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                  <Ticket className="size-3.5 shrink-0" />
+                  {t("tickets")}
+                </span>
+              ) : (
+                <a
+                  href={item.ticketUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-medium text-accent underline-offset-2 hover:underline"
+                >
+                  <Ticket className="size-3.5 shrink-0" />
+                  {t("tickets")}
+                </a>
+              )
             ) : null}
           </div>
         </div>

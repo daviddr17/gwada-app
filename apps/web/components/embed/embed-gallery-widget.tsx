@@ -154,7 +154,7 @@ function EmbedGalleryWidgetBody({
   return (
     <FeedScreenLayoutStable imageCount={countGalleryFeedImages(paginated)}>
       <EmbedFeedResizeReporter widget="gallery" deps={resizeDeps} />
-      <div className="space-y-4 p-4" data-gwada-embed-content>
+      <div className="space-y-4 px-4 py-5 sm:px-6" data-gwada-embed-content>
         {content}
         <EmbedMeasureEnd />
       </div>

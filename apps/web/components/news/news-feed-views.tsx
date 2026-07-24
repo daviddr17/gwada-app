@@ -300,7 +300,7 @@ export function NewsTimelineView({
 }
 
 const newsCardSurfaceClassName =
-  "flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition hover:border-border";
+  "flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition";
 
 const NewsCard = memo(function NewsCard({
   item,
@@ -401,7 +401,8 @@ const NewsCard = memo(function NewsCard({
     newsCardSurfaceClassName,
     masonry && "mb-4 break-inside-avoid",
     item.isPinned && feedPinnedItemSurfaceClassName,
-    onClick && "cursor-pointer hover:shadow-card active:scale-[0.99]",
+    onClick &&
+      "cursor-pointer hover:border-border hover:shadow-card active:scale-[0.99]",
   );
 
   if (onClick) {

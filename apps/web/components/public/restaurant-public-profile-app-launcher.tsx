@@ -937,7 +937,6 @@ function ProfileAppContent({
             <RestaurantPublicProfileReviews
               reviews={reviews.reviews}
               connectedPlatforms={reviews.connectedPlatforms}
-              viewMode={reviews.viewMode}
             />
           </div>
         ) : null}

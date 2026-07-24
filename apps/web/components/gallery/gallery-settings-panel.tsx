@@ -14,7 +14,7 @@ export function GallerySettingsPanel() {
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
   return (
-    <div className="px-4 pb-8 sm:px-6">
+    <div className="pb-8">
       <Card className="border-border/50 shadow-card">
         <CardContent className="space-y-2 p-4 text-sm text-muted-foreground">
           <p>

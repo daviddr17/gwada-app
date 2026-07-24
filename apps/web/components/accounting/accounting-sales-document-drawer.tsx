@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
@@ -153,6 +154,7 @@ export function AccountingSalesDocumentDrawer({
     isExternalAccountingSource(correctionOf.source) &&
     connectorConnected;
   const defaultTax = taxRates.find((t) => t.is_default)?.rate_percent ?? 0;
+  const mountContent = useDeferredDrawerMount(open);
 
   const [recipientType, setRecipientType] = useState<"contact" | "one_time">(
     "contact",
@@ -743,6 +745,7 @@ export function AccountingSalesDocumentDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
+        {mountContent ? (
         <DrawerFormBody>
         <div className={drawerScrollAreaClassName(4)}>
           {readOnlyExternal ? (
@@ -1168,8 +1171,11 @@ export function AccountingSalesDocumentDrawer({
               ? () => void handleSave()
               : () => handleGoToPreview()
           }
-        />
+          />
         </DrawerFormBody>
+        ) : (
+          <div className={drawerScrollAreaClassName(4)} aria-hidden aria-busy />
+        )}
       </DrawerContent>
     </Drawer>
   );

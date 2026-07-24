@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import {drawerFormFieldClassName,  drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import Link from "next/link";
@@ -611,6 +612,7 @@ export function ContactEditDrawer({
 
   const stackedSheetZClass = stackAboveInboxOverlay ? "z-[210]" : undefined;
   const nestedFilterZClass = stackAboveInboxOverlay ? "z-[220]" : "z-[210]";
+  const mountContent = useDeferredDrawerMount(open);
 
   return (
     <>
@@ -655,7 +657,7 @@ export function ContactEditDrawer({
             </div>
           </DrawerHeader>
 
-          {open ? (
+          {mountContent ? (
             <>
           <div className={drawerScrollAreaClassName(6)}>
             {isEdit && detail && contactId ? (
@@ -1094,7 +1096,13 @@ export function ContactEditDrawer({
             </div>
           ) : null}
             </>
-          ) : null}
+          ) : (
+            <div
+              className={drawerScrollAreaClassName(6)}
+              aria-hidden
+              aria-busy
+            />
+          )}
         </DrawerContent>
       </Drawer>
 

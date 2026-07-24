@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Share2, Trash2 } from "lucide-react";
@@ -87,6 +88,7 @@ export function DishDrawer({
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
+  const mountForm = useDeferredDrawerMount(open);
 
   const sharePayload = React.useMemo(() => {
     if (!editItem) return null;
@@ -176,18 +178,26 @@ export function DishDrawer({
             ) : null}
           </div>
         </DrawerHeader>
-        <DishForm
-          key={formKey}
-          mode={mode}
-          initialItem={editItem}
-          categories={categories}
-          ingredients={ingredients}
-          tagDefinitions={tagDefinitions}
-          optionGroups={menuOptionGroups.items}
-          stockUnits={stockUnits}
-          onSubmit={handleSubmit}
-          onCancel={() => onOpenChange(false)}
-        />
+        {mountForm ? (
+          <DishForm
+            key={formKey}
+            mode={mode}
+            initialItem={editItem}
+            categories={categories}
+            ingredients={ingredients}
+            tagDefinitions={tagDefinitions}
+            optionGroups={menuOptionGroups.items}
+            stockUnits={stockUnits}
+            onSubmit={handleSubmit}
+            onCancel={() => onOpenChange(false)}
+          />
+        ) : (
+          <div
+            className={drawerScrollAreaClassName(6)}
+            aria-hidden
+            aria-busy
+          />
+        )}
       </DrawerContent>
     </Drawer>
 

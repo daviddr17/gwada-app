@@ -27,11 +27,7 @@ import {
 import type { PublicEmbedReview } from "@/lib/reviews/public-reviews-server";
 import { PUBLIC_EMBED_REVIEWS_PAGE_SIZE } from "@/lib/reviews/public-embed-reviews-pagination";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import {
-  isReviewsEditorialFeatured,
-  reviewsEditorialFeaturedClassName,
-  reviewsEditorialGridClassName,
-} from "@/lib/ui/reviews-editorial-grid";
+import { reviewsEditorialGridClassName } from "@/lib/ui/reviews-editorial-grid";
 import { cn } from "@/lib/utils";
 
 const reviewsSortSelectClass = appSelectTriggerAccentCn(
@@ -186,17 +182,12 @@ export function RestaurantPublicProfileReviews({
       </div>
     ) : (
       <div className={reviewsEditorialGridClassName}>
-        {pagination.items.map((review) => {
-          const featured = isReviewsEditorialFeatured(review);
-          return (
-            <div
-              key={`${review.platform}-${review.id}`}
-              className={cn(featured && reviewsEditorialFeaturedClassName)}
-            >
-              <PublicReviewCard review={review} />
-            </div>
-          );
-        })}
+        {pagination.items.map((review) => (
+          <PublicReviewCard
+            key={`${review.platform}-${review.id}`}
+            review={review}
+          />
+        ))}
       </div>
     );
 

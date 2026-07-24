@@ -16,11 +16,7 @@ import type {
   PublicEmbedReviewsPagination,
 } from "@/lib/reviews/public-reviews-server";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
-import {
-  isReviewsEditorialFeatured,
-  reviewsEditorialFeaturedClassName,
-  reviewsEditorialGridClassName,
-} from "@/lib/ui/reviews-editorial-grid";
+import { reviewsEditorialGridClassName } from "@/lib/ui/reviews-editorial-grid";
 import { cn } from "@/lib/utils";
 
 export type EmbedReviewsWidgetProps = {
@@ -321,17 +317,12 @@ function EmbedReviewsWidgetBody({
       </div>
     ) : (
       <div className={reviewsEditorialGridClassName}>
-        {reviews.map((review) => {
-          const featured = isReviewsEditorialFeatured(review);
-          return (
-            <div
-              key={`${review.platform}-${review.id}`}
-              className={cn(featured && reviewsEditorialFeaturedClassName)}
-            >
-              <EmbedReviewCard review={review} />
-            </div>
-          );
-        })}
+        {reviews.map((review) => (
+          <EmbedReviewCard
+            key={`${review.platform}-${review.id}`}
+            review={review}
+          />
+        ))}
       </div>
     );
 

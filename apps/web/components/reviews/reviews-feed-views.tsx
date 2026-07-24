@@ -13,11 +13,7 @@ import {
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
-import {
-  isReviewsEditorialFeatured,
-  reviewsEditorialFeaturedClassName,
-  reviewsEditorialGridClassName,
-} from "@/lib/ui/reviews-editorial-grid";
+import { reviewsEditorialGridClassName } from "@/lib/ui/reviews-editorial-grid";
 import { cn } from "@/lib/utils";
 
 function StarsDisplay({ rating }: { rating: number }) {
@@ -373,25 +369,15 @@ export function ReviewsGridView({
 }) {
   return (
     <div className={reviewsEditorialGridClassName}>
-      {reviews.map((review) => {
-        const cardProps = getReviewProps(review);
-        const featured = isReviewsEditorialFeatured(review, {
-          isUnread: cardProps.isUnread,
-        });
-        return (
-          <div
-            key={`${review.platform}:${review.id}`}
-            className={cn(featured && reviewsEditorialFeaturedClassName)}
-          >
-            <ReviewCard
-              review={review}
-              showPlatform={showPlatform}
-              variant="grid"
-              {...cardProps}
-            />
-          </div>
-        );
-      })}
+      {reviews.map((review) => (
+        <ReviewCard
+          key={`${review.platform}:${review.id}`}
+          review={review}
+          showPlatform={showPlatform}
+          variant="grid"
+          {...getReviewProps(review)}
+        />
+      ))}
     </div>
   );
 }

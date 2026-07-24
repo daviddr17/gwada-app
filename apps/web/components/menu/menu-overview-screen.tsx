@@ -1027,7 +1027,7 @@ export function MenuOverviewScreen() {
         copy={{
           title: "Optionen",
           description:
-            "Gruppen wie Beilagen oder Extras. Positionen und Aufpreise im Editor. Danach Gerichten zuordnen.",
+            "Beilagen, Extras & Co. — Reihenfolge per Ziehen. Tippen zum Bearbeiten der Positionen und Aufpreise; danach im Gericht zuordnen.",
           newButton: "Neue Option",
         }}
       />

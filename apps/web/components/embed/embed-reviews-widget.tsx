@@ -6,6 +6,7 @@ import { Star } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
+import { ReviewCommentExpandable } from "@/components/reviews/review-comment-expandable";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import type { AppLocale } from "@/i18n/config";
@@ -15,6 +16,11 @@ import type {
   PublicEmbedReviewsPagination,
 } from "@/lib/reviews/public-reviews-server";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
+import {
+  isReviewsEditorialFeatured,
+  reviewsEditorialFeaturedClassName,
+  reviewsEditorialGridClassName,
+} from "@/lib/ui/reviews-editorial-grid";
 import { cn } from "@/lib/utils";
 
 export type EmbedReviewsWidgetProps = {
@@ -28,7 +34,7 @@ export type EmbedReviewsWidgetProps = {
     median: number | null;
     distribution: Record<1 | 2 | 3 | 4 | 5, number>;
   };
-  /** Raster (Standard) oder Liste — Einbindung nutzt Raster. */
+  /** Editorial-Raster (Standard) oder Liste — Einbindung nutzt Raster. */
   viewMode?: "grid" | "list";
   /** Server-Pagination (Embed-Route) — x/y + Seiten unten. */
   pagination?: PublicEmbedReviewsPagination;
@@ -69,7 +75,7 @@ function EmbedReviewCard({ review }: { review: PublicEmbedReview }) {
   const date = formatReviewDate(review.createdAt, locale);
 
   return (
-    <article className="mb-4 flex w-full break-inside-avoid flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
+    <article className="flex h-full w-full flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <ReviewPlatformIcon
@@ -89,16 +95,15 @@ function EmbedReviewCard({ review }: { review: PublicEmbedReview }) {
       {review.authorName ? (
         <p className="mt-2 text-sm font-medium leading-snug">{review.authorName}</p>
       ) : null}
-      {review.comment ? (
-        <p
-          className="mt-2 line-clamp-4 flex-1 text-sm leading-relaxed text-muted-foreground"
-          data-embed-mt
-        >
-          {review.comment}
-        </p>
-      ) : (
-        <p className="mt-2 text-sm text-muted-foreground/80">{t("noComment")}</p>
-      )}
+      <div className="mt-2 flex-1" data-embed-mt>
+        <ReviewCommentExpandable
+          text={review.comment}
+          emptyLabel={t("noComment")}
+          moreLabel={t("more")}
+          lessLabel={t("less")}
+          textClassName="text-muted-foreground"
+        />
+      </div>
       {review.reply ? (
         <div className="mt-3 rounded-lg border border-border/50 bg-muted/25 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
           <span className="font-medium text-foreground/80">{t("replyLabel")} </span>
@@ -137,16 +142,15 @@ function EmbedReviewRow({ review }: { review: PublicEmbedReview }) {
       {review.authorName ? (
         <p className="mt-2 text-sm font-medium">{review.authorName}</p>
       ) : null}
-      {review.comment ? (
-        <p
-          className="mt-2 text-sm leading-relaxed text-muted-foreground"
-          data-embed-mt
-        >
-          {review.comment}
-        </p>
-      ) : (
-        <p className="mt-2 text-sm text-muted-foreground/80">{t("noComment")}</p>
-      )}
+      <div className="mt-2" data-embed-mt>
+        <ReviewCommentExpandable
+          text={review.comment}
+          emptyLabel={t("noComment")}
+          moreLabel={t("more")}
+          lessLabel={t("less")}
+          textClassName="text-muted-foreground"
+        />
+      </div>
       {review.reply ? (
         <div className="mt-3 rounded-lg border border-border/50 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
           <span className="font-medium text-foreground/80">{t("replyLabel")} </span>
@@ -316,13 +320,18 @@ function EmbedReviewsWidgetBody({
         ))}
       </div>
     ) : (
-      <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [contain:layout]">
-        {reviews.map((review) => (
-          <EmbedReviewCard
-            key={`${review.platform}-${review.id}`}
-            review={review}
-          />
-        ))}
+      <div className={reviewsEditorialGridClassName}>
+        {reviews.map((review) => {
+          const featured = isReviewsEditorialFeatured(review);
+          return (
+            <div
+              key={`${review.platform}-${review.id}`}
+              className={cn(featured && reviewsEditorialFeaturedClassName)}
+            >
+              <EmbedReviewCard review={review} />
+            </div>
+          );
+        })}
       </div>
     );
 

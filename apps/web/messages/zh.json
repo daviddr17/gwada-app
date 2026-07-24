@@ -261,7 +261,9 @@
       "replyLabel": "回复：",
       "average": "平均",
       "count": "数量",
-      "starsAria": "{rating} / 5 星"
+      "starsAria": "{rating} / 5 星",
+      "more": "更多",
+      "less": "收起"
     },
     "gallery": {
       "images": "图片",

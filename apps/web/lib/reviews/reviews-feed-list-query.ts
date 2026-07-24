@@ -39,7 +39,6 @@ const SORT_KEYS = new Set<ReviewSortKey>([
   "created_asc",
   "rating_desc",
   "rating_asc",
-  "author_asc",
 ]);
 
 export const DEFAULT_REVIEWS_FEED_LIST_QUERY: ReviewsFeedListQuery = {

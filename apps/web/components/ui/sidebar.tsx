@@ -260,6 +260,7 @@ function Sidebar({
         open={openMobile}
         onClose={() => setOpenMobile(false)}
         title="Menü"
+        hideTitle
         aria-label="Menü"
       >
         <div

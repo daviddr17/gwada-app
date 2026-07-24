@@ -260,7 +260,9 @@
       "replyLabel": "Yanıt:",
       "average": "Ortalama",
       "count": "Sayı",
-      "starsAria": "5 üzerinden {rating} yıldız"
+      "starsAria": "5 üzerinden {rating} yıldız",
+      "more": "Daha fazla",
+      "less": "Daha az"
     },
     "gallery": {
       "images": "Görseller",

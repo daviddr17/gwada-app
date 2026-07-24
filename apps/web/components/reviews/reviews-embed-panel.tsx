@@ -275,7 +275,7 @@ export function ReviewsEmbedPanel() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="grid">Raster (Masonry)</SelectItem>
+              <SelectItem value="grid">Raster (Editorial)</SelectItem>
               <SelectItem value="list">Liste</SelectItem>
             </SelectContent>
           </Select>

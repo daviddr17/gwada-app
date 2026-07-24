@@ -2,6 +2,7 @@
 
 import { Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { ReviewCommentExpandable } from "@/components/reviews/review-comment-expandable";
 import { ReviewPlatformChip } from "@/components/reviews/review-platform-chip";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import {
@@ -26,6 +27,11 @@ import {
 import type { PublicEmbedReview } from "@/lib/reviews/public-reviews-server";
 import { PUBLIC_EMBED_REVIEWS_PAGE_SIZE } from "@/lib/reviews/public-embed-reviews-pagination";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import {
+  isReviewsEditorialFeatured,
+  reviewsEditorialFeaturedClassName,
+  reviewsEditorialGridClassName,
+} from "@/lib/ui/reviews-editorial-grid";
 import { cn } from "@/lib/utils";
 
 const reviewsSortSelectClass = appSelectTriggerAccentCn(
@@ -78,13 +84,9 @@ function PublicReviewRow({ review }: { review: PublicEmbedReview }) {
       {review.authorName ? (
         <p className="mt-2 text-sm font-medium">{review.authorName}</p>
       ) : null}
-      {review.comment ? (
-        <p className="mt-2 text-sm leading-relaxed text-foreground">
-          {review.comment}
-        </p>
-      ) : (
-        <p className="mt-2 text-sm text-muted-foreground">Kein Kommentar</p>
-      )}
+      <div className="mt-2">
+        <ReviewCommentExpandable text={review.comment} />
+      </div>
       {review.reply ? (
         <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
           <span className="font-medium text-muted-foreground">Antwort: </span>
@@ -103,7 +105,7 @@ function PublicReviewCard({ review }: { review: PublicEmbedReview }) {
   });
 
   return (
-    <article className="mb-4 flex w-full break-inside-avoid flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
+    <article className="flex h-full w-full flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <StarsDisplay rating={review.rating} />
@@ -122,13 +124,9 @@ function PublicReviewCard({ review }: { review: PublicEmbedReview }) {
       {review.authorName ? (
         <p className="mt-2 text-sm font-medium leading-snug">{review.authorName}</p>
       ) : null}
-      {review.comment ? (
-        <p className="mt-2 line-clamp-4 flex-1 text-sm leading-relaxed text-foreground">
-          {review.comment}
-        </p>
-      ) : (
-        <p className="mt-2 text-sm text-muted-foreground">Kein Kommentar</p>
-      )}
+      <div className="mt-2 flex-1">
+        <ReviewCommentExpandable text={review.comment} />
+      </div>
       {review.reply ? (
         <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
           <span className="font-medium text-muted-foreground">Antwort: </span>
@@ -187,10 +185,18 @@ export function RestaurantPublicProfileReviews({
         ))}
       </div>
     ) : (
-      <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [contain:layout]">
-        {pagination.items.map((review) => (
-          <PublicReviewCard key={`${review.platform}-${review.id}`} review={review} />
-        ))}
+      <div className={reviewsEditorialGridClassName}>
+        {pagination.items.map((review) => {
+          const featured = isReviewsEditorialFeatured(review);
+          return (
+            <div
+              key={`${review.platform}-${review.id}`}
+              className={cn(featured && reviewsEditorialFeaturedClassName)}
+            >
+              <PublicReviewCard review={review} />
+            </div>
+          );
+        })}
       </div>
     );
 

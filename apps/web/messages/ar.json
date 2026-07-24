@@ -260,7 +260,9 @@
       "replyLabel": "رد:",
       "average": "المتوسط",
       "count": "العدد",
-      "starsAria": "{rating} من 5 نجوم"
+      "starsAria": "{rating} من 5 نجوم",
+      "more": "المزيد",
+      "less": "أقل"
     },
     "gallery": {
       "images": "صور",

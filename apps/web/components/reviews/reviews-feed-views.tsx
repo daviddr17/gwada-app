@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarDays, Eye, EyeOff, Pin, PinOff, ScrollText, Share2, Star } from "lucide-react";
+import { ReviewCommentExpandable } from "@/components/reviews/review-comment-expandable";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,11 @@ import {
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
+import {
+  isReviewsEditorialFeatured,
+  reviewsEditorialFeaturedClassName,
+  reviewsEditorialGridClassName,
+} from "@/lib/ui/reviews-editorial-grid";
 import { cn } from "@/lib/utils";
 
 function StarsDisplay({ rating }: { rating: number }) {
@@ -223,14 +229,9 @@ export function ReviewCard({
                 </p>
               )
             ) : null}
-            {(() => {
-              const comment = formatReviewCommentDisplay(review.comment);
-              return comment ? (
-                <p className="text-sm leading-relaxed text-foreground">{comment}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">Kein Kommentar</p>
-              );
-            })()}
+            <ReviewCommentExpandable
+              text={formatReviewCommentDisplay(review.comment)}
+            />
             {review.reply ? (
               <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
                 <span className="font-medium text-muted-foreground">Antwort: </span>
@@ -271,7 +272,7 @@ export function ReviewCard({
   return (
     <Card
       className={cn(
-        "mb-4 break-inside-avoid border-border/50 shadow-card",
+        "h-full border-border/50 shadow-card",
         isUnread && "border-accent/35 bg-accent/[0.03]",
         review.hiddenFromPublic && "opacity-80",
         review.isPinned && feedPinnedItemSurfaceClassName,
@@ -336,14 +337,9 @@ export function ReviewCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
-        {(() => {
-          const comment = formatReviewCommentDisplay(review.comment);
-          return comment ? (
-            <p className="text-sm leading-relaxed text-foreground">{comment}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">Kein Kommentar</p>
-          );
-        })()}
+        <ReviewCommentExpandable
+          text={formatReviewCommentDisplay(review.comment)}
+        />
         {review.reply ? (
           <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
             <span className="font-medium text-muted-foreground">Antwort: </span>
@@ -376,16 +372,26 @@ export function ReviewsGridView({
   getReviewProps: (review: UnifiedReview) => Omit<ReviewCardActions, "review" | "showPlatform">;
 }) {
   return (
-    <div className="columns-1 gap-4 sm:columns-2 xl:columns-3 [contain:layout]">
-      {reviews.map((review) => (
-        <ReviewCard
-          key={`${review.platform}:${review.id}`}
-          review={review}
-          showPlatform={showPlatform}
-          variant="grid"
-          {...getReviewProps(review)}
-        />
-      ))}
+    <div className={reviewsEditorialGridClassName}>
+      {reviews.map((review) => {
+        const cardProps = getReviewProps(review);
+        const featured = isReviewsEditorialFeatured(review, {
+          isUnread: cardProps.isUnread,
+        });
+        return (
+          <div
+            key={`${review.platform}:${review.id}`}
+            className={cn(featured && reviewsEditorialFeaturedClassName)}
+          >
+            <ReviewCard
+              review={review}
+              showPlatform={showPlatform}
+              variant="grid"
+              {...cardProps}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

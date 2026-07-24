@@ -260,7 +260,9 @@
       "replyLabel": "Respuesta:",
       "average": "Media",
       "count": "Cantidad",
-      "starsAria": "{rating} de 5 estrellas"
+      "starsAria": "{rating} de 5 estrellas",
+      "more": "Más",
+      "less": "Menos"
     },
     "gallery": {
       "images": "Fotos",

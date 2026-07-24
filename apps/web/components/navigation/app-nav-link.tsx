@@ -6,6 +6,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   forwardRef,
   useCallback,
+  type ComponentPropsWithoutRef,
+  type FocusEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -24,88 +26,116 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
   return `${pathname}${search}`;
 }
 
+type AppNavLinkProps = {
+  href: string | { pathname?: string; search?: string };
+  children?: ReactNode;
+  className?: string;
+  onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
+  onPointerDown?: (event: PointerEvent<HTMLAnchorElement>) => void;
+  onPointerEnter?: (event: PointerEvent<HTMLAnchorElement>) => void;
+  onFocus?: (event: FocusEvent<HTMLAnchorElement>) => void;
+  prefetch?: boolean;
+  "aria-label"?: string;
+} & Omit<
+  ComponentPropsWithoutRef<typeof Link>,
+  | "href"
+  | "prefetch"
+  | "onClick"
+  | "onPointerDown"
+  | "onPointerEnter"
+  | "onFocus"
+  | "className"
+  | "children"
+  | "aria-label"
+>;
+
 /**
  * Interner Link — nativer Next-Link; parallele Modul-Klicks blockieren bis Route steht.
+ * Rest-Props durchreichen (Base-UI `Button render={<AppNavLink … />}`).
  */
-export const AppNavLink = forwardRef<
-  HTMLAnchorElement,
-  {
-    href: string | { pathname?: string; search?: string };
-    children?: ReactNode;
-    className?: string;
-    onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
-    prefetch?: boolean;
-    "aria-label"?: string;
-  }
->(function AppNavLink(
-  {
-    href,
-    children,
-    className,
-    onClick,
-    prefetch = true,
-    "aria-label": ariaLabel,
-  },
-  ref,
-) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const { tryAcquireNavLock } = useSoftNavLock();
-  const hrefStr = hrefToString(href);
-  const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
+export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
+  function AppNavLink(
+    {
+      href,
+      children,
+      className,
+      onClick,
+      onPointerDown,
+      onPointerEnter,
+      onFocus,
+      prefetch = true,
+      "aria-label": ariaLabel,
+      ...rest
+    },
+    ref,
+  ) {
+    const pathname = usePathname();
+    const router = useRouter();
+    const queryClient = useQueryClient();
+    const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+    const { tryAcquireNavLock } = useSoftNavLock();
+    const hrefStr = hrefToString(href);
+    const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
 
-  const warmOnIntent = useCallback(() => {
-    if (
-      !crossModuleNav ||
-      !workspaceReady ||
-      !restaurantId ||
-      !isUuidRestaurantId(restaurantId)
-    ) {
-      return;
-    }
-    warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
-  }, [
-    crossModuleNav,
-    workspaceReady,
-    restaurantId,
-    router,
-    queryClient,
-    hrefStr,
-  ]);
+    const warmOnIntent = useCallback(() => {
+      if (
+        !crossModuleNav ||
+        !workspaceReady ||
+        !restaurantId ||
+        !isUuidRestaurantId(restaurantId)
+      ) {
+        return;
+      }
+      warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
+    }, [
+      crossModuleNav,
+      workspaceReady,
+      restaurantId,
+      router,
+      queryClient,
+      hrefStr,
+    ]);
 
-  return (
-    <Link
-      ref={ref}
-      href={href}
-      prefetch={prefetch}
-      scroll={false}
-      className={className}
-      aria-label={ariaLabel}
-      onPointerEnter={warmOnIntent}
-      onFocus={warmOnIntent}
-      onPointerDown={(event) => {
-        // Früher als click: Skeleton/Sidebar sofort (nur Primär-Taste).
-        if (event.button !== 0 || !crossModuleNav) return;
-        tryAcquireNavLock(event, hrefStr);
-      }}
-      onClick={(event) => {
-        onClick?.(event);
-        if (event.defaultPrevented) return;
-        if (assignCrossAppWorkspaceZone(pathname, hrefStr)) {
-          event.preventDefault();
-          return;
-        }
-        // Pending ohne preventDefault — harte Locks haben Flights gekillt.
-        if (crossModuleNav) {
+    return (
+      <Link
+        ref={ref}
+        href={href}
+        prefetch={prefetch}
+        scroll={false}
+        className={className}
+        aria-label={ariaLabel}
+        {...rest}
+        onPointerEnter={(event) => {
+          onPointerEnter?.(event);
+          warmOnIntent();
+        }}
+        onFocus={(event) => {
+          onFocus?.(event);
+          warmOnIntent();
+        }}
+        onPointerDown={(event) => {
+          onPointerDown?.(event);
+          // Früher als click: Skeleton/Sidebar sofort (nur Primär-Taste).
+          if (event.button !== 0 || !crossModuleNav) return;
           tryAcquireNavLock(event, hrefStr);
-        }
-      }}
-    >
-      {children}
-    </Link>
-  );
-});
+        }}
+        onClick={(event) => {
+          onClick?.(event);
+          if (event.defaultPrevented) return;
+          if (assignCrossAppWorkspaceZone(pathname, hrefStr)) {
+            event.preventDefault();
+            return;
+          }
+          // Pending ohne preventDefault — harte Locks haben Flights gekillt.
+          if (crossModuleNav) {
+            tryAcquireNavLock(event, hrefStr);
+          }
+        }}
+      >
+        {children}
+      </Link>
+    );
+  },
+);
 
 AppNavLink.displayName = "AppNavLink";

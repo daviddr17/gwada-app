@@ -438,19 +438,20 @@ export async function runDisplayTimeAction(
 
   if (params.action === "clock_out") {
     const isAuto = isDisplayAutoClockOutDue(open, autoClockOut, nowDate);
-    // Pause am gleichen Tag beenden: kein Push. Auto-Abmeldung: Push mit Hinweis.
-    const skipNotify = open.entry_type === "break" && !isAuto;
-    await closeOpenEntry(admin, open.id, now);
-    if (!skipNotify) {
-      await emitStaffDisplayClockNotification(admin, {
-        restaurantId: params.restaurantId,
-        staffId: params.staffId,
-        shiftId: open.shift_id,
-        action: "clock_out",
-        at: now,
-        ...(isAuto ? { auto: true } : {}),
-      });
+    // Manuell: erst Pause beenden, dann Schicht beenden — verhindert Split-Schichten.
+    // Auto-Abmeldung (Übernacht) darf weiterhin eine offene Pause schließen.
+    if (open.entry_type === "break" && !isAuto) {
+      return { ok: false, error: "end_break_first", status: 409 };
     }
+    await closeOpenEntry(admin, open.id, now);
+    await emitStaffDisplayClockNotification(admin, {
+      restaurantId: params.restaurantId,
+      staffId: params.staffId,
+      shiftId: open.shift_id,
+      action: "clock_out",
+      at: now,
+      ...(isAuto ? { auto: true } : {}),
+    });
     return {
       ok: true,
       state: { status: "off", clocked_in_at: null, break_started_at: null },

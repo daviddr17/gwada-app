@@ -372,6 +372,9 @@ export function StaffWorkHoursView({
 
   const entryRowClassName =
     "flex w-full items-start gap-2 rounded-lg border border-border/40 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45";
+  /** Kein eigener Border — der Display-Schicht-Container ist der sichtbare Rahmen. */
+  const displayShiftRowClassName =
+    "group flex w-full flex-col gap-1 rounded-lg text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45";
 
   const siblingEntries = useMemo(() => {
     if (!drawerOpen || !drawerStaffId) return [];
@@ -811,20 +814,18 @@ export function StaffWorkHoursView({
                             <button
                               key={item.shiftId}
                               type="button"
-                              className={entryRowClassName}
+                              className={displayShiftRowClassName}
                               onClick={() => openDisplayShift(item.segments)}
                             >
-                              <div className="min-w-0 flex-1">
-                                {!staffId && shiftStaffLabel ? (
-                                  <p className="mb-1 text-xs text-muted-foreground">
-                                    {shiftStaffLabel}
-                                  </p>
-                                ) : null}
-                                <StaffDisplayShiftRow
-                                  segments={item.segments}
-                                  timeZone={restaurantTimeZone}
-                                />
-                              </div>
+                              {!staffId && shiftStaffLabel ? (
+                                <p className="px-0.5 text-xs text-muted-foreground">
+                                  {shiftStaffLabel}
+                                </p>
+                              ) : null}
+                              <StaffDisplayShiftRow
+                                segments={item.segments}
+                                timeZone={restaurantTimeZone}
+                              />
                             </button>
                           );
                         }

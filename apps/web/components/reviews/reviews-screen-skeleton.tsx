@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
+import { FeedTimelineDateSkeleton } from "@/components/feed/feed-timeline-date-skeleton";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import type { ReviewViewMode } from "@/lib/reviews/reviews-screen-query";
 import { cn } from "@/lib/utils";
@@ -31,7 +32,25 @@ function ReviewSummaryCardSkeleton() {
   );
 }
 
-function ReviewCardSkeleton() {
+function ReviewTimelineRowSkeleton() {
+  return (
+    <li className="flex gap-3 pb-3 sm:gap-4">
+      <FeedTimelineDateSkeleton />
+      <SkeletonCardFrame className="min-w-0 flex-1 space-y-3 rounded-xl border border-border/50 p-3.5 shadow-card sm:p-4">
+        <div className="flex items-center justify-between gap-2">
+          <Skeleton className="h-5 w-28 rounded-full" />
+          <Skeleton className="h-3 w-20 shrink-0 rounded-md" />
+        </div>
+        <Skeleton className="h-4 w-36 max-w-[55%] rounded-md" />
+        <Skeleton className="h-3 w-full rounded-md" />
+        <Skeleton className="h-3 w-[85%] rounded-md" />
+        <Skeleton className="h-8 w-24 rounded-lg" />
+      </SkeletonCardFrame>
+    </li>
+  );
+}
+
+function ReviewListCardSkeleton() {
   return (
     <SkeletonCardFrame className="space-y-3 p-6 shadow-card">
       <div className="flex items-start justify-between gap-2">
@@ -73,15 +92,15 @@ export function ReviewsScreenSkeleton({
         {viewMode === "list" ? (
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <ReviewCardSkeleton key={i} />
+              <ReviewListCardSkeleton key={i} />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <ReviewCardSkeleton key={i} />
+          <ul className="space-y-0">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <ReviewTimelineRowSkeleton key={i} />
             ))}
-          </div>
+          </ul>
         )}
       </div>
     </div>

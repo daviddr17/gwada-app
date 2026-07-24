@@ -52,17 +52,20 @@ async function githubFetch(
   init?: RequestInit,
   token = githubDeployToken(),
 ): Promise<GithubFetchResult> {
-  if (!token) throw new Error("github_deploy_token_missing");
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  // Öffentliche Reads (Commit/Branches) ohne Token — Deploy-Aktionen brauchen weiterhin PAT.
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const res = await raceWithTimeout(
     fetch(`https://api.github.com${path}`, {
       ...init,
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-        ...(init?.headers ?? {}),
-      },
+      headers,
       cache: "no-store",
     }),
     GITHUB_API_TIMEOUT_MS,
@@ -131,7 +134,10 @@ function pickActiveRun(
 
 function githubApiErrorHint(msg: string): string {
   if (msg === "github_api_401" || msg === "github_api_403") {
-    return "GITHUB_DEPLOY_TOKEN ungültig oder ohne Repo-/Workflow-Rechte.";
+    return "GitHub-API abgelehnt — bei privatem Repo GITHUB_DEPLOY_TOKEN prüfen.";
+  }
+  if (msg === "github_deploy_token_missing") {
+    return "GITHUB_DEPLOY_TOKEN fehlt (nur für Deploy nötig; Commit-Status nutzt öffentliche API).";
   }
   return "GitHub-API nicht erreichbar.";
 }
@@ -392,19 +398,6 @@ export async function fetchGithubHeadCommit(
   branch = githubDeployBranch(),
 ): Promise<SuperadminGithubHeadCommit & { reachable: boolean }> {
   const repo = githubRepoSlug();
-  const token = githubDeployToken();
-
-  if (!token) {
-    return {
-      sha: null,
-      shortSha: null,
-      message: "GITHUB_DEPLOY_TOKEN fehlt für Commit-Abfrage.",
-      author: null,
-      committedAt: null,
-      htmlUrl: null,
-      reachable: false,
-    };
-  }
 
   try {
     const body = (await githubFetchJson(
@@ -451,18 +444,6 @@ export async function fetchGithubBranches(): Promise<{
 }> {
   const repo = githubRepoSlug();
   const deployBranch = githubDeployBranch();
-  const configured = Boolean(githubDeployToken());
-
-  if (!configured) {
-    return {
-      branches: [],
-      defaultBranch: deployBranch,
-      description: null,
-      pushedAt: null,
-      reachable: false,
-      message: "GITHUB_DEPLOY_TOKEN fehlt für Branch-Liste.",
-    };
-  }
 
   try {
     const [repoBody, branchBody] = await Promise.all([

@@ -53,7 +53,10 @@ import type {
 } from "@/lib/types/dashboard-global-search";
 import { DASHBOARD_GLOBAL_SEARCH_MIN_QUERY_LENGTH } from "@/lib/types/dashboard-global-search";
 import { cn } from "@/lib/utils";
-import { acquireAppScrollLock } from "@/lib/layout/app-scroll-root";
+import {
+  acquireAppScrollLock,
+  forceResetAppScrollLocks,
+} from "@/lib/layout/app-scroll-root";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -144,24 +147,31 @@ export function DashboardGlobalSearchOverlay() {
   const openReservationFromSearch = useCallback(
     async (item: DashboardGlobalSearchResultItem) => {
       if (!restaurantId) return;
-      closeSearch();
       setReservationDayYmd(item.dayYmd ?? null);
-      setReservationOpen(true);
-      setReservationRow(null);
       const { data, error } = await fetchReservationById({
         restaurantId,
         id: item.id,
       });
       if (error || !data) {
         toast.error("Reservierung nicht gefunden.");
-        setReservationOpen(false);
         setReservationDayYmd(null);
         return;
       }
+      // Suche erst schließen, wenn Daten da sind — sonst Vaul-/Scroll-Lock-Race.
+      closeSearch();
+      forceResetAppScrollLocks();
       setReservationRow(data);
+      setReservationOpen(true);
     },
     [restaurantId, closeSearch],
   );
+
+  const closeReservationDrawer = useCallback(() => {
+    setReservationOpen(false);
+    setReservationRow(null);
+    setReservationDayYmd(null);
+    forceResetAppScrollLocks();
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -169,6 +179,8 @@ export function DashboardGlobalSearchOverlay() {
 
   useEffect(() => {
     if (open) {
+      // Falls ein Drawer-Overlay/Lock hängen blieb: Suche wieder bedienbar machen.
+      forceResetAppScrollLocks();
       setPresented(true);
       const frame = requestAnimationFrame(() => inputRef.current?.focus());
       return () => cancelAnimationFrame(frame);
@@ -286,7 +298,7 @@ export function DashboardGlobalSearchOverlay() {
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || reservationOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -313,7 +325,15 @@ export function DashboardGlobalSearchOverlay() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, closeSearch, moveSelection, navigateTo, flatItems, activeKey]);
+  }, [
+    open,
+    reservationOpen,
+    closeSearch,
+    moveSelection,
+    navigateTo,
+    flatItems,
+    activeKey,
+  ]);
 
 
   const trimmedQuery = query.trim();
@@ -441,55 +461,51 @@ export function DashboardGlobalSearchOverlay() {
     </div>
   );
 
-  const reservationDrawer = (
+  const reservationDrawer = reservationOpen ? (
     <ReservationEditDrawer
       open={reservationOpen}
       onOpenChange={(nextOpen) => {
-        setReservationOpen(nextOpen);
-        if (!nextOpen) {
-          setReservationRow(null);
-          setReservationDayYmd(null);
-        }
+        if (!nextOpen) closeReservationDrawer();
       }}
       reservation={reservationRow}
       createFor={null}
       overlapReservations={[]}
       dayOverviewHref={reservationDayHref}
-      onSaved={() => {
-        setReservationOpen(false);
-        setReservationRow(null);
-        setReservationDayYmd(null);
-      }}
+      onSaved={closeReservationDrawer}
     />
-  );
+  ) : null;
 
   if (isMobile) {
     return (
       <>
-      <AppMobileChromeScreen
-        open={open}
-        onClose={closeSearch}
-        title="Suche"
-        aria-label="Globale Suche"
-      >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0 border-b border-border/50">{searchField}</div>
-          <div
-            ref={listRef}
-            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3"
-          >
-            {results}
+        <AppMobileChromeScreen
+          open={open}
+          onClose={closeSearch}
+          title="Suche"
+          aria-label="Globale Suche"
+        >
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="shrink-0 border-b border-border/50">{searchField}</div>
+            <div
+              ref={listRef}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3"
+            >
+              {results}
+            </div>
           </div>
-        </div>
-      </AppMobileChromeScreen>
-      {reservationDrawer}
+        </AppMobileChromeScreen>
+        {reservationDrawer}
       </>
     );
   }
 
+  // Suche zuletzt portalen — liegt über evtl. Drawer-Resten; geschlossen: null wie zuvor.
+  if (!mounted) return reservationDrawer;
+
   return (
     <>
-      {mounted && open
+      {reservationDrawer}
+      {open
         ? createPortal(
             <div
               className={cn(
@@ -580,7 +596,6 @@ export function DashboardGlobalSearchOverlay() {
             document.body,
           )
         : null}
-      {reservationDrawer}
     </>
   );
 }

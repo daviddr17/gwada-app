@@ -57,6 +57,8 @@ export function FeedMediaImage({
   const [loadFailed, setLoadFailed] = useState(false);
   const [useFullRes, setUseFullRes] = useState(() => !feedOptimized && !thumbSrc);
   const [feedUseFull, setFeedUseFull] = useState(false);
+  /** Galerie: Full-Res erst einblenden, wenn wirklich geladen (Thumb bleibt darunter). */
+  const [fullOpaque, setFullOpaque] = useState(false);
   const resolvedSrc = feedOptimized
     ? feedUseFull
       ? src
@@ -69,6 +71,7 @@ export function FeedMediaImage({
   const loadedRef = useRef(false);
 
   useEffect(() => {
+    if (naturalSize) return;
     loadedRef.current = false;
     pendingRegisteredRef.current = false;
     setLoaded(false);
@@ -84,7 +87,26 @@ export function FeedMediaImage({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ein Pending pro resolvedSrc
-  }, [resolvedSrc, feedOptimized]);
+  }, [resolvedSrc, feedOptimized, naturalSize]);
+
+  useEffect(() => {
+    if (!naturalSize) return;
+    loadedRef.current = false;
+    pendingRegisteredRef.current = false;
+    setLoaded(false);
+    setLoadFailed(false);
+    setFullOpaque(false);
+    setUseFullRes(!feedOptimized && !thumbSrc?.trim());
+    layoutStable?.registerPending();
+    pendingRegisteredRef.current = true;
+
+    return () => {
+      if (pendingRegisteredRef.current && !loadedRef.current) {
+        layoutStable?.markLoaded();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Pending pro Bild-URL-Paar
+  }, [naturalSize, src, thumbSrc, feedOptimized]);
 
   const finishLoad = () => {
     if (!loadedRef.current) {
@@ -126,20 +148,24 @@ export function FeedMediaImage({
   const imgClasses = cn(
     fit === "cover" ? "object-cover" : "object-contain",
     !feedOptimized && "transition-opacity duration-300 ease-out",
-    !naturalSize && "absolute inset-0 size-full",
-    naturalSize && "block h-auto w-full",
-    !naturalSize && !loadFailed && (loaded ? "opacity-100" : "opacity-0"),
+    "absolute inset-0 size-full",
+    !loadFailed && (loaded ? "opacity-100" : "opacity-0"),
     imgClassName,
   );
 
+  /**
+   * Galerie-Fotowand: Seitenverhältnis aus Metadaten reservieren (kein
+   * Column-Reflow) + Thumb bleibt unter Full-Res (kein Remount-Flash).
+   */
   if (naturalSize) {
+    const thumb = thumbSrc?.trim() || null;
+    const full = src.trim();
+    const hasThumb = Boolean(thumb && thumb !== full);
+
     return (
       <div
-        className={cn(
-          "relative w-full overflow-hidden bg-muted/40",
-          !loaded && blurDataUrl && "min-h-[8rem]",
-          className,
-        )}
+        className={cn("relative w-full overflow-hidden bg-muted/40", className)}
+        style={{ aspectRatio }}
       >
         {blurDataUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -150,19 +176,54 @@ export function FeedMediaImage({
             className="pointer-events-none absolute inset-0 size-full scale-110 object-cover blur-md"
           />
         ) : null}
-        {!loadFailed ? (
+        {hasThumb && !loadFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            key={resolvedSrc}
-            src={resolvedSrc}
+            src={thumb!}
+            alt={fullOpaque ? "" : alt}
+            aria-hidden={fullOpaque || undefined}
+            width={dims.width}
+            height={dims.height}
+            loading={priority ? "eager" : "lazy"}
+            decoding="async"
+            onLoad={() => {
+              finishLoad();
+              if (!feedOptimized) setUseFullRes(true);
+            }}
+            onError={handleError}
+            className={cn(
+              fit === "cover" ? "object-cover" : "object-contain",
+              "absolute inset-0 size-full",
+              imgClassName,
+            )}
+          />
+        ) : null}
+        {!loadFailed && (!hasThumb || useFullRes) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={full}
             alt={alt}
             width={dims.width}
             height={dims.height}
             loading={priority ? "eager" : "lazy"}
             decoding="async"
-            onLoad={finishLoad}
+            onLoad={() => {
+              setFullOpaque(true);
+              finishLoad();
+            }}
             onError={handleError}
-            className={imgClasses}
+            className={cn(
+              fit === "cover" ? "object-cover" : "object-contain",
+              "absolute inset-0 size-full transition-opacity duration-500 ease-out",
+              hasThumb
+                ? fullOpaque
+                  ? "opacity-100"
+                  : "opacity-0"
+                : loaded
+                  ? "opacity-100"
+                  : "opacity-0",
+              imgClassName,
+            )}
           />
         ) : null}
       </div>

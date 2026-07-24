@@ -24,6 +24,7 @@ import { useProfilePublicDockBridge } from "@/components/public/profile-public-d
 import { reportRestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { RestaurantPublicProfileHeroCard } from "@/components/public/restaurant-public-profile-hero-card";
 import { RestaurantPublicProfileModuleSkeleton } from "@/components/public/restaurant-public-profile-module-skeleton";
+import { GalleryMasonryGridSkeleton } from "@/components/gallery/gallery-masonry-grid";
 import { RestaurantPublicProfileReviews } from "@/components/public/restaurant-public-profile-reviews";
 import { RestaurantPublicProfileNews } from "@/components/public/restaurant-public-profile-news";
 import { RestaurantPublicProfileEvents } from "@/components/public/restaurant-public-profile-events";
@@ -133,12 +134,16 @@ function ModulePanel({
   showLoading,
   error,
   children,
+  loadingFallback,
 }: {
   showLoading: boolean;
   error: string | null;
   children: React.ReactNode;
+  loadingFallback?: React.ReactNode;
 }) {
-  if (showLoading) return <RestaurantPublicProfileModuleSkeleton />;
+  if (showLoading) {
+    return <>{loadingFallback ?? <RestaurantPublicProfileModuleSkeleton />}</>;
+  }
   if (error) {
     return (
       <div className="rounded-2xl border border-border/50 bg-card p-8 text-center text-sm text-muted-foreground shadow-card">
@@ -910,7 +915,9 @@ function ProfileAppContent({
     return (
       <div className="p-4 pb-8 sm:p-5">
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!gallery && loading.gallery)}
+          // Mit Cache sofort die Wand zeigen — kein Form-Skeleton-Flash beim Sheet-Open.
+          showLoading={!gallery && (deferHeavyWidgets || loading.gallery)}
+          loadingFallback={<GalleryMasonryGridSkeleton edgeToEdge count={10} />}
           error={errors.gallery}
         >
           {gallery ? <RestaurantPublicProfileGallery gallery={gallery} /> : null}

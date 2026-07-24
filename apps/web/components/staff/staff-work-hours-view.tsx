@@ -418,7 +418,8 @@ export function StaffWorkHoursView({
             )}
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-2.5">
-              <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+              {/* Bis lg volle Breite → „Heute“ wrappt; schmale Sidebar-Layouts überdecken sonst den Jahres-Pfeil. */}
+              <div className="flex w-full min-w-0 items-center gap-0.5 sm:gap-1 lg:w-auto lg:shrink-0">
                 <Button
                   type="button"
                   variant="ghost"
@@ -439,7 +440,7 @@ export function StaffWorkHoursView({
                   <SelectTrigger
                     size="sm"
                     className={appSelectTriggerAccentCn(
-                      "h-8 min-h-8 min-w-[8.25rem] max-w-[11rem] shrink-0 rounded-xl px-2 text-left text-sm font-normal transition-[height,min-height,min-width] duration-200 ease-out sm:h-9 sm:min-h-9 sm:min-w-[9.5rem] sm:max-w-[12rem] sm:px-2.5",
+                      "h-8 min-h-8 w-auto min-w-[8.25rem] max-w-[11rem] shrink-0 rounded-xl px-2 text-left text-sm font-normal transition-[height,min-height,min-width] duration-200 ease-out sm:h-9 sm:min-h-9 sm:min-w-[9.5rem] sm:max-w-[12rem] sm:px-2.5",
                       selectValueNoShrink,
                     )}
                   >
@@ -463,7 +464,6 @@ export function StaffWorkHoursView({
                   <SelectTrigger
                     size="sm"
                     className={appSelectTriggerAccentCn(
-                      // Jahr + Chevron brauchen mehr als 4.25rem — sonst liegt „Heute“ über dem Pfeil.
                       "h-8 min-h-8 min-w-[5.75rem] w-auto shrink-0 rounded-xl px-2.5 text-left text-sm font-normal tabular-nums transition-[height,min-height] duration-200 ease-out sm:h-9 sm:min-h-9 sm:min-w-[6.25rem] sm:px-3",
                       selectValueNoShrink,
                     )}
@@ -496,7 +496,7 @@ export function StaffWorkHoursView({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="ml-auto h-7 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-2.5 text-xs font-medium text-green-800 transition-[height,padding,font-size] duration-200 ease-out hover:bg-green-500/15 hover:text-green-900 sm:ml-0 sm:h-8 sm:px-3 sm:text-sm dark:text-green-200 dark:hover:text-green-100"
+                className="ml-auto h-7 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-2.5 text-xs font-medium text-green-800 transition-[height,padding,font-size] duration-200 ease-out hover:bg-green-500/15 hover:text-green-900 sm:h-8 sm:px-3 sm:text-sm dark:text-green-200 dark:hover:text-green-100"
                 onClick={goToToday}
               >
                 Heute

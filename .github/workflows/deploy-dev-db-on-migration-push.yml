@@ -1,9 +1,11 @@
-# Temporär: Dev-DB-Migrationen per Push, weil workflow_dispatch für den Agenten 403 ist.
+# Dev-DB-Migrationen per Push (main + cursor/*), weil workflow_dispatch für den Agenten 403 ist.
 name: Deploy DB dev (migration push)
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "cursor/**"
     paths:
       - "supabase/migrations/**"
       - ".github/workflows/deploy-dev-db-on-migration-push.yml"

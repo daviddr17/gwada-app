@@ -252,6 +252,31 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
   return <article className="flex w-full gap-3 sm:gap-4">{body}</article>;
 });
 
+const NewsTimelineRowClickable = memo(function NewsTimelineRowClickable({
+  item,
+  onItemClick,
+  inlineExpandBody,
+  showConnectorBelow,
+}: {
+  item: UnifiedNewsItem;
+  onItemClick?: (item: UnifiedNewsItem) => void;
+  inlineExpandBody?: boolean;
+  showConnectorBelow: boolean;
+}) {
+  const onClick = useCallback(() => {
+    onItemClick?.(item);
+  }, [item, onItemClick]);
+
+  return (
+    <NewsTimelineRow
+      item={item}
+      inlineExpandBody={inlineExpandBody}
+      showConnectorBelow={showConnectorBelow}
+      onClick={onItemClick ? onClick : undefined}
+    />
+  );
+});
+
 export function NewsTimelineView({
   items,
   onItemClick,
@@ -285,11 +310,11 @@ export function NewsTimelineView({
               </li>
             ) : null}
             <li className="pb-3 last:pb-0">
-              <NewsTimelineRow
+              <NewsTimelineRowClickable
                 item={item}
+                onItemClick={onItemClick}
                 inlineExpandBody={inlineExpandBody}
                 showConnectorBelow={index < items.length - 1}
-                onClick={onItemClick ? () => onItemClick(item) : undefined}
               />
             </li>
           </Fragment>

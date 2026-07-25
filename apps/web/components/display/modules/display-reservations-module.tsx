@@ -990,8 +990,11 @@ export function DisplayReservationsModule() {
     <button
       key={id}
       type="button"
-      onClick={() => setViewMode(id)}
+      onClick={() =>
+        setViewMode((prev) => (prev === id && id !== "list" ? "list" : id))
+      }
       className={cn("relative", displayFilterChipClassName(viewMode === id))}
+      aria-pressed={viewMode === id}
     >
       {label}
       {badge != null && badge > 0 ? (

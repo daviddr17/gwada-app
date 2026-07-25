@@ -132,7 +132,7 @@ export function DisplayPinPad({
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-[clamp(0.5rem,1.6dvh,1.1rem)]",
+        "flex flex-col items-center gap-[clamp(0.75rem,2.4dvh,1.5rem)]",
         className,
       )}
       role="group"
@@ -191,7 +191,7 @@ export function DisplayPinPad({
       </motion.div>
 
       <motion.div
-        className="grid w-full max-w-[min(24rem,86vw)] grid-cols-3 place-items-center gap-[clamp(0.45rem,1.4dvh,1rem)]"
+        className="grid w-full max-w-[min(24rem,86vw)] grid-cols-3 place-items-center gap-[clamp(0.5rem,1.8dvh,1.15rem)]"
         animate={
           rejectActive && !reduceMotion
             ? { x: PIN_REJECT_SHAKE_X }

@@ -106,8 +106,8 @@ export function DisplayPinStandbyScene({
       <DisplayPinStandbyBackground accentHex={accentHex} />
       <div
         className={cn(
-          // Kompakter Abstand zu sticky Header/Footer — mehr Platz für große PIN-Tasten.
-          "relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(0.4rem,1.4dvh,0.85rem)] px-4 py-[clamp(0.35rem,1.2dvh,0.75rem)]",
+          // Große PIN-Tasten, aber klarer Luftspalt zum sticky Chrome-Footer.
+          "relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(0.65rem,2.2dvh,1.25rem)] px-4 py-[clamp(0.75rem,2.8dvh,1.5rem)] pb-[clamp(1rem,3.5dvh,1.75rem)]",
           className,
         )}
       >

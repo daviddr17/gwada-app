@@ -182,9 +182,10 @@ export function AppSidebar() {
       if (!isMobile) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
-      if (target.closest("a[href], button")) {
-        setOpenMobile(false);
-      }
+      if (!target.closest("a[href], button")) return;
+      // Nicht synchron im Capture schließen: sonst unmountet/animiert das Sheet
+      // noch im selben Tick und Soft-Nav/Link-Clicks wirken tot.
+      window.setTimeout(() => setOpenMobile(false), 0);
     },
     [isMobile, setOpenMobile],
   );

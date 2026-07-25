@@ -129,7 +129,7 @@ export function DisplayPinPad({
   );
   const keyDigitClassName = cn(
     keyClassName,
-    "text-[clamp(1.35rem,4.2dvh,1.875rem)] font-semibold",
+    "text-[clamp(1.35rem,4.2dvh,1.875rem)] font-semibold leading-none",
   );
 
   return (
@@ -143,7 +143,7 @@ export function DisplayPinPad({
       aria-busy={busy}
     >
       <motion.div
-        className="flex shrink-0 gap-[clamp(0.55rem,1.4dvh,1rem)]"
+        className="flex shrink-0 items-center justify-center gap-[clamp(0.55rem,1.4dvh,1rem)] px-1 py-[clamp(0.35rem,1dvh,0.55rem)]"
         aria-hidden
         animate={
           rejectActive && !reduceMotion
@@ -159,36 +159,44 @@ export function DisplayPinPad({
         {Array.from({ length: maxLength }).map((_, i) => {
           const filled = i < value.length;
           return (
-            <motion.div
+            /**
+             * Slot fester Größe — Scale der Kugel bleibt innerhalb des Slots.
+             * Sonst clippen Parent-`overflow-hidden` (iPad-Chrome) die Pop-Animation oben.
+             */
+            <div
               key={i}
-              className={cn(
-                "size-[clamp(1.05rem,2.4dvh,1.65rem)] rounded-full border-[3px]",
-                rejectActive
-                  ? "border-destructive bg-destructive/15"
-                  : filled
-                    ? "border-accent bg-accent"
-                    : "border-muted-foreground/35 bg-muted/30",
-              )}
-              animate={{
-                scale:
+              className="flex size-[clamp(1.35rem,3.1dvh,2rem)] shrink-0 items-center justify-center"
+            >
+              <motion.div
+                className={cn(
+                  "size-[clamp(1.05rem,2.4dvh,1.65rem)] origin-center rounded-full border-[3px]",
+                  rejectActive
+                    ? "border-destructive bg-destructive/15"
+                    : filled
+                      ? "border-accent bg-accent"
+                      : "border-muted-foreground/35 bg-muted/30",
+                )}
+                animate={{
+                  scale:
+                    busy && filled && !rejectActive
+                      ? [1, 1.06, 1]
+                      : filled && !rejectActive
+                        ? 1.12
+                        : rejectActive
+                          ? [1, 1.08, 1]
+                          : 1,
+                  opacity:
+                    busy && filled && !rejectActive ? [1, 0.78, 1] : 1,
+                }}
+                transition={
                   busy && filled && !rejectActive
-                    ? [1, 1.06, 1]
-                    : filled && !rejectActive
-                      ? 1.12
-                      : rejectActive
-                        ? [1, 1.08, 1]
-                        : 1,
-                opacity:
-                  busy && filled && !rejectActive ? [1, 0.78, 1] : 1,
-              }}
-              transition={
-                busy && filled && !rejectActive
-                  ? { duration: 0.9, repeat: Infinity, ease: "easeInOut" }
-                  : rejectActive
-                    ? { duration: DISPLAY_PIN_REJECT_MS / 1000, ease: MOTION_EASE_OUT }
-                    : { type: "spring", stiffness: 520, damping: 32, mass: 0.65 }
-              }
-            />
+                    ? { duration: 0.9, repeat: Infinity, ease: "easeInOut" }
+                    : rejectActive
+                      ? { duration: DISPLAY_PIN_REJECT_MS / 1000, ease: MOTION_EASE_OUT }
+                      : { type: "spring", stiffness: 520, damping: 32, mass: 0.65 }
+                }
+              />
+            </div>
           );
         })}
       </motion.div>

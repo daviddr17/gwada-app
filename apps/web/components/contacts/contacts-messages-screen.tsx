@@ -326,9 +326,21 @@ export function ContactsMessagesScreen({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const contactParam = searchParams.get("contact");
   const platformParam = searchParams.get("platform");
   const readParam = searchParams.get("read");
+
+  /** Keep-alive: nie Soft-Nav zurückreißen — auch nicht nach async await. */
+  const navigateNachrichten = useCallback(
+    (href: string, mode: "replace" | "push" = "replace") => {
+      if (!activeRef.current) return;
+      if (mode === "push") router.push(href);
+      else router.replace(href);
+    },
+    [router],
+  );
 
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
@@ -701,7 +713,9 @@ export function ContactsMessagesScreen({
       const params = new URLSearchParams(searchParams.toString());
       params.set("platform", next);
       if (contactParam) params.set("contact", contactParam);
-      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+      navigateNachrichten(
+        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      );
     }
   }, [
     active,
@@ -711,23 +725,26 @@ export function ContactsMessagesScreen({
     platformParam,
     contactParam,
     isInboxFilterAvailable,
-    router,
+    navigateNachrichten,
     searchParams,
   ]);
 
   useEffect(() => {
+    if (!active) return;
     const next = parseConversationReadFilter(readParam);
     setReadFilter((prev) => (prev === next ? prev : next));
-  }, [readParam]);
+  }, [active, readParam]);
 
   const selectReadFilter = useCallback(
     (filter: ConversationReadFilter) => {
       setReadFilter(filter);
       const params = new URLSearchParams(searchParams.toString());
       applyConversationReadFilterToSearchParams(params, filter);
-      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+      navigateNachrichten(
+        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      );
     },
-    [router, searchParams],
+    [navigateNachrichten, searchParams],
   );
 
   const loadConversations = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
@@ -1321,6 +1338,8 @@ export function ContactsMessagesScreen({
   ]);
 
   useEffect(() => {
+    // Fremde Modul-URLs nicht als Inbox-Params interpretieren (Keep-alive).
+    if (!active) return;
     if (!restaurantId || connectionsLoading) return;
 
     if (!contactParam) {
@@ -1334,6 +1353,7 @@ export function ContactsMessagesScreen({
       silent: Boolean(cached && cached.messages.length > 0),
     });
   }, [
+    active,
     contactParam,
     connectionsLoading,
     restaurantId,
@@ -1348,7 +1368,9 @@ export function ContactsMessagesScreen({
     params.set("platform", filter);
     params.delete("contact");
     applyConversationReadFilterToSearchParams(params, readFilter);
-    router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+    navigateNachrichten(
+      `/dashboard/kontakte/nachrichten?${params.toString()}`,
+    );
   };
 
   const canOpenLinkedContact = useCallback(
@@ -1397,9 +1419,11 @@ export function ContactsMessagesScreen({
       const params = new URLSearchParams();
       params.set("platform", INBOX_FILTER_ALL);
       params.set("contact", contactId);
-      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+      navigateNachrichten(
+        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      );
     },
-    [restaurantId, router],
+    [restaurantId, navigateNachrichten],
   );
 
   const linkMetaThreadToExistingContact = useCallback(
@@ -1647,7 +1671,7 @@ export function ContactsMessagesScreen({
               toast.info(
                 `E-Mail ist bereits bei „${existing.displayName}“ hinterlegt — bestehender Kontakt wird geöffnet.`,
               );
-              router.replace(
+              navigateNachrichten(
                 `/dashboard/kontakte/nachrichten?platform=all&contact=${existing.contactId}`,
               );
               return;
@@ -1663,7 +1687,12 @@ export function ContactsMessagesScreen({
         setContactDrawerOpen(true);
       })();
     },
-    [defaultCountryIso2, linkWahaThreadToExistingContact, restaurantId],
+    [
+      defaultCountryIso2,
+      linkWahaThreadToExistingContact,
+      navigateNachrichten,
+      restaurantId,
+    ],
   );
 
   const openConversation = (contactId: string) => {
@@ -1704,7 +1733,10 @@ export function ContactsMessagesScreen({
     const params = new URLSearchParams(searchParams.toString());
     params.set("platform", inboxFilter);
     params.set("contact", contactId);
-    router.push(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+    navigateNachrichten(
+      `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      "push",
+    );
   };
 
   const backToList = useCallback(() => {
@@ -1714,12 +1746,14 @@ export function ContactsMessagesScreen({
       const params = new URLSearchParams();
       params.set("platform", inboxFilter);
       applyConversationReadFilterToSearchParams(params, readFilter);
-      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+      navigateNachrichten(
+        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      );
     }
     window.setTimeout(() => {
       setClosingThreadId(null);
     }, CONTACT_INBOX_THREAD_OVERLAY_MS);
-  }, [contactParam, inboxFilter, readFilter, router]);
+  }, [contactParam, inboxFilter, readFilter, navigateNachrichten]);
 
   const resolveChatGuestPrefill = useCallback(async () => {
     const threadId = overlayThreadId;
@@ -3032,7 +3066,7 @@ export function ContactsMessagesScreen({
                 }
                 setPendingInboxLink(null);
                 setContactCreateDraft(null);
-                router.replace(
+                navigateNachrichten(
                   `/dashboard/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
                 );
                 return;
@@ -3065,7 +3099,7 @@ export function ContactsMessagesScreen({
                 }
                 setPendingInboxLink(null);
                 setContactCreateDraft(null);
-                router.replace(
+                navigateNachrichten(
                   `/dashboard/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
                 );
                 return;
@@ -3074,7 +3108,7 @@ export function ContactsMessagesScreen({
               toast.success("Kontakt angelegt.");
               setPendingInboxLink(null);
               setContactCreateDraft(null);
-              router.replace(
+              navigateNachrichten(
                 `/dashboard/kontakte/nachrichten?platform=email&contact=${detail.contactId}`,
               );
               return;

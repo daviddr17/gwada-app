@@ -19,6 +19,8 @@
     "start": "pnpm --filter web start",
     "start:live": "pnpm --filter web start:live",
     "lint": "pnpm --filter web lint",
+    "test:keep-alive-nav": "node scripts/test-module-home-keep-alive-nav.mjs && node scripts/audit-module-home-keep-alive-nav.mjs && node scripts/simulate-sidebar-soft-nav-keepalive.mjs",
+    "test:keep-alive-nav:e2e": "dotenv -e .env.development -- node scripts/e2e-sidebar-soft-nav-keepalive.mjs",
     "dev:staff": "pnpm --filter staff start",
     "dev:staff:ios": "bash scripts/staff-ios-simulator.sh",
     "staff:env:lan": "node scripts/staff-lan-env.mjs && node apps/staff/scripts/generate-staff-env.js",
@@ -93,6 +95,7 @@
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",
+    "playwright": "^1.62.0",
     "supabase": "^2.98.2"
   }
 }

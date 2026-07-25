@@ -2597,6 +2597,7 @@ export type Database = {
           dining_table_id: string | null
           dwell_minutes: number | null
           ends_at: string
+          guest_company: string | null
           guest_email: string | null
           guest_first_name: string
           guest_last_name: string
@@ -2627,6 +2628,7 @@ export type Database = {
           dining_table_id?: string | null
           dwell_minutes?: number | null
           ends_at: string
+          guest_company?: string | null
           guest_email?: string | null
           guest_first_name: string
           guest_last_name: string
@@ -2657,6 +2659,7 @@ export type Database = {
           dining_table_id?: string | null
           dwell_minutes?: number | null
           ends_at?: string
+          guest_company?: string | null
           guest_email?: string | null
           guest_first_name?: string
           guest_last_name?: string

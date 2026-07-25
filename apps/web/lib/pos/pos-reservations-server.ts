@@ -12,6 +12,7 @@ import {
 } from "@/lib/reservations/reservation-log-build";
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
 } from "@/lib/reservations/reservation-guest-name";
@@ -28,6 +29,7 @@ export type PosReservationDto = {
   reservationNumber: number;
   guestFirstName: string;
   guestLastName: string;
+  guestCompany: string | null;
   guestPhone: string | null;
   guestEmail: string | null;
   partySize: number;
@@ -82,6 +84,7 @@ function mapDayPayload(
       reservationNumber: r.reservation_number,
       guestFirstName: r.guest_first_name,
       guestLastName: r.guest_last_name,
+      guestCompany: r.guest_company,
       guestPhone: r.guest_phone,
       guestEmail: r.guest_email,
       partySize: r.party_size,
@@ -140,6 +143,7 @@ export async function createPosReservation(params: {
   profileId: string | null;
   guestFirstName?: string | null;
   guestLastName: string;
+  guestCompany?: string | null;
   guestPhone?: string | null;
   guestEmail?: string | null;
   partySize: number;
@@ -171,6 +175,7 @@ export async function createPosReservation(params: {
     return { ok: false, error: "last_name_required", status: 400 };
   }
   const given = normalizeReservationGuestFirstName(params.guestFirstName ?? "");
+  const guestCompany = normalizeReservationGuestCompany(params.guestCompany);
 
   if (
     !params.startsAt ||
@@ -229,6 +234,7 @@ export async function createPosReservation(params: {
       restaurant_id: params.restaurantId,
       guest_first_name: given,
       guest_last_name: family,
+      guest_company: guestCompany,
       guest_phone: guestPhone,
       guest_email: guestEmail,
       party_size: params.partySize,
@@ -258,6 +264,7 @@ export async function createPosReservation(params: {
     reservationNumber: data.reservation_number as number,
     guestFirstName: given,
     guestLastName: family,
+    guestCompany,
     partySize: params.partySize,
     startsAt,
     endsAt,
@@ -292,6 +299,7 @@ export async function createPosReservation(params: {
         reservationNumber: row.reservation_number,
         guestFirstName: row.guest_first_name,
         guestLastName: row.guest_last_name,
+        guestCompany: row.guest_company,
         guestPhone: row.guest_phone,
         guestEmail: row.guest_email,
         partySize: row.party_size,
@@ -335,6 +343,7 @@ async function writePosCreateLog(
     reservationNumber: number;
     guestFirstName: string;
     guestLastName: string;
+    guestCompany: string | null;
     partySize: number;
     startsAt: string;
     endsAt: string;
@@ -381,6 +390,7 @@ async function writePosCreateLog(
     {
       guest_first_name: params.guestFirstName,
       guest_last_name: params.guestLastName,
+      guest_company: params.guestCompany,
       guest_phone: params.guestPhone,
       guest_email: params.guestEmail,
       party_size: params.partySize,
@@ -408,6 +418,7 @@ async function writePosCreateLog(
       params.reservationNumber,
       params.guestFirstName,
       params.guestLastName,
+      params.guestCompany,
     ),
     details: buildReservationLogDetails(buildReservationLogChanges(null, after), {
       actorSource: "staff",

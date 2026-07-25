@@ -42,6 +42,7 @@ export function reservationSnapshotFromListRow(
     {
       guest_first_name: row.guest_first_name,
       guest_last_name: row.guest_last_name,
+      guest_company: row.guest_company,
       guest_phone: row.guest_phone,
       guest_email: row.guest_email,
       party_size: row.party_size,
@@ -70,6 +71,7 @@ export async function logReservationMutationFromBrowser(params: {
   reservationNumber: number;
   guestFirstName: string;
   guestLastName: string;
+  guestCompany?: string | null;
   action: ReservationLogAction;
   before: ReservationLogSnapshot | null;
   after: ReservationLogSnapshot;
@@ -87,6 +89,7 @@ export async function logReservationMutationFromBrowser(params: {
       params.reservationNumber,
       params.guestFirstName,
       params.guestLastName,
+      params.guestCompany,
     ),
     details: buildReservationLogDetails(changes, { actorSource: "staff" }),
   });
@@ -113,6 +116,7 @@ export async function logReservationCreateFromBrowser(params: {
     reservationNumber: params.reservationNumber,
     guestFirstName: params.guestFirstName,
     guestLastName: params.guestLastName,
+    guestCompany: params.payload.guest_company,
     action: "created",
     before: null,
     after,
@@ -141,6 +145,7 @@ export async function logReservationUpdateFromBrowser(params: {
     reservationNumber: params.reservation.reservation_number,
     guestFirstName: params.payload.guest_first_name,
     guestLastName: params.payload.guest_last_name,
+    guestCompany: params.payload.guest_company,
     action: "updated",
     before,
     after,
@@ -159,6 +164,7 @@ export async function logReservationDeleteFromBrowser(
       reservation.reservation_number,
       reservation.guest_first_name,
       reservation.guest_last_name,
+      reservation.guest_company,
     ),
     details: buildReservationLogDetails([], {
       actorSource: "staff",
@@ -176,6 +182,7 @@ export async function logReservationTableAssignFromBrowser(params: {
   const payload: ReservationUpdatePayload = {
     guest_first_name: params.reservation.guest_first_name,
     guest_last_name: params.reservation.guest_last_name,
+    guest_company: params.reservation.guest_company,
     guest_phone: params.reservation.guest_phone,
     guest_email: params.reservation.guest_email,
     party_size: params.reservation.party_size,

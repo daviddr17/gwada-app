@@ -15,6 +15,7 @@ import {
   type PublicReservationUpdateBody,
 } from "@/lib/reservations/public-embed-shared";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
 } from "@/lib/reservations/reservation-guest-name";
@@ -339,6 +340,7 @@ export async function createPublicReservation(
       (new Date(body.ends_at).getTime() - new Date(body.starts_at).getTime()) /
         60_000,
     ) || restaurant.defaultDwellMinutes;
+  const guestCompany = normalizeReservationGuestCompany(body.guest_company);
 
   const { data, error } = await admin
     .from("reservations")
@@ -346,6 +348,7 @@ export async function createPublicReservation(
       restaurant_id: restaurant.id,
       guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
       guest_last_name: normalizeReservationGuestLastName(body.guest_last_name),
+      guest_company: guestCompany,
       guest_phone: body.guest_phone?.trim() || null,
       guest_email: body.guest_email?.trim() || null,
       party_size: body.party_size,
@@ -372,6 +375,7 @@ export async function createPublicReservation(
     {
       guest_first_name: guestFirst,
       guest_last_name: guestLast,
+      guest_company: guestCompany,
       guest_phone: body.guest_phone?.trim() || null,
       guest_email: body.guest_email?.trim() || null,
       party_size: body.party_size,
@@ -397,6 +401,7 @@ export async function createPublicReservation(
       data.reservation_number as number,
       guestFirst,
       guestLast,
+      guestCompany,
     ),
     details: buildReservationLogDetails(
       buildReservationLogChanges(null, after, restaurant.timezone),
@@ -455,6 +460,7 @@ export async function loadPublicReservationForManage(
       reservation_number,
       guest_first_name,
       guest_last_name,
+      guest_company,
       guest_phone,
       guest_email,
       party_size,
@@ -486,6 +492,7 @@ export async function loadPublicReservationForManage(
       reservation_number: data.reservation_number,
       guest_first_name: data.guest_first_name,
       guest_last_name: data.guest_last_name,
+      guest_company: data.guest_company ?? null,
       guest_phone: data.guest_phone,
       guest_email: data.guest_email,
       party_size: data.party_size,
@@ -583,6 +590,7 @@ export async function updatePublicReservation(
   const patch = {
     guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
     guest_last_name: normalizeReservationGuestLastName(body.guest_last_name),
+    guest_company: normalizeReservationGuestCompany(body.guest_company),
     guest_phone: body.guest_phone?.trim() || null,
     guest_email: body.guest_email?.trim() || null,
     party_size: body.party_size,
@@ -607,6 +615,7 @@ export async function updatePublicReservation(
       {
         guest_first_name: existing.guest_first_name,
         guest_last_name: existing.guest_last_name,
+        guest_company: existing.guest_company,
         guest_phone: existing.guest_phone,
         guest_email: existing.guest_email,
         party_size: existing.party_size,
@@ -637,6 +646,7 @@ export async function updatePublicReservation(
         existing.reservation_number,
         patch.guest_first_name,
         patch.guest_last_name,
+        patch.guest_company,
       ),
       details: buildReservationLogDetails(
         buildReservationLogChanges(before, after, restaurantRes.data.timezone),
@@ -708,6 +718,7 @@ export async function updatePublicReservation(
     {
       guest_first_name: existing.guest_first_name,
       guest_last_name: existing.guest_last_name,
+      guest_company: existing.guest_company,
       guest_phone: existing.guest_phone,
       guest_email: existing.guest_email,
       party_size: existing.party_size,
@@ -738,6 +749,7 @@ export async function updatePublicReservation(
       existing.reservation_number,
       patch.guest_first_name,
       patch.guest_last_name,
+      patch.guest_company,
     ),
     details: buildReservationLogDetails(
       buildReservationLogChanges(before, after, restaurantRes.data.timezone),

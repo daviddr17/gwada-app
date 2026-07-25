@@ -8,6 +8,7 @@ import type { ReservationUpdatePayload } from "@/lib/supabase/reservations-db";
 export type ReservationLogSnapshot = {
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -56,6 +57,7 @@ export function reservationSnapshotFromPayload(
   return {
     guest_first_name: payload.guest_first_name,
     guest_last_name: payload.guest_last_name,
+    guest_company: payload.guest_company,
     guest_phone: payload.guest_phone,
     guest_email: payload.guest_email,
     party_size: payload.party_size,
@@ -82,6 +84,9 @@ export function buildReservationLogChanges(
 
   if (!before) {
     pushChange(changes, "guest", "Gast", null, guestName(after));
+    if (after.guest_company) {
+      pushChange(changes, "guest_company", "Firma", null, after.guest_company);
+    }
     pushChange(changes, "party_size", "Personen", null, strOrDash(after.party_size));
     pushChange(
       changes,
@@ -96,6 +101,13 @@ export function buildReservationLogChanges(
   }
 
   pushChange(changes, "guest", "Gast", guestName(before), guestName(after));
+  pushChange(
+    changes,
+    "guest_company",
+    "Firma",
+    strOrDash(before.guest_company),
+    strOrDash(after.guest_company),
+  );
   pushChange(
     changes,
     "party_size",

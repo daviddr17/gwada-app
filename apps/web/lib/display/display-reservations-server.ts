@@ -70,6 +70,7 @@ export type DisplayReservationRow = {
   contact_id: string | null;
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -119,6 +120,7 @@ function mapReservationRow(row: Record<string, unknown>): DisplayReservationRow 
     contact_id: (row.contact_id as string | null) ?? null,
     guest_first_name: row.guest_first_name as string,
     guest_last_name: row.guest_last_name as string,
+    guest_company: (row.guest_company as string | null | undefined) ?? null,
     guest_phone: (row.guest_phone as string | null) ?? null,
     guest_email: (row.guest_email as string | null) ?? null,
     party_size: row.party_size as number,
@@ -177,6 +179,7 @@ export async function loadDisplayReservationsDay(
         contact_id,
         guest_first_name,
         guest_last_name,
+        guest_company,
         guest_phone,
         guest_email,
         party_size,
@@ -302,6 +305,7 @@ export async function loadDisplayReservationDetail(
         contact_id,
         guest_first_name,
         guest_last_name,
+        guest_company,
         guest_phone,
         guest_email,
         guest_pin,
@@ -399,6 +403,7 @@ export async function loadDisplayReservationsLiveSnapshot(
         contact_id,
         guest_first_name,
         guest_last_name,
+        guest_company,
         guest_phone,
         guest_email,
         party_size,
@@ -458,6 +463,7 @@ export async function loadDisplayReservationRowById(
         contact_id,
         guest_first_name,
         guest_last_name,
+        guest_company,
         guest_phone,
         guest_email,
         party_size,
@@ -505,6 +511,7 @@ export async function loadDisplayOpenReservations(restaurantId: string) {
         contact_id,
         guest_first_name,
         guest_last_name,
+        guest_company,
         guest_phone,
         guest_email,
         party_size,

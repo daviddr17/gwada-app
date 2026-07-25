@@ -65,6 +65,7 @@ export async function createReservationFromVoiceParsed(params: {
   const payload = {
     guest_first_name: normalizeReservationGuestFirstName(params.parsed.guestFirstName),
     guest_last_name: normalizeReservationGuestLastName(params.parsed.guestLastName),
+    guest_company: null,
     guest_phone: null,
     guest_email: null,
     party_size: params.parsed.partySize,
@@ -123,6 +124,7 @@ export async function createReservationFromVoiceParsed(params: {
       dwell_minutes: payload.dwell_minutes,
       guest_first_name: payload.guest_first_name,
       guest_last_name: payload.guest_last_name,
+      guest_company: payload.guest_company,
       party_size: payload.party_size,
       statusId,
       statusCode: status?.code ?? "confirmed",

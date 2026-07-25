@@ -160,6 +160,13 @@ export function ReservationChangeRequestPanel({
         {diffKeys.includes("guest") ? (
           <DiffRow label="Gast" before={guestBefore} after={guestAfter} />
         ) : null}
+        {diffKeys.includes("guest_company") ? (
+          <DiffRow
+            label="Firma"
+            before={reservation.guest_company ?? "—"}
+            after={pending.guest_company ?? "—"}
+          />
+        ) : null}
         {diffKeys.includes("party_size") ? (
           <DiffRow
             label="Personen"

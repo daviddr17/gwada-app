@@ -38,6 +38,7 @@ function snapshotFromRow(
     {
       guest_first_name: row.guest_first_name as string,
       guest_last_name: row.guest_last_name as string,
+      guest_company: (row.guest_company as string | null) ?? null,
       guest_phone: (row.guest_phone as string | null) ?? null,
       guest_email: (row.guest_email as string | null) ?? null,
       party_size: row.party_size as number,
@@ -63,6 +64,7 @@ function snapshotFromPending(
     {
       guest_first_name: pending.guest_first_name,
       guest_last_name: pending.guest_last_name,
+      guest_company: pending.guest_company,
       guest_phone: pending.guest_phone,
       guest_email: pending.guest_email,
       party_size: pending.party_size,
@@ -88,6 +90,7 @@ async function logChangeRequestAction(
     reservationNumber: number;
     guestFirstName: string;
     guestLastName: string;
+    guestCompany?: string | null;
     action: ReservationLogAction;
     before: ReservationLogSnapshot;
     after: ReservationLogSnapshot;
@@ -105,6 +108,7 @@ async function logChangeRequestAction(
       params.reservationNumber,
       params.guestFirstName,
       params.guestLastName,
+      params.guestCompany,
     ),
     details: buildReservationLogDetails(changes, {
       ...displayReservationLogActorFields(params.actor),
@@ -131,6 +135,7 @@ export async function approveDisplayReservationChangeRequest(
       reservation_number,
       guest_first_name,
       guest_last_name,
+      guest_company,
       guest_phone,
       guest_email,
       party_size,
@@ -182,6 +187,7 @@ export async function approveDisplayReservationChangeRequest(
     .update({
       guest_first_name: pending.guest_first_name,
       guest_last_name: pending.guest_last_name,
+      guest_company: pending.guest_company,
       guest_phone: pending.guest_phone,
       guest_email: pending.guest_email,
       party_size: pending.party_size,
@@ -205,6 +211,7 @@ export async function approveDisplayReservationChangeRequest(
     reservationNumber: row.reservation_number as number,
     guestFirstName: pending.guest_first_name,
     guestLastName: pending.guest_last_name,
+    guestCompany: pending.guest_company,
     action: "change_request_approved",
     before: beforeSnapshot,
     after: afterSnapshot,
@@ -251,6 +258,7 @@ export async function declineDisplayReservationChangeRequest(
       reservation_number,
       guest_first_name,
       guest_last_name,
+      guest_company,
       status_before_change_id,
       ${RESERVATION_STATUS_EMBED} ( code )`,
     )
@@ -290,6 +298,7 @@ export async function declineDisplayReservationChangeRequest(
       row.reservation_number as number,
       row.guest_first_name as string,
       row.guest_last_name as string,
+      (row.guest_company as string | null) ?? null,
     ),
     details: buildReservationLogDetails([], {
       ...displayReservationLogActorFields(actor),

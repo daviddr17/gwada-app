@@ -61,6 +61,7 @@ export async function createDisplayReservationFromVoiceParsed(params: {
     body: JSON.stringify({
       guest_first_name: normalizeReservationGuestFirstName(params.parsed.guestFirstName),
       guest_last_name: normalizeReservationGuestLastName(params.parsed.guestLastName),
+      guest_company: null,
       guest_phone: null,
       guest_email: null,
       party_size: params.parsed.partySize,

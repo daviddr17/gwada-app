@@ -27,6 +27,7 @@ import {
 export type DisplayCreateReservationInput = {
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -58,6 +59,7 @@ export async function createDisplayReservation(
       restaurant_id: restaurantId,
       guest_first_name: input.guest_first_name,
       guest_last_name: input.guest_last_name,
+      guest_company: input.guest_company,
       guest_phone: input.guest_phone,
       guest_email: input.guest_email,
       party_size: input.party_size,
@@ -119,6 +121,7 @@ export async function createDisplayReservation(
       data.reservation_number as number,
       guestFirst,
       guestLast,
+      input.guest_company,
     ),
     details: buildReservationLogDetails(
       buildReservationLogChanges(null, after),
@@ -167,6 +170,7 @@ export async function updateDisplayReservationStatus(
       reservation_number,
       guest_first_name,
       guest_last_name,
+      guest_company,
       notify_email,
       notify_whatsapp,
       ${RESERVATION_STATUS_EMBED} ( code, name )
@@ -221,6 +225,7 @@ export async function updateDisplayReservationStatus(
         reservation.reservation_number as number,
         reservation.guest_first_name as string,
         reservation.guest_last_name as string,
+        (reservation.guest_company as string | null) ?? null,
       ),
       details: buildReservationLogDetails([], {
         ...displayReservationLogActorFields(actor),
@@ -246,6 +251,7 @@ export async function updateDisplayReservationStatus(
 export type DisplayUpdateReservationInput = {
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -277,6 +283,7 @@ export async function updateDisplayReservation(
       reservation_number,
       guest_first_name,
       guest_last_name,
+      guest_company,
       guest_phone,
       guest_email,
       party_size,
@@ -333,6 +340,7 @@ export async function updateDisplayReservation(
     {
       guest_first_name: reservation.guest_first_name as string,
       guest_last_name: reservation.guest_last_name as string,
+      guest_company: (reservation.guest_company as string | null) ?? null,
       guest_phone: (reservation.guest_phone as string | null) ?? null,
       guest_email: (reservation.guest_email as string | null) ?? null,
       party_size: reservation.party_size as number,
@@ -362,6 +370,7 @@ export async function updateDisplayReservation(
     .update({
       guest_first_name: input.guest_first_name,
       guest_last_name: input.guest_last_name,
+      guest_company: input.guest_company,
       guest_phone: input.guest_phone,
       guest_email: input.guest_email,
       party_size: input.party_size,
@@ -393,6 +402,7 @@ export async function updateDisplayReservation(
         reservation.reservation_number as number,
         input.guest_first_name,
         input.guest_last_name,
+        input.guest_company,
       ),
       details: buildReservationLogDetails(changes, {
         ...displayReservationLogActorFields(actor),
@@ -448,7 +458,7 @@ export async function updateDisplayReservationTable(
   const { data: reservation } = await admin
     .from("reservations")
     .select(
-      "id, restaurant_id, reservation_number, guest_first_name, guest_last_name, dining_table_id, status_id",
+      "id, restaurant_id, reservation_number, guest_first_name, guest_last_name, guest_company, dining_table_id, status_id",
     )
     .eq("id", reservationId)
     .maybeSingle();
@@ -497,6 +507,7 @@ export async function updateDisplayReservationTable(
         reservation.reservation_number as number,
         reservation.guest_first_name as string,
         reservation.guest_last_name as string,
+        (reservation.guest_company as string | null) ?? null,
       ),
       details: buildReservationLogDetails([], {
         ...displayReservationLogActorFields(actor),
@@ -535,7 +546,7 @@ export async function deleteDisplayReservation(
   const { data: reservation } = await admin
     .from("reservations")
     .select(
-      "id, restaurant_id, reservation_number, guest_first_name, guest_last_name",
+      "id, restaurant_id, reservation_number, guest_first_name, guest_last_name, guest_company",
     )
     .eq("id", reservationId)
     .maybeSingle();
@@ -560,6 +571,7 @@ export async function deleteDisplayReservation(
       reservation.reservation_number as number,
       reservation.guest_first_name as string,
       reservation.guest_last_name as string,
+      (reservation.guest_company as string | null) ?? null,
     ),
     details: buildReservationLogDetails([], {
       ...displayReservationLogActorFields(actor),

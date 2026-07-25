@@ -38,6 +38,7 @@ export type PublicGuestReservation = {
   reservation_number: number;
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -55,6 +56,7 @@ export type PublicReservationCreateBody = {
   slug: string;
   guest_first_name: string;
   guest_last_name: string;
+  guest_company?: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -72,6 +74,7 @@ export type PublicReservationUpdateBody = {
   pin: string;
   guest_first_name: string;
   guest_last_name: string;
+  guest_company?: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;

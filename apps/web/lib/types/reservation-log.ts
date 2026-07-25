@@ -39,10 +39,12 @@ export function formatReservationGuestLabel(
   reservationNumber: number,
   guestFirstName: string,
   guestLastName: string,
+  guestCompany?: string | null,
 ): string {
   const name =
     `${guestFirstName.trim()} ${guestLastName.trim()}`.trim() || "Gast";
-  return `#${reservationNumber} · ${name}`;
+  const company = guestCompany?.trim();
+  return `#${reservationNumber} · ${company ? `${name} · ${company}` : name}`;
 }
 
 function reservationLogLooksLikeDisplay(details: ReservationLogDetails): boolean {

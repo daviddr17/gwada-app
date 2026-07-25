@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef } from "react";
 import {
   dispatchDashboardReservationsLiveInsert,
   dispatchDashboardReservationsLiveUpdate,
+  GWADA_PLATFORM_RESERVATIONS_OWN_CREATE_EVENT,
+  type PlatformReservationsOwnCreateDetail,
 } from "@/lib/dashboard/dashboard-live-events";
 import {
   reservationLiveInsertFromRecord,
@@ -26,25 +28,31 @@ import { subscribeRestaurantTableChanges } from "@/lib/supabase/restaurant-table
 const PLATFORM_POLL_MS = 60_000;
 const REALTIME_READY_TIMEOUT_MS = 12_000;
 const UPDATE_PATCH_DEBOUNCE_MS = 500;
+const OWN_CREATE_SUPPRESS_MS = 15_000;
 
 /**
  * Reservierungen: Realtime INSERT + UPDATE; bei Ausfall oder `/sb`-Proxy Polling (60 s).
+ * Eigene Anlagen (Drawer/Sprache) unterdrücken den blauen „Neue Reservierung“-Toast.
  */
 export function usePlatformReservationsLive() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { user, ready: authReady } = useWorkspaceAuthSession();
   const hasUserRef = useRef(Boolean(user));
+  const userIdRef = useRef<string | null>(user?.id ?? null);
   const toastRef = useRef(false);
   const lastSignalRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
   const realtimeSubscribedRef = useRef(false);
   const updateDebounceRef = useRef<number | null>(null);
+  const ownCreateIdsRef = useRef(new Set<string>());
+  const ownCreateTimersRef = useRef(new Map<string, number>());
   const sbRef = useRef(createSupabaseBrowserClient());
   const polling = useVisibleIntervalPolling(PLATFORM_POLL_MS);
 
   useEffect(() => {
     hasUserRef.current = Boolean(user);
+    userIdRef.current = user?.id ?? null;
   }, [user]);
 
   const canReceive =
@@ -65,18 +73,38 @@ export function usePlatformReservationsLive() {
     }, UPDATE_PATCH_DEBOUNCE_MS);
   }, [restaurantId]);
 
+  const isOwnCreate = useCallback(
+    (raw?: Record<string, unknown>, reservationId?: string | null) => {
+      const id =
+        reservationId ??
+        (typeof raw?.id === "string" ? raw.id : null);
+      if (id && ownCreateIdsRef.current.has(id)) return true;
+      const actor =
+        typeof raw?.created_by_profile_id === "string"
+          ? raw.created_by_profile_id
+          : null;
+      const me = userIdRef.current;
+      return Boolean(actor && me && actor === me);
+    },
+    [],
+  );
+
   const notifyNewReservation = useCallback(
     (
       row: ReservationLiveToastFields | null,
       raw?: Record<string, unknown>,
+      options?: { reservationId?: string | null },
     ) => {
-      if (!toastRef.current) {
+      const own = isOwnCreate(raw, options?.reservationId);
+      if (!own && !toastRef.current) {
         toastRef.current = true;
         showNewReservationToast(row, restaurantTimeZone);
         setTimeout(() => {
           toastRef.current = false;
         }, 2_000);
       }
+      // Eigene Anlage wurde schon optimistisch gepatcht — kein zweites Insert-Event.
+      if (own) return;
       if (restaurantId && raw) {
         const insert = reservationLiveInsertFromRecord(raw);
         if (insert) {
@@ -86,7 +114,7 @@ export function usePlatformReservationsLive() {
       }
       scheduleUpdatePatch();
     },
-    [restaurantId, restaurantTimeZone, scheduleUpdatePatch],
+    [restaurantId, restaurantTimeZone, scheduleUpdatePatch, isOwnCreate],
   );
 
   const handleLiveSignal = useCallback(
@@ -99,12 +127,47 @@ export function usePlatformReservationsLive() {
         return;
       }
       if (lastSignalRef.current && latest !== lastSignalRef.current) {
-        notifyNewReservation(signal.latest, undefined);
+        notifyNewReservation(signal.latest, undefined, {
+          reservationId: signal.latestId,
+        });
       }
       lastSignalRef.current = latest;
     },
     [notifyNewReservation],
   );
+
+  useEffect(() => {
+    const onOwnCreate = (event: Event) => {
+      const detail = (event as CustomEvent<PlatformReservationsOwnCreateDetail>)
+        .detail;
+      if (!detail?.reservationId) return;
+      ownCreateIdsRef.current.add(detail.reservationId);
+      const prev = ownCreateTimersRef.current.get(detail.reservationId);
+      if (prev) window.clearTimeout(prev);
+      ownCreateTimersRef.current.set(
+        detail.reservationId,
+        window.setTimeout(() => {
+          ownCreateIdsRef.current.delete(detail.reservationId);
+          ownCreateTimersRef.current.delete(detail.reservationId);
+        }, OWN_CREATE_SUPPRESS_MS),
+      );
+    };
+    window.addEventListener(
+      GWADA_PLATFORM_RESERVATIONS_OWN_CREATE_EVENT,
+      onOwnCreate,
+    );
+    return () => {
+      window.removeEventListener(
+        GWADA_PLATFORM_RESERVATIONS_OWN_CREATE_EVENT,
+        onOwnCreate,
+      );
+      for (const timer of ownCreateTimersRef.current.values()) {
+        window.clearTimeout(timer);
+      }
+      ownCreateTimersRef.current.clear();
+      ownCreateIdsRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     if (!canReceive || !restaurantId) return;

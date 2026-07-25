@@ -29,6 +29,23 @@ export function dispatchDashboardReservationsLiveInsert(
   );
 }
 
+/** Eigene Anlage (Drawer/Sprache) — Live-Toast „Neue Reservierung“ unterdrücken. */
+export const GWADA_PLATFORM_RESERVATIONS_OWN_CREATE_EVENT =
+  "gwada:platform-reservations-own-create";
+
+export type PlatformReservationsOwnCreateDetail = {
+  reservationId: string;
+};
+
+export function notifyPlatformReservationOwnCreate(
+  detail: PlatformReservationsOwnCreateDetail,
+): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(GWADA_PLATFORM_RESERVATIONS_OWN_CREATE_EVENT, { detail }),
+  );
+}
+
 export function dispatchDashboardMessagesRefresh(
   detail?: DashboardMessagesRefreshDetail,
 ): void {

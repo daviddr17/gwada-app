@@ -842,7 +842,7 @@ function ProfileAppContent({
     return (
       <div className={sheetPadClassName}>
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!reservation && loading.reservation)}
+          showLoading={!reservation && (deferHeavyWidgets || loading.reservation)}
           loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="form" />}
           error={errors.reservation}
         >
@@ -863,7 +863,7 @@ function ProfileAppContent({
     return (
       <div className="pb-8 pt-0">
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!menu && loading.menu)}
+          showLoading={!menu && (deferHeavyWidgets || loading.menu)}
           loadingFallback={
             <div className={sheetPadClassName}>
               <RestaurantPublicProfileModuleSkeleton variant="menu" />
@@ -893,7 +893,7 @@ function ProfileAppContent({
     return (
       <div className={sheetPadClassName}>
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!news && loading.news)}
+          showLoading={!news && (deferHeavyWidgets || loading.news)}
           loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="news" />}
           error={errors.news}
         >
@@ -907,7 +907,7 @@ function ProfileAppContent({
     return (
       <div className={sheetPadClassName}>
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!events && loading.events)}
+          showLoading={!events && (deferHeavyWidgets || loading.events)}
           loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="events" />}
           error={errors.events}
         >
@@ -935,7 +935,7 @@ function ProfileAppContent({
   return (
     <div className={sheetPadClassName}>
       <ModulePanel
-        showLoading={deferHeavyWidgets || (!reviews && loading.reviews)}
+        showLoading={!reviews && (deferHeavyWidgets || loading.reviews)}
         loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="timeline" />}
         error={errors.reviews}
       >

@@ -91,6 +91,17 @@ function lerpRect(
   };
 }
 
+function applyFrameStyle(
+  el: HTMLElement | null,
+  rect: GalleryLightboxOriginRect,
+): void {
+  if (!el) return;
+  el.style.top = `${rect.top}px`;
+  el.style.left = `${rect.left}px`;
+  el.style.width = `${rect.width}px`;
+  el.style.height = `${rect.height}px`;
+}
+
 export function ProfileGalleryLightbox({
   items,
   index,
@@ -103,14 +114,16 @@ export function ProfileGalleryLightbox({
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const [phase, setPhase] = useState<"idle" | "opening" | "open" | "closing">("idle");
-  const [frame, setFrame] = useState<GalleryLightboxOriginRect | null>(null);
-  const [backdropOpacity, setBackdropOpacity] = useState(0);
   const [chromeVisible, setChromeVisible] = useState(false);
   const animRef = useRef<number | null>(null);
   const openSessionRef = useRef(0);
   const openCycleActiveRef = useRef(false);
   const touchStartX = useRef<number | null>(null);
   const openingFromRef = useRef<GalleryLightboxOriginRect | null>(null);
+  const frameRef = useRef<GalleryLightboxOriginRect | null>(null);
+  const backdropOpacityRef = useRef(0);
+  const frameElRef = useRef<HTMLDivElement | null>(null);
+  const backdropElRef = useRef<HTMLButtonElement | null>(null);
 
   const safeIndex = clampIndex(index, items.length);
   const item = items[safeIndex] ?? null;
@@ -128,6 +141,15 @@ export function ProfileGalleryLightbox({
     }
   }, []);
 
+  const paintFrame = useCallback((rect: GalleryLightboxOriginRect, opacity: number) => {
+    frameRef.current = rect;
+    backdropOpacityRef.current = opacity;
+    applyFrameStyle(frameElRef.current, rect);
+    if (backdropElRef.current) {
+      backdropElRef.current.style.opacity = String(opacity);
+    }
+  }, []);
+
   const tween = useCallback(
     (
       from: GalleryLightboxOriginRect,
@@ -139,16 +161,14 @@ export function ProfileGalleryLightbox({
     ) => {
       cancelAnim();
       if (reduceMotion || durationMs <= 0) {
-        setFrame(to);
-        setBackdropOpacity(backdropTo);
+        paintFrame(to, backdropTo);
         onDone();
         return;
       }
       const start = performance.now();
       const tick = (now: number) => {
         const t = easeOutCubic(Math.min(1, (now - start) / durationMs));
-        setFrame(lerpRect(from, to, t));
-        setBackdropOpacity(backdropFrom + (backdropTo - backdropFrom) * t);
+        paintFrame(lerpRect(from, to, t), backdropFrom + (backdropTo - backdropFrom) * t);
         if (t < 1) {
           animRef.current = requestAnimationFrame(tick);
         } else {
@@ -158,7 +178,7 @@ export function ProfileGalleryLightbox({
       };
       animRef.current = requestAnimationFrame(tick);
     },
-    [cancelAnim, reduceMotion],
+    [cancelAnim, paintFrame, reduceMotion],
   );
 
   // Open: morph from clicked thumb into viewport (or soft scale-up without origin).
@@ -184,33 +204,33 @@ export function ProfileGalleryLightbox({
     setVisible(true);
     setPhase("opening");
     setChromeVisible(false);
-    setFrame(from);
-    setBackdropOpacity(0);
-
-    tween(from, to, 340, 0, 1, () => {
-      if (openSessionRef.current !== session) return;
-      setFrame(to);
-      setBackdropOpacity(1);
-      setPhase("open");
-      setChromeVisible(true);
+    // Paint after mount of portal nodes.
+    requestAnimationFrame(() => {
+      paintFrame(from, 0);
+      tween(from, to, 340, 0, 1, () => {
+        if (openSessionRef.current !== session) return;
+        paintFrame(to, 1);
+        setPhase("open");
+        setChromeVisible(true);
+      });
     });
-  }, [open, originRect, item, aspect, tween]);
+  }, [open, originRect, item, aspect, tween, paintFrame]);
 
   // Soft resize when aspect / window changes while open.
   useEffect(() => {
     if (!visible || phase !== "open") return;
-    const sync = () => setFrame(viewportTarget(aspect));
+    const sync = () => paintFrame(viewportTarget(aspect), 1);
     sync();
     window.addEventListener("resize", sync);
     return () => window.removeEventListener("resize", sync);
-  }, [visible, phase, aspect, safeIndex]);
+  }, [visible, phase, aspect, safeIndex, paintFrame]);
 
   const finishClose = useCallback(() => {
     cancelAnim();
     setVisible(false);
     setPhase("idle");
-    setFrame(null);
-    setBackdropOpacity(0);
+    frameRef.current = null;
+    backdropOpacityRef.current = 0;
     setChromeVisible(false);
     openingFromRef.current = null;
     onOpenChange(false);
@@ -219,18 +239,18 @@ export function ProfileGalleryLightbox({
   const requestClose = useCallback(() => {
     if (!visible || phase === "closing" || !item) return;
     const session = ++openSessionRef.current;
-    const from = frame ?? viewportTarget(aspect);
+    const from = frameRef.current ?? viewportTarget(aspect);
     const to =
       readGalleryLightboxThumbRect(item.id) ??
       openingFromRef.current ??
       viewportTarget(aspect);
     setPhase("closing");
     setChromeVisible(false);
-    tween(from, to, 300, backdropOpacity, 0, () => {
+    tween(from, to, 300, backdropOpacityRef.current, 0, () => {
       if (openSessionRef.current !== session) return;
       finishClose();
     });
-  }, [visible, phase, item, frame, aspect, backdropOpacity, tween, finishClose]);
+  }, [visible, phase, item, aspect, tween, finishClose]);
 
   // Parent closed externally.
   useEffect(() => {
@@ -288,30 +308,33 @@ export function ProfileGalleryLightbox({
 
   useEffect(() => () => cancelAnim(), [cancelAnim]);
 
-  if (!mounted || !visible || !item || !frame) return null;
+  if (!mounted || !visible || !item) return null;
 
   const { src, thumbSrc } = galleryItemDisplayUrls(item);
   const videoSrc = item.fullUrl?.trim() || item.previewUrl;
   const title = item.title?.trim() || item.caption?.trim() || "";
   const showChrome = chromeVisible && phase === "open";
+  const initialFrame = frameRef.current ?? openingFromRef.current ?? viewportTarget(aspect);
 
   return createPortal(
     <div className="fixed inset-0 z-[220]" role="dialog" aria-modal="true" aria-label="Galerie">
       <button
+        ref={backdropElRef}
         type="button"
         aria-label="Schließen"
         className="absolute inset-0 bg-black/80"
-        style={{ opacity: backdropOpacity }}
+        style={{ opacity: backdropOpacityRef.current }}
         onClick={requestClose}
       />
 
       <div
+        ref={frameElRef}
         className="absolute overflow-hidden rounded-md bg-black shadow-2xl"
         style={{
-          top: frame.top,
-          left: frame.left,
-          width: frame.width,
-          height: frame.height,
+          top: initialFrame.top,
+          left: initialFrame.left,
+          width: initialFrame.width,
+          height: initialFrame.height,
           willChange: "top, left, width, height",
         }}
         onClick={(e) => e.stopPropagation()}

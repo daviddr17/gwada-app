@@ -127,10 +127,12 @@ export function useProfileModuleCache(slug: string) {
 
   const preloadModules = useCallback(
     async (modules: ProfileModuleKey[]) => {
-      for (const module of modules) {
-        if (cacheRef.current[module]) continue;
-        await loadModule(module, { silent: true });
-        await new Promise((resolve) => setTimeout(resolve, 32));
+      const pending = modules.filter((module) => !cacheRef.current[module]);
+      /** Parallel (max 2) — sequentiell ließ Klicks oft im Cold-Path landen. */
+      const CONCURRENCY = 2;
+      for (let i = 0; i < pending.length; i += CONCURRENCY) {
+        const chunk = pending.slice(i, i + CONCURRENCY);
+        await Promise.all(chunk.map((module) => loadModule(module, { silent: true })));
       }
     },
     [loadModule],

@@ -92,10 +92,16 @@ export const gwadaGalleryConnector: GalleryPlatformConnector = {
 
     if (error) return { error: error.message };
 
+    const rows = (data ?? []) as GwadaGalleryRow[];
+    /** Signed-URL-Calls parallel (gedrosselt) — sequentiell war der Profil-Galerie-Cold-Path. */
+    const CONCURRENCY = 8;
     const items: UnifiedGalleryItem[] = [];
-    for (const row of (data ?? []) as GwadaGalleryRow[]) {
-      const item = await mapRow(row);
-      if (item) items.push(item);
+    for (let i = 0; i < rows.length; i += CONCURRENCY) {
+      const chunk = rows.slice(i, i + CONCURRENCY);
+      const mapped = await Promise.all(chunk.map((row) => mapRow(row)));
+      for (const item of mapped) {
+        if (item) items.push(item);
+      }
     }
     return { items };
   },

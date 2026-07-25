@@ -155,7 +155,6 @@ export function DisplayModuleShell({
 
       <DisplayContextFooter
         restaurantName={restaurantName}
-        restaurantAvatarUrl={restaurantAvatarUrl}
         displayName={displayName}
         showLogout={!locked}
         onLogout={onLogout}

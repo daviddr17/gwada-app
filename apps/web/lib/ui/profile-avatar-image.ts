@@ -11,8 +11,9 @@ export const restaurantLogoOuterPaddingClassName = "p-[13%]";
 export const restaurantLogoInnerTileClassName =
   "flex size-full min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-[22%] bg-white p-1 dark:bg-card";
 
+/** `size-full` — sonst kollabiert `max-h-full` in Flex-Kreisen (leerer weißer Kreis). */
 export const restaurantLogoImageClassName =
-  "max-h-full max-w-full object-contain object-center";
+  "size-full max-h-full max-w-full object-contain object-center";
 
 /** Kompakte Karten (z. B. Meine Restaurants) — Logo füllt den Kreis ohne Innen-Kachel. */
 export const restaurantLogoCardImageClassName =

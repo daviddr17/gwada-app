@@ -116,17 +116,19 @@ export function DisplayPinStandbyScene({
         )}
       >
         {showBrand ? (
-          <div className="flex max-w-full shrink-0 flex-col items-center gap-1">
+          <div className="flex max-w-full shrink-0 flex-col items-center gap-1.5">
             <DisplayRestaurantLogo
               src={restaurantAvatarUrl}
               initials={displayRestaurantInitials(trimmedName || "?")}
               alt={trimmedName}
-              size="lg"
+              size="card"
+              variant="card"
               className={cn(
                 displayRestaurantLogoPinClassName,
-                !restaurantAvatarUrl && "text-sm font-semibold text-muted-foreground sm:text-base",
+                !restaurantAvatarUrl &&
+                  "text-base font-semibold text-muted-foreground sm:text-lg",
               )}
-              imageClassName="!max-h-full !max-w-full p-0 object-contain"
+              imageClassName="size-full object-contain p-1.5"
             />
             {trimmedName ? (
               <p className="max-w-[min(20rem,90vw)] truncate text-center text-sm font-medium tracking-tight text-foreground/90 sm:text-base">

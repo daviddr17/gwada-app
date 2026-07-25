@@ -76,8 +76,47 @@ export function RestaurantUsageBeacon({
 
   useEffect(() => {
     if (sent.current) return;
-    sent.current = true;
-    reportRestaurantUsageBeacon({ slug, source, dimension });
+
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const fire = () => {
+      if (sent.current) return;
+      sent.current = true;
+      reportRestaurantUsageBeacon({ slug, source, dimension });
+    };
+
+    /** Nach Load + Idle — nicht mit LCP/Hero-Bildern konkurrieren. */
+    const schedule = () => {
+      const win = window as Window & {
+        requestIdleCallback?: (
+          cb: IdleRequestCallback,
+          opts?: IdleRequestOptions,
+        ) => number;
+        cancelIdleCallback?: (id: number) => void;
+      };
+      if (win.requestIdleCallback) {
+        idleId = win.requestIdleCallback(fire, { timeout: 5000 });
+        return;
+      }
+      timeoutId = globalThis.setTimeout(fire, 2000);
+    };
+
+    if (document.readyState === "complete") {
+      schedule();
+    } else {
+      window.addEventListener("load", schedule, { once: true });
+    }
+
+    return () => {
+      window.removeEventListener("load", schedule);
+      if (idleId != null) {
+        (
+          window as Window & { cancelIdleCallback?: (id: number) => void }
+        ).cancelIdleCallback?.(idleId);
+      }
+      if (timeoutId != null) globalThis.clearTimeout(timeoutId);
+    };
   }, [slug, source, dimension]);
 
   return null;

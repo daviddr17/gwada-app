@@ -9,10 +9,36 @@ export function preloadProfileWidgetChunks() {
   void import("@/components/public/restaurant-public-profile-news");
   void import("@/components/public/restaurant-public-profile-events");
   void import("@/components/public/restaurant-public-profile-gallery");
+  void import("@/components/public/restaurant-public-profile-reviews");
 }
 
-export function scheduleProfileBackgroundWork(work: () => void) {
+type NavigatorConnection = {
+  saveData?: boolean;
+  effectiveType?: string;
+};
+
+/** Save-Data / 2G — keine Hintergrund-Chunk-Preloads (LCP/Bandbreite). */
+export function isProfilePreloadConstrained(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const conn = (
+    navigator as Navigator & { connection?: NavigatorConnection }
+  ).connection;
+  if (!conn) return false;
+  if (conn.saveData) return true;
+  const t = conn.effectiveType;
+  return t === "slow-2g" || t === "2g";
+}
+
+/**
+ * Hintergrundarbeit nach First Paint.
+ * Auf Save-Data/2G: kein Preload. Sonst requestIdleCallback (längeres Timeout bei Touch).
+ */
+export function scheduleProfileBackgroundWork(
+  work: () => void,
+  options?: { coarsePointer?: boolean },
+) {
   if (typeof window === "undefined") return () => {};
+  if (isProfilePreloadConstrained()) return () => {};
 
   const win = window as Window &
     typeof globalThis & {
@@ -23,11 +49,14 @@ export function scheduleProfileBackgroundWork(work: () => void) {
       cancelIdleCallback?: (id: number) => void;
     };
 
+  const idleTimeout = options?.coarsePointer ? 6000 : 2200;
+  const fallbackDelay = options?.coarsePointer ? 2500 : 900;
+
   if (win.requestIdleCallback) {
-    const id = win.requestIdleCallback(work, { timeout: 2200 });
+    const id = win.requestIdleCallback(work, { timeout: idleTimeout });
     return () => win.cancelIdleCallback?.(id);
   }
 
-  const id = globalThis.setTimeout(work, 900);
+  const id = globalThis.setTimeout(work, fallbackDelay);
   return () => globalThis.clearTimeout(id);
 }

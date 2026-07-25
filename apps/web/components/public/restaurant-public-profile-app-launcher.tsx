@@ -25,10 +25,6 @@ import { reportRestaurantUsageBeacon } from "@/components/insights/restaurant-us
 import { RestaurantPublicProfileHeroCard } from "@/components/public/restaurant-public-profile-hero-card";
 import { RestaurantPublicProfileModuleSkeleton } from "@/components/public/restaurant-public-profile-module-skeleton";
 import { GalleryMasonryGridSkeleton } from "@/components/gallery/gallery-masonry-grid";
-import { RestaurantPublicProfileReviews } from "@/components/public/restaurant-public-profile-reviews";
-import { RestaurantPublicProfileNews } from "@/components/public/restaurant-public-profile-news";
-import { RestaurantPublicProfileEvents } from "@/components/public/restaurant-public-profile-events";
-import { RestaurantPublicProfileGallery } from "@/components/public/restaurant-public-profile-gallery";
 import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
 import type { EmbedReservationProfileTermsSheet } from "@/components/embed/embed-reservation-widget";
 import {
@@ -101,6 +97,38 @@ const EmbedMenuWidget = dynamic(
   () =>
     import("@/components/embed/embed-menu-widget").then((mod) => mod.EmbedMenuWidget),
   { loading: () => <RestaurantPublicProfileModuleSkeleton variant="menu" /> },
+);
+
+const RestaurantPublicProfileNews = dynamic(
+  () =>
+    import("@/components/public/restaurant-public-profile-news").then(
+      (mod) => mod.RestaurantPublicProfileNews,
+    ),
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="news" /> },
+);
+
+const RestaurantPublicProfileEvents = dynamic(
+  () =>
+    import("@/components/public/restaurant-public-profile-events").then(
+      (mod) => mod.RestaurantPublicProfileEvents,
+    ),
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="events" /> },
+);
+
+const RestaurantPublicProfileGallery = dynamic(
+  () =>
+    import("@/components/public/restaurant-public-profile-gallery").then(
+      (mod) => mod.RestaurantPublicProfileGallery,
+    ),
+  { loading: () => <GalleryMasonryGridSkeleton edgeToEdge count={10} /> },
+);
+
+const RestaurantPublicProfileReviews = dynamic(
+  () =>
+    import("@/components/public/restaurant-public-profile-reviews").then(
+      (mod) => mod.RestaurantPublicProfileReviews,
+    ),
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="timeline" /> },
 );
 
 const IOS_SHEET_BACKDROP_BLUR_PX = 12;
@@ -1036,11 +1064,10 @@ export function RestaurantPublicProfileAppLauncher({
   }, [apps, preloadModules]);
 
   useEffect(() => {
-    if (lightEffects) {
-      startBackgroundPreload();
-      return;
-    }
-    return scheduleProfileBackgroundWork(startBackgroundPreload);
+    // Nie sofort: Idle / verzögert; Save-Data/2G überspringt (siehe scheduleProfileBackgroundWork).
+    return scheduleProfileBackgroundWork(startBackgroundPreload, {
+      coarsePointer: lightEffects,
+    });
   }, [lightEffects, startBackgroundPreload]);
 
   useLayoutEffect(() => {

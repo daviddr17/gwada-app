@@ -4,6 +4,13 @@ import "../marketing-surface.css";
 
 export const revalidate = 60;
 
+/** CDN/Browser: kurzes HTML-Caching (stimmt mit `revalidate = 60`). */
+export async function headers() {
+  return {
+    "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+  };
+}
+
 export default function PublicRestaurantProfileLayout({
   children,
 }: {

@@ -459,6 +459,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
 
   // Deep-Link / Zurück: URL → Sheet (Öffnen per Klick setzt State schon vorher).
   useEffect(() => {
+    if (!active) {
+      setReservationSheet(null);
+      return;
+    }
     if (isNewParam) {
       let day = startOfLocalDay(new Date());
       if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
@@ -501,6 +505,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     }
     setReservationSheet(null);
   }, [
+    active,
     isNewParam,
     dayParam,
     reservationIdParam,

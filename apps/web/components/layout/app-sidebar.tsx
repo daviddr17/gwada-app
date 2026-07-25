@@ -183,13 +183,11 @@ export function AppSidebar() {
       const target = event.target;
       if (!(target instanceof Element)) return;
       if (!target.closest("a[href], button")) return;
-      // Nicht synchron im Capture schließen: sonst unmountet/animiert das Sheet
-      // noch im selben Tick und Soft-Nav/Link-Clicks wirken tot.
-      // Auch kein Close über pendingHref (pointerdown→setTimeout 0): sonst startet
-      // die Close-Animation (+ früher pointer-events-none) vor dem synthetischen
-      // click → Tap fällt auf Content darunter („falsches Modul“ / keine Nav).
-      // Dock-Reopen während data-open=false: app-mobile-bottom-nav.
-      window.setTimeout(() => setOpenMobile(false), 0);
+      // Bubble (nicht Capture): Link-onClick + Soft-Nav-Pending sind schon gelaufen.
+      // Sync schließen — bei warmem Keep-alive sonst bleibt das Sheet offen
+      // (pathname ändert sich, aber der frühere setTimeout/click-Capture-Pfad
+      // war auf Touch unzuverlässig). Dock-Reopen: app-mobile-bottom-nav.
+      setOpenMobile(false);
     },
     [isMobile, setOpenMobile],
   );
@@ -205,7 +203,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" variant="inset">
       <div
         className="flex h-full w-full flex-col"
-        onClickCapture={closeMobileSidebarOnNav}
+        onClick={closeMobileSidebarOnNav}
       >
       <SidebarHeader
         className={cn(

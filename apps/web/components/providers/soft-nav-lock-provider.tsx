@@ -37,6 +37,10 @@ export function normalizeNavHref(href: string): string {
  * Pending darf nicht synchron in pointerdown/click gesetzt werden: schwere
  * Overlay-/Sidebar-Re-Renders im selben Tick haben Next-Flights abgebrochen
  * → kurzer Modulwechsel, dann Rücksprung zum vorherigen Modul.
+ *
+ * Auch nicht aus pointerdown per setTimeout(0) anstoßen: auf Touch/iOS läuft
+ * dieser Timer oft vor dem synthetischen click — Keep-alive-Pending baut dann
+ * schon Slots um, der click stirbt, Mobilmenü bleibt offen.
  */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();

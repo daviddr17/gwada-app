@@ -135,7 +135,7 @@ export function DisplayPinPad({
   return (
     <div
       className={cn(
-        "flex min-h-0 w-full max-h-full flex-col items-center justify-center gap-[clamp(0.45rem,1.4dvh,0.9rem)]",
+        "flex min-h-0 w-full max-h-full flex-col items-center justify-center gap-[clamp(0.75rem,2.4dvh,1.35rem)]",
         className,
       )}
       role="group"
@@ -143,7 +143,7 @@ export function DisplayPinPad({
       aria-busy={busy}
     >
       <motion.div
-        className="flex shrink-0 gap-[clamp(0.55rem,1.4dvh,1rem)]"
+        className="mb-[clamp(0.15rem,0.8dvh,0.45rem)] flex shrink-0 gap-[clamp(0.7rem,1.8dvh,1.25rem)]"
         aria-hidden
         animate={
           rejectActive && !reduceMotion
@@ -162,7 +162,7 @@ export function DisplayPinPad({
             <motion.div
               key={i}
               className={cn(
-                "size-[clamp(1.05rem,2.4dvh,1.65rem)] rounded-full border-[3px]",
+                "size-[clamp(1.35rem,3.2dvh,2.1rem)] rounded-full border-[3px]",
                 rejectActive
                   ? "border-destructive bg-destructive/15"
                   : filled

@@ -35,41 +35,47 @@ const GalleryMasonryTile = memo(function GalleryMasonryTile({
   const { src, thumbSrc } = galleryItemDisplayUrls(item);
   const videoSrc = item.fullUrl?.trim() || item.previewUrl;
   const interactive = typeof onItemClick === "function";
+  /**
+   * Hover-Scale am inneren Layer, Clip + rounded am äußeren —
+   * sonst bricht `transform` die Abrundung (Compositor / Button-Overflow).
+   */
   const media = (
-    <>
-      {item.mediaKind === "video" ? (
-        <FeedVideoTile src={videoSrc} />
-      ) : (
-        <FeedMediaImage
-          src={src}
-          thumbSrc={thumbSrc}
-          blurDataUrl={item.blurDataUrl}
-          width={item.width}
-          height={item.height}
-          alt={item.title ?? item.caption ?? ""}
-          naturalSize
-          imgClassName={
-            interactive
-              ? "transition duration-500 ease-out group-hover:scale-[1.015] group-hover:brightness-[1.03]"
-              : undefined
-          }
-        />
-      )}
+    <div className="overflow-hidden rounded-md isolate">
+      <div
+        className={cn(
+          interactive &&
+            "origin-center transition duration-500 ease-out will-change-transform group-hover:scale-[1.015] group-hover:brightness-[1.03]",
+        )}
+      >
+        {item.mediaKind === "video" ? (
+          <FeedVideoTile src={videoSrc} />
+        ) : (
+          <FeedMediaImage
+            src={src}
+            thumbSrc={thumbSrc}
+            blurDataUrl={item.blurDataUrl}
+            width={item.width}
+            height={item.height}
+            alt={item.title ?? item.caption ?? ""}
+            naturalSize
+          />
+        )}
+      </div>
       {interactive ? (
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          className="pointer-events-none absolute inset-0 rounded-md bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         />
       ) : null}
       <span className="sr-only" data-embed-mt>
         {item.title ?? item.caption ?? "Galeriebild"}
       </span>
-    </>
+    </div>
   );
 
   const tileClassName = cn(
     feedGalleryMasonryItemClassName,
-    "relative block overflow-hidden rounded-md bg-muted",
+    "relative block rounded-md bg-muted",
     item.isPinned && feedPinnedItemSurfaceClassName,
     interactive &&
       "group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",

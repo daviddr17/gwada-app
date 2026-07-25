@@ -118,10 +118,10 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
           onPointerDown?.(event);
           // Touch/schneller Klick: FULL + Daten vor dem Flight (Hover fehlt oft).
           warmOnIntent();
-          // Pending nur anstoßen (deferred im Provider) — nicht synchron setzen,
-          // sonst re-rendert das Overlay im selben Tick und bricht den Flight ab.
-          if (event.button !== 0 || !crossModuleNav) return;
-          tryAcquireNavLock(event, hrefStr);
+          // Kein tryAcquireNavLock hier: setTimeout(0) aus pointerdown läuft auf
+          // iOS/Touch oft VOR dem synthetischen click. Keep-alive-Pending würde
+          // dann schon DOM/Slots umbauen → click stirbt, Mobilmenü bleibt offen,
+          // falsche Module blitzen kurz auf.
         }}
         onClick={(event) => {
           onClick?.(event);
@@ -130,7 +130,8 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
             event.preventDefault();
             return;
           }
-          // Pending ohne preventDefault — harte Locks haben Flights gekillt.
+          // Pending erst im click (nach Link-Target-Phase) — Overlay/Keep-alive
+          // dürfen den aktivierenden Klick nicht mehr killen.
           if (crossModuleNav) {
             tryAcquireNavLock(event, hrefStr);
           }

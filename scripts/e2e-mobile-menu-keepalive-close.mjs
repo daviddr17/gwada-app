@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /**
- * Mobil: Nach warmem Nachrichten/Reservierungen darf ein Menü-Tap
- * das Sheet schließen — und der Dock-Button darf es während der
- * Close-Animation nicht sofort wieder öffnen.
+ * Mobil: Nach warmem Nachrichten/Reservierungen muss ein Menü-Tap
+ * das Sheet schließen — ohne Click-Through auf Content darunter und
+ * ohne Dock-Reopen während der Close-Animation.
+ *
+ * Nutzt echte Touch-Events (nicht el.click()), weil der Bug nur dort
+ * reproduzierbar war (pointerdown→pendingHref vor synthetischem click).
  */
 import { createClient } from "@supabase/supabase-js";
 import { chromium, devices } from "playwright";
@@ -43,9 +46,9 @@ async function login(page) {
 
 async function openMenu(page) {
   await dismissDevOverlay(page);
-  await page.evaluate(() => {
-    document.querySelector('button[aria-label="Menü öffnen"]')?.click();
-  });
+  const openBtn = page.locator('button[aria-label="Menü öffnen"]');
+  await openBtn.waitFor({ state: "visible", timeout: 10_000 });
+  await openBtn.tap();
   await page.waitForFunction(
     () =>
       Boolean(
@@ -67,19 +70,18 @@ async function menuOpen(page) {
   );
 }
 
+async function tapMenuLink(page, href) {
+  const path = href.split("?")[0];
+  const link = page.locator(`a[href="${href}"], a[href="${path}"]`).first();
+  await link.waitFor({ state: "visible", timeout: 10_000 });
+  await link.tap();
+}
+
 async function softNavFromMenu(page, href) {
   await openMenu(page);
   assert.equal(await menuOpen(page), true, "menu should be open");
   const path = href.split("?")[0];
-  await page.evaluate(
-    ({ href, path }) => {
-      const el =
-        document.querySelector(`a[href="${href}"]`) ||
-        document.querySelector(`a[href="${path}"]`);
-      el?.click();
-    },
-    { href, path },
-  );
+  await tapMenuLink(page, href);
   await page.waitForFunction(
     (expectPath) => {
       const p = location.pathname.replace(/\/+$/, "") || "/";
@@ -88,7 +90,6 @@ async function softNavFromMenu(page, href) {
     path,
     { timeout: 15_000 },
   );
-  // Menü muss nach Soft-Nav zu warmem Keep-alive zu sein
   await page.waitForFunction(
     () =>
       !document.querySelector(
@@ -96,6 +97,13 @@ async function softNavFromMenu(page, href) {
       ),
     { timeout: 5_000 },
   );
+  // Kurz warten: kein Click-Through darf ein fremdes Modul aktiv lassen
+  await page.waitForTimeout(200);
+  const stillOnTarget = await page.evaluate((expectPath) => {
+    const p = location.pathname.replace(/\/+$/, "") || "/";
+    return p === expectPath || p.startsWith(expectPath);
+  }, path);
+  assert.equal(stillOnTarget, true, `must stay on ${path} after menu close`);
 }
 
 async function main() {
@@ -132,19 +140,12 @@ async function main() {
     });
     await page.waitForTimeout(400);
     await openMenu(page);
-    await page.evaluate(() => {
-      document
-        .querySelector('a[href="/dashboard/reservierungen/uebersicht"]')
-        ?.click();
-    });
-    // Sofort Dock tippen (Close-Animation / warm Keep-alive Race)
+    await tapMenuLink(page, "/dashboard/reservierungen/uebersicht");
     await page.waitForTimeout(30);
-    await page.evaluate(() => {
-      const btn =
-        document.querySelector('button[aria-label="Menü öffnen"]') ||
-        document.querySelector('button[aria-label="Menü schließen"]');
-      btn?.click();
-    });
+    const dock = page.locator(
+      'button[aria-label="Menü öffnen"], button[aria-label="Menü schließen"]',
+    );
+    await dock.tap();
     await page.waitForTimeout(400);
     assert.equal(
       await menuOpen(page),
@@ -170,6 +171,19 @@ async function main() {
       "/dashboard/kontakte/nachrichten?platform=all",
     );
     console.log("OK menu closes → Nachrichten (2)");
+
+    // Warm ↔ warm: kein hängendes Menü, kein Modul-Flash-Stuck
+    await openMenu(page);
+    await tapMenuLink(page, "/dashboard/reservierungen/uebersicht");
+    await page.waitForURL(/\/reservierungen/, { timeout: 15_000 });
+    await page.waitForFunction(
+      () =>
+        !document.querySelector(
+          '[data-app-mobile-chrome-overlay][data-open="true"]',
+        ),
+      { timeout: 5_000 },
+    );
+    console.log("OK warm Nachrichten → Reservierungen closes menu");
   } finally {
     await browser.close();
   }

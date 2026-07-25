@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Menu, Search, UserRound, X } from "lucide-react";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
@@ -25,6 +26,9 @@ const itemClassName =
 
 const itemActiveClassName = "text-foreground";
 
+/** Nach Soft-Nav-Close: Dock darf Menü nicht sofort wieder aufklappen. */
+const MENU_REOPEN_COOLDOWN_MS = 480;
+
 /**
  * Mobile Primary-Nav: Menü · Suche · Meldungen · Profil (Thumb-Zone).
  * z über `mobileChromeOverlay` — Sheet fährt darunter durch; X bleibt klickbar.
@@ -35,6 +39,8 @@ export function AppMobileBottomNav() {
   const pathname = usePathname();
   const { pendingHref } = useSoftNavLock();
   const { openMobile, setOpenMobile } = useSidebar();
+  const wasOpenRef = useRef(openMobile);
+  const reopenBlockedUntilRef = useRef(0);
   const search = useDashboardGlobalSearchOptional();
   const showSearch = isRestaurantDashboardPath(pathname) && Boolean(search);
   const searchOpen = Boolean(search?.open);
@@ -44,6 +50,13 @@ export function AppMobileBottomNav() {
     normalizeNavHref(pendingHref).startsWith(APP_ROUTES.profile.root);
   const profileActive =
     pathname.startsWith(APP_ROUTES.profile.root) || profilePending;
+
+  useEffect(() => {
+    if (wasOpenRef.current && !openMobile) {
+      reopenBlockedUntilRef.current = Date.now() + MENU_REOPEN_COOLDOWN_MS;
+    }
+    wasOpenRef.current = openMobile;
+  }, [openMobile]);
 
   return (
     <nav
@@ -73,8 +86,10 @@ export function AppMobileBottomNav() {
               setOpenMobile(false);
               return;
             }
-            // Close-Animation noch sichtbar (data-open=false, mounted): nicht wieder öffnen.
-            // Passiert besonders bei warmen Keep-alive-Modulen (Nachrichten/Reservierungen).
+            // Close-Animation / frischer Soft-Nav-Close: nicht sofort wieder öffnen.
+            if (Date.now() < reopenBlockedUntilRef.current) {
+              return;
+            }
             if (
               document.querySelector(
                 '[data-app-mobile-chrome-overlay][data-open="false"]',

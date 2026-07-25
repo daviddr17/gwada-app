@@ -1,16 +1,21 @@
 #!/usr/bin/env node
 /**
- * Browser-E2E: Soft-Nav aller Sidebar-Module nach warmem Nachrichten-Keep-alive.
- * Desktop-Viewport (Sidebar immer im DOM) + JS-Klicks (Dev-Overlay stört Playwright nicht).
+ * Browser-E2E Soft-Nav nach warmem Nachrichten-Keep-alive.
+ *
+ * Desktop (default): Sidebar im DOM.
+ * Mobil: GWADA_E2E_MOBILE=1 — iPhone-Viewport, Menü öffnen, dann AppNavLink.
  */
 import { createClient } from "@supabase/supabase-js";
-import { chromium } from "playwright";
+import { chromium, devices } from "playwright";
 
 const BASE = (process.env.GWADA_E2E_BASE || "http://localhost:3000").replace(
   /\/+$/,
   "",
 );
 const EMAIL = process.env.GWADA_E2E_EMAIL || "dreyer@techlion.de";
+const MOBILE =
+  process.env.GWADA_E2E_MOBILE === "1" ||
+  process.env.GWADA_E2E_MOBILE === "true";
 
 const TARGETS = [
   { id: "dashboard", href: "/dashboard", expect: "/dashboard" },
@@ -114,18 +119,50 @@ async function warmNachrichten(page) {
   await page.waitForTimeout(900);
 }
 
-async function softNavClick(page, mod) {
+async function openMobileMenu(page) {
   await dismissDevOverlay(page);
-  const hrefPath = mod.href.split("?")[0];
-  const clicked = await page.evaluate(({ href, hrefPath }) => {
-    const el =
-      document.querySelector(`a[href="${href}"]`) ||
-      document.querySelector(`a[href="${hrefPath}"]`) ||
-      document.querySelector(`a[href^="${hrefPath}?"]`);
-    if (!(el instanceof HTMLAnchorElement)) return false;
-    el.click();
+  const opened = await page.evaluate(() => {
+    const closeBtn = document.querySelector(
+      'button[aria-label="Menü schließen"]',
+    );
+    if (closeBtn) return true;
+    const openBtn = document.querySelector('button[aria-label="Menü öffnen"]');
+    if (!(openBtn instanceof HTMLButtonElement)) return false;
+    openBtn.click();
     return true;
-  }, { href: mod.href, hrefPath });
+  });
+  if (!opened) throw new Error("Menü öffnen nicht gefunden");
+
+  await page.waitForFunction(() => {
+    return Boolean(
+      document.querySelector('a[href="/dashboard/menu/uebersicht"]') ||
+        document.querySelector('button[aria-label="Menü schließen"]'),
+    );
+  }, { timeout: 12_000 });
+  await page.waitForTimeout(250);
+  await dismissDevOverlay(page);
+}
+
+async function softNavClick(page, mod) {
+  if (MOBILE) {
+    await openMobileMenu(page);
+  } else {
+    await dismissDevOverlay(page);
+  }
+
+  const hrefPath = mod.href.split("?")[0];
+  const clicked = await page.evaluate(
+    ({ href, hrefPath }) => {
+      const el =
+        document.querySelector(`a[href="${href}"]`) ||
+        document.querySelector(`a[href="${hrefPath}"]`) ||
+        document.querySelector(`a[href^="${hrefPath}?"]`);
+      if (!(el instanceof HTMLAnchorElement)) return false;
+      el.click();
+      return true;
+    },
+    { href: mod.href, hrefPath },
+  );
   if (!clicked) throw new Error(`AppNavLink nicht im DOM: ${mod.href}`);
 
   await page.waitForFunction(
@@ -158,27 +195,30 @@ async function assertStable(page, mod) {
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
-  });
+  const context = await browser.newContext(
+    MOBILE
+      ? { ...devices["iPhone 13"] }
+      : { viewport: { width: 1280, height: 800 } },
+  );
   const page = await context.newPage();
   const failures = [];
+  const mode = MOBILE ? "mobil" : "desktop";
 
   try {
     await login(page);
-    console.log("login", pathOnly(page.url()));
+    console.log(`[${mode}] login`, pathOnly(page.url()));
     await warmNachrichten(page);
-    console.log("warm nachrichten");
+    console.log(`[${mode}] warm nachrichten`);
 
     for (const mod of TARGETS) {
       try {
         await warmNachrichten(page);
         await softNavClick(page, mod);
         const landed = await assertStable(page, mod);
-        console.log("OK", mod.id, "→", landed);
+        console.log(`[${mode}] OK`, mod.id, "→", landed);
       } catch (e) {
         failures.push(`${mod.id}: ${e.message}`);
-        console.error("FAIL", mod.id, e.message);
+        console.error(`[${mode}] FAIL`, mod.id, e.message);
       }
     }
 
@@ -187,10 +227,10 @@ async function main() {
         await warmNachrichten(page);
         await softNavClick(page, mod);
         const landed = await assertStable(page, mod);
-        console.log("OK rapid", mod.id, "→", landed);
+        console.log(`[${mode}] OK rapid`, mod.id, "→", landed);
       } catch (e) {
         failures.push(`rapid ${mod.id}: ${e.message}`);
-        console.error("FAIL rapid", mod.id, e.message);
+        console.error(`[${mode}] FAIL rapid`, mod.id, e.message);
       }
     }
   } finally {
@@ -198,12 +238,12 @@ async function main() {
   }
 
   if (failures.length) {
-    console.error(`\n${failures.length} Fehler`);
+    console.error(`\n[${mode}] ${failures.length} Fehler`);
     for (const f of failures) console.error(" -", f);
     process.exit(1);
   }
   console.log(
-    `\nOK E2E Soft-Nav: ${TARGETS.length} Module × 2 Durchläufe (warm Inbox)`,
+    `\nOK E2E Soft-Nav (${mode}): ${TARGETS.length} Module × 2 Durchläufe (warm Inbox)`,
   );
 }
 

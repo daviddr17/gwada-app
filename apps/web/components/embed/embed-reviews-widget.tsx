@@ -194,7 +194,7 @@ function EmbedReviewsWidgetBody({
 
   return (
     <>
-      <EmbedResizeReporter deps={resizeDeps} widget="reviews" />
+      <EmbedResizeReporter deps={resizeDeps} widget="reviews" feedDebounce />
       <div
         className="w-full min-w-0 px-4 py-5 sm:px-6"
         data-gwada-embed-content

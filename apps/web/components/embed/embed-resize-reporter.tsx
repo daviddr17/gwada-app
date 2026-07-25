@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import {
   EMBED_CONTENT_HEIGHT_BUFFER_PX,
+  EMBED_FEED_HEIGHT_IGNORE_DELTA_PX,
   EMBED_FEED_RESIZE_DEBOUNCE_MS,
   EMBED_HEIGHT_IGNORE_DELTA_PX,
   EMBED_RESIZE_DEBOUNCE_MS,
@@ -103,6 +104,9 @@ export function EmbedResizeReporter({
   const debounceMs = feedDebounce
     ? EMBED_FEED_RESIZE_DEBOUNCE_MS
     : EMBED_RESIZE_DEBOUNCE_MS;
+  const ignoreDeltaPx = feedDebounce
+    ? EMBED_FEED_HEIGHT_IGNORE_DELTA_PX
+    : EMBED_HEIGHT_IGNORE_DELTA_PX;
 
   useEffect(() => {
     const root = document.getElementById("gwada-embed-root");
@@ -114,11 +118,11 @@ export function EmbedResizeReporter({
     const publish = (rounded: number) => {
       if (rounded <= 0) return;
       const prev = lastPostedRef.current;
-      if (prev > 0 && Math.abs(rounded - prev) < EMBED_HEIGHT_IGNORE_DELTA_PX) {
+      if (prev > 0 && Math.abs(rounded - prev) < ignoreDeltaPx) {
         return;
       }
-      // Feed während Bild-Load: nur wachsen, nicht jedes Schrumpfen/Wackeln senden.
-      if (feedDebounce && !layoutStableRef.current && prev > 0 && rounded < prev) {
+      // Feed: immer nur wachsen — nie Schrumpfen posten (Host-Scroll-Jank).
+      if (feedDebounce && prev > 0 && rounded < prev) {
         return;
       }
       lastPostedRef.current = rounded;
@@ -179,7 +183,8 @@ export function EmbedResizeReporter({
       window.clearTimeout(debounceTimer);
       for (const id of followupTimers) window.clearTimeout(id);
     };
-  }, [deps, embedId, widget, resizeMode, viewportHeightPx, debounceMs, feedDebounce]);
+    // layoutStable bewusst nicht in deps — sonst RO-Remount-Sturm bei Bild-Load.
+  }, [deps, embedId, widget, resizeMode, viewportHeightPx, debounceMs, feedDebounce, ignoreDeltaPx]);
 
   // Einmal nach „Bilder fertig“ nachmessen — nicht parallel zum RO-Sturm.
   useEffect(() => {
@@ -197,7 +202,11 @@ export function EmbedResizeReporter({
       const rounded = Math.ceil(height);
       if (rounded <= 0) return;
       const prev = lastPostedRef.current;
-      if (prev > 0 && Math.abs(rounded - prev) < EMBED_HEIGHT_IGNORE_DELTA_PX) {
+      if (prev > 0 && Math.abs(rounded - prev) < ignoreDeltaPx) {
+        return;
+      }
+      // Feed: grow-only auch nach layoutStable.
+      if (prev > 0 && rounded < prev) {
         return;
       }
       lastPostedRef.current = rounded;
@@ -210,7 +219,15 @@ export function EmbedResizeReporter({
       window.clearTimeout(debounceTimer);
       window.cancelAnimationFrame(raf);
     };
-  }, [layoutStable, embedId, widget, resizeMode, viewportHeightPx, feedDebounce]);
+  }, [
+    layoutStable,
+    embedId,
+    widget,
+    resizeMode,
+    viewportHeightPx,
+    feedDebounce,
+    ignoreDeltaPx,
+  ]);
 
   return null;
 }

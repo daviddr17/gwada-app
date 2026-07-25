@@ -97,7 +97,7 @@ const NewsTimelineThumb = memo(function NewsTimelineThumb({
   item: UnifiedNewsItem;
 }) {
   const preview = item.media[0];
-  const mediaSrc = preview?.url ?? preview?.thumbUrl ?? null;
+  const mediaSrc = preview?.thumbUrl ?? preview?.url ?? null;
   const [coverBroken, setCoverBroken] = useState(false);
   const showCover = Boolean(mediaSrc) && !coverBroken;
 
@@ -108,8 +108,11 @@ const NewsTimelineThumb = memo(function NewsTimelineThumb({
         <img
           src={mediaSrc!}
           alt=""
+          width={80}
+          height={80}
           loading="lazy"
           decoding="async"
+          fetchPriority="low"
           className="size-full object-cover object-center"
           onError={() => setCoverBroken(true)}
         />
@@ -309,7 +312,7 @@ export function NewsTimelineView({
                 </p>
               </li>
             ) : null}
-            <li className="pb-3 last:pb-0">
+            <li className="pb-3 last:pb-0 [content-visibility:auto] [contain-intrinsic-size:auto_7.5rem]">
               <NewsTimelineRowClickable
                 item={item}
                 onItemClick={onItemClick}
@@ -384,11 +387,15 @@ const NewsCard = memo(function NewsCard({
     <>
       {mediaSrc ? (
         <FeedMediaImage
-          src={mediaSrc}
-          thumbSrc={preview?.url ? preview.thumbUrl : null}
-          blurDataUrl={preview.blurDataUrl}
-          width={preview.width}
-          height={preview.height}
+          src={preview?.url ?? mediaSrc}
+          thumbSrc={
+            preview?.thumbUrl && preview.thumbUrl !== preview.url
+              ? preview.thumbUrl
+              : null
+          }
+          blurDataUrl={preview?.blurDataUrl}
+          width={preview?.width}
+          height={preview?.height}
           alt=""
           fit="cover"
           feedOptimized

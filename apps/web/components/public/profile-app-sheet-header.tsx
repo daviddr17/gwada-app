@@ -9,7 +9,6 @@ import {
   useCallback,
   useLayoutEffect,
   useRef,
-  useState,
   type RefObject,
 } from "react";
 import {
@@ -35,6 +34,7 @@ import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant
 const LOGO_COLLAPSE_SCROLL_PX = 112;
 const LOGO_SIZE_EXPANDED_PX = 80;
 const LOGO_SIZE_COLLAPSED_PX = 44;
+const LOGO_COLLAPSE_SCALE = LOGO_SIZE_COLLAPSED_PX / LOGO_SIZE_EXPANDED_PX;
 
 const profileSheetStickyChromeClassName =
   "bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80";
@@ -77,10 +77,6 @@ function restaurantInitials(name: string): string {
 
 function logoCollapseProgress(scrollTop: number) {
   return Math.min(1, Math.max(0, scrollTop / LOGO_COLLAPSE_SCROLL_PX));
-}
-
-function lerp(from: number, to: number, progress: number) {
-  return from + (to - from) * progress;
 }
 
 function syncProfileSheetPinnedHeaderHeight(
@@ -191,7 +187,8 @@ export function ProfileAppSheetHeader({
   const headerApp = apps.find((app) => app.id === activeApp) ?? apps[0]!;
   const initials = restaurantInitials(profile.name);
   const stickyChromeRef = useRef<HTMLElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
+  const logoPlateRef = useRef<HTMLSpanElement>(null);
+  const scrollRafRef = useRef(0);
 
   const startSheetDrag = useProfileSheetDragStart({
     dragControls,
@@ -204,6 +201,7 @@ export function ProfileAppSheetHeader({
     const root = scrollRootRef.current;
     const handle = sheetHandleRef.current;
     const chrome = stickyChromeRef.current;
+    const logoPlate = logoPlateRef.current;
     if (!root || !handle || !chrome) return;
 
     root.style.setProperty(
@@ -216,22 +214,40 @@ export function ProfileAppSheetHeader({
       syncProfileSheetPinnedHeaderHeight(root, handle, chrome);
     };
 
+    const applyLogoCollapse = (scrollTop: number) => {
+      if (!logoPlate) return;
+      if (reduceMotion) {
+        logoPlate.style.transform = "scale(1)";
+        return;
+      }
+      const progress = logoCollapseProgress(scrollTop);
+      const scale = 1 + (LOGO_COLLAPSE_SCALE - 1) * progress;
+      logoPlate.style.transform = `scale(${scale})`;
+    };
+
     const onScroll = () => {
-      setScrollTop(root.scrollTop);
-      sync();
+      if (scrollRafRef.current) return;
+      scrollRafRef.current = requestAnimationFrame(() => {
+        scrollRafRef.current = 0;
+        applyLogoCollapse(root.scrollTop);
+      });
     };
 
     sync();
+    applyLogoCollapse(root.scrollTop);
     if (layoutReady) {
       schedulePinnedHeaderResync(sync);
     }
 
     root.addEventListener("scroll", onScroll, { passive: true });
+    // Nur Handle/Chrome messen — kein getBoundingClientRect pro Scroll-Tick.
     const ro = new ResizeObserver(sync);
     ro.observe(handle);
     ro.observe(chrome);
     return () => {
       root.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = 0;
       ro.disconnect();
     };
   }, [
@@ -241,12 +257,8 @@ export function ProfileAppSheetHeader({
     layoutEpoch,
     layoutReady,
     isDismissing,
+    reduceMotion,
   ]);
-
-  const logoProgress = reduceMotion ? 0 : logoCollapseProgress(scrollTop);
-  const logoSize = lerp(LOGO_SIZE_EXPANDED_PX, LOGO_SIZE_COLLAPSED_PX, logoProgress);
-  const logoPadding = lerp(8, 5, logoProgress);
-  const logoGap = lerp(10, 6, logoProgress);
 
   return (
     <>
@@ -260,18 +272,18 @@ export function ProfileAppSheetHeader({
         onPointerDown={startSheetDrag}
       >
         <span
+          ref={logoPlateRef}
           className={cn(
-            "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/35 bg-card leading-none",
+            "mb-2.5 inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/35 bg-card text-lg font-semibold leading-none text-muted-foreground",
             profile.avatarUrl
               ? restaurantLogoPlateClassName
               : profileAvatarFallbackPlateClassName,
-            !profile.avatarUrl && "text-sm font-semibold text-muted-foreground",
           )}
           style={{
-            width: logoSize,
-            height: logoSize,
-            marginBottom: logoGap,
-            fontSize: lerp(18, 14, logoProgress),
+            width: LOGO_SIZE_EXPANDED_PX,
+            height: LOGO_SIZE_EXPANDED_PX,
+            transformOrigin: "center top",
+            willChange: "transform",
           }}
           aria-hidden
         >
@@ -281,8 +293,7 @@ export function ProfileAppSheetHeader({
               src={profile.avatarUrl}
               alt=""
               decoding="async"
-              className={cn(restaurantLogoImageClassName, "size-full")}
-              style={{ padding: logoPadding }}
+              className={cn(restaurantLogoImageClassName, "size-full p-2")}
             />
           ) : (
             initials

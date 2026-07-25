@@ -67,6 +67,8 @@
       : 0;
     if (prev === height) return;
     if (prev > 0 && Math.abs(height - prev) < HEIGHT_IGNORE_DELTA_PX) return;
+    // Feed: nie schrumpfen (Host-Scroll-Jank).
+    if (isFeed && prev > 0 && height < prev) return;
     var isFirst = prev <= 0;
     var smallDelta = prev > 0 && Math.abs(height - prev) <= HEIGHT_SNAP_DELTA_PX;
     var snap =

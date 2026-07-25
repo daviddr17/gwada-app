@@ -179,7 +179,13 @@ function EmbedEventsWidgetBody({
 
   return (
     <>
-      <EmbedResizeReporter widget="events" deps={resizeDeps} />
+      {variant === "embed" ? (
+        <EmbedResizeReporter
+          widget="events"
+          deps={resizeDeps}
+          feedDebounce
+        />
+      ) : null}
       <div className={paddingClass} data-gwada-embed-content>
         {connectedPlatforms.length > 1 ? (
           <div className="mb-4">

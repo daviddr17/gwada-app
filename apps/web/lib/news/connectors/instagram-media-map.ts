@@ -25,15 +25,35 @@ export const IG_MEDIA_FIELDS_BASIC =
 export const IG_MEDIA_FIELDS_EXTENDED = `${IG_MEDIA_FIELDS_BASIC},like_count,comments_count,children{media_type,media_url,thumbnail_url}`;
 
 export function igMediaPreviewUrl(media: IgMedia): string | null {
-  const direct = media.media_url?.trim() || media.thumbnail_url?.trim();
-  if (direct) return direct;
+  return igMediaUrls(media).url;
+}
 
-  for (const child of media.children?.data ?? []) {
-    const childUrl = child.media_url?.trim() || child.thumbnail_url?.trim();
-    if (childUrl) return childUrl;
+/** Full media_url as url; thumbnail_url as thumb when available. */
+export function igMediaUrls(media: IgMedia): {
+  url: string | null;
+  thumbUrl: string | null;
+} {
+  const directUrl = media.media_url?.trim() || null;
+  const directThumb = media.thumbnail_url?.trim() || null;
+  if (directUrl || directThumb) {
+    return {
+      url: directUrl || directThumb,
+      thumbUrl: directThumb,
+    };
   }
 
-  return null;
+  for (const child of media.children?.data ?? []) {
+    const childUrl = child.media_url?.trim() || null;
+    const childThumb = child.thumbnail_url?.trim() || null;
+    if (childUrl || childThumb) {
+      return {
+        url: childUrl || childThumb,
+        thumbUrl: childThumb,
+      };
+    }
+  }
+
+  return { url: null, thumbUrl: null };
 }
 
 export function igMediaKind(media: IgMedia): "image" | "video" {

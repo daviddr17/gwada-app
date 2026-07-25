@@ -12,7 +12,7 @@ import {
   IG_MEDIA_FIELDS_BASIC,
   IG_MEDIA_FIELDS_EXTENDED,
   igMediaKind,
-  igMediaPreviewUrl,
+  igMediaUrls,
   type IgMedia,
 } from "@/lib/news/connectors/instagram-media-map";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
@@ -44,7 +44,7 @@ async function getIgAuth(restaurantId: string) {
 }
 
 function mapIgMediaToNewsItem(media: IgMedia): UnifiedNewsItem {
-  const previewUrl = igMediaPreviewUrl(media);
+  const { url, thumbUrl } = igMediaUrls(media);
   const kind = igMediaKind(media);
   return {
     id: `instagram:${media.id}`,
@@ -53,12 +53,13 @@ function mapIgMediaToNewsItem(media: IgMedia): UnifiedNewsItem {
     postId: null,
     title: null,
     body: media.caption?.trim() ?? "",
-    media: previewUrl
+    media: url
       ? [
           {
             id: media.id ?? "media",
             kind,
-            url: previewUrl,
+            url,
+            thumbUrl: thumbUrl && thumbUrl !== url ? thumbUrl : null,
             storagePath: null,
             mimeType: kind === "video" ? "video/mp4" : "image/jpeg",
             sortOrder: 0,

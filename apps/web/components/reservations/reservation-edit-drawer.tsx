@@ -42,8 +42,10 @@ import {
   RESERVATION_PARTY_SIZE_MAX_STAFF,
 } from "@/lib/reservations/reservation-party-size";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
+  reservationGuestDisplayName,
   reservationGuestFirstNameForForm,
 } from "@/lib/reservations/reservation-guest-name";
 import { ReservationChangeRequestPanel } from "@/components/reservations/reservation-change-request-panel";
@@ -181,6 +183,7 @@ type ReservationEditDrawerProps = {
 type BuiltReservationPayload = {
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -229,6 +232,7 @@ export function ReservationEditDrawer({
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [company, setCompany] = useState("");
   const [phoneCountryIso, setPhoneCountryIso] = useState("DE");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
@@ -410,6 +414,7 @@ export function ReservationEditDrawer({
     if (reservation) {
       setFirstName(reservationGuestFirstNameForForm(reservation.guest_first_name));
       setLastName(reservation.guest_last_name);
+      setCompany(reservation.guest_company?.trim() ?? "");
       const parsed = parseGuestPhone(
         reservation.guest_phone,
         COUNTRIES_REFERENCE_FALLBACK,
@@ -446,6 +451,7 @@ export function ReservationEditDrawer({
       setGuestNotifyMessage("");
       setFirstName("");
       setLastName("");
+      setCompany("");
       setPhoneCountryIso(defaultIso);
       setPhoneLocal("");
       setEmail("");
@@ -482,6 +488,7 @@ export function ReservationEditDrawer({
           if (error || !data) return;
           setFirstName(reservationGuestFirstNameForForm(data.first_name));
           setLastName(data.last_name);
+          setCompany(data.company?.trim() ?? "");
           const phone = primaryPhone(data);
           if (phone) {
             const parsed = parseGuestPhone(
@@ -607,6 +614,7 @@ export function ReservationEditDrawer({
     return {
       guest_first_name: normalizeReservationGuestFirstName(firstName),
       guest_last_name: normalizeReservationGuestLastName(lastName),
+      guest_company: normalizeReservationGuestCompany(company),
       guest_phone: formatGuestPhone(
         phoneCountryIso,
         phoneLocal,
@@ -829,6 +837,7 @@ export function ReservationEditDrawer({
             dwell_minutes: payload.dwell_minutes,
             guest_first_name: payload.guest_first_name,
             guest_last_name: payload.guest_last_name,
+            guest_company: payload.guest_company,
             party_size: payload.party_size,
             statusId: payload.status_id,
             statusCode: status?.code ?? "confirmed",
@@ -1129,6 +1138,23 @@ export function ReservationEditDrawer({
                 </div>
               </div>
 
+              <div className="space-y-1.5">
+                <Label htmlFor="res-company" className="text-xs text-muted-foreground">
+                  Firmenname{" "}
+                  <span className="font-normal text-muted-foreground/80">
+                    (optional)
+                  </span>
+                </Label>
+                <Input
+                  id="res-company"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className={fieldClass}
+                  maxLength={200}
+                  autoComplete="organization"
+                />
+              </div>
+
               <div className={drawerTwoColClass}>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-phone-local" className="text-xs text-muted-foreground">
@@ -1400,7 +1426,11 @@ export function ReservationEditDrawer({
           <>
             Reservierung #{reservation.reservation_number} für{" "}
             <span className="font-medium text-foreground">
-              {reservation.guest_first_name} {reservation.guest_last_name}
+              {reservationGuestDisplayName(
+                reservation.guest_first_name,
+                reservation.guest_last_name,
+                reservation.guest_company,
+              )}
             </span>{" "}
             wird dauerhaft entfernt.
           </>

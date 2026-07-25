@@ -11,6 +11,7 @@ import {
 } from "@/lib/display/display-reservations-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
 } from "@/lib/reservations/reservation-guest-name";
@@ -107,6 +108,9 @@ export async function PATCH(
     {
       guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
       guest_last_name: guestLastName,
+      guest_company: normalizeReservationGuestCompany(
+        typeof body.guest_company === "string" ? body.guest_company : null,
+      ),
       guest_phone:
         typeof body.guest_phone === "string" ? body.guest_phone.trim() || null : null,
       guest_email:

@@ -61,6 +61,7 @@ import {
 } from "@/lib/reservations/public-embed-shared";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
   reservationGuestFirstNameForForm,
@@ -257,6 +258,7 @@ function EmbedReservationWidgetBody({
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [company, setCompany] = useState("");
   const [phoneCountryIso, setPhoneCountryIso] = useState("DE");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
@@ -336,6 +338,7 @@ function EmbedReservationWidgetBody({
   const resetBookForm = useCallback(() => {
     setFirstName("");
     setLastName("");
+    setCompany("");
     setPhoneLocal("");
     setEmail("");
     setPartySize("2");
@@ -352,6 +355,7 @@ function EmbedReservationWidgetBody({
     (r: PublicGuestReservation) => {
       setFirstName(reservationGuestFirstNameForForm(r.guest_first_name));
       setLastName(r.guest_last_name);
+      setCompany(r.guest_company?.trim() ?? "");
       const parsed = parseGuestPhone(r.guest_phone, countries, "DE");
       setPhoneCountryIso(parsed.iso2);
       setPhoneLocal(parsed.local);
@@ -385,6 +389,7 @@ function EmbedReservationWidgetBody({
     return {
       guest_first_name: normalizeReservationGuestFirstName(firstName),
       guest_last_name: normalizeReservationGuestLastName(lastName),
+      guest_company: normalizeReservationGuestCompany(company),
       guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
       guest_email: email.trim() || null,
       party_size: ps,
@@ -738,6 +743,23 @@ function EmbedReservationWidgetBody({
             className="h-10 rounded-xl"
           />
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="embed-company">
+          Firmenname{" "}
+          <span className="font-normal text-muted-foreground/80">
+            (optional)
+          </span>
+        </Label>
+        <Input
+          id="embed-company"
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          autoComplete="organization"
+          maxLength={200}
+          className="h-10 rounded-xl"
+        />
       </div>
 
       <div className="w-full min-w-0 space-y-3">

@@ -172,6 +172,7 @@ function mapDisplayReservationToListRow(
     created_by_profile: null,
     guest_first_name: r.guest_first_name,
     guest_last_name: r.guest_last_name,
+    guest_company: r.guest_company,
     guest_phone: r.guest_phone,
     guest_email: r.guest_email,
     contact_id: r.contact_id,

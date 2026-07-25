@@ -8,6 +8,7 @@ import {
   totalPagesFromCount,
   type PaginatedListResult,
 } from "@/lib/constants/list-pagination";
+import { enrichReservationLogActorNames } from "@/lib/reservations/reservation-log-actor-resolve";
 import type { RestaurantReservationLogEntry } from "@/lib/types/reservation-log";
 import {
   formatReservationLogActorLabel,
@@ -31,6 +32,16 @@ function mapLogRow(r: Record<string, unknown>): RestaurantReservationLogEntry {
   };
 }
 
+async function mapAndEnrichLogRows(
+  rows: Record<string, unknown>[],
+): Promise<RestaurantReservationLogEntry[]> {
+  const supabase = createSupabaseBrowserClient();
+  return enrichReservationLogActorNames(
+    supabase,
+    rows.map((row) => mapLogRow(row)),
+  );
+}
+
 function escapeIlikePattern(value: string): string {
   return value.replace(/[%_\\]/g, "\\$&");
 }
@@ -52,7 +63,7 @@ export async function fetchReservationLogEntries(
   const { data, error } = await q;
   if (error) return { data: [], error: error.message };
   return {
-    data: (data ?? []).map((r) => mapLogRow(r as Record<string, unknown>)),
+    data: await mapAndEnrichLogRows((data ?? []) as Record<string, unknown>[]),
     error: null,
   };
 }
@@ -114,7 +125,7 @@ export async function fetchReservationLogEntriesPaginated(
   }
 
   return {
-    items: (data ?? []).map((r) => mapLogRow(r as Record<string, unknown>)),
+    items: await mapAndEnrichLogRows((data ?? []) as Record<string, unknown>[]),
     page,
     pageSize,
     totalCount: count ?? totalCount,

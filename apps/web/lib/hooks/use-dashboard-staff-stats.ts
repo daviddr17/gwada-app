@@ -9,7 +9,7 @@ import {
   GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT,
   useDashboardHasDataRef,
 } from "@/lib/dashboard/dashboard-widget-refresh";
-import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
+import { useDashboardHomeBatchSurface } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSlice } from "@/lib/hooks/use-dashboard-batch-slice";
 import type { StaffDayWageBreakdown } from "@/lib/staff/staff-day-wage";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -26,7 +26,7 @@ const EMPTY_WAGE_BREAKDOWN: StaffDayWageBreakdown = {
 };
 
 export function useDashboardStaffStats() {
-  const batchEnabled = useDashboardBatchQueryEnabled();
+  const useBatchSurface = useDashboardHomeBatchSurface();
   const batchSlice = useDashboardBatchSlice("staff");
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const hasDataRef = useDashboardHasDataRef();
@@ -80,7 +80,7 @@ export function useDashboardStaffStats() {
   );
 
   useEffect(() => {
-    if (batchEnabled) return;
+    if (useBatchSurface) return;
 
     if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
       hasDataRef.current = false;
@@ -118,9 +118,9 @@ export function useDashboardStaffStats() {
       );
       window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onPoll);
     };
-  }, [batchEnabled, restaurantId, run, hasDataRef]);
+  }, [useBatchSurface, restaurantId, run, hasDataRef]);
 
-  if (batchEnabled) {
+  if (useBatchSurface) {
     const payload = batchSlice.summary;
     return {
       summary: payload?.summary ?? null,

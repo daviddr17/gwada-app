@@ -6,14 +6,14 @@ import {
   GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT,
   useDashboardHasDataRef,
 } from "@/lib/dashboard/dashboard-widget-refresh";
-import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
+import { useDashboardHomeBatchSurface } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSlice } from "@/lib/hooks/use-dashboard-batch-slice";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
 export function useDashboardIntegrationsSummary() {
-  const batchEnabled = useDashboardBatchQueryEnabled();
+  const useBatchSurface = useDashboardHomeBatchSurface();
   const batchSlice = useDashboardBatchSlice("integrations");
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const hasDataRef = useDashboardHasDataRef();
@@ -67,7 +67,7 @@ export function useDashboardIntegrationsSummary() {
   );
 
   useEffect(() => {
-    if (batchEnabled) return;
+    if (useBatchSurface) return;
 
     if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
       hasDataRef.current = false;
@@ -99,9 +99,9 @@ export function useDashboardIntegrationsSummary() {
         onRestaurantChange,
       );
     };
-  }, [batchEnabled, restaurantId, run, hasDataRef]);
+  }, [useBatchSurface, restaurantId, run, hasDataRef]);
 
-  if (batchEnabled) {
+  if (useBatchSurface) {
     return {
       summary: batchSlice.summary,
       loading: batchSlice.loading,

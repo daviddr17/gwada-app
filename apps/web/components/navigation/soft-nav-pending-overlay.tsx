@@ -20,6 +20,7 @@ import {
   useSoftNavLock,
 } from "@/components/providers/soft-nav-lock-provider";
 import { useAppModuleChrome } from "@/lib/contexts/app-module-chrome-context";
+import { useDashboardHomeKeepAliveOptional } from "@/lib/contexts/dashboard-home-keep-alive-context";
 import { SIDEBAR_MODULE_DEFINITIONS } from "@/lib/constants/sidebar-modules";
 
 /**
@@ -83,12 +84,19 @@ export function SoftNavPendingOverlay() {
   const pathname = usePathname();
   const { pendingHref } = useSoftNavLock();
   const { setChrome } = useAppModuleChrome();
+  const homeKeepAlive = useDashboardHomeKeepAliveOptional();
   const prevTitleRef = useRef<string | null>(null);
   const optimisticTargetRef = useRef<string | null>(null);
 
   const pending =
     pendingHref != null &&
     normalizeNavHref(pendingHref) !== normalizeNavHref(pathname);
+
+  const pendingToWarmHome =
+    pending &&
+    pendingHref != null &&
+    normalizeNavHref(pendingHref) === "/dashboard" &&
+    Boolean(homeKeepAlive?.warm);
 
   // Optimistischen Titel setzen; bei abgebrochenem Nav wiederherstellen.
   useLayoutEffect(() => {
@@ -121,7 +129,8 @@ export function SoftNavPendingOverlay() {
     setChrome((prev) => ({ ...prev, title: restore }));
   }, [pending, pendingHref, pathname, setChrome]);
 
-  if (!pending || !pendingHref) return null;
+  // Warm Home: Keep-alive zeigt sofort — kein Skeleton-Overlay darüber.
+  if (!pending || !pendingHref || pendingToWarmHome) return null;
 
   return (
     <div

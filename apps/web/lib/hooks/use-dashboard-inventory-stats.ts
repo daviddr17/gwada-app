@@ -2,22 +2,22 @@
 
 import { useMemo } from "react";
 import { computeDashboardInventorySummary } from "@/lib/inventory/compute-dashboard-inventory-summary";
-import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
+import { useDashboardHomeBatchSurface } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSlice } from "@/lib/hooks/use-dashboard-batch-slice";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 export function useDashboardInventoryStats() {
-  const batchEnabled = useDashboardBatchQueryEnabled();
+  const useBatchSurface = useDashboardHomeBatchSurface();
   const batchSlice = useDashboardBatchSlice("inventory");
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  // Bei Batch-Pfad keine vollständigen Inventory-Queries (Focus-Refetch nach Tab-Idle).
+  // Bei Batch-/Keep-alive-Pfad keine vollständigen Inventory-Queries.
   const { ingredients, isHydrated: ingredientsReady } = useIngredientsStorage({
-    enabled: !batchEnabled,
+    enabled: !useBatchSurface,
   });
   const { orders, isHydrated: ordersReady } = usePurchaseOrdersStorage({
-    enabled: !batchEnabled,
+    enabled: !useBatchSurface,
   });
 
   const standaloneSummary = useMemo(
@@ -25,7 +25,7 @@ export function useDashboardInventoryStats() {
     [ingredients, orders],
   );
 
-  if (batchEnabled) {
+  if (useBatchSurface) {
     return {
       summary: batchSlice.summary,
       loading: batchSlice.loading,

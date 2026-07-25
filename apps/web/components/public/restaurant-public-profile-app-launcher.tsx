@@ -43,12 +43,9 @@ import {
 } from "@/lib/public-profile/profile-app-config";
 import { useCoarsePointer } from "@/lib/hooks/use-coarse-pointer";
 import {
-  profileAppSwitchDirection,
   IOS_APP_CLOSE_TRANSITION,
   IOS_APP_DRAG_SNAP_BACK_TRANSITION,
   IOS_APP_OPEN_TRANSITION,
-  IOS_APP_PAGER_SWITCH_TRANSITION,
-  iosAppHorizontalPushVariants,
   PROFILE_MODULE_FADE_TRANSITION,
   profileModuleFadeVariants,
 } from "@/lib/public-profile/profile-app-motion";
@@ -255,18 +252,6 @@ function ProfileAppSheetOverlay({
     () => brandedProfileBackdropStyle(accentHex),
     [accentHex],
   );
-
-  const appIds = useMemo(() => apps.map((app) => app.id), [apps]);
-  const prevActiveAppRef = useRef(activeApp);
-  const switchDirection = profileAppSwitchDirection(
-    appIds,
-    prevActiveAppRef.current,
-    activeApp,
-  );
-
-  useLayoutEffect(() => {
-    prevActiveAppRef.current = activeApp;
-  }, [activeApp]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const sheetHandleRef = useRef<HTMLDivElement>(null);
@@ -696,28 +681,17 @@ function ProfileAppSheetOverlay({
               <div
                 data-profile-sheet-no-pull
                 data-profile-sheet-module-pane
-                className="grid *:col-start-1 *:row-start-1"
+                className="relative w-full min-w-0"
               >
-                <AnimatePresence initial={false} custom={switchDirection}>
+                <AnimatePresence mode="wait" initial={false}>
                   <m.div
                     key={activeApp}
-                    custom={switchDirection}
-                    variants={
-                      reduceMotion
-                        ? undefined
-                        : activeApp === "menu"
-                          ? profileModuleFadeVariants
-                          : iosAppHorizontalPushVariants
-                    }
+                    variants={reduceMotion ? undefined : profileModuleFadeVariants}
                     initial={reduceMotion ? false : "enter"}
                     animate={reduceMotion ? undefined : "center"}
                     exit={reduceMotion ? undefined : "exit"}
-                    transition={
-                      activeApp === "menu"
-                        ? PROFILE_MODULE_FADE_TRANSITION
-                        : IOS_APP_PAGER_SWITCH_TRANSITION
-                    }
-                    className="col-start-1 row-start-1 w-full min-w-0 bg-background"
+                    transition={PROFILE_MODULE_FADE_TRANSITION}
+                    className="w-full min-w-0 bg-background"
                   >
                     <ProfileAppContent
                       appId={activeApp}
@@ -985,9 +959,9 @@ export function RestaurantPublicProfileAppLauncher({
       if (appId === "info") {
         setInfoTab("contact");
       }
-      setActiveApp(appId);
       const app = apps.find((a) => a.id === appId);
       if (app?.module) void loadModule(app.module);
+      setActiveApp(appId);
       reportRestaurantUsageBeacon({
         slug: profile.slug,
         source: "profile",

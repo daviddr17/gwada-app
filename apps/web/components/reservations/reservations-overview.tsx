@@ -71,6 +71,10 @@ import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gw
 import { cn } from "@/lib/utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { reservationListRowButtonClassName } from "@/lib/ui/reservation-list-row-interactive";
+import {
+  keepAliveMayNavigate,
+  keepAliveOwnsPathname,
+} from "@/lib/navigation/module-home-keep-alive";
 import { DayReservationsDrawer } from "@/components/reservations/day-reservations-drawer";
 import { ReservationDayNoteOverviewChip } from "@/components/reservations/reservation-day-note-overview-chip";
 import { ReservationDayShiftStaffOverviewChip } from "@/components/reservations/reservation-day-shift-staff-overview-chip";
@@ -150,6 +154,9 @@ function useMonthCursor() {
 }
 
 export function ReservationsOverview({ active = true }: { active?: boolean }) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
   const { cursor, setMonth, setYear, setYearMonth, prevMonth, nextMonth } =
     useMonthCursor();
 
@@ -306,7 +313,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
 
   useEffect(() => {
     // Keep-alive: URL nur anfassen, wenn Übersicht wirklich sichtbar ist.
-    if (!active) return;
+    if (!keepAliveMayNavigate(active)) return;
     if (!isNewParam) return;
     const t = searchParams.get("time");
     const tb = searchParams.get("table");
@@ -332,7 +339,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   }, [active, isNewParam, searchParams, pathname, router]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
     const rid = searchParams.get("reservation");
     if (rid && !isUuidRestaurantId(rid)) {
       router.replace(pathname, { scroll: false });
@@ -344,7 +351,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   );
 
   useEffect(() => {
-    if (!active) {
+    if (!keepAliveMayNavigate(active)) {
       setUrlReservation(null);
       return;
     }
@@ -368,6 +375,15 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         id: reservationIdParam,
       });
       if (cancelled) return;
+      if (
+        !keepAliveOwnsPathname(
+          activeRef.current,
+          pathname,
+          "reservierungen",
+        )
+      ) {
+        return;
+      }
       if (error) {
         toast.error(error.message);
         setUrlReservation(null);
@@ -459,7 +475,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
 
   // Deep-Link / Zurück: URL → Sheet (Öffnen per Klick setzt State schon vorher).
   useEffect(() => {
-    if (!active) {
+    if (!keepAliveMayNavigate(active)) {
       setReservationSheet(null);
       return;
     }
@@ -517,7 +533,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   /** `?day=YYYY-MM-DD` (ohne new): Monat springen + Tagesblatt — z. B. Suche „Zum Tag“. */
   const appliedDayDeepLinkRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!active) return;
+    if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
     if (isNewParam) return;
     if (!dayParam || !/^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
       appliedDayDeepLinkRef.current = null;
@@ -555,7 +571,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     pathname,
     router,
     setYearMonth,
-  ]);
+  ]); // keepAliveOwnsPathname(active, pathname, …)
 
   /** Edit-Deep-Link: Monat der Reservierung zeigen (nicht immer „heute“). */
   const syncedMonthForReservationRef = useRef<string | null>(null);
@@ -590,13 +606,14 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
 
   const pushReservationEdit = useCallback(
     (id: string) => {
+      if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
       setReservationSheet({ mode: "edit", id });
       const p = new URLSearchParams();
       p.set("reservation", id);
       withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
     },
-    [router, pathname, withUnconfirmedParam],
+    [active, router, pathname, withUnconfirmedParam],
   );
 
   const pushReservationCreate = useCallback(
@@ -604,6 +621,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       d: Date,
       extras?: { timeHm?: string; diningTableId?: string },
     ) => {
+      if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
       setReservationSheet({
         mode: "create",
         day: d,
@@ -626,11 +644,13 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
     },
-    [router, pathname, withUnconfirmedParam, restaurantTimeZone],
+    [active, router, pathname, withUnconfirmedParam, restaurantTimeZone],
   );
 
   const clearReservationUrl = useCallback(() => {
     setReservationSheet(null);
+    // Soft-Nav: Drawer schließt mit Ziel-pathname — URL nicht auf fremdem Modul mutieren.
+    if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
     if (unconfirmedMode) {
       const p = new URLSearchParams();
       p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
@@ -638,13 +658,15 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       return;
     }
     router.replace(pathname, { scroll: false });
-  }, [router, pathname, unconfirmedMode]);
+  }, [active, router, pathname, unconfirmedMode]);
 
   const setUnconfirmedMode = useCallback(
     (enabled: boolean) => {
+      if (!keepAliveMayNavigate(active)) return;
       setUnconfirmedUi(enabled);
       startTransition(() => {
         setUnconfirmedModeCommitted(enabled);
+        if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
         if (enabled) {
           const p = new URLSearchParams(searchParams.toString());
           p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
@@ -662,7 +684,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
       });
     },
-    [router, pathname, searchParams],
+    [active, router, pathname, searchParams],
   );
 
   const consumePendingDaySheetReopen = useCallback(() => {

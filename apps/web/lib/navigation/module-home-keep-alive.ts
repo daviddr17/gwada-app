@@ -43,3 +43,23 @@ export function isWarmModuleHomePending(
   const id = matchModuleHomeId(pendingHref);
   return id != null && warmIds.has(id);
 }
+
+/**
+ * Pflicht vor jedem router.push/replace in Keep-alive-Homes.
+ * Warm + inactive bleibt gemountet — Navigation darf Soft-Nav nie zurückreißen.
+ */
+export function keepAliveMayNavigate(active: boolean): boolean {
+  return active === true;
+}
+
+/**
+ * URL-Mutation nur auf dem eigenen Modul-Home (zusätzlich zu `active`).
+ * Verhindert z. B. `?unconfirmed=1` auf `/dashboard/menu` nach Soft-Nav + Drawer-Close.
+ */
+export function keepAliveOwnsPathname(
+  active: boolean,
+  pathname: string,
+  id: ModuleHomeId,
+): boolean {
+  return keepAliveMayNavigate(active) && isModuleHomePath(pathname, id);
+}

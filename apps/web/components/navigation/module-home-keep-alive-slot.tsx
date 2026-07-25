@@ -53,6 +53,10 @@ export function ModuleHomeKeepAliveSlot({
 
   if (!warm && !onHome) return null;
 
+  // Pending-Preview darf sichtbar sein, aber nie klickbar bevor `active`
+  // (sonst pathname-relative router.push auf fremde Module).
+  const interactive = active;
+
   return (
     <div
       data-module-home-keep-alive={id}
@@ -62,9 +66,10 @@ export function ModuleHomeKeepAliveSlot({
             ? "relative"
             : "absolute inset-0 z-10 min-h-full bg-background"
           : "hidden",
+        !interactive && "pointer-events-none",
       )}
-      aria-hidden={!visible}
-      {...(!visible ? ({ inert: "" } as Record<string, string>) : {})}
+      aria-hidden={!interactive}
+      {...(!interactive ? ({ inert: "" } as Record<string, string>) : {})}
     >
       {children(active)}
     </div>

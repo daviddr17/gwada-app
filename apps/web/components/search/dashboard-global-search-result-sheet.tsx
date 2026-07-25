@@ -1,6 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import {
   DASHBOARD_GLOBAL_SEARCH_CATEGORY_LABELS,
   dashboardGlobalSearchEntityCtaLabel,
@@ -14,6 +16,12 @@ import {
   drawerFormHeaderClassName,
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
+import {
+  DrawerFormFooter,
+  drawerFormFooterActionsRowClassName,
+  drawerFormFooterCancelButtonClassName,
+  drawerFormFooterSaveButtonClassName,
+} from "@/components/ui/drawer-form-footer";
 import { forceResetAppScrollLocks } from "@/lib/layout/app-scroll-root";
 import type { DashboardGlobalSearchResultItem } from "@/lib/types/dashboard-global-search";
 import { Button } from "@/components/ui/button";
@@ -24,7 +32,6 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 
 type DashboardGlobalSearchResultSheetProps = {
   open: boolean;
@@ -37,7 +44,20 @@ export function DashboardGlobalSearchResultSheet({
   item,
   onOpenChange,
 }: DashboardGlobalSearchResultSheetProps) {
-  const router = useRouter();
+  const pathname = usePathname();
+  const openRef = useRef(open);
+  const prevPathnameRef = useRef(pathname);
+  openRef.current = open;
+
+  useEffect(() => {
+    if (prevPathnameRef.current === pathname) return;
+    prevPathnameRef.current = pathname;
+    if (!openRef.current) return;
+    onOpenChange(false);
+    forceResetAppScrollLocks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pathname-only Soft-Nav close
+  }, [pathname]);
+
   const category = item?.category;
   const categoryLabel = category
     ? DASHBOARD_GLOBAL_SEARCH_CATEGORY_LABELS[category]
@@ -59,24 +79,8 @@ export function DashboardGlobalSearchResultSheet({
       ? dashboardGlobalSearchReservationDayHref(item.dayYmd)
       : null;
 
-  const navigate = (href: string) => {
-    onOpenChange(false);
-    forceResetAppScrollLocks();
-    router.push(href);
-  };
-
-  const goToEntity = () => {
-    if (!item) return;
-    navigate(item.href);
-  };
-
-  const goToModule = () => {
-    if (!moduleHref) return;
-    navigate(moduleHref);
-  };
-
+  const primaryHref = hasEntityLink ? (item?.href ?? null) : moduleHref;
   const primaryLabel = hasEntityLink ? entityCta : moduleCta;
-  const primaryAction = hasEntityLink ? goToEntity : goToModule;
 
   return (
     <Drawer
@@ -117,7 +121,7 @@ export function DashboardGlobalSearchResultSheet({
               type="button"
               variant="outline"
               className="h-11 w-full rounded-xl border-border/60"
-              onClick={() => navigate(dayHref)}
+              render={<AppNavLink href={dayHref} />}
             >
               Zum Tag
             </Button>
@@ -127,7 +131,7 @@ export function DashboardGlobalSearchResultSheet({
               type="button"
               variant="outline"
               className="h-11 w-full rounded-xl border-border/60"
-              onClick={goToModule}
+              render={<AppNavLink href={moduleHref} />}
             >
               {moduleCta}
             </Button>
@@ -137,12 +141,29 @@ export function DashboardGlobalSearchResultSheet({
         <DrawerFormFooter
           onCancel={() => onOpenChange(false)}
           cancelLabel="Zurück"
-          showSubmit
-          submitType="button"
-          submitLabel={primaryLabel}
-          onSubmit={primaryAction}
+          showCancel={false}
+          showSubmit={false}
           contentPadding={6}
-        />
+        >
+          <div className={drawerFormFooterActionsRowClassName}>
+            <Button
+              type="button"
+              variant="outline"
+              className={drawerFormFooterCancelButtonClassName}
+              onClick={() => onOpenChange(false)}
+            >
+              Zurück
+            </Button>
+            {primaryHref ? (
+              <Button
+                className={drawerFormFooterSaveButtonClassName}
+                render={<AppNavLink href={primaryHref} />}
+              >
+                {primaryLabel}
+              </Button>
+            ) : null}
+          </div>
+        </DrawerFormFooter>
       </DrawerContent>
     </Drawer>
   );

@@ -1,11 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardWidgetErrorBoundaryWithReset } from "@/components/dashboard/dashboard-widget-error-boundary";
 import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-widget-tile-skeleton";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
@@ -155,7 +155,7 @@ export function DashboardHomePage() {
           zugehörigen Module. Unter Einstellungen kannst du Widgets einblenden,
           sofern sie für deine Rolle verfügbar sind.
         </p>
-        <Button render={<Link href={APP_ROUTES.settings.dashboard} prefetch />}>
+        <Button render={<AppNavLink href={APP_ROUTES.settings.dashboard} />}>
           Dashboard-Einstellungen
         </Button>
       </div>

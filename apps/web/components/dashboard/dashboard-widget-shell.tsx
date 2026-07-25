@@ -112,7 +112,6 @@ export function DashboardWidgetShell({
         {href ? (
           <AppNavLink
             href={href}
-            prefetch
             aria-label={linkLabel}
             className={cn(
               buttonVariants({

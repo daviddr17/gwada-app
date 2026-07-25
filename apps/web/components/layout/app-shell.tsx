@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings, UserRound } from "lucide-react";
 import { AppBrandedBackground } from "@/components/layout/app-branded-background";
@@ -130,7 +129,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
                 size="icon-sm"
                 className="shrink-0 rounded-full border-border/60"
                 aria-label="Profil"
-                render={<AppNavLink href={APP_ROUTES.profile.personal} prefetch />}
+                render={<AppNavLink href={APP_ROUTES.profile.personal} />}
               >
                 <UserRound className="size-4" />
               </Button>
@@ -139,7 +138,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
                 size="icon-sm"
                 className="shrink-0 rounded-full border-border/60"
                 aria-label="Einstellungen"
-                render={<Link href={APP_ROUTES.settings.root} prefetch />}
+                render={<AppNavLink href={APP_ROUTES.settings.root} />}
               >
                 <Settings className="size-4" />
               </Button>

@@ -128,7 +128,7 @@ export function AppMobileBottomNav() {
           className={cn(itemClassName, profileActive && itemActiveClassName)}
           aria-label="Profil"
           aria-current={profileActive ? "page" : undefined}
-          render={<AppNavLink href={profileHref} prefetch />}
+          render={<AppNavLink href={profileHref} />}
         >
           <UserRound className="size-5 shrink-0" aria-hidden />
           <span>Profil</span>

@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useLayoutEffect, useRef } from "react";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -138,7 +138,7 @@ export function ModuleChipNav({
                   layout="text"
                   onPointerEnter={() => warmOnIntent(item.href)}
                   onFocus={() => warmOnIntent(item.href)}
-                  render={<Link href={item.href} prefetch scroll={false} />}
+                  render={<AppNavLink href={item.href} />}
                 >
                   <span>{item.label}</span>
                 </SidebarMenuButton>

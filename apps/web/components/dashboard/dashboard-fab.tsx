@@ -8,10 +8,12 @@ import {
   useReducedMotion,
 } from "framer-motion";
 import { Plus } from "lucide-react";
-import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import {
+  dashboardShortcutHref,
   defaultDashboardShortcutPrefs,
   resolveDashboardFabShortcuts,
   type DashboardShortcutDefinition,
@@ -27,12 +29,10 @@ function FabMenuItem({
   shortcut,
   index,
   reduceMotion,
-  onNavigate,
 }: {
   shortcut: DashboardShortcutDefinition;
   index: number;
   reduceMotion: boolean;
-  onNavigate: () => void;
 }) {
   const Icon = shortcut.icon;
   return (
@@ -59,10 +59,8 @@ function FabMenuItem({
       }}
       className="pointer-events-auto origin-bottom-right"
     >
-      <Link
-        href={shortcut.href}
-        prefetch
-        onClick={onNavigate}
+      <AppNavLink
+        href={dashboardShortcutHref(shortcut.id)}
         className={cn(
           "flex items-center gap-3 rounded-2xl border border-border/45 bg-card/95 py-2.5 ps-3 pe-4 text-sm font-medium text-foreground shadow-card backdrop-blur-md transition-[transform,box-shadow] hover:shadow-md active:scale-[0.98]",
           "dark:bg-card/90",
@@ -78,7 +76,7 @@ function FabMenuItem({
           <Icon className="size-[18px]" strokeWidth={2} aria-hidden />
         </span>
         <span className="min-w-0 whitespace-nowrap">{shortcut.label}</span>
-      </Link>
+      </AppNavLink>
     </m.div>
   );
 }
@@ -91,7 +89,12 @@ function DashboardFabLayer({
   reduceMotion: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
   const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -139,7 +142,6 @@ function DashboardFabLayer({
                   shortcut={shortcut}
                   index={items.length - 1 - index}
                   reduceMotion={reduceMotion}
-                  onNavigate={close}
                 />
               ))
             : null}

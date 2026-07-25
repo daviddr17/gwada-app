@@ -57,7 +57,7 @@ export function DisplayContextFooter({
                   displayRestaurantLogoFooterClassName,
                   !restaurantAvatarUrl && "text-[8px] font-semibold text-muted-foreground",
                 )}
-                imageClassName="!max-h-full !max-w-full p-0 object-contain"
+                imageClassName="size-full object-contain p-0.5"
               />
             ) : null}
             {trimmedName ? (

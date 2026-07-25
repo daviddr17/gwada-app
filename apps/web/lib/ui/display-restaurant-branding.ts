@@ -27,9 +27,12 @@ export const displayRestaurantLogoFooterClassName = cn(
   displayRestaurantLogoFrameClassName,
 );
 
-/** PIN-/Sperrbildschirm — kompakt, damit Logo auf kurzen iPad-Höhen nicht geclippt wird. */
+/**
+ * PIN-/Sperrbildschirm — groß genug für Wordmark-Logos (z. B. Zur Schlagd).
+ * size-12 war optisch „leer“, weil feine Schrift bei ~30px Inhalt verschwindet.
+ */
 export const displayRestaurantLogoPinClassName = cn(
-  "size-12 sm:size-14",
+  "size-20 sm:size-24",
   displayRestaurantLogoMaxClassName,
   displayRestaurantLogoFrameClassName,
 );

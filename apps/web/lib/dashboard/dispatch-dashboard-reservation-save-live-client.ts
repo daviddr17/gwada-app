@@ -3,6 +3,7 @@
 import {
   dispatchDashboardReservationsLiveInsert,
   dispatchDashboardReservationsLiveUpdate,
+  notifyPlatformReservationOwnCreate,
 } from "@/lib/dashboard/dashboard-live-events";
 import type { ReservationLiveInsertFields } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import { dispatchDashboardWidgetLiveFetch } from "@/lib/dashboard/dashboard-widgets-live-events";
@@ -12,6 +13,7 @@ export function dispatchDashboardReservationCreateLivePatch(params: {
   restaurantId: string;
   insert: ReservationLiveInsertFields;
 }): void {
+  notifyPlatformReservationOwnCreate({ reservationId: params.insert.id });
   dispatchDashboardReservationsLiveInsert(params);
   dispatchDashboardWidgetLiveFetch(params.restaurantId, "contacts", {
     immediate: true,

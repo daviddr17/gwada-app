@@ -99,22 +99,8 @@ export async function createReservationFromVoiceParsed(params: {
     tables: [],
   });
 
-  if (payload.notify_whatsapp) {
-    void triggerReservationWhatsappDispatch(created.id, "created").then((wa) => {
-      const msg = whatsappDispatchUserMessage(wa);
-      if (msg) console.warn("[voice-reservation]", msg);
-    });
-  }
-  if (payload.notify_email) {
-    void triggerReservationEmailDispatch(created.id, "created").then((em) => {
-      const msg = emailDispatchUserMessage(em, {
-        isSuperadmin: params.isSuperadmin ?? false,
-      });
-      if (msg) console.warn("[voice-reservation]", msg);
-    });
-  }
-
   const status = statuses.find((s) => s.id === statusId);
+  // Sofort Own-Create markieren / KPI patchen — vor optionalen Notify-Calls.
   dispatchDashboardReservationCreateLivePatch({
     restaurantId: params.restaurantId,
     insert: {
@@ -132,6 +118,21 @@ export async function createReservationFromVoiceParsed(params: {
       statusColorHex: status?.color_hex,
     },
   });
+
+  if (payload.notify_whatsapp) {
+    void triggerReservationWhatsappDispatch(created.id, "created").then((wa) => {
+      const msg = whatsappDispatchUserMessage(wa);
+      if (msg) console.warn("[voice-reservation]", msg);
+    });
+  }
+  if (payload.notify_email) {
+    void triggerReservationEmailDispatch(created.id, "created").then((em) => {
+      const msg = emailDispatchUserMessage(em, {
+        isSuperadmin: params.isSuperadmin ?? false,
+      });
+      if (msg) console.warn("[voice-reservation]", msg);
+    });
+  }
 
   return { ok: true, reservationNumber: created.reservation_number };
 }

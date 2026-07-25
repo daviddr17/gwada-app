@@ -1,72 +1,25 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DashboardContactsTile } from "@/components/dashboard/dashboard-contacts-tile";
+import { DashboardHomePendingSkeleton } from "@/components/dashboard/dashboard-home-pending-skeleton";
+import { DashboardHeuteTile } from "@/components/dashboard/dashboard-heute-tile";
+import { DashboardIntegrationsTile } from "@/components/dashboard/dashboard-integrations-tile";
+import { DashboardInventoryTile } from "@/components/dashboard/dashboard-inventory-tile";
+import { DashboardMenuTile } from "@/components/dashboard/dashboard-menu-tile";
+import { DashboardMessagesTile } from "@/components/dashboard/dashboard-messages-tile";
+import { DashboardReservationsTile } from "@/components/dashboard/dashboard-reservations-tile";
+import { DashboardReviewsTile } from "@/components/dashboard/dashboard-reviews-tile";
+import { DashboardStaffTile } from "@/components/dashboard/dashboard-staff-tile";
+import { DashboardWeatherTile } from "@/components/dashboard/dashboard-weather-tile";
 import { DashboardWidgetErrorBoundaryWithReset } from "@/components/dashboard/dashboard-widget-error-boundary";
-import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-widget-tile-skeleton";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
-
-const dynamicTile = (
-  loader: () => Promise<{ default: React.ComponentType }>,
-) =>
-  dynamic(loader, { loading: () => <DashboardWidgetTileSkeleton /> });
-
-const DashboardHeuteTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-heute-tile").then((m) => ({
-    default: m.DashboardHeuteTile,
-  })),
-);
-const DashboardContactsTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-contacts-tile").then((m) => ({
-    default: m.DashboardContactsTile,
-  })),
-);
-const DashboardMessagesTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-messages-tile").then((m) => ({
-    default: m.DashboardMessagesTile,
-  })),
-);
-const DashboardIntegrationsTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-integrations-tile").then((m) => ({
-    default: m.DashboardIntegrationsTile,
-  })),
-);
-const DashboardInventoryTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-inventory-tile").then((m) => ({
-    default: m.DashboardInventoryTile,
-  })),
-);
-const DashboardMenuTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-menu-tile").then((m) => ({
-    default: m.DashboardMenuTile,
-  })),
-);
-const DashboardStaffTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-staff-tile").then((m) => ({
-    default: m.DashboardStaffTile,
-  })),
-);
-const DashboardReservationsTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-reservations-tile").then((m) => ({
-    default: m.DashboardReservationsTile,
-  })),
-);
-const DashboardReviewsTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-reviews-tile").then((m) => ({
-    default: m.DashboardReviewsTile,
-  })),
-);
-const DashboardWeatherTile = dynamicTile(() =>
-  import("@/components/dashboard/dashboard-weather-tile").then((m) => ({
-    default: m.DashboardWeatherTile,
-  })),
-);
 
 function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   switch (id) {
@@ -95,17 +48,6 @@ function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   }
 }
 
-function DashboardHomeSkeleton() {
-  return (
-    <div className="grid gap-4 pt-2 lg:grid-cols-2" aria-busy="true" aria-label="Dashboard wird geladen">
-      <DashboardWidgetTileSkeleton />
-      <DashboardWidgetTileSkeleton />
-      <DashboardWidgetTileSkeleton />
-      <DashboardWidgetTileSkeleton />
-    </div>
-  );
-}
-
 export function DashboardHomePage() {
   const {
     visibility,
@@ -118,7 +60,7 @@ export function DashboardHomePage() {
   // (accessOptions.permissionsLoading) — Batch-LS/placeholder kann sofort malen.
   // Nur Widget-Prefs müssen ready sein (meist sync aus LS).
   if (!isReady) {
-    return <DashboardHomeSkeleton />;
+    return <DashboardHomePendingSkeleton />;
   }
 
   const orderedVisible = groupDashboardLayoutSections(

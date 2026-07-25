@@ -81,7 +81,14 @@ export function RegisterModuleChrome({
       // Nested layouts may own the secondary strip — don't wipe it here.
       secondarySubnav: prev.secondarySubnav,
     }));
-    return () => setChrome(EMPTY);
+    return () => {
+      // Soft-Nav: nicht blind auf EMPTY — SoftNavPendingOverlay / nächstes Modul
+      // setzen den Titel oft schon optimistisch. Sonst flackert der Chrome-Titel.
+      setChrome((prev) => {
+        if (prev.title !== title) return prev;
+        return EMPTY;
+      });
+    };
   }, [title, subnavAriaLabel, subnavItems, setChrome]);
 
   return null;

@@ -10,6 +10,7 @@ import { InventoryScreenSkeleton } from "@/components/inventory/inventory-screen
 import { MenuOverviewSkeleton } from "@/components/menu/menu-overview-skeleton";
 import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
 import { ReservationsOverviewSkeleton } from "@/components/reservations/reservations-overview-skeleton";
+import { DashboardHomePendingSkeleton } from "@/components/dashboard/dashboard-home-pending-skeleton";
 import { ReviewsScreenSkeleton } from "@/components/reviews/reviews-screen-skeleton";
 import { StaffOverviewTableSkeleton } from "@/components/staff/staff-overview-skeleton";
 import { StaffTodosTableSkeleton } from "@/components/staff/todos/staff-todos-skeleton";
@@ -42,6 +43,7 @@ function GenericModulePendingSkeleton() {
 
 function skeletonForHref(href: string): ReactNode {
   const path = normalizeNavHref(href);
+  if (path === "/dashboard") return <DashboardHomePendingSkeleton />;
   if (path.startsWith("/dashboard/menu")) return <MenuOverviewSkeleton />;
   if (path.startsWith("/dashboard/mitarbeiter")) {
     return <StaffOverviewTableSkeleton />;
@@ -106,8 +108,16 @@ export function SoftNavPendingOverlay() {
     optimisticTargetRef.current = null;
     prevTitleRef.current = null;
     if (!target || restore == null) return;
-    // Navigation erfolgreich — Modul-Chrome setzt den Titel.
-    if (normalizeNavHref(pathname) === target) return;
+    // Navigation erfolgreich — Titel halten (RegisterModuleChrome / Unmount-Race).
+    if (normalizeNavHref(pathname) === target) {
+      const title = titleForHref(target);
+      if (title) {
+        setChrome((prev) =>
+          prev.title === title ? prev : { ...prev, title },
+        );
+      }
+      return;
+    }
     setChrome((prev) => ({ ...prev, title: restore }));
   }, [pending, pendingHref, pathname, setChrome]);
 

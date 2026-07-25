@@ -1,11 +1,8 @@
 "use client";
 
 import { DisplayBrandMark } from "@/components/display/display-brand-mark";
-import { DisplayRestaurantLogo } from "@/components/display/display-restaurant-logo";
-import { displayRestaurantInitials } from "@/lib/display/display-avatar-utils";
 import { Button } from "@/components/ui/button";
 import { displayChromeFooterClassName } from "@/lib/ui/display-chrome";
-import { displayRestaurantLogoFooterClassName } from "@/lib/ui/display-restaurant-branding";
 import { cn } from "@/lib/utils";
 
 const displayFooterLogoutButtonClassName =
@@ -14,27 +11,23 @@ const displayFooterLogoutButtonClassName =
 const displayFooterScrollClassName =
   "flex min-w-0 flex-1 items-stretch overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
-/** Fußzeile: Restaurant links, Gwada Mitte, Gerät rechts, Abmelden sticky. */
+/** Fußzeile: Restaurantname links, Gwada Mitte, Gerät rechts, Abmelden sticky. */
 export function DisplayContextFooter({
   restaurantName,
-  restaurantAvatarUrl,
   displayName,
   showLogout = false,
   onLogout,
   className,
 }: {
   restaurantName: string;
-  restaurantAvatarUrl?: string | null;
   displayName?: string | null;
   showLogout?: boolean;
   onLogout?: () => void;
   className?: string;
 }) {
-  const initials = displayRestaurantInitials(restaurantName);
   const trimmedName = restaurantName.trim();
   const trimmedDisplay = displayName?.trim() ?? "";
   const logoutVisible = showLogout && Boolean(onLogout);
-  const showRestaurantMark = Boolean(restaurantAvatarUrl) || Boolean(trimmedName);
 
   return (
     <footer
@@ -46,26 +39,11 @@ export function DisplayContextFooter({
     >
       <div className={displayFooterScrollClassName}>
         <div className="flex min-w-max flex-1 items-center gap-3 py-2 pl-4 pr-3">
-          <div className="flex shrink-0 items-center gap-2">
-            {showRestaurantMark ? (
-              <DisplayRestaurantLogo
-                src={restaurantAvatarUrl}
-                initials={initials}
-                alt={trimmedName || ""}
-                size="sm"
-                className={cn(
-                  displayRestaurantLogoFooterClassName,
-                  !restaurantAvatarUrl && "text-[8px] font-semibold text-muted-foreground",
-                )}
-                imageClassName="size-full object-contain p-0.5"
-              />
-            ) : null}
-            {trimmedName ? (
-              <span className="whitespace-nowrap text-xs font-medium text-foreground/75">
-                {trimmedName}
-              </span>
-            ) : null}
-          </div>
+          {trimmedName ? (
+            <span className="shrink-0 whitespace-nowrap text-xs font-medium text-foreground/75">
+              {trimmedName}
+            </span>
+          ) : null}
 
           <div className="min-w-[5.5rem] flex-1 shrink-0" aria-hidden />
 

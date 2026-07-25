@@ -737,7 +737,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
         <DisplayContextFooter
           restaurantName={context.restaurant?.name ?? ""}
-          restaurantAvatarUrl={context.restaurant?.avatar_url}
           displayName={context.display?.name}
         />
       </div>
@@ -772,7 +771,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
           </main>
           <DisplayContextFooter
             restaurantName={context.restaurant?.name ?? ""}
-            restaurantAvatarUrl={context.restaurant?.avatar_url}
             displayName={context.display?.name}
             showLogout={!locked}
             onLogout={requestLogout}
@@ -840,7 +838,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
           </div>
           <DisplayContextFooter
             restaurantName={context.restaurant?.name ?? ""}
-            restaurantAvatarUrl={context.restaurant?.avatar_url}
             displayName={context.display?.name}
             showLogout={!locked}
             onLogout={requestLogout}

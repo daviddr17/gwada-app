@@ -34,7 +34,7 @@ const itemActiveClassName = "text-foreground";
 export function AppMobileBottomNav() {
   const pathname = usePathname();
   const { pendingHref } = useSoftNavLock();
-  const { openMobile, setOpenMobile, toggleSidebar } = useSidebar();
+  const { openMobile, setOpenMobile } = useSidebar();
   const search = useDashboardGlobalSearchOptional();
   const showSearch = isRestaurantDashboardPath(pathname) && Boolean(search);
   const searchOpen = Boolean(search?.open);
@@ -68,7 +68,21 @@ export function AppMobileBottomNav() {
           aria-expanded={openMobile}
           onClick={() => {
             if (searchOpen) search?.closeSearch();
-            toggleSidebar();
+            // Menü offen → immer schließen (kein Toggle-Miss).
+            if (openMobile) {
+              setOpenMobile(false);
+              return;
+            }
+            // Close-Animation noch sichtbar (data-open=false, mounted): nicht wieder öffnen.
+            // Passiert besonders bei warmen Keep-alive-Modulen (Nachrichten/Reservierungen).
+            if (
+              document.querySelector(
+                '[data-app-mobile-chrome-overlay][data-open="false"]',
+              )
+            ) {
+              return;
+            }
+            setOpenMobile(true);
           }}
         >
           {openMobile ? (

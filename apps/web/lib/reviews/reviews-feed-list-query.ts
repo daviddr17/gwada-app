@@ -108,6 +108,11 @@ export function reviewsFeedListQueryKey(query: ReviewsFeedListQuery): string {
   ].join("|");
 }
 
+/** Soft-Nav / Warm-Prefetch — gleicher Key wie leerer Reviews-Screen. */
+export const DEFAULT_REVIEWS_FEED_LIST_QUERY_KEY = reviewsFeedListQueryKey(
+  DEFAULT_REVIEWS_FEED_LIST_QUERY,
+);
+
 export function appendReviewsFeedListQueryParams(
   params: URLSearchParams,
   query: Omit<ReviewsFeedListQuery, "showReplyFilter"> & {

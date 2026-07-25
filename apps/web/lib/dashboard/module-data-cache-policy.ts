@@ -315,7 +315,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     scope: "module",
     appModule: "Reservierungen",
     strategy: "realtime",
-    staleTimeMs: 60_000,
+    staleTimeMs: 3 * 60_000,
     pollIntervalMs: 60_000,
     description:
       "Neue Reservierungen per Supabase Realtime — Provider in AppModuleLiveProviders (einmal pro App-Zone, solange Workspace-Restaurant ready). Nicht route-conditional mounten (Soft-Nav). Fallback-Polling 60s bei Realtime-Ausfall oder /sb-Proxy.",
@@ -341,7 +341,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     scope: "module",
     appModule: "Mitarbeiter",
     strategy: "realtime",
-    staleTimeMs: 30_000,
+    staleTimeMs: 3 * 60_000,
     pollIntervalMs: 30_000,
     description:
       "Schicht-/Team-Updates per Realtime — gleicher App-Zone-Provider wie Reservierungen (nicht route-conditional). Fallback-Polling 30s bei Realtime-Ausfall oder /sb-Proxy.",
@@ -367,8 +367,8 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     scope: "module",
     appModule: "Speisekarte",
     strategy: "stale-while-revalidate",
-    staleTimeMs: 60_000,
-    gcTimeMs: 5 * 60_000,
+    staleTimeMs: 3 * 60_000,
+    gcTimeMs: 30 * 60_000,
     description:
       "Gerichte + Kategorien per React Query — localStorage als placeholderData, Invalidierung bei CRUD.",
     loadTriggers: ["Route /dashboard/menu/**", "placeholderData aus LS"],
@@ -391,8 +391,8 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     scope: "module",
     appModule: "Bestand",
     strategy: "stale-while-revalidate",
-    staleTimeMs: 60_000,
-    gcTimeMs: 5 * 60_000,
+    staleTimeMs: 3 * 60_000,
+    gcTimeMs: 30 * 60_000,
     description:
       "Zutaten + Bestellungen per React Query; Bestandsänderung invalidiert auch notifications.summary (Low-Stock-Push).",
     loadTriggers: ["Route /dashboard/inventory/**", "placeholderData aus LS"],

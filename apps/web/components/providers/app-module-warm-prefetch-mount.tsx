@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import {
   prefetchCriticalModuleQueries,
   seedPriorityModuleQueryCaches,
+  warmPriorityModuleDataCaches,
 } from "@/lib/hooks/app-module-intent-prefetch";
 import {
   warmAppModuleSecondaryCaches,
@@ -23,6 +24,7 @@ const ROUTE_PREFETCH_STAGGER_MS = 40;
 /**
  * Workspace ready → Full-Route-Prefetch sofort, kritische Modul-Daten kurz danach.
  * AUTO-Prefetch stoppt an loading.tsx — FULL lädt das Page-Segment vor dem Klick.
+ * Mobile: Priority-Modul-Daten ohne Hover vorwärmen.
  */
 export function AppModuleWarmPrefetchMount() {
   const queryClient = useQueryClient();
@@ -47,18 +49,20 @@ export function AppModuleWarmPrefetchMount() {
       prefetchAppModuleHref(router, route);
     }
 
-    // Kritische Daten sofort anstoßen — nicht 800ms Idle hinter Dashboard-Batch warten.
+    // Kritische Daten sofort anstoßen — nicht hinter Dashboard-Batch warten.
     prefetchCriticalModuleQueries(queryClient, restaurantId);
 
+    // Speisekarte/Bestand/… — Daten vor dem ersten Tap (kein Hover auf Touch).
     runWhenIdle(() => {
       prefetchAppModuleQueryCaches(queryClient, restaurantId);
-    }, 200);
+      warmPriorityModuleDataCaches(queryClient, restaurantId);
+    }, 150);
 
     runWhenIdle(() => {
       warmAppModuleSecondaryCaches(queryClient, restaurantId);
-    }, 1_200);
+    }, 900);
 
-    // Restliche Module früher FULL-prefetchen — Idle 1.5s ließ Erstbesuche kalt.
+    // Restliche Module FULL-prefetchen.
     runWhenIdle(() => {
       let index = 0;
       for (const route of APP_MODULE_PREFETCH_ROUTES) {

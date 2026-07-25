@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useLayoutEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { AppMain } from "@/components/layout/app-main";
 import { AccountingListScreenSkeleton } from "@/components/accounting/accounting-list-screen-skeleton";
@@ -23,6 +24,8 @@ import { useAppModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useModuleHomeKeepAliveOptional } from "@/lib/contexts/module-home-keep-alive-context";
 import { SIDEBAR_MODULE_DEFINITIONS } from "@/lib/constants/sidebar-modules";
 import { ContactConversationsListSkeleton } from "@/components/contacts/contact-conversations-list-skeleton";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { isModuleSoftNavDataReady } from "@/lib/navigation/module-soft-nav-data-ready";
 
 /**
  * Sofortiges Modul-Skeleton über dem Scroll-Bereich — Sibling zu {children},
@@ -86,6 +89,8 @@ function titleForHref(href: string): string | null {
 
 export function SoftNavPendingOverlay() {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
+  const { restaurantId } = useWorkspaceRestaurantUuid();
   const { pendingHref } = useSoftNavLock();
   const { setChrome } = useAppModuleChrome();
   const moduleKeepAlive = useModuleHomeKeepAliveOptional();
@@ -100,6 +105,11 @@ export function SoftNavPendingOverlay() {
     pending &&
     pendingHref != null &&
     Boolean(moduleKeepAlive?.isPendingWarmHome(pendingHref));
+
+  const pendingDataReady =
+    pending &&
+    pendingHref != null &&
+    isModuleSoftNavDataReady(pendingHref, restaurantId, queryClient);
 
   // Optimistischen Titel setzen; bei abgebrochenem Nav wiederherstellen.
   useLayoutEffect(() => {
@@ -132,8 +142,10 @@ export function SoftNavPendingOverlay() {
     setChrome((prev) => ({ ...prev, title: restore }));
   }, [pending, pendingHref, pathname, setChrome]);
 
-  // Warm Home: Keep-alive zeigt sofort — kein Skeleton-Overlay darüber.
-  if (!pending || !pendingHref || pendingToWarmHome) return null;
+  // Keep-alive oder bereits warme Modul-Daten: kein Skeleton über dem Ziel.
+  if (!pending || !pendingHref || pendingToWarmHome || pendingDataReady) {
+    return null;
+  }
 
   return (
     <div

@@ -134,7 +134,7 @@ export async function fetchMetaMediaProxyResponse(
         .webp({ quality: META_MEDIA_PROXY_THUMB_WEBP_QUALITY })
         .toBuffer();
 
-      return new Response(resized, {
+      return new Response(new Uint8Array(resized), {
         headers: {
           "Content-Type": "image/webp",
           "Cache-Control": cacheHeader(

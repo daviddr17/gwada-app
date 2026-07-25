@@ -1,41 +1,20 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { AppMain } from "@/components/layout/app-main";
-import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
+import { MESSAGES_MODULE_NAV } from "@/components/contacts/messages-module-nav";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
-
-const MESSAGES_MODULE_NAV: readonly ModuleSubnavItem[] = [
-  {
-    href: "/dashboard/kontakte/nachrichten",
-    label: "Nachrichten",
-    matchMode: "prefix",
-    activeWhen: ["/dashboard/kontakte"],
-  },
-  {
-    href: "/dashboard/kontakte/uebersicht",
-    label: "Kontakte",
-    matchMode: "prefix",
-  },
-  {
-    href: "/dashboard/kontakte/statistiken",
-    label: "Statistiken",
-    matchMode: "exact",
-  },
-  {
-    href: "/dashboard/kontakte/export",
-    label: "Export",
-    matchMode: "exact",
-  },
-  {
-    href: "/dashboard/kontakte/einstellungen",
-    label: "Einstellungen",
-    matchMode: "prefix",
-  },
-];
+import { isModuleHomePath } from "@/lib/navigation/module-home-keep-alive";
 
 export default function KontakteLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const pathname = usePathname();
+  // Nachrichten-Inbox: Keep-alive unter App-Shell besitzt Chrome + Inhalt.
+  if (isModuleHomePath(pathname, "nachrichten")) {
+    return null;
+  }
+
   return (
     <>
       <RegisterModuleChrome

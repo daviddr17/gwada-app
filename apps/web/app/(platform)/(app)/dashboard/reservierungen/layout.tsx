@@ -1,53 +1,27 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { AppMain } from "@/components/layout/app-main";
-import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { ReservationVoiceFab } from "@/components/reservations/reservation-voice-fab";
+import { RESERVATIONS_MODULE_NAV } from "@/components/reservations/reservations-module-nav";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
-
-const RESERVATIONS_NAV: readonly ModuleSubnavItem[] = [
-  {
-    href: "/dashboard/reservierungen/uebersicht",
-    label: "Übersicht",
-    matchMode: "exact",
-    activeWhen: ["/dashboard/reservierungen"],
-  },
-  {
-    href: "/dashboard/reservierungen/tischplan",
-    label: "Tischplan",
-    matchMode: "prefix",
-  },
-  {
-    href: "/dashboard/reservierungen/statistiken",
-    label: "Statistiken",
-    matchMode: "prefix",
-  },
-  {
-    href: "/dashboard/reservierungen/protokoll",
-    label: "Protokoll",
-    matchMode: "prefix",
-  },
-  {
-    href: "/dashboard/reservierungen/einstellungen",
-    label: "Einstellungen",
-    matchMode: "prefix",
-  },
-  {
-    href: "/dashboard/reservierungen/einbinden",
-    label: "Einbinden",
-    matchMode: "prefix",
-  },
-];
+import { isModuleHomePath } from "@/lib/navigation/module-home-keep-alive";
 
 export default function ReservierungenLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const pathname = usePathname();
+  // Übersicht: Keep-alive unter App-Shell besitzt Chrome + Inhalt.
+  if (isModuleHomePath(pathname, "reservierungen")) {
+    return null;
+  }
+
   return (
     <>
       <RegisterModuleChrome
         title="Reservierungen"
         subnavAriaLabel="Reservierungs-Bereiche"
-        subnavItems={RESERVATIONS_NAV}
+        subnavItems={RESERVATIONS_MODULE_NAV}
       />
       <AppMain>{children}</AppMain>
       <ReservationVoiceFab />

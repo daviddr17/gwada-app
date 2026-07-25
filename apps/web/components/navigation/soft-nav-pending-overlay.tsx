@@ -20,8 +20,9 @@ import {
   useSoftNavLock,
 } from "@/components/providers/soft-nav-lock-provider";
 import { useAppModuleChrome } from "@/lib/contexts/app-module-chrome-context";
-import { useDashboardHomeKeepAliveOptional } from "@/lib/contexts/dashboard-home-keep-alive-context";
+import { useModuleHomeKeepAliveOptional } from "@/lib/contexts/module-home-keep-alive-context";
 import { SIDEBAR_MODULE_DEFINITIONS } from "@/lib/constants/sidebar-modules";
+import { ContactConversationsListSkeleton } from "@/components/contacts/contact-conversations-list-skeleton";
 
 /**
  * Sofortiges Modul-Skeleton über dem Scroll-Bereich — Sibling zu {children},
@@ -58,6 +59,9 @@ function skeletonForHref(href: string): ReactNode {
   if (path.startsWith("/dashboard/bewertungen")) {
     return <ReviewsScreenSkeleton />;
   }
+  if (path.startsWith("/dashboard/kontakte")) {
+    return <ContactConversationsListSkeleton />;
+  }
   if (path.startsWith("/dashboard/dokumente")) {
     return <DocumentsOverviewTableSkeleton />;
   }
@@ -84,7 +88,7 @@ export function SoftNavPendingOverlay() {
   const pathname = usePathname();
   const { pendingHref } = useSoftNavLock();
   const { setChrome } = useAppModuleChrome();
-  const homeKeepAlive = useDashboardHomeKeepAliveOptional();
+  const moduleKeepAlive = useModuleHomeKeepAliveOptional();
   const prevTitleRef = useRef<string | null>(null);
   const optimisticTargetRef = useRef<string | null>(null);
 
@@ -95,8 +99,7 @@ export function SoftNavPendingOverlay() {
   const pendingToWarmHome =
     pending &&
     pendingHref != null &&
-    normalizeNavHref(pendingHref) === "/dashboard" &&
-    Boolean(homeKeepAlive?.warm);
+    Boolean(moduleKeepAlive?.isPendingWarmHome(pendingHref));
 
   // Optimistischen Titel setzen; bei abgebrochenem Nav wiederherstellen.
   useLayoutEffect(() => {

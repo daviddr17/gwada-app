@@ -318,7 +318,12 @@ function contactInboxMarkUnreadErrorMessage(error: string): string {
   }
 }
 
-export function ContactsMessagesScreen() {
+export function ContactsMessagesScreen({
+  active = true,
+}: {
+  /** Keep-alive: false = versteckt — kein Thread-Realtime / kein Silent-Refetch. */
+  active?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const contactParam = searchParams.get("contact");
@@ -1221,9 +1226,10 @@ export function ContactsMessagesScreen() {
   useContactThreadRealtime(contactParam, {
     onInsert: applyRealtimeThreadInsert,
     onUpdate: applyRealtimeThreadUpdate,
-  });
+  }, { enabled: active });
 
   useEffect(() => {
+    // Cache-Events auch versteckt — nur setState, hält Inbox warm.
     if (!restaurantId || contactParam) return;
     if (!isUnifiedInboxFilter(inboxFilter)) return;
 
@@ -1247,7 +1253,7 @@ export function ContactsMessagesScreen() {
   }, [restaurantId, contactParam, inboxFilter]);
 
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!active || !restaurantId) return;
 
     const onMessagesRefresh = () => {
       if (contactParam) return;
@@ -1276,6 +1282,7 @@ export function ContactsMessagesScreen() {
       }
     };
   }, [
+    active,
     restaurantId,
     contactParam,
     loadConversations,

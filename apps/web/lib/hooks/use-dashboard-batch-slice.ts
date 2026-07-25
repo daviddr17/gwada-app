@@ -2,7 +2,7 @@
 
 import type { DashboardBatchWidgetId } from "@/lib/dashboard/dashboard-batch-widgets";
 import type { DashboardBatchSummary } from "@/lib/dashboard/load-dashboard-batch-summary-server";
-import { useDashboardHomeKeepAliveOptional } from "@/lib/contexts/dashboard-home-keep-alive-context";
+import { useDashboardHomeKeepAliveOptional } from "@/lib/contexts/module-home-keep-alive-context";
 import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSummaryQuery } from "@/lib/hooks/use-dashboard-batch-summary-query";
 

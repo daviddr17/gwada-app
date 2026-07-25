@@ -305,6 +305,8 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const createContactParam = searchParams.get("contact");
 
   useEffect(() => {
+    // Keep-alive: URL nur anfassen, wenn Übersicht wirklich sichtbar ist.
+    if (!active) return;
     if (!isNewParam) return;
     const t = searchParams.get("time");
     const tb = searchParams.get("table");
@@ -327,20 +329,25 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       const qs = p.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     }
-  }, [isNewParam, searchParams, pathname, router]);
+  }, [active, isNewParam, searchParams, pathname, router]);
 
   useEffect(() => {
+    if (!active) return;
     const rid = searchParams.get("reservation");
     if (rid && !isUuidRestaurantId(rid)) {
       router.replace(pathname, { scroll: false });
     }
-  }, [searchParams, pathname, router]);
+  }, [active, searchParams, pathname, router]);
 
   const showInitialLoadSkeleton = useDeferredSkeleton(
     dbOk && loading && rows.length === 0,
   );
 
   useEffect(() => {
+    if (!active) {
+      setUrlReservation(null);
+      return;
+    }
     if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
       setUrlReservation(null);
       return;
@@ -378,7 +385,15 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [reservationIdParam, rows, dbOk, workspaceRestaurantId, pathname, router]);
+  }, [
+    active,
+    reservationIdParam,
+    rows,
+    dbOk,
+    workspaceRestaurantId,
+    pathname,
+    router,
+  ]);
 
   useEffect(() => {
     if (!workspaceRestaurantId || !dbOk) {
@@ -444,6 +459,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
 
   // Deep-Link / Zurück: URL → Sheet (Öffnen per Klick setzt State schon vorher).
   useEffect(() => {
+    if (!active) {
+      setReservationSheet(null);
+      return;
+    }
     if (isNewParam) {
       let day = startOfLocalDay(new Date());
       if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
@@ -486,6 +505,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     }
     setReservationSheet(null);
   }, [
+    active,
     isNewParam,
     dayParam,
     reservationIdParam,
@@ -497,6 +517,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   /** `?day=YYYY-MM-DD` (ohne new): Monat springen + Tagesblatt — z. B. Suche „Zum Tag“. */
   const appliedDayDeepLinkRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!active) return;
     if (isNewParam) return;
     if (!dayParam || !/^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
       appliedDayDeepLinkRef.current = null;
@@ -526,6 +547,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     const qs = p.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [
+    active,
     dayParam,
     isNewParam,
     reservationIdParam,

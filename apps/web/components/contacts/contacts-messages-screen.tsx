@@ -443,16 +443,21 @@ export function ContactsMessagesScreen({
   }, [chatSearch, readFilter]);
 
   useEffect(() => {
+    if (!active) return;
     if (contactParam) {
       setThreadOverlayOpen(true);
       setClosingThreadId(null);
     }
-  }, [contactParam]);
+  }, [active, contactParam]);
 
   useEffect(() => {
+    if (!active) {
+      setInboxLiveToastSuppressedByOpenThread(false);
+      return;
+    }
     setInboxLiveToastSuppressedByOpenThread(Boolean(contactParam));
     return () => setInboxLiveToastSuppressedByOpenThread(false);
-  }, [contactParam]);
+  }, [active, contactParam]);
 
   useEffect(() => {
     setEditingWahaMessage(null);
@@ -675,6 +680,8 @@ export function ContactsMessagesScreen({
     !contactParam && isInboxFilterAvailable(inboxFilter);
 
   useEffect(() => {
+    // Keep-alive: versteckt bleibt gemountet — URL-Sync darf Soft-Nav nicht zurückreißen.
+    if (!active) return;
     if (connectionsLoading || !workspaceReady || !restaurantId) return;
 
     const resolved = parseInboxPlatformFilter(platformParam, contactParam);
@@ -697,6 +704,7 @@ export function ContactsMessagesScreen({
       router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
     }
   }, [
+    active,
     connectionsLoading,
     workspaceReady,
     restaurantId,

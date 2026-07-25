@@ -26,14 +26,17 @@ import { peekMenuCategoriesCache } from "@/lib/menu/menu-categories-query";
 import { peekMenuMainCategoriesCache } from "@/lib/menu/menu-main-categories-query";
 import { peekIngredientsCache } from "@/lib/inventory/ingredients-query";
 import {
+  warmAccountingInvoices,
   warmDocumentsList,
   warmEventsFeed,
   warmGalleryFeed,
   warmInsightsOverview,
   warmNewsFeed,
   warmPosOverview,
+  warmReviewsFeed,
   warmStaffTodos,
 } from "@/lib/hooks/app-module-warm-prefetch";
+import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 
 function normalizeModuleHref(href: string): string {
@@ -111,7 +114,7 @@ function seedMenuQueryCaches(
   }
 }
 
-function warmModuleData(
+export function warmModuleData(
   queryClient: QueryClient,
   restaurantId: string,
   href: string,
@@ -155,6 +158,14 @@ function warmModuleData(
     );
     return;
   }
+  if (path.startsWith("/dashboard/bewertungen")) {
+    void warmReviewsFeed(restaurantId);
+    return;
+  }
+  if (path.startsWith("/dashboard/buchfuehrung")) {
+    void warmAccountingInvoices(restaurantId);
+    return;
+  }
   if (path.startsWith("/dashboard/news")) {
     void warmNewsFeed(restaurantId);
     return;
@@ -182,9 +193,25 @@ function warmModuleData(
   if (path.startsWith("/dashboard/pos")) {
     void warmPosOverview(restaurantId);
   }
+  // kontakte/nachrichten: UnifiedInboxBackgroundSyncMount wärmt mit Kanal-Flags.
 }
 
-/** Hover/Focus: volles Page-Segment + Modul-Daten vor dem Klick wärmen. */
+/**
+ * Mobile hat kein Hover — Sidebar-Module nach Workspace-Ready datenwarm halten.
+ * Gestaffelt, damit kritische Queries (Staff/Reservierungen) zuerst Bandbreite bekommen.
+ */
+export function warmPriorityModuleDataCaches(
+  queryClient: QueryClient,
+  restaurantId: string,
+): void {
+  APP_MODULE_PRIORITY_ROUTES.forEach((href, index) => {
+    window.setTimeout(() => {
+      warmModuleData(queryClient, restaurantId, href);
+    }, index * 45);
+  });
+}
+
+/** Hover/Focus/Tap: volles Page-Segment + Modul-Daten vor dem Klick wärmen. */
 export function warmModuleRouteIntent(
   router: AppRouterInstance,
   queryClient: QueryClient,

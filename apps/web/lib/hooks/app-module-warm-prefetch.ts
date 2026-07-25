@@ -2,6 +2,20 @@
 
 import { NEWS_FILTER_ALL } from "@/lib/constants/news-platforms";
 import {
+  accountingSalesListCacheKey,
+  peekAccountingSalesListCache,
+  writeAccountingSalesListCache,
+} from "@/lib/accounting/accounting-list-client-cache";
+import {
+  DEFAULT_ACCOUNTING_LIST_SORT_DIR,
+  DEFAULT_ACCOUNTING_SALES_DOCUMENT_SORT,
+} from "@/lib/accounting/accounting-list-sort";
+import {
+  fetchAccountingCatalog,
+  fetchAccountingDocumentStatuses,
+  fetchAccountingInvoices,
+} from "@/lib/accounting/accounting-api";
+import {
   isDocumentsListCacheFresh,
   writeDocumentsListCache,
 } from "@/lib/documents/documents-list-client-cache";
@@ -50,6 +64,18 @@ import {
   fetchPosPaidTodayOrders,
   fetchPosRegisterStatus,
 } from "@/lib/pos/pos-web-api-client";
+import {
+  createEmptyReviewsFeedClientCache,
+  type ReviewsFeedClientCache,
+} from "@/lib/reviews/reviews-feed-client-cache";
+import { DEFAULT_REVIEWS_FEED_LIST_QUERY_KEY } from "@/lib/reviews/reviews-feed-list-query";
+import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
+import type { MergedReviewsPaginationMeta } from "@/lib/reviews/reviews-list-pagination";
+import {
+  peekReviewsFeedSessionCache,
+  writeReviewsFeedSessionCache,
+} from "@/lib/reviews/reviews-feed-session-cache";
+import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import type { QueryClient } from "@tanstack/react-query";
 
 const FEED_STALE_MS = 5 * 60_000;
@@ -204,7 +230,109 @@ export async function warmPosOverview(restaurantId: string): Promise<void> {
   }
 }
 
-/** Feeds, Dokumente, Todos, Insights, POS — Staff/Reservierungen schon via prefetchCriticalModuleQueries. */
+/** Default Bewertungs-Feed (platform=all, Seite 1) — Soft-Nav ohne Skeleton. */
+export async function warmReviewsFeed(restaurantId: string): Promise<void> {
+  if (
+    peekReviewsFeedSessionCache(
+      restaurantId,
+      DEFAULT_REVIEWS_FEED_LIST_QUERY_KEY,
+      FEED_STALE_MS,
+    )?.feed.ready
+  ) {
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `/api/reviews?${new URLSearchParams({ restaurantId, platform: "all" })}`,
+    );
+    const json = (await res.json()) as {
+      reviews?: UnifiedReview[];
+      mergedPagination?: MergedReviewsPaginationMeta | null;
+      platformTotals?: ReviewsFeedClientCache["platformTotals"];
+      loadErrors?: ReviewsFeedClientCache["loadErrors"];
+      sync?: ReviewsFeedSyncMeta | null;
+      error?: string;
+    };
+    if (!res.ok) return;
+    const reviews = (json.reviews ?? []).map((review) => ({
+      ...review,
+      isUnread: false,
+    }));
+    const nextToken = json.mergedPagination?.nextPageToken;
+    const feed: ReviewsFeedClientCache = {
+      ...createEmptyReviewsFeedClientCache(),
+      ready: true,
+      allPages: { 1: reviews },
+      allPagination: json.mergedPagination ?? null,
+      allTokenByPage:
+        typeof nextToken === "string" && nextToken.length > 0
+          ? { 1: nextToken }
+          : {},
+      platformTotals:
+        json.platformTotals ?? json.mergedPagination?.platformTotals ?? {},
+      loadErrors: json.loadErrors ?? {},
+      sync: json.sync ?? null,
+    };
+    writeReviewsFeedSessionCache(
+      restaurantId,
+      {
+        feed,
+        googleLocationSummary: null,
+        googleStatsError: null,
+      },
+      DEFAULT_REVIEWS_FEED_LIST_QUERY_KEY,
+    );
+  } catch {
+    /* background warm */
+  }
+}
+
+/** Default Rechnungen-Liste (Seite 1) — Soft-Nav ohne Skeleton. */
+export async function warmAccountingInvoices(
+  restaurantId: string,
+): Promise<void> {
+  const key = accountingSalesListCacheKey({
+    restaurantId,
+    kind: "invoice",
+    source: "all",
+    status: "all",
+    variant: "all",
+    search: "",
+    page: 1,
+    sortKey: DEFAULT_ACCOUNTING_SALES_DOCUMENT_SORT,
+    sortDir: DEFAULT_ACCOUNTING_LIST_SORT_DIR,
+  });
+  if (peekAccountingSalesListCache(key)) return;
+
+  try {
+    const [list, catalog, statusRows] = await Promise.all([
+      fetchAccountingInvoices(restaurantId, { page: 1 }),
+      fetchAccountingCatalog(restaurantId),
+      fetchAccountingDocumentStatuses(restaurantId, "invoice", {
+        includeArchived: true,
+      }),
+    ]);
+    writeAccountingSalesListCache(key, {
+      rows: list.items,
+      listMeta: {
+        page: list.page,
+        totalPages: list.totalPages,
+        totalCount: list.totalCount,
+      },
+      catalog: {
+        taxRates: catalog.taxRates,
+        units: catalog.units,
+        articles: catalog.articles,
+      },
+      statuses: statusRows,
+    });
+  } catch {
+    /* background warm */
+  }
+}
+
+/** Feeds, Dokumente, Todos, Insights, POS, Reviews, Buchhaltung. */
 export function warmAppModuleSecondaryCaches(
   _queryClient: QueryClient,
   restaurantId: string,
@@ -216,4 +344,6 @@ export function warmAppModuleSecondaryCaches(
   void warmStaffTodos(restaurantId);
   void warmInsightsOverview(restaurantId);
   void warmPosOverview(restaurantId);
+  void warmReviewsFeed(restaurantId);
+  void warmAccountingInvoices(restaurantId);
 }

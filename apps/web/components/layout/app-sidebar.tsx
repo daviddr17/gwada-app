@@ -9,8 +9,6 @@ import {
   normalizeNavHref,
   useSoftNavLock,
 } from "@/components/providers/soft-nav-lock-provider";
-import { useModuleHomeKeepAliveOptional } from "@/lib/contexts/module-home-keep-alive-context";
-import { matchModuleHomeId } from "@/lib/navigation/module-home-keep-alive";
 import {
   Bell,
   Building2,
@@ -124,7 +122,6 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { pendingHref } = useSoftNavLock();
-  const moduleKeepAlive = useModuleHomeKeepAliveOptional();
   const { logout, isLoggingOut } = useAuthLogoutTransition();
   const { isMobile, setOpenMobile } = useSidebar();
   const { profile, isReady: profileReady } = useRestaurantProfile();
@@ -180,38 +177,21 @@ export function AppSidebar() {
     }
   }, [pathname, isMobile, setOpenMobile]);
 
-  // Soft-Nav startet vor pathname — Menü sofort zu (sonst bleibt Sheet bei Keep-alive offen).
-  useEffect(() => {
-    if (isMobile && pendingHref) {
-      setOpenMobile(false);
-    }
-  }, [pendingHref, isMobile, setOpenMobile]);
-
   const closeMobileSidebarOnNav = useCallback(
     (event: React.MouseEvent) => {
       if (!isMobile) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
-      const link = target.closest("a[href]");
-      if (!link && !target.closest("button")) return;
-
-      const href = link?.getAttribute("href") ?? "";
-      const homeId = href ? matchModuleHomeId(href) : null;
-      const warmHome =
-        homeId != null && Boolean(moduleKeepAlive?.warmIds.has(homeId));
-
-      // Warm Keep-alive: kein Skeleton-Flight — sync schließen, sonst wirkt Nav
-      // sofort und der erste Dock-Tap öffnet das Menü wieder (Toggle-Race).
-      if (warmHome) {
-        setOpenMobile(false);
-        return;
-      }
-
+      if (!target.closest("a[href], button")) return;
       // Nicht synchron im Capture schließen: sonst unmountet/animiert das Sheet
       // noch im selben Tick und Soft-Nav/Link-Clicks wirken tot.
+      // Auch kein Close über pendingHref (pointerdown→setTimeout 0): sonst startet
+      // die Close-Animation (+ früher pointer-events-none) vor dem synthetischen
+      // click → Tap fällt auf Content darunter („falsches Modul“ / keine Nav).
+      // Dock-Reopen während data-open=false: app-mobile-bottom-nav.
       window.setTimeout(() => setOpenMobile(false), 0);
     },
-    [isMobile, setOpenMobile, moduleKeepAlive],
+    [isMobile, setOpenMobile],
   );
 
   const mobileFooterMenuClassName = isMobile

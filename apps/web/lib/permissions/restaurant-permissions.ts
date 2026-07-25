@@ -220,7 +220,8 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
     {
       key: "settings.api",
       label: "Public API",
-      description: "API-Schlüssel für Headless-Einbindung (read-only).",
+      description:
+        "API-Schlüssel für Headless-Einbindung (Lesen; Reservierungen auch buchen).",
       group: "einstellungen",
     },
     {

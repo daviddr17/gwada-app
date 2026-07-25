@@ -22,7 +22,7 @@ type Props = {
 export function GalleryItemViewer({ item, open, onOpenChange }: Props) {
   if (!item) return null;
 
-  const { src, thumbSrc } = galleryItemDisplayUrls(item);
+  const { src } = galleryItemDisplayUrls(item);
   const videoSrc = item.fullUrl?.trim() || item.previewUrl;
   const title = item.title?.trim() || item.caption?.trim() || "Galerie";
 
@@ -46,7 +46,7 @@ export function GalleryItemViewer({ item, open, onOpenChange }: Props) {
           ) : (
             <FeedMediaImage
               src={src}
-              thumbSrc={thumbSrc}
+              priority
               blurDataUrl={item.blurDataUrl}
               width={item.width}
               height={item.height}

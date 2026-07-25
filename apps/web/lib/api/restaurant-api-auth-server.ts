@@ -80,7 +80,7 @@ export function handleRestaurantApiPreflight(
 ): Response | null {
   if (request.method !== "OPTIONS") return null;
   const headers = new Headers({
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
     "Access-Control-Max-Age": "86400",
   });

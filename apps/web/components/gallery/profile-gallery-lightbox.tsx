@@ -310,7 +310,7 @@ export function ProfileGalleryLightbox({
 
   if (!mounted || !visible || !item) return null;
 
-  const { src, thumbSrc } = galleryItemDisplayUrls(item);
+  const { src } = galleryItemDisplayUrls(item);
   const videoSrc = item.fullUrl?.trim() || item.previewUrl;
   const title = item.title?.trim() || item.caption?.trim() || "";
   const showChrome = chromeVisible && phase === "open";
@@ -365,7 +365,7 @@ export function ProfileGalleryLightbox({
             ) : (
               <FeedMediaImage
                 src={src}
-                thumbSrc={thumbSrc}
+                priority
                 blurDataUrl={item.blurDataUrl}
                 width={item.width}
                 height={item.height}

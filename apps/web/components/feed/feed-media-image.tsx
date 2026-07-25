@@ -86,8 +86,8 @@ export function FeedMediaImage({
         layoutStable?.markLoaded();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- ein Pending pro resolvedSrc
-  }, [resolvedSrc, feedOptimized, naturalSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Pending pro Bild-URL-Paar (nicht resolvedSrc: Thumb↔Full-Loop)
+  }, [src, thumbSrc, feedOptimized, naturalSize]);
 
   useEffect(() => {
     if (!naturalSize) return;

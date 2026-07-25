@@ -1,24 +1,11 @@
-import {
-  handleRestaurantApiV1Get,
-  handleRestaurantApiV1ReservationCreate,
-} from "@/lib/api/restaurant-api-v1-handler";
+import { handleRestaurantApiV1ReservationManage } from "@/lib/api/restaurant-api-v1-handler";
 import {
   handleRestaurantApiPreflight,
   buildRestaurantApiCorsHeaders,
 } from "@/lib/api/restaurant-api-auth-server";
 import { restaurantApiModuleByPath } from "@/lib/api/restaurant-api-modules";
 
-export async function GET(
-  request: Request,
-  ctx: { params: Promise<{ module: string }> },
-) {
-  const { module: rawModule } = await ctx.params;
-  const meta = restaurantApiModuleByPath(rawModule);
-  if (!meta) {
-    return Response.json({ error: "not_found" }, { status: 404 });
-  }
-  return handleRestaurantApiV1Get(request, meta.id);
-}
+export const dynamic = "force-dynamic";
 
 export async function POST(
   request: Request,
@@ -29,10 +16,10 @@ export async function POST(
   if (!meta) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  if (meta.id === "reservation") {
-    return handleRestaurantApiV1ReservationCreate(request);
+  if (meta.id !== "reservation") {
+    return Response.json({ error: "method_not_allowed" }, { status: 405 });
   }
-  return Response.json({ error: "method_not_allowed" }, { status: 405 });
+  return handleRestaurantApiV1ReservationManage(request);
 }
 
 export async function OPTIONS(request: Request) {

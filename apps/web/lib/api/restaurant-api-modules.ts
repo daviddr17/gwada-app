@@ -1,6 +1,6 @@
 import type { GwadaEmbedWidgetId } from "@/lib/embed/embed-protocol";
 
-/** Module, die per Public API (read) verfügbar sind — analog zu Embed-Widgets. */
+/** Module der Public API (/api/v1) — Read für alle; Reservierung zusätzlich Write. */
 export const RESTAURANT_API_MODULE_IDS = [
   "menu",
   "reservation",

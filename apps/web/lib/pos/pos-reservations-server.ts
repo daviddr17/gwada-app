@@ -11,6 +11,7 @@ import {
   reservationSnapshotFromPayload,
 } from "@/lib/reservations/reservation-log-build";
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
+import { resolveReservationLogActorNames } from "@/lib/reservations/reservation-log-actor-resolve";
 import {
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
@@ -348,13 +349,12 @@ async function writePosCreateLog(
     guestEmail: string | null;
   },
 ) {
-  const { data: profile } = params.profileId
-    ? await admin
-        .from("profiles")
-        .select("given_name, family_name")
-        .eq("id", params.profileId)
-        .maybeSingle()
-    : { data: null };
+  const actorNames = params.profileId
+    ? await resolveReservationLogActorNames(admin, {
+        restaurantId: params.restaurantId,
+        actorUserId: params.profileId,
+      })
+    : null;
 
   const { data: statusRow } = await admin
     .from("reservation_statuses")
@@ -411,8 +411,8 @@ async function writePosCreateLog(
     ),
     details: buildReservationLogDetails(buildReservationLogChanges(null, after), {
       actorSource: "staff",
-      actorGivenName: ((profile?.given_name as string | null) ?? "").trim(),
-      actorFamilyName: ((profile?.family_name as string | null) ?? "").trim(),
+      actorGivenName: actorNames?.actorGivenName ?? "",
+      actorFamilyName: actorNames?.actorFamilyName ?? "",
       summary: "Über POS angelegt",
     }),
   });

@@ -3,6 +3,7 @@ import type {
   ReservationLogAction,
   ReservationLogDetails,
 } from "@/lib/types/reservation-log";
+import { resolveReservationLogActorNames } from "@/lib/reservations/reservation-log-actor-resolve";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export async function insertReservationLogEntry(
@@ -36,21 +37,6 @@ export async function insertReservationLogEntry(
   }
 }
 
-async function snapshotActorProfile(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<Pick<ReservationLogDetails, "actorGivenName" | "actorFamilyName">> {
-  const { data } = await supabase
-    .from("profiles")
-    .select("given_name, family_name")
-    .eq("id", userId)
-    .maybeSingle();
-  return {
-    actorGivenName: (data?.given_name as string | null) ?? "",
-    actorFamilyName: (data?.family_name as string | null) ?? "",
-  };
-}
-
 export async function insertReservationLogFromBrowser(params: {
   restaurantId: string;
   reservationId: string | null;
@@ -66,14 +52,28 @@ export async function insertReservationLogFromBrowser(params: {
 
   let details = params.details ?? { actorSource: "staff" as const };
   if (user && details.actorSource !== "guest" && details.actorSource !== "display") {
-    const actor = await snapshotActorProfile(supabase, user.id);
-    details = {
-      ...actor,
-      ...details,
-      actorGivenName: details.actorGivenName ?? actor.actorGivenName,
-      actorFamilyName: details.actorFamilyName ?? actor.actorFamilyName,
-      actorSource: details.actorSource ?? "staff",
-    };
+    const hasName = Boolean(
+      details.actorGivenName?.trim() || details.actorFamilyName?.trim(),
+    );
+    if (!hasName) {
+      const actor = await resolveReservationLogActorNames(supabase, {
+        restaurantId: params.restaurantId,
+        actorUserId: user.id,
+      });
+      if (actor) {
+        details = {
+          ...details,
+          actorGivenName: actor.actorGivenName,
+          actorFamilyName: actor.actorFamilyName,
+          actorSource: details.actorSource ?? "staff",
+        };
+      }
+    } else {
+      details = {
+        ...details,
+        actorSource: details.actorSource ?? "staff",
+      };
+    }
   }
 
   await insertReservationLogEntry(supabase, {

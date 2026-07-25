@@ -8,6 +8,11 @@ export const PUBLIC_PROFILE_AVATAR_WIDTHS = [128, 256] as const;
 export const PUBLIC_PROFILE_COVER_DEFAULT_WIDTH = 960;
 export const PUBLIC_PROFILE_AVATAR_DEFAULT_WIDTH = 256;
 
+/** CSS sizes für Cover — Hero + LCP-preload müssen übereinstimmen. */
+export const PUBLIC_PROFILE_COVER_SIZES =
+  "(max-width: 640px) 100vw, (max-width: 1024px) 36rem, 48rem";
+export const PUBLIC_PROFILE_AVATAR_SIZES = "128px";
+
 export function buildPublicProfileImagePath(params: {
   slug: string;
   kind: RestaurantProfileImageKind;

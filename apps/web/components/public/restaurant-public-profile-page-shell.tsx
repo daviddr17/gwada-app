@@ -1,6 +1,6 @@
 "use client";
 
-import { LazyMotion, domAnimation, useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 import {
   useCallback,
   useEffect,
@@ -93,28 +93,26 @@ export function RestaurantPublicProfilePageShell({
           source="profile"
           dimension="view"
         />
-        <LazyMotion features={domAnimation}>
-          {launcherLoaded && Launcher ? (
-            <div className="fixed inset-0 z-10">
-              <Launcher
-                profile={profile}
-                heroVisible
-                logoIntro={logoIntro}
-              />
-            </div>
-          ) : showDockSkeleton ? (
-            <div
-              className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[2] flex justify-center px-4"
-              aria-hidden
-            >
-              {showShimmer ? (
-                <Skeleton className="h-[3.75rem] w-[min(100%,18rem)] rounded-full" />
-              ) : (
-                <div className="h-[3.75rem] w-[min(100%,18rem)] rounded-full bg-muted/35" />
-              )}
-            </div>
-          ) : null}
-        </LazyMotion>
+        {launcherLoaded && Launcher ? (
+          <div className="fixed inset-0 z-10">
+            <Launcher
+              profile={profile}
+              heroVisible
+              logoIntro={logoIntro}
+            />
+          </div>
+        ) : showDockSkeleton ? (
+          <div
+            className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[2] flex justify-center px-4"
+            aria-hidden
+          >
+            {showShimmer ? (
+              <Skeleton className="h-[3.75rem] w-[min(100%,18rem)] rounded-full" />
+            ) : (
+              <div className="h-[3.75rem] w-[min(100%,18rem)] rounded-full bg-muted/35" />
+            )}
+          </div>
+        ) : null}
       </ProfilePublicDockProvider>
     </PlatformAppBrandingProvider>
   );

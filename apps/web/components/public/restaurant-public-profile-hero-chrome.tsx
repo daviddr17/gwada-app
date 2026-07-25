@@ -29,6 +29,10 @@ import {
 } from "@/lib/restaurant/public-maps-url";
 import { getPublicOpeningStatus } from "@/lib/restaurant/public-opening-status";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
+import {
+  PUBLIC_PROFILE_AVATAR_SIZES,
+  PUBLIC_PROFILE_COVER_SIZES,
+} from "@/lib/restaurant/public-profile-image-url";
 import { cn } from "@/lib/utils";
 
 function restaurantInitials(name: string): string {
@@ -99,7 +103,7 @@ export function RestaurantPublicProfileHeroChrome({
                 <PublicRestaurantImage
                   src={profile.coverUrl}
                   srcSet={profile.coverSrcSet}
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 36rem, 48rem"
+                  sizes={PUBLIC_PROFILE_COVER_SIZES}
                   alt=""
                   fill
                   priority
@@ -135,7 +139,7 @@ export function RestaurantPublicProfileHeroChrome({
                       <PublicRestaurantImage
                         src={profile.avatarUrl}
                         srcSet={profile.avatarSrcSet}
-                        sizes="128px"
+                        sizes={PUBLIC_PROFILE_AVATAR_SIZES}
                         alt=""
                         width={128}
                         height={128}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedFeedResizeReporter } from "@/components/embed/embed-feed-resize-reporter";
@@ -74,7 +74,9 @@ function EmbedGalleryWidgetBody({
 }) {
   const t = useTranslations("Embed");
   const [platformFilter, setPlatformFilter] = useState<GalleryPlatformFilter>(GALLERY_FILTER_ALL);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(data.page ?? 1);
+  const [pageData, setPageData] = useState(data);
+  const [pageLoading, setPageLoading] = useState(false);
   const [activeHighlight, setActiveHighlight] = useState<UnifiedGalleryHighlight | null>(null);
   const [highlightOpen, setHighlightOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<UnifiedGalleryItem | null>(null);
@@ -83,6 +85,60 @@ function EmbedGalleryWidgetBody({
   const [lightboxOrigin, setLightboxOrigin] = useState<GalleryLightboxOriginRect | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const useProfileLightbox = variant === "profileSheet";
+
+  const skipFetchKeyRef = useRef<string | null>(null);
+
+  // Initial payload from parent (cache / SSR) — sync when slug/restaurant changes.
+  useEffect(() => {
+    setPageData(data);
+    setPage(data.page ?? 1);
+    setPlatformFilter(GALLERY_FILTER_ALL);
+    skipFetchKeyRef.current = `${data.slug}|${data.page ?? 1}|${GALLERY_FILTER_ALL}`;
+  }, [data]);
+
+  // Server-Pagination — nie alle 1000 Items im Client halten.
+  useEffect(() => {
+    const key = `${data.slug}|${page}|${platformFilter}`;
+    if (skipFetchKeyRef.current === key) {
+      skipFetchKeyRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+    setPageLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(GALLERY_FEED_PAGE_SIZE),
+    });
+    if (platformFilter !== GALLERY_FILTER_ALL) {
+      params.set("platform", platformFilter);
+    }
+    void fetch(
+      `/api/public/profile/${encodeURIComponent(data.slug)}/gallery?${params}`,
+      { signal: controller.signal, cache: "default" },
+    )
+      .then(async (res) => {
+        if (!res.ok) throw new Error("gallery_page_failed");
+        return (await res.json()) as PublicEmbedGallery;
+      })
+      .then((next) => {
+        if (cancelled) return;
+        setPageData(next);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      })
+      .finally(() => {
+        if (!cancelled) setPageLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [data.slug, page, platformFilter]);
 
   const openLightbox = (
     item: UnifiedGalleryItem,
@@ -96,41 +152,39 @@ function EmbedGalleryWidgetBody({
   };
 
   const availablePlatforms = useMemo(() => {
+    const fromApi = pageData.availablePlatforms ?? [];
+    if (fromApi.length > 0) return new Set<GalleryPlatform>(fromApi);
     const set = new Set<GalleryPlatform>(["gwada"]);
-    for (const item of data.items) set.add(item.platform);
+    for (const item of pageData.items) set.add(item.platform);
     return set;
-  }, [data.items]);
+  }, [pageData.availablePlatforms, pageData.items]);
 
-  const filtered = useMemo(() => {
-    if (platformFilter === GALLERY_FILTER_ALL) return data.items;
-    return data.items.filter((i) => i.platform === platformFilter);
-  }, [data.items, platformFilter]);
-
-  const totalPages = totalPagesFromCount(filtered.length, GALLERY_FEED_PAGE_SIZE);
+  const totalCount = pageData.totalCount ?? pageData.items.length;
+  const pageSize = pageData.pageSize ?? GALLERY_FEED_PAGE_SIZE;
+  const totalPages = totalPagesFromCount(totalCount, pageSize);
   const currentPage = clampListPage(page, totalPages);
-  const paginated = useMemo(() => {
-    const from = (currentPage - 1) * GALLERY_FEED_PAGE_SIZE;
-    return filtered.slice(from, from + GALLERY_FEED_PAGE_SIZE);
-  }, [filtered, currentPage]);
+  const paginated = pageData.items;
 
   const resizeDeps = useMemo(
     () => [
       platformFilter,
       currentPage,
       paginated.length,
-      filtered.length,
+      totalCount,
       highlightOpen,
       itemOpen,
       lightboxOpen,
+      pageLoading,
     ],
     [
       platformFilter,
       currentPage,
       paginated.length,
-      filtered.length,
+      totalCount,
       highlightOpen,
       itemOpen,
       lightboxOpen,
+      pageLoading,
     ],
   );
 
@@ -146,13 +200,13 @@ function EmbedGalleryWidgetBody({
         allLabel={t("filterAll")}
       />
       <GalleryHighlightsRow
-        highlights={data.highlights}
+        highlights={pageData.highlights}
         onHighlightClick={(h) => {
           setActiveHighlight(h);
           setHighlightOpen(true);
         }}
       />
-      {filtered.length === 0 ? (
+      {totalCount === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
           {t("gallery.empty")}
         </p>
@@ -161,10 +215,10 @@ function EmbedGalleryWidgetBody({
           page={currentPage}
           totalPages={totalPages}
           shown={paginated.length}
-          totalCount={filtered.length}
+          totalCount={totalCount}
           itemLabel={t("gallery.images")}
-          canPrevious={currentPage > 1}
-          canNext={currentPage < totalPages}
+          canPrevious={currentPage > 1 && !pageLoading}
+          canNext={currentPage < totalPages && !pageLoading}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
         >
@@ -172,7 +226,7 @@ function EmbedGalleryWidgetBody({
             items={paginated}
             onItemClick={(item, meta) => {
               if (useProfileLightbox) {
-                openLightbox(item, filtered, meta.rect);
+                openLightbox(item, paginated, meta.rect);
                 return;
               }
               setActiveItem(item);
@@ -190,7 +244,7 @@ function EmbedGalleryWidgetBody({
         onItemClick={(item) => {
           if (useProfileLightbox) {
             setHighlightOpen(false);
-            openLightbox(item, filtered, null);
+            openLightbox(item, paginated, null);
             return;
           }
           setActiveItem(item);
@@ -199,7 +253,7 @@ function EmbedGalleryWidgetBody({
       />
       {useProfileLightbox ? (
         <ProfileGalleryLightbox
-          items={filtered}
+          items={paginated}
           index={lightboxIndex}
           originRect={lightboxOrigin}
           open={lightboxOpen}

@@ -1,5 +1,10 @@
 import { enforcePublicApiReadRateLimit } from "@/lib/api/public-api-rate-limit";
+import {
+  GALLERY_FILTER_ALL,
+  type GalleryPlatformFilter,
+} from "@/lib/constants/gallery-platforms";
 import { fetchPublicEmbedEvents } from "@/lib/events/public-events-server";
+import { GALLERY_FEED_PAGE_SIZE } from "@/lib/gallery/gallery-feed-pagination";
 import { fetchPublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 import { fetchPublicEmbedMenu } from "@/lib/menu/public-menu-server";
 import { fetchPublicEmbedNews } from "@/lib/news/public-news-server";
@@ -73,7 +78,22 @@ export async function GET(
   }
 
   if (rawModule === "gallery") {
-    const result = await fetchPublicEmbedGallery(slug);
+    const url = new URL(req.url);
+    const pageRaw = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
+    const pageSizeRaw = Number.parseInt(
+      url.searchParams.get("pageSize") ?? String(GALLERY_FEED_PAGE_SIZE),
+      10,
+    );
+    const platformParam = url.searchParams.get("platform");
+    const platform: GalleryPlatformFilter =
+      platformParam && platformParam !== GALLERY_FILTER_ALL
+        ? (platformParam as GalleryPlatformFilter)
+        : GALLERY_FILTER_ALL;
+    const result = await fetchPublicEmbedGallery(slug, {
+      page: Number.isFinite(pageRaw) ? pageRaw : 1,
+      pageSize: Number.isFinite(pageSizeRaw) ? pageSizeRaw : GALLERY_FEED_PAGE_SIZE,
+      platform,
+    });
     if (!result.data) {
       return Response.json(
         { error: result.error },

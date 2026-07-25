@@ -79,26 +79,26 @@ export const profileModuleLabelVariants: Variants = {
   },
 };
 
-/** Speisekarte im Profil — kein transform (sonst kein CSS-sticky für Toolbar). */
+/**
+ * Modulwechsel im Profil-Sheet — nur Opacity (kein x-Push).
+ * Horizontal-Push mountete Exit+Enter gleichzeitig und schob schwere
+ * Bäume (Galerie/News) → Ruckler; Fade + mode=wait hält ein Modul aktiv.
+ * Speisekarte: kein transform (CSS-sticky Toolbar).
+ */
 export const PROFILE_MODULE_FADE_TRANSITION: Transition = {
-  duration: 0.32,
+  duration: 0.2,
   ease: APPLE_EASE,
 };
 
 export const profileModuleFadeVariants: Variants = {
   enter: {
     opacity: 0,
-    zIndex: 2,
   },
   center: {
     opacity: 1,
-    zIndex: 1,
   },
   exit: {
     opacity: 0,
-    zIndex: 1,
-    position: "absolute",
-    width: "100%",
   },
 };
 

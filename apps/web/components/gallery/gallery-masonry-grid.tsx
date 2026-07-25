@@ -65,6 +65,8 @@ const GalleryMasonryTile = memo(function GalleryMasonryTile({
             height={item.height}
             alt={item.title ?? item.caption ?? ""}
             naturalSize
+            /** Wand: nur Thumb — Full-Res erst in Lightbox / Action-Sheet. */
+            feedOptimized
           />
         )}
       </div>

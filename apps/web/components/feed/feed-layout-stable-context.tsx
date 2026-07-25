@@ -50,6 +50,32 @@ export function FeedLayoutStableProvider({
     [],
   );
 
+  // Timeline/Liste ohne FeedMediaImage: pending bleibt 0 → nach Layout force stable.
+  useEffect(() => {
+    if (!enabled || itemCount <= 0) return;
+    let cancelled = false;
+    let timeoutId = 0;
+    let raf2 = 0;
+    const raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        timeoutId = window.setTimeout(() => {
+          if (cancelled) return;
+          if (pendingRef.current === 0 && !stableRef.current) {
+            stableRef.current = true;
+            initialBatchRef.current = false;
+            setStable(true);
+          }
+        }, 120);
+      });
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+      window.clearTimeout(timeoutId);
+    };
+  }, [itemCount, enabled]);
+
   const scheduleStableCheck = useCallback(() => {
     window.cancelAnimationFrame(rafRef.current);
     rafRef.current = window.requestAnimationFrame(() => {

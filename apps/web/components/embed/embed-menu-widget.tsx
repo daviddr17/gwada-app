@@ -696,7 +696,9 @@ function EmbedMenuWidgetBody({
 
   return (
     <>
-      <EmbedResizeReporter deps={resizeDeps} widget="menu" />
+      {!profileSheet ? (
+        <EmbedResizeReporter deps={resizeDeps} widget="menu" />
+      ) : null}
       <div
         ref={widgetRootRef}
         data-gwada-embed-content

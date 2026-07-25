@@ -23,6 +23,9 @@ export const EMBED_HOST_FEED_RESIZE_DEBOUNCE_MS = 200;
 /** Höhen-Deltas darunter ignorieren (Subpixel / Fonts). */
 export const EMBED_HEIGHT_IGNORE_DELTA_PX = 6;
 
+/** Feed: größeres Ignore-Delta — weniger Host-Reflows beim Bild-Nachladen. */
+export const EMBED_FEED_HEIGHT_IGNORE_DELTA_PX = 16;
+
 /** Puffer gegen 1px-Scrollbalken durch Subpixel-Rundung (content-Resize). */
 export const EMBED_CONTENT_HEIGHT_BUFFER_PX = 2;
 

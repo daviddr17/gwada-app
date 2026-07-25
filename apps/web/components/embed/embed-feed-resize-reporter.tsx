@@ -20,7 +20,7 @@ export function EmbedFeedResizeReporter({
   return (
     <EmbedResizeReporter
       widget={widget}
-      deps={[...deps, layoutStable]}
+      deps={deps}
       layoutStable={layoutStable}
       resizeMode={resizeMode}
       viewportHeightPx={viewportHeightPx}

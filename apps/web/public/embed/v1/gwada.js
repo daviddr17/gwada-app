@@ -187,6 +187,16 @@
       return null;
     }
 
+    // Bereits gemountet (z. B. doppelter scan / MutationObserver) — nicht neu laden.
+    var existing = el.querySelector("iframe[data-gwada-widget]");
+    if (existing) {
+      if (!existing.id) existing.id = randomId();
+      iframesById[existing.id] = existing;
+      if (frameNeedsViewport(existing)) ensureViewportScrollListeners();
+      el.setAttribute(PROCESSED, "true");
+      return existing;
+    }
+
     var embedId = randomId();
     var minHeight = parseMinHeight(el, def.minHeight);
     var src =
@@ -326,6 +336,9 @@
     if (prev > 0 && Math.abs(px - prev) < HEIGHT_IGNORE_DELTA_PX) return;
 
     var isFeed = isFeedWidgetFrame(frame);
+    // Feed: nie schrumpfen — Bild-Nachladen / Fonts würden sonst die Host-Seite
+    // beim Scrollen auf und zu ziehen.
+    if (isFeed && prev > 0 && px < prev) return;
     var isFirst = prev <= 0;
     // Feed/News: nie height transition — animierte iframe-Höhe reflowt die
     // gesamte Host-Seite unter dem Embed und fühlt sich wie „Hängen“ an.

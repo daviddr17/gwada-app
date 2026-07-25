@@ -951,7 +951,9 @@ function EmbedReservationWidgetBody({
           restaurantName={config.name}
         />
       ) : null}
-      <EmbedResizeReporter deps={resizeDeps} widget="reservation" />
+      {!profileSheet ? (
+        <EmbedResizeReporter deps={resizeDeps} widget="reservation" />
+      ) : null}
       <div
         className={cn(
           "w-full min-w-0",

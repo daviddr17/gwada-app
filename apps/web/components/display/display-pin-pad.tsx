@@ -117,22 +117,25 @@ export function DisplayPinPad({
 
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
 
-  /** Größere Trefferflächen auf Tablets; kompakter Abstand zu Header/Footer. */
+  /**
+   * Tasten skalieren mit Viewport, bleiben aber unter dem Budget für
+   * Logo + Uhr + sticky Header/Footer (v. a. iPad Landscape).
+   */
   const keySizeClassName =
-    "h-[clamp(3.25rem,min(22vw,12.5dvh),6.25rem)] w-[clamp(3.25rem,min(22vw,12.5dvh),6.25rem)] p-0";
+    "h-[clamp(2.5rem,min(17vw,8.5dvh),4.75rem)] w-[clamp(2.5rem,min(17vw,8.5dvh),4.75rem)] p-0";
   const keyClassName = cn(
     keySizeClassName,
     "rounded-full border-border/60 shadow-sm",
   );
   const keyDigitClassName = cn(
     keyClassName,
-    "text-[clamp(1.6rem,5.2dvh,2.35rem)] font-semibold",
+    "text-[clamp(1.35rem,4.2dvh,1.875rem)] font-semibold",
   );
 
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-[clamp(0.75rem,2.4dvh,1.5rem)]",
+        "flex min-h-0 w-full max-h-full flex-col items-center justify-center gap-[clamp(0.45rem,1.4dvh,0.9rem)]",
         className,
       )}
       role="group"
@@ -140,7 +143,7 @@ export function DisplayPinPad({
       aria-busy={busy}
     >
       <motion.div
-        className="flex gap-[clamp(0.65rem,1.6dvh,1.1rem)]"
+        className="flex shrink-0 gap-[clamp(0.55rem,1.4dvh,1rem)]"
         aria-hidden
         animate={
           rejectActive && !reduceMotion
@@ -159,7 +162,7 @@ export function DisplayPinPad({
             <motion.div
               key={i}
               className={cn(
-                "size-[clamp(1.15rem,2.8dvh,1.85rem)] rounded-full border-[3px]",
+                "size-[clamp(1.05rem,2.4dvh,1.65rem)] rounded-full border-[3px]",
                 rejectActive
                   ? "border-destructive bg-destructive/15"
                   : filled
@@ -191,7 +194,7 @@ export function DisplayPinPad({
       </motion.div>
 
       <motion.div
-        className="grid w-full max-w-[min(24rem,86vw)] grid-cols-3 place-items-center gap-[clamp(0.5rem,1.8dvh,1.15rem)]"
+        className="grid w-full max-w-[min(20rem,78vw)] shrink-0 grid-cols-3 place-items-center gap-[clamp(0.4rem,1.2dvh,0.85rem)]"
         animate={
           rejectActive && !reduceMotion
             ? { x: PIN_REJECT_SHAKE_X }
@@ -218,7 +221,7 @@ export function DisplayPinPad({
                 onClick={backspace}
                 aria-label="Löschen"
               >
-                <Delete className="size-[clamp(1.4rem,3.8dvh,2.1rem)]" />
+                <Delete className="size-[clamp(1.2rem,3.2dvh,1.75rem)]" />
               </Button>
             );
           }
@@ -300,30 +303,32 @@ export function DisplayLockOverlay({
             restaurantAvatarUrl={restaurantAvatarUrl}
             enabled={open}
           >
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Lock className="size-5" />
-              <span className="text-lg">Display gesperrt</span>
+            <div className="flex min-h-0 w-full max-h-full flex-col items-center justify-center gap-2 overflow-hidden">
+              <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
+                <Lock className="size-5" />
+                <span className="text-base sm:text-lg">Display gesperrt</span>
+              </div>
+              <p className="shrink-0 text-sm text-muted-foreground">PIN eingeben</p>
+              <DisplayPinPad
+                value={pin}
+                onChange={setPin}
+                onComplete={onUnlock}
+                disabled={busy}
+                busy={busy}
+                rejectNonce={rejectNonce}
+              />
+              {error ? (
+                <motion.p
+                  key={error}
+                  className="shrink-0 text-sm text-destructive"
+                  initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: reduceMotion ? 0.08 : 0.22, ease: MOTION_EASE_OUT }}
+                >
+                  {error}
+                </motion.p>
+              ) : null}
             </div>
-            <p className="text-sm text-muted-foreground">PIN eingeben</p>
-            <DisplayPinPad
-              value={pin}
-              onChange={setPin}
-              onComplete={onUnlock}
-              disabled={busy}
-              busy={busy}
-              rejectNonce={rejectNonce}
-            />
-            {error ? (
-              <motion.p
-                key={error}
-                className="text-sm text-destructive"
-                initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: reduceMotion ? 0.08 : 0.22, ease: MOTION_EASE_OUT }}
-              >
-                {error}
-              </motion.p>
-            ) : null}
           </DisplayPinStandbyScene>
         </motion.div>
       ) : null}

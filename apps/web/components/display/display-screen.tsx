@@ -708,28 +708,30 @@ export function DisplayScreen({ slug }: { slug: string }) {
             restaurantName={context.restaurant?.name}
             restaurantAvatarUrl={context.restaurant?.avatar_url}
           >
-            <DisplayPinPad
-              value={pin}
-              onChange={setPin}
-              disabled={pinBusy || screenCelebration === "pin_welcome"}
-              busy={pinBusy}
-              rejectNonce={pinRejectNonce}
-              onComplete={(p) => void submitPin(p)}
-            />
-            {pinError ? (
-              <motion.p
-                key={pinError}
-                className="text-sm text-destructive"
-                initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: reduceMotion ? 0.08 : 0.22,
-                  ease: MOTION_EASE_OUT,
-                }}
-              >
-                {pinError}
-              </motion.p>
-            ) : null}
+            <div className="flex min-h-0 w-full max-h-full flex-col items-center justify-center gap-2 overflow-hidden">
+              <DisplayPinPad
+                value={pin}
+                onChange={setPin}
+                disabled={pinBusy || screenCelebration === "pin_welcome"}
+                busy={pinBusy}
+                rejectNonce={pinRejectNonce}
+                onComplete={(p) => void submitPin(p)}
+              />
+              {pinError ? (
+                <motion.p
+                  key={pinError}
+                  className="shrink-0 text-sm text-destructive"
+                  initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: reduceMotion ? 0.08 : 0.22,
+                    ease: MOTION_EASE_OUT,
+                  }}
+                >
+                  {pinError}
+                </motion.p>
+              ) : null}
+            </div>
           </DisplayPinStandbyScene>
         </div>
 

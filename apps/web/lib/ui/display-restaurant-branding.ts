@@ -27,9 +27,9 @@ export const displayRestaurantLogoFooterClassName = cn(
   displayRestaurantLogoFrameClassName,
 );
 
-/** PIN-/Sperrbildschirm — gut sichtbar über der Uhr. */
+/** PIN-/Sperrbildschirm — kompakt, damit Logo auf kurzen iPad-Höhen nicht geclippt wird. */
 export const displayRestaurantLogoPinClassName = cn(
-  "size-14 sm:size-16",
+  "size-12 sm:size-14",
   displayRestaurantLogoMaxClassName,
   displayRestaurantLogoFrameClassName,
 );

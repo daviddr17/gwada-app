@@ -16,10 +16,15 @@ import { galleryItemDisplayUrls } from "@/lib/gallery/gallery-item-display-urls"
 export const galleryMasonryGridShellClassName =
   "overflow-hidden rounded-xl bg-muted/20";
 
+export type GalleryMasonryItemClickMeta = {
+  index: number;
+  rect: { top: number; left: number; width: number; height: number };
+};
+
 type Props = {
   items: UnifiedGalleryItem[];
   /** Ohne Handler: reine Bildwand ohne Klick-/Hover-Affordance. */
-  onItemClick?: (item: UnifiedGalleryItem) => void;
+  onItemClick?: (item: UnifiedGalleryItem, meta: GalleryMasonryItemClickMeta) => void;
   className?: string;
   /** Profil-Sheet: Wand bis an den Sheet-Rand. */
   edgeToEdge?: boolean;
@@ -27,10 +32,12 @@ type Props = {
 
 const GalleryMasonryTile = memo(function GalleryMasonryTile({
   item,
+  index,
   onItemClick,
 }: {
   item: UnifiedGalleryItem;
-  onItemClick?: (item: UnifiedGalleryItem) => void;
+  index: number;
+  onItemClick?: (item: UnifiedGalleryItem, meta: GalleryMasonryItemClickMeta) => void;
 }) {
   const { src, thumbSrc } = galleryItemDisplayUrls(item);
   const videoSrc = item.fullUrl?.trim() || item.previewUrl;
@@ -85,7 +92,14 @@ const GalleryMasonryTile = memo(function GalleryMasonryTile({
     return (
       <button
         type="button"
-        onClick={() => onItemClick(item)}
+        data-gallery-lightbox-id={item.id}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          onItemClick(item, {
+            index,
+            rect: { top: r.top, left: r.left, width: r.width, height: r.height },
+          });
+        }}
         className={tileClassName}
       >
         {media}
@@ -93,7 +107,11 @@ const GalleryMasonryTile = memo(function GalleryMasonryTile({
     );
   }
 
-  return <div className={tileClassName}>{media}</div>;
+  return (
+    <div className={tileClassName} data-gallery-lightbox-id={item.id}>
+      {media}
+    </div>
+  );
 });
 
 export function GalleryMasonryGrid({
@@ -114,10 +132,11 @@ export function GalleryMasonryGrid({
       )}
     >
       <div className={feedGalleryMasonryClassName}>
-        {items.map((item) => (
+        {items.map((item, index) => (
           <GalleryMasonryTile
             key={item.id}
             item={item}
+            index={index}
             onItemClick={onItemClick}
           />
         ))}

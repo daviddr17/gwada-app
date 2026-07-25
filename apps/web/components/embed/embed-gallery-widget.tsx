@@ -14,6 +14,10 @@ import { GalleryHighlightsRow } from "@/components/gallery/gallery-highlights-ro
 import { GalleryItemViewer } from "@/components/gallery/gallery-item-viewer";
 import { GalleryMasonryGrid } from "@/components/gallery/gallery-masonry-grid";
 import { GalleryPlatformFilterChips } from "@/components/gallery/gallery-platform-filter-chips";
+import {
+  ProfileGalleryLightbox,
+  type GalleryLightboxOriginRect,
+} from "@/components/gallery/profile-gallery-lightbox";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import {
   GALLERY_FILTER_ALL,
@@ -75,6 +79,21 @@ function EmbedGalleryWidgetBody({
   const [highlightOpen, setHighlightOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<UnifiedGalleryItem | null>(null);
   const [itemOpen, setItemOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [lightboxOrigin, setLightboxOrigin] = useState<GalleryLightboxOriginRect | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const useProfileLightbox = variant === "profileSheet";
+
+  const openLightbox = (
+    item: UnifiedGalleryItem,
+    list: UnifiedGalleryItem[],
+    origin: GalleryLightboxOriginRect | null,
+  ) => {
+    const idx = list.findIndex((i) => i.id === item.id);
+    setLightboxIndex(idx >= 0 ? idx : 0);
+    setLightboxOrigin(origin);
+    setLightboxOpen(true);
+  };
 
   const availablePlatforms = useMemo(() => {
     const set = new Set<GalleryPlatform>(["gwada"]);
@@ -102,6 +121,7 @@ function EmbedGalleryWidgetBody({
       filtered.length,
       highlightOpen,
       itemOpen,
+      lightboxOpen,
     ],
     [
       platformFilter,
@@ -110,6 +130,7 @@ function EmbedGalleryWidgetBody({
       filtered.length,
       highlightOpen,
       itemOpen,
+      lightboxOpen,
     ],
   );
 
@@ -149,7 +170,11 @@ function EmbedGalleryWidgetBody({
         >
           <GalleryMasonryGrid
             items={paginated}
-            onItemClick={(item) => {
+            onItemClick={(item, meta) => {
+              if (useProfileLightbox) {
+                openLightbox(item, filtered, meta.rect);
+                return;
+              }
               setActiveItem(item);
               setItemOpen(true);
             }}
@@ -163,15 +188,31 @@ function EmbedGalleryWidgetBody({
         open={highlightOpen}
         onOpenChange={setHighlightOpen}
         onItemClick={(item) => {
+          if (useProfileLightbox) {
+            setHighlightOpen(false);
+            openLightbox(item, filtered, null);
+            return;
+          }
           setActiveItem(item);
           setItemOpen(true);
         }}
       />
-      <GalleryItemViewer
-        item={activeItem}
-        open={itemOpen}
-        onOpenChange={setItemOpen}
-      />
+      {useProfileLightbox ? (
+        <ProfileGalleryLightbox
+          items={filtered}
+          index={lightboxIndex}
+          originRect={lightboxOrigin}
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+          onIndexChange={setLightboxIndex}
+        />
+      ) : (
+        <GalleryItemViewer
+          item={activeItem}
+          open={itemOpen}
+          onOpenChange={setItemOpen}
+        />
+      )}
     </>
   );
 

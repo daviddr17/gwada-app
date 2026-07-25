@@ -33,6 +33,8 @@ import {
   publicProfileHeroTitleBlockClassName,
   publicProfileHeroTitleClassName,
 } from "@/lib/ui/public-profile-hero-layout";
+import { cn } from "@/lib/utils";
+
 function restaurantInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
@@ -165,6 +167,8 @@ export function RestaurantPublicProfileHeroCard({
         {profile.coverUrl ? (
           <PublicRestaurantImage
             src={profile.coverUrl}
+            srcSet={profile.coverSrcSet}
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 36rem, 48rem"
             alt=""
             fill
             priority
@@ -195,9 +199,28 @@ export function RestaurantPublicProfileHeroCard({
               onComplete={logoIntro.onComplete}
               className="shrink-0"
             />
+          ) : profile.avatarUrl ? (
+            <span
+              className={cn(
+                "inline-flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-card p-[13%] text-xl shadow-lg ring-[4px] ring-white/90 dark:ring-background sm:size-24 sm:text-2xl md:size-28 md:text-3xl lg:size-32",
+              )}
+            >
+              <span className="flex size-full min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-[22%] bg-white p-1 dark:bg-card">
+                <PublicRestaurantImage
+                  src={profile.avatarUrl}
+                  srcSet={profile.avatarSrcSet}
+                  sizes="128px"
+                  alt=""
+                  width={128}
+                  height={128}
+                  priority={!profile.coverUrl}
+                  className="size-full max-h-full max-w-full object-contain object-center"
+                />
+              </span>
+            </span>
           ) : (
             <RestaurantLogoMark
-              src={profile.avatarUrl}
+              src={null}
               initials={initials}
               alt=""
               variant="profile"

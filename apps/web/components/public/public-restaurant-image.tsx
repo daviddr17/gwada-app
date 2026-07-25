@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils";
 
-/** Profilbilder direkt laden — signierte Supabase-URLs funktionieren nicht zuverlässig mit next/image. */
+/**
+ * Profilbilder — Display-Proxy (`/api/public/profile-image`) oder signierte URLs.
+ * Kein next/image-Optimizer (signierte/private Storage-Quellen).
+ */
 export function PublicRestaurantImage({
   src,
   alt,
@@ -9,6 +12,8 @@ export function PublicRestaurantImage({
   priority,
   width,
   height,
+  srcSet,
+  sizes,
 }: {
   src: string;
   alt: string;
@@ -17,15 +22,22 @@ export function PublicRestaurantImage({
   priority?: boolean;
   width?: number;
   height?: number;
+  srcSet?: string | null;
+  sizes?: string;
 }) {
+  const common = {
+    src,
+    alt,
+    decoding: "async" as const,
+    fetchPriority: priority ? ("high" as const) : undefined,
+    ...(srcSet ? { srcSet, sizes } : {}),
+  };
+
   if (fill) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={src}
-        alt={alt}
-        decoding="async"
-        fetchPriority={priority ? "high" : undefined}
+        {...common}
         className={cn("absolute inset-0 size-full object-cover", className)}
       />
     );
@@ -34,12 +46,9 @@ export function PublicRestaurantImage({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
-      alt={alt}
+      {...common}
       width={width}
       height={height}
-      decoding="async"
-      fetchPriority={priority ? "high" : undefined}
       className={className}
     />
   );

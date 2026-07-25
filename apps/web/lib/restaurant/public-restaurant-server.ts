@@ -1,6 +1,5 @@
 import "server-only";
 
-import { signRestaurantAvatarUrl } from "@/lib/display/display-storage-urls";
 import {
   oauthConfigFromJson,
   type GoogleBusinessIntegrationConfig,
@@ -10,6 +9,14 @@ import {
   loadPublicOpeningHoursForRestaurant,
   type PublicEmbedOpeningHoursSettings,
 } from "@/lib/opening-hours/public-opening-hours-server";
+import {
+  buildPublicProfileImagePath,
+  buildPublicProfileImageSrcSet,
+  PUBLIC_PROFILE_AVATAR_DEFAULT_WIDTH,
+  PUBLIC_PROFILE_AVATAR_WIDTHS,
+  PUBLIC_PROFILE_COVER_DEFAULT_WIDTH,
+  PUBLIC_PROFILE_COVER_WIDTHS,
+} from "@/lib/restaurant/public-profile-image-url";
 import {
   normalizeRestaurantSlugInput,
 } from "@/lib/restaurant/restaurant-slug";
@@ -34,7 +41,11 @@ export type PublicRestaurantProfile = {
   description: string | null;
   accentHex: string;
   avatarUrl: string | null;
+  /** Responsive srcset für Avatar (Display-Proxy). */
+  avatarSrcSet: string | null;
   coverUrl: string | null;
+  /** Responsive srcset für Cover (Display-Proxy). */
+  coverSrcSet: string | null;
   addressLine1: string | null;
   postalCode: string | null;
   city: string | null;
@@ -177,7 +188,7 @@ export async function fetchPublicRestaurantProfile(
   const { data: row, error } = await admin
     .from("restaurants")
     .select(
-      "id, name, slug, description, brand_accent_hex, is_published, address_line1, postal_code, city, country, phone, email, website, avatar_storage_path, cover_storage_path",
+      "id, name, slug, description, brand_accent_hex, is_published, address_line1, postal_code, city, country, phone, email, website, avatar_storage_path, cover_storage_path, updated_at",
     )
     .eq("slug", slug)
     .maybeSingle();
@@ -192,26 +203,72 @@ export async function fetchPublicRestaurantProfile(
   const restaurantId = row.id as string;
   const accentHex =
     normalizeHex(String(row.brand_accent_hex ?? "")) ?? DEFAULT_ACCENT_HEX;
+  const profileSlug = row.slug as string;
+  const imageVersion = (() => {
+    const raw = row.updated_at;
+    if (typeof raw !== "string" || !raw.trim()) return "0";
+    const ms = Date.parse(raw);
+    return Number.isFinite(ms) ? String(Math.floor(ms / 1000)) : "0";
+  })();
 
-  const [avatarUrl, coverUrl, socialLinks, openingHours, menuCountRes] =
-    await Promise.all([
-      signRestaurantAvatarUrl(admin, row.avatar_storage_path as string | null),
-      signRestaurantAvatarUrl(admin, row.cover_storage_path as string | null),
-      loadSocialLinks(admin, restaurantId),
-      loadPublicOpeningHoursForRestaurant(admin, restaurantId),
-      admin
-        .from("menu_categories")
-        .select("id", { count: "exact", head: true })
-        .eq("restaurant_id", restaurantId)
-        .eq("is_active", true),
-    ]);
+  const hasAvatar = Boolean(
+    typeof row.avatar_storage_path === "string" &&
+      row.avatar_storage_path.trim(),
+  );
+  const hasCover = Boolean(
+    typeof row.cover_storage_path === "string" &&
+      row.cover_storage_path.trim(),
+  );
+
+  const avatarUrl = hasAvatar
+    ? buildPublicProfileImagePath({
+        slug: profileSlug,
+        kind: "avatar",
+        width: PUBLIC_PROFILE_AVATAR_DEFAULT_WIDTH,
+        version: imageVersion,
+      })
+    : null;
+  const avatarSrcSet = hasAvatar
+    ? buildPublicProfileImageSrcSet({
+        slug: profileSlug,
+        kind: "avatar",
+        widths: PUBLIC_PROFILE_AVATAR_WIDTHS,
+        version: imageVersion,
+      })
+    : null;
+  const coverUrl = hasCover
+    ? buildPublicProfileImagePath({
+        slug: profileSlug,
+        kind: "cover",
+        width: PUBLIC_PROFILE_COVER_DEFAULT_WIDTH,
+        version: imageVersion,
+      })
+    : null;
+  const coverSrcSet = hasCover
+    ? buildPublicProfileImageSrcSet({
+        slug: profileSlug,
+        kind: "cover",
+        widths: PUBLIC_PROFILE_COVER_WIDTHS,
+        version: imageVersion,
+      })
+    : null;
+
+  const [socialLinks, openingHours, menuCountRes] = await Promise.all([
+    loadSocialLinks(admin, restaurantId),
+    loadPublicOpeningHoursForRestaurant(admin, restaurantId),
+    admin
+      .from("menu_categories")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId)
+      .eq("is_active", true),
+  ]);
 
   const menuCount = menuCountRes.count ?? 0;
 
   return {
     data: withLocalPublicProfilePreview({
       id: restaurantId,
-      slug: row.slug as string,
+      slug: profileSlug,
       name: row.name as string,
       description: (() => {
         const raw =
@@ -223,7 +280,9 @@ export async function fetchPublicRestaurantProfile(
       })(),
       accentHex,
       avatarUrl,
+      avatarSrcSet,
       coverUrl,
+      coverSrcSet,
       addressLine1:
         typeof row.address_line1 === "string" && row.address_line1.trim()
           ? row.address_line1.trim()

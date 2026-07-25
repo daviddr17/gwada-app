@@ -28,6 +28,9 @@ type FbPost = {
   message?: string;
   created_time?: string;
   permalink_url?: string;
+  /** Kleineres Vorschaubild (Graph). */
+  picture?: string;
+  /** Volles Beitragsbild. */
   full_picture?: string;
   attachments?: {
     data?: Array<{
@@ -38,16 +41,25 @@ type FbPost = {
   comments?: { summary?: { total_count?: number } };
 };
 
-function fbPostImage(post: FbPost): string | null {
-  return (
+function fbPostMedia(post: FbPost): {
+  url: string | null;
+  thumbUrl: string | null;
+} {
+  const url =
     post.full_picture?.trim() ||
     post.attachments?.data?.[0]?.media?.image?.src?.trim() ||
-    null
-  );
+    post.picture?.trim() ||
+    null;
+  const thumbUrl = post.picture?.trim() || null;
+  return {
+    url,
+    thumbUrl: thumbUrl && thumbUrl !== url ? thumbUrl : null,
+  };
 }
 
 async function fetchFacebookPosts(auth: { pageId: string; token: string }) {
   const attempts = [
+    `${auth.pageId}/published_posts?fields=${encodeURIComponent("id,message,created_time,permalink_url,full_picture,picture")}&limit=50`,
     `${auth.pageId}/published_posts?fields=${encodeURIComponent("id,message,created_time,permalink_url,full_picture")}&limit=50`,
     `${auth.pageId}/published_posts?fields=${encodeURIComponent("id,message,created_time,permalink_url")}&limit=50`,
     `${auth.pageId}/feed?fields=${encodeURIComponent("id,message,created_time,permalink_url,attachments{media{image{src}}}")}&limit=50`,
@@ -95,7 +107,7 @@ export const facebookNewsConnector: NewsPlatformConnector = {
     const fetched = await fetchFacebookPosts(auth);
     if (!fetched.ok) return { error: fetched.error };
     const items: UnifiedNewsItem[] = fetched.data.map((post) => {
-      const imageUrl = fbPostImage(post);
+      const { url: imageUrl, thumbUrl } = fbPostMedia(post);
       return {
       id: `facebook:${post.id}`,
       platform: "facebook",
@@ -109,6 +121,7 @@ export const facebookNewsConnector: NewsPlatformConnector = {
               id: post.id ?? "img",
               kind: "image",
               url: imageUrl,
+              thumbUrl,
               storagePath: null,
               mimeType: "image/jpeg",
               sortOrder: 0,

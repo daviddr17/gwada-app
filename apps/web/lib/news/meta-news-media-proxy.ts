@@ -6,6 +6,9 @@ export type MetaNewsMediaAudience = "app" | "public";
 
 export type MetaNewsMediaPlatform = Extract<NewsPlatform, "facebook" | "instagram">;
 
+/** Feed-Thumbs über Meta-Media-Proxy (`?w=`). */
+export const META_NEWS_FEED_THUMB_WIDTH = 160;
+
 const APP_META_NEWS_MEDIA_PROXY_PATH = "/api/contact-messages/meta/media";
 const PUBLIC_META_NEWS_MEDIA_PROXY_PATH = "/api/public/news/media";
 
@@ -56,6 +59,7 @@ export function proxyMetaNewsMediaUrl(
   platform: MetaNewsMediaPlatform,
   rawUrl: string,
   audience: MetaNewsMediaAudience,
+  maxWidth?: number,
 ): string {
   const url = unwrapMetaNewsMediaUrl(rawUrl.trim());
   const q = new URLSearchParams({
@@ -63,6 +67,9 @@ export function proxyMetaNewsMediaUrl(
     platform,
     url,
   });
+  if (maxWidth != null && maxWidth > 0) {
+    q.set("w", String(maxWidth));
+  }
   return `${metaNewsMediaProxyPath(audience)}?${q}`;
 }
 
@@ -71,6 +78,7 @@ export function resolveMetaNewsMediaUrlForAudience(
   platform: MetaNewsMediaPlatform,
   url: string | null | undefined,
   audience: MetaNewsMediaAudience,
+  maxWidth?: number,
 ): string | null {
   if (!url?.trim()) return null;
 
@@ -82,7 +90,13 @@ export function resolveMetaNewsMediaUrlForAudience(
     return url;
   }
 
-  return proxyMetaNewsMediaUrl(restaurantId, platform, unwrapped, audience);
+  return proxyMetaNewsMediaUrl(
+    restaurantId,
+    platform,
+    unwrapped,
+    audience,
+    maxWidth,
+  );
 }
 
 export function resolveNewsItemMetaMediaUrls(
@@ -95,22 +109,47 @@ export function resolveNewsItemMetaMediaUrls(
   }
   if (item.media.length === 0) return item;
 
+  const platform = item.platform as MetaNewsMediaPlatform;
   let changed = false;
   const media = item.media.map((entry) => {
     const url = resolveMetaNewsMediaUrlForAudience(
       restaurantId,
-      item.platform as MetaNewsMediaPlatform,
+      platform,
       entry.url,
       audience,
     );
-    const thumbUrl = entry.thumbUrl
+
+    let thumbUrl = entry.thumbUrl
       ? resolveMetaNewsMediaUrlForAudience(
           restaurantId,
-          item.platform as MetaNewsMediaPlatform,
+          platform,
           entry.thumbUrl,
           audience,
+          META_NEWS_FEED_THUMB_WIDTH,
         )
       : entry.thumbUrl;
+
+    // Bestehender Cache ohne thumbs: kleines Proxy-Thumb aus Full-URL synthetisieren.
+    if (
+      !thumbUrl &&
+      entry.kind !== "video" &&
+      entry.url?.trim()
+    ) {
+      const unwrapped = unwrapMetaNewsMediaUrl(entry.url);
+      if (
+        isMetaHostedMediaUrl(unwrapped) ||
+        extractMetaMediaUrlFromProxy(entry.url) != null
+      ) {
+        thumbUrl = proxyMetaNewsMediaUrl(
+          restaurantId,
+          platform,
+          unwrapped,
+          audience,
+          META_NEWS_FEED_THUMB_WIDTH,
+        );
+      }
+    }
+
     if (url === entry.url && thumbUrl === entry.thumbUrl) return entry;
     changed = true;
     return { ...entry, url, thumbUrl };

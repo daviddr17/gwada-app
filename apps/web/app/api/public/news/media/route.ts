@@ -6,6 +6,7 @@ import {
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function isPublishedRestaurant(

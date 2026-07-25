@@ -5,6 +5,7 @@ import {
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Proxied Meta-Anhänge (Graph-URLs brauchen Page-Token). */

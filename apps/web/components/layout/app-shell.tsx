@@ -17,7 +17,7 @@ import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-ove
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
-import { DashboardHomeKeepAlive } from "@/components/dashboard/dashboard-home-keep-alive";
+import { AppModuleHomeKeepAlives } from "@/components/navigation/app-module-home-keep-alives";
 import { SoftNavPendingOverlay } from "@/components/navigation/soft-nav-pending-overlay";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -30,7 +30,7 @@ import {
   AppModuleChromeProvider,
   useAppModuleChrome,
 } from "@/lib/contexts/app-module-chrome-context";
-import { DashboardHomeKeepAliveProvider } from "@/lib/contexts/dashboard-home-keep-alive-context";
+import { ModuleHomeKeepAliveProvider } from "@/lib/contexts/module-home-keep-alive-context";
 import {
   DashboardGlobalSearchChrome,
   DashboardGlobalSearchTrigger,
@@ -200,8 +200,8 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           <WorkspaceZoneTransition>
             {children}
           </WorkspaceZoneTransition>
-          {/* Soft-Nav: Home bleibt warm — Sibling, kein Route-Unmount */}
-          <DashboardHomeKeepAlive />
+          {/* Soft-Nav: Modul-Homes warm — Sibling, kein Route-Unmount */}
+          <AppModuleHomeKeepAlives />
         </div>
         {/* Sibling — deckt alten Content sofort ab, unmountet den Flight nicht */}
         <SoftNavPendingOverlay />
@@ -217,13 +217,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AuthLogoutTransitionProvider>
         <AppModuleChromeProvider>
-          <DashboardHomeKeepAliveProvider>
+          <ModuleHomeKeepAliveProvider>
             <DashboardGlobalSearchChrome>
               <AppSidebar />
               <AppInsetWithChrome>{children}</AppInsetWithChrome>
               <DashboardUploadOverlay />
             </DashboardGlobalSearchChrome>
-          </DashboardHomeKeepAliveProvider>
+          </ModuleHomeKeepAliveProvider>
         </AppModuleChromeProvider>
       </AuthLogoutTransitionProvider>
     </SidebarProvider>

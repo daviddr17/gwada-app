@@ -1,23 +1,28 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { DashboardHomeScreen } from "@/components/dashboard/dashboard-home-screen";
+import { useModuleHomeSlot } from "@/lib/contexts/module-home-keep-alive-context";
 import {
-  useDashboardHomeKeepAlive,
-} from "@/lib/contexts/dashboard-home-keep-alive-context";
-import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
+  isModuleHomePath,
+  type ModuleHomeId,
+} from "@/lib/navigation/module-home-keep-alive";
 import { cn } from "@/lib/utils";
 
 /**
- * Hält Dashboard-Home warm unter der App-Shell.
- * Soft-Nav zu anderen Modulen: verstecken (kein Unmount).
- * Live/Glocke/Realtime bleiben app-weit — hier nur UI-Persistenz.
+ * Hält ein Modul-Home warm unter der App-Shell.
+ * Soft-Nav weg: verstecken. Live/Glocke bleiben app-weit.
  */
-export function DashboardHomeKeepAlive() {
+export function ModuleHomeKeepAliveSlot({
+  id,
+  children,
+}: {
+  id: ModuleHomeId;
+  children: (active: boolean) => ReactNode;
+}) {
   const pathname = usePathname();
-  const { warm, visible, active } = useDashboardHomeKeepAlive();
-  const onHome = isDashboardHomePath(pathname);
+  const { warm, visible, active } = useModuleHomeSlot(id);
+  const onHome = isModuleHomePath(pathname, id);
   const scrollRootRef = useRef<HTMLElement | null>(null);
   const savedScrollTopRef = useRef(0);
   const wasVisibleRef = useRef(visible);
@@ -50,7 +55,7 @@ export function DashboardHomeKeepAlive() {
 
   return (
     <div
-      data-dashboard-home-keep-alive
+      data-module-home-keep-alive={id}
       className={cn(
         visible
           ? onHome
@@ -61,7 +66,7 @@ export function DashboardHomeKeepAlive() {
       aria-hidden={!visible}
       {...(!visible ? ({ inert: "" } as Record<string, string>) : {})}
     >
-      <DashboardHomeScreen active={active} />
+      {children(active)}
     </div>
   );
 }

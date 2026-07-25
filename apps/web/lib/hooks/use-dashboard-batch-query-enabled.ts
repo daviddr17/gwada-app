@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useDashboardHomeKeepAliveOptional } from "@/lib/contexts/dashboard-home-keep-alive-context";
+import { useDashboardHomeKeepAliveOptional } from "@/lib/contexts/module-home-keep-alive-context";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";

@@ -149,7 +149,7 @@ function useMonthCursor() {
   return { cursor, setMonth, setYear, setYearMonth, prevMonth, nextMonth };
 }
 
-export function ReservationsOverview() {
+export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const { cursor, setMonth, setYear, setYearMonth, prevMonth, nextMonth } =
     useMonthCursor();
 
@@ -258,7 +258,7 @@ export function ReservationsOverview() {
     invalidateAll: invalidateReservations,
   } = useReservationsListQuery({
     restaurantId: workspaceRestaurantId,
-    enabled: dbOk,
+    enabled: dbOk && active,
     unconfirmedMode,
     range: monthRange,
   });
@@ -655,6 +655,7 @@ export function ReservationsOverview() {
   }, []);
 
   useEffect(() => {
+    // Auch versteckt: Cache warm halten (kein Fetch, nur Live-Patch).
     if (!workspaceRestaurantId || unconfirmedMode) return;
 
     const onLiveInsert = (event: Event) => {

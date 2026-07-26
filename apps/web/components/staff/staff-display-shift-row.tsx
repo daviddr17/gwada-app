@@ -8,6 +8,7 @@ import {
 } from "@/lib/restaurant/restaurant-timezone";
 import {
   displayShiftBounds,
+  displayShiftNetWorkHours,
   displayShiftTitle,
 } from "@/lib/staff/staff-work-hours-display";
 import { formatWorkTimeRangeWithHoursDe } from "@/lib/staff/staff-work-hours-summary";
@@ -36,6 +37,7 @@ export function StaffDisplayShiftRow({
   const endLabel = bounds.isOpen
     ? "läuft"
     : timeDe.format(new Date(bounds.endsAt!));
+  const netWorkHours = displayShiftNetWorkHours(segments);
 
   return (
     <div
@@ -53,14 +55,7 @@ export function StaffDisplayShiftRow({
       <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
         {formatWorkTimeRangeWithHoursDe(
           `${timeDe.format(new Date(bounds.startsAt))} – ${endLabel}`,
-          bounds.isOpen || !bounds.endsAt
-            ? null
-            : Math.max(
-                0,
-                (new Date(bounds.endsAt).getTime() -
-                  new Date(bounds.startsAt).getTime()) /
-                  3_600_000,
-              ),
+          netWorkHours,
         )}
       </p>
       <StaffDisplayShiftSegmentsList

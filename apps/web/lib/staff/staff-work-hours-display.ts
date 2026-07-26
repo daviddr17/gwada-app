@@ -167,6 +167,47 @@ export function displayShiftBounds(
   return { startsAt, endsAt, isOpen: false };
 }
 
+/**
+ * Netto-Arbeitszeit einer Schicht (Pausen abgezogen) — nicht die Brutto-Spanne Start–Ende.
+ * Bei überlappender Arbeitszeit (Pause liegt in einem Work-Segment) wird Pause von Work abgezogen;
+ * bei sequentiellen Display-Segmenten ist die Summe der Work-Segmente bereits netto.
+ */
+export function displayShiftNetWorkHours(
+  segments: RestaurantStaffWorkEntryRow[],
+  now: Date = new Date(),
+): number {
+  const nowMs = now.getTime();
+  let workMs = 0;
+  let breakMs = 0;
+  const workIntervals: { start: number; end: number }[] = [];
+
+  for (const s of segments) {
+    const start = new Date(s.starts_at).getTime();
+    const end = s.is_open ? nowMs : new Date(s.ends_at).getTime();
+    const ms = Math.max(0, end - start);
+    if (s.entry_type === "work") {
+      workMs += ms;
+      workIntervals.push({ start, end });
+    } else if (s.entry_type === "break") {
+      breakMs += ms;
+    }
+  }
+
+  const breakInsideWork = segments.some((s) => {
+    if (s.entry_type !== "break") return false;
+    const bStart = new Date(s.starts_at).getTime();
+    const bEnd = s.is_open ? nowMs : new Date(s.ends_at).getTime();
+    return workIntervals.some(
+      (w) => bStart >= w.start && bEnd <= w.end + 1,
+    );
+  });
+
+  const netMs = breakInsideWork
+    ? Math.max(0, workMs - breakMs)
+    : workMs;
+  return netMs / 3_600_000;
+}
+
 export function displayShiftTitle(
   segments: RestaurantStaffWorkEntryRow[],
 ): string {
@@ -200,15 +241,13 @@ export function listCompletedDisplayShifts(
     const bounds = displayShiftBounds(segments);
     if (bounds.isOpen || !bounds.endsAt) continue;
 
-    let workMs = 0;
     let breakMs = 0;
     for (const s of segments) {
-      const ms = Math.max(
+      if (s.entry_type !== "break") continue;
+      breakMs += Math.max(
         0,
         new Date(s.ends_at).getTime() - new Date(s.starts_at).getTime(),
       );
-      if (s.entry_type === "work") workMs += ms;
-      else if (s.entry_type === "break") breakMs += ms;
     }
 
     out.push({
@@ -216,7 +255,7 @@ export function listCompletedDisplayShifts(
       staffId: segments[0]!.staff_id,
       startsAt: bounds.startsAt,
       endsAt: bounds.endsAt,
-      workMinutes: workMs / 60_000,
+      workMinutes: displayShiftNetWorkHours(segments) * 60,
       breakMinutes: breakMs / 60_000,
       segments: sortSegmentsByStart(segments),
     });

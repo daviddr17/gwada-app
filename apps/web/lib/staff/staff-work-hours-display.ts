@@ -145,17 +145,26 @@ export function groupWorkHoursDayEntries(
 
 export function displayShiftBounds(
   segments: RestaurantStaffWorkEntryRow[],
-  now: Date = new Date(),
+  _now: Date = new Date(),
 ): { startsAt: string; endsAt: string | null; isOpen: boolean } {
   const sorted = sortSegmentsByStart(segments);
   const startsAt = sorted[0]!.starts_at;
-  const last = sorted[sorted.length - 1]!;
-  const isOpen = Boolean(last.is_open);
-  return {
-    startsAt,
-    endsAt: isOpen ? null : last.ends_at,
-    isOpen,
-  };
+  /** Offen, wenn irgendein Segment (Arbeit/Pause) noch läuft — nicht nur das zuletzt gestartete. */
+  const isOpen = segments.some((s) => Boolean(s.is_open));
+  if (isOpen) {
+    return { startsAt, endsAt: null, isOpen: true };
+  }
+  /** Ende = spätestes Segmentende (Arbeitszeit kann über spätere Pausen hinausreichen). */
+  let endsAt = sorted[0]!.ends_at;
+  let endsMs = new Date(endsAt).getTime();
+  for (const s of sorted) {
+    const ms = new Date(s.ends_at).getTime();
+    if (ms > endsMs) {
+      endsMs = ms;
+      endsAt = s.ends_at;
+    }
+  }
+  return { startsAt, endsAt, isOpen: false };
 }
 
 export function displayShiftTitle(

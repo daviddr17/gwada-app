@@ -169,12 +169,38 @@ export const GOOGLE_BUSINESS_OAUTH_SCOPE_IDS = uniqueOAuthIds(
   GOOGLE_BUSINESS_OAUTH_SCOPES,
 );
 
+/** Gmail IMAP/SMTP via OAuth2 (XOAUTH2) — voller Mail-Zugriff. */
+const GMAIL_MAIL_SCOPE = "https://mail.google.com/";
+
+export const GMAIL_OAUTH_SCOPES: IntegrationScopeMeta[] = [
+  {
+    id: GMAIL_MAIL_SCOPE,
+    label: "Gmail Postfach",
+    plannedUse: "E-Mails lesen, senden und als gelesen markieren",
+  },
+  {
+    id: "openid",
+    label: "Google-Konto",
+    plannedUse: "Anmeldung und Konto-Zuordnung",
+  },
+  {
+    id: "email",
+    label: "E-Mail-Adresse",
+    plannedUse: "Absenderadresse des verbundenen Kontos",
+  },
+];
+
+export const GMAIL_OAUTH_SCOPE_IDS = uniqueOAuthIds(GMAIL_OAUTH_SCOPES);
+
 const META_SCOPE_MAP = new Map(
   [...FACEBOOK_OAUTH_SCOPES, ...INSTAGRAM_OAUTH_SCOPES].map((s) => [s.id, s]),
 );
 
 const GOOGLE_SCOPE_MAP = new Map(
-  GOOGLE_BUSINESS_OAUTH_SCOPES.map((s) => [s.id, s]),
+  [...GOOGLE_BUSINESS_OAUTH_SCOPES, ...GMAIL_OAUTH_SCOPES].map((s) => [
+    s.id,
+    s,
+  ]),
 );
 
 export function scopeLabel(
@@ -199,7 +225,7 @@ export function scopePlannedUse(
 }
 
 export function catalogForProvider(
-  provider: "facebook" | "instagram" | "google_business",
+  provider: "facebook" | "instagram" | "google_business" | "gmail",
 ): IntegrationScopeMeta[] {
   switch (provider) {
     case "facebook":
@@ -208,12 +234,14 @@ export function catalogForProvider(
       return INSTAGRAM_OAUTH_SCOPES;
     case "google_business":
       return GOOGLE_BUSINESS_OAUTH_SCOPES;
+    case "gmail":
+      return GMAIL_OAUTH_SCOPES;
   }
 }
 
 /** Scope-IDs für OAuth-Authorize-URL (dedupliziert, ohne reine Vorschau-Zeilen). */
 export function oauthScopeIdsForProvider(
-  provider: "facebook" | "instagram" | "google_business",
+  provider: "facebook" | "instagram" | "google_business" | "gmail",
 ): string[] {
   switch (provider) {
     case "facebook":
@@ -222,6 +250,8 @@ export function oauthScopeIdsForProvider(
       return INSTAGRAM_OAUTH_SCOPE_IDS;
     case "google_business":
       return GOOGLE_BUSINESS_OAUTH_SCOPE_IDS;
+    case "gmail":
+      return GMAIL_OAUTH_SCOPE_IDS;
   }
 }
 

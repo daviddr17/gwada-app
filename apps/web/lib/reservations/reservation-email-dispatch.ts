@@ -17,6 +17,10 @@ import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-appen
 import { isEmailSendConfigured } from "@/lib/email/is-email-send-configured";
 import { smtpCredentialsFromConfig } from "@/lib/integrations/smtp-integration-config";
 import {
+  getGmailAccessTokenForRestaurant,
+  gmailCredentialsFromAccess,
+} from "@/lib/integrations/gmail-email-access";
+import {
   resolveEmailSender,
   type EmailSender,
   type EmailSmtpCredentials,
@@ -138,6 +142,24 @@ export async function resolveEmailDeliveryForRestaurant(
   ]);
 
   const useCustom = integration?.status === "custom";
+  const useGmail = integration?.status === "gmail";
+
+  if (useGmail) {
+    const gmail = await getGmailAccessTokenForRestaurant(restaurantId);
+    if ("error" in gmail) return null;
+    const email = gmail.config.email?.trim();
+    if (!email) return null;
+    const sender = resolveEmailSender({
+      useCustom: true,
+      fromEmail: email,
+      fromName: gmail.config.from_name,
+      restaurantFallbackName: restaurantName,
+    });
+    return {
+      sender,
+      smtp: gmailCredentialsFromAccess(email, gmail.accessToken),
+    };
+  }
 
   if (useCustom) {
     const smtpRaw = smtpCredentialsFromConfig(integration?.config ?? {});

@@ -23,6 +23,17 @@ export async function sendViaSmtp(
   smtp: EmailSmtpCredentials,
   payload: SmtpSendPayload,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const auth = smtp.oauthAccessToken
+    ? {
+        type: "OAuth2" as const,
+        user: smtp.email,
+        accessToken: smtp.oauthAccessToken,
+      }
+    : {
+        user: smtp.email,
+        pass: smtp.password,
+      };
+
   const transporter = nodemailer.createTransport({
     host: smtp.smtpHost,
     port: smtp.smtpPort,
@@ -30,10 +41,7 @@ export async function sendViaSmtp(
     connectionTimeout: 12_000,
     greetingTimeout: 12_000,
     socketTimeout: 20_000,
-    auth: {
-      user: smtp.email,
-      pass: smtp.password,
-    },
+    auth,
   });
 
   try {

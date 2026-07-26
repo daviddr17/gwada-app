@@ -53,7 +53,7 @@ const OAUTH_META: Record<
   google_oauth: {
     title: "Google OAuth",
     description:
-      "Anmeldung und Registrierung mit Google. Client-ID und Secret hier pflegen; Redirect in der Google Cloud Console: …/api/auth/google/callback. Dieselbe Client-ID zusätzlich am Auth-Server (SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID/SECRET, muss übereinstimmen).",
+      "Login und Gmail-Postfach (Restaurant-E-Mail). Client-ID/Secret hier; Redirects in der Google Cloud Console: …/api/auth/google/callback und …/api/integrations/email/gmail/callback. Gmail-API aktivieren. Auth-Server: SUPABASE_AUTH_EXTERNAL_GOOGLE_* muss übereinstimmen.",
     icon: <GoogleGlyph />,
     configurable: true,
   },

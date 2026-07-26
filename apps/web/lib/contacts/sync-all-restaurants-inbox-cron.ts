@@ -26,7 +26,7 @@ async function restaurantIdsWithInbox(
   for (const r of restaurants ?? []) {
     const id = (r as { id: string }).id;
     const email = await fetchRestaurantEmailSmtpConfig(admin, id);
-    if (email?.status === "custom") {
+    if (email?.status === "custom" || email?.status === "gmail") {
       ids.push(id);
       continue;
     }

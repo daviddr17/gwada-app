@@ -19,13 +19,18 @@ export function parseRestaurantEmailSmtpConfig(
 }
 
 export function emailIntegrationConfigToPublic(
-  config: SmtpIntegrationConfig,
+  config: SmtpIntegrationConfig & {
+    auth_mode?: "gmail_oauth";
+    granted_scopes?: string[];
+  },
 ): RestaurantEmailIntegrationConfig {
   const pub = smtpConfigToPublic(config);
   return {
     ...pub,
     from_email: config.email ?? config.from_email,
     from_name: config.from_name,
+    auth_mode: config.auth_mode,
+    granted_scopes: config.granted_scopes,
   };
 }
 
@@ -89,7 +94,7 @@ export async function upsertRestaurantEmailIntegration(
   restaurantId: string,
   patch: {
     status: RestaurantEmailStatus;
-    config: SmtpIntegrationConfig;
+    config: SmtpIntegrationConfig & Record<string, unknown>;
     last_error?: string | null;
   },
 ): Promise<{ error: string | null }> {
@@ -100,9 +105,12 @@ export async function upsertRestaurantEmailIntegration(
       waha_session_name: "email",
       status: patch.status,
       phone_number: null,
-      display_name: null,
+      display_name:
+        typeof patch.config.email === "string" ? patch.config.email : null,
       connected_at:
-        patch.status === "custom" ? new Date().toISOString() : null,
+        patch.status === "custom" || patch.status === "gmail"
+          ? new Date().toISOString()
+          : null,
       last_error: patch.last_error ?? null,
       config: patch.config,
     },

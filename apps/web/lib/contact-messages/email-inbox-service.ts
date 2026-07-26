@@ -21,6 +21,10 @@ import {
   fetchRestaurantEmailSmtpConfig,
 } from "@/lib/supabase/restaurant-email-integration-db";
 import { smtpCredentialsFromConfig } from "@/lib/integrations/smtp-integration-config";
+import {
+  getGmailAccessTokenForRestaurant,
+  gmailCredentialsFromAccess,
+} from "@/lib/integrations/gmail-email-access";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export async function resolveRestaurantImapCredentials(
@@ -28,7 +32,15 @@ export async function resolveRestaurantImapCredentials(
   restaurantId: string,
 ): Promise<ImapCredentials | null> {
   const row = await fetchRestaurantEmailSmtpConfig(admin, restaurantId);
-  if (!row || row.status !== "custom") return null;
+  if (!row) return null;
+  if (row.status === "gmail") {
+    const gmail = await getGmailAccessTokenForRestaurant(restaurantId);
+    if ("error" in gmail) return null;
+    const email = gmail.config.email?.trim();
+    if (!email) return null;
+    return gmailCredentialsFromAccess(email, gmail.accessToken);
+  }
+  if (row.status !== "custom") return null;
   return smtpCredentialsFromConfig(row.config);
 }
 

@@ -1,4 +1,5 @@
 import {
+  assertPlatformEmailEnabled,
   assertPlatformFacebookEnabled,
   assertPlatformGoogleBusinessEnabled,
   assertPlatformInstagramEnabled,
@@ -90,6 +91,14 @@ export function authorizeGoogleBusinessRestaurantRoute(
     restaurantIdRaw,
     permission: "integrations.google_business",
     assertPlatform: assertPlatformGoogleBusinessEnabled,
+  });
+}
+
+export function authorizeEmailRestaurantRoute(restaurantIdRaw: string | null) {
+  return authorizeRestaurantOAuthRoute({
+    restaurantIdRaw,
+    permission: "integrations.email",
+    assertPlatform: assertPlatformEmailEnabled,
   });
 }
 

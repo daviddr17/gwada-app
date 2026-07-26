@@ -9,7 +9,7 @@ export type EmailSender = {
   name: string;
 };
 
-/** SMTP/IMAP-Zugangsdaten für direkten Versand aus der App (nodemailer). */
+/** SMTP/IMAP-Zugangsdaten für direkten Versand aus der App (nodemailer / ImapFlow). */
 export type EmailSmtpCredentials = {
   email: string;
   password: string;
@@ -17,6 +17,8 @@ export type EmailSmtpCredentials = {
   smtpPort: number;
   imapHost: string;
   imapPort: number;
+  /** Gmail XOAUTH2 — wenn gesetzt, statt Passwort. */
+  oauthAccessToken?: string;
 };
 
 export function resolveEmailSender(params: {

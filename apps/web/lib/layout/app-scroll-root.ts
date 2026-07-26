@@ -73,9 +73,18 @@ export function acquireAppScrollLock(): () => void {
   };
 }
 
+/** Soft-Nav: gemeinsamen Scroll-Root auf Modulstart setzen. */
+export function scrollAppRootToTop(): void {
+  if (typeof document === "undefined") return;
+  const root = getAppScrollRoot();
+  if (root && root.scrollTop !== 0) {
+    root.scrollTop = 0;
+  }
+}
+
 /**
  * Failsafe nach Modulwechsel: alle Locks und typische Overlay-Reste entfernen.
- * Scroll-Position der Seite bewusst nicht zurücksetzen (Soft-Nav).
+ * Scroll-Position setzt `AppScrollUnlockOnNavigate` / Keep-alive separat.
  */
 export function forceResetAppScrollLocks(): void {
   if (typeof document === "undefined") return;

@@ -24,7 +24,9 @@ export async function loadNotificationChannelsInfo(
 
   const restaurantEmailConfigured =
     Boolean(imapCreds) ||
-    ((emailRow?.status === "custom" || emailRow?.status === "gmail") &&
+    ((emailRow?.status === "custom" ||
+      emailRow?.status === "gmail" ||
+      emailRow?.status === "outlook") &&
       Boolean(emailRow.config?.from_email ?? emailRow.config?.email));
 
   return {

@@ -21,6 +21,10 @@ import {
   gmailCredentialsFromAccess,
 } from "@/lib/integrations/gmail-email-access";
 import {
+  getOutlookAccessTokenForRestaurant,
+  outlookCredentialsFromAccess,
+} from "@/lib/integrations/outlook-email-access";
+import {
   resolveEmailSender,
   type EmailSender,
   type EmailSmtpCredentials,
@@ -143,6 +147,7 @@ export async function resolveEmailDeliveryForRestaurant(
 
   const useCustom = integration?.status === "custom";
   const useGmail = integration?.status === "gmail";
+  const useOutlook = integration?.status === "outlook";
 
   if (useGmail) {
     const gmail = await getGmailAccessTokenForRestaurant(restaurantId);
@@ -158,6 +163,23 @@ export async function resolveEmailDeliveryForRestaurant(
     return {
       sender,
       smtp: gmailCredentialsFromAccess(email, gmail.accessToken),
+    };
+  }
+
+  if (useOutlook) {
+    const outlook = await getOutlookAccessTokenForRestaurant(restaurantId);
+    if ("error" in outlook) return null;
+    const email = outlook.config.email?.trim();
+    if (!email) return null;
+    const sender = resolveEmailSender({
+      useCustom: true,
+      fromEmail: email,
+      fromName: outlook.config.from_name,
+      restaurantFallbackName: restaurantName,
+    });
+    return {
+      sender,
+      smtp: outlookCredentialsFromAccess(email, outlook.accessToken),
     };
   }
 

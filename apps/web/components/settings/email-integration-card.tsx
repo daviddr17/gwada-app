@@ -30,7 +30,19 @@ import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import type { EmailIntegrationResponse } from "@/lib/types/restaurant-integration";
 import { cn } from "@/lib/utils";
 
-type MailboxMode = "smtp" | "gmail";
+type MailboxMode = "smtp" | "gmail" | "outlook";
+
+function mailboxModeFromStatus(
+  status: EmailIntegrationResponse["status"],
+): MailboxMode {
+  if (status === "gmail") return "gmail";
+  if (status === "outlook") return "outlook";
+  return "smtp";
+}
+
+function isMailboxStatus(status: EmailIntegrationResponse["status"]): boolean {
+  return status === "custom" || status === "gmail" || status === "outlook";
+}
 
 function fieldsSnapshot(
   useCustom: boolean,
@@ -75,9 +87,10 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
 
   const applyResponse = (data: EmailIntegrationResponse) => {
     setState(data);
-    const custom = data.status === "custom" || data.status === "gmail";
+    const custom = isMailboxStatus(data.status);
+    const mode = mailboxModeFromStatus(data.status);
     setUseCustom(custom);
-    setMailboxMode(data.status === "gmail" ? "gmail" : "smtp");
+    setMailboxMode(mode);
     const nextFields: SmtpConnectionFieldValues = {
       email: data.fromEmail ?? "",
       password: "",
@@ -88,11 +101,7 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
       fromName: data.fromName ?? "",
     };
     setFields(nextFields);
-    savedSnapshotRef.current = fieldsSnapshot(
-      custom,
-      data.status === "gmail" ? "gmail" : "smtp",
-      nextFields,
-    );
+    savedSnapshotRef.current = fieldsSnapshot(custom, mode, nextFields);
   };
 
   const load = useCallback(async () => {
@@ -133,12 +142,12 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
     if (!result) return;
     oauthToastHandled.current = true;
     if (result === "connected") {
-      toast.success("Gmail verbunden.");
+      toast.success("E-Mail-Konto verbunden.");
       if (restaurantId) invalidateInboxAfterChannelConnect(restaurantId);
       void load();
     } else if (result === "error") {
       toast.error(
-        searchParams.get("message") ?? "Gmail-Verbindung fehlgeschlagen.",
+        searchParams.get("message") ?? "OAuth-Verbindung fehlgeschlagen.",
       );
     }
   }, [searchParams, restaurantId, load]);
@@ -150,8 +159,7 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
 
   const save = useCallback(async () => {
     if (!restaurantId) return;
-    const wasMailbox =
-      state?.status === "custom" || state?.status === "gmail";
+    const wasMailbox = state ? isMailboxStatus(state.status) : false;
     const res = await fetch("/api/integrations/email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -213,28 +221,35 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
     setTesting(false);
   };
 
-  const connectGmail = () => {
+  const connectOAuth = (provider: "gmail" | "outlook") => {
     if (!restaurantId) return;
     window.location.assign(
-      `/api/integrations/email/gmail/connect?${new URLSearchParams({ restaurantId })}`,
+      `/api/integrations/email/${provider}/connect?${new URLSearchParams({ restaurantId })}`,
     );
   };
 
-  const disconnectGmail = async () => {
-    if (!restaurantId) return;
+  const disconnectOAuth = async () => {
+    if (!restaurantId || (mailboxMode !== "gmail" && mailboxMode !== "outlook")) {
+      return;
+    }
     setBusy(true);
     try {
-      const res = await fetch("/api/integrations/email/gmail/disconnect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantId }),
-      });
+      const res = await fetch(
+        `/api/integrations/email/${mailboxMode}/disconnect`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ restaurantId }),
+        },
+      );
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         toast.error(data.error ?? "Trennen fehlgeschlagen.");
         throw new Error(data.error ?? "disconnect_failed");
       }
-      toast.success("Gmail getrennt.");
+      toast.success(
+        mailboxMode === "gmail" ? "Gmail getrennt." : "Outlook getrennt.",
+      );
       await load();
       onSaved?.();
     } catch (e) {
@@ -251,24 +266,39 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
 
   const sendReady = state?.emailSendConfigured ?? false;
   const gmailConnected = state?.status === "gmail";
+  const outlookConnected = state?.status === "outlook";
+  const oauthConnected =
+    (mailboxMode === "gmail" && gmailConnected) ||
+    (mailboxMode === "outlook" && outlookConnected);
+  const oauthConfigured =
+    mailboxMode === "gmail"
+      ? Boolean(state?.gmailOAuthConfigured)
+      : mailboxMode === "outlook"
+        ? Boolean(state?.outlookOAuthConfigured)
+        : false;
+
   const currentLabel = !useCustom
     ? GWADA_DEFAULT_FROM_EMAIL
     : mailboxMode === "gmail"
       ? fields.email.trim() || "Gmail"
-      : fields.email.trim() || "eigene Verbindung";
+      : mailboxMode === "outlook"
+        ? fields.email.trim() || "Outlook"
+        : fields.email.trim() || "eigene Verbindung";
 
   const badge = !sendReady
     ? integrationStatusBadgeDestructive("Noch nicht verfügbar")
     : gmailConnected
       ? integrationStatusBadgeConnected("Gmail")
-      : useCustom
-        ? integrationStatusBadgeConnected("IMAP/SMTP")
-        : integrationStatusBadgeSecondary("Gwada-Standard");
+      : outlookConnected
+        ? integrationStatusBadgeConnected("Outlook")
+        : useCustom
+          ? integrationStatusBadgeConnected("IMAP/SMTP")
+          : integrationStatusBadgeSecondary("Gwada-Standard");
 
   return (
     <SettingsIntegrationPanel
       title="E-Mail"
-      description="Versendet und empfängt E-Mails in Gwada – Gwada-Standard, eigenes IMAP/SMTP oder Gmail (OAuth)."
+      description="Versendet und empfängt E-Mails in Gwada – Gwada-Standard, IMAP/SMTP, Gmail oder Outlook (OAuth)."
       icon={<Mail className="text-muted-foreground" />}
       accentColor={INTEGRATION_PANEL_ACCENT.email}
       badge={badge}
@@ -304,25 +334,25 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
 
       {useCustom ? (
         <div className="space-y-3">
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant={mailboxMode === "smtp" ? "secondary" : "outline"}
-              className="h-9 flex-1 rounded-xl"
-              disabled={!sendReady}
-              onClick={() => setMailboxMode("smtp")}
-            >
-              IMAP / SMTP
-            </Button>
-            <Button
-              type="button"
-              variant={mailboxMode === "gmail" ? "secondary" : "outline"}
-              className="h-9 flex-1 rounded-xl"
-              disabled={!sendReady}
-              onClick={() => setMailboxMode("gmail")}
-            >
-              Gmail
-            </Button>
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                ["smtp", "IMAP / SMTP"],
+                ["gmail", "Gmail"],
+                ["outlook", "Outlook"],
+              ] as const
+            ).map(([mode, label]) => (
+              <Button
+                key={mode}
+                type="button"
+                variant={mailboxMode === mode ? "secondary" : "outline"}
+                className="h-9 rounded-xl px-2 text-xs sm:text-sm"
+                disabled={!sendReady}
+                onClick={() => setMailboxMode(mode)}
+              >
+                {label}
+              </Button>
+            ))}
           </div>
 
           {mailboxMode === "smtp" ? (
@@ -335,30 +365,45 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
             />
           ) : (
             <div className="space-y-3 rounded-xl border border-border/50 bg-muted/10 px-3 py-3">
-              {!state?.gmailOAuthConfigured ? (
+              {!oauthConfigured ? (
                 <p className="text-sm text-muted-foreground">
-                  Gmail-OAuth ist noch nicht eingerichtet. Im Superadmin unter
-                  Google OAuth Client-ID und Secret hinterlegen und die
-                  Redirect-URI{" "}
-                  <span className="font-mono text-xs">
-                    /api/integrations/email/gmail/callback
-                  </span>{" "}
-                  in der Google Cloud Console freigeben.
+                  {mailboxMode === "gmail" ? (
+                    <>
+                      Gmail-OAuth ist noch nicht eingerichtet. Im Superadmin unter
+                      Google OAuth Client-ID und Secret hinterlegen und die
+                      Redirect-URI{" "}
+                      <span className="font-mono text-xs">
+                        /api/integrations/email/gmail/callback
+                      </span>{" "}
+                      freigeben.
+                    </>
+                  ) : (
+                    <>
+                      Outlook-OAuth ist noch nicht eingerichtet. Im Superadmin
+                      unter Microsoft OAuth App-ID und Secret hinterlegen und die
+                      Redirect-URI{" "}
+                      <span className="font-mono text-xs">
+                        /api/integrations/email/outlook/callback
+                      </span>{" "}
+                      in der Azure App-Registrierung freigeben.
+                    </>
+                  )}
                 </p>
-              ) : gmailConnected ? (
+              ) : oauthConnected ? (
                 <>
                   <p className="text-sm">
                     Verbunden als{" "}
                     <span className="font-mono font-medium">
-                      {fields.email || "Gmail"}
+                      {fields.email ||
+                        (mailboxMode === "gmail" ? "Gmail" : "Outlook")}
                     </span>
                   </p>
                   <div className="space-y-1.5">
-                    <Label htmlFor="restaurant-email-gmail-from-name">
+                    <Label htmlFor="restaurant-email-oauth-from-name">
                       Absendername
                     </Label>
                     <Input
-                      id="restaurant-email-gmail-from-name"
+                      id="restaurant-email-oauth-from-name"
                       value={fields.fromName}
                       onChange={(e) =>
                         setFields((f) => ({ ...f, fromName: e.target.value }))
@@ -367,9 +412,9 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
                       className="h-10"
                     />
                   </div>
-                  {state.grantedScopes.length > 0 ? (
+                  {state?.grantedScopes.length ? (
                     <IntegrationGrantedScopes
-                      provider="gmail"
+                      provider={mailboxMode}
                       grantedScopes={state.grantedScopes}
                     />
                   ) : null}
@@ -380,22 +425,30 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
                     disabled={busy}
                     onClick={() => setConfirmDisconnectOpen(true)}
                   >
-                    Gmail trennen
+                    {mailboxMode === "gmail"
+                      ? "Gmail trennen"
+                      : "Outlook trennen"}
                   </Button>
                 </>
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Mit Google anmelden — Posteingang und Versand laufen über
-                    Gmail, ohne App-Passwort.
+                    {mailboxMode === "gmail"
+                      ? "Mit Google anmelden — Posteingang und Versand über Gmail, ohne App-Passwort."
+                      : "Mit Microsoft anmelden — Posteingang und Versand über Outlook / Microsoft 365, ohne App-Passwort."}
                   </p>
                   <Button
                     type="button"
-                    className={cn("h-11 rounded-xl", settingsAccentSaveButtonClassName)}
+                    className={cn(
+                      "h-11 rounded-xl",
+                      settingsAccentSaveButtonClassName,
+                    )}
                     disabled={!sendReady}
-                    onClick={connectGmail}
+                    onClick={() => connectOAuth(mailboxMode)}
                   >
-                    Mit Google verbinden
+                    {mailboxMode === "gmail"
+                      ? "Mit Google verbinden"
+                      : "Mit Microsoft verbinden"}
                   </Button>
                 </>
               )}
@@ -431,10 +484,12 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
       <ConfirmDialog
         open={confirmDisconnectOpen}
         onOpenChange={setConfirmDisconnectOpen}
-        title="Gmail trennen?"
-        description="Posteingang und Versand über dieses Gmail-Konto werden beendet. Du kannst später erneut verbinden oder IMAP/SMTP nutzen."
+        title={
+          mailboxMode === "outlook" ? "Outlook trennen?" : "Gmail trennen?"
+        }
+        description="Posteingang und Versand über dieses Konto werden beendet. Du kannst später erneut verbinden oder IMAP/SMTP nutzen."
         confirmLabel="Trennen"
-        onConfirm={disconnectGmail}
+        onConfirm={disconnectOAuth}
       />
     </SettingsIntegrationPanel>
   );

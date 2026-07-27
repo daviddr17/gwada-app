@@ -25,6 +25,10 @@ import {
   getGmailAccessTokenForRestaurant,
   gmailCredentialsFromAccess,
 } from "@/lib/integrations/gmail-email-access";
+import {
+  getOutlookAccessTokenForRestaurant,
+  outlookCredentialsFromAccess,
+} from "@/lib/integrations/outlook-email-access";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export async function resolveRestaurantImapCredentials(
@@ -39,6 +43,13 @@ export async function resolveRestaurantImapCredentials(
     const email = gmail.config.email?.trim();
     if (!email) return null;
     return gmailCredentialsFromAccess(email, gmail.accessToken);
+  }
+  if (row.status === "outlook") {
+    const outlook = await getOutlookAccessTokenForRestaurant(restaurantId);
+    if ("error" in outlook) return null;
+    const email = outlook.config.email?.trim();
+    if (!email) return null;
+    return outlookCredentialsFromAccess(email, outlook.accessToken);
   }
   if (row.status !== "custom") return null;
   return smtpCredentialsFromConfig(row.config);

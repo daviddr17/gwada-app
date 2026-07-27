@@ -446,6 +446,7 @@ const HEALTH_CHECKERS: Partial<
   whatsapp: checkWhatsappConnection,
   email: checkEmailConnection,
   google_oauth: () => checkOAuthIntegration("google_oauth"),
+  microsoft_oauth: () => checkOAuthIntegration("microsoft_oauth"),
   apple_oauth: () => checkOAuthIntegration("apple_oauth"),
   facebook: () => checkOAuthIntegration("facebook"),
   instagram: () => checkOAuthIntegration("instagram"),

@@ -20,7 +20,7 @@ export function parseRestaurantEmailSmtpConfig(
 
 export function emailIntegrationConfigToPublic(
   config: SmtpIntegrationConfig & {
-    auth_mode?: "gmail_oauth";
+    auth_mode?: "gmail_oauth" | "outlook_oauth";
     granted_scopes?: string[];
   },
 ): RestaurantEmailIntegrationConfig {
@@ -108,7 +108,9 @@ export async function upsertRestaurantEmailIntegration(
       display_name:
         typeof patch.config.email === "string" ? patch.config.email : null,
       connected_at:
-        patch.status === "custom" || patch.status === "gmail"
+        patch.status === "custom" ||
+        patch.status === "gmail" ||
+        patch.status === "outlook"
           ? new Date().toISOString()
           : null,
       last_error: patch.last_error ?? null,

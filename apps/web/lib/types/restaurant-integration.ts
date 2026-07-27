@@ -1,6 +1,10 @@
 export type RestaurantIntegrationKey = "whatsapp" | "email" | "facebook";
 
-export type RestaurantEmailStatus = "default" | "custom" | "gmail";
+export type RestaurantEmailStatus =
+  | "default"
+  | "custom"
+  | "gmail"
+  | "outlook";
 
 import type { SmtpIntegrationConfigPublic } from "@/lib/integrations/smtp-integration-config";
 import type { LexofficeIntegrationConfigPublic } from "@/lib/integrations/lexoffice-integration-config";
@@ -8,7 +12,7 @@ import type { LexofficeIntegrationConfigPublic } from "@/lib/integrations/lexoff
 export type RestaurantEmailIntegrationConfig = {
   from_email?: string;
   from_name?: string;
-  auth_mode?: "gmail_oauth";
+  auth_mode?: "gmail_oauth" | "outlook_oauth";
   granted_scopes?: string[];
 } & SmtpIntegrationConfigPublic;
 
@@ -28,6 +32,8 @@ export type EmailIntegrationResponse = {
   platformEmailEnabled: boolean;
   /** Google-OAuth-Client für Gmail hinterlegt (Superadmin). */
   gmailOAuthConfigured: boolean;
+  /** Microsoft-OAuth-Client für Outlook hinterlegt (Superadmin). */
+  outlookOAuthConfigured: boolean;
   status: RestaurantEmailStatus;
   fromEmail: string | null;
   fromName: string | null;

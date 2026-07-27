@@ -192,6 +192,42 @@ export const GMAIL_OAUTH_SCOPES: IntegrationScopeMeta[] = [
 
 export const GMAIL_OAUTH_SCOPE_IDS = uniqueOAuthIds(GMAIL_OAUTH_SCOPES);
 
+/** Microsoft 365 / Outlook IMAP+SMTP via OAuth2 (XOAUTH2). */
+export const OUTLOOK_OAUTH_SCOPES: IntegrationScopeMeta[] = [
+  {
+    id: "https://outlook.office.com/IMAP.AccessAsUser.All",
+    label: "Outlook Posteingang",
+    plannedUse: "E-Mails lesen und als gelesen markieren",
+  },
+  {
+    id: "https://outlook.office.com/SMTP.Send",
+    label: "Outlook Versand",
+    plannedUse: "E-Mails aus Gwada senden",
+  },
+  {
+    id: "offline_access",
+    label: "Dauerhafte Verbindung",
+    plannedUse: "Zugriff erneuern, ohne erneut anzumelden",
+  },
+  {
+    id: "openid",
+    label: "Microsoft-Konto",
+    plannedUse: "Anmeldung und Konto-Zuordnung",
+  },
+  {
+    id: "email",
+    label: "E-Mail-Adresse",
+    plannedUse: "Absenderadresse des verbundenen Kontos",
+  },
+  {
+    id: "User.Read",
+    label: "Profil lesen",
+    plannedUse: "E-Mail-Adresse über Microsoft Graph ermitteln",
+  },
+];
+
+export const OUTLOOK_OAUTH_SCOPE_IDS = uniqueOAuthIds(OUTLOOK_OAUTH_SCOPES);
+
 const META_SCOPE_MAP = new Map(
   [...FACEBOOK_OAUTH_SCOPES, ...INSTAGRAM_OAUTH_SCOPES].map((s) => [s.id, s]),
 );
@@ -203,29 +239,39 @@ const GOOGLE_SCOPE_MAP = new Map(
   ]),
 );
 
+const MICROSOFT_SCOPE_MAP = new Map(
+  OUTLOOK_OAUTH_SCOPES.map((s) => [s.id, s]),
+);
+
 export function scopeLabel(
   scopeId: string,
-  provider: "meta" | "google",
+  provider: "meta" | "google" | "microsoft",
 ): string {
   const meta = META_SCOPE_MAP.get(scopeId);
   if (meta) return meta.label;
   if (provider === "google") {
     return GOOGLE_SCOPE_MAP.get(scopeId)?.label ?? scopeId;
   }
+  if (provider === "microsoft") {
+    return MICROSOFT_SCOPE_MAP.get(scopeId)?.label ?? scopeId;
+  }
   return scopeId;
 }
 
 export function scopePlannedUse(
   scopeId: string,
-  provider: "meta" | "google",
+  provider: "meta" | "google" | "microsoft",
 ): string | undefined {
   const meta = META_SCOPE_MAP.get(scopeId);
   if (meta) return meta.plannedUse;
+  if (provider === "microsoft") {
+    return MICROSOFT_SCOPE_MAP.get(scopeId)?.plannedUse;
+  }
   return GOOGLE_SCOPE_MAP.get(scopeId)?.plannedUse;
 }
 
 export function catalogForProvider(
-  provider: "facebook" | "instagram" | "google_business" | "gmail",
+  provider: "facebook" | "instagram" | "google_business" | "gmail" | "outlook",
 ): IntegrationScopeMeta[] {
   switch (provider) {
     case "facebook":
@@ -236,12 +282,14 @@ export function catalogForProvider(
       return GOOGLE_BUSINESS_OAUTH_SCOPES;
     case "gmail":
       return GMAIL_OAUTH_SCOPES;
+    case "outlook":
+      return OUTLOOK_OAUTH_SCOPES;
   }
 }
 
 /** Scope-IDs für OAuth-Authorize-URL (dedupliziert, ohne reine Vorschau-Zeilen). */
 export function oauthScopeIdsForProvider(
-  provider: "facebook" | "instagram" | "google_business" | "gmail",
+  provider: "facebook" | "instagram" | "google_business" | "gmail" | "outlook",
 ): string[] {
   switch (provider) {
     case "facebook":
@@ -252,6 +300,8 @@ export function oauthScopeIdsForProvider(
       return GOOGLE_BUSINESS_OAUTH_SCOPE_IDS;
     case "gmail":
       return GMAIL_OAUTH_SCOPE_IDS;
+    case "outlook":
+      return OUTLOOK_OAUTH_SCOPE_IDS;
   }
 }
 

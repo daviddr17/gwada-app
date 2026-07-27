@@ -5,6 +5,7 @@ export const INTEGRATION_PANEL_ACCENT = {
   instagram: "#E4405F",
   google_business: "#4285F4",
   google_oauth: "#4285F4",
+  microsoft_oauth: "#00A4EF",
   email: "#6366f1",
   lexoffice: "#00A88F",
   tripadvisor: "#34E0A1",

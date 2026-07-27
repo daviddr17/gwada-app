@@ -5,6 +5,7 @@ import {
 
 export type PlatformIntegrationKey =
   | "google_oauth"
+  | "microsoft_oauth"
   | "apple_oauth"
   | "facebook"
   | "instagram"
@@ -40,6 +41,7 @@ export type PlatformIntegrationRow = {
 
 export const PLATFORM_INTEGRATION_KEYS: readonly PlatformIntegrationKey[] = [
   "google_oauth",
+  "microsoft_oauth",
   "apple_oauth",
   "facebook",
   "instagram",

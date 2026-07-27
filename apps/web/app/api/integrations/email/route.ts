@@ -8,6 +8,8 @@ import {
   validateSmtpConfigForSave,
 } from "@/lib/integrations/smtp-integration-config";
 import { getGmailOAuthPlatformConfigAdmin } from "@/lib/integrations/gmail-oauth";
+import { getOutlookOAuthPlatformConfigAdmin } from "@/lib/integrations/outlook-oauth";
+import { isRestaurantEmailMailboxStatus } from "@/lib/email/restaurant-email-mailbox";
 import { isEmailSendConfigured } from "@/lib/email/is-email-send-configured";
 import {
   emailIntegrationConfigToPublic,
@@ -55,9 +57,10 @@ export async function GET(req: Request) {
 
   const row = await fetchRestaurantEmailIntegration(auth.sb, restaurantId);
   const sendConfigured = isEmailSendConfigured();
-  const gmailOAuthConfigured = Boolean(
-    await getGmailOAuthPlatformConfigAdmin(),
-  );
+  const [gmailOAuthConfigured, outlookOAuthConfigured] = await Promise.all([
+    getGmailOAuthPlatformConfigAdmin().then(Boolean),
+    getOutlookOAuthPlatformConfigAdmin().then(Boolean),
+  ]);
   const status = row?.status ?? "default";
   const pub = row?.config ?? {};
 
@@ -66,6 +69,7 @@ export async function GET(req: Request) {
     emailSendConfigured: sendConfigured,
     platformEmailEnabled: true,
     gmailOAuthConfigured,
+    outlookOAuthConfigured,
     status,
     fromEmail: pub.email ?? pub.from_email ?? null,
     fromName: pub.from_name ?? null,
@@ -89,7 +93,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     restaurantId?: string;
     useCustom?: boolean;
-    mailboxMode?: "smtp" | "gmail";
+    mailboxMode?: "smtp" | "gmail" | "outlook";
     email?: string;
     password?: string;
     smtpHost?: string;
@@ -127,10 +131,16 @@ export async function POST(req: Request) {
 
   const existing = await fetchRestaurantEmailSmtpConfig(auth.sb, restaurantId);
 
-  if (body.mailboxMode === "gmail") {
-    if (existing?.status !== "gmail") {
+  if (body.mailboxMode === "gmail" || body.mailboxMode === "outlook") {
+    const expectedStatus = body.mailboxMode;
+    if (existing?.status !== expectedStatus) {
       return Response.json(
-        { error: "Bitte zuerst mit Google verbinden." },
+        {
+          error:
+            expectedStatus === "gmail"
+              ? "Bitte zuerst mit Google verbinden."
+              : "Bitte zuerst mit Microsoft verbinden.",
+        },
         { status: 400 },
       );
     }
@@ -142,7 +152,7 @@ export async function POST(req: Request) {
       auth.sb,
       restaurantId,
       {
-        status: "gmail",
+        status: expectedStatus,
         config: nextConfig,
         last_error: null,
       },
@@ -150,13 +160,12 @@ export async function POST(req: Request) {
     if (error) return Response.json({ error }, { status: 500 });
     return Response.json({
       ok: true,
-      status: "gmail",
+      status: expectedStatus,
       config: emailIntegrationConfigToPublic(nextConfig),
     });
   }
 
-  const wasMailbox =
-    existing?.status === "custom" || existing?.status === "gmail";
+  const wasMailbox = isRestaurantEmailMailboxStatus(existing?.status);
   const merged = {
     email: body.email?.trim(),
     password: mergeSmtpPassword(body.password, existing?.config ?? {}),

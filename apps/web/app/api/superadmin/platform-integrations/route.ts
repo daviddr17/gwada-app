@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const KEYS = new Set<string>([
   "google_oauth",
+  "microsoft_oauth",
   "apple_oauth",
   "facebook",
   "instagram",
@@ -19,6 +20,7 @@ const KEYS = new Set<string>([
   "fiskaly",
   "lexoffice",
   "tripadvisor",
+  "apple_business_connect",
 ]);
 
 function isKey(k: string): k is PlatformIntegrationKey {

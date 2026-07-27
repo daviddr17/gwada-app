@@ -5,7 +5,12 @@ name: Deploy DB dev (migration push)
 on:
   push:
     # Feature-Branch: Agent kann workflow_dispatch nicht (403); Push triggert Dev-Migrate.
-    branches: [main, cursor/reservation-party-size-dashboard-ea36, cursor/email-gmail-oauth-777f]
+    branches:
+      [
+        main,
+        cursor/reservation-party-size-dashboard-ea36,
+        cursor/email-gmail-oauth-777f,
+      ]
     paths:
       - "supabase/migrations/**"
       - ".github/workflows/deploy-dev-db-on-migration-push.yml"

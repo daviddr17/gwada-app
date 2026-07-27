@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 
 const INTEGRATION_ALERT_LABELS: Record<PlatformIntegrationKey, string> = {
   google_oauth: "Google OAuth",
+  microsoft_oauth: "Microsoft OAuth",
   apple_oauth: "Apple OAuth",
   facebook: "Facebook",
   instagram: "Instagram",

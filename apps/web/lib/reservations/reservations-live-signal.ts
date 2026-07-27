@@ -6,15 +6,24 @@ export type ReservationsLiveSignal = {
   /** Für Own-Create-Toast-Suppress (Dashboard-Polling). */
   latestId: string | null;
   latest: ReservationLiveToastFields | null;
+  /** Rohdaten für LIVE_INSERT-Patch (Polling ohne Realtime-Payload). */
+  latestRaw: Record<string, unknown> | null;
 };
 
 const LIVE_SIGNAL_SELECT =
-  "id, created_at, starts_at, guest_first_name, guest_last_name, party_size";
+  "id, created_at, starts_at, ends_at, dwell_minutes, guest_first_name, guest_last_name, guest_company, party_size";
 
 function mapLiveSignalRow(
   data: Record<string, unknown> | null,
 ): ReservationsLiveSignal {
-  if (!data) return { latestCreatedAt: null, latestId: null, latest: null };
+  if (!data) {
+    return {
+      latestCreatedAt: null,
+      latestId: null,
+      latest: null,
+      latestRaw: null,
+    };
+  }
   const createdAt = (data.created_at as string) ?? null;
   const latestId = typeof data.id === "string" ? data.id : null;
   const partyRaw = data.party_size;
@@ -24,25 +33,27 @@ function mapLiveSignalRow(
       : typeof partyRaw === "string"
         ? Number.parseInt(partyRaw, 10)
         : 0;
+  const latest: ReservationLiveToastFields | null =
+    typeof data.starts_at === "string"
+      ? {
+          starts_at: data.starts_at,
+          guest_first_name:
+            typeof data.guest_first_name === "string"
+              ? data.guest_first_name
+              : null,
+          guest_last_name:
+            typeof data.guest_last_name === "string"
+              ? data.guest_last_name
+              : null,
+          party_size:
+            Number.isFinite(partySize) && partySize > 0 ? partySize : 1,
+        }
+      : null;
   return {
     latestCreatedAt: createdAt,
     latestId,
-    latest:
-      typeof data.starts_at === "string"
-        ? {
-            starts_at: data.starts_at,
-            guest_first_name:
-              typeof data.guest_first_name === "string"
-                ? data.guest_first_name
-                : null,
-            guest_last_name:
-              typeof data.guest_last_name === "string"
-                ? data.guest_last_name
-                : null,
-            party_size:
-              Number.isFinite(partySize) && partySize > 0 ? partySize : 1,
-          }
-        : null,
+    latest,
+    latestRaw: latestId && latest ? { ...data } : null,
   };
 }
 
@@ -59,6 +70,13 @@ export async function fetchReservationsLiveSignal(
     .limit(1)
     .maybeSingle();
 
-  if (error || !data) return { latestCreatedAt: null, latestId: null, latest: null };
+  if (error || !data) {
+    return {
+      latestCreatedAt: null,
+      latestId: null,
+      latest: null,
+      latestRaw: null,
+    };
+  }
   return mapLiveSignalRow(data as Record<string, unknown>);
 }

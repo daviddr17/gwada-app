@@ -228,6 +228,11 @@ export function AppDashboardLivePatchMount() {
       const detail = (event as CustomEvent<DashboardReservationsLiveUpdateDetail>)
         .detail;
       if (!detail || detail.restaurantId !== restaurantId) return;
+      // Monats-/Tagesliste (Modul) — sonst bleiben Keep-Alive-Caches stehen,
+      // während Toast/Glocke schon die neue Buchung zeigen.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.reservations.root(restaurantId),
+      });
       if (detail.immediate) {
         void patchWidgetFromServer("reservations");
         void patchWidgetFromServer("contacts");

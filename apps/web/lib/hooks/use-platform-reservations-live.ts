@@ -127,7 +127,9 @@ export function usePlatformReservationsLive() {
         return;
       }
       if (lastSignalRef.current && latest !== lastSignalRef.current) {
-        notifyNewReservation(signal.latest, undefined, {
+        // Polling liefert kein Realtime-`raw` — trotzdem LIVE_INSERT, sonst
+        // Toast/Glocke ja, Tagesliste/KPIs bleiben stehen.
+        notifyNewReservation(signal.latest, signal.latestRaw ?? undefined, {
           reservationId: signal.latestId,
         });
       }

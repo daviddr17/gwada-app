@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
@@ -400,9 +401,8 @@ function ProfileAnmeldungContent() {
           ) : null}
           <div className="space-y-2">
             <Label htmlFor="pw-current">Aktuelles Passwort</Label>
-            <Input
+            <PasswordInput
               id="pw-current"
-              type="password"
               autoComplete="current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -412,9 +412,8 @@ function ProfileAnmeldungContent() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="pw-new">Neues Passwort</Label>
-            <Input
+            <PasswordInput
               id="pw-new"
-              type="password"
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -425,9 +424,8 @@ function ProfileAnmeldungContent() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="pw-confirm">Neues Passwort wiederholen</Label>
-            <Input
+            <PasswordInput
               id="pw-confirm"
-              type="password"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

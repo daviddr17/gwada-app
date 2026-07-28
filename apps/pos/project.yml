@@ -52,10 +52,25 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         ITSAppUsesNonExemptEncryption: false
+  GwadaPOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/GwadaPOSTests
+    dependencies:
+      - target: GwadaPOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gwada.pos.tests
+        GENERATE_INFOPLIST_FILE: true
 schemes:
   GwadaPOS:
     build:
       targets:
         GwadaPOS: all
+        GwadaPOSTests: [test]
     run:
       config: Debug
+    test:
+      targets:
+        - GwadaPOSTests

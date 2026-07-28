@@ -35,6 +35,11 @@ import {
   groupStaffByPositionTag,
   positionGroupHeaderStyle,
 } from "@/lib/staff/shift-plan-position-groups";
+import {
+  countPlannedStaffByPositionForDay,
+  countPlannedStaffForGroupDay,
+} from "@/lib/staff/shift-plan-day-position-counts";
+import { ShiftPlanDayPositionCountBadges } from "@/components/staff/shift-plan/shift-plan-day-position-counts";
 import { staffDisplayName } from "@/lib/types/staff";
 import { isStaffOwnerRow } from "@/lib/types/employee-role";
 import {
@@ -629,6 +634,8 @@ function ShiftPlanWeekNavSpacer() {
 function ShiftPlanGroupGrid({
   days,
   staffRows,
+  positionName,
+  positionColor,
   shiftsByCell,
   absencesByCell,
   availabilityByCell,
@@ -652,6 +659,8 @@ function ShiftPlanGroupGrid({
 }: {
   days: Date[];
   staffRows: RestaurantStaffRow[];
+  positionName: string;
+  positionColor: string;
   shiftsByCell: Map<string, RestaurantStaffScheduledShiftRow[]>;
   absencesByCell: Map<string, RestaurantStaffWorkEntryRow[]>;
   availabilityByCell: Map<string, RestaurantStaffAvailabilitySlotRow[]>;
@@ -729,6 +738,11 @@ function ShiftPlanGroupGrid({
               const key = localDayKey(day);
               const isToday = key === todayKey;
               const holidayName = holidaysByDate[key];
+              const plannedStaffCount = countPlannedStaffForGroupDay(
+                staffRows,
+                key,
+                shiftsByCell,
+              );
               return (
                 <th
                   key={key}
@@ -744,6 +758,9 @@ function ShiftPlanGroupGrid({
                     holidayName={holidayName}
                     weather={weatherByDate?.get(key)}
                     isToday={isToday}
+                    plannedStaffCount={plannedStaffCount}
+                    positionName={positionName}
+                    positionColor={positionColor}
                   />
                 </th>
               );
@@ -849,6 +866,8 @@ export function ShiftPlanGrid({
             <ShiftPlanGroupGrid
               days={days}
               staffRows={group.staff}
+              positionName={group.name}
+              positionColor={group.color}
               shiftsByCell={shiftsByCell}
               absencesByCell={absencesByCell}
               availabilityByCell={availabilityByCell}
@@ -976,6 +995,11 @@ function ShiftPlanMonthDayCard({
   const availabilityKey = restaurantZonedDateKey(day, restaurantTimeZone);
   const todayKey = localDayKey(new Date());
   const isToday = key === todayKey;
+  const positionCounts = countPlannedStaffByPositionForDay(
+    groups,
+    key,
+    shiftsByCell,
+  );
   const dayHasEntries = groups.some((g) =>
     g.staff.some((s) => {
       const cellKey = `${s.id}__${key}`;
@@ -1011,6 +1035,7 @@ function ShiftPlanMonthDayCard({
           <ShiftPlanHolidayLabel name={holidayName} inline />
         ) : null}
         <ShiftPlanDayWeatherRow weather={weather} inline />
+        <ShiftPlanDayPositionCountBadges counts={positionCounts} />
       </header>
 
       <div className="space-y-3 p-3">

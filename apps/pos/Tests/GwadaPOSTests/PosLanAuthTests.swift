@@ -7,7 +7,6 @@ final class PosLanAuthTests: XCTestCase {
         XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.openSessionPath))
         XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.createOrderPath))
         XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.reservationsPath))
-        XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.kdsTicketsPath))
     }
 
     func test_openPaths_doNotRequireToken() {
@@ -15,5 +14,7 @@ final class PosLanAuthTests: XCTestCase {
         XCTAssertFalse(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.kdsPath))
         XCTAssertFalse(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.pairRequestPath))
         XCTAssertFalse(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.pairStatusPath))
+        XCTAssertFalse(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.kdsTicketsPath))
+        XCTAssertFalse(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.kdsAdvancePath))
     }
 }

@@ -225,6 +225,7 @@ struct DeviceSettingsView: View {
         case .starting: return "Startet …"
         case .hubReady: return "Server läuft"
         case .searching: return "Suche Kasse …"
+        case .awaitingApproval: return "Warte auf Freigabe …"
         case .connected:
             return runtime.isSoloMode ? "Solo aktiv" : "Mit Kasse verbunden"
         case .error(let message): return message

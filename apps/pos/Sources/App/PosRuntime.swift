@@ -10,6 +10,7 @@ final class PosRuntime: ObservableObject {
         case hubReady
         case searching
         case connected
+        case awaitingApproval
         case error(String)
     }
 
@@ -17,6 +18,8 @@ final class PosRuntime: ObservableObject {
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var detectionLabel: String
     @Published private(set) var hubBaseURL: URL?
+    @Published private(set) var pairingChallenge: PosLanPairChallenge?
+    private var pairingPollTask: Task<Void, Never>?
     /// Handgerät ohne iPad-Kasse (Demo/Cloud lokal) — UI bleibt Kellner-Tabs.
     @Published private(set) var isSoloMode = false
     @Published private(set) var snapshot: PosLanHubSnapshot?
@@ -1336,21 +1339,29 @@ final class PosRuntime: ObservableObject {
                 statusMessage = "Verbinde \(base.host ?? "") …"
                 let health = try await HandheldHubClient.fetchHealth(baseURL: base)
                 guard health.ok else { throw HandheldHubClientError.invalidResponse }
-                let snap = try await HandheldHubClient.fetchSnapshot(
-                    baseURL: base,
-                    restaurantId: health.restaurantId
-                )
-                if let host = base.host {
-                    UserDefaults.standard.set(host, forKey: manualHostKey)
+                let token = PosEnrollmentStore.shared.handheldPairToken
+                do {
+                    let snap = try await HandheldHubClient.fetchSnapshot(
+                        baseURL: base,
+                        restaurantId: health.restaurantId,
+                        pairToken: token
+                    )
+                    if let host = base.host {
+                        UserDefaults.standard.set(host, forKey: manualHostKey)
+                    }
+                    hubBaseURL = base
+                    isSoloMode = false
+                    publishSnapshot(snap)
+                    phase = .connected
+                    statusMessage = "Verbunden mit \(snap.hub.displayName)."
+                    await pullReservationsDay(PosReservationsStore.todayYmd())
+                    return
+                } catch HandheldHubClientError.httpStatus(401) {
+                    // kein/ungültiger Token → Kopplung anstoßen
+                    PosEnrollmentStore.shared.resetHandheldPairing()
+                    await beginPairing(base: base)
+                    return
                 }
-                hubBaseURL = base
-                isSoloMode = false
-                publishSnapshot(snap)
-                phase = .connected
-                statusMessage = "Verbunden mit \(snap.hub.displayName)."
-                PosEnrollmentStore.shared.markHandheldPaired()
-                await pullReservationsDay(PosReservationsStore.todayYmd())
-                return
             } catch {
                 lastError = error.localizedDescription
             }
@@ -1358,5 +1369,71 @@ final class PosRuntime: ObservableObject {
 
         phase = .error(lastError ?? "Kasse nicht erreichbar")
         statusMessage = lastError ?? "Kasse nicht erreichbar — iPad einschalten?"
+    }
+
+    func startHandheldPairing(host: String) async {
+        let base = PosLanProtocol.hubBaseURL(host: host)
+        await beginPairing(base: base)
+    }
+
+    func cancelHandheldPairing() {
+        pairingPollTask?.cancel()
+        pairingPollTask = nil
+        pairingChallenge = nil
+        phase = .searching
+        statusMessage = ""
+    }
+
+    private func beginPairing(base: URL) async {
+        do {
+            let req = PosLanPairRequest(
+                deviceName: PosDeviceRoleDetector.deviceKindLabel,
+                installationId: PosDeviceIdentity.id
+            )
+            let challenge = try await HandheldHubClient.requestPairing(baseURL: base, request: req)
+            pairingChallenge = challenge
+            hubBaseURL = nil
+            phase = .awaitingApproval
+            statusMessage = "Warte auf Freigabe am iPad …"
+            pollPairing(base: base, pairId: challenge.pairId)
+        } catch {
+            phase = .error(error.localizedDescription)
+            statusMessage = "Kopplung fehlgeschlagen: \(error.localizedDescription)"
+        }
+    }
+
+    private func pollPairing(base: URL, pairId: String) {
+        pairingPollTask?.cancel()
+        pairingPollTask = Task { [weak self] in
+            for _ in 0..<150 { // ~5 min bei 2s
+                if Task.isCancelled { return }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard let status = try? await HandheldHubClient.pairingStatus(baseURL: base, pairId: pairId) else { continue }
+                switch status.state {
+                case .approved:
+                    guard let token = status.token else { continue }
+                    await MainActor.run {
+                        PosEnrollmentStore.shared.markHandheldPaired(
+                            token: token,
+                            hubBaseURL: base.absoluteString
+                        )
+                        self?.pairingChallenge = nil
+                    }
+                    await self?.connectHandheld(preferredHost: base.host)
+                    return
+                case .rejected, .expired:
+                    await MainActor.run {
+                        self?.pairingChallenge = nil
+                        self?.phase = .error(status.state == .rejected ? "Freigabe abgelehnt" : "Code abgelaufen")
+                        self?.statusMessage = status.state == .rejected
+                            ? "Freigabe am iPad abgelehnt."
+                            : "Code abgelaufen — erneut koppeln."
+                    }
+                    return
+                case .pending:
+                    continue
+                }
+            }
+        }
     }
 }

@@ -4161,6 +4161,7 @@ export type Database = {
           created_by: string | null
           end_time: string
           id: string
+          is_available: boolean
           note: string | null
           restaurant_id: string
           service_date: string | null
@@ -4174,6 +4175,7 @@ export type Database = {
           created_by?: string | null
           end_time: string
           id?: string
+          is_available?: boolean
           note?: string | null
           restaurant_id: string
           service_date?: string | null
@@ -4187,6 +4189,7 @@ export type Database = {
           created_by?: string | null
           end_time?: string
           id?: string
+          is_available?: boolean
           note?: string | null
           restaurant_id?: string
           service_date?: string | null

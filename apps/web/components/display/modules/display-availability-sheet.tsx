@@ -41,11 +41,10 @@ export function DisplayAvailabilitySheet({
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold">Verfügbarkeit</DrawerTitle>
           <DrawerDescription>
-            Trage ein, wann du grundsätzlich oder an bestimmten Tagen verfügbar
-            bist — sichtbar für die Schichtplanung.
+            Für konkrete Tage oder ausgewählte Wochen — sichtbar im Schichtplan.
           </DrawerDescription>
         </DrawerHeader>
-        <div className="max-h-[min(78dvh,42rem)] overflow-y-auto px-4 pb-6">
+        <div className="max-h-[min(78dvh,42rem)] overflow-x-hidden overflow-y-auto px-4 pb-6">
           <StaffAvailabilityEditor
             restaurantId={restaurantId}
             staffId={staffId}

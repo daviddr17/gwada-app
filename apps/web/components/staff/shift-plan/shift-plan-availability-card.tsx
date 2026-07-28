@@ -3,7 +3,9 @@
 import { cn } from "@/lib/utils";
 import {
   formatAvailabilitySlotRangeDe,
+  isUnavailableAvailabilitySlot,
   SHIFT_PLAN_AVAILABILITY_COLOR,
+  SHIFT_PLAN_UNAVAILABILITY_COLOR,
 } from "@/lib/staff/shift-plan-availability";
 import type { RestaurantStaffAvailabilitySlotRow } from "@/lib/types/staff-availability";
 import { shiftPlanShiftSlotClassName } from "@/components/staff/shift-plan/shift-plan-cell-layout";
@@ -19,9 +21,14 @@ export function ShiftPlanAvailabilityCard({
 }: ShiftPlanAvailabilityCardProps) {
   if (slots.length === 0) return null;
 
-  const color = SHIFT_PLAN_AVAILABILITY_COLOR;
-  const label =
-    slots.length === 1
+  const unavailable = slots.some(isUnavailableAvailabilitySlot);
+  const color = unavailable
+    ? SHIFT_PLAN_UNAVAILABILITY_COLOR
+    : SHIFT_PLAN_AVAILABILITY_COLOR;
+  const title = unavailable ? "Nicht verfügbar" : "Verfügbar";
+  const label = unavailable
+    ? "Ganztägig"
+    : slots.length === 1
       ? formatAvailabilitySlotRangeDe(slots[0]!)
       : slots.map((s) => formatAvailabilitySlotRangeDe(s)).join(", ");
 
@@ -36,7 +43,11 @@ export function ShiftPlanAvailabilityCard({
         compact ? "text-[11px]" : "text-xs",
         compact && shiftPlanShiftSlotClassName,
       )}
-      title="Verfügbarkeit (Mitarbeiter)"
+      title={
+        unavailable
+          ? "Nicht verfügbar (Mitarbeiter)"
+          : "Verfügbarkeit (Mitarbeiter)"
+      }
     >
       <div className="min-w-0 flex-1 px-1.5 py-1.5">
         <p
@@ -45,7 +56,7 @@ export function ShiftPlanAvailabilityCard({
             compact && "text-[10px]",
           )}
         >
-          Verfügbar
+          {title}
         </p>
         <p
           className={cn(

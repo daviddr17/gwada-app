@@ -248,6 +248,7 @@ export async function warmReviewsFeed(restaurantId: string): Promise<void> {
     );
     const json = (await res.json()) as {
       reviews?: UnifiedReview[];
+      summary?: ReviewsFeedClientCache["allSummary"];
       mergedPagination?: MergedReviewsPaginationMeta | null;
       platformTotals?: ReviewsFeedClientCache["platformTotals"];
       loadErrors?: ReviewsFeedClientCache["loadErrors"];
@@ -265,6 +266,7 @@ export async function warmReviewsFeed(restaurantId: string): Promise<void> {
       ready: true,
       allPages: { 1: reviews },
       allPagination: json.mergedPagination ?? null,
+      allSummary: json.summary ?? null,
       allTokenByPage:
         typeof nextToken === "string" && nextToken.length > 0
           ? { 1: nextToken }

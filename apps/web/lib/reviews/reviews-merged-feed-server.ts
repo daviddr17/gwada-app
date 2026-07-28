@@ -17,6 +17,7 @@ import {
   type ReviewsFeedListQuery,
 } from "@/lib/reviews/reviews-feed-list-query";
 import { loadReviewPlatformConnectionState } from "@/lib/reviews/reviews-platform-connected-server";
+import type { ReviewRatingSummary } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { compareFeedItemsWithPinFirst } from "@/lib/feed-pin/feed-pin-types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -41,6 +42,7 @@ export async function loadMergedReviewsFeedPage(params: {
 }): Promise<{
   reviews: UnifiedReview[];
   pagination: MergedReviewsPaginationMeta;
+  summary: ReviewRatingSummary;
   loadErrors: Partial<Record<ReviewPlatform, string>>;
   sync: ReviewsFeedSyncMeta;
   /** True wenn Filter/Sort vor dem Slice angewendet wurden. */
@@ -150,6 +152,7 @@ export async function loadMergedReviewsFeedPage(params: {
       ...paginated.pagination,
       platformTotals,
     },
+    summary: paginated.summary,
     loadErrors,
     sync: cachedFeed.sync,
     listQueryApplied: paginated.listQueryApplied,

@@ -273,7 +273,6 @@ export function ReviewsScreen() {
   const facebookPagination = feedCache.facebookPagination;
   const tripadvisorPagination = feedCache.tripadvisorPagination;
   const mergedLoadErrors = feedCache.loadErrors;
-  const mergedPlatformTotals = feedCache.platformTotals;
   const showSkeleton = useDeferredSkeleton(
     feedPrefetchLoading && !feedCache.ready,
   );
@@ -525,6 +524,7 @@ export function ReviewsScreen() {
             ...prev,
             allPages: { 1: reviewsRead },
             allPagination: json.mergedPagination ?? null,
+            allSummary: json.summary ?? null,
             allTokenByPage: withNextPageToken(
               1,
               json.mergedPagination?.nextPageToken,
@@ -551,6 +551,7 @@ export function ReviewsScreen() {
           setFeedCache((prev) => ({
             ...prev,
             gwada: reviewsRead,
+            gwadaSummary: json.summary ?? null,
             platformTotals: {
               ...prev.platformTotals,
               gwada: reviewsRead.length,
@@ -574,6 +575,7 @@ export function ReviewsScreen() {
               ...prev,
               googlePages: { 1: reviewsRead },
               googlePagination: json.googlePagination ?? null,
+              googleSummary: json.summary ?? null,
               googleTokenByPage: withNextPageToken(
                 1,
                 json.googlePagination?.nextPageToken,
@@ -644,6 +646,7 @@ export function ReviewsScreen() {
               ...prev,
               facebookPages: { 1: reviewsRead },
               facebookPagination: json.facebookPagination ?? null,
+              facebookSummary: json.summary ?? null,
               facebookTokenByPage: withNextPageToken(
                 1,
                 json.facebookPagination?.nextPageToken,
@@ -681,6 +684,7 @@ export function ReviewsScreen() {
               ...prev,
               tripadvisorPages: { 1: reviewsRead },
               tripadvisorPagination: json.tripadvisorPagination ?? null,
+              tripadvisorSummary: json.summary ?? null,
               tripadvisorTokenByPage: withNextPageToken(
                 1,
                 json.tripadvisorPagination?.nextPageToken,
@@ -825,6 +829,7 @@ export function ReviewsScreen() {
           ...prev,
           allPages: { ...prev.allPages, [page]: reviewsRead },
           allPagination: json.mergedPagination ?? prev.allPagination,
+          allSummary: json.summary ?? prev.allSummary,
           allTokenByPage: withNextPageToken(
             page,
             json.mergedPagination?.nextPageToken,
@@ -874,6 +879,7 @@ export function ReviewsScreen() {
           ...prev,
           googlePages: { ...prev.googlePages, [page]: reviewsRead },
           googlePagination: json.googlePagination ?? prev.googlePagination,
+          googleSummary: json.summary ?? prev.googleSummary,
           googleTokenByPage: withNextPageToken(
             page,
             json.googlePagination?.nextPageToken,
@@ -924,6 +930,7 @@ export function ReviewsScreen() {
           ...prev,
           facebookPages: { ...prev.facebookPages, [page]: reviewsRead },
           facebookPagination: json.facebookPagination ?? prev.facebookPagination,
+          facebookSummary: json.summary ?? prev.facebookSummary,
           facebookTokenByPage: withNextPageToken(
             page,
             json.facebookPagination?.nextPageToken,
@@ -978,6 +985,7 @@ export function ReviewsScreen() {
           tripadvisorPages: { ...prev.tripadvisorPages, [page]: reviewsRead },
           tripadvisorPagination:
             json.tripadvisorPagination ?? prev.tripadvisorPagination,
+          tripadvisorSummary: json.summary ?? prev.tripadvisorSummary,
           tripadvisorTokenByPage: withNextPageToken(
             page,
             json.tripadvisorPagination?.nextPageToken,
@@ -1065,15 +1073,19 @@ export function ReviewsScreen() {
       ...prev,
       allPages: {},
       allPagination: null,
+      allSummary: null,
       allTokenByPage: {},
       googlePages: {},
       googlePagination: null,
+      googleSummary: null,
       googleTokenByPage: {},
       facebookPages: {},
       facebookPagination: null,
+      facebookSummary: null,
       facebookTokenByPage: {},
       tripadvisorPages: {},
       tripadvisorPagination: null,
+      tripadvisorSummary: null,
       tripadvisorTokenByPage: {},
     }));
 
@@ -1406,34 +1418,6 @@ export function ReviewsScreen() {
     [filteredSortedReviews],
   );
 
-  const mergedGrandTotal = useMemo(() => {
-    if (platformFilter !== REVIEW_FILTER_ALL) return null;
-    if (typeof mergedPagination?.totalReviewCount === "number") {
-      return mergedPagination.totalReviewCount;
-    }
-    const platforms: ReviewPlatform[] = ["gwada"];
-    if (googleVisible) platforms.push("google");
-    if (facebookVisible) platforms.push("facebook");
-    if (tripadvisorVisible) platforms.push("tripadvisor");
-    let sum = 0;
-    let hasAny = false;
-    for (const platform of platforms) {
-      const count = mergedPlatformTotals[platform];
-      if (typeof count === "number") {
-        sum += count;
-        hasAny = true;
-      }
-    }
-    return hasAny ? sum : null;
-  }, [
-    platformFilter,
-    mergedPagination?.totalReviewCount,
-    mergedPlatformTotals,
-    googleVisible,
-    facebookVisible,
-    tripadvisorVisible,
-  ]);
-
   const drawerFilterActiveCount = useMemo(
     () =>
       countReviewsDrawerActiveFilters({
@@ -1567,53 +1551,41 @@ export function ReviewsScreen() {
   );
 
   const summaryForCard = useMemo(() => {
+    // Google ohne Listenfilter: offizielle Standort-Ø/Anzahl (keine Sterne-Gesamtverteilung).
     if (isGooglePaginated && !serverListQueryActive && googleLocationSummary) {
       return googleLocationSummary;
     }
-    if (isGooglePaginated && serverListQueryActive && googlePagination) {
-      return { ...filteredSummary, count: googlePagination.totalReviewCount };
+    if (platformFilter === REVIEW_FILTER_ALL && feedCache.allSummary) {
+      return feedCache.allSummary;
     }
-    if (
-      platformFilter === REVIEW_FILTER_ALL &&
-      !serverListQueryActive &&
-      mergedGrandTotal != null
-    ) {
-      return { ...filteredSummary, count: mergedGrandTotal };
+    if (isGooglePaginated && feedCache.googleSummary) {
+      return feedCache.googleSummary;
     }
-    if (
-      platformFilter === REVIEW_FILTER_ALL &&
-      serverListQueryActive &&
-      mergedPagination
-    ) {
-      return { ...filteredSummary, count: mergedPagination.totalReviewCount };
+    if (isFacebookPaginated && feedCache.facebookSummary) {
+      return feedCache.facebookSummary;
     }
-    if (isFacebookPaginated && serverListQueryActive && facebookPagination) {
-      return { ...filteredSummary, count: facebookPagination.totalReviewCount };
+    if (isTripadvisorPaginated && feedCache.tripadvisorSummary) {
+      return feedCache.tripadvisorSummary;
     }
-    if (
-      isTripadvisorPaginated &&
-      serverListQueryActive &&
-      tripadvisorPagination
-    ) {
-      return {
-        ...filteredSummary,
-        count: tripadvisorPagination.totalReviewCount,
-      };
+    if (platformFilter === "gwada" && feedCache.gwadaSummary && !filtersActive) {
+      return feedCache.gwadaSummary;
     }
+    // Gwada mit Client-Filtern / Fallback: aktuelle sichtbare Menge.
     return filteredSummary;
   }, [
     isGooglePaginated,
     serverListQueryActive,
     googleLocationSummary,
-    googlePagination,
-    filteredSummary,
     platformFilter,
-    mergedGrandTotal,
-    mergedPagination,
+    feedCache.allSummary,
+    feedCache.googleSummary,
+    feedCache.facebookSummary,
+    feedCache.tripadvisorSummary,
+    feedCache.gwadaSummary,
     isFacebookPaginated,
-    facebookPagination,
     isTripadvisorPaginated,
-    tripadvisorPagination,
+    filtersActive,
+    filteredSummary,
   ]);
 
   if (!ready) {

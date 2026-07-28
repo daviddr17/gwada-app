@@ -1,5 +1,19 @@
 export type ReviewRatingInput = { rating: number };
 
+export type ReviewRatingSummaryScope =
+  | "google_location"
+  | "page"
+  | "filtered"
+  | "all";
+
+export type ReviewRatingSummary = {
+  count: number;
+  average: number | null;
+  median: number | null;
+  distribution: Record<1 | 2 | 3 | 4 | 5, number>;
+  scope?: ReviewRatingSummaryScope;
+};
+
 export function averageRating(reviews: ReviewRatingInput[]): number | null {
   if (reviews.length === 0) return null;
   const sum = reviews.reduce((a, r) => a + r.rating, 0);
@@ -25,4 +39,18 @@ export function ratingDistribution(
     dist[k] += 1;
   }
   return dist;
+}
+
+/** Ø / Median / Sterne-Verteilung aus derselben Bewertungsmenge (intern konsistent). */
+export function buildReviewRatingSummary(
+  reviews: readonly ReviewRatingInput[],
+  scope?: ReviewRatingSummaryScope,
+): ReviewRatingSummary {
+  return {
+    count: reviews.length,
+    average: averageRating([...reviews]),
+    median: medianRating([...reviews]),
+    distribution: ratingDistribution([...reviews]),
+    ...(scope ? { scope } : {}),
+  };
 }

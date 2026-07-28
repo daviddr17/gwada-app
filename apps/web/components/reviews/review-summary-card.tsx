@@ -9,7 +9,7 @@ type Summary = {
   average: number | null;
   median: number | null;
   distribution: Record<1 | 2 | 3 | 4 | 5, number>;
-  scope?: "google_location" | "page";
+  scope?: "google_location" | "page" | "filtered" | "all";
 };
 
 export function ReviewSummaryCard({ summary }: { summary: Summary }) {

@@ -987,6 +987,9 @@ final class PosRuntime: ObservableObject {
     private func startHub() async {
         stopHub()
         PosHubState.shared.configure(hubDeviceId: hubDeviceId)
+        PosPairingStore.shared.configureHubInfo(
+            PosLanHubInfo(deviceId: hubDeviceId, displayName: PosHubState.shared.restaurantName, role: "hub")
+        )
         PosHubState.shared.loadCachedOrDemo()
 
         isSignedIn = PosAuthStore.shared.isSignedIn
@@ -1105,6 +1108,14 @@ final class PosRuntime: ObservableObject {
         }
 
         let pathOnly = lanPathOnly(path)
+
+        if PosLanAuth.requiresToken(pathOnly: pathOnly) {
+            let token = headers[PosLanProtocol.headerPairToken.lowercased()] ?? ""
+            guard PosPairingStore.shared.verify(token: token) else {
+                return (401, Data(#"{"error":"unpaired"}"#.utf8))
+            }
+        }
+
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let decoder = JSONDecoder()
@@ -1137,6 +1148,12 @@ final class PosRuntime: ObservableObject {
             }
             if pathOnly == PosLanProtocol.printJobsPath {
                 return (200, PosHubState.shared.printJobsJSON())
+            }
+            if pathOnly == PosLanProtocol.pairStatusPath {
+                let pairId = lanQueryValue(path, key: "pairId") ?? ""
+                let status = PosPairingStore.shared.status(pairId: pairId)
+                let data = (try? encoder.encode(status)) ?? Data(#"{"state":"rejected"}"#.utf8)
+                return (200, data)
             }
             return (404, Data(#"{"error":"not_found"}"#.utf8))
         }
@@ -1273,6 +1290,15 @@ final class PosRuntime: ObservableObject {
                 ]
                 let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
                 return (200, data)
+            }
+
+            if pathOnly == PosLanProtocol.pairRequestPath {
+                guard let req = try? decoder.decode(PosLanPairRequest.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                let challenge = PosPairingStore.shared.createPending(req)
+                let data = (try? encoder.encode(challenge)) ?? Data(#"{"error":"encode"}"#.utf8)
+                return (201, data)
             }
         }
 

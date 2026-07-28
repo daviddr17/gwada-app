@@ -28,6 +28,12 @@ enum HandheldHubClient {
     private static let decoder = JSONDecoder()
     private static let encoder = JSONEncoder()
 
+    private static func applyPairToken(_ token: String?, to request: inout URLRequest) {
+        if let token, !token.isEmpty {
+            request.setValue(token, forHTTPHeaderField: PosLanProtocol.headerPairToken)
+        }
+    }
+
     static func fetchHealth(baseURL: URL) async throws -> PosLanHealthResponse {
         let url = url(baseURL, path: PosLanProtocol.healthPath)
         var request = URLRequest(url: url)
@@ -38,10 +44,11 @@ enum HandheldHubClient {
         return try decoder.decode(PosLanHealthResponse.self, from: data)
     }
 
-    static func fetchSnapshot(baseURL: URL, restaurantId: String?) async throws -> PosLanHubSnapshot {
+    static func fetchSnapshot(baseURL: URL, restaurantId: String?, pairToken: String? = nil) async throws -> PosLanHubSnapshot {
         let url = url(baseURL, path: PosLanProtocol.snapshotPath)
         var request = URLRequest(url: url)
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
         if let restaurantId {
             request.setValue(restaurantId, forHTTPHeaderField: PosLanProtocol.headerRestaurantId)
         }
@@ -54,7 +61,8 @@ enum HandheldHubClient {
     static func openSession(
         baseURL: URL,
         diningTableId: String,
-        coverCount: Int
+        coverCount: Int,
+        pairToken: String? = nil
     ) async throws -> String {
         struct Body: Encodable {
             var diningTableId: String
@@ -65,6 +73,7 @@ enum HandheldHubClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
         request.httpBody = try encoder.encode(Body(diningTableId: diningTableId, coverCount: coverCount))
         let (data, response) = try await perform(request)
         guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
@@ -74,7 +83,8 @@ enum HandheldHubClient {
 
     static func fetchReservationsDay(
         baseURL: URL,
-        dayYmd: String
+        dayYmd: String,
+        pairToken: String? = nil
     ) async throws -> PosReservationsDayDto {
         var components = URLComponents(
             url: url(baseURL, path: PosLanProtocol.reservationsPath),
@@ -84,6 +94,7 @@ enum HandheldHubClient {
         guard let target = components?.url else { throw HandheldHubClientError.invalidResponse }
         var request = URLRequest(url: target)
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
         let (data, response) = try await perform(request)
         guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
         guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
@@ -92,12 +103,14 @@ enum HandheldHubClient {
 
     static func createReservation(
         baseURL: URL,
-        payload: PosCreateReservationPayload
+        payload: PosCreateReservationPayload,
+        pairToken: String? = nil
     ) async throws -> PosCreateReservationResponse {
         var request = URLRequest(url: url(baseURL, path: PosLanProtocol.reservationsPath))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
         request.httpBody = try encoder.encode(payload)
         let (data, response) = try await perform(request)
         guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
@@ -109,7 +122,8 @@ enum HandheldHubClient {
         baseURL: URL,
         diningTableId: String,
         coverCount: Int,
-        items: [(menuItemId: String, quantity: Int)]
+        items: [(menuItemId: String, quantity: Int)],
+        pairToken: String? = nil
     ) async throws {
         struct Item: Encodable {
             var menuItemId: String
@@ -124,6 +138,7 @@ enum HandheldHubClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
         request.httpBody = try encoder.encode(Body(
             diningTableId: diningTableId,
             coverCount: coverCount,
@@ -132,6 +147,32 @@ enum HandheldHubClient {
         let (_, response) = try await perform(request)
         guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
         guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
+    }
+
+    static func requestPairing(baseURL: URL, request req: PosLanPairRequest) async throws -> PosLanPairChallenge {
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.pairRequestPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        request.httpBody = try encoder.encode(req)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard http.statusCode == 201 || http.statusCode == 200 else {
+            throw HandheldHubClientError.httpStatus(http.statusCode)
+        }
+        return try decoder.decode(PosLanPairChallenge.self, from: data)
+    }
+
+    static func pairingStatus(baseURL: URL, pairId: String) async throws -> PosLanPairStatus {
+        let escaped = pairId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? pairId
+        let target = URL(string: "\(url(baseURL, path: PosLanProtocol.pairStatusPath).absoluteString)?pairId=\(escaped)")!
+        var request = URLRequest(url: target)
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw HandheldHubClientError.invalidResponse
+        }
+        return try decoder.decode(PosLanPairStatus.self, from: data)
     }
 
     private static func url(_ base: URL, path: String) -> URL {

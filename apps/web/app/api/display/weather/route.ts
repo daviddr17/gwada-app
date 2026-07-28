@@ -2,10 +2,13 @@ import { after } from "next/server";
 import { cookies } from "next/headers";
 import { assertDisplayDeviceFromCookies } from "@/lib/display/display-auth-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isLocalDayKey } from "@/lib/staff/shift-schedule-range";
 import { isPlatformWeatherAvailableAdmin } from "@/lib/supabase/platform-weather-secrets-db";
 import { buildVisualCrossingLocation } from "@/lib/weather/visual-crossing-location";
 import { getVisualCrossingApiKeyAdmin } from "@/lib/weather/visual-crossing-api-key";
+import { parseShiftPlanWeatherByDate } from "@/lib/weather/shift-plan-day-weather-data";
 import { displayWeatherFromTimeline } from "@/lib/weather/weather-summary";
+import type { VisualCrossingTimelineResponse } from "@/lib/weather/visual-crossing-types";
 import {
   fetchVisualCrossingTimeline,
   readWeatherTimelineCache,
@@ -15,7 +18,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   const cookieStore = await cookies();
   const device = await assertDisplayDeviceFromCookies(cookieStore);
   if (!device.ok) {
@@ -52,17 +55,39 @@ export async function GET() {
     country: String(restaurant.country ?? ""),
   });
   const pathLoc = encodeURIComponent(location);
-  const timelinePath = `timeline/${pathLoc}/today`;
-  const cacheKey = weatherTimelineCacheKey({ location, from: null, to: null });
+
+  const dayParam = new URL(req.url).searchParams.get("day")?.trim() ?? "";
+  const dayForecast = Boolean(dayParam && isLocalDayKey(dayParam));
+
+  const from = dayForecast ? dayParam : null;
+  const to = dayForecast ? dayParam : null;
+  const timelinePath = dayForecast
+    ? `timeline/${pathLoc}/${dayParam}/${dayParam}`
+    : `timeline/${pathLoc}/today`;
+  const cacheKey = weatherTimelineCacheKey({ location, from, to });
   const cached = await readWeatherTimelineCache(cacheKey);
 
-  if (cached && !cached.stale) {
-    const payload = displayWeatherFromTimeline(cached.data);
+  const respondTimeline = (data: VisualCrossingTimelineResponse) => {
+    if (dayForecast) {
+      const forecast = parseShiftPlanWeatherByDate(data).get(dayParam) ?? null;
+      return Response.json({
+        available: true as const,
+        restaurant_id: restaurant.id as string,
+        day: dayParam,
+        forecast,
+      });
+    }
+
+    const payload = displayWeatherFromTimeline(data);
     return Response.json({
       available: true as const,
       restaurant_id: restaurant.id as string,
       ...payload,
     });
+  };
+
+  if (cached && !cached.stale) {
+    return respondTimeline(cached.data);
   }
 
   if (cached?.stale) {
@@ -70,33 +95,28 @@ export async function GET() {
       void fetchVisualCrossingTimeline({
         apiKey,
         pathLoc,
-        from: null,
-        to: null,
+        from,
+        to,
         timelinePath,
       }).then(async (upstream) => {
         if (!upstream.ok) return;
         await writeWeatherTimelineCache({
           cacheKey,
           location,
-          from: null,
-          to: null,
+          from,
+          to,
           data: upstream.data,
         });
       });
     });
-    const payload = displayWeatherFromTimeline(cached.data);
-    return Response.json({
-      available: true as const,
-      restaurant_id: restaurant.id as string,
-      ...payload,
-    });
+    return respondTimeline(cached.data);
   }
 
   const upstream = await fetchVisualCrossingTimeline({
     apiKey,
     pathLoc,
-    from: null,
-    to: null,
+    from,
+    to,
     timelinePath,
   });
   if (!upstream.ok) {
@@ -106,16 +126,10 @@ export async function GET() {
   await writeWeatherTimelineCache({
     cacheKey,
     location,
-    from: null,
-    to: null,
+    from,
+    to,
     data: upstream.data,
   });
 
-  const payload = displayWeatherFromTimeline(upstream.data);
-
-  return Response.json({
-    available: true as const,
-    restaurant_id: restaurant.id as string,
-    ...payload,
-  });
+  return respondTimeline(upstream.data);
 }

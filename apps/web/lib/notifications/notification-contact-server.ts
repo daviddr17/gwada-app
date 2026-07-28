@@ -7,6 +7,7 @@ import {
   validateNotificationPhone,
 } from "@/lib/notifications/notification-contact-validation";
 import type { NotificationContact } from "@/lib/notifications/notification-contact-types";
+import { clearWhatsappPushPreferencesForProfile } from "@/lib/supabase/user-restaurant-notification-preferences-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type { NotificationContact } from "@/lib/notifications/notification-contact-types";
@@ -87,6 +88,13 @@ export async function updateNotificationContact(
 
   if (error) {
     return { ok: false, error: "Speichern fehlgeschlagen." };
+  }
+
+  if (!phone) {
+    const cleared = await clearWhatsappPushPreferencesForProfile(sb, profileId);
+    if (!cleared.ok) {
+      return { ok: false, error: "Speichern fehlgeschlagen." };
+    }
   }
 
   const contact = await loadNotificationContact(sb, profileId);

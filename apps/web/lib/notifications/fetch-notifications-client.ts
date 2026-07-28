@@ -167,19 +167,30 @@ export async function saveNotificationContactClient(params: {
 export async function saveNotificationPreferencesClient(params: {
   restaurantId: string;
   preferences: NotificationPreferences;
-}): Promise<{ ok: boolean; error: string | null }> {
+}): Promise<{
+  ok: boolean;
+  error: string | null;
+  data: NotificationPreferencesResponse | null;
+}> {
   try {
     const res = await fetch("/api/notifications/preferences", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
-    const body = (await res.json()) as { error?: string };
+    const body = (await res.json()) as {
+      data?: NotificationPreferencesResponse;
+      error?: string;
+    };
     if (!res.ok) {
-      return { ok: false, error: body.error ?? `http_${res.status}` };
+      return {
+        ok: false,
+        error: body.error ?? `http_${res.status}`,
+        data: null,
+      };
     }
-    return { ok: true, error: null };
+    return { ok: true, error: null, data: body.data ?? null };
   } catch {
-    return { ok: false, error: "network_error" };
+    return { ok: false, error: "network_error", data: null };
   }
 }

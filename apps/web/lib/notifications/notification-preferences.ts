@@ -16,6 +16,16 @@ export type NotificationPreferences = {
 
 export const NOTIFICATION_BELL_POLL_MS = 45_000;
 
+/** In-App-Defaults: nur zeitkritische Ops — Rest bewusst aus. */
+export const DEFAULT_IN_APP_ENABLED_MODULE_IDS: readonly NotificationModuleId[] =
+  [
+    "messages",
+    "reviews",
+    "reservations_pending",
+    "reservations_change_request",
+    "reservations_cancellation",
+  ];
+
 export function defaultModuleToggles(
   enabled = true,
 ): NotificationModuleToggles {
@@ -24,20 +34,57 @@ export function defaultModuleToggles(
   ) as NotificationModuleToggles;
 }
 
+export function defaultInAppModuleToggles(): NotificationModuleToggles {
+  const toggles = defaultModuleToggles(false);
+  for (const id of DEFAULT_IN_APP_ENABLED_MODULE_IDS) {
+    toggles[id] = true;
+  }
+  return toggles;
+}
+
 /**
  * Defaults für Nutzer ohne gespeicherte Prefs (z. B. neu akzeptierte Einladung).
- * Glocke/In-App: alle Module an — Push (WA/E-Mail): aus, Nutzer schaltet aktiv ein.
- * Sichtbarkeit der Toggles in den Einstellungen folgt weiterhin den Rechten;
- * die Default-Werte selbst werden nicht nach Rechten gefiltert.
+ * Glocke: nur die wichtigsten Module — Push (WA/E-Mail): aus, Nutzer schaltet aktiv ein.
  */
 export function defaultNotificationPreferences(): NotificationPreferences {
   return {
     channelWhatsappEnabled: false,
     channelEmailEnabled: false,
-    inAppModules: defaultModuleToggles(true),
+    inAppModules: defaultInAppModuleToggles(),
     pushWhatsappModules: defaultModuleToggles(false),
     pushEmailModules: defaultModuleToggles(false),
   };
+}
+
+/** WhatsApp-Push nur mit hinterlegter Profil-Telefonnummer. */
+export function clearWhatsappPushModules(
+  prefs: NotificationPreferences,
+): NotificationPreferences {
+  const pushWhatsappModules = defaultModuleToggles(false);
+  const channels = deriveChannelFlagsFromModules({
+    pushWhatsappModules,
+    pushEmailModules: prefs.pushEmailModules,
+  });
+  return {
+    ...prefs,
+    pushWhatsappModules,
+    ...channels,
+  };
+}
+
+export function applyNotificationPushContactGates(
+  prefs: NotificationPreferences,
+  opts: { hasPhone: boolean },
+): NotificationPreferences {
+  if (opts.hasPhone) return prefs;
+  return clearWhatsappPushModules(prefs);
+}
+
+export function notificationPreferencesEqual(
+  a: NotificationPreferences,
+  b: NotificationPreferences,
+): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 function applyLegacyModuleAliases(

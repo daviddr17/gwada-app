@@ -50,6 +50,7 @@ struct RootView: View {
     @State private var kellnerTab: KellnerTab = .tables
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var lastInteraction = Date()
+    @State private var showingPairingApprovals = false
 
     var body: some View {
         Group {
@@ -134,6 +135,14 @@ struct RootView: View {
             .navigationTitle("Gwada POS")
             .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingPairingApprovals = true
+                    } label: {
+                        Image(systemName: "ipad.and.iphone")
+                    }
+                    .accessibilityLabel("Handgeräte verbinden")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         pinLock.lock(reason: "toolbar")
@@ -154,6 +163,9 @@ struct RootView: View {
         .navigationSplitViewStyle(.balanced)
         .onChange(of: selection) { _, _ in
             lastInteraction = Date()
+        }
+        .sheet(isPresented: $showingPairingApprovals) {
+            HubPairingApprovalsView()
         }
     }
 

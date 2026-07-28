@@ -61,9 +61,14 @@ final class HubHTTPServer: @unchecked Sendable {
             if let request = Self.parseRequest(next) {
                 let result = self.handler(request.method, request.pathWithQuery, request.headers, request.body)
                 let response = Self.serializeResponse(status: result.status, body: result.body)
-                connection.send(content: response, completion: .contentProcessed { _ in
-                    connection.cancel()
-                })
+                connection.send(
+                    content: response,
+                    contentContext: .finalMessage,
+                    isComplete: true,
+                    completion: .contentProcessed { [weak connection] _ in
+                        connection?.cancel()
+                    }
+                )
                 return
             }
 

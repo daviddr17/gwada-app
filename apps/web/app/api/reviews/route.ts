@@ -16,11 +16,7 @@ import {
 import { loadMergedReviewsFeedPage } from "@/lib/reviews/reviews-merged-feed-server";
 import { triggerReviewsFeedSyncIfStale } from "@/lib/reviews/reviews-feed-sync-server";
 import { authorizeReviewsRestaurant } from "@/lib/reviews/route-auth";
-import {
-  averageRating,
-  medianRating,
-  ratingDistribution,
-} from "@/lib/reviews/review-stats";
+import { buildReviewRatingSummary } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -97,15 +93,7 @@ export async function GET(req: Request) {
     return Response.json({
       platform: REVIEW_FILTER_ALL,
       reviews,
-      summary: {
-        count: merged.listQueryApplied
-          ? merged.pagination.totalReviewCount
-          : reviews.length,
-        average: averageRating(reviews),
-        median: medianRating(reviews),
-        distribution: ratingDistribution(reviews),
-        scope: merged.listQueryApplied ? ("filtered" as const) : ("page" as const),
-      },
+      summary: merged.summary,
       mergedPagination: merged.pagination,
       platformTotals: merged.pagination.platformTotals,
       sync: merged.sync,
@@ -140,12 +128,7 @@ export async function GET(req: Request) {
     return Response.json({
       platform: platformRaw,
       reviews,
-      summary: {
-        count: reviews.length,
-        average: averageRating(reviews),
-        median: medianRating(reviews),
-        distribution: ratingDistribution(reviews),
-      },
+      summary: buildReviewRatingSummary(reviews, "all"),
       loadError,
     });
   }
@@ -195,17 +178,7 @@ export async function GET(req: Request) {
     return Response.json({
       platform: platformRaw,
       reviews,
-      summary: {
-        count: paginated.listQueryApplied
-          ? paginated.pagination.totalReviewCount
-          : reviews.length,
-        average: averageRating(reviews),
-        median: medianRating(reviews),
-        distribution: ratingDistribution(reviews),
-        scope: paginated.listQueryApplied
-          ? ("filtered" as const)
-          : ("page" as const),
-      },
+      summary: paginated.summary,
       googlePagination: paginated.pagination,
       sync,
       loadError,
@@ -260,17 +233,7 @@ export async function GET(req: Request) {
     return Response.json({
       platform: platformRaw,
       reviews,
-      summary: {
-        count: paginated.listQueryApplied
-          ? paginated.pagination.totalReviewCount
-          : reviews.length,
-        average: averageRating(reviews),
-        median: medianRating(reviews),
-        distribution: ratingDistribution(reviews),
-        scope: paginated.listQueryApplied
-          ? ("filtered" as const)
-          : ("page" as const),
-      },
+      summary: paginated.summary,
       facebookPagination: paginated.pagination,
       sync,
       loadError,
@@ -326,17 +289,7 @@ export async function GET(req: Request) {
     return Response.json({
       platform: platformRaw,
       reviews,
-      summary: {
-        count: paginated.listQueryApplied
-          ? paginated.pagination.totalReviewCount
-          : reviews.length,
-        average: averageRating(reviews),
-        median: medianRating(reviews),
-        distribution: ratingDistribution(reviews),
-        scope: paginated.listQueryApplied
-          ? ("filtered" as const)
-          : ("page" as const),
-      },
+      summary: paginated.summary,
       tripadvisorPagination: paginated.pagination,
       sync,
       loadError,
@@ -347,12 +300,7 @@ export async function GET(req: Request) {
   return Response.json({
     platform: platformRaw,
     reviews,
-    summary: {
-      count: reviews.length,
-      average: averageRating(reviews),
-      median: medianRating(reviews),
-      distribution: ratingDistribution(reviews),
-    },
+    summary: buildReviewRatingSummary(reviews, "all"),
     loadError,
   });
 }

@@ -11,6 +11,10 @@ import {
 import { paginateReviewList } from "@/lib/reviews/reviews-list-pagination";
 import type { ReviewListPaginationMeta } from "@/lib/reviews/reviews-list-pagination";
 import type { ReviewReadFilter } from "@/lib/reviews/review-read-state";
+import {
+  buildReviewRatingSummary,
+  type ReviewRatingSummary,
+} from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 
 export type ReviewsFeedListQuery = {
@@ -181,6 +185,8 @@ export function paginateReviewsFeedList(
   reviews: UnifiedReview[];
   pagination: ReviewListPaginationMeta;
   listQueryApplied: boolean;
+  /** Stats über die volle Liste vor dem Slice — nicht nur die aktuelle Seite. */
+  summary: ReviewRatingSummary;
 } {
   const needsFullPass = reviewsFeedListQueryNeedsFullPass(query);
   if (!needsFullPass) {
@@ -195,7 +201,11 @@ export function paginateReviewsFeedList(
       undefined,
       options?.averageRating ?? null,
     );
-    return { ...paginated, listQueryApplied: false };
+    return {
+      ...paginated,
+      listQueryApplied: false,
+      summary: buildReviewRatingSummary(reviews, "all"),
+    };
   }
 
   const prepared = applyReviewsFeedListQuery(reviews, query);
@@ -206,5 +216,9 @@ export function paginateReviewsFeedList(
     undefined,
     options?.averageRating ?? null,
   );
-  return { ...paginated, listQueryApplied: true };
+  return {
+    ...paginated,
+    listQueryApplied: true,
+    summary: buildReviewRatingSummary(prepared, "filtered"),
+  };
 }

@@ -3,7 +3,7 @@ import Network
 
 /// Minimaler HTTP/1.1-Server für die iPad-Kasse (Network.framework).
 final class HubHTTPServer: @unchecked Sendable {
-    typealias Handler = @Sendable (String, String, Data) -> (status: Int, body: Data)
+    typealias Handler = @Sendable (String, String, [String: String], Data) -> (status: Int, body: Data)
 
     private let port: NWEndpoint.Port
     private let handler: Handler
@@ -59,7 +59,7 @@ final class HubHTTPServer: @unchecked Sendable {
             }
 
             if let request = Self.parseRequest(next) {
-                let result = self.handler(request.method, request.pathWithQuery, request.body)
+                let result = self.handler(request.method, request.pathWithQuery, request.headers, request.body)
                 let response = Self.serializeResponse(status: result.status, body: result.body)
                 connection.send(content: response, completion: .contentProcessed { _ in
                     connection.cancel()
@@ -80,6 +80,7 @@ final class HubHTTPServer: @unchecked Sendable {
         var method: String
         /// Path inkl. Query (z. B. `/v1/reservations?day=2026-07-17`).
         var pathWithQuery: String
+        var headers: [String: String]
         var body: Data
     }
 
@@ -104,10 +105,18 @@ final class HubHTTPServer: @unchecked Sendable {
             }
         }
 
+        var headers: [String: String] = [:]
+        for line in lines.dropFirst() {
+            guard let colon = line.firstIndex(of: ":") else { continue }
+            let key = line[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
+            let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+            if !key.isEmpty { headers[key] = value }
+        }
+
         let bodyStart = raw.distance(from: raw.startIndex, to: headerEnd.upperBound)
         guard data.count >= bodyStart + contentLength else { return nil }
         let body = data.subdata(in: bodyStart ..< (bodyStart + contentLength))
-        return ParsedRequest(method: method, pathWithQuery: pathWithQuery, body: body)
+        return ParsedRequest(method: method, pathWithQuery: pathWithQuery, headers: headers, body: body)
     }
 
     private static func serializeResponse(status: Int, body: Data) -> Data {
@@ -119,6 +128,7 @@ final class HubHTTPServer: @unchecked Sendable {
         case 400: statusText = "Bad Request"
         case 404: statusText = "Not Found"
         case 405: statusText = "Method Not Allowed"
+        case 401: statusText = "Unauthorized"
         case 503: statusText = "Service Unavailable"
         default: statusText = "Error"
         }
@@ -132,7 +142,7 @@ final class HubHTTPServer: @unchecked Sendable {
         Connection: close\r
         Access-Control-Allow-Origin: *\r
         Access-Control-Allow-Methods: GET, POST, OPTIONS\r
-        Access-Control-Allow-Headers: Content-Type, \(PosLanProtocol.headerProtocol), \(PosLanProtocol.headerRestaurantId)\r
+        Access-Control-Allow-Headers: Content-Type, \(PosLanProtocol.headerProtocol), \(PosLanProtocol.headerRestaurantId), \(PosLanProtocol.headerPairToken)\r
         \(PosLanProtocol.headerProtocol): \(PosLanProtocol.version)\r
         \r
         """

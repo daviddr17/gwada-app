@@ -995,8 +995,8 @@ final class PosRuntime: ObservableObject {
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
         await pullReservationsDay(PosReservationsStore.todayYmd())
 
-        let server = HubHTTPServer { method, path, body in
-            Self.handleHubRequest(method: method, path: path, body: body)
+        let server = HubHTTPServer { method, path, headers, body in
+            Self.handleHubRequest(method: method, path: path, headers: headers, body: body)
         }
 
         do {
@@ -1097,6 +1097,7 @@ final class PosRuntime: ObservableObject {
     private nonisolated static func handleHubRequest(
         method: String,
         path: String,
+        headers: [String: String],
         body: Data
     ) -> (Int, Data) {
         if method == "OPTIONS" {

@@ -14,7 +14,7 @@
 - Bonjour funktioniert **nicht** zwischen zwei Simulatoren — der manuelle Host-Pfad (`127.0.0.1:8787`) ist der testbare Weg auf einem Mac.
 - `HubHTTPServer`-Routing-Handler ist `nonisolated static` und läuft off-main → jeder darin genutzte Store muss thread-sicher sein (Muster: `PosHubState`, `@unchecked Sendable` + `NSLock`).
 - Alle neuen LAN-DTOs: `Codable, Equatable, Sendable`.
-- Bestehende offene Endpunkte bleiben offen: `/v1/health` (Discovery) und `/v1/kds` (Browser-HTML). Token-pflichtig: `/v1/snapshot`, `/v1/sessions`, `/v1/orders`, `/v1/reservations`, `/v1/kds/tickets`.
+- Bestehende offene Endpunkte bleiben offen: `/v1/health` (Discovery) und die KDS-Browser-Display-Pfade `/v1/kds` (HTML), `/v1/kds/tickets` + `/v1/kds/tickets/advance` (vom Browser ohne Token gepollt). Token-pflichtig (Handheld-Betrieb): `/v1/snapshot`, `/v1/sessions`, `/v1/orders`, `/v1/reservations`. (Korrektur ggü. ursprünglichem Entwurf: `/v1/kds/tickets` bleibt offen, sonst bräche das offene KDS-Küchen-Display mit 401.)
 - Build-Kommando (Sim): `xcodebuild -project GwadaPOS.xcodeproj -scheme GwadaPOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build` (Verzeichnis `apps/pos`).
 - Test-Kommando: `xcodebuild test -project GwadaPOS.xcodeproj -scheme GwadaPOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro'` (nach Test-Target in Task 2).
 - Keine `Co-Authored-By`-Zeilen in Commits.
@@ -455,7 +455,7 @@ final class PosLanAuthTests: XCTestCase {
         XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.openSessionPath))
         XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.createOrderPath))
         XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.reservationsPath))
-        XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.kdsTicketsPath))
+        // Hinweis (Korrektur): kdsTicketsPath/kdsAdvancePath sind OFFEN (KDS-Browser-Display) — siehe fix a9e68ac9.
     }
 
     func test_openPaths_doNotRequireToken() {

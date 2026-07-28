@@ -73,9 +73,11 @@ Verworfen: **B** cloud-vermittelte Freigabe (mehr Infra, widerspricht LAN-Modell
 - **`PosRuntime.startHub` Routing** (Ergänzungen):
   - `POST /v1/pair/request` → `PosPairingStore.createPending` → `201 {pairId, verificationCode}`
   - `GET /v1/pair/status?pairId=…` → `200 PosLanPairStatus`
-  - **Enforcement**: `snapshot`, `sessions`, `orders`, `reservations`, `kds`-JSON verlangen
+  - **Enforcement**: `snapshot`, `sessions`, `orders`, `reservations` verlangen
     gültigen `X-Gwada-Pair-Token` (via `PosPairingStore.verify`) → sonst **401**.
-    `health` (Discovery) + KDS-Browser-HTML (`KdsHubHTML`) bleiben **offen**.
+    `health` (Discovery) + die KDS-Browser-Display-Pfade (`/v1/kds` HTML, `/v1/kds/tickets`,
+    `/v1/kds/tickets/advance` — vom Browser ohne Token gepollt) bleiben **offen**.
+    (Korrektur ggü. Entwurf: `/v1/kds/tickets` nicht token-gated, sonst 401 im KDS-Display.)
     Anmerkung: Hub-eigene lokale Aufrufe brauchen keinen LAN-Token (laufen nicht über HTTP).
 - **iPad-UI „Handgeräte verbinden"** (neue View, z. B. `HubPairingApprovalsView`):
   - Pending-Liste: Gerätename + 6-stelliger Code, Buttons `Freigeben` / `Ablehnen`

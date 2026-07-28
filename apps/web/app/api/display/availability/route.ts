@@ -4,7 +4,6 @@ import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { parseProfileVisibility } from "@/lib/profile/profile-nav";
 import type {
-  CreateStaffAvailabilitySlotInput,
   StaffAvailabilitySlotKind,
   StaffAvailabilityWeekday,
 } from "@/lib/types/staff-availability";
@@ -39,6 +38,18 @@ function normalizeHmInput(value: string): string | null {
   const trimmed = value.trim();
   if (!/^\d{2}:\d{2}$/.test(trimmed)) return null;
   return `${trimmed}:00`;
+}
+
+function normalizeServiceDates(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return [
+    ...new Set(
+      raw
+        .filter((d): d is string => typeof d === "string")
+        .map((d) => d.trim())
+        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
+    ),
+  ].sort();
 }
 
 export async function GET() {
@@ -87,9 +98,15 @@ export async function POST(request: Request) {
   const disabled = await assertAvailabilityEnabled(admin, access.restaurantId);
   if (disabled) return disabled;
 
-  let body: Partial<CreateStaffAvailabilitySlotInput> & {
+  let body: {
     kind?: StaffAvailabilitySlotKind;
+    weekday?: StaffAvailabilityWeekday | null;
+    serviceDate?: string | null;
+    serviceDates?: unknown;
+    startTime?: string;
+    endTime?: string;
     isAvailable?: boolean;
+    note?: string | null;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -97,29 +114,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
+  const isAvailable = body.isAvailable !== false;
+  const batchDates = normalizeServiceDates(body.serviceDates);
+  const singleDate =
+    typeof body.serviceDate === "string" ? body.serviceDate.trim() : "";
+  const dateSlots =
+    batchDates.length > 0
+      ? batchDates
+      : singleDate && /^\d{4}-\d{2}-\d{2}$/.test(singleDate)
+        ? [singleDate]
+        : [];
+
   const kind = body.kind;
-  if (kind !== "weekly" && kind !== "date") {
+  const useDateBatch = dateSlots.length > 0 || kind === "date";
+
+  if (!useDateBatch && kind !== "weekly") {
     return NextResponse.json({ error: "invalid_kind" }, { status: 400 });
   }
 
-  const isAvailable = body.isAvailable !== false;
-  if (!isAvailable && kind !== "date") {
+  if (!isAvailable && !useDateBatch) {
     return NextResponse.json(
       { error: "unavailable_requires_date" },
       { status: 400 },
     );
-  }
-
-  const weekday =
-    kind === "weekly" ? (body.weekday as StaffAvailabilityWeekday | null) : null;
-  const serviceDate =
-    kind === "date" ? (body.serviceDate?.trim() ?? null) : null;
-
-  if (kind === "weekly" && !weekday) {
-    return NextResponse.json({ error: "missing_weekday" }, { status: 400 });
-  }
-  if (kind === "date" && !serviceDate) {
-    return NextResponse.json({ error: "missing_date" }, { status: 400 });
   }
 
   const startHm = isAvailable
@@ -137,16 +154,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_range" }, { status: 400 });
   }
 
+  if (useDateBatch) {
+    if (dateSlots.length === 0) {
+      return NextResponse.json({ error: "missing_date" }, { status: 400 });
+    }
+
+    const rows = dateSlots.map((serviceDate) => ({
+      restaurant_id: access.restaurantId,
+      staff_id: access.staffId,
+      weekday: null as null,
+      service_date: serviceDate,
+      start_time: startTime,
+      end_time: endTime,
+      is_available: isAvailable,
+      note: body.note?.trim() || null,
+    }));
+
+    const { data, error } = await admin
+      .from("restaurant_staff_availability_slots")
+      .insert(rows)
+      .select(SLOT_SELECT);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      slots: data ?? [],
+      created: rows.length,
+      slot: data?.[0] ?? null,
+    });
+  }
+
+  const weekday = body.weekday as StaffAvailabilityWeekday | null;
+  if (!weekday) {
+    return NextResponse.json({ error: "missing_weekday" }, { status: 400 });
+  }
+
   const { data, error } = await admin
     .from("restaurant_staff_availability_slots")
     .insert({
       restaurant_id: access.restaurantId,
       staff_id: access.staffId,
       weekday,
-      service_date: serviceDate,
+      service_date: null,
       start_time: startTime,
       end_time: endTime,
-      is_available: isAvailable,
+      is_available: true,
       note: body.note?.trim() || null,
     })
     .select(SLOT_SELECT)
@@ -156,7 +210,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ slot: data });
+  return NextResponse.json({ slot: data, created: 1 });
 }
 
 export async function DELETE(request: Request) {

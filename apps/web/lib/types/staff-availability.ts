@@ -18,9 +18,10 @@ export type RestaurantStaffAvailabilitySlotRow = {
   updated_at: string;
 };
 
+/** @deprecated Neue UI speichert nur Datums-Slots; weekly bleibt für Altbestand. */
 export type StaffAvailabilitySlotKind = "weekly" | "date";
 
-/** Polarität für einmalige Tage: verfügbar (Zeitfenster) oder nicht einsetzbar. */
+/** Polarität: verfügbar (Zeitfenster) oder nicht einsetzbar. */
 export type StaffAvailabilityPolarity = "available" | "unavailable";
 
 /** Ganztägige Nicht-Verfügbarkeit (DB: time NOT NULL + end > start). */
@@ -40,6 +41,16 @@ export type CreateStaffAvailabilitySlotInput = {
   note?: string | null;
 };
 
+export type CreateStaffAvailabilityDateSlotsInput = {
+  restaurantId: string;
+  staffId: string;
+  serviceDates: string[];
+  startTime: string;
+  endTime: string;
+  isAvailable?: boolean;
+  note?: string | null;
+};
+
 export const STAFF_AVAILABILITY_WEEKDAY_LABELS: Record<
   StaffAvailabilityWeekday,
   string
@@ -51,6 +62,19 @@ export const STAFF_AVAILABILITY_WEEKDAY_LABELS: Record<
   friday: "Freitag",
   saturday: "Samstag",
   sunday: "Sonntag",
+};
+
+export const STAFF_AVAILABILITY_WEEKDAY_SHORT_LABELS: Record<
+  StaffAvailabilityWeekday,
+  string
+> = {
+  monday: "Mo",
+  tuesday: "Di",
+  wednesday: "Mi",
+  thursday: "Do",
+  friday: "Fr",
+  saturday: "Sa",
+  sunday: "So",
 };
 
 export const STAFF_AVAILABILITY_WEEKDAY_ORDER: readonly StaffAvailabilityWeekday[] =

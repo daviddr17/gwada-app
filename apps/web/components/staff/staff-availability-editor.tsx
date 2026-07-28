@@ -1,22 +1,21 @@
 "use client";
 
-import { CalendarOff, CalendarRange, Plus, Trash2 } from "lucide-react";
+import { CalendarOff, CalendarRange, Plus, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from "@/components/ui/combobox";
-import { DatePickerField, formScheduleTimeInputFullWidthClassName } from "@/components/ui/date-picker";
+  DatePickerField,
+  formScheduleTimeInputFullWidthClassName,
+} from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import {
-  createStaffAvailabilitySlot,
+  createStaffAvailabilityDateSlots,
   deleteStaffAvailabilitySlot,
   fetchStaffAvailabilitySlotsForStaff,
 } from "@/lib/supabase/staff-availability-db";
@@ -24,36 +23,43 @@ import {
   formatAvailabilitySlotLabelDe,
   isUnavailableAvailabilitySlot,
 } from "@/lib/staff/shift-plan-availability";
+import {
+  buildUpcomingWeekOptions,
+  expandWeekdaysInWeeks,
+  toggleSortedUnique,
+  toggleWeekday,
+  type StaffAvailabilityScopeMode,
+} from "@/lib/staff/staff-availability-scope";
 import type {
   RestaurantStaffAvailabilitySlotRow,
   StaffAvailabilityPolarity,
-  StaffAvailabilitySlotKind,
   StaffAvailabilityWeekday,
 } from "@/lib/types/staff-availability";
 import {
   STAFF_AVAILABILITY_ALL_DAY_END,
   STAFF_AVAILABILITY_ALL_DAY_START,
-  STAFF_AVAILABILITY_WEEKDAY_LABELS,
   STAFF_AVAILABILITY_WEEKDAY_ORDER,
+  STAFF_AVAILABILITY_WEEKDAY_SHORT_LABELS,
 } from "@/lib/types/staff-availability";
+import { localDayKey, startOfWeekMonday } from "@/lib/staff/shift-schedule-range";
 import { cn } from "@/lib/utils";
 import { StaffAvailabilityEditorSkeleton } from "@/components/staff/staff-availability-editor-skeleton";
 
-const kindOptions: SearchableSelectOption[] = [
-  { value: "weekly", label: "Wöchentlich (Wochentag)" },
-  { value: "date", label: "Bestimmter Tag" },
-];
+const chipClass = (selected: boolean) =>
+  cn(
+    "inline-flex shrink-0 items-center justify-center rounded-xl border px-3 py-2 text-sm font-medium transition-colors",
+    selected
+      ? "border-accent/50 bg-accent/15 text-foreground"
+      : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+  );
 
-const polarityOptions: SearchableSelectOption[] = [
-  { value: "available", label: "Verfügbar" },
-  { value: "unavailable", label: "Nicht verfügbar" },
-];
-
-const weekdayOptions: SearchableSelectOption[] =
-  STAFF_AVAILABILITY_WEEKDAY_ORDER.map((day) => ({
-    value: day,
-    label: STAFF_AVAILABILITY_WEEKDAY_LABELS[day],
-  }));
+const segmentClass = (selected: boolean) =>
+  cn(
+    "flex-1 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
+    selected
+      ? "border-accent/50 bg-accent/15 text-foreground"
+      : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+  );
 
 type StaffAvailabilityEditorProps = {
   restaurantId: string;
@@ -81,6 +87,15 @@ function mapSlotRow(raw: Record<string, unknown>): RestaurantStaffAvailabilitySl
   };
 }
 
+function formatDateChipDe(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Intl.DateTimeFormat("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(new Date(y!, (m ?? 1) - 1, d ?? 1));
+}
+
 export function StaffAvailabilityEditor({
   restaurantId,
   staffId,
@@ -93,17 +108,30 @@ export function StaffAvailabilityEditor({
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const [kind, setKind] = useState<StaffAvailabilitySlotKind>("weekly");
   const [polarity, setPolarity] =
     useState<StaffAvailabilityPolarity>("available");
-  const [weekday, setWeekday] = useState<StaffAvailabilityWeekday>("monday");
-  const [serviceDate, setServiceDate] = useState("");
+  const [scopeMode, setScopeMode] =
+    useState<StaffAvailabilityScopeMode>("dates");
+  const [serviceDates, setServiceDates] = useState<string[]>([]);
+  const [draftDate, setDraftDate] = useState("");
+  const [selectedWeeks, setSelectedWeeks] = useState<string[]>(() => [
+    localDayKey(startOfWeekMonday(new Date())),
+  ]);
+  const [selectedWeekdays, setSelectedWeekdays] = useState<
+    StaffAvailabilityWeekday[]
+  >([...STAFF_AVAILABILITY_WEEKDAY_ORDER]);
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("18:00");
   const [note, setNote] = useState("");
 
   const showSkeleton = useDeferredSkeleton(loading);
-  const isUnavailable = kind === "date" && polarity === "unavailable";
+  const isUnavailable = polarity === "unavailable";
+  const weekOptions = useMemo(() => buildUpcomingWeekOptions(8), []);
+
+  const resolvedDates = useMemo(() => {
+    if (scopeMode === "dates") return serviceDates;
+    return expandWeekdaysInWeeks(selectedWeeks, selectedWeekdays);
+  }, [scopeMode, serviceDates, selectedWeeks, selectedWeekdays]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -158,7 +186,25 @@ export function StaffAvailabilityEditor({
     [slots],
   );
 
+  const addDraftDate = () => {
+    const next = draftDate.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) return;
+    setServiceDates((prev) =>
+      prev.includes(next) ? prev : [...prev, next].sort(),
+    );
+    setDraftDate("");
+  };
+
   const handleAdd = async () => {
+    if (resolvedDates.length === 0) {
+      toast.error(
+        scopeMode === "dates"
+          ? "Mindestens ein Datum wählen."
+          : "Wochen und Wochentage wählen.",
+      );
+      return;
+    }
+
     setSaving(true);
     const isAvailable = !isUnavailable;
     const effectiveStart = isAvailable
@@ -173,9 +219,8 @@ export function StaffAvailabilityEditor({
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            kind,
-            weekday: kind === "weekly" ? weekday : null,
-            serviceDate: kind === "date" ? serviceDate : null,
+            kind: "date",
+            serviceDates: resolvedDates,
             startTime: effectiveStart,
             endTime: effectiveEnd,
             isAvailable,
@@ -201,20 +246,24 @@ export function StaffAvailabilityEditor({
       }
       toast.success(
         isAvailable
-          ? "Verfügbarkeit gespeichert."
-          : "Nicht verfügbar gespeichert.",
+          ? resolvedDates.length > 1
+            ? `${resolvedDates.length} Verfügbarkeiten gespeichert.`
+            : "Verfügbarkeit gespeichert."
+          : resolvedDates.length > 1
+            ? `${resolvedDates.length} Tage als nicht verfügbar gespeichert.`
+            : "Nicht verfügbar gespeichert.",
       );
       setNote("");
+      setServiceDates([]);
+      setDraftDate("");
       await reload();
       return;
     }
 
-    const { error } = await createStaffAvailabilitySlot({
+    const { created, error } = await createStaffAvailabilityDateSlots({
       restaurantId,
       staffId,
-      kind,
-      weekday: kind === "weekly" ? weekday : null,
-      serviceDate: kind === "date" ? serviceDate : null,
+      serviceDates: resolvedDates,
       startTime: effectiveStart,
       endTime: effectiveEnd,
       isAvailable,
@@ -227,10 +276,16 @@ export function StaffAvailabilityEditor({
     }
     toast.success(
       isAvailable
-        ? "Verfügbarkeit gespeichert."
-        : "Nicht verfügbar gespeichert.",
+        ? created > 1
+          ? `${created} Verfügbarkeiten gespeichert.`
+          : "Verfügbarkeit gespeichert."
+        : created > 1
+          ? `${created} Tage als nicht verfügbar gespeichert.`
+          : "Nicht verfügbar gespeichert.",
     );
     setNote("");
+    setServiceDates([]);
+    setDraftDate("");
     await reload();
   };
 
@@ -248,35 +303,35 @@ export function StaffAvailabilityEditor({
   return (
     <div className={cn("space-y-4", className)}>
       <Card size="sm" className="border-border/50 shadow-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">
-            {compact ? "Verfügbarkeit" : "Meine Verfügbarkeit"}
-          </CardTitle>
-          {!compact ? (
+        {!compact ? (
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold">
+              Meine Verfügbarkeit
+            </CardTitle>
             <p className="text-sm text-muted-foreground">
               Trage ein, wann du arbeiten kannst — oder an welchen Tagen nicht.
               Sichtbar für die Planung im Schichtplan.
             </p>
-          ) : null}
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </CardHeader>
+        ) : null}
+        <CardContent className={cn("space-y-4", compact && "pt-4")}>
           {slots.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Noch keine Einträge hinterlegt.
             </p>
           ) : (
             <div className="space-y-3">
-              {weeklySlots.length > 0 ? (
+              {dateSlots.length > 0 ? (
                 <SlotGroup
-                  title="Wöchentlich"
-                  slots={weeklySlots}
+                  title="Tage"
+                  slots={dateSlots}
                   onDelete={setDeleteId}
                 />
               ) : null}
-              {dateSlots.length > 0 ? (
+              {weeklySlots.length > 0 ? (
                 <SlotGroup
-                  title="Bestimmte Tage"
-                  slots={dateSlots}
+                  title="Dauerhaft wöchentlich (Alt)"
+                  slots={weeklySlots}
                   onDelete={setDeleteId}
                 />
               ) : null}
@@ -291,81 +346,194 @@ export function StaffAvailabilityEditor({
             Eintrag hinzufügen
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Art</Label>
-            <SearchableSelect
-              options={kindOptions}
-              value={kind}
-              onValueChange={(v) => {
-                const next = v as StaffAvailabilitySlotKind;
-                setKind(next);
-                if (next === "weekly") setPolarity("available");
-              }}
-              placeholder="Art wählen"
-            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={segmentClass(polarity === "available")}
+                aria-pressed={polarity === "available"}
+                onClick={() => setPolarity("available")}
+              >
+                Verfügbar
+              </button>
+              <button
+                type="button"
+                className={segmentClass(polarity === "unavailable")}
+                aria-pressed={polarity === "unavailable"}
+                onClick={() => setPolarity("unavailable")}
+              >
+                Nicht verfügbar
+              </button>
+            </div>
           </div>
 
-          {kind === "date" ? (
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <SearchableSelect
-                options={polarityOptions}
-                value={polarity}
-                onValueChange={(v) =>
-                  setPolarity(v as StaffAvailabilityPolarity)
-                }
-                placeholder="Status wählen"
-              />
+          <div className="space-y-2">
+            <Label>Gilt für</Label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={segmentClass(scopeMode === "dates")}
+                aria-pressed={scopeMode === "dates"}
+                onClick={() => setScopeMode("dates")}
+              >
+                Einzelne Tage
+              </button>
+              <button
+                type="button"
+                className={segmentClass(scopeMode === "weeks")}
+                aria-pressed={scopeMode === "weeks"}
+                onClick={() => setScopeMode("weeks")}
+              >
+                Ausgewählte Wochen
+              </button>
             </div>
-          ) : null}
+          </div>
 
-          {kind === "weekly" ? (
+          {scopeMode === "dates" ? (
             <div className="space-y-2">
-              <Label>Wochentag</Label>
-              <SearchableSelect
-                options={weekdayOptions}
-                value={weekday}
-                onValueChange={(v) => setWeekday(v as StaffAvailabilityWeekday)}
-                placeholder="Wochentag"
-              />
+              <Label>Tage</Label>
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <DatePickerField
+                    fullWidth
+                    value={draftDate || null}
+                    onChange={(v) => setDraftDate(v ?? "")}
+                    placeholder="Datum wählen"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 shrink-0 rounded-xl"
+                  disabled={!draftDate.trim()}
+                  onClick={addDraftDate}
+                >
+                  Tag hinzufügen
+                </Button>
+              </div>
+              {serviceDates.length > 0 ? (
+                <ul className="flex flex-wrap gap-2 pt-1">
+                  {serviceDates.map((ymd) => (
+                    <li key={ymd}>
+                      <button
+                        type="button"
+                        className={cn(chipClass(true), "gap-1.5 pr-2")}
+                        onClick={() =>
+                          setServiceDates((prev) =>
+                            prev.filter((d) => d !== ymd),
+                          )
+                        }
+                        aria-label={`${formatDateChipDe(ymd)} entfernen`}
+                      >
+                        {formatDateChipDe(ymd)}
+                        <X className="size-3.5 opacity-70" aria-hidden />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Ein oder mehrere konkrete Tage auswählen.
+                </p>
+              )}
             </div>
           ) : (
-            <div className="space-y-2">
-              <Label>Datum</Label>
-              <DatePickerField
-                fullWidth
-                value={serviceDate || null}
-                onChange={(v) => setServiceDate(v ?? "")}
-                placeholder="Datum wählen"
-              />
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Wochen</Label>
+                <div className="flex flex-wrap gap-2">
+                  {weekOptions.map((week) => {
+                    const selected = selectedWeeks.includes(week.weekStartYmd);
+                    return (
+                      <button
+                        key={week.weekStartYmd}
+                        type="button"
+                        className={chipClass(selected)}
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setSelectedWeeks((prev) =>
+                            toggleSortedUnique(prev, week.weekStartYmd),
+                          )
+                        }
+                      >
+                        {week.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Wochentage in diesen Wochen</Label>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {STAFF_AVAILABILITY_WEEKDAY_ORDER.map((day) => {
+                    const selected = selectedWeekdays.includes(day);
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        className={cn(
+                          chipClass(selected),
+                          "px-0 py-2 text-xs",
+                        )}
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setSelectedWeekdays((prev) =>
+                            toggleWeekday(prev, day),
+                          )
+                        }
+                      >
+                        {STAFF_AVAILABILITY_WEEKDAY_SHORT_LABELS[day]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Alle Tage = ganze Woche. Sonst z.&nbsp;B. nur Mo und Di in den
+                  gewählten Wochen — nicht dauerhaft „jeden Montag“.
+                </p>
+                {resolvedDates.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {resolvedDates.length}{" "}
+                    {resolvedDates.length === 1 ? "Tag" : "Tage"} werden
+                    gespeichert.
+                  </p>
+                ) : null}
+              </div>
             </div>
           )}
 
           {isUnavailable ? (
             <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-              Ganztägig nicht einsetzbar an diesem Tag.
+              Ganztägig nicht einsetzbar an den gewählten Tagen.
             </p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="min-w-0 space-y-2">
                 <Label htmlFor="availability-start">Von</Label>
                 <Input
                   id="availability-start"
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className={formScheduleTimeInputFullWidthClassName}
+                  className={cn(
+                    formScheduleTimeInputFullWidthClassName,
+                    "min-w-0",
+                  )}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <Label htmlFor="availability-end">Bis</Label>
                 <Input
                   id="availability-end"
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className={formScheduleTimeInputFullWidthClassName}
+                  className={cn(
+                    formScheduleTimeInputFullWidthClassName,
+                    "min-w-0",
+                  )}
                 />
               </div>
             </div>
@@ -390,11 +558,13 @@ export function StaffAvailabilityEditor({
             type="button"
             size="lg"
             className={modulePrimaryAddButtonFullWidthClassName}
-            disabled={saving || (kind === "date" && !serviceDate.trim())}
+            disabled={saving || resolvedDates.length === 0}
             onClick={() => void handleAdd()}
           >
             <Plus className="size-4" />
-            Hinzufügen
+            {resolvedDates.length > 1
+              ? `${resolvedDates.length} Tage speichern`
+              : "Hinzufügen"}
           </Button>
         </CardContent>
       </Card>

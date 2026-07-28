@@ -1,6 +1,7 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type {
+  CreateStaffAvailabilityDateSlotsInput,
   CreateStaffAvailabilitySlotInput,
   RestaurantStaffAvailabilitySlotRow,
   StaffAvailabilityWeekday,
@@ -142,6 +143,55 @@ export async function createStaffAvailabilitySlot(
 
   if (error) return { data: null, error: error.message };
   return { data: mapSlotRow(data as Record<string, unknown>), error: null };
+}
+
+export async function createStaffAvailabilityDateSlots(
+  input: CreateStaffAvailabilityDateSlotsInput,
+): Promise<{ created: number; error: string | null }> {
+  const isAvailable = input.isAvailable !== false;
+  const dates = [
+    ...new Set(
+      input.serviceDates
+        .map((d) => d.trim())
+        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)),
+    ),
+  ].sort();
+
+  if (dates.length === 0) {
+    return { created: 0, error: "Mindestens ein Datum wählen." };
+  }
+
+  const startHm = isAvailable
+    ? input.startTime
+    : STAFF_AVAILABILITY_ALL_DAY_START;
+  const endHm = isAvailable ? input.endTime : STAFF_AVAILABILITY_ALL_DAY_END;
+  const startTime = normalizeHmInput(startHm);
+  const endTime = normalizeHmInput(endHm);
+  if (!startTime || !endTime) {
+    return { created: 0, error: "Ungültige Uhrzeit." };
+  }
+  if (endTime <= startTime) {
+    return { created: 0, error: "Ende muss nach Beginn liegen." };
+  }
+
+  const rows = dates.map((serviceDate) => ({
+    restaurant_id: input.restaurantId,
+    staff_id: input.staffId,
+    weekday: null as null,
+    service_date: serviceDate,
+    start_time: startTime,
+    end_time: endTime,
+    is_available: isAvailable,
+    note: input.note?.trim() || null,
+  }));
+
+  const sb = createSupabaseBrowserClient();
+  const { error } = await sb
+    .from("restaurant_staff_availability_slots")
+    .insert(rows);
+
+  if (error) return { created: 0, error: error.message };
+  return { created: rows.length, error: null };
 }
 
 export async function deleteStaffAvailabilitySlot(

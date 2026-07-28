@@ -76,7 +76,7 @@ final class HubHTTPServer: @unchecked Sendable {
         }
     }
 
-    private struct ParsedRequest {
+    struct ParsedRequest {
         var method: String
         /// Path inkl. Query (z. B. `/v1/reservations?day=2026-07-17`).
         var pathWithQuery: String
@@ -84,11 +84,18 @@ final class HubHTTPServer: @unchecked Sendable {
         var body: Data
     }
 
-    private static func parseRequest(_ data: Data) -> ParsedRequest? {
-        guard let raw = String(data: data, encoding: .utf8) else { return nil }
-        guard let headerEnd = raw.range(of: "\r\n\r\n") else { return nil }
-        let head = String(raw[..<headerEnd.lowerBound])
-        let lines = head.split(separator: "\r\n", omittingEmptySubsequences: false).map(String.init)
+    private static let headerDelimiter = Data([0x0D, 0x0A, 0x0D, 0x0A])
+
+    static func parseRequest(_ data: Data) -> ParsedRequest? {
+        // Der Header/Body-Trenner muss auf den rohen Bytes gesucht werden: "\r\n" ist in
+        // Swift-Strings EIN Character (Grapheme-Cluster), aber ZWEI Bytes. Ein über
+        // `raw.distance(...)` gezählter Offset würde daher pro CRLF im Header um 1 Byte
+        // zu wenig zählen und die Body-Slice aus `data` verschieben/korrumpieren.
+        guard let delimiterRange = data.range(of: headerDelimiter) else { return nil }
+        let bodyStart = delimiterRange.upperBound
+
+        guard let raw = String(data: data[..<delimiterRange.lowerBound], encoding: .utf8) else { return nil }
+        let lines = raw.split(separator: "\r\n", omittingEmptySubsequences: false).map(String.init)
         guard let requestLine = lines.first else { return nil }
         let parts = requestLine.split(separator: " ")
         guard parts.count >= 2 else { return nil }
@@ -113,7 +120,6 @@ final class HubHTTPServer: @unchecked Sendable {
             if !key.isEmpty { headers[key] = value }
         }
 
-        let bodyStart = raw.distance(from: raw.startIndex, to: headerEnd.upperBound)
         guard data.count >= bodyStart + contentLength else { return nil }
         let body = data.subdata(in: bodyStart ..< (bodyStart + contentLength))
         return ParsedRequest(method: method, pathWithQuery: pathWithQuery, headers: headers, body: body)

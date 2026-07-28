@@ -8,9 +8,13 @@ import type {
   StaffAvailabilitySlotKind,
   StaffAvailabilityWeekday,
 } from "@/lib/types/staff-availability";
+import {
+  STAFF_AVAILABILITY_ALL_DAY_END,
+  STAFF_AVAILABILITY_ALL_DAY_START,
+} from "@/lib/types/staff-availability";
 
 const SLOT_SELECT =
-  "id, restaurant_id, staff_id, weekday, service_date, start_time, end_time, note, created_by, created_at, updated_at";
+  "id, restaurant_id, staff_id, weekday, service_date, start_time, end_time, is_available, note, created_by, created_at, updated_at";
 
 async function assertAvailabilityEnabled(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
@@ -85,6 +89,7 @@ export async function POST(request: Request) {
 
   let body: Partial<CreateStaffAvailabilitySlotInput> & {
     kind?: StaffAvailabilitySlotKind;
+    isAvailable?: boolean;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -97,13 +102,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_kind" }, { status: 400 });
   }
 
-  const startTime = normalizeHmInput(String(body.startTime ?? ""));
-  const endTime = normalizeHmInput(String(body.endTime ?? ""));
-  if (!startTime || !endTime) {
-    return NextResponse.json({ error: "invalid_time" }, { status: 400 });
-  }
-  if (endTime <= startTime) {
-    return NextResponse.json({ error: "invalid_range" }, { status: 400 });
+  const isAvailable = body.isAvailable !== false;
+  if (!isAvailable && kind !== "date") {
+    return NextResponse.json(
+      { error: "unavailable_requires_date" },
+      { status: 400 },
+    );
   }
 
   const weekday =
@@ -118,6 +122,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "missing_date" }, { status: 400 });
   }
 
+  const startHm = isAvailable
+    ? String(body.startTime ?? "")
+    : STAFF_AVAILABILITY_ALL_DAY_START;
+  const endHm = isAvailable
+    ? String(body.endTime ?? "")
+    : STAFF_AVAILABILITY_ALL_DAY_END;
+  const startTime = normalizeHmInput(startHm);
+  const endTime = normalizeHmInput(endHm);
+  if (!startTime || !endTime) {
+    return NextResponse.json({ error: "invalid_time" }, { status: 400 });
+  }
+  if (endTime <= startTime) {
+    return NextResponse.json({ error: "invalid_range" }, { status: 400 });
+  }
+
   const { data, error } = await admin
     .from("restaurant_staff_availability_slots")
     .insert({
@@ -127,6 +146,7 @@ export async function POST(request: Request) {
       service_date: serviceDate,
       start_time: startTime,
       end_time: endTime,
+      is_available: isAvailable,
       note: body.note?.trim() || null,
     })
     .select(SLOT_SELECT)

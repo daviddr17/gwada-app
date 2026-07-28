@@ -5,9 +5,13 @@ import type {
   RestaurantStaffAvailabilitySlotRow,
   StaffAvailabilityWeekday,
 } from "@/lib/types/staff-availability";
+import {
+  STAFF_AVAILABILITY_ALL_DAY_END,
+  STAFF_AVAILABILITY_ALL_DAY_START,
+} from "@/lib/types/staff-availability";
 
 const SLOT_SELECT =
-  "id, restaurant_id, staff_id, weekday, service_date, start_time, end_time, note, created_by, created_at, updated_at";
+  "id, restaurant_id, staff_id, weekday, service_date, start_time, end_time, is_available, note, created_by, created_at, updated_at";
 
 function mapSlotRow(raw: Record<string, unknown>): RestaurantStaffAvailabilitySlotRow {
   return {
@@ -18,6 +22,7 @@ function mapSlotRow(raw: Record<string, unknown>): RestaurantStaffAvailabilitySl
     service_date: (raw.service_date as string | null) ?? null,
     start_time: String(raw.start_time ?? "").slice(0, 8),
     end_time: String(raw.end_time ?? "").slice(0, 8),
+    is_available: raw.is_available !== false,
     note: (raw.note as string | null) ?? null,
     created_by: (raw.created_by as string | null) ?? null,
     created_at: raw.created_at as string,
@@ -87,25 +92,36 @@ export async function fetchStaffAvailabilitySlotsForRestaurant(
 export async function createStaffAvailabilitySlot(
   input: CreateStaffAvailabilitySlotInput,
 ): Promise<{ data: RestaurantStaffAvailabilitySlotRow | null; error: string | null }> {
-  const startTime = normalizeHmInput(input.startTime);
-  const endTime = normalizeHmInput(input.endTime);
-  if (!startTime || !endTime) {
-    return { data: null, error: "Ungültige Uhrzeit." };
-  }
-  if (endTime <= startTime) {
-    return { data: null, error: "Ende muss nach Beginn liegen." };
-  }
-
+  const isAvailable = input.isAvailable !== false;
   const weekday =
     input.kind === "weekly" ? (input.weekday ?? null) : null;
   const serviceDate =
     input.kind === "date" ? (input.serviceDate?.trim() ?? null) : null;
 
+  if (!isAvailable && input.kind !== "date") {
+    return {
+      data: null,
+      error: "Nicht verfügbar gilt nur für bestimmte Tage.",
+    };
+  }
   if (input.kind === "weekly" && !weekday) {
     return { data: null, error: "Wochentag fehlt." };
   }
   if (input.kind === "date" && !serviceDate) {
     return { data: null, error: "Datum fehlt." };
+  }
+
+  const startHm = isAvailable
+    ? input.startTime
+    : STAFF_AVAILABILITY_ALL_DAY_START;
+  const endHm = isAvailable ? input.endTime : STAFF_AVAILABILITY_ALL_DAY_END;
+  const startTime = normalizeHmInput(startHm);
+  const endTime = normalizeHmInput(endHm);
+  if (!startTime || !endTime) {
+    return { data: null, error: "Ungültige Uhrzeit." };
+  }
+  if (endTime <= startTime) {
+    return { data: null, error: "Ende muss nach Beginn liegen." };
   }
 
   const sb = createSupabaseBrowserClient();
@@ -118,6 +134,7 @@ export async function createStaffAvailabilitySlot(
       service_date: serviceDate,
       start_time: startTime,
       end_time: endTime,
+      is_available: isAvailable,
       note: input.note?.trim() || null,
     })
     .select(SLOT_SELECT)

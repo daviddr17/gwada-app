@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarRange, Plus, Trash2 } from "lucide-react";
+import { CalendarOff, CalendarRange, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,13 +20,19 @@ import {
   deleteStaffAvailabilitySlot,
   fetchStaffAvailabilitySlotsForStaff,
 } from "@/lib/supabase/staff-availability-db";
-import { formatAvailabilitySlotLabelDe } from "@/lib/staff/shift-plan-availability";
+import {
+  formatAvailabilitySlotLabelDe,
+  isUnavailableAvailabilitySlot,
+} from "@/lib/staff/shift-plan-availability";
 import type {
   RestaurantStaffAvailabilitySlotRow,
+  StaffAvailabilityPolarity,
   StaffAvailabilitySlotKind,
   StaffAvailabilityWeekday,
 } from "@/lib/types/staff-availability";
 import {
+  STAFF_AVAILABILITY_ALL_DAY_END,
+  STAFF_AVAILABILITY_ALL_DAY_START,
   STAFF_AVAILABILITY_WEEKDAY_LABELS,
   STAFF_AVAILABILITY_WEEKDAY_ORDER,
 } from "@/lib/types/staff-availability";
@@ -36,6 +42,11 @@ import { StaffAvailabilityEditorSkeleton } from "@/components/staff/staff-availa
 const kindOptions: SearchableSelectOption[] = [
   { value: "weekly", label: "Wöchentlich (Wochentag)" },
   { value: "date", label: "Bestimmter Tag" },
+];
+
+const polarityOptions: SearchableSelectOption[] = [
+  { value: "available", label: "Verfügbar" },
+  { value: "unavailable", label: "Nicht verfügbar" },
 ];
 
 const weekdayOptions: SearchableSelectOption[] =
@@ -62,6 +73,7 @@ function mapSlotRow(raw: Record<string, unknown>): RestaurantStaffAvailabilitySl
     service_date: (raw.service_date as string | null) ?? null,
     start_time: String(raw.start_time ?? "").slice(0, 8),
     end_time: String(raw.end_time ?? "").slice(0, 8),
+    is_available: raw.is_available !== false,
     note: (raw.note as string | null) ?? null,
     created_by: (raw.created_by as string | null) ?? null,
     created_at: raw.created_at as string,
@@ -82,6 +94,8 @@ export function StaffAvailabilityEditor({
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const [kind, setKind] = useState<StaffAvailabilitySlotKind>("weekly");
+  const [polarity, setPolarity] =
+    useState<StaffAvailabilityPolarity>("available");
   const [weekday, setWeekday] = useState<StaffAvailabilityWeekday>("monday");
   const [serviceDate, setServiceDate] = useState("");
   const [startTime, setStartTime] = useState("10:00");
@@ -89,6 +103,7 @@ export function StaffAvailabilityEditor({
   const [note, setNote] = useState("");
 
   const showSkeleton = useDeferredSkeleton(loading);
+  const isUnavailable = kind === "date" && polarity === "unavailable";
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -145,6 +160,12 @@ export function StaffAvailabilityEditor({
 
   const handleAdd = async () => {
     setSaving(true);
+    const isAvailable = !isUnavailable;
+    const effectiveStart = isAvailable
+      ? startTime
+      : STAFF_AVAILABILITY_ALL_DAY_START;
+    const effectiveEnd = isAvailable ? endTime : STAFF_AVAILABILITY_ALL_DAY_END;
+
     if (displayApi) {
       try {
         const res = await fetch("/api/display/availability", {
@@ -155,8 +176,9 @@ export function StaffAvailabilityEditor({
             kind,
             weekday: kind === "weekly" ? weekday : null,
             serviceDate: kind === "date" ? serviceDate : null,
-            startTime,
-            endTime,
+            startTime: effectiveStart,
+            endTime: effectiveEnd,
+            isAvailable,
             note: note.trim() || null,
           }),
         });
@@ -166,7 +188,9 @@ export function StaffAvailabilityEditor({
           toast.error(
             data.error === "invalid_range"
               ? "Ende muss nach Beginn liegen."
-              : data.error ?? "Speichern fehlgeschlagen.",
+              : data.error === "unavailable_requires_date"
+                ? "Nicht verfügbar gilt nur für bestimmte Tage."
+                : data.error ?? "Speichern fehlgeschlagen.",
           );
           return;
         }
@@ -175,7 +199,11 @@ export function StaffAvailabilityEditor({
         toast.error("Speichern fehlgeschlagen.");
         return;
       }
-      toast.success("Verfügbarkeit gespeichert.");
+      toast.success(
+        isAvailable
+          ? "Verfügbarkeit gespeichert."
+          : "Nicht verfügbar gespeichert.",
+      );
       setNote("");
       await reload();
       return;
@@ -187,8 +215,9 @@ export function StaffAvailabilityEditor({
       kind,
       weekday: kind === "weekly" ? weekday : null,
       serviceDate: kind === "date" ? serviceDate : null,
-      startTime,
-      endTime,
+      startTime: effectiveStart,
+      endTime: effectiveEnd,
+      isAvailable,
       note: note.trim() || null,
     });
     setSaving(false);
@@ -196,7 +225,11 @@ export function StaffAvailabilityEditor({
       toast.error(error);
       return;
     }
-    toast.success("Verfügbarkeit gespeichert.");
+    toast.success(
+      isAvailable
+        ? "Verfügbarkeit gespeichert."
+        : "Nicht verfügbar gespeichert.",
+    );
     setNote("");
     await reload();
   };
@@ -221,15 +254,15 @@ export function StaffAvailabilityEditor({
           </CardTitle>
           {!compact ? (
             <p className="text-sm text-muted-foreground">
-              Trage ein, wann du grundsätzlich oder an bestimmten Tagen arbeiten
-              kannst — sichtbar für Planung im Schichtplan.
+              Trage ein, wann du arbeiten kannst — oder an welchen Tagen nicht.
+              Sichtbar für die Planung im Schichtplan.
             </p>
           ) : null}
         </CardHeader>
         <CardContent className="space-y-4">
           {slots.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Noch keine Verfügbarkeiten hinterlegt.
+              Noch keine Einträge hinterlegt.
             </p>
           ) : (
             <div className="space-y-3">
@@ -255,7 +288,7 @@ export function StaffAvailabilityEditor({
       <Card size="sm" className="border-border/50 shadow-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold">
-            Verfügbarkeit hinzufügen
+            Eintrag hinzufügen
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -264,10 +297,28 @@ export function StaffAvailabilityEditor({
             <SearchableSelect
               options={kindOptions}
               value={kind}
-              onValueChange={(v) => setKind(v as StaffAvailabilitySlotKind)}
+              onValueChange={(v) => {
+                const next = v as StaffAvailabilitySlotKind;
+                setKind(next);
+                if (next === "weekly") setPolarity("available");
+              }}
               placeholder="Art wählen"
             />
           </div>
+
+          {kind === "date" ? (
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <SearchableSelect
+                options={polarityOptions}
+                value={polarity}
+                onValueChange={(v) =>
+                  setPolarity(v as StaffAvailabilityPolarity)
+                }
+                placeholder="Status wählen"
+              />
+            </div>
+          ) : null}
 
           {kind === "weekly" ? (
             <div className="space-y-2">
@@ -291,28 +342,34 @@ export function StaffAvailabilityEditor({
             </div>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="availability-start">Von</Label>
-              <Input
-                id="availability-start"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className={formScheduleTimeInputFullWidthClassName}
-              />
+          {isUnavailable ? (
+            <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+              Ganztägig nicht einsetzbar an diesem Tag.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="availability-start">Von</Label>
+                <Input
+                  id="availability-start"
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className={formScheduleTimeInputFullWidthClassName}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="availability-end">Bis</Label>
+                <Input
+                  id="availability-end"
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className={formScheduleTimeInputFullWidthClassName}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="availability-end">Bis</Label>
-              <Input
-                id="availability-end"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className={formScheduleTimeInputFullWidthClassName}
-              />
-            </div>
-          </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="availability-note">Notiz (optional)</Label>
@@ -320,7 +377,11 @@ export function StaffAvailabilityEditor({
               id="availability-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="z. B. nur Abendservice"
+              placeholder={
+                isUnavailable
+                  ? "z. B. familiärer Termin"
+                  : "z. B. nur Abendservice"
+              }
               className="h-11 rounded-xl"
             />
           </div>
@@ -343,7 +404,7 @@ export function StaffAvailabilityEditor({
         onOpenChange={(open) => {
           if (!open) setDeleteId(null);
         }}
-        title="Verfügbarkeit entfernen?"
+        title="Eintrag entfernen?"
         description={
           deleteLabel ? (
             <>
@@ -378,7 +439,7 @@ export function StaffAvailabilityEditor({
               return;
             }
           }
-          toast.success("Verfügbarkeit entfernt.");
+          toast.success("Eintrag entfernt.");
           await reload();
         }}
       />
@@ -401,37 +462,44 @@ function SlotGroup({
         {title}
       </p>
       <ul className="space-y-1.5">
-        {slots.map((slot) => (
-          <li
-            key={slot.id}
-            className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/15 px-3 py-2"
-          >
-            <CalendarRange
-              className="size-3.5 shrink-0 text-accent"
-              aria-hidden
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">
-                {formatAvailabilitySlotLabelDe(slot)}
-              </p>
-              {slot.note ? (
-                <p className="truncate text-xs text-muted-foreground">
-                  {slot.note}
-                </p>
-              ) : null}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="shrink-0 text-muted-foreground hover:text-destructive"
-              aria-label="Entfernen"
-              onClick={() => onDelete(slot.id)}
+        {slots.map((slot) => {
+          const unavailable = isUnavailableAvailabilitySlot(slot);
+          const Icon = unavailable ? CalendarOff : CalendarRange;
+          return (
+            <li
+              key={slot.id}
+              className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/15 px-3 py-2"
             >
-              <Trash2 className="size-3.5" />
-            </Button>
-          </li>
-        ))}
+              <Icon
+                className={cn(
+                  "size-3.5 shrink-0",
+                  unavailable ? "text-rose-500" : "text-accent",
+                )}
+                aria-hidden
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {formatAvailabilitySlotLabelDe(slot)}
+                </p>
+                {slot.note ? (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {slot.note}
+                  </p>
+                ) : null}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label="Entfernen"
+                onClick={() => onDelete(slot.id)}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

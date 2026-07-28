@@ -53,8 +53,10 @@ import { reservationDiningTableLabel } from "@/lib/reservations/reservation-tabl
 import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
+import { useShiftPlanWeatherByDate } from "@/lib/hooks/use-shift-plan-weather-by-date";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { ShiftPlanDayWeatherRow } from "@/lib/weather/shift-plan-day-weather";
 import {
   createRestaurantDateTimeFormatter,
   restaurantDayBoundsIso,
@@ -258,6 +260,14 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const queryClient = useQueryClient();
   const dbOk =
     supabaseEnvOk && workspaceReady && workspaceRestaurantId !== null;
+  const weatherDayKeys = useMemo(
+    () => days.map((d) => gridDayKey(d, restaurantTimeZone)),
+    [days, restaurantTimeZone],
+  );
+  const { weatherByDate } = useShiftPlanWeatherByDate(
+    weatherDayKeys,
+    dbOk && active,
+  );
   const {
     rows,
     isLoading: loading,
@@ -1172,6 +1182,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                           {holidayName}
                         </Badge>
                       ) : null}
+                      <ShiftPlanDayWeatherRow
+                        weather={weatherByDate.get(key)}
+                        inline
+                      />
                     </div>
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground sm:text-sm">
                       <span>

@@ -15,8 +15,11 @@ enum PosLanProtocol {
     static let kdsTicketsPath = "/v1/kds/tickets"
     static let kdsAdvancePath = "/v1/kds/tickets/advance"
     static let printJobsPath = "/v1/print-jobs"
+    static let pairRequestPath = "/v1/pair/request"
+    static let pairStatusPath = "/v1/pair/status"
     static let headerProtocol = "X-Gwada-Pos-Lan"
     static let headerRestaurantId = "X-Gwada-Restaurant-Id"
+    static let headerPairToken = "X-Gwada-Pair-Token"
 
     static func bonjourName(restaurantName: String) -> String {
         let base = "Gwada Kasse · \(restaurantName.trimmingCharacters(in: .whitespacesAndNewlines))"

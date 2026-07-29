@@ -27,14 +27,44 @@ struct PosCloudSessionSummaryLine: Decodable, Identifiable {
     var openAmountCents: Int
     var unitPriceCents: Int
     var notes: String?
-    var course: String?
+    var course: Int?
     var modifiers: [PosCloudModifierDecoded]?
     var ohneIngredientIds: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, orderId, name, quantity, paidQuantity, openQuantity, openAmountCents, unitPriceCents
+        case notes, course, modifiers, ohneIngredientIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        orderId = try c.decode(String.self, forKey: .orderId)
+        name = try c.decode(String.self, forKey: .name)
+        quantity = try c.decode(Int.self, forKey: .quantity)
+        paidQuantity = try c.decode(Int.self, forKey: .paidQuantity)
+        openQuantity = try c.decode(Int.self, forKey: .openQuantity)
+        openAmountCents = try c.decode(Int.self, forKey: .openAmountCents)
+        unitPriceCents = try c.decode(Int.self, forKey: .unitPriceCents)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        course = try c.decodeCourseIfPresent(forKey: .course)
+        modifiers = try c.decodeIfPresent([PosCloudModifierDecoded].self, forKey: .modifiers)
+        ohneIngredientIds = try c.decodeIfPresent([String].self, forKey: .ohneIngredientIds)
+    }
 }
 
 struct PosCloudModifierDecoded: Decodable {
     var type: String?
     var label: String?
+}
+
+private extension KeyedDecodingContainer {
+    func decodeCourseIfPresent(forKey key: Key) throws -> Int? {
+        if let course = try? decode(Int.self, forKey: key) {
+            return course
+        }
+        return try decodeIfPresent(String.self, forKey: key).map(PosCourse.parse)
+    }
 }
 
 struct PosCloudSessionSummary: Decodable {
@@ -530,10 +560,25 @@ enum PosCloudClient {
             var id: String
             var name: String
             var quantity: Int
-            var course: String?
+            var course: Int?
             var notes: String?
             var modifiers: [PosCloudModifierDecoded]?
             var detail: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id, name, quantity, course, notes, modifiers, detail
+            }
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                id = try c.decode(String.self, forKey: .id)
+                name = try c.decode(String.self, forKey: .name)
+                quantity = try c.decode(Int.self, forKey: .quantity)
+                course = try c.decodeCourseIfPresent(forKey: .course)
+                notes = try c.decodeIfPresent(String.self, forKey: .notes)
+                modifiers = try c.decodeIfPresent([PosCloudModifierDecoded].self, forKey: .modifiers)
+                detail = try c.decodeIfPresent(String.self, forKey: .detail)
+            }
         }
     }
 
@@ -549,9 +594,23 @@ enum PosCloudClient {
             var id: String
             var name: String
             var quantity: Int
-            var course: String?
+            var course: Int?
             var notes: String?
             var detail: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id, name, quantity, course, notes, detail
+            }
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                id = try c.decode(String.self, forKey: .id)
+                name = try c.decode(String.self, forKey: .name)
+                quantity = try c.decode(Int.self, forKey: .quantity)
+                course = try c.decodeCourseIfPresent(forKey: .course)
+                notes = try c.decodeIfPresent(String.self, forKey: .notes)
+                detail = try c.decodeIfPresent(String.self, forKey: .detail)
+            }
         }
         struct KdsAdvanceTicket: Decodable {
             var orderId: String?

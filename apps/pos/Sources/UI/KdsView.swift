@@ -182,7 +182,7 @@ struct KdsView: View {
                         "name": line.name,
                         "quantity": line.quantity,
                         "detail": line.detail ?? "",
-                        "course": PosCourse.parse(line.course),
+                        "course": line.course ?? PosCourse.default,
                         "categoryId": "",
                     ]
                 }
@@ -238,7 +238,7 @@ struct KdsView: View {
                     statusColor: t.statusColor ?? "#3b82f6",
                     lines: t.lines.map { l in
                         var parts: [String] = []
-                        parts.append(PosCourse.label(PosCourse.parse(l.course)))
+                        parts.append(PosCourse.label(l.course ?? PosCourse.default))
                         if let mods = l.modifiers {
                             parts.append(contentsOf: mods.compactMap(\.label))
                         }

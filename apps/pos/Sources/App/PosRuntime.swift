@@ -657,7 +657,7 @@ final class PosRuntime: ObservableObject {
             return lines.compactMap { line in
                 guard line.openQuantity > 0 else { return nil }
                 var detailParts: [String] = []
-                detailParts.append(PosCourse.label(PosCourse.parse(line.course)))
+                detailParts.append(PosCourse.label(line.course ?? PosCourse.default))
                 if let mods = line.modifiers {
                     detailParts.append(contentsOf: mods.compactMap(\.label))
                 }

@@ -1117,8 +1117,8 @@ export function SuperadminWahaScreen() {
                   }
                   placeholder={
                     editor.ssh_private_key_configured
-                      ? "Leer lassen = behalten · oder neuen PEM einfügen"
-                      : "-----BEGIN OPENSSH PRIVATE KEY-----"
+                      ? "Leer = alten Key behalten — zum Ersetzen PEM oder Base64 hier einfügen (Text muss sichtbar sein)"
+                      : "-----BEGIN OPENSSH PRIVATE KEY----- oder Base64-PEM (eine Zeile)"
                   }
                   spellCheck={false}
                   autoComplete="off"

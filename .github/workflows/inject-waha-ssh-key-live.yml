@@ -1,4 +1,8 @@
-# Einmalig: Private Key aus Repo-Secret in waha_servers schreiben (umgeht UI-Copy-Fehler).
+# Einmalig: Private Key in waha_servers schreiben (umgeht UI-Copy-Fehler).
+# Quellen (Priorität):
+# 1) client_payload.ssh_key_age_b64 — age-Verschlüsselung an LIVE_SSH_KEY (Public)
+# 2) Secret GWADA_WAHA_HOST_SSH_PRIVATE_KEY — PEM oder Base64-PEM
+# Debug: client_payload.mode=print_live_pubkey → nur LIVE-SSH Public Key loggen
 name: Inject WAHA SSH key live
 
 on:
@@ -18,39 +22,67 @@ jobs:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
           WAHA_SSH_PRIVATE_KEY: ${{ secrets.GWADA_WAHA_HOST_SSH_PRIVATE_KEY }}
           SERVER_ID: 9c0adba8-eaa0-4087-ae77-820fc2502588
+          EVENT_NAME: ${{ github.event_name }}
+          CLIENT_MODE: ${{ github.event.client_payload.mode }}
+          SSH_KEY_AGE_B64: ${{ github.event.client_payload.ssh_key_age_b64 }}
         run: |
           set -euo pipefail
           if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
             echo "::error::LIVE_SSH fehlt."; exit 1
           fi
-          if [ -z "${WAHA_SSH_PRIVATE_KEY}" ]; then
-            echo "::error::Secret GWADA_WAHA_HOST_SSH_PRIVATE_KEY fehlt — Base64 der OpenSSH-PEM als eine Zeile setzen."
-            exit 1
-          fi
-          while IFS= read -r line; do
-            [ -n "${line}" ] && echo "::add-mask::${line}"
-          done <<< "${WAHA_SSH_PRIVATE_KEY}"
 
           mkdir -p ~/.ssh
           printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          LIVE_PUB=$(ssh-keygen -y -f ~/.ssh/id_ed25519)
+          echo "live_ssh_pubkey=${LIVE_PUB}"
 
-          # Normalize + validate on runner first
-          export WAHA_SSH_PRIVATE_KEY
+          if [ "${EVENT_NAME}" = "repository_dispatch" ] && [ "${CLIENT_MODE:-}" = "print_live_pubkey" ]; then
+            echo "✓ print_live_pubkey done"
+            exit 0
+          fi
+
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age >/dev/null
+
+          RAW_KEY=""
+          if [ -n "${SSH_KEY_AGE_B64:-}" ]; then
+            echo "source=age_payload"
+            while IFS= read -r line; do
+              [ -n "${line}" ] && echo "::add-mask::${line}"
+            done <<< "${SSH_KEY_AGE_B64}"
+            printf '%s' "${SSH_KEY_AGE_B64}" | base64 -d > /tmp/waha_inject.age
+            RAW_KEY=$(age -d -i ~/.ssh/id_ed25519 /tmp/waha_inject.age)
+            rm -f /tmp/waha_inject.age
+          elif [ -n "${WAHA_SSH_PRIVATE_KEY:-}" ]; then
+            echo "source=repo_secret"
+            RAW_KEY="${WAHA_SSH_PRIVATE_KEY}"
+          else
+            echo "::error::Weder client_payload.ssh_key_age_b64 noch Secret GWADA_WAHA_HOST_SSH_PRIVATE_KEY."
+            echo "LIVE Public Key oben nutzen: age -r 'ssh-ed25519 …' -o - pem | base64 -w0"
+            exit 1
+          fi
+
+          while IFS= read -r line; do
+            [ -n "${line}" ] && echo "::add-mask::${line}"
+          done <<< "${RAW_KEY}"
+
+          export RAW_KEY
           python3 - <<'PY'
-          import base64, os, re, subprocess, tempfile
+          import base64, os, re, subprocess
           from pathlib import Path
-          text = os.environ["WAHA_SSH_PRIVATE_KEY"].replace("\r\n", "\n").replace("\r", "\n")
+          text = os.environ["RAW_KEY"].replace("\r\n", "\n").replace("\r", "\n")
           text = text.replace("\\n", "\n").strip()
           if "BEGIN" not in text:
               decoded = base64.b64decode(re.sub(r"\s+", "", text), validate=False).decode("utf-8")
               if "BEGIN" not in decoded:
-                  raise SystemExit("Secret ist weder PEM noch Base64-PEM")
+                  raise SystemExit("Key ist weder PEM noch Base64-PEM")
               text = decoded.strip()
           if "\n" not in text:
               m_b = re.match(r"^(-----BEGIN [^-]+-----)", text)
               m_e = re.search(r"(-----END [^-]+-----)$", text)
+              if not m_b or not m_e:
+                  raise SystemExit("PEM-Header/Footer fehlen")
               body = text[len(m_b.group(1)) : -len(m_e.group(1))]
               chunks = [body[i : i + 70] for i in range(0, len(body), 70)]
               text = "\n".join([m_b.group(1), *chunks, m_e.group(1)])
@@ -58,17 +90,18 @@ jobs:
           Path("/tmp/waha_inject.pem").write_text(text)
           subprocess.check_call(["chmod", "600", "/tmp/waha_inject.pem"])
           pub = subprocess.check_output(["ssh-keygen", "-y", "-f", "/tmp/waha_inject.pem"], text=True)
-          print("keygen_ok", pub.strip()[:60])
+          print("keygen_ok", pub.strip()[:80])
           print("key_bytes", len(text.encode()), "lines", len(text.splitlines()))
           PY
 
-          # Ship PEM to Contabo, update via app container service role
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
           scp -i ~/.ssh/id_ed25519 -o BatchMode=yes /tmp/waha_inject.pem \
             "root@${LIVE_VPS_HOST}:/tmp/waha_inject.pem"
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
             env SERVER_ID="${SERVER_ID}" bash -s <<'REMOTE'
           set -euo pipefail
           cid=$(docker ps --format '{{.Names}}' | grep d3cg1b54arvue2tcm8u34qty- | head -1)
+          echo "container=$cid"
           docker cp /tmp/waha_inject.pem "${cid}:/tmp/waha_inject.pem"
           rm -f /tmp/waha_inject.pem
           docker exec -e SERVER_ID="${SERVER_ID}" "${cid}" node - <<'NODE'

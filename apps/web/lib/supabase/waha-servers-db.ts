@@ -488,7 +488,7 @@ export async function createWahaServerAdmin(
         input.ssh_port <= 65535
           ? input.ssh_port
           : 22,
-          ssh_private_key: normalizeSshPrivateKey(input.ssh_private_key ?? ""),
+      ssh_private_key: normalizeSshPrivateKey(input.ssh_private_key ?? ""),
       auto_recover_enabled: input.auto_recover_enabled !== false,
     })
     .select(SERVER_SELECT)

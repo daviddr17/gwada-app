@@ -1,0 +1,67 @@
+# Einmalig: vom Gwada-Contabo aus WAHA-Host / Contabo-API-Hinweise prüfen
+name: Probe WAHA host access
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [probe-waha-host-access]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe from Contabo VPS
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          WAHA_HOST: 109.205.181.63
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          LIVE_PUB=$(ssh-keygen -y -f ~/.ssh/id_ed25519)
+          echo "live_pub=${LIVE_PUB}"
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes ~/.ssh/id_ed25519 \
+            "root@${LIVE_VPS_HOST}:/tmp/live_probe_key"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            env WAHA_HOST="${WAHA_HOST}" bash -s <<'REMOTE'
+          set -euo pipefail
+          chmod 600 /tmp/live_probe_key
+          echo "=== try LIVE key → WAHA host ==="
+          ssh -i /tmp/live_probe_key -o BatchMode=yes -o ConnectTimeout=12 \
+            -o StrictHostKeyChecking=accept-new "root@${WAHA_HOST}" \
+            'echo waha_ok; hostname; ls -la /root/.ssh/authorized_keys 2>/dev/null | head -2' \
+            && echo LIVE_KEY_WORKS || echo LIVE_KEY_DENIED
+
+          echo "=== search Contabo/API creds on VPS (names only) ==="
+          grep -RIl -E 'CONTABO_|contabo\.com|ClientId|ClientSecret' \
+            /data/coolify /root /opt /etc/environment 2>/dev/null \
+            | head -40 || true
+          # env files: print KEY names only
+          for f in $(grep -RIl -E 'CONTABO_|contabo' /data/coolify 2>/dev/null | head -20); do
+            echo "file=$f"
+            grep -E '^[A-Za-z0-9_]*(CONTABO|contabo)[A-Za-z0-9_]*=' "$f" 2>/dev/null \
+              | sed 's/=.*$/=***/' || true
+          done
+
+          echo "=== waha_servers notes/base_url via app container ==="
+          cid=$(docker ps --format '{{.Names}}' | grep d3cg1b54arvue2tcm8u34qty- | head -1)
+          echo "container=$cid"
+          cat > /tmp/waha_probe.js <<'NODE'
+          const base = (process.env.SUPABASE_UPSTREAM_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
+          const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+          fetch(`${base}/rest/v1/waha_servers?select=id,name,base_url,notes,ssh_host,ssh_user,ssh_port,docker_container_name,enabled`, {
+            headers: { apikey: key, Authorization: `Bearer ${key}` },
+          }).then(async (r) => {
+            const t = await r.text();
+            console.log("status", r.status);
+            console.log(t.slice(0, 4000));
+          });
+          NODE
+          docker cp /tmp/waha_probe.js "${cid}:/tmp/waha_probe.js"
+          docker exec "${cid}" node /tmp/waha_probe.js
+          docker exec "${cid}" rm -f /tmp/waha_probe.js || true
+          rm -f /tmp/waha_probe.js /tmp/live_probe_key
+          echo "=== done ==="
+          REMOTE

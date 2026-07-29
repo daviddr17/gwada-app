@@ -47,10 +47,12 @@ KEY_FILE="${HOME}/.ssh/waha_ops_ed25519"
 
 write_ssh_key() {
   local raw="$1"
-  # Literal \n aus JSON/UI → echte Zeilenumbrüche; CRLF entfernen
-  KEY="$(
-    KEY_RAW="${raw}" python3 - <<'PY'
+  # Wichtig: Key nicht über bash $(…) normalisieren — Command-Substitution
+  # entfernt trailing newlines (411 → 410) und macht OpenSSH-Keys kaputt.
+  KEY_RAW="${raw}" KEY_FILE="${KEY_FILE}" python3 - <<'PY'
 import base64, os, re
+from pathlib import Path
+
 text = os.environ["KEY_RAW"].replace("\r\n", "\n").replace("\r", "\n")
 text = text.replace("\\n", "\n").strip()
 if "BEGIN" not in text:
@@ -71,17 +73,12 @@ if "\n" not in text:
         chunks = [body[i : i + 70] for i in range(0, len(body), 70)]
         text = "\n".join([m_b.group(1), *chunks, m_e.group(1)])
 text = text.strip() + "\n"
-print(text, end="")
-PY
-  )"
-  while IFS= read -r line; do
-    [[ -n "${line}" ]] && echo "::add-mask::${line}"
-  done <<< "${KEY}"
-  # Nicht printf '%s' mit %-Zeichen im Key riskieren — python schreibt die Datei
-  KEY="${KEY}" KEY_FILE="${KEY_FILE}" python3 - <<'PY'
-import os
-from pathlib import Path
-Path(os.environ["KEY_FILE"]).write_text(os.environ["KEY"], encoding="utf-8")
+path = Path(os.environ["KEY_FILE"])
+path.write_text(text, encoding="utf-8")
+for line in text.splitlines():
+    if line:
+        print(f"::add-mask::{line}")
+print(f"key_bytes={len(text.encode())} lines={len(text.splitlines())}")
 PY
   chmod 600 "${KEY_FILE}"
   if ! ssh-keygen -y -f "${KEY_FILE}" >/dev/null 2>&1; then
@@ -118,12 +115,54 @@ if [[ "${MODE}" == "per_server" ]]; then
   HOST="$(printf '%s' "${CFG_JSON}" | jq -r '.host')"
   USER="$(printf '%s' "${CFG_JSON}" | jq -r '.user // "root"')"
   PORT="$(printf '%s' "${CFG_JSON}" | jq -r '.port // 22')"
-  KEY_RAW="$(printf '%s' "${CFG_JSON}" | jq -r '.privateKey // empty')"
-  if [[ -z "${HOST}" || -z "${KEY_RAW}" ]]; then
-    echo "::error::per_server-Config unvollständig (host/key)."
+  if [[ -z "${HOST}" ]]; then
+    echo "::error::per_server-Config unvollständig (host)."
     exit 1
   fi
-  write_ssh_key "${KEY_RAW}"
+  # Private Key nicht über bash $(jq) — trailing newline würde verschwinden.
+  CFG_JSON="${CFG_JSON}" KEY_FILE="${KEY_FILE}" python3 - <<'PY'
+import base64, json, os, re, subprocess
+from pathlib import Path
+
+cfg = json.loads(os.environ["CFG_JSON"])
+raw = cfg.get("privateKey") or ""
+if not isinstance(raw, str) or not raw.strip():
+    raise SystemExit("per_server-Config unvollständig (key).")
+text = raw.replace("\r\n", "\n").replace("\r", "\n").replace("\\n", "\n").strip()
+if "BEGIN" not in text:
+    decoded = base64.b64decode(re.sub(r"\s+", "", text), validate=False).decode("utf-8")
+    if "BEGIN" not in decoded or "PRIVATE KEY" not in decoded:
+        raise SystemExit("SSH private key ungültig (BEGIN PRIVATE KEY fehlt).")
+    text = decoded.strip()
+if "BEGIN" not in text or "PRIVATE KEY" not in text:
+    raise SystemExit("SSH private key ungültig (BEGIN PRIVATE KEY fehlt).")
+if "\n" not in text:
+    m_b = re.match(r"^(-----BEGIN [^-]+-----)", text)
+    m_e = re.search(r"(-----END [^-]+-----)$", text)
+    if m_b and m_e:
+        body = text[len(m_b.group(1)) : -len(m_e.group(1))]
+        chunks = [body[i : i + 70] for i in range(0, len(body), 70)]
+        text = "\n".join([m_b.group(1), *chunks, m_e.group(1)])
+text = text.strip() + "\n"
+path = Path(os.environ["KEY_FILE"])
+path.write_text(text, encoding="utf-8")
+path.chmod(0o600)
+for line in text.splitlines():
+    if line:
+        print(f"::add-mask::{line}")
+print(f"key_bytes={len(text.encode())} lines={len(text.splitlines())}")
+r = subprocess.run(["ssh-keygen", "-y", "-f", str(path)], capture_output=True, text=True)
+if r.returncode != 0:
+    err = (r.stderr or "").strip().splitlines()
+    print(f"first={text.splitlines()[0]!r}")
+    print(f"last={text.splitlines()[-1]!r}")
+    print(f"ssh-keygen_stderr={err[-1] if err else '(none)'}")
+    raise SystemExit(
+        "SSH-Key in Superadmin ungültig — nicht Contabo. Private Key unter WAHA → Bearbeiten neu einfügen (BEGIN/END-Zeilen behalten)."
+    )
+fp = subprocess.run(["ssh-keygen", "-lf", str(path)], capture_output=True, text=True)
+print("SSH-Key Fingerprint:", (fp.stdout.split()[1] if fp.stdout.split() else "unbekannt"))
+PY
   echo "WAHA SSH-Ziel: ${USER}@${HOST}:${PORT} (per-server, container=${CONTAINER})"
 elif [[ "${MODE}" == "legacy_live_vps" ]]; then
   if [[ -z "${LIVE_SSH_KEY:-}" || -z "${LIVE_VPS_HOST:-}" ]]; then

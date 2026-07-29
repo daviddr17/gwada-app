@@ -21,10 +21,6 @@ import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primar
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import {
-  fetchLiveVpsRebootCooldown,
-  triggerLiveVpsReboot,
-} from "@/lib/superadmin/live-vps-reboot-api";
-import {
   createSuperadminWahaServer,
   deleteSuperadminWahaServer,
   fetchSuperadminWahaServerVersion,
@@ -159,17 +155,8 @@ export function SuperadminWahaScreen() {
   const [hostRebootServer, setHostRebootServer] =
     useState<WahaServerPublic | null>(null);
   const [hostRebootConfirm, setHostRebootConfirm] = useState("");
-  const [vpsRebootOpen, setVpsRebootOpen] = useState(false);
-  const [vpsRebootConfirm, setVpsRebootConfirm] = useState("");
-  const [vpsRebootBusy, setVpsRebootBusy] = useState(false);
-  const [vpsRebootCooldownMs, setVpsRebootCooldownMs] = useState(0);
 
   const showSkeleton = useDeferredSkeleton(loading);
-
-  const refreshVpsRebootCooldown = useCallback(async () => {
-    const res = await fetchLiveVpsRebootCooldown();
-    if (!res.error) setVpsRebootCooldownMs(res.cooldownMs);
-  }, []);
 
   const loadVersions = useCallback(async (list: WahaServerPublic[]) => {
     if (list.length === 0) {
@@ -190,7 +177,6 @@ export function SuperadminWahaScreen() {
     const [serversRes, sessionsRes] = await Promise.all([
       fetchSuperadminWahaServers(),
       fetchSuperadminWahaSessions(),
-      refreshVpsRebootCooldown(),
     ]);
     if (serversRes.error) toast.error(serversRes.error);
     if (sessionsRes.error) toast.error(sessionsRes.error);
@@ -199,7 +185,7 @@ export function SuperadminWahaScreen() {
     setSessions(sessionsRes.sessions);
     setLoading(false);
     void loadVersions(serversRes.servers);
-  }, [refreshVpsRebootCooldown, loadVersions]);
+  }, [loadVersions]);
 
   useEffect(() => {
     void load();
@@ -432,28 +418,6 @@ export function SuperadminWahaScreen() {
     }, 45_000);
   };
 
-  const onConfirmVpsReboot = async () => {
-    if (vpsRebootConfirm.trim() !== "REBOOT") {
-      throw new Error("confirm_required");
-    }
-    setVpsRebootBusy(true);
-    const res = await triggerLiveVpsReboot({
-      confirm: "REBOOT",
-      reason: "superadmin-waha",
-    });
-    setVpsRebootBusy(false);
-    if (res.error) {
-      toast.error(res.message ?? res.error);
-      throw new Error(res.error);
-    }
-    toast.success(
-      res.message ??
-        "VPS-Reboot gestartet. Live ist kurz offline (meist 1–3 Minuten).",
-    );
-    setVpsRebootConfirm("");
-    await refreshVpsRebootCooldown();
-  };
-
   const onDelete = async (s: WahaServerPublic) => {
     if (
       !window.confirm(
@@ -538,41 +502,12 @@ export function SuperadminWahaScreen() {
 
       <section className="space-y-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Server className="size-4" />
+          <Server className="size-4 shrink-0" />
           <span>
-            Pool für NOWEB-Sessions. Pro Server eigener SSH-Host für Update,
-            Container und Host-Reboot. Eskalation: Sessions heilen → Container →
-            WAHA-Host. „Gwada Live-VPS“ unten ist nur der Contabo-App-Server.
+            Pool für NOWEB-Sessions. Pro Server eigener SSH-Host für Image-Update,
+            Container- und Host-Reboot. Eskalation: Sessions heilen → Container →
+            Host. Gwada Live-VPS (Contabo) neu starten: System → Datenbank.
           </span>
-        </div>
-
-        <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 space-y-3">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">
-              Gwada Live-VPS (Contabo)
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Soft-Reboot nur des App-/DB-Hosts — nicht der WAHA-Server. Pro
-              WAHA-Host: Button „Host“ in der Zeile.
-              {vpsRebootCooldownMs > 0
-                ? ` Cooldown noch ca. ${Math.ceil(vpsRebootCooldownMs / 60_000)} Min.`
-                : ""}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-xl border-destructive/50 text-destructive hover:bg-destructive/10"
-            disabled={vpsRebootBusy || vpsRebootCooldownMs > 0}
-            onClick={() => {
-              setVpsRebootConfirm("");
-              setVpsRebootOpen(true);
-            }}
-          >
-            {vpsRebootCooldownMs > 0
-              ? `VPS-Cooldown (${Math.ceil(vpsRebootCooldownMs / 60_000)} Min.)`
-              : "Gwada-VPS neu starten"}
-          </Button>
         </div>
 
         <Button
@@ -1327,45 +1262,6 @@ export function SuperadminWahaScreen() {
           hostRebootBusyId != null || hostRebootConfirm.trim() !== "REBOOT"
         }
         onConfirm={onConfirmHostReboot}
-      />
-
-      <ConfirmDialog
-        open={vpsRebootOpen}
-        onOpenChange={(open) => {
-          setVpsRebootOpen(open);
-          if (!open) setVpsRebootConfirm("");
-        }}
-        title="Gwada Live-VPS wirklich neu starten?"
-        description={
-          <div className="space-y-3">
-            <p>
-              Soft-Reboot des Contabo-App-Hosts (Gwada + DB-Proxy). WAHA-Server
-              mit eigenem SSH sind davon nicht betroffen — die rebootest du per
-              „Host“ in der Server-Zeile.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="vps-reboot-confirm">
-                Zur Bestätigung <span className="font-mono">REBOOT</span>{" "}
-                eingeben
-              </Label>
-              <Input
-                id="vps-reboot-confirm"
-                value={vpsRebootConfirm}
-                onChange={(e) => setVpsRebootConfirm(e.target.value)}
-                placeholder="REBOOT"
-                autoComplete="off"
-                autoCapitalize="characters"
-              />
-            </div>
-          </div>
-        }
-        confirmLabel={vpsRebootBusy ? "Startet …" : "VPS neu starten"}
-        cancelLabel="Abbrechen"
-        destructive
-        confirmDisabled={
-          vpsRebootBusy || vpsRebootConfirm.trim() !== "REBOOT"
-        }
-        onConfirm={onConfirmVpsReboot}
       />
     </div>
   );

@@ -12,32 +12,29 @@ export function buildRepositoryGuide(input: {
     defaultBranch: input.defaultBranch,
     tree: [
       {
-        path: "app/",
-        description: "Next.js App Router — Seiten, Layouts, Route Handlers",
+        path: "apps/web/",
+        description: "Next.js Web-App (App Router, API-Routes, UI)",
       },
       {
-        path: "components/",
-        description: "UI-Bausteine (shadcn), Modul-Screens, Superadmin",
-      },
-      {
-        path: "lib/",
-        description: "Server-/Client-Logik, Hooks, Supabase, Integrationen",
+        path: "packages/",
+        description: "Geteilte Workspace-Pakete (Monorepo)",
       },
       {
         path: "supabase/migrations/",
-        description: "Postgres-Schema — lokal pushen, live via GitHub Action",
+        description: "Postgres-Schema — Dev: pnpm db:push · Live: deploy-live-db",
       },
       {
         path: ".github/workflows/",
-        description: "deploy-live-app.yml + deploy-live-db.yml (SSH → VPS)",
+        description:
+          "deploy-live-app/db, reboot-live-vps, update-waha-live (SSH)",
+      },
+      {
+        path: "scripts/",
+        description: "Deploy-, DB- und WAHA-Hilfsskripte (CI/lokal)",
       },
       {
         path: "docs/",
-        description: "Deploy, Supabase lokal/live, Staging-Domain",
-      },
-      {
-        path: "proxy.ts",
-        description: "Edge-Proxy, öffentliche Slugs, Auth-Routing",
+        description: "Live-Deploy, Remote-Dev-Supabase, Domains, Cron",
       },
     ],
     docLinks: [
@@ -46,12 +43,12 @@ export function buildRepositoryGuide(input: {
         path: "docs/coolify-live-deploy.md",
       },
       {
-        label: "Supabase lokal & live",
-        path: "docs/supabase-lokal-und-live.md",
+        label: "Remote-Dev-Supabase",
+        path: "docs/remote-dev-supabase.md",
       },
       {
-        label: "Production gwada.app",
-        path: "docs/new-gwada-app-staging.md",
+        label: "GitHub App Deploy-Auth",
+        path: "docs/github-app-deploy-auth.md",
       },
       {
         label: "Live-Deploy Kurzreferenz",

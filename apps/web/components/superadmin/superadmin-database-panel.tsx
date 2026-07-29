@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, RefreshCw, Rocket } from "lucide-react";
+import { ExternalLink, Power, RefreshCw, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,9 +11,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import {
+  fetchLiveVpsRebootCooldown,
+  triggerLiveVpsReboot,
+} from "@/lib/superadmin/live-vps-reboot-api";
 import {
   fetchSuperadminDatabaseStatus,
   triggerSuperadminLiveAppDeploy,
@@ -208,17 +215,51 @@ export function SuperadminDatabasePanel() {
   const [refreshing, setRefreshing] = useState(false);
   const [deployingApp, setDeployingApp] = useState(false);
   const [deployingDb, setDeployingDb] = useState(false);
+  const [vpsRebootOpen, setVpsRebootOpen] = useState(false);
+  const [vpsRebootConfirm, setVpsRebootConfirm] = useState("");
+  const [vpsRebootBusy, setVpsRebootBusy] = useState(false);
+  const [vpsRebootCooldownMs, setVpsRebootCooldownMs] = useState(0);
   const showSkeleton = useDeferredSkeleton(loading && !status);
+
+  const refreshVpsRebootCooldown = useCallback(async () => {
+    const res = await fetchLiveVpsRebootCooldown();
+    if (!res.error) setVpsRebootCooldownMs(res.cooldownMs);
+  }, []);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
-    const { status: data, error } = await fetchSuperadminDatabaseStatus();
+    const [{ status: data, error }] = await Promise.all([
+      fetchSuperadminDatabaseStatus(),
+      refreshVpsRebootCooldown(),
+    ]);
     if (error) toast.error(error);
     setStatus(data);
     setLoading(false);
     setRefreshing(false);
-  }, []);
+  }, [refreshVpsRebootCooldown]);
+
+  const handleVpsReboot = useCallback(async () => {
+    if (vpsRebootConfirm.trim() !== "REBOOT") {
+      throw new Error("confirm_required");
+    }
+    setVpsRebootBusy(true);
+    const res = await triggerLiveVpsReboot({
+      confirm: "REBOOT",
+      reason: "superadmin-system",
+    });
+    setVpsRebootBusy(false);
+    if (res.error) {
+      toast.error(res.message ?? res.error);
+      throw new Error(res.error);
+    }
+    toast.success(
+      res.message ??
+        "VPS-Reboot gestartet. Live ist kurz offline (meist 1–3 Minuten).",
+    );
+    setVpsRebootConfirm("");
+    await refreshVpsRebootCooldown();
+  }, [vpsRebootConfirm, refreshVpsRebootCooldown]);
 
   const handleDeployApp = useCallback(async () => {
     setDeployingApp(true);
@@ -290,8 +331,8 @@ export function SuperadminDatabasePanel() {
           <div className="space-y-1">
             <CardTitle className="text-base">Live & Deploy</CardTitle>
             <SectionIntro
-              what="Ist die öffentliche App auf dem Stand von GitHub main?"
-              does="Commit und Push auf main aktualisieren nur GitHub — nicht automatisch live. Nach dem Push hier DB- und App-Deploy starten (bei Schema-Änderungen zuerst DB, dann App)."
+              what="Ist gwada.app auf dem Stand von GitHub main?"
+              does="Push auf main deployt nicht automatisch. Hier DB- und App-Deploy starten (bei Schema zuerst DB, dann App). Verifikation: /api/build-info — SHA = Commit. Coolify nur noch Infrastruktur, kein App-Build."
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -632,11 +673,11 @@ export function SuperadminDatabasePanel() {
           <CardHeader>
             <CardTitle className="text-base">VPS (Contabo)</CardTitle>
             <SectionIntro
-              what="Der physische Server unter gwada.app (Contabo VPS)."
-              does="Hier laufen die Next.js-App (Docker), Supabase und Traefik. GitHub Actions baut das Image in der Cloud, der VPS pullt es per SSH und startet den Container neu."
+              what="App-/DB-Host unter gwada.app (Contabo)."
+              does="Next.js-App (Docker), Supabase und Traefik. Deploys: GitHub Actions → ghcr.io → SSH-Pull. WAHA läuft auf einem eigenen Server — Neustart dort unter Superadmin → WAHA."
             />
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <dl className="grid gap-3">
               <InfoRow label="Anbieter" value={status.vps.provider} />
               <InfoRow
@@ -681,24 +722,52 @@ export function SuperadminDatabasePanel() {
                   )
                 }
               />
-              <InfoRow
-                label="Geplante Production"
-                value={
-                  status.vps.plannedProductionUrl ? (
+              {status.vps.plannedProductionUrl &&
+              status.vps.plannedProductionUrl.replace(/\/+$/, "") !==
+                (status.vps.siteUrl ?? "").replace(/\/+$/, "") ? (
+                <InfoRow
+                  label="Geplante Production"
+                  value={
                     <InfoRowLink
                       href={status.vps.plannedProductionUrl}
                       label={status.vps.plannedProductionUrl}
                     />
-                  ) : (
-                    "—"
-                  )
-                }
-              />
-              <InfoRow
-                label="Workspace-Slug"
-                value={status.vps.workspaceSlug ?? "—"}
-              />
+                  }
+                />
+              ) : null}
+              {status.vps.workspaceSlug ? (
+                <InfoRow
+                  label="Workspace-Slug"
+                  value={status.vps.workspaceSlug}
+                />
+              ) : null}
             </dl>
+
+            <div className="rounded-xl border border-border/50 bg-muted/20 px-3 py-3 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Soft-Reboot nur dieses Contabo-Hosts (App + DB). WAHA-Hosts
+                separat unter WAHA → „Host“.
+                {vpsRebootCooldownMs > 0
+                  ? ` Cooldown noch ca. ${Math.ceil(vpsRebootCooldownMs / 60_000)} Min.`
+                  : ""}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-destructive/50 text-destructive hover:bg-destructive/10"
+                disabled={vpsRebootBusy || vpsRebootCooldownMs > 0}
+                onClick={() => {
+                  setVpsRebootConfirm("");
+                  setVpsRebootOpen(true);
+                }}
+              >
+                <Power className="mr-1.5 size-3.5" aria-hidden />
+                {vpsRebootCooldownMs > 0
+                  ? `Cooldown (${Math.ceil(vpsRebootCooldownMs / 60_000)} Min.)`
+                  : "Live-VPS neu starten"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -706,8 +775,8 @@ export function SuperadminDatabasePanel() {
           <CardHeader>
             <CardTitle className="text-base">Coolify</CardTitle>
             <SectionIntro
-              what="Docker-Panel auf dem VPS — nur noch Infrastruktur."
-              does="Coolify hostet ggf. Env-Variablen und den Supabase-Docker-Stack. App-Deploys: GitHub Actions → ghcr.io → VPS pull (kein Build auf dem Server)."
+              what="Nur Infrastruktur (Domain, TLS, Env, Compose)."
+              does="Kein App-Deploy über Coolify-Webhook/Nixpacks. App und Schema: Superadmin-Buttons bzw. deploy-live-app.yml / deploy-live-db.yml."
             />
           </CardHeader>
           <CardContent>
@@ -836,6 +905,48 @@ export function SuperadminDatabasePanel() {
           </dl>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={vpsRebootOpen}
+        onOpenChange={(open) => {
+          setVpsRebootOpen(open);
+          if (!open) setVpsRebootConfirm("");
+        }}
+        title="Live-VPS wirklich neu starten?"
+        description={
+          <div className="space-y-3 text-sm">
+            <p>
+              Soft-Reboot des Contabo-App-Hosts (
+              <span className="font-mono text-xs">
+                {status.vps.publicHost ?? "gwada.app"}
+              </span>
+              ). App und DB sind kurz offline. WAHA-Server mit eigenem SSH
+              sind nicht betroffen — die rebootest du unter WAHA → „Host“.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="system-vps-reboot-confirm">
+                Zur Bestätigung <span className="font-mono">REBOOT</span>{" "}
+                eingeben
+              </Label>
+              <Input
+                id="system-vps-reboot-confirm"
+                value={vpsRebootConfirm}
+                onChange={(e) => setVpsRebootConfirm(e.target.value)}
+                placeholder="REBOOT"
+                autoComplete="off"
+                autoCapitalize="characters"
+              />
+            </div>
+          </div>
+        }
+        confirmLabel={vpsRebootBusy ? "Startet …" : "VPS neu starten"}
+        cancelLabel="Abbrechen"
+        destructive
+        confirmDisabled={
+          vpsRebootBusy || vpsRebootConfirm.trim() !== "REBOOT"
+        }
+        onConfirm={handleVpsReboot}
+      />
     </div>
   );
 }

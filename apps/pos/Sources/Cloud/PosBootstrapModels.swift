@@ -46,6 +46,12 @@ struct PosCloudMenuOptionGroup: Codable, Equatable, Identifiable, Sendable {
     var choices: [PosCloudMenuChoice]
 }
 
+struct PosCloudMenuItemSideConfig: Codable, Equatable, Sendable {
+    var required: Bool
+    var max: Int
+    var includedCount: Int
+}
+
 struct PosCloudRecipeIngredient: Codable, Equatable, Identifiable, Sendable {
     var ingredientId: String
     var name: String
@@ -75,6 +81,8 @@ struct PosCloudMenuItem: Codable, Equatable, Identifiable, Sendable {
     var name: String
     var description: String
     var priceCents: Int
+    var sidePriceCents: Int?
+    var sides: PosCloudMenuItemSideConfig?
     var vatRate: Double
     var categoryId: String
     var listNumber: Int?
@@ -83,7 +91,7 @@ struct PosCloudMenuItem: Codable, Equatable, Identifiable, Sendable {
     var active: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description, priceCents, vatRate, categoryId, listNumber, optionGroupIds, recipe, active
+        case id, name, description, priceCents, sidePriceCents, sides, vatRate, categoryId, listNumber, optionGroupIds, recipe, active
     }
 
     init(from decoder: Decoder) throws {
@@ -92,6 +100,8 @@ struct PosCloudMenuItem: Codable, Equatable, Identifiable, Sendable {
         name = try c.decode(String.self, forKey: .name)
         description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
         priceCents = try c.decode(PosJSONNumber.self, forKey: .priceCents).intValue
+        sidePriceCents = try c.decodeIfPresent(PosJSONNumber.self, forKey: .sidePriceCents)?.intValue
+        sides = try c.decodeIfPresent(PosCloudMenuItemSideConfig.self, forKey: .sides)
         vatRate = try c.decode(PosJSONNumber.self, forKey: .vatRate).doubleValue
         categoryId = try c.decode(String.self, forKey: .categoryId)
         listNumber = try c.decodeIfPresent(PosJSONNumber.self, forKey: .listNumber)?.intValue
@@ -106,6 +116,8 @@ struct PosCloudMenuItem: Codable, Equatable, Identifiable, Sendable {
         try c.encode(name, forKey: .name)
         try c.encode(description, forKey: .description)
         try c.encode(priceCents, forKey: .priceCents)
+        try c.encodeIfPresent(sidePriceCents, forKey: .sidePriceCents)
+        try c.encodeIfPresent(sides, forKey: .sides)
         try c.encode(vatRate, forKey: .vatRate)
         try c.encode(categoryId, forKey: .categoryId)
         try c.encodeIfPresent(listNumber, forKey: .listNumber)

@@ -33,7 +33,12 @@ jobs:
           fi
           REF="${REF:-main}"
           echo "ref=${REF}" >> "$GITHUB_OUTPUT"
-          echo "install_dev_pubkey=${PUBKEY}" >> "$GITHUB_OUTPUT"
+          # Pubkey enthält Leerzeichen — delimiter-Syntax nötig
+          {
+            echo "install_dev_pubkey<<GWADA_EOF"
+            echo "${PUBKEY}"
+            echo "GWADA_EOF"
+          } >> "$GITHUB_OUTPUT"
 
   migrate:
     needs: resolve-ref

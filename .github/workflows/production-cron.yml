@@ -26,6 +26,7 @@ on:
           - social-suggestions
           - reservation-whatsapp
           - reservation-email
+          - waha-session-recover
   # Agent / one-shot (workflow_dispatch oft 403)
   repository_dispatch:
     types: [production-cron, production-cron-reservation-outbox]
@@ -119,6 +120,24 @@ jobs:
           fi
           curl -sfS -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/contact-inbox-sync"
+
+  waha-session-recover:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'waha-session-recover')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *')
+    steps:
+      - name: Call waha-session-recover
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set — skipped."
+            exit 0
+          fi
+          curl -sfS --max-time 180 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_BASE_URL/api/cron/waha-session-recover"
 
   accounting-lexoffice-sync:
     runs-on: ubuntu-latest

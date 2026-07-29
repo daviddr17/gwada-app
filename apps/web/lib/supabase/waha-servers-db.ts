@@ -12,7 +12,7 @@ import type { WahaServerConfig } from "@/lib/waha/waha-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const SERVER_SELECT =
-  "id, name, base_url, api_key, enabled, accept_new_sessions, session_limit, warn_remaining, sort_order, notes, last_health_ok_at, last_health_error, capacity_warning_active, capacity_warning_at, created_at, updated_at";
+  "id, name, base_url, api_key, enabled, accept_new_sessions, session_limit, warn_remaining, sort_order, notes, docker_container_name, last_container_restart_at, auto_recover_enabled, last_health_ok_at, last_health_error, capacity_warning_active, capacity_warning_at, created_at, updated_at";
 
 function asServerRow(raw: unknown): WahaServerRow | null {
   if (!raw || typeof raw !== "object") return null;
@@ -35,6 +35,16 @@ function asServerRow(raw: unknown): WahaServerRow | null {
         : 10,
     sort_order: typeof r.sort_order === "number" ? r.sort_order : 100,
     notes: typeof r.notes === "string" ? r.notes : null,
+    docker_container_name:
+      typeof r.docker_container_name === "string" &&
+      r.docker_container_name.trim() !== ""
+        ? r.docker_container_name.trim()
+        : null,
+    last_container_restart_at:
+      typeof r.last_container_restart_at === "string"
+        ? r.last_container_restart_at
+        : null,
+    auto_recover_enabled: r.auto_recover_enabled !== false,
     last_health_ok_at:
       typeof r.last_health_ok_at === "string" ? r.last_health_ok_at : null,
     last_health_error:
@@ -70,6 +80,9 @@ export function wahaServerToPublic(
     warn_remaining: row.warn_remaining,
     sort_order: row.sort_order,
     notes: row.notes,
+    docker_container_name: row.docker_container_name,
+    last_container_restart_at: row.last_container_restart_at,
+    auto_recover_enabled: row.auto_recover_enabled,
     last_health_ok_at: row.last_health_ok_at,
     last_health_error: row.last_health_error,
     capacity_warning_active: row.capacity_warning_active,
@@ -413,6 +426,8 @@ export type UpsertWahaServerInput = {
   warn_remaining?: number;
   sort_order?: number;
   notes?: string | null;
+  docker_container_name?: string | null;
+  auto_recover_enabled?: boolean;
 };
 
 export async function createWahaServerAdmin(
@@ -439,6 +454,8 @@ export async function createWahaServerAdmin(
       warn_remaining: input.warn_remaining ?? 10,
       sort_order: input.sort_order ?? 100,
       notes: input.notes?.trim() || null,
+      docker_container_name: input.docker_container_name?.trim() || null,
+      auto_recover_enabled: input.auto_recover_enabled !== false,
     })
     .select(SERVER_SELECT)
     .single();
@@ -483,6 +500,12 @@ export async function updateWahaServerAdmin(
       input.notes === undefined
         ? existing.notes
         : input.notes?.trim() || null,
+    docker_container_name:
+      input.docker_container_name === undefined
+        ? existing.docker_container_name
+        : input.docker_container_name?.trim() || null,
+    auto_recover_enabled:
+      input.auto_recover_enabled ?? existing.auto_recover_enabled,
   };
 
   if (input.clear_capacity_warning) {

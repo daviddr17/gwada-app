@@ -11,6 +11,9 @@ export type WahaServerRow = {
   warn_remaining: number;
   sort_order: number;
   notes: string | null;
+  docker_container_name: string | null;
+  last_container_restart_at: string | null;
+  auto_recover_enabled: boolean;
   last_health_ok_at: string | null;
   last_health_error: string | null;
   capacity_warning_active: boolean;
@@ -30,6 +33,9 @@ export type WahaServerPublic = {
   warn_remaining: number;
   sort_order: number;
   notes: string | null;
+  docker_container_name: string | null;
+  last_container_restart_at: string | null;
+  auto_recover_enabled: boolean;
   last_health_ok_at: string | null;
   last_health_error: string | null;
   capacity_warning_active: boolean;

@@ -52,7 +52,67 @@ export type WahaServerWriteInput = {
   warn_remaining?: number;
   sort_order?: number;
   notes?: string | null;
+  docker_container_name?: string | null;
+  auto_recover_enabled?: boolean;
 };
+
+export async function recoverSuperadminWahaServer(
+  id: string,
+  options?: { forceContainerRestart?: boolean },
+): Promise<{
+  ok?: boolean;
+  recovered?: number;
+  failed?: number;
+  containerRestarts?: number;
+  error?: string;
+}> {
+  const res = await fetch(
+    `/api/superadmin/waha/servers/${encodeURIComponent(id)}/recover`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        forceContainerRestart: options?.forceContainerRestart === true,
+      }),
+    },
+  );
+  const body = (await res.json().catch(() => ({}))) as {
+    recovered?: number;
+    failed?: number;
+    containerRestarts?: number;
+    error?: string;
+  };
+  if (!res.ok) return { error: body.error ?? `http_${res.status}` };
+  return {
+    ok: true,
+    recovered: body.recovered,
+    failed: body.failed,
+    containerRestarts: body.containerRestarts,
+  };
+}
+
+export async function restartSuperadminWahaContainer(id: string): Promise<{
+  ok?: boolean;
+  message?: string;
+  error?: string;
+}> {
+  const res = await fetch(
+    `/api/superadmin/waha/servers/${encodeURIComponent(id)}/restart-container`,
+    { method: "POST" },
+  );
+  const body = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    return {
+      error: body.error ?? `http_${res.status}`,
+      message: body.message,
+    };
+  }
+  return { ok: true, message: body.message };
+}
 
 export async function createSuperadminWahaServer(
   input: WahaServerWriteInput,

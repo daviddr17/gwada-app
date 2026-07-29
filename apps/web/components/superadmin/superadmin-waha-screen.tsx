@@ -25,6 +25,8 @@ import {
   fetchSuperadminWahaServers,
   fetchSuperadminWahaSessions,
   healthCheckSuperadminWahaServer,
+  recoverSuperadminWahaServer,
+  restartSuperadminWahaContainer,
   updateSuperadminWahaServer,
 } from "@/lib/superadmin/waha-servers-api";
 import type {
@@ -66,6 +68,8 @@ type EditorState = {
   warn_remaining: string;
   sort_order: string;
   notes: string;
+  docker_container_name: string;
+  auto_recover_enabled: boolean;
 };
 
 function emptyEditor(): EditorState {
@@ -80,6 +84,8 @@ function emptyEditor(): EditorState {
     warn_remaining: "10",
     sort_order: "100",
     notes: "",
+    docker_container_name: "",
+    auto_recover_enabled: true,
   };
 }
 
@@ -96,6 +102,8 @@ function editorFromServer(s: WahaServerPublic): EditorState {
     warn_remaining: String(s.warn_remaining),
     sort_order: String(s.sort_order),
     notes: s.notes ?? "",
+    docker_container_name: s.docker_container_name ?? "",
+    auto_recover_enabled: s.auto_recover_enabled !== false,
   };
 }
 
@@ -110,6 +118,8 @@ export function SuperadminWahaScreen() {
   const [editor, setEditor] = useState<EditorState>(emptyEditor);
   const [saving, setSaving] = useState(false);
   const [healthBusyId, setHealthBusyId] = useState<string | null>(null);
+  const [recoverBusyId, setRecoverBusyId] = useState<string | null>(null);
+  const [restartBusyId, setRestartBusyId] = useState<string | null>(null);
 
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -215,6 +225,8 @@ export function SuperadminWahaScreen() {
       warn_remaining: warnRemaining,
       sort_order: Number.isFinite(sortOrder) ? sortOrder : 100,
       notes: editor.notes.trim() || null,
+      docker_container_name: editor.docker_container_name.trim() || null,
+      auto_recover_enabled: editor.auto_recover_enabled,
     };
 
     const res = editor.id
@@ -251,6 +263,49 @@ export function SuperadminWahaScreen() {
     } else {
       await load();
     }
+  };
+
+  const onRecoverSessions = async (s: WahaServerPublic) => {
+    setRecoverBusyId(s.id);
+    const res = await recoverSuperadminWahaServer(s.id);
+    setRecoverBusyId(null);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(
+      `Recovery: ${res.recovered ?? 0} neu gestartet` +
+        (res.failed ? `, ${res.failed} Fehler` : "") +
+        (res.containerRestarts
+          ? `, ${res.containerRestarts} Container-Restart`
+          : ""),
+    );
+    await load();
+  };
+
+  const onRestartContainer = async (s: WahaServerPublic) => {
+    if (!s.docker_container_name) {
+      toast.error(
+        "Docker-Container-Name fehlt — unter Bearbeiten eintragen (z. B. waha).",
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `Docker-Container „${s.docker_container_name}“ wirklich neu starten? Alle Sessions auf diesem Host werden kurz unterbrochen.`,
+      )
+    ) {
+      return;
+    }
+    setRestartBusyId(s.id);
+    const res = await restartSuperadminWahaContainer(s.id);
+    setRestartBusyId(null);
+    if (res.error) {
+      toast.error(res.message ?? res.error);
+      return;
+    }
+    toast.success(res.message ?? "Container-Neustart gestartet.");
+    await load();
   };
 
   const onDelete = async (s: WahaServerPublic) => {
@@ -340,7 +395,9 @@ export function SuperadminWahaScreen() {
           <Server className="size-4" />
           <span>
             Pool für NOWEB-Sessions. Sticky pro Restaurant — neue Sessions auf
-            den Server mit der meisten Luft.
+            den Server mit der meisten Luft. Fehlgeschlagene Sessions: Cron
+            alle 5 Min. oder „Sessions heilen“; bei Host-Problemen Container
+            neu starten (Docker-Name setzen).
           </span>
         </div>
 
@@ -454,7 +511,7 @@ export function SuperadminWahaScreen() {
               className: superadminCellNowrapClass,
               sortValue: () => "",
               cell: (r) => (
-                <div className="flex items-center gap-1 justify-end">
+                <div className="flex flex-wrap items-center gap-1 justify-end">
                   <Button
                     type="button"
                     size="icon-sm"
@@ -469,6 +526,31 @@ export function SuperadminWahaScreen() {
                         healthBusyId === r.id && "animate-spin",
                       )}
                     />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={recoverBusyId === r.id}
+                    onClick={() => void onRecoverSessions(r)}
+                  >
+                    {recoverBusyId === r.id ? "…" : "Sessions heilen"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      restartBusyId === r.id || !r.docker_container_name
+                    }
+                    title={
+                      r.docker_container_name
+                        ? `Container ${r.docker_container_name} neu starten`
+                        : "Docker-Container-Name unter Bearbeiten setzen"
+                    }
+                    onClick={() => void onRestartContainer(r)}
+                  >
+                    {restartBusyId === r.id ? "…" : "Container"}
                   </Button>
                   <Button
                     type="button"
@@ -665,6 +747,40 @@ export function SuperadminWahaScreen() {
                   setEditor((p) => ({ ...p, notes: e.target.value }))
                 }
                 placeholder="optional"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="waha-docker">Docker-Container (VPS)</Label>
+              <Input
+                id="waha-docker"
+                value={editor.docker_container_name}
+                onChange={(e) =>
+                  setEditor((p) => ({
+                    ...p,
+                    docker_container_name: e.target.value,
+                  }))
+                }
+                placeholder="z. B. waha"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                Für „Container neu starten“ und Auto-Recovery bei Host-Ausfall.
+                Name wie in <span className="font-mono">docker ps</span>.
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2">
+              <div>
+                <Label htmlFor="waha-auto-recover">Auto-Recovery</Label>
+                <p className="text-xs text-muted-foreground">
+                  Cron heilt fehlgeschlagene/hängende Sessions (alle 5 Min.).
+                </p>
+              </div>
+              <Switch
+                id="waha-auto-recover"
+                checked={editor.auto_recover_enabled}
+                onCheckedChange={(v) =>
+                  setEditor((p) => ({ ...p, auto_recover_enabled: v }))
+                }
               />
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2">

@@ -10,7 +10,11 @@ on:
         main,
         cursor/reservation-party-size-dashboard-ea36,
         cursor/email-gmail-oauth-777f,
+<<<<<<< HEAD
         cursor/purchase-order-ordered-status-d3fd,
+=======
+        cursor/waha-auto-recover-restart-d3fd,
+>>>>>>> d2480e27 (feat(waha): Auto-Recovery und Container-Neustart bei Fehlern)
       ]
     paths:
       - "supabase/migrations/**"

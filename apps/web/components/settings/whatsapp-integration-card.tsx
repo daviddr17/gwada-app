@@ -30,6 +30,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const QR_POLL_MS = 15_000;
+const STARTING_POLL_MS = 8_000;
 const CONNECTED_POLL_MS = 45_000;
 
 export function WhatsappIntegrationCard() {
@@ -126,6 +127,14 @@ export function WhatsappIntegrationCard() {
     }, QR_POLL_MS);
     return () => window.clearInterval(id);
   }, [restaurantId, state?.status, loadQr, loadStatus]);
+
+  useEffect(() => {
+    if (!restaurantId || state?.status !== "starting") return;
+    const id = window.setInterval(() => {
+      void loadStatus(true);
+    }, STARTING_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [restaurantId, state?.status, loadStatus]);
 
   useEffect(() => {
     if (!restaurantId || state?.status !== "working" || liveCheckFailed) return;

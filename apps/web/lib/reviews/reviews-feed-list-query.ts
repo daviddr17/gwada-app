@@ -204,7 +204,10 @@ export function paginateReviewsFeedList(
     return {
       ...paginated,
       listQueryApplied: false,
-      summary: buildReviewRatingSummary(reviews, "all"),
+      summary: buildReviewRatingSummary(reviews, "all", {
+        officialCount: total,
+        officialAverage: options?.averageRating,
+      }),
     };
   }
 

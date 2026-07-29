@@ -22,7 +22,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const inFlightSync = new Set<string>();
-const GOOGLE_SYNC_MAX_PAGES = 10;
+/** Google listet max. 50/Seite — genug für große Standorte (z. B. 1500+ ≈ 30 Seiten). */
+const GOOGLE_SYNC_MAX_PAGES = 50;
 
 function syncLockKey(restaurantId: string, platform: ReviewsCacheablePlatform): string {
   return `${restaurantId}:${platform}`;

@@ -31,12 +31,12 @@ export class OrdersController {
   @Post("fire-course")
   async fire(
     @PosAuth() auth: PosAuthContext,
-    @Body() body: { sessionId?: string; course?: string },
+    @Body() body: { sessionId?: string; course?: string | number },
   ) {
     const r = await this.orders.fireCourse({
       restaurantId: auth.restaurantId,
       sessionId: body.sessionId ?? "",
-      course: body.course ?? "main",
+      course: body.course ?? 2,
     });
     if (!r.ok) throw new HttpException({ error: r.error }, r.status);
     return r;

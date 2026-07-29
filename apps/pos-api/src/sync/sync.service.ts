@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { normalizePosOrderCourse } from "@gwada/pos-domain";
 import { SupabaseAdminService } from "../supabase-admin.service";
 import { SessionsService } from "../sessions/sessions.service";
 import { OrdersService } from "../orders/orders.service";
@@ -129,7 +130,7 @@ export class SyncService {
           items: items.map((it) => ({
             menuItemId: String((it as { menuItemId?: string }).menuItemId ?? ""),
             quantity: Number((it as { quantity?: number }).quantity ?? 1),
-            course: (it as { course?: string }).course,
+            course: normalizePosOrderCourse((it as { course?: unknown }).course),
             notes: (it as { notes?: string }).notes,
             modifiers: (it as { modifiers?: OrderLineMod[] }).modifiers,
           })),
@@ -142,7 +143,7 @@ export class SyncService {
         const r = await this.orders.fireCourse({
           restaurantId: ctx.restaurantId,
           sessionId: String(ev.sessionId ?? p.sessionId ?? ""),
-          course: String(p.course ?? "main"),
+          course: normalizePosOrderCourse(p.course),
         });
         return r.ok
           ? { ok: true, result: { firedLineIds: r.firedLineIds } }

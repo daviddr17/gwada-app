@@ -3,7 +3,7 @@ import {
   listPosKdsDevices,
   upsertPosKdsDevice,
 } from "@/lib/pos/pos-kds-server";
-import { isPosOrderCourse, type PosOrderCourse } from "@gwada/pos-domain";
+import { normalizePosOrderCourse } from "@gwada/pos-domain";
 import { posError, posJson } from "@/lib/pos/pos-responses";
 import { authorizePosRestaurant } from "@/lib/pos/pos-route-auth";
 
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     id?: string;
     name?: string;
     menuCategoryIds?: string[];
-    courses?: string[];
+    courses?: unknown[];
     settings?: Record<string, unknown>;
     isActive?: boolean;
     delete?: boolean;
@@ -54,7 +54,9 @@ export async function POST(request: Request) {
   const name = body.name?.trim() ?? "";
   if (!name) return posError("invalid_name", 400);
 
-  const courses = (body.courses ?? []).filter(isPosOrderCourse) as PosOrderCourse[];
+  const courses = (body.courses ?? [])
+    .map((course) => normalizePosOrderCourse(course))
+    .filter((course) => course >= 1);
   const device = await upsertPosKdsDevice({
     supabase: authResult.auth.supabase,
     restaurantId: authResult.auth.restaurantId,

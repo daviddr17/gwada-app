@@ -1,13 +1,17 @@
 import { Injectable } from "@nestjs/common";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { allocationAmountCents, openLineQuantity } from "@gwada/pos-domain";
+import {
+  allocationAmountCents,
+  normalizePosOrderCourse,
+  openLineQuantity,
+} from "@gwada/pos-domain";
 import { SupabaseAdminService } from "../supabase-admin.service";
 import { RegisterGateService } from "../sessions/sessions.service";
 
 export type OrderLineInput = {
   menuItemId: string;
   quantity: number;
-  course?: string;
+  course?: string | number;
   notes?: string;
   modifiers?: Array<{
     type?: string;
@@ -15,18 +19,6 @@ export type OrderLineInput = {
     priceDeltaCents?: number;
     optionChoiceId?: string;
   }>;
-};
-
-const COURSE_MAP: Record<string, string> = {
-  "1": "starter",
-  "2": "main",
-  "3": "dessert",
-  starter: "starter",
-  main: "main",
-  dessert: "dessert",
-  side: "side",
-  drink: "drink",
-  other: "other",
 };
 
 @Injectable()
@@ -90,8 +82,7 @@ export class OrdersService {
       const unit = Math.round(Number(menu.price) * 100) + delta;
       const lineTotal = Math.round(unit * qty);
       subtotal += lineTotal;
-      const courseKey = String(input.course ?? "other");
-      const course = COURSE_MAP[courseKey] ?? "other";
+      const course = normalizePosOrderCourse(input.course);
       lineRows.push({
         menu_item_id: menu.id,
         name: menu.name,
@@ -148,10 +139,10 @@ export class OrdersService {
   async fireCourse(params: {
     restaurantId: string;
     sessionId: string;
-    course: string;
+    course: string | number;
   }) {
     const sb = this.sb();
-    const course = COURSE_MAP[String(params.course)] ?? params.course;
+    const course = normalizePosOrderCourse(params.course);
     const { data: orders } = await sb
       .from("pos_orders")
       .select("id")

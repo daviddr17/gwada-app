@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { PosOrderCourse } from "@gwada/pos-domain";
+import { normalizePosOrderCourse } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   categoryAllowsKds,
@@ -18,7 +18,7 @@ export type PosKdsDevice = {
   id: string;
   name: string;
   menuCategoryIds: string[];
-  courses: PosOrderCourse[];
+  courses: number[];
   settings: Record<string, unknown>;
   sortOrder: number;
   isActive: boolean;
@@ -55,7 +55,9 @@ function mapDevice(row: Record<string, unknown>): PosKdsDevice {
     id: row.id as string,
     name: String(row.name ?? ""),
     menuCategoryIds: (row.menu_category_ids as string[] | null) ?? [],
-    courses: ((row.courses as string[] | null) ?? []) as PosOrderCourse[],
+    courses: ((row.courses as number[] | null) ?? []).map((course) =>
+      normalizePosOrderCourse(course),
+    ),
     settings: (row.settings as Record<string, unknown> | null) ?? {},
     sortOrder: Number(row.sort_order ?? 0),
     isActive: Boolean(row.is_active),
@@ -87,7 +89,7 @@ export async function upsertPosKdsDevice(params: {
   id?: string;
   name: string;
   menuCategoryIds: string[];
-  courses: PosOrderCourse[];
+  courses: number[];
   settings?: Record<string, unknown>;
   isActive?: boolean;
 }): Promise<PosKdsDevice | null> {
@@ -187,7 +189,7 @@ export function filterOrdersForKds(
     const lines = order.lines.filter((line) => {
       if (
         courseFilter.size > 0 &&
-        !courseFilter.has(line.course as PosOrderCourse)
+        !courseFilter.has(normalizePosOrderCourse(line.course))
       ) {
         return false;
       }

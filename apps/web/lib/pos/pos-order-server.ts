@@ -2,8 +2,7 @@ import "server-only";
 
 import {
   assertPosOrderStatusTransition,
-  isPosOrderCourse,
-  type PosOrderCourse,
+  normalizePosOrderCourse,
   type PosOrderStatus,
 } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -23,7 +22,7 @@ export type CreatePosOrderLineInput = {
   menuItemId: string;
   quantity: number;
   notes?: string;
-  course?: PosOrderCourse | string;
+  course?: number | string;
   ohneIngredientIds?: string[];
   modifiers?: PosOrderLineModifier[];
 };
@@ -194,8 +193,10 @@ export async function createPosOrder(params: {
     const lineTotalCents = Math.round(unitCents * qty);
     subtotalCents += lineTotalCents;
 
-    const course: PosOrderCourse =
-      input.course && isPosOrderCourse(input.course) ? input.course : "other";
+    const course =
+      input.course !== undefined && input.course !== null
+        ? normalizePosOrderCourse(input.course)
+        : 2;
     const ohneIds = (input.ohneIngredientIds ?? []).filter(
       (id) => typeof id === "string" && id.trim().length > 0,
     );

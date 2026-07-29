@@ -61,15 +61,21 @@ final class HubHTTPServer: @unchecked Sendable {
             if let request = Self.parseRequest(next) {
                 let result = self.handler(request.method, request.pathWithQuery, request.headers, request.body)
                 let response = Self.serializeResponse(status: result.status, body: result.body)
-                // Sende-Seite ordentlich per FIN schließen (isComplete: true). KEIN cancel() hier:
-                // cancel() ist ein abrupter RST, der noch nicht geflushte Body-Bytes verwirft
-                // (→ getrunkter Body). Der Client liest per Content-Length + `Connection: close`
-                // und schließt selbst; die Verbindung endet dann sauber.
+                // Sende-Seite ordentlich per FIN schließen (isComplete: true). KEIN cancel() direkt
+                // in der Send-Completion: cancel() ist ein abrupter RST, der noch nicht geflushte
+                // Body-Bytes verwirft (→ getrunkter Body). Stattdessen: Client liest per
+                // Content-Length + `Connection: close` und schließt seinerseits — wir warten auf
+                // dieses Peer-EOF (ein weiteres receive) und geben die Verbindung erst danach frei,
+                // damit weder Body-Truncation noch ein Connection-Leak entsteht.
                 connection.send(
                     content: response,
                     contentContext: .finalMessage,
                     isComplete: true,
-                    completion: .idempotent
+                    completion: .contentProcessed { [weak connection] _ in
+                        connection?.receive(minimumIncompleteLength: 1, maximumLength: 1) { _, _, _, _ in
+                            connection?.cancel()
+                        }
+                    }
                 )
                 return
             }

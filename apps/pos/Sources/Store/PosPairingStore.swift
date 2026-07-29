@@ -127,7 +127,10 @@ final class PosPairingStore: @unchecked Sendable {
 
     private static func makeToken() -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+            // Sichere RNG fehlgeschlagen — kein all-zero/vorhersagbares Token ausliefern.
+            return UUID().uuidString + UUID().uuidString
+        }
         return Data(bytes).base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")

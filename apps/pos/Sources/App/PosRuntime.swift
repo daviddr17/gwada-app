@@ -287,7 +287,8 @@ final class PosRuntime: ObservableObject {
                 do {
                     let day = try await HandheldHubClient.fetchReservationsDay(
                         baseURL: base,
-                        dayYmd: ymd
+                        dayYmd: ymd,
+                        pairToken: PosEnrollmentStore.shared.handheldPairToken
                     )
                     PosReservationsStore.shared.applyDay(day)
                 } catch {
@@ -349,7 +350,11 @@ final class PosRuntime: ObservableObject {
 
         if role == .handheld, let base = hubBaseURL, !isSoloMode {
             do {
-                let res = try await HandheldHubClient.createReservation(baseURL: base, payload: payload)
+                let res = try await HandheldHubClient.createReservation(
+                    baseURL: base,
+                    payload: payload,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                )
                 if let reservation = res.reservation {
                     PosReservationsStore.shared.upsertLocalReservation(
                         reservation,
@@ -403,9 +408,14 @@ final class PosRuntime: ObservableObject {
                 _ = try await HandheldHubClient.openSession(
                     baseURL: base,
                     diningTableId: tableId,
-                    coverCount: covers
+                    coverCount: covers,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
                 )
-                let snap = try await HandheldHubClient.fetchSnapshot(baseURL: base, restaurantId: nil)
+                let snap = try await HandheldHubClient.fetchSnapshot(
+                    baseURL: base,
+                    restaurantId: nil,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                )
                 publishSnapshot(snap)
                 statusMessage = "Tisch geöffnet."
             } catch {

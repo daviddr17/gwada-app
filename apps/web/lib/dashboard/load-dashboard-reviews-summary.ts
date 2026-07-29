@@ -14,6 +14,7 @@ import {
   isReviewPlatformVisibleInDashboard,
 } from "@/lib/reviews/reviews-platform-availability-server";
 import { averageRating } from "@/lib/reviews/review-stats";
+import { isReviewInNotificationWindow } from "@/lib/reviews/review-notification-window";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
@@ -223,10 +224,13 @@ export async function loadDashboardReviewsSummary(
     isReviewPlatformVisibleInDashboard(review.platform, platformVisibility),
   );
 
-  const unreadRecent = visibleRecent
-    .filter((r) => r.isUnread)
-    .slice(0, 5)
-    .map(toRecentItem);
+  // Nur Bewertungen im Push-/Glocken-Fenster — sonst füllt Cache-Historie
+  // nach jedem Dismiss die nächsten alten Unreads nach.
+  const notifiableUnread = visibleRecent.filter(
+    (r) => r.isUnread && isReviewInNotificationWindow(r.createdAt),
+  );
+
+  const unreadRecent = notifiableUnread.slice(0, 5).map(toRecentItem);
 
   const allPlatforms: DashboardReviewPlatformStat[] = [
     {
@@ -270,6 +274,6 @@ export async function loadDashboardReviewsSummary(
   return {
     platforms,
     recent: unreadRecent,
-    unreadRecentCount: visibleRecent.filter((r) => r.isUnread).length,
+    unreadRecentCount: notifiableUnread.length,
   };
 }

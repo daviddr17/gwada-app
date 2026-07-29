@@ -18,7 +18,6 @@ import {
 import {
   allPurchaseOrderLinesResolved,
   lineDeliveryStockQuantity,
-  resolveLineDelivery,
 } from "@/lib/inventory/purchase-order-line-delivery";
 import {
   purchaseOrderAllowsDeliveryActions,

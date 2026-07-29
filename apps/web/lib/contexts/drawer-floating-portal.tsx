@@ -7,11 +7,13 @@ import * as React from "react"
  * Combobox portals. Radix Dialog (used by Vaul) sets `disableOutsidePointerEvents` on
  * modal content, so popups portaled to `document.body` never receive clicks — they must
  * mount inside this host instead.
+ *
+ * Element in Context (wie Fullscreen-Overlay) — kein RefObject, damit Portal-Container
+ * beim Soft-Nav/Drawer-Close nie als ungültiges Ziel an `createPortal` gehen.
  */
 export const DrawerFloatingPortalContext =
-  React.createContext<React.RefObject<HTMLDivElement | null> | null>(null)
+  React.createContext<HTMLDivElement | null>(null)
 
 export function useDrawerFloatingPortalHost(): HTMLDivElement | null {
-  const hostRef = React.useContext(DrawerFloatingPortalContext)
-  return hostRef?.current ?? null
+  return React.useContext(DrawerFloatingPortalContext)
 }

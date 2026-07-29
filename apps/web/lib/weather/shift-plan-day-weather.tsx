@@ -47,7 +47,8 @@ export function ShiftPlanWeatherIcon({
   kind: WeatherAmbienceKind;
   className?: string;
 }) {
-  const { Icon, className: colorClass } = WEATHER_KIND_STYLES[kind];
+  const style = WEATHER_KIND_STYLES[kind] ?? WEATHER_KIND_STYLES.cloudy;
+  const { Icon, className: colorClass } = style;
   return <Icon className={cn("shrink-0", colorClass, className)} aria-hidden />;
 }
 

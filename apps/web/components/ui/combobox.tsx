@@ -5,6 +5,7 @@ import { Combobox } from "@base-ui/react/combobox"
 
 import { useDrawerFloatingPortalHost } from "@/lib/contexts/drawer-floating-portal"
 import { mobileFormControlFontClassName } from "@/lib/ui/mobile-form-control-font"
+import { resolveFloatingPortalContainer } from "@/lib/ui/resolve-floating-portal-container"
 import { cn } from "@/lib/utils"
 import { labelForTagId } from "@/lib/constants/menu-labels"
 import { getTagChipVisual } from "@/lib/utils/tag-styles"
@@ -263,7 +264,9 @@ export function SearchableSelect({
         </Combobox.Trigger>
       </Combobox.InputGroup>
 
-      <Combobox.Portal container={drawerFloatingHost ?? undefined}>
+      <Combobox.Portal
+        container={resolveFloatingPortalContainer(drawerFloatingHost)}
+      >
         <Combobox.Positioner
           className="pointer-events-auto isolate z-[320] outline-none"
           side="bottom"
@@ -446,7 +449,9 @@ export function TagMultiCombobox({
         </Combobox.Trigger>
       </Combobox.InputGroup>
 
-      <Combobox.Portal container={drawerFloatingHost ?? undefined}>
+      <Combobox.Portal
+        container={resolveFloatingPortalContainer(drawerFloatingHost)}
+      >
         <Combobox.Positioner
           className="pointer-events-auto isolate z-[320] outline-none"
           side="bottom"
@@ -622,7 +627,9 @@ export function SearchableMultiSelect({
         </Combobox.Trigger>
       </Combobox.InputGroup>
 
-      <Combobox.Portal container={drawerFloatingHost ?? undefined}>
+      <Combobox.Portal
+        container={resolveFloatingPortalContainer(drawerFloatingHost)}
+      >
         <Combobox.Positioner
           className="pointer-events-auto isolate z-[320] outline-none"
           side="bottom"

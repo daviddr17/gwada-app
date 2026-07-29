@@ -38,7 +38,7 @@ function staffRoleDisplay(row: RestaurantStaffRow): {
     };
   }
   const role = row.linked_employee?.role;
-  if (!role) return null;
+  if (typeof role !== "string" || !role) return null;
   return {
     label: EMPLOYEE_ROLE_OPTIONS.find((o) => o.value === role)?.label ?? role,
   };

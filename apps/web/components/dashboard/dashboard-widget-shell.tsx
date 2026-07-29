@@ -138,7 +138,9 @@ export function DashboardWidgetShell({
         className={cn(isCompact ? "px-4 pb-4 pt-0" : "pt-0", layered && "relative z-10")}
       >
         {error ? (
-          <p className="text-sm text-muted-foreground">{error}</p>
+          <p className="text-sm text-muted-foreground">
+            {typeof error === "string" ? error : "Laden fehlgeschlagen."}
+          </p>
         ) : showContentSkeleton ? (
           <div aria-busy="true" aria-label={`${title} wird geladen`}>
             {loadingContent ?? (

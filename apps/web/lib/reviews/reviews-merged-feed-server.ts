@@ -131,8 +131,15 @@ export async function loadMergedReviewsFeedPage(params: {
     merged = await enrichBeforeFilter(merged);
   }
 
+  const googleAverage =
+    typeof googleMeta.averageRating === "number"
+      ? googleMeta.averageRating
+      : null;
+
   const paginated = paginateReviewsFeedList(merged, pageToken, listQuery, {
     unfilteredTotalReviewCount: totalReviewCount,
+    /** Google liefert den verlässigsten Standort-Ø; andere Plattformen oft ohne Meta-Ø. */
+    averageRating: googleAverage,
   });
 
   const loadErrors: Partial<Record<ReviewPlatform, string>> = {};

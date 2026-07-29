@@ -6,7 +6,8 @@ import { fetchGoogleReviewsForRestaurant } from "@/lib/reviews/google-reviews-ap
 import { upsertReviewReadsBatch } from "@/lib/supabase/restaurant-review-reads-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const GOOGLE_READ_ALL_MAX_PAGES = 20;
+/** An Sync-Limit angeglichen — sonst bleiben gelesene Flags hinter der Cache-Menge zurück. */
+const GOOGLE_READ_ALL_MAX_PAGES = 50;
 
 function dedupeReviewItems(
   items: readonly { platform: ReviewPlatform; reviewId: string }[],

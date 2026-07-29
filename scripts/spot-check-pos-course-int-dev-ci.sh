@@ -29,11 +29,11 @@ cd "${DEV_COMPOSE_DIR}"
 export COMPOSE_PROJECT_NAME=gwada-dev
 
 psql_query() {
-  local label="$1"
-  local sql="$2"
+  local label="\$1"
+  local sql="\$2"
   echo ""
-  echo "--- ${label} ---"
-  docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 -P pager=off -c "${sql}"
+  echo "--- \${label} ---"
+  docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 -P pager=off -c "\${sql}"
 }
 
 docker compose exec -T db pg_isready -U postgres

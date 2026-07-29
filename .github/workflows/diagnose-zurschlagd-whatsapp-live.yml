@@ -64,3 +64,34 @@ jobs:
           })().catch(e=>{console.error(e); process.exit(1);});
           '
           REMOTE
+
+      - name: Probe live WAHA session status
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" bash -s <<'REMOTE'
+          set -euo pipefail
+          cid=$(docker ps --format '{{.Names}}' | grep d3cg1b54arvue2tcm8u34qty- | head -1)
+          docker exec "$cid" node -e '
+          const base=(process.env.SUPABASE_UPSTREAM_URL||"").replace(/\/$/,"");
+          const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
+          const h={apikey:key,Authorization:"Bearer "+key,Accept:"application/json"};
+          (async()=>{
+            const servers=await (await fetch(base+"/rest/v1/waha_servers?select=id,base_url,api_key&enabled=eq.true&limit=1",{headers:h})).json();
+            const s=servers[0];
+            if(!s){console.log("no server"); process.exit(1);}
+            const session="gwadafcc50bb3130d476b94dc3c7392b773a8";
+            const url=s.base_url.replace(/\/$/,"")+"/api/sessions/"+encodeURIComponent(session);
+            const wr=await fetch(url,{headers:{"X-Api-Key":s.api_key,Accept:"application/json"}});
+            const body=await wr.text();
+            console.log("waha_http", wr.status);
+            console.log(body.slice(0,2000));
+          })().catch(e=>{console.error(e); process.exit(1);});
+          '
+          REMOTE

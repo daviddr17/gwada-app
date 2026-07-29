@@ -45,20 +45,47 @@ mkdir -p ~/.ssh
 chmod 700 ~/.ssh
 KEY_FILE="${HOME}/.ssh/waha_ops_ed25519"
 
+write_ssh_key() {
+  local raw="$1"
+  # Literal \n aus JSON/UI → echte Zeilenumbrüche; CRLF entfernen
+  KEY="$(
+    KEY_RAW="${raw}" python3 - <<'PY'
+import os
+text = os.environ["KEY_RAW"].replace("\r\n", "\n").replace("\r", "\n")
+text = text.replace("\\n", "\n").strip() + "\n"
+if "BEGIN" not in text or "PRIVATE KEY" not in text:
+    raise SystemExit("SSH private key ungültig (BEGIN PRIVATE KEY fehlt).")
+print(text, end="")
+PY
+  )"
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] && echo "::add-mask::${line}"
+  done <<< "${KEY}"
+  # Nicht printf '%s' mit %-Zeichen im Key riskieren — python schreibt die Datei
+  KEY="${KEY}" KEY_FILE="${KEY_FILE}" python3 - <<'PY'
+import os
+from pathlib import Path
+Path(os.environ["KEY_FILE"]).write_text(os.environ["KEY"], encoding="utf-8")
+PY
+  chmod 600 "${KEY_FILE}"
+  if ! ssh-keygen -y -f "${KEY_FILE}" >/dev/null 2>&1; then
+    echo "::error::SSH-Key-Datei ungültig (ssh-keygen -y fehlgeschlagen)."
+    exit 1
+  fi
+  PUB_FP="$(ssh-keygen -lf "${KEY_FILE}" 2>/dev/null | awk '{print $2}')"
+  echo "SSH-Key Fingerprint: ${PUB_FP:-unbekannt}"
+}
+
 if [[ "${MODE}" == "per_server" ]]; then
   HOST="$(printf '%s' "${CFG_JSON}" | jq -r '.host')"
   USER="$(printf '%s' "${CFG_JSON}" | jq -r '.user // "root"')"
   PORT="$(printf '%s' "${CFG_JSON}" | jq -r '.port // 22')"
-  KEY="$(printf '%s' "${CFG_JSON}" | jq -r '.privateKey // empty')"
-  if [[ -z "${HOST}" || -z "${KEY}" ]]; then
+  KEY_RAW="$(printf '%s' "${CFG_JSON}" | jq -r '.privateKey // empty')"
+  if [[ -z "${HOST}" || -z "${KEY_RAW}" ]]; then
     echo "::error::per_server-Config unvollständig (host/key)."
     exit 1
   fi
-  while IFS= read -r line; do
-    [[ -n "${line}" ]] && echo "::add-mask::${line}"
-  done <<< "${KEY}"
-  printf '%s\n' "${KEY}" > "${KEY_FILE}"
-  chmod 600 "${KEY_FILE}"
+  write_ssh_key "${KEY_RAW}"
   echo "WAHA SSH-Ziel: ${USER}@${HOST}:${PORT} (per-server, container=${CONTAINER})"
 elif [[ "${MODE}" == "legacy_live_vps" ]]; then
   if [[ -z "${LIVE_SSH_KEY:-}" || -z "${LIVE_VPS_HOST:-}" ]]; then
@@ -68,8 +95,7 @@ elif [[ "${MODE}" == "legacy_live_vps" ]]; then
   HOST="${LIVE_VPS_HOST}"
   USER="root"
   PORT="22"
-  printf '%s\n' "${LIVE_SSH_KEY}" > "${KEY_FILE}"
-  chmod 600 "${KEY_FILE}"
+  write_ssh_key "${LIVE_SSH_KEY}"
   echo "WAHA SSH-Ziel: ${USER}@${HOST}:${PORT} (legacy LIVE_VPS, container=${CONTAINER})"
 else
   ERR="$(printf '%s' "${CFG_JSON}" | jq -r '.error // .message // "unknown"')"
@@ -78,6 +104,13 @@ else
 fi
 
 ssh-keyscan -p "${PORT}" -H "${HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+# Schneller Auth-Check bevor der lange Remote-Block läuft
+if ! ssh -i "${KEY_FILE}" -o BatchMode=yes -o ConnectTimeout=20 \
+  -p "${PORT}" "${USER}@${HOST}" true; then
+  echo "::error::SSH Login auf ${USER}@${HOST}:${PORT} abgelehnt (publickey). Öffentlichen Key auf dem WAHA-Host in authorized_keys legen — gleicher Key wie in Superadmin."
+  exit 1
+fi
 
 export WAHA_SSH_HOST="${HOST}"
 export WAHA_SSH_USER="${USER}"

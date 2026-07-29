@@ -7,13 +7,14 @@ import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import { cn } from "@/lib/utils";
 
 /**
- * Vollflächiger Bootstrap-Skeleton.
- * Wird nur kurz gemountet (AppShellReadiness) — Failsafe begrenzt die Klick-Sperre.
+ * Vollflächiger Bootstrap-Skeleton (nur optisch).
+ * `pointer-events-none`: Soft-Nav/Sidebar darunter sofort bedienbar —
+ * kein „Taste geht nicht“, während Auth/Workspace noch nachziehen.
  */
 export function AppShellBootstrapOverlay() {
   return (
     <div
-      className="fixed inset-0 z-[195] flex bg-background"
+      className="pointer-events-none fixed inset-0 z-[195] flex bg-background"
       role="status"
       aria-busy="true"
       aria-label="App wird vorbereitet"

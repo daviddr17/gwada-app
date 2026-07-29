@@ -131,8 +131,11 @@ export async function mintGithubAppInstallationToken(): Promise<string | null> {
 
     if (!res.ok) {
       cachedToken = null;
+      const detail = (await res.text().catch(() => "")).slice(0, 400);
       console.error(
         `[github-app] installation token mint failed: HTTP ${res.status}`,
+        detail,
+        `appId=${creds.appId} installationId=${creds.installationId}`,
       );
       return null;
     }

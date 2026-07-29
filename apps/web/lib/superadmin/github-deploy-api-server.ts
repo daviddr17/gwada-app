@@ -46,8 +46,17 @@ export function githubDeployAuthConfigured(): boolean {
 export async function resolveGithubDeployAccessToken(
   options?: { strict?: boolean },
 ): Promise<string | null> {
+  const appConfigured = githubAppCredentialsConfigured();
   const appToken = await mintGithubAppInstallationToken();
   if (appToken) return appToken;
+  // App gesetzt aber Mint fehlgeschlagen → keinen abgelaufenen PAT mehr nutzen
+  // (Authorization: bad PAT → 401 auch für sonst erlaubte Calls).
+  if (appConfigured) {
+    console.error(
+      "[github-deploy] GitHub App konfiguriert, Mint fehlgeschlagen — PAT-Fallback übersprungen",
+    );
+    return null;
+  }
   if (options?.strict) return githubDeployTokenStrict();
   return githubDeployToken();
 }
@@ -192,6 +201,9 @@ export function githubApiErrorHint(msg: string): string {
     return "GitHub-API abgelehnt — abgelaufenen PAT entfernen oder GitHub App setzen (docs/github-app-deploy-auth.md).";
   }
   if (msg === "github_deploy_token_missing") {
+    if (githubAppCredentialsConfigured()) {
+      return "GitHub App ist gesetzt, Token-Mint fehlgeschlagen — App-Installation-ID/PEM prüfen und sync-github-app-credentials-live erneut laufen lassen.";
+    }
     return "GitHub-Auth fehlt — GitHub App (empfohlen) oder GITHUB_DEPLOY_TOKEN setzen.";
   }
   return "GitHub-API nicht erreichbar.";

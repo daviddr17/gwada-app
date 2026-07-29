@@ -21,32 +21,29 @@ if ! gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" true 2>/dev/null; then
   exit 1
 fi
 
-echo ""
-echo "=== Dev-DB spot-check: pos course int migration ==="
-gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" bash <<REMOTE
-set -euo pipefail
-cd "${DEV_COMPOSE_DIR}"
-export COMPOSE_PROJECT_NAME=gwada-dev
-
-psql_query() {
-  local label="\$1"
-  local sql="\$2"
-  echo ""
-  echo "--- \${label} ---"
-  docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 -P pager=off -c "\${sql}"
+remote_psql() {
+  local sql="$1"
+  gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
+    "cd ${DEV_COMPOSE_DIR} && COMPOSE_PROJECT_NAME=gwada-dev docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 -P pager=off -c $(printf '%q' "${sql}")"
 }
 
-docker compose exec -T db pg_isready -U postgres
+echo ""
+echo "=== Dev-DB spot-check: pos course int migration ==="
+gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
+  "cd ${DEV_COMPOSE_DIR} && COMPOSE_PROJECT_NAME=gwada-dev docker compose exec -T db pg_isready -U postgres"
 
-psql_query "pg_typeof(course)" \
-  "select pg_typeof(course)::text as course_type from public.pos_order_lines limit 1;"
+echo ""
+echo "--- pg_typeof(course) ---"
+remote_psql "select pg_typeof(course)::text as course_type from public.pos_order_lines limit 1;"
 
-psql_query "pos_order_lines.course (limit 5)" \
-  "select course from public.pos_order_lines limit 5;"
+echo ""
+echo "--- pos_order_lines.course (limit 5) ---"
+remote_psql "select course from public.pos_order_lines limit 5;"
 
-psql_query "pos_kds_devices.courses (limit 5)" \
-  "select courses from public.pos_kds_devices limit 5;"
+echo ""
+echo "--- pos_kds_devices.courses (limit 5) ---"
+remote_psql "select courses from public.pos_kds_devices limit 5;"
 
-psql_query "pos_order_course enum remaining" \
-  "select count(*)::int as enum_left from pg_type where typname = 'pos_order_course';"
-REMOTE
+echo ""
+echo "--- pos_order_course enum remaining ---"
+remote_psql "select count(*)::int as enum_left from pg_type where typname = 'pos_order_course';"

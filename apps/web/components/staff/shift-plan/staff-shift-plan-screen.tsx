@@ -910,6 +910,19 @@ export function StaffShiftPlanScreen({
 
   const closePlanFullscreen = useCallback(() => setPlanFullscreen(false), []);
 
+  const openAvailability = useCallback(
+    (staffId: string, day: Date) => {
+      const staff = staffRows.find((s) => s.id === staffId);
+      if (!staff) return;
+      setAvailabilityTarget({
+        staffId,
+        staffName: staffDisplayName(staff),
+        dayYmd: restaurantZonedDateKey(day, restaurantTimeZone),
+      });
+    },
+    [staffRows, restaurantTimeZone],
+  );
+
   const activeDragShift =
     activeDragId?.startsWith("shift-")
       ? shifts.find((s) => `shift-${s.id}` === activeDragId) ?? null
@@ -938,18 +951,6 @@ export function StaffShiftPlanScreen({
   const editable = !personalMode;
   const canEditAvailability =
     editable && hasModuleUpdate(has, "staff");
-  const openAvailability = useCallback(
-    (staffId: string, day: Date) => {
-      const staff = staffRows.find((s) => s.id === staffId);
-      if (!staff) return;
-      setAvailabilityTarget({
-        staffId,
-        staffName: staffDisplayName(staff),
-        dayYmd: restaurantZonedDateKey(day, restaurantTimeZone),
-      });
-    },
-    [staffRows, restaurantTimeZone],
-  );
   const referenceDay = days[0] ?? anchor;
   const periodTitle = formatViewTitleDe(anchor, view);
 

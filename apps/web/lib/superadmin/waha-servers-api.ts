@@ -114,6 +114,94 @@ export async function restartSuperadminWahaContainer(id: string): Promise<{
   return { ok: true, message: body.message };
 }
 
+export type WahaServerVersionStatus = {
+  ok: boolean;
+  currentVersion: string | null;
+  currentVersionRaw?: string | null;
+  engine: string | null;
+  nodeVersion: string | null;
+  latestVersion: string | null;
+  latestPublishedAt: string | null;
+  latestHtmlUrl: string | null;
+  updateAvailable: boolean;
+  canUpdate: boolean;
+  error?: string;
+};
+
+export async function fetchSuperadminWahaServerVersion(
+  id: string,
+): Promise<WahaServerVersionStatus & { error?: string }> {
+  const res = await fetch(
+    `/api/superadmin/waha/servers/${encodeURIComponent(id)}/version`,
+    { method: "GET", cache: "no-store" },
+  );
+  const body = (await res.json().catch(() => ({}))) as WahaServerVersionStatus & {
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok) {
+    return {
+      ok: false,
+      currentVersion: null,
+      engine: null,
+      nodeVersion: null,
+      latestVersion: null,
+      latestPublishedAt: null,
+      latestHtmlUrl: null,
+      updateAvailable: false,
+      canUpdate: false,
+      error: body.error ?? body.message ?? `http_${res.status}`,
+    };
+  }
+  return {
+    ok: Boolean(body.ok),
+    currentVersion: body.currentVersion ?? null,
+    currentVersionRaw: body.currentVersionRaw,
+    engine: body.engine ?? null,
+    nodeVersion: body.nodeVersion ?? null,
+    latestVersion: body.latestVersion ?? null,
+    latestPublishedAt: body.latestPublishedAt ?? null,
+    latestHtmlUrl: body.latestHtmlUrl ?? null,
+    updateAvailable: Boolean(body.updateAvailable),
+    canUpdate: Boolean(body.canUpdate),
+    error: body.error,
+  };
+}
+
+/** Docker-Image auf neueste WAHA-Version (compose pull). */
+export async function triggerSuperadminWahaImageUpdate(id: string): Promise<{
+  ok?: boolean;
+  message?: string;
+  error?: string;
+  targetVersion?: string | null;
+}> {
+  const res = await fetch(
+    `/api/superadmin/waha/servers/${encodeURIComponent(id)}/update`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: "UPDATE" }),
+    },
+  );
+  const body = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    error?: string;
+    targetVersion?: string | null;
+  };
+  if (!res.ok) {
+    return {
+      error: body.error ?? `http_${res.status}`,
+      message: body.message,
+    };
+  }
+  return {
+    ok: true,
+    message: body.message,
+    targetVersion: body.targetVersion,
+  };
+}
+
 export async function createSuperadminWahaServer(
   input: WahaServerWriteInput,
 ): Promise<{ server?: WahaServerPublic; error?: string }> {

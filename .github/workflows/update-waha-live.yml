@@ -1,0 +1,163 @@
+# WAHA Image-Update auf dem VPS (offizielle Doku: docker compose pull && up -d).
+# Voraussetzung: Container mit Docker-Compose-Labels (wie WAHA Install-Guide).
+# Optional Secret WAHA_PLUS_DOCKER_PASSWORD für docker login (WAHA Plus).
+name: Update WAHA live
+
+on:
+  workflow_dispatch:
+    inputs:
+      container:
+        description: Docker-Container-Name auf dem VPS
+        required: true
+        type: string
+      server_id:
+        description: Optional waha_servers.id
+        required: false
+        default: ""
+      target_version:
+        description: Zielversion YYYY.M.B (für pinned Tags latest-…)
+        required: false
+        default: ""
+  repository_dispatch:
+    types: [update-waha-live]
+
+concurrency:
+  group: update-waha-live
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Docker update WAHA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve params
+        id: params
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            CONTAINER="${{ github.event.client_payload.container }}"
+            SERVER_ID="${{ github.event.client_payload.server_id }}"
+            TARGET="${{ github.event.client_payload.target_version }}"
+          else
+            CONTAINER="${{ inputs.container }}"
+            SERVER_ID="${{ inputs.server_id }}"
+            TARGET="${{ inputs.target_version }}"
+          fi
+          CONTAINER="$(echo "$CONTAINER" | tr -d '[:space:]')"
+          TARGET="$(echo "$TARGET" | tr -cd '0-9.')"
+          if [ -z "$CONTAINER" ]; then
+            echo "::error::container fehlt"
+            exit 1
+          fi
+          if ! echo "$CONTAINER" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'; then
+            echo "::error::Ungültiger Container-Name"
+            exit 1
+          fi
+          echo "container=${CONTAINER}" >> "$GITHUB_OUTPUT"
+          echo "server_id=${SERVER_ID}" >> "$GITHUB_OUTPUT"
+          echo "target_version=${TARGET}" >> "$GITHUB_OUTPUT"
+
+      - name: Pull + recreate WAHA on VPS
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          WAHA_PLUS_DOCKER_PASSWORD: ${{ secrets.WAHA_PLUS_DOCKER_PASSWORD }}
+          CONTAINER: ${{ steps.params.outputs.container }}
+          TARGET_VERSION: ${{ steps.params.outputs.target_version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "Update ${CONTAINER} on ${LIVE_VPS_HOST} (target=${TARGET_VERSION:-auto}) …"
+
+          # Passwort nur über stdin-Env auf dem Remote (nicht in argv des Update-Skripts spiegeln)
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o ConnectTimeout=30 \
+            "root@${LIVE_VPS_HOST}" \
+            env \
+              "CONTAINER=${CONTAINER}" \
+              "TARGET_VERSION=${TARGET_VERSION}" \
+              "WAHA_PLUS_DOCKER_PASSWORD=${WAHA_PLUS_DOCKER_PASSWORD}" \
+              bash -s <<'REMOTE'
+          set -euo pipefail
+
+          if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
+            echo "::error::Container nicht gefunden: $CONTAINER"
+            exit 1
+          fi
+
+          label() {
+            local v
+            v="$(docker inspect -f "{{index .Config.Labels \"$1\"}}" "$CONTAINER" 2>/dev/null || true)"
+            if [ -z "$v" ] || [ "$v" = "<no value>" ]; then
+              echo ""
+            else
+              echo "$v"
+            fi
+          }
+
+          WORKDIR="$(label com.docker.compose.project.working_dir)"
+          PROJECT="$(label com.docker.compose.project)"
+          SERVICE="$(label com.docker.compose.service)"
+          IMAGE="$(docker inspect -f '{{.Config.Image}}' "$CONTAINER")"
+
+          echo "image=${IMAGE}"
+          echo "compose_workdir=${WORKDIR:-none}"
+          echo "compose_project=${PROJECT:-none}"
+          echo "compose_service=${SERVICE:-none}"
+
+          if [ -z "$WORKDIR" ] || [ ! -d "$WORKDIR" ]; then
+            echo "::error::Kein Docker-Compose-Projekt am Container — Update laut WAHA-Doku nur mit compose (pull + up -d)."
+            echo "Bitte WAHA mit docker compose deployen (Working-Dir-Label fehlt)."
+            exit 1
+          fi
+
+          if [ -n "${WAHA_PLUS_DOCKER_PASSWORD:-}" ]; then
+            echo "$WAHA_PLUS_DOCKER_PASSWORD" | docker login -u devlikeapro --password-stdin
+          fi
+
+          cleanup() {
+            if [ -n "${WAHA_PLUS_DOCKER_PASSWORD:-}" ]; then
+              docker logout >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          # Pinned Tags latest-YYYY.M.B in compose-Dateien auf Zielversion heben
+          if [ -n "${TARGET_VERSION:-}" ]; then
+            NEW_TAG="latest-${TARGET_VERSION}"
+            for f in \
+              "$WORKDIR/docker-compose.yml" \
+              "$WORKDIR/docker-compose.yaml" \
+              "$WORKDIR/compose.yml" \
+              "$WORKDIR/compose.yaml"
+            do
+              if [ -f "$f" ] && grep -Eq 'image:[[:space:]]*.*waha[^[:space:]]*:latest-[0-9]' "$f"; then
+                echo "Pinned Tag in $f → ${NEW_TAG}"
+                sed -i -E "s|(image:[[:space:]]*[^[:space:]]*waha[^[:space:]]*):latest-[0-9.]+|\\1:${NEW_TAG}|g" "$f"
+              fi
+            done
+          fi
+
+          cd "$WORKDIR"
+          COMPOSE=(docker compose)
+          if [ -n "$PROJECT" ]; then
+            COMPOSE=(docker compose -p "$PROJECT")
+          fi
+
+          if [ -n "$SERVICE" ]; then
+            "${COMPOSE[@]}" pull "$SERVICE"
+            "${COMPOSE[@]}" up -d --force-recreate "$SERVICE"
+          else
+            "${COMPOSE[@]}" pull
+            "${COMPOSE[@]}" up -d --force-recreate
+          fi
+
+          sleep 2
+          docker ps --filter "name=^${CONTAINER}$" --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+          echo "WAHA-Update fertig."
+          REMOTE

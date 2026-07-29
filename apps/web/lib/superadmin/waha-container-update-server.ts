@@ -2,10 +2,9 @@ import "server-only";
 
 import {
   githubDeployBranch,
-  githubDeployToken,
-  githubDeployTokenStrict,
   githubFetchJson,
   githubRepoSlug,
+  resolveGithubDeployAccessToken,
 } from "@/lib/superadmin/github-deploy-api-server";
 import { normalizeWahaVersion } from "@/lib/waha/waha-version";
 
@@ -22,7 +21,7 @@ type WorkflowRunLite = {
 };
 
 async function latestUpdateWorkflowRun(): Promise<WorkflowRunLite | null> {
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) return null;
   const repo = githubRepoSlug();
   try {
@@ -66,7 +65,7 @@ export async function triggerWahaContainerUpdate(input: {
     return { ok: false, error: "docker_container_name_invalid" };
   }
 
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) {
     return { ok: false, error: "github_deploy_token_missing" };
   }

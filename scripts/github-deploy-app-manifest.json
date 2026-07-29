@@ -1,0 +1,19 @@
+{
+  "name": "Gwada Deploy",
+  "url": "https://gwada.app",
+  "hook_attributes": {
+    "url": "https://gwada.app/api/github-app-hook",
+    "active": false
+  },
+  "redirect_url": "https://gwada.app",
+  "callback_urls": ["https://gwada.app"],
+  "public": false,
+  "default_permissions": {
+    "actions": "write",
+    "contents": "read",
+    "metadata": "read",
+    "packages": "read",
+    "workflows": "write"
+  },
+  "default_events": []
+}

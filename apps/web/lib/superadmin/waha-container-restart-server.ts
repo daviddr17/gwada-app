@@ -2,10 +2,9 @@ import "server-only";
 
 import {
   githubDeployBranch,
-  githubDeployToken,
-  githubDeployTokenStrict,
   githubFetchJson,
   githubRepoSlug,
+  resolveGithubDeployAccessToken,
 } from "@/lib/superadmin/github-deploy-api-server";
 
 export const WAHA_RESTART_WORKFLOW_FILE = "restart-waha-live.yml";
@@ -28,7 +27,7 @@ export async function triggerWahaContainerRestart(input: {
     return { ok: false, error: "docker_container_name_invalid" };
   }
 
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) {
     return { ok: false, error: "github_deploy_token_missing" };
   }

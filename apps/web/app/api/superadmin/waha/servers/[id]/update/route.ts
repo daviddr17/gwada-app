@@ -84,7 +84,7 @@ export async function POST(req: Request, context: RouteContext) {
         message: cooldown
           ? `WAHA-Update erst wieder in ${result.error?.replace("update_cooldown_", "")} möglich.`
           : result.error === "github_deploy_token_missing"
-            ? "GITHUB_DEPLOY_TOKEN fehlt — Update nicht möglich."
+            ? "GitHub-Auth fehlt — Update nicht möglich (GitHub App oder GITHUB_DEPLOY_TOKEN)."
             : "WAHA-Update konnte nicht gestartet werden.",
       },
       { status: cooldown ? 429 : 502 },

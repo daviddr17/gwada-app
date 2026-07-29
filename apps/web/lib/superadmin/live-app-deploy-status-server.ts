@@ -6,6 +6,7 @@ import type {
   SuperadminLiveAppDeployStatus,
 } from "@/lib/types/superadmin-ops-status";
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
+import { githubAppCredentialsConfigured } from "@/lib/superadmin/github-app-auth-server";
 import { githubDeployTokenStrict } from "@/lib/superadmin/github-deploy-api-server";
 
 const BUILD_INFO_TIMEOUT_MS = 6_000;
@@ -150,7 +151,7 @@ function buildMessage(input: {
 
   if (!input.githubSha) {
     if (!input.github.configured) {
-      return "GitHub-Token fehlt — Live-Commit bekannt, Vergleich mit main nicht möglich.";
+      return "GitHub-Auth fehlt (GitHub App oder PAT) — Live-Commit bekannt, Vergleich mit main nicht möglich.";
     }
     if (!input.github.reachable) {
       return (
@@ -199,6 +200,7 @@ export async function fetchLiveAppDeployStatus(
   });
 
   const triggerConfigured =
+    githubAppCredentialsConfigured() ||
     Boolean(githubDeployTokenStrict()) ||
     (github.configured && github.reachable);
 

@@ -2,10 +2,9 @@ import "server-only";
 
 import {
   githubDeployBranch,
-  githubDeployToken,
-  githubDeployTokenStrict,
   githubFetchJson,
   githubRepoSlug,
+  resolveGithubDeployAccessToken,
 } from "@/lib/superadmin/github-deploy-api-server";
 
 export const LIVE_VPS_REBOOT_WORKFLOW_FILE = "reboot-live-vps.yml";
@@ -22,7 +21,7 @@ type WorkflowRunLite = {
 };
 
 async function latestRebootWorkflowRun(): Promise<WorkflowRunLite | null> {
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) return null;
   const repo = githubRepoSlug();
   try {
@@ -54,7 +53,7 @@ export async function getLiveVpsRebootCooldownRemainingMs(): Promise<number> {
 export async function triggerLiveVpsReboot(input?: {
   reason?: string;
 }): Promise<{ ok: boolean; error?: string; htmlUrl?: string | null }> {
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) {
     return { ok: false, error: "github_deploy_token_missing" };
   }

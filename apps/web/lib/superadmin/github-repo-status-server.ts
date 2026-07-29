@@ -6,8 +6,8 @@ import {
   fetchGithubBranches,
   fetchGithubDeployWorkflowStatus,
   fetchGithubHeadCommit,
+  githubDeployAuthConfigured,
   githubDeployBranch,
-  githubDeployToken,
   githubRepoSlug,
 } from "@/lib/superadmin/github-deploy-api-server";
 import { buildRepositoryGuide } from "@/lib/superadmin/repository-guide";
@@ -16,7 +16,7 @@ import type { SuperadminGithubRepoStatus } from "@/lib/types/superadmin-ops-stat
 export async function fetchSuperadminGithubRepoStatus(): Promise<SuperadminGithubRepoStatus> {
   const slug = githubRepoSlug();
   const deployBranch = githubDeployBranch();
-  const configured = Boolean(githubDeployToken());
+  const configured = githubDeployAuthConfigured();
   const htmlUrl = `https://github.com/${slug}`;
 
   const [branches, headCommit, appDeployWorkflow, dbDeployWorkflow] =

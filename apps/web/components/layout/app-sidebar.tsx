@@ -40,7 +40,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSkeleton,
   SidebarSeparator,
   SIDEBAR_LABEL_MOTION,
   SIDEBAR_COMPACT_BUTTON,
@@ -116,8 +115,6 @@ function restaurantInitials(name: string): string {
   return word.slice(0, 1).toLocaleUpperCase("de-DE");
 }
 
-const SIDEBAR_MODULE_SKELETON_COUNT = 10;
-
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -144,14 +141,15 @@ export function AppSidebar() {
   );
   const changelogUnreadCount = sidebarChangelogUnreadCount(notificationSummary);
 
-  const orderedSidebarModules = useMemo(
-    () =>
-      sidebarModuleOrder
-        .map((id: SidebarModuleId) => SIDEBAR_MODULE_BY_ID.get(id))
-        .filter((mod): mod is NonNullable<typeof mod> => mod != null)
-        .filter((mod) => hasSidebarModuleAccess(has, mod.id)),
-    [sidebarModuleOrder, has],
-  );
+  const orderedSidebarModules = useMemo(() => {
+    const mods = sidebarModuleOrder
+      .map((id: SidebarModuleId) => SIDEBAR_MODULE_BY_ID.get(id))
+      .filter((mod): mod is NonNullable<typeof mod> => mod != null);
+    // Permissions noch leer: Module trotzdem sofort klickbar (optimistic).
+    // Nach dem Load filtert hasSidebarModuleAccess wie bisher.
+    if (permissionsPending) return mods;
+    return mods.filter((mod) => hasSidebarModuleAccess(has, mod.id));
+  }, [sidebarModuleOrder, has, permissionsPending]);
 
   const displayName = profile.name.trim() || (profileReady ? "Restaurant" : "");
   const userFullName = formatOrderProtocolUserName({ firstName, lastName });
@@ -434,13 +432,9 @@ export function AppSidebar() {
                       <span>Dashboard</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {permissionsPending ? (
-                    Array.from({ length: SIDEBAR_MODULE_SKELETON_COUNT }, (_, i) => (
-                      <SidebarMenuItem key={`perm-skeleton-${i}`}>
-                        <SidebarMenuSkeleton showIcon />
-                      </SidebarMenuItem>
-                    ))
-                  ) : permissionsError && orderedSidebarModules.length === 0 ? (
+                  {permissionsError &&
+                  !permissionsPending &&
+                  orderedSidebarModules.length === 0 ? (
                     <SidebarMenuItem>
                       <div className="px-2 py-1">
                         <p className="mb-2 text-xs text-sidebar-foreground/70">

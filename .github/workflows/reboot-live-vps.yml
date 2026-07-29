@@ -1,0 +1,56 @@
+# Contabo/VPS Soft-Reboot (nicht nur Docker). Nutzt LIVE_SSH_KEY.
+name: Reboot live VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Kurzer Grund (nur Log)
+        required: false
+        default: "superadmin"
+  repository_dispatch:
+    types: [reboot-live-vps]
+
+concurrency:
+  group: reboot-live-vps
+  cancel-in-progress: false
+
+jobs:
+  reboot:
+    name: Soft-reboot Contabo VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve reason
+        id: params
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            REASON="${{ github.event.client_payload.reason }}"
+          else
+            REASON="${{ inputs.reason }}"
+          fi
+          REASON="${REASON:-superadmin}"
+          # nur Log-sicher
+          REASON="$(echo "$REASON" | tr -cd 'A-Za-z0-9 _.-' | head -c 120)"
+          echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
+
+      - name: Reboot VPS via SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          REASON: ${{ steps.params.outputs.reason }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "Soft-reboot ${LIVE_VPS_HOST} (reason=${REASON}) …"
+          # -n: kein stdin; reboot im Hintergrund, SSH kann sauber enden
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o ConnectTimeout=20 \
+            "root@${LIVE_VPS_HOST}" \
+            "logger -t gwada-reboot \"reboot requested: ${REASON}\" || true; nohup bash -c 'sleep 2; systemctl reboot' >/dev/null 2>&1 &"
+          echo "Reboot ausgelöst — Host kommt in 1–3 Min. wieder."

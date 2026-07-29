@@ -12,7 +12,7 @@ import type { WahaServerConfig } from "@/lib/waha/waha-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const SERVER_SELECT =
-  "id, name, base_url, api_key, enabled, accept_new_sessions, session_limit, warn_remaining, sort_order, notes, docker_container_name, last_container_restart_at, auto_recover_enabled, last_health_ok_at, last_health_error, capacity_warning_active, capacity_warning_at, created_at, updated_at";
+  "id, name, base_url, api_key, enabled, accept_new_sessions, session_limit, warn_remaining, sort_order, notes, docker_container_name, ssh_host, ssh_user, ssh_port, ssh_private_key, last_container_restart_at, auto_recover_enabled, last_health_ok_at, last_health_error, capacity_warning_active, capacity_warning_at, created_at, updated_at";
 
 function asServerRow(raw: unknown): WahaServerRow | null {
   if (!raw || typeof raw !== "object") return null;
@@ -40,6 +40,22 @@ function asServerRow(raw: unknown): WahaServerRow | null {
       r.docker_container_name.trim() !== ""
         ? r.docker_container_name.trim()
         : null,
+    ssh_host:
+      typeof r.ssh_host === "string" && r.ssh_host.trim() !== ""
+        ? r.ssh_host.trim()
+        : null,
+    ssh_user:
+      typeof r.ssh_user === "string" && r.ssh_user.trim() !== ""
+        ? r.ssh_user.trim()
+        : "root",
+    ssh_port:
+      typeof r.ssh_port === "number" &&
+      r.ssh_port >= 1 &&
+      r.ssh_port <= 65535
+        ? r.ssh_port
+        : 22,
+    ssh_private_key:
+      typeof r.ssh_private_key === "string" ? r.ssh_private_key : "",
     last_container_restart_at:
       typeof r.last_container_restart_at === "string"
         ? r.last_container_restart_at
@@ -81,6 +97,10 @@ export function wahaServerToPublic(
     sort_order: row.sort_order,
     notes: row.notes,
     docker_container_name: row.docker_container_name,
+    ssh_host: row.ssh_host,
+    ssh_user: row.ssh_user,
+    ssh_port: row.ssh_port,
+    ssh_private_key_configured: Boolean(row.ssh_private_key.trim()),
     last_container_restart_at: row.last_container_restart_at,
     auto_recover_enabled: row.auto_recover_enabled,
     last_health_ok_at: row.last_health_ok_at,
@@ -427,6 +447,10 @@ export type UpsertWahaServerInput = {
   sort_order?: number;
   notes?: string | null;
   docker_container_name?: string | null;
+  ssh_host?: string | null;
+  ssh_user?: string | null;
+  ssh_port?: number | null;
+  ssh_private_key?: string | null;
   auto_recover_enabled?: boolean;
 };
 
@@ -455,6 +479,15 @@ export async function createWahaServerAdmin(
       sort_order: input.sort_order ?? 100,
       notes: input.notes?.trim() || null,
       docker_container_name: input.docker_container_name?.trim() || null,
+      ssh_host: input.ssh_host?.trim() || null,
+      ssh_user: input.ssh_user?.trim() || "root",
+      ssh_port:
+        typeof input.ssh_port === "number" &&
+        input.ssh_port >= 1 &&
+        input.ssh_port <= 65535
+          ? input.ssh_port
+          : 22,
+      ssh_private_key: input.ssh_private_key?.trim() || "",
       auto_recover_enabled: input.auto_recover_enabled !== false,
     })
     .select(SERVER_SELECT)
@@ -504,6 +537,24 @@ export async function updateWahaServerAdmin(
       input.docker_container_name === undefined
         ? existing.docker_container_name
         : input.docker_container_name?.trim() || null,
+    ssh_host:
+      input.ssh_host === undefined
+        ? existing.ssh_host
+        : input.ssh_host?.trim() || null,
+    ssh_user:
+      input.ssh_user === undefined
+        ? existing.ssh_user
+        : input.ssh_user?.trim() || "root",
+    ssh_port:
+      input.ssh_port === undefined || input.ssh_port === null
+        ? existing.ssh_port
+        : input.ssh_port >= 1 && input.ssh_port <= 65535
+          ? input.ssh_port
+          : existing.ssh_port,
+    ssh_private_key:
+      input.ssh_private_key === undefined || input.ssh_private_key === null
+        ? existing.ssh_private_key
+        : input.ssh_private_key.trim() || existing.ssh_private_key,
     auto_recover_enabled:
       input.auto_recover_enabled ?? existing.auto_recover_enabled,
   };

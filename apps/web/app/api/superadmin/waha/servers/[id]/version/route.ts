@@ -47,6 +47,10 @@ export async function GET(_req: Request, context: RouteContext) {
     latestHtmlUrl: status.latest?.htmlUrl ?? null,
     updateAvailable: status.updateAvailable,
     error: status.current.ok ? undefined : status.current.error,
-    canUpdate: Boolean(row.docker_container_name?.trim()),
+    canUpdate: Boolean(
+      row.docker_container_name?.trim() &&
+        ((row.ssh_host?.trim() && row.ssh_private_key?.trim()) ||
+          !row.ssh_host?.trim()),
+    ),
   });
 }

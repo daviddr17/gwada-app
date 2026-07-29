@@ -33,6 +33,7 @@ import {
   healthCheckSuperadminWahaServer,
   recoverSuperadminWahaServer,
   restartSuperadminWahaContainer,
+  triggerSuperadminWahaHostReboot,
   triggerSuperadminWahaImageUpdate,
   updateSuperadminWahaServer,
   type WahaServerVersionStatus,
@@ -77,6 +78,11 @@ type EditorState = {
   sort_order: string;
   notes: string;
   docker_container_name: string;
+  ssh_host: string;
+  ssh_user: string;
+  ssh_port: string;
+  ssh_private_key: string;
+  ssh_private_key_configured: boolean;
   auto_recover_enabled: boolean;
 };
 
@@ -93,6 +99,11 @@ function emptyEditor(): EditorState {
     sort_order: "100",
     notes: "",
     docker_container_name: "",
+    ssh_host: "",
+    ssh_user: "root",
+    ssh_port: "22",
+    ssh_private_key: "",
+    ssh_private_key_configured: false,
     auto_recover_enabled: true,
   };
 }
@@ -111,8 +122,17 @@ function editorFromServer(s: WahaServerPublic): EditorState {
     sort_order: String(s.sort_order),
     notes: s.notes ?? "",
     docker_container_name: s.docker_container_name ?? "",
+    ssh_host: s.ssh_host ?? "",
+    ssh_user: s.ssh_user || "root",
+    ssh_port: String(s.ssh_port || 22),
+    ssh_private_key: "",
+    ssh_private_key_configured: s.ssh_private_key_configured,
     auto_recover_enabled: s.auto_recover_enabled !== false,
   };
+}
+
+function serverHasSsh(s: WahaServerPublic): boolean {
+  return Boolean(s.ssh_host?.trim() && s.ssh_private_key_configured);
 }
 
 export function SuperadminWahaScreen() {
@@ -135,6 +155,10 @@ export function SuperadminWahaScreen() {
   const [updateConfirmServer, setUpdateConfirmServer] =
     useState<WahaServerPublic | null>(null);
   const [updateConfirmTyped, setUpdateConfirmTyped] = useState("");
+  const [hostRebootBusyId, setHostRebootBusyId] = useState<string | null>(null);
+  const [hostRebootServer, setHostRebootServer] =
+    useState<WahaServerPublic | null>(null);
+  const [hostRebootConfirm, setHostRebootConfirm] = useState("");
   const [vpsRebootOpen, setVpsRebootOpen] = useState(false);
   const [vpsRebootConfirm, setVpsRebootConfirm] = useState("");
   const [vpsRebootBusy, setVpsRebootBusy] = useState(false);
@@ -266,6 +290,13 @@ export function SuperadminWahaScreen() {
       sort_order: Number.isFinite(sortOrder) ? sortOrder : 100,
       notes: editor.notes.trim() || null,
       docker_container_name: editor.docker_container_name.trim() || null,
+      ssh_host: editor.ssh_host.trim() || null,
+      ssh_user: editor.ssh_user.trim() || "root",
+      ssh_port: (() => {
+        const n = Number.parseInt(editor.ssh_port, 10);
+        return Number.isFinite(n) ? n : 22;
+      })(),
+      ssh_private_key: editor.ssh_private_key.trim() || undefined,
       auto_recover_enabled: editor.auto_recover_enabled,
     };
 
@@ -331,9 +362,15 @@ export function SuperadminWahaScreen() {
       );
       return;
     }
+    if (!serverHasSsh(s)) {
+      toast.error(
+        "SSH-Host + Key fehlen — unter Bearbeiten für diesen WAHA-Server setzen.",
+      );
+      return;
+    }
     if (
       !window.confirm(
-        `Docker-Container „${s.docker_container_name}“ wirklich neu starten? Alle Sessions auf diesem Host werden kurz unterbrochen.`,
+        `Docker-Container „${s.docker_container_name}“ auf ${s.ssh_host} neu starten? Sessions auf diesem Server kurz offline.`,
       )
     ) {
       return;
@@ -347,6 +384,27 @@ export function SuperadminWahaScreen() {
     }
     toast.success(res.message ?? "Container-Neustart gestartet.");
     await load();
+  };
+
+  const onConfirmHostReboot = async () => {
+    const s = hostRebootServer;
+    if (!s) throw new Error("no_server");
+    if (hostRebootConfirm.trim() !== "REBOOT") {
+      throw new Error("confirm_required");
+    }
+    setHostRebootBusyId(s.id);
+    const res = await triggerSuperadminWahaHostReboot(s.id);
+    setHostRebootBusyId(null);
+    if (res.error) {
+      toast.error(res.message ?? res.error);
+      throw new Error(res.error);
+    }
+    toast.success(
+      res.message ??
+        `Host-Reboot für ${s.name} gestartet (${s.ssh_host ?? "—"}).`,
+    );
+    setHostRebootServer(null);
+    setHostRebootConfirm("");
   };
 
   const onConfirmWahaUpdate = async () => {
@@ -482,22 +540,20 @@ export function SuperadminWahaScreen() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Server className="size-4" />
           <span>
-            Pool für NOWEB-Sessions. Sticky pro Restaurant — neue Sessions auf
-            den Server mit der meisten Luft. Version/Update: aktuelle WAHA-API
-            vs. GitHub-Release; Update = compose pull (Container-Name nötig).
-            Eskalation bei Fehlern: Sessions heilen → Container → VPS.
+            Pool für NOWEB-Sessions. Pro Server eigener SSH-Host für Update,
+            Container und Host-Reboot. Eskalation: Sessions heilen → Container →
+            WAHA-Host. „Gwada Live-VPS“ unten ist nur der Contabo-App-Server.
           </span>
         </div>
 
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 space-y-3">
+        <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 space-y-3">
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">
-              Contabo-VPS neu starten
+              Gwada Live-VPS (Contabo)
             </p>
             <p className="text-xs text-muted-foreground">
-              Soft-Reboot des Live-Hosts per SSH. App, DB-Proxy und WAHA sind
-              typisch 1–3 Minuten offline. Nur wenn Sessions heilen und
-              Container nicht reichen — oft heilt das WAHA wirklich.
+              Soft-Reboot nur des App-/DB-Hosts — nicht der WAHA-Server. Pro
+              WAHA-Host: Button „Host“ in der Zeile.
               {vpsRebootCooldownMs > 0
                 ? ` Cooldown noch ca. ${Math.ceil(vpsRebootCooldownMs / 60_000)} Min.`
                 : ""}
@@ -515,7 +571,7 @@ export function SuperadminWahaScreen() {
           >
             {vpsRebootCooldownMs > 0
               ? `VPS-Cooldown (${Math.ceil(vpsRebootCooldownMs / 60_000)} Min.)`
-              : "VPS neu starten"}
+              : "Gwada-VPS neu starten"}
           </Button>
         </div>
 
@@ -677,8 +733,10 @@ export function SuperadminWahaScreen() {
               sortValue: () => "",
               cell: (r) => {
                 const v = versionsById[r.id];
+                const hasSsh = serverHasSsh(r);
                 const updateReady =
                   Boolean(r.docker_container_name) &&
+                  hasSsh &&
                   Boolean(v?.updateAvailable);
                 return (
                 <div className="flex flex-wrap items-center gap-1 justify-end">
@@ -713,16 +771,19 @@ export function SuperadminWahaScreen() {
                     disabled={
                       updateBusyId === r.id ||
                       !r.docker_container_name ||
+                      !hasSsh ||
                       !updateReady
                     }
                     title={
-                      !r.docker_container_name
-                        ? "Docker-Container-Name unter Bearbeiten setzen"
-                        : !v?.latestVersion
-                          ? "Neueste Version unbekannt"
-                          : !v.updateAvailable
-                            ? "Bereits auf neuester Version"
-                            : `Auf ${v.latestVersion} updaten (compose pull)`
+                      !hasSsh
+                        ? "SSH-Host + Key unter Bearbeiten setzen"
+                        : !r.docker_container_name
+                          ? "Docker-Container-Name unter Bearbeiten setzen"
+                          : !v?.latestVersion
+                            ? "Neueste Version unbekannt"
+                            : !v.updateAvailable
+                              ? "Bereits auf neuester Version"
+                              : `Auf ${v.latestVersion} updaten (${r.ssh_host})`
                     }
                     onClick={() => {
                       setUpdateConfirmTyped("");
@@ -736,16 +797,37 @@ export function SuperadminWahaScreen() {
                     size="sm"
                     variant="outline"
                     disabled={
-                      restartBusyId === r.id || !r.docker_container_name
+                      restartBusyId === r.id ||
+                      !r.docker_container_name ||
+                      !hasSsh
                     }
                     title={
-                      r.docker_container_name
-                        ? `Container ${r.docker_container_name} neu starten`
-                        : "Docker-Container-Name unter Bearbeiten setzen"
+                      !hasSsh
+                        ? "SSH-Host + Key unter Bearbeiten setzen"
+                        : r.docker_container_name
+                          ? `Container ${r.docker_container_name} auf ${r.ssh_host}`
+                          : "Docker-Container-Name unter Bearbeiten setzen"
                     }
                     onClick={() => void onRestartContainer(r)}
                   >
                     {restartBusyId === r.id ? "…" : "Container"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={hostRebootBusyId === r.id || !hasSsh}
+                    title={
+                      hasSsh
+                        ? `WAHA-Host ${r.ssh_host} neu starten`
+                        : "SSH-Host + Key unter Bearbeiten setzen"
+                    }
+                    onClick={() => {
+                      setHostRebootConfirm("");
+                      setHostRebootServer(r);
+                    }}
+                  >
+                    {hostRebootBusyId === r.id ? "…" : "Host"}
                   </Button>
                   <Button
                     type="button"
@@ -946,7 +1028,7 @@ export function SuperadminWahaScreen() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="waha-docker">Docker-Container (VPS)</Label>
+              <Label htmlFor="waha-docker">Docker-Container</Label>
               <Input
                 id="waha-docker"
                 value={editor.docker_container_name}
@@ -960,10 +1042,88 @@ export function SuperadminWahaScreen() {
                 autoComplete="off"
               />
               <p className="text-xs text-muted-foreground">
-                Für Container-Neustart, Image-Update und Auto-Recovery. Name wie
-                in <span className="font-mono">docker ps</span>. Update nur mit
-                Docker Compose + persistentem Session-Storage.
+                Name wie in <span className="font-mono">docker ps</span> auf
+                diesem WAHA-Host.
               </p>
+            </div>
+            <div className="space-y-2 rounded-lg border border-border/50 p-3">
+              <p className="text-sm font-medium">SSH dieses WAHA-Servers</p>
+              <p className="text-xs text-muted-foreground">
+                Eigener Host für Update, Container und Host-Reboot — getrennt
+                vom Gwada-Contabo.
+              </p>
+              <div className="space-y-2 pt-1">
+                <Label htmlFor="waha-ssh-host">SSH-Host</Label>
+                <Input
+                  id="waha-ssh-host"
+                  value={editor.ssh_host}
+                  onChange={(e) =>
+                    setEditor((p) => ({ ...p, ssh_host: e.target.value }))
+                  }
+                  placeholder="z. B. 109.205.181.63 oder waha.example.com"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="waha-ssh-user">User</Label>
+                  <Input
+                    id="waha-ssh-user"
+                    value={editor.ssh_user}
+                    onChange={(e) =>
+                      setEditor((p) => ({ ...p, ssh_user: e.target.value }))
+                    }
+                    placeholder="root"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="waha-ssh-port">Port</Label>
+                  <Input
+                    id="waha-ssh-port"
+                    inputMode="numeric"
+                    value={editor.ssh_port}
+                    onChange={(e) =>
+                      setEditor((p) => ({ ...p, ssh_port: e.target.value }))
+                    }
+                    placeholder="22"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label
+                    htmlFor="waha-ssh-key"
+                    className="text-xs text-muted-foreground"
+                  >
+                    SSH Private Key (PEM)
+                  </Label>
+                  {editor.ssh_private_key_configured &&
+                  !editor.ssh_private_key ? (
+                    <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                      Hinterlegt
+                    </span>
+                  ) : null}
+                </div>
+                <textarea
+                  id="waha-ssh-key"
+                  className="min-h-28 w-full rounded-xl border border-input bg-transparent px-3 py-2 font-mono text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  value={editor.ssh_private_key}
+                  onChange={(e) =>
+                    setEditor((p) => ({
+                      ...p,
+                      ssh_private_key: e.target.value,
+                    }))
+                  }
+                  placeholder={
+                    editor.ssh_private_key_configured
+                      ? "Leer lassen = behalten · oder neuen PEM einfügen"
+                      : "-----BEGIN OPENSSH PRIVATE KEY-----"
+                  }
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+              </div>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2">
               <div>
@@ -1075,9 +1235,13 @@ export function SuperadminWahaScreen() {
                 <li>
                   Compose-Dateien und{" "}
                   <span className="font-mono">.env</span> werden vor dem Edit
-                  auf dem VPS gesichert (
+                  auf dem WAHA-Host gesichert (
                   <span className="font-mono">.gwada-waha-update-backup-…</span>
-                  ).
+                  )
+                  {updateConfirmServer?.ssh_host
+                    ? ` — ${updateConfirmServer.ssh_host}`
+                    : ""}
+                  .
                 </li>
                 <li>
                   Ab 2026.6.1 wird{" "}
@@ -1117,17 +1281,65 @@ export function SuperadminWahaScreen() {
       />
 
       <ConfirmDialog
+        open={hostRebootServer != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHostRebootServer(null);
+            setHostRebootConfirm("");
+          }
+        }}
+        title="WAHA-Host wirklich neu starten?"
+        description={
+          <div className="space-y-3">
+            <p>
+              Soft-Reboot nur von{" "}
+              <span className="font-medium">
+                {hostRebootServer?.name ?? "—"}
+              </span>{" "}
+              (
+              <span className="font-mono">
+                {hostRebootServer?.ssh_host ?? "—"}
+              </span>
+              ). Gwada-App und andere WAHA-Server bleiben online.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="waha-host-reboot-confirm">
+                Zur Bestätigung <span className="font-mono">REBOOT</span>{" "}
+                eingeben
+              </Label>
+              <Input
+                id="waha-host-reboot-confirm"
+                value={hostRebootConfirm}
+                onChange={(e) => setHostRebootConfirm(e.target.value)}
+                placeholder="REBOOT"
+                autoComplete="off"
+                autoCapitalize="characters"
+              />
+            </div>
+          </div>
+        }
+        confirmLabel={hostRebootBusyId ? "Startet …" : "Host neu starten"}
+        cancelLabel="Abbrechen"
+        destructive
+        confirmDisabled={
+          hostRebootBusyId != null || hostRebootConfirm.trim() !== "REBOOT"
+        }
+        onConfirm={onConfirmHostReboot}
+      />
+
+      <ConfirmDialog
         open={vpsRebootOpen}
         onOpenChange={(open) => {
           setVpsRebootOpen(open);
           if (!open) setVpsRebootConfirm("");
         }}
-        title="Live-VPS wirklich neu starten?"
+        title="Gwada Live-VPS wirklich neu starten?"
         description={
           <div className="space-y-3">
             <p>
-              Soft-Reboot des Contabo-Hosts. Die gesamte Live-Umgebung (App,
-              DB-Proxy, WAHA) geht kurz offline — typisch 1–3 Minuten.
+              Soft-Reboot des Contabo-App-Hosts (Gwada + DB-Proxy). WAHA-Server
+              mit eigenem SSH sind davon nicht betroffen — die rebootest du per
+              „Host“ in der Server-Zeile.
             </p>
             <div className="space-y-2">
               <Label htmlFor="vps-reboot-confirm">

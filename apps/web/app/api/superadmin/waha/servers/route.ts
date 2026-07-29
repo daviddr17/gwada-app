@@ -39,6 +39,10 @@ export async function POST(req: Request) {
     sort_order?: number;
     notes?: string | null;
     docker_container_name?: string | null;
+    ssh_host?: string | null;
+    ssh_user?: string | null;
+    ssh_port?: number | null;
+    ssh_private_key?: string | null;
     auto_recover_enabled?: boolean;
   };
 
@@ -53,6 +57,10 @@ export async function POST(req: Request) {
     sort_order: body.sort_order,
     notes: body.notes,
     docker_container_name: body.docker_container_name,
+    ssh_host: body.ssh_host,
+    ssh_user: body.ssh_user,
+    ssh_port: body.ssh_port,
+    ssh_private_key: body.ssh_private_key,
     auto_recover_enabled: body.auto_recover_enabled,
   });
 

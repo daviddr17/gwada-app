@@ -1,0 +1,65 @@
+name: Restart WAHA live
+
+on:
+  workflow_dispatch:
+    inputs:
+      container:
+        description: Docker-Container-Name auf dem VPS
+        required: true
+        type: string
+      server_id:
+        description: Optional waha_servers.id
+        required: false
+        default: ""
+  repository_dispatch:
+    types: [restart-waha-live]
+
+concurrency:
+  group: restart-waha-live
+  cancel-in-progress: false
+
+jobs:
+  restart:
+    name: Docker restart WAHA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve container
+        id: params
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            CONTAINER="${{ github.event.client_payload.container }}"
+            SERVER_ID="${{ github.event.client_payload.server_id }}"
+          else
+            CONTAINER="${{ inputs.container }}"
+            SERVER_ID="${{ inputs.server_id }}"
+          fi
+          CONTAINER="$(echo "$CONTAINER" | tr -d '[:space:]')"
+          if [ -z "$CONTAINER" ]; then
+            echo "::error::container fehlt"
+            exit 1
+          fi
+          if ! echo "$CONTAINER" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'; then
+            echo "::error::Ungültiger Container-Name"
+            exit 1
+          fi
+          echo "container=${CONTAINER}" >> "$GITHUB_OUTPUT"
+          echo "server_id=${SERVER_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Restart container on VPS
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          CONTAINER: ${{ steps.params.outputs.container }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "Restart ${CONTAINER} on ${LIVE_VPS_HOST} …"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            "docker restart '${CONTAINER}' && docker ps --filter name='^${CONTAINER}$' --format 'table {{.Names}}\t{{.Status}}'"

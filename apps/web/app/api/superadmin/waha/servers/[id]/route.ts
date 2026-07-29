@@ -27,6 +27,8 @@ export async function PATCH(req: Request, context: RouteContext) {
     warn_remaining?: number;
     sort_order?: number;
     notes?: string | null;
+    docker_container_name?: string | null;
+    auto_recover_enabled?: boolean;
     clear_capacity_warning?: boolean;
   };
 
@@ -46,6 +48,12 @@ export async function PATCH(req: Request, context: RouteContext) {
       : {}),
     ...(body.sort_order !== undefined ? { sort_order: body.sort_order } : {}),
     ...(body.notes !== undefined ? { notes: body.notes } : {}),
+    ...(body.docker_container_name !== undefined
+      ? { docker_container_name: body.docker_container_name }
+      : {}),
+    ...(body.auto_recover_enabled !== undefined
+      ? { auto_recover_enabled: body.auto_recover_enabled }
+      : {}),
     clear_capacity_warning: body.clear_capacity_warning,
   });
 

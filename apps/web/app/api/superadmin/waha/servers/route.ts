@@ -38,6 +38,8 @@ export async function POST(req: Request) {
     warn_remaining?: number;
     sort_order?: number;
     notes?: string | null;
+    docker_container_name?: string | null;
+    auto_recover_enabled?: boolean;
   };
 
   const { row, error } = await createWahaServerAdmin({
@@ -50,6 +52,8 @@ export async function POST(req: Request) {
     warn_remaining: body.warn_remaining,
     sort_order: body.sort_order,
     notes: body.notes,
+    docker_container_name: body.docker_container_name,
+    auto_recover_enabled: body.auto_recover_enabled,
   });
 
   if (error || !row) {

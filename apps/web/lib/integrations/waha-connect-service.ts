@@ -56,7 +56,12 @@ export async function syncWhatsappFromWaha(
       const startRes = await wahaStartSession(config, sessionName);
       if (startRes.ok) session = startRes.data;
     }
-  } else if (session?.status === "FAILED" || session?.status === "STOPPED") {
+  } else if (
+    session?.status === "FAILED" ||
+    session?.status === "STOPPED" ||
+    session?.status === "STARTING"
+  ) {
+    // STARTING oft hängend (Chrome/Engine) — Restart statt erneut start.
     const restartRes = await wahaRestartSession(config, sessionName);
     if (restartRes.ok) session = restartRes.data;
     else {

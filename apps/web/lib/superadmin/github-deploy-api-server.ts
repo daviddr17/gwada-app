@@ -70,21 +70,18 @@ type GithubFetchResult = {
   oauthScopes: string[];
 };
 
-async function githubFetch(
+async function githubFetchOnce(
   path: string,
-  init?: RequestInit,
-  token?: string | null,
+  init: RequestInit | undefined,
+  token: string | null,
 ): Promise<GithubFetchResult> {
-  const resolvedToken =
-    token === undefined ? await resolveGithubDeployAccessToken() : token;
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
     ...(init?.headers as Record<string, string> | undefined),
   };
-  // Öffentliche Reads (Commit/Branches) ohne Token — Deploy-Aktionen brauchen Auth.
-  if (resolvedToken) {
-    headers.Authorization = `Bearer ${resolvedToken}`;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const res = await raceWithTimeout(
@@ -118,6 +115,38 @@ async function githubFetch(
     oauthScopes,
     body: text ? (JSON.parse(text) as unknown) : null,
   };
+}
+
+/**
+ * Abgelaufener PAT mit Authorization-Header killt auch öffentliche Reads (401).
+ * Bei GET + 401/403 einmal ohne Token erneut versuchen (Repo ist öffentlich).
+ */
+async function githubFetch(
+  path: string,
+  init?: RequestInit,
+  token?: string | null,
+): Promise<GithubFetchResult> {
+  const resolvedToken =
+    token === undefined ? await resolveGithubDeployAccessToken() : token;
+  const method = (init?.method ?? "GET").toUpperCase();
+  const isRead = method === "GET" || method === "HEAD";
+
+  try {
+    return await githubFetchOnce(path, init, resolvedToken);
+  } catch (e) {
+    const status =
+      e instanceof Error && "status" in e
+        ? (e as Error & { status?: number }).status
+        : undefined;
+    if (
+      isRead &&
+      resolvedToken &&
+      (status === 401 || status === 403)
+    ) {
+      return githubFetchOnce(path, init, null);
+    }
+    throw e;
+  }
 }
 
 export async function githubFetchJson(
@@ -159,7 +188,7 @@ function pickActiveRun(
 
 function githubApiErrorHint(msg: string): string {
   if (msg === "github_api_401" || msg === "github_api_403") {
-    return "GitHub-API abgelehnt — GitHub App Credentials prüfen (GITHUB_APP_ID / INSTALLATION_ID / PRIVATE_KEY) oder PAT.";
+    return "GitHub-API abgelehnt — abgelaufenen PAT entfernen oder GitHub App setzen (docs/github-app-deploy-auth.md).";
   }
   if (msg === "github_deploy_token_missing") {
     return "GitHub-Auth fehlt — GitHub App (empfohlen) oder GITHUB_DEPLOY_TOKEN setzen.";

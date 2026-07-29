@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
+import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthLogoutTransition } from "@/components/auth/auth-logout-transition-provider";
 import {
@@ -22,7 +23,6 @@ import {
   ScrollText,
   FileText,
   Files,
-  MessageCircle,
   Server,
   Settings,
   Settings2,
@@ -337,7 +337,7 @@ export function AppSidebar() {
                       tooltip="WAHA"
                       render={<Link href="/superadmin/waha" prefetch />}
                     >
-                      <MessageCircle />
+                      <WhatsAppGlyph className="size-4" />
                       <span>WAHA</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

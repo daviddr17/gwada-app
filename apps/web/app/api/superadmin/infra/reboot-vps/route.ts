@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   }
 
   const result = await triggerLiveVpsReboot({
-    reason: body.reason?.trim() || "superadmin-waha",
+    reason: body.reason?.trim() || "superadmin-system",
   });
 
   if (!result.ok) {
@@ -67,6 +67,6 @@ export async function POST(req: Request) {
   return Response.json({
     ok: true,
     message:
-      "VPS-Reboot gestartet. Live (App, DB-Proxy, WAHA) ist kurz offline — meist 1–3 Minuten.",
+      "VPS-Reboot gestartet. Live-App und DB auf dem Contabo-Host sind kurz offline (meist 1–3 Minuten). WAHA auf eigenem Server bleibt online.",
   });
 }

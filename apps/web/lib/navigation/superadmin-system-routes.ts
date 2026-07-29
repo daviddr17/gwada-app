@@ -7,7 +7,7 @@ export const SUPERADMIN_SYSTEM_ROUTES = {
 export const SUPERADMIN_SYSTEM_NAV = [
   {
     href: SUPERADMIN_SYSTEM_ROUTES.datenbank,
-    label: "Datenbank",
+    label: "Live & VPS",
     matchMode: "prefix" as const,
   },
   {

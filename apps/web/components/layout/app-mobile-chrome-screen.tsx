@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { acquireAppScrollLock } from "@/lib/layout/app-scroll-root";
 import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
+import { getDocumentBodyPortalTarget } from "@/lib/ui/resolve-floating-portal-container";
 import { cn } from "@/lib/utils";
 
 /**
@@ -228,7 +229,8 @@ export function AppMobileChromeScreen({
     };
   }, [mounted, open]);
 
-  if (!mounted || typeof document === "undefined") return null;
+  const portalTarget = getDocumentBodyPortalTarget();
+  if (!mounted || !portalTarget) return null;
 
   return createPortal(
     <div
@@ -273,6 +275,6 @@ export function AppMobileChromeScreen({
         </div>
       </div>
     </div>,
-    document.body,
+    portalTarget,
   );
 }

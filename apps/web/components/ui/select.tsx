@@ -5,6 +5,7 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { useDrawerFloatingPortalHost } from "@/lib/contexts/drawer-floating-portal"
 import { mobileFormControlFontClassName } from "@/lib/ui/mobile-form-control-font"
+import { resolveFloatingPortalContainer } from "@/lib/ui/resolve-floating-portal-container"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
@@ -115,8 +116,10 @@ function SelectContent({
   ...props
 }: SelectContentProps & { elevatedLayer?: boolean }) {
   const drawerFloatingHost = useDrawerFloatingPortalHost()
-  const portalContainer =
-    portalContainerProp ?? drawerFloatingHost ?? undefined
+  const portalContainer = resolveFloatingPortalContainer(
+    portalContainerProp,
+    drawerFloatingHost,
+  )
   const layerZClassName = elevatedLayer ? "z-[350]" : "z-[320]"
 
   return (

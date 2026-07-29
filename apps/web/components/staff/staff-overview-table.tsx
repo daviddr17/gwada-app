@@ -256,7 +256,7 @@ function staffRoleSortKey(row: RestaurantStaffRow): string {
     row.restaurant_position ?? row.linked_employee?.restaurant_position;
   if (position) return formatRestaurantPositionLabel(position);
   const role = row.linked_employee?.role;
-  if (!role) return "";
+  if (typeof role !== "string" || !role) return "";
   return EMPLOYEE_ROLE_OPTIONS.find((o) => o.value === role)?.label ?? role;
 }
 
@@ -273,7 +273,7 @@ function staffRoleDisplay(row: RestaurantStaffRow): {
     };
   }
   const role = row.linked_employee?.role;
-  if (!role) return null;
+  if (typeof role !== "string" || !role) return null;
   return {
     label: EMPLOYEE_ROLE_OPTIONS.find((o) => o.value === role)?.label ?? role,
   };

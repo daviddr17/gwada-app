@@ -21,6 +21,7 @@ import {
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
 import { appMobileFabBottomClassName, appMobileFabButtonClassName, appMobileFabIconClassName } from "@/lib/ui/app-mobile-bottom-nav";
+import { getDocumentBodyPortalTarget } from "@/lib/ui/resolve-floating-portal-container";
 import { cn } from "@/lib/utils";
 
 const MENU_SPRING = { type: "spring" as const, stiffness: 520, damping: 34 };
@@ -183,12 +184,13 @@ export function DashboardFab() {
     setMounted(true);
   }, []);
 
-  if (!mounted || items.length === 0) return null;
+  const portalTarget = getDocumentBodyPortalTarget();
+  if (!mounted || items.length === 0 || !portalTarget) return null;
 
   return createPortal(
     <LazyMotion features={domAnimation} strict>
       <DashboardFabLayer items={items} reduceMotion={reduceMotion} />
     </LazyMotion>,
-    document.body,
+    portalTarget,
   );
 }

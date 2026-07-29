@@ -10,6 +10,7 @@ import { FullscreenOverlayFloatingPortalContext } from "@/lib/contexts/fullscree
 import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { APP_LAYER_Z_INDEX, appLayerFloatingInFullscreenOverlayZClassName } from "@/lib/ui/app-layer-z-index";
 import { acquireAppScrollLock } from "@/lib/layout/app-scroll-root";
+import { getDocumentBodyPortalTarget } from "@/lib/ui/resolve-floating-portal-container";
 import { cn } from "@/lib/utils";
 
 const APP_FULLSCREEN_OVERLAY_OPEN_MS = 300;
@@ -87,7 +88,8 @@ export function AppFullscreenOverlay({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
-  if (!mounted || typeof document === "undefined") return null;
+  const portalTarget = getDocumentBodyPortalTarget();
+  if (!mounted || !portalTarget) return null;
 
   const motionReduced = prefersReducedMotion();
   const transitionMs = presented
@@ -139,6 +141,6 @@ export function AppFullscreenOverlay({
         />
       </div>
     </FullscreenOverlayFloatingPortalContext.Provider>,
-    document.body,
+    portalTarget,
   );
 }

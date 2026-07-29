@@ -4,6 +4,7 @@ export const NEWS_PLATFORMS = [
   "instagram",
   "google_business",
   "whatsapp_channel",
+  "whatsapp_status",
 ] as const;
 
 export type NewsPlatform = (typeof NEWS_PLATFORMS)[number];
@@ -14,6 +15,7 @@ export const NEWS_PLATFORM_LABELS: Record<NewsPlatform, string> = {
   instagram: "Instagram",
   google_business: "Google",
   whatsapp_channel: "WhatsApp Kanal",
+  whatsapp_status: "WhatsApp Status",
 };
 
 export const NEWS_PLATFORM_ORDER: readonly NewsPlatform[] = NEWS_PLATFORMS;

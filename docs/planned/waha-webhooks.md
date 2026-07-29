@@ -5,7 +5,7 @@
 Beim WhatsApp-Verbinden (`syncWhatsappFromWaha`) wird pro Restaurant-Session konfiguriert:
 
 - **URL:** `https://<SITE>/api/integrations/waha/webhook` (`NEXT_PUBLIC_SITE_URL` / `getPublicSiteUrl()`)
-- **Events:** `message` (eingehend), `message.ack` (gelesen / Zustellstatus)
+- **Events:** `message` (eingehend), `message.ack` (gelesen / Zustellstatus), `message.reaction` (Live-Reactions)
 - **Metadata:** `gwada.restaurant_id` = Restaurant-UUID
 - **Update:** `wahaUpdateSessionWebhooks` bei Connect und Session-Restart
 - **Session-Config:** `webjs.tagsEventsOn: true` (falls WEBJS-Engine), NOWEB-Store wie bisher
@@ -31,6 +31,14 @@ Optional in `.env` / Production:
 4. Client: leiser Inbox-Refresh → WAHA-Overview für `external_unread_count` (Glocke + Kontakte)
 
 Damit entfällt der Voll-Sync aller WAHA-Threads beim Glocke-Öffnen; Pull bleibt nur als Overview-Refresh nach Signal.
+
+## Ablauf bei Reaction (`message.reaction`)
+
+1. WAHA POST mit `payload.reaction.messageId` (+ `reaction.text`, leer = entfernt)
+2. **Signal:** `restaurant_inbox_signals` (`source: waha_ack`) — gleicher Client-Pfad wie ACK
+3. Offener Thread: `gwada:dashboard-waha-metadata-refresh` → stilles `loadThread` (WAHA History merged Reactions)
+
+Bestehende Sessions brauchen einmal Webhook-Refresh (`wahaUpdateSessionWebhooks` / Connect / `scripts/refresh-waha-webhooks-live.mjs`).
 
 ## Fallbacks
 

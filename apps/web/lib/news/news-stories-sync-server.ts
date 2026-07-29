@@ -8,6 +8,7 @@ import {
 import { upsertNewsStoriesPlatformCache } from "@/lib/news/news-stories-cache-db";
 import { fetchFacebookStories } from "@/lib/news/connectors/facebook-stories";
 import { fetchInstagramStories } from "@/lib/news/connectors/instagram-stories";
+import { syncWhatsappStatusStoriesCache } from "@/lib/news/connectors/whatsapp-status-stories";
 import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
@@ -89,6 +90,11 @@ export async function syncRestaurantNewsStoriesPlatform(
         null,
       );
       return { ok: true, count: fetched.slides.length };
+    }
+
+    if (platform === "whatsapp_status") {
+      const pruned = await syncWhatsappStatusStoriesCache(admin, restaurantId);
+      return { ok: true, count: pruned.slides.length };
     }
 
     const auth = await getFacebookAuth(restaurantId);

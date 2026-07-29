@@ -3,6 +3,7 @@ import "server-only";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import { publishFacebookStory } from "@/lib/news/connectors/facebook-stories";
 import { publishInstagramStory } from "@/lib/news/connectors/instagram-stories";
+import { publishWhatsappStatusStory } from "@/lib/news/connectors/whatsapp-status-stories";
 import { getNewsConnector } from "@/lib/news/connectors/registry";
 import { syncRestaurantNewsPlatformAfterPublish } from "@/lib/news/news-feed-sync-server";
 import {
@@ -55,6 +56,14 @@ export async function publishNewsStories(
       const result = await publishInstagramStory({ igId, token }, storyInput);
       if (result.ok) {
         void syncRestaurantNewsStoriesAfterPublish(restaurantId, platform);
+      }
+      continue;
+    }
+
+    if (platform === "whatsapp_status") {
+      const result = await publishWhatsappStatusStory(restaurantId, storyInput);
+      if (!result.ok) {
+        console.warn("[gwada] whatsapp status story", result.error);
       }
       continue;
     }

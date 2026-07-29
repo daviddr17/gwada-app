@@ -23,7 +23,7 @@ export function wahaSessionWebhookConfig(restaurantId: string): {
     webhooks: [
       {
         url,
-        events: ["message", "message.ack"],
+        events: ["message", "message.ack", "message.reaction"],
       },
     ],
     metadata: {

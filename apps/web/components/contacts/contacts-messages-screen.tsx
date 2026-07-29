@@ -95,7 +95,10 @@ import {
   patchUnifiedInboxCacheConversation,
   peekUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-cache";
-import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
+import {
+  GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
+  GWADA_DASHBOARD_WAHA_METADATA_REFRESH_EVENT,
+} from "@/lib/dashboard/dashboard-live-events";
 import {
   getUnifiedInboxRefreshInflight,
   refreshUnifiedInboxCache,
@@ -1291,11 +1294,31 @@ export function ContactsMessagesScreen({
       }, LIST_SILENT_REFRESH_DEBOUNCE_MS);
     };
 
+    /** ACK / Live-Reactions: offenen Thread still neu laden (WAHA merged Reactions). */
+    const onWahaMetadataRefresh = () => {
+      if (!contactParam) return;
+      if (threadRefreshDebounceRef.current) {
+        clearTimeout(threadRefreshDebounceRef.current);
+      }
+      threadRefreshDebounceRef.current = setTimeout(() => {
+        threadRefreshDebounceRef.current = null;
+        void loadThread({ silent: true });
+      }, LIST_SILENT_REFRESH_DEBOUNCE_MS);
+    };
+
     window.addEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onMessagesRefresh);
+    window.addEventListener(
+      GWADA_DASHBOARD_WAHA_METADATA_REFRESH_EVENT,
+      onWahaMetadataRefresh,
+    );
     return () => {
       window.removeEventListener(
         GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
         onMessagesRefresh,
+      );
+      window.removeEventListener(
+        GWADA_DASHBOARD_WAHA_METADATA_REFRESH_EVENT,
+        onWahaMetadataRefresh,
       );
       if (threadRefreshDebounceRef.current) {
         clearTimeout(threadRefreshDebounceRef.current);
@@ -1311,6 +1334,7 @@ export function ContactsMessagesScreen({
     restaurantId,
     contactParam,
     loadConversations,
+    loadThread,
   ]);
 
   useLayoutEffect(() => {

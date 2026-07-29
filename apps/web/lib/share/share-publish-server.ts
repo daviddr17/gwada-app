@@ -6,6 +6,7 @@ import {
 } from "@/lib/constants/share-channels";
 import { publishFacebookStory } from "@/lib/news/connectors/facebook-stories";
 import { publishInstagramStory } from "@/lib/news/connectors/instagram-stories";
+import { publishWhatsappStatusStory } from "@/lib/news/connectors/whatsapp-status-stories";
 import { getNewsConnector } from "@/lib/news/connectors/registry";
 import type { NewsPublishInput } from "@/lib/news/connectors/types";
 import {
@@ -28,10 +29,15 @@ function composeShareBody(body: string, link?: string | null): string {
 
 async function publishShareStory(
   restaurantId: string,
-  platform: "facebook" | "instagram",
+  platform: "facebook" | "instagram" | "whatsapp_status",
   imageUrl: string,
 ): Promise<SharePublishChannelResult> {
   const storyInput = { imageUrl };
+
+  if (platform === "whatsapp_status") {
+    const result = await publishWhatsappStatusStory(restaurantId, storyInput);
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
 
   if (platform === "instagram") {
     const row = await fetchRestaurantOAuthIntegrationAdmin(
@@ -138,7 +144,11 @@ export async function publishShareToChannels(params: {
         results[channelKey] = { ok: false, error: "image_required" };
         continue;
       }
-      if (def.platform !== "facebook" && def.platform !== "instagram") {
+      if (
+        def.platform !== "facebook" &&
+        def.platform !== "instagram" &&
+        def.platform !== "whatsapp_status"
+      ) {
         results[channelKey] = { ok: false, error: "platform_not_supported" };
         continue;
       }

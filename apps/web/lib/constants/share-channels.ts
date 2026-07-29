@@ -6,6 +6,7 @@ export const SHARE_CHANNEL_KEYS = [
   "instagram_post",
   "facebook_story",
   "instagram_story",
+  "whatsapp_status_story",
 ] as const;
 
 export type ShareChannelKey = (typeof SHARE_CHANNEL_KEYS)[number];
@@ -63,6 +64,13 @@ export const SHARE_CHANNEL_DEFINITIONS: readonly ShareChannelDefinition[] = [
     platform: "instagram",
     kind: "story",
     label: "Instagram Story",
+    requiresImage: true,
+  },
+  {
+    key: "whatsapp_status_story",
+    platform: "whatsapp_status",
+    kind: "story",
+    label: "WhatsApp Status",
     requiresImage: true,
   },
 ] as const;

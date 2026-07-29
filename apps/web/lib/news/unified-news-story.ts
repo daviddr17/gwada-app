@@ -1,6 +1,9 @@
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 
-export type NewsStoryPlatform = Extract<NewsPlatform, "gwada" | "facebook" | "instagram">;
+export type NewsStoryPlatform = Extract<
+  NewsPlatform,
+  "gwada" | "facebook" | "instagram" | "whatsapp_status"
+>;
 
 export type NewsStorySlideKind = "image" | "video";
 
@@ -27,6 +30,10 @@ export type UnifiedNewsStoryRing = {
 export type NewsStoriesSyncMeta = {
   lastSyncedAt: string | null;
   stale: boolean;
-  platformErrors: Partial<Record<Extract<NewsPlatform, "facebook" | "instagram">, string>>;
-  platformItemCounts: Partial<Record<Extract<NewsPlatform, "facebook" | "instagram">, number>>;
+  platformErrors: Partial<
+    Record<Extract<NewsPlatform, "facebook" | "instagram" | "whatsapp_status">, string>
+  >;
+  platformItemCounts: Partial<
+    Record<Extract<NewsPlatform, "facebook" | "instagram" | "whatsapp_status">, number>
+  >;
 };

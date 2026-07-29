@@ -20,7 +20,10 @@ import {
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { NewsPlatformChip } from "@/components/news/news-platform-filter-chips";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
-import type { NewsStoriesPlatform } from "@/lib/news/news-stories-cache-constants";
+import {
+  isNewsStoriesPlatform,
+  type NewsStoriesPlatform,
+} from "@/lib/news/news-stories-cache-constants";
 import type { NewsMediaRow } from "@/lib/news/news-media";
 import { uploadNewsMedia } from "@/lib/news/news-media-api";
 import { validateNewsMediaFile } from "@/lib/news/validate-news-media-file";
@@ -82,7 +85,7 @@ export function NewsComposeDrawer({
     (c) =>
       c.connected &&
       c.capabilities.canPublishStory &&
-      (c.key === "instagram" || c.key === "facebook"),
+      isNewsStoriesPlatform(c.key),
   );
 
   const canPublishStories = media.length > 0 && !scheduledAt;

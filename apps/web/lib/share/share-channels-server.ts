@@ -20,6 +20,9 @@ function isPlatformEnabled(
       return flags.instagramEnabled;
     case "google_business":
       return flags.googleBusinessEnabled;
+    case "whatsapp_channel":
+    case "whatsapp_status":
+      return flags.whatsappEnabled;
     default:
       return false;
   }

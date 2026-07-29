@@ -32,7 +32,8 @@ export function NewsPlatformIcon({
         <FacebookGlyph className={iconClass} />
       ) : platform === "instagram" ? (
         <InstagramGlyph className={iconClass} />
-      ) : platform === "whatsapp_channel" ? (
+      ) : platform === "whatsapp_channel" ||
+        platform === "whatsapp_status" ? (
         <WhatsAppGlyph className={iconClass} />
       ) : (
         <GwadaFaviconIcon size="chip" className={className} />

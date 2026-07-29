@@ -1,6 +1,10 @@
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 
-export const NEWS_STORIES_PLATFORMS = ["facebook", "instagram"] as const satisfies readonly NewsPlatform[];
+export const NEWS_STORIES_PLATFORMS = [
+  "facebook",
+  "instagram",
+  "whatsapp_status",
+] as const satisfies readonly NewsPlatform[];
 
 export type NewsStoriesPlatform = (typeof NEWS_STORIES_PLATFORMS)[number];
 

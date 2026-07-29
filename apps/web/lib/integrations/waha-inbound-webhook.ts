@@ -44,6 +44,11 @@ export type WahaWebhookBody = {
     ackName?: string;
     pushName?: string;
     notifyName?: string;
+    participant?: string;
+    reaction?: {
+      text?: string;
+      messageId?: string;
+    };
     _data?: { notifyName?: string; pushName?: string };
   };
 };
@@ -102,6 +107,9 @@ export async function handleWahaWebhook(
   }
   if (event === "message.ack") {
     return handleWahaMessageAck(admin, body);
+  }
+  if (event === "message.reaction") {
+    return handleWahaMessageReaction(admin, body);
   }
   return { ok: true, imported: false, reason: "ignored_event" };
 }
@@ -353,4 +361,34 @@ export async function handleWahaMessageAck(
   });
 
   return { ok: true, imported: false, reason: "ack_signal" };
+}
+
+/**
+ * Live-Reaction: Clients soft-refreshen den offenen Thread (WAHA History merged Reactions).
+ * Keine neue Bubble — nur Signal wie bei ACK.
+ */
+export async function handleWahaMessageReaction(
+  admin: SupabaseClient,
+  body: WahaWebhookBody,
+): Promise<WahaWebhookResult> {
+  const payload = body.payload;
+  const targetId = payload?.reaction?.messageId?.trim();
+  if (!targetId) {
+    return { ok: true, imported: false, reason: "no_reaction_target" };
+  }
+
+  let restaurantId = restaurantIdFromWebhook(body);
+  if (!restaurantId && body.session) {
+    restaurantId = await restaurantIdFromSessionName(admin, body.session);
+  }
+  if (!restaurantId) {
+    return { ok: false, imported: false, reason: "unknown_restaurant" };
+  }
+
+  await insertInboxSignalServer(admin, {
+    restaurantId,
+    source: "waha_ack",
+  });
+
+  return { ok: true, imported: false, reason: "reaction_signal" };
 }

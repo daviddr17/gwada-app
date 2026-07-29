@@ -7,6 +7,7 @@ import { googleBusinessNewsConnector } from "@/lib/news/connectors/google-busine
 import { gwadaNewsConnector } from "@/lib/news/connectors/gwada-connector";
 import { instagramNewsConnector } from "@/lib/news/connectors/instagram-connector";
 import { whatsappChannelNewsConnector } from "@/lib/news/connectors/whatsapp-channel-connector";
+import { whatsappStatusNewsConnector } from "@/lib/news/connectors/whatsapp-status-connector";
 import type {
   NewsPlatformConnector,
 } from "@/lib/news/connectors/types";
@@ -33,6 +34,7 @@ const CONNECTORS: Record<NewsPlatform, NewsPlatformConnector> = {
   instagram: instagramNewsConnector,
   google_business: googleBusinessNewsConnector,
   whatsapp_channel: whatsappChannelNewsConnector,
+  whatsapp_status: whatsappStatusNewsConnector,
 };
 
 export function getNewsConnector(platform: NewsPlatform): NewsPlatformConnector {

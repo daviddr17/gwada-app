@@ -12,7 +12,11 @@ export function isFeedConnectorEnabledBySuperadmin(
   if (platformKey === "instagram") return flags.instagramEnabled;
   if (platformKey === "google_business") return flags.googleBusinessEnabled;
   if (platformKey === "tripadvisor") return flags.tripadvisorEnabled;
-  if (platformKey === "whatsapp_channel" || platformKey === "whatsapp") {
+  if (
+    platformKey === "whatsapp_channel" ||
+    platformKey === "whatsapp_status" ||
+    platformKey === "whatsapp"
+  ) {
     return flags.whatsappEnabled;
   }
   return false;

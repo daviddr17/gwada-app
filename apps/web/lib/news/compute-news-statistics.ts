@@ -16,6 +16,7 @@ const PLATFORM_COLORS: Record<NewsPlatform, string> = {
   instagram: "var(--chart-2)",
   google_business: "var(--chart-3)",
   whatsapp_channel: "var(--chart-4)",
+  whatsapp_status: "var(--chart-4)",
 };
 
 const STATUS_LABELS: Record<UnifiedNewsItem["status"], string> = {

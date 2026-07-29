@@ -1,4 +1,10 @@
-export type PurchaseOrderStatus = "open" | "closed";
+export type PurchaseOrderStatus = "open" | "ordered" | "closed";
+
+/** Liefer-Antwort pro Position (nach „Bestellt“). */
+export type PurchaseOrderLineDeliveryStatus =
+  | "delivered"
+  | "not_delivered"
+  | "partial";
 
 /** Nutzer für Protokoll (Vor- und Nachname getrennt). */
 export type OrderProtocolActor = {
@@ -62,7 +68,7 @@ export type PurchaseOrderLogQuantityChange = {
   unitLabel: string;
 };
 
-/** Abgeschlossene Bestellung: Position als geliefert markiert (Bestand wird separat erhöht). */
+/** Liefer-Antwort gesetzt/geändert (Bestand wird separat angepasst). */
 export type PurchaseOrderLogMarkedDelivered = {
   id: string;
   at: string;
@@ -72,13 +78,16 @@ export type PurchaseOrderLogMarkedDelivered = {
   kind: "marked_delivered";
   ingredientId: string;
   ingredientName: string;
+  /** Bestandswirksame Menge (0 bei nicht geliefert). */
   quantity: number;
   unitId: string;
   unitLabel: string;
   lineId: string;
+  deliveryStatus?: PurchaseOrderLineDeliveryStatus;
+  note?: string;
 };
 
-/** Abgeschlossene Bestellung: Liefermarkierung wieder aufgehoben (Bestand wird separat reduziert). */
+/** Liefer-Antwort zurückgesetzt (Bestand wird separat reduziert). */
 export type PurchaseOrderLogDeliveryReverted = {
   id: string;
   at: string;
@@ -92,6 +101,23 @@ export type PurchaseOrderLogDeliveryReverted = {
   unitId: string;
   unitLabel: string;
   lineId: string;
+};
+
+/** Statuswechsel Offen ↔ Bestellt ↔ Abgeschlossen. */
+export type PurchaseOrderLogStatusChange = {
+  id: string;
+  at: string;
+  userFirstName: string;
+  userLastName: string;
+  userSource?: ProtocolUserSource;
+  kind: "status_change";
+  fromStatus: PurchaseOrderStatus;
+  toStatus: PurchaseOrderStatus;
+  /** Dummy für gemeinsame Protokoll-Felder (keine Zutat). */
+  ingredientId: string;
+  ingredientName: string;
+  unitId: string;
+  unitLabel: string;
 };
 
 /** Alte Einträge (nur Δ, ein Namensfeld). */
@@ -112,6 +138,7 @@ export type PurchaseOrderLogEntry =
   | PurchaseOrderLogQuantityChange
   | PurchaseOrderLogMarkedDelivered
   | PurchaseOrderLogDeliveryReverted
+  | PurchaseOrderLogStatusChange
   | PurchaseOrderLogLegacy;
 
 /** Aggregierte Position in der Bestellung (gleiche Zutat wird summiert). */
@@ -124,8 +151,14 @@ export type PurchaseOrderLine = {
   quantity: number;
   unitId: string;
   unitLabel: string;
-  /** Wenn gesetzt: Position aus abgeschlossener Bestellung als geliefert gebucht */
+  /** Zeitpunkt der Liefer-Antwort */
   deliveredAt?: string;
+  /** Geliefert / nicht geliefert / abweichend — Legacy: nur deliveredAt = geliefert */
+  deliveryStatus?: PurchaseOrderLineDeliveryStatus;
+  /** Gelieferte Menge (bei abweichend / optional bei geliefert) */
+  deliveredQuantity?: number;
+  /** Optional bei nicht geliefert / abweichend */
+  deliveryNote?: string;
 };
 
 export type PurchaseOrder = {
@@ -187,7 +220,8 @@ export function resolveLogEntryUserLabel(
     case "add_to_order":
     case "quantity_change":
     case "marked_delivered":
-    case "delivery_reverted": {
+    case "delivery_reverted":
+    case "status_change": {
       const stored = formatOrderProtocolUserName({
         firstName: e.userFirstName,
         lastName: e.userLastName,

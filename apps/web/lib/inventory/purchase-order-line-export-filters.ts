@@ -1,3 +1,4 @@
+import { isLineDeliveryResolved } from "@/lib/inventory/purchase-order-line-delivery";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { PurchaseOrderLine } from "@/lib/types/purchase-order";
 
@@ -57,8 +58,9 @@ export function filterPurchaseOrderLinesForExport(
     if (filters.brandId !== PURCHASE_ORDER_EXPORT_FILTER_ALL) {
       if (ing?.brandId !== filters.brandId) return false;
     }
-    if (filters.deliveryStatus === "pending" && line.deliveredAt) return false;
-    if (filters.deliveryStatus === "delivered" && !line.deliveredAt) return false;
+    const resolved = isLineDeliveryResolved(line);
+    if (filters.deliveryStatus === "pending" && resolved) return false;
+    if (filters.deliveryStatus === "delivered" && !resolved) return false;
     return true;
   });
 }

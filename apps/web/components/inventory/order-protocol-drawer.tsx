@@ -15,6 +15,8 @@ import {
 import { protocolDeltaWrapClass } from "@/components/inventory/protocol-menge-colors";
 import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
 import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
+import { PURCHASE_ORDER_LINE_DELIVERY_LABELS } from "@/lib/inventory/purchase-order-line-delivery";
+import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
 import type { PurchaseOrder, PurchaseOrderLogEntry } from "@/lib/types/purchase-order";
 import { resolveLogEntryUserLabel, resolveProtocolCreatorLabel } from "@/lib/types/purchase-order";
 import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
@@ -77,6 +79,7 @@ function orderProtocolQuantityCell(
     }
     case "marked_delivered":
     case "delivery_reverted":
+    case "status_change":
       return "—";
     case "legacy_adjustment": {
       const d = e.quantityDelta;
@@ -102,10 +105,16 @@ function actionColumn(e: PurchaseOrderLogEntry): string {
     case "quantity_change":
     case "legacy_adjustment":
       return "Bearbeitet";
-    case "marked_delivered":
+    case "marked_delivered": {
+      if (e.deliveryStatus && e.deliveryStatus in PURCHASE_ORDER_LINE_DELIVERY_LABELS) {
+        return PURCHASE_ORDER_LINE_DELIVERY_LABELS[e.deliveryStatus];
+      }
       return "Geliefert markiert";
+    }
     case "delivery_reverted":
-      return "Geliefert rückgängig";
+      return "Liefer-Antwort zurück";
+    case "status_change":
+      return `${purchaseOrderStatusLabel(e.fromStatus)} → ${purchaseOrderStatusLabel(e.toStatus)}`;
     default:
       return "—";
   }

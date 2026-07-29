@@ -42,23 +42,56 @@ import {
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import {
+  allPurchaseOrderLinesResolved,
+  lineDeliveryStockQuantity,
+} from "@/lib/inventory/purchase-order-line-delivery";
+import {
+  isPurchaseOrderStatus,
+  previousPurchaseOrderStatus,
+  purchaseOrderStatusLabel,
+} from "@/lib/inventory/purchase-order-status";
+import {
   healPurchaseOrdersCreatorAttribution,
   protocolActorNameFields,
   protocolCreatedByLabel,
   type OrderProtocolActor,
   type PurchaseOrder,
   type PurchaseOrderLine,
+  type PurchaseOrderLineDeliveryStatus,
   type PurchaseOrderLogAdd,
   type PurchaseOrderLogDeliveryReverted,
   type PurchaseOrderLogEntry,
   type PurchaseOrderLogLegacy,
   type PurchaseOrderLogMarkedDelivered,
   type PurchaseOrderLogQuantityChange,
+  type PurchaseOrderLogStatusChange,
+  type PurchaseOrderStatus,
   type PurchaseOrdersPersistenceV1,
 } from "@/lib/types/purchase-order";
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null;
+}
+
+function appendStatusChangeLog(
+  order: PurchaseOrder,
+  fromStatus: PurchaseOrderStatus,
+  toStatus: PurchaseOrderStatus,
+  actor: OrderProtocolActor,
+) {
+  const logEntry: PurchaseOrderLogStatusChange = {
+    id: createId(),
+    at: new Date().toISOString(),
+    ...protocolActorNameFields(actor),
+    kind: "status_change",
+    fromStatus,
+    toStatus,
+    ingredientId: "",
+    ingredientName: "",
+    unitId: "",
+    unitLabel: "",
+  };
+  order.log.push(logEntry);
 }
 
 function parseLogEntry(raw: unknown): PurchaseOrderLogEntry | null {
@@ -126,11 +159,21 @@ function parseLogEntry(raw: unknown): PurchaseOrderLogEntry | null {
     if (
       typeof raw.quantity !== "number" ||
       Number.isNaN(raw.quantity) ||
-      raw.quantity <= 0
+      raw.quantity < 0
     )
       return null;
     const userSource =
       raw.userSource === "local_profile" ? ("local_profile" as const) : undefined;
+    const deliveryStatus =
+      raw.deliveryStatus === "delivered" ||
+      raw.deliveryStatus === "not_delivered" ||
+      raw.deliveryStatus === "partial"
+        ? (raw.deliveryStatus as PurchaseOrderLineDeliveryStatus)
+        : undefined;
+    const note =
+      typeof raw.note === "string" && raw.note.trim() !== ""
+        ? raw.note.trim()
+        : undefined;
     return {
       id: raw.id,
       at: raw.at,
@@ -144,6 +187,8 @@ function parseLogEntry(raw: unknown): PurchaseOrderLogEntry | null {
       unitId: raw.unitId,
       unitLabel: raw.unitLabel,
       lineId: raw.lineId,
+      ...(deliveryStatus ? { deliveryStatus } : {}),
+      ...(note ? { note } : {}),
     } satisfies PurchaseOrderLogMarkedDelivered;
   }
 
@@ -152,7 +197,7 @@ function parseLogEntry(raw: unknown): PurchaseOrderLogEntry | null {
     if (
       typeof raw.quantity !== "number" ||
       Number.isNaN(raw.quantity) ||
-      raw.quantity <= 0
+      raw.quantity < 0
     )
       return null;
     const userSource =
@@ -171,6 +216,32 @@ function parseLogEntry(raw: unknown): PurchaseOrderLogEntry | null {
       unitLabel: raw.unitLabel,
       lineId: raw.lineId,
     } satisfies PurchaseOrderLogDeliveryReverted;
+  }
+
+  if (raw.kind === "status_change") {
+    if (
+      !isPurchaseOrderStatus(String(raw.fromStatus)) ||
+      !isPurchaseOrderStatus(String(raw.toStatus))
+    ) {
+      return null;
+    }
+    const userSource =
+      raw.userSource === "local_profile" ? ("local_profile" as const) : undefined;
+    return {
+      id: raw.id,
+      at: raw.at,
+      userFirstName,
+      userLastName,
+      ...(userSource ? { userSource } : {}),
+      kind: "status_change",
+      fromStatus: raw.fromStatus as PurchaseOrderStatus,
+      toStatus: raw.toStatus as PurchaseOrderStatus,
+      ingredientId: typeof raw.ingredientId === "string" ? raw.ingredientId : "",
+      ingredientName:
+        typeof raw.ingredientName === "string" ? raw.ingredientName : "",
+      unitId: typeof raw.unitId === "string" ? raw.unitId : "",
+      unitLabel: typeof raw.unitLabel === "string" ? raw.unitLabel : "",
+    } satisfies PurchaseOrderLogStatusChange;
   }
 
   if (typeof raw.quantityDelta === "number" && !Number.isNaN(raw.quantityDelta)) {
@@ -205,6 +276,23 @@ function parseLine(raw: unknown): PurchaseOrderLine | null {
   if (typeof raw.deliveredAt === "string" && raw.deliveredAt.length > 0) {
     deliveredAt = raw.deliveredAt;
   }
+  const deliveryStatus =
+    raw.deliveryStatus === "delivered" ||
+    raw.deliveryStatus === "not_delivered" ||
+    raw.deliveryStatus === "partial"
+      ? (raw.deliveryStatus as PurchaseOrderLineDeliveryStatus)
+      : undefined;
+  let deliveredQuantity: number | undefined;
+  if (
+    typeof raw.deliveredQuantity === "number" &&
+    Number.isFinite(raw.deliveredQuantity)
+  ) {
+    deliveredQuantity = raw.deliveredQuantity;
+  }
+  const deliveryNote =
+    typeof raw.deliveryNote === "string" && raw.deliveryNote.trim() !== ""
+      ? raw.deliveryNote.trim()
+      : undefined;
   return {
     id: raw.id,
     ingredientId: raw.ingredientId,
@@ -214,6 +302,9 @@ function parseLine(raw: unknown): PurchaseOrderLine | null {
     unitId: raw.unitId,
     unitLabel: raw.unitLabel,
     ...(deliveredAt !== undefined ? { deliveredAt } : {}),
+    ...(deliveryStatus ? { deliveryStatus } : {}),
+    ...(deliveredQuantity !== undefined ? { deliveredQuantity } : {}),
+    ...(deliveryNote ? { deliveryNote } : {}),
   };
 }
 
@@ -222,7 +313,7 @@ function parseOrder(raw: unknown): PurchaseOrder | null {
   if (typeof raw.id !== "string") return null;
   if (typeof raw.supplierId !== "string" || typeof raw.supplierName !== "string")
     return null;
-  if (raw.status !== "open" && raw.status !== "closed") return null;
+  if (!isPurchaseOrderStatus(String(raw.status))) return null;
   const createdByUserSource =
     raw.createdByUserSource === "local_profile" ? ("local_profile" as const) : undefined;
   if (typeof raw.createdAt !== "string" || typeof raw.createdBy !== "string") return null;
@@ -246,7 +337,7 @@ function parseOrder(raw: unknown): PurchaseOrder | null {
     id: raw.id,
     supplierId: raw.supplierId,
     supplierName: raw.supplierName,
-    status: raw.status,
+    status: raw.status as PurchaseOrderStatus,
     createdAt: raw.createdAt,
     createdBy: raw.createdBy,
     ...(createdByUserSource ? { createdByUserSource } : {}),
@@ -533,44 +624,99 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     [orders, persist],
   );
 
-  const closeOrder = useCallback(
-    async (orderId: string): Promise<boolean> => {
+  /** Offen → Bestellt */
+  const markOrderOrdered = useCallback(
+    async (orderId: string, actor: OrderProtocolActor): Promise<boolean> => {
       const target = orders.find((o) => o.id === orderId);
       if (!target || target.status !== "open") {
-        toast.error("Bestellung nicht gefunden oder bereits abgeschlossen.");
+        toast.error("Bestellung nicht gefunden oder nicht offen.");
         return false;
       }
-      const next = orders.map((o) =>
-        o.id === orderId ? { ...o, status: "closed" as const } : o,
-      );
+      if (target.lines.length === 0) {
+        toast.error("Bestellung hat keine Positionen.");
+        return false;
+      }
+      const next: PurchaseOrder[] = structuredClone(orders);
+      const o = next.find((x) => x.id === orderId);
+      if (!o) return false;
+      o.status = "ordered";
+      appendStatusChangeLog(o, "open", "ordered", actor);
       if (!(await persist(next))) return false;
-      toast.success("Bestellung abgeschlossen");
+      toast.success("Als bestellt markiert");
       return true;
     },
     [orders, persist],
   );
 
-  const reopenOrder = useCallback(
-    async (orderId: string): Promise<boolean> => {
+  /**
+   * Bestellt → Abgeschlossen.
+   * Ohne `force` nur wenn alle Positionen eine Liefer-Antwort haben.
+   */
+  const closeOrder = useCallback(
+    async (
+      orderId: string,
+      actor: OrderProtocolActor,
+      options?: { force?: boolean; silent?: boolean },
+    ): Promise<boolean> => {
       const target = orders.find((o) => o.id === orderId);
-      if (!target || target.status !== "closed") {
-        toast.error("Bestellung nicht gefunden oder nicht abgeschlossen.");
+      if (!target || target.status !== "ordered") {
+        toast.error("Bestellung nicht gefunden oder nicht im Status Bestellt.");
         return false;
       }
-      const hasOpenForSupplier = orders.some(
-        (o) => o.supplierId === target.supplierId && o.status === "open",
-      );
-      if (hasOpenForSupplier) {
-        toast.error(
-          `Für „${target.supplierName}“ gibt es bereits eine offene Bestellung. Schließe diese zuerst oder nutze sie weiter.`,
-        );
+      const force = options?.force === true;
+      if (!force && !allPurchaseOrderLinesResolved(target.lines)) {
+        toast.error("Noch nicht alle Positionen bearbeitet.");
         return false;
       }
-      const next = orders.map((o) =>
-        o.id === orderId ? { ...o, status: "open" as const } : o,
-      );
+      const next: PurchaseOrder[] = structuredClone(orders);
+      const o = next.find((x) => x.id === orderId);
+      if (!o) return false;
+      o.status = "closed";
+      appendStatusChangeLog(o, "ordered", "closed", actor);
       if (!(await persist(next))) return false;
-      toast.success("Bestellung wieder geöffnet");
+      if (!options?.silent) {
+        toast.success("Bestellung abgeschlossen");
+      }
+      return true;
+    },
+    [orders, persist],
+  );
+
+  /** Immer einen Status zurück: Abgeschlossen → Bestellt → Offen */
+  const reopenOrder = useCallback(
+    async (orderId: string, actor: OrderProtocolActor): Promise<boolean> => {
+      const target = orders.find((o) => o.id === orderId);
+      if (!target) {
+        toast.error("Bestellung nicht gefunden.");
+        return false;
+      }
+      const prev = previousPurchaseOrderStatus(target.status);
+      if (!prev) {
+        toast.error("Bestellung ist bereits offen.");
+        return false;
+      }
+      if (prev === "open") {
+        const hasOpenForSupplier = orders.some(
+          (o) =>
+            o.id !== target.id &&
+            o.supplierId === target.supplierId &&
+            o.status === "open",
+        );
+        if (hasOpenForSupplier) {
+          toast.error(
+            `Für „${target.supplierName}“ gibt es bereits eine offene Bestellung. Schließe diese zuerst oder nutze sie weiter.`,
+          );
+          return false;
+        }
+      }
+      const next: PurchaseOrder[] = structuredClone(orders);
+      const o = next.find((x) => x.id === orderId);
+      if (!o) return false;
+      const from = o.status;
+      o.status = prev;
+      appendStatusChangeLog(o, from, prev, actor);
+      if (!(await persist(next))) return false;
+      toast.success(`Zurück auf „${purchaseOrderStatusLabel(prev)}“`);
       return true;
     },
     [orders, persist],
@@ -581,10 +727,6 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const target = orders.find((o) => o.id === orderId);
       if (!target) {
         toast.error("Bestellung nicht gefunden.");
-        return false;
-      }
-      if (target.status !== "open") {
-        toast.error("Lieferdatum kann nur bei offenen Bestellungen geändert werden.");
         return false;
       }
       const normalized =
@@ -611,8 +753,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       actor: OrderProtocolActor,
     ): Promise<boolean> => {
       const order = orders.find((o) => o.id === orderId);
-      if (!order || order.status !== "open") {
-        toast.error("Menge kann nur bei offenen Bestellungen geändert werden.");
+      if (!order) {
+        toast.error("Bestellung nicht gefunden.");
         return false;
       }
       if (!Number.isFinite(nextQty) || nextQty < 0) {
@@ -668,36 +810,86 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     [orders, persist],
   );
 
-  const markLineDelivered = useCallback(
+  /**
+   * Setzt Liefer-Antwort. Gibt `stockDelta` für Bestand und ggf. `autoClosed` zurück.
+   * Persistiert die Bestellung; Bestand bleibt Aufgabe des Callers.
+   */
+  const setLineDelivery = useCallback(
     async (
       orderId: string,
       lineId: string,
+      input: {
+        status: PurchaseOrderLineDeliveryStatus;
+        deliveredQuantity?: number;
+        note?: string;
+      },
       actor: OrderProtocolActor,
-    ): Promise<boolean> => {
+    ): Promise<
+      | { ok: true; stockDelta: number; autoClosed: boolean }
+      | { ok: false }
+    > => {
       const target = orders.find((o) => o.id === orderId);
-      if (!target || target.status !== "closed") {
-        toast.error("Liefermeldung nur bei abgeschlossenen Bestellungen möglich.");
-        return false;
+      if (!target || (target.status !== "ordered" && target.status !== "closed")) {
+        toast.error("Liefer-Antwort nur bei bestellten oder abgeschlossenen Bestellungen.");
+        return { ok: false };
       }
       const line = target.lines.find((l) => l.id === lineId);
       if (!line) {
         toast.error("Position nicht gefunden.");
-        return false;
+        return { ok: false };
       }
-      if (line.deliveredAt) {
-        toast.error("Bereits als geliefert markiert.");
-        return false;
-      }
-      if (!Number.isFinite(line.quantity) || line.quantity <= 0) {
+      if (!Number.isFinite(line.quantity) || line.quantity < 0) {
         toast.error("Ungültige Bestellmenge.");
-        return false;
+        return { ok: false };
       }
+
+      let deliveredQuantity = 0;
+      if (input.status === "delivered") {
+        deliveredQuantity =
+          typeof input.deliveredQuantity === "number" &&
+          Number.isFinite(input.deliveredQuantity)
+            ? input.deliveredQuantity
+            : line.quantity;
+      } else if (input.status === "partial") {
+        if (
+          typeof input.deliveredQuantity !== "number" ||
+          !Number.isFinite(input.deliveredQuantity) ||
+          input.deliveredQuantity < 0
+        ) {
+          toast.error("Bitte gelieferte Menge angeben.");
+          return { ok: false };
+        }
+        deliveredQuantity = input.deliveredQuantity;
+      }
+
+      const note =
+        input.status === "not_delivered" || input.status === "partial"
+          ? input.note?.trim() || undefined
+          : undefined;
+
+      const prevStock = lineDeliveryStockQuantity(line);
+      const nextLinePreview: PurchaseOrderLine = {
+        ...line,
+        deliveryStatus: input.status,
+        deliveredQuantity,
+        deliveredAt: new Date().toISOString(),
+        ...(note ? { deliveryNote: note } : { deliveryNote: undefined }),
+      };
+      const nextStock = lineDeliveryStockQuantity(nextLinePreview);
+      const stockDelta = nextStock - prevStock;
+
       const next: PurchaseOrder[] = structuredClone(orders);
       const o = next.find((x) => x.id === orderId);
-      if (!o) return false;
+      if (!o) return { ok: false };
       const l = o.lines.find((x) => x.id === lineId);
-      if (!l) return false;
+      if (!l) return { ok: false };
+
+      l.deliveryStatus = input.status;
+      l.deliveredQuantity = deliveredQuantity;
       l.deliveredAt = new Date().toISOString();
+      if (note) l.deliveryNote = note;
+      else delete l.deliveryNote;
+
       const logEntry: PurchaseOrderLogMarkedDelivered = {
         id: createId(),
         at: new Date().toISOString(),
@@ -705,47 +897,63 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         kind: "marked_delivered",
         ingredientId: l.ingredientId,
         ingredientName: l.ingredientName,
-        quantity: l.quantity,
+        quantity: nextStock,
         unitId: l.unitId,
         unitLabel: l.unitLabel,
         lineId: l.id,
+        deliveryStatus: input.status,
+        ...(note ? { note } : {}),
       };
       o.log.push(logEntry);
-      return await persist(next);
+
+      let autoClosed = false;
+      if (
+        o.status === "ordered" &&
+        allPurchaseOrderLinesResolved(o.lines)
+      ) {
+        o.status = "closed";
+        appendStatusChangeLog(o, "ordered", "closed", actor);
+        autoClosed = true;
+      }
+
+      if (!(await persist(next))) return { ok: false };
+      return { ok: true, stockDelta, autoClosed };
     },
     [orders, persist],
   );
 
-  const unmarkLineDelivered = useCallback(
+  const clearLineDelivery = useCallback(
     async (
       orderId: string,
       lineId: string,
       actor: OrderProtocolActor,
-    ): Promise<boolean> => {
+    ): Promise<{ ok: true; stockDelta: number } | { ok: false }> => {
       const target = orders.find((o) => o.id === orderId);
-      if (!target || target.status !== "closed") {
-        toast.error("Nur bei abgeschlossenen Bestellungen möglich.");
-        return false;
+      if (!target || (target.status !== "ordered" && target.status !== "closed")) {
+        toast.error("Nur bei bestellten oder abgeschlossenen Bestellungen möglich.");
+        return { ok: false };
       }
       const line = target.lines.find((l) => l.id === lineId);
       if (!line) {
         toast.error("Position nicht gefunden.");
-        return false;
+        return { ok: false };
       }
-      if (!line.deliveredAt) {
-        toast.error("Position ist nicht als geliefert markiert.");
-        return false;
+      const prevStock = lineDeliveryStockQuantity(line);
+      if (prevStock === 0 && !line.deliveryStatus && !line.deliveredAt) {
+        toast.error("Position hat keine Liefer-Antwort.");
+        return { ok: false };
       }
-      if (!Number.isFinite(line.quantity) || line.quantity <= 0) {
-        toast.error("Ungültige Bestellmenge.");
-        return false;
-      }
+
       const next: PurchaseOrder[] = structuredClone(orders);
       const o = next.find((x) => x.id === orderId);
-      if (!o) return false;
+      if (!o) return { ok: false };
       const l = o.lines.find((x) => x.id === lineId);
-      if (!l) return false;
+      if (!l) return { ok: false };
       delete l.deliveredAt;
+      delete l.deliveryStatus;
+      delete l.deliveredQuantity;
+      delete l.deliveryNote;
+
       const logEntry: PurchaseOrderLogDeliveryReverted = {
         id: createId(),
         at: new Date().toISOString(),
@@ -753,15 +961,48 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         kind: "delivery_reverted",
         ingredientId: l.ingredientId,
         ingredientName: l.ingredientName,
-        quantity: l.quantity,
+        quantity: prevStock,
         unitId: l.unitId,
         unitLabel: l.unitLabel,
         lineId: l.id,
       };
       o.log.push(logEntry);
-      return await persist(next);
+
+      if (!(await persist(next))) return { ok: false };
+      return { ok: true, stockDelta: -prevStock };
     },
     [orders, persist],
+  );
+
+  /** @deprecated Kompatibilität — nutzt setLineDelivery(delivered) */
+  const markLineDelivered = useCallback(
+    async (
+      orderId: string,
+      lineId: string,
+      actor: OrderProtocolActor,
+    ): Promise<boolean> => {
+      const result = await setLineDelivery(
+        orderId,
+        lineId,
+        { status: "delivered" },
+        actor,
+      );
+      return result.ok;
+    },
+    [setLineDelivery],
+  );
+
+  /** @deprecated Kompatibilität — nutzt clearLineDelivery */
+  const unmarkLineDelivered = useCallback(
+    async (
+      orderId: string,
+      lineId: string,
+      actor: OrderProtocolActor,
+    ): Promise<boolean> => {
+      const result = await clearLineDelivery(orderId, lineId, actor);
+      return result.ok;
+    },
+    [clearLineDelivery],
   );
 
   const getOpenOrderForSupplier = useCallback(
@@ -794,12 +1035,15 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     orders,
     isHydrated,
     addLine,
+    markOrderOrdered,
     closeOrder,
     reopenOrder,
     getOpenOrderForSupplier,
     getOpenLineContext,
     setOrderDeliveryDate,
     updateLineQuantity,
+    setLineDelivery,
+    clearLineDelivery,
     markLineDelivered,
     unmarkLineDelivered,
     syncSupplierNamesFromTaxonomy,

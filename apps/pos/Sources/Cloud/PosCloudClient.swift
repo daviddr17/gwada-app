@@ -4,7 +4,7 @@ struct PosCloudOrderItem: Encodable {
     var menuItemId: String
     var quantity: Int
     var notes: String?
-    var course: String?
+    var course: Int?
     var ohneIngredientIds: [String]?
     var modifiers: [PosCloudModifierPayload]?
 }

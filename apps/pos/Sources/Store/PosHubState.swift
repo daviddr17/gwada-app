@@ -311,7 +311,7 @@ final class PosHubState: @unchecked Sendable {
                 "name": line.name,
                 "quantity": line.quantity,
                 "detail": line.subtitle,
-                "course": line.course.rawValue,
+                "course": line.course,
                 "categoryId": categoryId ?? "",
             ]
 
@@ -576,7 +576,7 @@ final class PosHubState: @unchecked Sendable {
                 guard var lines = ticket["lines"] as? [[String: Any]] else { return ticket }
                 lines = lines.filter { line in
                     let cat = line["categoryId"] as? String ?? ""
-                    let course = line["course"] as? String ?? ""
+                    let course = (line["course"] as? Int) ?? PosCourse.parse(line["course"] as? String)
                     if let route = routes.first(where: { $0.menuCategoryId == cat }) {
                         if !(route.destination == "kds" || route.destination == "both") {
                             return false

@@ -55,7 +55,7 @@ struct PosSyncCashAllocation: Codable, Sendable {
 struct PosSyncFireCoursePayload: Codable, Sendable {
     var restaurantId: String
     var tableSessionId: String
-    var course: String
+    var course: Int
     var fireAttemptId: String
 }
 

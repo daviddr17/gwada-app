@@ -594,7 +594,7 @@ final class PosRuntime: ObservableObject {
                 menuItemId: line.menuItemId,
                 quantity: line.quantity,
                 notes: line.notes.isEmpty ? nil : line.notes,
-                course: line.course.rawValue,
+                course: line.course,
                 ohneIngredientIds: line.ohneIngredientIds,
                 modifiers: line.modifiers.map {
                     PosCloudModifierPayload(
@@ -657,9 +657,7 @@ final class PosRuntime: ObservableObject {
             return lines.compactMap { line in
                 guard line.openQuantity > 0 else { return nil }
                 var detailParts: [String] = []
-                if let course = line.course, let c = PosCourse(rawValue: course) {
-                    detailParts.append(c.label)
-                }
+                detailParts.append(PosCourse.label(PosCourse.parse(line.course)))
                 if let mods = line.modifiers {
                     detailParts.append(contentsOf: mods.compactMap(\.label))
                 }
@@ -825,7 +823,7 @@ final class PosRuntime: ObservableObject {
 
     /// Gang an Küche feuern (Nest Outbox + lokaler KDS/Druck).
     @discardableResult
-    func fireCourse(sessionId: String, course: String) async -> Bool {
+    func fireCourse(sessionId: String, course: Int) async -> Bool {
         let restaurantId = PosHubState.shared.restaurantId
         PosHubState.shared.markFired(sessionId: sessionId)
         PosSyncQueue.shared.enqueueFireCourse(PosSyncFireCoursePayload(
@@ -838,8 +836,8 @@ final class PosRuntime: ObservableObject {
         await PosSyncQueue.shared.flushIfPossible()
         syncPending = PosSyncQueue.shared.pendingCount
         Task { await PosPrintDispatcher.shared.kick() }
-        PosAuditLog.shared.record("course.fired", detail: course, sessionId: sessionId)
-        statusMessage = "Gang „\(course)“ gefeuert."
+        PosAuditLog.shared.record("course.fired", detail: "\(course)", sessionId: sessionId)
+        statusMessage = "Gang „\(PosCourse.label(course))“ gefeuert."
         publishSnapshot(PosHubState.shared.makeSnapshot())
         return true
     }
@@ -940,7 +938,7 @@ final class PosRuntime: ObservableObject {
                         menuItemId: menuItem.id,
                         quantity: 1,
                         notes: nil,
-                        course: PosCourse.main.rawValue,
+                        course: PosCourse.main,
                         ohneIngredientIds: nil,
                         modifiers: nil
                     ),
@@ -1276,7 +1274,7 @@ final class PosRuntime: ObservableObject {
                         name: menuItem.name,
                         unitPriceCents: menuItem.priceCents,
                         quantity: item.quantity,
-                        course: .other,
+                        course: PosCourse.default,
                         notes: item.notes ?? "",
                         modifiers: []
                     )

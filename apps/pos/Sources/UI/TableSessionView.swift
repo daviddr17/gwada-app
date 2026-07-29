@@ -82,7 +82,7 @@ struct TableSessionView: View {
             LineConfigureSheet(
                 item: item,
                 optionGroups: runtime.snapshot?.menu?.optionGroups ?? [],
-                initialCourse: .main,
+                initialCourse: PosCourse.main,
                 onConfirm: { line in
                     cart.append(line)
                     configuring = nil
@@ -234,7 +234,7 @@ struct TableSessionView: View {
 
     private func cartRow(_ line: PosCartLine) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(line.course.shortLabel)
+            Text(PosCourse.shortLabel(line.course))
                 .font(.caption.weight(.bold))
                 .foregroundStyle(PosDesign.courseColor(line.course))
                 .frame(width: 22, height: 22)
@@ -260,7 +260,7 @@ struct TableSessionView: View {
                     Button {
                         Task {
                             let sid = ensureSessionId()
-                            _ = await runtime.fireCourse(sessionId: sid, course: "main")
+                            _ = await runtime.fireCourse(sessionId: sid, course: 2)
                         }
                     } label: {
                         Label("Fire", systemImage: "flame.fill")

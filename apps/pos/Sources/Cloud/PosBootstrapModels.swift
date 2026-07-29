@@ -125,8 +125,25 @@ struct PosCloudKdsDevice: Codable, Equatable, Identifiable, Sendable {
     var id: String
     var name: String
     var menuCategoryIds: [String]
-    var courses: [String]
+    var courses: [Int]
     var isActive: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, menuCategoryIds, courses, isActive
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        menuCategoryIds = try c.decodeIfPresent([String].self, forKey: .menuCategoryIds) ?? []
+        if let values = try? c.decode([Int].self, forKey: .courses) {
+            courses = values
+        } else {
+            courses = (try c.decodeIfPresent([String].self, forKey: .courses) ?? []).map(PosCourse.parse)
+        }
+        isActive = try c.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
+    }
 }
 
 struct PosCloudPrinter: Codable, Equatable, Identifiable, Sendable {

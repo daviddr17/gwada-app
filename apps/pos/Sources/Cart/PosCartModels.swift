@@ -1,29 +1,41 @@
 import Foundation
 
-enum PosCourse: String, Codable, CaseIterable, Identifiable, Sendable {
-    case starter, main, dessert, side, drink, other
+enum PosCourse {
+    static let starter = 1
+    static let main = 2
+    static let dessert = 3
+    static let `default` = 2
+    static let uiCourses: [Int] = [1, 2, 3]
 
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .starter: return "Vorspeise"
-        case .main: return "Hauptgang"
-        case .dessert: return "Dessert"
-        case .side: return "Beilage"
-        case .drink: return "Getränk"
-        case .other: return "Sonstiges"
+    static func label(_ course: Int) -> String {
+        switch course {
+        case 1: return "Vorspeise"
+        case 2: return "Hauptgang"
+        case 3: return "Dessert"
+        default: return "Gang \(course)"
         }
     }
 
-    var shortLabel: String {
-        switch self {
-        case .starter: return "V"
-        case .main: return "H"
-        case .dessert: return "D"
-        case .side: return "B"
-        case .drink: return "G"
-        case .other: return "·"
+    static func shortLabel(_ course: Int) -> String {
+        switch course {
+        case 1: return "V"
+        case 2: return "H"
+        case 3: return "D"
+        default: return "\(course)"
+        }
+    }
+
+    /// Legacy string or number from older snapshots.
+    static func parse(_ raw: String?) -> Int {
+        guard let raw else { return `default` }
+        switch raw {
+        case "1", "starter": return 1
+        case "2", "main": return 2
+        case "3", "dessert": return 3
+        case "side", "drink", "other": return 2
+        default:
+            if let n = Int(raw), n >= 1 { return n }
+            return `default`
         }
     }
 }
@@ -86,7 +98,7 @@ struct PosCartLine: Identifiable, Equatable, Sendable {
     var name: String
     var unitPriceCents: Int
     var quantity: Int
-    var course: PosCourse
+    var course: Int
     var notes: String
     var modifiers: [PosCartModifier]
 
@@ -96,7 +108,7 @@ struct PosCartLine: Identifiable, Equatable, Sendable {
     }
 
     var subtitle: String {
-        var parts: [String] = [course.label]
+        var parts: [String] = [PosCourse.label(course)]
         let mods = modifiers.map(\.label)
         if !mods.isEmpty { parts.append(mods.joined(separator: " · ")) }
         if !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

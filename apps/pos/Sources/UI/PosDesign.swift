@@ -39,14 +39,12 @@ enum PosDesign {
         Color(uiColor: uiColor(hex: resolveAccentHex(hex)))
     }
 
-    static func courseColor(_ course: PosCourse) -> Color {
+    static func courseColor(_ course: Int) -> Color {
         switch course {
-        case .starter: return .orange
-        case .main: return .accentColor
-        case .dessert: return .pink
-        case .side: return .teal
-        case .drink: return .blue
-        case .other: return .secondary
+        case 1: return .orange
+        case 2: return .accentColor
+        case 3: return .pink
+        default: return .secondary
         }
     }
 

@@ -4,12 +4,12 @@ import SwiftUI
 struct LineConfigureSheet: View {
     let item: PosCloudMenuItem
     let optionGroups: [PosCloudMenuOptionGroup]
-    var initialCourse: PosCourse = .main
+    var initialCourse: Int = PosCourse.main
     var onConfirm: (PosCartLine) -> Void
     var onCancel: () -> Void
 
     @State private var quantity = 1
-    @State private var course: PosCourse = .main
+    @State private var course = PosCourse.main
     @State private var notes = ""
     @State private var selectedOhne: Set<String> = []
     @State private var selectedChoices: Set<String> = []
@@ -37,11 +37,11 @@ struct LineConfigureSheet: View {
                 Section("Gang") {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            ForEach(PosCourse.allCases) { c in
+                            ForEach(PosCourse.uiCourses, id: \.self) { c in
                                 Button {
                                     course = c
                                 } label: {
-                                    PosChip(title: c.label, selected: course == c, tint: PosDesign.courseColor(c))
+                                    PosChip(title: PosCourse.label(c), selected: course == c, tint: PosDesign.courseColor(c))
                                 }
                                 .buttonStyle(.plain)
                             }

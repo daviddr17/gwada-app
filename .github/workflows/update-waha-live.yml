@@ -44,11 +44,11 @@ jobs:
           fi
           CONTAINER="$(echo "$CONTAINER" | tr -d '[:space:]')"
           TARGET="$(echo "$TARGET" | tr -cd '0-9.')"
+          # auto = auf dem VPS den laufenden WAHA-Container erkennen
           if [ -z "$CONTAINER" ]; then
-            echo "::error::container fehlt"
-            exit 1
+            CONTAINER=auto
           fi
-          if ! echo "$CONTAINER" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'; then
+          if [ "$CONTAINER" != "auto" ] && ! echo "$CONTAINER" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'; then
             echo "::error::Ungültiger Container-Name"
             exit 1
           fi
@@ -84,10 +84,31 @@ jobs:
               bash -s <<'REMOTE'
           set -euo pipefail
 
-          if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
-            echo "::error::Container nicht gefunden: $CONTAINER"
+          resolve_waha_container() {
+            if [ "$CONTAINER" != "auto" ] && docker inspect "$CONTAINER" >/dev/null 2>&1; then
+              return 0
+            fi
+            echo "=== WAHA Container suchen (gewünscht: ${CONTAINER}) ==="
+            docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' || true
+            # Name oder Image enthält waha
+            mapfile -t CANDS < <(
+              docker ps --format '{{.Names}}\t{{.Image}}' \
+                | awk -F'\t' 'BEGIN{IGNORECASE=1} $1 ~ /waha/ || $2 ~ /waha/ {print $1}'
+            )
+            if [ "${#CANDS[@]}" -eq 1 ]; then
+              CONTAINER="${CANDS[0]}"
+              echo "Auto-Detect → ${CONTAINER}"
+              return 0
+            fi
+            if [ "${#CANDS[@]}" -gt 1 ]; then
+              echo "::error::Mehrere WAHA-Container gefunden: ${CANDS[*]} — exakten Namen in Superadmin setzen."
+              exit 1
+            fi
+            echo "::error::Kein laufender WAHA-Container gefunden (Name/Image ohne „waha“)."
             exit 1
-          fi
+          }
+
+          resolve_waha_container
 
           label() {
             local v

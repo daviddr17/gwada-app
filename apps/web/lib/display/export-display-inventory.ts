@@ -140,7 +140,7 @@ function displayInventoryHeaders(mode: DisplayInventoryExportMode): readonly str
 export async function printDisplayInventory(
   rows: DisplayInventoryIngredientRow[],
   mode: DisplayInventoryExportMode,
-  options?: { restaurantName?: string },
+  options?: { restaurantName?: string; rowsPerPage?: number | null },
 ): Promise<PrintJsPdfResult> {
   const exportRows = buildDisplayInventoryExportRows(rows, mode);
   const isStock = mode === "stock";
@@ -155,6 +155,7 @@ export async function printDisplayInventory(
     restaurantName: options?.restaurantName,
     summaryLine: summary,
     landscape: true,
+    rowsPerPage: options?.rowsPerPage,
     columnStyles: isStock
       ? {
           1: { cellWidth: 18, halign: "right" },
@@ -189,7 +190,7 @@ export function downloadDisplayInventoryCsv(
 export async function downloadDisplayInventoryPdf(
   rows: DisplayInventoryIngredientRow[],
   mode: DisplayInventoryExportMode,
-  options?: { restaurantName?: string },
+  options?: { restaurantName?: string; rowsPerPage?: number | null },
 ): Promise<void> {
   const exportRows = buildDisplayInventoryExportRows(rows, mode);
   const isStock = mode === "stock";
@@ -205,6 +206,7 @@ export async function downloadDisplayInventoryPdf(
     restaurantName: options?.restaurantName,
     summaryLine: summary,
     orientation: "landscape",
+    rowsPerPage: options?.rowsPerPage,
     columnStyles: isStock
       ? {
           1: { cellWidth: 18, halign: "right" },

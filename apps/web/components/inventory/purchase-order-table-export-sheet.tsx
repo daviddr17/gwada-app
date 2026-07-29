@@ -33,10 +33,17 @@ import type { Ingredient, InventoryTaxonomyDefinition } from "@/lib/types/invent
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { TableExportRowsPerPageField } from "@/components/export/table-export-rows-per-page-field";
 import {
   downloadTableCsv,
   downloadTablePdf,
 } from "@/lib/export/table-document-export";
+import {
+  DEFAULT_TABLE_EXPORT_ROWS_PER_PAGE,
+  readStoredTableExportRowsPerPage,
+  writeStoredTableExportRowsPerPage,
+  type TableExportRowsPerPage,
+} from "@/lib/export/table-export-rows-per-page";
 
 const filterSelectClassName = appSelectTriggerAccentCn(staffDrawerFieldClassName);
 
@@ -72,11 +79,20 @@ export function PurchaseOrderTableExportSheet({
   const [filters, setFilters] = useState<PurchaseOrderLineExportFilters>(
     DEFAULT_PURCHASE_ORDER_LINE_EXPORT_FILTERS,
   );
+  const [rowsPerPage, setRowsPerPage] = useState<TableExportRowsPerPage>(
+    DEFAULT_TABLE_EXPORT_ROWS_PER_PAGE,
+  );
 
   useEffect(() => {
     if (!open) return;
     setFilters(DEFAULT_PURCHASE_ORDER_LINE_EXPORT_FILTERS);
+    setRowsPerPage(readStoredTableExportRowsPerPage());
   }, [open, order.id]);
+
+  const handleRowsPerPageChange = (value: TableExportRowsPerPage) => {
+    setRowsPerPage(value);
+    writeStoredTableExportRowsPerPage(value);
+  };
 
   const categoryOptions = useMemo(() => {
     const ids = new Set<string>();
@@ -165,7 +181,11 @@ export function PurchaseOrderTableExportSheet({
     if (itemCount === 0) return;
     void (async () => {
       try {
-        await downloadTablePdf({ ...exportOptions, restaurantName });
+        await downloadTablePdf({
+          ...exportOptions,
+          restaurantName,
+          rowsPerPage,
+        });
         toast.success("PDF wurde heruntergeladen.");
         onOpenChange(false);
       } catch {
@@ -241,6 +261,14 @@ export function PurchaseOrderTableExportSheet({
                   className={filterSelectClassName}
                 />
               </div>
+            </DrawerFormSection>
+
+            <DrawerFormSection title="Drucklayout">
+              <TableExportRowsPerPageField
+                value={rowsPerPage}
+                onChange={handleRowsPerPageChange}
+                itemCount={itemCount}
+              />
             </DrawerFormSection>
 
             <DrawerFormSection title="Export">

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   forwardRef,
+  startTransition,
   useCallback,
   type ComponentPropsWithoutRef,
   type FocusEvent,
@@ -50,7 +51,7 @@ type AppNavLinkProps = {
 >;
 
 /**
- * Interner Link — nativer Next-Link; parallele Modul-Klicks blockieren bis Route steht.
+ * Interner Modul-Link — Soft-Nav mit sofortigem Pending + router.push.
  * Rest-Props durchreichen (Base-UI `Button render={<AppNavLink … />}`).
  */
 export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
@@ -118,10 +119,8 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
           onPointerDown?.(event);
           // Touch/schneller Klick: FULL + Daten vor dem Flight (Hover fehlt oft).
           warmOnIntent();
-          // Kein tryAcquireNavLock hier: setTimeout(0) aus pointerdown läuft auf
-          // iOS/Touch oft VOR dem synthetischen click. Keep-alive-Pending würde
-          // dann schon DOM/Slots umbauen → click stirbt, Mobilmenü bleibt offen,
-          // falsche Module blitzen kurz auf.
+          // Pending erst im click: pointerdown+Pending vor synthetischem click
+          // kann auf iOS Keep-alive-Slots umbauen und den click killen.
         }}
         onClick={(event) => {
           onClick?.(event);
@@ -130,11 +129,24 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
             event.preventDefault();
             return;
           }
-          // Pending erst im click (nach Link-Target-Phase) — Overlay/Keep-alive
-          // dürfen den aktivierenden Klick nicht mehr killen.
-          if (crossModuleNav) {
-            tryAcquireNavLock(event, hrefStr);
+          if (!crossModuleNav) return;
+          // Cmd/Ctrl-Klick etc. → natives Link-Verhalten (neuer Tab).
+          if (
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey ||
+            event.button !== 0
+          ) {
+            return;
           }
+          // Sofort Pending (Titel/Skeleton), dann explizit pushen.
+          // Flight hängt nicht am <a> im Mobile-Sheet (Close/Unmount killt sonst Nav).
+          tryAcquireNavLock(event, hrefStr);
+          event.preventDefault();
+          startTransition(() => {
+            router.push(hrefStr);
+          });
         }}
       >
         {children}

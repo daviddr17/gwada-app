@@ -25,10 +25,13 @@ import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persis
 
 type AppShellReadinessValue = {
   interactive: boolean;
+  /** Bootstrap sofort ausblenden (z. B. Menü geöffnet / Soft-Nav). */
+  dismissBootstrap: () => void;
 };
 
 const AppShellReadinessContext = createContext<AppShellReadinessValue>({
   interactive: true,
+  dismissBootstrap: () => {},
 });
 
 export function useAppShellReadiness(): AppShellReadinessValue {
@@ -110,7 +113,10 @@ export function AppShellReadinessProvider({ children }: { children: ReactNode })
     if (pendingHref) markInteractive();
   }, [pendingHref, markInteractive]);
 
-  const value = useMemo(() => ({ interactive }), [interactive]);
+  const value = useMemo(
+    () => ({ interactive, dismissBootstrap: markInteractive }),
+    [interactive, markInteractive],
+  );
 
   return (
     <AppShellReadinessContext.Provider value={value}>

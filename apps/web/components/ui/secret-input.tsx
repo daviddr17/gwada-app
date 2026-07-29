@@ -60,7 +60,6 @@ export function SecretInput({
       <PasswordInput
         id={id}
         disabled={disabled}
-        readOnly={showingStoredMask}
         value={inputValue}
         placeholder={placeholder}
         canToggleVisibility={canToggleVisibility}
@@ -71,6 +70,14 @@ export function SecretInput({
         )}
         spellCheck={false}
         autoComplete="new-password"
+        // Kein readOnly: iOS/Safari öffnet bei readOnly keine Soft-Keyboard.
+        // Maske vor Focus verlassen (Pointer), damit Tippen sofort geht.
+        onPointerDown={() => {
+          if (showingStoredMask) {
+            onChange("");
+            setEditing(true);
+          }
+        }}
         onFocus={() => {
           if (showingStoredMask) {
             onChange("");

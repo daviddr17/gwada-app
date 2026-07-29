@@ -1038,12 +1038,14 @@ export function SuperadminWahaScreen() {
                     docker_container_name: e.target.value,
                   }))
                 }
-                placeholder="z. B. waha"
+                placeholder="z. B. root-waha-noweb"
                 autoComplete="off"
               />
               <p className="text-xs text-muted-foreground">
-                Name wie in <span className="font-mono">docker ps</span> auf
-                diesem WAHA-Host.
+                Exakter Name aus <span className="font-mono">docker ps</span>{" "}
+                auf diesem WAHA-Host (bei euch typisch{" "}
+                <span className="font-mono">root-waha-noweb</span>, nicht nur
+                „waha“).
               </p>
             </div>
             <div className="space-y-2 rounded-lg border border-border/50 p-3">

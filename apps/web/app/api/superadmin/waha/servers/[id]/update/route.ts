@@ -1,4 +1,5 @@
 import { assertSuperadminApi } from "@/lib/superadmin/assert-superadmin-api";
+import { githubApiErrorHint } from "@/lib/superadmin/github-deploy-api-server";
 import {
   getWahaServerByIdAdmin,
   wahaServerRowToConfig,
@@ -78,14 +79,19 @@ export async function POST(req: Request, context: RouteContext) {
 
   if (!result.ok) {
     const cooldown = result.error?.startsWith("update_cooldown_");
+    const authHint =
+      result.error === "github_deploy_token_missing" ||
+      result.error === "github_api_401" ||
+      result.error === "github_api_403"
+        ? githubApiErrorHint(result.error)
+        : null;
     return Response.json(
       {
         error: result.error ?? "update_failed",
         message: cooldown
           ? `WAHA-Update erst wieder in ${result.error?.replace("update_cooldown_", "")} möglich.`
-          : result.error === "github_deploy_token_missing"
-            ? "GitHub-Auth fehlt — Update nicht möglich (GitHub App oder GITHUB_DEPLOY_TOKEN)."
-            : "WAHA-Update konnte nicht gestartet werden.",
+          : (authHint ??
+            `WAHA-Update konnte nicht gestartet werden${result.error ? ` (${result.error})` : ""}.`),
       },
       { status: cooldown ? 429 : 502 },
     );

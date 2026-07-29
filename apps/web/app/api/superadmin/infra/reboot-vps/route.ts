@@ -1,4 +1,5 @@
 import { assertSuperadminApi } from "@/lib/superadmin/assert-superadmin-api";
+import { githubApiErrorHint } from "@/lib/superadmin/github-deploy-api-server";
 import {
   getLiveVpsRebootCooldownRemainingMs,
   triggerLiveVpsReboot,
@@ -51,9 +52,13 @@ export async function POST(req: Request) {
         error: result.error ?? "reboot_failed",
         message: cooldown
           ? `VPS-Reboot erst wieder in ${result.error?.replace("reboot_cooldown_", "")} möglich.`
-          : result.error === "github_deploy_token_missing"
-            ? "GitHub-Auth fehlt — VPS-Reboot nicht möglich (GitHub App oder GITHUB_DEPLOY_TOKEN)."
-            : "VPS-Reboot konnte nicht gestartet werden.",
+          : result.error === "github_deploy_token_missing" ||
+              result.error === "github_api_401" ||
+              result.error === "github_api_403"
+            ? result.error === "github_deploy_token_missing"
+              ? "GitHub-Auth fehlt — VPS-Reboot nicht möglich (GitHub App oder GITHUB_DEPLOY_TOKEN)."
+              : "GitHub-API abgelehnt — VPS-Reboot nicht möglich (PAT/App prüfen)."
+            : `VPS-Reboot konnte nicht gestartet werden${result.error ? ` (${result.error})` : ""}.`,
       },
       { status: cooldown ? 429 : 502 },
     );

@@ -1,0 +1,44 @@
+# Coolify: Suche Zugangsdaten für WAHA-Host 109.205.181.63
+name: Coolify WAHA creds probe
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [coolify-waha-creds]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query Coolify for WAHA host
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cat > /tmp/coolify_probe.sh <<'REMOTE'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          echo "=== docker ==="
+          docker ps --format '{{.Names}} {{.Image}}' | head -50
+          echo "=== files with IP ==="
+          grep -RIl '109.205.181.63' /data/coolify 2>/dev/null | head -40 || true
+          echo "=== coolify db ==="
+          db=$(docker ps --format '{{.Names}}' | grep -i 'coolify-db' | head -1 || true)
+          echo "db=$db"
+          if [ -n "$db" ]; then
+            docker exec "$db" psql -U coolify -d coolify -c '\dt' 2>&1 | head -50 || true
+            docker exec "$db" psql -U coolify -d coolify -c \
+              "select column_name, data_type from information_schema.columns where table_name='servers' order by ordinal_position;" 2>&1 | head -80 || true
+            docker exec "$db" psql -U coolify -d coolify -c \
+              "select id, name, ip, \"user\", port, private_key_id is not null as has_key, (password is not null and length(password)>0) as has_password from servers;" 2>&1 | head -80 || true
+            docker exec "$db" psql -U coolify -d coolify -c \
+              "select id, name, ip, \"user\", port from servers where ip like '%109.205%' or name ilike '%waha%' or ip like '%181.63%';" 2>&1 | head -40 || true
+          fi
+          echo "=== done ==="
+          REMOTE
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes /tmp/coolify_probe.sh "root@${LIVE_VPS_HOST}:/tmp/coolify_probe.sh"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            "bash /tmp/coolify_probe.sh; rm -f /tmp/coolify_probe.sh"

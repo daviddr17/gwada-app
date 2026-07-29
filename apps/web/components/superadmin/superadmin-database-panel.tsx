@@ -353,7 +353,7 @@ export function SuperadminDatabasePanel() {
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-semibold">
-                {liveAppSyncLabel(status.liveApp.syncState)}
+                {liveAppSyncLabel(status.liveApp.syncState, status.liveApp)}
               </p>
               {shouldPollLive ? (
                 <span className="text-xs opacity-80">Auto-Aktualisierung …</span>

@@ -84,6 +84,17 @@ function collectPlatformAlerts(
         detail: status.liveApp.message ?? undefined,
         tone: "error",
       });
+    } else if (
+      status.liveApp.syncState === "unknown" &&
+      status.liveApp.liveReachable &&
+      !status.github.headCommit.sha
+    ) {
+      alerts.push({
+        key: "github-compare-missing",
+        label: "GitHub-Vergleich fehlt",
+        detail: status.liveApp.message ?? undefined,
+        tone: "warning",
+      });
     }
   }
 
@@ -242,7 +253,7 @@ export function SuperadminPlatformStatusSummary() {
           <p className="text-sm font-semibold">
             {isLocalDev
               ? localDevRuntimeLabel()
-              : liveAppSyncLabel(status.liveApp.syncState)}
+              : liveAppSyncLabel(status.liveApp.syncState, status.liveApp)}
           </p>
           <p className="mt-0.5 text-xs opacity-90">
             {isLocalDev

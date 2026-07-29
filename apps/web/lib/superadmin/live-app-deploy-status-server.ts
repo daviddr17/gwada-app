@@ -10,9 +10,11 @@ import { githubDeployTokenStrict } from "@/lib/superadmin/github-deploy-api-serv
 
 const BUILD_INFO_TIMEOUT_MS = 6_000;
 
-function normalizeSha(raw: string | null | undefined): string | null {
+/** Nur echte Git-SHAs (kurz oder voll) — kein „dev“, kein „—“. */
+export function normalizeSha(raw: string | null | undefined): string | null {
   const trimmed = raw?.trim().toLowerCase();
   if (!trimmed || trimmed === "dev") return null;
+  if (!/^[0-9a-f]{4,40}$/.test(trimmed)) return null;
   return trimmed;
 }
 
@@ -25,6 +27,33 @@ export function shasMatch(
   if (!na || !nb) return false;
   if (na === nb) return true;
   return na.startsWith(nb) || nb.startsWith(na);
+}
+
+/**
+ * Erwarteter GitHub-Stand für den Live-Vergleich.
+ * Fallback: Deploy-Branch-Tip aus Branch-Liste, dann letzter App-Deploy-Run.
+ */
+export function resolveGithubCompareSha(
+  github: SuperadminGithubRepoStatus,
+): string | null {
+  const fromHead = normalizeSha(
+    github.headCommit.sha ?? github.headCommit.shortSha,
+  );
+  if (fromHead) return fromHead;
+
+  const branchTip = github.branches.find(
+    (b) => b.name === github.deployBranch || b.isDefault,
+  );
+  const fromBranch = normalizeSha(branchTip?.shortSha);
+  if (fromBranch) return fromBranch;
+
+  const latest = github.appDeployWorkflow.latestRun;
+  if (latest) {
+    const fromRun = normalizeSha(latest.headSha);
+    if (fromRun) return fromRun;
+  }
+
+  return null;
 }
 
 async function fetchLiveBuildInfo(
@@ -57,9 +86,9 @@ async function fetchLiveBuildInfo(
     const normalized = normalizeSha(raw);
     return {
       sha: normalized,
-      shortSha: normalized ? normalized.slice(0, 7) : raw,
+      shortSha: normalized ? normalized.slice(0, 7) : null,
       reachable: true,
-      message: null,
+      message: normalized ? null : "Live /api/build-info ohne gültigen Commit-SHA.",
     };
   } catch {
     return {
@@ -71,7 +100,7 @@ async function fetchLiveBuildInfo(
   }
 }
 
-function deriveSyncState(input: {
+export function deriveLiveAppSyncState(input: {
   liveSha: string | null;
   githubSha: string | null;
   github: SuperadminGithubRepoStatus;
@@ -93,6 +122,8 @@ function deriveSyncState(input: {
 function buildMessage(input: {
   syncState: SuperadminLiveAppDeployStatus["syncState"];
   liveReachable: boolean;
+  liveSha: string | null;
+  githubSha: string | null;
   github: SuperadminGithubRepoStatus;
 }): string | null {
   if (input.syncState === "in_sync") {
@@ -113,12 +144,21 @@ function buildMessage(input: {
     return "Live-App ist veraltet: öffentliche URL liefert einen älteren Build als GitHub main. Nach Commit/Push hier „App deployen“ starten.";
   }
 
-  if (!input.liveReachable) {
+  if (!input.liveReachable && !input.liveSha) {
     return "Live-Build konnte nicht geprüft werden.";
   }
 
-  if (!input.github.reachable && !input.github.headCommit.sha) {
-    return "GitHub-Commit konnte nicht abgerufen werden.";
+  if (!input.githubSha) {
+    if (!input.github.configured) {
+      return "GitHub-Token fehlt — Live-Commit bekannt, Vergleich mit main nicht möglich.";
+    }
+    if (!input.github.reachable) {
+      return (
+        input.github.message ??
+        "GitHub-API nicht erreichbar — Live-Commit bekannt, Vergleich mit main nicht möglich."
+      );
+    }
+    return "GitHub-Commit konnte nicht abgerufen werden — Live-Commit bekannt.";
   }
 
   return null;
@@ -130,18 +170,31 @@ export async function fetchLiveAppDeployStatus(
   const siteUrl = getPublicSiteUrl() ?? null;
   const containerSha = normalizeSha(process.env.GWADA_BUILD_SHA);
 
-  const liveBuild = siteUrl
-    ? await fetchLiveBuildInfo(siteUrl)
-    : {
-        sha: null,
-        shortSha: null,
-        reachable: false,
-        message: "NEXT_PUBLIC_SITE_URL fehlt.",
-      };
+  /**
+   * Auf dem Live-Container ist GWADA_BUILD_SHA die Source of Truth.
+   * Öffentlicher Self-Fetch (/api/build-info) kann per Hairpin/DNS scheitern
+   * und fälschlich „unklar“ erzeugen.
+   */
+  const preferContainerSha =
+    process.env.NODE_ENV === "production" && Boolean(containerSha);
 
-  const syncState = deriveSyncState({
-    liveSha: liveBuild.sha,
-    githubSha: github.headCommit.sha,
+  const remoteBuild = !preferContainerSha && siteUrl
+    ? await fetchLiveBuildInfo(siteUrl)
+    : null;
+
+  const liveSha = preferContainerSha
+    ? containerSha
+    : (remoteBuild?.sha ?? containerSha);
+  const liveShortSha = liveSha ? liveSha.slice(0, 7) : null;
+  const liveReachable = preferContainerSha
+    ? true
+    : Boolean(remoteBuild?.reachable || liveSha);
+
+  const githubSha = resolveGithubCompareSha(github);
+
+  const syncState = deriveLiveAppSyncState({
+    liveSha,
+    githubSha,
     github,
   });
 
@@ -151,14 +204,16 @@ export async function fetchLiveAppDeployStatus(
 
   return {
     siteUrl,
-    liveSha: liveBuild.sha,
-    liveShortSha: liveBuild.shortSha,
-    liveReachable: liveBuild.reachable,
+    liveSha,
+    liveShortSha,
+    liveReachable,
     containerSha,
     syncState,
     message: buildMessage({
       syncState,
-      liveReachable: liveBuild.reachable,
+      liveReachable,
+      liveSha,
+      githubSha,
       github,
     }),
     triggerConfigured,

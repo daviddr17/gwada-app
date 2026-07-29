@@ -123,3 +123,17 @@ Web **POS → Einstellungen**: Bondrucker anlegen, pro Speisekarten-Kategorie Zi
 - **Aktualisieren:** lädt den gewählten Tag neu (Kasse → Cloud; Handheld → Kasse)
 - **Anlegen:** Handheld → Kasse (LAN) → Sync-Queue → DB; an der Kasse direkt Cloud/DB (sonst Queue)
 
+
+## iPhone-Pairing (Schritt 3) — LAN-Kopplung + Freigabe
+
+Handgeräte (iPhone) koppeln sich per LAN an die iPad-Kasse (Hub) und werden **einzeln am iPad freigegeben** (6-stelliger Code-Abgleich). Freigegebene Geräte erhalten einen Pairing-Token (`X-Gwada-Pair-Token`), den der Hub auf den Daten-Endpunkten erzwingt.
+
+**Endpunkte** (LAN, Port 8787): `POST /v1/pair/request` → `{pairId, verificationCode}`; `GET /v1/pair/status?pairId=` → `{state, token?}`. Offen (kein Token): `/v1/health`, `/v1/kds`, `/v1/kds/tickets(+/advance)` (Browser-KDS-Display). Token-pflichtig: `/v1/snapshot`, `/v1/sessions`, `/v1/orders`, `/v1/reservations` → sonst 401.
+
+**Sim-Test (ein Mac, zwei Simulatoren):** Bonjour funktioniert *nicht* zwischen zwei Simulatoren — daher manueller Host.
+1. iPad-Sim: App bauen/starten, als Hub enrollen (Setup-Code aus dem Web-Dashboard).
+2. iPhone-Sim: App starten → Gate „Mit der Kasse verbinden" → Hub-Adresse **`127.0.0.1:8787`** → **Koppeln**. Es erscheint „Warte auf Freigabe am iPad" + 6-stelliger Code.
+3. iPad: Toolbar-Button **Handgeräte verbinden** (oben links) → Anfrage mit passendem Code → **Freigeben**.
+4. iPhone wechselt automatisch in die Tische-UI (Snapshot über LAN, mit Token).
+
+**Negativpfade:** ungekoppelt → `curl http://127.0.0.1:8787/v1/snapshot` = 401; Ablehnen → „Freigabe abgelehnt"; Widerruf am iPad (Gekoppelte Geräte → **Widerrufen**) invalidiert den Token (nächster authentifizierter Request → 401).

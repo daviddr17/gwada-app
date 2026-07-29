@@ -5,6 +5,7 @@ import {
   githubFetchJson,
   githubRepoSlug,
   resolveGithubDeployAccessToken,
+  shouldFallbackGithubWorkflowDispatch,
 } from "@/lib/superadmin/github-deploy-api-server";
 
 export const LIVE_VPS_REBOOT_WORKFLOW_FILE = "reboot-live-vps.yml";
@@ -93,7 +94,8 @@ export async function triggerLiveVpsReboot(input?: {
         e instanceof Error && "status" in e
           ? (e as Error & { status?: number }).status
           : undefined;
-      if (status !== 403) throw e;
+      const msg = e instanceof Error ? e.message : undefined;
+      if (!shouldFallbackGithubWorkflowDispatch(status, msg)) throw e;
     }
 
     await githubFetchJson(

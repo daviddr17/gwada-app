@@ -186,7 +186,8 @@ function pickActiveRun(
   );
 }
 
-function githubApiErrorHint(msg: string): string {
+/** Nutzerhint bei fehlender/abgelehnter GitHub-Auth (Deploy, WAHA-Ops, …). */
+export function githubApiErrorHint(msg: string): string {
   if (msg === "github_api_401" || msg === "github_api_403") {
     return "GitHub-API abgelehnt — abgelaufenen PAT entfernen oder GitHub App setzen (docs/github-app-deploy-auth.md).";
   }
@@ -194,6 +195,22 @@ function githubApiErrorHint(msg: string): string {
     return "GitHub-Auth fehlt — GitHub App (empfohlen) oder GITHUB_DEPLOY_TOKEN setzen.";
   }
   return "GitHub-API nicht erreichbar.";
+}
+
+/**
+ * workflow_dispatch oft 403/404 ohne Actions:write — dann repository_dispatch versuchen.
+ * (GitHub maskiert fehlende Rechte häufig als 404.)
+ */
+export function shouldFallbackGithubWorkflowDispatch(
+  status: number | undefined,
+  msg?: string,
+): boolean {
+  return (
+    status === 403 ||
+    status === 404 ||
+    msg === "github_api_403" ||
+    msg === "github_api_404"
+  );
 }
 
 function githubDispatchErrorMessage(input: {
@@ -251,7 +268,7 @@ async function dispatchGithubDeployEvent(input: {
         ? (e as Error & { status?: number }).status
         : undefined;
     const msg = e instanceof Error ? e.message : "dispatch_failed";
-    if (status !== 403 && msg !== "github_api_403") {
+    if (!shouldFallbackGithubWorkflowDispatch(status, msg)) {
       throw e;
     }
   }

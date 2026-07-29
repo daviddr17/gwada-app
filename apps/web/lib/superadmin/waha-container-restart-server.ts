@@ -5,6 +5,7 @@ import {
   githubFetchJson,
   githubRepoSlug,
   resolveGithubDeployAccessToken,
+  shouldFallbackGithubWorkflowDispatch,
 } from "@/lib/superadmin/github-deploy-api-server";
 
 export const WAHA_RESTART_WORKFLOW_FILE = "restart-waha-live.yml";
@@ -64,7 +65,8 @@ export async function triggerWahaContainerRestart(input: {
         e instanceof Error && "status" in e
           ? (e as Error & { status?: number }).status
           : undefined;
-      if (status !== 403) throw e;
+      const msg = e instanceof Error ? e.message : undefined;
+      if (!shouldFallbackGithubWorkflowDispatch(status, msg)) throw e;
     }
 
     await githubFetchJson(

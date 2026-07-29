@@ -2,10 +2,10 @@ import "server-only";
 
 import {
   githubDeployBranch,
-  githubDeployToken,
-  githubDeployTokenStrict,
   githubFetchJson,
   githubRepoSlug,
+  resolveGithubDeployAccessToken,
+  shouldFallbackGithubWorkflowDispatch,
 } from "@/lib/superadmin/github-deploy-api-server";
 
 export const WAHA_HOST_REBOOT_WORKFLOW_FILE = "reboot-waha-host-live.yml";
@@ -21,7 +21,7 @@ export async function triggerWahaHostReboot(input: {
     return { ok: false, error: "server_id_missing" };
   }
 
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) {
     return { ok: false, error: "github_deploy_token_missing" };
   }
@@ -58,7 +58,8 @@ export async function triggerWahaHostReboot(input: {
         e instanceof Error && "status" in e
           ? (e as Error & { status?: number }).status
           : undefined;
-      if (status !== 403) throw e;
+      const msg = e instanceof Error ? e.message : undefined;
+      if (!shouldFallbackGithubWorkflowDispatch(status, msg)) throw e;
     }
 
     await githubFetchJson(

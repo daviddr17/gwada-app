@@ -1,4 +1,5 @@
 import { assertSuperadminApi } from "@/lib/superadmin/assert-superadmin-api";
+import { githubApiErrorHint } from "@/lib/superadmin/github-deploy-api-server";
 import { triggerWahaHostReboot } from "@/lib/superadmin/waha-host-reboot-server";
 import { getWahaServerByIdAdmin } from "@/lib/supabase/waha-servers-db";
 
@@ -49,16 +50,18 @@ export async function POST(req: Request, context: RouteContext) {
   });
 
   if (!result.ok) {
-    const authFail =
+    const authHint =
       result.error === "github_deploy_token_missing" ||
       result.error === "github_api_401" ||
-      result.error === "github_api_403";
+      result.error === "github_api_403"
+        ? githubApiErrorHint(result.error)
+        : null;
     return Response.json(
       {
         error: result.error ?? "reboot_failed",
-        message: authFail
-          ? "GitHub-Auth abgelehnt — Host-Reboot nicht möglich."
-          : `Host-Reboot konnte nicht gestartet werden${result.error ? ` (${result.error})` : ""}.`,
+        message:
+          authHint ??
+          `Host-Reboot konnte nicht gestartet werden${result.error ? ` (${result.error})` : ""}.`,
       },
       { status: 502 },
     );

@@ -47,3 +47,7 @@ remote_psql "select courses from public.pos_kds_devices limit 5;"
 echo ""
 echo "--- pos_order_course enum remaining ---"
 remote_psql "select count(*)::int as enum_left from pg_type where typname = 'pos_order_course';"
+
+echo ""
+echo "--- information_schema column types (empty-table fallback) ---"
+remote_psql "select table_name, column_name, data_type, udt_name from information_schema.columns where table_schema = 'public' and ((table_name = 'pos_order_lines' and column_name = 'course') or (table_name = 'pos_kds_devices' and column_name = 'courses')) order by table_name;"

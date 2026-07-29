@@ -19,7 +19,11 @@ import {
 import { wahaPseudoContactIdFromChatId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { resolveContactIdByWhatsappChat } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
-import { fetchRestaurantWhatsappIntegration } from "@/lib/supabase/restaurant-integrations-db";
+import {
+  fetchRestaurantWhatsappIntegration,
+  integrationStateFromWahaSession,
+  upsertRestaurantWhatsappIntegration,
+} from "@/lib/supabase/restaurant-integrations-db";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { wahaGetSession } from "@/lib/waha/waha-client";
@@ -89,14 +93,64 @@ export function isWhatsappKindEnabled(
   }
 }
 
-async function isWhatsappSessionWorking(
+/**
+ * Live-WAHA entscheidet — nicht nur DB-Status.
+ * Verhindert Toast „nicht verbunden“, wenn die Session läuft, die DB aber
+ * (z. B. nach Restart / fehlgeschlagenem User-Upsert) noch veraltet ist.
+ */
+async function ensureWhatsappReadyForDispatch(
+  sb: SupabaseClient,
   restaurantId: string,
-): Promise<boolean> {
+): Promise<"ok" | "whatsapp_not_connected" | "waha_session_not_working"> {
+  const integration = await fetchRestaurantWhatsappIntegration(sb, restaurantId);
   const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
-  if (!config) return false;
+  if (!config) {
+    return integration?.status === "working"
+      ? "waha_session_not_working"
+      : "whatsapp_not_connected";
+  }
+
   const name = wahaSessionNameForRestaurant(restaurantId);
   const res = await wahaGetSession(config, name);
-  return res.ok && res.data?.status === "WORKING";
+  const liveWorking = Boolean(res.ok && res.data?.status === "WORKING");
+
+  if (liveWorking && res.data) {
+    if (integration?.status !== "working") {
+      const mapped = integrationStateFromWahaSession(res.data, "working");
+      const { error } = await upsertRestaurantWhatsappIntegration(sb, restaurantId, {
+        status: mapped.status,
+        phone_number: mapped.phone_number,
+        display_name: mapped.display_name,
+        connected_at: mapped.connected_at,
+        last_error: null,
+      });
+      if (error) {
+        console.warn("[whatsapp-dispatch] sync working status", error);
+      }
+    }
+    return "ok";
+  }
+
+  if (res.ok && res.data) {
+    const mapped = integrationStateFromWahaSession(
+      res.data,
+      integration?.status ?? "disconnected",
+    );
+    if (mapped.status !== integration?.status) {
+      await upsertRestaurantWhatsappIntegration(sb, restaurantId, {
+        status: mapped.status,
+        phone_number: mapped.phone_number,
+        display_name: mapped.display_name,
+        connected_at: mapped.connected_at,
+        last_error: null,
+      });
+    }
+  }
+
+  if (integration?.status === "working") {
+    return "waha_session_not_working";
+  }
+  return "whatsapp_not_connected";
 }
 
 export async function fetchReservationForWhatsapp(
@@ -459,12 +513,9 @@ export async function dispatchReservationWhatsapp(
   if (!row) return { ok: false, error: "reservation_not_found" };
   if (!row.notify_whatsapp) return { ok: true, skipped: "notify_whatsapp_off" };
 
-  const integration = await fetchRestaurantWhatsappIntegration(sb, row.restaurant_id);
-  if (integration?.status !== "working") {
-    return { ok: true, skipped: "whatsapp_not_connected" };
-  }
-  if (!(await isWhatsappSessionWorking(row.restaurant_id))) {
-    return { ok: true, skipped: "waha_session_not_working" };
+  const ready = await ensureWhatsappReadyForDispatch(sb, row.restaurant_id);
+  if (ready !== "ok") {
+    return { ok: true, skipped: ready };
   }
 
   const settings = await fetchReservationWhatsappSettings(sb, row.restaurant_id);
@@ -556,14 +607,11 @@ export async function processDueWhatsappOutbox(
       continue;
     }
 
-    const integration = await fetchRestaurantWhatsappIntegration(sb, row.restaurant_id);
-    if (
-      integration?.status !== "working" ||
-      !(await isWhatsappSessionWorking(row.restaurant_id))
-    ) {
+    const ready = await ensureWhatsappReadyForDispatch(sb, row.restaurant_id);
+    if (ready !== "ok") {
       await sb
         .from("reservation_whatsapp_outbox")
-        .update({ last_error: "whatsapp_unavailable" })
+        .update({ last_error: ready })
         .eq("id", item.id);
       failed++;
       continue;

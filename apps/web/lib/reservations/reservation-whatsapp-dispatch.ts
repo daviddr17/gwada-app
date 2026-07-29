@@ -112,9 +112,8 @@ async function ensureWhatsappReadyForDispatch(
 
   const name = wahaSessionNameForRestaurant(restaurantId);
   const res = await wahaGetSession(config, name);
-  const liveWorking = Boolean(res.ok && res.data?.status === "WORKING");
 
-  if (liveWorking && res.data) {
+  if (res.ok && res.data?.status === "WORKING") {
     if (integration?.status !== "working") {
       const mapped = integrationStateFromWahaSession(res.data, "working");
       const { error } = await upsertRestaurantWhatsappIntegration(sb, restaurantId, {
@@ -131,7 +130,7 @@ async function ensureWhatsappReadyForDispatch(
     return "ok";
   }
 
-  if (res.ok && res.data) {
+  if (res.ok) {
     const mapped = integrationStateFromWahaSession(
       res.data,
       integration?.status ?? "disconnected",

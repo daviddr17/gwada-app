@@ -299,6 +299,7 @@ export function SuperadminWahaScreen() {
       setServers((prev) =>
         prev.map((s) => (s.id === res.server!.id ? res.server! : s)),
       );
+      void loadVersions([res.server]);
     } else {
       await load();
     }

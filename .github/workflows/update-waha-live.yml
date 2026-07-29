@@ -7,13 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       container:
-        description: Docker-Container-Name auf dem VPS
-        required: true
-        type: string
-      server_id:
-        description: Optional waha_servers.id
+        description: Docker-Container-Name (leer = aus Server-Config / auto)
         required: false
         default: ""
+        type: string
+      server_id:
+        description: waha_servers.id (Pflicht für per-server SSH)
+        required: true
+        type: string
       target_version:
         description: Zielversion YYYY.M.B (für pinned Tags latest-…)
         required: false
@@ -22,7 +23,7 @@ on:
     types: [update-waha-live]
 
 concurrency:
-  group: update-waha-live
+  group: update-waha-live-${{ github.event.client_payload.server_id || inputs.server_id || 'default' }}
   cancel-in-progress: false
 
 jobs:
@@ -30,6 +31,8 @@ jobs:
     name: Docker update WAHA
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+
       - name: Resolve params
         id: params
         run: |
@@ -43,8 +46,13 @@ jobs:
             TARGET="${{ inputs.target_version }}"
           fi
           CONTAINER="$(echo "$CONTAINER" | tr -d '[:space:]')"
+          SERVER_ID="$(echo "$SERVER_ID" | tr -d '[:space:]')"
           TARGET="$(echo "$TARGET" | tr -cd '0-9.')"
-          # auto = auf dem VPS den laufenden WAHA-Container erkennen
+          if [ -z "$SERVER_ID" ]; then
+            echo "::error::server_id fehlt"
+            exit 1
+          fi
+          # auto = auf dem Host den laufenden WAHA-Container erkennen
           if [ -z "$CONTAINER" ]; then
             CONTAINER=auto
           fi
@@ -56,27 +64,25 @@ jobs:
           echo "server_id=${SERVER_ID}" >> "$GITHUB_OUTPUT"
           echo "target_version=${TARGET}" >> "$GITHUB_OUTPUT"
 
-      - name: Pull + recreate WAHA on VPS
+      - name: Pull + recreate WAHA on host
         env:
           LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          GWADA_APP_ORIGIN: https://gwada.app
           WAHA_PLUS_DOCKER_PASSWORD: ${{ secrets.WAHA_PLUS_DOCKER_PASSWORD }}
+          SERVER_ID: ${{ steps.params.outputs.server_id }}
           CONTAINER: ${{ steps.params.outputs.container }}
           TARGET_VERSION: ${{ steps.params.outputs.target_version }}
         run: |
           set -euo pipefail
-          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
-            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
-            exit 1
-          fi
-          mkdir -p ~/.ssh
-          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
-          echo "Update ${CONTAINER} on ${LIVE_VPS_HOST} (target=${TARGET_VERSION:-auto}) …"
+          # shellcheck source=scripts/ci-waha-ssh-resolve.sh
+          source scripts/ci-waha-ssh-resolve.sh
+          echo "Update ${CONTAINER} on ${WAHA_SSH_USER}@${WAHA_SSH_HOST}:${WAHA_SSH_PORT} (target=${TARGET_VERSION:-auto}) …"
 
-          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o ConnectTimeout=30 \
-            "root@${LIVE_VPS_HOST}" \
+          ssh -i "${WAHA_SSH_KEY_FILE}" -o BatchMode=yes -o ConnectTimeout=30 \
+            -p "${WAHA_SSH_PORT}" \
+            "${WAHA_SSH_USER}@${WAHA_SSH_HOST}" \
             env \
               "CONTAINER=${CONTAINER}" \
               "TARGET_VERSION=${TARGET_VERSION}" \

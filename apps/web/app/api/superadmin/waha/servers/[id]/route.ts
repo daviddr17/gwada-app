@@ -28,6 +28,10 @@ export async function PATCH(req: Request, context: RouteContext) {
     sort_order?: number;
     notes?: string | null;
     docker_container_name?: string | null;
+    ssh_host?: string | null;
+    ssh_user?: string | null;
+    ssh_port?: number | null;
+    ssh_private_key?: string | null;
     auto_recover_enabled?: boolean;
     clear_capacity_warning?: boolean;
   };
@@ -50,6 +54,12 @@ export async function PATCH(req: Request, context: RouteContext) {
     ...(body.notes !== undefined ? { notes: body.notes } : {}),
     ...(body.docker_container_name !== undefined
       ? { docker_container_name: body.docker_container_name }
+      : {}),
+    ...(body.ssh_host !== undefined ? { ssh_host: body.ssh_host } : {}),
+    ...(body.ssh_user !== undefined ? { ssh_user: body.ssh_user } : {}),
+    ...(body.ssh_port !== undefined ? { ssh_port: body.ssh_port } : {}),
+    ...(body.ssh_private_key !== undefined
+      ? { ssh_private_key: body.ssh_private_key }
       : {}),
     ...(body.auto_recover_enabled !== undefined
       ? { auto_recover_enabled: body.auto_recover_enabled }

@@ -12,6 +12,10 @@ export type WahaServerRow = {
   sort_order: number;
   notes: string | null;
   docker_container_name: string | null;
+  ssh_host: string | null;
+  ssh_user: string;
+  ssh_port: number;
+  ssh_private_key: string;
   last_container_restart_at: string | null;
   auto_recover_enabled: boolean;
   last_health_ok_at: string | null;
@@ -34,6 +38,10 @@ export type WahaServerPublic = {
   sort_order: number;
   notes: string | null;
   docker_container_name: string | null;
+  ssh_host: string | null;
+  ssh_user: string;
+  ssh_port: number;
+  ssh_private_key_configured: boolean;
   last_container_restart_at: string | null;
   auto_recover_enabled: boolean;
   last_health_ok_at: string | null;

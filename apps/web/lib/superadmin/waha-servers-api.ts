@@ -53,6 +53,10 @@ export type WahaServerWriteInput = {
   sort_order?: number;
   notes?: string | null;
   docker_container_name?: string | null;
+  ssh_host?: string | null;
+  ssh_user?: string | null;
+  ssh_port?: number | null;
+  ssh_private_key?: string | null;
   auto_recover_enabled?: boolean;
 };
 
@@ -89,6 +93,33 @@ export async function recoverSuperadminWahaServer(
     failed: body.failed,
     containerRestarts: body.containerRestarts,
   };
+}
+
+export async function triggerSuperadminWahaHostReboot(id: string): Promise<{
+  ok?: boolean;
+  message?: string;
+  error?: string;
+}> {
+  const res = await fetch(
+    `/api/superadmin/waha/servers/${encodeURIComponent(id)}/reboot-host`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: "REBOOT" }),
+    },
+  );
+  const body = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    return {
+      error: body.error ?? `http_${res.status}`,
+      message: body.message,
+    };
+  }
+  return { ok: true, message: body.message };
 }
 
 export async function restartSuperadminWahaContainer(id: string): Promise<{

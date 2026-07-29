@@ -4,18 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       container:
-        description: Docker-Container-Name auf dem VPS
-        required: true
-        type: string
-      server_id:
-        description: Optional waha_servers.id
+        description: Docker-Container-Name (leer = aus Server-Config)
         required: false
         default: ""
+        type: string
+      server_id:
+        description: waha_servers.id (Pflicht für per-server SSH)
+        required: true
+        type: string
   repository_dispatch:
     types: [restart-waha-live]
 
 concurrency:
-  group: restart-waha-live
+  group: restart-waha-live-${{ github.event.client_payload.server_id || inputs.server_id || 'default' }}
   cancel-in-progress: false
 
 jobs:
@@ -23,7 +24,9 @@ jobs:
     name: Docker restart WAHA
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve container
+      - uses: actions/checkout@v5
+
+      - name: Resolve params
         id: params
         run: |
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
@@ -34,32 +37,36 @@ jobs:
             SERVER_ID="${{ inputs.server_id }}"
           fi
           CONTAINER="$(echo "$CONTAINER" | tr -d '[:space:]')"
-          if [ -z "$CONTAINER" ]; then
-            echo "::error::container fehlt"
+          SERVER_ID="$(echo "$SERVER_ID" | tr -d '[:space:]')"
+          if [ -z "$SERVER_ID" ]; then
+            echo "::error::server_id fehlt"
             exit 1
           fi
-          if ! echo "$CONTAINER" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'; then
+          if [ -n "$CONTAINER" ] && [ "$CONTAINER" != "auto" ] && ! echo "$CONTAINER" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'; then
             echo "::error::Ungültiger Container-Name"
             exit 1
           fi
           echo "container=${CONTAINER}" >> "$GITHUB_OUTPUT"
           echo "server_id=${SERVER_ID}" >> "$GITHUB_OUTPUT"
 
-      - name: Restart container on VPS
+      - name: Restart container on WAHA host
         env:
           LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          GWADA_APP_ORIGIN: https://gwada.app
+          SERVER_ID: ${{ steps.params.outputs.server_id }}
           CONTAINER: ${{ steps.params.outputs.container }}
         run: |
           set -euo pipefail
-          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
-            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+          # shellcheck source=scripts/ci-waha-ssh-resolve.sh
+          source scripts/ci-waha-ssh-resolve.sh
+          if [ -z "${CONTAINER}" ] || [ "${CONTAINER}" = "auto" ]; then
+            echo "::error::Docker-Container-Name fehlt (Superadmin → Bearbeiten)."
             exit 1
           fi
-          mkdir -p ~/.ssh
-          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
-          echo "Restart ${CONTAINER} on ${LIVE_VPS_HOST} …"
-          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+          echo "Restart ${CONTAINER} on ${WAHA_SSH_USER}@${WAHA_SSH_HOST}:${WAHA_SSH_PORT} …"
+          ssh -i "${WAHA_SSH_KEY_FILE}" -o BatchMode=yes -o ConnectTimeout=30 \
+            -p "${WAHA_SSH_PORT}" \
+            "${WAHA_SSH_USER}@${WAHA_SSH_HOST}" \
             "docker restart '${CONTAINER}' && docker ps --filter name='^${CONTAINER}$' --format 'table {{.Names}}\t{{.Status}}'"

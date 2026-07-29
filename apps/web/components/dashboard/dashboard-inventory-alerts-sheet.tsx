@@ -21,8 +21,11 @@ import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status"
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
-import type { PurchaseOrderStatus } from "@/lib/types/purchase-order";
 
+/**
+ * Heute-Pill „Bestand“ — nur Auffälligkeiten (leer + offen/bestellt),
+ * kein Dump aller Bestellungen inkl. Abgeschlossen.
+ */
 export function DashboardInventoryAlertsSheet({
   open,
   onOpenChange,
@@ -47,42 +50,32 @@ export function DashboardInventoryAlertsSheet({
     [ingredients],
   );
 
-  const ordersByStatus = useMemo(() => {
-    const groups: Record<PurchaseOrderStatus, typeof orders> = {
-      open: [],
-      ordered: [],
-      closed: [],
-    };
-    const sorted = [...orders].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    );
-    for (const order of sorted) {
-      groups[order.status]?.push(order);
-    }
-    return groups;
+  const actionableOrders = useMemo(() => {
+    return [...orders]
+      .filter((o) => o.status === "open" || o.status === "ordered")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [orders]);
 
-  const empty = emptyStockCount === 0 && orders.length === 0;
+  const openOrders = actionableOrders.filter((o) => o.status === "open");
+  const orderedOrders = actionableOrders.filter((o) => o.status === "ordered");
+
+  const empty = emptyStockCount === 0 && openOrdersCount === 0;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
       <DrawerContent className={drawerContentClassName("compact")}>
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Bestand & Bestellung
+            Bestand – Auffälligkeiten
           </DrawerTitle>
           <DrawerDescription>
             {empty
               ? "Keine Auffälligkeiten"
               : [
-                  emptyStockCount > 0
-                    ? `${emptyStockCount} leer`
-                    : null,
+                  emptyStockCount > 0 ? `${emptyStockCount} leer` : null,
                   openOrdersCount > 0
                     ? `${openOrdersCount} offen/bestellt · ${openOrderLinesCount} Pos.`
-                    : orders.length > 0
-                      ? `${orders.length} Bestellungen`
-                      : null,
+                    : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -115,34 +108,47 @@ export function DashboardInventoryAlertsSheet({
                 </section>
               ) : null}
 
-              {(["open", "ordered", "closed"] as const).map((status) => {
-                const list = ordersByStatus[status];
-                if (list.length === 0) return null;
-                return (
-                  <section key={status} className="space-y-2">
-                    <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {purchaseOrderStatusLabel(status)}
-                    </h3>
-                    <DashboardCompactList
-                      aria-label={`${purchaseOrderStatusLabel(status)} Bestellungen`}
-                    >
-                      {list.map((order) => (
-                        <DashboardCompactListItem
-                          key={order.id}
-                          href={APP_ROUTES.inventory.order}
-                          title={order.supplierName}
-                          meta={`${order.lines.length} Pos.`}
-                          trailing={order.deliveryDate ?? undefined}
-                          stripeVariant={
-                            status === "closed" ? undefined : "attention"
-                          }
-                          className="py-2.5"
-                        />
-                      ))}
-                    </DashboardCompactList>
-                  </section>
-                );
-              })}
+              {openOrders.length > 0 ? (
+                <section className="space-y-2">
+                  <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {purchaseOrderStatusLabel("open")}
+                  </h3>
+                  <DashboardCompactList aria-label="Offene Bestellungen">
+                    {openOrders.map((order) => (
+                      <DashboardCompactListItem
+                        key={order.id}
+                        href={APP_ROUTES.inventory.order}
+                        title={order.supplierName}
+                        meta={`${order.lines.length} Pos.`}
+                        trailing={order.deliveryDate ?? undefined}
+                        stripeVariant="attention"
+                        className="py-2.5"
+                      />
+                    ))}
+                  </DashboardCompactList>
+                </section>
+              ) : null}
+
+              {orderedOrders.length > 0 ? (
+                <section className="space-y-2">
+                  <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {purchaseOrderStatusLabel("ordered")}
+                  </h3>
+                  <DashboardCompactList aria-label="Bestellte Bestellungen">
+                    {orderedOrders.map((order) => (
+                      <DashboardCompactListItem
+                        key={order.id}
+                        href={APP_ROUTES.inventory.order}
+                        title={order.supplierName}
+                        meta={`${order.lines.length} Pos.`}
+                        trailing={order.deliveryDate ?? undefined}
+                        stripeVariant="attention"
+                        className="py-2.5"
+                      />
+                    ))}
+                  </DashboardCompactList>
+                </section>
+              ) : null}
             </div>
           )}
         </div>

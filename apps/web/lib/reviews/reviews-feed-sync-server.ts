@@ -8,6 +8,7 @@ import {
   type ReviewsCacheablePlatform,
 } from "@/lib/reviews/reviews-cache-constants";
 import {
+  touchReviewsPlatformSync,
   upsertReviewsPlatformCache,
   type ReviewsPlatformSyncMeta,
 } from "@/lib/reviews/reviews-cache-db";
@@ -107,24 +108,24 @@ export async function syncRestaurantReviewsPlatform(
     const connected = await isReviewsPlatformConnected(restaurantId, platform);
 
     if (!connected) {
-      await upsertReviewsPlatformCache(
+      // Cache behalten — leeren + späterer Refill würde sonst Push-Sturm auslösen.
+      await touchReviewsPlatformSync(
         admin,
         restaurantId,
         platform,
-        [],
         syncedAt,
-        null,
+        "not_connected",
       );
       return { ok: true, count: 0 };
     }
 
     const result = await fetchReviewsForPlatform(restaurantId, platform);
     if ("error" in result) {
-      await upsertReviewsPlatformCache(
+      // Bei Fetch-Fehler letzten guten Cache behalten (kein Wipe → kein Refill-Sturm).
+      await touchReviewsPlatformSync(
         admin,
         restaurantId,
         platform,
-        [],
         syncedAt,
         result.error,
       );

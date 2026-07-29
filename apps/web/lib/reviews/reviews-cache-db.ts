@@ -119,6 +119,34 @@ export async function readCachedReviews(
   return reviews;
 }
 
+/** Sync-Metadaten ohne Cache zu leeren (Fehler / Disconnect). */
+export async function touchReviewsPlatformSync(
+  admin: SupabaseClient,
+  restaurantId: string,
+  platform: ReviewsCacheablePlatform,
+  syncedAt: string,
+  lastError: string | null,
+  meta: ReviewsPlatformSyncMeta = {},
+): Promise<void> {
+  const { count } = await admin
+    .from("restaurant_reviews_platform_cache")
+    .select("external_id", { count: "exact", head: true })
+    .eq("restaurant_id", restaurantId)
+    .eq("platform", platform);
+
+  await admin.from("restaurant_reviews_platform_sync").upsert(
+    {
+      restaurant_id: restaurantId,
+      platform,
+      synced_at: syncedAt,
+      last_error: lastError,
+      item_count: count ?? 0,
+      meta,
+    },
+    { onConflict: "restaurant_id,platform" },
+  );
+}
+
 export async function upsertReviewsPlatformCache(
   admin: SupabaseClient,
   restaurantId: string,

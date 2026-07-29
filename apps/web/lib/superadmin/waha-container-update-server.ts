@@ -18,27 +18,47 @@ export const WAHA_UPDATE_COOLDOWN_MS = 20 * 60 * 1000;
 type WorkflowRunLite = {
   id?: number;
   status?: string | null;
+  conclusion?: string | null;
   created_at?: string | null;
 };
 
-async function latestUpdateWorkflowRun(): Promise<WorkflowRunLite | null> {
+/** Fehlgeschlagene/abgebrochene Runs blockieren kein erneutes Update. */
+function runCountsForUpdateCooldown(run: WorkflowRunLite): boolean {
+  const status = run.status ?? "";
+  if (
+    status === "queued" ||
+    status === "in_progress" ||
+    status === "waiting" ||
+    status === "requested" ||
+    status === "pending"
+  ) {
+    return true;
+  }
+  if (status !== "completed") return false;
+  const conclusion = run.conclusion ?? "";
+  return conclusion === "success" || conclusion === "neutral";
+}
+
+async function latestCooldownRelevantUpdateRun(): Promise<WorkflowRunLite | null> {
   const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) return null;
   const repo = githubRepoSlug();
   try {
     const body = (await githubFetchJson(
-      `/repos/${repo}/actions/workflows/${WAHA_UPDATE_WORKFLOW_FILE}/runs?per_page=1`,
+      `/repos/${repo}/actions/workflows/${WAHA_UPDATE_WORKFLOW_FILE}/runs?per_page=10`,
       undefined,
       token,
     )) as { workflow_runs?: WorkflowRunLite[] };
-    return body.workflow_runs?.[0] ?? null;
+    return (
+      body.workflow_runs?.find((run) => runCountsForUpdateCooldown(run)) ?? null
+    );
   } catch {
     return null;
   }
 }
 
 export async function getWahaUpdateCooldownRemainingMs(): Promise<number> {
-  const latest = await latestUpdateWorkflowRun();
+  const latest = await latestCooldownRelevantUpdateRun();
   if (!latest?.created_at) return 0;
   const created = Date.parse(latest.created_at);
   if (!Number.isFinite(created)) return 0;

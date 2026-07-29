@@ -61,13 +61,15 @@ final class HubHTTPServer: @unchecked Sendable {
             if let request = Self.parseRequest(next) {
                 let result = self.handler(request.method, request.pathWithQuery, request.headers, request.body)
                 let response = Self.serializeResponse(status: result.status, body: result.body)
+                // Sende-Seite ordentlich per FIN schließen (isComplete: true). KEIN cancel() hier:
+                // cancel() ist ein abrupter RST, der noch nicht geflushte Body-Bytes verwirft
+                // (→ getrunkter Body). Der Client liest per Content-Length + `Connection: close`
+                // und schließt selbst; die Verbindung endet dann sauber.
                 connection.send(
                     content: response,
                     contentContext: .finalMessage,
                     isComplete: true,
-                    completion: .contentProcessed { [weak connection] _ in
-                        connection?.cancel()
-                    }
+                    completion: .idempotent
                 )
                 return
             }
@@ -146,18 +148,21 @@ final class HubHTTPServer: @unchecked Sendable {
 
         let isHTML = body.starts(with: Data("<!doctype html>".utf8)) || body.starts(with: Data("<!DOCTYPE html>".utf8))
         let contentType = isHTML ? "text/html; charset=utf-8" : "application/json; charset=utf-8"
-        let header = """
-        HTTP/1.1 \(status) \(statusText)\r
-        Content-Type: \(contentType)\r
-        Content-Length: \(body.count)\r
-        Connection: close\r
-        Access-Control-Allow-Origin: *\r
-        Access-Control-Allow-Methods: GET, POST, OPTIONS\r
-        Access-Control-Allow-Headers: Content-Type, \(PosLanProtocol.headerProtocol), \(PosLanProtocol.headerRestaurantId), \(PosLanProtocol.headerPairToken)\r
-        \(PosLanProtocol.headerProtocol): \(PosLanProtocol.version)\r
-        \r
-        """
-        var response = Data(header.utf8)
+        // Header-Zeilen explizit mit CRLF verbinden + `\r\n\r\n`-Terminator anhängen.
+        // (Multiline-String-Literale strippen den finalen `\n` der letzten Zeile → früher
+        // war der Terminator fälschlich `\r\n\r`, wodurch HTTP-Clients die Body-Grenze nie fanden.)
+        let headerLines = [
+            "HTTP/1.1 \(status) \(statusText)",
+            "Content-Type: \(contentType)",
+            "Content-Length: \(body.count)",
+            "Connection: close",
+            "Access-Control-Allow-Origin: *",
+            "Access-Control-Allow-Methods: GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers: Content-Type, \(PosLanProtocol.headerProtocol), \(PosLanProtocol.headerRestaurantId), \(PosLanProtocol.headerPairToken)",
+            "\(PosLanProtocol.headerProtocol): \(PosLanProtocol.version)",
+        ]
+        let head = headerLines.joined(separator: "\r\n") + "\r\n\r\n"
+        var response = Data(head.utf8)
         response.append(body)
         return response
     }

@@ -42,7 +42,7 @@ if "BEGIN" not in text:
         pass
 text = text.replace("\\n", "\n").strip() + "\n"
 if "BEGIN" not in text or "PRIVATE KEY" not in text:
-    raise SystemExit("PRIVATE_KEY ist kein gültiges PEM (BEGIN PRIVATE KEY fehlt).")
+    raise SystemExit("PRIVATE_KEY Secret ungültig: kein PEM (-----BEGIN … PRIVATE KEY-----). Bitte GWADA_GITHUB_APP_PRIVATE_KEY mit kompletter .pem oder Base64-der-PEM neu setzen.")
 print(base64.b64encode(text.encode("utf-8")).decode("ascii"), end="")
 PY
 )"

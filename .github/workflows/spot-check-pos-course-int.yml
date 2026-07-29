@@ -2,6 +2,10 @@ name: Spot-check POS course int (dev)
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/spot-check-pos-course-int.yml"
+      - "scripts/spot-check-pos-course-int-dev-ci.sh"
 
 concurrency:
   group: spot-check-pos-course-int

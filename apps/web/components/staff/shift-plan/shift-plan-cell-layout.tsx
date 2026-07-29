@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { CalendarRange, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { localDayKey } from "@/lib/staff/shift-schedule-range";
 import type { RestaurantStaffScheduledShiftRow } from "@/lib/types/staff-shift-schedule";
@@ -46,6 +46,29 @@ export const shiftPlanAddShiftCompactButtonClassName = cn(
   shiftPlanAddButtonBaseClassName,
   "h-7 rounded-md bg-transparent shadow-none",
 );
+
+/** Verfügbarkeit vormerken (ohne Schicht). */
+export function ShiftPlanAddAvailabilityCompactButton({
+  onClick,
+}: {
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        shiftPlanAddShiftCompactButtonClassName,
+        "gap-1 px-1 text-[10px] font-medium",
+      )}
+      onClick={onClick}
+      aria-label="Verfügbarkeit vormerken"
+      title="Verfügbarkeit vormerken"
+    >
+      <CalendarRange className="size-3 shrink-0" aria-hidden />
+      <span className="truncate">Verfügbar</span>
+    </button>
+  );
+}
 
 /** Unsichtbarer Abstandshalter = 1 Schicht-Slot (Zeilenhöhe angleichen). */
 export function ShiftPlanShiftSlotSpacer() {

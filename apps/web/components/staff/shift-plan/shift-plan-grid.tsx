@@ -69,6 +69,7 @@ import {
 } from "@/components/staff/shift-plan/shift-plan-template-palette";
 import {
   maxShiftsPerStaffRow,
+  ShiftPlanAddAvailabilityCompactButton,
   ShiftPlanAddShiftSlotButton,
   shiftPlanAddShiftCompactButtonClassName,
   shiftPlanLayoutMotionTransition,
@@ -86,6 +87,7 @@ function ShiftPlanDropCell({
   absences = [],
   availabilitySlots = [],
   onAdd,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -101,6 +103,7 @@ function ShiftPlanDropCell({
   absences?: RestaurantStaffWorkEntryRow[];
   availabilitySlots?: RestaurantStaffAvailabilitySlotRow[];
   onAdd: () => void;
+  onEditAvailability?: () => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -162,7 +165,11 @@ function ShiftPlanDropCell({
       )}
       {showAvailability ? (
         <div className="pointer-events-auto shrink-0">
-          <ShiftPlanAvailabilityCard slots={availabilitySlots} compact />
+          <ShiftPlanAvailabilityCard
+            slots={availabilitySlots}
+            compact
+            onClick={onEditAvailability}
+          />
         </div>
       ) : null}
       {visibleShifts.map((shift) => (
@@ -176,20 +183,38 @@ function ShiftPlanDropCell({
         </div>
       ))}
       {editable && cellItemCount === 0 && !hasAbsence ? (
-        <ShiftPlanAddShiftSlotButton onClick={onAdd} />
+        <>
+          <ShiftPlanAddShiftSlotButton onClick={onAdd} />
+          {onEditAvailability ? (
+            <div className="pointer-events-auto shrink-0">
+              <ShiftPlanAddAvailabilityCompactButton
+                onClick={onEditAvailability}
+              />
+            </div>
+          ) : null}
+        </>
       ) : null}
       {Array.from({ length: trailingSpacerCount }, (_, i) => (
         <ShiftPlanShiftSlotSpacer key={`spacer-${i}`} />
       ))}
       {showCompactAdd ? (
-        <button
-          type="button"
-          className={shiftPlanAddShiftCompactButtonClassName}
-          onClick={onAdd}
-          aria-label="Schicht hinzufügen"
-        >
-          <Plus className="size-3.5" />
-        </button>
+        <>
+          <button
+            type="button"
+            className={shiftPlanAddShiftCompactButtonClassName}
+            onClick={onAdd}
+            aria-label="Schicht hinzufügen"
+          >
+            <Plus className="size-3.5" />
+          </button>
+          {onEditAvailability && !showAvailability ? (
+            <div className="pointer-events-auto shrink-0">
+              <ShiftPlanAddAvailabilityCompactButton
+                onClick={onEditAvailability}
+              />
+            </div>
+          ) : null}
+        </>
       ) : null}
       {!editable && cellItemCount === 0 && maxShiftsInRow === 0 ? (
         <ShiftPlanShiftSlotSpacer />
@@ -307,6 +332,7 @@ type ShiftPlanViewProps = {
   onNextWeek?: () => void;
   periodNav?: "day" | "week";
   onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -429,6 +455,7 @@ function ShiftPlanStaffWeekRow({
   viewMode,
   showWeekNav,
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -450,6 +477,7 @@ function ShiftPlanStaffWeekRow({
   viewMode: ShiftScheduleViewMode;
   showWeekNav: boolean;
   onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -510,6 +538,11 @@ function ShiftPlanStaffWeekRow({
             absences={absencesByCell.get(cellKey) ?? []}
             availabilitySlots={availabilityByCell.get(availabilityKey) ?? []}
             onAdd={() => onAddShift(staff.id, day)}
+            onEditAvailability={
+              onEditAvailability
+                ? () => onEditAvailability(staff.id, day)
+                : undefined
+            }
             onEditShift={onEditShift}
             onDeleteShift={onDeleteShift}
             onDeleteAbsence={onDeleteAbsence}
@@ -650,6 +683,7 @@ function ShiftPlanGroupGrid({
   onNextWeek,
   periodNav = "week",
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -675,6 +709,7 @@ function ShiftPlanGroupGrid({
   onNextWeek?: () => void;
   periodNav?: "day" | "week";
   onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -790,6 +825,7 @@ function ShiftPlanGroupGrid({
               viewMode={viewMode}
               showWeekNav={showWeekNav}
               onAddShift={onAddShift}
+              onEditAvailability={onEditAvailability}
               onEditShift={onEditShift}
               onDeleteShift={onDeleteShift}
               onDeleteAbsence={onDeleteAbsence}
@@ -824,6 +860,7 @@ export function ShiftPlanGrid({
   onNextWeek,
   periodNav = "week",
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -882,6 +919,7 @@ export function ShiftPlanGrid({
               onNextWeek={onNextWeek}
               periodNav={periodNav}
               onAddShift={onAddShift}
+              onEditAvailability={onEditAvailability}
               onEditShift={onEditShift}
               onDeleteShift={onDeleteShift}
               onDeleteAbsence={onDeleteAbsence}
@@ -903,6 +941,7 @@ function ShiftPlanDayStaffRow({
   absences,
   availabilitySlots,
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -915,6 +954,7 @@ function ShiftPlanDayStaffRow({
   absences: RestaurantStaffWorkEntryRow[];
   availabilitySlots: RestaurantStaffAvailabilitySlotRow[];
   onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -948,6 +988,11 @@ function ShiftPlanDayStaffRow({
           absences={absences}
           availabilitySlots={availabilitySlots}
           onAdd={() => onAddShift(staff.id, day)}
+          onEditAvailability={
+            onEditAvailability
+              ? () => onEditAvailability(staff.id, day)
+              : undefined
+          }
           onEditShift={onEditShift}
           onDeleteShift={onDeleteShift}
           onDeleteAbsence={onDeleteAbsence}
@@ -970,6 +1015,7 @@ function ShiftPlanMonthDayCard({
   holidayName,
   weather,
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -984,6 +1030,7 @@ function ShiftPlanMonthDayCard({
   holidayName?: string;
   weather?: ShiftPlanDayWeather;
   onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -1067,6 +1114,7 @@ function ShiftPlanMonthDayCard({
                     absences={absencesByCell.get(`${staff.id}__${key}`) ?? []}
                     availabilitySlots={availabilityByCell.get(`${staff.id}__${availabilityKey}`) ?? []}
                     onAddShift={onAddShift}
+                    onEditAvailability={onEditAvailability}
                     onEditShift={onEditShift}
                     onDeleteShift={onDeleteShift}
                     onDeleteAbsence={onDeleteAbsence}
@@ -1103,6 +1151,7 @@ export function ShiftPlanMonthView({
   targetSummaryDays,
   viewMode,
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -1144,6 +1193,7 @@ export function ShiftPlanMonthView({
             holidayName={holidaysByDate[key]}
             weather={weatherByDate?.get(key)}
             onAddShift={onAddShift}
+            onEditAvailability={onEditAvailability}
             onEditShift={onEditShift}
             onDeleteShift={onDeleteShift}
             onDeleteAbsence={onDeleteAbsence}

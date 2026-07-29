@@ -45,6 +45,8 @@ import {
   nextStatusCodeAfterChangeRequestDecline,
 } from "@/lib/reservations/reservation-open-status";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useDisplayDayWeather } from "@/lib/hooks/use-display-day-weather";
+import { ShiftPlanDayWeatherRow } from "@/lib/weather/shift-plan-day-weather";
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
 import {
   normalizeBookingTimeStepMinutes,
@@ -247,6 +249,7 @@ export function DisplayReservationsModule() {
   const dayShiftLockRef = useRef(0);
 
   const isSelectedToday = selectedDayYmd === restaurantTodayYmd(timeZone);
+  const { weather: dayWeather } = useDisplayDayWeather(selectedDayYmd);
   const bookingStep = normalizeBookingTimeStepMinutes(
     payload?.booking_time_step_minutes,
   );
@@ -1121,6 +1124,7 @@ export function DisplayReservationsModule() {
                 Heute
               </span>
             ) : null}
+            <ShiftPlanDayWeatherRow weather={dayWeather} inline />
           </div>
           {showDataSkeleton ? (
             <div className="mt-2 flex flex-wrap gap-4">

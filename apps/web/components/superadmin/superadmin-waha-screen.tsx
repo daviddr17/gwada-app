@@ -27,12 +27,15 @@ import {
 import {
   createSuperadminWahaServer,
   deleteSuperadminWahaServer,
+  fetchSuperadminWahaServerVersion,
   fetchSuperadminWahaServers,
   fetchSuperadminWahaSessions,
   healthCheckSuperadminWahaServer,
   recoverSuperadminWahaServer,
   restartSuperadminWahaContainer,
+  triggerSuperadminWahaImageUpdate,
   updateSuperadminWahaServer,
+  type WahaServerVersionStatus,
 } from "@/lib/superadmin/waha-servers-api";
 import type {
   WahaServerCapacityAlert,
@@ -125,6 +128,13 @@ export function SuperadminWahaScreen() {
   const [healthBusyId, setHealthBusyId] = useState<string | null>(null);
   const [recoverBusyId, setRecoverBusyId] = useState<string | null>(null);
   const [restartBusyId, setRestartBusyId] = useState<string | null>(null);
+  const [updateBusyId, setUpdateBusyId] = useState<string | null>(null);
+  const [versionsById, setVersionsById] = useState<
+    Record<string, WahaServerVersionStatus>
+  >({});
+  const [updateConfirmServer, setUpdateConfirmServer] =
+    useState<WahaServerPublic | null>(null);
+  const [updateConfirmTyped, setUpdateConfirmTyped] = useState("");
   const [vpsRebootOpen, setVpsRebootOpen] = useState(false);
   const [vpsRebootConfirm, setVpsRebootConfirm] = useState("");
   const [vpsRebootBusy, setVpsRebootBusy] = useState(false);
@@ -135,6 +145,20 @@ export function SuperadminWahaScreen() {
   const refreshVpsRebootCooldown = useCallback(async () => {
     const res = await fetchLiveVpsRebootCooldown();
     if (!res.error) setVpsRebootCooldownMs(res.cooldownMs);
+  }, []);
+
+  const loadVersions = useCallback(async (list: WahaServerPublic[]) => {
+    if (list.length === 0) {
+      setVersionsById({});
+      return;
+    }
+    const entries = await Promise.all(
+      list.map(async (s) => {
+        const v = await fetchSuperadminWahaServerVersion(s.id);
+        return [s.id, v] as const;
+      }),
+    );
+    setVersionsById(Object.fromEntries(entries));
   }, []);
 
   const load = useCallback(async () => {
@@ -150,7 +174,8 @@ export function SuperadminWahaScreen() {
     setAlerts(serversRes.capacityAlerts);
     setSessions(sessionsRes.sessions);
     setLoading(false);
-  }, [refreshVpsRebootCooldown]);
+    void loadVersions(serversRes.servers);
+  }, [refreshVpsRebootCooldown, loadVersions]);
 
   useEffect(() => {
     void load();
@@ -275,6 +300,7 @@ export function SuperadminWahaScreen() {
       setServers((prev) =>
         prev.map((s) => (s.id === res.server!.id ? res.server! : s)),
       );
+      void loadVersions([res.server]);
     } else {
       await load();
     }
@@ -321,6 +347,31 @@ export function SuperadminWahaScreen() {
     }
     toast.success(res.message ?? "Container-Neustart gestartet.");
     await load();
+  };
+
+  const onConfirmWahaUpdate = async () => {
+    const s = updateConfirmServer;
+    if (!s) throw new Error("no_server");
+    if (updateConfirmTyped.trim() !== "UPDATE") {
+      throw new Error("confirm_required");
+    }
+    setUpdateBusyId(s.id);
+    const res = await triggerSuperadminWahaImageUpdate(s.id);
+    setUpdateBusyId(null);
+    if (res.error) {
+      toast.error(res.message ?? res.error);
+      throw new Error(res.error);
+    }
+    toast.success(
+      res.message ??
+        `Update gestartet${res.targetVersion ? ` → ${res.targetVersion}` : ""}.`,
+    );
+    setUpdateConfirmServer(null);
+    setUpdateConfirmTyped("");
+    // Version nach kurzer Wartezeit neu laden (Container kommt hoch)
+    window.setTimeout(() => {
+      void loadVersions([s]);
+    }, 45_000);
   };
 
   const onConfirmVpsReboot = async () => {
@@ -432,9 +483,9 @@ export function SuperadminWahaScreen() {
           <Server className="size-4" />
           <span>
             Pool für NOWEB-Sessions. Sticky pro Restaurant — neue Sessions auf
-            den Server mit der meisten Luft. Eskalation: „Sessions heilen“ →
-            Container → bei hartnäckigen WAHA-Hängern Contabo-VPS neu starten
-            (ganze Live-Umgebung kurz offline).
+            den Server mit der meisten Luft. Version/Update: aktuelle WAHA-API
+            vs. GitHub-Release; Update = compose pull (Container-Name nötig).
+            Eskalation bei Fehlern: Sessions heilen → Container → VPS.
           </span>
         </div>
 
@@ -573,11 +624,63 @@ export function SuperadminWahaScreen() {
                 ),
             },
             {
+              id: "version",
+              header: "Version",
+              className: superadminCellNowrapClass,
+              sortValue: (r) => versionsById[r.id]?.currentVersion ?? "",
+              cell: (r) => {
+                const v = versionsById[r.id];
+                if (!v) {
+                  return (
+                    <span className="text-xs text-muted-foreground">…</span>
+                  );
+                }
+                if (!v.currentVersion && v.error) {
+                  return (
+                    <span className="text-destructive text-xs" title={v.error}>
+                      —
+                    </span>
+                  );
+                }
+                return (
+                  <div className="text-xs leading-snug">
+                    <div className="font-mono">
+                      {v.currentVersion ?? "—"}
+                      {v.engine ? (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · {v.engine}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div
+                      className={cn(
+                        "text-muted-foreground",
+                        v.updateAvailable &&
+                          "text-amber-700 dark:text-amber-300 font-medium",
+                      )}
+                    >
+                      {v.latestVersion
+                        ? v.updateAvailable
+                          ? `Update: ${v.latestVersion}`
+                          : `aktuell (= ${v.latestVersion})`
+                        : "neueste: —"}
+                    </div>
+                  </div>
+                );
+              },
+            },
+            {
               id: "actions",
               header: "",
               className: superadminCellNowrapClass,
               sortValue: () => "",
-              cell: (r) => (
+              cell: (r) => {
+                const v = versionsById[r.id];
+                const updateReady =
+                  Boolean(r.docker_container_name) &&
+                  Boolean(v?.updateAvailable);
+                return (
                 <div className="flex flex-wrap items-center gap-1 justify-end">
                   <Button
                     type="button"
@@ -602,6 +705,31 @@ export function SuperadminWahaScreen() {
                     onClick={() => void onRecoverSessions(r)}
                   >
                     {recoverBusyId === r.id ? "…" : "Sessions heilen"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      updateBusyId === r.id ||
+                      !r.docker_container_name ||
+                      !updateReady
+                    }
+                    title={
+                      !r.docker_container_name
+                        ? "Docker-Container-Name unter Bearbeiten setzen"
+                        : !v?.latestVersion
+                          ? "Neueste Version unbekannt"
+                          : !v.updateAvailable
+                            ? "Bereits auf neuester Version"
+                            : `Auf ${v.latestVersion} updaten (compose pull)`
+                    }
+                    onClick={() => {
+                      setUpdateConfirmTyped("");
+                      setUpdateConfirmServer(r);
+                    }}
+                  >
+                    {updateBusyId === r.id ? "…" : "Update"}
                   </Button>
                   <Button
                     type="button"
@@ -637,7 +765,8 @@ export function SuperadminWahaScreen() {
                     Löschen
                   </Button>
                 </div>
-              ),
+                );
+              },
             },
           ]}
           rows={filteredServers}
@@ -831,8 +960,9 @@ export function SuperadminWahaScreen() {
                 autoComplete="off"
               />
               <p className="text-xs text-muted-foreground">
-                Für „Container neu starten“ und Auto-Recovery bei Host-Ausfall.
-                Name wie in <span className="font-mono">docker ps</span>.
+                Für Container-Neustart, Image-Update und Auto-Recovery. Name wie
+                in <span className="font-mono">docker ps</span>. Update nur mit
+                Docker Compose + persistentem Session-Storage.
               </p>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2">
@@ -896,6 +1026,95 @@ export function SuperadminWahaScreen() {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      <ConfirmDialog
+        open={updateConfirmServer != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUpdateConfirmServer(null);
+            setUpdateConfirmTyped("");
+          }
+        }}
+        title="WAHA wirklich updaten?"
+        description={
+          <div className="space-y-3 text-sm">
+            <p>
+              Server{" "}
+              <span className="font-medium">
+                {updateConfirmServer?.name ?? "—"}
+              </span>
+              :{" "}
+              <span className="font-mono">
+                {updateConfirmServer
+                  ? (versionsById[updateConfirmServer.id]?.currentVersion ??
+                    "—")
+                  : "—"}
+              </span>
+              {" → "}
+              <span className="font-mono">
+                {updateConfirmServer
+                  ? (versionsById[updateConfirmServer.id]?.latestVersion ??
+                    "—")
+                  : "—"}
+              </span>
+            </p>
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs space-y-1.5 text-foreground">
+              <p className="font-medium">Vor dem Update prüfen</p>
+              <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                <li>
+                  WhatsApp ist kurz offline (typisch 1–3 Min.), während Image
+                  gezogen und Container neu gestartet wird.
+                </li>
+                <li>
+                  Sessions bleiben nur erhalten, wenn Storage persistent ist
+                  (Volume auf{" "}
+                  <span className="font-mono">.sessions</span> oder
+                  Postgres/Mongo) — laut WAHA-Doku. Ohne Persistenz droht neuer
+                  QR-Scan.
+                </li>
+                <li>
+                  Compose-Dateien und{" "}
+                  <span className="font-mono">.env</span> werden vor dem Edit
+                  auf dem VPS gesichert (
+                  <span className="font-mono">.gwada-waha-update-backup-…</span>
+                  ).
+                </li>
+                <li>
+                  Ab 2026.6.1 wird{" "}
+                  <span className="font-mono">waha-plus</span> automatisch auf
+                  öffentliches <span className="font-mono">waha</span>{" "}
+                  umgestellt (Plus = Core).
+                </li>
+                <li>
+                  Nicht mitten im Stoßbetrieb updaten. Gwada selbst (App-DB)
+                  bleibt unberührt — nur der WAHA-Container.
+                </li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="waha-update-confirm">
+                Zur Bestätigung <span className="font-mono">UPDATE</span>{" "}
+                eingeben
+              </Label>
+              <Input
+                id="waha-update-confirm"
+                value={updateConfirmTyped}
+                onChange={(e) => setUpdateConfirmTyped(e.target.value)}
+                placeholder="UPDATE"
+                autoComplete="off"
+                autoCapitalize="characters"
+              />
+            </div>
+          </div>
+        }
+        confirmLabel={updateBusyId ? "Startet …" : "Update starten"}
+        cancelLabel="Abbrechen"
+        destructive
+        confirmDisabled={
+          updateBusyId != null || updateConfirmTyped.trim() !== "UPDATE"
+        }
+        onConfirm={onConfirmWahaUpdate}
+      />
 
       <ConfirmDialog
         open={vpsRebootOpen}

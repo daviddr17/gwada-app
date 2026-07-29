@@ -5,16 +5,21 @@ import { gitCommitToChangelogPayload } from "@/lib/changelog/parse-changelog-fro
 import type { GitCommitChangelogPayload } from "@/lib/changelog/parse-changelog-from-commits";
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
 import { resolveGithubRepoSlug } from "@/lib/changelog/github-repo-slug";
+import { mintGithubAppInstallationToken } from "@/lib/superadmin/github-app-auth-server";
 
 const GITHUB_API_TIMEOUT_MS = 12_000;
 
-function githubChangelogToken(): string | null {
+function githubChangelogPat(): string | null {
   return (
     process.env.CHANGELOG_GIT_TOKEN?.trim() ||
     process.env.GITHUB_TOKEN?.trim() ||
     process.env.GITHUB_DEPLOY_TOKEN?.trim() ||
     null
   );
+}
+
+async function githubChangelogToken(): Promise<string | null> {
+  return (await mintGithubAppInstallationToken()) || githubChangelogPat();
 }
 
 function githubRepoSlug(): string {
@@ -41,7 +46,7 @@ type GithubCommitRow = {
 };
 
 async function githubFetchJson(path: string): Promise<unknown> {
-  const token = githubChangelogToken();
+  const token = await githubChangelogToken();
   const res = await raceWithTimeout(
     fetch(`https://api.github.com${path}`, {
       headers: {

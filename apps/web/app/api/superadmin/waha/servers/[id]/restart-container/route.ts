@@ -42,7 +42,7 @@ export async function POST(_req: Request, context: RouteContext) {
         error: result.error ?? "restart_failed",
         message:
           result.error === "github_deploy_token_missing"
-            ? "GITHUB_DEPLOY_TOKEN fehlt — Container-Restart nicht möglich."
+            ? "GitHub-Auth fehlt — Container-Restart nicht möglich (GitHub App oder GITHUB_DEPLOY_TOKEN)."
             : "Container-Restart konnte nicht gestartet werden.",
       },
       { status: 502 },

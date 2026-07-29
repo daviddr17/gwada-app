@@ -149,7 +149,7 @@ function WorkflowRunSummary({
   if (!workflow.configured) {
     return (
       <span className="text-muted-foreground">
-        GITHUB_DEPLOY_TOKEN fehlt
+        GitHub-Auth fehlt
       </span>
     );
   }
@@ -526,18 +526,18 @@ export function SuperadminDatabasePanel() {
 
           {!status.liveApp.triggerConfigured ? (
             <p className="text-xs text-muted-foreground">
-              Für Deploy-Buttons{" "}
-              <span className="font-mono">GITHUB_DEPLOY_TOKEN</span> in der
-              Live-App-Env setzen (PAT mit{" "}
-              <span className="font-mono">repo</span> und{" "}
-              <span className="font-mono">read:packages</span>; idealerweise
-              zusätzlich <span className="font-mono">workflow</span>). Secret{" "}
-              <span className="font-mono">GWADA_GITHUB_DEPLOY_TOKEN</span> →
-              Workflow{" "}
-              <span className="font-mono">sync-github-deploy-token-live.yml</span>{" "}
-              oder App-Deploy. SSH in GitHub Secrets:{" "}
-              <span className="font-mono">LIVE_SSH_KEY</span>,{" "}
-              <span className="font-mono">LIVE_VPS_HOST</span>.
+              Für Deploy-Buttons GitHub App Credentials setzen (
+              <span className="font-mono">GITHUB_APP_ID</span>,{" "}
+              <span className="font-mono">GITHUB_APP_INSTALLATION_ID</span>,{" "}
+              <span className="font-mono">GITHUB_APP_PRIVATE_KEY</span>) — Tokens
+              werden automatisch gemintet und laufen nicht wie PATs ab. Secrets{" "}
+              <span className="font-mono">GWADA_GITHUB_APP_*</span> → Workflow{" "}
+              <span className="font-mono">
+                sync-github-app-credentials-live.yml
+              </span>
+              . Fallback: PAT{" "}
+              <span className="font-mono">GWADA_GITHUB_DEPLOY_TOKEN</span>. Siehe{" "}
+              <span className="font-mono">docs/github-app-deploy-auth.md</span>.
             </p>
           ) : null}
         </CardContent>

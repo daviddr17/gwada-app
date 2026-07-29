@@ -2,6 +2,10 @@ import "server-only";
 
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
 import { resolveGithubRepoSlug } from "@/lib/changelog/github-repo-slug";
+import {
+  githubAppCredentialsConfigured,
+  mintGithubAppInstallationToken,
+} from "@/lib/superadmin/github-app-auth-server";
 import type {
   SuperadminGithubBranchInfo,
   SuperadminGithubDeployWorkflowRun,
@@ -15,11 +19,12 @@ export const DB_DEPLOY_WORKFLOW_FILE = "deploy-live-db.yml";
 export const APP_DEPLOY_REPOSITORY_DISPATCH_TYPE = "deploy-live-app";
 export const DB_DEPLOY_REPOSITORY_DISPATCH_TYPE = "deploy-live-db";
 
-/** Nur für Superadmin-Deploy — kein Fallback auf Changelog-/Build-Tokens. */
+/** Nur statischer PAT — kein Changelog-/Build-Fallback. */
 export function githubDeployTokenStrict(): string | null {
   return process.env.GITHUB_DEPLOY_TOKEN?.trim() || null;
 }
 
+/** Sync: vorhandener PAT / Fallback-Token (ohne App-Mint). */
 export function githubDeployToken(): string | null {
   return (
     githubDeployTokenStrict() ||
@@ -27,6 +32,24 @@ export function githubDeployToken(): string | null {
     process.env.GITHUB_TOKEN?.trim() ||
     null
   );
+}
+
+/** App-Credentials oder PAT vorhanden (für Status „configured“). */
+export function githubDeployAuthConfigured(): boolean {
+  return githubAppCredentialsConfigured() || Boolean(githubDeployToken());
+}
+
+/**
+ * Deploy/Dispatch: GitHub-App-Installation-Token (bevorzugt) oder strikter PAT.
+ * Kurzlebige Tokens werden automatisch gemintet.
+ */
+export async function resolveGithubDeployAccessToken(
+  options?: { strict?: boolean },
+): Promise<string | null> {
+  const appToken = await mintGithubAppInstallationToken();
+  if (appToken) return appToken;
+  if (options?.strict) return githubDeployTokenStrict();
+  return githubDeployToken();
 }
 
 export function githubRepoSlug(): string {
@@ -50,16 +73,18 @@ type GithubFetchResult = {
 async function githubFetch(
   path: string,
   init?: RequestInit,
-  token = githubDeployToken(),
+  token?: string | null,
 ): Promise<GithubFetchResult> {
+  const resolvedToken =
+    token === undefined ? await resolveGithubDeployAccessToken() : token;
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
     ...(init?.headers as Record<string, string> | undefined),
   };
-  // Öffentliche Reads (Commit/Branches) ohne Token — Deploy-Aktionen brauchen weiterhin PAT.
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  // Öffentliche Reads (Commit/Branches) ohne Token — Deploy-Aktionen brauchen Auth.
+  if (resolvedToken) {
+    headers.Authorization = `Bearer ${resolvedToken}`;
   }
 
   const res = await raceWithTimeout(
@@ -98,7 +123,7 @@ async function githubFetch(
 export async function githubFetchJson(
   path: string,
   init?: RequestInit,
-  token?: string,
+  token?: string | null,
 ): Promise<unknown> {
   const result = await githubFetch(path, init, token);
   return result.body;
@@ -134,10 +159,10 @@ function pickActiveRun(
 
 function githubApiErrorHint(msg: string): string {
   if (msg === "github_api_401" || msg === "github_api_403") {
-    return "GitHub-API abgelehnt — bei privatem Repo GITHUB_DEPLOY_TOKEN prüfen.";
+    return "GitHub-API abgelehnt — GitHub App Credentials prüfen (GITHUB_APP_ID / INSTALLATION_ID / PRIVATE_KEY) oder PAT.";
   }
   if (msg === "github_deploy_token_missing") {
-    return "GITHUB_DEPLOY_TOKEN fehlt (nur für Deploy nötig; Commit-Status nutzt öffentliche API).";
+    return "GitHub-Auth fehlt — GitHub App (empfohlen) oder GITHUB_DEPLOY_TOKEN setzen.";
   }
   return "GitHub-API nicht erreichbar.";
 }
@@ -152,9 +177,9 @@ function githubDispatchErrorMessage(input: {
   }
   if (input.status === 401 || input.status === 403) {
     if (input.usedRepositoryDispatch) {
-      return "GITHUB_DEPLOY_TOKEN fehlt Repo-Rechte (repo) — Deploy kann nicht ausgelöst werden.";
+      return "GitHub-Auth fehlt Repo-Rechte (Actions write) — Deploy kann nicht ausgelöst werden.";
     }
-    return "GITHUB_DEPLOY_TOKEN kann Workflows nicht starten — PAT mit repo (und idealerweise workflow) in GWADA_GITHUB_DEPLOY_TOKEN setzen, dann sync-github-deploy-token-live.yml ausführen.";
+    return "GitHub-Auth kann Workflows nicht starten — GitHub App mit Actions:write installieren oder PAT, dann sync-github-app-credentials-live.yml.";
   }
   if (input.status === 422) {
     return "GitHub lehnt den Deploy-Trigger ab (Ref oder Workflow-Konfiguration prüfen).";
@@ -171,7 +196,7 @@ async function dispatchGithubDeployEvent(input: {
   workflowInputs?: Record<string, string>;
   clientPayload?: Record<string, unknown>;
 }): Promise<void> {
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) throw new Error("github_deploy_token_missing");
 
   const repo = githubRepoSlug();
@@ -221,8 +246,7 @@ export async function fetchGithubDeployWorkflowStatus(input: {
   label: string;
 }): Promise<SuperadminGithubDeployWorkflowStatus> {
   const repo = githubRepoSlug();
-  const branch = githubDeployBranch();
-  const configured = Boolean(githubDeployToken());
+  const configured = githubDeployAuthConfigured();
 
   if (!configured) {
     return {
@@ -233,7 +257,7 @@ export async function fetchGithubDeployWorkflowStatus(input: {
       latestRun: null,
       activeRun: null,
       message:
-        "GITHUB_DEPLOY_TOKEN in der App-Env setzen (repo, workflow oder repo+read:packages).",
+        "GitHub App Credentials oder GITHUB_DEPLOY_TOKEN in der App-Env setzen.",
     };
   }
 
@@ -274,12 +298,12 @@ export async function fetchGithubDeployWorkflowStatus(input: {
 export async function dispatchGithubLiveAppDeploy(
   ref?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) {
     return {
       ok: false,
       error:
-        "GITHUB_DEPLOY_TOKEN fehlt — Deploy kann nicht ausgelöst werden.",
+        "GitHub-Auth fehlt — Deploy kann nicht ausgelöst werden (GitHub App oder GITHUB_DEPLOY_TOKEN).",
     };
   }
 
@@ -336,12 +360,12 @@ export async function dispatchGithubLiveAppDeploy(
 export async function dispatchGithubLiveDbDeploy(
   ref?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) {
     return {
       ok: false,
       error:
-        "GITHUB_DEPLOY_TOKEN fehlt — Deploy kann nicht ausgelöst werden.",
+        "GitHub-Auth fehlt — Deploy kann nicht ausgelöst werden (GitHub App oder GITHUB_DEPLOY_TOKEN).",
     };
   }
 

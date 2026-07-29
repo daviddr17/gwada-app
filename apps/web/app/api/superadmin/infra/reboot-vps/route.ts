@@ -52,7 +52,7 @@ export async function POST(req: Request) {
         message: cooldown
           ? `VPS-Reboot erst wieder in ${result.error?.replace("reboot_cooldown_", "")} möglich.`
           : result.error === "github_deploy_token_missing"
-            ? "GITHUB_DEPLOY_TOKEN fehlt — VPS-Reboot nicht möglich."
+            ? "GitHub-Auth fehlt — VPS-Reboot nicht möglich (GitHub App oder GITHUB_DEPLOY_TOKEN)."
             : "VPS-Reboot konnte nicht gestartet werden.",
       },
       { status: cooldown ? 429 : 502 },

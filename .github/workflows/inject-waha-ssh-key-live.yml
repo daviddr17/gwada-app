@@ -95,16 +95,9 @@ jobs:
           PY
 
           ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
-          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes /tmp/waha_inject.pem \
-            "root@${LIVE_VPS_HOST}:/tmp/waha_inject.pem"
-          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
-            env SERVER_ID="${SERVER_ID}" bash -s <<'REMOTE'
-          set -euo pipefail
-          cid=$(docker ps --format '{{.Names}}' | grep d3cg1b54arvue2tcm8u34qty- | head -1)
-          echo "container=$cid"
-          docker cp /tmp/waha_inject.pem "${cid}:/tmp/waha_inject.pem"
-          rm -f /tmp/waha_inject.pem
-          docker exec -e SERVER_ID="${SERVER_ID}" "${cid}" node - <<'NODE'
+
+          # Script-Datei (kein docker-exec-Heredoc — stdin geht dort oft verloren)
+          cat > /tmp/waha_inject.js <<'NODE'
           const fs = require("fs");
           const key = fs.readFileSync("/tmp/waha_inject.pem", "utf8");
           fs.unlinkSync("/tmp/waha_inject.pem");
@@ -115,18 +108,19 @@ jobs:
             process.exit(1);
           }
           const id = process.env.SERVER_ID;
-          fetch(`${base}/rest/v1/waha_servers?id=eq.${encodeURIComponent(id)}`, {
-            method: "PATCH",
-            headers: {
-              apikey: srk,
-              Authorization: `Bearer ${srk}`,
-              "Content-Type": "application/json",
-              Prefer: "return=representation",
-            },
-            body: JSON.stringify({ ssh_private_key: key }),
-          }).then(async (r) => {
+          (async () => {
+            const r = await fetch(`${base}/rest/v1/waha_servers?id=eq.${encodeURIComponent(id)}`, {
+              method: "PATCH",
+              headers: {
+                apikey: srk,
+                Authorization: `Bearer ${srk}`,
+                "Content-Type": "application/json",
+                Prefer: "return=representation",
+              },
+              body: JSON.stringify({ ssh_private_key: key }),
+            });
             const t = await r.text();
-            console.log("patch_status", r.status, "len", key.length);
+            console.log("patch_status", r.status, "len", Buffer.byteLength(key));
             if (!r.ok) {
               console.error(t.slice(0, 400));
               process.exit(1);
@@ -134,9 +128,30 @@ jobs:
             const rows = JSON.parse(t);
             const saved = rows[0]?.ssh_private_key || "";
             console.log("saved_bytes", Buffer.byteLength(saved), "saved_lines", saved.split("\n").length);
+            if (Buffer.byteLength(saved) !== Buffer.byteLength(key)) {
+              console.error("saved length mismatch");
+              process.exit(1);
+            }
             console.log("✓ ssh_private_key updated for", id);
+          })().catch((e) => {
+            console.error(e);
+            process.exit(1);
           });
           NODE
+
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            /tmp/waha_inject.pem /tmp/waha_inject.js \
+            "root@${LIVE_VPS_HOST}:/tmp/"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            env SERVER_ID="${SERVER_ID}" bash -s <<'REMOTE'
+          set -euo pipefail
+          cid=$(docker ps --format '{{.Names}}' | grep d3cg1b54arvue2tcm8u34qty- | head -1)
+          echo "container=$cid"
+          docker cp /tmp/waha_inject.pem "${cid}:/tmp/waha_inject.pem"
+          docker cp /tmp/waha_inject.js "${cid}:/tmp/waha_inject.js"
+          rm -f /tmp/waha_inject.pem /tmp/waha_inject.js
+          docker exec -e SERVER_ID="${SERVER_ID}" "${cid}" node /tmp/waha_inject.js
+          docker exec "${cid}" rm -f /tmp/waha_inject.js || true
           REMOTE
-          rm -f /tmp/waha_inject.pem
+          rm -f /tmp/waha_inject.pem /tmp/waha_inject.js
           echo "✓ Inject fertig"

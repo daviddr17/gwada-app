@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/split-bill.test.ts"
+    "test": "node --experimental-strip-types --test src/split-bill.test.ts src/course.test.ts"
   },
   "dependencies": {
     "@gwada/shared": "workspace:*"

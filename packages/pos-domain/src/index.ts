@@ -49,10 +49,15 @@ export {
   type SplitPaymentResult,
 } from "./split-bill";
 export {
+  POS_UI_COURSES,
   POS_ORDER_COURSES,
   POS_ORDER_COURSE_LABELS_DE,
   isPosOrderCourse,
+  normalizePosOrderCourse,
+  posOrderCourseLabelDe,
+  posOrderCourseShortLabelDe,
   type PosOrderCourse,
+  type PosUiCourse,
 } from "./course";
 
 export {

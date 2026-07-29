@@ -2,7 +2,6 @@
 
 import {
   createContext,
-  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -32,30 +31,21 @@ export function normalizeNavHref(href: string): string {
 }
 
 /**
- * Soft-Nav Pending — UI-Feedback (Sidebar + Overlay), kein Navigations-Lock.
+ * Soft-Nav Pending — sofortiges UI-Feedback (Sidebar + Overlay), kein Nav-Lock.
  *
- * Pending darf nicht synchron in pointerdown/click gesetzt werden: schwere
- * Overlay-/Sidebar-Re-Renders im selben Tick haben Next-Flights abgebrochen
- * → kurzer Modulwechsel, dann Rücksprung zum vorherigen Modul.
- *
- * Auch nicht aus pointerdown per setTimeout(0) anstoßen: auf Touch/iOS läuft
- * dieser Timer oft vor dem synthetischen click — Keep-alive-Pending baut dann
- * schon Slots um, der click stirbt, Mobilmenü bleibt offen.
+ * Pending wird synchron im click gesetzt (Titel/Skeleton sofort), bevor das
+ * Mobile-Menü schließt. Sheet-Close darf nicht im selben Tick den geklickten
+ * Link unmounten — sonst stirbt der Next-Flight (Kaltstart mobil).
  */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const pendingTargetRef = useRef<string | null>(null);
-  const scheduleTimerRef = useRef<number | null>(null);
   const clearTimerRef = useRef<number | null>(null);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   const clearPending = useCallback(() => {
     pendingTargetRef.current = null;
     setPendingHref(null);
-    if (scheduleTimerRef.current != null) {
-      window.clearTimeout(scheduleTimerRef.current);
-      scheduleTimerRef.current = null;
-    }
     if (clearTimerRef.current != null) {
       window.clearTimeout(clearTimerRef.current);
       clearTimerRef.current = null;
@@ -72,26 +62,17 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
       if (pendingTargetRef.current === target) return true;
 
       pendingTargetRef.current = target;
-      if (scheduleTimerRef.current != null) {
-        window.clearTimeout(scheduleTimerRef.current);
-      }
       if (clearTimerRef.current != null) {
         window.clearTimeout(clearTimerRef.current);
         clearTimerRef.current = null;
       }
 
-      // Nach dem Tick: Flight darf starten, bevor Overlay/Sidebar re-rendern.
-      scheduleTimerRef.current = window.setTimeout(() => {
-        scheduleTimerRef.current = null;
-        if (pendingTargetRef.current !== target) return;
-        startTransition(() => {
-          setPendingHref(target);
-        });
-        clearTimerRef.current = window.setTimeout(
-          clearPending,
-          PENDING_CLEAR_FAILSAFE_MS,
-        );
-      }, 0);
+      // Synchron: Nutzer sieht sofort Ziel-Titel/Skeleton — kein „nichts tun“.
+      setPendingHref(target);
+      clearTimerRef.current = window.setTimeout(
+        clearPending,
+        PENDING_CLEAR_FAILSAFE_MS,
+      );
       return true;
     },
     [clearPending],
@@ -99,9 +80,6 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
 
   useEffect(
     () => () => {
-      if (scheduleTimerRef.current != null) {
-        window.clearTimeout(scheduleTimerRef.current);
-      }
       if (clearTimerRef.current != null) {
         window.clearTimeout(clearTimerRef.current);
       }

@@ -6,6 +6,7 @@ import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notifi
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
+import { useAppShellReadiness } from "@/components/providers/app-shell-readiness-provider";
 import {
   normalizeNavHref,
   useSoftNavLock,
@@ -38,6 +39,7 @@ const MENU_REOPEN_COOLDOWN_MS = 480;
 export function AppMobileBottomNav() {
   const pathname = usePathname();
   const { pendingHref } = useSoftNavLock();
+  const { dismissBootstrap } = useAppShellReadiness();
   const { openMobile, setOpenMobile } = useSidebar();
   const wasOpenRef = useRef(openMobile);
   const reopenBlockedUntilRef = useRef(0);
@@ -55,8 +57,12 @@ export function AppMobileBottomNav() {
     if (wasOpenRef.current && !openMobile) {
       reopenBlockedUntilRef.current = Date.now() + MENU_REOPEN_COOLDOWN_MS;
     }
+    // Menü öffnen = Nutzer interagiert → Bootstrap weg (echte Module sichtbar).
+    if (!wasOpenRef.current && openMobile) {
+      dismissBootstrap();
+    }
     wasOpenRef.current = openMobile;
-  }, [openMobile]);
+  }, [openMobile, dismissBootstrap]);
 
   return (
     <nav

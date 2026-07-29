@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
@@ -169,26 +169,18 @@ export function AppSidebar() {
     }
   }, [router]);
 
+  // Menü erst nach Pending/Pathname schließen — nie sync im Link-click.
+  // Sync-Close startet Sheet-Dismiss und unmountet den geklickten <a> bevor
+  // der Next-Flight steht → Kaltstart mobil: „Tippen tut nichts“.
   useEffect(() => {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
+    if (!isMobile) return;
+    setOpenMobile(false);
   }, [pathname, isMobile, setOpenMobile]);
 
-  const closeMobileSidebarOnNav = useCallback(
-    (event: React.MouseEvent) => {
-      if (!isMobile) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (!target.closest("a[href], button")) return;
-      // Bubble (nicht Capture): Link-onClick + Soft-Nav-Pending sind schon gelaufen.
-      // Sync schließen — bei warmem Keep-alive sonst bleibt das Sheet offen
-      // (pathname ändert sich, aber der frühere setTimeout/click-Capture-Pfad
-      // war auf Touch unzuverlässig). Dock-Reopen: app-mobile-bottom-nav.
-      setOpenMobile(false);
-    },
-    [isMobile, setOpenMobile],
-  );
+  useEffect(() => {
+    if (!isMobile || !pendingHref) return;
+    setOpenMobile(false);
+  }, [pendingHref, isMobile, setOpenMobile]);
 
   const mobileFooterMenuClassName = isMobile
     ? appMobileSidebarFooterMenuClassName
@@ -199,10 +191,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" variant="inset">
-      <div
-        className="flex h-full w-full flex-col"
-        onClick={closeMobileSidebarOnNav}
-      >
+      <div className="flex h-full w-full flex-col">
       <SidebarHeader
         className={cn(
           "box-border flex shrink-0 justify-center gap-0 border-b border-border/50 p-2",

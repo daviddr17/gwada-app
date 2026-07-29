@@ -78,7 +78,29 @@ Path(os.environ["KEY_FILE"]).write_text(os.environ["KEY"], encoding="utf-8")
 PY
   chmod 600 "${KEY_FILE}"
   if ! ssh-keygen -y -f "${KEY_FILE}" >/dev/null 2>&1; then
-    echo "::error::SSH-Key-Datei ungültig (ssh-keygen -y fehlgeschlagen)."
+    KEY_META="$(
+      KEY_FILE="${KEY_FILE}" python3 - <<'PY'
+import os
+import subprocess
+from pathlib import Path
+
+p = Path(os.environ["KEY_FILE"])
+text = p.read_text(encoding="utf-8", errors="replace")
+lines = text.splitlines()
+err = subprocess.run(
+    ["ssh-keygen", "-y", "-f", str(p)],
+    capture_output=True,
+    text=True,
+).stderr.strip().splitlines()
+print(f"key_bytes={len(text.encode())} lines={len(lines)}")
+print(f"first={lines[0]!r}" if lines else "first=<empty>")
+print(f"last={lines[-1]!r}" if lines else "last=<empty>")
+print(f"has_BEGIN={'BEGIN' in text} has_END={'END' in text}")
+print(f"ssh-keygen_stderr={err[-1] if err else '(none)'}")
+PY
+    )"
+    echo "${KEY_META}"
+    echo "::error::SSH-Key in Superadmin ungültig — nicht Contabo. Private Key unter WAHA → Bearbeiten neu einfügen (BEGIN/END-Zeilen behalten)."
     exit 1
   fi
   PUB_FP="$(ssh-keygen -lf "${KEY_FILE}" 2>/dev/null | awk '{print $2}')"

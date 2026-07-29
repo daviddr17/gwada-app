@@ -555,7 +555,14 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
 
   return (
     <div className={displayModuleContentClassName}>
-      <div data-inventory-toolbar className="flex flex-wrap items-center gap-2">
+      {/* Sticky im scrollenden Display-main — Modus bleibt beim Scrollen sichtbar. */}
+      <div
+        data-inventory-toolbar
+        className={cn(
+          "sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-2 border-b border-border/20",
+          "bg-background/95 px-4 py-3 backdrop-blur-sm sm:-mx-6 sm:px-6",
+        )}
+      >
         <button
           type="button"
           onClick={() => {
@@ -563,6 +570,7 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
             setFocusedId(null);
             setCartOpen(false);
           }}
+          aria-pressed={mode === "stock"}
           className={cn(
             "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border px-4 text-base font-medium transition-colors sm:flex-none sm:px-8",
             mode === "stock"
@@ -579,6 +587,7 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
             setMode("order");
             setFocusedId(null);
           }}
+          aria-pressed={mode === "order"}
           className={cn(
             "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border px-4 text-base font-medium transition-colors sm:flex-none sm:px-8",
             mode === "order"

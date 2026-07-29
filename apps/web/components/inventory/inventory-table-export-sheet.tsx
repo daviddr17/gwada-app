@@ -37,10 +37,17 @@ import type { Ingredient, InventoryTaxonomyDefinition } from "@/lib/types/invent
 import type { MenuItem } from "@/lib/types/menu";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { TableExportRowsPerPageField } from "@/components/export/table-export-rows-per-page-field";
 import {
   downloadTableCsv,
   downloadTablePdf,
 } from "@/lib/export/table-document-export";
+import {
+  DEFAULT_TABLE_EXPORT_ROWS_PER_PAGE,
+  readStoredTableExportRowsPerPage,
+  writeStoredTableExportRowsPerPage,
+  type TableExportRowsPerPage,
+} from "@/lib/export/table-export-rows-per-page";
 import { cn } from "@/lib/utils";
 
 const filterSelectClassName = appSelectTriggerAccentCn(staffDrawerFieldClassName);
@@ -78,6 +85,9 @@ export function InventoryTableExportSheet({
     DEFAULT_INVENTORY_TABLE_EXPORT_FILTERS,
   );
   const [search, setSearch] = useState("");
+  const [rowsPerPage, setRowsPerPage] = useState<TableExportRowsPerPage>(
+    DEFAULT_TABLE_EXPORT_ROWS_PER_PAGE,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -86,7 +96,13 @@ export function InventoryTableExportSheet({
       ...initialFilters,
     });
     setSearch(initialSearch.trim());
+    setRowsPerPage(readStoredTableExportRowsPerPage());
   }, [open, initialFilters, initialSearch]);
+
+  const handleRowsPerPageChange = (value: TableExportRowsPerPage) => {
+    setRowsPerPage(value);
+    writeStoredTableExportRowsPerPage(value);
+  };
 
   const supplierOptions = useMemo(
     () => [
@@ -179,6 +195,7 @@ export function InventoryTableExportSheet({
         await downloadTablePdf({
           ...exportOptions,
           restaurantName,
+          rowsPerPage,
           summaryLine: `${exportOptions.summaryLine} · Spalten „Neuer Bestand“ und „Bestellung“ zum handschriftlichen Eintragen`,
         });
         toast.success("PDF wurde heruntergeladen.");
@@ -260,6 +277,14 @@ export function InventoryTableExportSheet({
                   className={filterSelectClassName}
                 />
               </div>
+            </DrawerFormSection>
+
+            <DrawerFormSection title="Drucklayout">
+              <TableExportRowsPerPageField
+                value={rowsPerPage}
+                onChange={handleRowsPerPageChange}
+                itemCount={itemCount}
+              />
             </DrawerFormSection>
 
             <DrawerFormSection title="Export">

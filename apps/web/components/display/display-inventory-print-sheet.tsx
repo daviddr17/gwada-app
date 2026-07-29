@@ -28,6 +28,7 @@ import type {
   DisplayInventoryFilterOption,
   DisplayInventoryIngredientRow,
 } from "@/lib/display/display-inventory-server";
+import { TableExportRowsPerPageField } from "@/components/export/table-export-rows-per-page-field";
 import { notifyPrintResult } from "@/lib/export/notify-print-result";
 import {
   countDisplayInventoryExportFilters,
@@ -37,6 +38,12 @@ import {
   type DisplayInventoryExportFilters,
   type DisplayInventoryExportMode,
 } from "@/lib/display/export-display-inventory";
+import {
+  DEFAULT_TABLE_EXPORT_ROWS_PER_PAGE,
+  readStoredTableExportRowsPerPage,
+  writeStoredTableExportRowsPerPage,
+  type TableExportRowsPerPage,
+} from "@/lib/export/table-export-rows-per-page";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
@@ -85,6 +92,9 @@ export function DisplayInventoryPrintSheet({
   const [filters, setFilters] = useState<DisplayInventoryExportFilters>(
     DEFAULT_DISPLAY_INVENTORY_EXPORT_FILTERS,
   );
+  const [rowsPerPage, setRowsPerPage] = useState<TableExportRowsPerPage>(
+    DEFAULT_TABLE_EXPORT_ROWS_PER_PAGE,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -92,7 +102,13 @@ export function DisplayInventoryPrintSheet({
       ...DEFAULT_DISPLAY_INVENTORY_EXPORT_FILTERS,
       ...initialFilters,
     });
+    setRowsPerPage(readStoredTableExportRowsPerPage());
   }, [open, initialFilters]);
+
+  const handleRowsPerPageChange = (value: TableExportRowsPerPage) => {
+    setRowsPerPage(value);
+    writeStoredTableExportRowsPerPage(value);
+  };
 
   const brands = useMemo(() => deriveBrandOptions(ingredients), [ingredients]);
 
@@ -154,7 +170,10 @@ export function DisplayInventoryPrintSheet({
     if (filteredRows.length === 0) return;
     void (async () => {
       try {
-        const result = await printDisplayInventory(filteredRows, mode, { restaurantName });
+        const result = await printDisplayInventory(filteredRows, mode, {
+          restaurantName,
+          rowsPerPage,
+        });
         notifyPrintResult(result);
         onOpenChange(false);
       } catch {
@@ -253,6 +272,14 @@ export function DisplayInventoryPrintSheet({
                 </div>
               </DrawerFormSection>
             ) : null}
+
+            <DrawerFormSection title="Drucklayout">
+              <TableExportRowsPerPageField
+                value={rowsPerPage}
+                onChange={handleRowsPerPageChange}
+                itemCount={filteredRows.length}
+              />
+            </DrawerFormSection>
 
             <DrawerFormSection title="Drucken">
               <Button

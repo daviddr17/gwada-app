@@ -3,14 +3,28 @@
 import { ChevronDown, ClipboardList, Filter } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
 import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
 import { PurchaseOrderCompactLinesList } from "@/components/inventory/purchase-order-compact-lines-list";
+import type { LineDeliveryCommit } from "@/components/inventory/purchase-order-line-delivery-controls";
+import { PurchaseOrderLineDeliveryControls } from "@/components/inventory/purchase-order-line-delivery-controls";
+import { PurchaseOrderStatusChips } from "@/components/inventory/purchase-order-status-chips";
 import { InventoryModuleViewToggle } from "@/components/inventory/inventory-module-view-toggle";
 import {
   countPurchaseOrderActiveFilters,
   PurchaseOrdersFilterDrawer,
 } from "@/components/inventory/purchase-orders-filter-drawer";
+import {
+  allPurchaseOrderLinesResolved,
+  lineDeliveryStockQuantity,
+  resolveLineDelivery,
+} from "@/lib/inventory/purchase-order-line-delivery";
+import {
+  purchaseOrderAllowsDeliveryActions,
+  purchaseOrderStatusLabel,
+  type PurchaseOrderStatusFilter,
+} from "@/lib/inventory/purchase-order-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -59,11 +73,6 @@ import {
   ModuleTableSortHeader,
   ModuleTableStaticColumnHeader,
 } from "@/lib/ui/module-table-sort-header";
-
-const scopeItems = {
-  active: "Aktive Bestellungen",
-  past: "Vergangene Bestellungen",
-} as const;
 
 const df = new Intl.DateTimeFormat("de-DE", {
   dateStyle: "medium",
@@ -157,12 +166,13 @@ export function PurchaseOrdersScreen() {
   const {
     orders,
     isHydrated,
+    markOrderOrdered,
     closeOrder,
     reopenOrder,
     setOrderDeliveryDate,
     updateLineQuantity,
-    markLineDelivered,
-    unmarkLineDelivered,
+    setLineDelivery,
+    clearLineDelivery,
     syncSupplierNamesFromTaxonomy,
     healCreatorAttribution,
   } = usePurchaseOrdersStorage();
@@ -193,12 +203,16 @@ export function PurchaseOrdersScreen() {
     setMode: setOrderViewMode,
     ready: orderViewReady,
   } = useInventoryModuleViewMode(INVENTORY_PURCHASE_ORDER_VIEW_MODE_KEY);
-  const [scope, setScope] = useState<keyof typeof scopeItems>("active");
+  const [statusFilter, setStatusFilter] =
+    useState<PurchaseOrderStatusFilter>("open");
   const [supplierFilterId, setSupplierFilterId] = useState<string>("all");
   const [productionFilterId, setProductionFilterId] = useState<string>("all");
   const [filterOpen, setFilterOpen] = useState(false);
   const [protocolOrderId, setProtocolOrderId] = useState<string | null>(null);
   const [protocolOpen, setProtocolOpen] = useState(false);
+  const [closeConfirmOrderId, setCloseConfirmOrderId] = useState<string | null>(
+    null,
+  );
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [lineSortKey, setLineSortKey] =
     useState<PurchaseOrderLineSortKey>("categoryId");
@@ -305,9 +319,21 @@ export function PurchaseOrdersScreen() {
     }
   }, [productionFilterId, productionFilterOptions]);
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<PurchaseOrderStatusFilter, number> = {
+      open: 0,
+      ordered: 0,
+      closed: 0,
+    };
+    for (const o of orders) {
+      if (o.status in counts) counts[o.status as PurchaseOrderStatusFilter] += 1;
+    }
+    return counts;
+  }, [orders]);
+
   const filtered = useMemo(() => {
     return orders
-      .filter((o) => (scope === "active" ? o.status === "open" : o.status === "closed"))
+      .filter((o) => o.status === statusFilter)
       .filter((o) => supplierFilterId === "all" || o.supplierId === supplierFilterId)
       .filter((o) => {
         if (productionFilterId === "all") return true;
@@ -320,16 +346,15 @@ export function PurchaseOrdersScreen() {
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
-  }, [orders, scope, supplierFilterId, productionFilterId, ingredients]);
+  }, [orders, statusFilter, supplierFilterId, productionFilterId, ingredients]);
 
   const filterActiveCount = useMemo(
     () =>
       countPurchaseOrderActiveFilters({
-        scope,
         supplierFilterId,
         productionFilterId,
       }),
-    [scope, supplierFilterId, productionFilterId],
+    [supplierFilterId, productionFilterId],
   );
 
   const ready =
@@ -354,100 +379,153 @@ export function PurchaseOrdersScreen() {
     [updateLineQuantity],
   );
 
-  const handleMarkLineDelivered = useCallback(
-    async (orderId: string, lineId: string) => {
-      const order = orders.find((o) => o.id === orderId);
-      const line = order?.lines.find((l) => l.id === lineId);
-      const ing = line ? ingredients.find((i) => i.id === line.ingredientId) : undefined;
-      if (!order || order.status !== "closed" || !line || line.deliveredAt) return;
+  const applyStockDelta = useCallback(
+    async (
+      order: PurchaseOrder,
+      line: PurchaseOrderLine,
+      stockDelta: number,
+      mode: "delivery" | "revert",
+    ): Promise<boolean> => {
+      if (stockDelta === 0) return true;
+      const ing = ingredients.find((i) => i.id === line.ingredientId);
       if (!ing) {
-        toast.error("Zutat nicht gefunden – Bestand kann nicht erhöht werden.");
-        return;
+        toast.error("Zutat nicht gefunden – Bestand kann nicht angepasst werden.");
+        return false;
       }
-      const newStock = ing.currentStock + line.quantity;
-      const okStock = await updateIngredient(ing.id, { currentStock: newStock }, {
-        stockActor: actor,
-        stockUnitLabel: unitLabelForLine(line),
-        stockFromDelivery: {
-          orderId: order.id,
-          supplierName: supplierNameForOrder(order),
+      const newStock = ing.currentStock + stockDelta;
+      if (newStock < 0) {
+        toast.error(
+          "Bestand reicht für diese Mengenänderung nicht aus.",
+        );
+        return false;
+      }
+      const okStock = await updateIngredient(
+        ing.id,
+        { currentStock: newStock },
+        {
+          stockActor: actor,
+          stockUnitLabel: unitLabelForLine(line),
+          ...(mode === "delivery"
+            ? {
+                stockFromDelivery: {
+                  orderId: order.id,
+                  supplierName: supplierNameForOrder(order),
+                },
+              }
+            : {
+                stockDeliveryRevert: {
+                  orderId: order.id,
+                  supplierName: supplierNameForOrder(order),
+                },
+              }),
         },
-      });
+      );
       if (!okStock) {
         toast.error("Bestand konnte nicht gespeichert werden.");
+        return false;
+      }
+      return true;
+    },
+    [actor, ingredients, supplierNameForOrder, unitLabelForLine, updateIngredient],
+  );
+
+  const handleSetLineDelivery = useCallback(
+    async (orderId: string, lineId: string, input: LineDeliveryCommit) => {
+      const order = orders.find((o) => o.id === orderId);
+      const line = order?.lines.find((l) => l.id === lineId);
+      if (!order || !line) return;
+      if (!purchaseOrderAllowsDeliveryActions(order.status)) return;
+
+      const prevStock = lineDeliveryStockQuantity(line);
+      let nextStock = 0;
+      if (input.status === "delivered") {
+        nextStock =
+          typeof input.deliveredQuantity === "number"
+            ? input.deliveredQuantity
+            : line.quantity;
+      } else if (input.status === "partial") {
+        nextStock = input.deliveredQuantity ?? 0;
+      }
+      const previewDelta = nextStock - prevStock;
+      if (!(await applyStockDelta(order, line, previewDelta, previewDelta >= 0 ? "delivery" : "revert"))) {
         return;
       }
-      if (!(await markLineDelivered(orderId, lineId, actor))) {
-        await updateIngredient(ing.id, { currentStock: ing.currentStock }, { skipStockLog: true });
-        toast.error(
-          "Bestellung konnte nicht aktualisiert werden. Bestand wurde zurückgesetzt.",
+
+      const result = await setLineDelivery(orderId, lineId, input, actor);
+      if (!result.ok) {
+        await applyStockDelta(order, line, -previewDelta, previewDelta >= 0 ? "revert" : "delivery");
+        toast.error("Liefer-Antwort konnte nicht gespeichert werden.");
+        return;
+      }
+      if (result.stockDelta !== previewDelta && result.stockDelta !== 0) {
+        // rare drift — ignore; persist already done
+      }
+      const label =
+        input.status === "delivered"
+          ? "geliefert"
+          : input.status === "not_delivered"
+            ? "nicht geliefert"
+            : "abweichend";
+      if (result.autoClosed) {
+        toast.success(
+          `„${line.ingredientName}“ ${label} – Bestellung abgeschlossen.`,
         );
-        return;
+        setStatusFilter("closed");
+      } else if (result.stockDelta > 0) {
+        toast.success(
+          `„${line.ingredientName}“ ${label} – Bestand +${result.stockDelta} ${unitLabelForLine(line)}.`,
+        );
+      } else if (result.stockDelta < 0) {
+        toast.success(
+          `„${line.ingredientName}“ ${label} – Bestand ${result.stockDelta} ${unitLabelForLine(line)}.`,
+        );
+      } else {
+        toast.success(`„${line.ingredientName}“ als ${label} markiert.`);
       }
-      toast.success(
-        `„${line.ingredientName}“ als geliefert markiert – Bestand um ${line.quantity} ${unitLabelForLine(line)} erhöht.`,
-      );
     },
     [
       actor,
-      ingredients,
-      markLineDelivered,
+      applyStockDelta,
       orders,
-      supplierNameForOrder,
+      setLineDelivery,
       unitLabelForLine,
-      updateIngredient,
     ],
   );
 
-  const handleUnmarkLineDelivered = useCallback(
+  const handleClearLineDelivery = useCallback(
     async (orderId: string, lineId: string) => {
       const order = orders.find((o) => o.id === orderId);
       const line = order?.lines.find((l) => l.id === lineId);
-      const ing = line ? ingredients.find((i) => i.id === line.ingredientId) : undefined;
-      if (!order || order.status !== "closed" || !line || !line.deliveredAt) return;
-      if (!ing) {
-        toast.error("Zutat nicht gefunden – Bestand kann nicht angepasst werden.");
-        return;
-      }
-      const newStock = ing.currentStock - line.quantity;
-      if (newStock < 0) {
-        toast.error(
-          "Rückgängig nicht möglich: Bestand reicht für diese Menge nicht aus.",
-        );
-        return;
-      }
-      const okStock = await updateIngredient(ing.id, { currentStock: newStock }, {
-        stockActor: actor,
-        stockUnitLabel: unitLabelForLine(line),
-        stockDeliveryRevert: {
-          orderId: order.id,
-          supplierName: supplierNameForOrder(order),
-        },
-      });
-      if (!okStock) {
-        toast.error("Bestand konnte nicht gespeichert werden.");
-        return;
-      }
-      if (!(await unmarkLineDelivered(orderId, lineId, actor))) {
-        await updateIngredient(ing.id, { currentStock: ing.currentStock }, { skipStockLog: true });
-        toast.error(
-          "Bestellung konnte nicht aktualisiert werden. Bestand wurde zurückgesetzt.",
-        );
+      if (!order || !line) return;
+      const prevStock = lineDeliveryStockQuantity(line);
+      if (!(await applyStockDelta(order, line, -prevStock, "revert"))) return;
+      const result = await clearLineDelivery(orderId, lineId, actor);
+      if (!result.ok) {
+        await applyStockDelta(order, line, prevStock, "delivery");
+        toast.error("Liefer-Antwort konnte nicht zurückgesetzt werden.");
         return;
       }
       toast.success(
-        `Lieferung von „${line.ingredientName}“ rückgängig – Bestand um ${line.quantity} ${unitLabelForLine(line)} reduziert.`,
+        prevStock > 0
+          ? `Lieferung von „${line.ingredientName}“ zurückgesetzt – Bestand −${prevStock} ${unitLabelForLine(line)}.`
+          : `Liefer-Antwort zu „${line.ingredientName}“ zurückgesetzt.`,
       );
     },
-    [
-      actor,
-      ingredients,
-      orders,
-      supplierNameForOrder,
-      unitLabelForLine,
-      unmarkLineDelivered,
-      updateIngredient,
-    ],
+    [actor, applyStockDelta, clearLineDelivery, orders, unitLabelForLine],
+  );
+
+  const requestCloseOrder = useCallback(
+    (order: PurchaseOrder) => {
+      if (order.status !== "ordered") return;
+      if (allPurchaseOrderLinesResolved(order.lines)) {
+        void closeOrder(order.id, actor).then((ok) => {
+          if (ok) setStatusFilter("closed");
+        });
+        return;
+      }
+      setCloseConfirmOrderId(order.id);
+    },
+    [actor, closeOrder],
   );
 
   const restaurantName = profile.name.trim() || undefined;
@@ -460,38 +538,46 @@ export function PurchaseOrdersScreen() {
         ready && "opacity-100",
       )}
     >
-      <div className="mb-6 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-          <ClipboardList className="size-4 shrink-0 opacity-80" aria-hidden />
-          <span>
-            {filtered.length} Bestellung{filtered.length === 1 ? "" : "en"}
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <InventoryModuleViewToggle
-            value={orderViewMode}
-            onChange={setOrderViewMode}
-            disabled={!orderViewReady}
-          />
-          <div className={moduleSearchFilterButtonWrapClassName}>
-            <Button
-            type="button"
-            variant="outline"
-            size="icon-lg"
-            className={moduleSearchFilterButtonClassName}
-            aria-label="Filter"
-            onClick={() => setFilterOpen(true)}
-          >
-            <Filter className="size-4" />
-          </Button>
-          {filterActiveCount > 0 ? (
-            <Badge
-              variant="secondary"
-              className={moduleSearchFilterActiveBadgeClassName}
-            >
-              {filterActiveCount}
-            </Badge>
-            ) : null}
+      <div className="mb-4 space-y-3">
+        <PurchaseOrderStatusChips
+          value={statusFilter}
+          onChange={setStatusFilter}
+          counts={statusCounts}
+          disabled={!ready}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+            <ClipboardList className="size-4 shrink-0 opacity-80" aria-hidden />
+            <span>
+              {filtered.length} Bestellung{filtered.length === 1 ? "" : "en"}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <InventoryModuleViewToggle
+              value={orderViewMode}
+              onChange={setOrderViewMode}
+              disabled={!orderViewReady}
+            />
+            <div className={moduleSearchFilterButtonWrapClassName}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-lg"
+                className={moduleSearchFilterButtonClassName}
+                aria-label="Filter"
+                onClick={() => setFilterOpen(true)}
+              >
+                <Filter className="size-4" />
+              </Button>
+              {filterActiveCount > 0 ? (
+                <Badge
+                  variant="secondary"
+                  className={moduleSearchFilterActiveBadgeClassName}
+                >
+                  {filterActiveCount}
+                </Badge>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -499,8 +585,6 @@ export function PurchaseOrdersScreen() {
       <PurchaseOrdersFilterDrawer
         open={filterOpen}
         onOpenChange={setFilterOpen}
-        scope={scope}
-        onScopeChange={setScope}
         supplierFilterId={supplierFilterId}
         onSupplierFilterIdChange={setSupplierFilterId}
         supplierFilterOptions={supplierFilterOptions}
@@ -512,14 +596,18 @@ export function PurchaseOrdersScreen() {
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-14 text-center">
           <p className="text-base font-medium text-foreground">
-            {scope === "active"
-              ? "Keine aktiven Bestellungen"
-              : "Keine vergangenen Bestellungen"}
+            {statusFilter === "open"
+              ? "Keine offenen Bestellungen"
+              : statusFilter === "ordered"
+                ? "Keine bestellten Bestellungen"
+                : "Keine abgeschlossenen Bestellungen"}
           </p>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            {scope === "active"
+            {statusFilter === "open"
               ? "Lege über die Übersicht mit dem Feld „Bestellung“ Mengen fest – es wird automatisch eine offene Bestellung je Lieferant geführt."
-              : "Abgeschlossene Bestellungen erscheinen hier."}
+              : statusFilter === "ordered"
+                ? "Markiere eine offene Bestellung mit „Bestellt“, sobald sie beim Lieferanten ist."
+                : "Abgeschlossene Bestellungen erscheinen hier."}
           </p>
         </div>
       ) : (
@@ -556,10 +644,12 @@ export function PurchaseOrdersScreen() {
                             "rounded-full px-2 py-0.5 text-[11px] font-medium",
                             order.status === "open"
                               ? "bg-accent/15 text-foreground"
-                              : "bg-muted text-muted-foreground",
+                              : order.status === "ordered"
+                                ? "bg-amber-500/15 text-amber-950 dark:text-amber-100"
+                                : "bg-muted text-muted-foreground",
                           )}
                         >
-                          {order.status === "open" ? "Offen" : "Abgeschlossen"}
+                          {purchaseOrderStatusLabel(order.status)}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground sm:text-sm">
@@ -593,25 +683,45 @@ export function PurchaseOrdersScreen() {
                           "rounded-full px-3 sm:px-4",
                           brandActionButtonRoundedClassName,
                         )}
-                        onClick={() => void closeOrder(order.id)}
+                        onClick={() =>
+                          void markOrderOrdered(order.id, actor).then((ok) => {
+                            if (ok) setStatusFilter("ordered");
+                          })
+                        }
                       >
-                        Schließen
+                        Bestellt
                       </Button>
-                    ) : (
+                    ) : null}
+                    {order.status === "ordered" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className={cn(
+                          "rounded-full px-3 sm:px-4",
+                          brandActionButtonRoundedClassName,
+                        )}
+                        onClick={() => requestCloseOrder(order)}
+                      >
+                        Abschließen
+                      </Button>
+                    ) : null}
+                    {order.status !== "open" ? (
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
                         className="rounded-full px-3 sm:px-4"
                         onClick={() => {
-                          void reopenOrder(order.id).then((ok) => {
-                            if (ok) setScope("active");
+                          void reopenOrder(order.id, actor).then((ok) => {
+                            if (!ok) return;
+                            if (order.status === "closed") setStatusFilter("ordered");
+                            else setStatusFilter("open");
                           });
                         }}
                       >
-                        Wieder öffnen
+                        Zurück
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
@@ -628,18 +738,12 @@ export function PurchaseOrdersScreen() {
                         <DatePickerField
                           id={`delivery-${order.id}`}
                           size="compact"
-                          disabled={order.status !== "open"}
                           value={order.deliveryDate}
                           onChange={(ymd) => void setOrderDeliveryDate(order.id, ymd)}
                           placeholder="Lieferdatum wählen"
                           className="max-w-[min(100%,12rem)]"
                         />
                       </div>
-                      {order.status !== "open" ? (
-                        <p className="text-xs text-muted-foreground sm:pb-2">
-                          Lieferdatum ist bei abgeschlossenen Bestellungen schreibgeschützt.
-                        </p>
-                      ) : null}
                     </div>
 
                     {orderViewMode === "compact" ? (
@@ -656,12 +760,8 @@ export function PurchaseOrdersScreen() {
                         actor={actor}
                         onCommitQty={commitLineQty}
                         unitLabelForLine={unitLabelForLine}
-                        onMarkDelivered={(orderId, lineId) =>
-                          void handleMarkLineDelivered(orderId, lineId)
-                        }
-                        onUnmarkDelivered={(orderId, lineId) =>
-                          void handleUnmarkLineDelivered(orderId, lineId)
-                        }
+                        onSetDelivery={handleSetLineDelivery}
+                        onClearDelivery={handleClearLineDelivery}
                       />
                     ) : (
                       <>
@@ -680,12 +780,8 @@ export function PurchaseOrdersScreen() {
                         actor={actor}
                         onCommitQty={commitLineQty}
                         unitLabelForLine={unitLabelForLine}
-                        onMarkDelivered={(orderId, lineId) =>
-                          void handleMarkLineDelivered(orderId, lineId)
-                        }
-                        onUnmarkDelivered={(orderId, lineId) =>
-                          void handleUnmarkLineDelivered(orderId, lineId)
-                        }
+                        onSetDelivery={handleSetLineDelivery}
+                        onClearDelivery={handleClearLineDelivery}
                       />
                     </div>
 
@@ -822,7 +918,7 @@ export function PurchaseOrdersScreen() {
                                   <OrderLineQtyCell
                                     orderId={order.id}
                                     line={line}
-                                    readOnly={order.status !== "open"}
+                                    readOnly={false}
                                     actor={actor}
                                     onCommit={commitLineQty}
                                   />
@@ -831,37 +927,24 @@ export function PurchaseOrdersScreen() {
                                   {unitLabelForLine(line)}
                                 </td>
                                 <td className="px-3 py-2 align-middle">
-                                  {order.status === "closed" ? (
-                                    line.deliveredAt ? (
-                                      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                                        <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                                          Geliefert
-                                        </span>
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          variant="outline"
-                                          className="h-8 w-fit rounded-full border-border/60 px-3 text-xs"
-                                          onClick={() =>
-                                            handleUnmarkLineDelivered(order.id, line.id)
-                                          }
-                                        >
-                                          Geliefert rückgängig
-                                        </Button>
-                                      </div>
-                                    ) : (
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-8 rounded-full border-border/60 px-3 text-xs"
-                                        onClick={() =>
-                                          handleMarkLineDelivered(order.id, line.id)
-                                        }
-                                      >
-                                        Als geliefert markieren
-                                      </Button>
-                                    )
+                                  {purchaseOrderAllowsDeliveryActions(order.status) ? (
+                                    <PurchaseOrderLineDeliveryControls
+                                      line={line}
+                                      dense
+                                      onCommit={(input) =>
+                                        void handleSetLineDelivery(
+                                          order.id,
+                                          line.id,
+                                          input,
+                                        )
+                                      }
+                                      onClear={() =>
+                                        void handleClearLineDelivery(
+                                          order.id,
+                                          line.id,
+                                        )
+                                      }
+                                    />
                                   ) : (
                                     <span className="text-xs text-muted-foreground">—</span>
                                   )}
@@ -891,6 +974,24 @@ export function PurchaseOrdersScreen() {
         onOpenChange={(o) => {
           setProtocolOpen(o);
           if (!o) setProtocolOrderId(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={closeConfirmOrderId != null}
+        onOpenChange={(open) => {
+          if (!open) setCloseConfirmOrderId(null);
+        }}
+        title="Wirklich abschließen?"
+        description="Noch nicht alle Positionen haben eine Liefer-Antwort. Trotzdem abschließen?"
+        confirmLabel="Abschließen"
+        cancelLabel="Abbrechen"
+        destructive={false}
+        onConfirm={async () => {
+          const id = closeConfirmOrderId;
+          if (!id) return;
+          const ok = await closeOrder(id, actor, { force: true });
+          if (ok) setStatusFilter("closed");
         }}
       />
     </div>

@@ -17,9 +17,11 @@ import {
   drawerFormHeaderClassName,
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
+import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import type { PurchaseOrderStatus } from "@/lib/types/purchase-order";
 
 export function DashboardInventoryAlertsSheet({
   open,
@@ -45,15 +47,22 @@ export function DashboardInventoryAlertsSheet({
     [ingredients],
   );
 
-  const openOrders = useMemo(
-    () =>
-      orders
-        .filter((o) => o.status === "open")
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [orders],
-  );
+  const ordersByStatus = useMemo(() => {
+    const groups: Record<PurchaseOrderStatus, typeof orders> = {
+      open: [],
+      ordered: [],
+      closed: [],
+    };
+    const sorted = [...orders].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
+    for (const order of sorted) {
+      groups[order.status]?.push(order);
+    }
+    return groups;
+  }, [orders]);
 
-  const empty = emptyStockCount === 0 && openOrdersCount === 0;
+  const empty = emptyStockCount === 0 && orders.length === 0;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
@@ -70,8 +79,10 @@ export function DashboardInventoryAlertsSheet({
                     ? `${emptyStockCount} leer`
                     : null,
                   openOrdersCount > 0
-                    ? `${openOrdersCount} offene Bestellungen · ${openOrderLinesCount} Pos.`
-                    : null,
+                    ? `${openOrdersCount} offen/bestellt · ${openOrderLinesCount} Pos.`
+                    : orders.length > 0
+                      ? `${orders.length} Bestellungen`
+                      : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -104,26 +115,34 @@ export function DashboardInventoryAlertsSheet({
                 </section>
               ) : null}
 
-              {openOrders.length > 0 ? (
-                <section className="space-y-2">
-                  <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Offene Bestellungen
-                  </h3>
-                  <DashboardCompactList aria-label="Offene Bestellungen">
-                    {openOrders.map((order) => (
-                      <DashboardCompactListItem
-                        key={order.id}
-                        href={APP_ROUTES.inventory.order}
-                        title={order.supplierName}
-                        meta={`${order.lines.length} Pos.`}
-                        trailing={order.deliveryDate ?? undefined}
-                        stripeVariant="attention"
-                        className="py-2.5"
-                      />
-                    ))}
-                  </DashboardCompactList>
-                </section>
-              ) : null}
+              {(["open", "ordered", "closed"] as const).map((status) => {
+                const list = ordersByStatus[status];
+                if (list.length === 0) return null;
+                return (
+                  <section key={status} className="space-y-2">
+                    <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {purchaseOrderStatusLabel(status)}
+                    </h3>
+                    <DashboardCompactList
+                      aria-label={`${purchaseOrderStatusLabel(status)} Bestellungen`}
+                    >
+                      {list.map((order) => (
+                        <DashboardCompactListItem
+                          key={order.id}
+                          href={APP_ROUTES.inventory.order}
+                          title={order.supplierName}
+                          meta={`${order.lines.length} Pos.`}
+                          trailing={order.deliveryDate ?? undefined}
+                          stripeVariant={
+                            status === "closed" ? undefined : "attention"
+                          }
+                          className="py-2.5"
+                        />
+                      ))}
+                    </DashboardCompactList>
+                  </section>
+                );
+              })}
             </div>
           )}
         </div>

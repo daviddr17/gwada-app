@@ -10,6 +10,7 @@ on:
         main,
         cursor/reservation-party-size-dashboard-ea36,
         cursor/email-gmail-oauth-777f,
+        cursor/purchase-order-ordered-status-d3fd,
       ]
     paths:
       - "supabase/migrations/**"

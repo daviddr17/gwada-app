@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import {
+  PurchaseOrderLineDeliveryControls,
+  type LineDeliveryCommit,
+} from "@/components/inventory/purchase-order-line-delivery-controls";
+import { resolveLineDelivery } from "@/lib/inventory/purchase-order-line-delivery";
+import { purchaseOrderAllowsDeliveryActions } from "@/lib/inventory/purchase-order-status";
 import type { Ingredient } from "@/lib/types/inventory";
 import type {
   OrderProtocolActor,
@@ -79,7 +84,7 @@ function PurchaseOrderMobileLineQtyInput({
             (e.target as HTMLInputElement).blur();
           }
         }}
-        className={inventoryTouchOrderQtyInputCn(true)}
+        className={inventoryTouchOrderQtyInputCn(true, "compact")}
         aria-label={`Menge ${line.ingredientName}`}
       />
       <span className={inventoryTouchQtyUnitSuffixClassName}>
@@ -100,23 +105,27 @@ export type PurchaseOrderMobileLinesListProps = {
     qty: number,
     user: OrderProtocolActor,
   ) => Promise<boolean>;
-  onMarkDelivered: (orderId: string, lineId: string) => void;
-  onUnmarkDelivered: (orderId: string, lineId: string) => void;
+  onSetDelivery: (
+    orderId: string,
+    lineId: string,
+    input: LineDeliveryCommit,
+  ) => void | Promise<void>;
+  onClearDelivery: (orderId: string, lineId: string) => void | Promise<void>;
   unitLabelForLine: (line: PurchaseOrderLine) => string;
 };
 
-/** Mobile: Positionen als Karten statt Horizontal-Scroll-Tabelle. */
+/** Mobile: dichte Zeilen (kein Karten-Monster) für schnelles Durchklicken. */
 export function PurchaseOrderMobileLinesList({
   order,
   lines,
   ingredients,
   actor,
   onCommitQty,
-  onMarkDelivered,
-  onUnmarkDelivered,
+  onSetDelivery,
+  onClearDelivery,
   unitLabelForLine,
 }: PurchaseOrderMobileLinesListProps) {
-  const readOnly = order.status !== "open";
+  const showDelivery = purchaseOrderAllowsDeliveryActions(order.status);
 
   if (lines.length === 0) {
     return (
@@ -127,9 +136,10 @@ export function PurchaseOrderMobileLinesList({
   }
 
   return (
-    <ul className="space-y-3 p-3">
+    <ul className="divide-y divide-border/40 border-y border-border/40">
       {lines.map((line) => {
         const ingRow = ingredients.find((i) => i.id === line.ingredientId);
+        const resolved = resolveLineDelivery(line);
         const metaParts = [
           line.brandLabel?.trim() || null,
           ingRow != null ? `Bestand ${ingRow.currentStock}` : null,
@@ -139,58 +149,44 @@ export function PurchaseOrderMobileLinesList({
           <li
             key={line.id}
             className={cn(
-              "rounded-2xl border border-border/50 bg-card p-4 shadow-card",
-              line.deliveredAt && "border-emerald-500/35 bg-emerald-500/5",
+              "px-3 py-2",
+              resolved?.status === "delivered" && "bg-emerald-500/5",
+              resolved?.status === "not_delivered" && "bg-destructive/5",
+              resolved?.status === "partial" && "bg-amber-500/5",
             )}
           >
-            <p className="truncate text-base font-semibold leading-snug">
-              {line.ingredientName}
-            </p>
-            {metaParts.length > 0 ? (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {metaParts.join(" · ")}
-              </p>
-            ) : null}
-
-            <div className="mt-3">
-              <PurchaseOrderMobileLineQtyInput
-                orderId={order.id}
-                line={line}
-                readOnly={readOnly}
-                actor={actor}
-                onCommit={onCommitQty}
-                unitLabel={unitLabelForLine(line)}
-              />
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold leading-snug">
+                  {line.ingredientName}
+                </p>
+                {metaParts.length > 0 ? (
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {metaParts.join(" · ")}
+                  </p>
+                ) : null}
+              </div>
+              <div className="w-[6.5rem] shrink-0">
+                <PurchaseOrderMobileLineQtyInput
+                  orderId={order.id}
+                  line={line}
+                  readOnly={false}
+                  actor={actor}
+                  onCommit={onCommitQty}
+                  unitLabel={unitLabelForLine(line)}
+                />
+              </div>
             </div>
-
-            {order.status === "closed" ? (
-              <div className="mt-3">
-                {line.deliveredAt ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                      Geliefert
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-10 w-full rounded-xl border-border/60"
-                      onClick={() => onUnmarkDelivered(order.id, line.id)}
-                    >
-                      Geliefert rückgängig
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="mt-1 h-10 w-full rounded-xl border-border/60"
-                    onClick={() => onMarkDelivered(order.id, line.id)}
-                  >
-                    Als geliefert markieren
-                  </Button>
-                )}
+            {showDelivery ? (
+              <div className="mt-1.5">
+                <PurchaseOrderLineDeliveryControls
+                  line={line}
+                  dense
+                  onCommit={(input) =>
+                    void onSetDelivery(order.id, line.id, input)
+                  }
+                  onClear={() => void onClearDelivery(order.id, line.id)}
+                />
               </div>
             ) : null}
           </li>

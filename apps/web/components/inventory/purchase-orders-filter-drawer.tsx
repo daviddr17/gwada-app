@@ -22,18 +22,9 @@ const purchaseOrderFilterSelectClassName = appSelectTriggerAccentCn(
   staffDrawerFieldClassName,
 );
 
-const scopeItems = {
-  active: "Aktive Bestellungen",
-  past: "Vergangene Bestellungen",
-} as const;
-
-export type PurchaseOrderScope = keyof typeof scopeItems;
-
 type PurchaseOrdersFilterDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  scope: PurchaseOrderScope;
-  onScopeChange: (scope: PurchaseOrderScope) => void;
   supplierFilterId: string;
   onSupplierFilterIdChange: (value: string) => void;
   supplierFilterOptions: { value: string; label: string }[];
@@ -43,12 +34,10 @@ type PurchaseOrdersFilterDrawerProps = {
 };
 
 export function countPurchaseOrderActiveFilters(input: {
-  scope: PurchaseOrderScope;
   supplierFilterId: string;
   productionFilterId: string;
 }): number {
   let n = 0;
-  if (input.scope !== "active") n += 1;
   if (input.supplierFilterId !== "all") n += 1;
   if (input.productionFilterId !== "all") n += 1;
   return n;
@@ -57,8 +46,6 @@ export function countPurchaseOrderActiveFilters(input: {
 export function PurchaseOrdersFilterDrawer({
   open,
   onOpenChange,
-  scope,
-  onScopeChange,
   supplierFilterId,
   onSupplierFilterIdChange,
   supplierFilterOptions,
@@ -82,16 +69,7 @@ export function PurchaseOrdersFilterDrawer({
     [productionFilterOptions],
   );
 
-  const scopeOptions = useMemo(
-    () => [
-      { value: "active", label: scopeItems.active },
-      { value: "past", label: scopeItems.past },
-    ],
-    [],
-  );
-
   const resetFilters = () => {
-    onScopeChange("active");
     onSupplierFilterIdChange("all");
     onProductionFilterIdChange("all");
     toast.success("Filter zurückgesetzt");
@@ -104,20 +82,6 @@ export function PurchaseOrdersFilterDrawer({
 
         <div className={drawerScrollAreaClassName(6)}>
           <DrawerFilterZone showLabel={false}>
-            <DrawerFilterField label="Zeitraum">
-              <SearchableSelect
-                options={scopeOptions}
-                value={scope}
-                onValueChange={(v) => {
-                  if (v === "active" || v === "past") onScopeChange(v);
-                }}
-                placeholder="Zeitraum"
-                searchPlaceholder="Zeitraum suchen…"
-                aria-label="Aktive oder vergangene Bestellungen filtern"
-                className={purchaseOrderFilterSelectClassName}
-              />
-            </DrawerFilterField>
-
             <DrawerFilterField label="Lieferant">
               <SearchableSelect
                 options={supplierOptions}

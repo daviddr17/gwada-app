@@ -77,7 +77,12 @@ export function buildPurchaseOrdersExportRows(
   );
 
   for (const order of sortedOrders) {
-    const status = order.status === "open" ? "Offen" : "Abgeschlossen";
+    const status =
+      order.status === "open"
+        ? "Offen"
+        : order.status === "ordered"
+          ? "Bestellt"
+          : "Abgeschlossen";
     const created = formatWhen(order.createdAt);
     const delivery = formatDeliveryYmd(order.deliveryDate);
 
@@ -146,7 +151,12 @@ export function buildPurchaseOrderTableExport(
     ctx.units,
   );
 
-  const status = order.status === "open" ? "Offen" : "Abgeschlossen";
+  const status =
+    order.status === "open"
+      ? "Offen"
+      : order.status === "ordered"
+        ? "Bestellt"
+        : "Abgeschlossen";
   const created = formatWhen(order.createdAt);
   const delivery = formatDeliveryYmd(order.deliveryDate);
 

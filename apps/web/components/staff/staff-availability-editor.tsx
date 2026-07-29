@@ -68,6 +68,12 @@ type StaffAvailabilityEditorProps = {
   compact?: boolean;
   /** Display-Zeiterfassung (PIN-Session) — nutzt /api/display/availability. */
   displayApi?: boolean;
+  /** Optionaler Name (z. B. Schichtplan-Vormerkung für anderen MA). */
+  staffLabel?: string;
+  /** Vorausgewählte Tage (YYYY-MM-DD), z. B. angeklickter Schichtplan-Tag. */
+  initialServiceDates?: readonly string[];
+  /** Nach Speichern/Löschen (z. B. Schichtplan neu laden). */
+  onSlotsChanged?: () => void;
 };
 
 function mapSlotRow(raw: Record<string, unknown>): RestaurantStaffAvailabilitySlotRow {
@@ -102,6 +108,9 @@ export function StaffAvailabilityEditor({
   className,
   compact = false,
   displayApi = false,
+  staffLabel,
+  initialServiceDates,
+  onSlotsChanged,
 }: StaffAvailabilityEditorProps) {
   const [slots, setSlots] = useState<RestaurantStaffAvailabilitySlotRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +121,11 @@ export function StaffAvailabilityEditor({
     useState<StaffAvailabilityPolarity>("available");
   const [scopeMode, setScopeMode] =
     useState<StaffAvailabilityScopeMode>("dates");
-  const [serviceDates, setServiceDates] = useState<string[]>([]);
+  const [serviceDates, setServiceDates] = useState<string[]>(() =>
+    [...(initialServiceDates ?? [])].filter((d) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(d),
+    ).sort(),
+  );
   const [draftDate, setDraftDate] = useState("");
   const [selectedWeeks, setSelectedWeeks] = useState<string[]>(() => [
     localDayKey(startOfWeekMonday(new Date())),
@@ -176,6 +189,16 @@ export function StaffAvailabilityEditor({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const initialDatesKey = (initialServiceDates ?? []).join(",");
+  useEffect(() => {
+    const next = [...(initialServiceDates ?? [])]
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      .sort();
+    if (next.length === 0) return;
+    setScopeMode("dates");
+    setServiceDates(next);
+  }, [staffId, initialDatesKey, initialServiceDates]);
 
   const weeklySlots = useMemo(
     () => slots.filter((s) => s.weekday != null),
@@ -257,6 +280,7 @@ export function StaffAvailabilityEditor({
       setServiceDates([]);
       setDraftDate("");
       await reload();
+      onSlotsChanged?.();
       return;
     }
 
@@ -287,6 +311,7 @@ export function StaffAvailabilityEditor({
     setServiceDates([]);
     setDraftDate("");
     await reload();
+    onSlotsChanged?.();
   };
 
   const deleteLabel = useMemo(() => {
@@ -306,11 +331,13 @@ export function StaffAvailabilityEditor({
         {!compact ? (
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold">
-              Meine Verfügbarkeit
+              {staffLabel
+                ? `Verfügbarkeit · ${staffLabel}`
+                : "Meine Verfügbarkeit"}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Trage ein, wann du arbeiten kannst — oder an welchen Tagen nicht.
-              Sichtbar für die Planung im Schichtplan.
+              Trage ein, wann gearbeitet werden kann — oder an welchen Tagen
+              nicht. Sichtbar für die Planung im Schichtplan.
             </p>
           </CardHeader>
         ) : null}
@@ -611,6 +638,7 @@ export function StaffAvailabilityEditor({
           }
           toast.success("Eintrag entfernt.");
           await reload();
+          onSlotsChanged?.();
         }}
       />
     </div>

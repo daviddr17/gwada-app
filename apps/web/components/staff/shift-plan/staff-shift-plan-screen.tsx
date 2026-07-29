@@ -30,10 +30,13 @@ import { ShiftPlanCopyDialog } from "@/components/staff/shift-plan/shift-plan-co
 import { ShiftPlanGrid, ShiftPlanMonthView } from "@/components/staff/shift-plan/shift-plan-grid";
 import { ShiftPlanPeriodSummaryBar } from "@/components/staff/shift-plan/shift-plan-period-summary-bar";
 import { ShiftPlanSettingsDialog } from "@/components/staff/shift-plan/shift-plan-settings-dialog";
+import { ShiftPlanAvailabilityDrawer } from "@/components/staff/shift-plan/shift-plan-availability-drawer";
 import { ShiftPlanShiftDrawer } from "@/components/staff/shift-plan/shift-plan-shift-drawer";
 import { ShiftPlanTemplateDrawer } from "@/components/staff/shift-plan/shift-plan-template-drawer";
 import { ShiftPlanShiftCard } from "@/components/staff/shift-plan/shift-plan-shift-card";
 import { StaffShiftPlanSkeleton } from "@/components/staff/shift-plan/staff-shift-plan-skeleton";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleUpdate } from "@/lib/permissions/module-crud-permissions";
 import {
   ShiftPlanTemplatePalette,
   parseShiftPlanDropId,
@@ -125,6 +128,7 @@ export function StaffShiftPlanScreen({
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const positionTags = useStaffPositionTagsStorage(restaurantId);
+  const { has } = useRestaurantPermissions();
 
   const [view, setView] = useState<ShiftScheduleViewMode>("week");
   const [anchor, setAnchor] = useState(() => new Date());
@@ -156,6 +160,11 @@ export function StaffShiftPlanScreen({
   );
   const [defaultStaffId, setDefaultStaffId] = useState<string | null>(null);
   const [defaultDay, setDefaultDay] = useState<Date | null>(null);
+  const [availabilityTarget, setAvailabilityTarget] = useState<{
+    staffId: string;
+    staffName: string;
+    dayYmd: string;
+  } | null>(null);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
@@ -927,6 +936,20 @@ export function StaffShiftPlanScreen({
       : null;
 
   const editable = !personalMode;
+  const canEditAvailability =
+    editable && hasModuleUpdate(has, "staff");
+  const openAvailability = useCallback(
+    (staffId: string, day: Date) => {
+      const staff = staffRows.find((s) => s.id === staffId);
+      if (!staff) return;
+      setAvailabilityTarget({
+        staffId,
+        staffName: staffDisplayName(staff),
+        dayYmd: restaurantZonedDateKey(day, restaurantTimeZone),
+      });
+    },
+    [staffRows, restaurantTimeZone],
+  );
   const referenceDay = days[0] ?? anchor;
   const periodTitle = formatViewTitleDe(anchor, view);
 
@@ -1035,6 +1058,9 @@ export function StaffShiftPlanScreen({
           targetSummaryDays={targetSummaryDays}
           viewMode={view}
           onAddShift={openNew}
+          onEditAvailability={
+            canEditAvailability ? openAvailability : undefined
+          }
           onEditShift={openEdit}
           onDeleteShift={openDeleteShift}
           onDeleteAbsence={openDeleteAbsence}
@@ -1064,6 +1090,9 @@ export function StaffShiftPlanScreen({
           onNextWeek={() => setAnchor((a) => navigateAnchor(a, view, 1))}
           periodNav={view === "week" ? "week" : "day"}
           onAddShift={openNew}
+          onEditAvailability={
+            canEditAvailability ? openAvailability : undefined
+          }
           onEditShift={openEdit}
           onDeleteShift={openDeleteShift}
           onDeleteAbsence={openDeleteAbsence}
@@ -1226,6 +1255,19 @@ export function StaffShiftPlanScreen({
             nextSortOrder={templateNextSortOrder}
             onSaved={() => void reloadTemplatesAndShifts()}
           />
+          {canEditAvailability && restaurantId ? (
+            <ShiftPlanAvailabilityDrawer
+              open={availabilityTarget != null}
+              onOpenChange={(open) => {
+                if (!open) setAvailabilityTarget(null);
+              }}
+              restaurantId={restaurantId}
+              staffId={availabilityTarget?.staffId ?? ""}
+              staffName={availabilityTarget?.staffName ?? ""}
+              initialDayYmd={availabilityTarget?.dayYmd}
+              onSlotsChanged={() => void reload({ quiet: true })}
+            />
+          ) : null}
         </>
       ) : null}
 

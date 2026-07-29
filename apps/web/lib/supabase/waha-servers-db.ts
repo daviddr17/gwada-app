@@ -2,6 +2,7 @@ import "server-only";
 
 import { normalizeWahaBaseUrl } from "@/lib/integrations/platform-whatsapp-config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { normalizeSshPrivateKey } from "@/lib/waha/normalize-ssh-private-key";
 import type {
   WahaServerCapacityAlert,
   WahaServerPublic,
@@ -487,7 +488,7 @@ export async function createWahaServerAdmin(
         input.ssh_port <= 65535
           ? input.ssh_port
           : 22,
-      ssh_private_key: input.ssh_private_key?.trim() || "",
+          ssh_private_key: normalizeSshPrivateKey(input.ssh_private_key ?? ""),
       auto_recover_enabled: input.auto_recover_enabled !== false,
     })
     .select(SERVER_SELECT)
@@ -554,7 +555,8 @@ export async function updateWahaServerAdmin(
     ssh_private_key:
       input.ssh_private_key === undefined || input.ssh_private_key === null
         ? existing.ssh_private_key
-        : input.ssh_private_key.trim() || existing.ssh_private_key,
+        : normalizeSshPrivateKey(input.ssh_private_key) ||
+          existing.ssh_private_key,
     auto_recover_enabled:
       input.auto_recover_enabled ?? existing.auto_recover_enabled,
   };

@@ -1,5 +1,6 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
 import { getWahaServerByIdAdmin } from "@/lib/supabase/waha-servers-db";
+import { normalizeSshPrivateKey } from "@/lib/waha/normalize-ssh-private-key";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
   }
 
   const host = server.ssh_host?.trim() || null;
-  const key = server.ssh_private_key?.trim() || null;
+  const key = normalizeSshPrivateKey(server.ssh_private_key ?? "") || null;
   const user = (server.ssh_user?.trim() || "root").slice(0, 64);
   const port =
     typeof server.ssh_port === "number" &&

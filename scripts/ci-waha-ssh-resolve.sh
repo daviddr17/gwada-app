@@ -50,11 +50,20 @@ write_ssh_key() {
   # Literal \n aus JSON/UI → echte Zeilenumbrüche; CRLF entfernen
   KEY="$(
     KEY_RAW="${raw}" python3 - <<'PY'
-import os
+import os, re
 text = os.environ["KEY_RAW"].replace("\r\n", "\n").replace("\r", "\n")
-text = text.replace("\\n", "\n").strip() + "\n"
+text = text.replace("\\n", "\n").strip()
 if "BEGIN" not in text or "PRIVATE KEY" not in text:
     raise SystemExit("SSH private key ungültig (BEGIN PRIVATE KEY fehlt).")
+# Softwrap/Copy ohne echte Newlines → PEM wiederherstellen
+if "\n" not in text:
+    m_b = re.match(r"^(-----BEGIN [^-]+-----)", text)
+    m_e = re.search(r"(-----END [^-]+-----)$", text)
+    if m_b and m_e:
+        body = text[len(m_b.group(1)) : -len(m_e.group(1))]
+        chunks = [body[i : i + 70] for i in range(0, len(body), 70)]
+        text = "\n".join([m_b.group(1), *chunks, m_e.group(1)])
+text = text.strip() + "\n"
 print(text, end="")
 PY
   )"

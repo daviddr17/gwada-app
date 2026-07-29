@@ -134,6 +134,7 @@ export function SuperadminWahaScreen() {
   >({});
   const [updateConfirmServer, setUpdateConfirmServer] =
     useState<WahaServerPublic | null>(null);
+  const [updateConfirmTyped, setUpdateConfirmTyped] = useState("");
   const [vpsRebootOpen, setVpsRebootOpen] = useState(false);
   const [vpsRebootConfirm, setVpsRebootConfirm] = useState("");
   const [vpsRebootBusy, setVpsRebootBusy] = useState(false);
@@ -351,6 +352,9 @@ export function SuperadminWahaScreen() {
   const onConfirmWahaUpdate = async () => {
     const s = updateConfirmServer;
     if (!s) throw new Error("no_server");
+    if (updateConfirmTyped.trim() !== "UPDATE") {
+      throw new Error("confirm_required");
+    }
     setUpdateBusyId(s.id);
     const res = await triggerSuperadminWahaImageUpdate(s.id);
     setUpdateBusyId(null);
@@ -363,6 +367,7 @@ export function SuperadminWahaScreen() {
         `Update gestartet${res.targetVersion ? ` → ${res.targetVersion}` : ""}.`,
     );
     setUpdateConfirmServer(null);
+    setUpdateConfirmTyped("");
     // Version nach kurzer Wartezeit neu laden (Container kommt hoch)
     window.setTimeout(() => {
       void loadVersions([s]);
@@ -719,7 +724,10 @@ export function SuperadminWahaScreen() {
                             ? "Bereits auf neuester Version"
                             : `Auf ${v.latestVersion} updaten (compose pull)`
                     }
-                    onClick={() => setUpdateConfirmServer(r)}
+                    onClick={() => {
+                      setUpdateConfirmTyped("");
+                      setUpdateConfirmServer(r);
+                    }}
                   >
                     {updateBusyId === r.id ? "…" : "Update"}
                   </Button>
@@ -952,8 +960,9 @@ export function SuperadminWahaScreen() {
                 autoComplete="off"
               />
               <p className="text-xs text-muted-foreground">
-                Für „Container neu starten“ und Auto-Recovery bei Host-Ausfall.
-                Name wie in <span className="font-mono">docker ps</span>.
+                Für Container-Neustart, Image-Update und Auto-Recovery. Name wie
+                in <span className="font-mono">docker ps</span>. Update nur mit
+                Docker Compose + persistentem Session-Storage.
               </p>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2">
@@ -1021,25 +1030,20 @@ export function SuperadminWahaScreen() {
       <ConfirmDialog
         open={updateConfirmServer != null}
         onOpenChange={(open) => {
-          if (!open) setUpdateConfirmServer(null);
+          if (!open) {
+            setUpdateConfirmServer(null);
+            setUpdateConfirmTyped("");
+          }
         }}
-        title="WAHA auf neueste Version updaten?"
+        title="WAHA wirklich updaten?"
         description={
-          <div className="space-y-2 text-sm">
+          <div className="space-y-3 text-sm">
             <p>
               Server{" "}
               <span className="font-medium">
                 {updateConfirmServer?.name ?? "—"}
               </span>
-              : Docker-Image per{" "}
-              <span className="font-mono text-xs">
-                compose pull && up -d
-              </span>{" "}
-              (laut WAHA-Doku). Kurz offline; Sessions bleiben bei persistentem
-              Storage erhalten.
-            </p>
-            <p className="text-muted-foreground">
-              Aktuell{" "}
+              :{" "}
               <span className="font-mono">
                 {updateConfirmServer
                   ? (versionsById[updateConfirmServer.id]?.currentVersion ??
@@ -1054,17 +1058,61 @@ export function SuperadminWahaScreen() {
                   : "—"}
               </span>
             </p>
-            <p className="text-xs text-muted-foreground">
-              Voraussetzung: Container läuft über Docker Compose. WAHA Plus:
-              GitHub-Secret{" "}
-              <span className="font-mono">WAHA_PLUS_DOCKER_PASSWORD</span>.
-            </p>
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs space-y-1.5 text-foreground">
+              <p className="font-medium">Vor dem Update prüfen</p>
+              <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                <li>
+                  WhatsApp ist kurz offline (typisch 1–3 Min.), während Image
+                  gezogen und Container neu gestartet wird.
+                </li>
+                <li>
+                  Sessions bleiben nur erhalten, wenn Storage persistent ist
+                  (Volume auf{" "}
+                  <span className="font-mono">.sessions</span> oder
+                  Postgres/Mongo) — laut WAHA-Doku. Ohne Persistenz droht neuer
+                  QR-Scan.
+                </li>
+                <li>
+                  Compose-Dateien und{" "}
+                  <span className="font-mono">.env</span> werden vor dem Edit
+                  auf dem VPS gesichert (
+                  <span className="font-mono">.gwada-waha-update-backup-…</span>
+                  ).
+                </li>
+                <li>
+                  Ab 2026.6.1 wird{" "}
+                  <span className="font-mono">waha-plus</span> automatisch auf
+                  öffentliches <span className="font-mono">waha</span>{" "}
+                  umgestellt (Plus = Core).
+                </li>
+                <li>
+                  Nicht mitten im Stoßbetrieb updaten. Gwada selbst (App-DB)
+                  bleibt unberührt — nur der WAHA-Container.
+                </li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="waha-update-confirm">
+                Zur Bestätigung <span className="font-mono">UPDATE</span>{" "}
+                eingeben
+              </Label>
+              <Input
+                id="waha-update-confirm"
+                value={updateConfirmTyped}
+                onChange={(e) => setUpdateConfirmTyped(e.target.value)}
+                placeholder="UPDATE"
+                autoComplete="off"
+                autoCapitalize="characters"
+              />
+            </div>
           </div>
         }
         confirmLabel={updateBusyId ? "Startet …" : "Update starten"}
         cancelLabel="Abbrechen"
-        destructive={false}
-        confirmDisabled={updateBusyId != null}
+        destructive
+        confirmDisabled={
+          updateBusyId != null || updateConfirmTyped.trim() !== "UPDATE"
+        }
         onConfirm={onConfirmWahaUpdate}
       />
 

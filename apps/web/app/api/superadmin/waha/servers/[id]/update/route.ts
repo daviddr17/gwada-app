@@ -96,6 +96,6 @@ export async function POST(req: Request, context: RouteContext) {
     container: server.docker_container_name.trim(),
     targetVersion,
     message:
-      "WAHA-Update gestartet (docker compose pull + up). Sessions bleiben bei persistentem Storage erhalten — kurz offline.",
+      "WAHA-Update gestartet. Compose/.env werden vor dem Edit gesichert; pull + up -d. WhatsApp kurz offline — Sessions nur bei persistentem Storage sicher.",
   });
 }

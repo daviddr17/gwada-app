@@ -346,8 +346,9 @@ struct TableSessionView: View {
         let newCount = min(20, max(1, guestCount + delta))
         guard newCount != guestCount else { return }
         guestCount = newCount
+        // Do not open a session just to change guest count on a free table.
+        guard let sid = sessionId ?? currentSession?.id else { return }
         Task {
-            let sid = ensureSessionId()
             await runtime.updateCovers(sessionId: sid, covers: newCount)
         }
     }

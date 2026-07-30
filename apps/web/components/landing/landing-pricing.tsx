@@ -115,11 +115,13 @@ export function LandingPricing() {
                 <Card
                   className={cn(
                     "relative flex h-full flex-col border-border/70 bg-card/90 shadow-none backdrop-blur-sm",
-                    "transition-[transform,box-shadow,border-color] duration-300 ease-out",
-                    "hover:-translate-y-1.5 hover:border-primary/25 hover:shadow-lg",
-                    "dark:hover:border-primary/35 dark:hover:shadow-primary/5",
+                    "transition-[border-color,background-color,box-shadow] duration-300 ease-out",
+                    "hover:border-accent/45 hover:bg-accent/[0.07] hover:shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_28%,transparent),0_18px_40px_-28px_color-mix(in_srgb,var(--accent)_35%,transparent)]",
+                    "dark:hover:border-accent/55 dark:hover:bg-accent/10",
                     t.highlight &&
-                      "z-[1] overflow-visible border-primary/40 shadow-xl ring-2 ring-primary/20 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/10 lg:scale-[1.03]",
+                      "z-[1] overflow-visible border-primary/40 bg-primary/[0.04] shadow-none ring-2 ring-primary/20 lg:scale-[1.03]",
+                    t.highlight &&
+                      "hover:border-primary/55 hover:bg-primary/[0.09] hover:shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_35%,transparent),0_22px_48px_-28px_color-mix(in_srgb,var(--primary)_40%,transparent)] hover:ring-primary/35",
                   )}
                 >
                   {t.highlight ? (
@@ -168,7 +170,14 @@ export function LandingPricing() {
                     <ul className="mt-8 space-y-3 text-sm text-muted-foreground">
                       {t.cardBullets.map((b) => (
                         <li key={b} className="flex gap-2.5">
-                          <span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <span
+                            className={cn(
+                              "mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors duration-300",
+                              t.highlight
+                                ? "group-hover/card:bg-primary/20"
+                                : "group-hover/card:bg-accent/20 group-hover/card:text-accent",
+                            )}
+                          >
                             <Check className="size-3" strokeWidth={2.5} />
                           </span>
                           <span className="leading-snug text-foreground/85">

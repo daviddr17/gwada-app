@@ -75,9 +75,7 @@ enum PosDesign {
     }
 
     static func sessionAgeMinutes(openedAt: String, now: Date = Date()) -> Int? {
-        guard let opened = ISO8601DateFormatter().date(from: openedAt)
-            ?? isoFractional.date(from: openedAt)
-        else { return nil }
+        guard let opened = parseOpenedAt(openedAt) else { return nil }
         return max(0, Int(now.timeIntervalSince(opened) / 60))
     }
 
@@ -123,16 +121,17 @@ enum PosDesign {
 
     /// Relative Session-Dauer ab `openedAt` ISO-8601.
     static func sessionTimerLabel(openedAt: String, now: Date = Date()) -> String {
-        guard let opened = ISO8601DateFormatter().date(from: openedAt)
-            ?? PosDesign.isoFractional.date(from: openedAt)
-        else {
+        guard let mins = sessionAgeMinutes(openedAt: openedAt, now: now) else {
             return "—"
         }
-        let mins = max(0, Int(now.timeIntervalSince(opened) / 60))
         if mins < 60 { return "\(mins) min" }
         let h = mins / 60
         let m = mins % 60
         return m == 0 ? "\(h) h" : "\(h) h \(m) m"
+    }
+
+    private static func parseOpenedAt(_ openedAt: String) -> Date? {
+        ISO8601DateFormatter().date(from: openedAt) ?? isoFractional.date(from: openedAt)
     }
 
     private static let isoFractional: ISO8601DateFormatter = {

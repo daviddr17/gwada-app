@@ -356,7 +356,7 @@ export function AppSidebar() {
                       tooltip="WAHA"
                       render={<Link href="/superadmin/waha" prefetch />}
                     >
-                      <WhatsAppGlyph className="size-4" />
+                      <WhatsAppGlyph className="size-4 [&_path]:fill-current" />
                       <span>WAHA</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

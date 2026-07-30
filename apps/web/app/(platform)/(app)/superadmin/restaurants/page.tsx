@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SuperadminPaginatedDataTable } from "@/components/superadmin/superadmin-paginated-data-table";
+import { SuperadminRestaurantProfileDrawer } from "@/components/superadmin/superadmin-restaurant-profile-drawer";
 import { SuperadminSearchToolbar } from "@/components/superadmin/superadmin-search-toolbar";
 import {
   fetchSuperadminRestaurants,
@@ -35,6 +36,9 @@ export default function SuperadminRestaurantsPage() {
   const [search, setSearch] = useState("");
   const [publishedFilter, setPublishedFilter] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
+  const [selectedRestaurant, setSelectedRestaurant] =
+    useState<SuperadminRestaurantRow | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,7 +90,7 @@ export default function SuperadminRestaurantsPage() {
   return (
     <div className="space-y-6 pt-2">
       <p className="text-sm text-muted-foreground">
-        Alle Restaurants in der Plattform mit Owner und Teamgröße.
+        Alle Restaurants — Zeile antippen für Profil.
       </p>
 
       <SuperadminSearchToolbar
@@ -123,6 +127,10 @@ export default function SuperadminRestaurantsPage() {
         emptyMessage="Keine Restaurants gefunden."
         itemLabel="Restaurants"
         resetPageKey={`${search}\0${publishedFilter}\0${planFilter}`}
+        onRowClick={(r) => {
+          setSelectedRestaurant(r);
+          setDrawerOpen(true);
+        }}
         columns={[
           {
             id: "name",
@@ -130,7 +138,9 @@ export default function SuperadminRestaurantsPage() {
             className: superadminCellNowrapClass,
             sortValue: (r) => r.name,
             cell: (r) => (
-              <span className={`font-medium ${superadminCellNowrapClass}`}>
+              <span
+                className={`font-medium underline-offset-2 group-hover/row:underline ${superadminCellNowrapClass}`}
+              >
                 {r.name}
               </span>
             ),
@@ -248,6 +258,15 @@ export default function SuperadminRestaurantsPage() {
             ),
           },
         ]}
+      />
+
+      <SuperadminRestaurantProfileDrawer
+        restaurant={selectedRestaurant}
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setSelectedRestaurant(null);
+        }}
       />
     </div>
   );

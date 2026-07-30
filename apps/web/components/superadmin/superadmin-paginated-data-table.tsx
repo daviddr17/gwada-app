@@ -30,6 +30,7 @@ type SuperadminPaginatedDataTableProps<T> = {
   tableFullscreen?: boolean;
   /** Titel im Vollbild-Overlay — Standard: `itemLabel`. */
   fullscreenTitle?: string;
+  onRowClick?: (row: T) => void;
 };
 
 export function SuperadminPaginatedDataTable<T>({
@@ -44,6 +45,7 @@ export function SuperadminPaginatedDataTable<T>({
   classNameBelow,
   tableFullscreen = true,
   fullscreenTitle,
+  onRowClick,
 }: SuperadminPaginatedDataTableProps<T>) {
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -95,6 +97,7 @@ export function SuperadminPaginatedDataTable<T>({
     sortKey,
     sortDir,
     onToggleSort: toggleSort,
+    onRowClick,
   };
 
   return (

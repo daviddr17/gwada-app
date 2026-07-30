@@ -177,7 +177,15 @@ export function withSyncedLegacyOpenClose(
   }
   const periods = exceptionOpenPeriods(ex);
   if (periods.length === 0) {
-    return { ...ex, closed: true, open: undefined, close: undefined, periods: undefined };
+    // Nicht still auf „geschlossen“ umbiegen — das unmountet Eingabefelder unter Fokus.
+    // Speichern fängt leere Fenster über validateOpeningHours ab.
+    return {
+      ...ex,
+      closed: false,
+      periods: ex.periods?.length ? ex.periods : undefined,
+      open: ex.open,
+      close: ex.close,
+    };
   }
   return {
     ...ex,

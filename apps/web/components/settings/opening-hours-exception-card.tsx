@@ -1,17 +1,13 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePickerField, formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  exceptionOpenPeriods,
-  openPeriodsAfterClosedInterval,
-  withSyncedLegacyOpenClose,
-} from "@/lib/opening-hours/hours-periods";
+import { openPeriodsAfterClosedInterval } from "@/lib/opening-hours/hours-periods";
 import { weekdayFromDateYmd } from "@/lib/opening-hours/embed-display-utils";
 import type {
   DateHoursException,
@@ -19,6 +15,55 @@ import type {
   HoursPeriod,
   Weekday,
 } from "@/lib/types/restaurant";
+
+const DEFAULT_PERIOD: HoursPeriod = { open: "11:30", close: "22:00" };
+
+function draftPeriods(exception: DateHoursException): HoursPeriod[] {
+  if (exception.closed) return [];
+  // Während der Eingabe Rohwerte behalten (nicht normalisieren — sonst
+  // verschwindet das 2. Fenster / UI unmountet unter Fokus).
+  if (exception.periods && exception.periods.length > 0) {
+    return exception.periods.map((p) => ({
+      open: p.open ?? "",
+      close: p.close ?? "",
+    }));
+  }
+  if (exception.open || exception.close) {
+    return [{ open: exception.open ?? "", close: exception.close ?? "" }];
+  }
+  return [{ ...DEFAULT_PERIOD }];
+}
+
+function patchOpenPeriods(
+  periods: HoursPeriod[],
+): Pick<DateHoursException, "closed" | "periods" | "open" | "close"> {
+  return {
+    closed: false,
+    periods,
+    open: periods[0]?.open || undefined,
+    close: periods[periods.length - 1]?.close || undefined,
+  };
+}
+
+/** Ein weiteres Fenster — bei einem Volltag-Fenster sinnvoll aufteilen. */
+function withAddedPeriod(periods: HoursPeriod[]): HoursPeriod[] {
+  if (periods.length === 1) {
+    const only = periods[0]!;
+    const open = only.open?.trim() || DEFAULT_PERIOD.open;
+    const close = only.close?.trim() || DEFAULT_PERIOD.close;
+    if (open < "14:30" && close > "17:30") {
+      return [
+        { open, close: "14:30" },
+        { open: "17:30", close },
+      ];
+    }
+  }
+  const lastClose = periods[periods.length - 1]?.close?.trim() || "14:30";
+  if (lastClose <= "16:00") {
+    return [...periods, { open: "17:30", close: "22:00" }];
+  }
+  return [...periods, { open: "17:30", close: "22:00" }];
+}
 
 export function OpeningHoursExceptionCard({
   exception,
@@ -31,22 +76,14 @@ export function OpeningHoursExceptionCard({
   onChange: (patch: Partial<DateHoursException>) => void;
   onRemove: () => void;
 }) {
-  const periods = useMemo(
-    () => exceptionOpenPeriods(exception),
-    [exception],
-  );
+  const periods = draftPeriods(exception);
   const [pauseFrom, setPauseFrom] = useState("14:30");
   const [pauseTo, setPauseTo] = useState("17:30");
   const [pauseError, setPauseError] = useState<string | null>(null);
 
   const setPeriods = (next: HoursPeriod[]) => {
-    onChange(
-      withSyncedLegacyOpenClose({
-        ...exception,
-        closed: false,
-        periods: next,
-      }),
-    );
+    const safe = next.length > 0 ? next : [{ open: "11:30", close: "22:00" }];
+    onChange(patchOpenPeriods(safe));
   };
 
   const applyPause = () => {
@@ -61,16 +98,8 @@ export function OpeningHoursExceptionCard({
       return;
     }
     setPauseError(null);
-    const synced = withSyncedLegacyOpenClose({
-      ...exception,
-      closed: false,
-      periods: result,
-    });
     onChange({
-      closed: false,
-      periods: synced.periods,
-      open: synced.open,
-      close: synced.close,
+      ...patchOpenPeriods(result),
       note: exception.note?.trim()
         ? exception.note
         : `Geschlossen ${pauseFrom}–${pauseTo}`,
@@ -97,15 +126,15 @@ export function OpeningHoursExceptionCard({
             onCheckedChange={(v) =>
               onChange(
                 v === true
-                  ? { closed: true, open: undefined, close: undefined, periods: undefined }
-                  : withSyncedLegacyOpenClose({
-                      ...exception,
-                      closed: false,
-                      periods:
-                        periods.length > 0
-                          ? periods
-                          : [{ open: "11:30", close: "22:00" }],
-                    }),
+                  ? {
+                      closed: true,
+                      open: undefined,
+                      close: undefined,
+                      periods: undefined,
+                    }
+                  : patchOpenPeriods(
+                      periods.length > 0 ? periods : [{ ...DEFAULT_PERIOD }],
+                    ),
               )
             }
           />
@@ -131,71 +160,55 @@ export function OpeningHoursExceptionCard({
               Mehrere Fenster = Pause dazwischen (so übernimmt es auch Google).
             </p>
             <div className="space-y-2">
-              {(periods.length > 0 ? periods : [{ open: "11:30", close: "22:00" }]).map(
-                (period, index) => (
-                  <div
-                    key={`${exception.id}-period-${index}`}
-                    className="flex min-h-11 flex-wrap items-center gap-2"
-                  >
-                    <Input
-                      type="time"
-                      value={period.open}
-                      onChange={(e) => {
-                        const next =
-                          periods.length > 0
-                            ? [...periods]
-                            : [{ open: "11:30", close: "22:00" }];
-                        next[index] = { ...next[index]!, open: e.target.value };
-                        setPeriods(next);
-                      }}
-                      className={formScheduleTimeInputClassName}
-                    />
-                    <span className="text-muted-foreground">–</span>
-                    <Input
-                      type="time"
-                      value={period.close}
-                      onChange={(e) => {
-                        const next =
-                          periods.length > 0
-                            ? [...periods]
-                            : [{ open: "11:30", close: "22:00" }];
-                        next[index] = { ...next[index]!, close: e.target.value };
-                        setPeriods(next);
-                      }}
-                      className={formScheduleTimeInputClassName}
-                    />
-                    {periods.length > 1 ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        aria-label="Zeitfenster entfernen"
-                        onClick={() =>
-                          setPeriods(periods.filter((_, i) => i !== index))
-                        }
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    ) : null}
-                  </div>
-                ),
-              )}
+              {periods.map((period, index) => (
+                <div
+                  key={`${exception.id}-period-${index}`}
+                  className="flex min-h-11 flex-wrap items-center gap-2"
+                >
+                  <Input
+                    type="time"
+                    value={period.open}
+                    onChange={(e) => {
+                      const next = [...periods];
+                      next[index] = { ...next[index]!, open: e.target.value };
+                      setPeriods(next);
+                    }}
+                    className={formScheduleTimeInputClassName}
+                  />
+                  <span className="text-muted-foreground">–</span>
+                  <Input
+                    type="time"
+                    value={period.close}
+                    onChange={(e) => {
+                      const next = [...periods];
+                      next[index] = { ...next[index]!, close: e.target.value };
+                      setPeriods(next);
+                    }}
+                    className={formScheduleTimeInputClassName}
+                  />
+                  {periods.length > 1 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="Zeitfenster entfernen"
+                      onClick={() =>
+                        setPeriods(periods.filter((_, i) => i !== index))
+                      }
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
             </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="gap-1.5 rounded-full"
-              onClick={() =>
-                setPeriods([
-                  ...periods,
-                  {
-                    open: periods[periods.length - 1]?.close || "17:30",
-                    close: "22:00",
-                  },
-                ])
-              }
+              onClick={() => setPeriods(withAddedPeriod(periods))}
             >
               <Plus className="size-3.5" />
               Zeitfenster

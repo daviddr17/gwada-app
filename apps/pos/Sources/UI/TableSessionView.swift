@@ -82,7 +82,7 @@ struct TableSessionView: View {
                 optionGroups: runtime.snapshot?.menu?.optionGroups ?? [],
                 initialCourse: activeCourse,
                 onConfirm: { line in
-                    cart.append(line)
+                    cart = PosCart.merging(cart, adding: line)
                     configuring = nil
                 },
                 onCancel: { configuring = nil }
@@ -358,17 +358,9 @@ struct TableSessionView: View {
     }
 
     private func quickAdd(_ item: PosCloudMenuItem) {
-        if let idx = cart.firstIndex(where: {
-            $0.menuItemId == item.id &&
-                $0.course == activeCourse &&
-                $0.modifiers.isEmpty &&
-                $0.notes.isEmpty
-        }) {
-            cart[idx].quantity += 1
-            return
-        }
-        cart.append(
-            PosCartLine(
+        cart = PosCart.merging(
+            cart,
+            adding: PosCartLine(
                 menuItemId: item.id,
                 name: item.name,
                 unitPriceCents: item.priceCents,

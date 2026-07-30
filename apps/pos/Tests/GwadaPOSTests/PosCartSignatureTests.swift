@@ -42,4 +42,33 @@ final class PosCartSignatureTests: XCTestCase {
         XCTAssertNotEqual(base.configurationSignature, otherCourse.configurationSignature)
         XCTAssertNotEqual(base.configurationSignature, withSide.configurationSignature)
     }
+
+    func testMergeAddsQuantity() {
+        let first = PosCartLine(
+            menuItemId: "m1", name: "Cola", unitPriceCents: 300,
+            quantity: 1, course: 2, notes: "", modifiers: []
+        )
+        let second = PosCartLine(
+            menuItemId: "m1", name: "Cola", unitPriceCents: 300,
+            quantity: 2, course: 2, notes: "", modifiers: []
+        )
+        let merged = PosCart.merging([first], adding: second)
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged[0].quantity, 3)
+    }
+
+    func testCourseChangeMergesIntoMatchingTarget() {
+        let a = PosCartLine(
+            id: "a", menuItemId: "m1", name: "Cola", unitPriceCents: 300,
+            quantity: 1, course: 2, notes: "", modifiers: []
+        )
+        let b = PosCartLine(
+            id: "b", menuItemId: "m1", name: "Cola", unitPriceCents: 300,
+            quantity: 1, course: 1, notes: "", modifiers: []
+        )
+        let out = PosCart.changingCourse([a, b], lineId: "a", to: 1)
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].quantity, 2)
+        XCTAssertEqual(out[0].course, 1)
+    }
 }

@@ -128,6 +128,29 @@ struct PosCartLine: Identifiable, Equatable, Sendable {
     }
 }
 
+enum PosCart {
+    /// Returns new array with `line` merged by signature (qty added) or appended.
+    static func merging(_ lines: [PosCartLine], adding line: PosCartLine) -> [PosCartLine] {
+        var out = lines
+        if let idx = out.firstIndex(where: { $0.configurationSignature == line.configurationSignature }) {
+            out[idx].quantity += line.quantity
+            return out
+        }
+        out.append(line)
+        return out
+    }
+
+    /// Moves/merges when course changes on an existing line id.
+    static func changingCourse(_ lines: [PosCartLine], lineId: String, to course: Int) -> [PosCartLine] {
+        guard let idx = lines.firstIndex(where: { $0.id == lineId }) else { return lines }
+        var moved = lines[idx]
+        moved.course = course
+        var without = lines
+        without.remove(at: idx)
+        return merging(without, adding: moved)
+    }
+}
+
 enum PosMoney {
     static func format(_ cents: Int) -> String {
         String(format: "%.2f €", Double(cents) / 100.0)

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { LandingHeroAppPreview } from "@/components/landing/landing-hero-app-preview";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
@@ -23,7 +24,7 @@ export function LandingHeroCard({
   return (
     <div
       className={cn(
-        "relative max-w-3xl rounded-[2rem] border border-neutral-200/70 bg-white/80 p-8 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.12)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_24px_80px_-20px_rgba(0,0,0,0.6)] md:p-12",
+        "relative w-full max-w-3xl rounded-[2rem] border border-neutral-200/70 bg-white/80 p-8 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.12)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_24px_80px_-20px_rgba(0,0,0,0.6)] md:p-12",
         className,
       )}
     >
@@ -68,6 +69,7 @@ export function LandingHeroCard({
           Module entdecken
         </Button>
       </div>
+      <LandingHeroAppPreview className="mt-8 md:mt-10" />
     </div>
   );
 }

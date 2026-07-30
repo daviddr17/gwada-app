@@ -320,10 +320,7 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
 
   return (
     <div
-      className={cn(
-        "landing-hero-rise-preview w-full max-w-3xl px-1",
-        className,
-      )}
+      className={cn("landing-hero-rise-preview w-full", className)}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)}
@@ -337,9 +334,9 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
         role="region"
         aria-label="App-Vorschau"
         className={cn(
-          "overflow-hidden rounded-2xl border border-neutral-200/80 bg-[#e8e9ed]/95 shadow-[0_28px_80px_-28px_rgba(0,0,0,0.28)]",
-          "ring-1 ring-black/[0.04] backdrop-blur-md",
-          "dark:border-white/10 dark:bg-[#1c1f2a]/95 dark:shadow-[0_28px_80px_-28px_rgba(0,0,0,0.65)] dark:ring-white/[0.06]",
+          "overflow-hidden rounded-xl border border-neutral-200/80 bg-[#e8e9ed]/95 shadow-[0_12px_40px_-20px_rgba(0,0,0,0.22)]",
+          "ring-1 ring-black/[0.03]",
+          "dark:border-white/10 dark:bg-[#1c1f2a]/95 dark:shadow-[0_12px_40px_-20px_rgba(0,0,0,0.55)] dark:ring-white/[0.05]",
         )}
       >
         {/* Title bar + traffic lights */}

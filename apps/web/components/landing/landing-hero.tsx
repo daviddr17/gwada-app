@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
-import { LandingHeroAppPreview } from "@/components/landing/landing-hero-app-preview";
 import { StripeHeroCanvas } from "@/components/landing/stripe-hero-canvas";
 import { LandingHeroCard } from "@/components/landing/landing-hero-card";
 import { useMarketingHeroLogoSrc } from "@/lib/hooks/use-marketing-hero-logo-src";
@@ -60,13 +59,12 @@ export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props
         aria-hidden
       />
 
-      <div className="relative z-[2] mx-auto flex w-full max-w-5xl flex-col items-center gap-8 px-6 text-center md:gap-10">
+      <div className="relative z-[2] mx-auto flex w-full max-w-5xl flex-col items-center px-6 text-center">
         {parallaxEnabled ? (
           <LandingHeroParallaxLoader {...cardProps} />
         ) : (
           <LandingHeroCard logoUrl={logoUrl} onScrollToSection={onScrollToSection} />
         )}
-        <LandingHeroAppPreview />
       </div>
     </section>
   );

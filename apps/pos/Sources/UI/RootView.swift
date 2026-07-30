@@ -216,7 +216,9 @@ struct RootView: View {
         .onPreferenceChange(PosSessionBonActiveKey.self) { sessionBonActive = $0 }
         .onPreferenceChange(PosSessionBonCartQtyKey.self) { sessionBonQty = $0 }
         .modifier(PosBonTabAccessoryModifier(
-            isActive: sessionBonActive,
+            // Prefs stay true while TableSessionView remains mounted in Tische stack —
+            // only show accessory on the Tische tab (spec: not Reservierungen/Mehr).
+            isActive: sessionBonActive && kellnerTab == .tables,
             cartQuantity: sessionBonQty,
             opener: sessionBonOpener
         ))

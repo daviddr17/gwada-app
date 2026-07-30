@@ -170,11 +170,7 @@ struct TableSessionView: View {
         .preference(key: PosSessionBonActiveKey.self, value: true)
         .preference(key: PosSessionBonCartQtyKey.self, value: cartQuantity)
         .onAppear { bonOpener.open = { showBon = true } }
-        .onDisappear {
-            if bonOpener.open != nil {
-                bonOpener.open = nil
-            }
-        }
+        .onDisappear { bonOpener.open = nil }
     }
 
     private var header: some View {

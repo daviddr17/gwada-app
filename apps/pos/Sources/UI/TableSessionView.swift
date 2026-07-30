@@ -3,6 +3,7 @@ import SwiftUI
 /// Tisch-Session: Warenkorb + Speisekarte + Split / Umziehen.
 struct TableSessionView: View {
     @EnvironmentObject private var runtime: PosRuntime
+    @EnvironmentObject private var bonOpener: PosSessionBonOpener
 
     let table: PosLanFloorTable
     let sessionId: String?
@@ -165,6 +166,14 @@ struct TableSessionView: View {
         }
         .task {
             await refreshOpenLines()
+        }
+        .preference(key: PosSessionBonActiveKey.self, value: true)
+        .preference(key: PosSessionBonCartQtyKey.self, value: cartQuantity)
+        .onAppear { bonOpener.open = { showBon = true } }
+        .onDisappear {
+            if bonOpener.open != nil {
+                bonOpener.open = nil
+            }
         }
     }
 

@@ -51,6 +51,9 @@ struct RootView: View {
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var lastInteraction = Date()
     @State private var showingPairingApprovals = false
+    @StateObject private var sessionBonOpener = PosSessionBonOpener()
+    @State private var sessionBonActive = false
+    @State private var sessionBonQty = 0
 
     var body: some View {
         Group {
@@ -68,6 +71,7 @@ struct RootView: View {
                 kellnerTabView
             }
         }
+        .environmentObject(sessionBonOpener)
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 pinLock.lock(reason: "scene_background")
@@ -209,6 +213,13 @@ struct RootView: View {
             .tabItem { Label("Mehr", systemImage: "ellipsis.circle") }
             .tag(KellnerTab.more)
         }
+        .onPreferenceChange(PosSessionBonActiveKey.self) { sessionBonActive = $0 }
+        .onPreferenceChange(PosSessionBonCartQtyKey.self) { sessionBonQty = $0 }
+        .modifier(PosBonTabAccessoryModifier(
+            isActive: sessionBonActive,
+            cartQuantity: sessionBonQty,
+            opener: sessionBonOpener
+        ))
     }
 
     private var sidebarHeader: String {

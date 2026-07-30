@@ -8,9 +8,13 @@ export default function SuperadminLadeStrategiePage() {
       <p className="text-sm text-muted-foreground">
         Wie Daten geladen, gecached und invalidiert werden — automatisch aus{" "}
         <code className="font-mono text-xs">module-data-cache-policy.ts</code>.
-        App-Zone: Soft-Nav hält Provider gemountet; Realtime in{" "}
-        <code className="font-mono text-xs">AppModuleLiveProviders</code>, nicht
-        route-conditional. Display-Kiosk: eigene Session, Poll + silent Refetch.
+        Soft-Nav zwischen Modulen (Keep-alive: Dashboard, Reservierungen,
+        Nachrichten); Full-Load nur App ↔ Superadmin über{" "}
+        <code className="font-mono text-xs">/zone/enter</code>. Warm-Prefetch +
+        Batch im App-Layout; Realtime in{" "}
+        <code className="font-mono text-xs">AppModuleLiveProviders</code>{" "}
+        (Zone-Level). SoftNavLock = Pending-UI, kein Flight-Kill. Display-Kiosk:
+        eigene Session, Live-Signal 2s + silent Refetch.
       </p>
       <SuperadminCacheStrategyPanel />
     </div>

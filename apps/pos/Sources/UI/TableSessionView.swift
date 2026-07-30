@@ -12,6 +12,7 @@ struct TableSessionView: View {
     @State private var showSplit = false
     @State private var showMove = false
     @State private var showMoveSession = false
+    @State private var showBon = false
     @State private var sending = false
     @State private var openLines: [SessionOpenLine] = []
     @State private var sendPulse = false
@@ -24,10 +25,10 @@ struct TableSessionView: View {
             if let menu = runtime.snapshot?.menu {
                 VStack(spacing: 0) {
                     Group {
-                        if cart.isEmpty && openLines.isEmpty {
+                        if openLines.isEmpty {
                             emptyState
                         } else {
-                            cartList
+                            openLinesList
                         }
                     }
                     .frame(maxHeight: 300)
@@ -39,7 +40,7 @@ struct TableSessionView: View {
                     )
                 }
             } else {
-                cart.isEmpty && openLines.isEmpty ? AnyView(emptyState) : AnyView(cartList)
+                openLines.isEmpty ? AnyView(emptyState) : AnyView(openLinesList)
             }
         }
         .background(Color(.systemGroupedBackground))
@@ -110,6 +111,30 @@ struct TableSessionView: View {
                 },
                 onCancel: { showSplit = false }
             )
+        }
+        .sheet(isPresented: $showBon) {
+            BonSheetView(
+                tableLabel: table.label,
+                cart: $cart,
+                openLines: openLines,
+                coverCount: currentSession?.cover_count,
+                onSend: {
+                    await sendCart()
+                },
+                onFire: { course in
+                    _ = await runtime.fireCourse(sessionId: ensureSessionId(), course: course)
+                    await refreshOpenLines()
+                },
+                onWeiterBestellen: {
+                    showBon = false
+                },
+                onZurRechnung: {
+                    showBon = false
+                    showSplit = true
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showMove) {
             MoveLinesView(
@@ -190,56 +215,46 @@ struct TableSessionView: View {
         ContentUnavailableView {
             Label("Warenkorb leer", systemImage: "cart")
         } description: {
-            Text("Gerichte hinzufügen — Gang, Ohne-Zutaten und Hinweise wählbar.")
+            Text("Noch keine gesendeten Positionen.")
         } actions: {
-            Text("Wähle ein Gericht unten in der Speisekarte.")
+            Text("Wähle ein Gericht in der Speisekarte und öffne den Bon.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var cartList: some View {
+    private var openLinesList: some View {
         List {
-            if !cart.isEmpty {
-                Section("Warenkorb") {
-                    ForEach(cart) { line in
-                        cartRow(line)
+            Section("Bereits gesendet") {
+                ForEach(openLines) { line in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(line.openQuantity)× \(line.name)")
+                                .font(.body.weight(.semibold))
+                            if !line.detail.isEmpty {
+                                Text(line.detail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Text(PosMoney.format(line.openCents))
+                            .font(.body.monospacedDigit())
                     }
-                    .onDelete { idx in cart.remove(atOffsets: idx) }
-                }
-            }
-            if !openLines.isEmpty {
-                Section("Bereits gebucht") {
-                    ForEach(openLines) { line in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(line.openQuantity)× \(line.name)")
-                                    .font(.body.weight(.semibold))
-                                if !line.detail.isEmpty {
-                                    Text(line.detail)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            Spacer()
-                            Text(PosMoney.format(line.openCents))
-                                .font(.body.monospacedDigit())
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button {
+                            showSplit = true
+                        } label: {
+                            Label("Split", systemImage: "scissors")
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button {
-                                showSplit = true
-                            } label: {
-                                Label("Split", systemImage: "scissors")
-                            }
-                            .tint(.orange)
-                            Button {
-                                showMove = true
-                            } label: {
-                                Label("Umziehen", systemImage: "arrow.left.arrow.right")
-                            }
-                            .tint(.accentColor)
+                        .tint(.orange)
+                        Button {
+                            showMove = true
+                        } label: {
+                            Label("Umziehen", systemImage: "arrow.left.arrow.right")
                         }
+                        .tint(.accentColor)
                     }
                 }
             }
@@ -247,44 +262,10 @@ struct TableSessionView: View {
         .listStyle(.insetGrouped)
     }
 
-    private func cartRow(_ line: PosCartLine) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(PosCourse.shortLabel(line.course))
-                .font(.caption.weight(.bold))
-                .foregroundStyle(PosDesign.courseColor(line.course))
-                .frame(width: 22, height: 22)
-                .background(PosDesign.courseColor(line.course).opacity(0.15))
-                .clipShape(Circle())
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(line.quantity)× \(line.name)")
-                    .font(.body.weight(.semibold))
-                Text(line.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(PosMoney.format(line.lineTotalCents))
-                .font(.body.monospacedDigit())
-        }
-    }
-
     private var bottomBar: some View {
         VStack(spacing: 10) {
             if sessionId != nil || !openLines.isEmpty {
                 HStack(spacing: 8) {
-                    Button {
-                        Task {
-                            let sid = ensureSessionId()
-                            _ = await runtime.fireCourse(sessionId: sid, course: activeCourse)
-                        }
-                    } label: {
-                        Label("Fire", systemImage: "flame.fill")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-
                     Button {
                         Task {
                             let sid = ensureSessionId()
@@ -310,18 +291,21 @@ struct TableSessionView: View {
             }
 
             Button {
-                Task { await sendCart() }
+                showBon = true
             } label: {
-                if sending {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                } else {
-                    Text(cart.isEmpty ? "Nichts zu senden" : "Bestellung senden · \(PosMoney.format(cartTotal))")
+                HStack(spacing: 8) {
+                    Text("Bon")
+                    if cartQuantity > 0 {
+                        Text("\(cartQuantity)")
+                            .font(.caption.weight(.bold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.accentColor.opacity(0.25), in: Capsule())
+                    }
                 }
             }
             .buttonStyle(PosPrimaryButtonStyle())
-            .disabled(cart.isEmpty || sending)
+            .accessibilityIdentifier("pos.bon.open")
         }
         .padding(16)
         .background(.ultraThinMaterial)
@@ -329,6 +313,10 @@ struct TableSessionView: View {
 
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }
     private var openTotal: Int { openLines.reduce(0) { $0 + $1.openCents } }
+    private var cartQuantity: Int { cart.reduce(0) { $0 + $1.quantity } }
+    private var currentSession: PosLanOpenSession? {
+        runtime.snapshot?.floor.openSessions.first(where: { $0.dining_table_id == table.id })
+    }
 
     private func quantityForMenuItem(_ menuItemId: String) -> Int {
         cart
@@ -377,7 +365,7 @@ struct TableSessionView: View {
         return runtime.ensureLocalSession(tableId: table.id)
     }
 
-    private func sendCart() async {
+    private func sendCart() async -> Bool {
         sending = true
         defer { sending = false }
         let ok = await runtime.sendCart(tableId: table.id, lines: cart)
@@ -386,6 +374,7 @@ struct TableSessionView: View {
             sendPulse.toggle()
             await refreshOpenLines()
         }
+        return ok
     }
 
     private func refreshOpenLines() async {

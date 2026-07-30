@@ -1,11 +1,26 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { LandingHeroAppPreview } from "@/components/landing/landing-hero-app-preview";
+import { LandingHeroAppPreviewPlaceholder } from "@/components/landing/landing-hero-app-preview-placeholder";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+
+/** Code-Split: Tabs/Autoplay nicht im kritischen Hero-JS. */
+const LandingHeroAppPreview = dynamic(
+  () =>
+    import("@/components/landing/landing-hero-app-preview").then((m) => ({
+      default: m.LandingHeroAppPreview,
+    })),
+  {
+    ssr: true,
+    loading: () => (
+      <LandingHeroAppPreviewPlaceholder className="mt-8 md:mt-10" />
+    ),
+  },
+);
 
 type Props = {
   logoUrl: string | null;

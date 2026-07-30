@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
   MessageCircle,
@@ -305,21 +305,65 @@ function TabPanel({ id }: { id: HeroTabId }) {
  * Safari-ähnliches App-Fenster: Tabs laufen automatisch durch und sind klickbar.
  */
 export function LandingHeroAppPreview({ className }: { className?: string }) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [inView, setInView] = useState(false);
+  const [autoplayReady, setAutoplayReady] = useState(false);
   const active = HERO_TABS[activeIndex] ?? HERO_TABS[0];
 
   useEffect(() => {
-    if (paused) return;
+    const el = rootRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(Boolean(entry?.isIntersecting)),
+      { threshold: 0.35 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let cancelled = false;
+    const arm = () => {
+      if (!cancelled) setAutoplayReady(true);
+    };
+    const ric = (
+      window as Window & {
+        requestIdleCallback?: (
+          cb: () => void,
+          opts?: { timeout: number },
+        ) => number;
+        cancelIdleCallback?: (id: number) => void;
+      }
+    ).requestIdleCallback;
+    if (typeof ric === "function") {
+      const id = ric(arm, { timeout: 2500 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(id);
+      };
+    }
+    const t = window.setTimeout(arm, 1800);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!autoplayReady || !inView || paused) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = window.setInterval(() => {
       setActiveIndex((i) => (i + 1) % HERO_TABS.length);
     }, AUTO_MS);
     return () => window.clearInterval(id);
-  }, [paused]);
+  }, [autoplayReady, inView, paused]);
 
   return (
     <div
+      ref={rootRef}
       className={cn("landing-hero-rise-preview w-full", className)}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
@@ -380,7 +424,7 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                 <Icon className="size-3 shrink-0 opacity-80" aria-hidden />
                 <span className="hidden sm:inline">{tab.label}</span>
                 <span className="sm:hidden">{tab.shortLabel}</span>
-                {selected ? (
+                {selected && autoplayReady && inView ? (
                   <span
                     className="landing-hero-tab-progress absolute inset-x-1 bottom-0 h-0.5 origin-left rounded-full bg-primary/80"
                     style={{ animationDuration: `${AUTO_MS}ms` }}

@@ -168,16 +168,6 @@
   animation: landing-hero-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
 }
 
-@keyframes landing-hero-preview-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 35%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 0%, transparent);
-  }
-}
-
 @keyframes landing-hero-preview-kpi {
   0%,
   100% {

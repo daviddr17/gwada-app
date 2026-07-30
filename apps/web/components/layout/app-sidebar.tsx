@@ -386,6 +386,16 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/design")}
+                      tooltip="Design"
+                      render={<Link href="/superadmin/design" prefetch />}
+                    >
+                      <Palette />
+                      <span>Design</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
                       isActive={pathname.startsWith(SUPERADMIN_VORLAGEN_ROUTES.root)}
                       tooltip="Vorlagen"
                       render={
@@ -394,16 +404,6 @@ export function AppSidebar() {
                     >
                       <Files />
                       <span>Vorlagen</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/design")}
-                      tooltip="Design"
-                      render={<Link href="/superadmin/design" prefetch />}
-                    >
-                      <Palette />
-                      <span>Design</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

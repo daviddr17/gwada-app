@@ -146,7 +146,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     tagline: "Betrieb im Griff",
     pitch:
       "Bestand, Gäste-Kanäle und Content — alles, was den Alltag digital macht.",
-    price: { monthlyEur: 19, yearlyPerMonthEur: 15 },
+    price: { monthlyEur: 49, yearlyPerMonthEur: 39 },
     highlight: false,
     cta: "Basic wählen",
     features: BASIC_FEATURES,
@@ -165,7 +165,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     tagline: "Das volle Restaurant-OS",
     pitch:
       "Schichten, Buchhaltung, WhatsApp, Autopilot, Displays und API — ohne Limits bei Team & Volumen.",
-    price: { monthlyEur: 39, yearlyPerMonthEur: 31 },
+    price: { monthlyEur: 99, yearlyPerMonthEur: 79 },
     highlight: true,
     cta: "Pro wählen",
     features: PRO_FEATURES,
@@ -197,7 +197,7 @@ export const BILLING_ADDONS: Record<BillingAddonId, BillingAddonDefinition> = {
     tagline: "Kasse mit TSE",
     pitch:
       "Optionales Add-on zu jedem Plan: Kasse, Fiskalisierung, Quittungen und Zahlungsabwicklung.",
-    price: { monthlyEur: 29, yearlyPerMonthEur: 23 },
+    price: { monthlyEur: 59, yearlyPerMonthEur: 47 },
     feature: "module.pos",
     cardBullets: [
       "Kasse & Handgeräte",

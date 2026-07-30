@@ -404,16 +404,50 @@ export function RestaurantBillingPanel() {
       </div>
 
       <Card className="border-border/50 shadow-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Gegenüberstellung</CardTitle>
+        <CardHeader className="space-y-1 pb-2">
+          <CardTitle className="text-base">
+            In {BILLING_PLANS[currentPlan].name} enthalten
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Kurzüberblick für euren aktuellen Plan — die volle Matrix steht
+            darunter.
+          </p>
         </CardHeader>
         <CardContent>
-          <BillingComparisonTable compact />
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {BILLING_PLANS[currentPlan].cardBullets.map((b) => (
+              <li key={b} className="flex gap-2 text-sm text-muted-foreground">
+                <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+          {entitlements?.addons.includes("pos") ? (
+            <p className="mt-4 text-sm text-foreground">
+              Zusätzlich aktiv: <span className="font-medium">POS-Add-on</span>{" "}
+              (Kasse, TSE, Quittungen).
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 shadow-card" id="abo-vergleich">
+        <CardHeader className="space-y-1 pb-2">
+          <CardTitle className="text-base">
+            Was ist wann inklusive?
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Free · Basic · Pro im Vergleich. Unbegrenzte Mitarbeiter,
+            Reservierungen und Speisen gelten in jedem Plan.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <BillingComparisonTable />
           <p className="mt-4 text-xs text-muted-foreground">
-            POS ist ein Add-on ({pos.price.monthlyEur}€/Monat bzw.{" "}
-            {pos.price.yearlyPerMonthEur}€/Monat jährlich) und mit jedem Plan
-            kombinierbar. Gastzahlungen laufen über den Kassen-PSP — getrennt
-            von eurem Gwada-Abo.
+            POS-Add-on: {pos.price.monthlyEur}€/Monat bzw.{" "}
+            {pos.price.yearlyPerMonthEur}€/Monat jährlich — zu jedem Plan
+            buchbar. Gastzahlungen laufen über den Kassen-PSP, getrennt vom
+            Gwada-Abo.
           </p>
         </CardContent>
       </Card>

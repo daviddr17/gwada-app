@@ -385,8 +385,9 @@ export function PlatformStripeFeatureCard({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Katalogpreise: Basic 19/15€ · Pro 39/31€ · POS 29/23€ (Monatsäquivalent).
-        Test und Live haben getrennte Price-IDs.
+        Katalogpreise: Basic 49/39€ · Pro 99/79€ · POS 59/47€ (Monatsäquivalent).
+        Test und Live haben getrennte Price-IDs — „Katalog anlegen“ übernimmt
+        die aktuellen Beträge aus dem Code.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">

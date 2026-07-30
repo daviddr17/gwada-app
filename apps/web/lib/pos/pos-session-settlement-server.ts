@@ -5,6 +5,7 @@ import {
   canReleaseTableSession,
   deriveLinePaymentState,
   deriveSessionSettlementState,
+  normalizePosOrderCourse,
   openLineQuantity,
   type PosLinePaymentState,
 } from "@gwada/pos-domain";
@@ -36,7 +37,7 @@ export type SessionSummaryLine = {
   linePaymentState: PosLinePaymentState;
   notes: string | null;
   position: number;
-  course: string;
+  course: number;
   modifiers: unknown[];
   ohneIngredientIds: string[];
 };
@@ -111,7 +112,7 @@ async function loadSessionLines(
         vat_rate: number;
         notes: string | null;
         position: number;
-        course?: string | null;
+        course?: number | null;
         modifiers?: unknown;
         ohne_ingredient_ids?: string[] | null;
       }>;
@@ -168,7 +169,7 @@ async function loadSessionLines(
       vat_rate: number;
       notes: string | null;
       position: number;
-      course?: string | null;
+      course?: number | null;
       modifiers?: unknown;
       ohne_ingredient_ids?: string[] | null;
     }>,
@@ -188,7 +189,7 @@ function mapSummaryLine(row: {
   vat_rate: number;
   notes: string | null;
   position: number;
-  course?: string | null;
+  course?: number | null;
   modifiers?: unknown;
   ohne_ingredient_ids?: string[] | null;
 }): SessionSummaryLine {
@@ -212,7 +213,7 @@ function mapSummaryLine(row: {
     linePaymentState: deriveLinePaymentState(quantity, paidQuantity),
     notes: row.notes,
     position: row.position,
-    course: row.course ?? "other",
+    course: normalizePosOrderCourse(row.course),
     modifiers: Array.isArray(row.modifiers) ? row.modifiers : [],
     ohneIngredientIds: Array.isArray(row.ohne_ingredient_ids)
       ? row.ohne_ingredient_ids

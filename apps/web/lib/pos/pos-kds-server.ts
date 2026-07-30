@@ -28,7 +28,7 @@ export type PosKdsTicketLine = {
   id: string;
   name: string;
   quantity: number;
-  course: string;
+  course: number;
   notes: string | null;
   modifiers: unknown[];
   ohneIngredientIds: string[];

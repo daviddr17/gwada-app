@@ -1,6 +1,6 @@
 import "server-only";
 
-import { openLineQuantity } from "@gwada/pos-domain";
+import { normalizePosOrderCourse, openLineQuantity } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
 
@@ -69,7 +69,7 @@ export async function movePosOrderLines(params: {
     unit_price_cents: number;
     vat_rate: number;
     notes: string | null;
-    course: string;
+    course: number;
     ohne_ingredient_ids: string[] | null;
     modifiers: unknown;
     pos_orders: {
@@ -118,7 +118,7 @@ export async function movePosOrderLines(params: {
       vat_rate: line.vat_rate,
       line_total_cents: lineTotal,
       notes: line.notes,
-      course: line.course ?? "other",
+      course: normalizePosOrderCourse(line.course),
       ohne_ingredient_ids: line.ohne_ingredient_ids ?? [],
       modifiers: line.modifiers ?? [],
       position: insertRows.length,

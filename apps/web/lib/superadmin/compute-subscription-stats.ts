@@ -105,7 +105,7 @@ export function computeSubscriptionStats(
       payingCount += 1;
       mrrEur += catalogMonthlyEur(
         planId,
-        asInterval(row.interval),
+        asInterval(row.billing_interval),
         row.has_pos,
         asInterval(row.pos_interval),
       );

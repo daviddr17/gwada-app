@@ -50,7 +50,7 @@ export function SuperadminSubscriptionEditDrawer({
   useEffect(() => {
     if (!row || !open) return;
     setPlanId(row.plan_id || "free");
-    setInterval(row.interval || "month");
+    setInterval(row.billing_interval || "month");
     setStatus(row.status === "legacy" ? "legacy" : row.status || "active");
     setSource(row.source || "manual");
     setNotes(row.notes ?? "");

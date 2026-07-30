@@ -174,8 +174,8 @@ export function SuperadminSubscriptionsScreen() {
           {
             id: "interval",
             header: "Intervall",
-            sortValue: (r) => r.interval,
-            cell: (r) => billingIntervalLabel(r.interval),
+            sortValue: (r) => r.billing_interval,
+            cell: (r) => billingIntervalLabel(r.billing_interval),
           },
           {
             id: "status",
@@ -201,7 +201,9 @@ export function SuperadminSubscriptionsScreen() {
             sortValue: (r) =>
               catalogMonthlyEur(
                 r.plan_id as BillingPlanId,
-                (r.interval === "year" ? "year" : "month") as BillingInterval,
+                (r.billing_interval === "year"
+                  ? "year"
+                  : "month") as BillingInterval,
                 r.has_pos,
                 r.pos_interval === "year" ? "year" : "month",
               ),
@@ -210,7 +212,7 @@ export function SuperadminSubscriptionsScreen() {
                 (["free", "basic", "pro"].includes(r.plan_id)
                   ? r.plan_id
                   : "free") as BillingPlanId,
-                r.interval === "year" ? "year" : "month",
+                r.billing_interval === "year" ? "year" : "month",
                 r.has_pos,
                 r.pos_interval === "year" ? "year" : "month",
               );

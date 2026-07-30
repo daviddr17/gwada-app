@@ -19,8 +19,25 @@ enum PosDesign {
     static let statusFree = Color(.systemGray)
     static let statusOccupied = Color.accentColor
     static let statusBill = Color.orange
-    static let statusPaid = Color.green
+    static let statusPaid = green
     static let statusConflict = Color.red
+    static let statusAmber = Color(red: 0.85, green: 0.55, blue: 0.15)
+
+    // MARK: - Foundation tokens (Phase 1)
+
+    static let bg = Color(red: 0.96, green: 0.95, blue: 0.93)
+    static let surface = Color(red: 1.0, green: 0.99, blue: 0.97)
+    static let surface2 = Color(red: 0.94, green: 0.93, blue: 0.90)
+    static let line = Color(red: 0.85, green: 0.83, blue: 0.79)
+    static let ink = Color(red: 0.12, green: 0.11, blue: 0.10)
+    static let muted = Color(red: 0.45, green: 0.43, blue: 0.40)
+    static let brass = Color(red: 0.72, green: 0.58, blue: 0.32)
+    static let paper = Color(red: 0.98, green: 0.96, blue: 0.90)
+    static let green = Color(red: 0.22, green: 0.55, blue: 0.35)
+
+    static var fontDisplay: Font { .system(.largeTitle, design: .rounded).weight(.bold) }
+    static var fontBody: Font { .body }
+    static var fontMonoTabular: Font { .body.monospaced().monospacedDigit() }
 
     static var cardBackground: some ShapeStyle {
         Color(.secondarySystemGroupedBackground)
@@ -42,9 +59,9 @@ enum PosDesign {
     static func courseColor(_ course: Int) -> Color {
         switch course {
         case 1: return .orange
-        case 2: return .accentColor
+        case 2: return brass
         case 3: return .pink
-        default: return .secondary
+        default: return muted
         }
     }
 

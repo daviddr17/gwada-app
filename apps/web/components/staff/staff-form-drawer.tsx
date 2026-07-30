@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Camera, ChevronRight, Link2, Loader2, LogOut, Mail, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -16,6 +17,7 @@ import {
   staffDrawerFieldClassName,
   staffDrawerScrollClassName,
 } from "@/components/staff/staff-form-field-styles";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
@@ -55,7 +57,11 @@ import { hasModuleDelete, hasModuleRead } from "@/lib/permissions/module-crud-pe
 import { StaffTodoProfileSection } from "@/components/staff/todos/staff-todo-profile-section";
 import { StaffDocumentsProfileSection } from "@/components/staff/staff-documents-profile-section";
 import { useWorkspaceActiveRole } from "@/lib/hooks/use-workspace-active-role";
-import { isRestaurantOwnerRole } from "@/lib/types/employee-role";
+import {
+  isRestaurantOwnerRole,
+  isStaffOwnerRow,
+} from "@/lib/types/employee-role";
+import { staffOwnerBadgeClassName } from "@/lib/ui/staff-owner-row";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import {
   fetchRestaurantPositions,
@@ -199,6 +205,7 @@ export function StaffFormDrawer({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
+  const mountContent = useDeferredDrawerMount(open);
 
   const [givenName, setGivenName] = useState("");
   const [familyName, setFamilyName] = useState("");
@@ -388,35 +395,74 @@ export function StaffFormDrawer({
     void (async () => {
       const sb = createSupabaseBrowserClient();
       const { rows } = await fetchRestaurantPositions(sb, restaurantId);
-      setPositions(rows.filter((p) => p.slug !== "owner"));
+      setPositions(rows);
       if (shouldReset && mode === "create") {
         await loadDisplayPinSuggestion();
       }
     })();
   }, [open, resetFromStaff, restaurantId, mode, loadDisplayPinSuggestion, staff?.id]);
 
+  const editingOwner = mode === "edit" && staff != null && isStaffOwnerRow(staff);
+
   const invitePositions = useMemo(
     () => positions.filter((p) => p.slug !== "owner"),
     [positions],
   );
 
+  const roleSelectPositions = useMemo(() => {
+    if (!editingOwner) return invitePositions;
+    const ownerPos =
+      positions.find((p) => p.slug === "owner") ??
+      (staff?.restaurant_position
+        ? {
+            id: staff.restaurant_position.id,
+            restaurant_id: restaurantId,
+            name: staff.restaurant_position.name,
+            slug: staff.restaurant_position.slug,
+            description: null,
+            is_system: true,
+            sort_order: 10,
+            color: "#e11d48",
+          }
+        : null);
+    if (!ownerPos) return invitePositions;
+    if (invitePositions.some((p) => p.id === ownerPos.id)) return invitePositions;
+    return [ownerPos, ...invitePositions];
+  }, [
+    editingOwner,
+    invitePositions,
+    positions,
+    restaurantId,
+    staff?.restaurant_position,
+  ]);
+
   const selectedPosition = useMemo(
-    () => invitePositions.find((p) => p.id === positionRoleId) ?? null,
-    [invitePositions, positionRoleId],
+    () => roleSelectPositions.find((p) => p.id === positionRoleId) ?? null,
+    [roleSelectPositions, positionRoleId],
   );
 
   useEffect(() => {
-    if (!open || invitePositions.length === 0) return;
+    if (!open || roleSelectPositions.length === 0) return;
     if (!positionRoleId) return;
-    const valid = invitePositions.some((p) => p.id === positionRoleId);
+    const valid = roleSelectPositions.some((p) => p.id === positionRoleId);
     if (valid) return;
+    if (editingOwner && staff?.restaurant_position_id) {
+      setPositionRoleId(staff.restaurant_position_id);
+      return;
+    }
     const fromStaff =
       staff?.restaurant_position_id &&
-      invitePositions.some((p) => p.id === staff.restaurant_position_id)
+      roleSelectPositions.some((p) => p.id === staff.restaurant_position_id)
         ? staff.restaurant_position_id
         : "";
     setPositionRoleId(fromStaff);
-  }, [open, invitePositions, staff?.restaurant_position_id, positionRoleId]);
+  }, [
+    open,
+    roleSelectPositions,
+    staff?.restaurant_position_id,
+    positionRoleId,
+    editingOwner,
+  ]);
 
   useEffect(() => {
     if (!open || mode !== "edit" || !staff) return;
@@ -446,7 +492,9 @@ export function StaffFormDrawer({
       is_active: isActive,
       position_tag_id:
         positionTagId === STAFF_POSITION_TAG_NONE ? null : positionTagId,
-      restaurant_position_id: positionRoleId || null,
+      restaurant_position_id:
+        positionRoleId ||
+        (editingOwner ? staff?.restaurant_position_id ?? null : null),
     };
   }, [
     givenName,
@@ -464,6 +512,8 @@ export function StaffFormDrawer({
     isActive,
     positionTagId,
     positionRoleId,
+    editingOwner,
+    staff?.restaurant_position_id,
   ]);
 
   const displayName = [givenName, familyName].filter(Boolean).join(" ").trim();
@@ -795,6 +845,7 @@ export function StaffFormDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
+        {mountContent ? (
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div ref={scrollRef} className={staffDrawerScrollClassName}>
             <DrawerFormSection contentPadding={5} className="pt-2 pb-5">
@@ -956,13 +1007,29 @@ export function StaffFormDrawer({
                       Steuert die tatsächlichen Berechtigungen in der App (Dashboard,
                       Display, Module).
                     </p>
-                    <StaffRestaurantRoleSelect
-                      positions={invitePositions}
-                      value={positionRoleId}
-                      onValueChange={setPositionRoleId}
-                      aria-label="Rolle"
-                      placeholder="Rolle wählen …"
-                    />
+                    {editingOwner ? (
+                      <div className="flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-muted/15 px-3">
+                        <span className="text-sm font-medium">
+                          {selectedPosition
+                            ? formatRestaurantPositionLabel(selectedPosition)
+                            : "Inhaber"}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={staffOwnerBadgeClassName}
+                        >
+                          Inhaber
+                        </Badge>
+                      </div>
+                    ) : (
+                      <StaffRestaurantRoleSelect
+                        positions={invitePositions}
+                        value={positionRoleId}
+                        onValueChange={setPositionRoleId}
+                        aria-label="Rolle"
+                        placeholder="Rolle wählen …"
+                      />
+                    )}
                   </div>
                   <div className="flex h-11 items-center justify-between rounded-xl border border-border/50 px-3">
                     <Label htmlFor="staff-active" className="cursor-pointer">
@@ -1330,6 +1397,9 @@ export function StaffFormDrawer({
             onDelete={() => setDeleteOpen(true)}
           />
         </form>
+        ) : (
+          <div className={staffDrawerScrollClassName} aria-hidden aria-busy />
+        )}
       </DrawerContent>
 
       <ConfirmDialog

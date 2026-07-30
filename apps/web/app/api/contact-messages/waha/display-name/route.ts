@@ -1,6 +1,6 @@
 import { resolveWahaChatDisplayName } from "@/lib/contact-messages/waha-chat-display-name";
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,9 @@ export async function GET(req: Request) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    auth.restaurantId,
+  );
   if (!config) {
     return Response.json({ error: "waha_not_configured" }, { status: 503 });
   }

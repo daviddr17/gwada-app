@@ -3,6 +3,10 @@ import {
   parseRestaurantYmdKey,
   readRestaurantZonedParts,
 } from "@/lib/restaurant/restaurant-timezone";
+import {
+  dayHoursFromException,
+  dayHoursOpenPeriods,
+} from "@/lib/opening-hours/hours-periods";
 import type {
   DateHoursException,
   DayHours,
@@ -36,13 +40,7 @@ export function resolveHoursForLocalCalendarDay(
 ): DayHours {
   const key = localDateStringForDate(day);
   const ex = dateExceptions.find((e) => e.date === key);
-  if (ex) {
-    return {
-      closed: ex.closed,
-      open: ex.open,
-      close: ex.close,
-    };
-  }
+  if (ex) return dayHoursFromException(ex);
   return weeklyHours[jsDateToWeekday(day)];
 }
 
@@ -61,13 +59,7 @@ export function resolveHoursForRestaurantCalendarDay(
   dateExceptions: DateHoursException[],
 ): DayHours {
   const ex = dateExceptions.find((e) => e.date === ymd);
-  if (ex) {
-    return {
-      closed: ex.closed,
-      open: ex.open,
-      close: ex.close,
-    };
-  }
+  if (ex) return dayHoursFromException(ex);
   return weeklyHours[ymdToWeekday(ymd)];
 }
 
@@ -146,26 +138,17 @@ export function fallbackSlotRangeFromReservationsInTimezone(
  * Startminuten von Slots innerhalb der Öffnungszeiten (lokal).
  * @param stepMinutes z. B. 15 (grob) oder 1 (Minutentakt für Zeitleisten).
  */
-export function openingDaySlotStartsMinutes(
-  hours: DayHours,
-  fallback: { openMin: number; closeMin: number },
-  stepMinutes: number = 15,
+function slotStartsForWindow(
+  openM: number,
+  closeM: number,
+  step: number,
 ): number[] {
-  const step = Math.max(1, Math.min(60, Math.round(stepMinutes)));
-  let openM: number;
-  let closeM: number;
-  if (hours.closed || !hours.open?.trim() || !hours.close?.trim()) {
-    openM = fallback.openMin;
-    closeM = fallback.closeMin;
-  } else {
-    openM = hhmmToMinutes(hours.open);
-    closeM = hhmmToMinutes(hours.close);
-  }
-  if (closeM <= openM) {
-    closeM = Math.min(openM + step, 24 * 60 - step);
+  let close = closeM;
+  if (close <= openM) {
+    close = Math.min(openM + step, 24 * 60 - step);
   }
   const start = Math.ceil(openM / step) * step;
-  const end = Math.floor(closeM / step) * step;
+  const end = Math.floor(close / step) * step;
   const out: number[] = [];
   for (let t = start; t <= end && t < 24 * 60; t += step) {
     out.push(t);
@@ -174,6 +157,33 @@ export function openingDaySlotStartsMinutes(
     const mid = Math.min(Math.max(openM, 12 * 60), 24 * 60 - step);
     out.push(Math.floor(mid / step) * step);
   }
+  return out;
+}
+
+export function openingDaySlotStartsMinutes(
+  hours: DayHours,
+  fallback: { openMin: number; closeMin: number },
+  stepMinutes: number = 15,
+): number[] {
+  const step = Math.max(1, Math.min(60, Math.round(stepMinutes)));
+  const periods = dayHoursOpenPeriods(hours);
+  if (periods.length === 0) {
+    return slotStartsForWindow(fallback.openMin, fallback.closeMin, step);
+  }
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const period of periods) {
+    for (const t of slotStartsForWindow(
+      hhmmToMinutes(period.open),
+      hhmmToMinutes(period.close),
+      step,
+    )) {
+      if (seen.has(t)) continue;
+      seen.add(t);
+      out.push(t);
+    }
+  }
+  out.sort((a, b) => a - b);
   return out;
 }
 
@@ -196,14 +206,20 @@ export function openingDayBookableSlotStartsMinutes(
   const buffer = normalizeMinMinutesBeforeClosing(minMinutesBeforeClosing);
   if (buffer <= 0 || slots.length === 0) return slots;
 
-  let closeM: number;
-  if (hours.closed || !hours.close?.trim()) {
-    closeM = fallback.closeMin;
-  } else {
-    closeM = hhmmToMinutes(hours.close);
+  const periods = dayHoursOpenPeriods(hours);
+  if (periods.length === 0) {
+    const latestStartM = fallback.closeMin - buffer;
+    const filtered = slots.filter((m) => m <= latestStartM);
+    return filtered.length > 0 ? filtered : slots.slice(0, 1);
   }
-  const latestStartM = closeM - buffer;
-  const filtered = slots.filter((m) => m <= latestStartM);
+
+  const filtered = slots.filter((m) =>
+    periods.some((period) => {
+      const openM = hhmmToMinutes(period.open);
+      const closeM = hhmmToMinutes(period.close);
+      return m >= openM && m <= closeM - buffer;
+    }),
+  );
   return filtered.length > 0 ? filtered : slots.slice(0, 1);
 }
 

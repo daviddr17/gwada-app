@@ -18,8 +18,9 @@ export default function DocsApiRateLimitsPage() {
       <h2>Public API (Secret-Key, /api/v1/…)</h2>
       <p>
         <strong>{RESTAURANT_API_RATE_LIMIT_PER_MINUTE} Anfragen pro Minute</strong> pro
-        API-Schlüssel. Für typische Websites (ein Seitenaufruf, gelegentlicher Refresh)
-        ist das mehr als ausreichend.
+        API-Schlüssel — gilt für <code>GET</code> und <code>POST</code> (z. B.
+        Reservierung buchen). Für typische Websites (ein Seitenaufruf, gelegentlicher
+        Refresh) ist das mehr als ausreichend.
       </p>
       <p>
         Bei Überschreitung: <code>429 rate_limit_exceeded</code> mit Header{" "}

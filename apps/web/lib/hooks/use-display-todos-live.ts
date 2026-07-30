@@ -8,6 +8,7 @@ import {
   GWADA_DISPLAY_TODOS_LIVE_SYNC_EVENT,
   type DisplayTodoBadgeSnapshot,
 } from "@/lib/display/display-todos-live-events";
+import { handleDisplaySessionAuthFailure } from "@/lib/display/display-session-client";
 import type { DisplayTodosLiveSignal } from "@/lib/staff/display-todos-live-signal";
 import { parseDisplayTodosLiveRevision } from "@/lib/staff/display-todos-live-signal";
 
@@ -72,7 +73,11 @@ export function useDisplayTodosLive(enabled: boolean) {
           cache: "no-store",
           credentials: "include",
         });
-        if (!res.ok || cancelled) return;
+        if (!res.ok) {
+          if (!cancelled) await handleDisplaySessionAuthFailure(res);
+          return;
+        }
+        if (cancelled) return;
         const body = (await res.json()) as DisplayTodosLiveSignal;
         handleLiveSignal(body);
       } catch {

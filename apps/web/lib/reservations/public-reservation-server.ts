@@ -15,6 +15,7 @@ import {
   type PublicReservationUpdateBody,
 } from "@/lib/reservations/public-embed-shared";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
 } from "@/lib/reservations/reservation-guest-name";
@@ -27,10 +28,12 @@ import {
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
+import { isValidPublicPartySize } from "@/lib/reservations/reservation-party-size";
 import {
   reservationDateTimeChanged,
   shouldRescheduleTimedOutbox,
 } from "@/lib/reservations/reservation-datetime-reschedule";
+import { groupExceptionRowsToDateExceptions } from "@/lib/opening-hours/group-exception-rows";
 import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
@@ -80,17 +83,23 @@ export async function loadOpeningHoursAdmin(
   dateExceptions: DateHoursException[];
 }> {
   const weeklyHours = defaultWeeklyHours() as Record<Weekday, DayHours>;
-  const dateExceptions: DateHoursException[] = [];
   const { data, error } = await admin
     .from("opening_hours")
     .select(
-      "kind,weekday,exception_date,closed,opens_at,closes_at",
+      "kind,weekday,exception_date,closed,opens_at,closes_at,note",
     )
     .eq("restaurant_id", restaurantId);
   if (error) {
     console.warn("[gwada] embed opening_hours", error.message);
-    return { weeklyHours, dateExceptions };
+    return { weeklyHours, dateExceptions: [] };
   }
+  const exceptionRows: Array<{
+    exception_date: string | null;
+    closed: boolean;
+    opens_at: string | null;
+    closes_at: string | null;
+    note?: string | null;
+  }> = [];
   for (const raw of data ?? []) {
     const row = raw as {
       kind: string;
@@ -99,6 +108,7 @@ export async function loadOpeningHoursAdmin(
       closed: boolean;
       opens_at: string | null;
       closes_at: string | null;
+      note?: string | null;
     };
     if (row.kind === "weekly" && row.weekday) {
       weeklyHours[row.weekday] = {
@@ -107,16 +117,13 @@ export async function loadOpeningHoursAdmin(
         close: row.closed ? undefined : timeToHHmm(row.closes_at),
       };
     } else if (row.kind === "exception" && row.exception_date) {
-      dateExceptions.push({
-        id: row.exception_date,
-        date: row.exception_date,
-        closed: row.closed,
-        open: row.closed ? undefined : timeToHHmm(row.opens_at),
-        close: row.closed ? undefined : timeToHHmm(row.closes_at),
-      });
+      exceptionRows.push(row);
     }
   }
-  return { weeklyHours, dateExceptions };
+  return {
+    weeklyHours,
+    dateExceptions: groupExceptionRowsToDateExceptions(exceptionRows),
+  };
 }
 
 export async function fetchPublicEmbedRestaurant(
@@ -231,7 +238,7 @@ function honeypotFilled(website: string | undefined): boolean {
 }
 
 function validatePartySize(n: number): boolean {
-  return Number.isFinite(n) && n >= 1 && n <= 30;
+  return isValidPublicPartySize(n);
 }
 
 function validateIsoRange(startsAt: string, endsAt: string): boolean {
@@ -338,6 +345,7 @@ export async function createPublicReservation(
       (new Date(body.ends_at).getTime() - new Date(body.starts_at).getTime()) /
         60_000,
     ) || restaurant.defaultDwellMinutes;
+  const guestCompany = normalizeReservationGuestCompany(body.guest_company);
 
   const { data, error } = await admin
     .from("reservations")
@@ -345,6 +353,7 @@ export async function createPublicReservation(
       restaurant_id: restaurant.id,
       guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
       guest_last_name: normalizeReservationGuestLastName(body.guest_last_name),
+      guest_company: guestCompany,
       guest_phone: body.guest_phone?.trim() || null,
       guest_email: body.guest_email?.trim() || null,
       party_size: body.party_size,
@@ -371,6 +380,7 @@ export async function createPublicReservation(
     {
       guest_first_name: guestFirst,
       guest_last_name: guestLast,
+      guest_company: guestCompany,
       guest_phone: body.guest_phone?.trim() || null,
       guest_email: body.guest_email?.trim() || null,
       party_size: body.party_size,
@@ -396,6 +406,7 @@ export async function createPublicReservation(
       data.reservation_number as number,
       guestFirst,
       guestLast,
+      guestCompany,
     ),
     details: buildReservationLogDetails(
       buildReservationLogChanges(null, after, restaurant.timezone),
@@ -454,6 +465,7 @@ export async function loadPublicReservationForManage(
       reservation_number,
       guest_first_name,
       guest_last_name,
+      guest_company,
       guest_phone,
       guest_email,
       party_size,
@@ -485,6 +497,7 @@ export async function loadPublicReservationForManage(
       reservation_number: data.reservation_number,
       guest_first_name: data.guest_first_name,
       guest_last_name: data.guest_last_name,
+      guest_company: data.guest_company ?? null,
       guest_phone: data.guest_phone,
       guest_email: data.guest_email,
       party_size: data.party_size,
@@ -582,6 +595,7 @@ export async function updatePublicReservation(
   const patch = {
     guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
     guest_last_name: normalizeReservationGuestLastName(body.guest_last_name),
+    guest_company: normalizeReservationGuestCompany(body.guest_company),
     guest_phone: body.guest_phone?.trim() || null,
     guest_email: body.guest_email?.trim() || null,
     party_size: body.party_size,
@@ -606,6 +620,7 @@ export async function updatePublicReservation(
       {
         guest_first_name: existing.guest_first_name,
         guest_last_name: existing.guest_last_name,
+        guest_company: existing.guest_company,
         guest_phone: existing.guest_phone,
         guest_email: existing.guest_email,
         party_size: existing.party_size,
@@ -636,6 +651,7 @@ export async function updatePublicReservation(
         existing.reservation_number,
         patch.guest_first_name,
         patch.guest_last_name,
+        patch.guest_company,
       ),
       details: buildReservationLogDetails(
         buildReservationLogChanges(before, after, restaurantRes.data.timezone),
@@ -707,6 +723,7 @@ export async function updatePublicReservation(
     {
       guest_first_name: existing.guest_first_name,
       guest_last_name: existing.guest_last_name,
+      guest_company: existing.guest_company,
       guest_phone: existing.guest_phone,
       guest_email: existing.guest_email,
       party_size: existing.party_size,
@@ -737,6 +754,7 @@ export async function updatePublicReservation(
       existing.reservation_number,
       patch.guest_first_name,
       patch.guest_last_name,
+      patch.guest_company,
     ),
     details: buildReservationLogDetails(
       buildReservationLogChanges(before, after, restaurantRes.data.timezone),

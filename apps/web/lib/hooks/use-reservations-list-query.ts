@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import {
   peekReservationsMonthQueryPlaceholder,
   reservationsMonthQueryOptions,
@@ -31,6 +31,17 @@ export function useReservationsListQuery({
     [id, range.rangeEndExclusiveIso, range.rangeStartIso],
   );
 
+  const unconfirmedOptions = useMemo(
+    () => reservationsUnconfirmedQueryOptions(id),
+    [id],
+  );
+
+  /** Warm unconfirmed cache so the filter toggle does not wait on a cold fetch. */
+  useEffect(() => {
+    if (!enabled || !restaurantId) return;
+    void queryClient.prefetchQuery(unconfirmedOptions);
+  }, [enabled, restaurantId, queryClient, unconfirmedOptions]);
+
   const monthQuery = useQuery({
     ...monthOptions,
     enabled: enabled && Boolean(restaurantId) && !unconfirmedMode,
@@ -40,7 +51,7 @@ export function useReservationsListQuery({
   });
 
   const unconfirmedQuery = useQuery({
-    ...reservationsUnconfirmedQueryOptions(id),
+    ...unconfirmedOptions,
     enabled: enabled && Boolean(restaurantId) && unconfirmedMode,
   });
 

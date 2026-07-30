@@ -11,6 +11,12 @@
  */
 export const APP_LAYER_Z_INDEX = {
   chrome: 50,
+  /**
+   * Cold-Start Bootstrap-Skeleton — nur Content abdecken.
+   * Unter FAB + Mobile-Menü/Dock, sonst liegt das opake Overlay über dem
+   * Menü (pointer-events-none) und Modul-Taps treffen unsichtbare Ziele.
+   */
+  shellBootstrap: 110,
   fab: 120,
   /** Menü / Suche / Meldungen — über FABs, unter Sticky-Bottom-Nav. */
   mobileChromeOverlay: 130,

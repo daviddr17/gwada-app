@@ -1,7 +1,7 @@
 "use client";
 
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -36,6 +36,11 @@ import {
   type AccountingStatsPeriod,
 } from "@/lib/accounting/compute-accounting-statistics";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import {
+  accountingStatisticsCacheKey,
+  peekAccountingStatisticsCache,
+  writeAccountingStatisticsCache,
+} from "@/lib/accounting/accounting-list-client-cache";
 import { fetchAccountingStatisticsBundle } from "@/lib/supabase/accounting-analytics-db";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -85,12 +90,37 @@ export function AccountingStatisticsScreen() {
     ReturnType<typeof fetchAccountingStatisticsBundle>
   >["data"]>(null);
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showSkeleton = useDeferredSkeleton(loading && !bundle);
+  const statsCacheKey = restaurantId
+    ? accountingStatisticsCacheKey(restaurantId, period)
+    : null;
+
+  useLayoutEffect(() => {
+    if (!statsCacheKey) return;
+    const cached = peekAccountingStatisticsCache(statsCacheKey);
+    if (!cached?.bundle) return;
+    setBundle(
+      cached.bundle as Awaited<
+        ReturnType<typeof fetchAccountingStatisticsBundle>
+      >["data"],
+    );
+    setLoading(false);
+  }, [statsCacheKey]);
 
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!restaurantId || !statsCacheKey) return;
     let cancel = false;
-    setLoading(true);
+    const cached = peekAccountingStatisticsCache(statsCacheKey);
+    if (cached?.bundle) {
+      setBundle(
+        cached.bundle as Awaited<
+          ReturnType<typeof fetchAccountingStatisticsBundle>
+        >["data"],
+      );
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     void (async () => {
       const { data, error } = await fetchAccountingStatisticsBundle({
         restaurantId,
@@ -99,12 +129,20 @@ export function AccountingStatisticsScreen() {
       if (cancel) return;
       setLoading(false);
       if (error) toast.error(error);
-      else setBundle(data);
+      else {
+        setBundle(data);
+        if (data) {
+          writeAccountingStatisticsCache(statsCacheKey, {
+            monthsBack: period,
+            bundle: data,
+          });
+        }
+      }
     })();
     return () => {
       cancel = true;
     };
-  }, [restaurantId, period]);
+  }, [restaurantId, period, statsCacheKey]);
 
   const stats = useMemo(() => {
     if (!bundle) return null;

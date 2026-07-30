@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useLayoutEffect, useRef } from "react";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -13,6 +13,7 @@ import {
 import { scheduleModuleSubnavRoutePrefetches } from "@/lib/hooks/module-subnav-route-prefetch";
 import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +95,7 @@ export function ModuleChipNav({
         !restaurantId ||
         !isUuidRestaurantId(restaurantId)
       ) {
-        router.prefetch(href);
+        prefetchAppModuleHref(router, href);
         return;
       }
       warmModuleRouteIntent(router, queryClient, restaurantId, href);
@@ -137,7 +138,7 @@ export function ModuleChipNav({
                   layout="text"
                   onPointerEnter={() => warmOnIntent(item.href)}
                   onFocus={() => warmOnIntent(item.href)}
-                  render={<Link href={item.href} prefetch scroll={false} />}
+                  render={<AppNavLink href={item.href} />}
                 >
                   <span>{item.label}</span>
                 </SidebarMenuButton>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
@@ -18,6 +18,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import { FeedPinButton } from "@/components/feed-pin/feed-pin-button";
 import { NewsInsightsBadges } from "@/components/news/news-insights-badges";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
@@ -25,6 +26,8 @@ import {
   NEWS_PLATFORM_LABELS,
   type NewsPlatform,
 } from "@/lib/constants/news-platforms";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
+import { formatNewsDetailDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
 import { cn } from "@/lib/utils";
@@ -36,8 +39,6 @@ const STATUS_LABELS: Record<UnifiedNewsItem["status"], string> = {
   failed: "Fehlgeschlagen",
   archived: "Archiviert",
 };
-
-import { formatNewsCardDate, formatNewsDetailDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
 
 function platformOpenUrl(
   item: UnifiedNewsItem,
@@ -74,6 +75,7 @@ export function NewsDetailDrawer({
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const mountContent = useDeferredDrawerMount(open);
 
   const isGwadaEditable =
     canManage &&
@@ -169,119 +171,138 @@ export function NewsDetailDrawer({
           <p className="text-sm text-muted-foreground">{publishedLabel}</p>
         </DrawerHeader>
 
-        <DrawerFormBody>
-        <div className={drawerScrollAreaClassName(4)}>
-          {mediaSrc ? (
-            <DrawerFormSection contentPadding={4}>
-            <div className="overflow-hidden rounded-xl">
-              {preview?.kind === "video" ? (
-                <video
-                  src={mediaSrc}
-                  className="max-h-64 w-full object-cover"
-                  controls
-                  playsInline
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={mediaSrc} alt="" className="max-h-64 w-full object-cover" />
-              )}
-            </div>
-            </DrawerFormSection>
-          ) : null}
-
-          <DrawerFormSection contentPadding={4} title="Inhalt">
-          {isGwadaEditable ? (
-            <>
-              <Input
-                placeholder="Titel (optional)"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-              <Textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={6}
-              />
-            </>
-          ) : (
-            <>
-              {item.title ? (
-                <p className="font-medium leading-snug">{item.title}</p>
+        {mountContent ? (
+          <DrawerFormBody>
+            <div className={drawerScrollAreaClassName(4)}>
+              {mediaSrc ? (
+                <DrawerFormSection contentPadding={4}>
+                  <div className="overflow-hidden rounded-xl">
+                    {preview?.kind === "video" ? (
+                      <video
+                        src={mediaSrc}
+                        poster={preview.thumbUrl ?? undefined}
+                        className="max-h-64 w-full object-cover"
+                        controls
+                        playsInline
+                        preload="metadata"
+                      />
+                    ) : (
+                      <FeedMediaImage
+                        src={mediaSrc}
+                        thumbSrc={preview?.thumbUrl}
+                        blurDataUrl={preview?.blurDataUrl}
+                        width={preview?.width}
+                        height={preview?.height}
+                        alt=""
+                        className="max-h-64 w-full"
+                        imgClassName="max-h-64 w-full object-cover"
+                        fit="cover"
+                        priority
+                      />
+                    )}
+                  </div>
+                </DrawerFormSection>
               ) : null}
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                {item.body}
-              </p>
-            </>
-          )}
-          </DrawerFormSection>
 
-          {item.insights || externalUrl || (item.source === "external" && !item.canEdit) || (canManage && item.status !== "archived") ? (
-          <DrawerFormSection contentPadding={4} title="Aktionen">
-          {item.insights ? (
-            <NewsInsightsBadges insights={item.insights} className="text-sm" />
-          ) : null}
+              <DrawerFormSection contentPadding={4} title="Inhalt">
+                {isGwadaEditable ? (
+                  <>
+                    <Input
+                      placeholder="Titel (optional)"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                    <Textarea
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      rows={6}
+                    />
+                  </>
+                ) : (
+                  <>
+                    {item.title ? (
+                      <p className="font-medium leading-snug">{item.title}</p>
+                    ) : null}
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                      {item.body}
+                    </p>
+                  </>
+                )}
+              </DrawerFormSection>
 
-          {externalUrl ? (
-            <a
-              href={externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted",
-              )}
-            >
-              <ExternalLink className="size-4" />
-              Auf {NEWS_PLATFORM_LABELS[platform]} öffnen
-            </a>
-          ) : item.source === "external" && !item.canEdit ? (
-            <p className="text-xs text-muted-foreground">
-              Bearbeiten ist nur direkt auf {NEWS_PLATFORM_LABELS[platform]} möglich.
-            </p>
-          ) : null}
+              {item.insights ||
+              externalUrl ||
+              (item.source === "external" && !item.canEdit) ||
+              (canManage && item.status !== "archived") ? (
+                <DrawerFormSection contentPadding={4} title="Aktionen">
+                  {item.insights ? (
+                    <NewsInsightsBadges insights={item.insights} className="text-sm" />
+                  ) : null}
 
-          {canManage && item.status !== "archived" ? (
-            <FeedPinButton
-              restaurantId={restaurantId}
-              module="news"
-              platform={item.platform}
-              itemId={item.id}
-              isPinned={Boolean(item.isPinned)}
-              onChanged={(nextPinned) => onChanged(nextPinned)}
-            />
-          ) : null}
-          </DrawerFormSection>
-          ) : null}
-        </div>
+                  {externalUrl ? (
+                    <a
+                      href={externalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(
+                        "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted",
+                      )}
+                    >
+                      <ExternalLink className="size-4" />
+                      Auf {NEWS_PLATFORM_LABELS[platform]} öffnen
+                    </a>
+                  ) : item.source === "external" && !item.canEdit ? (
+                    <p className="text-xs text-muted-foreground">
+                      Bearbeiten ist nur direkt auf {NEWS_PLATFORM_LABELS[platform]} möglich.
+                    </p>
+                  ) : null}
 
-        {isGwadaEditable ? (
-          <DrawerFooter className="border-t border-border/50 pt-2">
-            <DrawerFormFooter
-              onCancel={() => onOpenChange(false)}
-              cancelDisabled={pending}
-              submitLabel="Speichern"
-              submitPending={saving}
-              submitDisabled={deleting}
-              submitType="button"
-              onSubmit={() => void save()}
-              showDelete
-              deleteLabel="Archivieren"
-              deleteDisabled={pending}
-              onDelete={() => void remove()}
-            />
-          </DrawerFooter>
+                  {canManage && item.status !== "archived" ? (
+                    <FeedPinButton
+                      restaurantId={restaurantId}
+                      module="news"
+                      platform={item.platform}
+                      itemId={item.id}
+                      isPinned={Boolean(item.isPinned)}
+                      onChanged={(nextPinned) => onChanged(nextPinned)}
+                    />
+                  ) : null}
+                </DrawerFormSection>
+              ) : null}
+            </div>
+
+            {isGwadaEditable ? (
+              <DrawerFooter className="border-t border-border/50 pt-2">
+                <DrawerFormFooter
+                  onCancel={() => onOpenChange(false)}
+                  cancelDisabled={pending}
+                  submitLabel="Speichern"
+                  submitPending={saving}
+                  submitDisabled={deleting}
+                  submitType="button"
+                  onSubmit={() => void save()}
+                  showDelete
+                  deleteLabel="Archivieren"
+                  deleteDisabled={pending}
+                  onDelete={() => void remove()}
+                />
+              </DrawerFooter>
+            ) : (
+              <DrawerFooter className="border-t border-border/50 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn("h-12 w-full rounded-xl")}
+                  onClick={() => onOpenChange(false)}
+                >
+                  Schließen
+                </Button>
+              </DrawerFooter>
+            )}
+          </DrawerFormBody>
         ) : (
-          <DrawerFooter className="border-t border-border/50 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              className={cn("h-12 w-full rounded-xl")}
-              onClick={() => onOpenChange(false)}
-            >
-              Schließen
-            </Button>
-          </DrawerFooter>
+          <div className={drawerScrollAreaClassName(4)} aria-hidden aria-busy />
         )}
-        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

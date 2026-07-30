@@ -12,6 +12,8 @@ export type PrintTableDocumentOptions = {
   summaryLine?: string;
   /** Querformat für breite Tabellen (Standard). */
   landscape?: boolean;
+  /** Ziel-Zeilen pro A4-Seite (PDF-Pfad). */
+  rowsPerPage?: number | null;
   columnStyles?: Record<
     number,
     { cellWidth?: number; halign?: "left" | "center" | "right" }
@@ -186,6 +188,7 @@ export async function printTableDocument(
       restaurantName: options.restaurantName,
       summaryLine: options.summaryLine,
       orientation: "landscape",
+      rowsPerPage: options.rowsPerPage,
       columnStyles: options.columnStyles,
     });
   }

@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DisplayBrandedBackground } from "@/components/display/display-branded-background";
+import { DisplayRestaurantLogo } from "@/components/display/display-restaurant-logo";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
+import { displayRestaurantInitials } from "@/lib/display/display-avatar-utils";
+import { displayRestaurantLogoPinClassName } from "@/lib/ui/display-restaurant-branding";
 import { cn } from "@/lib/utils";
 
 export function DisplayPinStandbyBackground({
@@ -65,10 +68,10 @@ export function DisplayPinStandbyClock({
 
   return (
     <div className={cn("select-none text-center", className)}>
-      <p className="text-[clamp(3.5rem,14vw,6.5rem)] font-extralight leading-none tracking-tight tabular-nums text-foreground">
+      <p className="text-[clamp(1.75rem,min(10vw,6.5dvh),3.5rem)] font-extralight leading-none tracking-tight tabular-nums text-foreground">
         {timeLabel}
       </p>
-      <p className="mt-3 text-lg font-medium capitalize text-foreground/85 sm:text-xl">
+      <p className="mt-[clamp(0.2rem,0.7dvh,0.4rem)] text-[clamp(0.8rem,1.7dvh,1.05rem)] font-medium capitalize text-foreground/85">
         {dateLabel}
       </p>
     </div>
@@ -78,11 +81,15 @@ export function DisplayPinStandbyClock({
 /** Profil-Mesh + Uhr für Display-PIN / Sperrbildschirm. */
 export function DisplayPinStandbyScene({
   accentHex,
+  restaurantName,
+  restaurantAvatarUrl,
   enabled = true,
   className,
   children,
 }: {
   accentHex: string;
+  restaurantName?: string | null;
+  restaurantAvatarUrl?: string | null;
   enabled?: boolean;
   className?: string;
   children?: ReactNode;
@@ -91,29 +98,50 @@ export function DisplayPinStandbyScene({
     return <>{children}</>;
   }
 
+  const trimmedName = restaurantName?.trim() ?? "";
+  const showBrand = Boolean(trimmedName) || Boolean(restaurantAvatarUrl);
+
   return (
-    <div className="relative flex min-h-0 w-full flex-1 flex-col">
+    <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
       <DisplayPinStandbyBackground accentHex={accentHex} />
+      {/*
+        Logo/Uhr oben fest, PIN-Pad in der Restfläche zentriert.
+        Kein justify-center auf dem Gesamtstack — sonst clippt overflow
+        Logo unter den sticky Header und 0/Zurück in den Footer.
+      */}
       <div
         className={cn(
-          "relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-8 px-6 py-6",
+          "relative z-10 flex min-h-0 flex-1 flex-col items-center px-4 pt-[clamp(0.5rem,1.6dvh,1rem)] pb-[clamp(0.65rem,2dvh,1.15rem)]",
           className,
         )}
       >
-        <DisplayPinStandbyClock />
-        {children}
+        {showBrand ? (
+          <div className="flex max-w-full shrink-0 flex-col items-center gap-1.5">
+            <DisplayRestaurantLogo
+              src={restaurantAvatarUrl}
+              initials={displayRestaurantInitials(trimmedName || "?")}
+              alt={trimmedName}
+              size="card"
+              variant="card"
+              className={cn(
+                displayRestaurantLogoPinClassName,
+                !restaurantAvatarUrl &&
+                  "text-base font-semibold text-muted-foreground sm:text-lg",
+              )}
+              imageClassName="size-full object-contain p-1.5"
+            />
+            {trimmedName ? (
+              <p className="max-w-[min(20rem,90vw)] truncate text-center text-sm font-medium tracking-tight text-foreground/90 sm:text-base">
+                {trimmedName}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        <DisplayPinStandbyClock className="mt-[clamp(0.35rem,1.2dvh,0.75rem)] shrink-0" />
+        <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden pt-[clamp(0.35rem,1.2dvh,0.75rem)]">
+          {children}
+        </div>
       </div>
     </div>
   );
-}
-
-/** @deprecated Alias — Hintergrund separat. */
-export function DisplayPinScreensaverBackground({
-  accentHex,
-  className,
-}: {
-  accentHex: string;
-  className?: string;
-}) {
-  return <DisplayPinStandbyBackground accentHex={accentHex} className={className} />;
 }

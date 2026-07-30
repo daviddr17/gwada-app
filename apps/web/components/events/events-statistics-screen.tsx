@@ -131,7 +131,7 @@ export function EventsStatisticsScreen() {
   }
 
   return (
-    <div className="space-y-6 px-4 pb-4 sm:px-6">
+    <div className="space-y-6 pb-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
         <div
           className="flex flex-wrap gap-1 rounded-xl border border-border/50 bg-muted/30 p-1"

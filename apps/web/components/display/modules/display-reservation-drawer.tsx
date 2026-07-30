@@ -14,6 +14,10 @@ import {
 import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import {
+  isValidStaffPartySize,
+  RESERVATION_PARTY_SIZE_MAX_STAFF,
+} from "@/lib/reservations/reservation-party-size";
+import {
   displayTouchNumericInputProps,
   displayTouchPhoneLocalInputMode,
   digitsOnlyInput,
@@ -69,6 +73,7 @@ import {
 } from "@/lib/restaurant/restaurant-timezone";
 import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
 } from "@/lib/reservations/reservation-guest-name";
@@ -140,6 +145,7 @@ export function DisplayReservationDrawer({
   const [saving, setSaving] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [company, setCompany] = useState("");
   const [phoneCountryIso, setPhoneCountryIso] = useState("DE");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
@@ -170,6 +176,7 @@ export function DisplayReservationDrawer({
       const confirmed = statuses.find((s) => s.code === "confirmed");
       setFirstName("");
       setLastName("");
+      setCompany("");
       setPartySize("2");
       setDateYmd(initialDayYmd.trim() || restaurantTodayYmd(timeZone));
       const resolvedDayYmd = initialDayYmd.trim() || restaurantTodayYmd(timeZone);
@@ -225,8 +232,10 @@ export function DisplayReservationDrawer({
 
   const submit = async () => {
     const ps = Number.parseInt(partySize, 10);
-    if (!Number.isFinite(ps) || ps < 1 || ps > 50) {
-      toast.error("Personenzahl zwischen 1 und 50.");
+    if (!isValidStaffPartySize(ps)) {
+      toast.error(
+        `Personenzahl zwischen 1 und ${RESERVATION_PARTY_SIZE_MAX_STAFF}.`,
+      );
       return;
     }
     if (!dateYmd.trim()) {
@@ -272,6 +281,7 @@ export function DisplayReservationDrawer({
         body: JSON.stringify({
           guest_first_name: normalizeReservationGuestFirstName(firstName),
           guest_last_name: normalizeReservationGuestLastName(lastName),
+          guest_company: normalizeReservationGuestCompany(company),
           guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
           guest_email: email.trim() || null,
           party_size: ps,
@@ -375,7 +385,7 @@ export function DisplayReservationDrawer({
                     {...displayTouchNumericInputProps}
                     value={partySize}
                     onChange={(e) =>
-                      setPartySize(digitsOnlyInput(e.target.value, 2))
+                      setPartySize(digitsOnlyInput(e.target.value, 3))
                     }
                     className={cn(fieldClass, "tabular-nums")}
                   />
@@ -432,6 +442,23 @@ export function DisplayReservationDrawer({
                     className={fieldClass}
                   />
                 </div>
+              </div>
+
+              <div className={drawerFormFieldGroupClassName}>
+                <Label htmlFor="disp-res-company" className="text-xs text-muted-foreground">
+                  Firmenname{" "}
+                  <span className="font-normal text-muted-foreground/80">
+                    (optional)
+                  </span>
+                </Label>
+                <Input
+                  id="disp-res-company"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className={fieldClass}
+                  maxLength={200}
+                  autoComplete="organization"
+                />
               </div>
 
               <div className={drawerTwoColClass}>

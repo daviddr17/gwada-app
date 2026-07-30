@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings, UserRound } from "lucide-react";
 import { AppBrandedBackground } from "@/components/layout/app-branded-background";
@@ -18,6 +17,8 @@ import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-ove
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
+import { AppModuleHomeKeepAlives } from "@/components/navigation/app-module-home-keep-alives";
+import { SoftNavPendingOverlay } from "@/components/navigation/soft-nav-pending-overlay";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -29,6 +30,7 @@ import {
   AppModuleChromeProvider,
   useAppModuleChrome,
 } from "@/lib/contexts/app-module-chrome-context";
+import { ModuleHomeKeepAliveProvider } from "@/lib/contexts/module-home-keep-alive-context";
 import {
   DashboardGlobalSearchChrome,
   DashboardGlobalSearchTrigger,
@@ -129,7 +131,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
                 size="icon-sm"
                 className="shrink-0 rounded-full border-border/60"
                 aria-label="Profil"
-                render={<AppNavLink href={APP_ROUTES.profile.personal} prefetch />}
+                render={<AppNavLink href={APP_ROUTES.profile.personal} />}
               >
                 <UserRound className="size-4" />
               </Button>
@@ -138,7 +140,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
                 size="icon-sm"
                 className="shrink-0 rounded-full border-border/60"
                 aria-label="Einstellungen"
-                render={<Link href={APP_ROUTES.settings.root} prefetch />}
+                render={<AppNavLink href={APP_ROUTES.settings.root} />}
               >
                 <Settings className="size-4" />
               </Button>
@@ -195,8 +197,14 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
         <div className="relative z-[1]">
-          <WorkspaceZoneTransition>{children}</WorkspaceZoneTransition>
+          <WorkspaceZoneTransition>
+            {children}
+          </WorkspaceZoneTransition>
+          {/* Soft-Nav: Modul-Homes warm — Sibling, kein Route-Unmount */}
+          <AppModuleHomeKeepAlives />
         </div>
+        {/* Sibling — deckt alten Content sofort ab, unmountet den Flight nicht */}
+        <SoftNavPendingOverlay />
       </div>
 
       <AppMobileBottomNav />
@@ -209,11 +217,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AuthLogoutTransitionProvider>
         <AppModuleChromeProvider>
-          <DashboardGlobalSearchChrome>
-            <AppSidebar />
-            <AppInsetWithChrome>{children}</AppInsetWithChrome>
-            <DashboardUploadOverlay />
-          </DashboardGlobalSearchChrome>
+          <ModuleHomeKeepAliveProvider>
+            <DashboardGlobalSearchChrome>
+              <AppSidebar />
+              <AppInsetWithChrome>{children}</AppInsetWithChrome>
+              <DashboardUploadOverlay />
+            </DashboardGlobalSearchChrome>
+          </ModuleHomeKeepAliveProvider>
         </AppModuleChromeProvider>
       </AuthLogoutTransitionProvider>
     </SidebarProvider>

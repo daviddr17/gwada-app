@@ -7,6 +7,7 @@ import { AppleGlyph } from "@/components/icons/apple-glyph";
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
+import { MicrosoftGlyph } from "@/components/icons/microsoft-glyph";
 import { IntegrationProviderCard } from "@/components/superadmin/integration-provider-card";
 import { PlatformEmailSmtpCard } from "@/components/superadmin/platform-email-smtp-card";
 import { PlatformFiskalyFeatureCard } from "@/components/superadmin/platform-fiskaly-feature-card";
@@ -35,6 +36,7 @@ import { cn } from "@/lib/utils";
 
 const OAUTH_ORDER = [
   "google_oauth",
+  "microsoft_oauth",
   "apple_oauth",
   "facebook",
   "instagram",
@@ -53,8 +55,15 @@ const OAUTH_META: Record<
   google_oauth: {
     title: "Google OAuth",
     description:
-      "Anmeldung und Registrierung mit Google. Client-ID und Secret hier pflegen; Redirect in der Google Cloud Console: …/api/auth/google/callback. Dieselbe Client-ID zusätzlich am Auth-Server (SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID/SECRET, muss übereinstimmen).",
+      "Login und Gmail-Postfach (Restaurant-E-Mail). Client-ID/Secret hier; Redirects in der Google Cloud Console: …/api/auth/google/callback und …/api/integrations/email/gmail/callback. Gmail-API aktivieren. Auth-Server: SUPABASE_AUTH_EXTERNAL_GOOGLE_* muss übereinstimmen.",
     icon: <GoogleGlyph />,
+    configurable: true,
+  },
+  microsoft_oauth: {
+    title: "Microsoft OAuth",
+    description:
+      "Outlook / Microsoft 365 für Restaurant-E-Mail. App-Registrierung in Azure (Entra ID): Redirect …/api/integrations/email/outlook/callback, IMAP.AccessAsUser.All + SMTP.Send + offline_access. Client-Secret hier hinterlegen.",
+    icon: <MicrosoftGlyph />,
     configurable: true,
   },
   apple_oauth: {
@@ -89,6 +98,12 @@ const OAUTH_META: Record<
 
 const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow> = {
   google_oauth: { key: "google_oauth", enabled: false, config: {}, updated_at: "" },
+  microsoft_oauth: {
+    key: "microsoft_oauth",
+    enabled: false,
+    config: {},
+    updated_at: "",
+  },
   apple_oauth: { key: "apple_oauth", enabled: false, config: {}, updated_at: "" },
   facebook: { key: "facebook", enabled: false, config: {}, updated_at: "" },
   instagram: { key: "instagram", enabled: false, config: {}, updated_at: "" },

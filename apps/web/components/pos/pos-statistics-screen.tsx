@@ -48,9 +48,24 @@ import {
   posApiErrorLabel,
   type PosWebStatisticsDto,
 } from "@/lib/pos/pos-web-api-client";
+import {
+  LIST_PAGE_SIZE_DEFAULT,
+  clampListPage,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
 import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
-import { ModuleDataTableFrame } from "@/lib/ui/module-paginated-data-table";
+import {
+  ModuleDataTableFrame,
+  ModulePaginatedDataTable,
+} from "@/lib/ui/module-paginated-data-table";
+import {
+  ModuleTableSortHeader,
+  type ModuleTableSortDir,
+} from "@/lib/ui/module-table-sort-header";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+
+type ItemSortKey = "quantity" | "name" | "revenue" | "orders";
 
 type PeriodPreset = "today" | "7" | "30" | "custom";
 
@@ -114,6 +129,10 @@ export function PosStatisticsScreen() {
   const [toYmd, setToYmd] = useState(today);
   const [stats, setStats] = useState<PosWebStatisticsDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [itemSearch, setItemSearch] = useState("");
+  const [itemPage, setItemPage] = useState(1);
+  const [itemSortKey, setItemSortKey] = useState<ItemSortKey>("quantity");
+  const [itemSortDir, setItemSortDir] = useState<ModuleTableSortDir>("desc");
   const showSkeleton = useDeferredSkeleton(!ready || loading);
 
   const applyPreset = (next: PeriodPreset) => {
@@ -208,6 +227,51 @@ export function PosStatisticsScreen() {
       },
     ].filter((r) => r.value > 0);
   }, [stats]);
+
+  const toggleItemSort = (key: ItemSortKey) => {
+    if (itemSortKey !== key) {
+      setItemSortKey(key);
+      setItemSortDir(key === "name" ? "asc" : "desc");
+      return;
+    }
+    setItemSortDir((d) => (d === "asc" ? "desc" : "asc"));
+  };
+
+  const sortedItems = useMemo(() => {
+    const q = itemSearch.trim().toLowerCase();
+    let rows = stats?.byItem ?? [];
+    if (q) {
+      rows = rows.filter((r) => r.name.toLowerCase().includes(q));
+    }
+    const mul = itemSortDir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      switch (itemSortKey) {
+        case "name":
+          return a.name.localeCompare(b.name, "de") * mul;
+        case "revenue":
+          return (a.lineTotalCents - b.lineTotalCents) * mul;
+        case "orders":
+          return (a.orderCount - b.orderCount) * mul;
+        case "quantity":
+        default:
+          return (a.quantity - b.quantity) * mul;
+      }
+    });
+  }, [stats?.byItem, itemSearch, itemSortKey, itemSortDir]);
+
+  const itemTotalPages = totalPagesFromCount(
+    sortedItems.length,
+    LIST_PAGE_SIZE_DEFAULT,
+  );
+  const itemCurrentPage = clampListPage(itemPage, itemTotalPages);
+  const paginatedItems = useMemo(() => {
+    const start = (itemCurrentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
+    return sortedItems.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
+  }, [sortedItems, itemCurrentPage]);
+
+  useEffect(() => {
+    setItemPage(1);
+  }, [fromYmd, toYmd, itemSearch, itemSortKey, itemSortDir]);
 
   if (!ready) {
     return <WorkspaceRestaurantResolvePlaceholder className="py-10" />;
@@ -451,6 +515,102 @@ export function PosStatisticsScreen() {
               )}
             </CardContent>
           </Card>
+
+          <div className="space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold">Artikel-Auswertung</h2>
+                <p className="text-sm text-muted-foreground">
+                  Wie oft welcher Artikel im Zeitraum verkauft wurde (bezahlte
+                  Bestellungen).
+                </p>
+              </div>
+              <Input
+                value={itemSearch}
+                onChange={(e) => setItemSearch(e.target.value)}
+                placeholder="Artikel suchen…"
+                className="h-10 sm:max-w-xs"
+              />
+            </div>
+            {sortedItems.length === 0 ? (
+              <Card className="border-border/50 shadow-card">
+                <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                  Keine verkauften Artikel im Zeitraum.
+                </CardContent>
+              </Card>
+            ) : (
+              <ModulePaginatedDataTable
+                shown={paginatedItems.length}
+                totalCount={sortedItems.length}
+                itemLabel="Artikel"
+                page={itemCurrentPage}
+                totalPages={itemTotalPages}
+                canPrevious={itemCurrentPage > 1}
+                canNext={itemCurrentPage < itemTotalPages}
+                onPrevious={() => setItemPage((p) => Math.max(1, p - 1))}
+                onNext={() =>
+                  setItemPage((p) => Math.min(itemTotalPages, p + 1))
+                }
+              >
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={moduleDataTableHeadRowClassName}>
+                      <ModuleTableSortHeader
+                        label="Artikel"
+                        sortKey="name"
+                        activeKey={itemSortKey}
+                        dir={itemSortDir}
+                        onSort={toggleItemSort}
+                      />
+                      <ModuleTableSortHeader
+                        label="Menge"
+                        sortKey="quantity"
+                        activeKey={itemSortKey}
+                        dir={itemSortDir}
+                        onSort={toggleItemSort}
+                        align="right"
+                      />
+                      <ModuleTableSortHeader
+                        label="Umsatz"
+                        sortKey="revenue"
+                        activeKey={itemSortKey}
+                        dir={itemSortDir}
+                        onSort={toggleItemSort}
+                        align="right"
+                      />
+                      <ModuleTableSortHeader
+                        label="Bons"
+                        sortKey="orders"
+                        activeKey={itemSortKey}
+                        dir={itemSortDir}
+                        onSort={toggleItemSort}
+                        align="right"
+                      />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedItems.map((item) => (
+                      <tr
+                        key={item.menuItemId ?? item.name}
+                        className="border-t border-border/40"
+                      >
+                        <td className="px-3 py-2.5 font-medium">{item.name}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {item.quantity}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {formatCents(item.lineTotalCents)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                          {item.orderCount}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ModulePaginatedDataTable>
+            )}
+          </div>
 
           <Card className="border-border/50 shadow-card">
             <CardHeader className="pb-2">

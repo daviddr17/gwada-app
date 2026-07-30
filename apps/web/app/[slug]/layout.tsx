@@ -1,8 +1,15 @@
 import { PublicThemeToggleDeferred } from "@/components/public/public-theme-toggle-deferred";
-import { EmbedProviders } from "@/components/providers/embed-providers";
+import { PublicProfileProviders } from "@/components/providers/public-profile-providers";
 import "../marketing-surface.css";
 
 export const revalidate = 60;
+
+/** CDN/Browser: kurzes HTML-Caching (stimmt mit `revalidate = 60`). */
+export async function headers() {
+  return {
+    "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+  };
+}
 
 export default function PublicRestaurantProfileLayout({
   children,
@@ -10,11 +17,11 @@ export default function PublicRestaurantProfileLayout({
   children: React.ReactNode;
 }) {
   return (
-    <EmbedProviders>
+    <PublicProfileProviders>
       <PublicThemeToggleDeferred />
       <div className="flex h-dvh flex-col overflow-hidden">
         <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
       </div>
-    </EmbedProviders>
+    </PublicProfileProviders>
   );
 }

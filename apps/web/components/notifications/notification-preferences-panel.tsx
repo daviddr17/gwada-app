@@ -105,6 +105,7 @@ export function NotificationPreferencesPanel() {
     channels,
     updateDraft,
     save: savePrefs,
+    reload: reloadPrefs,
     resetDraft: resetPrefsDraft,
   } = useNotificationPreferences();
 
@@ -185,10 +186,17 @@ export function NotificationPreferencesPanel() {
 
   const handleSave = async () => {
     const saveBoth = contact.dirty && prefsDirty;
+    const phoneCleared =
+      contact.dirty &&
+      !normalizeNotificationPhoneForStorage(contact.draft.phone);
 
     if (contact.dirty) {
       const contactResult = await contact.save({ silent: saveBoth });
       if (!contactResult.ok) return;
+      // Server löscht WhatsApp-Prefs ohne Nummer — UI nachziehen, wenn nur Kontakt gespeichert wurde.
+      if (phoneCleared && !prefsDirty) {
+        await reloadPrefs();
+      }
     }
     if (prefsDirty) {
       const prefsResult = await savePrefs({ silent: saveBoth });

@@ -86,6 +86,7 @@ export async function confirmPendingReservationFromBrowser(params: {
     reservationNumber: row.reservation_number,
     guestFirstName: row.guest_first_name,
     guestLastName: row.guest_last_name,
+    guestCompany: row.guest_company,
     action: "updated",
     before,
     after,

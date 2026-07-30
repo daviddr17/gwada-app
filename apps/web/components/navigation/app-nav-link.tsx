@@ -5,7 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   forwardRef,
+  startTransition,
   useCallback,
+  type ComponentPropsWithoutRef,
+  type FocusEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -24,82 +27,132 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
   return `${pathname}${search}`;
 }
 
+type AppNavLinkProps = {
+  href: string | { pathname?: string; search?: string };
+  children?: ReactNode;
+  className?: string;
+  onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
+  onPointerDown?: (event: PointerEvent<HTMLAnchorElement>) => void;
+  onPointerEnter?: (event: PointerEvent<HTMLAnchorElement>) => void;
+  onFocus?: (event: FocusEvent<HTMLAnchorElement>) => void;
+  prefetch?: boolean;
+  "aria-label"?: string;
+} & Omit<
+  ComponentPropsWithoutRef<typeof Link>,
+  | "href"
+  | "prefetch"
+  | "onClick"
+  | "onPointerDown"
+  | "onPointerEnter"
+  | "onFocus"
+  | "className"
+  | "children"
+  | "aria-label"
+>;
+
 /**
- * Interner Link — nativer Next-Link; parallele Modul-Klicks blockieren bis Route steht.
+ * Interner Modul-Link — Soft-Nav mit sofortigem Pending + router.push.
+ * Rest-Props durchreichen (Base-UI `Button render={<AppNavLink … />}`).
  */
-export const AppNavLink = forwardRef<
-  HTMLAnchorElement,
-  {
-    href: string | { pathname?: string; search?: string };
-    children?: ReactNode;
-    className?: string;
-    onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
-    prefetch?: boolean;
-    "aria-label"?: string;
-  }
->(function AppNavLink(
-  {
-    href,
-    children,
-    className,
-    onClick,
-    prefetch = true,
-    "aria-label": ariaLabel,
-  },
-  ref,
-) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const { tryAcquireNavLock } = useSoftNavLock();
-  const hrefStr = hrefToString(href);
-  const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
+export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
+  function AppNavLink(
+    {
+      href,
+      children,
+      className,
+      onClick,
+      onPointerDown,
+      onPointerEnter,
+      onFocus,
+      /** Default false: Next AUTO stoppt an loading.tsx — FULL über warmOnIntent. */
+      prefetch = false,
+      "aria-label": ariaLabel,
+      ...rest
+    },
+    ref,
+  ) {
+    const pathname = usePathname();
+    const router = useRouter();
+    const queryClient = useQueryClient();
+    const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+    const { tryAcquireNavLock } = useSoftNavLock();
+    const hrefStr = hrefToString(href);
+    const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
 
-  const warmOnIntent = useCallback(() => {
-    if (
-      !crossModuleNav ||
-      !workspaceReady ||
-      !restaurantId ||
-      !isUuidRestaurantId(restaurantId)
-    ) {
-      return;
-    }
-    warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
-  }, [
-    crossModuleNav,
-    workspaceReady,
-    restaurantId,
-    router,
-    queryClient,
-    hrefStr,
-  ]);
+    const warmOnIntent = useCallback(() => {
+      if (
+        !crossModuleNav ||
+        !workspaceReady ||
+        !restaurantId ||
+        !isUuidRestaurantId(restaurantId)
+      ) {
+        return;
+      }
+      warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
+    }, [
+      crossModuleNav,
+      workspaceReady,
+      restaurantId,
+      router,
+      queryClient,
+      hrefStr,
+    ]);
 
-  return (
-    <Link
-      ref={ref}
-      href={href}
-      prefetch={prefetch}
-      scroll={false}
-      className={className}
-      aria-label={ariaLabel}
-      onPointerEnter={warmOnIntent}
-      onFocus={warmOnIntent}
-      onClick={(event) => {
-        onClick?.(event);
-        if (event.defaultPrevented) return;
-        if (assignCrossAppWorkspaceZone(pathname, hrefStr)) {
+    return (
+      <Link
+        ref={ref}
+        href={href}
+        prefetch={prefetch}
+        scroll={false}
+        className={className}
+        aria-label={ariaLabel}
+        {...rest}
+        onPointerEnter={(event) => {
+          onPointerEnter?.(event);
+          warmOnIntent();
+        }}
+        onFocus={(event) => {
+          onFocus?.(event);
+          warmOnIntent();
+        }}
+        onPointerDown={(event) => {
+          onPointerDown?.(event);
+          // Touch/schneller Klick: FULL + Daten vor dem Flight (Hover fehlt oft).
+          warmOnIntent();
+          // Pending erst im click: pointerdown+Pending vor synthetischem click
+          // kann auf iOS Keep-alive-Slots umbauen und den click killen.
+        }}
+        onClick={(event) => {
+          onClick?.(event);
+          if (event.defaultPrevented) return;
+          if (assignCrossAppWorkspaceZone(pathname, hrefStr)) {
+            event.preventDefault();
+            return;
+          }
+          if (!crossModuleNav) return;
+          // Cmd/Ctrl-Klick etc. → natives Link-Verhalten (neuer Tab).
+          if (
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey ||
+            event.button !== 0
+          ) {
+            return;
+          }
+          // Sofort Pending (Titel/Skeleton), dann explizit pushen.
+          // Flight hängt nicht am <a> im Mobile-Sheet (Close/Unmount killt sonst Nav).
+          tryAcquireNavLock(event, hrefStr);
           event.preventDefault();
-          return;
-        }
-        if (crossModuleNav && !tryAcquireNavLock(event, hrefStr)) {
-          return;
-        }
-      }}
-    >
-      {children}
-    </Link>
-  );
-});
+          startTransition(() => {
+            router.push(hrefStr);
+          });
+        }}
+      >
+        {children}
+      </Link>
+    );
+  },
+);
 
 AppNavLink.displayName = "AppNavLink";

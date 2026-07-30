@@ -13,27 +13,34 @@ import {
   type ReactNode,
 } from "react";
 import { AppShellBootstrapOverlay } from "@/components/layout/app-shell-bootstrap-overlay";
+import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import {
   APP_SHELL_READY_MAX_MS,
   computeAppShellInteractive,
-  ensureCriticalModuleDataReady,
-  seedPriorityModuleQueryCaches,
 } from "@/lib/app-shell/app-shell-readiness";
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
 import { useRestaurantPermissionsContext } from "@/lib/contexts/restaurant-permissions-context";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persistence";
 
 type AppShellReadinessValue = {
   interactive: boolean;
+  /** Bootstrap sofort ausblenden (z. B. Menü geöffnet / Soft-Nav). */
+  dismissBootstrap: () => void;
 };
 
 const AppShellReadinessContext = createContext<AppShellReadinessValue>({
   interactive: true,
+  dismissBootstrap: () => {},
 });
 
 export function useAppShellReadiness(): AppShellReadinessValue {
   return useContext(AppShellReadinessContext);
+}
+
+function hasWarmRestaurantCache(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(peekCachedWorkspaceRestaurantId());
 }
 
 export function AppShellReadinessProvider({ children }: { children: ReactNode }) {
@@ -46,9 +53,13 @@ export function AppShellReadinessProvider({ children }: { children: ReactNode })
   } = useWorkspaceRestaurantUuid();
   const { loading: permissionsLoading, permissions } =
     useRestaurantPermissionsContext();
+  const { pendingHref } = useSoftNavLock();
 
-  const [interactive, setInteractive] = useState(false);
-  const warmedForRef = useRef<string | null>(null);
+  const warmCacheRef = useRef(hasWarmRestaurantCache());
+  const [interactive, setInteractive] = useState(
+    () => warmCacheRef.current,
+  );
+  const unlockedRef = useRef(warmCacheRef.current);
 
   const readinessInputs = useMemo(
     () => ({
@@ -59,6 +70,7 @@ export function AppShellReadinessProvider({ children }: { children: ReactNode })
       permissionsLoading,
       permissionsCount: permissions.size,
       queryClient,
+      hasCachedRestaurant: warmCacheRef.current || Boolean(restaurantId),
     }),
     [
       authReady,
@@ -71,49 +83,40 @@ export function AppShellReadinessProvider({ children }: { children: ReactNode })
     ],
   );
 
+  const markInteractive = useCallback(() => {
+    if (unlockedRef.current) return;
+    unlockedRef.current = true;
+    setInteractive(true);
+  }, []);
+
   const tryMarkInteractive = useCallback(() => {
     if (computeAppShellInteractive(readinessInputs)) {
-      setInteractive(true);
+      markInteractive();
       return true;
     }
     return false;
-  }, [readinessInputs]);
+  }, [markInteractive, readinessInputs]);
+
+  // Failsafe — Overlay nur kurz sichtbar; Klicks nie gesperrt (pointer-events-none).
+  useEffect(() => {
+    if (unlockedRef.current) return;
+    const maxTimer = window.setTimeout(markInteractive, APP_SHELL_READY_MAX_MS);
+    return () => window.clearTimeout(maxTimer);
+  }, [markInteractive]);
 
   useLayoutEffect(() => {
-    if (!authReady || !workspaceReady) {
-      setInteractive(false);
-      return;
-    }
-
-    if (tryMarkInteractive()) {
-      if (
-        restaurantId &&
-        isUuidRestaurantId(restaurantId) &&
-        warmedForRef.current !== restaurantId
-      ) {
-        warmedForRef.current = restaurantId;
-        seedPriorityModuleQueryCaches(queryClient, restaurantId);
-        void ensureCriticalModuleDataReady(queryClient, restaurantId);
-      }
-      return;
-    }
-
-    let cancelled = false;
-    const maxTimer = window.setTimeout(() => {
-      if (!cancelled) setInteractive(true);
-    }, APP_SHELL_READY_MAX_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(maxTimer);
-    };
-  }, [authReady, workspaceReady, restaurantId, queryClient, tryMarkInteractive]);
-
-  useEffect(() => {
     tryMarkInteractive();
-  }, [permissionsLoading, permissions.size, tryMarkInteractive]);
+  }, [tryMarkInteractive]);
 
-  const value = useMemo(() => ({ interactive }), [interactive]);
+  // Sofort Soft-Nav: Bootstrap ausblenden, sobald Nutzer ein Modul antippt.
+  useLayoutEffect(() => {
+    if (pendingHref) markInteractive();
+  }, [pendingHref, markInteractive]);
+
+  const value = useMemo(
+    () => ({ interactive, dismissBootstrap: markInteractive }),
+    [interactive, markInteractive],
+  );
 
   return (
     <AppShellReadinessContext.Provider value={value}>

@@ -2,6 +2,7 @@ import type { jsPDF } from "jspdf";
 import { downloadBlob } from "@/lib/export/download-blob";
 import { escapeCsvCell } from "@/lib/export/escape-csv-cell";
 import { printJsPdfDocument, type PrintJsPdfResult } from "@/lib/export/print-jspdf-document";
+import { resolveTablePdfRowStyles } from "@/lib/export/table-export-rows-per-page";
 import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
 
 function ymdLocal(d: Date): string {
@@ -19,6 +20,8 @@ export type TableDocumentExportOptions = {
   restaurantName?: string;
   summaryLine?: string;
   orientation?: "landscape" | "portrait";
+  /** Ziel-Zeilen pro A4-Seite — steuert Zeilenhöhe/Schrift im PDF. */
+  rowsPerPage?: number | null;
   columnStyles?: Record<number, { cellWidth?: number; halign?: "left" | "center" | "right" }>;
 };
 
@@ -59,12 +62,14 @@ export async function buildTablePdfDocument({
   restaurantName,
   summaryLine,
   orientation = "landscape",
+  rowsPerPage,
   columnStyles,
 }: TableDocumentExportOptions): Promise<jsPDF> {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
 
   const doc = new jsPDF({ orientation, unit: "mm", format: "a4" });
+  const rowStyles = resolveTablePdfRowStyles({ rowsPerPage, orientation });
 
   doc.setFontSize(14);
   doc.text(documentTitle, 14, 16);
@@ -90,16 +95,18 @@ export async function buildTablePdfDocument({
     head: [headers as unknown as string[]],
     body: rows,
     styles: {
-      fontSize: 9,
-      cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
-      minCellHeight: 12,
+      fontSize: rowStyles.fontSize,
+      cellPadding: rowStyles.cellPadding,
+      minCellHeight: rowStyles.minCellHeight,
       valign: "middle",
+      overflow: "linebreak",
     },
     headStyles: {
       fillColor: [40, 40, 40],
       textColor: 255,
       fontStyle: "bold",
-      minCellHeight: 10,
+      fontSize: Math.min(9, rowStyles.fontSize + 0.5),
+      minCellHeight: rowStyles.headMinCellHeight,
     },
     ...(columnStyles ? { columnStyles } : {}),
     alternateRowStyles: { fillColor: [248, 248, 248] },

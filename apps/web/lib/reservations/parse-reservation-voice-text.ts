@@ -1,5 +1,6 @@
 /** Ergebnis der Sprach-/Text-Parsing für Reservierungs-FAB (Modul Reservierungen). */
 
+import { isValidStaffPartySize } from "@/lib/reservations/reservation-party-size";
 import { isVoiceConfirmUtterance } from "@/lib/voice/voice-confirm-utterance";
 
 export type ParsedReservationVoice = {
@@ -137,7 +138,7 @@ function parsePartySize(text: string): { size: number; rest: string } | null {
     const raw = m[1]!.toLowerCase();
     const size =
       /^\d+$/.test(raw) ? Number.parseInt(raw, 10) : (WORD_NUM[raw] ?? NaN);
-    if (!Number.isFinite(size) || size < 1 || size > 50) continue;
+    if (!isValidStaffPartySize(size)) continue;
     const rest = (text.slice(0, m.index!) + text.slice(m.index! + m[0].length))
       .replace(/\s+/g, " ")
       .trim();

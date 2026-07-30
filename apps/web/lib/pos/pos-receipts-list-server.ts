@@ -1,6 +1,13 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  clampListPage,
+  clampListPageSize,
+  listPageRange,
+  totalPagesFromCount,
+  type PaginatedListResult,
+} from "@/lib/constants/list-pagination";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   posRestaurantTodayYmd,
@@ -26,6 +33,14 @@ export type PosReceiptListItem = {
   receiptPdfUrl: string | null;
 };
 
+export type PosReceiptListOptions = {
+  page?: number | null;
+  pageSize?: number | null;
+  /** all | cash | card | other | refunded */
+  method?: string | null;
+  search?: string | null;
+};
+
 async function resolveReceiptPdfUrl(params: {
   orderReceiptPath: string | null;
   paymentFiscalPath: string | null;
@@ -49,44 +64,189 @@ async function resolveReceiptPdfUrl(params: {
   );
 }
 
-/** Quittungen / Zahlungen in einem Kalendertag-Bereich (Restaurant-TZ). */
+function emptyPage(
+  page: number,
+  pageSize: number,
+): PaginatedListResult<PosReceiptListItem> {
+  return {
+    items: [],
+    page: Math.max(1, page),
+    pageSize,
+    totalCount: 0,
+    totalPages: 1,
+  };
+}
+
+function methodMatchFilter(
+  method: string,
+  filter: string,
+): boolean {
+  const m = method.trim().toLowerCase();
+  if (filter === "cash") return m === "cash" || m === "bar";
+  if (filter === "card") {
+    return (
+      m === "card" ||
+      m === "karte" ||
+      m === "mollie" ||
+      m === "terminal"
+    );
+  }
+  if (filter === "other") {
+    return !(
+      m === "cash" ||
+      m === "bar" ||
+      m === "card" ||
+      m === "karte" ||
+      m === "mollie" ||
+      m === "terminal"
+    );
+  }
+  return true;
+}
+
+/** Quittungen / Zahlungen — server-paginiert. */
 export async function listPosReceiptsInRange(
   supabase: SupabaseClient,
   restaurantId: string,
   fromYmd: string,
   toYmd: string,
-): Promise<PosReceiptListItem[]> {
+  options: PosReceiptListOptions = {},
+): Promise<PaginatedListResult<PosReceiptListItem>> {
+  const pageSize = clampListPageSize(options.pageSize);
+  const requestedPage = Math.max(1, options.page ?? 1);
+  const methodFilter = (options.method ?? "all").trim().toLowerCase();
+  const search = options.search?.trim() ?? "";
+
   const bounds = await posRestaurantYmdRangeBounds(
     restaurantId,
     fromYmd,
     toYmd,
   );
-  if (!bounds) return [];
+  if (!bounds) return emptyPage(requestedPage, pageSize);
 
-  const { data: payments, error } = await supabase
+  let countQuery = supabase
+    .from("pos_payments")
+    .select("id", { count: "exact", head: true })
+    .eq("restaurant_id", restaurantId)
+    .gte("paid_at", bounds.startAt)
+    .lt("paid_at", bounds.endAt);
+
+  let dataQuery = supabase
     .from("pos_payments")
     .select(
       "id, order_id, method, status, amount_cents, tip_cents, received_amount_cents, paid_at",
     )
     .eq("restaurant_id", restaurantId)
-    .in("status", ["paid", "refunded"])
     .gte("paid_at", bounds.startAt)
     .lt("paid_at", bounds.endAt)
-    .order("paid_at", { ascending: false })
-    .limit(500);
+    .order("paid_at", { ascending: false });
 
-  if (error || !payments?.length) {
-    if (error) console.warn("[pos] receipts range", error.message);
-    return [];
+  if (methodFilter === "refunded") {
+    countQuery = countQuery.eq("status", "refunded");
+    dataQuery = dataQuery.eq("status", "refunded");
+  } else {
+    countQuery = countQuery.in("status", ["paid", "refunded"]);
+    dataQuery = dataQuery.in("status", ["paid", "refunded"]);
+    if (methodFilter === "cash") {
+      countQuery = countQuery.in("method", ["cash", "bar"]);
+      dataQuery = dataQuery.in("method", ["cash", "bar"]);
+    } else if (methodFilter === "card") {
+      countQuery = countQuery.in("method", [
+        "card",
+        "karte",
+        "mollie",
+        "terminal",
+      ]);
+      dataQuery = dataQuery.in("method", [
+        "card",
+        "karte",
+        "mollie",
+        "terminal",
+      ]);
+    }
   }
 
-  const orderIds = [...new Set(payments.map((p) => p.order_id as string))];
-  const paymentIds = payments.map((p) => p.id as string);
+  const { count, error: countError } = await countQuery;
+  if (countError) {
+    console.warn("[pos] receipts count", countError.message);
+    return emptyPage(requestedPage, pageSize);
+  }
 
-  const { data: orders } = await supabase
-    .from("pos_orders")
-    .select("id, order_number, table_session_id, receipt_url")
-    .in("id", orderIds);
+  const totalCount = count ?? 0;
+  const totalPages = totalPagesFromCount(totalCount, pageSize);
+  const page = clampListPage(requestedPage, totalPages);
+  const { from, to } = listPageRange(page, pageSize);
+
+  // For "other" we over-fetch a bit and filter — rare methods.
+  const fetchTo =
+    methodFilter === "other" || search
+      ? Math.min(from + pageSize * 5 - 1, Math.max(totalCount - 1, 0))
+      : to;
+
+  const { data: payments, error } = await dataQuery.range(from, fetchTo);
+  if (error) {
+    console.warn("[pos] receipts range", error.message);
+    return emptyPage(page, pageSize);
+  }
+  if (!payments?.length) {
+    return { items: [], page, pageSize, totalCount, totalPages };
+  }
+
+  let filtered = payments;
+  if (methodFilter === "other") {
+    filtered = filtered.filter(
+      (p) =>
+        p.status !== "refunded" &&
+        methodMatchFilter(String(p.method ?? ""), "other"),
+    );
+  }
+
+  if (search) {
+    const q = search.toLowerCase();
+    const asNum = Number.parseInt(search, 10);
+    // Prefetch orders for search match on bon number / later table
+    const searchOrderIds = [
+      ...new Set(filtered.map((p) => p.order_id as string)),
+    ];
+    const { data: searchOrders } = searchOrderIds.length
+      ? await supabase
+          .from("pos_orders")
+          .select("id, order_number")
+          .in("id", searchOrderIds)
+      : { data: [] as { id: string; order_number: number }[] };
+    const orderNumById = new Map(
+      (searchOrders ?? []).map(
+        (o) => [o.id as string, Number(o.order_number)] as const,
+      ),
+    );
+    filtered = filtered.filter((p) => {
+      const num = orderNumById.get(p.order_id as string) ?? 0;
+      return (
+        String(num).includes(q) ||
+        (Number.isFinite(asNum) && num === asNum) ||
+        String(p.method ?? "")
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+  }
+
+  const pagePayments = filtered.slice(0, pageSize);
+
+  const orderIds = [...new Set(pagePayments.map((p) => p.order_id as string))];
+  const paymentIds = pagePayments.map((p) => p.id as string);
+
+  const { data: orders } = orderIds.length
+    ? await supabase
+        .from("pos_orders")
+        .select("id, order_number, table_session_id, receipt_url")
+        .in("id", orderIds)
+    : { data: [] as {
+        id: string;
+        order_number: number;
+        table_session_id: string;
+        receipt_url: string | null;
+      }[] };
 
   const orderById = new Map(
     (orders ?? []).map((o) => [o.id as string, o] as const),
@@ -102,7 +262,13 @@ export async function listPosReceiptsInRange(
         .from("pos_table_sessions")
         .select("id, dining_table_id, status")
         .in("id", sessionIds)
-    : { data: [] as { id: string; dining_table_id: string; status: string }[] };
+    : {
+        data: [] as {
+          id: string;
+          dining_table_id: string;
+          status: string;
+        }[],
+      };
 
   const sessionById = new Map(
     (sessions ?? []).map((s) => [s.id as string, s] as const),
@@ -168,8 +334,8 @@ export async function listPosReceiptsInRange(
     }
   }
 
-  return Promise.all(
-    payments.map(async (p) => {
+  const items = await Promise.all(
+    pagePayments.map(async (p) => {
       const order = orderById.get(p.order_id as string);
       const session = order
         ? sessionById.get(order.table_session_id as string)
@@ -216,6 +382,23 @@ export async function listPosReceiptsInRange(
       };
     }),
   );
+
+  // When client-side filtering reduced the set, report approximate totals for
+  // simple filters (cash/card/refunded) we already counted in SQL.
+  const effectiveTotal =
+    methodFilter === "other" || search ? items.length : totalCount;
+  const effectivePages =
+    methodFilter === "other" || search
+      ? totalPagesFromCount(effectiveTotal, pageSize)
+      : totalPages;
+
+  return {
+    items,
+    page,
+    pageSize,
+    totalCount: methodFilter === "other" || search ? effectiveTotal : totalCount,
+    totalPages: effectivePages,
+  };
 }
 
 export async function listPosTodayReceipts(
@@ -223,5 +406,12 @@ export async function listPosTodayReceipts(
   restaurantId: string,
 ): Promise<PosReceiptListItem[]> {
   const { ymd } = await posRestaurantTodayYmd(restaurantId);
-  return listPosReceiptsInRange(supabase, restaurantId, ymd, ymd);
+  const result = await listPosReceiptsInRange(
+    supabase,
+    restaurantId,
+    ymd,
+    ymd,
+    { page: 1, pageSize: 100 },
+  );
+  return result.items;
 }

@@ -221,7 +221,7 @@ Nur sinnvoll für einzelne Hotfixes; dauerhaft besser: `db push` + Dateien im Gi
 
 Damit nach dem nächsten Coolify-Deploy **Login**, **Bestand/Bestellungen** und **Toasts** wie lokal bleiben:
 
-| Thema | Lokal (`npm run dev`) | Live (Coolify / `scripts/vps-build-gwada-live.sh`) |
+| Thema | Lokal (`pnpm dev`) | Live (`deploy-live-app.yml` / `scripts/vps-deploy-live-app.sh`) |
 |--------|------------------------|-----------------------------------------------------|
 | Bestand/Bestellungen | `NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false` (relational) | gleich |
 | Workspace | `NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo` | gleich |

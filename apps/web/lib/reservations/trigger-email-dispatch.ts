@@ -60,12 +60,17 @@ export function emailDispatchUserMessage(
 export async function triggerReservationEmailDispatch(
   reservationId: string,
   event: DispatchEvent,
+  options?: { guestNotifyMessage?: string | null },
 ): Promise<EmailDispatchApiResult | null> {
   try {
     const res = await fetch("/api/reservations/email/dispatch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reservationId, event }),
+      body: JSON.stringify({
+        reservationId,
+        event,
+        guestNotifyMessage: options?.guestNotifyMessage ?? undefined,
+      }),
     });
     const body = (await res.json().catch(() => ({}))) as EmailDispatchApiResult & {
       error?: string;

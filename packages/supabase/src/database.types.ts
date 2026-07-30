@@ -2600,6 +2600,7 @@ export type Database = {
           dining_table_id: string | null
           dwell_minutes: number | null
           ends_at: string
+          guest_company: string | null
           guest_email: string | null
           guest_first_name: string
           guest_last_name: string
@@ -2630,6 +2631,7 @@ export type Database = {
           dining_table_id?: string | null
           dwell_minutes?: number | null
           ends_at: string
+          guest_company?: string | null
           guest_email?: string | null
           guest_first_name: string
           guest_last_name: string
@@ -2660,6 +2662,7 @@ export type Database = {
           dining_table_id?: string | null
           dwell_minutes?: number | null
           ends_at?: string
+          guest_company?: string | null
           guest_email?: string | null
           guest_first_name?: string
           guest_last_name?: string
@@ -3278,6 +3281,7 @@ export type Database = {
           restaurant_id: string
           status: string
           updated_at: string
+          waha_server_id: string | null
           waha_session_name: string
         }
         Insert: {
@@ -3291,6 +3295,7 @@ export type Database = {
           restaurant_id: string
           status?: string
           updated_at?: string
+          waha_server_id?: string | null
           waha_session_name: string
         }
         Update: {
@@ -3304,6 +3309,7 @@ export type Database = {
           restaurant_id?: string
           status?: string
           updated_at?: string
+          waha_server_id?: string | null
           waha_session_name?: string
         }
         Relationships: [
@@ -3312,6 +3318,13 @@ export type Database = {
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_integrations_waha_server_id_fkey"
+            columns: ["waha_server_id"]
+            isOneToOne: false
+            referencedRelation: "waha_servers"
             referencedColumns: ["id"]
           },
         ]
@@ -4151,6 +4164,7 @@ export type Database = {
           created_by: string | null
           end_time: string
           id: string
+          is_available: boolean
           note: string | null
           restaurant_id: string
           service_date: string | null
@@ -4164,6 +4178,7 @@ export type Database = {
           created_by?: string | null
           end_time: string
           id?: string
+          is_available?: boolean
           note?: string | null
           restaurant_id: string
           service_date?: string | null
@@ -4177,6 +4192,7 @@ export type Database = {
           created_by?: string | null
           end_time?: string
           id?: string
+          is_available?: boolean
           note?: string | null
           restaurant_id?: string
           service_date?: string | null
@@ -4281,6 +4297,57 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "restaurant_shift_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_staff_wage_advances: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          paid_on: string
+          restaurant_id: string
+          staff_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_on: string
+          restaurant_id: string
+          staff_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          paid_on?: string
+          restaurant_id?: string
+          staff_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_staff_wage_advances_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_staff_wage_advances_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_staff"
             referencedColumns: ["id"]
           },
         ]
@@ -4523,6 +4590,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      waha_servers: {
+        Row: {
+          accept_new_sessions: boolean
+          api_key: string
+          base_url: string
+          capacity_warning_active: boolean
+          capacity_warning_at: string | null
+          created_at: string
+          enabled: boolean
+          id: string
+          last_health_error: string | null
+          last_health_ok_at: string | null
+          name: string
+          notes: string | null
+          session_limit: number
+          sort_order: number
+          updated_at: string
+          warn_remaining: number
+        }
+        Insert: {
+          accept_new_sessions?: boolean
+          api_key?: string
+          base_url: string
+          capacity_warning_active?: boolean
+          capacity_warning_at?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_health_error?: string | null
+          last_health_ok_at?: string | null
+          name: string
+          notes?: string | null
+          session_limit?: number
+          sort_order?: number
+          updated_at?: string
+          warn_remaining?: number
+        }
+        Update: {
+          accept_new_sessions?: boolean
+          api_key?: string
+          base_url?: string
+          capacity_warning_active?: boolean
+          capacity_warning_at?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_health_error?: string | null
+          last_health_ok_at?: string | null
+          name?: string
+          notes?: string | null
+          session_limit?: number
+          sort_order?: number
+          updated_at?: string
+          warn_remaining?: number
+        }
+        Relationships: []
       }
     }
     Views: {

@@ -3,7 +3,7 @@ import "server-only";
 import { sendContactMessageServer } from "@/lib/contact-messages/send-contact-message-server";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { wahaCheckNumberExists, wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -61,7 +61,7 @@ export async function checkDisplayReservationWhatsappNumber(
   const phone = row.guest_phone?.trim();
   if (!phone) return { ok: false, error: "no_phone" };
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
   if (!config) return { ok: false, error: "waha_not_configured" };
 
   const session = wahaSessionNameForRestaurant(restaurantId);

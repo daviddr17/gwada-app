@@ -1,5 +1,5 @@
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaResolveMessageMediaBlob } from "@/lib/waha/waha-fetch-media";
 
 export const dynamic = "force-dynamic";
@@ -19,14 +19,16 @@ export async function GET(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    auth.restaurantId,
+  );
   if (!config) {
     return Response.json({ error: "waha_not_configured" }, { status: 503 });
   }
 
   const media = await wahaResolveMessageMediaBlob({
     config,
-    restaurantId,
+    restaurantId: auth.restaurantId,
     chatId,
     messageId,
   });

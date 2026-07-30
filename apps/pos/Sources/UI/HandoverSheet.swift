@@ -62,7 +62,7 @@ struct HandoverSheet: View {
             return
         }
         let fromId = PosCloudConfig.waiterProfileId
-            ?? PosAuthStore.shared.session?.userId
+            ?? PosAuthStore.shared.pinSession?.staffId
             ?? ""
         guard !fromId.isEmpty else {
             message = "Waiter-Profil fehlt."

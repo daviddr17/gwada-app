@@ -8,13 +8,12 @@ import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-a
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
 import type { SmtpIntegrationConfig } from "@/lib/integrations/smtp-integration-config";
 import { smtpCredentialsFromConfig } from "@/lib/integrations/smtp-integration-config";
+import type { EmailSmtpCredentials } from "@/lib/email/email-delivery";
 
 const FETCH_LIMIT = 120;
 const SINCE_DAYS = 90;
 
-export type ImapCredentials = NonNullable<
-  ReturnType<typeof smtpCredentialsFromConfig>
->;
+export type ImapCredentials = EmailSmtpCredentials;
 
 export type ImapEnvelopeMessage = {
   uid: number;
@@ -94,14 +93,21 @@ async function withImapClient<T>(
   creds: ImapCredentials,
   fn: (client: ImapFlow) => Promise<T>,
 ): Promise<{ data: T | null; error: string | null }> {
+  const auth = creds.oauthAccessToken
+    ? {
+        user: creds.email,
+        accessToken: creds.oauthAccessToken,
+      }
+    : {
+        user: creds.email,
+        pass: creds.password,
+      };
+
   const client = new ImapFlow({
     host: creds.imapHost,
     port: creds.imapPort,
     secure: creds.imapPort === 993,
-    auth: {
-      user: creds.email,
-      pass: creds.password,
-    },
+    auth,
     logger: false,
   });
 

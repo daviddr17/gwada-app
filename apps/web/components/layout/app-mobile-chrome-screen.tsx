@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { acquireAppScrollLock } from "@/lib/layout/app-scroll-root";
 import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
+import { getDocumentBodyPortalTarget } from "@/lib/ui/resolve-floating-portal-container";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,6 +41,8 @@ type AppMobileChromeScreenProps = {
   title: string;
   children: ReactNode;
   headerAction?: ReactNode;
+  /** Sidebar-Menü: Titelzeile weglassen (Restaurant-/User-Header reicht) → Module passen ohne Scroll. */
+  hideTitle?: boolean;
   className?: string;
   "aria-label"?: string;
 };
@@ -54,6 +57,7 @@ export function AppMobileChromeScreen({
   title,
   children,
   headerAction,
+  hideTitle = false,
   className,
   "aria-label": ariaLabel,
 }: AppMobileChromeScreenProps) {
@@ -225,7 +229,8 @@ export function AppMobileChromeScreen({
     };
   }, [mounted, open]);
 
-  if (!mounted || typeof document === "undefined") return null;
+  const portalTarget = getDocumentBodyPortalTarget();
+  if (!mounted || !portalTarget) return null;
 
   return createPortal(
     <div
@@ -256,18 +261,20 @@ export function AppMobileChromeScreen({
         )}
         style={{ transform: "translate3d(0, 100%, 0)" }}
       >
-        <header className="flex shrink-0 items-center gap-2 border-b border-border/50 px-4 py-3">
-          <h2 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">
-            {title}
-          </h2>
-          {headerAction}
-        </header>
+        {hideTitle ? null : (
+          <header className="flex shrink-0 items-center gap-2 border-b border-border/50 px-4 py-3">
+            <h2 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">
+              {title}
+            </h2>
+            {headerAction}
+          </header>
+        )}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </div>
       </div>
     </div>,
-    document.body,
+    portalTarget,
   );
 }

@@ -1,0 +1,90 @@
+# Soft-Reboot nur des WAHA-Hosts (nicht Gwada Contabo).
+name: Reboot WAHA host live
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_id:
+        description: waha_servers.id
+        required: true
+        type: string
+      confirm:
+        description: Tippe REBOOT
+        required: true
+        type: string
+  repository_dispatch:
+    types: [reboot-waha-host-live]
+
+concurrency:
+  group: reboot-waha-host-${{ github.event.client_payload.server_id || inputs.server_id || 'default' }}
+  cancel-in-progress: false
+
+jobs:
+  reboot:
+    name: Reboot WAHA host
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve params
+        id: params
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            SERVER_ID="${{ github.event.client_payload.server_id }}"
+            CONFIRM="${{ github.event.client_payload.confirm }}"
+          else
+            SERVER_ID="${{ inputs.server_id }}"
+            CONFIRM="${{ inputs.confirm }}"
+          fi
+          SERVER_ID="$(echo "$SERVER_ID" | tr -d '[:space:]')"
+          if [ -z "$SERVER_ID" ]; then
+            echo "::error::server_id fehlt"
+            exit 1
+          fi
+          if [ "$CONFIRM" != "REBOOT" ]; then
+            echo "::error::Bestätigung fehlt — confirm muss REBOOT sein."
+            exit 1
+          fi
+          echo "server_id=${SERVER_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Soft-reboot WAHA host via SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          GWADA_APP_ORIGIN: https://gwada.app
+          SERVER_ID: ${{ steps.params.outputs.server_id }}
+          CONTAINER: auto
+        run: |
+          set -euo pipefail
+          # shellcheck source=scripts/ci-waha-ssh-resolve.sh
+          source scripts/ci-waha-ssh-resolve.sh
+          if [ -z "${WAHA_SSH_HOST:-}" ]; then
+            echo "::error::Kein SSH-Host — per-server SSH unter Superadmin setzen."
+            exit 1
+          fi
+          # Legacy LIVE_VPS bewusst nicht rebooten über diesen Workflow
+          # (dafür gibt es reboot-live-vps.yml). per_server ist Pflicht.
+          MODE_CHECK="$(
+            curl -fsS -H "Authorization: Bearer ${CRON_SECRET}" \
+              "${GWADA_APP_ORIGIN}/api/internal/waha-ssh-config?server_id=${SERVER_ID}" \
+              | jq -r '.mode'
+          )"
+          if [ "${MODE_CHECK}" != "per_server" ]; then
+            echo "::error::Host-Reboot nur mit per-server SSH (ssh_host + Key). Gwada-Contabo → „VPS neu starten“."
+            exit 1
+          fi
+          echo "Reboot ${WAHA_SSH_USER}@${WAHA_SSH_HOST}:${WAHA_SSH_PORT} …"
+          # Verbindung bricht beim Reboot ab — Exit 255 ist ok
+          set +e
+          ssh -i "${WAHA_SSH_KEY_FILE}" -o BatchMode=yes -o ConnectTimeout=30 \
+            -p "${WAHA_SSH_PORT}" \
+            "${WAHA_SSH_USER}@${WAHA_SSH_HOST}" \
+            'nohup bash -c "sleep 1; reboot" >/dev/null 2>&1 & exit 0'
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 255 ]; then
+            echo "::error::SSH-Reboot fehlgeschlagen (exit ${code})"
+            exit 1
+          fi
+          echo "Reboot ausgelöst — Host kommt typisch in 1–3 Min. wieder."

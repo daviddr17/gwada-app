@@ -1,4 +1,4 @@
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaEditMessage } from "@/lib/waha/waha-edit-message";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -14,7 +14,7 @@ export async function editWahaMessageServer(params: {
   previousText?: string | null;
   admin?: SupabaseClient | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(params.restaurantId);
   if (!config) {
     return { ok: false, error: "waha_not_configured" };
   }

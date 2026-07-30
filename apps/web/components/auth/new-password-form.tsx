@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { PasswordStrengthBar } from "@/components/auth/password-strength-bar";
 import {
@@ -104,9 +104,8 @@ export function NewPasswordForm() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="new-pw">Neues Passwort</Label>
-              <Input
+              <PasswordInput
                 id="new-pw"
-                type="password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -116,9 +115,8 @@ export function NewPasswordForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-pw-2">Passwort wiederholen</Label>
-              <Input
+              <PasswordInput
                 id="new-pw-2"
-                type="password"
                 autoComplete="new-password"
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}

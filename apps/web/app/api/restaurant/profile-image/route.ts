@@ -1,3 +1,4 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
 import {
   legacyRestaurantProfileImagePaths,
@@ -10,6 +11,7 @@ import {
   restaurantProfileImageStoragePath,
   type RestaurantProfileImageKind,
 } from "@/lib/restaurant/restaurant-profile-image";
+import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -87,11 +89,29 @@ export async function POST(req: Request) {
 
   const { error: updateError } = await userSb
     .from("restaurants")
-    .update({ [column]: path })
+    .update({
+      [column]: path,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", restaurantId);
 
   if (updateError) {
     return Response.json({ error: updateError.message }, { status: 500 });
+  }
+
+  const { data: slugRow } = await userSb
+    .from("restaurants")
+    .select("slug")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  const slug =
+    typeof slugRow?.slug === "string"
+      ? normalizeRestaurantSlugInput(slugRow.slug)
+      : null;
+  if (slug) {
+    revalidatePath(`/${slug}`);
+    revalidateTag(`public-profile-image:${slug}`, { expire: 0 });
+    revalidateTag(`public-profile-image:${slug}:${kind}`, { expire: 0 });
   }
 
   return Response.json({ ok: true, path, kind });

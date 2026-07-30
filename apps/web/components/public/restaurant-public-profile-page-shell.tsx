@@ -1,6 +1,6 @@
 "use client";
 
-import { LazyMotion, domAnimation, useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 import {
   useCallback,
   useEffect,
@@ -9,8 +9,7 @@ import {
 } from "react";
 import type { PublicProfileLogoIntro } from "@/components/public/public-profile-logo-crossfade";
 import { ProfilePublicDockProvider } from "@/components/public/profile-public-dock-bridge";
-import { RestaurantProfileBrandedCanvas } from "@/components/public/restaurant-profile-branded-canvas";
-import { RestaurantPublicProfileLauncherSkeleton } from "@/components/public/restaurant-public-profile-launcher-skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { RestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { PlatformAppBrandingProvider } from "@/lib/contexts/platform-app-branding-context";
@@ -27,10 +26,13 @@ export function RestaurantPublicProfilePageShell({
   profile,
   gwadaIconSrc,
   initialBranding,
+  ssrHero = false,
 }: {
   profile: PublicRestaurantProfile;
   gwadaIconSrc: string | null;
   initialBranding?: PlatformAppBranding | null;
+  /** Hero liegt bereits als RSC im HTML — Shell liefert nur Dock/Launcher. */
+  ssrHero?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const [Launcher, setLauncher] = useState<LauncherComponent | null>(null);
@@ -38,8 +40,8 @@ export function RestaurantPublicProfilePageShell({
   const [launcherReady, setLauncherReady] = useState(false);
 
   const launcherLoaded = launcherReady && Boolean(Launcher);
-  const showSkeletonOverlay = !launcherLoaded;
-  const showShimmer = useDeferredSkeleton(showSkeletonOverlay);
+  const showDockSkeleton = !launcherLoaded;
+  const showShimmer = useDeferredSkeleton(showDockSkeleton);
   const skipIntro = reduceMotion || !gwadaIconSrc;
 
   useEffect(() => {
@@ -62,6 +64,14 @@ export function RestaurantPublicProfilePageShell({
     }
   }, [skipIntro]);
 
+  useEffect(() => {
+    if (!ssrHero || !launcherLoaded) return;
+    const el = document.querySelector("[data-public-profile-ssr-hero]");
+    if (el instanceof HTMLElement) {
+      el.hidden = true;
+    }
+  }, [ssrHero, launcherLoaded]);
+
   const handleIntroComplete = useCallback(() => {
     setIntroDone(true);
   }, []);
@@ -83,37 +93,26 @@ export function RestaurantPublicProfilePageShell({
           source="profile"
           dimension="view"
         />
-        <LazyMotion features={domAnimation}>
-        <div className="relative flex h-dvh flex-col overflow-hidden">
-          {showSkeletonOverlay ? (
-            <>
-              <RestaurantProfileBrandedCanvas accentHex={profile.accentHex} />
-              <div
-                className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-32 bg-gradient-to-b from-transparent to-background"
-                aria-hidden
-              />
-            </>
-          ) : null}
-
-          {launcherLoaded && Launcher ? (
+        {launcherLoaded && Launcher ? (
+          <div className="fixed inset-0 z-10">
             <Launcher
               profile={profile}
               heroVisible
               logoIntro={logoIntro}
             />
-          ) : null}
-
-          {showSkeletonOverlay ? (
-            <div className="pointer-events-none absolute inset-0 z-[2]">
-              <RestaurantPublicProfileLauncherSkeleton
-                profile={profile}
-                showShimmer={showShimmer}
-                showDockPlaceholder
-              />
-            </div>
-          ) : null}
-        </div>
-        </LazyMotion>
+          </div>
+        ) : showDockSkeleton ? (
+          <div
+            className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[2] flex justify-center px-4"
+            aria-hidden
+          >
+            {showShimmer ? (
+              <Skeleton className="h-[3.75rem] w-[min(100%,18rem)] rounded-full" />
+            ) : (
+              <div className="h-[3.75rem] w-[min(100%,18rem)] rounded-full bg-muted/35" />
+            )}
+          </div>
+        ) : null}
       </ProfilePublicDockProvider>
     </PlatformAppBrandingProvider>
   );

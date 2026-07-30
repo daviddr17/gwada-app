@@ -97,7 +97,7 @@ export function useNotificationPreferences() {
       if (!restaurantId || !dirty) return { ok: true as const };
 
       setIsSaving(true);
-      const { ok, error } = await saveNotificationPreferencesClient({
+      const { ok, error, data } = await saveNotificationPreferencesClient({
         restaurantId,
         preferences: draft,
       });
@@ -110,7 +110,10 @@ export function useNotificationPreferences() {
         return { ok: false as const, error };
       }
 
-      setSaved(draft);
+      const next = data?.preferences ?? draft;
+      setSaved(next);
+      setDraft(next);
+      if (data?.channels) setChannels(data.channels);
       dispatchNotificationsRefresh();
       if (!options?.silent) {
         toast.success("Benachrichtigungen gespeichert.");
@@ -134,6 +137,7 @@ export function useNotificationPreferences() {
     channels,
     updateDraft,
     save,
+    reload: load,
     resetDraft,
   };
 }

@@ -12,7 +12,6 @@ export function RestaurantPublicProfileEvents({
     <EmbedEventsWidget
       variant="profileSheet"
       accentHex={events.accentHex}
-      viewMode={events.viewMode}
       connectedPlatforms={events.connectedPlatforms}
       items={events.items}
       pastItems={events.pastItems}

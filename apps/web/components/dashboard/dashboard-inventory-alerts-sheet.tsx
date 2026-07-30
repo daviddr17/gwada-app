@@ -17,10 +17,15 @@ import {
   drawerFormHeaderClassName,
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
+import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
+/**
+ * Heute-Pill „Bestand“ — nur Auffälligkeiten (leer + offen/bestellt),
+ * kein Dump aller Bestellungen inkl. Abgeschlossen.
+ */
 export function DashboardInventoryAlertsSheet({
   open,
   onOpenChange,
@@ -45,13 +50,14 @@ export function DashboardInventoryAlertsSheet({
     [ingredients],
   );
 
-  const openOrders = useMemo(
-    () =>
-      orders
-        .filter((o) => o.status === "open")
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [orders],
-  );
+  const actionableOrders = useMemo(() => {
+    return [...orders]
+      .filter((o) => o.status === "open" || o.status === "ordered")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [orders]);
+
+  const openOrders = actionableOrders.filter((o) => o.status === "open");
+  const orderedOrders = actionableOrders.filter((o) => o.status === "ordered");
 
   const empty = emptyStockCount === 0 && openOrdersCount === 0;
 
@@ -60,17 +66,15 @@ export function DashboardInventoryAlertsSheet({
       <DrawerContent className={drawerContentClassName("compact")}>
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Bestand & Bestellung
+            Bestand – Auffälligkeiten
           </DrawerTitle>
           <DrawerDescription>
             {empty
               ? "Keine Auffälligkeiten"
               : [
-                  emptyStockCount > 0
-                    ? `${emptyStockCount} leer`
-                    : null,
+                  emptyStockCount > 0 ? `${emptyStockCount} leer` : null,
                   openOrdersCount > 0
-                    ? `${openOrdersCount} offene Bestellungen · ${openOrderLinesCount} Pos.`
+                    ? `${openOrdersCount} offen/bestellt · ${openOrderLinesCount} Pos.`
                     : null,
                 ]
                   .filter(Boolean)
@@ -107,10 +111,31 @@ export function DashboardInventoryAlertsSheet({
               {openOrders.length > 0 ? (
                 <section className="space-y-2">
                   <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Offene Bestellungen
+                    {purchaseOrderStatusLabel("open")}
                   </h3>
                   <DashboardCompactList aria-label="Offene Bestellungen">
                     {openOrders.map((order) => (
+                      <DashboardCompactListItem
+                        key={order.id}
+                        href={APP_ROUTES.inventory.order}
+                        title={order.supplierName}
+                        meta={`${order.lines.length} Pos.`}
+                        trailing={order.deliveryDate ?? undefined}
+                        stripeVariant="attention"
+                        className="py-2.5"
+                      />
+                    ))}
+                  </DashboardCompactList>
+                </section>
+              ) : null}
+
+              {orderedOrders.length > 0 ? (
+                <section className="space-y-2">
+                  <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {purchaseOrderStatusLabel("ordered")}
+                  </h3>
+                  <DashboardCompactList aria-label="Bestellte Bestellungen">
+                    {orderedOrders.map((order) => (
                       <DashboardCompactListItem
                         key={order.id}
                         href={APP_ROUTES.inventory.order}

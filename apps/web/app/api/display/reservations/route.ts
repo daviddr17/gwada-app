@@ -8,11 +8,13 @@ import {
 } from "@/lib/display/display-reservations-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
 } from "@/lib/reservations/reservation-guest-name";
 import { isValidReservationTimeRange } from "@/lib/display/display-reservation-save-times";
 import { walkInGuestNamesFromOptionalLabel } from "@/lib/reservations/walk-in";
+import { isValidStaffPartySize } from "@/lib/reservations/reservation-party-size";
 
 export async function GET(request: Request) {
   const cookieStore = await cookies();
@@ -47,6 +49,7 @@ export async function POST(request: Request) {
     guest_name?: string | null;
     guest_first_name?: string;
     guest_last_name?: string;
+    guest_company?: string | null;
     guest_phone?: string | null;
     guest_email?: string | null;
     party_size?: number;
@@ -85,7 +88,12 @@ export async function POST(request: Request) {
     const partySize = body.party_size;
     const startsAt = body.starts_at?.trim();
     const endsAt = body.ends_at?.trim();
-    if (!startsAt || !endsAt || !partySize || partySize < 1 || partySize > 50) {
+    if (
+      !startsAt ||
+      !endsAt ||
+      !partySize ||
+      !isValidStaffPartySize(partySize)
+    ) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
     }
 
@@ -120,21 +128,22 @@ export async function POST(request: Request) {
       access.restaurantId,
       access.staffId,
       {
-      guest_first_name: names.guest_first_name,
-      guest_last_name: names.guest_last_name,
-      guest_phone: null,
-      guest_email: null,
-      party_size: partySize,
-      starts_at: startDate.toISOString(),
-      ends_at: endDate.toISOString(),
-      status_id: seatedStatusId,
-      dining_table_id: tableId,
-      dwell_minutes: dwellMin,
-      notify_email: false,
-      notify_whatsapp: false,
-      terms_accepted: true,
-      notes: null,
-      is_walk_in: true,
+        guest_first_name: names.guest_first_name,
+        guest_last_name: names.guest_last_name,
+        guest_company: null,
+        guest_phone: null,
+        guest_email: null,
+        party_size: partySize,
+        starts_at: startDate.toISOString(),
+        ends_at: endDate.toISOString(),
+        status_id: seatedStatusId,
+        dining_table_id: tableId,
+        dwell_minutes: dwellMin,
+        notify_email: false,
+        notify_whatsapp: false,
+        terms_accepted: true,
+        notes: null,
+        is_walk_in: true,
       },
     );
 
@@ -166,7 +175,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "last_name_required" }, { status: 400 });
   }
 
-  if (!startsAt || !endsAt || !partySize || partySize < 1 || partySize > 50) {
+  if (
+    !startsAt ||
+    !endsAt ||
+    !partySize ||
+    !isValidStaffPartySize(partySize)
+  ) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
@@ -202,20 +216,21 @@ export async function POST(request: Request) {
     access.restaurantId,
     access.staffId,
     {
-    guest_first_name: given,
-    guest_last_name: family,
-    guest_phone: body.guest_phone?.trim() || null,
-    guest_email: body.guest_email?.trim() || null,
-    party_size: partySize,
-    starts_at: startDate.toISOString(),
-    ends_at: endDate.toISOString(),
-    status_id: statusId,
-    dining_table_id: body.dining_table_id || null,
-    dwell_minutes: dwellMin,
-    notify_email: body.notify_email === true,
-    notify_whatsapp: body.notify_whatsapp === true,
-    terms_accepted: body.terms_accepted !== false,
-    notes: body.notes?.trim() || null,
+      guest_first_name: given,
+      guest_last_name: family,
+      guest_company: normalizeReservationGuestCompany(body.guest_company),
+      guest_phone: body.guest_phone?.trim() || null,
+      guest_email: body.guest_email?.trim() || null,
+      party_size: partySize,
+      starts_at: startDate.toISOString(),
+      ends_at: endDate.toISOString(),
+      status_id: statusId,
+      dining_table_id: body.dining_table_id || null,
+      dwell_minutes: dwellMin,
+      notify_email: body.notify_email === true,
+      notify_whatsapp: body.notify_whatsapp === true,
+      terms_accepted: body.terms_accepted !== false,
+      notes: body.notes?.trim() || null,
     },
   );
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { useDroppable } from "@dnd-kit/core";
+import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { LayoutGroup, m, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import type { ShiftPlanDragData } from "@/components/staff/shift-plan/shift-plan-template-palette";
 import { moduleDataTableHeadLabelClassName } from "@/lib/ui/module-data-table";
 import type {
   RestaurantStaffContractRow,
@@ -34,7 +35,18 @@ import {
   groupStaffByPositionTag,
   positionGroupHeaderStyle,
 } from "@/lib/staff/shift-plan-position-groups";
+import {
+  countPlannedStaffByPositionForDay,
+  countPlannedStaffForGroupDay,
+} from "@/lib/staff/shift-plan-day-position-counts";
+import { ShiftPlanDayPositionCountBadges } from "@/components/staff/shift-plan/shift-plan-day-position-counts";
 import { staffDisplayName } from "@/lib/types/staff";
+import { isStaffOwnerRow } from "@/lib/types/employee-role";
+import {
+  staffOwnerBadgeClassName,
+  staffOwnerRowSurfaceClassName,
+} from "@/lib/ui/staff-owner-row";
+import { Badge } from "@/components/ui/badge";
 import { ShiftPlanShiftCard } from "@/components/staff/shift-plan/shift-plan-shift-card";
 import { ShiftPlanAbsenceCard } from "@/components/staff/shift-plan/shift-plan-absence-card";
 import { ShiftPlanAvailabilityCard } from "@/components/staff/shift-plan/shift-plan-availability-card";
@@ -51,9 +63,13 @@ import {
 } from "@/components/staff/shift-plan/shift-plan-holiday-label";
 import type { ShiftPlanDayWeather } from "@/lib/weather/shift-plan-day-weather";
 import { ShiftPlanDayWeatherRow } from "@/lib/weather/shift-plan-day-weather";
-import { shiftPlanCellDropId } from "@/components/staff/shift-plan/shift-plan-template-palette";
+import {
+  shiftPlanCellDropId,
+  shiftPlanWeekDropId,
+} from "@/components/staff/shift-plan/shift-plan-template-palette";
 import {
   maxShiftsPerStaffRow,
+  ShiftPlanAddAvailabilityCompactButton,
   ShiftPlanAddShiftSlotButton,
   shiftPlanAddShiftCompactButtonClassName,
   shiftPlanLayoutMotionTransition,
@@ -71,6 +87,7 @@ function ShiftPlanDropCell({
   absences = [],
   availabilitySlots = [],
   onAdd,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -78,6 +95,7 @@ function ShiftPlanDropCell({
   compact = false,
   animateLayout,
   maxShiftsInRow,
+  weekRowHighlight = false,
 }: {
   staffId: string;
   day: Date;
@@ -85,6 +103,7 @@ function ShiftPlanDropCell({
   absences?: RestaurantStaffWorkEntryRow[];
   availabilitySlots?: RestaurantStaffAvailabilitySlotRow[];
   onAdd: () => void;
+  onEditAvailability?: () => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -93,6 +112,8 @@ function ShiftPlanDropCell({
   animateLayout?: boolean;
   /** Max. Einträge in dieser Mitarbeiter-Zeile — hält leere Tage auf gleicher Höhe. */
   maxShiftsInRow: number;
+  /** Wochen-Drop über Namenszelle — ganze Zeile als Ziel markieren. */
+  weekRowHighlight?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const layoutEnabled = animateLayout ?? !reduceMotion;
@@ -144,7 +165,11 @@ function ShiftPlanDropCell({
       )}
       {showAvailability ? (
         <div className="pointer-events-auto shrink-0">
-          <ShiftPlanAvailabilityCard slots={availabilitySlots} compact />
+          <ShiftPlanAvailabilityCard
+            slots={availabilitySlots}
+            compact
+            onClick={onEditAvailability}
+          />
         </div>
       ) : null}
       {visibleShifts.map((shift) => (
@@ -158,20 +183,38 @@ function ShiftPlanDropCell({
         </div>
       ))}
       {editable && cellItemCount === 0 && !hasAbsence ? (
-        <ShiftPlanAddShiftSlotButton onClick={onAdd} />
+        <>
+          <ShiftPlanAddShiftSlotButton onClick={onAdd} />
+          {onEditAvailability ? (
+            <div className="pointer-events-auto shrink-0">
+              <ShiftPlanAddAvailabilityCompactButton
+                onClick={onEditAvailability}
+              />
+            </div>
+          ) : null}
+        </>
       ) : null}
       {Array.from({ length: trailingSpacerCount }, (_, i) => (
         <ShiftPlanShiftSlotSpacer key={`spacer-${i}`} />
       ))}
       {showCompactAdd ? (
-        <button
-          type="button"
-          className={shiftPlanAddShiftCompactButtonClassName}
-          onClick={onAdd}
-          aria-label="Schicht hinzufügen"
-        >
-          <Plus className="size-3.5" />
-        </button>
+        <>
+          <button
+            type="button"
+            className={shiftPlanAddShiftCompactButtonClassName}
+            onClick={onAdd}
+            aria-label="Schicht hinzufügen"
+          >
+            <Plus className="size-3.5" />
+          </button>
+          {onEditAvailability && !showAvailability ? (
+            <div className="pointer-events-auto shrink-0">
+              <ShiftPlanAddAvailabilityCompactButton
+                onClick={onEditAvailability}
+              />
+            </div>
+          ) : null}
+        </>
       ) : null}
       {!editable && cellItemCount === 0 && maxShiftsInRow === 0 ? (
         <ShiftPlanShiftSlotSpacer />
@@ -179,14 +222,15 @@ function ShiftPlanDropCell({
     </m.div>
   );
 
+  const dayHighlight = (isOver && !hasAbsence) || weekRowHighlight;
+
   if (compact) {
     return (
       <div
         ref={setNodeRef}
         className={cn(
           "relative transition-colors",
-          isOver &&
-            !hasAbsence &&
+          dayHighlight &&
             "rounded-lg bg-accent/10 ring-1 ring-inset ring-accent/40",
         )}
       >
@@ -202,7 +246,7 @@ function ShiftPlanDropCell({
         "relative align-top border-border/40 bg-card p-1.5 transition-colors",
         shiftPlanDayColumnClassName,
         shiftPlanLayoutTransitionClassName,
-        isOver && !hasAbsence && "bg-accent/10 ring-1 ring-inset ring-accent/40",
+        dayHighlight && "bg-accent/10 ring-1 ring-inset ring-accent/40",
       )}
     >
       {inner}
@@ -288,6 +332,7 @@ type ShiftPlanViewProps = {
   onNextWeek?: () => void;
   periodNav?: "day" | "week";
   onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -305,14 +350,12 @@ function ShiftPlanStaffName({
   className?: string;
 }) {
   const name = staffDisplayName(staff);
-  if (!onClick) {
-    return (
-      <p className={cn("truncate font-medium text-foreground", className)}>
-        {name}
-      </p>
-    );
-  }
-  return (
+  const isOwner = isStaffOwnerRow(staff);
+  const nameNode = !onClick ? (
+    <p className={cn("truncate font-medium text-foreground", className)}>
+      {name}
+    </p>
+  ) : (
     <button
       type="button"
       onClick={() => onClick(staff)}
@@ -325,6 +368,193 @@ function ShiftPlanStaffName({
     >
       {name}
     </button>
+  );
+  if (!isOwner) return nameNode;
+  return (
+    <div className="min-w-0 space-y-0.5">
+      {nameNode}
+      <Badge
+        variant="outline"
+        className={cn("text-[0.625rem]", staffOwnerBadgeClassName)}
+      >
+        Inhaber
+      </Badge>
+    </div>
+  );
+}
+
+/** Drop auf Namensspalte = Vorlage/Abwesenheit für alle sichtbaren Tage der Zeile. */
+function ShiftPlanWeekStaffDropCell({
+  staff,
+  onStaffClick,
+  plannedMinutes,
+  contracts,
+  targetSummaryDays,
+  viewMode,
+  weekDropEnabled,
+  setNodeRef,
+  weekHighlight,
+  showWeekHint,
+}: {
+  staff: RestaurantStaffRow;
+  onStaffClick?: (staff: RestaurantStaffRow) => void;
+  plannedMinutes: number;
+  contracts: readonly RestaurantStaffContractRow[];
+  targetSummaryDays: readonly Date[];
+  viewMode: ShiftScheduleViewMode;
+  weekDropEnabled: boolean;
+  setNodeRef: (node: HTMLElement | null) => void;
+  weekHighlight: boolean;
+  showWeekHint: boolean;
+}) {
+  const isOwner = isStaffOwnerRow(staff);
+  return (
+    <td
+      ref={setNodeRef}
+      className={cn(
+        "sticky left-0 z-10 overflow-hidden border-r border-border/40 bg-card px-3 py-2 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_10px_-4px_rgba(0,0,0,0.45)]",
+        shiftPlanStaffColumnClassName,
+        isOwner && !weekHighlight && staffOwnerRowSurfaceClassName,
+        weekHighlight && "bg-accent/10 ring-1 ring-inset ring-accent/40",
+      )}
+    >
+      <ShiftPlanStaffName staff={staff} onClick={onStaffClick} />
+      {weekDropEnabled && showWeekHint ? (
+        <p
+          className={cn(
+            "mt-0.5 text-[10px] leading-tight",
+            weekHighlight
+              ? "font-medium text-accent"
+              : "text-muted-foreground",
+          )}
+        >
+          {weekHighlight ? "Ganze Woche belegen" : "Auf Namen = ganze Woche"}
+        </p>
+      ) : null}
+      <EmployeeHoursBar
+        plannedMinutes={plannedMinutes}
+        contracts={contracts}
+        staffId={staff.id}
+        targetSummaryDays={targetSummaryDays}
+        viewMode={viewMode}
+      />
+    </td>
+  );
+}
+
+function ShiftPlanStaffWeekRow({
+  staff,
+  days,
+  shiftsByCell,
+  absencesByCell,
+  availabilityByCell,
+  restaurantTimeZone,
+  plannedMinutes,
+  contracts,
+  targetSummaryDays,
+  viewMode,
+  showWeekNav,
+  onAddShift,
+  onEditAvailability,
+  onEditShift,
+  onDeleteShift,
+  onDeleteAbsence,
+  onStaffClick,
+  editable,
+  weekDropEnabled,
+  layoutEnabled,
+  maxShiftsInRow,
+}: {
+  staff: RestaurantStaffRow;
+  days: Date[];
+  shiftsByCell: Map<string, RestaurantStaffScheduledShiftRow[]>;
+  absencesByCell: Map<string, RestaurantStaffWorkEntryRow[]>;
+  availabilityByCell: Map<string, RestaurantStaffAvailabilitySlotRow[]>;
+  restaurantTimeZone?: string;
+  plannedMinutes: number;
+  contracts: readonly RestaurantStaffContractRow[];
+  targetSummaryDays: readonly Date[];
+  viewMode: ShiftScheduleViewMode;
+  showWeekNav: boolean;
+  onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
+  onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
+  onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
+  onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
+  onStaffClick?: (staff: RestaurantStaffRow) => void;
+  editable: boolean;
+  weekDropEnabled: boolean;
+  layoutEnabled: boolean;
+  maxShiftsInRow: number;
+}) {
+  const dropId = shiftPlanWeekDropId(staff.id);
+  const { isOver, setNodeRef } = useDroppable({
+    id: dropId,
+    data: { kind: "week", staffId: staff.id },
+    disabled: !weekDropEnabled,
+  });
+  const { active } = useDndContext();
+  const dragType = (active?.data.current as ShiftPlanDragData | undefined)?.type;
+  const showWeekHint =
+    weekDropEnabled &&
+    active != null &&
+    (dragType === "template" ||
+      dragType === "absence" ||
+      dragType === "shift");
+  const weekHighlight = weekDropEnabled && isOver;
+
+  return (
+    <m.tr
+      layout={layoutEnabled ? "size" : false}
+      transition={shiftPlanLayoutMotionTransition}
+      className={cn(
+        "border-b border-border/40 last:border-0",
+        shiftPlanLayoutTransitionClassName,
+        weekHighlight && "bg-accent/[0.04]",
+      )}
+    >
+      <ShiftPlanWeekStaffDropCell
+        staff={staff}
+        onStaffClick={onStaffClick}
+        plannedMinutes={plannedMinutes}
+        contracts={contracts}
+        targetSummaryDays={targetSummaryDays}
+        viewMode={viewMode}
+        weekDropEnabled={weekDropEnabled}
+        setNodeRef={setNodeRef}
+        weekHighlight={weekHighlight}
+        showWeekHint={showWeekHint}
+      />
+      {showWeekNav ? <ShiftPlanWeekNavSpacer /> : null}
+      {days.map((day) => {
+        const cellKey = `${staff.id}__${localDayKey(day)}`;
+        const availabilityKey = `${staff.id}__${restaurantZonedDateKey(day, restaurantTimeZone)}`;
+        return (
+          <ShiftPlanDropCell
+            key={cellKey}
+            staffId={staff.id}
+            day={day}
+            shifts={shiftsByCell.get(cellKey) ?? []}
+            absences={absencesByCell.get(cellKey) ?? []}
+            availabilitySlots={availabilityByCell.get(availabilityKey) ?? []}
+            onAdd={() => onAddShift(staff.id, day)}
+            onEditAvailability={
+              onEditAvailability
+                ? () => onEditAvailability(staff.id, day)
+                : undefined
+            }
+            onEditShift={onEditShift}
+            onDeleteShift={onDeleteShift}
+            onDeleteAbsence={onDeleteAbsence}
+            editable={editable}
+            animateLayout={layoutEnabled}
+            maxShiftsInRow={maxShiftsInRow}
+            weekRowHighlight={weekHighlight}
+          />
+        );
+      })}
+      {showWeekNav ? <ShiftPlanWeekNavSpacer /> : null}
+    </m.tr>
   );
 }
 
@@ -437,6 +667,8 @@ function ShiftPlanWeekNavSpacer() {
 function ShiftPlanGroupGrid({
   days,
   staffRows,
+  positionName,
+  positionColor,
   shiftsByCell,
   absencesByCell,
   availabilityByCell,
@@ -451,14 +683,18 @@ function ShiftPlanGroupGrid({
   onNextWeek,
   periodNav = "week",
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
   onStaffClick,
   editable,
+  weekDropEnabled = false,
 }: {
   days: Date[];
   staffRows: RestaurantStaffRow[];
+  positionName: string;
+  positionColor: string;
   shiftsByCell: Map<string, RestaurantStaffScheduledShiftRow[]>;
   absencesByCell: Map<string, RestaurantStaffWorkEntryRow[]>;
   availabilityByCell: Map<string, RestaurantStaffAvailabilitySlotRow[]>;
@@ -473,11 +709,14 @@ function ShiftPlanGroupGrid({
   onNextWeek?: () => void;
   periodNav?: "day" | "week";
   onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
   onStaffClick?: (staff: RestaurantStaffRow) => void;
   editable: boolean;
+  /** Drop auf Namensspalte belegt alle `days` (Wochenansicht). */
+  weekDropEnabled?: boolean;
 }) {
   const todayKey = localDayKey(new Date());
   const showWeekNav = onPrevWeek != null && onNextWeek != null;
@@ -534,6 +773,11 @@ function ShiftPlanGroupGrid({
               const key = localDayKey(day);
               const isToday = key === todayKey;
               const holidayName = holidaysByDate[key];
+              const plannedStaffCount = countPlannedStaffForGroupDay(
+                staffRows,
+                key,
+                shiftsByCell,
+              );
               return (
                 <th
                   key={key}
@@ -549,6 +793,9 @@ function ShiftPlanGroupGrid({
                     holidayName={holidayName}
                     weather={weatherByDate?.get(key)}
                     isToday={isToday}
+                    plannedStaffCount={plannedStaffCount}
+                    positionName={positionName}
+                    positionColor={positionColor}
                   />
                 </th>
               );
@@ -564,57 +811,30 @@ function ShiftPlanGroupGrid({
         </thead>
         <tbody>
           {staffRows.map((staff) => (
-            <m.tr
+            <ShiftPlanStaffWeekRow
               key={staff.id}
-              layout={layoutEnabled ? "size" : false}
-              transition={shiftPlanLayoutMotionTransition}
-              className={cn(
-                "border-b border-border/40 last:border-0",
-                shiftPlanLayoutTransitionClassName,
-              )}
-            >
-              <td
-                className={cn(
-                  "sticky left-0 z-10 overflow-hidden border-r border-border/40 bg-card px-3 py-2 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_10px_-4px_rgba(0,0,0,0.45)]",
-                  shiftPlanStaffColumnClassName,
-                )}
-              >
-                <ShiftPlanStaffName
-                  staff={staff}
-                  onClick={onStaffClick}
-                />
-                <EmployeeHoursBar
-                  plannedMinutes={minutesByStaff.get(staff.id) ?? 0}
-                  contracts={contracts}
-                  staffId={staff.id}
-                  targetSummaryDays={targetSummaryDays}
-                  viewMode={viewMode}
-                />
-              </td>
-              {showWeekNav ? <ShiftPlanWeekNavSpacer /> : null}
-              {days.map((day) => {
-                const cellKey = `${staff.id}__${localDayKey(day)}`;
-                const availabilityKey = `${staff.id}__${restaurantZonedDateKey(day, restaurantTimeZone)}`;
-                return (
-                  <ShiftPlanDropCell
-                    key={cellKey}
-                    staffId={staff.id}
-                    day={day}
-                    shifts={shiftsByCell.get(cellKey) ?? []}
-                    absences={absencesByCell.get(cellKey) ?? []}
-                    availabilitySlots={availabilityByCell.get(availabilityKey) ?? []}
-                    onAdd={() => onAddShift(staff.id, day)}
-                    onEditShift={onEditShift}
-                    onDeleteShift={onDeleteShift}
-                    onDeleteAbsence={onDeleteAbsence}
-                    editable={editable}
-                    animateLayout={layoutEnabled}
-                    maxShiftsInRow={maxShiftsInRowByStaff.get(staff.id) ?? 0}
-                  />
-                );
-              })}
-              {showWeekNav ? <ShiftPlanWeekNavSpacer /> : null}
-            </m.tr>
+              staff={staff}
+              days={days}
+              shiftsByCell={shiftsByCell}
+              absencesByCell={absencesByCell}
+              availabilityByCell={availabilityByCell}
+              restaurantTimeZone={restaurantTimeZone}
+              plannedMinutes={minutesByStaff.get(staff.id) ?? 0}
+              contracts={contracts}
+              targetSummaryDays={targetSummaryDays}
+              viewMode={viewMode}
+              showWeekNav={showWeekNav}
+              onAddShift={onAddShift}
+              onEditAvailability={onEditAvailability}
+              onEditShift={onEditShift}
+              onDeleteShift={onDeleteShift}
+              onDeleteAbsence={onDeleteAbsence}
+              onStaffClick={onStaffClick}
+              editable={editable}
+              weekDropEnabled={weekDropEnabled}
+              layoutEnabled={layoutEnabled}
+              maxShiftsInRow={maxShiftsInRowByStaff.get(staff.id) ?? 0}
+            />
           ))}
         </tbody>
       </table>
@@ -640,12 +860,14 @@ export function ShiftPlanGrid({
   onNextWeek,
   periodNav = "week",
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
   onStaffClick,
   editable = true,
-}: ShiftPlanViewProps) {
+  weekDropEnabled = false,
+}: ShiftPlanViewProps & { weekDropEnabled?: boolean }) {
   const groups = groupStaffByPositionTag(staffRows, positionTags);
   const summaryDayKeys = useMemo(
     () => (hoursSummaryDayKeys ? new Set(hoursSummaryDayKeys) : undefined),
@@ -681,6 +903,8 @@ export function ShiftPlanGrid({
             <ShiftPlanGroupGrid
               days={days}
               staffRows={group.staff}
+              positionName={group.name}
+              positionColor={group.color}
               shiftsByCell={shiftsByCell}
               absencesByCell={absencesByCell}
               availabilityByCell={availabilityByCell}
@@ -695,11 +919,13 @@ export function ShiftPlanGrid({
               onNextWeek={onNextWeek}
               periodNav={periodNav}
               onAddShift={onAddShift}
+              onEditAvailability={onEditAvailability}
               onEditShift={onEditShift}
               onDeleteShift={onDeleteShift}
               onDeleteAbsence={onDeleteAbsence}
               onStaffClick={onStaffClick}
               editable={editable}
+              weekDropEnabled={weekDropEnabled}
             />
           </PositionGroupShell>
         ))}
@@ -715,6 +941,7 @@ function ShiftPlanDayStaffRow({
   absences,
   availabilitySlots,
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -727,6 +954,7 @@ function ShiftPlanDayStaffRow({
   absences: RestaurantStaffWorkEntryRow[];
   availabilitySlots: RestaurantStaffAvailabilitySlotRow[];
   onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -737,8 +965,14 @@ function ShiftPlanDayStaffRow({
     shifts.length +
     absences.length +
     (availabilitySlots.length > 0 && !absences.some(isShiftPlanAbsenceEntry) ? 1 : 0);
+  const isOwner = isStaffOwnerRow(staff);
   return (
-    <div className="flex flex-wrap items-start gap-3 border-b border-border/40 px-3 py-2 last:border-0">
+    <div
+      className={cn(
+        "flex flex-wrap items-start gap-3 border-b border-border/40 px-3 py-2 last:border-0",
+        isOwner && staffOwnerRowSurfaceClassName,
+      )}
+    >
       <div className="min-w-[8rem] shrink-0 pt-1">
         <ShiftPlanStaffName
           staff={staff}
@@ -754,6 +988,11 @@ function ShiftPlanDayStaffRow({
           absences={absences}
           availabilitySlots={availabilitySlots}
           onAdd={() => onAddShift(staff.id, day)}
+          onEditAvailability={
+            onEditAvailability
+              ? () => onEditAvailability(staff.id, day)
+              : undefined
+          }
           onEditShift={onEditShift}
           onDeleteShift={onDeleteShift}
           onDeleteAbsence={onDeleteAbsence}
@@ -776,6 +1015,7 @@ function ShiftPlanMonthDayCard({
   holidayName,
   weather,
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -790,6 +1030,7 @@ function ShiftPlanMonthDayCard({
   holidayName?: string;
   weather?: ShiftPlanDayWeather;
   onAddShift: (staffId: string, day: Date) => void;
+  onEditAvailability?: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
@@ -801,6 +1042,11 @@ function ShiftPlanMonthDayCard({
   const availabilityKey = restaurantZonedDateKey(day, restaurantTimeZone);
   const todayKey = localDayKey(new Date());
   const isToday = key === todayKey;
+  const positionCounts = countPlannedStaffByPositionForDay(
+    groups,
+    key,
+    shiftsByCell,
+  );
   const dayHasEntries = groups.some((g) =>
     g.staff.some((s) => {
       const cellKey = `${s.id}__${key}`;
@@ -836,6 +1082,7 @@ function ShiftPlanMonthDayCard({
           <ShiftPlanHolidayLabel name={holidayName} inline />
         ) : null}
         <ShiftPlanDayWeatherRow weather={weather} inline />
+        <ShiftPlanDayPositionCountBadges counts={positionCounts} />
       </header>
 
       <div className="space-y-3 p-3">
@@ -867,6 +1114,7 @@ function ShiftPlanMonthDayCard({
                     absences={absencesByCell.get(`${staff.id}__${key}`) ?? []}
                     availabilitySlots={availabilityByCell.get(`${staff.id}__${availabilityKey}`) ?? []}
                     onAddShift={onAddShift}
+                    onEditAvailability={onEditAvailability}
                     onEditShift={onEditShift}
                     onDeleteShift={onDeleteShift}
                     onDeleteAbsence={onDeleteAbsence}
@@ -903,6 +1151,7 @@ export function ShiftPlanMonthView({
   targetSummaryDays,
   viewMode,
   onAddShift,
+  onEditAvailability,
   onEditShift,
   onDeleteShift,
   onDeleteAbsence,
@@ -944,6 +1193,7 @@ export function ShiftPlanMonthView({
             holidayName={holidaysByDate[key]}
             weather={weatherByDate?.get(key)}
             onAddShift={onAddShift}
+            onEditAvailability={onEditAvailability}
             onEditShift={onEditShift}
             onDeleteShift={onDeleteShift}
             onDeleteAbsence={onDeleteAbsence}
@@ -955,6 +1205,3 @@ export function ShiftPlanMonthView({
     </div>
   );
 }
-
-/** @deprecated Use ShiftPlanMonthView */
-export const ShiftPlanMonthList = ShiftPlanMonthView;

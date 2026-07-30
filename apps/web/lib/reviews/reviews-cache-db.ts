@@ -7,6 +7,7 @@ import {
 } from "@/lib/reviews/reviews-cache-constants";
 import { tryAutoReplyToPendingReviews } from "@/lib/reviews/review-auto-reply-server";
 import { scheduleDeliverForNotificationReferences } from "@/lib/notifications/schedule-notification-deliver";
+import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
 import { reviewExternalId } from "@/lib/reviews/review-settings-types";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -33,7 +34,16 @@ function parseCachedReview(raw: unknown): UnifiedReview | null {
   const o = raw as Record<string, unknown>;
   if (typeof o.id !== "string" || typeof o.platform !== "string") return null;
   if (typeof o.rating !== "number" || typeof o.createdAt !== "string") return null;
-  return raw as UnifiedReview;
+  const review = raw as UnifiedReview;
+  // Google-Cache kann noch DE+EN mit Markern enthalten — beim Lesen bereinigen.
+  if (review.platform === "google") {
+    return {
+      ...review,
+      comment: formatReviewCommentDisplay(review.comment),
+      reply: formatReviewCommentDisplay(review.reply),
+    };
+  }
+  return review;
 }
 
 export async function readReviewsPlatformSyncState(
@@ -107,6 +117,34 @@ export async function readCachedReviews(
     reviews.push(review);
   }
   return reviews;
+}
+
+/** Sync-Metadaten ohne Cache zu leeren (Fehler / Disconnect). */
+export async function touchReviewsPlatformSync(
+  admin: SupabaseClient,
+  restaurantId: string,
+  platform: ReviewsCacheablePlatform,
+  syncedAt: string,
+  lastError: string | null,
+  meta: ReviewsPlatformSyncMeta = {},
+): Promise<void> {
+  const { count } = await admin
+    .from("restaurant_reviews_platform_cache")
+    .select("external_id", { count: "exact", head: true })
+    .eq("restaurant_id", restaurantId)
+    .eq("platform", platform);
+
+  await admin.from("restaurant_reviews_platform_sync").upsert(
+    {
+      restaurant_id: restaurantId,
+      platform,
+      synced_at: syncedAt,
+      last_error: lastError,
+      item_count: count ?? 0,
+      meta,
+    },
+    { onConflict: "restaurant_id,platform" },
+  );
 }
 
 export async function upsertReviewsPlatformCache(

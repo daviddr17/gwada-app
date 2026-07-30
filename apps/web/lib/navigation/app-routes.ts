@@ -41,6 +41,7 @@ export const APP_ROUTES = {
     settingsInventoryVoid: "/dashboard/pos/einstellungen/bestand-storno",
     settingsGiftVouchers: "/dashboard/pos/einstellungen/gutscheine",
     settingsDevicesRights: "/dashboard/pos/einstellungen/geraete-rechte",
+    settingsDevices: "/dashboard/pos/einstellungen/geraete",
   },
   kontakte: {
     root: "/dashboard/kontakte",
@@ -111,6 +112,14 @@ export const APP_ROUTES = {
     embed: "/dashboard/events/einbinden",
     statistics: "/dashboard/events/statistiken",
     settings: "/dashboard/events/einstellungen",
+  },
+  news: {
+    root: "/dashboard/news",
+    overview: "/dashboard/news/uebersicht",
+    autopilot: "/dashboard/news/autopilot",
+    statistics: "/dashboard/news/statistiken",
+    embed: "/dashboard/news/einbinden",
+    settings: "/dashboard/news/einstellungen",
   },
   settings: {
     root: "/dashboard/settings",

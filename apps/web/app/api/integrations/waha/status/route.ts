@@ -1,7 +1,7 @@
 import { buildWhatsappStatusResponse } from "@/lib/integrations/waha-api-response";
 import { syncWhatsappFromWaha } from "@/lib/integrations/waha-connect-service";
 import { authorizeWahaRestaurantRoute } from "@/lib/integrations/waha-route-auth";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const waha = await getWahaServerConfigAdmin();
+  const waha = await getWahaServerConfigForRestaurantAdmin(auth.ctx.restaurantId);
   if (!waha) {
     return Response.json(
       await buildWhatsappStatusResponse(

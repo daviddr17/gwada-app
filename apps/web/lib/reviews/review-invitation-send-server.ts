@@ -11,7 +11,7 @@ import { executeContactIdentityResolution } from "@/lib/contacts/contact-identit
 import { sendContactMessageServer } from "@/lib/contact-messages/send-contact-message-server";
 import { getPublicSiteUrl } from "@/lib/public-env";
 import { wahaCheckNumberExists, wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -137,7 +137,9 @@ export async function checkReviewInviteWhatsappNumber(
   const phone = params.guestPhone.trim();
   if (!phone) return { ok: false, error: "no_phone" };
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    params.restaurantId,
+  );
   if (!config) return { ok: false, error: "waha_not_configured" };
 
   const session = wahaSessionNameForRestaurant(params.restaurantId);
@@ -168,8 +170,15 @@ export async function sendManualReviewInvitation(
     sendEmail: boolean;
     sentByUserId: string | null;
     restaurantName?: string | null;
+    clientSendId?: string | null;
   },
-): Promise<{ ok: boolean; errors: string[] }> {
+): Promise<{
+  ok: boolean;
+  errors: string[];
+  messageId?: string;
+  wahaMessageId?: string | null;
+  contactId?: string;
+}> {
   const token = params.invitationToken.trim();
   if (!token) {
     return { ok: false, errors: ["invalid_token"] };
@@ -247,6 +256,7 @@ export async function sendManualReviewInvitation(
     reservationId: null,
     sentBy: params.sentByUserId,
     restaurantName: params.restaurantName,
+    clientSendId: params.clientSendId ?? undefined,
   });
 
   const externalChannels = channels.filter(
@@ -267,5 +277,8 @@ export async function sendManualReviewInvitation(
       .eq("id", inv.id);
   }
 
-  return result;
+  return {
+    ...result,
+    contactId: contactRes.contactId,
+  };
 }

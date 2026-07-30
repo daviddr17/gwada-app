@@ -41,7 +41,7 @@ export function DashboardInventoryTile() {
           highlight={emptyStock > 0}
         />
         <DashboardCompactMetricPill
-          label="Offene Bestellungen"
+          label="Bestellungen"
           value={
             openOrders > 0
               ? `${openOrders} · ${openLines} Pos.`

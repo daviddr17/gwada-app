@@ -15,4 +15,8 @@ struct PosPrintJobSnapshot: Sendable, Equatable {
     var host: String
     var port: UInt16
     var lines: [PosPrintJobLine]
+    /// `kitchen` (default) oder `cash_fiscal_pending`
+    var kind: String = "kitchen"
+    var amountCents: Int = 0
+    var tipCents: Int = 0
 }

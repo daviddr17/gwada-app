@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { formatShiftPlanDayHeaderDateDe } from "@/lib/staff/shift-schedule-range";
+import { ShiftPlanDayGroupPlannedCount } from "@/components/staff/shift-plan/shift-plan-day-position-counts";
 import {
   ShiftPlanDayWeatherRow,
   type ShiftPlanDayWeather,
@@ -30,15 +31,26 @@ export function ShiftPlanWeekDayHeader({
   holidayName,
   weather,
   isToday = false,
+  plannedStaffCount = 0,
+  positionName,
+  positionColor,
 }: {
   day: Date;
   weekdayLabel: string;
   holidayName?: string;
   weather?: ShiftPlanDayWeather;
   isToday?: boolean;
+  /** Geplante MA dieser Positionsgruppe am Tag. */
+  plannedStaffCount?: number;
+  positionName?: string;
+  positionColor?: string;
 }) {
   const showHoliday =
     holidayName && shouldShowShiftPlanHolidayLabel(holidayName);
+  const showPlanned =
+    plannedStaffCount > 0 &&
+    positionName != null &&
+    positionColor != null;
 
   return (
     <div
@@ -52,11 +64,20 @@ export function ShiftPlanWeekDayHeader({
       </div>
       <div
         className={cn(
-          "whitespace-nowrap tabular-nums text-[11px] leading-tight",
+          "flex items-center justify-center gap-1 whitespace-nowrap leading-tight",
           isToday && "font-semibold text-foreground",
         )}
       >
-        {formatShiftPlanDayHeaderDateDe(day)}
+        <span className="tabular-nums text-[11px]">
+          {formatShiftPlanDayHeaderDateDe(day)}
+        </span>
+        {showPlanned ? (
+          <ShiftPlanDayGroupPlannedCount
+            count={plannedStaffCount}
+            positionName={positionName}
+            positionColor={positionColor}
+          />
+        ) : null}
       </div>
       <div className={shiftPlanDayHeaderHolidaySlotClassName}>
         {showHoliday ? (

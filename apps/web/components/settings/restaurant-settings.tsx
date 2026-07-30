@@ -1,11 +1,10 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -23,7 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { DatePickerField, formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -34,6 +32,7 @@ import {
 } from "@/i18n/config";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { SettingsBrandingCard } from "@/components/settings/settings-branding-panel";
+import { SocialBrandKitCard } from "@/components/social/social-brand-kit-card";
 import { RestaurantProfileHeader } from "@/components/settings/restaurant-profile-header";
 import { RestaurantBusinessCardDrawer } from "@/components/settings/restaurant-business-card-drawer";
 import { RestaurantSettingsSkeleton } from "@/components/settings/restaurant-settings-skeleton";
@@ -43,6 +42,7 @@ import {
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
 import { IntegrationPlatformSyncButton } from "@/components/settings/integration-platform-sync-button";
+import { OpeningHoursExceptionCard } from "@/components/settings/opening-hours-exception-card";
 import { OpeningHoursHolidaySuggestions } from "@/components/settings/opening-hours-holiday-suggestions";
 import { OpeningHoursPlatformSyncToggles } from "@/components/settings/opening-hours-platform-sync-toggles";
 import {
@@ -102,7 +102,10 @@ function cloneProfile(p: RestaurantProfile): RestaurantProfile {
     ...p,
     weeklyHours,
     kitchenWeeklyHours,
-    dateExceptions: p.dateExceptions.map((ex) => ({ ...ex })),
+    dateExceptions: p.dateExceptions.map((ex) => ({
+      ...ex,
+      periods: ex.periods?.map((period) => ({ ...period })),
+    })),
   };
 }
 
@@ -116,6 +119,7 @@ function newException(): DateHoursException {
     closed: false,
     open: "11:30",
     close: "22:00",
+    periods: [{ open: "11:30", close: "22:00" }],
     note: "",
   };
 }
@@ -819,6 +823,7 @@ export function RestaurantSettingsPanel({
           savedHex={accentHex}
           error={accentError}
         />
+        <SocialBrandKitCard restaurantId={draft.id} />
         </div>
         <SettingsStickySaveBar show={overviewDirty}>
           <Button
@@ -1005,8 +1010,9 @@ export function RestaurantSettingsPanel({
                     Ausnahmen
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Abweichende Zeiten an bestimmten Tagen. Standardmäßig nur
-                    zukünftige / heutige Termine.
+                    Abweichende Zeiten an bestimmten Tagen — inkl. zeitweiser
+                    Schließung (Pause). Standardmäßig nur zukünftige / heutige
+                    Termine. Google: Pause = mehrere offene Perioden.
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
@@ -1060,77 +1066,13 @@ export function RestaurantSettingsPanel({
               )}
               <div className="space-y-4">
               {exceptionsVisible.map((ex) => (
-              <div
-                key={ex.id}
-                className="space-y-3 rounded-xl border border-border/40 bg-muted/15 p-4"
-              >
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Datum</Label>
-                    <DatePickerField
-                      value={ex.date}
-                      onChange={(d) => {
-                        if (d) updateException(ex.id, { date: d });
-                      }}
-                      placeholder="Datum wählen"
-                      className="max-w-[min(100%,18rem)]"
-                    />
-                  </div>
-                  <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm">
-                    <Checkbox
-                      checked={ex.closed}
-                      onCheckedChange={(v) =>
-                        updateException(ex.id, { closed: v === true })
-                      }
-                    />
-                    Geschlossen
-                  </label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="ms-auto shrink-0 text-muted-foreground hover:text-destructive"
-                    aria-label="Ausnahme entfernen"
-                    onClick={() => setExceptionDeleteId(ex.id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-                <div className="flex min-h-11 flex-wrap items-center gap-2">
-                  {!ex.closed && (
-                    <>
-                      <Input
-                        type="time"
-                        value={ex.open ?? ""}
-                        onChange={(e) =>
-                          updateException(ex.id, { open: e.target.value })
-                        }
-                        className={formScheduleTimeInputClassName}
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="time"
-                        value={ex.close ?? ""}
-                        onChange={(e) =>
-                          updateException(ex.id, { close: e.target.value })
-                        }
-                        className={formScheduleTimeInputClassName}
-                      />
-                    </>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Notiz (optional)</Label>
-                  <Input
-                    value={ex.note ?? ""}
-                    onChange={(e) =>
-                      updateException(ex.id, { note: e.target.value })
-                    }
-                    placeholder="z. B. Nur Abholung"
-                    className="h-10 rounded-lg"
-                  />
-                </div>
-              </div>
+                <OpeningHoursExceptionCard
+                  key={ex.id}
+                  exception={ex}
+                  weeklyHours={draft.weeklyHours}
+                  onChange={(patch) => updateException(ex.id, patch)}
+                  onRemove={() => setExceptionDeleteId(ex.id)}
+                />
               ))}
               </div>
             </>

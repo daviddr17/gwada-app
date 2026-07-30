@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { AccountingCatalogToolbar } from "@/components/accounting/accounting-catalog-toolbar";
@@ -39,6 +39,11 @@ import { useMarkNotificationModuleReadOnOpen } from "@/lib/hooks/use-mark-notifi
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useAccountingVoucherPageFileDrop } from "@/lib/hooks/use-accounting-voucher-page-file-drop";
 import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
+import {
+  accountingVoucherListCacheKey,
+  peekAccountingVoucherListCache,
+  writeAccountingVoucherListCache,
+} from "@/lib/accounting/accounting-list-client-cache";
 import {
   accountingSourceDisplayLabel,
   isExternalAccountingSource,
@@ -143,16 +148,67 @@ export function AccountingVouchersScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showSkeleton = useDeferredSkeleton(loading && rows.length === 0);
+
+  const listCacheKey = useMemo(() => {
+    if (!restaurantId) return null;
+    return accountingVoucherListCacheKey({
+      restaurantId,
+      source: platformFilter,
+      status: statusFilter,
+      variant: variantFilter,
+      voucherKind: voucherKindFilter,
+      search,
+      page,
+      sortKey,
+      sortDir,
+      canManage,
+    });
+  }, [
+    restaurantId,
+    platformFilter,
+    statusFilter,
+    variantFilter,
+    voucherKindFilter,
+    search,
+    page,
+    sortKey,
+    sortDir,
+    canManage,
+  ]);
 
   useMarkNotificationModuleReadOnOpen(
     "accounting_voucher",
     Boolean(restaurantId && canRead),
   );
 
+  const applyCachedList = useCallback(
+    (cached: ReturnType<typeof peekAccountingVoucherListCache>) => {
+      if (!cached) return false;
+      setRows(cached.rows);
+      setStatuses(cached.statuses);
+      if (cached.catalog) {
+        setTaxRates(cached.catalog.taxRates);
+        setUnits(cached.catalog.units);
+        setArticles(cached.catalog.articles);
+      }
+      setListMeta(cached.listMeta);
+      setLoading(false);
+      return true;
+    },
+    [],
+  );
+
+  useLayoutEffect(() => {
+    if (!listCacheKey) return;
+    applyCachedList(peekAccountingVoucherListCache(listCacheKey));
+  }, [listCacheKey, applyCachedList]);
+
   const load = useCallback(async () => {
-    if (!restaurantId) return;
-    setLoading(true);
+    if (!restaurantId || !listCacheKey) return;
+    const cached = peekAccountingVoucherListCache(listCacheKey);
+    if (cached) applyCachedList(cached);
+    else setLoading(true);
     try {
       const [list, statusRows, catalog] = await Promise.all([
         fetchAccountingVouchers(restaurantId, {
@@ -184,6 +240,22 @@ export function AccountingVouchersScreen() {
         totalCount: list.totalCount,
       });
       syncPageFromServer(list.page);
+      writeAccountingVoucherListCache(listCacheKey, {
+        rows: list.items,
+        listMeta: {
+          page: list.page,
+          totalPages: list.totalPages,
+          totalCount: list.totalCount,
+        },
+        catalog: catalog
+          ? {
+              taxRates: catalog.taxRates,
+              units: catalog.units,
+              articles: catalog.articles,
+            }
+          : null,
+        statuses: statusRows,
+      });
     } catch {
       toast.error("Belege konnten nicht geladen werden.");
     } finally {
@@ -191,6 +263,7 @@ export function AccountingVouchersScreen() {
     }
   }, [
     restaurantId,
+    listCacheKey,
     platformFilter,
     statusFilter,
     variantFilter,
@@ -201,6 +274,7 @@ export function AccountingVouchersScreen() {
     sortDir,
     syncPageFromServer,
     canManage,
+    applyCachedList,
   ]);
 
   useEffect(() => {

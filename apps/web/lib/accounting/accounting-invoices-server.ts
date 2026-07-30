@@ -83,10 +83,11 @@ export async function createAccountingInvoice(
   sb: SupabaseClient,
   params: {
     restaurantId: string;
-    userId: string;
+    userId: string | null;
     input: AccountingSalesDocumentInput;
   },
 ): Promise<{ row: AccountingInvoiceRow | null; error: string | null }> {
+  const actorId = params.userId?.trim() || null;
   const lineItems = reindexLineItems(params.input.lineItems);
   const totals = computeDocumentTotals(
     lineItems,
@@ -227,8 +228,10 @@ export async function createAccountingInvoice(
         null,
       remark: params.input.remark ?? null,
       finalize_on_create: params.input.finalizeOnCreate ?? false,
-      created_by: params.userId,
-      updated_by: params.userId,
+      pos_payment_id: params.input.posPaymentId?.trim() || null,
+      pos_order_id: params.input.posOrderId?.trim() || null,
+      created_by: actorId,
+      updated_by: actorId,
     })
     .select("*")
     .single();
@@ -241,7 +244,7 @@ export async function createAccountingInvoice(
   if (isCorrection && original) {
     const reverseErr = await applyInvoiceInventoryCorrectionReversal(sb, {
       restaurantId: params.restaurantId,
-      userId: params.userId,
+      userId: actorId ?? "",
       correctionInvoiceId: row.id,
       correctionVoucherNumber: row.voucher_number,
       correctsInvoiceId: original.id,
@@ -257,7 +260,7 @@ export async function createAccountingInvoice(
   } else if (!isCorrection) {
     const deductErr = await applyInvoiceInventoryDeduction(sb, {
       restaurantId: params.restaurantId,
-      userId: params.userId,
+      userId: actorId ?? "",
       invoiceId: row.id,
       voucherNumber: row.voucher_number,
       lineItems: row.line_items,
@@ -271,7 +274,7 @@ export async function createAccountingInvoice(
     restaurantId: params.restaurantId,
     documentKind: "invoice",
     documentId: row.id,
-    actorUserId: params.userId,
+    actorUserId: actorId,
     action: "created",
     details: {
       source: row.source,

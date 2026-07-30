@@ -97,8 +97,8 @@ export function IntegrationGrantedScopes({
   variant = "active",
   className,
 }: {
-  provider: "facebook" | "instagram" | "google_business";
-  requestedScopes: string[];
+  provider: "facebook" | "instagram" | "google_business" | "gmail" | "outlook";
+  requestedScopes?: string[];
   grantedScopes: string[];
   /** `preview`: alles ausgegraut (noch nicht verbunden). `active`: nach Verbindung. */
   variant?: "preview" | "active";
@@ -106,8 +106,16 @@ export function IntegrationGrantedScopes({
 }) {
   const catalog = catalogForProvider(provider);
   const grantedOAuthIds = new Set(grantedScopes);
-  const requestedOAuthIds = new Set(requestedScopes);
-  const providerKind = provider === "google_business" ? "google" : "meta";
+  const requestedOAuthIds = new Set(
+    requestedScopes ??
+      catalog.map((s) => s.oauthScopeId ?? s.id),
+  );
+  const providerKind =
+    provider === "outlook"
+      ? "microsoft"
+      : provider === "google_business" || provider === "gmail"
+        ? "google"
+        : "meta";
   const isPreview = variant === "preview";
 
   const extraGranted = grantedScopes.filter(

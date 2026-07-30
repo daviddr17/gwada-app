@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  PurchaseOrderLineDeliveryControls,
+  type LineDeliveryCommit,
+} from "@/components/inventory/purchase-order-line-delivery-controls";
+import { purchaseOrderAllowsDeliveryActions } from "@/lib/inventory/purchase-order-status";
+import { resolveLineDelivery } from "@/lib/inventory/purchase-order-line-delivery";
 import type {
   OrderProtocolActor,
   PurchaseOrder,
@@ -104,21 +110,26 @@ export type PurchaseOrderCompactLinesListProps = {
     user: OrderProtocolActor,
   ) => Promise<boolean>;
   unitLabelForLine: (line: PurchaseOrderLine) => string;
-  onMarkDelivered: (orderId: string, lineId: string) => void;
-  onUnmarkDelivered: (orderId: string, lineId: string) => void;
+  onSetDelivery: (
+    orderId: string,
+    lineId: string,
+    input: LineDeliveryCommit,
+  ) => void | Promise<void>;
+  onClearDelivery: (orderId: string, lineId: string) => void | Promise<void>;
 };
 
-/** Kompakt: Zutatenname (voll lesbar) + Mengenfeld — für schnelle Bestellbearbeitung. */
+/** Kompakt: Zutat + Menge; bei Bestellt/Abgeschlossen dichte Liefer-Chips. */
 export function PurchaseOrderCompactLinesList({
   order,
   lines,
   actor,
   onCommitQty,
   unitLabelForLine,
-  onMarkDelivered,
-  onUnmarkDelivered,
+  onSetDelivery,
+  onClearDelivery,
 }: PurchaseOrderCompactLinesListProps) {
-  const readOnly = order.status !== "open";
+  const showDelivery = purchaseOrderAllowsDeliveryActions(order.status);
+  const qtyReadOnly = false;
 
   if (lines.length === 0) {
     return (
@@ -131,7 +142,12 @@ export function PurchaseOrderCompactLinesList({
   return (
     <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
       <div
-        className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2 border-b border-border/50 bg-muted/35 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+        className={cn(
+          "grid gap-2 border-b border-border/50 bg-muted/35 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground",
+          showDelivery
+            ? "grid-cols-[minmax(0,1fr)_5.5rem]"
+            : "grid-cols-[minmax(0,1fr)_7rem]",
+        )}
         aria-hidden
       >
         <span>Zutat</span>
@@ -140,46 +156,49 @@ export function PurchaseOrderCompactLinesList({
       <ul className="divide-y divide-border/40">
         {lines.map((line) => {
           const unitLabel = unitLabelForLine(line);
+          const resolved = resolveLineDelivery(line);
           return (
             <li
               key={line.id}
               className={cn(
-                "grid grid-cols-[minmax(0,1fr)_7rem] items-center gap-x-2 px-3 py-1.5",
-                line.deliveredAt && "bg-emerald-500/5",
+                "px-3 py-1.5",
+                resolved?.status === "delivered" && "bg-emerald-500/5",
+                resolved?.status === "not_delivered" && "bg-destructive/5",
+                resolved?.status === "partial" && "bg-amber-500/5",
               )}
             >
-              <div className="min-w-0">
-                <p className="text-sm font-medium leading-snug break-words text-foreground">
+              <div
+                className={cn(
+                  "grid items-center gap-x-2",
+                  showDelivery
+                    ? "grid-cols-[minmax(0,1fr)_5.5rem]"
+                    : "grid-cols-[minmax(0,1fr)_7rem]",
+                )}
+              >
+                <p className="min-w-0 text-sm font-medium leading-snug break-words text-foreground">
                   {line.ingredientName}
                 </p>
-                {order.status === "closed" ? (
-                  line.deliveredAt ? (
-                    <button
-                      type="button"
-                      className="mt-0.5 text-left text-[11px] font-medium text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
-                      onClick={() => onUnmarkDelivered(order.id, line.id)}
-                    >
-                      Geliefert · rückgängig
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="mt-0.5 text-left text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                      onClick={() => onMarkDelivered(order.id, line.id)}
-                    >
-                      Als geliefert markieren
-                    </button>
-                  )
-                ) : null}
+                <PurchaseOrderCompactLineQtyInput
+                  orderId={order.id}
+                  line={line}
+                  readOnly={qtyReadOnly}
+                  actor={actor}
+                  onCommit={onCommitQty}
+                  unitLabel={unitLabel}
+                />
               </div>
-              <PurchaseOrderCompactLineQtyInput
-                orderId={order.id}
-                line={line}
-                readOnly={readOnly}
-                actor={actor}
-                onCommit={onCommitQty}
-                unitLabel={unitLabel}
-              />
+              {showDelivery ? (
+                <div className="mt-1">
+                  <PurchaseOrderLineDeliveryControls
+                    line={line}
+                    dense
+                    onCommit={(input) =>
+                      void onSetDelivery(order.id, line.id, input)
+                    }
+                    onClear={() => void onClearDelivery(order.id, line.id)}
+                  />
+                </div>
+              ) : null}
             </li>
           );
         })}

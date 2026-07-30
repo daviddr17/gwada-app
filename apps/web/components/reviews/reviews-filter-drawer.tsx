@@ -3,17 +3,18 @@
 import { toast } from "sonner";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { SearchableSelect } from "@/components/ui/combobox";
-import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import {
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterZone,
+  DrawerSortZone,
+} from "@/components/ui/drawer-filter-sheet";
 import {
   Select,
   SelectContent,
@@ -21,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import {
   REVIEW_COMMENT_FILTER_OPTIONS,
@@ -112,74 +112,68 @@ export function ReviewsFilterDrawer({
       repositionInputs={false}
     >
       <DrawerContent className={drawerContentClassName("filter")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Filter & Sortierung
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            Bewertungen nach Status, Sternen und Kommentar eingrenzen sowie
-            sortieren.
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter & Sortierung" />
 
         <div className={drawerScrollAreaClassName(6)}>
-          <DrawerFormSection title="Gelesen">
-            <SearchableSelect
-              options={REVIEW_READ_FILTER_OPTIONS}
-              value={readFilter}
-              onValueChange={(v) => onReadFilterChange(v as ReviewReadFilter)}
-              placeholder="Alle"
-              searchPlaceholder="Status …"
-              aria-label="Nach Gelesen-Status filtern"
-              className={reviewsFilterSelectClassName}
-            />
-          </DrawerFormSection>
-
-          <DrawerFormSection title="Sterne">
-            <SearchableSelect
-              options={REVIEW_RATING_FILTER_OPTIONS}
-              value={ratingFilter}
-              onValueChange={(v) =>
-                onRatingFilterChange(v as ReviewRatingFilter)
-              }
-              placeholder="Alle Sterne"
-              searchPlaceholder="Sterne …"
-              aria-label="Nach Sternen filtern"
-              className={reviewsFilterSelectClassName}
-            />
-          </DrawerFormSection>
-
-          <DrawerFormSection title="Kommentar">
-            <SearchableSelect
-              options={REVIEW_COMMENT_FILTER_OPTIONS}
-              value={commentFilter}
-              onValueChange={(v) =>
-                onCommentFilterChange(v as ReviewCommentFilter)
-              }
-              placeholder="Alle Kommentare"
-              searchPlaceholder="Kommentar …"
-              aria-label="Nach Kommentar filtern"
-              className={reviewsFilterSelectClassName}
-            />
-          </DrawerFormSection>
-
-          {showReplyFilter ? (
-            <DrawerFormSection title="Antwort">
+          <DrawerFilterZone>
+            <DrawerFilterField label="Gelesen">
               <SearchableSelect
-                options={REVIEW_REPLY_FILTER_OPTIONS}
-                value={replyFilter}
-                onValueChange={(v) =>
-                  onReplyFilterChange(v as ReviewReplyFilter)
-                }
-                placeholder="Alle Antworten"
-                searchPlaceholder="Antwort …"
-                aria-label="Nach Antwortstatus filtern"
+                options={REVIEW_READ_FILTER_OPTIONS}
+                value={readFilter}
+                onValueChange={(v) => onReadFilterChange(v as ReviewReadFilter)}
+                placeholder="Alle"
+                searchPlaceholder="Gelesen …"
+                aria-label="Nach Gelesen-Status filtern"
                 className={reviewsFilterSelectClassName}
               />
-            </DrawerFormSection>
-          ) : null}
+            </DrawerFilterField>
 
-          <DrawerFormSection title="Sortierung">
+            <DrawerFilterField label="Sterne">
+              <SearchableSelect
+                options={REVIEW_RATING_FILTER_OPTIONS}
+                value={ratingFilter}
+                onValueChange={(v) =>
+                  onRatingFilterChange(v as ReviewRatingFilter)
+                }
+                placeholder="Alle Sterne"
+                searchPlaceholder="Sterne …"
+                aria-label="Nach Sternen filtern"
+                className={reviewsFilterSelectClassName}
+              />
+            </DrawerFilterField>
+
+            <DrawerFilterField label="Kommentar">
+              <SearchableSelect
+                options={REVIEW_COMMENT_FILTER_OPTIONS}
+                value={commentFilter}
+                onValueChange={(v) =>
+                  onCommentFilterChange(v as ReviewCommentFilter)
+                }
+                placeholder="Alle Kommentare"
+                searchPlaceholder="Kommentar …"
+                aria-label="Nach Kommentar filtern"
+                className={reviewsFilterSelectClassName}
+              />
+            </DrawerFilterField>
+
+            {showReplyFilter ? (
+              <DrawerFilterField label="Antwort">
+                <SearchableSelect
+                  options={REVIEW_REPLY_FILTER_OPTIONS}
+                  value={replyFilter}
+                  onValueChange={(v) =>
+                    onReplyFilterChange(v as ReviewReplyFilter)
+                  }
+                  placeholder="Alle Antworten"
+                  searchPlaceholder="Antwort …"
+                  aria-label="Nach Antwortstatus filtern"
+                  className={reviewsFilterSelectClassName}
+                />
+              </DrawerFilterField>
+            ) : null}
+          </DrawerFilterZone>
+
+          <DrawerSortZone>
             <Select
               value={sortKey}
               onValueChange={(v) => onSortKeyChange(v as ReviewSortKey)}
@@ -200,7 +194,7 @@ export function ReviewsFilterDrawer({
                 ))}
               </SelectContent>
             </Select>
-          </DrawerFormSection>
+          </DrawerSortZone>
         </div>
         <DrawerFilterFooter onReset={resetFilters} onDone={() => onOpenChange(false)} />
       </DrawerContent>

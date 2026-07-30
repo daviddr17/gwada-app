@@ -23,17 +23,28 @@ export async function sendViaSmtp(
   smtp: EmailSmtpCredentials,
   payload: SmtpSendPayload,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const auth = smtp.oauthAccessToken
+    ? {
+        type: "OAuth2" as const,
+        user: smtp.email,
+        accessToken: smtp.oauthAccessToken,
+      }
+    : {
+        user: smtp.email,
+        pass: smtp.password,
+      };
+
+  const secure = smtp.smtpPort === 465;
   const transporter = nodemailer.createTransport({
     host: smtp.smtpHost,
     port: smtp.smtpPort,
-    secure: smtp.smtpPort === 465,
+    secure,
+    /** Office 365 / Outlook SMTP (587) braucht STARTTLS. */
+    requireTLS: !secure && smtp.smtpPort === 587,
     connectionTimeout: 12_000,
     greetingTimeout: 12_000,
     socketTimeout: 20_000,
-    auth: {
-      user: smtp.email,
-      pass: smtp.password,
-    },
+    auth,
   });
 
   try {

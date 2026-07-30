@@ -20,4 +20,5 @@ export async function revalidatePublicReviewsEmbedForRestaurant(
   const encoded = encodeURIComponent(slug);
   revalidatePath(`/embed/bewertungen/${encoded}`);
   revalidatePath(`/api/public/profile/${encoded}/reviews`);
+  revalidatePath(`/${encoded}`);
 }

@@ -178,6 +178,7 @@
       "errorNotFound": "Ristorante non trovato o non pubblicato.",
       "errorCreateFailed": "Impossibile creare la prenotazione.",
       "errorUpdateFailed": "Impossibile salvare le modifiche.",
+      "errorRateLimit": "Troppe richieste. Attendi un momento e riprova.",
       "hintDate": "Scegli una data.",
       "hintTime": "Scegli un orario valido.",
       "hintParty": "Indica il numero di persone (min. 1).",
@@ -260,7 +261,9 @@
       "replyLabel": "Risposta:",
       "average": "Media",
       "count": "Numero",
-      "starsAria": "{rating} su 5 stelle"
+      "starsAria": "{rating} su 5 stelle",
+      "more": "Altro",
+      "less": "Meno"
     },
     "gallery": {
       "images": "Foto",

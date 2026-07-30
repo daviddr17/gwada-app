@@ -8,6 +8,7 @@ import {
   type ReviewsCacheablePlatform,
 } from "@/lib/reviews/reviews-cache-constants";
 import {
+  touchReviewsPlatformSync,
   upsertReviewsPlatformCache,
   type ReviewsPlatformSyncMeta,
 } from "@/lib/reviews/reviews-cache-db";
@@ -22,7 +23,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const inFlightSync = new Set<string>();
-const GOOGLE_SYNC_MAX_PAGES = 10;
+/** Google listet max. 50/Seite — genug für große Standorte (z. B. 1500+ ≈ 30 Seiten). */
+const GOOGLE_SYNC_MAX_PAGES = 50;
 
 function syncLockKey(restaurantId: string, platform: ReviewsCacheablePlatform): string {
   return `${restaurantId}:${platform}`;
@@ -106,24 +108,24 @@ export async function syncRestaurantReviewsPlatform(
     const connected = await isReviewsPlatformConnected(restaurantId, platform);
 
     if (!connected) {
-      await upsertReviewsPlatformCache(
+      // Cache behalten — leeren + späterer Refill würde sonst Push-Sturm auslösen.
+      await touchReviewsPlatformSync(
         admin,
         restaurantId,
         platform,
-        [],
         syncedAt,
-        null,
+        "not_connected",
       );
       return { ok: true, count: 0 };
     }
 
     const result = await fetchReviewsForPlatform(restaurantId, platform);
     if ("error" in result) {
-      await upsertReviewsPlatformCache(
+      // Bei Fetch-Fehler letzten guten Cache behalten (kein Wipe → kein Refill-Sturm).
+      await touchReviewsPlatformSync(
         admin,
         restaurantId,
         platform,
-        [],
         syncedAt,
         result.error,
       );

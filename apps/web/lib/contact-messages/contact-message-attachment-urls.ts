@@ -1,4 +1,5 @@
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
+import { parseImapAttachmentStoragePath } from "@/lib/contact-messages/imap-attachment-storage-path";
 
 export function gwadaAttachmentDownloadUrl(params: {
   restaurantId: string;
@@ -37,6 +38,28 @@ export function emailAttachmentProxyUrl(params: {
     index: String(params.index),
   });
   return `/api/contact-messages/email/attachment?${q.toString()}`;
+}
+
+/** URL für DB-Anhangzeile: IMAP-Proxy (lazy) oder Storage-Download. */
+export function attachmentUrlFromStoragePath(params: {
+  restaurantId: string;
+  messageId: string;
+  attachmentId: string;
+  storagePath: string | null | undefined;
+}): string {
+  const imap = parseImapAttachmentStoragePath(params.storagePath);
+  if (imap) {
+    return emailAttachmentProxyUrl({
+      restaurantId: params.restaurantId,
+      uid: imap.uid,
+      index: imap.index,
+    });
+  }
+  return gwadaAttachmentDownloadUrl({
+    restaurantId: params.restaurantId,
+    messageId: params.messageId,
+    attachmentId: params.attachmentId,
+  });
 }
 
 export function imapUidFromMessageId(messageId: string): number | null {

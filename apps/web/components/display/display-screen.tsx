@@ -33,12 +33,14 @@ import { DisplayReservationsModule } from "@/components/display/modules/display-
 import { DisplayInventoryModule } from "@/components/display/modules/display-inventory-module";
 import { DisplayComplianceModule } from "@/components/display/modules/display-compliance-module";
 import { DisplayRecipesModule } from "@/components/display/modules/display-recipes-module";
+import { DisplayScreenSkeleton } from "@/components/display/display-screen-skeleton";
 import { Button } from "@/components/ui/button";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
 import { cn } from "@/lib/utils";
-import { Loader2, MonitorOff } from "lucide-react";
+import { MonitorOff } from "lucide-react";
 import Link from "next/link";
 import {
   readDisplayDeviceCredential,
@@ -51,12 +53,21 @@ import {
   shouldShowDisplayModulePicker,
 } from "@/lib/display/display-module-navigation";
 import { submitDisplayPin } from "@/lib/display/submit-display-pin";
+import {
+  DISPLAY_PAGE_RELOAD_MAX_AGE_MS,
+  DISPLAY_RESUME_RELOAD_HIDDEN_MS,
+  DISPLAY_SESSION_EXPIRED_EVENT,
+  displaySessionAuthErrorMessage,
+  handleDisplaySessionAuthFailure,
+  reloadDisplayPage,
+} from "@/lib/display/display-session-client";
 import { STAFF_WORK_ENTRY_LABELS } from "@/lib/types/staff";
 import {
   displayChromeMainClassName,
   displayChromeContentWrapClassName,
   displayChromeShellClassName,
 } from "@/lib/ui/display-chrome";
+import { toast } from "sonner";
 import { useDisplayInventoryLive } from "@/lib/hooks/use-display-inventory-live";
 import { useDisplayRecipesLive } from "@/lib/hooks/use-display-recipes-live";
 import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
@@ -77,6 +88,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
     : DISPLAY_CELEBRATION_EXIT_MS;
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const showBootstrapSkeleton = useDeferredSkeleton(loading);
   const [pin, setPin] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
   const [screenCelebration, setScreenCelebration] =
@@ -91,6 +103,12 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const [lockPinError, setLockPinError] = useState<string | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
+  const pageLoadedAtRef = useRef<number>(Date.now());
+  const hiddenAtRef = useRef<number | null>(null);
+  const hardReloadInFlightRef = useRef(false);
+  const sessionActiveRef = useRef(false);
+  const pinBusyRef = useRef(false);
+  const pinLengthRef = useRef(0);
   const pinLoginGatePreparingRef = useRef(false);
   const sessionRestoreGatePreparedRef = useRef(false);
   const pendingPinSessionRef = useRef<{
@@ -104,6 +122,10 @@ export function DisplayScreen({ slug }: { slug: string }) {
   );
   const { preparePinLoginGate, prepareAndGate, todoPopupProps } =
     useDisplayShiftGates();
+
+  sessionActiveRef.current = Boolean(context?.session);
+  pinBusyRef.current = pinBusy;
+  pinLengthRef.current = pin.length;
 
   const restaurantTimezone =
     context?.restaurant?.timezone ?? DEFAULT_RESTAURANT_TIMEZONE;
@@ -187,6 +209,15 @@ export function DisplayScreen({ slug }: { slug: string }) {
       setLoading(false);
     })();
   }, [refreshContext, tryRestoreDeviceCookie]);
+
+  /** Signed Avatar-/Cover-URLs erneuern, bevor sie auf Dauer-Tablets ablaufen. */
+  useEffect(() => {
+    if (!context?.paired) return;
+    const id = window.setInterval(() => {
+      void refreshContext();
+    }, 45 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [context?.paired, refreshContext]);
 
   useEffect(() => {
     if (!context?.session) {
@@ -318,6 +349,22 @@ export function DisplayScreen({ slug }: { slug: string }) {
     await refreshContext();
   }, [refreshContext]);
 
+  /** Session beenden + Hard-Reload — sicherster Weg gegen stale Tablet-State. */
+  const hardReloadDisplay = useCallback(async (opts?: { toastError?: string }) => {
+    if (hardReloadInFlightRef.current) return;
+    hardReloadInFlightRef.current = true;
+    if (opts?.toastError) {
+      toast.error(opts.toastError);
+    }
+    try {
+      await fetch("/api/display/pin", { method: "DELETE" });
+    } catch {
+      /* Reload trotzdem — Cookie/State werden neu aufgebaut */
+    }
+    // Kurz warten, damit die Toast-Meldung noch sichtbar ist.
+    window.setTimeout(() => reloadDisplayPage(), opts?.toastError ? 450 : 0);
+  }, []);
+
   const resetIdleTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
     if (!context?.display?.auto_lock_seconds || !context.session) return;
@@ -327,9 +374,31 @@ export function DisplayScreen({ slug }: { slug: string }) {
     }, context.display.auto_lock_seconds * 1000);
   }, [context?.display?.auto_lock_seconds, context?.session, performLogout]);
 
+  /** Nach Sleep/PWA-Resume: Idle gegen lastActivity prüfen, bevor der Timer neu startet. */
+  const enforceIdleOrResetTimer = useCallback(() => {
+    const autoLockSeconds = context?.display?.auto_lock_seconds;
+    if (!autoLockSeconds || !context.session) return;
+    const idleMs = Date.now() - lastActivityRef.current;
+    if (idleMs > autoLockSeconds * 1000) {
+      void performLogout();
+      return;
+    }
+    resetIdleTimer();
+  }, [
+    context?.display?.auto_lock_seconds,
+    context?.session,
+    performLogout,
+    resetIdleTimer,
+  ]);
+
   useEffect(() => {
     resetIdleTimer();
-    const onActivity = () => resetIdleTimer();
+    const onActivity = () => {
+      // Auch auf dem PIN-Screen: Aktivitätszeit setzen, damit 2h-Reload nicht
+      // mitten in der Eingabe feuert.
+      lastActivityRef.current = Date.now();
+      enforceIdleOrResetTimer();
+    };
     window.addEventListener("pointerdown", onActivity);
     window.addEventListener("keydown", onActivity);
     return () => {
@@ -337,7 +406,79 @@ export function DisplayScreen({ slug }: { slug: string }) {
       window.removeEventListener("keydown", onActivity);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [resetIdleTimer]);
+  }, [resetIdleTimer, enforceIdleOrResetTimer]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+      const hiddenAt = hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      const hiddenMs = hiddenAt == null ? 0 : Date.now() - hiddenAt;
+      // Nur reloaden, wenn vorher eine Session aktiv war (stale „eingeloggt“).
+      // Schon am PIN-Screen: kein Reload-Flash beim Aufwachen zum Einloggen.
+      if (
+        hiddenMs >= DISPLAY_RESUME_RELOAD_HIDDEN_MS &&
+        sessionActiveRef.current
+      ) {
+        void hardReloadDisplay();
+        return;
+      }
+      enforceIdleOrResetTimer();
+    };
+    const onFocus = () => {
+      if (document.visibilityState === "hidden") return;
+      const hiddenAt = hiddenAtRef.current;
+      if (hiddenAt != null) {
+        onVisibility();
+        return;
+      }
+      enforceIdleOrResetTimer();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [enforceIdleOrResetTimer, hardReloadDisplay]);
+
+  /** Alle 2h: Reload nur im echten Idle — nie während PIN-Eingabe/Login. */
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const ageMs = Date.now() - pageLoadedAtRef.current;
+      if (ageMs < DISPLAY_PAGE_RELOAD_MAX_AGE_MS) return;
+      if (pinBusyRef.current || pinLengthRef.current > 0) return;
+      if (hardReloadInFlightRef.current) return;
+      const idleMs = Date.now() - lastActivityRef.current;
+      const idleThresholdMs = Math.max(
+        (context?.display?.auto_lock_seconds ?? 60) * 1000,
+        60_000,
+      );
+      if (idleMs < idleThresholdMs) return;
+      void hardReloadDisplay();
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, [context?.display?.auto_lock_seconds, hardReloadDisplay]);
+
+  useEffect(() => {
+    const onSessionExpired = (event: Event) => {
+      if (!context?.session) return;
+      const detail = (event as CustomEvent<{ error?: string }>).detail;
+      void hardReloadDisplay({
+        toastError: displaySessionAuthErrorMessage(detail?.error),
+      });
+    };
+    window.addEventListener(DISPLAY_SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => {
+      window.removeEventListener(
+        DISPLAY_SESSION_EXPIRED_EVENT,
+        onSessionExpired,
+      );
+    };
+  }, [context?.session, hardReloadDisplay]);
 
   const screenCelebrationRef = useRef<DisplayCelebrationVariant | null>(null);
   screenCelebrationRef.current = screenCelebration;
@@ -430,7 +571,12 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   const heartbeat = useCallback(async () => {
     if (!context?.session || locked) return;
-    await fetch("/api/display/pin", { method: "PATCH" });
+    try {
+      const res = await fetch("/api/display/pin", { method: "PATCH" });
+      if (await handleDisplaySessionAuthFailure(res)) return;
+    } catch {
+      /* offline / transient — nächster Heartbeat oder Aktion prüft erneut */
+    }
   }, [context?.session, locked]);
 
   useEffect(() => {
@@ -445,17 +591,16 @@ export function DisplayScreen({ slug }: { slug: string }) {
   let contentKey = "shell";
 
   if (loading) {
-    content = (
-      <div className={displayChromeShellClassName}>
+    content = showBootstrapSkeleton ? (
+      <DisplayScreenSkeleton />
+    ) : (
+      <div
+        className={displayChromeShellClassName}
+        aria-busy
+        aria-label="Display wird geladen"
+      >
         <DisplayChromeHeader />
-        <main
-          className={cn(
-            displayChromeMainClassName,
-            "flex items-center justify-center",
-          )}
-        >
-          <Loader2 className="size-10 animate-spin text-muted-foreground" />
-        </main>
+        <main className={cn(displayChromeMainClassName, "min-h-[40vh]")} />
       </div>
     );
   } else if (!context?.paired) {
@@ -558,35 +703,40 @@ export function DisplayScreen({ slug }: { slug: string }) {
         </DisplayChromeHeader>
 
         <div className={displayChromeContentWrapClassName}>
-          <DisplayPinStandbyScene accentHex={restaurantAccent}>
-            <DisplayPinPad
-              value={pin}
-              onChange={setPin}
-              disabled={pinBusy || screenCelebration === "pin_welcome"}
-              busy={pinBusy}
-              rejectNonce={pinRejectNonce}
-              onComplete={(p) => void submitPin(p)}
-            />
-            {pinError ? (
-              <motion.p
-                key={pinError}
-                className="text-sm text-destructive"
-                initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: reduceMotion ? 0.08 : 0.22,
-                  ease: MOTION_EASE_OUT,
-                }}
-              >
-                {pinError}
-              </motion.p>
-            ) : null}
+          <DisplayPinStandbyScene
+            accentHex={restaurantAccent}
+            restaurantName={context.restaurant?.name}
+            restaurantAvatarUrl={context.restaurant?.avatar_url}
+          >
+            <div className="flex min-h-0 w-full max-h-full flex-col items-center justify-center gap-2 overflow-hidden">
+              <DisplayPinPad
+                value={pin}
+                onChange={setPin}
+                disabled={pinBusy || screenCelebration === "pin_welcome"}
+                busy={pinBusy}
+                rejectNonce={pinRejectNonce}
+                onComplete={(p) => void submitPin(p)}
+              />
+              {pinError ? (
+                <motion.p
+                  key={pinError}
+                  className="shrink-0 text-sm text-destructive"
+                  initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: reduceMotion ? 0.08 : 0.22,
+                    ease: MOTION_EASE_OUT,
+                  }}
+                >
+                  {pinError}
+                </motion.p>
+              ) : null}
+            </div>
           </DisplayPinStandbyScene>
         </div>
 
         <DisplayContextFooter
           restaurantName={context.restaurant?.name ?? ""}
-          restaurantAvatarUrl={context.restaurant?.avatar_url}
           displayName={context.display?.name}
         />
       </div>
@@ -621,7 +771,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
           </main>
           <DisplayContextFooter
             restaurantName={context.restaurant?.name ?? ""}
-            restaurantAvatarUrl={context.restaurant?.avatar_url}
             displayName={context.display?.name}
             showLogout={!locked}
             onLogout={requestLogout}
@@ -654,6 +803,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
               open={locked}
               placement="content"
               accentHex={restaurantAccent}
+              restaurantName={context.restaurant?.name}
+              restaurantAvatarUrl={context.restaurant?.avatar_url}
               onUnlock={(p) => void unlockWithPin(p)}
               busy={pinBusy}
               error={lockPinError}
@@ -687,7 +838,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
           </div>
           <DisplayContextFooter
             restaurantName={context.restaurant?.name ?? ""}
-            restaurantAvatarUrl={context.restaurant?.avatar_url}
             displayName={context.display?.name}
             showLogout={!locked}
             onLogout={requestLogout}

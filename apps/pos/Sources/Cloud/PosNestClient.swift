@@ -55,7 +55,7 @@ enum PosNestClient {
         let waiterId: String
         if let configured = PosCloudConfig.waiterProfileId, !configured.isEmpty {
             waiterId = configured
-        } else if let fromAuth = await MainActor.run(body: { PosAuthStore.shared.session?.userId }),
+        } else if let fromAuth = await MainActor.run(body: { PosAuthStore.shared.pinSession?.staffId }),
                   !fromAuth.isEmpty
         {
             waiterId = fromAuth

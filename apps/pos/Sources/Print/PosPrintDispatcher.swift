@@ -46,12 +46,22 @@ actor PosPrintDispatcher {
             return
         }
 
-        let payload = EscPosTicketBuilder.kitchenTicket(
-            restaurantName: restaurant,
-            orderNumber: job.orderNumber,
-            printerName: job.printerName,
-            lines: job.lines
-        )
+        let payload: Data
+        if job.kind == "cash_fiscal_pending" {
+            payload = EscPosTicketBuilder.cashReceiptTicket(
+                restaurantName: restaurant,
+                amountCents: job.amountCents,
+                tipCents: job.tipCents,
+                fiscalPending: true
+            )
+        } else {
+            payload = EscPosTicketBuilder.kitchenTicket(
+                restaurantName: restaurant,
+                orderNumber: job.orderNumber,
+                printerName: job.printerName,
+                lines: job.lines
+            )
+        }
 
         do {
             try await PosNetworkPrinterClient.send(

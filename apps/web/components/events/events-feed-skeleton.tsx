@@ -1,5 +1,6 @@
 "use client";
 
+import { FeedTimelineDateSkeleton } from "@/components/feed/feed-timeline-date-skeleton";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 
 export function EventsFeedSkeleton() {
@@ -7,7 +8,7 @@ export function EventsFeedSkeleton() {
     <ul className="space-y-3" aria-busy aria-label="Events werden geladen">
       {Array.from({ length: 4 }).map((_, i) => (
         <li key={i} className="flex gap-3 sm:gap-4">
-          <Skeleton className="h-[4.5rem] w-14 shrink-0 rounded-lg sm:h-20 sm:w-16" />
+          <FeedTimelineDateSkeleton />
           <SkeletonCardFrame className="min-w-0 flex-1 rounded-xl border border-border/50 p-3 shadow-card sm:p-3.5">
             <div className="flex gap-3 sm:gap-4">
               <Skeleton className="size-[4.5rem] shrink-0 rounded-lg sm:size-20" />

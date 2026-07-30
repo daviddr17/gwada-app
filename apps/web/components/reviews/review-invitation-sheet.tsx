@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
-import { formatGuestPhone } from "@/lib/phone/guest-phone";
+import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import {
   sendContactMessageUserMessage,
   type SendContactMessageApiResult,
@@ -38,18 +38,54 @@ async function copyText(text: string) {
   }
 }
 
+export type ReviewInvitationGuestPrefill = {
+  firstName?: string;
+  email?: string;
+  phone?: string | null;
+};
+
+export type ReviewInvitationWhatsappOutboundStart = {
+  clientSendId: string;
+  messageBody: string;
+};
+
+export type ReviewInvitationWhatsappOutboundSuccess = {
+  clientSendId: string;
+  messageBody: string;
+  messageId?: string;
+  wahaMessageId?: string | null;
+  contactId?: string;
+};
+
 export function ReviewInvitationSheet({
   open,
   onOpenChange,
   restaurantId,
   restaurantName,
   defaultCountryIso2,
+  initialGuest,
+  stackAboveInboxOverlay = false,
+  onWhatsappOutboundStart,
+  onWhatsappOutboundSuccess,
+  onWhatsappOutboundFailure,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantId: string | null;
   restaurantName: string;
   defaultCountryIso2: string;
+  /** Gast aus Chat / Kontakt vorausfüllen. */
+  initialGuest?: ReviewInvitationGuestPrefill | null;
+  /** Über Chat-Vollbild-Overlay legen (z-210). */
+  stackAboveInboxOverlay?: boolean;
+  /** Smooth Chat-Update: Optimistic vor API. */
+  onWhatsappOutboundStart?: (
+    payload: ReviewInvitationWhatsappOutboundStart,
+  ) => void;
+  onWhatsappOutboundSuccess?: (
+    payload: ReviewInvitationWhatsappOutboundSuccess,
+  ) => void;
+  onWhatsappOutboundFailure?: (payload: { clientSendId: string }) => void;
 }) {
   const [creating, setCreating] = useState(false);
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
@@ -131,8 +167,32 @@ export function ReviewInvitationSheet({
       setCopied(false);
       return;
     }
+    const first = initialGuest?.firstName?.trim() ?? "";
+    const mail = initialGuest?.email?.trim() ?? "";
+    const phoneRaw = initialGuest?.phone?.trim() ?? "";
+    setGuestFirstName(first.slice(0, 80));
+    setGuestEmail(mail.includes("@") ? mail : "");
+    if (phoneRaw) {
+      const parsed = parseGuestPhone(
+        phoneRaw,
+        COUNTRIES_REFERENCE_FALLBACK,
+        defaultCountryIso2,
+      );
+      setPhoneCountryIso(parsed.iso2);
+      setPhoneLocal(parsed.local);
+    } else {
+      setPhoneLocal("");
+      setPhoneCountryIso(defaultCountryIso2);
+    }
     void createInvitation();
-  }, [open, createInvitation, defaultCountryIso2]);
+  }, [
+    open,
+    createInvitation,
+    defaultCountryIso2,
+    initialGuest?.firstName,
+    initialGuest?.email,
+    initialGuest?.phone,
+  ]);
 
   const guestPhoneForApi = phoneLocal.trim()
     ? (formatGuestPhone(
@@ -194,6 +254,11 @@ export function ReviewInvitationSheet({
     const text = messageBody.trim();
     if (!text) return;
 
+    const clientSendId = crypto.randomUUID();
+    if (sendWhatsapp) {
+      onWhatsappOutboundStart?.({ clientSendId, messageBody: text });
+    }
+
     setSending(true);
     try {
       const res = await fetch("/api/reviews/invitations/send", {
@@ -209,24 +274,45 @@ export function ReviewInvitationSheet({
           sendWhatsapp,
           sendEmail,
           restaurantName,
+          clientSendId: sendWhatsapp ? clientSendId : undefined,
         }),
       });
-      const raw = (await res.json()) as Partial<SendContactMessageApiResult>;
+      const raw = (await res.json()) as Partial<SendContactMessageApiResult> & {
+        contactId?: string;
+        messageId?: string;
+      };
       const data: SendContactMessageApiResult = {
         ok: raw.ok ?? false,
         errors: raw.errors,
         error: raw.error,
+        messageId: raw.messageId,
+        wahaMessageId: raw.wahaMessageId,
       };
       if (!res.ok || !data.ok) {
+        if (sendWhatsapp) {
+          onWhatsappOutboundFailure?.({ clientSendId });
+        }
         const warn = sendContactMessageUserMessage(data);
         toast.error(warn ?? "Senden fehlgeschlagen.");
         return;
+      }
+      if (sendWhatsapp) {
+        onWhatsappOutboundSuccess?.({
+          clientSendId,
+          messageBody: text,
+          messageId: data.messageId ?? raw.messageId,
+          wahaMessageId: data.wahaMessageId,
+          contactId: raw.contactId,
+        });
       }
       const warn = sendContactMessageUserMessage(data);
       if (warn) toast.warning(warn);
       else toast.success("Einladung gesendet.");
       onOpenChange(false);
     } catch {
+      if (sendWhatsapp) {
+        onWhatsappOutboundFailure?.({ clientSendId });
+      }
       toast.error("Senden fehlgeschlagen.");
     } finally {
       setSending(false);
@@ -242,9 +328,14 @@ export function ReviewInvitationSheet({
       })
     : null;
 
+  const stackedSheetZClass = stackAboveInboxOverlay ? "z-[210]" : undefined;
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className={drawerContentClassName("invitation")}>
+      <DrawerContent
+        overlayClassName={stackedSheetZClass}
+        className={cn(drawerContentClassName("invitation"), stackedSheetZClass)}
+      >
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Neue Bewertungseinladung

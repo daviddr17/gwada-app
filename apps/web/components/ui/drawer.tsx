@@ -85,15 +85,8 @@ function DrawerContent({
   showHandle?: boolean
   overlayClassName?: string
 }) {
-  const floatingHostRef = React.useRef<HTMLDivElement | null>(null)
-  const [, setFloatingHostReady] = React.useState(false)
-
-  const assignFloatingHostRef = React.useCallback(
-    (node: HTMLDivElement | null) => {
-      floatingHostRef.current = node
-      setFloatingHostReady(Boolean(node))
-    },
-    [],
+  const [floatingHost, setFloatingHost] = React.useState<HTMLDivElement | null>(
+    null,
   )
 
   return (
@@ -114,7 +107,7 @@ function DrawerContent({
             aria-hidden
           />
         ) : null}
-        <DrawerFloatingPortalContext.Provider value={floatingHostRef}>
+        <DrawerFloatingPortalContext.Provider value={floatingHost}>
           <div
             data-vaul-no-drag=""
             className={cn(drawerFormBodyClassName, "relative z-[1] flex-1")}
@@ -122,7 +115,7 @@ function DrawerContent({
             {children}
           </div>
           <div
-            ref={assignFloatingHostRef}
+            ref={setFloatingHost}
             data-slot="drawer-floating-host"
             className="pointer-events-none absolute inset-x-0 bottom-0 top-0 z-[100] min-h-0 overflow-visible"
             aria-hidden

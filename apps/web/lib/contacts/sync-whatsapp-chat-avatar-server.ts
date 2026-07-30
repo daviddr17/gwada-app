@@ -7,7 +7,7 @@ import {
   shouldRefreshWhatsappAvatarSync,
 } from "@/lib/contacts/contact-avatar-storage";
 import { wahaGetChatPictureUrl } from "@/lib/waha/waha-inbox";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 async function downloadImageBuffer(
@@ -98,7 +98,9 @@ export async function syncWhatsappChatAvatarFromWaha(
     return existing.avatar_storage_path.trim();
   }
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    params.restaurantId,
+  );
   if (!config) return existing?.avatar_storage_path?.trim() ?? null;
 
   const pictureUrl = await wahaGetChatPictureUrl({

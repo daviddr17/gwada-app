@@ -7,8 +7,7 @@ export type ReviewSortKey =
   | "created_desc"
   | "created_asc"
   | "rating_desc"
-  | "rating_asc"
-  | "author_asc";
+  | "rating_asc";
 
 export type ReviewRatingFilter = "all" | "1" | "2" | "3" | "4" | "5";
 
@@ -21,7 +20,6 @@ export const REVIEW_SORT_OPTIONS: { value: ReviewSortKey; label: string }[] = [
   { value: "created_asc", label: "Datum: älteste zuerst" },
   { value: "rating_desc", label: "Sterne: beste zuerst" },
   { value: "rating_asc", label: "Sterne: niedrigste zuerst" },
-  { value: "author_asc", label: "Name: A bis Z" },
 ];
 
 export function reviewSortOptionLabel(key: ReviewSortKey): string {
@@ -136,10 +134,6 @@ export function sortReviews<T extends ReviewSortable>(
         return b.rating - a.rating || compareCreatedDesc(a, b);
       case "rating_asc":
         return a.rating - b.rating || compareCreatedDesc(a, b);
-      case "author_asc": {
-        const an = (a.authorName ?? "").localeCompare(b.authorName ?? "", "de");
-        return an !== 0 ? an : compareCreatedDesc(a, b);
-      }
       default:
         return 0;
     }

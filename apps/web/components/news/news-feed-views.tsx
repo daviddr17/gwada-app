@@ -4,6 +4,7 @@ import { Fragment, memo, useCallback, useMemo, useState, type MouseEvent } from 
 import { ExternalLink, Newspaper } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
+import { feedTimelineDateChipClassName } from "@/components/feed/feed-timeline-date-skeleton";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
 import {
@@ -96,7 +97,7 @@ const NewsTimelineThumb = memo(function NewsTimelineThumb({
   item: UnifiedNewsItem;
 }) {
   const preview = item.media[0];
-  const mediaSrc = preview?.url ?? preview?.thumbUrl ?? null;
+  const mediaSrc = preview?.thumbUrl ?? preview?.url ?? null;
   const [coverBroken, setCoverBroken] = useState(false);
   const showCover = Boolean(mediaSrc) && !coverBroken;
 
@@ -107,8 +108,11 @@ const NewsTimelineThumb = memo(function NewsTimelineThumb({
         <img
           src={mediaSrc!}
           alt=""
+          width={80}
+          height={80}
           loading="lazy"
           decoding="async"
+          fetchPriority="low"
           className="size-full object-cover object-center"
           onError={() => setCoverBroken(true)}
         />
@@ -141,7 +145,10 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
   showConnectorBelow: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const previewBody = useMemo(() => newsCardPreviewBody(item.body), [item.body]);
+  const fullBody = useMemo(
+    () => stripMarkdownBold(item.body).trim(),
+    [item.body],
+  );
   const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
@@ -159,12 +166,15 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
         data-embed-mt
         className={cn(
           "text-sm text-muted-foreground",
-          showClampedBody ? "line-clamp-2" : inlineExpandBody ? "whitespace-pre-wrap" : "line-clamp-2",
+          showClampedBody
+            ? "line-clamp-2"
+            : inlineExpandBody
+              ? "whitespace-pre-wrap"
+              : "line-clamp-2",
         )}
       >
-        {inlineExpandBody && expanded
-          ? stripMarkdownBold(item.body)
-          : previewBody}
+        {/* Voller Text + CSS-Clamp: Embed-MT übersetzt einmal, Expand triggert kein Re-Translate. */}
+        {inlineExpandBody ? fullBody : newsCardPreviewBody(item.body)}
       </p>
       {canExpandBody || (expanded && externalUrl) ? (
         <NewsFeedBodyActions
@@ -181,7 +191,7 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
   const body = (
     <>
       <div className="relative flex w-14 shrink-0 flex-col items-center self-stretch sm:w-16">
-        <div className="z-10 flex w-full flex-col items-center rounded-lg border border-border/40 bg-background px-1 py-1.5 text-center">
+        <div className={feedTimelineDateChipClassName}>
           <span className="text-xl font-semibold tabular-nums leading-none sm:text-2xl">
             {formatNewsTimelineDay(dateTime)}
           </span>
@@ -245,6 +255,31 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
   return <article className="flex w-full gap-3 sm:gap-4">{body}</article>;
 });
 
+const NewsTimelineRowClickable = memo(function NewsTimelineRowClickable({
+  item,
+  onItemClick,
+  inlineExpandBody,
+  showConnectorBelow,
+}: {
+  item: UnifiedNewsItem;
+  onItemClick?: (item: UnifiedNewsItem) => void;
+  inlineExpandBody?: boolean;
+  showConnectorBelow: boolean;
+}) {
+  const onClick = useCallback(() => {
+    onItemClick?.(item);
+  }, [item, onItemClick]);
+
+  return (
+    <NewsTimelineRow
+      item={item}
+      inlineExpandBody={inlineExpandBody}
+      showConnectorBelow={showConnectorBelow}
+      onClick={onItemClick ? onClick : undefined}
+    />
+  );
+});
+
 export function NewsTimelineView({
   items,
   onItemClick,
@@ -277,12 +312,12 @@ export function NewsTimelineView({
                 </p>
               </li>
             ) : null}
-            <li className="pb-3 last:pb-0">
-              <NewsTimelineRow
+            <li className="pb-3 last:pb-0 [content-visibility:auto] [contain-intrinsic-size:auto_7.5rem]">
+              <NewsTimelineRowClickable
                 item={item}
+                onItemClick={onItemClick}
                 inlineExpandBody={inlineExpandBody}
                 showConnectorBelow={index < items.length - 1}
-                onClick={onItemClick ? () => onItemClick(item) : undefined}
               />
             </li>
           </Fragment>
@@ -293,7 +328,7 @@ export function NewsTimelineView({
 }
 
 const newsCardSurfaceClassName =
-  "flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition hover:border-border";
+  "flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition";
 
 const NewsCard = memo(function NewsCard({
   item,
@@ -312,7 +347,10 @@ const NewsCard = memo(function NewsCard({
   const mediaSrc = preview?.url ?? preview?.thumbUrl ?? null;
   const dateLabel = formatNewsCardDate(item);
   const dateTime = newsDisplayTimestamp(item);
-  const previewBody = useMemo(() => newsCardPreviewBody(item.body), [item.body]);
+  const fullBody = useMemo(
+    () => stripMarkdownBold(item.body).trim(),
+    [item.body],
+  );
   const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
@@ -331,9 +369,7 @@ const NewsCard = memo(function NewsCard({
           showClampedBody ? "line-clamp-4" : "whitespace-pre-wrap",
         )}
       >
-        {inlineExpandBody && expanded
-          ? stripMarkdownBold(item.body)
-          : previewBody}
+        {inlineExpandBody ? fullBody : newsCardPreviewBody(item.body)}
       </p>
       {canExpandBody || (expanded && externalUrl) ? (
         <NewsFeedBodyActions
@@ -351,11 +387,15 @@ const NewsCard = memo(function NewsCard({
     <>
       {mediaSrc ? (
         <FeedMediaImage
-          src={mediaSrc}
-          thumbSrc={preview?.url ? preview.thumbUrl : null}
-          blurDataUrl={preview.blurDataUrl}
-          width={preview.width}
-          height={preview.height}
+          src={preview?.url ?? mediaSrc}
+          thumbSrc={
+            preview?.thumbUrl && preview.thumbUrl !== preview.url
+              ? preview.thumbUrl
+              : null
+          }
+          blurDataUrl={preview?.blurDataUrl}
+          width={preview?.width}
+          height={preview?.height}
           alt=""
           fit="cover"
           feedOptimized
@@ -393,7 +433,8 @@ const NewsCard = memo(function NewsCard({
     newsCardSurfaceClassName,
     masonry && "mb-4 break-inside-avoid",
     item.isPinned && feedPinnedItemSurfaceClassName,
-    onClick && "cursor-pointer hover:shadow-card active:scale-[0.99]",
+    onClick &&
+      "cursor-pointer hover:border-border hover:shadow-card active:scale-[0.99]",
   );
 
   if (onClick) {
@@ -460,9 +501,6 @@ export function NewsMasonryGrid({
     </div>
   );
 }
-
-/** @deprecated Alias — bitte `NewsMasonryGrid` verwenden. */
-export const NewsGridView = NewsMasonryGrid;
 
 export function NewsListView({
   items,

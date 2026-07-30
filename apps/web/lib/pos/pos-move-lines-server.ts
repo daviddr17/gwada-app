@@ -13,7 +13,7 @@ export async function movePosOrderLines(params: {
   restaurantId: string;
   targetTableSessionId: string;
   lineMoves: Array<{ orderLineId: string; quantity: number }>;
-  createdByProfileId: string;
+  createdByProfileId: string | null;
 }): Promise<
   | { ok: true; orderId: string; orderNumber: number }
   | { ok: false; error: string; status: number }

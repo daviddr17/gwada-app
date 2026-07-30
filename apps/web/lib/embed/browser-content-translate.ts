@@ -3,6 +3,7 @@
 import type { AppLocale } from "@/i18n/config";
 
 const ORIGINAL_ATTR = "data-embed-mt-original";
+const APPLIED_LANG_ATTR = "data-embed-mt-lang";
 export const EMBED_MT_ATTR = "data-embed-mt";
 
 type TranslatorLike = {
@@ -47,10 +48,11 @@ async function translateWithChromeApi(
       sourceLanguage: source,
       targetLanguage: target,
     });
-    const out: string[] = [];
-    for (const text of texts) {
-      out.push(text.trim() ? await translator.translate(text) : text);
-    }
+    const out = await Promise.all(
+      texts.map((text) =>
+        text.trim() ? translator.translate(text) : Promise.resolve(text),
+      ),
+    );
     translator.destroy?.();
     return out;
   } catch {
@@ -98,6 +100,7 @@ export async function translateTextBatch(
 /**
  * Translate (or restore) all `[data-embed-mt]` nodes under `root`.
  * Original text is kept in `data-embed-mt-original`.
+ * Nodes already applied for `targetLocale` are skipped (avoids scroll/expand thrash).
  */
 export async function applyEmbedContentTranslation(params: {
   root: ParentNode;
@@ -114,11 +117,17 @@ export async function applyEmbedContentTranslation(params: {
     for (const node of nodes) {
       const original = node.getAttribute(ORIGINAL_ATTR);
       if (original != null) node.textContent = original;
+      node.removeAttribute(APPLIED_LANG_ATTR);
     }
     return "restored";
   }
 
-  const payloads = nodes.map((node) => {
+  const workNodes = nodes.filter(
+    (node) => node.getAttribute(APPLIED_LANG_ATTR) !== targetLocale,
+  );
+  if (workNodes.length === 0) return "idle";
+
+  const payloads = workNodes.map((node) => {
     const original = node.getAttribute(ORIGINAL_ATTR);
     if (original == null) {
       const text = node.textContent ?? "";
@@ -132,15 +141,14 @@ export async function applyEmbedContentTranslation(params: {
   const indexMap: number[] = [];
   const seen = new Map<string, number>();
   for (const text of payloads) {
-    const key = text;
-    const existing = seen.get(key);
+    const existing = seen.get(text);
     if (existing != null) {
       indexMap.push(existing);
       continue;
     }
     const idx = unique.length;
-    seen.set(key, idx);
-    unique.push(key);
+    seen.set(text, idx);
+    unique.push(text);
     indexMap.push(idx);
   }
 
@@ -151,9 +159,12 @@ export async function applyEmbedContentTranslation(params: {
   );
   if (!translatedUnique) return "failed";
 
-  nodes.forEach((node, i) => {
+  workNodes.forEach((node, i) => {
     const mapped = translatedUnique[indexMap[i] ?? 0];
-    if (typeof mapped === "string") node.textContent = mapped;
+    if (typeof mapped === "string") {
+      node.textContent = mapped;
+      node.setAttribute(APPLIED_LANG_ATTR, targetLocale);
+    }
   });
 
   return "translated";

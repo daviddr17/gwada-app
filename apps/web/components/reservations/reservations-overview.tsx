@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -10,7 +17,6 @@ import {
   ChevronRight,
   Filter,
   Plus,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,10 +53,13 @@ import { reservationDiningTableLabel } from "@/lib/reservations/reservation-tabl
 import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
+import { useShiftPlanWeatherByDate } from "@/lib/hooks/use-shift-plan-weather-by-date";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { ShiftPlanDayWeatherRow } from "@/lib/weather/shift-plan-day-weather";
 import {
   createRestaurantDateTimeFormatter,
+  restaurantDayBoundsIso,
   restaurantTodayYmd,
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
@@ -64,9 +73,14 @@ import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gw
 import { cn } from "@/lib/utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { reservationListRowButtonClassName } from "@/lib/ui/reservation-list-row-interactive";
+import {
+  keepAliveMayNavigate,
+  keepAliveOwnsPathname,
+} from "@/lib/navigation/module-home-keep-alive";
 import { DayReservationsDrawer } from "@/components/reservations/day-reservations-drawer";
 import { ReservationDayNoteOverviewChip } from "@/components/reservations/reservation-day-note-overview-chip";
 import { ReservationDayShiftStaffOverviewChip } from "@/components/reservations/reservation-day-shift-staff-overview-chip";
+import { ReservationDayShiftStaffSheet } from "@/components/reservations/reservation-day-shift-staff-sheet";
 import { ReservationDayNotesSheet } from "@/components/reservations/reservation-day-notes-sheet";
 import { fetchReservationDayNoteCountsForRange } from "@/lib/supabase/reservation-day-notes-db";
 import { fetchScheduledStaffCountsByDayForRange } from "@/lib/supabase/staff-shift-schedule-db";
@@ -120,6 +134,10 @@ function useMonthCursor() {
     setCursor((c) => ({ year, month: c.month }));
   };
 
+  const setYearMonth = (year: number, month: number) => {
+    setCursor({ year, month });
+  };
+
   const prevMonth = () => {
     setCursor(({ year, month }) => {
       const d = new Date(year, month - 1, 1);
@@ -134,11 +152,15 @@ function useMonthCursor() {
     });
   };
 
-  return { cursor, setMonth, setYear, prevMonth, nextMonth };
+  return { cursor, setMonth, setYear, setYearMonth, prevMonth, nextMonth };
 }
 
-export function ReservationsOverview() {
-  const { cursor, setMonth, setYear, prevMonth, nextMonth } = useMonthCursor();
+export function ReservationsOverview({ active = true }: { active?: boolean }) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
+  const { cursor, setMonth, setYear, setYearMonth, prevMonth, nextMonth } =
+    useMonthCursor();
 
   const monthStart = useMemo(
     () => startOfLocalDay(new Date(cursor.year, cursor.month, 1)),
@@ -195,8 +217,18 @@ export function ReservationsOverview() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const unconfirmedMode =
+  const urlUnconfirmedMode =
     searchParams.get(RESERVATIONS_UNCONFIRMED_QUERY) === "1";
+  /** Switch / Badge — sofort, damit der Toggle nicht auf Navigation wartet. */
+  const [unconfirmedUi, setUnconfirmedUi] = useState(urlUnconfirmedMode);
+  /** Liste / Query — in startTransition, damit der Drawer nicht einfriert. */
+  const [unconfirmedMode, setUnconfirmedModeCommitted] =
+    useState(urlUnconfirmedMode);
+
+  useEffect(() => {
+    setUnconfirmedUi(urlUnconfirmedMode);
+    setUnconfirmedModeCommitted(urlUnconfirmedMode);
+  }, [urlUnconfirmedMode]);
 
   const monthFromYmd = gridDayKey(monthStart, restaurantTimeZone);
   const monthToYmd = gridDayKey(monthEnd, restaurantTimeZone);
@@ -209,6 +241,18 @@ export function ReservationsOverview() {
 
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [daySheetDay, setDaySheetDay] = useState<Date | null>(null);
+  /** Lokal öffnen (sofort) — URL nur sync, sonst wartet das Sheet auf router.push. */
+  const [reservationSheet, setReservationSheet] = useState<
+    | null
+    | { mode: "edit"; id: string }
+    | {
+        mode: "create";
+        day: Date;
+        timeHm?: string;
+        diningTableId?: string;
+        contactId?: string;
+      }
+  >(null);
   const pendingReopenDaySheetRef = useRef<Date | null>(null);
   const [urlReservation, setUrlReservation] = useState<ReservationListRow | null>(
     null,
@@ -216,6 +260,14 @@ export function ReservationsOverview() {
   const queryClient = useQueryClient();
   const dbOk =
     supabaseEnvOk && workspaceReady && workspaceRestaurantId !== null;
+  const weatherDayKeys = useMemo(
+    () => days.map((d) => gridDayKey(d, restaurantTimeZone)),
+    [days, restaurantTimeZone],
+  );
+  const { weatherByDate } = useShiftPlanWeatherByDate(
+    weatherDayKeys,
+    dbOk && active,
+  );
   const {
     rows,
     isLoading: loading,
@@ -223,7 +275,7 @@ export function ReservationsOverview() {
     invalidateAll: invalidateReservations,
   } = useReservationsListQuery({
     restaurantId: workspaceRestaurantId,
-    enabled: dbOk,
+    enabled: dbOk && active,
     unconfirmedMode,
     range: monthRange,
   });
@@ -251,6 +303,10 @@ export function ReservationsOverview() {
   const [dayNotesReloadNonce, setDayNotesReloadNonce] = useState(0);
   const [dayNotesSheetOpen, setDayNotesSheetOpen] = useState(false);
   const [dayNotesSheetDay, setDayNotesSheetDay] = useState<Date | null>(null);
+  const [shiftStaffSheetOpen, setShiftStaffSheetOpen] = useState(false);
+  const [shiftStaffSheetDay, setShiftStaffSheetDay] = useState<Date | null>(
+    null,
+  );
 
   const reservationIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const gwadaReviewsByReservation = useReservationGwadaReviews(
@@ -266,6 +322,8 @@ export function ReservationsOverview() {
   const createContactParam = searchParams.get("contact");
 
   useEffect(() => {
+    // Keep-alive: URL nur anfassen, wenn Übersicht wirklich sichtbar ist.
+    if (!keepAliveMayNavigate(active)) return;
     if (!isNewParam) return;
     const t = searchParams.get("time");
     const tb = searchParams.get("table");
@@ -288,20 +346,25 @@ export function ReservationsOverview() {
       const qs = p.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     }
-  }, [isNewParam, searchParams, pathname, router]);
+  }, [active, isNewParam, searchParams, pathname, router]);
 
   useEffect(() => {
+    if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
     const rid = searchParams.get("reservation");
     if (rid && !isUuidRestaurantId(rid)) {
       router.replace(pathname, { scroll: false });
     }
-  }, [searchParams, pathname, router]);
+  }, [active, searchParams, pathname, router]);
 
   const showInitialLoadSkeleton = useDeferredSkeleton(
     dbOk && loading && rows.length === 0,
   );
 
   useEffect(() => {
+    if (!keepAliveMayNavigate(active)) {
+      setUrlReservation(null);
+      return;
+    }
     if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
       setUrlReservation(null);
       return;
@@ -322,6 +385,15 @@ export function ReservationsOverview() {
         id: reservationIdParam,
       });
       if (cancelled) return;
+      if (
+        !keepAliveOwnsPathname(
+          activeRef.current,
+          pathname,
+          "reservierungen",
+        )
+      ) {
+        return;
+      }
       if (error) {
         toast.error(error.message);
         setUrlReservation(null);
@@ -339,7 +411,15 @@ export function ReservationsOverview() {
     return () => {
       cancelled = true;
     };
-  }, [reservationIdParam, rows, dbOk, workspaceRestaurantId, pathname, router]);
+  }, [
+    active,
+    reservationIdParam,
+    rows,
+    dbOk,
+    workspaceRestaurantId,
+    pathname,
+    router,
+  ]);
 
   useEffect(() => {
     if (!workspaceRestaurantId || !dbOk) {
@@ -371,100 +451,159 @@ export function ReservationsOverview() {
     dayNotesReloadNonce,
   ]);
 
-  useEffect(() => {
-    if (!workspaceRestaurantId || !dbOk) {
-      setShiftStaffCountsByDate(new Map());
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const { data, error } = await fetchScheduledStaffCountsByDayForRange(
-        workspaceRestaurantId,
-        rangeStartIso,
-        rangeEndExclusiveIso,
-        restaurantTimeZone,
-      );
-      if (cancelled) return;
-      if (error) {
-        setShiftStaffCountsByDate(new Map());
-        return;
-      }
-      setShiftStaffCountsByDate(data);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    workspaceRestaurantId,
-    dbOk,
-    rangeStartIso,
-    rangeEndExclusiveIso,
-    restaurantTimeZone,
-  ]);
+  const editReservationId =
+    reservationSheet?.mode === "edit" ? reservationSheet.id : null;
 
   const editReservation = useMemo((): ReservationListRow | null => {
-    if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
+    if (!editReservationId || !isUuidRestaurantId(editReservationId)) {
       return null;
     }
-    return rows.find((r) => r.id === reservationIdParam) ?? urlReservation;
-  }, [reservationIdParam, rows, urlReservation]);
-
-  const createForDayFromUrl = useMemo(() => {
-    if (!isNewParam) return null;
-    if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
-      const [y, m, dd] = dayParam.split("-").map(Number);
-      return new Date(y, m - 1, dd);
-    }
-    return startOfLocalDay(new Date());
-  }, [isNewParam, dayParam]);
-
-  const createForInitialTimeHm = useMemo(() => {
-    if (
-      !createTimeParam ||
-      !/^\d{2}:\d{2}$/.test(createTimeParam.trim())
-    ) {
-      return undefined;
-    }
-    return createTimeParam.trim();
-  }, [createTimeParam]);
-
-  const createForInitialTableId = useMemo(() => {
-    if (!createTableParam || !isUuidRestaurantId(createTableParam)) {
-      return undefined;
-    }
-    return createTableParam;
-  }, [createTableParam]);
-
-  const createForInitialContactId = useMemo(() => {
-    if (!createContactParam || !isUuidRestaurantId(createContactParam)) {
-      return undefined;
-    }
-    return createContactParam;
-  }, [createContactParam]);
+    return rows.find((r) => r.id === editReservationId) ?? urlReservation;
+  }, [editReservationId, rows, urlReservation]);
 
   const createFor =
-    isNewParam && workspaceRestaurantId && createForDayFromUrl
+    reservationSheet?.mode === "create" && workspaceRestaurantId
       ? {
           restaurantId: workspaceRestaurantId,
-          day: createForDayFromUrl,
-          ...(createForInitialTimeHm
-            ? { initialTimeHm: createForInitialTimeHm }
+          day: reservationSheet.day,
+          ...(reservationSheet.timeHm
+            ? { initialTimeHm: reservationSheet.timeHm }
             : {}),
-          ...(createForInitialTableId
-            ? { initialDiningTableId: createForInitialTableId }
+          ...(reservationSheet.diningTableId
+            ? { initialDiningTableId: reservationSheet.diningTableId }
             : {}),
-          ...(createForInitialContactId
-            ? { initialContactId: createForInitialContactId }
+          ...(reservationSheet.contactId
+            ? { initialContactId: reservationSheet.contactId }
             : {}),
         }
       : null;
 
   const editOpen = Boolean(
-    (reservationIdParam &&
-      isUuidRestaurantId(reservationIdParam) &&
-      editReservation) ||
-      (isNewParam && Boolean(workspaceRestaurantId)),
+    (reservationSheet?.mode === "edit" && editReservation) ||
+      (reservationSheet?.mode === "create" && Boolean(workspaceRestaurantId)),
   );
+
+  // Deep-Link / Zurück: URL → Sheet (Öffnen per Klick setzt State schon vorher).
+  useEffect(() => {
+    if (!keepAliveMayNavigate(active)) {
+      setReservationSheet(null);
+      return;
+    }
+    if (isNewParam) {
+      let day = startOfLocalDay(new Date());
+      if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
+        const [y, m, dd] = dayParam.split("-").map(Number);
+        day = new Date(y!, m! - 1, dd);
+      }
+      const timeHm =
+        createTimeParam && /^\d{2}:\d{2}$/.test(createTimeParam.trim())
+          ? createTimeParam.trim()
+          : undefined;
+      const diningTableId =
+        createTableParam && isUuidRestaurantId(createTableParam)
+          ? createTableParam
+          : undefined;
+      const contactId =
+        createContactParam && isUuidRestaurantId(createContactParam)
+          ? createContactParam
+          : undefined;
+      setReservationSheet((prev) => {
+        if (prev?.mode === "create") {
+          return {
+            mode: "create",
+            day: prev.day,
+            timeHm: timeHm ?? prev.timeHm,
+            diningTableId: diningTableId ?? prev.diningTableId,
+            contactId: contactId ?? prev.contactId,
+          };
+        }
+        return { mode: "create", day, timeHm, diningTableId, contactId };
+      });
+      return;
+    }
+    if (reservationIdParam && isUuidRestaurantId(reservationIdParam)) {
+      setReservationSheet((prev) =>
+        prev?.mode === "edit" && prev.id === reservationIdParam
+          ? prev
+          : { mode: "edit", id: reservationIdParam },
+      );
+      return;
+    }
+    setReservationSheet(null);
+  }, [
+    active,
+    isNewParam,
+    dayParam,
+    reservationIdParam,
+    createTimeParam,
+    createTableParam,
+    createContactParam,
+  ]);
+
+  /** `?day=YYYY-MM-DD` (ohne new): Monat springen + Tagesblatt — z. B. Suche „Zum Tag“. */
+  const appliedDayDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
+    if (isNewParam) return;
+    if (!dayParam || !/^\d{4}-\d{2}-\d{2}$/.test(dayParam)) {
+      appliedDayDeepLinkRef.current = null;
+      return;
+    }
+    if (appliedDayDeepLinkRef.current === dayParam) return;
+    appliedDayDeepLinkRef.current = dayParam;
+
+    const [y, m, dd] = dayParam.split("-").map(Number);
+    if (
+      !Number.isFinite(y) ||
+      !Number.isFinite(m) ||
+      !Number.isFinite(dd)
+    ) {
+      return;
+    }
+    setYearMonth(y!, m! - 1);
+    const hasReservation =
+      Boolean(reservationIdParam) && isUuidRestaurantId(reservationIdParam!);
+    if (!hasReservation) {
+      setDaySheetDay(new Date(y!, m! - 1, dd!));
+      setDaySheetOpen(true);
+    }
+
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("day");
+    const qs = p.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [
+    active,
+    dayParam,
+    isNewParam,
+    reservationIdParam,
+    searchParams,
+    pathname,
+    router,
+    setYearMonth,
+  ]); // keepAliveOwnsPathname(active, pathname, …)
+
+  /** Edit-Deep-Link: Monat der Reservierung zeigen (nicht immer „heute“). */
+  const syncedMonthForReservationRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editReservationId) {
+      syncedMonthForReservationRef.current = null;
+      return;
+    }
+    if (!editReservation?.starts_at) return;
+    if (syncedMonthForReservationRef.current === editReservation.id) return;
+    syncedMonthForReservationRef.current = editReservation.id;
+    const ymd = dayKeyFromIso(editReservation.starts_at, restaurantTimeZone);
+    const [y, m] = ymd.split("-").map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(m)) return;
+    setYearMonth(y!, m! - 1);
+  }, [
+    editReservationId,
+    editReservation?.id,
+    editReservation?.starts_at,
+    restaurantTimeZone,
+    setYearMonth,
+  ]);
 
   const withUnconfirmedParam = useCallback(
     (p: URLSearchParams) => {
@@ -477,12 +616,14 @@ export function ReservationsOverview() {
 
   const pushReservationEdit = useCallback(
     (id: string) => {
+      if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
+      setReservationSheet({ mode: "edit", id });
       const p = new URLSearchParams();
       p.set("reservation", id);
       withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
     },
-    [router, pathname, withUnconfirmedParam],
+    [active, router, pathname, withUnconfirmedParam],
   );
 
   const pushReservationCreate = useCallback(
@@ -490,6 +631,17 @@ export function ReservationsOverview() {
       d: Date,
       extras?: { timeHm?: string; diningTableId?: string },
     ) => {
+      if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
+      setReservationSheet({
+        mode: "create",
+        day: d,
+        ...(extras?.timeHm && /^\d{2}:\d{2}$/.test(extras.timeHm)
+          ? { timeHm: extras.timeHm }
+          : {}),
+        ...(extras?.diningTableId && isUuidRestaurantId(extras.diningTableId)
+          ? { diningTableId: extras.diningTableId }
+          : {}),
+      });
       const p = new URLSearchParams();
       p.set("new", "1");
       p.set("day", gridDayKey(d, restaurantTimeZone));
@@ -502,10 +654,13 @@ export function ReservationsOverview() {
       withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
     },
-    [router, pathname, withUnconfirmedParam],
+    [active, router, pathname, withUnconfirmedParam, restaurantTimeZone],
   );
 
   const clearReservationUrl = useCallback(() => {
+    setReservationSheet(null);
+    // Soft-Nav: Drawer schließt mit Ziel-pathname — URL nicht auf fremdem Modul mutieren.
+    if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
     if (unconfirmedMode) {
       const p = new URLSearchParams();
       p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
@@ -513,31 +668,33 @@ export function ReservationsOverview() {
       return;
     }
     router.replace(pathname, { scroll: false });
-  }, [router, pathname, unconfirmedMode]);
-
-  const exitUnconfirmedMode = useCallback(() => {
-    router.replace(pathname, { scroll: false });
-  }, [router, pathname]);
+  }, [active, router, pathname, unconfirmedMode]);
 
   const setUnconfirmedMode = useCallback(
     (enabled: boolean) => {
-      if (enabled) {
+      if (!keepAliveMayNavigate(active)) return;
+      setUnconfirmedUi(enabled);
+      startTransition(() => {
+        setUnconfirmedModeCommitted(enabled);
+        if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
+        if (enabled) {
+          const p = new URLSearchParams(searchParams.toString());
+          p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
+          p.delete("reservation");
+          p.delete("new");
+          p.delete("day");
+          p.delete("time");
+          p.delete("table");
+          router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+          return;
+        }
         const p = new URLSearchParams(searchParams.toString());
-        p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
-        p.delete("reservation");
-        p.delete("new");
-        p.delete("day");
-        p.delete("time");
-        p.delete("table");
-        router.replace(`${pathname}?${p.toString()}`, { scroll: false });
-        return;
-      }
-      const p = new URLSearchParams(searchParams.toString());
-      p.delete(RESERVATIONS_UNCONFIRMED_QUERY);
-      const qs = p.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+        p.delete(RESERVATIONS_UNCONFIRMED_QUERY);
+        const qs = p.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      });
     },
-    [router, pathname, searchParams],
+    [active, router, pathname, searchParams],
   );
 
   const consumePendingDaySheetReopen = useCallback(() => {
@@ -552,6 +709,7 @@ export function ReservationsOverview() {
   }, []);
 
   useEffect(() => {
+    // Auch versteckt: Cache warm halten (kein Fetch, nur Live-Patch).
     if (!workspaceRestaurantId || unconfirmedMode) return;
 
     const onLiveInsert = (event: Event) => {
@@ -595,8 +753,12 @@ export function ReservationsOverview() {
   useEffect(() => {
     if (unconfirmedMode) {
       setStatusFilterId("all");
+      // Unbestätigt zeigt alle Termine inkl. Vergangenheit.
       setHidePastReservations(false);
+      return;
     }
+    // Beim Verlassen wieder Standard — sonst bleibt Badge „1“ (Vergangene Tage).
+    setHidePastReservations(true);
   }, [unconfirmedMode]);
 
   const statusFilterOptions = useMemo(() => {
@@ -696,8 +858,62 @@ export function ReservationsOverview() {
     };
   }, [visibleDays, byDay, restaurantTimeZone]);
 
+  /** Schichtplan-Counts unabhängig vom Reservierungsfilter; Unbestätigt kann Monate spannen. */
+  const shiftStaffCountRange = useMemo(() => {
+    if (!unconfirmedMode) {
+      return { start: rangeStartIso, end: rangeEndExclusiveIso };
+    }
+    const keys = [...byDay.keys()].sort();
+    if (keys.length === 0) {
+      return { start: rangeStartIso, end: rangeEndExclusiveIso };
+    }
+    const first = keys[0]!;
+    const last = keys[keys.length - 1]!;
+    return {
+      start: restaurantDayBoundsIso(first, restaurantTimeZone).start,
+      end: restaurantDayBoundsIso(last, restaurantTimeZone).end,
+    };
+  }, [
+    unconfirmedMode,
+    byDay,
+    rangeStartIso,
+    rangeEndExclusiveIso,
+    restaurantTimeZone,
+  ]);
+
+  useEffect(() => {
+    if (!workspaceRestaurantId || !dbOk) {
+      setShiftStaffCountsByDate(new Map());
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await fetchScheduledStaffCountsByDayForRange(
+        workspaceRestaurantId,
+        shiftStaffCountRange.start,
+        shiftStaffCountRange.end,
+        restaurantTimeZone,
+      );
+      if (cancelled) return;
+      if (error) {
+        setShiftStaffCountsByDate(new Map());
+        return;
+      }
+      setShiftStaffCountsByDate(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    workspaceRestaurantId,
+    dbOk,
+    shiftStaffCountRange.start,
+    shiftStaffCountRange.end,
+    restaurantTimeZone,
+  ]);
+
   const filterActiveCount = useMemo(() => {
-    if (unconfirmedMode) {
+    if (unconfirmedUi) {
       let n = 1;
       if (hideEmptyDays) n++;
       return n;
@@ -708,7 +924,7 @@ export function ReservationsOverview() {
     if (hideEmptyDays) n++;
     return n;
   }, [
-    unconfirmedMode,
+    unconfirmedUi,
     statusFilterId,
     isViewingCurrentMonth,
     hidePastReservations,
@@ -750,58 +966,20 @@ export function ReservationsOverview() {
     <div className="space-y-6 pb-4">
       <Card className="border-border/50 shadow-card">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-          {unconfirmedMode ? (
-            <>
-              <div className="order-2 min-w-0 space-y-1 sm:order-1 sm:flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  Unbestätigte Reservierungen
-                </p>
-                <p className="text-xs text-muted-foreground sm:text-sm">
-                  Offen und „Änderung prüfen“ — alle Monate, nach Termin sortiert.
-                  {hideEmptyDays ? " Leere Tage ausgeblendet." : ""}
-                </p>
-              </div>
-              <div className="order-1 flex w-full shrink-0 items-center justify-end gap-2 sm:order-2 sm:w-auto">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-1.5 rounded-xl"
-                  onClick={() => setFilterOpen(true)}
-                >
-                  <Filter className="size-4" />
-                  Filter
-                  {filterActiveCount > 1 ? (
-                    <Badge
-                      variant="secondary"
-                      className="h-5 min-w-5 rounded-full px-1 text-[10px] tabular-nums"
-                    >
-                      {filterActiveCount}
-                    </Badge>
-                  ) : null}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 gap-1 rounded-xl"
-                  onClick={exitUnconfirmedMode}
-                >
-                  <X className="size-4" />
-                  Monatsansicht
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="order-2 min-w-0 text-xs text-muted-foreground sm:order-1 sm:flex-1">
-                {isViewingCurrentMonth && hidePastReservations
-                  ? "Tage ab heute bis Monatsende."
-                  : "Alle Tage des gewählten Monats."}
-                {hideEmptyDays ? " Tage ohne Reservierungen ausgeblendet." : ""}
-                {statusFilterId !== "all" ? " Nur gewählter Status." : ""}
-              </p>
-              <div className="order-1 flex w-full items-center justify-center gap-1 sm:order-2 sm:w-auto sm:shrink-0 sm:justify-end">
+          <p className="order-2 min-w-0 text-xs text-muted-foreground sm:order-1 sm:flex-1">
+            {unconfirmedUi
+              ? "Offen und „Änderung prüfen“ — alle Monate, nach Termin sortiert."
+              : isViewingCurrentMonth && hidePastReservations
+                ? "Tage ab heute bis Monatsende."
+                : "Alle Tage des gewählten Monats."}
+            {hideEmptyDays ? " Tage ohne Reservierungen ausgeblendet." : ""}
+            {!unconfirmedUi && statusFilterId !== "all"
+              ? " Nur gewählter Status."
+              : ""}
+          </p>
+          <div className="order-1 flex w-full items-center justify-center gap-1 sm:order-2 sm:w-auto sm:shrink-0 sm:justify-end">
+            {!unconfirmedUi ? (
+              <>
                 <Button
                   type="button"
                   variant="ghost"
@@ -873,29 +1051,29 @@ export function ReservationsOverview() {
                 >
                   <ChevronRight className="size-5" />
                 </Button>
-                <div className="relative shrink-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="size-9 shrink-0 rounded-lg border-border/60"
-                    aria-label="Filter"
-                    onClick={() => setFilterOpen(true)}
-                  >
-                    <Filter className="size-4" />
-                  </Button>
-                  {filterActiveCount > 0 ? (
-                    <Badge
-                      variant="secondary"
-                      className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
-                    >
-                      {filterActiveCount}
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
-            </>
-          )}
+              </>
+            ) : null}
+            <div className="relative ml-auto shrink-0 sm:ml-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="rounded-full border-border/60"
+                aria-label="Filter"
+                onClick={() => setFilterOpen(true)}
+              >
+                <Filter className="size-4" />
+              </Button>
+              {filterActiveCount > 0 ? (
+                <Badge
+                  variant="secondary"
+                  className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
+                >
+                  {filterActiveCount}
+                </Badge>
+              ) : null}
+            </div>
+          </div>
         </CardHeader>
       </Card>
 
@@ -1004,6 +1182,10 @@ export function ReservationsOverview() {
                           {holidayName}
                         </Badge>
                       ) : null}
+                      <ShiftPlanDayWeatherRow
+                        weather={weatherByDate.get(key)}
+                        inline
+                      />
                     </div>
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground sm:text-sm">
                       <span>
@@ -1017,6 +1199,19 @@ export function ReservationsOverview() {
                           ? "1 Person"
                           : `${partyTotal} Personen`}
                       </span>
+                      {/* Unabhängig vom Reservierungs-Statusfilter — Schichtplan-Stand. */}
+                      {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
+                        <>
+                          <span aria-hidden>·</span>
+                          <ReservationDayShiftStaffOverviewChip
+                            count={shiftStaffCountsByDate.get(key) ?? 0}
+                            onClick={() => {
+                              setShiftStaffSheetDay(d);
+                              setShiftStaffSheetOpen(true);
+                            }}
+                          />
+                        </>
+                      ) : null}
                       {(dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
                         <>
                           <span aria-hidden>·</span>
@@ -1026,15 +1221,6 @@ export function ReservationsOverview() {
                               setDayNotesSheetDay(d);
                               setDayNotesSheetOpen(true);
                             }}
-                          />
-                        </>
-                      ) : null}
-                      {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
-                        <>
-                          <span aria-hidden>·</span>
-                          <ReservationDayShiftStaffOverviewChip
-                            count={shiftStaffCountsByDate.get(key) ?? 0}
-                            dayKey={key}
                           />
                         </>
                       ) : null}
@@ -1178,11 +1364,11 @@ export function ReservationsOverview() {
       <ReservationsFilterDrawer
         open={filterOpen}
         onOpenChange={setFilterOpen}
-        unconfirmedMode={unconfirmedMode}
+        unconfirmedMode={unconfirmedUi}
         statusOptions={statusFilterOptions}
         statusFilterId={statusFilterId}
         onStatusFilterIdChange={setStatusFilterId}
-        showHidePastSection={!unconfirmedMode && isViewingCurrentMonth}
+        showHidePastSection={!unconfirmedUi && isViewingCurrentMonth}
         hidePastReservations={hidePastReservations}
         onHidePastReservationsChange={setHidePastReservations}
         hideEmptyDays={hideEmptyDays}
@@ -1240,6 +1426,24 @@ export function ReservationsOverview() {
         dayLabel={
           dayNotesSheetDay ? formatDayHeadingDe(dayNotesSheetDay) : null
         }
+      />
+
+      <ReservationDayShiftStaffSheet
+        open={shiftStaffSheetOpen}
+        onOpenChange={(open) => {
+          setShiftStaffSheetOpen(open);
+          if (!open) setShiftStaffSheetDay(null);
+        }}
+        restaurantId={workspaceRestaurantId}
+        dayKey={
+          shiftStaffSheetDay
+            ? gridDayKey(shiftStaffSheetDay, restaurantTimeZone)
+            : null
+        }
+        dayLabel={
+          shiftStaffSheetDay ? formatDayHeadingDe(shiftStaffSheetDay) : null
+        }
+        timeZone={restaurantTimeZone}
       />
 
       <ReservationEditDrawer

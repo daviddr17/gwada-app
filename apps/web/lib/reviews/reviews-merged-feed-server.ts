@@ -5,14 +5,19 @@ import {
   countGwadaReviews,
   loadGwadaReviewsForFeed,
 } from "@/lib/reviews/reviews-gwada-feed-server";
-import { paginateReviewList } from "@/lib/reviews/reviews-list-pagination";
 import type { MergedReviewsPaginationMeta } from "@/lib/reviews/reviews-list-pagination";
 import {
   readPlatformSyncMeta,
   readReviewsFeedFromCache,
 } from "@/lib/reviews/reviews-feed-read-server";
 import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
+import {
+  DEFAULT_REVIEWS_FEED_LIST_QUERY,
+  paginateReviewsFeedList,
+  type ReviewsFeedListQuery,
+} from "@/lib/reviews/reviews-feed-list-query";
 import { loadReviewPlatformConnectionState } from "@/lib/reviews/reviews-platform-connected-server";
+import type { ReviewRatingSummary } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { compareFeedItemsWithPinFirst } from "@/lib/feed-pin/feed-pin-types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -29,13 +34,27 @@ export async function loadMergedReviewsFeedPage(params: {
   restaurantId: string;
   sb: SupabaseClient;
   pageToken: string | null;
+  listQuery?: ReviewsFeedListQuery;
+  /** Vor Filter (z. B. gelesen/ungelesen) die volle Liste anreichern. */
+  enrichBeforeFilter?: (
+    reviews: UnifiedReview[],
+  ) => Promise<UnifiedReview[]>;
 }): Promise<{
   reviews: UnifiedReview[];
   pagination: MergedReviewsPaginationMeta;
+  summary: ReviewRatingSummary;
   loadErrors: Partial<Record<ReviewPlatform, string>>;
   sync: ReviewsFeedSyncMeta;
+  /** True wenn Filter/Sort vor dem Slice angewendet wurden. */
+  listQueryApplied: boolean;
 }> {
-  const { restaurantId, sb, pageToken } = params;
+  const {
+    restaurantId,
+    sb,
+    pageToken,
+    listQuery = DEFAULT_REVIEWS_FEED_LIST_QUERY,
+    enrichBeforeFilter,
+  } = params;
 
   const [gwadaReviews, gwadaTotal, platformState, cachedFeed] =
     await Promise.all([
@@ -101,14 +120,27 @@ export async function loadMergedReviewsFeedPage(params: {
     0,
   );
 
-  const merged = sortReviewsByDateDesc([
+  let merged = sortReviewsByDateDesc([
     ...gwadaReviews,
     ...googleCached,
     ...facebookCached,
     ...tripadvisorCached,
   ]);
 
-  const paginated = paginateReviewList(merged, pageToken, totalReviewCount);
+  if (enrichBeforeFilter && listQuery.readFilter !== "all") {
+    merged = await enrichBeforeFilter(merged);
+  }
+
+  const googleAverage =
+    typeof googleMeta.averageRating === "number"
+      ? googleMeta.averageRating
+      : null;
+
+  const paginated = paginateReviewsFeedList(merged, pageToken, listQuery, {
+    unfilteredTotalReviewCount: totalReviewCount,
+    /** Google liefert den verlässigsten Standort-Ø; andere Plattformen oft ohne Meta-Ø. */
+    averageRating: googleAverage,
+  });
 
   const loadErrors: Partial<Record<ReviewPlatform, string>> = {};
   if (cachedFeed.sync.platformErrors.google) {
@@ -127,7 +159,9 @@ export async function loadMergedReviewsFeedPage(params: {
       ...paginated.pagination,
       platformTotals,
     },
+    summary: paginated.summary,
     loadErrors,
     sync: cachedFeed.sync,
+    listQueryApplied: paginated.listQueryApplied,
   };
 }

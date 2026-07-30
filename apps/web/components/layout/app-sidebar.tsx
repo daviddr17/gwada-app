@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
+import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthLogoutTransition } from "@/components/auth/auth-logout-transition-provider";
 import {
@@ -39,7 +40,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSkeleton,
   SidebarSeparator,
   SIDEBAR_LABEL_MOTION,
   SIDEBAR_COMPACT_BUTTON,
@@ -62,6 +62,7 @@ import {
 } from "@/lib/constants/sidebar-modules";
 import { useSidebarModuleOrder } from "@/lib/contexts/sidebar-module-order-context";
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
+import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 import { formatSidebarMenuLabel } from "@/lib/navigation/format-sidebar-menu-label";
 import {
   sidebarChangelogUnreadCount,
@@ -73,6 +74,7 @@ import { hasSidebarModuleAccess } from "@/lib/permissions/sidebar-module-permiss
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import {
+  appMobileSidebarFooterClassName,
   appMobileSidebarFooterMenuButtonClassName,
   appMobileSidebarFooterMenuClassName,
   appMobileSidebarGroupClassName,
@@ -113,8 +115,6 @@ function restaurantInitials(name: string): string {
   return word.slice(0, 1).toLocaleUpperCase("de-DE");
 }
 
-const SIDEBAR_MODULE_SKELETON_COUNT = 10;
-
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -141,14 +141,15 @@ export function AppSidebar() {
   );
   const changelogUnreadCount = sidebarChangelogUnreadCount(notificationSummary);
 
-  const orderedSidebarModules = useMemo(
-    () =>
-      sidebarModuleOrder
-        .map((id: SidebarModuleId) => SIDEBAR_MODULE_BY_ID.get(id))
-        .filter((mod): mod is NonNullable<typeof mod> => mod != null)
-        .filter((mod) => hasSidebarModuleAccess(has, mod.id)),
-    [sidebarModuleOrder, has],
-  );
+  const orderedSidebarModules = useMemo(() => {
+    const mods = sidebarModuleOrder
+      .map((id: SidebarModuleId) => SIDEBAR_MODULE_BY_ID.get(id))
+      .filter((mod): mod is NonNullable<typeof mod> => mod != null);
+    // Permissions noch leer: Module trotzdem sofort klickbar (optimistic).
+    // Nach dem Load filtert hasSidebarModuleAccess wie bisher.
+    if (permissionsPending) return mods;
+    return mods.filter((mod) => hasSidebarModuleAccess(has, mod.id));
+  }, [sidebarModuleOrder, has, permissionsPending]);
 
   const displayName = profile.name.trim() || (profileReady ? "Restaurant" : "");
   const userFullName = formatOrderProtocolUserName({ firstName, lastName });
@@ -164,27 +165,22 @@ export function AppSidebar() {
 
   useEffect(() => {
     for (const href of APP_MODULE_PRIORITY_ROUTES) {
-      router.prefetch(href);
+      prefetchAppModuleHref(router, href);
     }
   }, [router]);
 
+  // Menü erst nach Pending/Pathname schließen — nie sync im Link-click.
+  // Sync-Close startet Sheet-Dismiss und unmountet den geklickten <a> bevor
+  // der Next-Flight steht → Kaltstart mobil: „Tippen tut nichts“.
   useEffect(() => {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
+    if (!isMobile) return;
+    setOpenMobile(false);
   }, [pathname, isMobile, setOpenMobile]);
 
-  const closeMobileSidebarOnNav = useCallback(
-    (event: React.MouseEvent) => {
-      if (!isMobile) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (target.closest("a[href], button")) {
-        setOpenMobile(false);
-      }
-    },
-    [isMobile, setOpenMobile],
-  );
+  useEffect(() => {
+    if (!isMobile || !pendingHref) return;
+    setOpenMobile(false);
+  }, [pendingHref, isMobile, setOpenMobile]);
 
   const mobileFooterMenuClassName = isMobile
     ? appMobileSidebarFooterMenuClassName
@@ -195,11 +191,16 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" variant="inset">
-      <div
-        className="flex h-full w-full flex-col"
-        onClickCapture={closeMobileSidebarOnNav}
+      <div className="flex h-full w-full flex-col">
+      <SidebarHeader
+        className={cn(
+          "box-border flex shrink-0 justify-center gap-0 border-b border-border/50 p-2",
+          isMobile
+            ? "h-auto min-h-0"
+            : "h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)]",
+          appChromeFixedZoneBgClassName,
+        )}
       >
-      <SidebarHeader className={cn("box-border flex h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] shrink-0 justify-center gap-0 border-b border-border/50 p-2", appChromeFixedZoneBgClassName)}>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -208,7 +209,8 @@ export function AppSidebar() {
               render={<Link href="/workspace/restaurants" prefetch />}
               className={cn(
                 isMobile && appMobileSidebarHeaderButtonClassName,
-                "!p-0 [--sidebar-menu-icon-col:2rem] grid-cols-[2rem_minmax(0,1fr)] group-data-[sidebar-labels-collapsed]/sidebar-wrapper:grid-cols-[2rem_0fr] ms-[5px]",
+                "!p-0 [--sidebar-menu-icon-col:2rem] grid-cols-[2rem_minmax(0,1fr)] group-data-[sidebar-labels-collapsed]/sidebar-wrapper:grid-cols-[2rem_0fr]",
+                !isMobile && "ms-[5px]",
                 SIDEBAR_COMPACT_BUTTON,
               )}
             >
@@ -231,7 +233,7 @@ export function AppSidebar() {
                   </span>
                 ) : (
                   <span
-                    className="block h-3.5 w-24 max-w-full rounded-md bg-sidebar-accent/50 skeleton-shimmer"
+                    className="block h-3 w-[4.5rem] max-w-full rounded-md bg-sidebar-accent/50 skeleton-shimmer"
                     aria-hidden
                   />
                 )}
@@ -241,7 +243,7 @@ export function AppSidebar() {
                   </span>
                 ) : profileReady ? null : (
                   <span
-                    className="mt-0.5 block h-2.5 w-28 max-w-full rounded-md bg-sidebar-accent/40 skeleton-shimmer"
+                    className="mt-0.5 block h-2 w-16 max-w-full rounded-md bg-sidebar-accent/40 skeleton-shimmer"
                     aria-hidden
                   />
                 )}
@@ -314,6 +316,16 @@ export function AppSidebar() {
                     >
                       <Plug />
                       <span>Integrationen</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/waha")}
+                      tooltip="WAHA"
+                      render={<Link href="/superadmin/waha" prefetch />}
+                    >
+                      <WhatsAppGlyph className="size-4" />
+                      <span>WAHA</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
@@ -409,13 +421,9 @@ export function AppSidebar() {
                       <span>Dashboard</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {permissionsPending ? (
-                    Array.from({ length: SIDEBAR_MODULE_SKELETON_COUNT }, (_, i) => (
-                      <SidebarMenuItem key={`perm-skeleton-${i}`}>
-                        <SidebarMenuSkeleton showIcon />
-                      </SidebarMenuItem>
-                    ))
-                  ) : permissionsError && orderedSidebarModules.length === 0 ? (
+                  {permissionsError &&
+                  !permissionsPending &&
+                  orderedSidebarModules.length === 0 ? (
                     <SidebarMenuItem>
                       <div className="px-2 py-1">
                         <p className="mb-2 text-xs text-sidebar-foreground/70">
@@ -467,8 +475,14 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarSeparator className="mx-0 w-full" />
-      <SidebarFooter className={cn("shrink-0", appChromeFixedZoneBgClassName)}>
+      {isMobile ? null : <SidebarSeparator className="mx-0 w-full" />}
+      <SidebarFooter
+        className={cn(
+          "shrink-0",
+          appChromeFixedZoneBgClassName,
+          isMobile && appMobileSidebarFooterClassName,
+        )}
+      >
         <SidebarMenu className={mobileFooterMenuClassName}>
           {isSuperadmin && !inSuperadmin ? (
             <SidebarMenuItem>

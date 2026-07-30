@@ -1,15 +1,12 @@
 "use client";
 
 import type { QueryClient } from "@tanstack/react-query";
-import {
-  ensureCriticalModuleDataReady,
-  seedPriorityModuleQueryCaches,
-} from "@/lib/hooks/app-module-intent-prefetch";
 
-/** Notfall-Deckel — Shell nie länger als nötig blockieren. */
-export const APP_SHELL_READY_MAX_MS = 2_000;
-
-export { ensureCriticalModuleDataReady, seedPriorityModuleQueryCaches };
+/**
+ * Visuelles Bootstrap-Overlay ausblenden (nie Klicks sperren).
+ * Mit Cache oft sofort; ohne Cache nach kurzem Failsafe.
+ */
+export const APP_SHELL_READY_MAX_MS = 800;
 
 export type AppShellReadinessInputs = {
   authReady: boolean;
@@ -19,23 +16,18 @@ export type AppShellReadinessInputs = {
   permissionsLoading: boolean;
   permissionsCount: number;
   queryClient: QueryClient;
+  /** PWA-/Tab-Warmstart: Restaurant schon im Cache → sofort Shell zeigen. */
+  hasCachedRestaurant?: boolean;
 };
 
-/** Bootstrap freigeben sobald Auth/Workspace/Permissions da — Modul-Daten im Hintergrund. */
+/**
+ * Shell freigeben sobald Auth + Workspace da sind — oder früher bei Warm-Cache.
+ * Permissions/Modul-Daten laden im Hintergrund; Overlay blockiert keine Klicks.
+ */
 export function computeAppShellInteractive(
   inputs: AppShellReadinessInputs,
 ): boolean {
-  const {
-    authReady,
-    workspaceReady,
-    supabaseEnvOk,
-    restaurantId,
-    permissionsLoading,
-    permissionsCount,
-  } = inputs;
-  if (!authReady || !workspaceReady) return false;
-  if (!supabaseEnvOk) return true;
-  if (!restaurantId) return true;
-  if (permissionsLoading && permissionsCount === 0) return false;
-  return true;
+  if (inputs.hasCachedRestaurant && inputs.workspaceReady) return true;
+  const { authReady, workspaceReady } = inputs;
+  return authReady && workspaceReady;
 }

@@ -191,6 +191,3 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
     };
   }, [enabled, ready, restaurantId, polling.start, polling.stop]);
 }
-
-/** @deprecated Alias — nutze {@link useInboxLiveNotifications}. */
-export const useDashboardLiveNotifications = useInboxLiveNotifications;

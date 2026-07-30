@@ -1,3 +1,7 @@
+import {
+  appendGuestNotifyMessage,
+  type ReservationDispatchOptions,
+} from "@/lib/reservations/append-guest-notify-message";
 import { ensureRestaurantReservationSettings } from "@/lib/reservations/reservation-settings-server";
 import { buildGuestManageUrl } from "@/lib/reservations/guest-manage-url";
 import {
@@ -8,12 +12,22 @@ import {
 import type { ReservationMessageContext } from "@/lib/whatsapp/reservation-message-templates";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
+import {
+  finalizeOutboundWhatsappMessage,
+  insertPendingOutboundWhatsappMessage,
+} from "@/lib/contact-messages/outbound-whatsapp-db-server";
+import { wahaPseudoContactIdFromChatId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
+import { resolveContactIdByWhatsappChat } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
-import { fetchRestaurantWhatsappIntegration } from "@/lib/supabase/restaurant-integrations-db";
+import {
+  fetchRestaurantWhatsappIntegration,
+  integrationStateFromWahaSession,
+  upsertRestaurantWhatsappIntegration,
+} from "@/lib/supabase/restaurant-integrations-db";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -50,6 +64,7 @@ export type ReservationForWhatsapp = {
   ends_at: string;
   notify_whatsapp: boolean;
   status_code: string;
+  contact_id: string | null;
 };
 
 export type OutboxKind = WhatsappMessageKind;
@@ -78,14 +93,63 @@ export function isWhatsappKindEnabled(
   }
 }
 
-async function isWhatsappSessionWorking(
+/**
+ * Live-WAHA entscheidet — nicht nur DB-Status.
+ * Verhindert Toast „nicht verbunden“, wenn die Session läuft, die DB aber
+ * (z. B. nach Restart / fehlgeschlagenem User-Upsert) noch veraltet ist.
+ */
+async function ensureWhatsappReadyForDispatch(
+  sb: SupabaseClient,
   restaurantId: string,
-): Promise<boolean> {
-  const config = await getWahaServerConfigAdmin();
-  if (!config) return false;
+): Promise<"ok" | "whatsapp_not_connected" | "waha_session_not_working"> {
+  const integration = await fetchRestaurantWhatsappIntegration(sb, restaurantId);
+  const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
+  if (!config) {
+    return integration?.status === "working"
+      ? "waha_session_not_working"
+      : "whatsapp_not_connected";
+  }
+
   const name = wahaSessionNameForRestaurant(restaurantId);
   const res = await wahaGetSession(config, name);
-  return res.ok && res.data?.status === "WORKING";
+
+  if (res.ok && res.data?.status === "WORKING") {
+    if (integration?.status !== "working") {
+      const mapped = integrationStateFromWahaSession(res.data, "working");
+      const { error } = await upsertRestaurantWhatsappIntegration(sb, restaurantId, {
+        status: mapped.status,
+        phone_number: mapped.phone_number,
+        display_name: mapped.display_name,
+        connected_at: mapped.connected_at,
+        last_error: null,
+      });
+      if (error) {
+        console.warn("[whatsapp-dispatch] sync working status", error);
+      }
+    }
+    return "ok";
+  }
+
+  if (res.ok) {
+    const mapped = integrationStateFromWahaSession(
+      res.data,
+      integration?.status ?? "disconnected",
+    );
+    if (mapped.status !== integration?.status) {
+      await upsertRestaurantWhatsappIntegration(sb, restaurantId, {
+        status: mapped.status,
+        phone_number: mapped.phone_number,
+        display_name: mapped.display_name,
+        connected_at: mapped.connected_at,
+        last_error: null,
+      });
+    }
+  }
+
+  if (integration?.status === "working") {
+    return "waha_session_not_working";
+  }
+  return "whatsapp_not_connected";
 }
 
 export async function fetchReservationForWhatsapp(
@@ -107,6 +171,7 @@ export async function fetchReservationForWhatsapp(
       starts_at,
       ends_at,
       notify_whatsapp,
+      contact_id,
       ${RESERVATION_STATUS_EMBED} ( code )
     `,
     )
@@ -129,6 +194,7 @@ export async function fetchReservationForWhatsapp(
     ends_at: data.ends_at as string,
     notify_whatsapp: Boolean(data.notify_whatsapp),
     status_code: status?.code ?? "pending",
+    contact_id: (data.contact_id as string | null) ?? null,
   };
 }
 
@@ -242,17 +308,48 @@ async function cancelOutboxKinds(
     .is("sent_at", null);
 }
 
+export type { ReservationDispatchOptions };
+
 export async function sendImmediateKind(
   sb: SupabaseClient,
   row: ReservationForWhatsapp,
   kind: WhatsappImmediateKind,
   settings: ReservationWhatsappSettings | null,
-): Promise<{ sent: boolean; error?: string }> {
+  options?: ReservationDispatchOptions,
+): Promise<{
+  sent: boolean;
+  error?: string;
+  messageBody?: string;
+  messageId?: string;
+  wahaMessageId?: string | null;
+  threadContactId?: string;
+}> {
   const chatId = guestPhoneToWhatsAppChatId(row.guest_phone);
   if (!chatId) return { sent: false, error: "no_phone" };
 
   const timeZone = await fetchRestaurantTimezoneServer(sb, row.restaurant_id);
-  const text = buildText(kind, row, settings, timeZone);
+  const text = appendGuestNotifyMessage(
+    buildText(kind, row, settings, timeZone),
+    options?.guestNotifyMessage,
+  );
+
+  const linkedContactId =
+    row.contact_id ??
+    (await resolveContactIdByWhatsappChat(sb, {
+      restaurantId: row.restaurant_id,
+      chatId,
+    }));
+  const threadContactId =
+    linkedContactId ?? wahaPseudoContactIdFromChatId(chatId);
+
+  const pending = await insertPendingOutboundWhatsappMessage(sb, {
+    restaurantId: row.restaurant_id,
+    threadContactId,
+    body: text,
+    reservationId: row.id,
+    deliveryStatus: "pending",
+  });
+
   const result = await wahaSendText({
     restaurantId: row.restaurant_id,
     chatId,
@@ -260,6 +357,13 @@ export async function sendImmediateKind(
   });
 
   if (!result.ok) {
+    if (pending.ok) {
+      await finalizeOutboundWhatsappMessage(sb, {
+        restaurantId: row.restaurant_id,
+        messageId: pending.messageId,
+        deliveryStatus: "failed",
+      });
+    }
     await sb.from("reservation_whatsapp_outbox").upsert(
       {
         restaurant_id: row.restaurant_id,
@@ -271,6 +375,15 @@ export async function sendImmediateKind(
       { onConflict: "reservation_id,message_kind" },
     );
     return { sent: false, error: result.error };
+  }
+
+  if (pending.ok) {
+    await finalizeOutboundWhatsappMessage(sb, {
+      restaurantId: row.restaurant_id,
+      messageId: pending.messageId,
+      deliveryStatus: "sent",
+      wahaMessageId: result.wahaMessageId,
+    });
   }
 
   await sb.from("reservation_whatsapp_outbox").upsert(
@@ -285,7 +398,13 @@ export async function sendImmediateKind(
     },
     { onConflict: "reservation_id,message_kind" },
   );
-  return { sent: true };
+  return {
+    sent: true,
+    messageBody: text,
+    messageId: pending.ok ? pending.messageId : undefined,
+    wahaMessageId: result.wahaMessageId,
+    threadContactId,
+  };
 }
 
 export async function scheduleTimedMessages(
@@ -347,40 +466,55 @@ const EVENT_TO_KIND: Record<
   no_show: "no_show",
 };
 
+export type ReservationWhatsappDispatchResult = {
+  ok: boolean;
+  skipped?: string;
+  error?: string;
+  messageBody?: string;
+  messageId?: string;
+  wahaMessageId?: string | null;
+  threadContactId?: string;
+};
+
 async function sendForEvent(
   sb: SupabaseClient,
   row: ReservationForWhatsapp,
   settings: ReservationWhatsappSettings,
   kind: WhatsappImmediateKind,
-): Promise<{ ok: boolean; skipped?: string; error?: string }> {
+  options?: ReservationDispatchOptions,
+): Promise<ReservationWhatsappDispatchResult> {
   if (!isWhatsappKindEnabled(settings, kind)) {
     return { ok: true, skipped: "disabled" };
   }
   if (["cancelled", "declined", "no_show"].includes(kind)) {
     await cancelOutboxKinds(sb, row.id, SCHEDULED_KINDS);
   }
-  const send = await sendImmediateKind(sb, row, kind, settings);
+  const send = await sendImmediateKind(sb, row, kind, settings, options);
   if (!send.sent) {
     return { ok: false, error: send.error ?? "send_failed" };
   }
-  return { ok: true };
+  return {
+    ok: true,
+    messageBody: send.messageBody,
+    messageId: send.messageId,
+    wahaMessageId: send.wahaMessageId,
+    threadContactId: send.threadContactId,
+  };
 }
 
 export async function dispatchReservationWhatsapp(
   sb: SupabaseClient,
   reservationId: string,
   event: DispatchEvent,
-): Promise<{ ok: boolean; skipped?: string; error?: string }> {
+  options?: ReservationDispatchOptions,
+): Promise<ReservationWhatsappDispatchResult> {
   const row = await fetchReservationForWhatsapp(sb, reservationId);
   if (!row) return { ok: false, error: "reservation_not_found" };
   if (!row.notify_whatsapp) return { ok: true, skipped: "notify_whatsapp_off" };
 
-  const integration = await fetchRestaurantWhatsappIntegration(sb, row.restaurant_id);
-  if (integration?.status !== "working") {
-    return { ok: true, skipped: "whatsapp_not_connected" };
-  }
-  if (!(await isWhatsappSessionWorking(row.restaurant_id))) {
-    return { ok: true, skipped: "waha_session_not_working" };
+  const ready = await ensureWhatsappReadyForDispatch(sb, row.restaurant_id);
+  if (ready !== "ok") {
+    return { ok: true, skipped: ready };
   }
 
   const settings = await fetchReservationWhatsappSettings(sb, row.restaurant_id);
@@ -392,33 +526,34 @@ export async function dispatchReservationWhatsapp(
   }
 
   if (event === "created") {
+    let sent: ReservationWhatsappDispatchResult = { ok: true };
     if (row.status_code === "pending") {
-      const r = await sendForEvent(sb, row, settings, "received");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "received", options);
+      if (!sent.ok) return sent;
     } else if (row.status_code === "confirmed") {
-      const r = await sendForEvent(sb, row, settings, "confirmed");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "confirmed", options);
+      if (!sent.ok) return sent;
     } else if (row.status_code === "cancelled") {
-      const r = await sendForEvent(sb, row, settings, "cancelled");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "cancelled", options);
+      if (!sent.ok) return sent;
     } else if (row.status_code === "declined") {
-      const r = await sendForEvent(sb, row, settings, "declined");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "declined", options);
+      if (!sent.ok) return sent;
     } else if (row.status_code === "no_show") {
-      const r = await sendForEvent(sb, row, settings, "no_show");
-      if (!r.ok) return r;
+      sent = await sendForEvent(sb, row, settings, "no_show", options);
+      if (!sent.ok) return sent;
     }
     await scheduleTimedMessages(sb, row, settings);
-    return { ok: true };
+    return sent;
   }
 
   const kind = EVENT_TO_KIND[event];
-  const result = await sendForEvent(sb, row, settings, kind);
+  const result = await sendForEvent(sb, row, settings, kind, options);
   if (!result.ok) return result;
   if (event === "confirmed") {
     await scheduleTimedMessages(sb, row, settings);
   }
-  return { ok: true };
+  return result;
 }
 
 const TERMINAL_STATUS = new Set(["cancelled", "declined", "no_show"]);
@@ -471,14 +606,11 @@ export async function processDueWhatsappOutbox(
       continue;
     }
 
-    const integration = await fetchRestaurantWhatsappIntegration(sb, row.restaurant_id);
-    if (
-      integration?.status !== "working" ||
-      !(await isWhatsappSessionWorking(row.restaurant_id))
-    ) {
+    const ready = await ensureWhatsappReadyForDispatch(sb, row.restaurant_id);
+    if (ready !== "ok") {
       await sb
         .from("reservation_whatsapp_outbox")
-        .update({ last_error: "whatsapp_unavailable" })
+        .update({ last_error: ready })
         .eq("id", item.id);
       failed++;
       continue;

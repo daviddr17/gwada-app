@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFieldClassName } from "@/lib/ui/drawer-form-section";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import Link from "next/link";
@@ -31,10 +32,20 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ReservationMessagesPanel } from "@/components/contacts/reservation-messages-panel";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
+import {
+  GUEST_NOTIFY_MESSAGE_MAX_CHARS,
+  normalizeGuestNotifyMessage,
+} from "@/lib/reservations/append-guest-notify-message";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import {
+  isValidStaffPartySize,
+  RESERVATION_PARTY_SIZE_MAX_STAFF,
+} from "@/lib/reservations/reservation-party-size";
+import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
+  reservationGuestDisplayName,
   reservationGuestFirstNameForForm,
 } from "@/lib/reservations/reservation-guest-name";
 import { ReservationChangeRequestPanel } from "@/components/reservations/reservation-change-request-panel";
@@ -141,6 +152,18 @@ export type ReservationEditDrawerCreateContext = {
   initialDiningTableId?: string | null;
   /** Kontakt-ID — Gastfelder vorausfüllen. */
   initialContactId?: string;
+  /** Ohne Kontakt-ID: Gastfelder aus Chat / Inbox. */
+  initialGuestFirstName?: string;
+  initialGuestLastName?: string;
+  initialGuestPhone?: string | null;
+  initialGuestEmail?: string | null;
+};
+
+export type ReservationWhatsappDispatchedPayload = {
+  messageBody: string;
+  messageId?: string;
+  wahaMessageId?: string | null;
+  threadContactId?: string;
 };
 
 type ReservationEditDrawerProps = {
@@ -150,12 +173,17 @@ type ReservationEditDrawerProps = {
   createFor: ReservationEditDrawerCreateContext | null;
   /** Geladene Reservierungen (z. B. Monatsliste) für Tisch-Kapazität / Überlappung. */
   overlapReservations?: ReservationListRow[];
+  /** Über Chat-Vollbild-Overlay legen (z-210). */
+  stackAboveInboxOverlay?: boolean;
   onSaved: () => void;
+  /** Nach erfolgreichem WhatsApp-Statusversand (für Chat-Optimistic). */
+  onWhatsappDispatched?: (payload: ReservationWhatsappDispatchedPayload) => void;
 };
 
 type BuiltReservationPayload = {
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -176,7 +204,9 @@ export function ReservationEditDrawer({
   reservation,
   createFor,
   overlapReservations = [],
+  stackAboveInboxOverlay = false,
   onSaved,
+  onWhatsappDispatched,
 }: ReservationEditDrawerProps) {
   const isEdit = Boolean(reservation);
   const isCreate = Boolean(createFor) && !reservation;
@@ -202,6 +232,7 @@ export function ReservationEditDrawer({
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [company, setCompany] = useState("");
   const [phoneCountryIso, setPhoneCountryIso] = useState("DE");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
@@ -217,6 +248,8 @@ export function ReservationEditDrawer({
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
   const [internalNote, setInternalNote] = useState("");
+  /** Wird der Status-Benachrichtigung (Vorlage) als „Nachricht:“ angehängt. */
+  const [guestNotifyMessage, setGuestNotifyMessage] = useState("");
   const [protocolRefreshKey, setProtocolRefreshKey] = useState(0);
   const [restaurantTimeZone, setRestaurantTimeZone] = useState(
     DEFAULT_RESTAURANT_TIMEZONE,
@@ -381,6 +414,7 @@ export function ReservationEditDrawer({
     if (reservation) {
       setFirstName(reservationGuestFirstNameForForm(reservation.guest_first_name));
       setLastName(reservation.guest_last_name);
+      setCompany(reservation.guest_company?.trim() ?? "");
       const parsed = parseGuestPhone(
         reservation.guest_phone,
         COUNTRIES_REFERENCE_FALLBACK,
@@ -409,12 +443,15 @@ export function ReservationEditDrawer({
       );
       setTableId(reservation.dining_table_id ?? "__none__");
       setInternalNote(reservationInternalNoteText(reservation.notes) ?? "");
+      setGuestNotifyMessage("");
       return;
     }
     if (createFor) {
       setInternalNote("");
+      setGuestNotifyMessage("");
       setFirstName("");
       setLastName("");
+      setCompany("");
       setPhoneCountryIso(defaultIso);
       setPhoneLocal("");
       setEmail("");
@@ -451,6 +488,7 @@ export function ReservationEditDrawer({
           if (error || !data) return;
           setFirstName(reservationGuestFirstNameForForm(data.first_name));
           setLastName(data.last_name);
+          setCompany(data.company?.trim() ?? "");
           const phone = primaryPhone(data);
           if (phone) {
             const parsed = parseGuestPhone(
@@ -464,6 +502,27 @@ export function ReservationEditDrawer({
           const mail = primaryEmail(data);
           if (mail) setEmail(mail);
         })();
+      } else {
+        if (createFor.initialGuestFirstName?.trim()) {
+          setFirstName(
+            reservationGuestFirstNameForForm(createFor.initialGuestFirstName),
+          );
+        }
+        if (createFor.initialGuestLastName?.trim()) {
+          setLastName(createFor.initialGuestLastName.trim().slice(0, 80));
+        }
+        const phone = createFor.initialGuestPhone?.trim();
+        if (phone) {
+          const parsed = parseGuestPhone(
+            phone,
+            countriesForPhoneRef.current,
+            defaultIso,
+          );
+          setPhoneCountryIso(parsed.iso2);
+          setPhoneLocal(parsed.local);
+        }
+        const mail = createFor.initialGuestEmail?.trim();
+        if (mail?.includes("@")) setEmail(mail);
       }
     }
   }, [
@@ -474,6 +533,10 @@ export function ReservationEditDrawer({
     createFor?.initialTimeHm,
     createFor?.initialDiningTableId,
     createFor?.initialContactId,
+    createFor?.initialGuestFirstName,
+    createFor?.initialGuestLastName,
+    createFor?.initialGuestPhone,
+    createFor?.initialGuestEmail,
     restaurantIdForFetch,
     restaurantTimeZone,
     getProfileForRestaurantId,
@@ -514,8 +577,10 @@ export function ReservationEditDrawer({
 
   const buildPayload = (): BuiltReservationPayload | null => {
     const ps = Number.parseInt(partySize, 10);
-    if (!Number.isFinite(ps) || ps < 1 || ps > 50) {
-      toast.error("Personenzahl zwischen 1 und 50.");
+    if (!isValidStaffPartySize(ps)) {
+      toast.error(
+        `Personenzahl zwischen 1 und ${RESERVATION_PARTY_SIZE_MAX_STAFF}.`,
+      );
       return null;
     }
     if (!dateYmd.trim()) {
@@ -549,6 +614,7 @@ export function ReservationEditDrawer({
     return {
       guest_first_name: normalizeReservationGuestFirstName(firstName),
       guest_last_name: normalizeReservationGuestLastName(lastName),
+      guest_company: normalizeReservationGuestCompany(company),
       guest_phone: formatGuestPhone(
         phoneCountryIso,
         phoneLocal,
@@ -621,21 +687,39 @@ export function ReservationEditDrawer({
         initialStatusCodeRef.current,
         newStatusCode,
       );
+      const notifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
+      const dispatchOpts = notifyExtra
+        ? { guestNotifyMessage: notifyExtra }
+        : undefined;
       if (dispatchEvent && payload.notify_whatsapp) {
-        void triggerReservationWhatsappDispatch(reservation.id, dispatchEvent).then(
-          (wa) => {
-            const msg = whatsappDispatchUserMessage(wa);
-            if (msg) toast.warning(msg);
-          },
+        const wa = await triggerReservationWhatsappDispatch(
+          reservation.id,
+          dispatchEvent,
+          dispatchOpts,
         );
+        const msg = whatsappDispatchUserMessage(wa);
+        if (msg) toast.warning(msg);
+        if (wa?.ok && wa.messageBody?.trim()) {
+          onWhatsappDispatched?.({
+            messageBody: wa.messageBody,
+            messageId: wa.messageId,
+            wahaMessageId: wa.wahaMessageId,
+            threadContactId: wa.threadContactId,
+          });
+        }
       }
       if (dispatchEvent && payload.notify_email) {
-        void triggerReservationEmailDispatch(reservation.id, dispatchEvent).then(
-          (em) => {
-            const msg = emailDispatchUserMessage(em, { isSuperadmin });
-            if (msg) toast.warning(msg);
-          },
-        );
+        void triggerReservationEmailDispatch(
+          reservation.id,
+          dispatchEvent,
+          dispatchOpts,
+        ).then((em) => {
+          const msg = emailDispatchUserMessage(em, { isSuperadmin });
+          if (msg) toast.warning(msg);
+        });
+      }
+      if (dispatchEvent && notifyExtra) {
+        setGuestNotifyMessage("");
       }
       const datetimeChanged = reservationDateTimeChanged(
         {
@@ -689,6 +773,25 @@ export function ReservationEditDrawer({
           statuses,
           tables,
         });
+        // Sofort — sonst schlägt Realtime den WhatsApp-Await und zeigt den Live-Toast.
+        const status = statuses.find((s) => s.id === payload.status_id);
+        dispatchDashboardReservationCreateLivePatch({
+          restaurantId: createFor.restaurantId,
+          insert: {
+            id: created.id,
+            starts_at: payload.starts_at,
+            ends_at: payload.ends_at,
+            dwell_minutes: payload.dwell_minutes,
+            guest_first_name: payload.guest_first_name,
+            guest_last_name: payload.guest_last_name,
+            guest_company: payload.guest_company,
+            party_size: payload.party_size,
+            statusId: payload.status_id,
+            statusCode: status?.code ?? "confirmed",
+            statusName: status?.name ?? "Bestätigt",
+            statusColorHex: status?.color_hex,
+          },
+        });
       }
       toast.success(
         created
@@ -706,39 +809,42 @@ export function ReservationEditDrawer({
           existingContactBeforeSave,
         );
       }
+      const createNotifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
+      const createDispatchOpts = createNotifyExtra
+        ? { guestNotifyMessage: createNotifyExtra }
+        : undefined;
       if (created && payload.notify_whatsapp) {
-        void triggerReservationWhatsappDispatch(created.id, "created").then((wa) => {
-          const msg = whatsappDispatchUserMessage(wa);
-          if (msg) toast.warning(msg);
-        });
+        const wa = await triggerReservationWhatsappDispatch(
+          created.id,
+          "created",
+          createDispatchOpts,
+        );
+        const msg = whatsappDispatchUserMessage(wa);
+        if (msg) toast.warning(msg);
+        if (wa?.ok && wa.messageBody?.trim()) {
+          onWhatsappDispatched?.({
+            messageBody: wa.messageBody,
+            messageId: wa.messageId,
+            wahaMessageId: wa.wahaMessageId,
+            threadContactId: wa.threadContactId,
+          });
+        }
       }
       if (created && payload.notify_email) {
-        void triggerReservationEmailDispatch(created.id, "created").then((em) => {
+        void triggerReservationEmailDispatch(
+          created.id,
+          "created",
+          createDispatchOpts,
+        ).then((em) => {
           const msg = emailDispatchUserMessage(em, { isSuperadmin });
           if (msg) toast.warning(msg);
         });
       }
+      if (created && createNotifyExtra) {
+        setGuestNotifyMessage("");
+      }
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
-      if (created) {
-        const status = statuses.find((s) => s.id === payload.status_id);
-        dispatchDashboardReservationCreateLivePatch({
-          restaurantId: createFor.restaurantId,
-          insert: {
-            id: created.id,
-            starts_at: payload.starts_at,
-            ends_at: payload.ends_at,
-            dwell_minutes: payload.dwell_minutes,
-            guest_first_name: payload.guest_first_name,
-            guest_last_name: payload.guest_last_name,
-            party_size: payload.party_size,
-            statusId: payload.status_id,
-            statusCode: status?.code ?? "confirmed",
-            statusName: status?.name ?? "Bestätigt",
-            statusColorHex: status?.color_hex,
-          },
-        });
-      }
       onSaved();
     }
   };
@@ -800,6 +906,35 @@ export function ReservationEditDrawer({
 
   const canSave = isEdit || isCreate;
 
+  const submitLabel = useMemo(() => {
+    const draft = normalizeGuestNotifyMessage(guestNotifyMessage);
+    if (!draft) return "Speichern";
+    const channelOn =
+      (notifyEmail && hasEmail) || (notifyWhatsapp && hasPhone);
+    if (!channelOn) return "Speichern";
+    const nextStatusCode =
+      statuses.find((s) => s.id === statusId)?.code ?? "";
+    const willDispatchStatus =
+      isCreate ||
+      (isEdit &&
+        nextStatusCode.length > 0 &&
+        nextStatusCode !== (initialStatusCodeRef.current ?? ""));
+    if (!willDispatchStatus) return "Speichern";
+    return "Speichern und Nachricht senden";
+  }, [
+    guestNotifyMessage,
+    notifyEmail,
+    notifyWhatsapp,
+    hasEmail,
+    hasPhone,
+    statuses,
+    statusId,
+    isCreate,
+    isEdit,
+  ]);
+  const stackedSheetZClass = stackAboveInboxOverlay ? "z-[210]" : undefined;
+  const mountContent = useDeferredDrawerMount(open);
+
   return (
     <>
     <Drawer
@@ -809,7 +944,10 @@ export function ReservationEditDrawer({
       repositionInputs={repositionInputs}
       handleOnly
     >
-      <DrawerContent className={drawerContentClassName("formFixed")}>
+      <DrawerContent
+        overlayClassName={stackedSheetZClass}
+        className={cn(drawerContentClassName("formFixed"), stackedSheetZClass)}
+      >
         <DrawerHeader className={cn(drawerFormHeaderClassName(6), "min-w-0 overflow-x-hidden")}>
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1 text-left">
@@ -859,7 +997,7 @@ export function ReservationEditDrawer({
           </div>
         </DrawerHeader>
 
-        {open ? (
+        {mountContent ? (
           <DrawerFormBody>
             <div
               ref={scrollRef}
@@ -924,12 +1062,16 @@ export function ReservationEditDrawer({
                     id="res-ps"
                     {...(touchTablet
                       ? touchNumericProps
-                      : { type: "number" as const, min: 1, max: 50 })}
+                      : {
+                          type: "number" as const,
+                          min: 1,
+                          max: RESERVATION_PARTY_SIZE_MAX_STAFF,
+                        })}
                     value={partySize}
                     onChange={(e) =>
                       setPartySize(
                         touchTablet
-                          ? digitsOnlyInput(e.target.value, 2)
+                          ? digitsOnlyInput(e.target.value, 3)
                           : e.target.value,
                       )
                     }
@@ -993,6 +1135,23 @@ export function ReservationEditDrawer({
                     className={fieldClass}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="res-company" className="text-xs text-muted-foreground">
+                  Firmenname{" "}
+                  <span className="font-normal text-muted-foreground/80">
+                    (optional)
+                  </span>
+                </Label>
+                <Input
+                  id="res-company"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className={fieldClass}
+                  maxLength={200}
+                  autoComplete="organization"
+                />
               </div>
 
               <div className={drawerTwoColClass}>
@@ -1147,6 +1306,29 @@ export function ReservationEditDrawer({
               ) : null}
 
               <DrawerFormSection title="Benachrichtigungen & AGB">
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="res-guest-notify-message"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Nachricht an den Gast
+                  </Label>
+                  <Textarea
+                    id="res-guest-notify-message"
+                    value={guestNotifyMessage}
+                    onChange={(e) => setGuestNotifyMessage(e.target.value)}
+                    rows={3}
+                    maxLength={GUEST_NOTIFY_MESSAGE_MAX_CHARS}
+                    placeholder="Optional — wird der Bestätigung/Benachrichtigung angehängt …"
+                    className="min-h-[4.5rem] resize-y rounded-xl"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Wird bei der nächsten Status-Benachrichtigung (z. B.
+                    Bestätigung) als „Nachricht:“ unter die Vorlage gehängt —
+                    eine Nachricht statt zwei. Der Chat oben sendet weiterhin
+                    sofort separat.
+                  </p>
+                </div>
                 <div
                   className={cn(
                     "flex items-center justify-between gap-3",
@@ -1218,12 +1400,19 @@ export function ReservationEditDrawer({
               onCancel={() => onOpenChange(false)}
               submitType="button"
               onSubmit={handleSave}
+              submitLabel={submitLabel}
               submitPending={saving}
               submitDisabled={!canSave}
               className="touch-pan-y"
             />
           </DrawerFormBody>
-        ) : null}
+        ) : (
+          <div
+            className={drawerScrollAreaClassName(6)}
+            aria-hidden
+            aria-busy
+          />
+        )}
       </DrawerContent>
     </Drawer>
 
@@ -1236,7 +1425,11 @@ export function ReservationEditDrawer({
           <>
             Reservierung #{reservation.reservation_number} für{" "}
             <span className="font-medium text-foreground">
-              {reservation.guest_first_name} {reservation.guest_last_name}
+              {reservationGuestDisplayName(
+                reservation.guest_first_name,
+                reservation.guest_last_name,
+                reservation.guest_company,
+              )}
             </span>{" "}
             wird dauerhaft entfernt.
           </>

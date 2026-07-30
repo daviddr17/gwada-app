@@ -18,6 +18,7 @@ import {
   peekStaffListCache,
   writeStaffListCache,
 } from "@/lib/staff/staff-list-client-cache";
+import { ensureRestaurantOwnerStaffClient } from "@/lib/staff/ensure-owner-staff-client";
 
 export type StaffListQueryData = {
   rows: RestaurantStaffRow[];
@@ -27,9 +28,11 @@ export type StaffListQueryData = {
 export async function fetchStaffListForRestaurant(
   restaurantId: string,
 ): Promise<StaffListQueryData> {
+  // Ensure parallel zu den Listen — nicht als Wasserfall davor.
   const [staffRes, contractsRes] = await Promise.all([
     fetchStaffForRestaurant(restaurantId),
     fetchStaffContractsForRestaurant(restaurantId),
+    ensureRestaurantOwnerStaffClient(restaurantId),
   ]);
   if (staffRes.error) throw new Error(staffRes.error);
   if (contractsRes.error) throw new Error(contractsRes.error);

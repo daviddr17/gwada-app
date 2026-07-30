@@ -21,13 +21,5 @@ const ROUTE_SET = new Set<string>([
 
 collectRouteStrings(APP_ROUTES, ROUTE_SET);
 
-/** Alle App-Routen für Next.js router.prefetch (Soft-Nav-Flights). */
+/** Alle App-Routen für Next.js Full-Prefetch (Soft-Nav-Flights). */
 export const APP_MODULE_PREFETCH_ROUTES: readonly string[] = [...ROUTE_SET];
-
-export function prefetchAppModuleRoutes(
-  prefetch: (href: string) => void,
-): void {
-  for (const href of APP_MODULE_PREFETCH_ROUTES) {
-    prefetch(href);
-  }
-}

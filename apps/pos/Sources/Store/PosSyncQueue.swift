@@ -8,6 +8,8 @@ enum PosSyncQueueItemKind: String, Codable, Sendable {
     case moveSession
     case releaseSession
     case createReservation
+    case openRegister
+    case closeRegister
 }
 
 struct PosSyncQueueItem: Codable, Identifiable, Equatable, Sendable {
@@ -84,6 +86,17 @@ struct PosSyncCollectCashPayload: Codable, Sendable {
 struct PosSyncCashAllocation: Codable, Sendable {
     var orderLineId: String
     var quantity: Int
+}
+
+struct PosSyncOpenRegisterPayload: Codable, Sendable {
+    var restaurantId: String
+    var openingCashCents: Int
+    var localSessionId: String
+}
+
+struct PosSyncCloseRegisterPayload: Codable, Sendable {
+    var restaurantId: String
+    var closingCashCents: Int
 }
 
 struct PosSyncFireCoursePayload: Codable, Sendable {
@@ -257,6 +270,30 @@ final class PosSyncQueue: ObservableObject {
         ))
     }
 
+    func enqueueOpenRegister(_ payload: PosSyncOpenRegisterPayload) {
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .openRegister,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
+    func enqueueCloseRegister(_ payload: PosSyncCloseRegisterPayload) {
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .closeRegister,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
     func flushIfPossible() async {
         guard !isFlushing, !items.isEmpty else { return }
         guard PosAuthStore.shared.isSignedIn else {
@@ -320,6 +357,12 @@ final class PosSyncQueue: ObservableObject {
         case .createReservation:
             let payload = try decoder.decode(PosCreateReservationPayload.self, from: item.payload)
             _ = try await PosCloudClient.createReservation(payload: payload)
+        case .openRegister:
+            let payload = try decoder.decode(PosSyncOpenRegisterPayload.self, from: item.payload)
+            _ = try await PosCloudClient.openRegister(openingCashCents: payload.openingCashCents)
+        case .closeRegister:
+            let payload = try decoder.decode(PosSyncCloseRegisterPayload.self, from: item.payload)
+            _ = try await PosCloudClient.closeRegister(closingCashCents: payload.closingCashCents)
         }
     }
 
@@ -454,7 +497,7 @@ final class PosSyncQueue: ObservableObject {
                 ]
             )
 
-        case .createReservation:
+        case .createReservation, .openRegister, .closeRegister:
             return
         }
 
@@ -541,7 +584,7 @@ final class PosSyncQueue: ObservableObject {
                 "Nest-URL (für \(item.kind.rawValue); Next-Fallback fehlt)"
             )
 
-        case .createReservation:
+        case .createReservation, .openRegister, .closeRegister:
             break
         }
     }
@@ -620,7 +663,7 @@ final class PosSyncQueue: ObservableObject {
                     copy.payload = data
                 }
             }
-        case .openSession, .createReservation:
+        case .openSession, .createReservation, .openRegister, .closeRegister:
             break
         }
         return copy

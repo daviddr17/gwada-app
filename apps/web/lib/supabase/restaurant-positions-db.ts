@@ -136,7 +136,11 @@ export async function updateRestaurantPosition(
 ): Promise<{ error: string | null }> {
   const updates: { color?: string; name?: string } = {};
   if (patch.color != null) updates.color = patch.color;
-  if (patch.name != null) updates.name = patch.name.trim();
+  if (patch.name != null) {
+    const trimmed = patch.name.trim();
+    if (!trimmed) return { error: "name_required" };
+    updates.name = trimmed;
+  }
   if (Object.keys(updates).length === 0) return { error: null };
 
   const { error } = await sb
@@ -173,6 +177,17 @@ export async function seedRestaurantDefaultPositions(
   restaurantId: string,
 ): Promise<{ error: string | null }> {
   const { error } = await sb.rpc("seed_restaurant_default_positions", {
+    p_restaurant_id: restaurantId,
+  });
+  return { error: error?.message ?? null };
+}
+
+/** Stellt sicher, dass aktive Inhaber auch als restaurant_staff existieren. */
+export async function ensureRestaurantOwnerStaff(
+  sb: SupabaseClient,
+  restaurantId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await sb.rpc("ensure_restaurant_owner_staff", {
     p_restaurant_id: restaurantId,
   });
   return { error: error?.message ?? null };

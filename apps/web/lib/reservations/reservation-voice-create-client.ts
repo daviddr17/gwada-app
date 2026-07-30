@@ -65,6 +65,7 @@ export async function createReservationFromVoiceParsed(params: {
   const payload = {
     guest_first_name: normalizeReservationGuestFirstName(params.parsed.guestFirstName),
     guest_last_name: normalizeReservationGuestLastName(params.parsed.guestLastName),
+    guest_company: null,
     guest_phone: null,
     guest_email: null,
     party_size: params.parsed.partySize,
@@ -98,6 +99,26 @@ export async function createReservationFromVoiceParsed(params: {
     tables: [],
   });
 
+  const status = statuses.find((s) => s.id === statusId);
+  // Sofort Own-Create markieren / KPI patchen — vor optionalen Notify-Calls.
+  dispatchDashboardReservationCreateLivePatch({
+    restaurantId: params.restaurantId,
+    insert: {
+      id: created.id,
+      starts_at: payload.starts_at,
+      ends_at: payload.ends_at,
+      dwell_minutes: payload.dwell_minutes,
+      guest_first_name: payload.guest_first_name,
+      guest_last_name: payload.guest_last_name,
+      guest_company: payload.guest_company,
+      party_size: payload.party_size,
+      statusId,
+      statusCode: status?.code ?? "confirmed",
+      statusName: status?.name ?? "Bestätigt",
+      statusColorHex: status?.color_hex,
+    },
+  });
+
   if (payload.notify_whatsapp) {
     void triggerReservationWhatsappDispatch(created.id, "created").then((wa) => {
       const msg = whatsappDispatchUserMessage(wa);
@@ -112,24 +133,6 @@ export async function createReservationFromVoiceParsed(params: {
       if (msg) console.warn("[voice-reservation]", msg);
     });
   }
-
-  const status = statuses.find((s) => s.id === statusId);
-  dispatchDashboardReservationCreateLivePatch({
-    restaurantId: params.restaurantId,
-    insert: {
-      id: created.id,
-      starts_at: payload.starts_at,
-      ends_at: payload.ends_at,
-      dwell_minutes: payload.dwell_minutes,
-      guest_first_name: payload.guest_first_name,
-      guest_last_name: payload.guest_last_name,
-      party_size: payload.party_size,
-      statusId,
-      statusCode: status?.code ?? "confirmed",
-      statusName: status?.name ?? "Bestätigt",
-      statusColorHex: status?.color_hex,
-    },
-  });
 
   return { ok: true, reservationNumber: created.reservation_number };
 }

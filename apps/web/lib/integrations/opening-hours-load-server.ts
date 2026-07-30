@@ -5,11 +5,8 @@ import {
   defaultWeeklyHours,
   WEEKDAY_ORDER,
 } from "@/lib/constants/restaurant-profile";
-import type {
-  DateHoursException,
-  DayHours,
-  Weekday,
-} from "@/lib/types/restaurant";
+import { groupExceptionRowsToDateExceptions } from "@/lib/opening-hours/group-exception-rows";
+import type { DayHours, Weekday } from "@/lib/types/restaurant";
 import type { OpeningHoursPayload } from "@/lib/integrations/opening-hours-platform-format";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -83,21 +80,18 @@ export async function loadOpeningHoursPayloadAdmin(
     (r) => r.kind === "weekly" && r.schedule_role === "kitchen",
   );
 
-  const dateExceptions: DateHoursException[] = [];
-  for (const raw of rows) {
-    if (raw.kind === "exception" && raw.exception_date) {
-      dateExceptions.push({
-        id: raw.id,
-        date: raw.exception_date,
-        closed: raw.closed,
-        open: raw.closed ? undefined : timeToHHmm(raw.opens_at),
-        close: raw.closed ? undefined : timeToHHmm(raw.closes_at),
-        note: raw.note?.trim() || undefined,
-      });
-    }
-  }
-
-  dateExceptions.sort((a, b) => a.date.localeCompare(b.date));
+  const dateExceptions = groupExceptionRowsToDateExceptions(
+    rows
+      .filter((r) => r.kind === "exception" && r.exception_date)
+      .map((r) => ({
+        id: r.id,
+        exception_date: r.exception_date,
+        closed: r.closed,
+        opens_at: r.opens_at,
+        closes_at: r.closes_at,
+        note: r.note,
+      })),
+  );
 
   const hasAnyWeekly = WEEKDAY_ORDER.some(
     (d) => !weeklyHours[d].closed || weeklyHours[d].open || weeklyHours[d].close,

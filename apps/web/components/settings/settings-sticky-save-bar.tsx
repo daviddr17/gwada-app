@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 import {
   appMobileStickyAboveBottomNavClassName,
 } from "@/lib/ui/app-mobile-bottom-nav"
+import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index"
 import { cn } from "@/lib/utils"
 export {
   brandActionButtonClassName,
@@ -13,8 +14,9 @@ export {
 } from "@/lib/ui/brand-action-button"
 
 /**
- * Sticky unten im Scrollbereich der App, wenn Formulardaten geändert wurden.
- * Liegt im `AppMain`-Scroll-Container (`data-app-scroll-root`).
+ * Speichern-Leiste bei ungespeicherten Änderungen.
+ * Mobil: `fixed` über der Bottom-Nav (sticky mid-page wenn Formular kurz).
+ * Desktop: sticky im Scroll-Container.
  */
 export function SettingsStickySaveBar({
   show,
@@ -28,22 +30,35 @@ export function SettingsStickySaveBar({
   if (!show) return null
 
   return (
-    <div
-      data-settings-sticky-save-bar
-      role="region"
-      aria-label="Ungespeicherte Änderungen"
-      className={cn(
-        "sticky bottom-0 z-30 mt-8 -mx-4 border-t border-border/60 bg-background/85 px-4 py-3 backdrop-blur-md supports-backdrop-filter:bg-background/75 sm:-mx-6 sm:px-6",
-        "shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.08)] dark:border-border/40 dark:shadow-[0_-12px_48px_-12px_rgba(0,0,0,0.45)]",
-        "max-md:py-3",
-        appMobileStickyAboveBottomNavClassName,
-        "md:pb-[max(0.75rem,var(--app-mobile-bottom-safe))]",
-        className,
-      )}
-    >
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-        {children}
+    <>
+      {/* Platzhalter: Inhalt nicht unter der fixed Bar verstecken */}
+      <div
+        className="pointer-events-none max-md:h-[4.75rem] md:hidden"
+        aria-hidden
+      />
+      <div
+        data-settings-sticky-save-bar
+        role="region"
+        aria-label="Ungespeicherte Änderungen"
+        style={{
+          // Über Bottom-Nav (140), unter Drawer/Fullscreen (200+)
+          zIndex: APP_LAYER_Z_INDEX.mobileBottomNav + 1,
+        }}
+        className={cn(
+          "border-t border-border/60 bg-background/85 px-4 py-3 backdrop-blur-md supports-backdrop-filter:bg-background/75 sm:px-6",
+          "shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.08)] dark:border-border/40 dark:shadow-[0_-12px_48px_-12px_rgba(0,0,0,0.45)]",
+          // Mobil: fest über Bottom-Nav (nicht mid-page sticky bei kurzem Formular)
+          "max-md:fixed max-md:inset-x-0",
+          appMobileStickyAboveBottomNavClassName,
+          // Desktop: sticky am Scroll-Ende (AppMain sm:px-6)
+          "md:sticky md:bottom-0 md:z-30 md:mt-8 md:-mx-6 md:pb-[max(0.75rem,var(--app-mobile-bottom-safe))]",
+          className,
+        )}
+      >
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          {children}
+        </div>
       </div>
-    </div>
+    </>
   )
 }

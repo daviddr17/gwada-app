@@ -36,8 +36,6 @@ final class PosRuntime: ObservableObject {
         PosDesign.color(hex: brandAccentHex)
     }
 
-    @Published var email = ""
-    @Published var password = ""
     @Published var restaurantIdInput = ""
     @Published var apiBaseInput = ""
     @Published var supabaseUrlInput = ""
@@ -64,7 +62,6 @@ final class PosRuntime: ObservableObject {
         supabaseAnonInput = PosCloudConfig.supabaseAnonKey
         nestApiBaseInput = PosCloudConfig.nestApiBaseURL?.absoluteString ?? ""
         waiterProfileIdInput = PosCloudConfig.waiterProfileId ?? ""
-        email = PosAuthStore.shared.session?.email ?? ""
         isSignedIn = PosAuthStore.shared.isSignedIn
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
         applyBrandAccent(fromHex: PosHubState.shared.brandAccentHex)
@@ -104,18 +101,6 @@ final class PosRuntime: ObservableObject {
         }
     }
 
-    func noteSignedInFromWizard() {
-        isSignedIn = true
-        if let session = PosAuthStore.shared.session {
-            let profileId = PosCloudConfig.waiterProfileId ?? session.userId
-            PosWaiterPinCache.shared.rememberSignedInUser(
-                profileId: profileId,
-                email: session.email
-            )
-            syncWaiterCapsToHub()
-        }
-    }
-
     /// Wizard: Standort gewählt → Bootstrap + Hub-Server.
     func completeHubOnboarding(restaurantName: String) async {
         PosCloudConfig.applyEnvironmentDefaultsIfNeeded()
@@ -123,31 +108,6 @@ final class PosRuntime: ObservableObject {
         await startHub()
         PosEnrollmentStore.shared.markHubEnrolled(restaurantName: restaurantName)
         statusMessage = "Kasse eingerichtet (\(restaurantName))."
-    }
-
-    func signInAndStartHub() async {
-        saveConfigFromInputs()
-        do {
-            try await PosAuthStore.shared.signIn(email: email, password: password)
-            isSignedIn = true
-            if let session = PosAuthStore.shared.session {
-                let profileId = PosCloudConfig.waiterProfileId ?? session.userId
-                PosWaiterPinCache.shared.rememberSignedInUser(
-                    profileId: profileId,
-                    email: session.email
-                )
-                syncWaiterCapsToHub()
-                await resolveRestaurantIdIfNeeded(userId: session.userId)
-            }
-            if role == .handheld {
-                await startHandheldSolo(preferCloud: true)
-            } else {
-                await startHub()
-            }
-        } catch {
-            phase = .error(error.localizedDescription)
-            statusMessage = error.localizedDescription
-        }
     }
 
     /// iPhone ohne iPad: lokale Demo-/Cloud-Daten, Kellner-Tabs bleiben.
@@ -184,7 +144,7 @@ final class PosRuntime: ObservableObject {
     /// Erzwingt Bootstrap + heutigen Reservierungstag neu (nach Login / wenn Web gerade startet).
     func reloadCloudData() async {
         saveConfigFromInputs()
-        if let userId = PosAuthStore.shared.session?.userId {
+        if let userId = PosAuthStore.shared.pinSession?.staffId {
             await resolveRestaurantIdIfNeeded(userId: userId)
         }
         let note = await pullCloudBootstrap(forceDemoFallback: true)
@@ -203,24 +163,17 @@ final class PosRuntime: ObservableObject {
 
     private func resolveRestaurantIdIfNeeded(userId: String) async {
         let current = PosCloudConfig.restaurantId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        // Feste Seed-UUID nur nutzen, wenn DB wirklich darauf steht — sonst Profil gewinnen.
-        do {
-            if let resolved = try await PosCloudClient.resolveActiveRestaurantId(userId: userId),
-               !resolved.isEmpty
-            {
-                if resolved != current {
-                    restaurantIdInput = resolved
-                    PosCloudConfig.setRestaurantId(resolved)
-                    statusMessage = "Restaurant-ID aus Profil: \(resolved.prefix(8))…"
-                }
-                return
+        let deviceRestaurantId = PosAuthStore.shared.device?.restaurantId
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !deviceRestaurantId.isEmpty, deviceRestaurantId != current else {
+            if current.isEmpty {
+                statusMessage = "Restaurant-ID fehlt — Gerät erneut einrichten."
             }
-        } catch {
-            // Profil-Lookup optional — manuelle ID bleibt.
+            return
         }
-        if current.isEmpty {
-            statusMessage = "Restaurant-ID fehlt — Studio → restaurants (slug gwada-demo)."
-        }
+        restaurantIdInput = deviceRestaurantId
+        PosCloudConfig.setRestaurantId(deviceRestaurantId)
+        statusMessage = "Restaurant-ID vom Gerät: \(deviceRestaurantId.prefix(8))…"
     }
 
 
@@ -240,9 +193,17 @@ final class PosRuntime: ObservableObject {
         statusMessage = message
     }
 
+    func noteSyncPending() {
+        syncPending = PosSyncQueue.shared.pendingCount
+    }
+
+    func publishHubSnapshot() {
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+    }
+
     func signOut() {
-        PosAuthStore.shared.clear()
-        PosDeviceCredential.clear()
+        PosAuthStore.shared.clearDevice()
+        PosEnrollmentCredential.clear()
         isSignedIn = false
         isSoloMode = false
         stopHub()
@@ -305,7 +266,7 @@ final class PosRuntime: ObservableObject {
     }
 
     private func pullReservationsDayFromCloud(_ ymd: String) async {
-        let canCloud = PosAuthStore.shared.isSignedIn || PosDeviceCredential.hasCredential
+        let canCloud = PosAuthStore.shared.isSignedIn || PosEnrollmentCredential.hasCredential
         guard canCloud else {
             statusMessage = "Reservierungen: nicht angemeldet."
             return
@@ -970,23 +931,6 @@ final class PosRuntime: ObservableObject {
             : "Nest-URL leer — Sync über Next `/api/pos`."
     }
 
-    /// Bekannte lokale Dev-Werte — nur DEBUG; Kundenpfad nutzt `PosEnvironment` + Wizard.
-    func applyLocalDevDefaults() {
-        #if DEBUG
-        email = "dreyer@techlion.de"
-        password = "GwadaLocal2026!"
-        // Keine URL-Overrides — Dev-VPS aus PosEnvironment
-        UserDefaults.standard.removeObject(forKey: "gwada_pos_api_base")
-        UserDefaults.standard.removeObject(forKey: "gwada_pos_supabase_url")
-        UserDefaults.standard.removeObject(forKey: "gwada_pos_supabase_anon_key")
-        nestApiBaseInput = ""
-        waiterProfileIdInput = "a1b2c3d4-e5f6-4789-a012-3456789abcde"
-        PosCloudConfig.setNestClientFallbackEnabled(true)
-        PosCloudConfig.applyEnvironmentDefaultsIfNeeded()
-        statusMessage = "DEBUG: Login-Felder vorausgefüllt. Cloud = \(PosEnvironment.channelLabel) (\(PosEnvironment.supabaseURL.host ?? "?"))."
-        #endif
-    }
-
     private func syncWaiterCapsToHub() {
         PosHubState.shared.setWaiterCaps(PosWaiterPinCache.shared.capsByProfileId())
     }
@@ -1053,7 +997,7 @@ final class PosRuntime: ObservableObject {
     }
 
     private func pullCloudBootstrap(forceDemoFallback: Bool) async -> String {
-        let canCloud = PosAuthStore.shared.isSignedIn || PosDeviceCredential.hasCredential
+        let canCloud = PosAuthStore.shared.isSignedIn || PosEnrollmentCredential.hasCredential
         guard canCloud else {
             if forceDemoFallback {
                 PosHubState.shared.loadCachedOrDemo()

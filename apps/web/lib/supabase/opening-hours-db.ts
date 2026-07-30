@@ -6,6 +6,8 @@ import {
   WEEKDAY_ORDER,
 } from "@/lib/constants/restaurant-profile";
 import { workspacePersistenceConfigured } from "@/lib/supabase/workspace-persistence";
+import { groupExceptionRowsToDateExceptions } from "@/lib/opening-hours/group-exception-rows";
+import { exceptionOpenPeriods } from "@/lib/opening-hours/hours-periods";
 import type {
   DateHoursException,
   DayHours,
@@ -127,21 +129,18 @@ export async function loadOpeningHoursForRestaurant(
     (r) => r.kind === "weekly" && r.schedule_role === "kitchen",
   );
 
-  const dateExceptions: DateHoursException[] = [];
-  for (const raw of rows) {
-    if (raw.kind === "exception" && raw.exception_date) {
-      dateExceptions.push({
-        id: raw.id,
-        date: raw.exception_date,
-        closed: raw.closed,
-        open: raw.closed ? undefined : timeToHHmm(raw.opens_at),
-        close: raw.closed ? undefined : timeToHHmm(raw.closes_at),
-        note: raw.note?.trim() || undefined,
-      });
-    }
-  }
-
-  dateExceptions.sort((a, b) => a.date.localeCompare(b.date));
+  const dateExceptions = groupExceptionRowsToDateExceptions(
+    rows
+      .filter((r) => r.kind === "exception" && r.exception_date)
+      .map((r) => ({
+        id: r.id,
+        exception_date: r.exception_date,
+        closed: r.closed,
+        opens_at: r.opens_at,
+        closes_at: r.closes_at,
+        note: r.note,
+      })),
+  );
 
   return {
     weeklyHours,
@@ -229,17 +228,34 @@ export async function replaceOpeningHoursForRestaurant(
   }
 
   for (const ex of profile.dateExceptions) {
-    inserts.push({
-      restaurant_id: restaurantId,
-      kind: "exception",
-      weekday: null,
-      exception_date: ex.date,
-      closed: ex.closed,
-      opens_at: ex.closed ? null : hhmmToPgTime(ex.open),
-      closes_at: ex.closed ? null : hhmmToPgTime(ex.close),
-      note: ex.note?.trim() || null,
-      schedule_role: "business",
-    });
+    if (ex.closed) {
+      inserts.push({
+        restaurant_id: restaurantId,
+        kind: "exception",
+        weekday: null,
+        exception_date: ex.date,
+        closed: true,
+        opens_at: null,
+        closes_at: null,
+        note: ex.note?.trim() || null,
+        schedule_role: "business",
+      });
+      continue;
+    }
+    const periods = exceptionOpenPeriods(ex);
+    for (const period of periods) {
+      inserts.push({
+        restaurant_id: restaurantId,
+        kind: "exception",
+        weekday: null,
+        exception_date: ex.date,
+        closed: false,
+        opens_at: hhmmToPgTime(period.open),
+        closes_at: hhmmToPgTime(period.close),
+        note: ex.note?.trim() || null,
+        schedule_role: "business",
+      });
+    }
   }
 
   const { error: insErr } = await supabase.from("opening_hours").insert(inserts);

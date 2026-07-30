@@ -2,7 +2,7 @@ import "server-only";
 
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import { upsertConversationRead } from "@/lib/supabase/contact-conversation-reads-db";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaMarkChatAsRead, wahaMarkChatAsUnread } from "@/lib/waha/waha-chat-read";
 import { syncEmailThreadSeenOnImap } from "@/lib/contact-messages/email-inbox-service";
 import { setEmailThreadExternalSeenInDb } from "@/lib/contacts/email-message-external-seen-db";
@@ -81,7 +81,9 @@ export async function syncConversationReadExternalServer(
     });
     if (!chatId) return;
 
-    const config = await getWahaServerConfigAdmin();
+    const config = await getWahaServerConfigForRestaurantAdmin(
+      params.restaurantId,
+    );
     if (!config) return;
 
     const waha = await wahaMarkChatAsRead({
@@ -152,7 +154,9 @@ export async function markConversationUnreadServer(
       conversationKey: params.conversationKey,
     });
     if (chatId) {
-      const config = await getWahaServerConfigAdmin();
+      const config = await getWahaServerConfigForRestaurantAdmin(
+        params.restaurantId,
+      );
       if (config) {
         const waha = await wahaMarkChatAsUnread({
           config,

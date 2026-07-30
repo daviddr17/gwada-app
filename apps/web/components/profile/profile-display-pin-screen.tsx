@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -288,9 +289,8 @@ export function ProfileDisplayPinScreen() {
                 <Label htmlFor="profile-display-pin-password">
                   Gwada-Passwort
                 </Label>
-                <Input
+                <PasswordInput
                   id="profile-display-pin-password"
-                  type="password"
                   autoComplete="current-password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}

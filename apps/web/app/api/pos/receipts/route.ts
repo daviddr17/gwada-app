@@ -4,6 +4,10 @@ import {
   posRestaurantTodayYmd,
   shiftYmd,
 } from "@/lib/pos/pos-day-range-server";
+import {
+  clampListPageSize,
+  parseListPageParam,
+} from "@/lib/constants/list-pagination";
 import { posError, posJson } from "@/lib/pos/pos-responses";
 import { authorizePosRestaurant } from "@/lib/pos/pos-route-auth";
 
@@ -28,6 +32,12 @@ export async function GET(request: Request) {
   const today = await posRestaurantTodayYmd(authResult.auth.restaurantId);
   let fromYmd = url.searchParams.get("from")?.trim() || today.ymd;
   let toYmd = url.searchParams.get("to")?.trim() || today.ymd;
+  const page = parseListPageParam(url.searchParams.get("page"));
+  const pageSize = clampListPageSize(
+    Number(url.searchParams.get("pageSize") ?? ""),
+  );
+  const method = url.searchParams.get("method")?.trim() || "all";
+  const search = url.searchParams.get("q")?.trim() || null;
 
   if (!isValidYmd(fromYmd) || !isValidYmd(toYmd)) {
     return posError("invalid_date_range", 400);
@@ -39,17 +49,22 @@ export async function GET(request: Request) {
     fromYmd = shiftYmd(toYmd, -(MAX_RANGE_DAYS - 1));
   }
 
-  const receipts = await listPosReceiptsInRange(
+  const result = await listPosReceiptsInRange(
     authResult.auth.supabase,
     authResult.auth.restaurantId,
     fromYmd,
     toYmd,
+    { page, pageSize, method, search },
   );
 
   return posJson({
     fromYmd,
     toYmd,
     timeZone: today.timeZone,
-    receipts,
+    receipts: result.items,
+    page: result.page,
+    pageSize: result.pageSize,
+    totalCount: result.totalCount,
+    totalPages: result.totalPages,
   });
 }

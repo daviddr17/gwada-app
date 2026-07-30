@@ -10,7 +10,7 @@ struct MoreMenuView: View {
 
     private var caps: Set<String> {
         let profileId = PosCloudConfig.waiterProfileId
-            ?? PosAuthStore.shared.session?.userId
+            ?? PosAuthStore.shared.pinSession?.staffId
             ?? ""
         let list = pinCache.caps(for: profileId)
         if list.isEmpty {

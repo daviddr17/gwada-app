@@ -203,6 +203,20 @@ async function fanOutEvent(
   if (targets.length === 0) return { created: 0, error: null };
 
   const prefsMap = await loadPreferencesMap(admin, targets);
+  const profileIds = [...new Set(targets.map((t) => t.profileId))];
+  const { data: profilePhoneRows } = await admin
+    .from("profiles")
+    .select("id, phone")
+    .in("id", profileIds);
+  const profileIdsWithPhone = new Set(
+    (profilePhoneRows ?? [])
+      .filter(
+        (row) =>
+          typeof (row as { phone?: unknown }).phone === "string" &&
+          String((row as { phone: string }).phone).trim().length > 0,
+      )
+      .map((row) => (row as { id: string }).id),
+  );
   const skipProfileId = actorProfileIdFromPayload(event.payload ?? {});
   const assignedProfileId =
     moduleId === "staff_shift_start" || moduleId === "staff_shift_end"
@@ -231,7 +245,10 @@ async function fanOutEvent(
 
     const prefs = prefsForTarget(prefsMap, target);
 
-    if (isPushModuleEnabled(prefs, "whatsapp", moduleId)) {
+    if (
+      isPushModuleEnabled(prefs, "whatsapp", moduleId) &&
+      profileIdsWithPhone.has(target.profileId)
+    ) {
       rows.push({
         event_id: event.id,
         profile_id: target.profileId,

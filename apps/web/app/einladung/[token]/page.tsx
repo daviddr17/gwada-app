@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { usePublicOAuthAvailability } from "@/lib/hooks/use-public-oauth-availability";
@@ -529,9 +530,9 @@ export default function StaffInvitePage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="inv-pw">Passwort</Label>
-            <Input
+            <PasswordInput
               id="inv-pw"
-              type="password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="rounded-xl"
@@ -539,9 +540,9 @@ export default function StaffInvitePage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="inv-pw2">Passwort bestätigen</Label>
-            <Input
+            <PasswordInput
               id="inv-pw2"
-              type="password"
+              autoComplete="new-password"
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
               className="rounded-xl"

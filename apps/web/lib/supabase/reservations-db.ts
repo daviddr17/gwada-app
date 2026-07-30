@@ -96,6 +96,7 @@ export type ReservationListRow = {
   created_by_profile: ReservationCreatorProfileJoin | null;
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   contact_id: string | null;
@@ -126,9 +127,14 @@ export function mapRawToReservationListRow(
   return {
     ...(row as Omit<
       ReservationListRow,
-      "reservation_statuses" | "dining_tables" | "created_by_profile" | "notes"
+      | "reservation_statuses"
+      | "dining_tables"
+      | "created_by_profile"
+      | "notes"
+      | "guest_company"
     >),
     notes: (row.notes as string | null | undefined) ?? null,
+    guest_company: (row.guest_company as string | null | undefined) ?? null,
     reservation_statuses: status as ReservationStatusJoin | null,
     dining_tables: normalizeReservationDiningTableJoin(tableRaw),
     created_by_profile: creatorRaw as ReservationCreatorProfileJoin | null,
@@ -146,6 +152,7 @@ export const RESERVATION_LIST_ROW_SELECT = `
       last_status_changed_by_profile_id,
       guest_first_name,
       guest_last_name,
+      guest_company,
       guest_phone,
       guest_email,
       contact_id,
@@ -323,6 +330,7 @@ export function defaultStaffReservationStatusId(
 export type ReservationUpdatePayload = {
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -361,6 +369,7 @@ export async function insertReservation(
       restaurant_id: payload.restaurant_id,
       guest_first_name: payload.guest_first_name,
       guest_last_name: payload.guest_last_name,
+      guest_company: payload.guest_company,
       guest_phone: payload.guest_phone,
       guest_email: payload.guest_email,
       party_size: payload.party_size,

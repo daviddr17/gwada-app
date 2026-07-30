@@ -3,9 +3,14 @@ import "server-only";
 import { computeDashboardStaffSummary } from "@/lib/staff/compute-dashboard-staff-summary";
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import type { DashboardStaffSummaryPayload } from "@/lib/dashboard/dashboard-staff-summary-types";
-import { restaurantDayBoundsIso } from "@/lib/restaurant/restaurant-timezone";
+import {
+  restaurantDayBoundsIso,
+  restaurantTodayYmd,
+} from "@/lib/restaurant/restaurant-timezone";
+import { computeStaffDayWageBreakdown } from "@/lib/staff/staff-day-wage";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import type {
+  RestaurantStaffContractRow,
   RestaurantStaffRow,
   StaffLivePresenceRow,
 } from "@/lib/types/staff";
@@ -281,6 +286,46 @@ async function fetchStaffWorkEntriesTodayServer(
   );
 }
 
+/** Minimaler Contract-Stand für Tageslohn — ohne Dokument-/Signatur-Felder. */
+async function fetchStaffContractsForWageServer(
+  sb: SupabaseClient,
+  restaurantId: string,
+): Promise<RestaurantStaffContractRow[]> {
+  const { data, error } = await sb
+    .from("restaurant_staff_contracts")
+    .select(
+      "id, restaurant_id, staff_id, valid_from, valid_to, pay_type, hourly_rate_cents, fixed_salary_cents, currency, note, employment_type_id, vacation_days_per_year, target_weekly_minutes",
+    )
+    .eq("restaurant_id", restaurantId);
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((r) => {
+    const row = r as Record<string, unknown>;
+    const validFrom = String(row.valid_from ?? "").slice(0, 10);
+    const validToRaw = row.valid_to as string | null | undefined;
+    return {
+      id: row.id as string,
+      restaurant_id: row.restaurant_id as string,
+      staff_id: row.staff_id as string,
+      valid_from: validFrom,
+      valid_to: validToRaw ? validToRaw.slice(0, 10) : null,
+      pay_type: row.pay_type as RestaurantStaffContractRow["pay_type"],
+      hourly_rate_cents: (row.hourly_rate_cents as number | null) ?? null,
+      fixed_salary_cents: (row.fixed_salary_cents as number | null) ?? null,
+      currency: (row.currency as string) ?? "EUR",
+      note: (row.note as string | null) ?? null,
+      employment_type_id: (row.employment_type_id as string | null) ?? null,
+      vacation_days_per_year:
+        (row.vacation_days_per_year as number | null) ?? null,
+      target_weekly_minutes:
+        typeof row.target_weekly_minutes === "number"
+          ? row.target_weekly_minutes
+          : null,
+    };
+  });
+}
+
 export async function loadDashboardStaffSummaryServer(
   sb: SupabaseClient,
   restaurantId: string,
@@ -298,15 +343,25 @@ export async function loadDashboardStaffSummaryServer(
     mapStaffRow(r as Record<string, unknown>),
   );
 
-  const [presence, todayEntries] = await Promise.all([
+  const [presence, todayEntries, contracts, timeZone] = await Promise.all([
     fetchStaffLivePresenceServer(sb, restaurantId),
     fetchStaffWorkEntriesTodayServer(sb, restaurantId),
+    fetchStaffContractsForWageServer(sb, restaurantId),
+    fetchRestaurantTimezoneServer(sb, restaurantId),
   ]);
+
+  const dayYmd = restaurantTodayYmd(timeZone);
+  const wageBreakdown = computeStaffDayWageBreakdown({
+    entries: todayEntries,
+    contracts,
+    dayYmd,
+  });
 
   return {
     staff,
     presence,
     completedShifts: listCompletedDisplayShifts(todayEntries),
+    wageBreakdown,
     summary: computeDashboardStaffSummary({
       staff,
       presence,

@@ -4,13 +4,19 @@ import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-wi
 import { Skeleton } from "@/components/ui/skeleton";
 import { APP_MOBILE_BOTTOM_NAV_BAR_H, appMobileBottomSafePbClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
+import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import { cn } from "@/lib/utils";
 
-/** Vollflächiger Bootstrap — blockiert Klicks bis Shell wirklich bereit ist. */
+/**
+ * Vollflächiger Bootstrap-Skeleton (nur optisch).
+ * `pointer-events-none`: Soft-Nav/Sidebar darunter sofort bedienbar.
+ * z unter Mobile-Menü/Dock — sonst verdeckt das opake Overlay das echte Menü.
+ */
 export function AppShellBootstrapOverlay() {
   return (
     <div
-      className="fixed inset-0 z-[195] flex bg-background"
+      className="pointer-events-none fixed inset-0 flex bg-background"
+      style={{ zIndex: APP_LAYER_Z_INDEX.shellBootstrap }}
       role="status"
       aria-busy="true"
       aria-label="App wird vorbereitet"
@@ -35,7 +41,7 @@ export function AppShellBootstrapOverlay() {
               className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 ms-[5px]"
             >
               <Skeleton className="size-4 shrink-0 rounded-md" />
-              <Skeleton className="h-3.5 min-w-0 flex-1 rounded-md" />
+              <Skeleton className="h-3.5 w-[70%] max-w-full min-w-0 shrink rounded-md" />
             </div>
           ))}
         </div>

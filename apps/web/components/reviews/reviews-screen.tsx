@@ -1,16 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Filter, LayoutGrid, Link2, List, ScrollText, Search } from "lucide-react";
+import { Filter, GalleryVerticalEnd, Link2, List, ScrollText, Search } from "lucide-react";
 import {
   countReviewsDrawerActiveFilters,
   ReviewsFilterDrawer,
 } from "@/components/reviews/reviews-filter-drawer";
 import { ReviewInboxFilterChips } from "@/components/reviews/review-inbox-filter-chips";
 import {
-  ReviewsGridView,
   ReviewsListView,
+  ReviewsTimelineView,
 } from "@/components/reviews/reviews-feed-views";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -77,6 +84,11 @@ import {
   patchReviewInFeedCache,
   type ReviewsFeedClientCache,
 } from "@/lib/reviews/reviews-feed-client-cache";
+import {
+  peekReviewsFeedSessionCache,
+  writeReviewsFeedSessionCache,
+  type ReviewsFeedGoogleLocationSummary,
+} from "@/lib/reviews/reviews-feed-session-cache";
 import { isReviewsCacheablePlatform } from "@/lib/reviews/reviews-cache-constants";
 import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
 import {
@@ -92,6 +104,11 @@ import {
   type ReviewReplyFilter,
   type ReviewSortKey,
 } from "@/lib/reviews/filter-sort-reviews";
+import {
+  appendReviewsFeedListQueryParams,
+  reviewsFeedListQueryKey,
+  reviewsFeedListQueryNeedsFullPass,
+} from "@/lib/reviews/reviews-feed-list-query";
 import {
   markAllReviewsReadClient,
   markReviewReadBatchClient,
@@ -130,7 +147,7 @@ type ReviewsApiResponse = {
     average: number | null;
     median: number | null;
     distribution: Record<1 | 2 | 3 | 4 | 5, number>;
-    scope?: "google_location" | "page";
+    scope?: "google_location" | "page" | "filtered";
   };
   googlePagination?: GoogleReviewsPaginationMeta;
   mergedPagination?: MergedReviewsPaginationMeta;
@@ -142,13 +159,7 @@ type ReviewsApiResponse = {
   sync?: ReviewsFeedSyncMeta;
 };
 
-type GoogleLocationSummary = {
-  count: number;
-  average: number | null;
-  median: null;
-  distribution: Record<1 | 2 | 3 | 4 | 5, number>;
-  scope: "google_location";
-};
+type GoogleLocationSummary = ReviewsFeedGoogleLocationSummary;
 
 function withNextPageToken(
   currentPage: number,
@@ -194,6 +205,7 @@ export function ReviewsScreen() {
   const [replyText, setReplyText] = useState("");
   const [replyBusy, setReplyBusy] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [ratingFilter, setRatingFilter] = useState<ReviewRatingFilter>("all");
   const [commentFilter, setCommentFilter] =
     useState<ReviewCommentFilter>("all");
@@ -261,8 +273,9 @@ export function ReviewsScreen() {
   const facebookPagination = feedCache.facebookPagination;
   const tripadvisorPagination = feedCache.tripadvisorPagination;
   const mergedLoadErrors = feedCache.loadErrors;
-  const mergedPlatformTotals = feedCache.platformTotals;
-  const showSkeleton = useDeferredSkeleton(feedPrefetchLoading);
+  const showSkeleton = useDeferredSkeleton(
+    feedPrefetchLoading && !feedCache.ready,
+  );
   const readAllStartedRef = useRef<string | null>(null);
 
   const markLoadedReviewsRead = useCallback(
@@ -318,6 +331,36 @@ export function ReviewsScreen() {
     platformFilter === REVIEW_FILTER_ALL ||
     platformFilter === "google" ||
     platformFilter === "facebook";
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  const feedListQuery = useMemo(
+    () => ({
+      search: debouncedSearch,
+      ratingFilter,
+      commentFilter,
+      replyFilter,
+      readFilter,
+      sortKey,
+      showReplyFilter,
+    }),
+    [
+      debouncedSearch,
+      ratingFilter,
+      commentFilter,
+      replyFilter,
+      readFilter,
+      sortKey,
+      showReplyFilter,
+    ],
+  );
+  const feedListQueryKeyValue = reviewsFeedListQueryKey(feedListQuery);
+  const feedListQueryRef = useRef(feedListQuery);
+  feedListQueryRef.current = feedListQuery;
+  const appliedFeedListQueryKeyRef = useRef<string | null>(null);
 
   const isPlatformAvailable = useCallback(
     (p: ReviewPlatform): boolean => {
@@ -426,21 +469,26 @@ export function ReviewsScreen() {
     );
   };
 
-  const fetchReviewsJson = useCallback(
-    async (params: URLSearchParams) => {
-      const res = await fetch(`/api/reviews?${params}`);
-      const json = (await res.json()) as ReviewsApiResponse & { error?: string };
-      return { res, json };
-    },
-    [],
-  );
+  const fetchReviewsJson = useCallback(async (params: URLSearchParams) => {
+    appendReviewsFeedListQueryParams(params, feedListQueryRef.current);
+    const res = await fetch(`/api/reviews?${params}`);
+    const json = (await res.json()) as ReviewsApiResponse & { error?: string };
+    return { res, json };
+  }, []);
 
   const prefetchFeed = useCallback(async (options?: { silent?: boolean }) => {
     if (!restaurantId) {
       if (!options?.silent) setFeedPrefetchLoading(false);
       return;
     }
-    if (!options?.silent) {
+    const cached = peekReviewsFeedSessionCache(
+      restaurantId,
+      feedListQueryKeyValue,
+    );
+    const hasReadyCache = Boolean(cached?.feed.ready);
+    const silent = Boolean(options?.silent || hasReadyCache);
+
+    if (!silent) {
       setFeedPrefetchLoading(true);
       setFeedCache(createEmptyReviewsFeedClientCache());
       setGooglePage(1);
@@ -449,6 +497,11 @@ export function ReviewsScreen() {
       setTripadvisorPage(1);
       setGoogleLocationSummary(null);
       setGoogleStatsError(null);
+    } else if (hasReadyCache && cached) {
+      setFeedCache(cached.feed);
+      setGoogleLocationSummary(cached.googleLocationSummary);
+      setGoogleStatsError(cached.googleStatsError);
+      setFeedPrefetchLoading(false);
     }
 
     try {
@@ -471,6 +524,7 @@ export function ReviewsScreen() {
             ...prev,
             allPages: { 1: reviewsRead },
             allPagination: json.mergedPagination ?? null,
+            allSummary: json.summary ?? null,
             allTokenByPage: withNextPageToken(
               1,
               json.mergedPagination?.nextPageToken,
@@ -497,6 +551,7 @@ export function ReviewsScreen() {
           setFeedCache((prev) => ({
             ...prev,
             gwada: reviewsRead,
+            gwadaSummary: json.summary ?? null,
             platformTotals: {
               ...prev.platformTotals,
               gwada: reviewsRead.length,
@@ -520,6 +575,7 @@ export function ReviewsScreen() {
               ...prev,
               googlePages: { 1: reviewsRead },
               googlePagination: json.googlePagination ?? null,
+              googleSummary: json.summary ?? null,
               googleTokenByPage: withNextPageToken(
                 1,
                 json.googlePagination?.nextPageToken,
@@ -590,6 +646,7 @@ export function ReviewsScreen() {
               ...prev,
               facebookPages: { 1: reviewsRead },
               facebookPagination: json.facebookPagination ?? null,
+              facebookSummary: json.summary ?? null,
               facebookTokenByPage: withNextPageToken(
                 1,
                 json.facebookPagination?.nextPageToken,
@@ -627,6 +684,7 @@ export function ReviewsScreen() {
               ...prev,
               tripadvisorPages: { 1: reviewsRead },
               tripadvisorPagination: json.tripadvisorPagination ?? null,
+              tripadvisorSummary: json.summary ?? null,
               tripadvisorTokenByPage: withNextPageToken(
                 1,
                 json.tripadvisorPagination?.nextPageToken,
@@ -650,19 +708,52 @@ export function ReviewsScreen() {
       await Promise.all(requests);
       setFeedCache((prev) => ({ ...prev, ready: true }));
     } catch {
-      if (!options?.silent) {
+      if (!silent) {
         toast.error("Netzwerkfehler beim Laden der Bewertungen.");
       }
     } finally {
-      if (!options?.silent) setFeedPrefetchLoading(false);
+      setFeedPrefetchLoading(false);
     }
   }, [
     restaurantId,
+    feedListQueryKeyValue,
     googleVisible,
     facebookVisible,
     tripadvisorVisible,
     fetchReviewsJson,
     markLoadedReviewsRead,
+  ]);
+
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    const cached = peekReviewsFeedSessionCache(
+      restaurantId,
+      feedListQueryKeyValue,
+    );
+    if (!cached?.feed.ready) return;
+    setFeedCache(cached.feed);
+    setGoogleLocationSummary(cached.googleLocationSummary);
+    setGoogleStatsError(cached.googleStatsError);
+    setFeedPrefetchLoading(false);
+  }, [restaurantId, feedListQueryKeyValue]);
+
+  useEffect(() => {
+    if (!restaurantId || !feedCache.ready) return;
+    writeReviewsFeedSessionCache(
+      restaurantId,
+      {
+        feed: feedCache,
+        googleLocationSummary,
+        googleStatsError,
+      },
+      feedListQueryKeyValue,
+    );
+  }, [
+    restaurantId,
+    feedCache,
+    googleLocationSummary,
+    googleStatsError,
+    feedListQueryKeyValue,
   ]);
 
   usePlatformFeedSyncRealtime(
@@ -738,6 +829,7 @@ export function ReviewsScreen() {
           ...prev,
           allPages: { ...prev.allPages, [page]: reviewsRead },
           allPagination: json.mergedPagination ?? prev.allPagination,
+          allSummary: json.summary ?? prev.allSummary,
           allTokenByPage: withNextPageToken(
             page,
             json.mergedPagination?.nextPageToken,
@@ -787,6 +879,7 @@ export function ReviewsScreen() {
           ...prev,
           googlePages: { ...prev.googlePages, [page]: reviewsRead },
           googlePagination: json.googlePagination ?? prev.googlePagination,
+          googleSummary: json.summary ?? prev.googleSummary,
           googleTokenByPage: withNextPageToken(
             page,
             json.googlePagination?.nextPageToken,
@@ -837,6 +930,7 @@ export function ReviewsScreen() {
           ...prev,
           facebookPages: { ...prev.facebookPages, [page]: reviewsRead },
           facebookPagination: json.facebookPagination ?? prev.facebookPagination,
+          facebookSummary: json.summary ?? prev.facebookSummary,
           facebookTokenByPage: withNextPageToken(
             page,
             json.facebookPagination?.nextPageToken,
@@ -891,6 +985,7 @@ export function ReviewsScreen() {
           tripadvisorPages: { ...prev.tripadvisorPages, [page]: reviewsRead },
           tripadvisorPagination:
             json.tripadvisorPagination ?? prev.tripadvisorPagination,
+          tripadvisorSummary: json.summary ?? prev.tripadvisorSummary,
           tripadvisorTokenByPage: withNextPageToken(
             page,
             json.tripadvisorPagination?.nextPageToken,
@@ -916,6 +1011,14 @@ export function ReviewsScreen() {
 
   const prefetchFeedRef = useRef(prefetchFeed);
   prefetchFeedRef.current = prefetchFeed;
+  const loadAllPageRef = useRef(loadAllPage);
+  loadAllPageRef.current = loadAllPage;
+  const loadGooglePageRef = useRef(loadGooglePage);
+  loadGooglePageRef.current = loadGooglePage;
+  const loadFacebookPageRef = useRef(loadFacebookPage);
+  loadFacebookPageRef.current = loadFacebookPage;
+  const loadTripadvisorPageRef = useRef(loadTripadvisorPage);
+  loadTripadvisorPageRef.current = loadTripadvisorPage;
 
   const reloadCurrent = useCallback(() => {
     const force = { force: true as const };
@@ -952,15 +1055,66 @@ export function ReviewsScreen() {
     tripadvisorPage,
   ]);
 
+  /** Filter/Sort serverseitig: Cache verwerfen und Seite 1 neu laden. */
+  useEffect(() => {
+    if (!restaurantId || !feedCache.ready || feedPrefetchLoading) return;
+    if (appliedFeedListQueryKeyRef.current === null) {
+      appliedFeedListQueryKeyRef.current = feedListQueryKeyValue;
+      return;
+    }
+    if (appliedFeedListQueryKeyRef.current === feedListQueryKeyValue) return;
+    appliedFeedListQueryKeyRef.current = feedListQueryKeyValue;
+
+    setGooglePage(1);
+    setAllPage(1);
+    setFacebookPage(1);
+    setTripadvisorPage(1);
+    setFeedCache((prev) => ({
+      ...prev,
+      allPages: {},
+      allPagination: null,
+      allSummary: null,
+      allTokenByPage: {},
+      googlePages: {},
+      googlePagination: null,
+      googleSummary: null,
+      googleTokenByPage: {},
+      facebookPages: {},
+      facebookPagination: null,
+      facebookSummary: null,
+      facebookTokenByPage: {},
+      tripadvisorPages: {},
+      tripadvisorPagination: null,
+      tripadvisorSummary: null,
+      tripadvisorTokenByPage: {},
+    }));
+
+    const force = { force: true as const };
+    void loadAllPageRef.current(1, force);
+    if (googleVisible) void loadGooglePageRef.current(1, force);
+    if (facebookVisible) void loadFacebookPageRef.current(1, force);
+    if (tripadvisorVisible) void loadTripadvisorPageRef.current(1, force);
+  }, [
+    restaurantId,
+    feedCache.ready,
+    feedPrefetchLoading,
+    feedListQueryKeyValue,
+    googleVisible,
+    facebookVisible,
+    tripadvisorVisible,
+  ]);
+
   useEffect(() => {
     if (!restaurantId || connectionsLoading) return;
     setSearch("");
+    setDebouncedSearch("");
     setRatingFilter("all");
     setCommentFilter("all");
     setReplyFilter("all");
     setReadFilter("all");
     setReadLocal({});
     setSortKey("created_desc");
+    appliedFeedListQueryKeyRef.current = null;
     void prefetchFeedRef.current();
   }, [
     restaurantId,
@@ -1264,34 +1418,6 @@ export function ReviewsScreen() {
     [filteredSortedReviews],
   );
 
-  const mergedGrandTotal = useMemo(() => {
-    if (platformFilter !== REVIEW_FILTER_ALL) return null;
-    if (typeof mergedPagination?.totalReviewCount === "number") {
-      return mergedPagination.totalReviewCount;
-    }
-    const platforms: ReviewPlatform[] = ["gwada"];
-    if (googleVisible) platforms.push("google");
-    if (facebookVisible) platforms.push("facebook");
-    if (tripadvisorVisible) platforms.push("tripadvisor");
-    let sum = 0;
-    let hasAny = false;
-    for (const platform of platforms) {
-      const count = mergedPlatformTotals[platform];
-      if (typeof count === "number") {
-        sum += count;
-        hasAny = true;
-      }
-    }
-    return hasAny ? sum : null;
-  }, [
-    platformFilter,
-    mergedPagination?.totalReviewCount,
-    mergedPlatformTotals,
-    googleVisible,
-    facebookVisible,
-    tripadvisorVisible,
-  ]);
-
   const drawerFilterActiveCount = useMemo(
     () =>
       countReviewsDrawerActiveFilters({
@@ -1368,28 +1494,30 @@ export function ReviewsScreen() {
       readFilter,
     }) || sortKey !== "created_desc";
 
+  const serverListQueryActive = reviewsFeedListQueryNeedsFullPass(feedListQuery);
+
   const reviewCountSummary = useMemo(() => {
     if (isGooglePaginated && googlePagination) {
-      if (filtersActive) {
-        return `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${googlePage}/${googleTotalPages})`;
+      if (serverListQueryActive) {
+        return `${filteredSortedReviews.length} auf dieser Seite · insgesamt ${googlePagination.totalReviewCount} bei Google`;
       }
       return `${allReviews.length} auf dieser Seite · insgesamt ${googleLocationSummary?.count ?? googlePagination.totalReviewCount} bei Google`;
     }
     if (isFacebookPaginated && facebookPagination) {
-      if (filtersActive) {
-        return `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${facebookPage}/${facebookTotalPages})`;
+      if (serverListQueryActive) {
+        return `${filteredSortedReviews.length} auf dieser Seite · insgesamt ${facebookPagination.totalReviewCount} bei Facebook`;
       }
       return `${allReviews.length} auf dieser Seite · insgesamt ${facebookPagination.totalReviewCount} bei Facebook`;
     }
     if (isTripadvisorPaginated && tripadvisorPagination) {
-      if (filtersActive) {
-        return `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${tripadvisorPage}/${tripadvisorTotalPages})`;
+      if (serverListQueryActive) {
+        return `${filteredSortedReviews.length} auf dieser Seite · insgesamt ${tripadvisorPagination.totalReviewCount} bei TripAdvisor`;
       }
       return `${allReviews.length} auf dieser Seite · insgesamt ${tripadvisorPagination.totalReviewCount} bei TripAdvisor`;
     }
     if (isAllPaginated && mergedPagination) {
-      if (filtersActive) {
-        return `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${allPage}/${allTotalPages})`;
+      if (serverListQueryActive) {
+        return `${filteredSortedReviews.length} auf dieser Seite · insgesamt ${mergedPagination.totalReviewCount} Bewertungen`;
       }
       return `${allReviews.length} auf dieser Seite · insgesamt ${mergedPagination.totalReviewCount} Bewertungen`;
     }
@@ -1400,24 +1528,17 @@ export function ReviewsScreen() {
   }, [
     isGooglePaginated,
     googlePagination,
+    serverListQueryActive,
     filtersActive,
     filteredSortedReviews.length,
     allReviews.length,
-    googlePage,
-    googleTotalPages,
     googleLocationSummary?.count,
     isFacebookPaginated,
     facebookPagination,
-    facebookPage,
-    facebookTotalPages,
     isTripadvisorPaginated,
     tripadvisorPagination,
-    tripadvisorPage,
-    tripadvisorTotalPages,
     isAllPaginated,
     mergedPagination,
-    allPage,
-    allTotalPages,
   ]);
 
   const reviewFeedSync = useMemo(
@@ -1430,24 +1551,41 @@ export function ReviewsScreen() {
   );
 
   const summaryForCard = useMemo(() => {
-    if (isGooglePaginated && !filtersActive && googleLocationSummary) {
+    // Google ohne Listenfilter: offizielle Standort-Ø/Anzahl (keine Sterne-Gesamtverteilung).
+    if (isGooglePaginated && !serverListQueryActive && googleLocationSummary) {
       return googleLocationSummary;
     }
-    if (
-      platformFilter === REVIEW_FILTER_ALL &&
-      !filtersActive &&
-      mergedGrandTotal != null
-    ) {
-      return { ...filteredSummary, count: mergedGrandTotal };
+    if (platformFilter === REVIEW_FILTER_ALL && feedCache.allSummary) {
+      return feedCache.allSummary;
     }
+    if (isGooglePaginated && feedCache.googleSummary) {
+      return feedCache.googleSummary;
+    }
+    if (isFacebookPaginated && feedCache.facebookSummary) {
+      return feedCache.facebookSummary;
+    }
+    if (isTripadvisorPaginated && feedCache.tripadvisorSummary) {
+      return feedCache.tripadvisorSummary;
+    }
+    if (platformFilter === "gwada" && feedCache.gwadaSummary && !filtersActive) {
+      return feedCache.gwadaSummary;
+    }
+    // Gwada mit Client-Filtern / Fallback: aktuelle sichtbare Menge.
     return filteredSummary;
   }, [
     isGooglePaginated,
-    filtersActive,
+    serverListQueryActive,
     googleLocationSummary,
-    filteredSummary,
     platformFilter,
-    mergedGrandTotal,
+    feedCache.allSummary,
+    feedCache.googleSummary,
+    feedCache.facebookSummary,
+    feedCache.tripadvisorSummary,
+    feedCache.gwadaSummary,
+    isFacebookPaginated,
+    isTripadvisorPaginated,
+    filtersActive,
+    filteredSummary,
   ]);
 
   if (!ready) {
@@ -1463,6 +1601,7 @@ export function ReviewsScreen() {
 
   const resetFilters = () => {
     setSearch("");
+    setDebouncedSearch("");
     setRatingFilter("all");
     setCommentFilter("all");
     setReplyFilter("all");
@@ -1624,9 +1763,9 @@ export function ReviewsScreen() {
                     className="rounded-full"
                     aria-pressed={viewMode === "grid"}
                     onClick={() => setViewMode("grid")}
-                    aria-label="Raster"
+                    aria-label="Timeline"
                   >
-                    <LayoutGrid className="size-4" />
+                    <GalleryVerticalEnd className="size-4" />
                   </Button>
                   <Button
                     type="button"
@@ -1680,15 +1819,6 @@ export function ReviewsScreen() {
                   ) : null
                 }
               />
-              {isGooglePaginated && filtersActive ? (
-                <p className="text-xs text-muted-foreground">
-                  Filter und Sortierung gelten nur für die aktuelle Seite.
-                </p>
-              ) : (isAllPaginated || isFacebookPaginated) && filtersActive ? (
-                <p className="text-xs text-muted-foreground">
-                  Filter und Sortierung gelten nur für die aktuelle Seite.
-                </p>
-              ) : null}
             </div>
           ) : null}
 
@@ -1747,7 +1877,7 @@ export function ReviewsScreen() {
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
-                    <ReviewsGridView
+                    <ReviewsTimelineView
                       reviews={filteredSortedReviews}
                       showPlatform={false}
                       getReviewProps={getReviewCardProps}
@@ -1774,7 +1904,7 @@ export function ReviewsScreen() {
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
-                    <ReviewsGridView
+                    <ReviewsTimelineView
                       reviews={filteredSortedReviews}
                       showPlatform={true}
                       getReviewProps={getReviewCardProps}
@@ -1801,7 +1931,7 @@ export function ReviewsScreen() {
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
-                    <ReviewsGridView
+                    <ReviewsTimelineView
                       reviews={filteredSortedReviews}
                       showPlatform={false}
                       getReviewProps={getReviewCardProps}
@@ -1830,7 +1960,7 @@ export function ReviewsScreen() {
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
-                    <ReviewsGridView
+                    <ReviewsTimelineView
                       reviews={filteredSortedReviews}
                       showPlatform={false}
                       getReviewProps={getReviewCardProps}
@@ -1844,7 +1974,7 @@ export function ReviewsScreen() {
                   getReviewProps={getReviewCardProps}
                 />
               ) : (
-                <ReviewsGridView
+                <ReviewsTimelineView
                   reviews={filteredSortedReviews}
                   showPlatform={platformFilter === REVIEW_FILTER_ALL}
                   getReviewProps={getReviewCardProps}

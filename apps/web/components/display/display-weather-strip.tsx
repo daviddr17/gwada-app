@@ -59,10 +59,19 @@ export function DisplayWeatherStrip({
     return null;
   }
 
-  const range =
-    snapshot.tempMin !== null && snapshot.tempMax !== null
-      ? `${formatTemp(snapshot.tempMin)} – ${formatTemp(snapshot.tempMax)}`
-      : null;
+  const hasDayRange =
+    snapshot.tempMin !== null &&
+    snapshot.tempMax !== null &&
+    !Number.isNaN(snapshot.tempMin) &&
+    !Number.isNaN(snapshot.tempMax);
+
+  const ariaParts = [
+    `Aktuell ${formatTemp(snapshot.temp)}`,
+    hasDayRange
+      ? `Hoch ${formatTemp(snapshot.tempMax)} Tief ${formatTemp(snapshot.tempMin)}`
+      : null,
+    `Regen ${formatPercent(snapshot.precipProb)}`,
+  ].filter(Boolean);
 
   return (
     <div
@@ -70,19 +79,27 @@ export function DisplayWeatherStrip({
         "flex shrink-0 items-center gap-2 text-xs text-muted-foreground",
         className,
       )}
-      aria-label="Wetter am Standort"
+      aria-label={`Wetter am Standort: ${ariaParts.join(", ")}`}
     >
       <CloudSun className="size-3.5 shrink-0 opacity-80" aria-hidden />
       <span className="shrink-0 tabular-nums font-medium text-foreground">
         {formatTemp(snapshot.temp)}
       </span>
-      {range ? (
+      {hasDayRange ? (
         <>
           <span className="text-border/80" aria-hidden>
             ·
           </span>
-          <span className="hidden min-w-0 truncate tabular-nums md:inline">
-            {range}
+          <span className="shrink-0 tabular-nums">
+            <span className="font-medium text-foreground/70">Hoch</span>{" "}
+            {formatTemp(snapshot.tempMax)}
+          </span>
+          <span className="text-border/80" aria-hidden>
+            ·
+          </span>
+          <span className="shrink-0 tabular-nums">
+            <span className="font-medium text-foreground/70">Tief</span>{" "}
+            {formatTemp(snapshot.tempMin)}
           </span>
         </>
       ) : null}
@@ -90,7 +107,8 @@ export function DisplayWeatherStrip({
         ·
       </span>
       <span className="shrink-0 tabular-nums">
-        Regen {formatPercent(snapshot.precipProb)}
+        <span className="font-medium text-foreground/70">Regen</span>{" "}
+        {formatPercent(snapshot.precipProb)}
       </span>
     </div>
   );

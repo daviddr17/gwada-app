@@ -19,6 +19,7 @@ import {
   DEFAULT_RESTAURANT_TIMEZONE,
   formatReservationSlotInRestaurantTz,
   formatRestaurantDateTime,
+  restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
 import type {
   DashboardGlobalSearchCategory,
@@ -259,13 +260,15 @@ function makeItem(
   id: string,
   title: string,
   subtitle: string | null,
+  options?: { dayYmd?: string | null },
 ): DashboardGlobalSearchResultItem {
   return {
     id,
     category,
     title,
     subtitle,
-    href: dashboardGlobalSearchResultHref(category, id),
+    href: dashboardGlobalSearchResultHref(category, id, options),
+    ...(options?.dayYmd ? { dayYmd: options.dayYmd } : {}),
   };
 }
 
@@ -314,6 +317,7 @@ async function searchReservations(
   const nameFields = [
     "guest_first_name",
     "guest_last_name",
+    "guest_company",
     "guest_name",
     "guest_email",
     "guest_phone",
@@ -335,7 +339,7 @@ async function searchReservations(
   const { data } = await sb
     .from("reservations")
     .select(
-      "id, guest_first_name, guest_last_name, guest_name, guest_email, guest_phone, starts_at, party_size, reservation_number",
+      "id, guest_first_name, guest_last_name, guest_company, guest_name, guest_email, guest_phone, starts_at, party_size, reservation_number",
     )
     .eq("restaurant_id", restaurantId)
     .or(filters)
@@ -351,6 +355,7 @@ async function searchReservations(
         `${row.guest_first_name} ${row.guest_last_name}`.trim();
       return [
         guest,
+        row.guest_company,
         row.guest_email,
         row.guest_phone,
         String(row.reservation_number ?? ""),
@@ -369,7 +374,10 @@ async function searchReservations(
     const subtitle = [date, `${row.party_size} Pers.`, `#${row.reservation_number}`]
       .filter(Boolean)
       .join(" · ");
-    return makeItem("reservations", row.id, guest, subtitle);
+    const dayYmd = row.starts_at
+      ? restaurantZonedDateKey(new Date(row.starts_at), timeZone)
+      : null;
+    return makeItem("reservations", row.id, guest, subtitle, { dayYmd });
   });
 }
 

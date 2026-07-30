@@ -6,14 +6,14 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export const metadata: Metadata = {
   title: "API",
-  description: "Public Read API für gwada.",
+  description: "Public API für gwada — Lesen und Reservierungen buchen.",
 };
 
 export default function DocsApiPage() {
   return (
     <DocsProse
-      title="Public API (Read)"
-      description="Headless JSON-Zugriff auf veröffentlichte Modul-Daten — ohne iframe."
+      title="Public API"
+      description="Headless JSON-Zugriff auf veröffentlichte Modul-Daten — ohne iframe. Reservierungen können zusätzlich gebucht werden."
     >
       <p>
         Basis-URL: <code>https://gwada.app/api/v1</code>
@@ -30,6 +30,13 @@ export default function DocsApiPage() {
           <li key={mod.id}>
             <Link href={mod.docsPath}>{mod.label}</Link> —{" "}
             <code>GET /api/v1/{mod.path}</code>
+            {mod.id === "reservation" ? (
+              <>
+                {" "}
+                · <code>POST /api/v1/reservation</code> ·{" "}
+                <code>POST /api/v1/reservation/manage</code>
+              </>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -41,6 +48,9 @@ export default function DocsApiPage() {
         </li>
         <li>
           <Link href="/docs/api/rate-limits">Rate Limits</Link>
+        </li>
+        <li>
+          <Link href="/docs/api/reservation">Reservierung buchen</Link>
         </li>
       </ul>
     </DocsProse>

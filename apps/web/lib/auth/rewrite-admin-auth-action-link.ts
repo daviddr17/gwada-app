@@ -91,9 +91,9 @@ export function resolvePublicAuthApiBase(
 }
 
 /**
- * GoTrue `generateLink` liefert bei Admin-Clients oft interne Kong-Hosts
- * (`http://supabase-kong:8000/auth/v1/verify?...`). Für E-Mails auf öffentliche
- * App-URL umschreiben (`https://gwada.app/sb/auth/v1/verify?...`).
+ * GoTrue `generateLink` / Storage `createSignedUrl` liefern bei Admin-Clients
+ * oft interne Kong-Hosts (`http://supabase-kong:8000/...`). Für Browser/E-Mails
+ * auf die öffentliche App-URL umschreiben (`https://gwada.app/sb/...`).
  */
 export function rewriteAdminAuthActionLink(
   actionLink: string,
@@ -127,4 +127,9 @@ export function rewriteAdminAuthActionLink(
   if (!publicBase) return parsed.toString();
 
   return `${trimSlash(publicBase)}${parsed.pathname}${parsed.search}${parsed.hash}`;
+}
+
+/** Storage-Signed-URLs vom Admin-Client → öffentlicher `/sb`-Proxy. */
+export function rewriteAdminSignedStorageUrl(signedUrl: string): string {
+  return rewriteAdminAuthActionLink(signedUrl);
 }

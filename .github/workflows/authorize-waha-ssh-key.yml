@@ -1,0 +1,92 @@
+# Versucht den WAHA-Ops-Public-Key auf dem Host zu hinterlegen.
+name: Authorize WAHA SSH key
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [authorize-waha-ssh-key]
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Secret presence (names only)
+        env:
+          HAS_CONTABO_CLIENT_ID: ${{ secrets.CONTABO_CLIENT_ID != '' }}
+          HAS_CONTABO_CLIENT_SECRET: ${{ secrets.CONTABO_CLIENT_SECRET != '' }}
+          HAS_CONTABO_API_USER: ${{ secrets.CONTABO_API_USER != '' }}
+          HAS_CONTABO_API_PASSWORD: ${{ secrets.CONTABO_API_PASSWORD != '' }}
+          HAS_CONTABO_TOKEN: ${{ secrets.CONTABO_API_TOKEN != '' }}
+          HAS_WAHA_HOST_PASSWORD: ${{ secrets.WAHA_HOST_ROOT_PASSWORD != '' }}
+        run: |
+          echo "CONTABO_CLIENT_ID=$HAS_CONTABO_CLIENT_ID"
+          echo "CONTABO_CLIENT_SECRET=$HAS_CONTABO_CLIENT_SECRET"
+          echo "CONTABO_API_USER=$HAS_CONTABO_API_USER"
+          echo "CONTABO_API_PASSWORD=$HAS_CONTABO_API_PASSWORD"
+          echo "CONTABO_API_TOKEN=$HAS_CONTABO_TOKEN"
+          echo "WAHA_HOST_ROOT_PASSWORD=$HAS_WAHA_HOST_PASSWORD"
+
+      - name: Scan Contabo VPS for usable SSH keys
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          WAHA_HOST: 109.205.181.63
+          WAHA_PUB: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOU1XX+cQcvw6NuTZ0kM6rmG/RMNMz0ntrArNHf8Zmxm gwada-waha-ops
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          printf '%s\n' "${WAHA_PUB}" > /tmp/waha_ops.pub
+          python3 - <<'PY'
+          import textwrap
+          from pathlib import Path
+          Path("/tmp/authorize_waha.sh").write_text(textwrap.dedent("""\
+          #!/usr/bin/env bash
+          set -euo pipefail
+          WAHA_HOST="${WAHA_HOST:?}"
+          echo "=== candidate key paths ==="
+          mapfile -t KEYS < <(
+            find /root /home /data/coolify /opt -type f \\( \\
+              -name 'id_ed25519' -o -name 'id_rsa' -o -name '*.pem' \\
+              -o -name 'ssh_key@*' -o -name '*waha*key*' -o -name '*ssh*key*' \\
+            \\) 2>/dev/null | grep -v '\\.lock$' | head -80
+          )
+          printf '%s\\n' "${KEYS[@]:-(none)}"
+          ok=0
+          for k in "${KEYS[@]:-}"; do
+            [ -f "$k" ] || continue
+            chmod 600 "$k" 2>/dev/null || true
+            if ! head -1 "$k" 2>/dev/null | grep -q 'BEGIN'; then
+              continue
+            fi
+            echo "try_key=$k"
+            if ! ssh -i "$k" -o BatchMode=yes -o ConnectTimeout=8 \\
+              -o StrictHostKeyChecking=accept-new "root@${WAHA_HOST}" true; then
+              echo "key_denied=$k"
+              continue
+            fi
+            echo "KEY_WORKS=$k"
+            scp -i "$k" -o BatchMode=yes -o StrictHostKeyChecking=accept-new \\
+              /tmp/waha_ops.pub "root@${WAHA_HOST}:/tmp/waha_ops.pub"
+            ssh -i "$k" -o BatchMode=yes -o StrictHostKeyChecking=accept-new \\
+              "root@${WAHA_HOST}" \
+              'set -e; mkdir -p /root/.ssh; chmod 700 /root/.ssh; touch /root/.ssh/authorized_keys; chmod 600 /root/.ssh/authorized_keys; PUB=$(cat /tmp/waha_ops.pub); if ! grep -qxF "$PUB" /root/.ssh/authorized_keys; then printf "%s\\n" "$PUB" >> /root/.ssh/authorized_keys; echo pubkey_appended; else echo pubkey_already_present; fi; rm -f /tmp/waha_ops.pub; wc -l /root/.ssh/authorized_keys'
+            ok=1
+            break
+          done
+          if [ "$ok" -eq 0 ]; then
+            echo "NO_WORKING_KEY_ON_VPS"
+            exit 2
+          fi
+          rm -f /tmp/waha_ops.pub
+          echo "=== AUTHORIZE_OK ==="
+          """))
+          PY
+
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            /tmp/waha_ops.pub /tmp/authorize_waha.sh \
+            "root@${LIVE_VPS_HOST}:/tmp/"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            "chmod +x /tmp/authorize_waha.sh; WAHA_HOST=${WAHA_HOST} bash /tmp/authorize_waha.sh; ec=\$?; rm -f /tmp/authorize_waha.sh /tmp/waha_ops.pub; exit \$ec"

@@ -20,10 +20,15 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     reservationId?: string;
     event?: string;
+    guestNotifyMessage?: string;
   };
 
   const reservationId = body.reservationId?.trim() ?? "";
   const event = body.event;
+  const guestNotifyMessage =
+    typeof body.guestNotifyMessage === "string"
+      ? body.guestNotifyMessage
+      : undefined;
   if (!isUuidRestaurantId(reservationId) || !event || !VALID_EVENTS.has(event)) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
@@ -71,6 +76,7 @@ export async function POST(req: Request) {
     admin,
     reservationId,
     event as Parameters<typeof dispatchReservationEmail>[2],
+    { guestNotifyMessage },
   );
 
   if (!result.ok && result.error) {

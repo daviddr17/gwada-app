@@ -17,6 +17,7 @@ const JS_DAY_TO_WEEKDAY: Record<number, Weekday> = {
 };
 
 export const SHIFT_PLAN_AVAILABILITY_COLOR = "#22c55e";
+export const SHIFT_PLAN_UNAVAILABILITY_COLOR = "#f43f5e";
 
 export function weekdayFromLocalDate(d: Date): Weekday {
   return JS_DAY_TO_WEEKDAY[d.getDay()]!;
@@ -38,9 +39,24 @@ export function formatAvailabilitySlotRangeDe(
   return `${formatAvailabilityTimeHm(slot.start_time)}–${formatAvailabilityTimeHm(slot.end_time)}`;
 }
 
+export function isUnavailableAvailabilitySlot(
+  slot: Pick<RestaurantStaffAvailabilitySlotRow, "is_available">,
+): boolean {
+  return slot.is_available === false;
+}
+
 export function formatAvailabilitySlotLabelDe(
   slot: RestaurantStaffAvailabilitySlotRow,
 ): string {
+  if (isUnavailableAvailabilitySlot(slot) && slot.service_date) {
+    const [y, m, d] = slot.service_date.split("-").map(Number);
+    const dateLabel = new Intl.DateTimeFormat("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+    }).format(new Date(y!, (m ?? 1) - 1, d ?? 1));
+    return `${dateLabel}. Nicht verfügbar`;
+  }
+
   const range = formatAvailabilitySlotRangeDe(slot);
   if (slot.weekday) {
     return `${STAFF_AVAILABILITY_WEEKDAY_LABELS[slot.weekday]} ${range}`;
@@ -56,6 +72,10 @@ export function formatAvailabilitySlotLabelDe(
   return range;
 }
 
+/**
+ * Slots für einen Tag: Datum-„Nicht verfügbar“ überschreibt wöchentliche
+ * Verfügbarkeit. Sonst wöchentliche + datumsbezogene Verfügbarkeitsfenster.
+ */
 export function resolveAvailabilitySlotsForDay(
   slots: readonly RestaurantStaffAvailabilitySlotRow[],
   staffId: string,
@@ -64,12 +84,19 @@ export function resolveAvailabilitySlotsForDay(
 ): RestaurantStaffAvailabilitySlotRow[] {
   const dayKey = restaurantZonedDateKey(day, timeZone);
   const weekday = weekdayFromRestaurantDayKey(dayKey);
-  return slots
-    .filter((slot) => {
-      if (slot.staff_id !== staffId) return false;
-      if (slot.service_date) return slot.service_date === dayKey;
-      return slot.weekday === weekday;
-    })
+  const matching = slots.filter((slot) => {
+    if (slot.staff_id !== staffId) return false;
+    if (slot.service_date) return slot.service_date === dayKey;
+    return slot.weekday === weekday;
+  });
+
+  const unavailable = matching.filter(isUnavailableAvailabilitySlot);
+  if (unavailable.length > 0) {
+    return unavailable.sort((a, b) => a.start_time.localeCompare(b.start_time));
+  }
+
+  return matching
+    .filter((slot) => !isUnavailableAvailabilitySlot(slot))
     .sort((a, b) => a.start_time.localeCompare(b.start_time));
 }
 

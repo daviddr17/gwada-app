@@ -5,7 +5,7 @@ import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context"
 import {
   parseShiftPlanWeatherByDate,
   type ShiftPlanDayWeather,
-} from "@/lib/weather/shift-plan-day-weather";
+} from "@/lib/weather/shift-plan-day-weather-data";
 import { buildVisualCrossingLocation } from "@/lib/weather/visual-crossing-location";
 import type { VisualCrossingTimelineResponse } from "@/lib/weather/visual-crossing-types";
 

@@ -4,27 +4,47 @@ import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
 import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
 import { enrichReviewsWithVisibility } from "@/lib/reviews/review-visibility-server";
-import { paginateCachedGoogleReviews } from "@/lib/reviews/reviews-cache-pagination";
 import {
   readPlatformSyncMeta,
   readReviewsFeedFromCache,
 } from "@/lib/reviews/reviews-feed-read-server";
 import { loadGwadaReviewsForFeed } from "@/lib/reviews/reviews-gwada-feed-server";
-import { paginateReviewList } from "@/lib/reviews/reviews-list-pagination";
+import {
+  parseReviewsFeedListQuery,
+  paginateReviewsFeedList,
+} from "@/lib/reviews/reviews-feed-list-query";
 import { loadMergedReviewsFeedPage } from "@/lib/reviews/reviews-merged-feed-server";
 import { triggerReviewsFeedSyncIfStale } from "@/lib/reviews/reviews-feed-sync-server";
 import { authorizeReviewsRestaurant } from "@/lib/reviews/route-auth";
-import {
-  averageRating,
-  medianRating,
-  ratingDistribution,
-} from "@/lib/reviews/review-stats";
+import { buildReviewRatingSummary } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
 function isReviewPlatform(v: string): v is ReviewPlatform {
   return (REVIEW_PLATFORMS as readonly string[]).includes(v);
+}
+
+function platformSupportsReplyFilter(platform: ReviewPlatform | "all"): boolean {
+  return platform === "all" || platform === "google" || platform === "facebook";
+}
+
+async function enrichPageReviews(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    reviews: UnifiedReview[];
+    platform?: ReviewPlatform;
+  },
+): Promise<UnifiedReview[]> {
+  let reviews = await enrichReviewsWithReadState(sb, params);
+  reviews = await enrichReviewsWithVisibility(sb, {
+    restaurantId: params.restaurantId,
+    reviews,
+  });
+  return reviews;
 }
 
 export async function GET(req: Request) {
@@ -39,6 +59,9 @@ export async function GET(req: Request) {
 
   if (platformRaw === REVIEW_FILTER_ALL) {
     const pageToken = searchParams.get("pageToken")?.trim() || null;
+    const listQuery = parseReviewsFeedListQuery(searchParams, {
+      showReplyFilter: platformSupportsReplyFilter("all"),
+    });
 
     after(() => {
       void triggerReviewsFeedSyncIfStale(restaurantId, [
@@ -52,29 +75,30 @@ export async function GET(req: Request) {
       restaurantId,
       sb: auth.sb,
       pageToken,
+      listQuery,
+      enrichBeforeFilter: (reviews) =>
+        enrichReviewsWithReadState(auth.sb, {
+          restaurantId,
+          userId: auth.userId,
+          reviews,
+        }),
     });
 
-    let reviews = await enrichReviewsWithReadState(auth.sb, {
+    const reviews = await enrichPageReviews(auth.sb, {
       restaurantId,
       userId: auth.userId,
       reviews: merged.reviews,
     });
-    reviews = await enrichReviewsWithVisibility(auth.sb, { restaurantId, reviews });
 
     return Response.json({
       platform: REVIEW_FILTER_ALL,
       reviews,
-      summary: {
-        count: reviews.length,
-        average: averageRating(reviews),
-        median: medianRating(reviews),
-        distribution: ratingDistribution(reviews),
-        scope: "page" as const,
-      },
+      summary: merged.summary,
       mergedPagination: merged.pagination,
       platformTotals: merged.pagination.platformTotals,
       sync: merged.sync,
       loadErrors: merged.loadErrors,
+      listQueryApplied: merged.listQueryApplied,
     });
   }
 
@@ -94,15 +118,26 @@ export async function GET(req: Request) {
       return Response.json({ error: message }, { status: 500 });
     }
 
-    reviews = await enrichReviewsWithReadState(auth.sb, {
+    reviews = await enrichPageReviews(auth.sb, {
       restaurantId,
       userId: auth.userId,
       reviews,
       platform: "gwada",
     });
-    reviews = await enrichReviewsWithVisibility(auth.sb, { restaurantId, reviews });
-  } else if (platformRaw === "google") {
+
+    return Response.json({
+      platform: platformRaw,
+      reviews,
+      summary: buildReviewRatingSummary(reviews, "all"),
+      loadError,
+    });
+  }
+
+  if (platformRaw === "google") {
     const pageToken = searchParams.get("googlePageToken")?.trim() || null;
+    const listQuery = parseReviewsFeedListQuery(searchParams, {
+      showReplyFilter: platformSupportsReplyFilter("google"),
+    });
 
     const { reviews: cachedGoogle, syncRows, sync } =
       await readReviewsFeedFromCache(restaurantId, auth.sb, ["google"]);
@@ -114,36 +149,48 @@ export async function GET(req: Request) {
     loadError = sync.platformErrors.google ?? null;
 
     const googleMeta = readPlatformSyncMeta(syncRows, "google");
-    const paginated = paginateCachedGoogleReviews(
-      cachedGoogle,
-      pageToken,
-      googleMeta,
-    );
+    let source = cachedGoogle;
+    if (listQuery.readFilter !== "all") {
+      source = await enrichReviewsWithReadState(auth.sb, {
+        restaurantId,
+        userId: auth.userId,
+        reviews: source,
+        platform: "google",
+      });
+    }
 
-    reviews = await enrichReviewsWithReadState(auth.sb, {
+    const paginated = paginateReviewsFeedList(source, pageToken, listQuery, {
+      unfilteredTotalReviewCount:
+        googleMeta.totalReviewCount ?? cachedGoogle.length,
+      averageRating:
+        typeof googleMeta.averageRating === "number"
+          ? googleMeta.averageRating
+          : null,
+    });
+
+    reviews = await enrichPageReviews(auth.sb, {
       restaurantId,
       userId: auth.userId,
       reviews: paginated.reviews,
       platform: "google",
     });
-    reviews = await enrichReviewsWithVisibility(auth.sb, { restaurantId, reviews });
 
     return Response.json({
       platform: platformRaw,
       reviews,
-      summary: {
-        count: reviews.length,
-        average: averageRating(reviews),
-        median: medianRating(reviews),
-        distribution: ratingDistribution(reviews),
-        scope: "page" as const,
-      },
+      summary: paginated.summary,
       googlePagination: paginated.pagination,
       sync,
       loadError,
+      listQueryApplied: paginated.listQueryApplied,
     });
-  } else if (platformRaw === "facebook") {
+  }
+
+  if (platformRaw === "facebook") {
     const pageToken = searchParams.get("pageToken")?.trim() || null;
+    const listQuery = parseReviewsFeedListQuery(searchParams, {
+      showReplyFilter: platformSupportsReplyFilter("facebook"),
+    });
 
     const { reviews: cachedFacebook, syncRows, sync } =
       await readReviewsFeedFromCache(restaurantId, auth.sb, ["facebook"]);
@@ -162,36 +209,43 @@ export async function GET(req: Request) {
           ? facebookSync.item_count
           : cachedFacebook.length;
 
-    const paginated = paginateReviewList(
-      cachedFacebook,
-      pageToken,
-      facebookTotal,
-    );
+    let source = cachedFacebook;
+    if (listQuery.readFilter !== "all") {
+      source = await enrichReviewsWithReadState(auth.sb, {
+        restaurantId,
+        userId: auth.userId,
+        reviews: source,
+        platform: "facebook",
+      });
+    }
 
-    reviews = await enrichReviewsWithReadState(auth.sb, {
+    const paginated = paginateReviewsFeedList(source, pageToken, listQuery, {
+      unfilteredTotalReviewCount: facebookTotal,
+    });
+
+    reviews = await enrichPageReviews(auth.sb, {
       restaurantId,
       userId: auth.userId,
       reviews: paginated.reviews,
       platform: "facebook",
     });
-    reviews = await enrichReviewsWithVisibility(auth.sb, { restaurantId, reviews });
 
     return Response.json({
       platform: platformRaw,
       reviews,
-      summary: {
-        count: reviews.length,
-        average: averageRating(reviews),
-        median: medianRating(reviews),
-        distribution: ratingDistribution(reviews),
-        scope: "page" as const,
-      },
+      summary: paginated.summary,
       facebookPagination: paginated.pagination,
       sync,
       loadError,
+      listQueryApplied: paginated.listQueryApplied,
     });
-  } else if (platformRaw === "tripadvisor") {
+  }
+
+  if (platformRaw === "tripadvisor") {
     const pageToken = searchParams.get("pageToken")?.trim() || null;
+    const listQuery = parseReviewsFeedListQuery(searchParams, {
+      showReplyFilter: platformSupportsReplyFilter("tripadvisor"),
+    });
 
     const { reviews: cachedTripadvisor, syncRows, sync } =
       await readReviewsFeedFromCache(restaurantId, auth.sb, ["tripadvisor"]);
@@ -211,45 +265,42 @@ export async function GET(req: Request) {
           ? tripadvisorSync.item_count
           : cachedTripadvisor.length;
 
-    const paginated = paginateReviewList(
-      cachedTripadvisor,
-      pageToken,
-      tripadvisorTotal,
-    );
+    let source = cachedTripadvisor;
+    if (listQuery.readFilter !== "all") {
+      source = await enrichReviewsWithReadState(auth.sb, {
+        restaurantId,
+        userId: auth.userId,
+        reviews: source,
+        platform: "tripadvisor",
+      });
+    }
 
-    reviews = await enrichReviewsWithReadState(auth.sb, {
+    const paginated = paginateReviewsFeedList(source, pageToken, listQuery, {
+      unfilteredTotalReviewCount: tripadvisorTotal,
+    });
+
+    reviews = await enrichPageReviews(auth.sb, {
       restaurantId,
       userId: auth.userId,
       reviews: paginated.reviews,
       platform: "tripadvisor",
     });
-    reviews = await enrichReviewsWithVisibility(auth.sb, { restaurantId, reviews });
 
     return Response.json({
       platform: platformRaw,
       reviews,
-      summary: {
-        count: reviews.length,
-        average: averageRating(reviews),
-        median: medianRating(reviews),
-        distribution: ratingDistribution(reviews),
-        scope: "page" as const,
-      },
+      summary: paginated.summary,
       tripadvisorPagination: paginated.pagination,
       sync,
       loadError,
+      listQueryApplied: paginated.listQueryApplied,
     });
   }
 
   return Response.json({
     platform: platformRaw,
     reviews,
-    summary: {
-      count: reviews.length,
-      average: averageRating(reviews),
-      median: medianRating(reviews),
-      distribution: ratingDistribution(reviews),
-    },
+    summary: buildReviewRatingSummary(reviews, "all"),
     loadError,
   });
 }

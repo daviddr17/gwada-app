@@ -5,7 +5,7 @@ import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-i
 import { isMetaInboxConnected } from "@/lib/contact-messages/meta-inbox-auth-server";
 import type { MessagesUnreadSummary } from "@/lib/contact-messages/messages-unread-summary";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 
 export async function loadDashboardMessagesSummaryServer(
   restaurantId: string,
@@ -18,7 +18,7 @@ export async function loadDashboardMessagesSummaryServer(
 
   const [wahaConfig, imapCreds, facebookConnected, instagramConnected] =
     await Promise.all([
-      getWahaServerConfigAdmin(),
+      getWahaServerConfigForRestaurantAdmin(restaurantId),
       resolveRestaurantImapCredentials(admin, restaurantId),
       isMetaInboxConnected(admin, restaurantId, "facebook"),
       isMetaInboxConnected(admin, restaurantId, "instagram"),

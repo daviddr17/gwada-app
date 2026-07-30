@@ -28,7 +28,7 @@ import {
 import type { OutboundAttachmentFile } from "@/lib/contact-messages/outbound-attachment-files";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { sendMetaMessageServer } from "@/lib/contact-messages/meta-send-message-server";
 import {
   metaPseudoContactIdForSender,
@@ -63,7 +63,7 @@ export type SendContactMessageServerInput = {
 };
 
 async function isWhatsappSessionWorking(restaurantId: string): Promise<boolean> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
   if (!config) return false;
   const name = wahaSessionNameForRestaurant(restaurantId);
   const res = await wahaGetSession(config, name);
@@ -200,7 +200,12 @@ async function insertMessage(
 export async function sendContactMessageServer(
   admin: SupabaseClient,
   input: SendContactMessageServerInput,
-): Promise<{ ok: boolean; errors: string[]; wahaMessageId?: string | null }> {
+): Promise<{
+  ok: boolean;
+  errors: string[];
+  wahaMessageId?: string | null;
+  messageId?: string;
+}> {
   const body = input.body.trim();
   const attachmentFiles = input.attachmentFiles ?? [];
   const voiceFile = input.voiceFile;
@@ -216,6 +221,7 @@ export async function sendContactMessageServer(
   const sendBatchId = channels.length > 1 ? randomUUID() : null;
   const errors: string[] = [];
   let whatsappWahaMessageId: string | null = null;
+  let whatsappMessageId: string | undefined;
   let reservationMeta: Awaited<
     ReturnType<typeof loadReservationMessageContext>
   > = null;
@@ -305,6 +311,8 @@ export async function sendContactMessageServer(
         errors.push(`whatsapp_db:${pending.error}`);
         continue;
       }
+
+      whatsappMessageId = pending.messageId;
 
       if (!sessionOk) {
         errors.push("whatsapp:session_not_working");
@@ -524,5 +532,10 @@ export async function sendContactMessageServer(
     }
   }
 
-  return { ok: errors.length === 0, errors, wahaMessageId: whatsappWahaMessageId };
+  return {
+    ok: errors.length === 0,
+    errors,
+    wahaMessageId: whatsappWahaMessageId,
+    messageId: whatsappMessageId,
+  };
 }

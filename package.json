@@ -19,6 +19,11 @@
     "start": "pnpm --filter web start",
     "start:live": "pnpm --filter web start:live",
     "lint": "pnpm --filter web lint",
+    "test:keep-alive-nav": "node scripts/test-module-home-keep-alive-nav.mjs && node scripts/audit-module-home-keep-alive-nav.mjs && node scripts/simulate-sidebar-soft-nav-keepalive.mjs",
+    "test:keep-alive-nav:e2e": "dotenv -e .env.development -- node scripts/e2e-sidebar-soft-nav-keepalive.mjs",
+    "test:keep-alive-nav:e2e:mobile": "GWADA_E2E_MOBILE=1 dotenv -e .env.development -- node scripts/e2e-sidebar-soft-nav-keepalive.mjs",
+    "test:keep-alive-nav:e2e:mobile-menu-close": "dotenv -e .env.development -- node scripts/e2e-mobile-menu-keepalive-close.mjs",
+    "test:soft-nav-scroll-top:e2e": "dotenv -e .env.development -- node scripts/e2e-soft-nav-scroll-top.mjs",
     "dev:staff": "pnpm --filter staff start",
     "dev:staff:ios": "bash scripts/staff-ios-simulator.sh",
     "staff:env:lan": "node scripts/staff-lan-env.mjs && node apps/staff/scripts/generate-staff-env.js",
@@ -56,7 +61,6 @@
     "db:setup:live-url": "node scripts/set-supabase-db-url.mjs",
     "db:tunnel:live": "bash scripts/db-tunnel-live.sh",
     "db:push:live": "bash scripts/db-push-live-guarded.sh",
-    "db:push:dev": "dotenv -e .env.development -- bash scripts/db-push-live.sh",
     "db:tunnel:dev": "bash scripts/db-tunnel-dev.sh",
     "db:setup:dev-url": "GWADA_ENV_FILE=.env.development node scripts/set-supabase-db-url.mjs",
     "provision:dev": "gh workflow run provision-dev-supabase.yml --ref main",
@@ -97,6 +101,7 @@
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",
+    "playwright": "^1.62.0",
     "supabase": "^2.98.2"
   }
 }

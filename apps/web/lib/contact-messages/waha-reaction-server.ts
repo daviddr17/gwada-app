@@ -1,4 +1,4 @@
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSetMessageReaction } from "@/lib/waha/waha-reaction";
 
 export async function setWahaMessageReactionServer(params: {
@@ -6,7 +6,7 @@ export async function setWahaMessageReactionServer(params: {
   messageId: string;
   reaction: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(params.restaurantId);
   if (!config) {
     return { ok: false, error: "waha_not_configured" };
   }

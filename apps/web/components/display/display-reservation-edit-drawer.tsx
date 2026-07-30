@@ -13,6 +13,10 @@ import {
 } from "@/lib/ui/drawer-form-section";
 import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import {
+  isValidStaffPartySize,
+  RESERVATION_PARTY_SIZE_MAX_STAFF,
+} from "@/lib/reservations/reservation-party-size";
+import {
   displayTouchNumericInputProps,
   displayTouchPhoneLocalInputMode,
   digitsOnlyInput,
@@ -65,6 +69,7 @@ import {
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
 import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
   reservationGuestFirstNameForForm,
@@ -97,6 +102,7 @@ type Status = { id: string; code: string; name: string; color_hex: string };
 type BuiltPayload = {
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -156,6 +162,7 @@ export function DisplayReservationEditDrawer({
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [company, setCompany] = useState("");
   const [phoneCountryIso, setPhoneCountryIso] = useState("DE");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
@@ -178,6 +185,7 @@ export function DisplayReservationEditDrawer({
       initialStatusCodeRef.current = d.status?.code ?? "";
       setFirstName(reservationGuestFirstNameForForm(d.guest_first_name));
       setLastName(d.guest_last_name);
+      setCompany(d.guest_company?.trim() ?? "");
       const parsed = parseGuestPhone(
         d.guest_phone,
         COUNTRIES_REFERENCE_FALLBACK,
@@ -298,8 +306,10 @@ export function DisplayReservationEditDrawer({
 
   const buildPayload = (): BuiltPayload | null => {
     const ps = Number.parseInt(partySize, 10);
-    if (!Number.isFinite(ps) || ps < 1 || ps > 50) {
-      toast.error("Personenzahl zwischen 1 und 50.");
+    if (!isValidStaffPartySize(ps)) {
+      toast.error(
+        `Personenzahl zwischen 1 und ${RESERVATION_PARTY_SIZE_MAX_STAFF}.`,
+      );
       return null;
     }
     if (!dateYmd.trim()) {
@@ -338,6 +348,7 @@ export function DisplayReservationEditDrawer({
     return {
       guest_first_name: normalizeReservationGuestFirstName(firstName),
       guest_last_name: normalizeReservationGuestLastName(lastName),
+      guest_company: normalizeReservationGuestCompany(company),
       guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
       guest_email: email.trim() || null,
       party_size: ps,
@@ -585,7 +596,7 @@ export function DisplayReservationEditDrawer({
                           {...displayTouchNumericInputProps}
                           value={partySize}
                           onChange={(e) =>
-                            setPartySize(digitsOnlyInput(e.target.value, 2))
+                            setPartySize(digitsOnlyInput(e.target.value, 3))
                           }
                           className={cn(fieldClass, "tabular-nums")}
                         />
@@ -655,6 +666,26 @@ export function DisplayReservationEditDrawer({
                           className={fieldClass}
                         />
                       </div>
+                    </div>
+
+                    <div className={drawerFormFieldGroupClassName}>
+                      <Label
+                        htmlFor="disp-edit-company"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Firmenname{" "}
+                        <span className="font-normal text-muted-foreground/80">
+                          (optional)
+                        </span>
+                      </Label>
+                      <Input
+                        id="disp-edit-company"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                        className={fieldClass}
+                        maxLength={200}
+                        autoComplete="organization"
+                      />
                     </div>
 
                     <div className={drawerTwoColClass}>

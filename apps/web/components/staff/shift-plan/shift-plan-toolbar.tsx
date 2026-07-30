@@ -45,6 +45,8 @@ type ShiftPlanToolbarProps = {
   staffOptions: { id: string; label: string }[];
   sortKey: ShiftScheduleSortKey;
   onSortKeyChange: (key: ShiftScheduleSortKey) => void;
+  onlyWithShifts: boolean;
+  onOnlyWithShiftsChange: (value: boolean) => void;
   onCopy: () => void;
   onExport: () => void;
   onSettings: () => void;
@@ -67,6 +69,8 @@ export function ShiftPlanToolbar({
   staffOptions,
   sortKey,
   onSortKeyChange,
+  onlyWithShifts,
+  onOnlyWithShiftsChange,
   onCopy,
   onExport,
   onSettings,
@@ -82,8 +86,9 @@ export function ShiftPlanToolbar({
         staffFilter,
         positionFilter,
         sortKey,
+        onlyWithShifts,
       }),
-    [management, positionFilter, sortKey, staffFilter],
+    [management, onlyWithShifts, positionFilter, sortKey, staffFilter],
   );
 
   return (
@@ -204,6 +209,8 @@ export function ShiftPlanToolbar({
         positionTags={positionTags}
         sortKey={sortKey}
         onSortKeyChange={onSortKeyChange}
+        onlyWithShifts={onlyWithShifts}
+        onOnlyWithShiftsChange={onOnlyWithShiftsChange}
       />
     </>
   );

@@ -3,13 +3,13 @@
 import { useCallback } from "react";
 import type { DashboardContactsSummary } from "@/lib/contacts/compute-dashboard-contacts-summary";
 import { fetchDashboardSummaryClient } from "@/lib/dashboard/fetch-dashboard-summary-client";
-import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
+import { useDashboardHomeBatchSurface } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSlice } from "@/lib/hooks/use-dashboard-batch-slice";
 import { useDashboardSummaryQuery } from "@/lib/hooks/use-dashboard-summary-query";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 export function useDashboardContactsStats() {
-  const batchEnabled = useDashboardBatchQueryEnabled();
+  const useBatchSurface = useDashboardHomeBatchSurface();
   const batchSlice = useDashboardBatchSlice("contacts");
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
 
@@ -26,10 +26,10 @@ export function useDashboardContactsStats() {
     restaurantId,
     workspaceReady,
     fetch,
-    enabled: !batchEnabled,
+    enabled: !useBatchSurface,
   });
 
-  if (batchEnabled) {
+  if (useBatchSurface) {
     return batchSlice;
   }
 

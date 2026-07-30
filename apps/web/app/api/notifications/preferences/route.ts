@@ -1,7 +1,10 @@
 import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboard-restaurant";
+import { loadNotificationContact } from "@/lib/notifications/notification-contact-server";
 import {
+  applyNotificationPushContactGates,
   deriveChannelFlagsFromModules,
   mergeNotificationPreferences,
+  notificationPreferencesEqual,
   type NotificationPreferences,
 } from "@/lib/notifications/notification-preferences";
 import { loadNotificationChannelsInfo } from "@/lib/notifications/notification-channels-server";
@@ -13,6 +16,14 @@ import {
 } from "@/lib/supabase/user-restaurant-notification-preferences-db";
 
 export const dynamic = "force-dynamic";
+
+async function profileHasPhoneForPush(
+  sb: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  profileId: string,
+): Promise<boolean> {
+  const contact = await loadNotificationContact(sb, profileId);
+  return Boolean(contact?.phone?.trim());
+}
 
 export async function GET(req: Request) {
   const restaurantId = new URL(req.url).searchParams.get("restaurantId");
@@ -27,13 +38,23 @@ export async function GET(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const [preferences, channels] = await Promise.all([
+  const [loaded, hasPhone, channels] = await Promise.all([
     loadNotificationPreferences(sb, {
       profileId: auth.userId,
       restaurantId: auth.restaurantId,
     }),
+    profileHasPhoneForPush(sb, auth.userId),
     loadNotificationChannelsInfo(admin, auth.restaurantId),
   ]);
+
+  const preferences = applyNotificationPushContactGates(loaded, { hasPhone });
+  if (!notificationPreferencesEqual(loaded, preferences)) {
+    await upsertNotificationPreferences(sb, {
+      profileId: auth.userId,
+      restaurantId: auth.restaurantId,
+      preferences,
+    });
+  }
 
   return Response.json({ data: { preferences, channels } });
 }
@@ -59,6 +80,9 @@ export async function PUT(req: Request) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
+  const sb = await createSupabaseServerClient();
+  const hasPhone = await profileHasPhoneForPush(sb, auth.userId);
+
   const raw = body.preferences;
   const merged = mergeNotificationPreferences({
     channel_whatsapp_enabled: raw.channelWhatsappEnabled,
@@ -67,10 +91,10 @@ export async function PUT(req: Request) {
     push_whatsapp_modules: raw.pushWhatsappModules as Record<string, unknown>,
     push_email_modules: raw.pushEmailModules as Record<string, unknown>,
   });
-  const channelFlags = deriveChannelFlagsFromModules(merged);
-  const preferences: NotificationPreferences = { ...merged, ...channelFlags };
+  const gated = applyNotificationPushContactGates(merged, { hasPhone });
+  const channelFlags = deriveChannelFlagsFromModules(gated);
+  const preferences: NotificationPreferences = { ...gated, ...channelFlags };
 
-  const sb = await createSupabaseServerClient();
   const result = await upsertNotificationPreferences(sb, {
     profileId: auth.userId,
     restaurantId: auth.restaurantId,

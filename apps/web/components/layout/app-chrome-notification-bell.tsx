@@ -71,6 +71,10 @@ export function AppChromeNotificationBell({
   }, [useMobileScreen, openMobile, searchOpen]);
 
   React.useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  React.useEffect(() => {
     if (!open || !ready || !restaurantId) return;
     const state = queryClient.getQueryState(
       queryKeys.notifications.summary(restaurantId),
@@ -98,7 +102,6 @@ export function AppChromeNotificationBell({
         layout={useMobileScreen ? "screen" : "popover"}
         onMarkRead={markRead}
         onMarkModuleRead={markModuleRead}
-        onNavigate={() => setOpen(false)}
       />
     );
 

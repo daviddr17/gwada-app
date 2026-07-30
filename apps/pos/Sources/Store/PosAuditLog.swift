@@ -46,7 +46,7 @@ final class PosAuditLog: ObservableObject {
             detail: detail,
             restaurantId: restaurantId ?? PosCloudConfig.restaurantId,
             sessionId: sessionId,
-            waiterProfileId: PosCloudConfig.waiterProfileId ?? PosAuthStore.shared.session?.userId,
+            waiterProfileId: PosCloudConfig.waiterProfileId ?? PosAuthStore.shared.pinSession?.staffId,
             deviceId: PosDeviceIdentity.id
         )
         events.insert(event, at: 0)

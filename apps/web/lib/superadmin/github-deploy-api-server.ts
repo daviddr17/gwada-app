@@ -2,6 +2,10 @@ import "server-only";
 
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
 import { resolveGithubRepoSlug } from "@/lib/changelog/github-repo-slug";
+import {
+  githubAppCredentialsConfigured,
+  mintGithubAppInstallationToken,
+} from "@/lib/superadmin/github-app-auth-server";
 import type {
   SuperadminGithubBranchInfo,
   SuperadminGithubDeployWorkflowRun,
@@ -15,11 +19,12 @@ export const DB_DEPLOY_WORKFLOW_FILE = "deploy-live-db.yml";
 export const APP_DEPLOY_REPOSITORY_DISPATCH_TYPE = "deploy-live-app";
 export const DB_DEPLOY_REPOSITORY_DISPATCH_TYPE = "deploy-live-db";
 
-/** Nur für Superadmin-Deploy — kein Fallback auf Changelog-/Build-Tokens. */
+/** Nur statischer PAT — kein Changelog-/Build-Fallback. */
 export function githubDeployTokenStrict(): string | null {
   return process.env.GITHUB_DEPLOY_TOKEN?.trim() || null;
 }
 
+/** Sync: vorhandener PAT / Fallback-Token (ohne App-Mint). */
 export function githubDeployToken(): string | null {
   return (
     githubDeployTokenStrict() ||
@@ -27,6 +32,33 @@ export function githubDeployToken(): string | null {
     process.env.GITHUB_TOKEN?.trim() ||
     null
   );
+}
+
+/** App-Credentials oder PAT vorhanden (für Status „configured“). */
+export function githubDeployAuthConfigured(): boolean {
+  return githubAppCredentialsConfigured() || Boolean(githubDeployToken());
+}
+
+/**
+ * Deploy/Dispatch: GitHub-App-Installation-Token (bevorzugt) oder strikter PAT.
+ * Kurzlebige Tokens werden automatisch gemintet.
+ */
+export async function resolveGithubDeployAccessToken(
+  options?: { strict?: boolean },
+): Promise<string | null> {
+  const appConfigured = githubAppCredentialsConfigured();
+  const appToken = await mintGithubAppInstallationToken();
+  if (appToken) return appToken;
+  // App gesetzt aber Mint fehlgeschlagen → keinen abgelaufenen PAT mehr nutzen
+  // (Authorization: bad PAT → 401 auch für sonst erlaubte Calls).
+  if (appConfigured) {
+    console.error(
+      "[github-deploy] GitHub App konfiguriert, Mint fehlgeschlagen — PAT-Fallback übersprungen",
+    );
+    return null;
+  }
+  if (options?.strict) return githubDeployTokenStrict();
+  return githubDeployToken();
 }
 
 export function githubRepoSlug(): string {
@@ -47,22 +79,24 @@ type GithubFetchResult = {
   oauthScopes: string[];
 };
 
-async function githubFetch(
+async function githubFetchOnce(
   path: string,
-  init?: RequestInit,
-  token = githubDeployToken(),
+  init: RequestInit | undefined,
+  token: string | null,
 ): Promise<GithubFetchResult> {
-  if (!token) throw new Error("github_deploy_token_missing");
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const res = await raceWithTimeout(
     fetch(`https://api.github.com${path}`, {
       ...init,
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-        ...(init?.headers ?? {}),
-      },
+      headers,
       cache: "no-store",
     }),
     GITHUB_API_TIMEOUT_MS,
@@ -92,10 +126,42 @@ async function githubFetch(
   };
 }
 
+/**
+ * Abgelaufener PAT mit Authorization-Header killt auch öffentliche Reads (401).
+ * Bei GET + 401/403 einmal ohne Token erneut versuchen (Repo ist öffentlich).
+ */
+async function githubFetch(
+  path: string,
+  init?: RequestInit,
+  token?: string | null,
+): Promise<GithubFetchResult> {
+  const resolvedToken =
+    token === undefined ? await resolveGithubDeployAccessToken() : token;
+  const method = (init?.method ?? "GET").toUpperCase();
+  const isRead = method === "GET" || method === "HEAD";
+
+  try {
+    return await githubFetchOnce(path, init, resolvedToken);
+  } catch (e) {
+    const status =
+      e instanceof Error && "status" in e
+        ? (e as Error & { status?: number }).status
+        : undefined;
+    if (
+      isRead &&
+      resolvedToken &&
+      (status === 401 || status === 403)
+    ) {
+      return githubFetchOnce(path, init, null);
+    }
+    throw e;
+  }
+}
+
 export async function githubFetchJson(
   path: string,
   init?: RequestInit,
-  token?: string,
+  token?: string | null,
 ): Promise<unknown> {
   const result = await githubFetch(path, init, token);
   return result.body;
@@ -129,11 +195,34 @@ function pickActiveRun(
   );
 }
 
-function githubApiErrorHint(msg: string): string {
+/** Nutzerhint bei fehlender/abgelehnter GitHub-Auth (Deploy, WAHA-Ops, …). */
+export function githubApiErrorHint(msg: string): string {
   if (msg === "github_api_401" || msg === "github_api_403") {
-    return "GITHUB_DEPLOY_TOKEN ungültig oder ohne Repo-/Workflow-Rechte.";
+    return "GitHub-API abgelehnt — abgelaufenen PAT entfernen oder GitHub App setzen (docs/github-app-deploy-auth.md).";
+  }
+  if (msg === "github_deploy_token_missing") {
+    if (githubAppCredentialsConfigured()) {
+      return "GitHub App ist gesetzt, Token-Mint fehlgeschlagen — App-Installation-ID/PEM prüfen und sync-github-app-credentials-live erneut laufen lassen.";
+    }
+    return "GitHub-Auth fehlt — GitHub App (empfohlen) oder GITHUB_DEPLOY_TOKEN setzen.";
   }
   return "GitHub-API nicht erreichbar.";
+}
+
+/**
+ * workflow_dispatch oft 403/404 ohne Actions:write — dann repository_dispatch versuchen.
+ * (GitHub maskiert fehlende Rechte häufig als 404.)
+ */
+export function shouldFallbackGithubWorkflowDispatch(
+  status: number | undefined,
+  msg?: string,
+): boolean {
+  return (
+    status === 403 ||
+    status === 404 ||
+    msg === "github_api_403" ||
+    msg === "github_api_404"
+  );
 }
 
 function githubDispatchErrorMessage(input: {
@@ -146,9 +235,9 @@ function githubDispatchErrorMessage(input: {
   }
   if (input.status === 401 || input.status === 403) {
     if (input.usedRepositoryDispatch) {
-      return "GITHUB_DEPLOY_TOKEN fehlt Repo-Rechte (repo) — Deploy kann nicht ausgelöst werden.";
+      return "GitHub-Auth fehlt Repo-Rechte (Actions write) — Deploy kann nicht ausgelöst werden.";
     }
-    return "GITHUB_DEPLOY_TOKEN kann Workflows nicht starten — PAT mit repo (und idealerweise workflow) in GWADA_GITHUB_DEPLOY_TOKEN setzen, dann sync-github-deploy-token-live.yml ausführen.";
+    return "GitHub-Auth kann Workflows nicht starten — GitHub App mit Actions:write installieren oder PAT, dann sync-github-app-credentials-live.yml.";
   }
   if (input.status === 422) {
     return "GitHub lehnt den Deploy-Trigger ab (Ref oder Workflow-Konfiguration prüfen).";
@@ -165,7 +254,7 @@ async function dispatchGithubDeployEvent(input: {
   workflowInputs?: Record<string, string>;
   clientPayload?: Record<string, unknown>;
 }): Promise<void> {
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) throw new Error("github_deploy_token_missing");
 
   const repo = githubRepoSlug();
@@ -191,7 +280,7 @@ async function dispatchGithubDeployEvent(input: {
         ? (e as Error & { status?: number }).status
         : undefined;
     const msg = e instanceof Error ? e.message : "dispatch_failed";
-    if (status !== 403 && msg !== "github_api_403") {
+    if (!shouldFallbackGithubWorkflowDispatch(status, msg)) {
       throw e;
     }
   }
@@ -215,8 +304,7 @@ export async function fetchGithubDeployWorkflowStatus(input: {
   label: string;
 }): Promise<SuperadminGithubDeployWorkflowStatus> {
   const repo = githubRepoSlug();
-  const branch = githubDeployBranch();
-  const configured = Boolean(githubDeployToken());
+  const configured = githubDeployAuthConfigured();
 
   if (!configured) {
     return {
@@ -227,7 +315,7 @@ export async function fetchGithubDeployWorkflowStatus(input: {
       latestRun: null,
       activeRun: null,
       message:
-        "GITHUB_DEPLOY_TOKEN in der App-Env setzen (repo, workflow oder repo+read:packages).",
+        "GitHub App Credentials oder GITHUB_DEPLOY_TOKEN in der App-Env setzen.",
     };
   }
 
@@ -268,12 +356,12 @@ export async function fetchGithubDeployWorkflowStatus(input: {
 export async function dispatchGithubLiveAppDeploy(
   ref?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) {
     return {
       ok: false,
       error:
-        "GITHUB_DEPLOY_TOKEN fehlt — Deploy kann nicht ausgelöst werden.",
+        "GitHub-Auth fehlt — Deploy kann nicht ausgelöst werden (GitHub App oder GITHUB_DEPLOY_TOKEN).",
     };
   }
 
@@ -330,12 +418,12 @@ export async function dispatchGithubLiveAppDeploy(
 export async function dispatchGithubLiveDbDeploy(
   ref?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  const token = await resolveGithubDeployAccessToken({ strict: true });
   if (!token) {
     return {
       ok: false,
       error:
-        "GITHUB_DEPLOY_TOKEN fehlt — Deploy kann nicht ausgelöst werden.",
+        "GitHub-Auth fehlt — Deploy kann nicht ausgelöst werden (GitHub App oder GITHUB_DEPLOY_TOKEN).",
     };
   }
 
@@ -392,19 +480,6 @@ export async function fetchGithubHeadCommit(
   branch = githubDeployBranch(),
 ): Promise<SuperadminGithubHeadCommit & { reachable: boolean }> {
   const repo = githubRepoSlug();
-  const token = githubDeployToken();
-
-  if (!token) {
-    return {
-      sha: null,
-      shortSha: null,
-      message: "GITHUB_DEPLOY_TOKEN fehlt für Commit-Abfrage.",
-      author: null,
-      committedAt: null,
-      htmlUrl: null,
-      reachable: false,
-    };
-  }
 
   try {
     const body = (await githubFetchJson(
@@ -451,18 +526,6 @@ export async function fetchGithubBranches(): Promise<{
 }> {
   const repo = githubRepoSlug();
   const deployBranch = githubDeployBranch();
-  const configured = Boolean(githubDeployToken());
-
-  if (!configured) {
-    return {
-      branches: [],
-      defaultBranch: deployBranch,
-      description: null,
-      pushedAt: null,
-      reachable: false,
-      message: "GITHUB_DEPLOY_TOKEN fehlt für Branch-Liste.",
-    };
-  }
 
   try {
     const [repoBody, branchBody] = await Promise.all([

@@ -18,6 +18,8 @@ export type DashboardGlobalSearchResultItem = {
   title: string;
   subtitle: string | null;
   href: string;
+  /** Reservierungen: Restaurant-Lokaltag `YYYY-MM-DD` für „Zum Tag“. */
+  dayYmd?: string | null;
 };
 
 export type DashboardGlobalSearchGroup = {

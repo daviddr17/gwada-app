@@ -486,8 +486,9 @@ export function DishForm({
           </p>
           {optionGroupDefinitions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Noch keine Optionsgruppen. Lege sie über den Chip{" "}
-              <span className="font-medium text-foreground">Optionen</span> an.
+              Keine aktiven Optionen verfügbar. Lege sie über den Chip{" "}
+              <span className="font-medium text-foreground">Optionen</span> an
+              (und aktiviere sie dort).
             </p>
           ) : (
             <TagMultiCombobox

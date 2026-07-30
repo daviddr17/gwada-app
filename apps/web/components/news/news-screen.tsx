@@ -48,7 +48,10 @@ import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
 import {
   peekNewsFeedCache,
   writeNewsFeedCache,
+  type NewsFeedCachePayload,
 } from "@/lib/news/news-feed-client-cache";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persistence";
 import { sameNewsFeedItems } from "@/lib/news/news-feed-equality";
 import type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
@@ -71,6 +74,32 @@ import {
 const NEWS_SYNC_POLL_MS = 5_000;
 const NEWS_SYNC_POLL_MAX = 3;
 
+function initialNewsRestaurantId(): string | null {
+  const cached = peekCachedWorkspaceRestaurantId();
+  return cached && isUuidRestaurantId(cached) ? cached : null;
+}
+
+function initialNewsFeedFromCache(restaurantId: string | null): {
+  items: UnifiedNewsItem[];
+  storyRings: UnifiedNewsStoryRing[];
+  syncMeta: NewsFeedSyncMeta | null;
+  loading: boolean;
+} {
+  if (!restaurantId) {
+    return { items: [], storyRings: [], syncMeta: null, loading: true };
+  }
+  const cached = peekNewsFeedCache(restaurantId, NEWS_FILTER_ALL);
+  if (!cached) {
+    return { items: [], storyRings: [], syncMeta: null, loading: true };
+  }
+  return {
+    items: cached.items,
+    storyRings: cached.storyRings ?? [],
+    syncMeta: cached.sync,
+    loading: false,
+  };
+}
+
 export function NewsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
@@ -87,12 +116,24 @@ export function NewsScreen() {
     () => readNewsScreenQueryFromSearch(searchParams.toString()).viewMode,
   );
 
+  const initialFeedRef = useRef<ReturnType<typeof initialNewsFeedFromCache> | null>(
+    null,
+  );
+  if (!initialFeedRef.current) {
+    initialFeedRef.current = initialNewsFeedFromCache(initialNewsRestaurantId());
+  }
+  const initialFeed = initialFeedRef.current;
+
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState<UnifiedNewsItem[]>([]);
-  const [storyRings, setStoryRings] = useState<UnifiedNewsStoryRing[]>([]);
-  const [syncMeta, setSyncMeta] = useState<NewsFeedSyncMeta | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<UnifiedNewsItem[]>(() => initialFeed.items);
+  const [storyRings, setStoryRings] = useState<UnifiedNewsStoryRing[]>(
+    () => initialFeed.storyRings,
+  );
+  const [syncMeta, setSyncMeta] = useState<NewsFeedSyncMeta | null>(
+    () => initialFeed.syncMeta,
+  );
+  const [loading, setLoading] = useState(() => initialFeed.loading);
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const coldEmpty = loading && items.length === 0;
@@ -149,7 +190,10 @@ export function NewsScreen() {
 
   useLayoutEffect(() => {
     if (!restaurantId) return;
-    const cached = peekNewsFeedCache(restaurantId, NEWS_FILTER_ALL);
+    const cached: NewsFeedCachePayload | null = peekNewsFeedCache(
+      restaurantId,
+      NEWS_FILTER_ALL,
+    );
     if (!cached) return;
     setItems(cached.items);
     setSyncMeta(cached.sync);

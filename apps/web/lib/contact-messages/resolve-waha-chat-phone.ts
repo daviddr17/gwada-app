@@ -1,7 +1,7 @@
 import "server-only";
 
 import { digitsFromWhatsAppChatId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import {
   isWahaLidChatId,
   isWahaPhoneChatId,
@@ -64,7 +64,9 @@ export async function resolveWahaChatPhone(params: {
     };
   }
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    params.restaurantId,
+  );
   if (!config) {
     return {
       phoneForParse: null,

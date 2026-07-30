@@ -12,7 +12,7 @@ export function DisplayStaffLine({
   todoBadge,
   className,
 }: {
-  staff: Pick<DisplaySessionStaff, "given_name" | "family_name" | "avatar_url" | "position_name">;
+  staff: Pick<DisplaySessionStaff, "given_name" | "family_name" | "avatar_url">;
   suffix?: React.ReactNode;
   /** Tappbare ToDo-Badge — z. B. `DisplayStaffTodoBadge`. */
   todoBadge?: ReactNode;
@@ -37,7 +37,6 @@ export function DisplayStaffLine({
       />
       <span className="min-w-0 truncate">
         {name}
-        {staff.position_name ? ` · ${staff.position_name}` : ""}
         {suffix ? (
           <>
             {" · "}

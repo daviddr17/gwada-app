@@ -4,9 +4,10 @@ import type {
   Weekday,
 } from "@/lib/types/restaurant";
 import {
-  hhmmToMinutes,
-  resolveHoursForLocalCalendarDay,
-} from "@/lib/reservations/day-opening-slots";
+  dayHoursOpenPeriods,
+  isMinutesWithinOpenPeriods,
+} from "@/lib/opening-hours/hours-periods";
+import { resolveHoursForLocalCalendarDay } from "@/lib/reservations/day-opening-slots";
 
 export type PublicOpeningStatusState = "open" | "opens_later" | "closed";
 
@@ -22,8 +23,9 @@ export function getPublicOpeningStatus(
   now: Date = new Date(),
 ): PublicOpeningStatus {
   const hours = resolveHoursForLocalCalendarDay(now, weeklyHours, dateExceptions);
+  const periods = dayHoursOpenPeriods(hours);
 
-  if (hours.closed || !hours.open || !hours.close) {
+  if (periods.length === 0) {
     return {
       state: "closed",
       label: "Heute geschlossen",
@@ -32,21 +34,31 @@ export function getPublicOpeningStatus(
   }
 
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const openM = hhmmToMinutes(hours.open);
-  const closeM = hhmmToMinutes(hours.close);
 
-  if (nowMinutes >= openM && nowMinutes < closeM) {
+  if (isMinutesWithinOpenPeriods(nowMinutes, periods)) {
+    const current = periods.find((p) => {
+      const openParts = p.open.split(":").map(Number);
+      const closeParts = p.close.split(":").map(Number);
+      const openM = (openParts[0] ?? 0) * 60 + (openParts[1] ?? 0);
+      const closeM = (closeParts[0] ?? 0) * 60 + (closeParts[1] ?? 0);
+      return nowMinutes >= openM && nowMinutes < closeM;
+    });
     return {
       state: "open",
       label: "Geöffnet",
-      detail: `bis ${hours.close} Uhr`,
+      detail: current ? `bis ${current.close} Uhr` : null,
     };
   }
 
-  if (nowMinutes < openM) {
+  const next = periods.find((p) => {
+    const openParts = p.open.split(":").map(Number);
+    const openM = (openParts[0] ?? 0) * 60 + (openParts[1] ?? 0);
+    return nowMinutes < openM;
+  });
+  if (next) {
     return {
       state: "opens_later",
-      label: `Öffnet um ${hours.open} Uhr`,
+      label: `Öffnet um ${next.open} Uhr`,
       detail: null,
     };
   }

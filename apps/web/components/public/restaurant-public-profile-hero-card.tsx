@@ -1,14 +1,14 @@
 "use client";
 
 import {
-  motion,
+  m,
   useMotionTemplate,
   useReducedMotion,
   useSpring,
   useTransform,
 } from "framer-motion";
 import { MapPin, Phone } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePointerFine } from "@/hooks/use-pointer-fine";
 import { PublicProfileOpeningStatusChip } from "@/components/public/public-profile-opening-status-chip";
 import { PublicProfileSocialChip } from "@/components/public/public-profile-social-chip";
@@ -17,6 +17,10 @@ import { PublicProfileLogoCrossfade } from "@/components/public/public-profile-l
 import type { PublicProfileLogoIntro } from "@/components/public/public-profile-logo-crossfade";
 import { RestaurantLogoMark } from "@/components/ui/restaurant-logo-mark";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
+import {
+  PUBLIC_PROFILE_AVATAR_SIZES,
+  PUBLIC_PROFILE_COVER_SIZES,
+} from "@/lib/restaurant/public-profile-image-url";
 import { formatPublicRestaurantAddress, publicRestaurantMapsUrl } from "@/lib/restaurant/public-maps-url";
 import { getPublicOpeningStatus } from "@/lib/restaurant/public-opening-status";
 import {
@@ -33,6 +37,8 @@ import {
   publicProfileHeroTitleBlockClassName,
   publicProfileHeroTitleClassName,
 } from "@/lib/ui/public-profile-hero-layout";
+import { cn } from "@/lib/utils";
+
 function restaurantInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
@@ -42,6 +48,52 @@ function restaurantInitials(name: string): string {
     );
   }
   return name.trim().slice(0, 2).toLocaleUpperCase("de-DE") || "?";
+}
+
+function HeroDescriptionExpandable({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [needsExpand, setNeedsExpand] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (expanded) {
+      setNeedsExpand(true);
+      return;
+    }
+    setNeedsExpand(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+
+  return (
+    <div className={className}>
+      <p
+        ref={ref}
+        className={
+          expanded
+            ? "whitespace-pre-wrap"
+            : "line-clamp-2"
+        }
+      >
+        {text}
+      </p>
+      {needsExpand ? (
+        <button
+          type="button"
+          className="mt-1 text-xs font-medium text-accent underline-offset-4 hover:underline"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "Weniger" : "Mehr"}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export function RestaurantPublicProfileHeroCard({
@@ -109,7 +161,7 @@ export function RestaurantPublicProfileHeroCard({
   const card = (
     <div className={publicProfileHeroCardShellClassName}>
       {parallaxEnabled ? (
-        <motion.div
+        <m.div
           className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-70"
           style={{ background: glare }}
         />
@@ -119,6 +171,8 @@ export function RestaurantPublicProfileHeroCard({
         {profile.coverUrl ? (
           <PublicRestaurantImage
             src={profile.coverUrl}
+            srcSet={profile.coverSrcSet}
+            sizes={PUBLIC_PROFILE_COVER_SIZES}
             alt=""
             fill
             priority
@@ -149,9 +203,28 @@ export function RestaurantPublicProfileHeroCard({
               onComplete={logoIntro.onComplete}
               className="shrink-0"
             />
+          ) : profile.avatarUrl ? (
+            <span
+              className={cn(
+                "inline-flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-card p-[13%] text-xl shadow-lg ring-[4px] ring-white/90 dark:ring-background sm:size-24 sm:text-2xl md:size-28 md:text-3xl lg:size-32",
+              )}
+            >
+              <span className="flex size-full min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-[22%] bg-white p-1 dark:bg-card">
+                <PublicRestaurantImage
+                  src={profile.avatarUrl}
+                  srcSet={profile.avatarSrcSet}
+                  sizes={PUBLIC_PROFILE_AVATAR_SIZES}
+                  alt=""
+                  width={128}
+                  height={128}
+                  priority={!profile.coverUrl}
+                  className="size-full max-h-full max-w-full object-contain object-center"
+                />
+              </span>
+            </span>
           ) : (
             <RestaurantLogoMark
-              src={profile.avatarUrl}
+              src={null}
               initials={initials}
               alt=""
               variant="profile"
@@ -165,9 +238,10 @@ export function RestaurantPublicProfileHeroCard({
             {profile.name}
           </h1>
           {profile.description ? (
-            <p className={publicProfileHeroDescriptionClassName}>
-              {profile.description}
-            </p>
+            <HeroDescriptionExpandable
+              text={profile.description}
+              className={publicProfileHeroDescriptionClassName}
+            />
           ) : null}
         </div>
 
@@ -231,7 +305,7 @@ export function RestaurantPublicProfileHeroCard({
   return (
     <section className={publicProfileHeroSectionClassName}>
       <div className={publicProfileHeroStageClassName}>
-        <motion.div
+        <m.div
           style={
             !parallaxEnabled || !parallaxReady
               ? undefined
@@ -240,7 +314,7 @@ export function RestaurantPublicProfileHeroCard({
           className="relative w-full"
         >
           {card}
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

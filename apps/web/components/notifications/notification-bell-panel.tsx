@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { Check, CheckCheck, Settings } from "lucide-react";
 import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import {
   parseReviewNotificationRating,
   ReviewRatingStars,
@@ -46,7 +46,6 @@ type NotificationBellPanelProps = {
   onMarkModuleRead?: (params: {
     module: NotificationModuleId;
   }) => Promise<unknown>;
-  onNavigate?: () => void;
 };
 
 export function NotificationBellPanel({
@@ -56,7 +55,6 @@ export function NotificationBellPanel({
   layout = "popover",
   onMarkRead,
   onMarkModuleRead,
-  onNavigate,
 }: NotificationBellPanelProps) {
   const hasItems = (summary?.totalCount ?? 0) > 0;
   const isScreen = layout === "screen";
@@ -124,13 +122,12 @@ export function NotificationBellPanel({
                   >
                     <CheckCheck className="size-3.5" />
                   </Button>
-                  <Link
+                  <AppNavLink
                     href={mod.href}
                     className="px-1 text-xs font-medium text-foreground/80 underline-offset-2 hover:underline"
-                    onClick={onNavigate}
                   >
                     Alle
-                  </Link>
+                  </AppNavLink>
                 </div>
               </div>
               <ul className="list-none space-y-0.5 px-2 pb-2">
@@ -163,7 +160,7 @@ export function NotificationBellPanel({
                           : "hover:bg-muted/50",
                       )}
                     >
-                      <Link
+                      <AppNavLink
                         href={item.href}
                         className="flex min-w-0 flex-1 items-start gap-2 px-2 py-2"
                         onClick={() => {
@@ -176,7 +173,6 @@ export function NotificationBellPanel({
                               meta: item.meta,
                             });
                           }
-                          onNavigate?.();
                         }}
                       >
                         {messagePlatform ? (
@@ -216,7 +212,7 @@ export function NotificationBellPanel({
                         <span className="shrink-0 pt-0.5 text-[10px] tabular-nums text-muted-foreground">
                           {formatNotificationWhen(item.at, timeZone)}
                         </span>
-                      </Link>
+                      </AppNavLink>
                       <Button
                         type="button"
                         variant="ghost"
@@ -250,7 +246,7 @@ export function NotificationBellPanel({
           variant="ghost"
           size="sm"
           className="h-9 w-full justify-start gap-2 rounded-xl text-sm font-medium"
-          render={<Link href={APP_ROUTES.profile.notifications} onClick={onNavigate} />}
+          render={<AppNavLink href={APP_ROUTES.profile.notifications} />}
         >
           <Settings className="size-4 text-muted-foreground" />
           Benachrichtigungen einstellen

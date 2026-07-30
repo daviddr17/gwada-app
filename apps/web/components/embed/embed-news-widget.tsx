@@ -206,85 +206,103 @@ function EmbedNewsWidgetBody({
       <NewsMasonryGrid items={displayItems} />
     );
 
+  const body = (
+    <>
+      {connectedPlatforms.length > 1 ? (
+        <div className="mb-4">
+          <NewsPlatformFilterChips
+            value={resolvedPlatformFilter}
+            onChange={setPlatformFilter}
+            availablePlatforms={availablePlatforms}
+            showAllChip={showAllChip}
+            allLabel={t("filterAll")}
+          />
+        </div>
+      ) : null}
+
+      {storyRings.length > 0 ? (
+        <div className="mb-4">
+          <NewsStoriesRow
+            storyRings={storyRings}
+            onRingClick={(ring) => {
+              setActiveRing(ring);
+              setStoryOpen(true);
+            }}
+          />
+        </div>
+      ) : null}
+
+      {filtered.length === 0 ? (
+        <ListPaginationSurround
+          classNameAbove="mb-4 border-b-0 pb-0"
+          classNameBelow="mt-4 border-t-0 pt-0"
+          page={clientPagination.page}
+          totalPages={clientPagination.totalPages}
+          shown={0}
+          totalCount={0}
+          itemLabel={t("posts")}
+          canPrevious={false}
+          canNext={false}
+          onPrevious={() => setPage(1)}
+          onNext={() => setPage(1)}
+        >
+          <p className="text-sm text-muted-foreground">
+            {resolvedPlatformFilter === NEWS_FILTER_ALL
+              ? t("newsEmptyAll")
+              : t("newsEmptyPlatform")}
+          </p>
+        </ListPaginationSurround>
+      ) : showPagination ? (
+        <ListPaginationSurround
+          classNameAbove="mb-4 border-b-0 pb-0"
+          classNameBelow="mt-4 border-t-0 pt-0"
+          page={clientPagination.page}
+          totalPages={clientPagination.totalPages}
+          shown={displayItems.length}
+          totalCount={clientPagination.totalCount}
+          itemLabel={t("posts")}
+          canPrevious={clientPagination.page > 1}
+          canNext={clientPagination.page < clientPagination.totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() =>
+            setPage((p) => Math.min(clientPagination.totalPages, p + 1))
+          }
+        >
+          {newsContent}
+        </ListPaginationSurround>
+      ) : (
+        newsContent
+      )}
+    </>
+  );
+
+  // Profile-Sheet: kein iframe-Resize / LayoutStable — nur Body.
+  if (variant === "profileSheet") {
+    return (
+      <>
+        <div className={paddingClass}>{body}</div>
+        <NewsStoryViewer
+          ring={activeRing}
+          open={storyOpen}
+          onOpenChange={setStoryOpen}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <FeedScreenLayoutStable imageCount={countNewsFeedImages(displayItems)}>
         <EmbedFeedResizeReporter
           widget="news"
           deps={[...resizeDeps, storyOpen]}
-          resizeMode={storyOpen && variant === "embed" ? "viewport" : "content"}
+          resizeMode={storyOpen ? "viewport" : "content"}
           viewportHeightPx={
-            storyOpen && variant === "embed"
-              ? EMBED_NEWS_STORY_VIEWPORT_PX
-              : undefined
+            storyOpen ? EMBED_NEWS_STORY_VIEWPORT_PX : undefined
           }
         />
         <div className={paddingClass} data-gwada-embed-content>
-          {connectedPlatforms.length > 1 ? (
-            <div className="mb-4">
-              <NewsPlatformFilterChips
-                value={resolvedPlatformFilter}
-                onChange={setPlatformFilter}
-                availablePlatforms={availablePlatforms}
-                showAllChip={showAllChip}
-                allLabel={t("filterAll")}
-              />
-            </div>
-          ) : null}
-
-          {storyRings.length > 0 ? (
-            <div className="mb-4">
-              <NewsStoriesRow
-                storyRings={storyRings}
-                onRingClick={(ring) => {
-                  setActiveRing(ring);
-                  setStoryOpen(true);
-                }}
-              />
-            </div>
-          ) : null}
-
-          {filtered.length === 0 ? (
-            <ListPaginationSurround
-              classNameAbove="mb-4 border-b-0 pb-0"
-              classNameBelow="mt-4 border-t-0 pt-0"
-              page={clientPagination.page}
-              totalPages={clientPagination.totalPages}
-              shown={0}
-              totalCount={0}
-              itemLabel={t("posts")}
-              canPrevious={false}
-              canNext={false}
-              onPrevious={() => setPage(1)}
-              onNext={() => setPage(1)}
-            >
-              <p className="text-sm text-muted-foreground">
-                {resolvedPlatformFilter === NEWS_FILTER_ALL
-                  ? t("newsEmptyAll")
-                  : t("newsEmptyPlatform")}
-              </p>
-            </ListPaginationSurround>
-          ) : showPagination ? (
-            <ListPaginationSurround
-              classNameAbove="mb-4 border-b-0 pb-0"
-              classNameBelow="mt-4 border-t-0 pt-0"
-              page={clientPagination.page}
-              totalPages={clientPagination.totalPages}
-              shown={displayItems.length}
-              totalCount={clientPagination.totalCount}
-              itemLabel={t("posts")}
-              canPrevious={clientPagination.page > 1}
-              canNext={clientPagination.page < clientPagination.totalPages}
-              onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() =>
-                setPage((p) => Math.min(clientPagination.totalPages, p + 1))
-              }
-            >
-              {newsContent}
-            </ListPaginationSurround>
-          ) : (
-            newsContent
-          )}
+          {body}
           <EmbedMeasureEnd />
         </div>
       </FeedScreenLayoutStable>

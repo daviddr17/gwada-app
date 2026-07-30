@@ -1,7 +1,6 @@
-"use client";
-
-import { DashboardHomeScreen } from "@/components/dashboard/dashboard-home-screen";
-
+/**
+ * UI liegt in {@link AppModuleHomeKeepAlives} (Dashboard-Slot) — kein Remount bei Soft-Nav.
+ */
 export default function DashboardPage() {
-  return <DashboardHomeScreen />;
+  return null;
 }

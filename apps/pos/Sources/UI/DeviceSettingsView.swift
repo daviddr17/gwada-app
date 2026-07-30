@@ -71,17 +71,13 @@ struct DeviceSettingsView: View {
                 .foregroundStyle(.secondary)
         }
 
-        if !runtime.isSignedIn {
-            cloudLoginSection(buttonTitle: "Anmelden & Daten laden")
-        } else {
-            nestSyncSection
-        }
+        nestSyncSection
         Section {
             Button("Kasse neu einrichten", role: .destructive) {
                 confirmSignOut = true
             }
         } footer: {
-            Text("Öffnet den Einrichtungs-Assistenten erneut (Einrichtungs-Code oder Login).")
+            Text("Öffnet den Einrichtungs-Assistenten erneut (Einrichtungs-Code).")
         }
     }
 
@@ -129,59 +125,11 @@ struct DeviceSettingsView: View {
                 .foregroundStyle(.secondary)
         }
 
-        if !runtime.isSignedIn {
-            cloudLoginSection(buttonTitle: "Anmelden (Solo / Cloud)")
-        } else {
-            nestSyncSection
-            Section {
-                Button("Abmelden", role: .destructive) {
-                    confirmSignOut = true
-                }
+        nestSyncSection
+        Section {
+            Button("Abmelden", role: .destructive) {
+                confirmSignOut = true
             }
-        }
-    }
-
-    private func cloudLoginSection(buttonTitle: String) -> some View {
-        Section("Cloud-Login") {
-            Button("Lokal vorausfüllen") {
-                runtime.applyLocalDevDefaults()
-            }
-            #if DEBUG
-            #else
-            .hidden()
-            #endif
-            TextField("E-Mail", text: $runtime.email)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.emailAddress)
-                .textContentType(.username)
-            SecureField("Passwort", text: $runtime.password)
-                .textContentType(.password)
-            TextField("Restaurant-ID (UUID)", text: $runtime.restaurantIdInput)
-                .textInputAutocapitalization(.never)
-            DisclosureGroup("Erweitert") {
-                TextField("API-Basis (Next)", text: $runtime.apiBaseInput)
-                    .textInputAutocapitalization(.never)
-                TextField("Nest API-Basis", text: $runtime.nestApiBaseInput)
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.URL)
-                TextField("Waiter Profile-ID", text: $runtime.waiterProfileIdInput)
-                    .textInputAutocapitalization(.never)
-                TextField("Supabase-URL", text: $runtime.supabaseUrlInput)
-                    .textInputAutocapitalization(.never)
-                SecureField("Supabase Anon Key", text: $runtime.supabaseAnonInput)
-                Text("Speisekarte/Reservierungen: Next `http://127.0.0.1:3000`. Nest nur Outbox.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Button {
-                Task { await runtime.signInAndStartHub() }
-            } label: {
-                Text(buttonTitle)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(PosPrimaryButtonStyle())
-            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-            .listRowBackground(Color.clear)
         }
     }
 

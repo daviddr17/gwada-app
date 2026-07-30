@@ -14,6 +14,7 @@ import {
   displayChromeMainClassName,
   displayChromeShellClassName,
 } from "@/lib/ui/display-chrome";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import {
   getOrCreateDisplayInstallationId,
   saveDisplayDeviceCredential,
@@ -194,7 +195,6 @@ export default function DisplayPairPageInner() {
               )}
             >
             <div className="max-w-md space-y-2 text-center">
-              <h1 className="text-3xl font-semibold tracking-tight">Display koppeln</h1>
               <p className="text-muted-foreground">
                 QR-Code scannen, Kopplungslink öffnen oder 8-stelligen Code eingeben —
                 bei gültigem Code verbindet sich das Tablet automatisch.
@@ -218,7 +218,7 @@ export default function DisplayPairPageInner() {
               ) : null}
               <Button
                 size="lg"
-                className="h-14 rounded-2xl text-lg"
+                className={cn("h-14 text-lg", brandActionButtonRoundedClassName)}
                 disabled={busy || !normalizeDisplayPairingCode(code)}
                 onClick={() => {
                   autoPairAttemptRef.current = null;

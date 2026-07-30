@@ -1,10 +1,8 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { cn } from "@/lib/utils";
 
 /** Anzeige für „bereits gespeichert“ — nicht der echte Secret-Wert. */
@@ -41,7 +39,6 @@ export function SecretInput({
 }: SecretInputProps) {
   const autoId = useId();
   const id = idProp ?? autoId;
-  const [visible, setVisible] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const showingStoredMask = configured && !editing && value.length === 0;
@@ -60,65 +57,43 @@ export function SecretInput({
           </span>
         ) : null}
       </div>
-      <div className="relative">
-        <Input
-          id={id}
-          type={visible && canToggleVisibility ? "text" : "password"}
-          disabled={disabled}
-          readOnly={showingStoredMask}
-          value={inputValue}
-          placeholder={placeholder}
-          className={cn(
-            "h-11 rounded-xl pr-11 font-mono text-sm",
-            showingStoredMask && "text-muted-foreground",
-            inputClassName,
-          )}
-          spellCheck={false}
-          autoComplete="new-password"
-          onFocus={() => {
-            if (showingStoredMask) {
-              onChange("");
-              setEditing(true);
-              setVisible(false);
-            }
-          }}
-          onChange={(e) => {
+      <PasswordInput
+        id={id}
+        disabled={disabled}
+        value={inputValue}
+        placeholder={placeholder}
+        canToggleVisibility={canToggleVisibility}
+        className={cn(
+          "h-11 rounded-xl font-mono text-sm",
+          showingStoredMask && "text-muted-foreground",
+          inputClassName,
+        )}
+        spellCheck={false}
+        autoComplete="new-password"
+        // Kein readOnly: iOS/Safari öffnet bei readOnly keine Soft-Keyboard.
+        // Maske vor Focus verlassen (Pointer), damit Tippen sofort geht.
+        onPointerDown={() => {
+          if (showingStoredMask) {
+            onChange("");
             setEditing(true);
-            onChange(e.target.value);
-          }}
-          onBlur={() => {
-            if (value.length === 0 && configured) {
-              setEditing(false);
-              setVisible(false);
-            }
-          }}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          disabled={disabled || !canToggleVisibility}
-          className="absolute right-0.5 top-1/2 size-9 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          aria-label={
-            canToggleVisibility
-              ? visible
-                ? "Eingabe verbergen"
-                : "Eingabe anzeigen"
-              : configured
-                ? "Gespeicherter Schlüssel — zum Ersetzen Feld anklicken"
-                : "Nichts anzuzeigen"
           }
-          onClick={() => {
-            if (canToggleVisibility) setVisible((v) => !v);
-          }}
-        >
-          {visible && canToggleVisibility ? (
-            <EyeOff className="size-4" aria-hidden />
-          ) : (
-            <Eye className="size-4" aria-hidden />
-          )}
-        </Button>
-      </div>
+        }}
+        onFocus={() => {
+          if (showingStoredMask) {
+            onChange("");
+            setEditing(true);
+          }
+        }}
+        onChange={(e) => {
+          setEditing(true);
+          onChange(e.target.value);
+        }}
+        onBlur={() => {
+          if (value.length === 0 && configured) {
+            setEditing(false);
+          }
+        }}
+      />
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );

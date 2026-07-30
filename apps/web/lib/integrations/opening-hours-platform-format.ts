@@ -1,4 +1,5 @@
 import { WEEKDAY_ORDER, WEEKDAY_LABEL_DE } from "@/lib/constants/restaurant-profile";
+import { exceptionOpenPeriods } from "@/lib/opening-hours/hours-periods";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
 
 const GOOGLE_DAY: Record<Weekday, string> = {
@@ -114,17 +115,19 @@ export function toGoogleSpecialHours(
       continue;
     }
 
-    const open = parseHm(ex.open);
-    const close = parseHm(ex.close);
-    if (!open || !close) continue;
-
-    specialHourPeriods.push({
-      startDate,
-      endDate: startDate,
-      openTime: open,
-      closeTime: close,
-      closed: false,
-    });
+    // Google: Pause = mehrere open-Perioden am selben Tag (kein closed-Intervall).
+    for (const period of exceptionOpenPeriods(ex)) {
+      const open = parseHm(period.open);
+      const close = parseHm(period.close);
+      if (!open || !close) continue;
+      specialHourPeriods.push({
+        startDate,
+        endDate: startDate,
+        openTime: open,
+        closeTime: close,
+        closed: false,
+      });
+    }
   }
 
   return { specialHourPeriods };
@@ -241,35 +244,78 @@ export function fromFacebookPageHours(
   return weekly;
 }
 
+function googleSpecialDateToYmd(
+  value: unknown,
+): string | null {
+  if (typeof value === "string") {
+    const date = value.trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+  }
+  if (value && typeof value === "object") {
+    const o = value as { year?: number; month?: number; day?: number };
+    if (
+      typeof o.year === "number" &&
+      typeof o.month === "number" &&
+      typeof o.day === "number"
+    ) {
+      return `${o.year}-${String(o.month).padStart(2, "0")}-${String(o.day).padStart(2, "0")}`;
+    }
+  }
+  return null;
+}
+
 export function fromGoogleSpecialHours(
   specialHours?: {
     specialHourPeriods?: Array<{
-      startDate?: string;
-      endDate?: string;
+      startDate?: string | { year?: number; month?: number; day?: number };
+      endDate?: string | { year?: number; month?: number; day?: number };
       closed?: boolean;
       openTime?: { hours?: number; minutes?: number };
       closeTime?: { hours?: number; minutes?: number };
     }>;
   },
 ): DateHoursException[] {
-  const out: DateHoursException[] = [];
+  const byDate = new Map<string, DateHoursException>();
+
   for (const p of specialHours?.specialHourPeriods ?? []) {
-    const date = p.startDate?.trim();
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const date = googleSpecialDateToYmd(p.startDate);
+    if (!date) continue;
     if (p.closed) {
-      out.push({
-        id: date,
-        date,
-        closed: true,
-      });
+      byDate.set(date, { id: date, date, closed: true });
       continue;
     }
     const open = googleTimeToHm(p.openTime);
     const close = googleTimeToHm(p.closeTime);
     if (!open || !close) continue;
-    out.push({ id: date, date, closed: false, open, close });
+    const existing = byDate.get(date);
+    if (!existing || existing.closed) {
+      byDate.set(date, {
+        id: date,
+        date,
+        closed: false,
+        periods: [{ open, close }],
+        open,
+        close,
+      });
+      continue;
+    }
+    const periods = exceptionOpenPeriods({
+      closed: false,
+      periods: [...(existing.periods ?? []), { open, close }],
+      open: existing.open,
+      close: existing.close,
+    });
+    byDate.set(date, {
+      id: date,
+      date,
+      closed: false,
+      periods,
+      open: periods[0]?.open,
+      close: periods[periods.length - 1]?.close,
+    });
   }
-  return out;
+
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** Stabiler Vergleichs-Fingerabdruck für Wochenpläne. */
@@ -301,9 +347,9 @@ export function futureExceptionsFingerprint(
     .sort((x, y) => x.date.localeCompare(y.date))
     .map((ex) => {
       if (ex.closed) return `${ex.date}:closed`;
-      const open = toFacebookHm(ex.open) ?? "";
-      const close = toFacebookHm(ex.close) ?? "";
-      return `${ex.date}:${open}-${close}`;
+      const periods = exceptionOpenPeriods(ex);
+      if (periods.length === 0) return `${ex.date}:closed`;
+      return `${ex.date}:${periods.map((p) => `${toFacebookHm(p.open) ?? ""}-${toFacebookHm(p.close) ?? ""}`).join(",")}`;
     })
     .join("|");
 }

@@ -15,7 +15,7 @@ import {
 } from "@/lib/integrations/oauth-integration-types";
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type InboxChannelConnectionFlags = {
@@ -31,7 +31,7 @@ export async function resolveInboxChannelConnections(
 ): Promise<InboxChannelConnectionFlags> {
   const [whatsappConnected, emailConnected, facebookConnected, instagramConnected] =
     await Promise.all([
-      getWahaServerConfigAdmin().then(Boolean),
+      getWahaServerConfigForRestaurantAdmin(restaurantId).then(Boolean),
       resolveRestaurantImapCredentials(admin, restaurantId).then((c) =>
         Boolean(c?.imapHost),
       ),

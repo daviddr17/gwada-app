@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ListTodo, Loader2 } from "lucide-react";
+import { ListTodo } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import {
   Drawer,
   DrawerContent,
@@ -31,6 +33,7 @@ import { DisplayTodoCapturedValue } from "@/components/display/display-todo-capt
 import type { DisplayTodoClient } from "@/lib/display/display-todo-client";
 import { postDisplayTodoComplete } from "@/lib/display/display-todo-client";
 import { displayTodoErrorMessage } from "@/lib/display/display-todo-errors";
+import { handleDisplaySessionAuthFailure } from "@/lib/display/display-session-client";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { STAFF_TODO_PRIORITY_LABELS } from "@/lib/types/staff-todos";
 import {
@@ -235,6 +238,7 @@ export function DisplayStaffTodoBadge({
   const [todos, setTodos] = useState<DisplayTodoClient[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const showListSkeleton = useDeferredSkeleton(loading);
 
   const loadOpenTodos = useCallback(async () => {
     setLoading(true);
@@ -244,6 +248,10 @@ export function DisplayStaffTodoBadge({
         credentials: "include",
       });
       if (!res.ok) {
+        if (await handleDisplaySessionAuthFailure(res)) {
+          setTodos([]);
+          return;
+        }
         toast.error("Checklisten konnten nicht geladen werden.");
         setTodos([]);
         return;
@@ -379,10 +387,14 @@ export function DisplayStaffTodoBadge({
             </DrawerDescription>
           </DrawerHeader>
           <div className="max-h-[min(60dvh,420px)] space-y-3 overflow-y-auto px-6 pb-6">
-            {loading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="size-8 animate-spin text-muted-foreground" />
+            {showListSkeleton ? (
+              <div className="space-y-3 py-2" aria-busy aria-label="Checklisten werden geladen">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-24 w-full rounded-2xl" />
+                ))}
               </div>
+            ) : loading ? (
+              <div className="min-h-24" aria-busy aria-label="Checklisten werden geladen" />
             ) : todos.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 Keine offenen Checklisten.

@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     sendWhatsapp?: boolean;
     sendEmail?: boolean;
     restaurantName?: string;
+    clientSendId?: string;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
     sendEmail: Boolean(body.sendEmail),
     sentByUserId: user?.id ?? null,
     restaurantName: body.restaurantName?.trim() || null,
+    clientSendId: body.clientSendId?.trim() || null,
   });
 
   return Response.json(result);

@@ -175,6 +175,9 @@ export type AccountingInvoiceRow = {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+  /** Optional: aus POS-Quittung erzeugt */
+  pos_payment_id?: string | null;
+  pos_order_id?: string | null;
 };
 
 export type AccountingQuotationRow = Omit<
@@ -267,4 +270,7 @@ export type AccountingSalesDocumentInput = {
   sendWhatsapp?: boolean;
   documentVariant?: AccountingDocumentVariant;
   correctsId?: string | null;
+  /** Verknüpfung zu POS-Zahlung (formale Rechnung aus Quittung) */
+  posPaymentId?: string | null;
+  posOrderId?: string | null;
 };

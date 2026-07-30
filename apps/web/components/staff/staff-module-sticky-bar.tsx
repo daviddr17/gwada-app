@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { StaffFormDrawer } from "@/components/staff/staff-form-drawer";
 import { SearchableSelect } from "@/components/ui/combobox";
@@ -10,8 +10,10 @@ import { useStaffModuleSelection } from "@/lib/contexts/staff-module-selection-c
 import { buildStaffModulePickerOptions, staffModulePickerIdFromSelectValue, staffModulePickerSelectValue } from "@/lib/staff/staff-select-options";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
+import { useCssVarElementHeight } from "@/lib/hooks/use-css-var-element-height";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { STAFF_MODULE_STICKY_BAR_H_VAR } from "@/lib/staff/staff-sticky-chrome";
 import { cn } from "@/lib/utils";
 
 export function StaffModuleStickyBar() {
@@ -27,6 +29,8 @@ export function StaffModuleStickyBar() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const showSkeleton = useDeferredSkeleton(loading);
+  const barRef = useRef<HTMLDivElement>(null);
+  useCssVarElementHeight(barRef, STAFF_MODULE_STICKY_BAR_H_VAR);
 
   const reloadStaffList = useCallback(async () => {
     if (!restaurantId) {
@@ -95,26 +99,28 @@ export function StaffModuleStickyBar() {
   return (
     <>
       <div
+        ref={barRef}
         className={cn(
-          "sticky top-0 z-30 -mx-4 border-b border-border/50 bg-app-chrome px-4 py-2 sm:-mx-6 sm:px-6",
+          "sticky top-0 z-30 -mx-4 border-b border-border/50 bg-app-chrome px-4 py-1.5 sm:-mx-6 sm:px-6 sm:py-2",
+          "transition-[padding] duration-200 ease-out",
           "supports-[backdrop-filter]:bg-app-chrome/95 supports-[backdrop-filter]:backdrop-blur",
         )}
       >
-        <div className="flex w-full min-w-0 flex-col gap-1">
+        <div className="flex w-full min-w-0 flex-col gap-0.5 sm:gap-1">
           <Label
             htmlFor="staff-module-select"
-            className="text-xs text-muted-foreground"
+            className="sr-only text-xs text-muted-foreground sm:not-sr-only"
           >
             Mitarbeiter
           </Label>
           {loading && !showSkeleton ? (
-            <div className="h-11" aria-busy="true" />
+            <div className="h-9 sm:h-11" aria-busy="true" />
           ) : null}
           {showSkeleton ? (
             <Skeleton
               aria-busy
               aria-label="Mitarbeiterliste wird geladen"
-              className="h-11 w-full rounded-xl"
+              className="h-9 w-full rounded-xl sm:h-11"
             />
           ) : (
             <SearchableSelect
@@ -130,7 +136,7 @@ export function StaffModuleStickyBar() {
               searchPlaceholder="Suchen …"
               emptyText="Keine Mitarbeiter"
               clearable={allowsAllStaff && Boolean(selectedStaffId)}
-              className="!min-h-11 !h-11 rounded-xl border-input"
+              className="!h-9 !min-h-9 rounded-xl border-input transition-[height,min-height] duration-200 ease-out sm:!h-11 sm:!min-h-11"
               footerAction={
                 restaurantId
                   ? {

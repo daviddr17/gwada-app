@@ -6,7 +6,12 @@ import {
   DEFAULT_RESTAURANT_TIMEZONE,
   createRestaurantDateTimeFormatter,
 } from "@/lib/restaurant/restaurant-timezone";
-import { displayShiftBounds } from "@/lib/staff/staff-work-hours-display";
+import {
+  displayShiftBounds,
+  displayShiftNetWorkHours,
+  displayShiftTitle,
+} from "@/lib/staff/staff-work-hours-display";
+import { formatWorkTimeRangeWithHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
@@ -28,20 +33,30 @@ export function StaffDisplayShiftRow({
     [timeZone],
   );
   const bounds = displayShiftBounds(segments);
+  const title = displayShiftTitle(segments);
   const endLabel = bounds.isOpen
     ? "läuft"
     : timeDe.format(new Date(bounds.endsAt!));
+  const netWorkHours = displayShiftNetWorkHours(segments);
 
   return (
-    <div className={cn("min-w-0 flex-1 text-sm", className)}>
+    <div
+      className={cn(
+        "min-w-0 flex-1 rounded-lg border border-border/40 bg-muted/15 px-2.5 py-2 text-sm transition-colors group-hover:bg-muted/25",
+        className,
+      )}
+    >
       <p className="font-medium">
-        Display-Schicht
+        {title}
         {bounds.isOpen ? (
           <span className="ml-1.5 text-xs font-normal text-accent">(läuft)</span>
         ) : null}
       </p>
       <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-        {timeDe.format(new Date(bounds.startsAt))} – {endLabel}
+        {formatWorkTimeRangeWithHoursDe(
+          `${timeDe.format(new Date(bounds.startsAt))} – ${endLabel}`,
+          netWorkHours,
+        )}
       </p>
       <StaffDisplayShiftSegmentsList
         segments={segments}

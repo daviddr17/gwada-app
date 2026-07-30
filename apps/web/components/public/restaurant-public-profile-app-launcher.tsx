@@ -24,10 +24,7 @@ import { useProfilePublicDockBridge } from "@/components/public/profile-public-d
 import { reportRestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { RestaurantPublicProfileHeroCard } from "@/components/public/restaurant-public-profile-hero-card";
 import { RestaurantPublicProfileModuleSkeleton } from "@/components/public/restaurant-public-profile-module-skeleton";
-import { RestaurantPublicProfileReviews } from "@/components/public/restaurant-public-profile-reviews";
-import { RestaurantPublicProfileNews } from "@/components/public/restaurant-public-profile-news";
-import { RestaurantPublicProfileEvents } from "@/components/public/restaurant-public-profile-events";
-import { RestaurantPublicProfileGallery } from "@/components/public/restaurant-public-profile-gallery";
+import { GalleryMasonryGridSkeleton } from "@/components/gallery/gallery-masonry-grid";
 import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
 import type { EmbedReservationProfileTermsSheet } from "@/components/embed/embed-reservation-widget";
 import {
@@ -42,12 +39,9 @@ import {
 } from "@/lib/public-profile/profile-app-config";
 import { useCoarsePointer } from "@/lib/hooks/use-coarse-pointer";
 import {
-  profileAppSwitchDirection,
   IOS_APP_CLOSE_TRANSITION,
   IOS_APP_DRAG_SNAP_BACK_TRANSITION,
   IOS_APP_OPEN_TRANSITION,
-  IOS_APP_PAGER_SWITCH_TRANSITION,
-  iosAppHorizontalPushVariants,
   PROFILE_MODULE_FADE_TRANSITION,
   profileModuleFadeVariants,
 } from "@/lib/public-profile/profile-app-motion";
@@ -96,13 +90,45 @@ const EmbedReservationWidget = dynamic(
     import("@/components/embed/embed-reservation-widget").then(
       (mod) => mod.EmbedReservationWidget,
     ),
-  { loading: () => <RestaurantPublicProfileModuleSkeleton /> },
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="form" /> },
 );
 
 const EmbedMenuWidget = dynamic(
   () =>
     import("@/components/embed/embed-menu-widget").then((mod) => mod.EmbedMenuWidget),
-  { loading: () => <RestaurantPublicProfileModuleSkeleton /> },
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="menu" /> },
+);
+
+const RestaurantPublicProfileNews = dynamic(
+  () =>
+    import("@/components/public/restaurant-public-profile-news").then(
+      (mod) => mod.RestaurantPublicProfileNews,
+    ),
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="news" /> },
+);
+
+const RestaurantPublicProfileEvents = dynamic(
+  () =>
+    import("@/components/public/restaurant-public-profile-events").then(
+      (mod) => mod.RestaurantPublicProfileEvents,
+    ),
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="events" /> },
+);
+
+const RestaurantPublicProfileGallery = dynamic(
+  () =>
+    import("@/components/public/restaurant-public-profile-gallery").then(
+      (mod) => mod.RestaurantPublicProfileGallery,
+    ),
+  { loading: () => <GalleryMasonryGridSkeleton edgeToEdge count={10} /> },
+);
+
+const RestaurantPublicProfileReviews = dynamic(
+  () =>
+    import("@/components/public/restaurant-public-profile-reviews").then(
+      (mod) => mod.RestaurantPublicProfileReviews,
+    ),
+  { loading: () => <RestaurantPublicProfileModuleSkeleton variant="timeline" /> },
 );
 
 const IOS_SHEET_BACKDROP_BLUR_PX = 12;
@@ -133,12 +159,16 @@ function ModulePanel({
   showLoading,
   error,
   children,
+  loadingFallback,
 }: {
   showLoading: boolean;
   error: string | null;
   children: React.ReactNode;
+  loadingFallback?: React.ReactNode;
 }) {
-  if (showLoading) return <RestaurantPublicProfileModuleSkeleton />;
+  if (showLoading) {
+    return <>{loadingFallback ?? <RestaurantPublicProfileModuleSkeleton />}</>;
+  }
   if (error) {
     return (
       <div className="rounded-2xl border border-border/50 bg-card p-8 text-center text-sm text-muted-foreground shadow-card">
@@ -250,18 +280,6 @@ function ProfileAppSheetOverlay({
     () => brandedProfileBackdropStyle(accentHex),
     [accentHex],
   );
-
-  const appIds = useMemo(() => apps.map((app) => app.id), [apps]);
-  const prevActiveAppRef = useRef(activeApp);
-  const switchDirection = profileAppSwitchDirection(
-    appIds,
-    prevActiveAppRef.current,
-    activeApp,
-  );
-
-  useLayoutEffect(() => {
-    prevActiveAppRef.current = activeApp;
-  }, [activeApp]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const sheetHandleRef = useRef<HTMLDivElement>(null);
@@ -691,28 +709,17 @@ function ProfileAppSheetOverlay({
               <div
                 data-profile-sheet-no-pull
                 data-profile-sheet-module-pane
-                className="grid *:col-start-1 *:row-start-1"
+                className="relative w-full min-w-0"
               >
-                <AnimatePresence initial={false} custom={switchDirection}>
+                <AnimatePresence mode="wait" initial={false}>
                   <m.div
                     key={activeApp}
-                    custom={switchDirection}
-                    variants={
-                      reduceMotion
-                        ? undefined
-                        : activeApp === "menu"
-                          ? profileModuleFadeVariants
-                          : iosAppHorizontalPushVariants
-                    }
+                    variants={reduceMotion ? undefined : profileModuleFadeVariants}
                     initial={reduceMotion ? false : "enter"}
                     animate={reduceMotion ? undefined : "center"}
                     exit={reduceMotion ? undefined : "exit"}
-                    transition={
-                      activeApp === "menu"
-                        ? PROFILE_MODULE_FADE_TRANSITION
-                        : IOS_APP_PAGER_SWITCH_TRANSITION
-                    }
-                    className="col-start-1 row-start-1 w-full min-w-0 bg-background"
+                    transition={PROFILE_MODULE_FADE_TRANSITION}
+                    className="w-full min-w-0 bg-background"
                   >
                     <ProfileAppContent
                       appId={activeApp}
@@ -830,25 +837,24 @@ function ProfileAppContent({
     );
   }
 
-  const cardClass =
-    "overflow-hidden rounded-2xl border border-border/50 bg-card/95 shadow-card backdrop-blur-sm";
+  /** Einheitlicher flacher Sheet-Chrome — Padding nur hier, keine Nested-Cards. */
+  const sheetPadClassName = "p-4 pb-8 sm:p-5";
 
   if (appId === "reserve") {
     return (
-      <div className="p-4 pb-8 sm:p-5">
+      <div className={sheetPadClassName}>
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!reservation && loading.reservation)}
+          showLoading={!reservation && (deferHeavyWidgets || loading.reservation)}
+          loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="form" />}
           error={errors.reservation}
         >
           {reservation ? (
-            <div className={cardClass}>
-              <EmbedReservationWidget
-                config={reservation}
-                countries={publicCountries()}
-                variant="profileSheet"
-                profileTermsSheet={reservationTermsSheet}
-              />
-            </div>
+            <EmbedReservationWidget
+              config={reservation}
+              countries={publicCountries()}
+              variant="profileSheet"
+              profileTermsSheet={reservationTermsSheet}
+            />
           ) : null}
         </ModulePanel>
       </div>
@@ -857,9 +863,14 @@ function ProfileAppContent({
 
   if (appId === "menu") {
     return (
-      <div className="px-4 pb-8 pt-0 sm:px-5">
+      <div className="pb-8 pt-0">
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!menu && loading.menu)}
+          showLoading={!menu && (deferHeavyWidgets || loading.menu)}
+          loadingFallback={
+            <div className={sheetPadClassName}>
+              <RestaurantPublicProfileModuleSkeleton variant="menu" />
+            </div>
+          }
           error={errors.menu}
         >
           {menu ? (
@@ -882,9 +893,10 @@ function ProfileAppContent({
 
   if (appId === "news") {
     return (
-      <div className="p-4 pb-8 sm:p-5">
+      <div className={sheetPadClassName}>
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!news && loading.news)}
+          showLoading={!news && (deferHeavyWidgets || loading.news)}
+          loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="news" />}
           error={errors.news}
         >
           {news ? <RestaurantPublicProfileNews news={news} /> : null}
@@ -895,9 +907,10 @@ function ProfileAppContent({
 
   if (appId === "events") {
     return (
-      <div className="p-4 pb-8 sm:p-5">
+      <div className={sheetPadClassName}>
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!events && loading.events)}
+          showLoading={!events && (deferHeavyWidgets || loading.events)}
+          loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="events" />}
           error={errors.events}
         >
           {events ? <RestaurantPublicProfileEvents events={events} /> : null}
@@ -908,9 +921,11 @@ function ProfileAppContent({
 
   if (appId === "gallery") {
     return (
-      <div className="p-4 pb-8 sm:p-5">
+      <div className={sheetPadClassName}>
         <ModulePanel
-          showLoading={deferHeavyWidgets || (!gallery && loading.gallery)}
+          // Mit Cache sofort die Wand zeigen — kein Form-Skeleton-Flash beim Sheet-Open.
+          showLoading={!gallery && (deferHeavyWidgets || loading.gallery)}
+          loadingFallback={<GalleryMasonryGridSkeleton edgeToEdge count={10} />}
           error={errors.gallery}
         >
           {gallery ? <RestaurantPublicProfileGallery gallery={gallery} /> : null}
@@ -920,19 +935,17 @@ function ProfileAppContent({
   }
 
   return (
-    <div className="p-4 pb-8 sm:p-5">
+    <div className={sheetPadClassName}>
       <ModulePanel
-        showLoading={deferHeavyWidgets || (!reviews && loading.reviews)}
+        showLoading={!reviews && (deferHeavyWidgets || loading.reviews)}
+        loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="timeline" />}
         error={errors.reviews}
       >
         {reviews ? (
-          <div className={cardClass}>
-            <RestaurantPublicProfileReviews
-              reviews={reviews.reviews}
-              connectedPlatforms={reviews.connectedPlatforms}
-              viewMode={reviews.viewMode}
-            />
-          </div>
+          <RestaurantPublicProfileReviews
+            reviews={reviews.reviews}
+            connectedPlatforms={reviews.connectedPlatforms}
+          />
         ) : null}
       </ModulePanel>
     </div>
@@ -974,9 +987,9 @@ export function RestaurantPublicProfileAppLauncher({
       if (appId === "info") {
         setInfoTab("contact");
       }
-      setActiveApp(appId);
       const app = apps.find((a) => a.id === appId);
       if (app?.module) void loadModule(app.module);
+      setActiveApp(appId);
       reportRestaurantUsageBeacon({
         slug: profile.slug,
         source: "profile",
@@ -1051,11 +1064,10 @@ export function RestaurantPublicProfileAppLauncher({
   }, [apps, preloadModules]);
 
   useEffect(() => {
-    if (lightEffects) {
-      startBackgroundPreload();
-      return;
-    }
-    return scheduleProfileBackgroundWork(startBackgroundPreload);
+    // Nie sofort: Idle / verzögert; Save-Data/2G überspringt (siehe scheduleProfileBackgroundWork).
+    return scheduleProfileBackgroundWork(startBackgroundPreload, {
+      coarsePointer: lightEffects,
+    });
   }, [lightEffects, startBackgroundPreload]);
 
   useLayoutEffect(() => {

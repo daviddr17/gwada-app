@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { toast } from "sonner";
 import { AccountingContactRecipientFields } from "@/components/accounting/accounting-contact-recipient-fields";
@@ -126,6 +127,7 @@ export function AccountingVoucherDrawer({
     isExternalAccountingSource(correctionOf.source) &&
     connectorConnected;
   const { contacts, reload: reloadContacts } = useAccountingContacts(restaurantId);
+  const mountContent = useDeferredDrawerMount(open);
 
   const [voucherKind, setVoucherKind] = useState<AccountingVoucherKind>("expense");
   const [voucherDate, setVoucherDate] = useState(
@@ -506,6 +508,7 @@ export function AccountingVoucherDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
+        {mountContent ? (
         <form
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onSubmit={(e) => {
@@ -812,6 +815,13 @@ export function AccountingVoucherDrawer({
             submitDisabled={readOnly}
           />
         </form>
+        ) : (
+          <div
+            className={drawerScrollAreaClassName("4-6")}
+            aria-hidden
+            aria-busy
+          />
+        )}
       </DrawerContent>
     </Drawer>
   );

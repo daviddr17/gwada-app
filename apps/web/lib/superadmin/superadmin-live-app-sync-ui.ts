@@ -42,10 +42,18 @@ export function localDevRuntimeSummary(
 
 export function formatDeploySha(value: string | null | undefined): string {
   if (!value) return "—";
-  return value.length > 12 ? value.slice(0, 12) : value;
+  const trimmed = value.trim();
+  if (!trimmed) return "—";
+  return trimmed.length > 12 ? trimmed.slice(0, 12) : trimmed;
 }
 
-export function liveAppSyncLabel(state: SuperadminLiveAppDeploySyncState): string {
+export function liveAppSyncLabel(
+  state: SuperadminLiveAppDeploySyncState,
+  liveApp?: Pick<
+    SuperadminLiveAppDeployStatus,
+    "liveReachable" | "liveSha" | "liveShortSha"
+  >,
+): string {
   switch (state) {
     case "in_sync":
       return "Live ist aktuell";
@@ -54,6 +62,9 @@ export function liveAppSyncLabel(state: SuperadminLiveAppDeploySyncState): strin
     case "deploying":
       return "Deploy läuft";
     default:
+      if (liveApp?.liveReachable && (liveApp.liveSha || liveApp.liveShortSha)) {
+        return "GitHub-Vergleich fehlt";
+      }
       return "Live-Status unklar";
   }
 }
@@ -88,8 +99,12 @@ export function liveAppVersionSummary(
     case "deploying":
       return `Deploy läuft · Ziel ${head}`;
     default:
-      return liveApp.liveReachable
-        ? `Live ${live} · GitHub ${head}`
-        : "Live nicht erreichbar";
+      if (!liveApp.liveReachable && live === "—") {
+        return "Live nicht erreichbar";
+      }
+      if (head === "—") {
+        return `Live ${live} · GitHub nicht lesbar`;
+      }
+      return `Live ${live} · GitHub ${head}`;
   }
 }

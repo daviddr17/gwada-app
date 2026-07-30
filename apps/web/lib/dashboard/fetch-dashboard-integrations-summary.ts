@@ -51,6 +51,7 @@ function isChannelConnected(
     case "tripadvisor":
       return row.status === "working";
     case "email": {
+      if (row.status === "gmail" || row.status === "outlook") return true;
       if (row.status !== "custom") return false;
       const pub = smtpConfigToPublic(smtpConfigFromJson(row.config));
       return Boolean(pub.passwordConfigured);

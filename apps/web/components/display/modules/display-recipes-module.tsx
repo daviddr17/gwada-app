@@ -21,6 +21,7 @@ import {
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
+import { displayFilterChipClassName } from "@/lib/ui/display-filter-chip";
 import { GWADA_DISPLAY_RECIPES_REFRESH_EVENT } from "@/lib/display/display-recipes-live-events";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
@@ -173,12 +174,7 @@ export function DisplayRecipesModule({
       key={id}
       type="button"
       onClick={() => onSelect(id)}
-      className={cn(
-        "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-        activeId === id
-          ? "border-accent bg-accent text-accent-foreground"
-          : "border-border/60 bg-muted/30 text-muted-foreground",
-      )}
+      className={displayFilterChipClassName(activeId === id)}
     >
       {label}
     </button>
@@ -255,7 +251,7 @@ export function DisplayRecipesModule({
                   type="button"
                   className={cn(
                     "flex w-full items-center justify-between gap-4 rounded-2xl border border-border/50 bg-card px-4 py-4 text-left shadow-card",
-                    "transition-colors hover:border-primary/40 active:scale-[0.99]",
+                    "transition-colors hover:border-accent/40 active:scale-[0.99]",
                     selectedId === d.id && "border-accent/40 bg-accent/5",
                   )}
                   onClick={() => setSelectedId(d.id)}

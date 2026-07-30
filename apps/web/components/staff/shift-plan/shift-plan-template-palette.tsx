@@ -17,10 +17,13 @@ type ShiftPlanTemplatePaletteProps = {
   referenceDay: Date;
   onCreateTemplate: () => void;
   onEditTemplate: (template: RestaurantShiftTemplateRow) => void;
+  /** Bleibt beim Scrollen oben (Vorlagen weiter ziehbar). */
+  sticky?: boolean;
+  className?: string;
 };
 
 const shiftPlanPaletteChipClassName =
-  "inline-flex min-w-[8.5rem] items-stretch rounded-lg border text-left transition-shadow hover:shadow-sm";
+  "inline-flex shrink-0 min-w-[8.5rem] items-stretch rounded-lg border text-left transition-shadow hover:shadow-sm";
 
 function DraggableTemplate({
   template,
@@ -51,7 +54,6 @@ function DraggableTemplate({
         transform: CSS.Translate.toString(transform),
         borderColor: `${template.color}55`,
         backgroundColor: `${template.color}12`,
-        touchAction: "none",
       }}
       className={cn(
         shiftPlanPaletteChipClassName,
@@ -61,6 +63,7 @@ function DraggableTemplate({
     >
       <button
         type="button"
+        style={{ touchAction: "none" }}
         className="flex shrink-0 cursor-grab items-center px-1 text-muted-foreground active:cursor-grabbing"
         aria-label={`${template.name} verschieben`}
         {...listeners}
@@ -113,7 +116,6 @@ function DraggableAbsencePreset({
         transform: CSS.Translate.toString(transform),
         borderColor: `${color}55`,
         backgroundColor: `${color}12`,
-        touchAction: "none",
       }}
       className={cn(
         shiftPlanPaletteChipClassName,
@@ -123,6 +125,7 @@ function DraggableAbsencePreset({
     >
       <button
         type="button"
+        style={{ touchAction: "none" }}
         className="flex shrink-0 cursor-grab items-center px-1 text-muted-foreground active:cursor-grabbing"
         aria-label={`${label} verschieben`}
         {...listeners}
@@ -173,26 +176,51 @@ export function ShiftPlanTemplatePalette({
   referenceDay,
   onCreateTemplate,
   onEditTemplate,
+  sticky = false,
+  className,
 }: ShiftPlanTemplatePaletteProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-muted/10 px-3 py-2">
-      <TemplatePaletteNewButton onClick={onCreateTemplate} />
-      {templates.map((t) => (
-        <DraggableTemplate
-          key={t.id}
-          template={t}
-          referenceDay={referenceDay}
-          onEdit={() => onEditTemplate(t)}
-        />
-      ))}
-      {SHIFT_PLAN_ABSENCE_PRESETS.map((preset) => (
-        <DraggableAbsencePreset
-          key={preset.entryType}
-          entryType={preset.entryType}
-          label={preset.label}
-          color={preset.color}
-        />
-      ))}
+    <div
+      className={cn(
+        "rounded-xl border border-border/50 bg-muted/10",
+        sticky &&
+          "sticky top-0 z-20 -mx-4 rounded-none border-x-0 border-t-0 border-border/60 bg-background/95 shadow-sm backdrop-blur-md supports-backdrop-filter:bg-background/90 sm:mx-0 sm:rounded-xl sm:border sm:border-border/60",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "sm:overflow-visible",
+        )}
+      >
+        <div
+          className={cn(
+            "flex w-max min-w-full flex-nowrap items-center gap-2 px-3 py-2",
+            sticky && "px-4 sm:px-3",
+            "sm:w-auto sm:min-w-0 sm:flex-wrap",
+          )}
+        >
+          <TemplatePaletteNewButton onClick={onCreateTemplate} />
+          {templates.map((t) => (
+            <DraggableTemplate
+              key={t.id}
+              template={t}
+              referenceDay={referenceDay}
+              onEdit={() => onEditTemplate(t)}
+            />
+          ))}
+          {SHIFT_PLAN_ABSENCE_PRESETS.map((preset) => (
+            <DraggableAbsencePreset
+              key={preset.entryType}
+              entryType={preset.entryType}
+              label={preset.label}
+              color={preset.color}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -202,7 +230,21 @@ export type ShiftPlanDragData =
   | { type: "shift"; shiftId: string }
   | { type: "absence"; entryType: ShiftPlanAbsenceEntryType };
 
-export type ShiftPlanDropData = {
+export type ShiftPlanDayDropData = {
+  kind: "day";
+  staffId: string;
+  dayKey: string;
+};
+
+export type ShiftPlanWeekDropData = {
+  kind: "week";
+  staffId: string;
+};
+
+export type ShiftPlanDropData = ShiftPlanDayDropData | ShiftPlanWeekDropData;
+
+/** @deprecated Prefer ShiftPlanDayDropData / parseShiftPlanDropId */
+export type ShiftPlanCellDropData = {
   staffId: string;
   dayKey: string;
 };
@@ -211,7 +253,11 @@ export function shiftPlanCellDropId(staffId: string, dayKey: string): string {
   return `cell-${staffId}__${dayKey}`;
 }
 
-export function parseShiftPlanCellDropId(id: string): ShiftPlanDropData | null {
+export function shiftPlanWeekDropId(staffId: string): string {
+  return `week-${staffId}`;
+}
+
+export function parseShiftPlanCellDropId(id: string): ShiftPlanCellDropData | null {
   if (!id.startsWith("cell-")) return null;
   const rest = id.slice(5);
   const parts = rest.split("__");
@@ -219,4 +265,21 @@ export function parseShiftPlanCellDropId(id: string): ShiftPlanDropData | null {
   const [staffId, dayKey] = parts;
   if (!staffId || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return null;
   return { staffId, dayKey };
+}
+
+export function parseShiftPlanWeekDropId(
+  id: string,
+): { staffId: string } | null {
+  if (!id.startsWith("week-")) return null;
+  const staffId = id.slice(5);
+  if (!staffId) return null;
+  return { staffId };
+}
+
+export function parseShiftPlanDropId(id: string): ShiftPlanDropData | null {
+  const week = parseShiftPlanWeekDropId(id);
+  if (week) return { kind: "week", staffId: week.staffId };
+  const day = parseShiftPlanCellDropId(id);
+  if (day) return { kind: "day", staffId: day.staffId, dayKey: day.dayKey };
+  return null;
 }

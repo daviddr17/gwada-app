@@ -54,7 +54,7 @@ export function GalleryEmbedPanel() {
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
   return (
-    <div className="space-y-4 px-4 pb-8 sm:px-6">
+    <div className="space-y-4 pb-8">
       <Card className="border-border/50 shadow-card">
         <CardContent className="space-y-6 p-4">
           <p className="text-sm text-muted-foreground">

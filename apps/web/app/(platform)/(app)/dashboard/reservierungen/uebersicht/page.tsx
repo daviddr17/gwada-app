@@ -1,12 +1,6 @@
-"use client";
-
-import { Suspense } from "react";
-import { ReservationsOverview } from "@/components/reservations/reservations-overview";
-
+/**
+ * UI liegt in {@link AppModuleHomeKeepAlives} (Reservierungen-Slot).
+ */
 export default function ReservierungenUebersichtPage() {
-  return (
-    <Suspense fallback={null}>
-      <ReservationsOverview />
-    </Suspense>
-  );
+  return null;
 }

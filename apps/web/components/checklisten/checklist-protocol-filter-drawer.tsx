@@ -3,19 +3,18 @@
 import { useMemo } from "react";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import {
-  drawerFormHeaderClassName,
-  drawerScrollAreaClassName,
-} from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { SearchableSelect } from "@/components/ui/combobox";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import {
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterZone,
+  DrawerSortZone,
+} from "@/components/ui/drawer-filter-sheet";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import type {
@@ -107,63 +106,61 @@ export function ChecklistProtocolFilterDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent className={drawerContentClassName("filter")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle>Filter & Sortierung</DrawerTitle>
-          <DrawerDescription>
-            Zeitraum, Bereich, Gerät, Typ und Sortierung des Protokolls.
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter & Sortierung" />
         <div className={drawerScrollAreaClassName(6)}>
-          <DrawerFormSection title="Typ">
-            <SearchableSelect
-              value={filterKind}
-              onValueChange={(v) => onFilterKindChange(v as ChecklistProtocolKindFilter)}
-              options={CHECKLIST_PROTOCOL_KIND_OPTIONS}
-              className={selectClass}
-            />
-          </DrawerFormSection>
-          <DrawerFormSection title="Zeitraum">
-            <SearchableSelect
-              value={filterPeriod}
-              onValueChange={(v) => onFilterPeriodChange(v as ChecklistProtocolPeriodFilter)}
-              options={CHECKLIST_PROTOCOL_PERIOD_OPTIONS}
-              className={selectClass}
-            />
-          </DrawerFormSection>
-          <DrawerFormSection title="Bereich">
-            <SearchableSelect
-              value={filterAreaId}
-              onValueChange={onFilterAreaIdChange}
-              options={areaOptions}
-              className={selectClass}
-            />
-          </DrawerFormSection>
-          <DrawerFormSection title="Gerät">
-            <SearchableSelect
-              value={filterDeviceId}
-              onValueChange={onFilterDeviceIdChange}
-              options={deviceOptions}
-              className={selectClass}
-            />
-          </DrawerFormSection>
-          <DrawerFormSection title="Ergebnis">
-            <SearchableSelect
-              value={filterDeviation}
-              onValueChange={(v) =>
-                onFilterDeviationChange(v as ChecklistProtocolDeviationFilter)
-              }
-              options={CHECKLIST_PROTOCOL_DEVIATION_OPTIONS}
-              className={selectClass}
-            />
-          </DrawerFormSection>
-          <DrawerFormSection title="Sortierung">
+          <DrawerFilterZone>
+            <DrawerFilterField label="Typ">
+              <SearchableSelect
+                value={filterKind}
+                onValueChange={(v) => onFilterKindChange(v as ChecklistProtocolKindFilter)}
+                options={CHECKLIST_PROTOCOL_KIND_OPTIONS}
+                className={selectClass}
+              />
+            </DrawerFilterField>
+            <DrawerFilterField label="Zeitraum">
+              <SearchableSelect
+                value={filterPeriod}
+                onValueChange={(v) => onFilterPeriodChange(v as ChecklistProtocolPeriodFilter)}
+                options={CHECKLIST_PROTOCOL_PERIOD_OPTIONS}
+                className={selectClass}
+              />
+            </DrawerFilterField>
+            <DrawerFilterField label="Bereich">
+              <SearchableSelect
+                value={filterAreaId}
+                onValueChange={onFilterAreaIdChange}
+                options={areaOptions}
+                className={selectClass}
+              />
+            </DrawerFilterField>
+            <DrawerFilterField label="Gerät">
+              <SearchableSelect
+                value={filterDeviceId}
+                onValueChange={onFilterDeviceIdChange}
+                options={deviceOptions}
+                className={selectClass}
+              />
+            </DrawerFilterField>
+            <DrawerFilterField label="Ergebnis">
+              <SearchableSelect
+                value={filterDeviation}
+                onValueChange={(v) =>
+                  onFilterDeviationChange(v as ChecklistProtocolDeviationFilter)
+                }
+                options={CHECKLIST_PROTOCOL_DEVIATION_OPTIONS}
+                className={selectClass}
+              />
+            </DrawerFilterField>
+          </DrawerFilterZone>
+
+          <DrawerSortZone>
             <SearchableSelect
               value={sortKey}
               onValueChange={(v) => onSortKeyChange(v as ChecklistProtocolSortKey)}
               options={CHECKLIST_PROTOCOL_SORT_OPTIONS}
               className={selectClass}
             />
-          </DrawerFormSection>
+          </DrawerSortZone>
         </div>
         <DrawerFilterFooter onReset={reset} onDone={() => onOpenChange(false)} />
       </DrawerContent>

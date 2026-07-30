@@ -9,6 +9,7 @@ import {
   buildReviewRequestPreviewBlock,
   type ReviewRequestSettings,
 } from "@/lib/reviews/gwada-review-invitation-server";
+import { resolveGoogleReviewUrlFromBusiness } from "@/lib/reviews/google-review-url-server";
 import {
   hasAnyReviewInclude,
   type ReviewRequestIncludes,
@@ -27,7 +28,7 @@ import {
 } from "@/lib/whatsapp/reservation-whatsapp-message-config";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
@@ -114,9 +115,16 @@ async function appendPreviewReviewBlock(params: {
       )
     : null;
 
+  let googleReviewUrl = settings.review_google_url;
+  if (settings.includeGoogle && !googleReviewUrl) {
+    googleReviewUrl = await resolveGoogleReviewUrlFromBusiness(
+      params.restaurantId,
+    );
+  }
+
   const block = buildReviewRequestPreviewBlock({
     settings,
-    googleReviewUrl: settings.review_google_url,
+    googleReviewUrl,
     facebookReviewUrl:
       settings.review_facebook_url ??
       facebookReviewUrl(fbRow?.config.page_id),
@@ -154,7 +162,9 @@ export async function sendReservationNotificationTestWhatsapp(params: {
     return { ok: false, error: "Ungültige Telefonnummer." };
   }
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(
+    params.restaurantId,
+  );
   if (!config) {
     return { ok: false, error: "WhatsApp ist nicht konfiguriert." };
   }

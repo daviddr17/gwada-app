@@ -27,6 +27,18 @@ export function StaffWorkHoursSkeleton({
       className={cn("pointer-events-none space-y-4", className)}
       {...props}
     >
+      <div className="-mx-4 border-b border-border/50 bg-app-chrome px-4 py-1.5 sm:-mx-6 sm:px-6 sm:py-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-0.5 sm:gap-1">
+            <Skeleton className="size-8 rounded-lg sm:size-9" />
+            <Skeleton className="h-8 w-[8.25rem] rounded-xl sm:h-9 sm:w-[9.5rem]" />
+            <Skeleton className="h-8 w-[4.25rem] rounded-xl sm:h-9 sm:w-[4.75rem]" />
+            <Skeleton className="size-8 rounded-lg sm:size-9" />
+          </div>
+          <Skeleton className="h-7 w-14 rounded-full sm:h-8 sm:w-16" />
+        </div>
+      </div>
+
       <SkeletonCardFrame className="shadow-card">
         <Skeleton className="mb-3 h-5 w-48 max-w-[75%]" />
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -36,13 +48,8 @@ export function StaffWorkHoursSkeleton({
         </div>
       </SkeletonCardFrame>
 
-      <SkeletonCardFrame className="flex items-center px-4 py-3 shadow-card">
-        <div className="flex items-center gap-1">
-          <Skeleton className="size-9 rounded-lg" />
-          <Skeleton className="h-9 w-[9.5rem] rounded-xl" />
-          <Skeleton className="h-9 w-[4.75rem] rounded-xl" />
-          <Skeleton className="size-9 rounded-lg" />
-        </div>
+      <SkeletonCardFrame className="shadow-card">
+        <Skeleton className="h-5 w-36 max-w-[60%]" />
       </SkeletonCardFrame>
 
       <div className="space-y-3">

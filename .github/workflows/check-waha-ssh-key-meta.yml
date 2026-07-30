@@ -1,0 +1,36 @@
+name: Check WAHA SSH key meta
+on:
+  repository_dispatch:
+    types: [check-waha-ssh-key-meta]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Key meta
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Fetch via live API from runner (public URL)
+          CFG=$(curl -fsS -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://gwada.app/api/internal/waha-ssh-config?server_id=9c0adba8-eaa0-4087-ae77-820fc2502588")
+          echo "$CFG" | jq '{ok, mode, host, user, port, containerName, keyLen:(.privateKey|length), begin:(.privateKey|.[0:40]), hasBegin:(.privateKey|contains("BEGIN")), hasEscaped:(.privateKey|contains("\\n")), newlines:(.privateKey|split("\n")|length)}'
+          echo "$CFG" | jq -r '.privateKey' > /tmp/k
+          # normalize like script
+          python3 - <<'PY'
+import pathlib
+text=pathlib.Path("/tmp/k").read_text().replace("\r\n","\n").replace("\r","\n")
+text=text.replace("\\n","\n").strip()+"\n"
+pathlib.Path("/tmp/k2").write_text(text)
+print("normalized_len", len(text), "lines", len(text.splitlines()))
+print("first", text.splitlines()[0])
+print("last", text.splitlines()[-1])
+PY
+          ssh-keygen -y -f /tmp/k2 >/tmp/pub 2>/tmp/err && echo "keygen_ok" || (echo "keygen_fail"; cat /tmp/err)

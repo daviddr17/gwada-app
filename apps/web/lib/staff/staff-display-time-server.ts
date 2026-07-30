@@ -279,11 +279,10 @@ export async function listDisplayTeamPresence(
     })
     .filter((row): row is DisplayTeamPresenceMember => row != null);
 
+  // Frühester Schichtbeginn zuerst; Pause-Status bleibt in der UI markiert.
   members.sort((a, b) => {
-    const statusOrder = (s: DisplayTeamPresenceMember["status"]) =>
-      s === "working" ? 0 : 1;
-    const byStatus = statusOrder(a.status) - statusOrder(b.status);
-    if (byStatus !== 0) return byStatus;
+    const byStart = a.clocked_in_at.localeCompare(b.clocked_in_at);
+    if (byStart !== 0) return byStart;
     const nameA = `${a.family_name} ${a.given_name}`.trim();
     const nameB = `${b.family_name} ${b.given_name}`.trim();
     return nameA.localeCompare(nameB, "de");
@@ -301,8 +300,8 @@ async function openSegment(
     entryType: "work" | "break";
     startsAt: string;
   },
-): Promise<void> {
-  await admin.from("restaurant_staff_work_entries").insert({
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await admin.from("restaurant_staff_work_entries").insert({
     restaurant_id: params.restaurantId,
     staff_id: params.staffId,
     entry_type: params.entryType,
@@ -312,6 +311,10 @@ async function openSegment(
     shift_id: params.shiftId,
     note: DISPLAY_NOTE,
   });
+  if (error) {
+    return { ok: false, error: error.message || "work_entry_insert_failed" };
+  }
+  return { ok: true };
 }
 
 export async function runDisplayTimeAction(
@@ -345,13 +348,16 @@ export async function runDisplayTimeAction(
       return { ok: false, error: "already_clocked_in", status: 409 };
     }
     const shiftId = randomUUID();
-    await openSegment(admin, {
+    const opened = await openSegment(admin, {
       restaurantId: params.restaurantId,
       staffId: params.staffId,
       shiftId,
       entryType: "work",
       startsAt: now,
     });
+    if (!opened.ok) {
+      return { ok: false, error: opened.error, status: 500 };
+    }
     await emitStaffDisplayClockNotification(admin, {
       restaurantId: params.restaurantId,
       staffId: params.staffId,
@@ -374,13 +380,16 @@ export async function runDisplayTimeAction(
       return { ok: false, error: "already_on_break", status: 409 };
     }
     await closeOpenEntry(admin, open.id, now);
-    await openSegment(admin, {
+    const opened = await openSegment(admin, {
       restaurantId: params.restaurantId,
       staffId: params.staffId,
       shiftId: open.shift_id,
       entryType: "break",
       startsAt: now,
     });
+    if (!opened.ok) {
+      return { ok: false, error: opened.error, status: 500 };
+    }
     const clockedInAt = await shiftClockedInAt(admin, open.shift_id, open.starts_at);
     return {
       ok: true,
@@ -410,13 +419,16 @@ export async function runDisplayTimeAction(
       };
     }
     await closeOpenEntry(admin, open.id, now);
-    await openSegment(admin, {
+    const opened = await openSegment(admin, {
       restaurantId: params.restaurantId,
       staffId: params.staffId,
       shiftId: open.shift_id,
       entryType: "work",
       startsAt: now,
     });
+    if (!opened.ok) {
+      return { ok: false, error: opened.error, status: 500 };
+    }
     const clockedInAt = await shiftClockedInAt(admin, open.shift_id, open.starts_at);
     return {
       ok: true,
@@ -426,19 +438,20 @@ export async function runDisplayTimeAction(
 
   if (params.action === "clock_out") {
     const isAuto = isDisplayAutoClockOutDue(open, autoClockOut, nowDate);
-    // Pause am gleichen Tag beenden: kein Push. Auto-Abmeldung: Push mit Hinweis.
-    const skipNotify = open.entry_type === "break" && !isAuto;
-    await closeOpenEntry(admin, open.id, now);
-    if (!skipNotify) {
-      await emitStaffDisplayClockNotification(admin, {
-        restaurantId: params.restaurantId,
-        staffId: params.staffId,
-        shiftId: open.shift_id,
-        action: "clock_out",
-        at: now,
-        ...(isAuto ? { auto: true } : {}),
-      });
+    // Manuell: erst Pause beenden, dann Schicht beenden — verhindert Split-Schichten.
+    // Auto-Abmeldung (Übernacht) darf weiterhin eine offene Pause schließen.
+    if (open.entry_type === "break" && !isAuto) {
+      return { ok: false, error: "end_break_first", status: 409 };
     }
+    await closeOpenEntry(admin, open.id, now);
+    await emitStaffDisplayClockNotification(admin, {
+      restaurantId: params.restaurantId,
+      staffId: params.staffId,
+      shiftId: open.shift_id,
+      action: "clock_out",
+      at: now,
+      ...(isAuto ? { auto: true } : {}),
+    });
     return {
       ok: true,
       state: { status: "off", clocked_in_at: null, break_started_at: null },

@@ -38,6 +38,8 @@ export function useVisibleIntervalPolling(intervalMs: number) {
       if (!activeRef.current || !tickRef.current) return;
       if (document.visibilityState === "visible") {
         if (!timerRef.current) {
+          // Kein Sofort-Tick bei Tab-Rückkehr — Intervall erst nach intervalMs,
+          // damit Focus/Realtime den Main Thread nicht zusätzlich stürmen.
           timerRef.current = setInterval(() => {
             if (document.visibilityState === "visible") void tickRef.current?.();
           }, intervalMs);

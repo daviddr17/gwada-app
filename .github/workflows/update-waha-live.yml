@@ -1,0 +1,266 @@
+# WAHA Image-Update auf dem VPS (offizielle Doku: docker compose pull && up -d).
+# Sicherheit: Compose-Backup vor Edit, Preflight Volumes, Plus→Core Migration ab 2026.6.1.
+# Optional Secret WAHA_PLUS_DOCKER_PASSWORD nur noch als Fallback für alte Plus-Images.
+name: Update WAHA live
+
+on:
+  workflow_dispatch:
+    inputs:
+      container:
+        description: Docker-Container-Name (leer = aus Server-Config / auto)
+        required: false
+        default: ""
+        type: string
+      server_id:
+        description: waha_servers.id (Pflicht für per-server SSH)
+        required: true
+        type: string
+      target_version:
+        description: Zielversion YYYY.M.B (für pinned Tags latest-…)
+        required: false
+        default: ""
+  repository_dispatch:
+    types: [update-waha-live]
+
+concurrency:
+  group: update-waha-live-${{ github.event.client_payload.server_id || inputs.server_id || 'default' }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Docker update WAHA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve params
+        id: params
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            CONTAINER="${{ github.event.client_payload.container }}"
+            SERVER_ID="${{ github.event.client_payload.server_id }}"
+            TARGET="${{ github.event.client_payload.target_version }}"
+          else
+            CONTAINER="${{ inputs.container }}"
+            SERVER_ID="${{ inputs.server_id }}"
+            TARGET="${{ inputs.target_version }}"
+          fi
+          CONTAINER="$(echo "$CONTAINER" | tr -d '[:space:]')"
+          SERVER_ID="$(echo "$SERVER_ID" | tr -d '[:space:]')"
+          TARGET="$(echo "$TARGET" | tr -cd '0-9.')"
+          if [ -z "$SERVER_ID" ]; then
+            echo "::error::server_id fehlt"
+            exit 1
+          fi
+          # auto = auf dem Host den laufenden WAHA-Container erkennen
+          if [ -z "$CONTAINER" ]; then
+            CONTAINER=auto
+          fi
+          if [ "$CONTAINER" != "auto" ] && ! echo "$CONTAINER" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'; then
+            echo "::error::Ungültiger Container-Name"
+            exit 1
+          fi
+          echo "container=${CONTAINER}" >> "$GITHUB_OUTPUT"
+          echo "server_id=${SERVER_ID}" >> "$GITHUB_OUTPUT"
+          echo "target_version=${TARGET}" >> "$GITHUB_OUTPUT"
+
+      - name: Pull + recreate WAHA on host
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          GWADA_APP_ORIGIN: https://gwada.app
+          WAHA_PLUS_DOCKER_PASSWORD: ${{ secrets.WAHA_PLUS_DOCKER_PASSWORD }}
+          SERVER_ID: ${{ steps.params.outputs.server_id }}
+          CONTAINER: ${{ steps.params.outputs.container }}
+          TARGET_VERSION: ${{ steps.params.outputs.target_version }}
+        run: |
+          set -euo pipefail
+          # shellcheck source=scripts/ci-waha-ssh-resolve.sh
+          source scripts/ci-waha-ssh-resolve.sh
+          echo "Update ${CONTAINER} on ${WAHA_SSH_USER}@${WAHA_SSH_HOST}:${WAHA_SSH_PORT} (target=${TARGET_VERSION:-auto}) …"
+
+          ssh -i "${WAHA_SSH_KEY_FILE}" -o BatchMode=yes -o ConnectTimeout=30 \
+            -p "${WAHA_SSH_PORT}" \
+            "${WAHA_SSH_USER}@${WAHA_SSH_HOST}" \
+            env \
+              "CONTAINER=${CONTAINER}" \
+              "TARGET_VERSION=${TARGET_VERSION}" \
+              "WAHA_PLUS_DOCKER_PASSWORD=${WAHA_PLUS_DOCKER_PASSWORD}" \
+              bash -s <<'REMOTE'
+          set -euo pipefail
+
+          resolve_waha_container() {
+            if [ "$CONTAINER" != "auto" ] && docker inspect "$CONTAINER" >/dev/null 2>&1; then
+              return 0
+            fi
+            echo "=== WAHA Container suchen (gewünscht: ${CONTAINER}) ==="
+            docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' || true
+            # Name oder Image enthält waha
+            mapfile -t CANDS < <(
+              docker ps --format '{{.Names}}\t{{.Image}}' \
+                | awk -F'\t' 'BEGIN{IGNORECASE=1} $1 ~ /waha/ || $2 ~ /waha/ {print $1}'
+            )
+            if [ "${#CANDS[@]}" -eq 1 ]; then
+              CONTAINER="${CANDS[0]}"
+              echo "Auto-Detect → ${CONTAINER}"
+              return 0
+            fi
+            if [ "${#CANDS[@]}" -gt 1 ]; then
+              echo "::error::Mehrere WAHA-Container gefunden: ${CANDS[*]} — exakten Namen in Superadmin setzen."
+              exit 1
+            fi
+            echo "::error::Kein laufender WAHA-Container gefunden (Name/Image ohne „waha“)."
+            exit 1
+          }
+
+          resolve_waha_container
+
+          label() {
+            local v
+            v="$(docker inspect -f "{{index .Config.Labels \"$1\"}}" "$CONTAINER" 2>/dev/null || true)"
+            if [ -z "$v" ] || [ "$v" = "<no value>" ]; then
+              echo ""
+            else
+              echo "$v"
+            fi
+          }
+
+          WORKDIR="$(label com.docker.compose.project.working_dir)"
+          PROJECT="$(label com.docker.compose.project)"
+          SERVICE="$(label com.docker.compose.service)"
+          IMAGE="$(docker inspect -f '{{.Config.Image}}' "$CONTAINER")"
+
+          echo "=== Preflight ==="
+          echo "image=${IMAGE}"
+          echo "compose_workdir=${WORKDIR:-none}"
+          echo "compose_project=${PROJECT:-none}"
+          echo "compose_service=${SERVICE:-none}"
+          echo "binds:"
+          docker inspect -f '{{range .HostConfig.Binds}}{{println .}}{{end}}' "$CONTAINER" || true
+          echo "mounts:"
+          docker inspect -f '{{range .Mounts}}{{.Type}} {{.Source}} -> {{.Destination}}{{println}}{{end}}' "$CONTAINER" || true
+
+          if [ -z "$WORKDIR" ] || [ ! -d "$WORKDIR" ]; then
+            echo "::error::Kein Docker-Compose-Projekt am Container — Update nur mit compose (pull + up -d)."
+            exit 1
+          fi
+
+          # Session-Persistenz: ohne Volume/Bind auf .sessions oder DB-Storage riskant
+          HAS_SESSION_PERSIST=0
+          if docker inspect -f '{{range .Mounts}}{{.Destination}}{{println}}{{end}}' "$CONTAINER" \
+            | grep -Eqi '/app/\.sessions|\.sessions|postgres|mongo|s3|storage'; then
+            HAS_SESSION_PERSIST=1
+          fi
+          if docker inspect -f '{{range .HostConfig.Binds}}{{println .}}{{end}}' "$CONTAINER" \
+            | grep -Eqi '\.sessions|postgres|mongo'; then
+            HAS_SESSION_PERSIST=1
+          fi
+          if [ "$HAS_SESSION_PERSIST" -eq 0 ]; then
+            echo "::warning::Kein offensichtliches Session-/Storage-Volume gefunden. QR-Scan nach Update möglich, wenn Sessions nicht persistiert sind."
+          else
+            echo "Session-/Storage-Mount erkannt — laut WAHA-Doku bleiben Sessions erhalten."
+          fi
+
+          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          BACKUP_DIR="${WORKDIR}/.gwada-waha-update-backup-${STAMP}"
+          mkdir -p "$BACKUP_DIR"
+          echo "compose_backup=${BACKUP_DIR}"
+
+          for f in \
+            "$WORKDIR/docker-compose.yml" \
+            "$WORKDIR/docker-compose.yaml" \
+            "$WORKDIR/compose.yml" \
+            "$WORKDIR/compose.yaml" \
+            "$WORKDIR/.env"
+          do
+            if [ -f "$f" ]; then
+              cp -a "$f" "$BACKUP_DIR/"
+              echo "backed_up=$(basename "$f")"
+            fi
+          done
+
+          # Ab 2026.6.1: Plus ist Core — Image auf öffentliches waha umbiegen
+          migrate_plus_to_core() {
+            local f="$1"
+            if grep -Eq 'image:[[:space:]]*.*waha-plus' "$f"; then
+              echo "Migrate waha-plus → waha in $(basename "$f") (Plus=Core seit 2026.6.1)"
+              sed -i -E 's|(image:[[:space:]]*)([^[:space:]]*)waha-plus|\1\2waha|g' "$f"
+              # falls path-ähnlich docker.io/devlikeapro/waha-plus
+              sed -i -E 's|devlikeapro/waha-plus|devlikeapro/waha|g' "$f"
+            fi
+          }
+
+          bump_pinned_tag() {
+            local f="$1"
+            if [ -z "${TARGET_VERSION:-}" ]; then return 0; fi
+            local new_tag="latest-${TARGET_VERSION}"
+            if grep -Eq 'image:[[:space:]]*.*waha[^[:space:]]*:latest-[0-9]' "$f"; then
+              echo "Pinned Tag in $(basename "$f") → ${new_tag}"
+              sed -i -E "s|(image:[[:space:]]*[^[:space:]]*waha[^[:space:]]*):latest-[0-9.]+|\\1:${new_tag}|g" "$f"
+            fi
+          }
+
+          for f in \
+            "$WORKDIR/docker-compose.yml" \
+            "$WORKDIR/docker-compose.yaml" \
+            "$WORKDIR/compose.yml" \
+            "$WORKDIR/compose.yaml"
+          do
+            if [ -f "$f" ]; then
+              migrate_plus_to_core "$f"
+              bump_pinned_tag "$f"
+            fi
+          done
+
+          NEED_PLUS_LOGIN=0
+          if echo "$IMAGE" | grep -Fq 'waha-plus'; then
+            NEED_PLUS_LOGIN=1
+          fi
+          if grep -REq 'waha-plus' \
+            "$WORKDIR/docker-compose.yml" \
+            "$WORKDIR/docker-compose.yaml" \
+            "$WORKDIR/compose.yml" \
+            "$WORKDIR/compose.yaml" 2>/dev/null; then
+            NEED_PLUS_LOGIN=1
+          fi
+
+          if [ "$NEED_PLUS_LOGIN" -eq 1 ] && [ -n "${WAHA_PLUS_DOCKER_PASSWORD:-}" ]; then
+            echo "$WAHA_PLUS_DOCKER_PASSWORD" | docker login -u devlikeapro --password-stdin
+          elif [ "$NEED_PLUS_LOGIN" -eq 1 ]; then
+            echo "::warning::Altes waha-plus Image — ohne WAHA_PLUS_DOCKER_PASSWORD ggf. Pull-Fehler; Compose wurde auf waha umgestellt."
+          fi
+
+          cleanup() {
+            docker logout >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          cd "$WORKDIR"
+          COMPOSE=(docker compose)
+          if [ -n "$PROJECT" ]; then
+            COMPOSE=(docker compose -p "$PROJECT")
+          fi
+
+          # Offizielle Doku: pull + up -d (ohne force-recreate; recreate nur wenn Image neu)
+          if [ -n "$SERVICE" ]; then
+            "${COMPOSE[@]}" pull "$SERVICE"
+            "${COMPOSE[@]}" up -d "$SERVICE"
+          else
+            "${COMPOSE[@]}" pull
+            "${COMPOSE[@]}" up -d
+          fi
+
+          sleep 3
+          if ! docker ps --format '{{.Names}}' | grep -Fxq "$CONTAINER"; then
+            # Name kann sich bei recreate leicht ändern — Service-Status prüfen
+            echo "::warning::Container-Name ${CONTAINER} nicht mehr exakt in docker ps — compose ps:"
+            "${COMPOSE[@]}" ps || true
+            # Rollback-Hinweis
+            echo "::error::Container scheint nicht zu laufen. Compose-Backup: ${BACKUP_DIR}"
+            exit 1
+          fi
+
+          docker ps --filter "name=^${CONTAINER}$" --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+          echo "WAHA-Update fertig. Backup: ${BACKUP_DIR}"
+          REMOTE

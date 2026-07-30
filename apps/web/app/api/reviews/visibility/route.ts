@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isReviewPlatform } from "@/lib/constants/review-platforms";
+import { revalidatePublicReviewsEmbedForRestaurant } from "@/lib/reviews/revalidate-public-reviews-embed";
 import { setReviewHiddenFromPublic } from "@/lib/reviews/review-visibility-server";
 import { authorizeReviewsRestaurant } from "@/lib/reviews/route-auth";
 
@@ -38,6 +39,8 @@ export async function POST(req: Request) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
+
+  await revalidatePublicReviewsEmbedForRestaurant(auth.sb, restaurantId);
 
   return NextResponse.json({ ok: true, hiddenFromPublic: hidden });
 }

@@ -3,15 +3,16 @@
 import { toast } from "sonner";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import {
+  DrawerFilterField,
+  DrawerFilterHeader,
+  DrawerFilterZone,
+} from "@/components/ui/drawer-filter-sheet";
 import {
   Select,
   SelectContent,
@@ -55,68 +56,57 @@ export function FilterDrawer({
       <DrawerContent
         className={drawerContentClassName("template")}
       >
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Filter
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            Diät-Tags und Preisspanne für die aktuelle Kategorieansicht.
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter" />
 
         <div className={drawerScrollAreaClassName(6)}>
-          <DrawerFormSection title="Eigenschaften">
-            <Select
-              value={dietFilter}
-              items={Object.fromEntries(
-                dietOptions.map(({ value, label }) => [value, label]),
-              )}
-              onValueChange={(v) => {
-                if (typeof v === "string")
-                  onDietFilterChange(v as DietFilter);
-              }}
-            >
-              <SelectTrigger
-                id="filter-diet-select"
-                className="h-12 w-full rounded-2xl text-left text-base font-medium"
+          <DrawerFilterZone showLabel={false}>
+            <DrawerFilterField label="Eigenschaften">
+              <Select
+                value={dietFilter}
+                items={Object.fromEntries(
+                  dietOptions.map(({ value, label }) => [value, label]),
+                )}
+                onValueChange={(v) => {
+                  if (typeof v === "string")
+                    onDietFilterChange(v as DietFilter);
+                }}
               >
-                <SelectValue placeholder="Eigenschaft wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                {dietOptions.map(({ value, label }) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Filtert Gerichte nach Ernährungsmerkmalen in der aktuellen Ansicht.
-            </p>
-          </DrawerFormSection>
+                <SelectTrigger
+                  id="filter-diet-select"
+                  className="h-12 w-full rounded-2xl text-left text-base font-medium"
+                >
+                  <SelectValue placeholder="Eigenschaft wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {dietOptions.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </DrawerFilterField>
 
-          <DrawerFormSection title="Preisspanne">
-            <p className="text-sm font-medium tabular-nums text-foreground">
-              {formatMenuPrice(lo, currencyCode)} – {formatMenuPrice(hi, currencyCode)}
-            </p>
-            <Slider
-              value={[Math.min(lo, hi), Math.max(lo, hi)]}
-              onValueChange={(v) => {
-                const vals = Array.isArray(v) ? [...v] : [v, v];
-                const a = Math.max(0, Math.min(vals[0], vals[1]));
-                const b = Math.min(safeMax, Math.max(vals[0], vals[1]));
-                onPriceRangeChange([a, b] as PriceRange);
-              }}
-              min={0}
-              max={safeMax}
-              step={0.5}
-              minStepsBetweenValues={0}
-              className="w-full py-2"
-            />
-            <p className="text-xs text-muted-foreground">
-              Von 0 bis {formatMenuPrice(safeMax, currencyCode)} (abhängig von den höchsten Preisen in der Karte)
-            </p>
-          </DrawerFormSection>
+            <DrawerFilterField label="Preisspanne">
+              <p className="text-sm font-medium tabular-nums text-foreground">
+                {formatMenuPrice(lo, currencyCode)} – {formatMenuPrice(hi, currencyCode)}
+              </p>
+              <Slider
+                value={[Math.min(lo, hi), Math.max(lo, hi)]}
+                onValueChange={(v) => {
+                  const vals = Array.isArray(v) ? [...v] : [v, v];
+                  const a = Math.max(0, Math.min(vals[0], vals[1]));
+                  const b = Math.min(safeMax, Math.max(vals[0], vals[1]));
+                  onPriceRangeChange([a, b] as PriceRange);
+                }}
+                min={0}
+                max={safeMax}
+                step={0.5}
+                minStepsBetweenValues={0}
+                className="w-full py-2"
+              />
+            </DrawerFilterField>
+          </DrawerFilterZone>
         </div>
 
         <DrawerFilterFooter

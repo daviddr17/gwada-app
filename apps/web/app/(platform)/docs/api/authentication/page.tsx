@@ -19,6 +19,12 @@ export default function DocsApiAuthenticationPage() {
       <pre>{`GET /api/v1/menu
 Authorization: Bearer gwada_sk_live_…
 Accept: application/json`}</pre>
+      <p>
+        Für Schreibzugriffe (derzeit nur{" "}
+        <Link href="/docs/api/reservation">Reservierung</Link>) dieselbe Auth mit{" "}
+        <code>POST</code> und <code>Content-Type: application/json</code>. Das
+        Restaurant (Slug) kommt aus dem Key — nicht im Body mitschicken.
+      </p>
 
       <h2>Secret-Key</h2>
       <ul>

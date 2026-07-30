@@ -12,7 +12,7 @@ export const publicProfileHeroTitleClassName =
   "text-balance text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl";
 
 export const publicProfileHeroDescriptionClassName =
-  "mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground md:text-base";
+  "mt-2 text-sm leading-relaxed text-muted-foreground md:text-base";
 
 /** Sichtbare Hero-Karte — Cover + Body-Chrome. */
 export const publicProfileHeroCardShellClassName = cn(

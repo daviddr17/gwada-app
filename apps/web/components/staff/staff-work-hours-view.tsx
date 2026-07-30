@@ -1,11 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCssVarElementHeight } from "@/lib/hooks/use-css-var-element-height";
+import {
+  STAFF_MODULE_STICKY_BAR_H_VAR,
+  STAFF_WORK_HOURS_MONTH_BAR_H_VAR,
+} from "@/lib/staff/staff-sticky-chrome";
 import {
   Select,
   SelectContent,
@@ -16,6 +21,7 @@ import {
 import { StaffCollapsibleCard } from "@/components/staff/staff-collapsible-card";
 import { StaffWorkHoursSkeleton } from "@/components/staff/staff-work-hours-skeleton";
 import { StaffWorkEntryDrawer } from "@/components/staff/staff-work-entry-drawer";
+import { StaffWageAdvancesSection } from "@/components/staff/staff-wage-advances-section";
 import {
   daysInclusive,
   exclusiveUtcIsoAfterLocalVisibleEnd,
@@ -35,7 +41,11 @@ import type {
   RestaurantStaffRow,
   RestaurantStaffWorkEntryRow,
 } from "@/lib/types/staff";
-import { summarizeStaffWorkEntries } from "@/lib/staff/staff-work-hours-summary";
+import {
+  entryDurationHours,
+  formatWorkTimeRangeWithHoursDe,
+  summarizeStaffWorkEntries,
+} from "@/lib/staff/staff-work-hours-summary";
 import {
   computeStaffPeriodPayrollLines,
   computeStaffPeriodWageSummary,
@@ -73,8 +83,9 @@ const timeDe = new Intl.DateTimeFormat("de-DE", {
   minute: "2-digit",
 });
 
+/** Select-Wert nicht in die Chevron-Zelle quetschen (Basis-Trigger: grow/basis-0). */
 const selectValueNoShrink =
-  "[&_[data-slot=select-value]]:!min-w-0 [&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
+  "[&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:!basis-auto [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
 
 const GERMAN_MONTH_ITEMS = Object.fromEntries(
   Array.from({ length: 12 }, (_, m) => [
@@ -94,6 +105,7 @@ function useMonthCursor() {
     cursor,
     setMonth: (month: number) => setCursor((c) => ({ ...c, month })),
     setYear: (year: number) => setCursor((c) => ({ ...c, year })),
+    goToMonth: (year: number, month: number) => setCursor({ year, month }),
     prevMonth: () =>
       setCursor(({ year, month }) => {
         const d = new Date(year, month - 1, 1);
@@ -105,6 +117,16 @@ function useMonthCursor() {
         return { year: d.getFullYear(), month: d.getMonth() };
       }),
   };
+}
+
+function workHoursDayDomId(dayKey: string): string {
+  return `staff-work-hours-day-${dayKey}`;
+}
+
+function scrollToWorkHoursDay(dayKey: string): void {
+  document
+    .getElementById(workHoursDayDomId(dayKey))
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function localDayKey(d: Date): string {
@@ -134,7 +156,11 @@ export function StaffWorkHoursView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { cursor, setMonth, setYear, prevMonth, nextMonth } = useMonthCursor();
+  const { cursor, setMonth, setYear, goToMonth, prevMonth, nextMonth } =
+    useMonthCursor();
+  const pendingScrollToTodayRef = useRef(false);
+  const monthStickyRef = useRef<HTMLDivElement>(null);
+  useCssVarElementHeight(monthStickyRef, STAFF_WORK_HOURS_MONTH_BAR_H_VAR);
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -294,6 +320,29 @@ export function StaffWorkHoursView({
   }, [entries, drawerStaffId]);
 
   const today = useMemo(() => startOfLocalDay(new Date()), []);
+  const todayKey = useMemo(() => localDayKey(today), [today]);
+  const viewingCurrentMonth =
+    cursor.year === today.getFullYear() && cursor.month === today.getMonth();
+
+  useEffect(() => {
+    if (!pendingScrollToTodayRef.current || !viewingCurrentMonth) return;
+    if (showSkeleton) return;
+    pendingScrollToTodayRef.current = false;
+    const id = window.requestAnimationFrame(() => {
+      scrollToWorkHoursDay(todayKey);
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [viewingCurrentMonth, todayKey, monthDays, showSkeleton]);
+
+  const goToToday = useCallback(() => {
+    if (!viewingCurrentMonth) {
+      pendingScrollToTodayRef.current = true;
+      goToMonth(today.getFullYear(), today.getMonth());
+      return;
+    }
+    scrollToWorkHoursDay(todayKey);
+  }, [viewingCurrentMonth, goToMonth, today, todayKey]);
+
   const yearMin = today.getFullYear() - 1;
   const yearMax = today.getFullYear() + 2;
   const yearItems = useMemo(
@@ -323,6 +372,9 @@ export function StaffWorkHoursView({
 
   const entryRowClassName =
     "flex w-full items-start gap-2 rounded-lg border border-border/40 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45";
+  /** Kein eigener Border — der Display-Schicht-Container ist der sichtbare Rahmen. */
+  const displayShiftRowClassName =
+    "group flex w-full flex-col gap-1 rounded-lg text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45";
 
   const siblingEntries = useMemo(() => {
     if (!drawerOpen || !drawerStaffId) return [];
@@ -354,6 +406,104 @@ export function StaffWorkHoursView({
         <StaffWorkHoursSkeleton />
       ) : (
         <>
+          <div
+            ref={monthStickyRef}
+            style={{
+              top: `var(${STAFF_MODULE_STICKY_BAR_H_VAR}, 4.75rem)`,
+            }}
+            className={cn(
+              "sticky z-20 -mx-4 mb-4 border-b border-border/50 bg-app-chrome px-4 py-1.5 sm:-mx-6 sm:px-6 sm:py-2.5",
+              "transition-[padding,top] duration-200 ease-out",
+              "supports-[backdrop-filter]:bg-app-chrome/95 supports-[backdrop-filter]:backdrop-blur",
+            )}
+          >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-2.5">
+              {/* Bis lg volle Breite → „Heute“ wrappt; schmale Sidebar-Layouts überdecken sonst den Jahres-Pfeil. */}
+              <div className="flex w-full min-w-0 items-center gap-0.5 sm:gap-1 lg:w-auto lg:shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 shrink-0 rounded-lg transition-[width,height] duration-200 ease-out sm:size-9"
+                  onClick={prevMonth}
+                  aria-label="Vorheriger Monat"
+                >
+                  <ChevronLeft className="size-4 sm:size-5" />
+                </Button>
+                <Select
+                  value={String(cursor.month)}
+                  items={GERMAN_MONTH_ITEMS}
+                  onValueChange={(v) => {
+                    if (typeof v === "string") setMonth(Number.parseInt(v, 10));
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className={appSelectTriggerAccentCn(
+                      "h-8 min-h-8 w-auto min-w-[8.25rem] max-w-[11rem] shrink-0 rounded-xl px-2 text-left text-sm font-normal transition-[height,min-height,min-width] duration-200 ease-out sm:h-9 sm:min-h-9 sm:min-w-[9.5rem] sm:max-w-[12rem] sm:px-2.5",
+                      selectValueNoShrink,
+                    )}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, m) => (
+                      <SelectItem key={m} value={String(m)}>
+                        {GERMAN_MONTH_ITEMS[String(m)]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(cursor.year)}
+                  items={yearItems}
+                  onValueChange={(v) => {
+                    if (typeof v === "string") setYear(Number.parseInt(v, 10));
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className={appSelectTriggerAccentCn(
+                      "h-8 min-h-8 min-w-[5.75rem] w-auto shrink-0 rounded-xl px-2.5 text-left text-sm font-normal tabular-nums transition-[height,min-height] duration-200 ease-out sm:h-9 sm:min-h-9 sm:min-w-[6.25rem] sm:px-3",
+                      selectValueNoShrink,
+                    )}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: yearMax - yearMin + 1 }, (_, i) => {
+                      const y = yearMin + i;
+                      return (
+                        <SelectItem key={y} value={String(y)}>
+                          {y}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 shrink-0 rounded-lg transition-[width,height] duration-200 ease-out sm:size-9"
+                  onClick={nextMonth}
+                  aria-label="Nächster Monat"
+                >
+                  <ChevronRight className="size-4 sm:size-5" />
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="ml-auto h-7 shrink-0 rounded-full border-green-500/35 bg-green-500/10 px-2.5 text-xs font-medium text-green-800 transition-[height,padding,font-size] duration-200 ease-out hover:bg-green-500/15 hover:text-green-900 sm:h-8 sm:px-3 sm:text-sm dark:text-green-200 dark:hover:text-green-100"
+                onClick={goToToday}
+              >
+                Heute
+              </Button>
+            </div>
+          </div>
+
           <StaffCollapsibleCard
             title={
               staff
@@ -585,100 +735,50 @@ export function StaffWorkHoursView({
                 </div>
               </div>
             )}
+            {staffId ? (
+              <StaffWageAdvancesSection
+                restaurantId={restaurantId}
+                staffId={staffId}
+                paidOnFromYmd={localDayKey(monthStart)}
+                paidOnToYmd={localDayKey(monthEnd)}
+                wageCents={payrollWageTotalCents}
+                allowEdit={allowEdit}
+              />
+            ) : null}
           </StaffCollapsibleCard>
-
-          <Card className="mb-4 border-border/50 shadow-card">
-            <CardContent className="flex items-center px-4 py-3">
-              <div className="flex min-w-0 items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-9 shrink-0 rounded-lg"
-                  onClick={prevMonth}
-                  aria-label="Vorheriger Monat"
-                >
-                  <ChevronLeft className="size-5" />
-                </Button>
-                <Select
-                  value={String(cursor.month)}
-                  items={GERMAN_MONTH_ITEMS}
-                  onValueChange={(v) => {
-                    if (typeof v === "string") setMonth(Number.parseInt(v, 10));
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className={appSelectTriggerAccentCn(
-                      "h-9 min-h-9 min-w-[9.5rem] max-w-[12rem] shrink-0 rounded-xl px-2.5 text-left text-sm font-normal",
-                      selectValueNoShrink,
-                    )}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 12 }, (_, m) => (
-                      <SelectItem key={m} value={String(m)}>
-                        {GERMAN_MONTH_ITEMS[String(m)]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={String(cursor.year)}
-                  items={yearItems}
-                  onValueChange={(v) => {
-                    if (typeof v === "string") setYear(Number.parseInt(v, 10));
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className={appSelectTriggerAccentCn(
-                      "h-9 min-h-9 min-w-[4.75rem] w-auto shrink-0 rounded-xl px-2.5 text-left text-sm font-normal tabular-nums",
-                      selectValueNoShrink,
-                    )}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: yearMax - yearMin + 1 }, (_, i) => {
-                      const y = yearMin + i;
-                      return (
-                        <SelectItem key={y} value={String(y)}>
-                          {y}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-9 shrink-0 rounded-lg"
-                  onClick={nextMonth}
-                  aria-label="Nächster Monat"
-                >
-                  <ChevronRight className="size-5" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
 
           <div className="space-y-3">
             {monthDays.map((day) => {
               const key = localDayKey(day);
+              const isToday = key === todayKey;
               const dayEntries = byDay.get(key) ?? [];
               const canAddEntry = Boolean(staffId);
               const blockNewTimeEntry = staffId
                 ? findStaffAbsenceOnDay(entries, staffId, key) != null
                 : false;
               return (
-                <Card key={key} className="border-border/50 shadow-card">
+                <Card
+                  key={key}
+                  id={workHoursDayDomId(key)}
+                  style={{
+                    scrollMarginTop: `calc(var(${STAFF_MODULE_STICKY_BAR_H_VAR}, 4.75rem) + var(${STAFF_WORK_HOURS_MONTH_BAR_H_VAR}, 3rem) + 0.5rem)`,
+                  }}
+                  className={cn(
+                    "border-border/50 shadow-card",
+                    isToday && "ring-1 ring-green-500/25 dark:ring-green-400/20",
+                  )}
+                >
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                    <CardTitle className="text-base">
-                      {formatDayHeadingDe(day)}
-                    </CardTitle>
+                    <div className="min-w-0 space-y-0.5">
+                      {isToday ? (
+                        <p className="text-sm font-semibold text-green-600 dark:text-green-400">
+                          Heute
+                        </p>
+                      ) : null}
+                      <CardTitle className="text-base">
+                        {formatDayHeadingDe(day)}
+                      </CardTitle>
+                    </div>
                     {allowEdit && canAddEntry && !blockNewTimeEntry ? (
                       <Button
                         type="button"
@@ -714,20 +814,18 @@ export function StaffWorkHoursView({
                             <button
                               key={item.shiftId}
                               type="button"
-                              className={entryRowClassName}
+                              className={displayShiftRowClassName}
                               onClick={() => openDisplayShift(item.segments)}
                             >
-                              <div className="min-w-0 flex-1">
-                                {!staffId && shiftStaffLabel ? (
-                                  <p className="mb-1 text-xs text-muted-foreground">
-                                    {shiftStaffLabel}
-                                  </p>
-                                ) : null}
-                                <StaffDisplayShiftRow
-                                  segments={item.segments}
-                                  timeZone={restaurantTimeZone}
-                                />
-                              </div>
+                              {!staffId && shiftStaffLabel ? (
+                                <p className="px-0.5 text-xs text-muted-foreground">
+                                  {shiftStaffLabel}
+                                </p>
+                              ) : null}
+                              <StaffDisplayShiftRow
+                                segments={item.segments}
+                                timeZone={restaurantTimeZone}
+                              />
                             </button>
                           );
                         }
@@ -766,7 +864,10 @@ export function StaffWorkHoursView({
                                 ) : null}
                               </span>
                               <span className="mt-0.5 block text-xs text-muted-foreground tabular-nums">
-                                {timeDe.format(new Date(e.starts_at))} – {endLabel}
+                                {formatWorkTimeRangeWithHoursDe(
+                                  `${timeDe.format(new Date(e.starts_at))} – ${endLabel}`,
+                                  e.is_open ? null : entryDurationHours(e),
+                                )}
                               </span>
                             </span>
                           </button>

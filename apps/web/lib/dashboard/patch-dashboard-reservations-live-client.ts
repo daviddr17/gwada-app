@@ -14,6 +14,7 @@ export type ReservationLiveInsertFields = {
   dwell_minutes?: number | null;
   guest_first_name: string | null;
   guest_last_name: string | null;
+  guest_company?: string | null;
   party_size: number;
   statusId: string;
   statusCode: string;
@@ -51,6 +52,7 @@ export function reservationLiveInsertListRowRaw(
     dwell_minutes: insert.dwell_minutes ?? DEFAULT_LIVE_INSERT_DWELL_MINUTES,
     guest_first_name: insert.guest_first_name,
     guest_last_name: insert.guest_last_name,
+    guest_company: insert.guest_company ?? null,
     party_size: insert.party_size,
     reservation_statuses: {
       code: insert.statusCode,
@@ -126,6 +128,8 @@ export function reservationLiveInsertFromRecord(
       typeof row.guest_first_name === "string" ? row.guest_first_name : null,
     guest_last_name:
       typeof row.guest_last_name === "string" ? row.guest_last_name : null,
+    guest_company:
+      typeof row.guest_company === "string" ? row.guest_company : null,
     party_size:
       Number.isFinite(partySize) && partySize > 0 ? partySize : 1,
     statusId: statusObj?.id ?? "",
@@ -196,6 +200,7 @@ export function patchDashboardReservationSummaryFromInsert(
 
   const guestLabel =
     `${insert.guest_first_name ?? ""} ${insert.guest_last_name ?? ""}`.trim() ||
+    insert.guest_company?.trim() ||
     "Gast";
   const recentEntry = {
     id: insert.id,

@@ -70,10 +70,18 @@ export function DashboardWeatherTile() {
   const { profile, isReady: profileReady } = useRestaurantProfile();
   const location = useMemo(() => buildVisualCrossingLocation(profile), [profile]);
 
-  const [data, setData] = useState<VisualCrossingTimelineResponse | null>(null);
+  // Soft-Nav-Remount: Cache synchron lesen — kein Leer-Frame vor useEffect.
+  const cachedOnLocation = profileReady
+    ? peekDashboardWeatherCache(location)
+    : null;
+  const [data, setData] = useState<VisualCrossingTimelineResponse | null>(
+    () => (profileReady ? peekDashboardWeatherCache(location) : null),
+  );
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const hasDataRef = useRef(false);
+  const displayData = data ?? cachedOnLocation;
+  if (displayData) hasDataRef.current = true;
 
   const load = useCallback(async (loc: string, silent = false) => {
     const initial = !hasDataRef.current;
@@ -149,10 +157,10 @@ export function DashboardWeatherTile() {
       window.removeEventListener(GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT, onPoll);
   }, [profileReady, location, load]);
 
-  const today = data?.days?.[0];
-  const cur = data?.currentConditions;
+  const today = displayData?.days?.[0];
+  const cur = displayData?.currentConditions;
   const showSkeleton = useDeferredSkeleton(
-    profileReady && loading && !data && !err,
+    profileReady && loading && !displayData && !err,
   );
 
   const ambienceKind = useMemo(

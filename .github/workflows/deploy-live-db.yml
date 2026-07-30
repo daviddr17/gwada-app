@@ -33,7 +33,12 @@ jobs:
           fi
           REF="${REF:-main}"
           echo "ref=${REF}" >> "$GITHUB_OUTPUT"
-          echo "install_dev_pubkey=${PUBKEY}" >> "$GITHUB_OUTPUT"
+          # Pubkey enthält Leerzeichen — delimiter-Syntax nötig
+          {
+            echo "install_dev_pubkey<<GWADA_EOF"
+            echo "${PUBKEY}"
+            echo "GWADA_EOF"
+          } >> "$GITHUB_OUTPUT"
 
   migrate:
     needs: resolve-ref
@@ -116,3 +121,19 @@ jobs:
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           bash scripts/sync-github-deploy-token-live.sh
+
+      - name: Sync GitHub App credentials to VPS
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          GITHUB_APP_ID: ${{ secrets.GWADA_GITHUB_APP_ID }}
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.GWADA_GITHUB_APP_INSTALLATION_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.GWADA_GITHUB_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "${GITHUB_APP_ID}" ] || [ -z "${GITHUB_APP_INSTALLATION_ID}" ] || [ -z "${GITHUB_APP_PRIVATE_KEY}" ]; then
+            echo "GWADA_GITHUB_APP_* fehlen — App-Credential-Sync übersprungen."
+            exit 0
+          fi
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          bash scripts/sync-github-app-credentials-live.sh

@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Menu, Search, UserRound, X } from "lucide-react";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
+import { useAppShellReadiness } from "@/components/providers/app-shell-readiness-provider";
 import {
   normalizeNavHref,
   useSoftNavLock,
@@ -25,6 +27,9 @@ const itemClassName =
 
 const itemActiveClassName = "text-foreground";
 
+/** Nach Soft-Nav-Close: Dock darf Menü nicht sofort wieder aufklappen. */
+const MENU_REOPEN_COOLDOWN_MS = 480;
+
 /**
  * Mobile Primary-Nav: Menü · Suche · Meldungen · Profil (Thumb-Zone).
  * z über `mobileChromeOverlay` — Sheet fährt darunter durch; X bleibt klickbar.
@@ -34,7 +39,10 @@ const itemActiveClassName = "text-foreground";
 export function AppMobileBottomNav() {
   const pathname = usePathname();
   const { pendingHref } = useSoftNavLock();
-  const { openMobile, setOpenMobile, toggleSidebar } = useSidebar();
+  const { dismissBootstrap } = useAppShellReadiness();
+  const { openMobile, setOpenMobile } = useSidebar();
+  const wasOpenRef = useRef(openMobile);
+  const reopenBlockedUntilRef = useRef(0);
   const search = useDashboardGlobalSearchOptional();
   const showSearch = isRestaurantDashboardPath(pathname) && Boolean(search);
   const searchOpen = Boolean(search?.open);
@@ -44,6 +52,17 @@ export function AppMobileBottomNav() {
     normalizeNavHref(pendingHref).startsWith(APP_ROUTES.profile.root);
   const profileActive =
     pathname.startsWith(APP_ROUTES.profile.root) || profilePending;
+
+  useEffect(() => {
+    if (wasOpenRef.current && !openMobile) {
+      reopenBlockedUntilRef.current = Date.now() + MENU_REOPEN_COOLDOWN_MS;
+    }
+    // Menü öffnen = Nutzer interagiert → Bootstrap weg (echte Module sichtbar).
+    if (!wasOpenRef.current && openMobile) {
+      dismissBootstrap();
+    }
+    wasOpenRef.current = openMobile;
+  }, [openMobile, dismissBootstrap]);
 
   return (
     <nav
@@ -68,7 +87,23 @@ export function AppMobileBottomNav() {
           aria-expanded={openMobile}
           onClick={() => {
             if (searchOpen) search?.closeSearch();
-            toggleSidebar();
+            // Menü offen → immer schließen (kein Toggle-Miss).
+            if (openMobile) {
+              setOpenMobile(false);
+              return;
+            }
+            // Close-Animation / frischer Soft-Nav-Close: nicht sofort wieder öffnen.
+            if (Date.now() < reopenBlockedUntilRef.current) {
+              return;
+            }
+            if (
+              document.querySelector(
+                '[data-app-mobile-chrome-overlay][data-open="false"]',
+              )
+            ) {
+              return;
+            }
+            setOpenMobile(true);
           }}
         >
           {openMobile ? (
@@ -128,7 +163,7 @@ export function AppMobileBottomNav() {
           className={cn(itemClassName, profileActive && itemActiveClassName)}
           aria-label="Profil"
           aria-current={profileActive ? "page" : undefined}
-          render={<AppNavLink href={profileHref} prefetch />}
+          render={<AppNavLink href={profileHref} />}
         >
           <UserRound className="size-5 shrink-0" aria-hidden />
           <span>Profil</span>

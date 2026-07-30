@@ -55,5 +55,6 @@ export function mapImapAttachmentsForMessage(params: {
       uid: params.uid,
       index: a.index,
     }),
+    loadOnClick: true,
   }));
 }

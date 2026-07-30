@@ -77,12 +77,24 @@ export function subscribeRestaurantTableChanges(
   let channel: RealtimeChannel | null = null;
   let subscribing = false;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** CLOSED von Replace/Teardown — kein Polling-Sturm (besonders nach Tab-Idle). */
+  let suppressClosedUntil = 0;
 
   const clearRetry = () => {
     if (retryTimer) {
       clearTimeout(retryTimer);
       retryTimer = null;
     }
+  };
+
+  const suppressClosedBriefly = () => {
+    suppressClosedUntil = Date.now() + 2_500;
+  };
+
+  const shouldNotifyClosed = () => {
+    if (document.visibilityState !== "visible") return false;
+    if (Date.now() < suppressClosedUntil) return false;
+    return true;
   };
 
   const matchesRestaurant = (row: { restaurant_id?: string } | undefined) =>
@@ -93,6 +105,7 @@ export function subscribeRestaurantTableChanges(
       return;
     }
 
+    suppressClosedBriefly();
     removeChannelsByName(sb, options.channelName);
     channel = null;
 
@@ -139,6 +152,7 @@ export function subscribeRestaurantTableChanges(
             err?.message ?? "",
           );
           options.onStatus?.(status);
+          suppressClosedBriefly();
           void sb.removeChannel(ch);
           channel = null;
           clearRetry();
@@ -149,7 +163,9 @@ export function subscribeRestaurantTableChanges(
         }
         if (status === "CLOSED") {
           channel = null;
-          options.onStatus?.("CLOSED");
+          if (shouldNotifyClosed()) {
+            options.onStatus?.("CLOSED");
+          }
         }
       });
     } catch (err) {
@@ -167,12 +183,14 @@ export function subscribeRestaurantTableChanges(
   const unsubscribe = () => {
     clearRetry();
     subscribing = false;
+    // Intentional pause (Tab-Idle) / Unmount / Replace — CLOSED unterdrücken,
+    // sonst starten alle Hooks sofort Fallback-Polling (Klick-Freeze nach Tab-Rückkehr).
+    suppressClosedBriefly();
     if (channel) {
       void sb.removeChannel(channel);
       channel = null;
     }
     removeChannelsByName(sb, options.channelName);
-    options.onStatus?.("CLOSED");
   };
 
   const subscription: RestaurantRealtimeSubscription = {

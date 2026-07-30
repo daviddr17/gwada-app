@@ -9,6 +9,7 @@ import {
   hasAnyReviewInclude,
   reviewRequestSettingsFromRow,
 } from "@/lib/reviews/gwada-review-invitation-server";
+import { resolveGoogleReviewUrlFromBusiness } from "@/lib/reviews/google-review-url-server";
 import { oauthConfigFromJson, type MetaOAuthIntegrationConfig } from "@/lib/integrations/oauth-integration-types";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -60,6 +61,12 @@ export async function appendReviewRequestToMessage(
       reservationId: params.reservationId,
     });
     invitationToken = inv?.token ?? null;
+    if (!invitationToken) {
+      console.warn(
+        "appendReviewRequest: Gwada-Einladung fehlgeschlagen",
+        params.reservationId,
+      );
+    }
   }
 
   const fbRow = settings.includeFacebook
@@ -70,21 +77,43 @@ export async function appendReviewRequestToMessage(
       )
     : null;
 
+  let googleReviewUrl = settings.review_google_url;
+  if (settings.includeGoogle && !googleReviewUrl) {
+    googleReviewUrl = await resolveGoogleReviewUrlFromBusiness(
+      params.restaurantId,
+    );
+  }
+
   const origin =
     params.origin?.replace(/\/$/, "") ??
     getPublicSiteUrl()?.replace(/\/$/, "") ??
-    "http://localhost:3000";
+    "https://gwada.app";
 
   const block = buildReviewRequestBlock({
     origin,
     settings,
     invitationToken,
-    googleReviewUrl: settings.review_google_url,
+    googleReviewUrl,
     facebookReviewUrl:
       settings.review_facebook_url ??
       facebookReviewUrl(fbRow?.config.page_id),
   });
 
-  if (!block.trim()) return params.text;
+  if (!block.trim()) {
+    if (hasAnyReviewInclude(settings)) {
+      console.warn(
+        "appendReviewRequest: keine Links gebaut (Token/URL fehlt)",
+        {
+          reservationId: params.reservationId,
+          channel: params.channel,
+          includeGwada: settings.includeGwada,
+          includeGoogle: settings.includeGoogle,
+          hasToken: Boolean(invitationToken),
+          hasGoogleUrl: Boolean(googleReviewUrl),
+        },
+      );
+    }
+    return params.text;
+  }
   return `${params.text.trim()}${block}`;
 }

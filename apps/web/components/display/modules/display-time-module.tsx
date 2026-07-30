@@ -18,6 +18,7 @@ import {
 import type { DisplayPrepareAndGate } from "@/components/display/modules/display-shift-gates";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import { GWADA_DISPLAY_TIME_REFRESH_EVENT } from "@/lib/display/display-time-live-events";
+import { handleDisplaySessionAuthFailure } from "@/lib/display/display-session-client";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import {
   displayTimeActionButtonOutlineClassName,
@@ -184,6 +185,7 @@ export function DisplayTimeModule({
         cache: "no-store",
         credentials: "include",
       });
+      if (await handleDisplaySessionAuthFailure(res)) return;
       if (!res.ok) return;
       const data = (await res.json()) as TimePayload;
       setState((prev) => {
@@ -249,6 +251,9 @@ export function DisplayTimeModule({
         credentials: "include",
         body: JSON.stringify({ action }),
       });
+      if (await handleDisplaySessionAuthFailure(res)) {
+        return false;
+      }
       const data = (await res.json()) as { error?: string; status?: TimeState["status"] };
       if (!res.ok) {
         toast.error(
@@ -256,7 +261,9 @@ export function DisplayTimeModule({
             ? "Schicht läuft bereits."
             : data.error === "not_clocked_in"
               ? "Bitte zuerst Schicht starten."
-              : "Aktion fehlgeschlagen.",
+              : data.error === "end_break_first"
+                ? "Bitte zuerst die Pause beenden."
+                : "Aktion fehlgeschlagen.",
         );
         return false;
       }
@@ -506,6 +513,7 @@ export function DisplayTimeModule({
               exit={{ opacity: 0, y: reduceMotion ? 0 : -8 }}
               transition={statusTransition}
             >
+              {/* Während Pause nur fortsetzen — Schicht beenden erst nach Pause beenden. */}
               <DisplayTimeActionButton
                 size="lg"
                 stripeType="break"
@@ -515,16 +523,6 @@ export function DisplayTimeModule({
                 <Coffee className="size-5" />
                 Pause beenden
               </DisplayTimeActionButton>
-              <Button
-                size="lg"
-                variant="destructive"
-                className={displayTimeDestructiveButtonClassName}
-                disabled={actionsBlocked}
-                onClick={() => beginAction("clock_out")}
-              >
-                <LogOut className="mr-2 size-5" />
-                Schicht beenden
-              </Button>
             </motion.div>
           ) : null}
         </AnimatePresence>

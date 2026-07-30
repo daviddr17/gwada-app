@@ -11,10 +11,12 @@ import {
 } from "@/lib/display/display-reservations-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
 } from "@/lib/reservations/reservation-guest-name";
 import { isValidReservationTimeRange } from "@/lib/display/display-reservation-save-times";
+import { isValidStaffPartySize } from "@/lib/reservations/reservation-party-size";
 
 export async function GET(
   _request: Request,
@@ -73,9 +75,7 @@ export async function PATCH(
     typeof body.starts_at !== "string" ||
     typeof body.ends_at !== "string" ||
     typeof body.status_id !== "string" ||
-    !Number.isFinite(partySize) ||
-    partySize < 1 ||
-    partySize > 50
+    !isValidStaffPartySize(partySize)
   ) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
@@ -108,6 +108,9 @@ export async function PATCH(
     {
       guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
       guest_last_name: guestLastName,
+      guest_company: normalizeReservationGuestCompany(
+        typeof body.guest_company === "string" ? body.guest_company : null,
+      ),
       guest_phone:
         typeof body.guest_phone === "string" ? body.guest_phone.trim() || null : null,
       guest_email:

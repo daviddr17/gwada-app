@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
@@ -105,7 +106,19 @@ export function PlatformWhatsappFeatureCard({
   return (
     <SuperadminIntegrationPanel
       title="WhatsApp"
-      description="Freischaltung für Restaurants und WAHA-Server. Der API-Key wird nie aus der Datenbank ins UI geladen — nur maskiert als gespeichert angezeigt."
+      description={
+        <>
+          Feature-Freischaltung für Restaurants. Server-Pool, Sessions und
+          Kapazität verwalten unter{" "}
+          <Link
+            href="/superadmin/waha"
+            className="font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            Superadmin → WAHA
+          </Link>
+          . URL/Key hier synchronisieren den Primär-Server (Legacy).
+        </>
+      }
       icon={<WhatsAppGlyph />}
       accentColor={INTEGRATION_PANEL_ACCENT.whatsapp}
       badges={

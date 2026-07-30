@@ -39,6 +39,14 @@ export type PosWebReceiptDto = {
   receiptPdfUrl: string | null;
 };
 
+export type PosWebStatisticsItemDto = {
+  menuItemId: string | null;
+  name: string;
+  quantity: number;
+  lineTotalCents: number;
+  orderCount: number;
+};
+
 export type PosWebStatisticsDto = {
   fromYmd: string;
   toYmd: string;
@@ -78,6 +86,7 @@ export type PosWebStatisticsDto = {
     voucherCents: number;
     otherCents: number;
   }>;
+  byItem?: PosWebStatisticsItemDto[];
   zSessions: Array<{
     id: string;
     openedAt: string;
@@ -88,6 +97,21 @@ export type PosWebStatisticsDto = {
     cashDifferenceCents: number | null;
     zNr: number | null;
   }>;
+};
+
+export type PosWebOrderListItemDto = {
+  id: string;
+  orderNumber: number;
+  status: string;
+  totalCents: number;
+  tipCents: number;
+  tableSessionId: string;
+  tableLabel: string;
+  createdAt: string;
+  closedAt: string | null;
+  lineCount: number;
+  itemQuantity: number;
+  linePreview: string;
 };
 
 export type PosWebRegisterSessionDto = {
@@ -153,6 +177,37 @@ export async function fetchPosActiveOrders(restaurantId: string) {
   );
 }
 
+export async function fetchPosOrdersList(
+  restaurantId: string,
+  fromYmd: string,
+  toYmd: string,
+  options: {
+    status?: "all" | "open" | "delivered" | "cancelled";
+    page?: number;
+    pageSize?: number;
+    search?: string;
+  } = {},
+) {
+  return posWebFetch<{
+    orders: PosWebOrderListItemDto[];
+    from: string;
+    to: string;
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  }>("/api/pos/orders/list", restaurantId, undefined, {
+    from: fromYmd,
+    to: toYmd,
+    status: options.status ?? "all",
+    page: String(options.page ?? 1),
+    pageSize: String(options.pageSize ?? 50),
+    ...(options.search?.trim()
+      ? { q: options.search.trim() }
+      : {}),
+  });
+}
+
 export async function fetchPosPaidTodayOrders(restaurantId: string) {
   return posWebFetch<{ orders: PosWebOrderDto[] }>(
     "/api/pos/orders/paid-today",
@@ -172,15 +227,31 @@ export async function fetchPosReceipts(
   restaurantId: string,
   fromYmd: string,
   toYmd: string,
+  options: {
+    page?: number;
+    pageSize?: number;
+    method?: string;
+    search?: string;
+  } = {},
 ) {
   return posWebFetch<{
     fromYmd: string;
     toYmd: string;
     timeZone: string;
     receipts: PosWebReceiptDto[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
   }>("/api/pos/receipts", restaurantId, undefined, {
     from: fromYmd,
     to: toYmd,
+    page: String(options.page ?? 1),
+    pageSize: String(options.pageSize ?? 50),
+    method: options.method ?? "all",
+    ...(options.search?.trim()
+      ? { q: options.search.trim() }
+      : {}),
   });
 }
 
@@ -211,6 +282,14 @@ export async function voidPosCashPayment(
     tableSessionId: string;
     reopened: boolean;
     inventoryRestored: boolean;
+    formalInvoiceStorno?: {
+      mode: "none" | "voided_draft" | "correction";
+      invoiceId?: string;
+      invoiceNumber?: string | null;
+      correctionId?: string;
+      correctionNumber?: string | null;
+      error?: string;
+    };
   }>(`/api/pos/payments/${paymentId}/void-cash`, restaurantId, {
     method: "POST",
     body: JSON.stringify({
@@ -248,14 +327,40 @@ export async function fetchPosStatistics(
 
 export async function fetchPosRegisterSessions(
   restaurantId: string,
-  limit = 30,
+  limitOrOptions:
+    | number
+    | {
+        page?: number;
+        pageSize?: number;
+        limit?: number;
+        fromYmd?: string;
+        toYmd?: string;
+      } = 30,
+  range?: { fromYmd: string; toYmd: string },
 ) {
-  return posWebFetch<{ data: PosWebRegisterSessionDto[] }>(
-    "/api/pos/fiskaly/register/sessions",
-    restaurantId,
-    undefined,
-    { limit: String(limit) },
-  );
+  const opts =
+    typeof limitOrOptions === "number"
+      ? {
+          pageSize: limitOrOptions,
+          ...(range
+            ? { fromYmd: range.fromYmd, toYmd: range.toYmd }
+            : {}),
+        }
+      : limitOrOptions;
+
+  return posWebFetch<{
+    data: PosWebRegisterSessionDto[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  }>("/api/pos/fiskaly/register/sessions", restaurantId, undefined, {
+    page: String(opts.page ?? 1),
+    pageSize: String(opts.pageSize ?? opts.limit ?? 50),
+    ...(opts.fromYmd && opts.toYmd
+      ? { from: opts.fromYmd, to: opts.toYmd }
+      : {}),
+  });
 }
 
 export async function openPosXReportPdf(restaurantId: string) {

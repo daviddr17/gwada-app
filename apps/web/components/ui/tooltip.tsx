@@ -5,6 +5,7 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 import { useDrawerFloatingPortalHost } from "@/lib/contexts/drawer-floating-portal"
 import { useFullscreenOverlayFloatingPortalHost } from "@/lib/contexts/fullscreen-overlay-floating-portal"
 import { appLayerFloatingInFullscreenOverlayZClassName } from "@/lib/ui/app-layer-z-index"
+import { resolveFloatingPortalContainer } from "@/lib/ui/resolve-floating-portal-container"
 import { cn } from "@/lib/utils"
 
 function TooltipProvider({
@@ -48,9 +49,12 @@ function TooltipContent({
   }) {
   const drawerFloatingHost = useDrawerFloatingPortalHost()
   const fullscreenFloatingHost = useFullscreenOverlayFloatingPortalHost()
-  const portalHost = fullscreenFloatingHost ?? drawerFloatingHost ?? undefined
-  const inFullscreenOverlay = Boolean(fullscreenFloatingHost)
-  const inDrawer = Boolean(drawerFloatingHost) && !inFullscreenOverlay
+  const portalHost = resolveFloatingPortalContainer(
+    fullscreenFloatingHost,
+    drawerFloatingHost,
+  )
+  const inFullscreenOverlay = Boolean(portalHost && fullscreenFloatingHost)
+  const inDrawer = Boolean(portalHost && drawerFloatingHost) && !inFullscreenOverlay
 
   return (
     <TooltipPrimitive.Portal container={portalHost}>

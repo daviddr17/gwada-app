@@ -14,7 +14,7 @@ import {
 import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, type DashboardMessagesRefreshDetail } from "@/lib/dashboard/dashboard-live-events";
 import { patchMessagesUnreadSummary } from "@/lib/dashboard/patch-dashboard-messages-read-client";
 import { GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT } from "@/lib/dashboard/dashboard-widget-refresh";
-import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
+import { useDashboardHomeBatchSurface } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSlice } from "@/lib/hooks/use-dashboard-batch-slice";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -35,7 +35,7 @@ function summaryFromCache(
 }
 
 export function useDashboardMessagesStats() {
-  const batchEnabled = useDashboardBatchQueryEnabled();
+  const useBatchSurface = useDashboardHomeBatchSurface();
   const batchSlice = useDashboardBatchSlice("messages");
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const hasDataRef = useRef(false);
@@ -48,7 +48,7 @@ export function useDashboardMessagesStats() {
     Boolean(restaurantId && isUuidRestaurantId(restaurantId));
 
   useEffect(() => {
-    if (batchEnabled) return;
+    if (useBatchSurface) return;
 
     if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
       hasDataRef.current = false;
@@ -173,9 +173,9 @@ export function useDashboardMessagesStats() {
       );
       window.removeEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onPoll);
     };
-  }, [batchEnabled, restaurantId]);
+  }, [useBatchSurface, restaurantId]);
 
-  if (batchEnabled) {
+  if (useBatchSurface) {
     return {
       summary: batchSlice.summary,
       error: batchSlice.error,

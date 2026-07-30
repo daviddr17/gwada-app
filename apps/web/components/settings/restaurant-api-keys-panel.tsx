@@ -220,7 +220,8 @@ export function RestaurantApiKeysPanel() {
     <div className="space-y-6">
       <section className="rounded-2xl border border-border/50 bg-muted/15 p-5 shadow-card">
         <p className="text-sm text-muted-foreground">
-          Read-only JSON-API für Headless-Einbindungen. Schlüssel gelten nur für{" "}
+          JSON-API für Headless-Einbindungen (Lesen; mit Modul Reservierung auch
+          buchen). Schlüssel gelten nur für{" "}
           <strong className="text-foreground">veröffentlichte</strong> Restaurants.
           Rate-Limit: {RESTAURANT_API_RATE_LIMIT_PER_MINUTE} Anfragen pro Minute pro
           Schlüssel.

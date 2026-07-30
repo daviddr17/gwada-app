@@ -2,12 +2,14 @@ import { mergePlatformIntegrationConfig } from "@/lib/superadmin/merge-platform-
 import { platformIntegrationConfigForUi } from "@/lib/superadmin/platform-integration-ui-config";
 import { assertSuperadminApi } from "@/lib/superadmin/assert-superadmin-api";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { syncPlatformWhatsappConfigToWahaServerAdmin } from "@/lib/supabase/sync-platform-whatsapp-to-waha-server";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 export const dynamic = "force-dynamic";
 
 const KEYS = new Set<string>([
   "google_oauth",
+  "microsoft_oauth",
   "apple_oauth",
   "facebook",
   "instagram",
@@ -18,6 +20,7 @@ const KEYS = new Set<string>([
   "fiskaly",
   "lexoffice",
   "tripadvisor",
+  "apple_business_connect",
 ]);
 
 function isKey(k: string): k is PlatformIntegrationKey {
@@ -99,6 +102,17 @@ export async function POST(req: Request) {
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
+  }
+
+  if (key === "whatsapp") {
+    try {
+      await syncPlatformWhatsappConfigToWahaServerAdmin(merged);
+    } catch (e) {
+      console.warn(
+        "syncPlatformWhatsappConfigToWahaServerAdmin",
+        e instanceof Error ? e.message : e,
+      );
+    }
   }
 
   return Response.json({

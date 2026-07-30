@@ -29,7 +29,7 @@ Listen- und Tabellen-Module filtern **einheitlich** über ein **Bottom Sheet** �
 **Kanal-/Plattform-Umschalter** (WhatsApp, E-Mail, Google, …) bleiben **horizontale Chips** — kein Bottom Sheet:
 
 - `components/contacts/contact-inbox-filter-chips.tsx`
-- `components/reviews/review-read-filter-chips.tsx`
+- `components/reviews/review-inbox-filter-chips.tsx`
 
 Neue Plattform- oder Kanal-Filter an dieses Chip-Muster anbinden, nicht an das Filter-Sheet.
 

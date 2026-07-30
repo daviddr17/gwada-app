@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
+import { FeedTimelineDateSkeleton } from "@/components/feed/feed-timeline-date-skeleton";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import type { NewsViewMode } from "@/lib/constants/news-platforms";
 import { feedNewsGridClassName } from "@/lib/feed/feed-media-layout";
@@ -41,9 +42,7 @@ function NewsCardSkeleton({
 function NewsTimelineRowSkeleton() {
   return (
     <div className="flex w-full gap-3 sm:gap-4">
-      <div className="flex w-14 shrink-0 flex-col items-center sm:w-16">
-        <Skeleton className="h-[3.25rem] w-full rounded-lg sm:h-[3.5rem]" />
-      </div>
+      <FeedTimelineDateSkeleton className="self-stretch" />
       <SkeletonCardFrame className="flex min-w-0 flex-1 gap-3 p-3 shadow-card sm:gap-4 sm:p-3.5">
         <Skeleton className="size-[4.5rem] shrink-0 rounded-lg sm:size-20" />
         <div className="min-w-0 flex-1 space-y-2">

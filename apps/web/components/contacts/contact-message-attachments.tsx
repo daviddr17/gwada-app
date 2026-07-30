@@ -69,6 +69,35 @@ export function ContactMessageAttachments({
         }
 
         if (a.kind === "image") {
+          // IMAP u. Ä.: Chip statt <img src> — sonst lädt der Browser sofort.
+          if (a.loadOnClick) {
+            return (
+              <a
+                key={a.id}
+                href={a.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs transition-colors",
+                  outbound
+                    ? "border-accent-foreground/25 bg-accent-foreground/10 hover:bg-accent-foreground/15"
+                    : "border-border/50 bg-background/80 hover:bg-muted/50",
+                )}
+              >
+                <FileText className="size-4 shrink-0 opacity-70" aria-hidden />
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {a.fileName}
+                </span>
+                {formatByteSize(a.byteSize ?? null) ? (
+                  <span className="shrink-0 text-muted-foreground">
+                    {formatByteSize(a.byteSize ?? null)}
+                  </span>
+                ) : null}
+                <Download className="size-3.5 shrink-0 opacity-60" aria-hidden />
+              </a>
+            );
+          }
+
           return (
             <a
               key={a.id}

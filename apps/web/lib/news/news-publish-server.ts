@@ -23,7 +23,7 @@ import {
 } from "@/lib/news/news-media";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-async function publishNewsStories(
+export async function publishNewsStories(
   restaurantId: string,
   storyPlatforms: NewsStoriesPlatform[],
   mediaUrls: string[],
@@ -103,6 +103,8 @@ export async function createAndPublishNewsPost(
     sortOrder: m.sortOrder,
   }));
 
+  const storyPlatforms = (params.storyPlatforms ?? []).filter(isNewsStoriesPlatform);
+
   const insertRow: Record<string, unknown> = {
     restaurant_id: params.restaurantId,
     title: params.title,
@@ -110,6 +112,7 @@ export async function createAndPublishNewsPost(
     media: mediaJson,
     status: isScheduled ? "scheduled" : "draft",
     scheduled_at: isScheduled ? params.scheduledAt : null,
+    story_platforms: storyPlatforms,
     created_by: params.userId,
     updated_by: params.userId,
   };
@@ -202,10 +205,10 @@ export async function createAndPublishNewsPost(
     void syncRestaurantNewsPlatformAfterPublish(params.restaurantId, platform);
   }
 
-  if (!isScheduled && params.storyPlatforms?.length && mediaUrls.length > 0) {
+  if (!isScheduled && storyPlatforms.length > 0 && mediaUrls.length > 0) {
     await publishNewsStories(
       params.restaurantId,
-      params.storyPlatforms,
+      storyPlatforms,
       mediaUrls,
       parseNewsMedia(mediaJson).map((m) => m.kind),
     );

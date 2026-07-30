@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "crypto";
 import {
   readRestaurantZonedParts,
   restaurantZonedDateKey,
@@ -359,7 +360,7 @@ export async function reviewDisplayTimeRequest(
       starts_at: request.requested_starts_at,
       ends_at: request.requested_ends_at,
       is_open: false,
-      shift_id: null,
+      shift_id: randomUUID(),
       note: DISPLAY_NOTE,
       created_by: params.actorUserId,
     })

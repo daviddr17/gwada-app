@@ -1,4 +1,4 @@
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaDeleteMessage } from "@/lib/waha/waha-delete-message";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -8,7 +8,7 @@ export async function deleteWahaMessageServer(params: {
   messageId: string;
   admin?: SupabaseClient | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(params.restaurantId);
   if (!config) {
     return { ok: false, error: "waha_not_configured" };
   }

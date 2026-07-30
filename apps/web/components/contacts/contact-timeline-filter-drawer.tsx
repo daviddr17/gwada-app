@@ -2,19 +2,17 @@
 
 import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import {
-  drawerFormHeaderClassName,
-  drawerScrollAreaClassName,
-} from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import {
+  DrawerFilterHeader,
+  DrawerFilterSwitchRow,
+  DrawerFilterZone,
+} from "@/components/ui/drawer-filter-sheet";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -65,76 +63,67 @@ export function ContactTimelineFilterDrawer({
         overlayClassName={stackZClass}
         className={cn(drawerContentClassName("filter"), stackZClass)}
       >
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Filter
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            Aktivitäten in der Timeline einschränken.
-          </DrawerDescription>
-        </DrawerHeader>
+        <DrawerFilterHeader title="Filter" />
         <div className={drawerScrollAreaClassName(6)}>
-          <DrawerFormSection title="Aktivitätstypen">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="timeline-filter-reservations" className="text-sm font-medium">
-                  Reservierungen
-                </Label>
-                <Switch
-                  id="timeline-filter-reservations"
-                  checked={filter.showReservations}
-                  onCheckedChange={(checked) =>
-                    onFilterChange({
-                      ...filter,
-                      showReservations: checked === true,
-                    })
-                  }
-                  aria-label="Reservierungen anzeigen"
-                />
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="timeline-filter-messages" className="text-sm font-medium">
-                  Nachrichten
-                </Label>
-                <Switch
-                  id="timeline-filter-messages"
-                  checked={filter.showMessages}
-                  onCheckedChange={(checked) =>
-                    onFilterChange({
-                      ...filter,
-                      showMessages: checked === true,
-                    })
-                  }
-                  aria-label="Nachrichten anzeigen"
-                />
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="timeline-filter-notes" className="text-sm font-medium">
-                  Notizen
-                </Label>
-                <Switch
-                  id="timeline-filter-notes"
-                  checked={filter.showNotes}
-                  onCheckedChange={(checked) =>
-                    onFilterChange({
-                      ...filter,
-                      showNotes: checked === true,
-                    })
-                  }
-                  aria-label="Notizen anzeigen"
-                />
-              </div>
-            </div>
-          </DrawerFormSection>
+          <DrawerFilterZone showLabel={false}>
+            <DrawerFilterSwitchRow>
+              <Label htmlFor="timeline-filter-reservations" className="text-sm font-medium">
+                Reservierungen
+              </Label>
+              <Switch
+                id="timeline-filter-reservations"
+                checked={filter.showReservations}
+                onCheckedChange={(checked) =>
+                  onFilterChange({
+                    ...filter,
+                    showReservations: checked === true,
+                  })
+                }
+                aria-label="Reservierungen anzeigen"
+              />
+            </DrawerFilterSwitchRow>
+            <DrawerFilterSwitchRow>
+              <Label htmlFor="timeline-filter-messages" className="text-sm font-medium">
+                Nachrichten
+              </Label>
+              <Switch
+                id="timeline-filter-messages"
+                checked={filter.showMessages}
+                onCheckedChange={(checked) =>
+                  onFilterChange({
+                    ...filter,
+                    showMessages: checked === true,
+                  })
+                }
+                aria-label="Nachrichten anzeigen"
+              />
+            </DrawerFilterSwitchRow>
+            <DrawerFilterSwitchRow>
+              <Label htmlFor="timeline-filter-notes" className="text-sm font-medium">
+                Notizen
+              </Label>
+              <Switch
+                id="timeline-filter-notes"
+                checked={filter.showNotes}
+                onCheckedChange={(checked) =>
+                  onFilterChange({
+                    ...filter,
+                    showNotes: checked === true,
+                  })
+                }
+                aria-label="Notizen anzeigen"
+              />
+            </DrawerFilterSwitchRow>
 
-          {filter.showMessages ? (
-            <DrawerFormSection title="Nachrichten-Kanäle">
-              <div className="space-y-3">
-                {CONTACT_TIMELINE_MESSAGE_PLATFORM_OPTIONS.map(({ platform, label }) => {
+            {filter.showMessages
+              ? CONTACT_TIMELINE_MESSAGE_PLATFORM_OPTIONS.map(({ platform, label }) => {
                   const checked = filter.messagePlatforms.includes(platform);
                   const inputId = `timeline-filter-platform-${platform}`;
                   return (
-                    <div key={platform} className="flex items-center gap-3">
+                    <DrawerFilterSwitchRow key={platform}>
+                      <Label htmlFor={inputId} className="text-sm font-medium">
+                        {label}
+                      </Label>
                       <Checkbox
                         id={inputId}
                         checked={checked}
@@ -145,15 +134,11 @@ export function ContactTimelineFilterDrawer({
                         }
                         aria-label={label}
                       />
-                      <Label htmlFor={inputId} className="text-sm font-medium">
-                        {label}
-                      </Label>
-                    </div>
+                    </DrawerFilterSwitchRow>
                   );
-                })}
-              </div>
-            </DrawerFormSection>
-          ) : null}
+                })
+              : null}
+          </DrawerFilterZone>
         </div>
         <DrawerFilterFooter onReset={reset} onDone={() => onOpenChange(false)} />
       </DrawerContent>

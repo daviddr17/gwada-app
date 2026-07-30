@@ -4,6 +4,7 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
 import type { QueryClient } from "@tanstack/react-query";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
+import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 
 const SUBNAV_PREFETCH_STAGGER_MS = 20;
 
@@ -45,7 +46,7 @@ export function scheduleModuleSubnavRoutePrefetches(
         warmModuleRouteIntent(router, queryClient, restaurantId, item.href);
         return;
       }
-      router.prefetch(item.href);
+      prefetchAppModuleHref(router, item.href);
     }, delay);
 
     timeoutIds.push(timeoutId);

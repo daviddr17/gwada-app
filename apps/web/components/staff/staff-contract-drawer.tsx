@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -155,6 +156,7 @@ export function StaffContractDrawer({
   const editId = contract?.id ?? null;
   const scrollRef = useRef<HTMLDivElement>(null);
   const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
+  const mountContent = useDeferredDrawerMount(open);
   const [validFrom, setValidFrom] = useState("");
   const [validTo, setValidTo] = useState("");
   const [payType, setPayType] = useState<StaffContractPayType>("hourly");
@@ -659,6 +661,7 @@ export function StaffContractDrawer({
             </DrawerDescription>
           ) : null}
         </DrawerHeader>
+        {mountContent ? (
         <div className="flex min-h-0 flex-1 flex-col">
         <div
           ref={scrollRef}
@@ -1240,6 +1243,9 @@ export function StaffContractDrawer({
           onDelete={() => setConfirmDelete(true)}
         />
         </div>
+        ) : (
+          <div className={staffDrawerScrollClassName} aria-hidden aria-busy />
+        )}
       </DrawerContent>
     </Drawer>
 

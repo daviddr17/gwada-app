@@ -222,45 +222,52 @@ export async function POST(request: Request) {
     });
   }
 
-  if (body.action === "prepare_pin_login") {
-    const [todos, deferReasonDefault] = await Promise.all([
-      getTodosForDisplayTrigger(admin, {
-        restaurantId: access.restaurantId,
-        staffId: access.staffId,
-        trigger: "pin_login",
-        prepareTrigger: true,
-      }),
-      fetchStaffTodoDeferReasonDefault(admin, access.restaurantId),
-    ]);
-    const clientTodos = todos.map((t) =>
-      mapDisplayTodoClientPayload(t, access.staffId),
-    );
-    return NextResponse.json({
-      todos: clientTodos,
-      blocks: false,
-      defer_reason_default: deferReasonDefault,
-    });
-  }
+  try {
+    if (body.action === "prepare_pin_login") {
+      const [todos, deferReasonDefault] = await Promise.all([
+        getTodosForDisplayTrigger(admin, {
+          restaurantId: access.restaurantId,
+          staffId: access.staffId,
+          trigger: "pin_login",
+          prepareTrigger: true,
+        }),
+        fetchStaffTodoDeferReasonDefault(admin, access.restaurantId),
+      ]);
+      const clientTodos = todos.map((t) =>
+        mapDisplayTodoClientPayload(t, access.staffId),
+      );
+      return NextResponse.json({
+        todos: clientTodos,
+        blocks: false,
+        defer_reason_default: deferReasonDefault,
+      });
+    }
 
-  if (body.action === "prepare_trigger") {
-    const trigger = displayActionToTrigger(body.display_action);
-    const [todos, deferReasonDefault] = await Promise.all([
-      getTodosForDisplayTrigger(admin, {
-        restaurantId: access.restaurantId,
-        staffId: access.staffId,
-        trigger,
-        prepareTrigger: true,
-      }),
-      fetchStaffTodoDeferReasonDefault(admin, access.restaurantId),
-    ]);
-    const clientTodos = todos.map((t) =>
-      mapDisplayTodoClientPayload(t, access.staffId),
-    );
-    return NextResponse.json({
-      todos: clientTodos,
-      blocks: displayTriggerBlocksProceed(todos, trigger),
-      defer_reason_default: deferReasonDefault,
-    });
+    if (body.action === "prepare_trigger") {
+      const trigger = displayActionToTrigger(body.display_action);
+      const [todos, deferReasonDefault] = await Promise.all([
+        getTodosForDisplayTrigger(admin, {
+          restaurantId: access.restaurantId,
+          staffId: access.staffId,
+          trigger,
+          prepareTrigger: true,
+        }),
+        fetchStaffTodoDeferReasonDefault(admin, access.restaurantId),
+      ]);
+      const clientTodos = todos.map((t) =>
+        mapDisplayTodoClientPayload(t, access.staffId),
+      );
+      return NextResponse.json({
+        todos: clientTodos,
+        blocks: displayTriggerBlocksProceed(todos, trigger),
+        defer_reason_default: deferReasonDefault,
+      });
+    }
+  } catch (error) {
+    if (error instanceof DisplayTodosFetchError) {
+      return NextResponse.json({ error: "todos_fetch_failed" }, { status: 503 });
+    }
+    throw error;
   }
 
   return NextResponse.json({ error: "invalid_request" }, { status: 400 });

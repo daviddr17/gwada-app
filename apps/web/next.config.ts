@@ -67,6 +67,15 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@gwada/shared", "@gwada/pos-domain", "@gwada/supabase"],
   // pdfkit is Node/CJS-only — avoid Turbopack wrapping the constructor export.
   serverExternalPackages: ["pdfkit"],
+  // Soft-Nav: Client-Cache + optimisticRouting (cachedNavigations braucht cacheComponents).
+  experimental: {
+    staleTimes: {
+      dynamic: 60,
+      static: 300,
+    },
+    optimisticRouting: true,
+  },
+
   // Docker/standalone (next build): Monorepo-Root — nicht in dev setzen, sonst überschreibt
   // Next turbopack.root und indexiert apps/staff → „Compiling /“ hängt.
   ...(process.env.NODE_ENV === "production"

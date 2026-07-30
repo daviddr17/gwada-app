@@ -61,10 +61,12 @@ import {
 } from "@/lib/reservations/public-embed-shared";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import {
+  normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
   reservationGuestFirstNameForForm,
 } from "@/lib/reservations/reservation-guest-name";
+import { RESERVATION_PARTY_SIZE_MAX_PUBLIC } from "@/lib/reservations/reservation-party-size";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -123,6 +125,7 @@ const API_ERROR_KEYS: Record<string, string> = {
   notify_channel_required: "errorNotifyChannel",
   outside_opening_hours: "errorOutsideHours",
   booking_lead_time: "errorLeadTime",
+  rate_limit_exceeded: "errorRateLimit",
   invalid_credentials: "errorCredentials",
   not_editable: "errorNotEditable",
   not_found: "errorNotFound",
@@ -255,6 +258,7 @@ function EmbedReservationWidgetBody({
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [company, setCompany] = useState("");
   const [phoneCountryIso, setPhoneCountryIso] = useState("DE");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
@@ -307,12 +311,17 @@ function EmbedReservationWidgetBody({
   const notifyWhatsappInvalid =
     Boolean(fieldErrors.notifyChannel) && !notifyWhatsapp && hasPhone;
 
-  useEffect(() => {
-    if (timeSlots.length === 0) return;
-    if (!timeSlots.includes(timeHm)) {
-      setTimeHm(timeSlots[0]!);
-    }
+  // Nur Slot-Werte an Select binden — Base UI kann bei value∉items hängen/crashen.
+  const selectedTimeHm = useMemo(() => {
+    if (timeSlots.length === 0) return "";
+    if (timeSlots.includes(timeHm)) return timeHm;
+    return timeSlots[0]!;
   }, [timeSlots, timeHm]);
+
+  useEffect(() => {
+    if (!selectedTimeHm || selectedTimeHm === timeHm) return;
+    setTimeHm(selectedTimeHm);
+  }, [selectedTimeHm, timeHm]);
 
   const handleTabChange = useCallback((next: Tab) => {
     setTab(next);
@@ -329,6 +338,7 @@ function EmbedReservationWidgetBody({
   const resetBookForm = useCallback(() => {
     setFirstName("");
     setLastName("");
+    setCompany("");
     setPhoneLocal("");
     setEmail("");
     setPartySize("2");
@@ -345,6 +355,7 @@ function EmbedReservationWidgetBody({
     (r: PublicGuestReservation) => {
       setFirstName(reservationGuestFirstNameForForm(r.guest_first_name));
       setLastName(r.guest_last_name);
+      setCompany(r.guest_company?.trim() ?? "");
       const parsed = parseGuestPhone(r.guest_phone, countries, "DE");
       setPhoneCountryIso(parsed.iso2);
       setPhoneLocal(parsed.local);
@@ -364,12 +375,21 @@ function EmbedReservationWidgetBody({
   const buildPayload = () => {
     const ps = Number(partySize);
     if (!Number.isFinite(ps) || ps < 1) return null;
+    const hm = selectedTimeHm || timeHm;
+    if (!dateYmd.trim() || !hm.trim()) return null;
     const timeZone = config.timezone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
-    const startsIso = ymdHmToRestaurantIso(dateYmd, timeHm, timeZone);
+    // ymdHmToRestaurantIso wirft bei ungültigem Datum/Zeit — nie uncaught am Submit.
+    let startsIso: string;
+    try {
+      startsIso = ymdHmToRestaurantIso(dateYmd, hm, timeZone);
+    } catch {
+      return null;
+    }
     const endsIso = buildEndsIso(startsIso, config.defaultDwellMinutes);
     return {
       guest_first_name: normalizeReservationGuestFirstName(firstName),
       guest_last_name: normalizeReservationGuestLastName(lastName),
+      guest_company: normalizeReservationGuestCompany(company),
       guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
       guest_email: email.trim() || null,
       party_size: ps,
@@ -400,7 +420,7 @@ function EmbedReservationWidgetBody({
       enforceBookingLead &&
       dateYmd.trim() &&
       timeSlots.length > 0 &&
-      !isYmdHmPublicBookable(config, dateYmd, timeHm)
+      !isYmdHmPublicBookable(config, dateYmd, selectedTimeHm || timeHm)
     ) {
       errors.time = true;
     }
@@ -653,7 +673,7 @@ function EmbedReservationWidgetBody({
             </p>
           ) : (
             <Select
-              value={timeHm}
+              value={selectedTimeHm || timeSlots[0]}
               onValueChange={(v) => {
                 setTimeHm(String(v));
                 clearFieldError("time");
@@ -684,7 +704,7 @@ function EmbedReservationWidgetBody({
             id="embed-party"
             type="number"
             min={1}
-            max={30}
+            max={RESERVATION_PARTY_SIZE_MAX_PUBLIC}
             value={partySize}
             onChange={(e) => {
               setPartySize(e.target.value);
@@ -723,6 +743,23 @@ function EmbedReservationWidgetBody({
             className="h-10 rounded-xl"
           />
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="embed-company">
+          Firmenname{" "}
+          <span className="font-normal text-muted-foreground/80">
+            (optional)
+          </span>
+        </Label>
+        <Input
+          id="embed-company"
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          autoComplete="organization"
+          maxLength={200}
+          className="h-10 rounded-xl"
+        />
       </div>
 
       <div className="w-full min-w-0 space-y-3">
@@ -914,11 +951,13 @@ function EmbedReservationWidgetBody({
           restaurantName={config.name}
         />
       ) : null}
-      <EmbedResizeReporter deps={resizeDeps} widget="reservation" />
+      {!profileSheet ? (
+        <EmbedResizeReporter deps={resizeDeps} widget="reservation" />
+      ) : null}
       <div
         className={cn(
-          "w-full min-w-0 px-4 py-5 sm:px-5",
-          profileSheet && "pt-3",
+          "w-full min-w-0",
+          profileSheet ? "px-0 py-0" : "px-4 py-5 sm:px-6",
         )}
       >
         <EmbedSlidingSegmentTabs

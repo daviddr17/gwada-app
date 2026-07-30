@@ -136,6 +136,9 @@ jobs:
     name: Pull on VPS
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v5
 
@@ -148,7 +151,9 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           GWADA_DEPLOY_IMAGE: ${{ needs.build.outputs.image }}
           GWADA_DEPLOY_SHA: ${{ needs.build.outputs.sha }}
-          GHCR_PULL_TOKEN: ${{ secrets.GWADA_GITHUB_DEPLOY_TOKEN }}
+          # Wie deploy-live-app.yml — PAT ohne read:packages würde GHCR mit denied abweisen.
+          GHCR_PULL_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_PULL_USER: ${{ github.actor }}
           GWADA_SSH_BATCH: "1"
         run: |
           if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then

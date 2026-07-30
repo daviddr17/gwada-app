@@ -80,8 +80,8 @@ export default function AppLayout({
                 <DashboardWidgetPreferencesProvider>
                   <AccentColorProvider>
                     <RestaurantSetupWizardProvider>
-                      <AppShellReadinessProvider>
-                        <SoftNavLockProvider>
+                      <SoftNavLockProvider>
+                        <AppShellReadinessProvider>
                           <AppScrollUnlockOnNavigate />
                           <DashboardPwaSetup />
                           <AuthCookieCleanupMount />
@@ -93,8 +93,8 @@ export default function AppLayout({
                           <ProfileLocaleSyncMount />
                           <AppModuleLiveProviders />
                           <AppShell>{children}</AppShell>
-                        </SoftNavLockProvider>
-                      </AppShellReadinessProvider>
+                        </AppShellReadinessProvider>
+                      </SoftNavLockProvider>
                     </RestaurantSetupWizardProvider>
                   </AccentColorProvider>
                 </DashboardWidgetPreferencesProvider>

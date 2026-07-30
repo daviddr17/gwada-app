@@ -21,9 +21,13 @@ export const displayRestaurantLogoCompactClassName = cn(
   displayRestaurantLogoFrameClassName,
 );
 
-/** Fußzeile unten links — klein, aber mit object-contain wie Hero. */
-export const displayRestaurantLogoFooterClassName = cn(
-  "size-7",
+/**
+ * PIN-/Sperrbildschirm — groß genug für Wordmark-Logos (z. B. Zur Schlagd).
+ * size-12 war optisch „leer“, weil feine Schrift bei ~30px Inhalt verschwindet.
+ */
+export const displayRestaurantLogoPinClassName = cn(
+  "size-20 sm:size-24",
+  displayRestaurantLogoMaxClassName,
   displayRestaurantLogoFrameClassName,
 );
 

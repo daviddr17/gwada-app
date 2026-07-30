@@ -6,14 +6,14 @@ import { resolveEmailDeliveryForRestaurant } from "@/lib/reservations/reservatio
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export async function isRestaurantWhatsappSessionWorking(
   restaurantId: string,
 ): Promise<boolean> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
   if (!config) return false;
   const name = wahaSessionNameForRestaurant(restaurantId);
   const res = await wahaGetSession(config, name);

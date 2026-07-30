@@ -162,7 +162,9 @@ export function computeInventoryStatistics(
   const emptyStockCount = active.filter((i) => i.currentStock <= 0).length;
   const lowStockCount = active.filter(isLowStock).length;
 
-  const openOrdersList = input.orders.filter((o) => o.status === "open");
+  const openOrdersList = input.orders.filter(
+    (o) => o.status === "open" || o.status === "ordered",
+  );
   const openOrders = openOrdersList.length;
   const openOrderLines = openOrdersList.reduce((s, o) => s + o.lines.length, 0);
 
@@ -262,11 +264,19 @@ export function computeInventoryStatistics(
   }));
 
   const openInPeriod = ordersInPeriod.filter((o) => o.status === "open").length;
+  const orderedInPeriod = ordersInPeriod.filter(
+    (o) => o.status === "ordered",
+  ).length;
   const orderStatusInPeriod = [
     {
       name: "Offen",
       count: openInPeriod,
       fill: "var(--chart-4)",
+    },
+    {
+      name: "Bestellt",
+      count: orderedInPeriod,
+      fill: "var(--chart-3)",
     },
     {
       name: "Abgeschlossen",

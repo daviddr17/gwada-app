@@ -37,12 +37,15 @@ export function feedNewsDisplayAspectRatio(
 export const feedNewsGridClassName =
   "grid w-full grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3";
 
-/** Galerie — CSS-Columns-Masonry (Pinterest), mobil 1 Spalte. */
+/**
+ * Galerie — CSS-Columns-Fotowand.
+ * Mobil schon 2 Spalten (Wand-Feeling); etwas Luft zwischen Kacheln.
+ */
 export const feedGalleryMasonryClassName =
-  "columns-1 gap-1 sm:columns-2 lg:columns-3 xl:columns-4";
+  "columns-2 gap-1.5 sm:columns-3 lg:columns-4";
 
 export const feedGalleryMasonryItemClassName =
-  "mb-1 w-full break-inside-avoid";
+  "mb-1.5 w-full break-inside-avoid";
 
 /** @deprecated Nur noch für Skeleton-Fallback — Layout per Tailwind-Klassen. */
 export function feedMasonryColumnCount(viewportWidth: number): number {

@@ -1,8 +1,19 @@
 import Foundation
 
 enum KdsHubHTML {
-    /// Minimalistisches KDS im Browser über http://<kasse-ip>:8787/v1/kds[?deviceId=…]
-    static func page() -> Data {
+    /// Minimalistisches KDS im Browser über http://<kasse-ip>:8787/v1/kds?s=<lan-secret>[&deviceId=…]
+    static func page(lanSecret: String = "") -> Data {
+        let secretLiteral: String
+        if lanSecret.isEmpty {
+            secretLiteral = "''"
+        } else if let data = try? JSONEncoder().encode(lanSecret),
+                  let encoded = String(data: data, encoding: .utf8)
+        {
+            secretLiteral = encoded
+        } else {
+            secretLiteral = "''"
+        }
+
         let html = """
         <!doctype html>
         <html lang="de">
@@ -39,6 +50,7 @@ enum KdsHubHTML {
           </header>
           <div class="grid" id="grid"></div>
           <script>
+            const LAN_SECRET = \(secretLiteral);
             const params = new URLSearchParams(location.search);
             const deviceId = (params.get('deviceId') || '').trim();
             let tickets = [];
@@ -46,6 +58,11 @@ enum KdsHubHTML {
             let stationName = '';
             const advancing = new Set();
 
+            function authHeaders(extra) {
+              const h = Object.assign({}, extra || {});
+              if (LAN_SECRET) h['X-Gwada-Pos-Lan-Secret'] = LAN_SECRET;
+              return h;
+            }
             function ticketsUrl() {
               return deviceId
                 ? '/v1/kds/tickets?deviceId=' + encodeURIComponent(deviceId)
@@ -97,7 +114,7 @@ enum KdsHubHTML {
                 if (deviceId) body.deviceId = deviceId;
                 const res = await fetch('/v1/kds/tickets/advance', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: authHeaders({ 'Content-Type': 'application/json' }),
                   body: JSON.stringify(body),
                 });
                 const data = await res.json().catch(() => ({}));
@@ -155,7 +172,7 @@ enum KdsHubHTML {
             async function load() {
               const meta = document.getElementById('meta');
               try {
-                const res = await fetch(ticketsUrl());
+                const res = await fetch(ticketsUrl(), { headers: authHeaders() });
                 const data = await res.json();
                 tickets = data.tickets || [];
                 if (Array.isArray(data.statuses) && data.statuses.length) {

@@ -7,8 +7,11 @@ import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import type {
   PurchaseOrder,
   PurchaseOrderLine,
+  PurchaseOrderLineDeliveryStatus,
   PurchaseOrderLogEntry,
+  PurchaseOrderStatus,
 } from "@/lib/types/purchase-order";
+import { isPurchaseOrderStatus } from "@/lib/inventory/purchase-order-status";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { IngredientStockLogEntry } from "@/lib/types/ingredient-stock-log";
 import type {
@@ -342,10 +345,20 @@ function parseLogEntryFromJson(raw: unknown): PurchaseOrderLogEntry | null {
   }
   if (raw.kind === "marked_delivered") {
     if (typeof raw.lineId !== "string") return null;
-    if (typeof raw.quantity !== "number" || Number.isNaN(raw.quantity) || raw.quantity <= 0)
+    if (typeof raw.quantity !== "number" || Number.isNaN(raw.quantity) || raw.quantity < 0)
       return null;
     const userSource =
       raw.userSource === "local_profile" ? ("local_profile" as const) : undefined;
+    const deliveryStatus =
+      raw.deliveryStatus === "delivered" ||
+      raw.deliveryStatus === "not_delivered" ||
+      raw.deliveryStatus === "partial"
+        ? (raw.deliveryStatus as PurchaseOrderLineDeliveryStatus)
+        : undefined;
+    const note =
+      typeof raw.note === "string" && raw.note.trim() !== ""
+        ? raw.note.trim()
+        : undefined;
     return {
       id: raw.id,
       at: raw.at,
@@ -359,11 +372,13 @@ function parseLogEntryFromJson(raw: unknown): PurchaseOrderLogEntry | null {
       unitId: raw.unitId,
       unitLabel: raw.unitLabel,
       lineId: raw.lineId,
+      ...(deliveryStatus ? { deliveryStatus } : {}),
+      ...(note ? { note } : {}),
     };
   }
   if (raw.kind === "delivery_reverted") {
     if (typeof raw.lineId !== "string") return null;
-    if (typeof raw.quantity !== "number" || Number.isNaN(raw.quantity) || raw.quantity <= 0)
+    if (typeof raw.quantity !== "number" || Number.isNaN(raw.quantity) || raw.quantity < 0)
       return null;
     const userSource =
       raw.userSource === "local_profile" ? ("local_profile" as const) : undefined;
@@ -380,6 +395,31 @@ function parseLogEntryFromJson(raw: unknown): PurchaseOrderLogEntry | null {
       unitId: raw.unitId,
       unitLabel: raw.unitLabel,
       lineId: raw.lineId,
+    };
+  }
+  if (raw.kind === "status_change") {
+    if (
+      !isPurchaseOrderStatus(String(raw.fromStatus)) ||
+      !isPurchaseOrderStatus(String(raw.toStatus))
+    ) {
+      return null;
+    }
+    const userSource =
+      raw.userSource === "local_profile" ? ("local_profile" as const) : undefined;
+    return {
+      id: raw.id,
+      at: raw.at,
+      userFirstName,
+      userLastName,
+      ...(userSource ? { userSource } : {}),
+      kind: "status_change",
+      fromStatus: raw.fromStatus as PurchaseOrderStatus,
+      toStatus: raw.toStatus as PurchaseOrderStatus,
+      ingredientId: typeof raw.ingredientId === "string" ? raw.ingredientId : "",
+      ingredientName:
+        typeof raw.ingredientName === "string" ? raw.ingredientName : "",
+      unitId: typeof raw.unitId === "string" ? raw.unitId : "",
+      unitLabel: typeof raw.unitLabel === "string" ? raw.unitLabel : "",
     };
   }
   if (typeof raw.quantityDelta === "number" && !Number.isNaN(raw.quantityDelta)) {
@@ -414,6 +454,24 @@ function parseLineFromRow(r: Record<string, unknown>): PurchaseOrderLine | null 
   if (typeof r.delivered_at === "string" && r.delivered_at.length > 0) {
     deliveredAt = r.delivered_at;
   }
+  const deliveryStatus =
+    r.delivery_status === "delivered" ||
+    r.delivery_status === "not_delivered" ||
+    r.delivery_status === "partial"
+      ? (r.delivery_status as PurchaseOrderLineDeliveryStatus)
+      : undefined;
+  let deliveredQuantity: number | undefined;
+  if (
+    typeof r.delivered_quantity === "number" ||
+    typeof r.delivered_quantity === "string"
+  ) {
+    const n = Number(r.delivered_quantity);
+    if (Number.isFinite(n)) deliveredQuantity = n;
+  }
+  const deliveryNote =
+    typeof r.delivery_note === "string" && r.delivery_note.trim() !== ""
+      ? r.delivery_note.trim()
+      : undefined;
   return {
     id: r.id,
     ingredientId: r.ingredient_id as string,
@@ -423,6 +481,9 @@ function parseLineFromRow(r: Record<string, unknown>): PurchaseOrderLine | null 
     unitId: r.unit_id as string,
     unitLabel: r.unit_label as string,
     ...(deliveredAt !== undefined ? { deliveredAt } : {}),
+    ...(deliveryStatus ? { deliveryStatus } : {}),
+    ...(deliveredQuantity !== undefined ? { deliveredQuantity } : {}),
+    ...(deliveryNote ? { deliveryNote } : {}),
   };
 }
 
@@ -751,7 +812,7 @@ export async function loadPurchaseOrdersRelational(
   const { data: lines, error: e2 } = await supabase
     .from("inventory_purchase_order_lines")
     .select(
-      "order_id,id,ingredient_id,ingredient_name,brand_label,quantity,unit_id,unit_label,delivered_at",
+      "order_id,id,ingredient_id,ingredient_name,brand_label,quantity,unit_id,unit_label,delivered_at,delivery_status,delivered_quantity,delivery_note",
     )
     .eq("restaurant_id", rid);
   if (e2) {
@@ -807,7 +868,9 @@ export async function loadPurchaseOrdersRelational(
       id,
       supplierId: o.supplier_id as string,
       supplierName: o.supplier_name as string,
-      status: o.status as PurchaseOrder["status"],
+      status: (isPurchaseOrderStatus(String(o.status))
+        ? o.status
+        : "open") as PurchaseOrderStatus,
       createdAt: o.created_at as string,
       createdBy: (o.created_by as string) ?? "",
       ...(createdByUserSource ? { createdByUserSource } : {}),

@@ -28,6 +28,7 @@ import { fetchRestaurantLexofficeConfigAdmin } from "@/lib/supabase/restaurant-l
 import { fetchAccountingStatisticsBundleWithClient } from "@/lib/supabase/accounting-analytics-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { ReservationAnalyticsRow } from "@/lib/supabase/reservations-analytics-db";
+import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import type {
   ContactAnalyticsRow,
   ContactMessageAnalyticsRow,
@@ -209,29 +210,41 @@ async function fetchGwadaReviewsOnly(
   };
 }
 
+function readReservationStatusEmbed(row: Record<string, unknown>) {
+  const statusRaw =
+    row.reservation_statuses ??
+    row["reservation_statuses!reservations_status_id_fkey"];
+  return Array.isArray(statusRaw) ? (statusRaw[0] ?? null) : statusRaw;
+}
+
 async function fetchReservationsAdmin(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   restaurantId: string,
   rangeStartIso: string,
 ): Promise<ReservationAnalyticsRow[]> {
-  const { data, error } = await admin
-    .from("reservations")
-    .select(
-      "id, created_at, starts_at, party_size, reservation_statuses ( code, name, color_hex )",
-    )
-    .eq("restaurant_id", restaurantId)
-    .gte("starts_at", rangeStartIso)
-    .order("starts_at", { ascending: true });
+  // Muss denselben Status-Embed wie Reservierungs-Analytics nutzen:
+  // ohne FK-Hinweis ist der Join zu reservation_statuses mehrdeutig
+  // (status_id + status_before_change_id) → PostgREST-Fehler → leere Stats.
+  const { data, error } = await fetchAllSupabaseRows<Record<string, unknown>>(
+    async (from, to) =>
+      admin
+        .from("reservations")
+        .select(
+          `id, created_at, starts_at, party_size, ${RESERVATION_STATUS_EMBED} ( code, name, color_hex )`,
+        )
+        .eq("restaurant_id", restaurantId)
+        .gte("starts_at", rangeStartIso)
+        .order("starts_at", { ascending: true })
+        .range(from, to),
+  );
 
   if (error) {
-    console.warn("insights statistics reservations", error.message);
+    console.warn("insights statistics reservations", error);
     return [];
   }
 
-  return (data ?? []).map((raw) => {
-    const row = raw as Record<string, unknown>;
-    const st = row.reservation_statuses;
-    const status = Array.isArray(st) ? (st[0] ?? null) : st;
+  return data.map((row) => {
+    const status = readReservationStatusEmbed(row);
     return {
       id: row.id as string,
       created_at: row.created_at as string,

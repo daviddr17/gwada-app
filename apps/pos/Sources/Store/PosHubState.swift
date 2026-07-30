@@ -138,6 +138,20 @@ final class PosHubState: @unchecked Sendable {
         return demo
     }
 
+    func applyLocalRegister(_ state: PosLocalRegisterState) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var bootstrap else { return }
+        bootstrap.register = PosCloudRegisterStatus(
+            isOpen: state.isOpen,
+            sessionId: state.sessionId,
+            openedAt: state.openedAt
+        )
+        self.bootstrap = bootstrap
+        snapshotVersion += 1
+        PosLocalStore.saveBootstrap(bootstrap)
+    }
+
     func makeHealth() -> PosLanHealthResponse {
         lock.lock()
         defer { lock.unlock() }

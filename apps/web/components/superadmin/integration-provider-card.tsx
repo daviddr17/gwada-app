@@ -100,8 +100,14 @@ export function IntegrationProviderCard({
     if (row.key === "google_oauth") {
       toast.success(`${title} gespeichert.`, {
         description:
-          "Trage dieselbe Client-ID und dasselbe Secret am Auth-Server ein (SUPABASE_AUTH_EXTERNAL_GOOGLE_*). Redirect-URI: …/api/auth/google/callback",
-        duration: 12_000,
+          "Auth: …/api/auth/google/callback · Gmail: …/api/integrations/email/gmail/callback (gleiche Client-ID/Secret). Gmail-API in der Google Cloud Console aktivieren.",
+        duration: 14_000,
+      });
+    } else if (row.key === "microsoft_oauth") {
+      toast.success(`${title} gespeichert.`, {
+        description:
+          "Redirect: …/api/integrations/email/outlook/callback · API-Berechtigungen IMAP.AccessAsUser.All, SMTP.Send, offline_access, User.Read (delegiert).",
+        duration: 14_000,
       });
     } else {
       toast.success(`${title} gespeichert.`);

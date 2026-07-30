@@ -23,7 +23,12 @@ export function parseReviewReadLookupKey(key: string): {
   const platform = key.slice(0, idx);
   const reviewId = key.slice(idx + 1);
   if (!reviewId) return null;
-  if (platform !== "gwada" && platform !== "google" && platform !== "facebook") {
+  if (
+    platform !== "gwada" &&
+    platform !== "google" &&
+    platform !== "facebook" &&
+    platform !== "tripadvisor"
+  ) {
     return null;
   }
   return { platform, reviewId };

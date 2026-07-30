@@ -4,6 +4,7 @@ import * as React from "react"
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
 
 import { useDrawerFloatingPortalHost } from "@/lib/contexts/drawer-floating-portal"
+import { resolveFloatingPortalContainer } from "@/lib/ui/resolve-floating-portal-container"
 import { cn } from "@/lib/utils"
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
@@ -28,10 +29,11 @@ function PopoverPortal({
   ...props
 }: PopoverPrimitive.Portal.Props) {
   const drawerHost = useDrawerFloatingPortalHost()
+  const container = resolveFloatingPortalContainer(containerProp, drawerHost)
   return (
     <PopoverPrimitive.Portal
       data-slot="popover-portal"
-      container={containerProp ?? drawerHost ?? undefined}
+      container={container}
       {...props}
     />
   )

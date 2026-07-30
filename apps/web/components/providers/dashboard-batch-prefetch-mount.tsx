@@ -37,11 +37,12 @@ export function DashboardBatchPrefetchMount() {
       }
     }
 
+    // Nach Modul-Warm (Staff/Menu/…) — Batch hat LS-Placeholder für Home.
     runWhenIdle(() => {
       void queryClient.prefetchQuery(
         dashboardBatchSummaryQueryOptions(restaurantId, batchWidgets),
       );
-    }, 400);
+    }, 1_600);
   }, [queryClient, restaurantId, batchWidgets, workspaceReady]);
 
   return null;

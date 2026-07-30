@@ -92,7 +92,7 @@ function MitarbeiterLayoutInner({ children }: { children: React.ReactNode }) {
         {needsStaffPicker ? (
           <>
             <StaffModuleStickyBar />
-            <div className="relative z-0 pt-4">{children}</div>
+            <div className="relative z-0 pt-3 sm:pt-4">{children}</div>
           </>
         ) : (
           children

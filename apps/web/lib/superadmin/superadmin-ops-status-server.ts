@@ -164,14 +164,17 @@ async function checkWhatsappConnection(): Promise<SuperadminIntegrationConnectio
   if (!platform.enabled) {
     return health("disabled", "Integration ist deaktiviert.");
   }
-  if (!platform.waha) {
+
+  const { resolveDefaultWahaServerConfigAdmin } = await import(
+    "@/lib/waha/waha-server-pool"
+  );
+  const waha = await resolveDefaultWahaServerConfigAdmin();
+  if (!waha) {
     return health(
       "not_configured",
-      "WAHA API-Link oder API-Key fehlt in Superadmin → Integrationen.",
+      "Kein WAHA-Server — unter Superadmin → WAHA anlegen.",
     );
   }
-
-  const waha = platform.waha;
 
   try {
     const { latencyMs } = await timed(async () => {
@@ -443,6 +446,7 @@ const HEALTH_CHECKERS: Partial<
   whatsapp: checkWhatsappConnection,
   email: checkEmailConnection,
   google_oauth: () => checkOAuthIntegration("google_oauth"),
+  microsoft_oauth: () => checkOAuthIntegration("microsoft_oauth"),
   apple_oauth: () => checkOAuthIntegration("apple_oauth"),
   facebook: () => checkOAuthIntegration("facebook"),
   instagram: () => checkOAuthIntegration("instagram"),

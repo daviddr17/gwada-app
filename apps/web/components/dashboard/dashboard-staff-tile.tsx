@@ -18,6 +18,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { restaurantTodayYmd } from "@/lib/restaurant/restaurant-timezone";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 
 export function DashboardStaffTile() {
@@ -50,7 +51,7 @@ export function DashboardStaffTile() {
           aria-hidden
         />
       }
-      href="/dashboard/mitarbeiter/uebersicht"
+      href={APP_ROUTES.mitarbeiter.overview}
       linkLabel="Zur Übersicht"
       ready={ready}
       loading={showSkeleton}
@@ -81,13 +82,13 @@ export function DashboardStaffTile() {
           <DashboardCompactMetricPill
             label="Heute"
             value={todayHours > 0 ? formatHoursDe(todayHours) : "0 h"}
-            href="/dashboard/mitarbeiter/arbeitszeiten"
+            href={APP_ROUTES.mitarbeiter.hours}
           />
           {summary && summary.totalStaff > 0 ? (
             <DashboardCompactMetricPill
               label="Team"
               value={String(summary.totalStaff)}
-              href="/dashboard/mitarbeiter/uebersicht"
+              href={APP_ROUTES.mitarbeiter.overview}
             />
           ) : null}
         </DashboardCompactInlineMetrics>

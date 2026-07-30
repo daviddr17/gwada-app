@@ -9,8 +9,9 @@ import {
   GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT,
   useDashboardHasDataRef,
 } from "@/lib/dashboard/dashboard-widget-refresh";
-import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
+import { useDashboardHomeBatchSurface } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSlice } from "@/lib/hooks/use-dashboard-batch-slice";
+import type { StaffDayWageBreakdown } from "@/lib/staff/staff-day-wage";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type {
   RestaurantStaffRow,
@@ -19,8 +20,13 @@ import type {
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
+const EMPTY_WAGE_BREAKDOWN: StaffDayWageBreakdown = {
+  lines: [],
+  totalCents: 0,
+};
+
 export function useDashboardStaffStats() {
-  const batchEnabled = useDashboardBatchQueryEnabled();
+  const useBatchSurface = useDashboardHomeBatchSurface();
   const batchSlice = useDashboardBatchSlice("staff");
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const hasDataRef = useDashboardHasDataRef();
@@ -30,6 +36,8 @@ export function useDashboardStaffStats() {
   const [completedShifts, setCompletedShifts] = useState<
     DashboardStaffSummaryPayload["completedShifts"]
   >([]);
+  const [wageBreakdown, setWageBreakdown] =
+    useState<StaffDayWageBreakdown>(EMPTY_WAGE_BREAKDOWN);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +61,7 @@ export function useDashboardStaffStats() {
           setStaff([]);
           setPresence([]);
           setCompletedShifts([]);
+          setWageBreakdown(EMPTY_WAGE_BREAKDOWN);
           setError(err);
         }
         if (!silent && initial) setLoading(false);
@@ -63,6 +72,7 @@ export function useDashboardStaffStats() {
       setStaff(data?.staff ?? []);
       setPresence(data?.presence ?? []);
       setCompletedShifts(data?.completedShifts ?? []);
+      setWageBreakdown(data?.wageBreakdown ?? EMPTY_WAGE_BREAKDOWN);
       hasDataRef.current = Boolean(data?.summary);
       if (!silent && initial) setLoading(false);
     },
@@ -70,7 +80,7 @@ export function useDashboardStaffStats() {
   );
 
   useEffect(() => {
-    if (batchEnabled) return;
+    if (useBatchSurface) return;
 
     if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
       hasDataRef.current = false;
@@ -78,6 +88,7 @@ export function useDashboardStaffStats() {
       setStaff([]);
       setPresence([]);
       setCompletedShifts([]);
+      setWageBreakdown(EMPTY_WAGE_BREAKDOWN);
       setError(null);
       setLoading(false);
       return;
@@ -107,15 +118,16 @@ export function useDashboardStaffStats() {
       );
       window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onPoll);
     };
-  }, [batchEnabled, restaurantId, run, hasDataRef]);
+  }, [useBatchSurface, restaurantId, run, hasDataRef]);
 
-  if (batchEnabled) {
+  if (useBatchSurface) {
     const payload = batchSlice.summary;
     return {
       summary: payload?.summary ?? null,
       staff: payload?.staff ?? [],
       presence: payload?.presence ?? [],
       completedShifts: payload?.completedShifts ?? [],
+      wageBreakdown: payload?.wageBreakdown ?? EMPTY_WAGE_BREAKDOWN,
       loading: batchSlice.loading,
       error: batchSlice.error,
       ready: batchSlice.ready,
@@ -127,6 +139,7 @@ export function useDashboardStaffStats() {
     staff,
     presence,
     completedShifts,
+    wageBreakdown,
     loading,
     error,
     ready: workspaceReady && Boolean(restaurantId && isUuidRestaurantId(restaurantId)),

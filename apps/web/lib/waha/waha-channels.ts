@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { WahaServerConfig } from "@/lib/waha/waha-config";
 
@@ -74,7 +74,7 @@ export async function listWahaChannelsForRestaurant(
   restaurantId: string,
   opts?: { role?: "OWNER" | "ADMIN" },
 ): Promise<{ channels: WahaChannel[] } | { error: string }> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
   if (!config) return { error: "waha_not_configured" };
   const session = wahaSessionNameForRestaurant(restaurantId);
   const qs = opts?.role ? `?role=${encodeURIComponent(opts.role)}` : "";
@@ -94,7 +94,7 @@ export async function createWahaChannelForRestaurant(
   const name = input.name.trim();
   if (!name) return { error: "invalid_channel_name" };
 
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
   if (!config) return { error: "waha_not_configured" };
 
   const session = wahaSessionNameForRestaurant(restaurantId);
@@ -127,7 +127,7 @@ export async function fetchWahaChannelMessages(
   channelId: string,
   opts?: { limit?: number },
 ): Promise<{ messages: WahaMessage[] } | { error: string }> {
-  const config = await getWahaServerConfigAdmin();
+  const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
   if (!config) return { error: "waha_not_configured" };
   const session = wahaSessionNameForRestaurant(restaurantId);
   const limit = opts?.limit ?? 50;

@@ -11,7 +11,7 @@ import {
   wahaPseudoContactIdFromChatId,
 } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { normalizeContactPhone } from "@/lib/contacts/normalize-contact-identity";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { isWahaLidChatId } from "@/lib/waha/waha-lids";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -62,7 +62,9 @@ export async function resolveWahaInboundIdentity(
   let displayLabel = pushReadable;
 
   if (!displayLabel) {
-    const config = await getWahaServerConfigAdmin();
+    const config = await getWahaServerConfigForRestaurantAdmin(
+      params.restaurantId,
+    );
     if (config) {
       const resolved = await resolveWahaChatDisplayName({
         config,

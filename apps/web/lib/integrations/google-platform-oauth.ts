@@ -19,6 +19,32 @@ export type GoogleAuthOAuthState = {
   nonce: string;
 };
 
+/** Client-ID/Secret lesen — auch wenn Login-OAuth deaktiviert ist (Gmail-Token-Refresh). */
+export async function getGoogleOAuthPlatformSecretsAdmin(): Promise<GoogleOAuthPlatformConfig | null> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+
+  const { data } = await admin
+    .from("platform_integrations")
+    .select("config")
+    .eq("key", "google_oauth")
+    .maybeSingle();
+
+  if (!data) return null;
+  return googleOAuthConfigFromRow(data.config);
+}
+
+function googleOAuthConfigFromRow(raw: unknown): GoogleOAuthPlatformConfig | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const cfg = raw as Record<string, unknown>;
+  const clientId =
+    typeof cfg.client_id === "string" ? cfg.client_id.trim() : "";
+  const clientSecret =
+    typeof cfg.client_secret === "string" ? cfg.client_secret.trim() : "";
+  if (!clientId || !clientSecret) return null;
+  return { clientId, clientSecret };
+}
+
 export async function getGoogleOAuthPlatformConfigAdmin(): Promise<GoogleOAuthPlatformConfig | null> {
   const admin = createSupabaseAdminClient();
   if (!admin) return null;
@@ -31,13 +57,7 @@ export async function getGoogleOAuthPlatformConfigAdmin(): Promise<GoogleOAuthPl
 
   if (!data || !readPlatformIntegrationEnabled(data.enabled)) return null;
 
-  const cfg = data.config as Record<string, unknown>;
-  const clientId =
-    typeof cfg.client_id === "string" ? cfg.client_id.trim() : "";
-  const clientSecret =
-    typeof cfg.client_secret === "string" ? cfg.client_secret.trim() : "";
-  if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
+  return googleOAuthConfigFromRow(data.config);
 }
 
 export function googleAuthOAuthCallbackUrl(req: Request): string {

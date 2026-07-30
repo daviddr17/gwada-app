@@ -18,12 +18,15 @@ import {
   fetchSuperadminDatabaseStatus,
   fetchSuperadminIntegrationHealth,
 } from "@/lib/superadmin/superadmin-ops-status-api";
+import { fetchSuperadminWahaServers } from "@/lib/superadmin/waha-servers-api";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 import type { SuperadminDatabaseStatus } from "@/lib/types/superadmin-ops-status";
+import type { WahaServerCapacityAlert } from "@/lib/waha/waha-server-types";
 import { cn } from "@/lib/utils";
 
 const INTEGRATION_ALERT_LABELS: Record<PlatformIntegrationKey, string> = {
   google_oauth: "Google OAuth",
+  microsoft_oauth: "Microsoft OAuth",
   apple_oauth: "Apple OAuth",
   facebook: "Facebook",
   instagram: "Instagram",
@@ -50,6 +53,7 @@ function collectPlatformAlerts(
     key: PlatformIntegrationKey;
     message?: string;
   }>,
+  wahaCapacityAlerts: WahaServerCapacityAlert[],
 ): PlatformAlert[] {
   const alerts: PlatformAlert[] = [];
 
@@ -80,6 +84,17 @@ function collectPlatformAlerts(
         detail: status.liveApp.message ?? undefined,
         tone: "error",
       });
+    } else if (
+      status.liveApp.syncState === "unknown" &&
+      status.liveApp.liveReachable &&
+      !status.github.headCommit.sha
+    ) {
+      alerts.push({
+        key: "github-compare-missing",
+        label: "GitHub-Vergleich fehlt",
+        detail: status.liveApp.message ?? undefined,
+        tone: "warning",
+      });
     }
   }
 
@@ -92,6 +107,15 @@ function collectPlatformAlerts(
     });
   }
 
+  for (const item of wahaCapacityAlerts) {
+    alerts.push({
+      key: `waha-capacity-${item.server_id}`,
+      label: `WAHA fast voll: ${item.server_name}`,
+      detail: `${item.session_count}/${item.session_limit} Sessions — neuen Server unter Superadmin → WAHA anlegen.`,
+      tone: "warning",
+    });
+  }
+
   return alerts;
 }
 
@@ -99,6 +123,9 @@ export function SuperadminPlatformStatusSummary() {
   const [status, setStatus] = useState<SuperadminDatabaseStatus | null>(null);
   const [integrationErrors, setIntegrationErrors] = useState<
     Array<{ key: PlatformIntegrationKey; message?: string }>
+  >([]);
+  const [wahaCapacityAlerts, setWahaCapacityAlerts] = useState<
+    WahaServerCapacityAlert[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,9 +135,10 @@ export function SuperadminPlatformStatusSummary() {
     if (!silent) setLoading(true);
     else setRefreshing(true);
 
-    const [dbResult, healthResult] = await Promise.all([
+    const [dbResult, healthResult, wahaResult] = await Promise.all([
       fetchSuperadminDatabaseStatus(),
       fetchSuperadminIntegrationHealth(),
+      fetchSuperadminWahaServers(),
     ]);
 
     setStatus(dbResult.status);
@@ -121,6 +149,7 @@ export function SuperadminPlatformStatusSummary() {
         message: health?.message,
       }));
     setIntegrationErrors(errors);
+    setWahaCapacityAlerts(wahaResult.capacityAlerts ?? []);
 
     setLoading(false);
     setRefreshing(false);
@@ -146,8 +175,11 @@ export function SuperadminPlatformStatusSummary() {
   }, [shouldPoll, load]);
 
   const alerts = useMemo(
-    () => (status ? collectPlatformAlerts(status, integrationErrors) : []),
-    [status, integrationErrors],
+    () =>
+      status
+        ? collectPlatformAlerts(status, integrationErrors, wahaCapacityAlerts)
+        : [],
+    [status, integrationErrors, wahaCapacityAlerts],
   );
 
   if (showSkeleton) {
@@ -221,7 +253,7 @@ export function SuperadminPlatformStatusSummary() {
           <p className="text-sm font-semibold">
             {isLocalDev
               ? localDevRuntimeLabel()
-              : liveAppSyncLabel(status.liveApp.syncState)}
+              : liveAppSyncLabel(status.liveApp.syncState, status.liveApp)}
           </p>
           <p className="mt-0.5 text-xs opacity-90">
             {isLocalDev

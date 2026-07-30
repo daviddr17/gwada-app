@@ -56,7 +56,12 @@ export async function syncWhatsappFromWaha(
       const startRes = await wahaStartSession(config, sessionName);
       if (startRes.ok) session = startRes.data;
     }
-  } else if (session?.status === "FAILED" || session?.status === "STOPPED") {
+  } else if (
+    session?.status === "FAILED" ||
+    session?.status === "STOPPED" ||
+    session?.status === "STARTING"
+  ) {
+    // STARTING oft hängend (Chrome/Engine) — Restart statt erneut start.
     const restartRes = await wahaRestartSession(config, sessionName);
     if (restartRes.ok) session = restartRes.data;
     else {
@@ -77,24 +82,33 @@ export async function syncWhatsappFromWaha(
     existing?.status ?? "starting",
   );
 
-  await upsertRestaurantWhatsappIntegration(sb, restaurantId, {
-    status: mapped.status,
-    phone_number: mapped.phone_number,
-    display_name: mapped.display_name,
-    connected_at: mapped.connected_at,
-    last_error: null,
-  });
+  // Persistenz immer mit Service-Role — User-Client kann trotz Live-WORKING
+  // am Upsert scheitern (fehlende integrations.whatsapp-Permission) → UI zeigt
+  // „verbunden“, Dispatch liest dann noch alten DB-Status.
+  const admin = createSupabaseAdminClient();
+  const writeSb = admin ?? sb;
+  const { error: upsertError } = await upsertRestaurantWhatsappIntegration(
+    writeSb,
+    restaurantId,
+    {
+      status: mapped.status,
+      phone_number: mapped.phone_number,
+      display_name: mapped.display_name,
+      connected_at: mapped.connected_at,
+      last_error: null,
+    },
+  );
+  if (upsertError) {
+    console.warn("[waha] sync upsert restaurant_integrations", upsertError);
+  }
 
-  if (mapped.status === "working" && !wasWorking) {
-    const admin = createSupabaseAdminClient();
-    if (admin) {
-      void syncInboxHistoryOnConnect(admin, {
-        restaurantId,
-        whatsapp: true,
-      }).catch((e) => {
-        console.warn("[contact-inbox] history-on-connect whatsapp", e);
-      });
-    }
+  if (mapped.status === "working" && !wasWorking && admin) {
+    void syncInboxHistoryOnConnect(admin, {
+      restaurantId,
+      whatsapp: true,
+    }).catch((e) => {
+      console.warn("[contact-inbox] history-on-connect whatsapp", e);
+    });
   }
 
   if (session) {

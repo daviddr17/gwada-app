@@ -8,25 +8,27 @@ import { DashboardBatchQuerySync } from "@/components/providers/dashboard-batch-
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useDashboardPageBackgroundRefresh } from "@/lib/dashboard/dashboard-widget-refresh";
 
-/** Dashboard-Home — Page-Segment `/dashboard` (RSC/Router-Sync). */
-export function DashboardHomeScreen() {
-  useDashboardPageBackgroundRefresh();
+/** Dashboard-Home — Keep-alive unter App-Shell; `active` steuert Arbeit/Chrome/FAB. */
+export function DashboardHomeScreen({ active = true }: { active?: boolean }) {
+  useDashboardPageBackgroundRefresh(active);
 
   return (
     <>
-      <DashboardBatchQuerySync />
-      <RegisterModuleChrome
-        title="Dashboard"
-        subnavAriaLabel={null}
-        subnavItems={null}
-      />
+      {active ? <DashboardBatchQuerySync /> : null}
+      {active ? (
+        <RegisterModuleChrome
+          title="Dashboard"
+          subnavAriaLabel={null}
+          subnavItems={null}
+        />
+      ) : null}
       <AppMain>
         <div className="space-y-4">
           <PendingStaffInviteBanner />
           <DashboardHomePage />
         </div>
       </AppMain>
-      <DashboardFab />
+      {active ? <DashboardFab /> : null}
     </>
   );
 }

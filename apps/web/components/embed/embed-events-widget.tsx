@@ -23,7 +23,6 @@ import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 export type EmbedEventsWidgetProps = {
   accentHex: string;
   textTheme?: EmbedTextTheme;
-  viewMode: "grid" | "list";
   connectedPlatforms: PublicEmbedEvents["connectedPlatforms"];
   items: PublicEmbedEvents["items"];
   pastItems?: PublicEmbedEvents["pastItems"];
@@ -35,7 +34,6 @@ export type EmbedEventsWidgetProps = {
 export function EmbedEventsWidget({
   accentHex,
   textTheme = "dark",
-  viewMode,
   connectedPlatforms,
   items,
   pastItems = [],
@@ -52,7 +50,6 @@ export function EmbedEventsWidget({
       showLocalePicker={variant === "embed"}
     >
       <EmbedEventsWidgetBody
-        viewMode={viewMode}
         connectedPlatforms={connectedPlatforms}
         items={items}
         pastItems={pastItems}
@@ -182,7 +179,13 @@ function EmbedEventsWidgetBody({
 
   return (
     <>
-      <EmbedResizeReporter widget="events" deps={resizeDeps} />
+      {variant === "embed" ? (
+        <EmbedResizeReporter
+          widget="events"
+          deps={resizeDeps}
+          feedDebounce
+        />
+      ) : null}
       <div className={paddingClass} data-gwada-embed-content>
         {connectedPlatforms.length > 1 ? (
           <div className="mb-4">
@@ -239,7 +242,10 @@ function EmbedEventsWidgetBody({
           {visibleItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("eventsEmpty")}</p>
           ) : (
-            <EventsListView items={displayItems} />
+            <EventsListView
+              items={displayItems}
+              density={variant === "profileSheet" ? "compact" : "comfortable"}
+            />
           )}
         </ListPaginationSurround>
       </div>

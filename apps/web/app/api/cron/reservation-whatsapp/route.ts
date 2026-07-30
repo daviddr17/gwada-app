@@ -4,7 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-/** Geplante Erinnerungen / Danke-Nachrichten (z. B. Coolify-Cron alle 5 Min.). */
+/** Geplante Erinnerungen / Danke — GitHub Actions production-cron.yml alle 5 Min. */
 export async function GET(req: Request) {
   const cronAuth = assertCronAuthorized(req);
   if (cronAuth) return cronAuth;

@@ -55,7 +55,7 @@ export default async function EmbedEventsPage({
     );
   }
 
-  const { accentHex, viewMode, connectedPlatforms, items, pastItems, showAllPlatformFilter } =
+  const { accentHex, connectedPlatforms, items, pastItems, showAllPlatformFilter } =
     result.data;
 
   const isPreview = Boolean(sp[EMBED_PREVIEW_TEXT_THEME_PARAM]);
@@ -67,7 +67,6 @@ export default async function EmbedEventsPage({
       ) : null}
       <EmbedEventsWidget
         accentHex={accentHex}
-        viewMode={viewMode}
         connectedPlatforms={connectedPlatforms}
         items={items}
         pastItems={pastItems}

@@ -7,7 +7,7 @@ import {
 import { fetchPublicEmbedRestaurant } from "@/lib/reservations/public-reservation-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
 export type PublicProfileContactChannels = {
@@ -26,7 +26,7 @@ export async function loadPublicProfileContactChannelsForRestaurant(
 
   let whatsappAvailable = false;
   if (whatsappPlatform.ok) {
-    const config = await getWahaServerConfigAdmin();
+    const config = await getWahaServerConfigForRestaurantAdmin(restaurantId);
     if (config) {
       const session = wahaSessionNameForRestaurant(restaurantId);
       const live = await wahaGetSession(config, session);

@@ -1,12 +1,9 @@
 import "server-only";
 
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
-import { fetchFacebookReviewsForRestaurant } from "@/lib/reviews/facebook-reviews-api";
-import { fetchGoogleReviewsForRestaurant } from "@/lib/reviews/google-reviews-api";
+import { readCachedReviews } from "@/lib/reviews/reviews-cache-db";
 import { upsertReviewReadsBatch } from "@/lib/supabase/restaurant-review-reads-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-const GOOGLE_READ_ALL_MAX_PAGES = 20;
 
 function dedupeReviewItems(
   items: readonly { platform: ReviewPlatform; reviewId: string }[],
@@ -42,7 +39,11 @@ export async function markReviewsReadBatchServer(
   });
 }
 
-/** Beim Besuch der Bewertungs-Übersicht: alle bekannten Bewertungen als gelesen. */
+/**
+ * Alle bekannten Bewertungen als gelesen (Glocke „Alle“ / Übersichtsbesuch).
+ * Quelle: Cache (+ Gwada-DB) — nicht Live-APIs (Rate-Limits / unvollständige Seiten
+ * ließen TripAdvisor & Cache-only Reviews ungelesen → Glocke füllte sich wieder).
+ */
 export async function markAllReviewsReadForUserServer(
   sb: SupabaseClient,
   params: {
@@ -65,25 +66,13 @@ export async function markAllReviewsReadForUserServer(
     items.push({ platform: "gwada", reviewId: row.id as string });
   }
 
-  const fbResult = await fetchFacebookReviewsForRestaurant(params.restaurantId);
-  if (!("error" in fbResult)) {
-    for (const review of fbResult.reviews) {
-      items.push({ platform: "facebook", reviewId: review.id });
-    }
-  }
-
-  let googlePageToken: string | null = null;
-  for (let page = 0; page < GOOGLE_READ_ALL_MAX_PAGES; page += 1) {
-    const googleResult = await fetchGoogleReviewsForRestaurant(
-      params.restaurantId,
-      { pageToken: googlePageToken, pageSize: 50 },
-    );
-    if ("error" in googleResult) break;
-    for (const review of googleResult.reviews) {
-      items.push({ platform: "google", reviewId: review.id });
-    }
-    googlePageToken = googleResult.pagination.nextPageToken;
-    if (!googlePageToken) break;
+  const cached = await readCachedReviews(sb, params.restaurantId, [
+    "google",
+    "facebook",
+    "tripadvisor",
+  ]);
+  for (const review of cached) {
+    items.push({ platform: review.platform, reviewId: review.id });
   }
 
   return markReviewsReadBatchServer(sb, {

@@ -44,12 +44,25 @@ import {
   ContactInboxThreadOverlay,
   CONTACT_INBOX_THREAD_OVERLAY_MS,
 } from "@/components/contacts/contact-inbox-thread-overlay";
+import {
+  ContactInboxThreadShortcutsFab,
+  contactInboxShortcutActions,
+} from "@/components/contacts/contact-inbox-thread-shortcuts-fab";
 import type {
   ContactMessageMetaReactionsConfig,
   ContactMessageWahaReactionsConfig,
 } from "@/components/contacts/contact-message-bubble-list";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
-import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
+import {
+  ReservationEditDrawer,
+  type ReservationEditDrawerCreateContext,
+  type ReservationWhatsappDispatchedPayload,
+} from "@/components/reservations/reservation-edit-drawer";
+import {
+  ReviewInvitationSheet,
+  type ReviewInvitationGuestPrefill,
+} from "@/components/reviews/review-invitation-sheet";
+import { buildChatGuestPrefill } from "@/lib/contact-messages/chat-guest-prefill";
 import { ContactConversationAttachmentIcon } from "@/components/contacts/contact-conversation-attachment-icon";
 import { ContactMessageComposer } from "@/components/contacts/contact-message-composer";
 import { ContactInboxFilterChips } from "@/components/contacts/contact-inbox-filter-chips";
@@ -119,6 +132,7 @@ import {
   dropOptimisticMatchingAnchors,
   isOptimisticContactMessage,
   mergeLoadedThreadWithOptimistic,
+  OPTIMISTIC_MESSAGE_ID_PREFIX,
   patchWhatsappMessageByWahaId,
   removeOptimisticMessage,
   removeWhatsappMessageByWahaId,
@@ -218,6 +232,7 @@ import {
   type ContactMessageRow,
 } from "@/lib/supabase/contact-messages-db";
 import type { ContactListRow } from "@/lib/supabase/contacts-db";
+import { startOfLocalDay } from "@/lib/reservations/month-range";
 import {
   fetchReservationById,
   type ReservationListRow,
@@ -303,18 +318,37 @@ function contactInboxMarkUnreadErrorMessage(error: string): string {
   }
 }
 
-export function ContactsMessagesScreen() {
+export function ContactsMessagesScreen({
+  active = true,
+}: {
+  /** Keep-alive: false = versteckt — kein Thread-Realtime / kein Silent-Refetch. */
+  active?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const contactParam = searchParams.get("contact");
   const platformParam = searchParams.get("platform");
   const readParam = searchParams.get("read");
+
+  /** Keep-alive: nie Soft-Nav zurückreißen — auch nicht nach async await. */
+  const navigateNachrichten = useCallback(
+    (href: string, mode: "replace" | "push" = "replace") => {
+      if (!activeRef.current) return;
+      if (mode === "push") router.push(href);
+      else router.replace(href);
+    },
+    [router],
+  );
 
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "contacts");
   const canViewMessageProtocol = has("contacts.messages.protocol");
+  const canCreateReservation = hasModuleCreate(has, "reservations");
+  const canCreateReviewInvite = hasModuleCreate(has, "reviews");
   const { profile } = useRestaurantProfile();
   const defaultCountryIso2 = useMemo(
     () => resolveCountryIso2FromLabel(profile.country),
@@ -392,6 +426,11 @@ export function ContactsMessagesScreen() {
   const [reservationDrawerOpen, setReservationDrawerOpen] = useState(false);
   const [reservationForDrawer, setReservationForDrawer] =
     useState<ReservationListRow | null>(null);
+  const [reservationCreateFor, setReservationCreateFor] =
+    useState<ReservationEditDrawerCreateContext | null>(null);
+  const [reviewInviteOpen, setReviewInviteOpen] = useState(false);
+  const [reviewInviteGuest, setReviewInviteGuest] =
+    useState<ReviewInvitationGuestPrefill | null>(null);
   const [chatSearch, setChatSearch] = useState("");
   const [readFilter, setReadFilter] = useState<ConversationReadFilter>(() =>
     parseConversationReadFilter(readParam),
@@ -416,16 +455,21 @@ export function ContactsMessagesScreen() {
   }, [chatSearch, readFilter]);
 
   useEffect(() => {
+    if (!active) return;
     if (contactParam) {
       setThreadOverlayOpen(true);
       setClosingThreadId(null);
     }
-  }, [contactParam]);
+  }, [active, contactParam]);
 
   useEffect(() => {
+    if (!active) {
+      setInboxLiveToastSuppressedByOpenThread(false);
+      return;
+    }
     setInboxLiveToastSuppressedByOpenThread(Boolean(contactParam));
     return () => setInboxLiveToastSuppressedByOpenThread(false);
-  }, [contactParam]);
+  }, [active, contactParam]);
 
   useEffect(() => {
     setEditingWahaMessage(null);
@@ -648,6 +692,8 @@ export function ContactsMessagesScreen() {
     !contactParam && isInboxFilterAvailable(inboxFilter);
 
   useEffect(() => {
+    // Keep-alive: versteckt bleibt gemountet — URL-Sync darf Soft-Nav nicht zurückreißen.
+    if (!active) return;
     if (connectionsLoading || !workspaceReady || !restaurantId) return;
 
     const resolved = parseInboxPlatformFilter(platformParam, contactParam);
@@ -667,32 +713,38 @@ export function ContactsMessagesScreen() {
       const params = new URLSearchParams(searchParams.toString());
       params.set("platform", next);
       if (contactParam) params.set("contact", contactParam);
-      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+      navigateNachrichten(
+        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      );
     }
   }, [
+    active,
     connectionsLoading,
     workspaceReady,
     restaurantId,
     platformParam,
     contactParam,
     isInboxFilterAvailable,
-    router,
+    navigateNachrichten,
     searchParams,
   ]);
 
   useEffect(() => {
+    if (!active) return;
     const next = parseConversationReadFilter(readParam);
     setReadFilter((prev) => (prev === next ? prev : next));
-  }, [readParam]);
+  }, [active, readParam]);
 
   const selectReadFilter = useCallback(
     (filter: ConversationReadFilter) => {
       setReadFilter(filter);
       const params = new URLSearchParams(searchParams.toString());
       applyConversationReadFilterToSearchParams(params, filter);
-      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+      navigateNachrichten(
+        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      );
     },
-    [router, searchParams],
+    [navigateNachrichten, searchParams],
   );
 
   const loadConversations = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
@@ -1199,9 +1251,10 @@ export function ContactsMessagesScreen() {
   useContactThreadRealtime(contactParam, {
     onInsert: applyRealtimeThreadInsert,
     onUpdate: applyRealtimeThreadUpdate,
-  });
+  }, { enabled: active });
 
   useEffect(() => {
+    // Cache-Events auch versteckt — nur setState, hält Inbox warm.
     if (!restaurantId || contactParam) return;
     if (!isUnifiedInboxFilter(inboxFilter)) return;
 
@@ -1225,7 +1278,7 @@ export function ContactsMessagesScreen() {
   }, [restaurantId, contactParam, inboxFilter]);
 
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!active || !restaurantId) return;
 
     const onMessagesRefresh = () => {
       if (contactParam) return;
@@ -1254,6 +1307,7 @@ export function ContactsMessagesScreen() {
       }
     };
   }, [
+    active,
     restaurantId,
     contactParam,
     loadConversations,
@@ -1284,6 +1338,8 @@ export function ContactsMessagesScreen() {
   ]);
 
   useEffect(() => {
+    // Fremde Modul-URLs nicht als Inbox-Params interpretieren (Keep-alive).
+    if (!active) return;
     if (!restaurantId || connectionsLoading) return;
 
     if (!contactParam) {
@@ -1297,6 +1353,7 @@ export function ContactsMessagesScreen() {
       silent: Boolean(cached && cached.messages.length > 0),
     });
   }, [
+    active,
     contactParam,
     connectionsLoading,
     restaurantId,
@@ -1311,7 +1368,9 @@ export function ContactsMessagesScreen() {
     params.set("platform", filter);
     params.delete("contact");
     applyConversationReadFilterToSearchParams(params, readFilter);
-    router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+    navigateNachrichten(
+      `/dashboard/kontakte/nachrichten?${params.toString()}`,
+    );
   };
 
   const canOpenLinkedContact = useCallback(
@@ -1341,6 +1400,7 @@ export function ContactsMessagesScreen() {
         toast.error("Reservierung nicht gefunden.");
         return;
       }
+      setReservationCreateFor(null);
       setReservationForDrawer(data);
       setReservationDrawerOpen(true);
     },
@@ -1359,9 +1419,11 @@ export function ContactsMessagesScreen() {
       const params = new URLSearchParams();
       params.set("platform", INBOX_FILTER_ALL);
       params.set("contact", contactId);
-      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+      navigateNachrichten(
+        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      );
     },
-    [restaurantId, router],
+    [restaurantId, navigateNachrichten],
   );
 
   const linkMetaThreadToExistingContact = useCallback(
@@ -1609,7 +1671,7 @@ export function ContactsMessagesScreen() {
               toast.info(
                 `E-Mail ist bereits bei „${existing.displayName}“ hinterlegt — bestehender Kontakt wird geöffnet.`,
               );
-              router.replace(
+              navigateNachrichten(
                 `/dashboard/kontakte/nachrichten?platform=all&contact=${existing.contactId}`,
               );
               return;
@@ -1625,7 +1687,12 @@ export function ContactsMessagesScreen() {
         setContactDrawerOpen(true);
       })();
     },
-    [defaultCountryIso2, linkWahaThreadToExistingContact, restaurantId],
+    [
+      defaultCountryIso2,
+      linkWahaThreadToExistingContact,
+      navigateNachrichten,
+      restaurantId,
+    ],
   );
 
   const openConversation = (contactId: string) => {
@@ -1666,7 +1733,10 @@ export function ContactsMessagesScreen() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("platform", inboxFilter);
     params.set("contact", contactId);
-    router.push(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+    navigateNachrichten(
+      `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      "push",
+    );
   };
 
   const backToList = useCallback(() => {
@@ -1676,12 +1746,182 @@ export function ContactsMessagesScreen() {
       const params = new URLSearchParams();
       params.set("platform", inboxFilter);
       applyConversationReadFilterToSearchParams(params, readFilter);
-      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+      navigateNachrichten(
+        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      );
     }
     window.setTimeout(() => {
       setClosingThreadId(null);
     }, CONTACT_INBOX_THREAD_OVERLAY_MS);
-  }, [contactParam, inboxFilter, readFilter, router]);
+  }, [contactParam, inboxFilter, readFilter, navigateNachrichten]);
+
+  const resolveChatGuestPrefill = useCallback(async () => {
+    const threadId = overlayThreadId;
+    if (!threadId || !restaurantId) {
+      return buildChatGuestPrefill({ displayName: contactName });
+    }
+
+    if (isLinkedContactId(threadId)) {
+      const { data } = await fetchContactById({
+        restaurantId,
+        contactId: threadId,
+      });
+      if (data) {
+        return buildChatGuestPrefill({
+          displayName: contactThreadDisplayName(data) || contactName,
+          phone: primaryPhone(data),
+          email: primaryEmail(data),
+        });
+      }
+    }
+
+    const phone =
+      whatsappHeaderSubtitle?.trim() ||
+      whatsappThreadPhone?.trim() ||
+      null;
+    const email = isEmailPseudoContactId(threadId)
+      ? emailAddressFromPseudoContactId(threadId)
+      : null;
+
+    return buildChatGuestPrefill({
+      displayName: contactName,
+      phone,
+      email,
+    });
+  }, [
+    overlayThreadId,
+    restaurantId,
+    contactName,
+    whatsappHeaderSubtitle,
+    whatsappThreadPhone,
+  ]);
+
+  const openReservationFromChat = useCallback(() => {
+    if (!restaurantId || !overlayThreadId) return;
+    void (async () => {
+      const guest = await resolveChatGuestPrefill();
+      const linked = isLinkedContactId(overlayThreadId);
+      setReservationForDrawer(null);
+      setReservationCreateFor({
+        restaurantId,
+        day: startOfLocalDay(new Date()),
+        initialContactId: linked ? overlayThreadId : undefined,
+        initialGuestFirstName: linked ? undefined : guest.firstName || undefined,
+        initialGuestLastName: linked ? undefined : guest.lastName || undefined,
+        initialGuestPhone: linked ? undefined : guest.phone,
+        initialGuestEmail: linked ? undefined : guest.email,
+      });
+      setReservationDrawerOpen(true);
+    })();
+  }, [restaurantId, overlayThreadId, resolveChatGuestPrefill]);
+
+  const openReviewInviteFromChat = useCallback(() => {
+    void (async () => {
+      const guest = await resolveChatGuestPrefill();
+      const name = [guest.firstName, guest.lastName].filter(Boolean).join(" ");
+      setReviewInviteGuest({
+        firstName: name || undefined,
+        email: guest.email || undefined,
+        phone: guest.phone,
+      });
+      setReviewInviteOpen(true);
+    })();
+  }, [resolveChatGuestPrefill]);
+
+  const chatShortcutActions = useMemo(
+    () =>
+      contactInboxShortcutActions({
+        canCreateReservation,
+        canCreateReviewInvite,
+        onReservation: openReservationFromChat,
+        onReviewInvite: openReviewInviteFromChat,
+      }),
+    [
+      canCreateReservation,
+      canCreateReviewInvite,
+      openReservationFromChat,
+      openReviewInviteFromChat,
+    ],
+  );
+
+  /** Overlay-WhatsApp sofort im offenen Thread — ohne loadThread-Flackern. */
+  const appendOverlayWhatsappOptimistic = useCallback(
+    (params: { clientSendId: string; messageBody: string }) => {
+      if (!restaurantId || !overlayThreadId) return;
+      const optimistic = createOptimisticOutboundWhatsappMessage({
+        restaurantId,
+        contactId: overlayThreadId,
+        body: params.messageBody,
+        clientId: params.clientSendId,
+      });
+      setMessages((prev) => {
+        const next = appendOptimisticMessage(prev, optimistic);
+        patchThreadCache(next);
+        return next;
+      });
+    },
+    [restaurantId, overlayThreadId, patchThreadCache],
+  );
+
+  const confirmOverlayWhatsappOptimistic = useCallback(
+    (params: {
+      clientSendId: string;
+      messageId?: string;
+      wahaMessageId?: string | null;
+    }) => {
+      const optimisticId = `${OPTIMISTIC_MESSAGE_ID_PREFIX}${params.clientSendId}`;
+      setMessages((prev) => {
+        const next = confirmOptimisticWhatsappMessage(prev, {
+          optimisticId,
+          messageId: params.messageId,
+          wahaMessageId: params.wahaMessageId,
+          deliveryStatus: "sent",
+        });
+        if (!contactThreadRowsEqual(prev, next)) {
+          patchThreadCache(next);
+        }
+        return next;
+      });
+      void loadConversations({ silent: true });
+    },
+    [patchThreadCache, loadConversations],
+  );
+
+  const failOverlayWhatsappOptimistic = useCallback(
+    (clientSendId: string) => {
+      const optimisticId = `${OPTIMISTIC_MESSAGE_ID_PREFIX}${clientSendId}`;
+      setMessages((prev) => {
+        const next = removeOptimisticMessage(prev, optimisticId);
+        patchThreadCache(next);
+        return next;
+      });
+    },
+    [patchThreadCache],
+  );
+
+  const handleReservationWhatsappDispatched = useCallback(
+    (payload: ReservationWhatsappDispatchedPayload) => {
+      if (!restaurantId || !overlayThreadId || !payload.messageBody.trim()) {
+        return;
+      }
+      const clientSendId = crypto.randomUUID();
+      appendOverlayWhatsappOptimistic({
+        clientSendId,
+        messageBody: payload.messageBody,
+      });
+      confirmOverlayWhatsappOptimistic({
+        clientSendId,
+        messageId: payload.messageId,
+        wahaMessageId: payload.wahaMessageId,
+      });
+    },
+    [
+      restaurantId,
+      overlayThreadId,
+      appendOverlayWhatsappOptimistic,
+      confirmOverlayWhatsappOptimistic,
+    ],
+  );
 
   const restaurantName = profile.name.trim() || undefined;
   const canSendViaExternal =
@@ -2169,6 +2409,11 @@ export function ContactsMessagesScreen() {
           open={threadOverlayOpen}
           onClose={backToList}
           aria-label={contactName ? `Chat mit ${contactName}` : "Chat"}
+          fab={
+            chatShortcutActions.length > 0 ? (
+              <ContactInboxThreadShortcutsFab actions={chatShortcutActions} />
+            ) : null
+          }
           header={
             <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
               <Button
@@ -2723,14 +2968,50 @@ export function ContactsMessagesScreen() {
         open={reservationDrawerOpen}
         onOpenChange={(open) => {
           setReservationDrawerOpen(open);
-          if (!open) setReservationForDrawer(null);
+          if (!open) {
+            setReservationForDrawer(null);
+            setReservationCreateFor(null);
+          }
         }}
         reservation={reservationForDrawer}
-        createFor={null}
+        createFor={reservationCreateFor}
+        stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
+        onWhatsappDispatched={handleReservationWhatsappDispatched}
         onSaved={() => {
           setReservationDrawerOpen(false);
           setReservationForDrawer(null);
-          if (contactParam) void loadThread();
+          setReservationCreateFor(null);
+          if (contactParam) void loadThread({ silent: true });
+        }}
+      />
+
+      <ReviewInvitationSheet
+        open={reviewInviteOpen}
+        onOpenChange={(open) => {
+          setReviewInviteOpen(open);
+          if (!open) setReviewInviteGuest(null);
+        }}
+        restaurantId={restaurantId}
+        restaurantName={profile.name.trim() || "Restaurant"}
+        defaultCountryIso2={defaultCountryIso2}
+        initialGuest={reviewInviteGuest}
+        stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
+        onWhatsappOutboundStart={({ clientSendId, messageBody }) => {
+          appendOverlayWhatsappOptimistic({ clientSendId, messageBody });
+        }}
+        onWhatsappOutboundSuccess={({
+          clientSendId,
+          messageId,
+          wahaMessageId,
+        }) => {
+          confirmOverlayWhatsappOptimistic({
+            clientSendId,
+            messageId,
+            wahaMessageId,
+          });
+        }}
+        onWhatsappOutboundFailure={({ clientSendId }) => {
+          failOverlayWhatsappOptimistic(clientSendId);
         }}
       />
 
@@ -2785,7 +3066,7 @@ export function ContactsMessagesScreen() {
                 }
                 setPendingInboxLink(null);
                 setContactCreateDraft(null);
-                router.replace(
+                navigateNachrichten(
                   `/dashboard/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
                 );
                 return;
@@ -2818,7 +3099,7 @@ export function ContactsMessagesScreen() {
                 }
                 setPendingInboxLink(null);
                 setContactCreateDraft(null);
-                router.replace(
+                navigateNachrichten(
                   `/dashboard/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
                 );
                 return;
@@ -2827,7 +3108,7 @@ export function ContactsMessagesScreen() {
               toast.success("Kontakt angelegt.");
               setPendingInboxLink(null);
               setContactCreateDraft(null);
-              router.replace(
+              navigateNachrichten(
                 `/dashboard/kontakte/nachrichten?platform=email&contact=${detail.contactId}`,
               );
               return;

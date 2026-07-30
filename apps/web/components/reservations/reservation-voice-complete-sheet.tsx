@@ -22,6 +22,7 @@ import {
   type ReservationVoiceDraft,
   type ReservationVoiceMissingField,
 } from "@/lib/reservations/parse-reservation-voice-text";
+import { RESERVATION_PARTY_SIZE_MAX_STAFF } from "@/lib/reservations/reservation-party-size";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { SpeechLiveCaption } from "@/lib/ui/speech-live-caption";
 import { isVoiceConfirmUtterance } from "@/lib/voice/voice-confirm-utterance";
@@ -379,7 +380,7 @@ export function ReservationVoiceCompleteSheet({
                 inputMode="numeric"
                 type="number"
                 min={1}
-                max={50}
+                max={RESERVATION_PARTY_SIZE_MAX_STAFF}
                 value={partySize ?? ""}
                 placeholder="z. B. 3"
                 className={cn(
@@ -391,7 +392,9 @@ export function ReservationVoiceCompleteSheet({
                   abortSpeechForTyping();
                   const n = Number.parseInt(e.target.value, 10);
                   setPartySize(
-                    Number.isFinite(n) && n >= 1 ? Math.min(50, n) : null,
+                    Number.isFinite(n) && n >= 1
+                      ? Math.min(RESERVATION_PARTY_SIZE_MAX_STAFF, n)
+                      : null,
                   );
                 }}
               />
@@ -403,7 +406,12 @@ export function ReservationVoiceCompleteSheet({
                 aria-label="Mehr Personen"
                 onClick={() => {
                   abortSpeechForTyping();
-                  setPartySize((n) => Math.min(50, (n ?? 0) + 1 || 1));
+                  setPartySize((n) =>
+                    Math.min(
+                      RESERVATION_PARTY_SIZE_MAX_STAFF,
+                      (n ?? 0) + 1 || 1,
+                    ),
+                  );
                 }}
               >
                 <Plus className="size-5" aria-hidden />

@@ -7,6 +7,9 @@ import {
   mergeSmtpPassword,
   validateSmtpConfigForSave,
 } from "@/lib/integrations/smtp-integration-config";
+import { getGmailOAuthPlatformConfigAdmin } from "@/lib/integrations/gmail-oauth";
+import { getOutlookOAuthPlatformConfigAdmin } from "@/lib/integrations/outlook-oauth";
+import { isRestaurantEmailMailboxStatus } from "@/lib/email/restaurant-email-mailbox";
 import { isEmailSendConfigured } from "@/lib/email/is-email-send-configured";
 import {
   emailIntegrationConfigToPublic,
@@ -41,7 +44,8 @@ async function assertCanManageEmail(restaurantId: string) {
 }
 
 export async function GET(req: Request) {
-  const restaurantId = new URL(req.url).searchParams.get("restaurantId")?.trim() ?? "";
+  const restaurantId =
+    new URL(req.url).searchParams.get("restaurantId")?.trim() ?? "";
   if (!isUuidRestaurantId(restaurantId)) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
@@ -53,6 +57,10 @@ export async function GET(req: Request) {
 
   const row = await fetchRestaurantEmailIntegration(auth.sb, restaurantId);
   const sendConfigured = isEmailSendConfigured();
+  const [gmailOAuthConfigured, outlookOAuthConfigured] = await Promise.all([
+    getGmailOAuthPlatformConfigAdmin().then(Boolean),
+    getOutlookOAuthPlatformConfigAdmin().then(Boolean),
+  ]);
   const status = row?.status ?? "default";
   const pub = row?.config ?? {};
 
@@ -60,6 +68,8 @@ export async function GET(req: Request) {
     configured: true,
     emailSendConfigured: sendConfigured,
     platformEmailEnabled: true,
+    gmailOAuthConfigured,
+    outlookOAuthConfigured,
     status,
     fromEmail: pub.email ?? pub.from_email ?? null,
     fromName: pub.from_name ?? null,
@@ -68,6 +78,7 @@ export async function GET(req: Request) {
     imapHost: pub.imap_host ?? null,
     imapPort: pub.imap_port != null ? String(pub.imap_port) : null,
     passwordConfigured: Boolean(pub.passwordConfigured),
+    grantedScopes: Array.isArray(pub.granted_scopes) ? pub.granted_scopes : [],
     defaultFromEmail: GWADA_DEFAULT_FROM_EMAIL,
     defaultFromName: GWADA_DEFAULT_FROM_NAME,
     message: sendConfigured
@@ -82,6 +93,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     restaurantId?: string;
     useCustom?: boolean;
+    mailboxMode?: "smtp" | "gmail" | "outlook";
     email?: string;
     password?: string;
     smtpHost?: string;
@@ -104,17 +116,56 @@ export async function POST(req: Request) {
   const useCustom = body.useCustom === true;
 
   if (!useCustom) {
-    const { error } = await upsertRestaurantEmailIntegration(auth.sb, restaurantId, {
-      status: "default",
-      config: {},
-      last_error: null,
-    });
+    const { error } = await upsertRestaurantEmailIntegration(
+      auth.sb,
+      restaurantId,
+      {
+        status: "default",
+        config: {},
+        last_error: null,
+      },
+    );
     if (error) return Response.json({ error }, { status: 500 });
     return Response.json({ ok: true, status: "default" });
   }
 
   const existing = await fetchRestaurantEmailSmtpConfig(auth.sb, restaurantId);
-  const wasCustom = existing?.status === "custom";
+
+  if (body.mailboxMode === "gmail" || body.mailboxMode === "outlook") {
+    const expectedStatus = body.mailboxMode;
+    if (existing?.status !== expectedStatus) {
+      return Response.json(
+        {
+          error:
+            expectedStatus === "gmail"
+              ? "Bitte zuerst mit Google verbinden."
+              : "Bitte zuerst mit Microsoft verbinden.",
+        },
+        { status: 400 },
+      );
+    }
+    const nextConfig = {
+      ...existing.config,
+      from_name: body.fromName?.trim() || existing.config.from_name,
+    };
+    const { error } = await upsertRestaurantEmailIntegration(
+      auth.sb,
+      restaurantId,
+      {
+        status: expectedStatus,
+        config: nextConfig,
+        last_error: null,
+      },
+    );
+    if (error) return Response.json({ error }, { status: 500 });
+    return Response.json({
+      ok: true,
+      status: expectedStatus,
+      config: emailIntegrationConfigToPublic(nextConfig),
+    });
+  }
+
+  const wasMailbox = isRestaurantEmailMailboxStatus(existing?.status);
   const merged = {
     email: body.email?.trim(),
     password: mergeSmtpPassword(body.password, existing?.config ?? {}),
@@ -126,23 +177,28 @@ export async function POST(req: Request) {
   };
 
   const validationError = validateSmtpConfigForSave(merged, {
-    requirePassword: !existing?.config.password?.length && !body.password?.trim(),
+    requirePassword:
+      !existing?.config.password?.length && !body.password?.trim(),
   });
   if (validationError) {
     return Response.json({ error: validationError }, { status: 400 });
   }
 
-  const { error } = await upsertRestaurantEmailIntegration(auth.sb, restaurantId, {
-    status: "custom",
-    config: merged,
-    last_error: null,
-  });
+  const { error } = await upsertRestaurantEmailIntegration(
+    auth.sb,
+    restaurantId,
+    {
+      status: "custom",
+      config: merged,
+      last_error: null,
+    },
+  );
 
   if (error) {
     return Response.json({ error }, { status: 500 });
   }
 
-  if (!wasCustom) {
+  if (!wasMailbox) {
     const admin = createSupabaseAdminClient();
     if (admin) {
       void syncInboxHistoryOnConnect(admin, {

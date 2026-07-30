@@ -12,63 +12,134 @@ import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import { FeedVideoTile } from "@/components/feed/feed-video-tile";
 import { galleryItemDisplayUrls } from "@/lib/gallery/gallery-item-display-urls";
 
-export const galleryMasonryGridShellClassName = "overflow-hidden rounded-[10px]";
+/** Äußere Hülle — weiche Ecken, kein harter Clip-Rand. */
+export const galleryMasonryGridShellClassName =
+  "overflow-hidden rounded-xl bg-muted/20";
+
+export type GalleryMasonryItemClickMeta = {
+  index: number;
+  rect: { top: number; left: number; width: number; height: number };
+};
 
 type Props = {
   items: UnifiedGalleryItem[];
-  onItemClick: (item: UnifiedGalleryItem) => void;
+  /** Ohne Handler: reine Bildwand ohne Klick-/Hover-Affordance. */
+  onItemClick?: (item: UnifiedGalleryItem, meta: GalleryMasonryItemClickMeta) => void;
   className?: string;
+  /** Profil-Sheet: Wand bis an den Sheet-Rand. */
+  edgeToEdge?: boolean;
 };
 
 const GalleryMasonryTile = memo(function GalleryMasonryTile({
   item,
+  index,
   onItemClick,
 }: {
   item: UnifiedGalleryItem;
-  onItemClick: (item: UnifiedGalleryItem) => void;
+  index: number;
+  onItemClick?: (item: UnifiedGalleryItem, meta: GalleryMasonryItemClickMeta) => void;
 }) {
   const { src, thumbSrc } = galleryItemDisplayUrls(item);
   const videoSrc = item.fullUrl?.trim() || item.previewUrl;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onItemClick(item)}
-      className={cn(
-        feedGalleryMasonryItemClassName,
-        "group relative block overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-        item.isPinned && feedPinnedItemSurfaceClassName,
-      )}
-    >
-      {item.mediaKind === "video" ? (
-        <FeedVideoTile src={videoSrc} />
-      ) : (
-        <FeedMediaImage
-          src={src}
-          thumbSrc={thumbSrc}
-          blurDataUrl={item.blurDataUrl}
-          width={item.width}
-          height={item.height}
-          alt={item.title ?? item.caption ?? ""}
-          naturalSize
-          imgClassName="transition duration-300 group-hover:scale-[1.02]"
+  const interactive = typeof onItemClick === "function";
+  /**
+   * Hover-Scale am inneren Layer, Clip + rounded am äußeren —
+   * sonst bricht `transform` die Abrundung (Compositor / Button-Overflow).
+   */
+  const media = (
+    <div className="overflow-hidden rounded-md isolate">
+      <div
+        className={cn(
+          interactive &&
+            "origin-center transition duration-500 ease-out will-change-transform group-hover:scale-[1.015] group-hover:brightness-[1.03]",
+        )}
+      >
+        {item.mediaKind === "video" ? (
+          <FeedVideoTile src={videoSrc} />
+        ) : (
+          <FeedMediaImage
+            src={src}
+            thumbSrc={thumbSrc}
+            blurDataUrl={item.blurDataUrl}
+            width={item.width}
+            height={item.height}
+            alt={item.title ?? item.caption ?? ""}
+            naturalSize
+            /** Thumb zuerst, dann Preview (≤1600) — sonst wirkt die Wand auf Retina unscharf. */
+          />
+        )}
+      </div>
+      {interactive ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-md bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         />
-      )}
+      ) : null}
       <span className="sr-only" data-embed-mt>
         {item.title ?? item.caption ?? "Galeriebild"}
       </span>
-    </button>
+    </div>
+  );
+
+  const tileClassName = cn(
+    feedGalleryMasonryItemClassName,
+    "relative block rounded-md bg-muted",
+    item.isPinned && feedPinnedItemSurfaceClassName,
+    interactive &&
+      "group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+  );
+
+  if (interactive) {
+    return (
+      <button
+        type="button"
+        data-gallery-lightbox-id={item.id}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          onItemClick(item, {
+            index,
+            rect: { top: r.top, left: r.left, width: r.width, height: r.height },
+          });
+        }}
+        className={tileClassName}
+      >
+        {media}
+      </button>
+    );
+  }
+
+  return (
+    <div className={tileClassName} data-gallery-lightbox-id={item.id}>
+      {media}
+    </div>
   );
 });
 
-export function GalleryMasonryGrid({ items, onItemClick, className }: Props) {
+export function GalleryMasonryGrid({
+  items,
+  onItemClick,
+  className,
+  edgeToEdge = false,
+}: Props) {
   if (items.length === 0) return null;
 
   return (
-    <div className={cn(galleryMasonryGridShellClassName, className)}>
+    <div
+      className={cn(
+        galleryMasonryGridShellClassName,
+        edgeToEdge && "-mx-4 rounded-none sm:-mx-5",
+        "p-1.5",
+        className,
+      )}
+    >
       <div className={feedGalleryMasonryClassName}>
-        {items.map((item) => (
-          <GalleryMasonryTile key={item.id} item={item} onItemClick={onItemClick} />
+        {items.map((item, index) => (
+          <GalleryMasonryTile
+            key={item.id}
+            item={item}
+            index={index}
+            onItemClick={onItemClick}
+          />
         ))}
       </div>
     </div>
@@ -76,24 +147,33 @@ export function GalleryMasonryGrid({ items, onItemClick, className }: Props) {
 }
 
 const SKELETON_ASPECTS = [
-  "aspect-square",
   "aspect-[4/5]",
-  "aspect-[3/4]",
   "aspect-square",
+  "aspect-[3/4]",
   "aspect-[5/4]",
+  "aspect-[4/5]",
+  "aspect-square",
+  "aspect-[3/4]",
   "aspect-[4/5]",
 ] as const;
 
 export function GalleryMasonryGridSkeleton({
-  count = 8,
+  count = 10,
   className,
+  edgeToEdge = false,
 }: {
   count?: number;
   className?: string;
+  edgeToEdge?: boolean;
 }) {
   return (
     <div
-      className={cn(galleryMasonryGridShellClassName, className)}
+      className={cn(
+        galleryMasonryGridShellClassName,
+        edgeToEdge && "-mx-4 rounded-none sm:-mx-5",
+        "p-1.5",
+        className,
+      )}
       aria-busy="true"
       aria-label="Galerie wird geladen"
     >
@@ -103,7 +183,7 @@ export function GalleryMasonryGridSkeleton({
             key={i}
             className={cn(
               feedGalleryMasonryItemClassName,
-              "skeleton-shimmer w-full rounded-none bg-muted/60",
+              "skeleton-shimmer w-full rounded-md bg-muted/60",
               SKELETON_ASPECTS[i % SKELETON_ASPECTS.length],
             )}
           />
@@ -112,7 +192,3 @@ export function GalleryMasonryGridSkeleton({
     </div>
   );
 }
-
-/** @deprecated Alias — Spalten-Klassen nicht mehr für Layout genutzt. */
-export const galleryMasonryGridColumnsClassName =
-  "columns-2 gap-px sm:columns-3 lg:columns-4";

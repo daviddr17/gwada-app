@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { GripVertical } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -122,12 +122,12 @@ export function DashboardShortcutsPanel() {
         <CardTitle className="text-xl">Schnellaktionen</CardTitle>
         <CardDescription className="text-base leading-relaxed">
           Der Plus-Button unten rechts auf dem{" "}
-          <Link
+          <AppNavLink
             href="/dashboard"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
             Dashboard
-          </Link>{" "}
+          </AppNavLink>{" "}
           öffnet bis zu {DASHBOARD_FAB_MAX_SHORTCUTS} Shortcuts. Aktiviere
           maximal {DASHBOARD_FAB_MAX_SHORTCUTS} Aktionen und ziehe sie in die
           gewünschte Reihenfolge.

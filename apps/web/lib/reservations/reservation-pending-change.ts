@@ -1,6 +1,13 @@
+import { normalizeReservationGuestCompany } from "@/lib/reservations/reservation-guest-name";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  formatReservationSlotInRestaurantTz,
+} from "@/lib/restaurant/restaurant-timezone";
+
 export type ReservationPendingChange = {
   guest_first_name: string;
   guest_last_name: string;
+  guest_company: string | null;
   guest_phone: string | null;
   guest_email: string | null;
   party_size: number;
@@ -30,6 +37,9 @@ export function parseReservationPendingChange(
     guest_first_name:
       typeof o.guest_first_name === "string" ? o.guest_first_name : "",
     guest_last_name: o.guest_last_name,
+    guest_company: normalizeReservationGuestCompany(
+      typeof o.guest_company === "string" ? o.guest_company : null,
+    ),
     guest_phone:
       o.guest_phone == null ? null : String(o.guest_phone).trim() || null,
     guest_email:
@@ -49,11 +59,6 @@ export function parseReservationPendingChange(
   };
 }
 
-import {
-  DEFAULT_RESTAURANT_TIMEZONE,
-  formatReservationSlotInRestaurantTz,
-} from "@/lib/restaurant/restaurant-timezone";
-
 export function formatReservationSlotDe(
   iso: string,
   timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
@@ -63,6 +68,7 @@ export function formatReservationSlotDe(
 
 export type ReservationChangeFieldKey =
   | "guest"
+  | "guest_company"
   | "party_size"
   | "starts_at"
   | "guest_phone"
@@ -70,6 +76,7 @@ export type ReservationChangeFieldKey =
 
 const changeHintLabels: Record<ReservationChangeFieldKey, string> = {
   guest: "Gast",
+  guest_company: "Firma",
   party_size: "Personen",
   starts_at: "Termin",
   guest_phone: "Telefon",
@@ -81,6 +88,7 @@ export function formatDisplayChangeRequestHint(
   current: {
     guest_first_name: string;
     guest_last_name: string;
+    guest_company?: string | null;
     party_size: number;
     starts_at: string;
     ends_at: string;
@@ -104,6 +112,9 @@ export function formatDisplayChangeRequestHint(
     if (key === "party_size") {
       return `${label}: ${current.party_size} → ${pending.party_size}`;
     }
+    if (key === "guest_company") {
+      return `${label}: ${current.guest_company ?? "—"} → ${pending.guest_company ?? "—"}`;
+    }
     if (key === "starts_at") {
       return `${label}: ${formatReservationSlotDe(current.starts_at, timeZone)} → ${formatReservationSlotDe(pending.starts_at, timeZone)}`;
     }
@@ -119,6 +130,7 @@ export function reservationChangeDiffKeys(
   current: {
     guest_first_name: string;
     guest_last_name: string;
+    guest_company?: string | null;
     party_size: number;
     starts_at: string;
     ends_at: string;
@@ -133,6 +145,12 @@ export function reservationChangeDiffKeys(
   const guestNew =
     `${pending.guest_first_name} ${pending.guest_last_name}`.trim();
   if (guestCur !== guestNew) keys.push("guest");
+  if (
+    normalizeReservationGuestCompany(current.guest_company) !==
+    pending.guest_company
+  ) {
+    keys.push("guest_company");
+  }
   if (current.party_size !== pending.party_size) keys.push("party_size");
   if (
     current.starts_at !== pending.starts_at ||

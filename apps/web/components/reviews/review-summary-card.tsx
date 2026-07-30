@@ -9,7 +9,7 @@ type Summary = {
   average: number | null;
   median: number | null;
   distribution: Record<1 | 2 | 3 | 4 | 5, number>;
-  scope?: "google_location" | "page";
+  scope?: "google_location" | "page" | "filtered" | "all";
 };
 
 export function ReviewSummaryCard({ summary }: { summary: Summary }) {
@@ -17,12 +17,18 @@ export function ReviewSummaryCard({ summary }: { summary: Summary }) {
   const distributionTotal = Object.values(distribution).reduce((a, n) => a + n, 0);
   const showDistribution =
     scope !== "google_location" || distributionTotal > 0;
+  const distributionIncomplete =
+    scope === "all" &&
+    distributionTotal > 0 &&
+    count > distributionTotal;
   const distributionHint =
     scope === "google_location" && showDistribution
       ? "Verteilung: nur aktuelle Seite"
       : scope === "google_location"
         ? "Sterne-Verteilung liefert Google nicht als Gesamtstatistik."
-        : null;
+        : distributionIncomplete
+          ? `Verteilung aus ${distributionTotal.toLocaleString("de-DE")} synchronisierten Bewertungen`
+          : null;
   const maxBar = Math.max(1, ...Object.values(distribution));
 
   return (

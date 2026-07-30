@@ -55,16 +55,23 @@ export type PlanPrice = {
   yearlyPerMonthEur: number;
 };
 
-export type BillingComparisonRow = {
-  id: string;
-  label: string;
-  hint?: string;
-  /** Highlight für „Deal, den man fast nirgends bekommt“ */
-  highlight?: boolean;
-  free: boolean | string;
-  basic: boolean | string;
-  pro: boolean | string;
-};
+export type BillingComparisonRow =
+  | {
+      type: "section";
+      id: string;
+      label: string;
+    }
+  | {
+      type?: "row";
+      id: string;
+      label: string;
+      hint?: string;
+      /** Highlight für „Deal, den man fast nirgends bekommt“ */
+      highlight?: boolean;
+      free: boolean | string;
+      basic: boolean | string;
+      pro: boolean | string;
+    };
 
 const FREE_FEATURES: readonly BillingFeatureKey[] = [
   "module.menu",
@@ -136,7 +143,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     cardBullets: [
       "Unbegrenzte Speisen & Kategorien",
       "Unbegrenzte Reservierungen",
-      "Unbegrenzte Mitarbeiter (keine Seat-Fees)",
+      "Unbegrenzte Team-Zugänge (keine Seat-Fees)",
       "Reservierungs-Mails über Gwada",
       "Öffentliche Restaurant-Seite",
     ],
@@ -146,7 +153,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     name: "Basic",
     tagline: "Betrieb im Griff",
     pitch:
-      "Bestand, Gäste-Kanäle und Content — alles, was den Alltag digital macht.",
+      "Bestand, Content und Bewertungen — digitaler Alltag, Mails weiter über Gwada.",
     price: { monthlyEur: 49, yearlyPerMonthEur: 39 },
     highlight: false,
     cta: "Basic wählen",
@@ -157,7 +164,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
       "Bestand & Bestellungen",
       "News, Events, Galerie & Bewertungen",
       "Kontakte, Dokumente & Checklisten",
-      "Einbetten auf der eigenen Website",
+      "Website-Einbettungen & Google Business",
     ],
   },
   pro: {
@@ -173,7 +180,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     cardBullets: [
       "Alles aus Basic",
       "Eigener E-Mail-Absender (SMTP/Gmail/Outlook)",
-      "WhatsApp verbinden",
+      "WhatsApp, Facebook & Instagram",
       "Mitarbeiter: Schichten, Zeiten, Verträge",
       "Buchführung, Autopilot, Displays & API",
       "Priorisierter Support",
@@ -211,14 +218,15 @@ export const BILLING_ADDONS: Record<BillingAddonId, BillingAddonDefinition> = {
 };
 
 /**
- * Detaillierte Gegenüberstellung für Landing & Abo-Seite.
- * `true` = enthalten, string = Klartext (z. B. „1 Standort“).
+ * Große Gegenüberstellung für Landing & Einstellungen → Abo.
+ * Zeilen müssen zu Features/Gates passen — kein Marketing-Fork.
  */
 export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
+  { type: "section", id: "sec_limits", label: "Ohne Limits" },
   {
     id: "unlimited_staff",
-    label: "Unbegrenzte Mitarbeiter",
-    hint: "Keine Seat-Fees — zahlt ihr bei den meisten Tools extra.",
+    label: "Unbegrenzte Team-Zugänge",
+    hint: "Keine Seat-Fees — Login/Team ohne Aufpreis pro Person. Das Mitarbeiter-Modul (Schichten …) ist Pro.",
     highlight: true,
     free: true,
     basic: true,
@@ -227,7 +235,7 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
   {
     id: "unlimited_reservations",
     label: "Unbegrenzte Reservierungen",
-    hint: "Kein Kontingent pro Monat.",
+    hint: "Kein Monatskontingent.",
     highlight: true,
     free: true,
     basic: true,
@@ -242,6 +250,22 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
     pro: true,
   },
   {
+    id: "multi",
+    label: "Standorte",
+    free: "1",
+    basic: "1",
+    pro: "Unbegrenzt",
+  },
+
+  { type: "section", id: "sec_core", label: "Kern" },
+  {
+    id: "dashboard",
+    label: "Dashboard, Branding & Öffnungszeiten",
+    free: true,
+    basic: true,
+    pro: true,
+  },
+  {
     id: "public_page",
     label: "Öffentliche Restaurant-Seite",
     free: true,
@@ -249,26 +273,22 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
     pro: true,
   },
   {
-    id: "dashboard",
-    label: "Dashboard & Branding",
+    id: "menu",
+    label: "Speisekarte",
     free: true,
     basic: true,
     pro: true,
   },
   {
-    id: "reservations_core",
-    label: "Reservierungen (Übersicht & Buchung)",
+    id: "reservations",
+    label: "Reservierungen inkl. Tischplan",
+    hint: "Übersicht, Buchung, Tischplan — im Free-Plan enthalten.",
     free: true,
     basic: true,
     pro: true,
   },
-  {
-    id: "floor_plan",
-    label: "Tischplan & Kapazität",
-    free: false,
-    basic: true,
-    pro: true,
-  },
+
+  { type: "section", id: "sec_ops", label: "Betrieb & Gäste" },
   {
     id: "inventory",
     label: "Bestand & Lieferanten",
@@ -285,9 +305,23 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
   },
   {
     id: "reviews",
-    label: "Bewertungen (Gwada + Google)",
+    label: "Bewertungen (Gwada)",
     free: false,
     basic: true,
+    pro: true,
+  },
+  {
+    id: "google_business",
+    label: "Google Business verbinden",
+    free: false,
+    basic: true,
+    pro: true,
+  },
+  {
+    id: "tripadvisor",
+    label: "TripAdvisor verbinden",
+    free: false,
+    basic: false,
     pro: true,
   },
   {
@@ -295,30 +329,6 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
     label: "Kontakte",
     free: false,
     basic: true,
-    pro: true,
-  },
-  {
-    id: "gwada_mail",
-    label: "Reservierungs-Mails über Gwada",
-    hint: "Versand über die Gwada-Plattform — kein eigener Absender nötig.",
-    free: true,
-    basic: true,
-    pro: true,
-  },
-  {
-    id: "own_email",
-    label: "Eigener E-Mail-Absender",
-    hint: "SMTP, Gmail oder Outlook mit eurer Domain.",
-    free: false,
-    basic: false,
-    pro: true,
-  },
-  {
-    id: "whatsapp",
-    label: "WhatsApp verbinden",
-    hint: "Eigene WhatsApp-Nummer für Gäste-Nachrichten.",
-    free: false,
-    basic: false,
     pro: true,
   },
   {
@@ -342,16 +352,28 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
     basic: true,
     pro: true,
   },
+
+  { type: "section", id: "sec_channels", label: "Benachrichtigungen & Kanäle" },
   {
-    id: "staff_ops",
-    label: "Schichtplan, Arbeitszeiten & Verträge",
+    id: "gwada_mail",
+    label: "Reservierungs-Mails über Gwada",
+    hint: "Versand über die Plattform — kein eigener Absender nötig.",
+    free: true,
+    basic: true,
+    pro: true,
+  },
+  {
+    id: "own_email",
+    label: "Eigener E-Mail-Absender",
+    hint: "SMTP, Gmail oder Outlook mit eurer Domain.",
     free: false,
     basic: false,
     pro: true,
   },
   {
-    id: "accounting",
-    label: "Buchführung & Lexware Office",
+    id: "whatsapp",
+    label: "WhatsApp verbinden",
+    hint: "Eigene Nummer für Gäste-Nachrichten.",
     free: false,
     basic: false,
     pro: true,
@@ -359,6 +381,22 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
   {
     id: "social",
     label: "Facebook & Instagram",
+    free: false,
+    basic: false,
+    pro: true,
+  },
+
+  { type: "section", id: "sec_pro", label: "Pro-Power" },
+  {
+    id: "staff_ops",
+    label: "Mitarbeiter: Schichten, Zeiten & Verträge",
+    free: false,
+    basic: false,
+    pro: true,
+  },
+  {
+    id: "accounting",
+    label: "Buchführung & Lexware Office",
     free: false,
     basic: false,
     pro: true,
@@ -379,7 +417,8 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
   },
   {
     id: "displays",
-    label: "Tablet-Displays (Zeit, Reservierung, …)",
+    label: "Tablet-Displays",
+    hint: "Zeiterfassung, Reservierungen, Rezepte, …",
     free: false,
     basic: false,
     pro: true,
@@ -399,23 +438,18 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
     pro: true,
   },
   {
-    id: "multi",
-    label: "Mehrere Standorte",
-    free: "1 Standort",
-    basic: "1 Standort",
-    pro: "Unbegrenzt",
-  },
-  {
     id: "support",
     label: "Support",
     free: "Community",
     basic: "E-Mail",
     pro: "Priorisiert",
   },
+
+  { type: "section", id: "sec_pos", label: "Add-on" },
   {
     id: "pos",
-    label: "POS-Kasse (Add-on)",
-    hint: "Optional zu jedem Plan — TSE, Quittungen, Gastzahlungen.",
+    label: "POS-Kasse",
+    hint: "Zu jedem Plan zubuchbar — TSE, Quittungen, Gastzahlungen.",
     free: "Add-on",
     basic: "Add-on",
     pro: "Add-on",

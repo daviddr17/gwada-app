@@ -59,7 +59,7 @@ export function BillingComparisonTable({
         className,
       )}
     >
-      <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[720px] border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-border/50 bg-muted/30">
             <th className="px-4 py-3 font-medium text-muted-foreground">
@@ -73,35 +73,54 @@ export function BillingComparisonTable({
                   BILLING_PLANS[id].highlight && "text-primary",
                 )}
               >
-                {BILLING_PLANS[id].name}
+                <div>{BILLING_PLANS[id].name}</div>
+                <div className="mt-0.5 text-xs font-normal text-muted-foreground">
+                  {BILLING_PLANS[id].price.monthlyEur === 0
+                    ? "kostenlos"
+                    : `${BILLING_PLANS[id].price.monthlyEur}€/Mo`}
+                </div>
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {BILLING_COMPARISON_ROWS.map((row) => (
-            <tr
-              key={row.id}
-              className={cn(
-                "border-b border-border/40 last:border-0",
-                row.highlight && "bg-primary/[0.04]",
-              )}
-            >
-              <td className="px-4 py-3 align-middle">
-                <div className="font-medium text-foreground">{row.label}</div>
-                {!compact && row.hint ? (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {row.hint}
-                  </p>
-                ) : null}
-              </td>
-              {PLAN_COLS.map((id) => (
-                <td key={id} className="px-3 py-3 text-center align-middle">
-                  <CellValue value={row[id]} emphasize={row.highlight} />
+          {BILLING_COMPARISON_ROWS.map((row) => {
+            if (row.type === "section") {
+              return (
+                <tr key={row.id} className="border-b border-border/40 bg-muted/20">
+                  <td
+                    colSpan={4}
+                    className="px-4 py-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                  >
+                    {row.label}
+                  </td>
+                </tr>
+              );
+            }
+            return (
+              <tr
+                key={row.id}
+                className={cn(
+                  "border-b border-border/40 last:border-0",
+                  row.highlight && "bg-primary/[0.04]",
+                )}
+              >
+                <td className="px-4 py-3 align-middle">
+                  <div className="font-medium text-foreground">{row.label}</div>
+                  {!compact && row.hint ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {row.hint}
+                    </p>
+                  ) : null}
                 </td>
-              ))}
-            </tr>
-          ))}
+                {PLAN_COLS.map((id) => (
+                  <td key={id} className="px-3 py-3 text-center align-middle">
+                    <CellValue value={row[id]} emphasize={row.highlight} />
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

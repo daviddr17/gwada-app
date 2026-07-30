@@ -106,6 +106,7 @@ export function authorizeGoogleBusinessRestaurantRoute(
   return authorizeRestaurantOAuthRoute({
     restaurantIdRaw,
     permission: "integrations.google_business",
+    billingFeature: "integrations.google_business",
     assertPlatform: assertPlatformGoogleBusinessEnabled,
   });
 }

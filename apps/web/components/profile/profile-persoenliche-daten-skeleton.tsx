@@ -15,7 +15,7 @@ function FieldRow({ wideLabel }: { wideLabel?: boolean }) {
 
 export function ProfilePersoenlicheDatenSkeleton() {
   return (
-    <div className="space-y-6 pb-4">
+    <div className="flex flex-col gap-6 pb-4">
       <div className="overflow-hidden rounded-xl border border-border/50 shadow-card">
         <Skeleton className="h-36 w-full rounded-none md:h-44" />
         <div className="space-y-4 px-5 pb-5">
@@ -26,6 +26,7 @@ export function ProfilePersoenlicheDatenSkeleton() {
           </div>
         </div>
       </div>
+      <Skeleton className="h-[3.25rem] w-full rounded-xl" />
       <SkeletonCardFrame className="shadow-card">
         <div className="space-y-4 pt-4">
           <FieldRow wideLabel />

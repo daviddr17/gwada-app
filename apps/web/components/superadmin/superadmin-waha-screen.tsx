@@ -883,9 +883,16 @@ export function SuperadminWahaScreen() {
               sortValue: (r) => r.restaurant_name ?? r.restaurant_id,
               cell: (r) => (
                 <div className="min-w-0">
-                  <div className="font-medium truncate">
+                  <button
+                    type="button"
+                    className="block max-w-full truncate text-left font-medium hover:underline"
+                    onClick={() => {
+                      setSessionDrawerRow(r);
+                      setSessionDrawerOpen(true);
+                    }}
+                  >
                     {r.restaurant_name ?? "—"}
-                  </div>
+                  </button>
                   {r.restaurant_slug ? (
                     <div className="text-xs text-muted-foreground">
                       {r.restaurant_slug}
@@ -929,25 +936,6 @@ export function SuperadminWahaScreen() {
               className: superadminDateCellClass,
               sortValue: (r) => r.updated_at,
               cell: (r) => formatDt(r.updated_at),
-            },
-            {
-              id: "actions",
-              header: "",
-              className: superadminCellNowrapClass,
-              sortValue: () => "",
-              cell: (r) => (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setSessionDrawerRow(r);
-                    setSessionDrawerOpen(true);
-                  }}
-                >
-                  Verwalten
-                </Button>
-              ),
             },
           ]}
           rows={filteredSessions}

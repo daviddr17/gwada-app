@@ -76,26 +76,23 @@ final class PosRuntime: ObservableObject {
         phase = .starting
         switch role {
         case .hub:
-            if PosEnrollmentStore.shared.isHubEnrolled,
-               PosAuthStore.shared.isSignedIn || PosDeviceCredential.hasCredential
-            {
+            if PosEnrollmentStore.shared.isHubEnrolled {
+                // Lokal starten auch ohne Cloud-Login (Demo/Cache); Cloud-Pull wenn Session/Device-Token da.
                 await startHub()
-            } else if PosEnrollmentStore.shared.isHubEnrolled {
-                phase = .needsLogin
-                statusMessage = "Bitte erneut anmelden oder Einrichtungs-Code."
             } else {
                 phase = .needsLogin
                 statusMessage = "Kasse einrichten."
             }
         case .handheld:
             if PosEnrollmentStore.shared.isHandheldPaired {
-                await connectHandheld()
+                // Nach Erst-Kopplung: gespeicherte Hub-URL zuerst, dann Bonjour.
+                await connectHandheld(preferredHost: Self.savedHubHostHint())
                 if phase == .connected {
                     await pullReservationsDay(PosReservationsStore.todayYmd())
                 }
             } else {
-                // Kurz Bonjour versuchen; ohne Treffer bleibt Gate sichtbar
-                await connectHandheld()
+                // Kurz Bonjour + ggf. zuletzt genutzte Adresse; ohne Treffer bleibt Gate sichtbar
+                await connectHandheld(preferredHost: Self.savedHubHostHint())
                 if phase == .connected {
                     PosEnrollmentStore.shared.markHandheldPaired()
                     await pullReservationsDay(PosReservationsStore.todayYmd())
@@ -245,10 +242,14 @@ final class PosRuntime: ObservableObject {
 
     func signOut() {
         PosAuthStore.shared.clear()
+        PosDeviceCredential.clear()
         isSignedIn = false
         isSoloMode = false
         stopHub()
         flushTask?.cancel()
+        if role == .hub {
+            PosEnrollmentStore.shared.resetHubEnrollment()
+        }
         phase = .needsLogin
         statusMessage = "Abgemeldet."
     }
@@ -1324,23 +1325,52 @@ final class PosRuntime: ObservableObject {
         hubBaseURL = nil
 
         var candidates: [URL] = []
+        func appendCandidate(_ url: URL) {
+            if !candidates.contains(url) { candidates.append(url) }
+        }
         if let preferredHost, !preferredHost.isEmpty {
-            candidates.append(PosLanProtocol.hubBaseURL(host: preferredHost))
-        } else if let saved = UserDefaults.standard.string(forKey: manualHostKey), !saved.isEmpty {
-            candidates.append(PosLanProtocol.hubBaseURL(host: saved))
+            appendCandidate(PosLanProtocol.hubBaseURL(host: preferredHost))
+        }
+        if let enrolled = PosEnrollmentStore.shared.handheldHubBaseURL,
+           let enrolledURL = URL(string: enrolled)
+        {
+            appendCandidate(enrolledURL)
+        }
+        if let saved = UserDefaults.standard.string(forKey: manualHostKey), !saved.isEmpty {
+            appendCandidate(PosLanProtocol.hubBaseURL(host: saved))
+        }
+
+        // Gespeicherte Kandidaten sofort versuchen (Simulator/Bonjour oft leer), danach Discovery.
+        if !candidates.isEmpty {
+            if let connected = await tryConnectHandheldCandidates(candidates) {
+                _ = connected
+                return
+            }
         }
 
         let discovered = await browser.scan(timeout: 4.5)
-        for hub in discovered where !candidates.contains(hub.baseURL) {
-            candidates.append(hub.baseURL)
+        for hub in discovered {
+            appendCandidate(hub.baseURL)
         }
 
         guard !candidates.isEmpty else {
             phase = .error("Keine Kasse gefunden")
-            statusMessage = "iPad-Kasse einschalten oder QR scannen."
+            statusMessage =
+                "Keine Kasse per WLAN gefunden. Hub-Adresse prüfen (Simulator: 127.0.0.1:8787) und „Koppeln“ tippen."
             return
         }
 
+        if await tryConnectHandheldCandidates(candidates) != nil {
+            return
+        }
+
+        phase = .error("Kasse nicht erreichbar")
+        statusMessage = "Kasse nicht erreichbar — iPad einschalten?"
+    }
+
+    /// Versucht die Kandidaten der Reihe nach; bei Erfolg `.connected`, sonst `nil`.
+    @discardableResult
+    private func tryConnectHandheldCandidates(_ candidates: [URL]) async -> URL? {
         var lastError: String?
         for base in candidates {
             do {
@@ -1354,34 +1384,65 @@ final class PosRuntime: ObservableObject {
                         restaurantId: health.restaurantId,
                         pairToken: token
                     )
-                    if let host = base.host {
-                        UserDefaults.standard.set(host, forKey: manualHostKey)
-                    }
+                    rememberHubHost(base)
                     hubBaseURL = base
                     isSoloMode = false
                     publishSnapshot(snap)
                     phase = .connected
                     statusMessage = "Verbunden mit \(snap.hub.displayName)."
                     await pullReservationsDay(PosReservationsStore.todayYmd())
-                    return
+                    return base
                 } catch HandheldHubClientError.httpStatus(401) {
                     // kein/ungültiger Token → Kopplung anstoßen
                     PosEnrollmentStore.shared.resetHandheldPairing()
                     await beginPairing(base: base)
-                    return
+                    return base
                 }
             } catch {
                 lastError = error.localizedDescription
             }
         }
+        if let lastError {
+            statusMessage = lastError
+        }
+        return nil
+    }
 
-        phase = .error(lastError ?? "Kasse nicht erreichbar")
-        statusMessage = lastError ?? "Kasse nicht erreichbar — iPad einschalten?"
+    private func rememberHubHost(_ base: URL) {
+        if let host = base.host {
+            let port = base.port.map(String.init) ?? String(PosLanProtocol.hubPort)
+            UserDefaults.standard.set("\(host):\(port)", forKey: manualHostKey)
+        }
+    }
+
+    /// Zuletzt bekannte Hub-Adresse (Enrollment oder manuell) — für Auto-Reconnect ohne Bonjour.
+    private static func savedHubHostHint() -> String? {
+        if let enrolled = PosEnrollmentStore.shared.handheldHubBaseURL,
+           let url = URL(string: enrolled),
+           let host = url.host
+        {
+            let port = url.port.map(String.init) ?? String(PosLanProtocol.hubPort)
+            return "\(host):\(port)"
+        }
+        if let saved = UserDefaults.standard.string(forKey: "gwada_pos_hub_host"), !saved.isEmpty {
+            return saved
+        }
+        return nil
     }
 
     func startHandheldPairing(host: String) async {
         let base = PosLanProtocol.hubBaseURL(host: host)
         await beginPairing(base: base)
+    }
+
+    /// Pairing-Gate: zuerst manuelle Hub-Adresse (z. B. `127.0.0.1:8787`), dann Bonjour.
+    /// Erreichbarer Hub ohne Token → Pairing-Anfrage (Freigabe am iPad).
+    func searchOrPairHandheld(manualHost: String) async {
+        let trimmed = manualHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            UserDefaults.standard.set(trimmed, forKey: manualHostKey)
+        }
+        await connectHandheld(preferredHost: trimmed.isEmpty ? nil : trimmed)
     }
 
     func cancelHandheldPairing() {
@@ -1427,7 +1488,11 @@ final class PosRuntime: ObservableObject {
                         )
                         self?.pairingChallenge = nil
                     }
-                    await self?.connectHandheld(preferredHost: base.host)
+                    await self?.connectHandheld(preferredHost: {
+                        guard let host = base.host else { return nil }
+                        let port = base.port.map(String.init) ?? String(PosLanProtocol.hubPort)
+                        return "\(host):\(port)"
+                    }())
                     return
                 case .rejected, .expired:
                     await MainActor.run {

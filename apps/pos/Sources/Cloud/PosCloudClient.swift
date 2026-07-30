@@ -780,7 +780,13 @@ enum PosCloudClient {
         do {
             return try await session.data(for: request)
         } catch {
+            #if DEBUG
+            let url = request.url?.absoluteString ?? "?"
+            let detail = (error as NSError).localizedDescription
+            throw PosCloudError.httpStatus(0, "offline \(url) — \(detail)")
+            #else
             throw PosCloudError.offline
+            #endif
         }
     }
 }

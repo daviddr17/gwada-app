@@ -71,6 +71,17 @@ struct HubOnboardingWizardView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PosPrimaryButtonStyle())
+
+            #if DEBUG
+            Button("DEBUG: Lokal ohne Cloud starten") {
+                Task {
+                    await runtime.completeHubOnboarding(restaurantName: "Demo-Kasse")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            #endif
         }
     }
 

@@ -44,7 +44,7 @@ struct HandheldPairingGateView: View {
                 }
 
                 Button {
-                    Task { await runtime.refresh() }
+                    Task { await runtime.searchOrPairHandheld(manualHost: host) }
                 } label: {
                     Text("Automatisch suchen").frame(maxWidth: .infinity)
                 }

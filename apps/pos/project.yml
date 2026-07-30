@@ -63,14 +63,27 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.gwada.pos.tests
         GENERATE_INFOPLIST_FILE: true
+  GwadaPOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/GwadaPOSUITests
+    dependencies:
+      - target: GwadaPOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gwada.pos.uitests
+        GENERATE_INFOPLIST_FILE: true
 schemes:
   GwadaPOS:
     build:
       targets:
         GwadaPOS: all
         GwadaPOSTests: [test]
+        GwadaPOSUITests: [test]
     run:
       config: Debug
     test:
       targets:
         - GwadaPOSTests
+        - GwadaPOSUITests

@@ -42,16 +42,16 @@ struct DeviceSettingsView: View {
         .navigationTitle("Gerät")
         .navigationBarTitleDisplayMode(.large)
         .confirmationDialog(
-            "Wirklich abmelden?",
+            "Kasse neu einrichten?",
             isPresented: $confirmSignOut,
             titleVisibility: .visible
         ) {
-            Button("Abmelden", role: .destructive) { runtime.signOut() }
+            Button("Neu einrichten", role: .destructive) { runtime.signOut() }
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text(
                 runtime.role == .hub
-                    ? "Die lokale Kasse stoppt; Handgeräte verlieren die Verbindung."
+                    ? "Die lokale Kasse stoppt; Handgeräte verlieren die Verbindung. Danach Einrichtungs-Code oder Login."
                     : "Cloud-Login wird entfernt; Solo nutzt dann Demo-Daten."
             )
         }
@@ -75,11 +75,13 @@ struct DeviceSettingsView: View {
             cloudLoginSection(buttonTitle: "Anmelden & Daten laden")
         } else {
             nestSyncSection
-            Section {
-                Button("Abmelden", role: .destructive) {
-                    confirmSignOut = true
-                }
+        }
+        Section {
+            Button("Kasse neu einrichten", role: .destructive) {
+                confirmSignOut = true
             }
+        } footer: {
+            Text("Öffnet den Einrichtungs-Assistenten erneut (Einrichtungs-Code oder Login).")
         }
     }
 

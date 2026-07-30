@@ -102,6 +102,9 @@ function mapToListRow(
     notes: r.notes ?? null,
     pending_change: null,
     status_before_change_id: null,
+    relocated_from_starts_at: null,
+    relocated_from_ends_at: null,
+    relocated_from_dining_table_id: null,
     reservation_statuses: r.status
       ? {
           id: r.status.id,

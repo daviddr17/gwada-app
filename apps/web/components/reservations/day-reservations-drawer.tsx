@@ -95,6 +95,10 @@ import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/r
 import { toAutoAssignReservation } from "@/lib/reservations/auto-table-assignment";
 import { reservationEndsAtFromLiveInsert } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import { reservationsAtTableForInstant } from "@/lib/reservations/reservations-table-occupancy";
+import {
+  isRelocatedMarkerRow,
+  RESERVATION_MOVED_STATUS_CODE,
+} from "@/lib/reservations/reservation-relocated-marker";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { createRestaurantDateTimeFormatter } from "@/lib/restaurant/restaurant-timezone";
 import { cn } from "@/lib/utils";
@@ -544,6 +548,16 @@ export function DayReservationsDrawer({
     [reservations, sortBy],
   );
 
+  const liveReservations = useMemo(
+    () => reservations.filter((r) => !isRelocatedMarkerRow(r)),
+    [reservations],
+  );
+
+  const exportReservations = useMemo(
+    () => sortReservations(liveReservations, sortBy),
+    [liveReservations, sortBy],
+  );
+
   const tablesInArea = useMemo(
     () => tables.filter((t) => t.area_id === selectedAreaId && t.is_active),
     [tables, selectedAreaId],
@@ -627,8 +641,12 @@ export function DayReservationsDrawer({
 
   const occupancy = useMemo(() => {
     if (!slotInstant) return new Map<string, ReservationListRow[]>();
-    return reservationsAtTableForInstant(tablesInArea, reservations, slotInstant);
-  }, [tablesInArea, reservations, slotInstant]);
+    return reservationsAtTableForInstant(
+      tablesInArea,
+      liveReservations,
+      slotInstant,
+    );
+  }, [tablesInArea, liveReservations, slotInstant]);
 
   const floorSlotStats = useMemo(() => {
     if (!slotInstant || tablesInArea.length === 0) {
@@ -709,6 +727,7 @@ export function DayReservationsDrawer({
 
   const renderCard = (r: ReservationListRow, compact: boolean) => {
     const st = r.reservation_statuses;
+    const isMovedMarker = isRelocatedMarkerRow(r);
     const stripe =
       st?.color_hex && /^#[0-9A-Fa-f]{6}$/i.test(st.color_hex) ? st.color_hex : "#64748b";
     const guest = `${r.guest_first_name} ${r.guest_last_name}`.trim();
@@ -716,10 +735,13 @@ export function DayReservationsDrawer({
     const endLabel = timeFmt.format(
       new Date(reservationEndsAtFromLiveInsert(r)),
     );
-    const tableLabel = compact
-      ? reservationAssignedTableLabel(r)
-      : reservationDiningTableLabel(r);
-    const gwadaReview = gwadaReviewsByReservation.get(r.id);
+    const tableLabel =
+      isMovedMarker || compact
+        ? reservationAssignedTableLabel(r)
+        : reservationDiningTableLabel(r);
+    const gwadaReview = isMovedMarker
+      ? undefined
+      : gwadaReviewsByReservation.get(r.id);
     const starBtn = gwadaReview ? (
       <ReservationGwadaReviewStarButton
         review={gwadaReview}
@@ -735,11 +757,18 @@ export function DayReservationsDrawer({
     ) : null;
     if (compact) {
       return (
-        <div key={r.id} className="flex items-stretch gap-1.5">
+        <div
+          key={r.id}
+          className={cn("flex items-stretch gap-1.5", isMovedMarker && "opacity-80")}
+        >
           <button
             type="button"
             className={cn("min-w-0 flex-1", reservationListRowButtonCompactClassName)}
-            aria-label={`Reservierung ${guest} bearbeiten`}
+            aria-label={
+              isMovedMarker
+                ? `Verschobene Reservierung ${guest} öffnen`
+                : `Reservierung ${guest} bearbeiten`
+            }
             onClick={() => onEdit(r)}
           >
             <div className="flex w-full min-w-0 items-start gap-2 p-3 pt-4">
@@ -771,13 +800,16 @@ export function DayReservationsDrawer({
                     {r.party_size} {r.party_size === 1 ? "Person" : "Personen"} · bis {endLabel}
                     {st?.name ? ` · ${st.name}` : ""}
                     {st?.code === "change_requested" ? " · Änderung prüfen" : ""}
+                    {st?.code === RESERVATION_MOVED_STATUS_CODE
+                      ? " · Verschoben"
+                      : ""}
                   </p>
                 </div>
               </div>
               {starBtn}
             </div>
           </button>
-          {restaurantId && st?.code === "pending" ? (
+          {restaurantId && !isMovedMarker && st?.code === "pending" ? (
             <div className="flex shrink-0 items-center self-center">
               <ReservationQuickAcceptButton
                 restaurantId={restaurantId}
@@ -791,7 +823,10 @@ export function DayReservationsDrawer({
       );
     }
     return (
-      <div key={r.id} className="flex items-stretch gap-1.5">
+      <div
+        key={r.id}
+        className={cn("flex items-stretch gap-1.5", isMovedMarker && "opacity-80")}
+      >
         <button
           type="button"
           className={cn(
@@ -799,7 +834,11 @@ export function DayReservationsDrawer({
             reservationListRowButtonDrawerFullClassName,
             gwadaReview && "pr-1",
           )}
-          aria-label={`Reservierung ${guest} bearbeiten`}
+          aria-label={
+            isMovedMarker
+              ? `Verschobene Reservierung ${guest} öffnen`
+              : `Reservierung ${guest} bearbeiten`
+          }
           onClick={() => onEdit(r)}
         >
         <div
@@ -829,12 +868,17 @@ export function DayReservationsDrawer({
               {st?.name ? (
                 <span className="text-xs text-muted-foreground">{st.name}</span>
               ) : null}
+              {st?.code === RESERVATION_MOVED_STATUS_CODE ? (
+                <span className="rounded-md border border-indigo-500/40 bg-indigo-500/15 px-1.5 py-px text-[10px] font-medium text-indigo-800 dark:text-indigo-200">
+                  Verschoben
+                </span>
+              ) : null}
               {tableLabel ? (
                 <span className="rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[11px] font-medium text-foreground">
                   {tableLabel}
                 </span>
               ) : null}
-              {reservationInternalNoteText(r.notes) ? (
+              {!isMovedMarker && reservationInternalNoteText(r.notes) ? (
                 <ReservationInternalNoteIndicator />
               ) : null}
             </div>
@@ -872,7 +916,7 @@ export function DayReservationsDrawer({
           ) : null}
         </div>
         </button>
-        {restaurantId && st?.code === "pending" ? (
+        {restaurantId && !isMovedMarker && st?.code === "pending" ? (
           <div className="flex shrink-0 items-center self-center">
             <ReservationQuickAcceptButton
               restaurantId={restaurantId}
@@ -944,7 +988,7 @@ export function DayReservationsDrawer({
               <AutoAssignTablesButton
                 variant="dashboard"
                 size="icon"
-                reservations={reservations.map(toAutoAssignReservation)}
+                reservations={liveReservations.map(toAutoAssignReservation)}
                 tables={tables}
                 onDone={onDataChanged}
               />
@@ -954,7 +998,7 @@ export function DayReservationsDrawer({
                 size="icon"
                 className={reservationsDayDrawerHeaderActionButtonClassName}
                 aria-label="Tagesliste exportieren"
-                disabled={sorted.length === 0}
+                disabled={exportReservations.length === 0}
                 onClick={() => setExportOpen(true)}
               >
                 <Download className="size-4" />
@@ -1573,7 +1617,7 @@ export function DayReservationsDrawer({
       onOpenChange={setExportOpen}
       day={day}
       dayTitle={dayTitle}
-      reservations={sorted}
+      reservations={exportReservations}
       restaurantName={restaurantName}
     />
     <ReservationGwadaReviewSheet

@@ -2616,6 +2616,9 @@ export type Database = {
           notify_whatsapp: boolean
           party_size: number
           pending_change: Json | null
+          relocated_from_dining_table_id: string | null
+          relocated_from_ends_at: string | null
+          relocated_from_starts_at: string | null
           reservation_number: number
           restaurant_id: string
           starts_at: string
@@ -2647,6 +2650,9 @@ export type Database = {
           notify_whatsapp?: boolean
           party_size?: number
           pending_change?: Json | null
+          relocated_from_dining_table_id?: string | null
+          relocated_from_ends_at?: string | null
+          relocated_from_starts_at?: string | null
           reservation_number: number
           restaurant_id: string
           starts_at: string
@@ -2678,6 +2684,9 @@ export type Database = {
           notify_whatsapp?: boolean
           party_size?: number
           pending_change?: Json | null
+          relocated_from_dining_table_id?: string | null
+          relocated_from_ends_at?: string | null
+          relocated_from_starts_at?: string | null
           reservation_number?: number
           restaurant_id?: string
           starts_at?: string
@@ -2704,6 +2713,13 @@ export type Database = {
           {
             foreignKeyName: "reservations_dining_table_id_fkey"
             columns: ["dining_table_id"]
+            isOneToOne: false
+            referencedRelation: "dining_tables"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservations_relocated_from_dining_table_id_fkey"
+            columns: ["relocated_from_dining_table_id"]
             isOneToOne: false
             referencedRelation: "dining_tables"
             referencedColumns: ["id"]

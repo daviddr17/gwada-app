@@ -111,6 +111,9 @@ export type ReservationListRow = {
   notes: string | null;
   pending_change: unknown | null;
   status_before_change_id: string | null;
+  relocated_from_starts_at: string | null;
+  relocated_from_ends_at: string | null;
+  relocated_from_dining_table_id: string | null;
   reservation_statuses: ReservationStatusJoin | null;
   dining_tables: ReservationDiningTableJoin | null;
 };
@@ -135,6 +138,12 @@ export function mapRawToReservationListRow(
     >),
     notes: (row.notes as string | null | undefined) ?? null,
     guest_company: (row.guest_company as string | null | undefined) ?? null,
+    relocated_from_starts_at:
+      (row.relocated_from_starts_at as string | null | undefined) ?? null,
+    relocated_from_ends_at:
+      (row.relocated_from_ends_at as string | null | undefined) ?? null,
+    relocated_from_dining_table_id:
+      (row.relocated_from_dining_table_id as string | null | undefined) ?? null,
     reservation_statuses: status as ReservationStatusJoin | null,
     dining_tables: normalizeReservationDiningTableJoin(tableRaw),
     created_by_profile: creatorRaw as ReservationCreatorProfileJoin | null,
@@ -167,6 +176,9 @@ export const RESERVATION_LIST_ROW_SELECT = `
       notes,
       pending_change,
       status_before_change_id,
+      relocated_from_starts_at,
+      relocated_from_ends_at,
+      relocated_from_dining_table_id,
       ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
       created_by_profile:created_by_profile_id (
         id,
@@ -186,20 +198,44 @@ export async function fetchReservationsForRestaurant(params: {
     return { data: [], error: null };
   }
   const sb = createSupabaseBrowserClient();
-  const { data, error } = await sb
-    .from("reservations")
-    .select(RESERVATION_LIST_ROW_SELECT)
-    .eq("restaurant_id", params.restaurantId)
-    .gte("starts_at", params.rangeStartIso)
-    .lt("starts_at", params.rangeEndExclusiveIso)
-    .order("starts_at", { ascending: true });
+  const [{ data, error }, { data: relocatedData, error: relocatedError }] =
+    await Promise.all([
+      sb
+        .from("reservations")
+        .select(RESERVATION_LIST_ROW_SELECT)
+        .eq("restaurant_id", params.restaurantId)
+        .gte("starts_at", params.rangeStartIso)
+        .lt("starts_at", params.rangeEndExclusiveIso)
+        .order("starts_at", { ascending: true }),
+      sb
+        .from("reservations")
+        .select(RESERVATION_LIST_ROW_SELECT)
+        .eq("restaurant_id", params.restaurantId)
+        .not("relocated_from_starts_at", "is", null)
+        .gte("relocated_from_starts_at", params.rangeStartIso)
+        .lt("relocated_from_starts_at", params.rangeEndExclusiveIso)
+        .order("relocated_from_starts_at", { ascending: true }),
+    ]);
 
   if (error) {
     return { data: [], error: new Error(error.message) };
   }
-  const raw = (data ?? []) as Record<string, unknown>[];
-  const normalized: ReservationListRow[] = raw.map((row) =>
-    mapRawToReservationListRow(row),
+  if (relocatedError) {
+    return { data: [], error: new Error(relocatedError.message) };
+  }
+  const byId = new Map<string, ReservationListRow>();
+  for (const row of (data ?? []) as Record<string, unknown>[]) {
+    const normalized = mapRawToReservationListRow(row);
+    byId.set(normalized.id, normalized);
+  }
+  for (const row of (relocatedData ?? []) as Record<string, unknown>[]) {
+    const normalized = mapRawToReservationListRow(row);
+    if (!byId.has(normalized.id)) {
+      byId.set(normalized.id, normalized);
+    }
+  }
+  const normalized = [...byId.values()].sort(
+    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
   );
   return { data: normalized, error: null };
 }

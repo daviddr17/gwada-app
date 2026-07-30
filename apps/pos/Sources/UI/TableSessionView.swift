@@ -46,6 +46,7 @@ struct TableSessionView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle(table.label)
         .navigationBarTitleDisplayMode(.inline)
+        .posHideTabBarWhenImmersive()
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if sessionId != nil {
@@ -111,6 +112,7 @@ struct TableSessionView: View {
                 },
                 onCancel: { showSplit = false }
             )
+            .modifier(PosSheetLiquidGlassBackground())
         }
         .sheet(isPresented: $showBon) {
             BonSheetView(
@@ -136,6 +138,7 @@ struct TableSessionView: View {
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+            .modifier(PosSheetLiquidGlassBackground())
         }
         .sheet(isPresented: $showMove) {
             MoveLinesView(
@@ -313,7 +316,7 @@ struct TableSessionView: View {
             .accessibilityIdentifier("pos.bon.open")
         }
         .padding(16)
-        .background(.ultraThinMaterial)
+        .posLiquidGlassBar()
     }
 
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }

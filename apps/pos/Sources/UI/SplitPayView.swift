@@ -272,7 +272,7 @@ struct SplitPayView: View {
                     .disabled(!canPay || !network.canCollectPayment)
                 }
                 .padding()
-                .background(.ultraThinMaterial)
+                .posLiquidGlassBar()
             }
             .sensoryFeedback(.success, trigger: payPulse)
             .onAppear {

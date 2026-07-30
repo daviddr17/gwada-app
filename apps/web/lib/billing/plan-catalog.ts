@@ -179,6 +179,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     features: PRO_FEATURES,
     cardBullets: [
       "Alles aus Basic",
+      "10 GB Workspace-Speicher",
       "Eigener E-Mail-Absender (SMTP/Gmail/Outlook)",
       "WhatsApp, Facebook & Instagram",
       "Mitarbeiter: Schichten, Zeiten, Verträge",
@@ -333,10 +334,11 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
   },
   {
     id: "documents",
-    label: "Dokumente",
+    label: "Dokumente & Workspace-Speicher",
+    hint: "Gemeinsames Limit für Dokumente, Galerie, News-Medien und Buchführung.",
     free: false,
     basic: "3 GB",
-    pro: "3 GB",
+    pro: "10 GB",
   },
   {
     id: "checklists",

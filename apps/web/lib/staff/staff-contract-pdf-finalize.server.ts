@@ -2,11 +2,9 @@ import "server-only";
 
 import { createHash, randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  RESTAURANT_DOCUMENTS_QUOTA_BYTES,
-  RESTAURANT_DOCUMENTS_STORAGE_BUCKET,
-} from "@/lib/constants/restaurant-documents";
+import { RESTAURANT_DOCUMENTS_STORAGE_BUCKET } from "@/lib/constants/restaurant-documents";
 import { insertRestaurantDocumentLog } from "@/lib/documents/document-log-server";
+import { assertWorkspaceStorageAvailable } from "@/lib/gallery/workspace-storage-server";
 import { buildRestaurantDocumentStoragePath } from "@/lib/supabase/documents-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -154,15 +152,13 @@ export async function finalizeStaffContractPdfDocument(params: {
 
   const pdfSha256 = createHash("sha256").update(pdfBuffer).digest("hex");
 
-  const { data: usedRaw, error: usageError } = await params.admin.rpc(
-    "restaurant_workspace_used_bytes",
-    { p_restaurant_id: params.restaurantId },
+  const quota = await assertWorkspaceStorageAvailable(
+    params.admin,
+    params.restaurantId,
+    pdfBuffer.length,
   );
-  if (usageError) {
-    return { ok: false, error: usageError.message, status: 500 };
-  }
-  if (Number(usedRaw ?? 0) + pdfBuffer.length > RESTAURANT_DOCUMENTS_QUOTA_BYTES) {
-    return { ok: false, error: "storage_quota_exceeded", status: 413 };
+  if (!quota.ok) {
+    return { ok: false, error: quota.error, status: quota.status };
   }
 
   const { tagId, error: tagError } = await resolveStaffContractDocumentTagIdServer(

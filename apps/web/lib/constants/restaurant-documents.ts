@@ -1,5 +1,9 @@
-/** Workspace-Speicher gesamt (3 GB) — siehe restaurant_workspace_quota_bytes(). */
-export const RESTAURANT_DOCUMENTS_QUOTA_BYTES = 3 * 1024 * 1024 * 1024;
+/**
+ * Fallback Workspace-Speicher (Basic 3 GB).
+ * Planabhängig: {@link workspaceQuotaBytesForPlan} /
+ * `restaurant_workspace_quota_bytes(uuid)`.
+ */
+export { RESTAURANT_WORKSPACE_QUOTA_BYTES as RESTAURANT_DOCUMENTS_QUOTA_BYTES } from "@/lib/constants/workspace-storage";
 
 /** Max single upload (100 MB); bucket limit matches migration. */
 export const RESTAURANT_DOCUMENT_MAX_FILE_BYTES = 100 * 1024 * 1024;

@@ -4760,7 +4760,14 @@ export type Database = {
           staff_id: string
         }[]
       }
-      restaurant_documents_quota_bytes: { Args: never; Returns: number }
+      restaurant_documents_quota_bytes: {
+        Args: { p_restaurant_id: string }
+        Returns: number
+      }
+      restaurant_workspace_quota_bytes: {
+        Args: { p_restaurant_id: string }
+        Returns: number
+      }
       restaurant_documents_used_bytes: {
         Args: { p_restaurant_id: string }
         Returns: number

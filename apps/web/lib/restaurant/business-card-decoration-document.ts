@@ -46,7 +46,7 @@ export function businessCardDecorationImageUrl(
 function decorationUploadErrorMessage(code: string | undefined): string {
   switch (code) {
     case "storage_quota_exceeded":
-      return "Speicherlimit erreicht (max. 3 GB pro Restaurant).";
+      return "Speicherlimit erreicht (Basic 3 GB, Pro 10 GB).";
     case "invalid_file":
       return `Nur JPG/PNG (${RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL} für Dokumente).`;
     default:

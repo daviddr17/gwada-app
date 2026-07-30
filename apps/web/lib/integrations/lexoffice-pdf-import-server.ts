@@ -2,8 +2,8 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { RESTAURANT_DOCUMENTS_QUOTA_BYTES } from "@/lib/constants/restaurant-documents";
 import { RESTAURANT_DOCUMENTS_STORAGE_BUCKET } from "@/lib/constants/restaurant-documents";
+import { assertWorkspaceStorageAvailable } from "@/lib/gallery/workspace-storage-server";
 import { buildRestaurantDocumentStoragePath } from "@/lib/supabase/documents-db";
 import { fetchLexofficeSalesDocumentFile } from "@/lib/integrations/lexoffice-voucherlist";
 import { fetchRestaurantLexofficeApiKey } from "@/lib/supabase/restaurant-lexoffice-integration-db";
@@ -136,14 +136,19 @@ export async function importLexofficePdfToDocuments(
 
   if (!pdf.ok) return pdf;
 
-  const { data: usedRaw, error: usageError } = await admin.rpc(
-    "restaurant_workspace_used_bytes",
-    { p_restaurant_id: params.restaurantId },
+  const quota = await assertWorkspaceStorageAvailable(
+    admin,
+    params.restaurantId,
+    pdf.bytes.byteLength,
   );
-  if (usageError) return { ok: false, error: usageError.message };
-  const used = Number(usedRaw ?? 0);
-  if (used + pdf.bytes.byteLength > RESTAURANT_DOCUMENTS_QUOTA_BYTES) {
-    return { ok: false, error: "Speicherquota überschritten." };
+  if (!quota.ok) {
+    return {
+      ok: false,
+      error:
+        quota.error === "storage_quota_exceeded"
+          ? "Speicherquota überschritten."
+          : quota.error,
+    };
   }
 
   const documentId = randomUUID();

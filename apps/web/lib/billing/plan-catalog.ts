@@ -160,7 +160,6 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     features: BASIC_FEATURES,
     cardBullets: [
       "Alles aus Free",
-      "Reservierungs-Mails über Gwada",
       "Bestand & Bestellungen",
       "News, Events, Galerie & Bewertungen",
       "Kontakte, Dokumente & Checklisten",

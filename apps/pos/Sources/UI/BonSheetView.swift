@@ -70,6 +70,8 @@ struct BonSheetView: View {
             .background(PosDesign.bg)
             .navigationTitle("Bon")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(PosDesign.bg, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .safeAreaInset(edge: .bottom) {
                 actions
             }
@@ -81,6 +83,7 @@ struct BonSheetView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(tableLabel)
                 .font(PosDesign.fontDisplay)
+                .foregroundStyle(PosDesign.ink)
             if let coverCount {
                 Text("\(coverCount) Personen")
                     .font(PosDesign.fontBody)
@@ -88,12 +91,15 @@ struct BonSheetView: View {
             }
             HStack {
                 Text("Offen")
+                    .foregroundStyle(PosDesign.muted)
                 Spacer()
                 Text(PosMoney.format(cartTotal + openTotal))
                     .font(PosDesign.fontMonoTabular)
+                    .foregroundStyle(PosDesign.ink)
             }
             .padding(.top, 6)
             Divider()
+                .overlay(PosDesign.line)
         }
     }
 
@@ -104,9 +110,11 @@ struct BonSheetView: View {
         sentLines: [SessionOpenLine]
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(PosCourse.label(course))
-                .font(.headline)
+            Text(PosCourse.bonHeaderLabel(course))
+                .font(.caption.weight(.bold).monospaced())
+                .tracking(0.8)
                 .foregroundStyle(PosDesign.courseColor(course))
+                .accessibilityLabel(PosCourse.chipLabel(course))
 
             ForEach(cartLines) { line in
                 cartLine(line)
@@ -133,6 +141,7 @@ struct BonSheetView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(line.quantity)× \(line.name)")
                     .font(.body.weight(.semibold))
+                    .foregroundStyle(PosDesign.ink)
                 if !line.subtitle.isEmpty {
                     Text(line.subtitle)
                         .font(.caption)
@@ -175,6 +184,7 @@ struct BonSheetView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(line.openQuantity)× \(line.name)")
                     .font(.body.weight(.semibold))
+                    .foregroundStyle(PosDesign.ink)
                 if !line.detail.isEmpty {
                     Text(line.detail)
                         .font(.caption)
@@ -212,7 +222,12 @@ struct BonSheetView: View {
             }
         }
         .padding(PosDesign.sectionSpacing)
-        .background(.ultraThinMaterial)
+        .background(PosDesign.surface)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(PosDesign.line)
+                .frame(height: 1)
+        }
     }
 
     @MainActor

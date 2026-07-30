@@ -63,6 +63,7 @@ export function SuperadminDataTable<T>({
   sortKey: controlledSortKey,
   sortDir: controlledSortDir,
   onToggleSort,
+  onRowClick,
   embedded = false,
 }: {
   columns: readonly SuperadminColumn<T>[];
@@ -73,6 +74,8 @@ export function SuperadminDataTable<T>({
   sortKey?: string | null;
   sortDir?: SuperadminSortDir;
   onToggleSort?: (id: string) => void;
+  /** Zeile öffnet Detail (Profil-Sheet o. Ä.). */
+  onRowClick?: (row: T) => void;
   /** Ohne Karten-Hülle — für Tabellen-Vollbild-Overlay. */
   embedded?: boolean;
 }) {
@@ -157,7 +160,23 @@ export function SuperadminDataTable<T>({
         {sortedRows.map((row) => (
           <tr
             key={rowKey(row)}
-            className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+            className={cn(
+              "group/row border-b border-border/40 last:border-0 hover:bg-muted/20",
+              onRowClick && "cursor-pointer",
+            )}
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+            onKeyDown={
+              onRowClick
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onRowClick(row);
+                    }
+                  }
+                : undefined
+            }
+            tabIndex={onRowClick ? 0 : undefined}
+            role={onRowClick ? "button" : undefined}
           >
             {columns.map((col) => (
               <td key={col.id} className={cn("px-4 py-3", col.className)}>

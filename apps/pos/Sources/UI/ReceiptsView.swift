@@ -1,42 +1,18 @@
 import SwiftUI
 
-/// Quittungen — lokal + Cloud; Barstorno offline mit Fiskal-Hinweis.
+/// Heutige Quittungen / Bar-Zahlungen — Storno + Tisch wieder öffnen.
 struct ReceiptsView: View {
     @EnvironmentObject private var runtime: PosRuntime
 
-    @State private var receipts: [DisplayReceipt] = []
+    @State private var receipts: [PosCloudClient.PosTodayReceiptDto] = []
     @State private var loading = false
     @State private var errorText = ""
-    @State private var voidTarget: DisplayReceipt?
+    @State private var voidTarget: PosCloudClient.PosTodayReceiptDto?
     @State private var voidReasons: [PosCloudClient.PosVoidReasonDto] = []
     @State private var selectedVoidReasonId: String?
     @State private var reopenTable = true
     @State private var showVoidSheet = false
-    @State private var invoicePaymentId: String?
     @State private var busyId: String?
-
-    private var isOnlineHub: Bool {
-        runtime.isSignedIn && !PosAuthStore.shared.isOfflineSession
-    }
-
-    struct DisplayReceipt: Identifiable {
-        var localId: String
-        var paymentId: String?
-        var orderNumber: Int
-        var tableLabel: String
-        var method: String
-        var status: String
-        var amountCents: Int
-        var tipCents: Int
-        var receivedAmountCents: Int?
-        var paidAt: String?
-        var canVoidCash: Bool
-        var fiscalPending: Bool
-
-        var id: String { localId }
-
-        var voidKey: String { paymentId ?? localId }
-    }
 
     var body: some View {
         Group {
@@ -54,13 +30,9 @@ struct ReceiptsView: View {
             } else {
                 List {
                     Section {
-                        Text(
-                            isOnlineHub
-                                ? "Bar stornieren und formale Rechnung — online am Hub. Offline: lokale Quittungen mit Nachsignierung."
-                                : "Offline: lokale Quittungen. Fiskalisierung nicht möglich — Nachsignierung ausstehend."
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        Text("Bar-Zahlungen können storniert werden — Tisch wird wieder geöffnet. PDF/Fiskaly später.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                     ForEach(receipts) { receipt in
                         receiptRow(receipt)
@@ -83,19 +55,8 @@ struct ReceiptsView: View {
         }
         .task { await reload() }
         .refreshable { await reload() }
-        .sheet(isPresented: $showVoidSheet) { voidSheet }
-        .sheet(
-            isPresented: Binding(
-                get: { invoicePaymentId != nil },
-                set: { if !$0 { invoicePaymentId = nil } }
-            )
-        ) {
-            if let paymentId = invoicePaymentId {
-                FormalInvoiceSheet(paymentId: paymentId) {
-                    Task { await reload() }
-                }
-                .environmentObject(runtime)
-            }
+        .sheet(isPresented: $showVoidSheet) {
+            voidSheet
         }
     }
 
@@ -107,37 +68,12 @@ struct ReceiptsView: View {
                         Text("\(receipt.tableLabel) · #\(receipt.orderNumber)")
                         Text(PosMoney.format(receipt.amountCents))
                             .font(.body.monospacedDigit())
-                        if receipt.fiscalPending || receipt.paymentId == nil {
-                            Text("Storno lokal — Fiskalisierung nicht möglich, Nachsignierung ausstehend.")
-                                .font(.footnote)
-                                .foregroundStyle(.orange)
-                        }
                     }
                 }
                 if !voidReasons.isEmpty {
                     Section("Storno-Grund") {
                         ForEach(voidReasons) { reason in
-                            Button {
-                                selectedVoidReasonId = reason.id
-                            } label: {
-                                HStack(alignment: .top) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(reason.name).foregroundStyle(.primary)
-                                        Text(
-                                            reason.restoreInventory
-                                                ? "Bestand wird zurückgebucht"
-                                                : "Bestand bleibt abgezogen"
-                                        )
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    if selectedVoidReasonId == reason.id {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.accentColor)
-                                    }
-                                }
-                            }
+                            voidReasonButton(reason)
                         }
                     }
                 }
@@ -165,17 +101,39 @@ struct ReceiptsView: View {
                             )
                         }
                     }
-                    .disabled(
-                        busyId != nil
-                            || (!voidReasons.isEmpty && selectedVoidReasonId == nil)
-                    )
+                    .disabled(busyId != nil || (!voidReasons.isEmpty && selectedVoidReasonId == nil))
                 }
             }
         }
         .presentationDetents([.medium, .large])
     }
 
-    private func receiptRow(_ receipt: DisplayReceipt) -> some View {
+    private func voidReasonButton(_ reason: PosCloudClient.PosVoidReasonDto) -> some View {
+        let selected = selectedVoidReasonId == reason.id
+        let inventoryHint = reason.restoreInventory
+            ? "Bestand wird zurückgebucht"
+            : "Bestand bleibt abgezogen"
+        return Button {
+            selectedVoidReasonId = reason.id
+        } label: {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(reason.name)
+                        .foregroundStyle(Color.primary)
+                    Text(inventoryHint)
+                        .font(.caption)
+                        .foregroundStyle(Color.secondary)
+                }
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+        }
+    }
+
+    private func receiptRow(_ receipt: PosCloudClient.PosTodayReceiptDto) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(receipt.tableLabel)
@@ -184,9 +142,7 @@ struct ReceiptsView: View {
                 PosStatusBadge(
                     title: statusLabel(receipt),
                     emphasized: receipt.status == "paid",
-                    tint: receipt.status == "refunded" || receipt.status == "void_pending"
-                        ? .secondary
-                        : .accentColor
+                    tint: receipt.status == "refunded" ? .secondary : .accentColor
                 )
             }
             HStack {
@@ -202,13 +158,13 @@ struct ReceiptsView: View {
                 Text(PosMoney.format(receipt.amountCents))
                     .font(.body.weight(.semibold).monospacedDigit())
             }
-            if receipt.fiscalPending {
-                Text("Fiskalisierung nicht möglich — Nachsignierung ausstehend")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
             if receipt.tipCents > 0 {
                 Text("inkl. Trinkgeld \(PosMoney.format(receipt.tipCents))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let received = receipt.receivedAmountCents, received > receipt.amountCents {
+                Text("Gegeben \(PosMoney.format(received)) · Rückgeld \(PosMoney.format(received - receipt.amountCents))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -218,36 +174,34 @@ struct ReceiptsView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            HStack(spacing: 12) {
-                if receipt.status == "paid", let pid = receipt.paymentId, isOnlineHub {
-                    Button {
-                        invoicePaymentId = pid
-                    } label: {
-                        Label("Rechnung", systemImage: "doc.plaintext")
-                    }
-                    .disabled(busyId != nil)
+            ShareLink(
+                item: guestReceiptText(receipt),
+                subject: Text("Gastbeleg \(receipt.tableLabel)"),
+                message: Text("KassenSichV-Felder folgen (TSE); Beleg teilen.")
+            ) {
+                Label("Gastbeleg teilen", systemImage: "square.and.arrow.up")
+                    .font(.subheadline.weight(.semibold))
+            }
+
+            if receipt.canVoidCash {
+                Button {
+                    Task { await prepareVoid(receipt) }
+                } label: {
+                    Label(
+                        busyId == receipt.paymentId ? "Storniere …" : "Stornieren",
+                        systemImage: "arrow.uturn.backward"
+                    )
                 }
-                if receipt.canVoidCash && receipt.status == "paid" {
-                    Button {
-                        Task { await prepareVoid(receipt) }
-                    } label: {
-                        Label(
-                            busyId == receipt.voidKey ? "Storniere …" : "Stornieren",
-                            systemImage: "arrow.uturn.backward"
-                        )
-                    }
-                    .disabled(busyId != nil)
-                }
+                .disabled(busyId != nil)
             }
         }
         .padding(.vertical, 4)
     }
 
-    private func statusLabel(_ r: DisplayReceipt) -> String {
+    private func statusLabel(_ r: PosCloudClient.PosTodayReceiptDto) -> String {
         switch r.status {
-        case "paid": return r.fiscalPending ? "Bezahlt*" : "Bezahlt"
+        case "paid": return "Bezahlt"
         case "refunded": return "Storniert"
-        case "void_pending": return "Storno*"
         default: return r.status
         }
     }
@@ -256,9 +210,27 @@ struct ReceiptsView: View {
         switch method {
         case "cash": return "Bar"
         case "card": return "Karte"
-        case "voucher": return "Gutschein"
         default: return method
         }
+    }
+
+    private func guestReceiptText(_ receipt: PosCloudClient.PosTodayReceiptDto) -> String {
+        var lines = [
+            "Gwada POS — Gastbeleg",
+            "Tisch: \(receipt.tableLabel)",
+            "Bestellung #\(receipt.orderNumber)",
+            "Betrag: \(PosMoney.format(receipt.amountCents))",
+        ]
+        if receipt.tipCents > 0 {
+            lines.append("Trinkgeld: \(PosMoney.format(receipt.tipCents))")
+        }
+        lines.append("Zahlung: \(methodLabel(receipt.method))")
+        if let paidAt = receipt.paidAt {
+            lines.append("Zeit: \(Self.formatTime(paidAt))")
+        }
+        lines.append("")
+        lines.append("TSE / KassenSichV: Felder folgen (Fiskaly).")
+        return lines.joined(separator: "\n")
     }
 
     private func reload() async {
@@ -270,168 +242,64 @@ struct ReceiptsView: View {
             errorText = "Bitte anmelden, um Quittungen zu laden."
             return
         }
-
-        let local = PosOfflineCaches.loadReceipts()
-            .filter { $0.dayYmd == PosOfflineCaches.todayYmd() || $0.fiscalPending || $0.status == "void_pending" }
-            .map(Self.fromLocal)
-
-        if !isOnlineHub {
-            receipts = local.sorted { ($0.paidAt ?? "") > ($1.paidAt ?? "") }
-            if receipts.isEmpty {
-                errorText = "Offline — noch keine lokalen Quittungen heute."
-            }
-            return
-        }
-
         let restaurantId = PosHubState.shared.restaurantId
         do {
-            let cloud = try await PosCloudClient.fetchTodayReceipts(restaurantId: restaurantId)
-            let cloudMapped = cloud.map(Self.fromCloud)
-            var byKey: [String: DisplayReceipt] = [:]
-            for r in cloudMapped {
-                byKey[r.paymentId ?? r.localId] = r
-            }
-            for r in local {
-                if let pid = r.paymentId, byKey[pid] != nil {
-                    // Cloud gewinnt, außer lokal noch pending void
-                    if r.status == "void_pending" {
-                        byKey[pid] = r
-                    }
-                    continue
-                }
-                if r.fiscalPending || r.paymentId == nil {
-                    byKey[r.localId] = r
-                }
-            }
-            receipts = byKey.values.sorted { ($0.paidAt ?? "") > ($1.paidAt ?? "") }
+            receipts = try await PosCloudClient.fetchTodayReceipts(restaurantId: restaurantId)
         } catch {
-            receipts = local.sorted { ($0.paidAt ?? "") > ($1.paidAt ?? "") }
-            if receipts.isEmpty {
-                errorText = error.localizedDescription
-            }
+            errorText = error.localizedDescription
+            receipts = []
         }
     }
 
-    private func prepareVoid(_ receipt: DisplayReceipt) async {
+    private func prepareVoid(_ receipt: PosCloudClient.PosTodayReceiptDto) async {
         voidTarget = receipt
         reopenTable = true
         selectedVoidReasonId = nil
         let restaurantId = PosHubState.shared.restaurantId
-        if isOnlineHub {
-            do {
-                voidReasons = try await PosCloudClient.fetchVoidReasons(restaurantId: restaurantId)
-                PosOfflineCaches.saveVoidReasons(voidReasons)
-            } catch {
-                voidReasons = PosOfflineCaches.loadVoidReasons()
+        do {
+            voidReasons = try await PosCloudClient.fetchVoidReasons(restaurantId: restaurantId)
+            if voidReasons.count == 1 {
+                selectedVoidReasonId = voidReasons.first?.id
             }
-        } else {
-            voidReasons = PosOfflineCaches.loadVoidReasons()
-        }
-        if voidReasons.count == 1 {
-            selectedVoidReasonId = voidReasons.first?.id
+        } catch {
+            voidReasons = []
+            runtime.announce("Storno-Gründe konnten nicht geladen werden.")
         }
         showVoidSheet = true
     }
 
     private func voidReceipt(
-        _ receipt: DisplayReceipt,
+        _ receipt: PosCloudClient.PosTodayReceiptDto,
         reopen: Bool,
         voidReasonId: String?
     ) async {
-        busyId = receipt.voidKey
+        busyId = receipt.paymentId
         defer {
             busyId = nil
             voidTarget = nil
             showVoidSheet = false
         }
         let restaurantId = PosHubState.shared.restaurantId
-
-        // Immer lokal markieren
-        PosOfflineCaches.updateReceipt(localId: receipt.localId) { r in
-            r.status = "void_pending"
-            r.canVoidCash = false
-            r.fiscalPending = true
-        }
-
-        if let paymentId = receipt.paymentId, isOnlineHub {
-            do {
-                let result = try await PosCloudClient.voidCashPayment(
-                    restaurantId: restaurantId,
-                    paymentId: paymentId,
-                    reopenTable: reopen,
-                    voidReasonId: voidReasonId
-                )
-                PosOfflineCaches.updateReceipt(localId: receipt.localId) { r in
-                    r.status = "refunded"
-                    r.fiscalPending = false
-                }
-                var message = result.reopened
-                    ? "Storniert — Tisch wieder geöffnet."
-                    : "Bar-Zahlung storniert."
-                if result.inventoryRestored { message += " Bestand zurückgebucht." }
-                if let inv = result.formalInvoiceStorno {
-                    if let err = inv.error, !err.isEmpty {
-                        runtime.announce("\(message) Rechnungsstorno: \(err)")
-                    } else if inv.mode == "correction" {
-                        message += inv.correctionNumber.map { " Rechnung → Korrektur \($0)." }
-                            ?? " Formale Rechnung korrigiert."
-                    } else if inv.mode == "voided_draft" {
-                        message += " Formale Rechnung storniert."
-                    }
-                }
-                runtime.announce(message)
-                await runtime.refresh()
-                await reload()
-                return
-            } catch {
-                // Queue for later
+        do {
+            let result = try await PosCloudClient.voidCashPayment(
+                restaurantId: restaurantId,
+                paymentId: receipt.paymentId,
+                reopenTable: reopen,
+                voidReasonId: voidReasonId
+            )
+            var message = result.reopened
+                ? "Storniert — Tisch wieder geöffnet."
+                : "Bar-Zahlung storniert."
+            if result.inventoryRestored {
+                message += " Bestand zurückgebucht."
             }
+            runtime.announce(message)
+            await runtime.refresh()
+            await reload()
+        } catch {
+            errorText = error.localizedDescription
+            runtime.announce("Storno fehlgeschlagen: \(error.localizedDescription)")
         }
-
-        PosSyncQueue.shared.enqueueVoidCash(PosSyncVoidCashPayload(
-            restaurantId: restaurantId,
-            paymentId: receipt.paymentId,
-            localReceiptId: receipt.localId,
-            reopenTable: reopen,
-            voidReasonId: voidReasonId
-        ))
-        runtime.noteSyncPending()
-        runtime.announce("Storno lokal — Fiskalisierung nicht möglich, Nachsignierung ausstehend.")
-        await reload()
-    }
-
-    private static func fromLocal(_ r: PosLocalReceipt) -> DisplayReceipt {
-        DisplayReceipt(
-            localId: r.localId,
-            paymentId: r.paymentId,
-            orderNumber: r.orderNumber,
-            tableLabel: r.tableLabel,
-            method: r.method,
-            status: r.status,
-            amountCents: r.amountCents,
-            tipCents: r.tipCents,
-            receivedAmountCents: r.receivedAmountCents,
-            paidAt: r.paidAt,
-            canVoidCash: r.canVoidCash && r.status == "paid",
-            fiscalPending: r.fiscalPending
-        )
-    }
-
-    private static func fromCloud(_ r: PosCloudClient.PosTodayReceiptDto) -> DisplayReceipt {
-        DisplayReceipt(
-            localId: r.paymentId,
-            paymentId: r.paymentId,
-            orderNumber: r.orderNumber,
-            tableLabel: r.tableLabel,
-            method: r.method,
-            status: r.status,
-            amountCents: r.amountCents,
-            tipCents: r.tipCents,
-            receivedAmountCents: r.receivedAmountCents,
-            paidAt: r.paidAt,
-            canVoidCash: r.canVoidCash,
-            fiscalPending: false
-        )
     }
 
     private static func formatTime(_ iso: String) -> String {

@@ -1,0 +1,49 @@
+{
+  "description": "Golden fixtures for Swift SharedKit split-bill mirror. Amounts in integer cents.",
+  "cases": [
+    {
+      "id": "two_shares_exact",
+      "openCents": 4000,
+      "evenN": 2,
+      "steps": [
+        { "op": "share" },
+        { "op": "expect", "openCents": 2000, "settledCents": 2000, "mode": "amount", "evenN": 1 },
+        { "op": "share" },
+        { "op": "expect", "openCents": 0, "settledCents": 4000, "mode": "amount", "evenN": 1 }
+      ]
+    },
+    {
+      "id": "three_shares_rounding_last_exact",
+      "openCents": 1000,
+      "evenN": 3,
+      "steps": [
+        { "op": "share" },
+        { "op": "expect", "openCents": 660, "settledCents": 340, "mode": "amount", "evenN": 2 },
+        { "op": "share" },
+        { "op": "expect", "openCents": 330, "settledCents": 670, "mode": "amount", "evenN": 1 },
+        { "op": "share" },
+        { "op": "expect", "openCents": 0, "settledCents": 1000, "mode": "amount", "evenN": 1 }
+      ]
+    },
+    {
+      "id": "person_then_rest",
+      "openCents": 5000,
+      "evenN": 2,
+      "steps": [
+        { "op": "person", "amountCents": 1500 },
+        { "op": "expect", "openCents": 3500, "settledCents": 0, "mode": "item", "evenN": 2 },
+        { "op": "rest" },
+        { "op": "expect", "openCents": 0, "settledCents": 3500, "mode": "item", "evenN": 1 }
+      ]
+    },
+    {
+      "id": "share_locks_person",
+      "openCents": 3000,
+      "evenN": 2,
+      "steps": [
+        { "op": "share" },
+        { "op": "expectError", "on": "person", "error": "person_locked_after_share" }
+      ]
+    }
+  ]
+}

@@ -3,12 +3,7 @@ import Network
 
 /// Minimaler HTTP/1.1-Server für die iPad-Kasse (Network.framework).
 final class HubHTTPServer: @unchecked Sendable {
-    typealias Handler = @Sendable (
-        _ method: String,
-        _ pathWithQuery: String,
-        _ headers: [String: String],
-        _ body: Data
-    ) -> (status: Int, body: Data)
+    typealias Handler = @Sendable (String, String, [String: String], Data) -> (status: Int, body: Data)
 
     private let port: NWEndpoint.Port
     private let handler: Handler
@@ -64,16 +59,24 @@ final class HubHTTPServer: @unchecked Sendable {
             }
 
             if let request = Self.parseRequest(next) {
-                let result = self.handler(
-                    request.method,
-                    request.pathWithQuery,
-                    request.headers,
-                    request.body
-                )
+                let result = self.handler(request.method, request.pathWithQuery, request.headers, request.body)
                 let response = Self.serializeResponse(status: result.status, body: result.body)
-                connection.send(content: response, completion: .contentProcessed { _ in
-                    connection.cancel()
-                })
+                // Sende-Seite ordentlich per FIN schließen (isComplete: true). KEIN cancel() direkt
+                // in der Send-Completion: cancel() ist ein abrupter RST, der noch nicht geflushte
+                // Body-Bytes verwirft (→ getrunkter Body). Stattdessen: Client liest per
+                // Content-Length + `Connection: close` und schließt seinerseits — wir warten auf
+                // dieses Peer-EOF (ein weiteres receive) und geben die Verbindung erst danach frei,
+                // damit weder Body-Truncation noch ein Connection-Leak entsteht.
+                connection.send(
+                    content: response,
+                    contentContext: .finalMessage,
+                    isComplete: true,
+                    completion: .contentProcessed { [weak connection] _ in
+                        connection?.receive(minimumIncompleteLength: 1, maximumLength: 1) { _, _, _, _ in
+                            connection?.cancel()
+                        }
+                    }
+                )
                 return
             }
 
@@ -86,18 +89,26 @@ final class HubHTTPServer: @unchecked Sendable {
         }
     }
 
-    private struct ParsedRequest {
+    struct ParsedRequest {
         var method: String
+        /// Path inkl. Query (z. B. `/v1/reservations?day=2026-07-17`).
         var pathWithQuery: String
         var headers: [String: String]
         var body: Data
     }
 
-    private static func parseRequest(_ data: Data) -> ParsedRequest? {
-        guard let raw = String(data: data, encoding: .utf8) else { return nil }
-        guard let headerEnd = raw.range(of: "\r\n\r\n") else { return nil }
-        let head = String(raw[..<headerEnd.lowerBound])
-        let lines = head.split(separator: "\r\n", omittingEmptySubsequences: false).map(String.init)
+    private static let headerDelimiter = Data([0x0D, 0x0A, 0x0D, 0x0A])
+
+    static func parseRequest(_ data: Data) -> ParsedRequest? {
+        // Der Header/Body-Trenner muss auf den rohen Bytes gesucht werden: "\r\n" ist in
+        // Swift-Strings EIN Character (Grapheme-Cluster), aber ZWEI Bytes. Ein über
+        // `raw.distance(...)` gezählter Offset würde daher pro CRLF im Header um 1 Byte
+        // zu wenig zählen und die Body-Slice aus `data` verschieben/korrumpieren.
+        guard let delimiterRange = data.range(of: headerDelimiter) else { return nil }
+        let bodyStart = delimiterRange.upperBound
+
+        guard let raw = String(data: data[..<delimiterRange.lowerBound], encoding: .utf8) else { return nil }
+        let lines = raw.split(separator: "\r\n", omittingEmptySubsequences: false).map(String.init)
         guard let requestLine = lines.first else { return nil }
         let parts = requestLine.split(separator: " ")
         guard parts.count >= 2 else { return nil }
@@ -105,27 +116,26 @@ final class HubHTTPServer: @unchecked Sendable {
         let pathWithQuery = String(parts[1])
 
         var contentLength = 0
-        var headers: [String: String] = [:]
         for line in lines.dropFirst() {
-            guard let colon = line.firstIndex(of: ":") else { continue }
-            let name = String(line[..<colon]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let value = String(line[line.index(after: colon)...])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            headers[name.lowercased()] = value
-            if name.lowercased() == "content-length" {
+            let lower = line.lowercased()
+            if lower.hasPrefix("content-length:") {
+                let value = line.split(separator: ":", maxSplits: 1).last?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
                 contentLength = Int(value) ?? 0
             }
         }
 
-        let bodyStart = raw.distance(from: raw.startIndex, to: headerEnd.upperBound)
+        var headers: [String: String] = [:]
+        for line in lines.dropFirst() {
+            guard let colon = line.firstIndex(of: ":") else { continue }
+            let key = line[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
+            let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+            if !key.isEmpty { headers[key] = value }
+        }
+
         guard data.count >= bodyStart + contentLength else { return nil }
         let body = data.subdata(in: bodyStart ..< (bodyStart + contentLength))
-        return ParsedRequest(
-            method: method,
-            pathWithQuery: pathWithQuery,
-            headers: headers,
-            body: body
-        )
+        return ParsedRequest(method: method, pathWithQuery: pathWithQuery, headers: headers, body: body)
     }
 
     private static func serializeResponse(status: Int, body: Data) -> Data {
@@ -135,36 +145,30 @@ final class HubHTTPServer: @unchecked Sendable {
         case 201: statusText = "Created"
         case 204: statusText = "No Content"
         case 400: statusText = "Bad Request"
-        case 401: statusText = "Unauthorized"
-        case 403: statusText = "Forbidden"
         case 404: statusText = "Not Found"
         case 405: statusText = "Method Not Allowed"
+        case 401: statusText = "Unauthorized"
         case 503: statusText = "Service Unavailable"
         default: statusText = "Error"
         }
 
         let isHTML = body.starts(with: Data("<!doctype html>".utf8)) || body.starts(with: Data("<!DOCTYPE html>".utf8))
         let contentType = isHTML ? "text/html; charset=utf-8" : "application/json; charset=utf-8"
-        let allowHeaders = [
-            "Content-Type",
-            PosLanProtocol.headerProtocol,
-            PosLanProtocol.headerRestaurantId,
-            PosLanProtocol.headerLanSecret,
-            PosLanProtocol.headerStaffId,
-            PosLanProtocol.headerStaffName,
-        ].joined(separator: ", ")
-        let header = """
-        HTTP/1.1 \(status) \(statusText)\r
-        Content-Type: \(contentType)\r
-        Content-Length: \(body.count)\r
-        Connection: close\r
-        Access-Control-Allow-Origin: *\r
-        Access-Control-Allow-Methods: GET, POST, OPTIONS\r
-        Access-Control-Allow-Headers: \(allowHeaders)\r
-        \(PosLanProtocol.headerProtocol): \(PosLanProtocol.version)\r
-        \r
-        """
-        var response = Data(header.utf8)
+        // Header-Zeilen explizit mit CRLF verbinden + `\r\n\r\n`-Terminator anhängen.
+        // (Multiline-String-Literale strippen den finalen `\n` der letzten Zeile → früher
+        // war der Terminator fälschlich `\r\n\r`, wodurch HTTP-Clients die Body-Grenze nie fanden.)
+        let headerLines = [
+            "HTTP/1.1 \(status) \(statusText)",
+            "Content-Type: \(contentType)",
+            "Content-Length: \(body.count)",
+            "Connection: close",
+            "Access-Control-Allow-Origin: *",
+            "Access-Control-Allow-Methods: GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers: Content-Type, \(PosLanProtocol.headerProtocol), \(PosLanProtocol.headerRestaurantId), \(PosLanProtocol.headerPairToken)",
+            "\(PosLanProtocol.headerProtocol): \(PosLanProtocol.version)",
+        ]
+        let head = headerLines.joined(separator: "\r\n") + "\r\n\r\n"
+        var response = Data(head.utf8)
         response.append(body)
         return response
     }

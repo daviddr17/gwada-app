@@ -1901,6 +1901,7 @@ export type Database = {
       }
       pos_order_lines: {
         Row: {
+          course: number
           created_at: string
           id: string
           line_total_cents: number
@@ -1916,6 +1917,7 @@ export type Database = {
           vat_rate: number
         }
         Insert: {
+          course?: number
           created_at?: string
           id?: string
           line_total_cents?: number
@@ -1931,6 +1933,7 @@ export type Database = {
           vat_rate?: number
         }
         Update: {
+          course?: number
           created_at?: string
           id?: string
           line_total_cents?: number

@@ -53,11 +53,19 @@ export type PosBootstrapRecipeIngredient = {
   amount: number;
 };
 
+export type PosBootstrapMenuItemSides = {
+  required: boolean;
+  max: number;
+  includedCount: number;
+};
+
 export type PosBootstrapMenuItem = {
   id: string;
   name: string;
   description: string;
   priceCents: number;
+  sidePriceCents: number | null;
+  sides: PosBootstrapMenuItemSides | null;
   vatRate: number;
   categoryId: string;
   listNumber: number | null;
@@ -141,7 +149,7 @@ export async function loadPosBootstrap(
     .from("menu_items")
     .select(
       `
-      id, name, description, price, vat_rate, category_id, list_number, is_active,
+      id, name, description, price, vat_rate, category_id, list_number, is_active, side_price_cents,
       menu_item_option_groups(option_group_id, sort_order),
       menu_item_recipe_lines(ingredient_id, amount, sort_order)
     `,
@@ -154,7 +162,7 @@ export async function loadPosBootstrap(
     ? await supabase
         .from("menu_items")
         .select(
-          "id, name, description, price, vat_rate, category_id, list_number, is_active",
+          "id, name, description, price, vat_rate, category_id, list_number, is_active, side_price_cents",
         )
         .eq("restaurant_id", restaurantId)
         .eq("is_active", true)
@@ -254,6 +262,7 @@ export async function loadPosBootstrap(
     name: string;
     description: string | null;
     price: number | string;
+    side_price_cents: number | null;
     vat_rate: number | string | null;
     category_id: string;
     list_number: number | null;
@@ -265,6 +274,20 @@ export async function loadPosBootstrap(
       | { ingredient_id: string; amount: number | string; sort_order?: number }[]
       | null;
   };
+
+  const { data: sideConfigs } = await supabase
+    .from("menu_item_side_config")
+    .select("menu_item_id, required, max_sides, included_count")
+    .eq("restaurant_id", restaurantId);
+
+  const sideByItem = new Map<string, PosBootstrapMenuItemSides>();
+  for (const row of sideConfigs ?? []) {
+    sideByItem.set(row.menu_item_id as string, {
+      required: Boolean(row.required),
+      max: Number(row.max_sides),
+      includedCount: Number(row.included_count),
+    });
+  }
 
   const activeCategoryIds = new Set(
     (categoriesRes.data ?? []).map((c) => c.id as string),
@@ -293,6 +316,9 @@ export async function loadPosBootstrap(
         name: row.name,
         description: row.description ?? "",
         priceCents: Math.round(Number(row.price) * 100),
+        sidePriceCents:
+          row.side_price_cents == null ? null : Number(row.side_price_cents),
+        sides: sideByItem.get(row.id) ?? null,
         vatRate: Number(row.vat_rate ?? 19),
         categoryId: row.category_id,
         listNumber: row.list_number,

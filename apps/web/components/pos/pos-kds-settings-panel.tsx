@@ -16,8 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
-  POS_ORDER_COURSE_LABELS_DE,
-  POS_ORDER_COURSES,
+  POS_UI_COURSES,
+  posOrderCourseLabelDe,
   type PosOrderCourse,
 } from "@gwada/pos-domain";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
@@ -166,7 +166,7 @@ export function PosKdsSettingsPanel() {
           <div className="space-y-2">
             <Label>Gänge</Label>
             <div className="flex flex-wrap gap-2">
-              {POS_ORDER_COURSES.map((c) => {
+              {POS_UI_COURSES.map((c) => {
                 const on = courses.includes(c);
                 return (
                   <button
@@ -184,7 +184,7 @@ export function PosKdsSettingsPanel() {
                       )
                     }
                   >
-                    {POS_ORDER_COURSE_LABELS_DE[c]}
+                    {posOrderCourseLabelDe(c)}
                   </button>
                 );
               })}
@@ -249,9 +249,7 @@ export function PosKdsSettingsPanel() {
                     <p className="font-medium">{d.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {d.courses.length
-                        ? d.courses
-                            .map((c) => POS_ORDER_COURSE_LABELS_DE[c] ?? c)
-                            .join(", ")
+                        ? d.courses.map(posOrderCourseLabelDe).join(", ")
                         : "Alle Gänge"}
                       {" · "}
                       {d.menuCategoryIds.length

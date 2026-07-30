@@ -1,11 +1,10 @@
 import SwiftUI
 
-/// Gerät / Pairing / PIN / Hub-Status (Sidebar „Gerät“).
+/// Gerät / Login / Hub-Status (Sidebar „Gerät“ / Mehr → Gerät).
 struct DeviceSettingsView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var hubIP = ""
     @State private var confirmSignOut = false
-    @State private var confirmUnpair = false
 
     var body: some View {
         List {
@@ -20,16 +19,8 @@ struct DeviceSettingsView: View {
                         emphasized: runtime.phase == .hubReady || runtime.phase == .connected
                     )
                 }
-                if runtime.isPaired {
-                    LabeledContent(
-                        "Restaurant",
-                        value: runtime.restaurantDisplayName.isEmpty
-                            ? (runtime.restaurantIdInput.isEmpty ? "—" : runtime.restaurantIdInput)
-                            : runtime.restaurantDisplayName
-                    )
-                }
-                if runtime.isSignedIn, !runtime.staffDisplayName.isEmpty {
-                    LabeledContent("Mitarbeiter", value: runtime.staffDisplayName)
+                if runtime.isSoloMode {
+                    LabeledContent("Modus", value: "Solo (ohne Kasse)")
                 }
                 if runtime.role == .hub {
                     LabeledContent("Sync-Queue", value: "\(runtime.syncPending) offen")
@@ -42,131 +33,151 @@ struct DeviceSettingsView: View {
                 }
             }
 
-            if !runtime.isPaired {
-                Section("Restaurant koppeln") {
-                    Text("Kopplungscode aus Dashboard → POS → Einstellungen → Geräte.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    TextField("Kopplungscode", text: $runtime.pairingCodeInput)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .font(.body.monospaced())
-                    DisclosureGroup("Erweitert") {
-                        TextField("API-Basis", text: $runtime.apiBaseInput)
-                            .textInputAutocapitalization(.never)
-                    }
-                    Button {
-                        Task { await runtime.pairDevice() }
-                    } label: {
-                        Text("Gerät koppeln")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(PosPrimaryButtonStyle())
-                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                    .listRowBackground(Color.clear)
-                }
-            } else if !runtime.isSignedIn {
-                Section("Display-PIN") {
-                    Text(
-                        PosAuthStore.shared.hasOfflineRoster
-                            ? "4-stellige Mitarbeiter-PIN (Recht „Kasse bedienen“). Offline aus lokalem Cache möglich."
-                            : "4-stellige Mitarbeiter-PIN. Für Offline-Login einmal online anmelden oder Roster laden."
-                    )
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    SecureField("PIN", text: $runtime.pinInput)
-                        .keyboardType(.numberPad)
-                        .textContentType(.oneTimeCode)
-                    Button {
-                        Task { await runtime.signInWithPin() }
-                    } label: {
-                        Text("Anmelden")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(PosPrimaryButtonStyle())
-                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-                    .listRowBackground(Color.clear)
-                }
-            }
-
             if runtime.role == .hub {
-                Section("Kasse (Server)") {
-                    LabeledContent("Port", value: "\(PosLanProtocol.hubPort)")
-                    LabeledContent(
-                        "Bonjour",
-                        value: runtime.bonjourPublishing ? "Aktiv (_gwada-pos._tcp)" : "—"
-                    )
-                    LabeledContent("Daten", value: runtime.dataSourceLabel)
-                    Text("Handgeräte, KDS & Druck-Jobs über lokales WLAN — auch ohne Internet.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                hubSections
             } else {
-                Section("Verbindung zur Kasse") {
-                    if let url = runtime.hubBaseURL {
-                        LabeledContent("Hub", value: url.absoluteString)
-                    }
-                    TextField("Hub-IP (Fallback)", text: $hubIP)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.numbersAndPunctuation)
-                    Button("Hub-IP speichern & abrufen") {
-                        Task { await runtime.saveManualHost(hubIP) }
-                    }
-                    .disabled(hubIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Text("Start nur möglich, wenn die iPad-Kasse erreichbar ist.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if runtime.isPaired {
-                Section {
-                    if runtime.isSignedIn {
-                        Button("Abmelden", role: .destructive) {
-                            confirmSignOut = true
-                        }
-                    }
-                    Button("Gerät entkoppeln", role: .destructive) {
-                        confirmUnpair = true
-                    }
-                }
+                handheldSections
             }
         }
         .navigationTitle("Gerät")
         .navigationBarTitleDisplayMode(.large)
         .confirmationDialog(
-            "Wirklich abmelden?",
+            "Kasse neu einrichten?",
             isPresented: $confirmSignOut,
             titleVisibility: .visible
         ) {
-            Button("Abmelden", role: .destructive) { runtime.signOut() }
+            Button("Neu einrichten", role: .destructive) { runtime.signOut() }
             Button("Abbrechen", role: .cancel) {}
         } message: {
-            Text("Die PIN-Session endet. Das Gerät bleibt mit dem Restaurant gekoppelt.")
+            Text(
+                runtime.role == .hub
+                    ? "Die lokale Kasse stoppt; Handgeräte verlieren die Verbindung. Danach Einrichtungs-Code oder Login."
+                    : "Cloud-Login wird entfernt; Solo nutzt dann Demo-Daten."
+            )
         }
-        .confirmationDialog(
-            "Gerät entkoppeln?",
-            isPresented: $confirmUnpair,
-            titleVisibility: .visible
-        ) {
-            Button("Entkoppeln", role: .destructive) {
-                Task { await runtime.unpairDevice() }
+    }
+
+    @ViewBuilder
+    private var hubSections: some View {
+        Section("Kasse (Server)") {
+            LabeledContent("Port", value: "\(PosLanProtocol.hubPort)")
+            LabeledContent(
+                "Bonjour",
+                value: runtime.bonjourPublishing ? "Aktiv (_gwada-pos._tcp)" : "—"
+            )
+            LabeledContent("Daten", value: runtime.dataSourceLabel)
+            Text("Handgeräte, KDS & Druck-Jobs über lokales WLAN — auch ohne Internet.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+
+        nestSyncSection
+        Section {
+            Button("Kasse neu einrichten", role: .destructive) {
+                confirmSignOut = true
             }
-            Button("Abbrechen", role: .cancel) {}
-        } message: {
-            Text("Restaurant-Zuordnung wird entfernt. Neuer Kopplungscode aus dem Dashboard nötig.")
+        } footer: {
+            Text("Öffnet den Einrichtungs-Assistenten erneut (Einrichtungs-Code).")
+        }
+    }
+
+    @ViewBuilder
+    private var handheldSections: some View {
+        Section("Solo / ohne iPad") {
+            Text("Für UI-Tests ohne Kasse: Solo startet mit Demo- oder Cloud-Daten.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Button {
+                Task { await runtime.startHandheldSolo(preferCloud: runtime.isSignedIn) }
+            } label: {
+                Text(runtime.isSoloMode ? "Solo-Daten neu laden" : "Ohne Kasse starten (Solo)")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PosPrimaryButtonStyle())
+            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+            .listRowBackground(Color.clear)
+
+            Toggle(
+                "Nest-Fallback (ohne Hub)",
+                isOn: Binding(
+                    get: { PosCloudConfig.nestClientFallbackEnabled },
+                    set: { PosCloudConfig.setNestClientFallbackEnabled($0) }
+                )
+            )
+        }
+
+        Section("Verbindung zur Kasse") {
+            if let url = runtime.hubBaseURL {
+                LabeledContent("Hub", value: url.absoluteString)
+            }
+            TextField("Hub-IP (Fallback)", text: $hubIP)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.numbersAndPunctuation)
+            Button("Hub-IP speichern & abrufen") {
+                Task { await runtime.saveManualHost(hubIP) }
+            }
+            .disabled(hubIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Erneut nach Kasse suchen") {
+                Task { await runtime.refresh() }
+            }
+            Text("Ohne erreichbare Kasse wechselt die App automatisch in den Solo-Modus.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+
+        nestSyncSection
+        Section {
+            Button("Abmelden", role: .destructive) {
+                confirmSignOut = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var nestSyncSection: some View {
+        Section("Nest Sync") {
+            LabeledContent(
+                "Outbox",
+                value: PosCloudConfig.nestSyncEnabled ? "Nest aktiv" : "Next `/api/pos`"
+            )
+            LabeledContent("Gerät-ID", value: String(PosDeviceIdentity.id.prefix(8)) + "…")
+            LabeledContent("Daten", value: runtime.dataSourceLabel)
+            LabeledContent("API", value: PosCloudConfig.apiBaseURL.host ?? PosCloudConfig.apiBaseURL.absoluteString)
+            Button("Cloud-Daten neu laden") {
+                Task { await runtime.reloadCloudData() }
+            }
+            DisclosureGroup("Nest / Waiter") {
+                TextField("Nest API-Basis", text: $runtime.nestApiBaseInput)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
+                TextField("Waiter Profile-ID", text: $runtime.waiterProfileIdInput)
+                    .textInputAutocapitalization(.never)
+                Button("Speichern") {
+                    runtime.saveNestSettingsFromInputs()
+                }
+                if PosCloudConfig.nestSyncEnabled {
+                    Toggle(
+                        "Nest-Fallback (Hub offline)",
+                        isOn: Binding(
+                            get: { PosCloudConfig.nestClientFallbackEnabled },
+                            set: { PosCloudConfig.setNestClientFallbackEnabled($0) }
+                        )
+                    )
+                }
+            }
         }
     }
 
     private var phaseLabel: String {
         switch runtime.phase {
         case .idle: return "Bereit"
-        case .needsLogin:
-            return runtime.isPaired ? "PIN nötig" : "Kopplung nötig"
+        case .needsLogin: return "Login nötig"
         case .starting: return "Startet …"
         case .hubReady: return "Server läuft"
         case .searching: return "Suche Kasse …"
-        case .connected: return "Mit Kasse verbunden"
+        case .awaitingApproval: return "Warte auf Freigabe …"
+        case .connected:
+            return runtime.isSoloMode ? "Solo aktiv" : "Mit Kasse verbunden"
         case .error(let message): return message
         }
     }

@@ -31,8 +31,8 @@ const POS_SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
-    href: APP_ROUTES.pos.settingsDevices,
-    label: "Geräte",
+    href: APP_ROUTES.pos.settingsDevicesRights,
+    label: "Geräte & Rechte",
     matchMode: "exact",
   },
 ];

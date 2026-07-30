@@ -19,7 +19,7 @@ enum PosCloudError: LocalizedError {
         case .httpStatus(let code, let body):
             return "Cloud HTTP \(code)\(body.map { ": \($0.prefix(120))" } ?? "")"
         case .offline:
-            return "Keine Internetverbindung — arbeite lokal weiter."
+            return "Cloud-API nicht erreichbar (Next unter API-Basis gestartet? Lokal: :3000)."
         case .missingRestaurant:
             return "Restaurant-ID fehlt — bitte in den Einstellungen setzen."
         }

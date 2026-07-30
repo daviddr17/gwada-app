@@ -27,6 +27,7 @@ apps/web/out/
 # misc
 .DS_Store
 .tmp/
+.superpowers/
 *.pem
 
 # debug

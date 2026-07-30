@@ -17,6 +17,24 @@ struct PosCloudMenuChoice: Codable, Equatable, Identifiable, Sendable {
     var name: String
     var priceDelta: Double
     var active: Bool?
+
+    enum CodingKeys: String, CodingKey { case id, name, priceDelta, active }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        priceDelta = try c.decode(PosJSONNumber.self, forKey: .priceDelta).doubleValue
+        active = try c.decodeIfPresent(Bool.self, forKey: .active)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(priceDelta, forKey: .priceDelta)
+        try c.encodeIfPresent(active, forKey: .active)
+    }
 }
 
 struct PosCloudMenuOptionGroup: Codable, Equatable, Identifiable, Sendable {
@@ -28,12 +46,34 @@ struct PosCloudMenuOptionGroup: Codable, Equatable, Identifiable, Sendable {
     var choices: [PosCloudMenuChoice]
 }
 
+struct PosCloudMenuItemSideConfig: Codable, Equatable, Sendable {
+    var required: Bool
+    var max: Int
+    var includedCount: Int
+}
+
 struct PosCloudRecipeIngredient: Codable, Equatable, Identifiable, Sendable {
     var ingredientId: String
     var name: String
     var amount: Double
 
     var id: String { ingredientId }
+
+    enum CodingKeys: String, CodingKey { case ingredientId, name, amount }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ingredientId = try c.decode(String.self, forKey: .ingredientId)
+        name = try c.decode(String.self, forKey: .name)
+        amount = try c.decode(PosJSONNumber.self, forKey: .amount).doubleValue
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(ingredientId, forKey: .ingredientId)
+        try c.encode(name, forKey: .name)
+        try c.encode(amount, forKey: .amount)
+    }
 }
 
 struct PosCloudMenuItem: Codable, Equatable, Identifiable, Sendable {
@@ -41,12 +81,50 @@ struct PosCloudMenuItem: Codable, Equatable, Identifiable, Sendable {
     var name: String
     var description: String
     var priceCents: Int
+    var sidePriceCents: Int?
+    var sides: PosCloudMenuItemSideConfig?
     var vatRate: Double
     var categoryId: String
     var listNumber: Int?
     var optionGroupIds: [String]
     var recipe: [PosCloudRecipeIngredient]?
     var active: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, priceCents, sidePriceCents, sides, vatRate, categoryId, listNumber, optionGroupIds, recipe, active
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
+        priceCents = try c.decode(PosJSONNumber.self, forKey: .priceCents).intValue
+        sidePriceCents = try c.decodeIfPresent(PosJSONNumber.self, forKey: .sidePriceCents)?.intValue
+        sides = try c.decodeIfPresent(PosCloudMenuItemSideConfig.self, forKey: .sides)
+        vatRate = try c.decode(PosJSONNumber.self, forKey: .vatRate).doubleValue
+        categoryId = try c.decode(String.self, forKey: .categoryId)
+        listNumber = try c.decodeIfPresent(PosJSONNumber.self, forKey: .listNumber)?.intValue
+        optionGroupIds = try c.decodeIfPresent([String].self, forKey: .optionGroupIds) ?? []
+        recipe = try c.decodeIfPresent([PosCloudRecipeIngredient].self, forKey: .recipe)
+        active = try c.decodeIfPresent(Bool.self, forKey: .active) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(description, forKey: .description)
+        try c.encode(priceCents, forKey: .priceCents)
+        try c.encodeIfPresent(sidePriceCents, forKey: .sidePriceCents)
+        try c.encodeIfPresent(sides, forKey: .sides)
+        try c.encode(vatRate, forKey: .vatRate)
+        try c.encode(categoryId, forKey: .categoryId)
+        try c.encodeIfPresent(listNumber, forKey: .listNumber)
+        try c.encode(optionGroupIds, forKey: .optionGroupIds)
+        try c.encodeIfPresent(recipe, forKey: .recipe)
+        try c.encode(active, forKey: .active)
+    }
 }
 
 struct PosCloudMenuCatalog: Codable, Equatable, Sendable {
@@ -59,8 +137,25 @@ struct PosCloudKdsDevice: Codable, Equatable, Identifiable, Sendable {
     var id: String
     var name: String
     var menuCategoryIds: [String]
-    var courses: [String]
+    var courses: [Int]
     var isActive: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, menuCategoryIds, courses, isActive
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        menuCategoryIds = try c.decodeIfPresent([String].self, forKey: .menuCategoryIds) ?? []
+        if let values = try? c.decode([Int].self, forKey: .courses) {
+            courses = values
+        } else {
+            courses = (try c.decodeIfPresent([String].self, forKey: .courses) ?? []).map(PosCourse.parse)
+        }
+        isActive = try c.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
+    }
 }
 
 struct PosCloudPrinter: Codable, Equatable, Identifiable, Sendable {

@@ -4,12 +4,12 @@ enum PosSyncQueueItemKind: String, Codable, Sendable {
     case openSession
     case createOrder
     case collectCash
+    case fireCourse
+    case moveSession
+    case releaseSession
     case createReservation
     case openRegister
     case closeRegister
-    case voidCash
-    case issueGiftVoucher
-    case redeemGiftVoucher
 }
 
 struct PosSyncQueueItem: Codable, Identifiable, Equatable, Sendable {
@@ -33,16 +33,44 @@ struct PosSyncCreateOrderPayload: Codable, Sendable {
     var tableSessionId: String
     var items: [PosSyncOrderItem]
     var localOrderId: String
-    var localLineIds: [String]?
 
-    var resolvedLocalLineIds: [String] { localLineIds ?? [] }
+    static func make(
+        restaurantId: String,
+        tableSessionId: String,
+        lines: [PosCartLine],
+        localOrderId: String = UUID().uuidString
+    ) -> PosSyncCreateOrderPayload {
+        PosSyncCreateOrderPayload(
+            restaurantId: restaurantId,
+            tableSessionId: tableSessionId,
+            items: lines.map { line in
+                PosSyncOrderItem(
+                    menuItemId: line.menuItemId,
+                    quantity: line.quantity,
+                    notes: line.notes.isEmpty ? nil : line.notes,
+                    course: line.course,
+                    ohneIngredientIds: line.ohneIngredientIds,
+                    modifiers: line.modifiers.map {
+                        PosCloudModifierPayload(
+                            type: $0.type,
+                            label: $0.label,
+                            ingredientId: $0.ingredientId,
+                            optionChoiceId: $0.optionChoiceId,
+                            priceDeltaCents: $0.priceDeltaCents
+                        )
+                    }
+                )
+            },
+            localOrderId: localOrderId
+        )
+    }
 }
 
 struct PosSyncOrderItem: Codable, Sendable {
     var menuItemId: String
     var quantity: Int
     var notes: String?
-    var course: String?
+    var course: Int?
     var ohneIngredientIds: [String]?
     var modifiers: [PosCloudModifierPayload]?
 }
@@ -53,8 +81,11 @@ struct PosSyncCollectCashPayload: Codable, Sendable {
     var allocations: [PosSyncCashAllocation]
     var tipCents: Int
     var receivedAmountCents: Int?
-    /// Lokale Quittungs-ID zum Nachtragen der Cloud-paymentId.
-    var localReceiptId: String?
+}
+
+struct PosSyncCashAllocation: Codable, Sendable {
+    var orderLineId: String
+    var quantity: Int
 }
 
 struct PosSyncOpenRegisterPayload: Codable, Sendable {
@@ -68,38 +99,53 @@ struct PosSyncCloseRegisterPayload: Codable, Sendable {
     var closingCashCents: Int
 }
 
-struct PosSyncVoidCashPayload: Codable, Sendable {
+struct PosSyncFireCoursePayload: Codable, Sendable {
     var restaurantId: String
-    var paymentId: String?
-    var localReceiptId: String
-    var reopenTable: Bool
-    var voidReasonId: String?
-}
-
-struct PosSyncIssueGiftVoucherPayload: Codable, Sendable {
-    var restaurantId: String
-    var amountCents: Int
-    var localId: String
-    var localCode: String
-    var note: String?
-}
-
-struct PosSyncRedeemGiftVoucherPayload: Codable, Sendable {
-    var restaurantId: String
-    var giftVoucherId: String
     var tableSessionId: String
-    var allocations: [PosSyncCashAllocation]
-    var tipCents: Int
-    var localReceiptId: String?
-    var expectedBalanceBefore: Int
+    var course: Int
+    var fireAttemptId: String
+
+    enum CodingKeys: String, CodingKey {
+        case restaurantId, tableSessionId, course, fireAttemptId
+    }
+
+    init(
+        restaurantId: String,
+        tableSessionId: String,
+        course: Int,
+        fireAttemptId: String
+    ) {
+        self.restaurantId = restaurantId
+        self.tableSessionId = tableSessionId
+        self.course = course
+        self.fireAttemptId = fireAttemptId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        restaurantId = try container.decode(String.self, forKey: .restaurantId)
+        tableSessionId = try container.decode(String.self, forKey: .tableSessionId)
+        if let course = try? container.decode(Int.self, forKey: .course) {
+            self.course = course
+        } else {
+            course = PosCourse.parse(try container.decode(String.self, forKey: .course))
+        }
+        fireAttemptId = try container.decode(String.self, forKey: .fireAttemptId)
+    }
 }
 
-struct PosSyncCashAllocation: Codable, Sendable {
-    var orderLineId: String
-    var quantity: Int
+struct PosSyncMoveSessionPayload: Codable, Sendable {
+    var restaurantId: String
+    var tableSessionId: String
+    var toTableId: String
 }
 
-/// FIFO-Queue: lokale Aktionen → Cloud (DB + Fiskaly über Web-API), sobald online.
+struct PosSyncReleaseSessionPayload: Codable, Sendable {
+    var restaurantId: String
+    var tableSessionId: String
+}
+
+/// FIFO-Queue: lokale Aktionen → Cloud (Nest Outbox oder Next `/api/pos`), sobald online.
 /// Offline-Open: lokale Session-ID wird beim Flush gemappt; nachfolgende Orders nutzen die Cloud-ID.
 @MainActor
 final class PosSyncQueue: ObservableObject {
@@ -159,16 +205,52 @@ final class PosSyncQueue: ObservableObject {
     func enqueueCollectCash(_ payload: PosSyncCollectCashPayload) {
         var resolved = payload
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
-        resolved.allocations = payload.allocations.map {
-            PosSyncCashAllocation(
-                orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
-                quantity: $0.quantity
-            )
-        }
         let data = (try? encoder.encode(resolved)) ?? Data()
         enqueue(PosSyncQueueItem(
             id: UUID().uuidString,
             kind: .collectCash,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
+    func enqueueFireCourse(_ payload: PosSyncFireCoursePayload) {
+        var resolved = payload
+        resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+        let data = (try? encoder.encode(resolved)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .fireCourse,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
+    func enqueueMoveSession(_ payload: PosSyncMoveSessionPayload) {
+        var resolved = payload
+        resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+        let data = (try? encoder.encode(resolved)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .moveSession,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: data,
+            attempts: 0,
+            lastError: nil
+        ))
+    }
+
+    func enqueueReleaseSession(_ payload: PosSyncReleaseSessionPayload) {
+        var resolved = payload
+        resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+        let data = (try? encoder.encode(resolved)) ?? Data()
+        enqueue(PosSyncQueueItem(
+            id: UUID().uuidString,
+            kind: .releaseSession,
             createdAt: ISO8601DateFormatter().string(from: Date()),
             payload: data,
             attempts: 0,
@@ -212,58 +294,10 @@ final class PosSyncQueue: ObservableObject {
         ))
     }
 
-    func enqueueVoidCash(_ payload: PosSyncVoidCashPayload) {
-        let data = (try? encoder.encode(payload)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .voidCash,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
-    }
-
-    func enqueueIssueGiftVoucher(_ payload: PosSyncIssueGiftVoucherPayload) {
-        let data = (try? encoder.encode(payload)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .issueGiftVoucher,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
-    }
-
-    func enqueueRedeemGiftVoucher(_ payload: PosSyncRedeemGiftVoucherPayload) {
-        var resolved = payload
-        resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
-        resolved.allocations = payload.allocations.map {
-            PosSyncCashAllocation(
-                orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
-                quantity: $0.quantity
-            )
-        }
-        let data = (try? encoder.encode(resolved)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .redeemGiftVoucher,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
-    }
-
     func flushIfPossible() async {
         guard !isFlushing, !items.isEmpty else { return }
         guard PosAuthStore.shared.isSignedIn else {
             lastFlushMessage = "Sync wartet auf Login."
-            return
-        }
-        if PosAuthStore.shared.isOfflineSession {
-            lastFlushMessage = "Sync wartet auf Internet (Offline-PIN)."
             return
         }
         isFlushing = true
@@ -304,11 +338,197 @@ final class PosSyncQueue: ObservableObject {
         items = remaining
         persist()
         lastFlushMessage = synced > 0
-            ? "\(synced) Vorgang(e) synchronisiert."
+            ? "\(synced) Vorgang(e) synchronisiert\(PosCloudConfig.nestSyncEnabled ? " (Nest)" : "")."
             : (remaining.isEmpty ? "Queue leer." : "Sync ausstehend (\(remaining.count)).")
     }
 
     private func process(
+        _ item: inout PosSyncQueueItem,
+        working: inout [PosSyncQueueItem],
+        index: Int
+    ) async throws {
+        switch item.kind {
+        case .openSession, .createOrder, .collectCash, .fireCourse, .moveSession, .releaseSession:
+            if PosCloudConfig.nestSyncEnabled {
+                try await processViaNest(&item, working: &working, index: index)
+            } else {
+                try await processViaNext(&item, working: &working, index: index)
+            }
+        case .createReservation:
+            let payload = try decoder.decode(PosCreateReservationPayload.self, from: item.payload)
+            _ = try await PosCloudClient.createReservation(payload: payload)
+        case .openRegister:
+            let payload = try decoder.decode(PosSyncOpenRegisterPayload.self, from: item.payload)
+            _ = try await PosCloudClient.openRegister(openingCashCents: payload.openingCashCents)
+        case .closeRegister:
+            let payload = try decoder.decode(PosSyncCloseRegisterPayload.self, from: item.payload)
+            _ = try await PosCloudClient.closeRegister(closingCashCents: payload.closingCashCents)
+        }
+    }
+
+    private func processViaNest(
+        _ item: inout PosSyncQueueItem,
+        working: inout [PosSyncQueueItem],
+        index: Int
+    ) async throws {
+        let envelope: [String: Any]
+        switch item.kind {
+        case .openSession:
+            let payload = try decoder.decode(PosSyncOpenSessionPayload.self, from: item.payload)
+            envelope = PosNestClient.eventEnvelope(
+                type: "session.opened",
+                idempotencyKey: "hub:session.open:\(payload.localSessionId)",
+                sessionId: nil,
+                payload: [
+                    "tableId": payload.diningTableId,
+                    "diningTableId": payload.diningTableId,
+                    "coverCount": payload.coverCount,
+                    "localSessionId": payload.localSessionId,
+                ]
+            )
+
+        case .createOrder:
+            var payload = try decoder.decode(PosSyncCreateOrderPayload.self, from: item.payload)
+            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            let itemsPayload: [[String: Any]] = payload.items.map { item in
+                var row: [String: Any] = [
+                    "menuItemId": item.menuItemId,
+                    "quantity": item.quantity,
+                ]
+                if let course = item.course { row["course"] = course }
+                if let notes = item.notes, !notes.isEmpty { row["notes"] = notes }
+                if let ohne = item.ohneIngredientIds, !ohne.isEmpty {
+                    row["ohneIngredientIds"] = ohne
+                }
+                if let modifiers = item.modifiers, !modifiers.isEmpty {
+                    row["modifiers"] = modifiers.map { modifier -> [String: Any] in
+                        var value: [String: Any] = [
+                            "type": modifier.type,
+                            "label": modifier.label,
+                        ]
+                        if let ingredientId = modifier.ingredientId {
+                            value["ingredientId"] = ingredientId
+                        }
+                        if let optionChoiceId = modifier.optionChoiceId {
+                            value["optionChoiceId"] = optionChoiceId
+                        }
+                        if let priceDeltaCents = modifier.priceDeltaCents {
+                            value["priceDeltaCents"] = priceDeltaCents
+                        }
+                        return value
+                    }
+                }
+                return row
+            }
+            envelope = PosNestClient.eventEnvelope(
+                type: "order.created",
+                idempotencyKey: "hub:line.add:\(payload.localOrderId)",
+                sessionId: payload.tableSessionId,
+                payload: [
+                    "sessionId": payload.tableSessionId,
+                    "items": itemsPayload,
+                    "localOrderId": payload.localOrderId,
+                ]
+            )
+
+        case .collectCash:
+            var payload = try decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
+            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            var body: [String: Any] = [
+                "sessionId": payload.tableSessionId,
+                "method": "cash",
+                "tipCents": payload.tipCents,
+                "settlementMode": "item",
+                "allocations": payload.allocations.map {
+                    ["orderLineId": $0.orderLineId, "quantity": $0.quantity]
+                },
+            ]
+            if let received = payload.receivedAmountCents {
+                body["receivedAmountCents"] = received
+            }
+            envelope = PosNestClient.eventEnvelope(
+                type: "payment.completed",
+                idempotencyKey: "hub:payment:\(item.id)",
+                sessionId: payload.tableSessionId,
+                payload: body
+            )
+
+        case .fireCourse:
+            var payload = try decoder.decode(PosSyncFireCoursePayload.self, from: item.payload)
+            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            envelope = PosNestClient.eventEnvelope(
+                type: "course.fired",
+                idempotencyKey: "hub:course.fire:\(payload.tableSessionId):\(payload.course):\(payload.fireAttemptId)",
+                sessionId: payload.tableSessionId,
+                payload: [
+                    "sessionId": payload.tableSessionId,
+                    "course": payload.course,
+                ]
+            )
+
+        case .moveSession:
+            var payload = try decoder.decode(PosSyncMoveSessionPayload.self, from: item.payload)
+            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            envelope = PosNestClient.eventEnvelope(
+                type: "table.moved",
+                idempotencyKey: "hub:session.move:\(payload.tableSessionId):\(payload.toTableId)",
+                sessionId: payload.tableSessionId,
+                payload: [
+                    "sessionId": payload.tableSessionId,
+                    "toTableId": payload.toTableId,
+                    "targetDiningTableId": payload.toTableId,
+                ]
+            )
+
+        case .releaseSession:
+            var payload = try decoder.decode(PosSyncReleaseSessionPayload.self, from: item.payload)
+            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            envelope = PosNestClient.eventEnvelope(
+                type: "table.released",
+                idempotencyKey: "hub:session.release:\(payload.tableSessionId)",
+                sessionId: payload.tableSessionId,
+                payload: [
+                    "sessionId": payload.tableSessionId,
+                ]
+            )
+
+        case .createReservation, .openRegister, .closeRegister:
+            return
+        }
+
+        let response = try await PosNestClient.postEvents([envelope])
+        guard let result = response.results.first else {
+            throw PosCloudError.invalidResponse
+        }
+        switch result.status {
+        case "applied", "duplicate":
+            if item.kind == .openSession,
+               let payload = try? decoder.decode(PosSyncOpenSessionPayload.self, from: item.payload),
+               let remote = result.result?["sessionId"]?.stringValue
+            {
+                applySessionMapping(
+                    localSessionId: payload.localSessionId,
+                    cloudSessionId: remote,
+                    working: &working,
+                    afterIndex: index
+                )
+            }
+        case "rejected":
+            throw PosCloudError.httpStatus(
+                422,
+                result.error ?? "nest_rejected:\(result.idempotencyKey)"
+            )
+        default:
+            throw PosCloudError.httpStatus(500, "nest_status:\(result.status)")
+        }
+    }
+
+    private func processViaNext(
         _ item: inout PosSyncQueueItem,
         working: inout [PosSyncQueueItem],
         index: Int
@@ -332,7 +552,7 @@ final class PosSyncQueue: ObservableObject {
             var payload = try decoder.decode(PosSyncCreateOrderPayload.self, from: item.payload)
             payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
             item.payload = (try? encoder.encode(payload)) ?? item.payload
-            let result = try await PosCloudClient.createOrder(
+            _ = try await PosCloudClient.createOrder(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
                 items: payload.items.map {
@@ -346,252 +566,26 @@ final class PosSyncQueue: ObservableObject {
                     )
                 }
             )
-            applyLineMapping(
-                sessionId: payload.tableSessionId,
-                localLineIds: payload.resolvedLocalLineIds,
-                cloudLines: result.lines,
-                working: &working,
-                afterIndex: index
-            )
 
         case .collectCash:
             var payload = try decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
             payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
-            payload.allocations = payload.allocations.map {
-                PosSyncCashAllocation(
-                    orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
-                    quantity: $0.quantity
-                )
-            }
             item.payload = (try? encoder.encode(payload)) ?? item.payload
-            let paymentId = try await PosCloudClient.collectCash(
+            try await PosCloudClient.collectCash(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
                 allocations: payload.allocations.map { ($0.orderLineId, $0.quantity) },
                 tipCents: payload.tipCents,
                 receivedAmountCents: payload.receivedAmountCents
             )
-            if let localId = payload.localReceiptId {
-                PosOfflineCaches.markReceiptSynced(localId: localId, paymentId: paymentId)
-            }
 
-        case .createReservation:
-            let payload = try decoder.decode(PosCreateReservationPayload.self, from: item.payload)
-            _ = try await PosCloudClient.createReservation(payload: payload)
-
-        case .openRegister:
-            let payload = try decoder.decode(PosSyncOpenRegisterPayload.self, from: item.payload)
-            let result = try await PosCloudClient.openRegister(
-                openingCashCents: payload.openingCashCents
-            )
-            var reg = PosOfflineCaches.loadRegister() ?? PosLocalRegisterState(
-                isOpen: true,
-                sessionId: result.sessionId ?? payload.localSessionId,
-                openedAt: PosOfflineCaches.isoNow(),
-                openingCashCents: payload.openingCashCents,
-                fiscalPending: false,
-                pendingClose: false,
-                pendingClosingCashCents: nil,
-                lastClosingZNr: nil,
-                suggestedOpeningCashCents: nil,
-                expectedCashCents: nil
-            )
-            reg.isOpen = true
-            reg.sessionId = result.sessionId ?? payload.localSessionId
-            reg.openingCashCents = payload.openingCashCents
-            reg.fiscalPending = false
-            PosOfflineCaches.saveRegister(reg)
-            PosHubState.shared.applyLocalRegister(reg)
-
-        case .closeRegister:
-            let payload = try decoder.decode(PosSyncCloseRegisterPayload.self, from: item.payload)
-            let result = try await PosCloudClient.closeRegister(
-                closingCashCents: payload.closingCashCents
-            )
-            var reg = PosOfflineCaches.loadRegister() ?? PosLocalRegisterState(
-                isOpen: false,
-                sessionId: nil,
-                openedAt: nil,
-                openingCashCents: nil,
-                fiscalPending: false,
-                pendingClose: false,
-                pendingClosingCashCents: nil,
-                lastClosingZNr: result.zNr,
-                suggestedOpeningCashCents: payload.closingCashCents,
-                expectedCashCents: nil
-            )
-            reg.isOpen = false
-            reg.sessionId = nil
-            reg.pendingClose = false
-            reg.pendingClosingCashCents = nil
-            reg.fiscalPending = false
-            reg.lastClosingZNr = result.zNr
-            reg.suggestedOpeningCashCents = payload.closingCashCents
-            PosOfflineCaches.saveRegister(reg)
-            PosHubState.shared.applyLocalRegister(reg)
-
-        case .voidCash:
-            var payload = try decoder.decode(PosSyncVoidCashPayload.self, from: item.payload)
-            let paymentId = payload.paymentId
-                ?? PosOfflineCaches.loadReceipts().first(where: { $0.localId == payload.localReceiptId })?.paymentId
-            guard let paymentId, !paymentId.isEmpty else {
-                throw PosCloudError.httpStatus(400, "payment_id_pending")
-            }
-            payload.paymentId = paymentId
-            item.payload = (try? encoder.encode(payload)) ?? item.payload
-            _ = try await PosCloudClient.voidCashPayment(
-                restaurantId: payload.restaurantId,
-                paymentId: paymentId,
-                reopenTable: payload.reopenTable,
-                voidReasonId: payload.voidReasonId
-            )
-            PosOfflineCaches.updateReceipt(localId: payload.localReceiptId) { r in
-                r.status = "refunded"
-                r.canVoidCash = false
-                r.fiscalPending = false
-            }
-
-        case .issueGiftVoucher:
-            let payload = try decoder.decode(PosSyncIssueGiftVoucherPayload.self, from: item.payload)
-            let voucher = try await PosCloudClient.issueGiftVoucher(
-                restaurantId: payload.restaurantId,
-                amountCents: payload.amountCents
-            )
-            var all = PosOfflineCaches.loadVouchers().filter {
-                $0.id != payload.localId && $0.code != payload.localCode
-            }
-            all.insert(
-                PosCachedGiftVoucher(
-                    id: voucher.id,
-                    code: voucher.code,
-                    balanceCents: voucher.balanceCents,
-                    initialAmountCents: voucher.initialAmountCents,
-                    status: "active",
-                    expiresAt: voucher.expiresAt,
-                    pendingIssue: false,
-                    pendingRedeemCents: 0
-                ),
-                at: 0
-            )
-            PosOfflineCaches.saveVouchers(all)
-            // Ausstehende Einlösungen von lokaler ID → Cloud-ID umschreiben.
-            remapQueuedGiftVoucherIds(
-                localId: payload.localId,
-                cloudId: voucher.id,
-                working: &working,
-                afterIndex: index
+        case .fireCourse, .moveSession, .releaseSession:
+            throw PosCloudError.missingConfig(
+                "Nest-URL (für \(item.kind.rawValue); Next-Fallback fehlt)"
             )
 
-        case .redeemGiftVoucher:
-            var payload = try decoder.decode(PosSyncRedeemGiftVoucherPayload.self, from: item.payload)
-            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
-            payload.allocations = payload.allocations.map {
-                PosSyncCashAllocation(
-                    orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
-                    quantity: $0.quantity
-                )
-            }
-            item.payload = (try? encoder.encode(payload)) ?? item.payload
-            let result = try await PosCloudClient.collectVoucher(
-                restaurantId: payload.restaurantId,
-                tableSessionId: payload.tableSessionId,
-                giftVoucherId: payload.giftVoucherId,
-                allocations: payload.allocations.map { ($0.orderLineId, $0.quantity) },
-                tipCents: payload.tipCents
-            )
-            if var v = PosOfflineCaches.findVoucher(id: payload.giftVoucherId) {
-                v.balanceCents = result.remainingVoucherCents
-                v.pendingRedeemCents = 0
-                if v.balanceCents <= 0 { v.status = "redeemed" }
-                PosOfflineCaches.upsertVoucher(v)
-            }
-            if let localId = payload.localReceiptId {
-                PosOfflineCaches.markReceiptSynced(localId: localId, paymentId: result.paymentId)
-            }
-        }
-    }
-
-    private func applyLineMapping(
-        sessionId: String,
-        localLineIds: [String],
-        cloudLines: [PosCloudClient.PosCloudCreateOrderResult.Line],
-        working: inout [PosSyncQueueItem],
-        afterIndex: Int
-    ) {
-        let sorted = cloudLines.sorted { $0.position < $1.position }
-        var mappings: [String: String] = [:]
-        for (local, cloud) in zip(localLineIds, sorted) {
-            PosOrderLineIdMap.shared.remember(localLineId: local, cloudLineId: cloud.id)
-            mappings[local] = cloud.id
-        }
-        if !mappings.isEmpty {
-            PosHubState.shared.remapOpenLineIds(
-                sessionId: sessionId,
-                mappings: mappings.map { (localLineId: $0.key, cloudLineId: $0.value) }
-            )
-        }
-        guard afterIndex + 1 < working.count, !mappings.isEmpty else { return }
-        for i in (afterIndex + 1) ..< working.count {
-            working[i] = remapQueueItemLineIds(working[i], mappings: mappings)
-        }
-    }
-
-    private func remapQueueItemLineIds(
-        _ item: PosSyncQueueItem,
-        mappings: [String: String]
-    ) -> PosSyncQueueItem {
-        switch item.kind {
-        case .collectCash:
-            guard var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
-            else { return item }
-            var changed = false
-            payload.allocations = payload.allocations.map { alloc in
-                guard let cloud = mappings[alloc.orderLineId] else { return alloc }
-                changed = true
-                return PosSyncCashAllocation(orderLineId: cloud, quantity: alloc.quantity)
-            }
-            guard changed, let data = try? encoder.encode(payload) else { return item }
-            var copy = item
-            copy.payload = data
-            return copy
-        case .redeemGiftVoucher:
-            guard var payload = try? decoder.decode(PosSyncRedeemGiftVoucherPayload.self, from: item.payload)
-            else { return item }
-            var changed = false
-            payload.allocations = payload.allocations.map { alloc in
-                guard let cloud = mappings[alloc.orderLineId] else { return alloc }
-                changed = true
-                return PosSyncCashAllocation(orderLineId: cloud, quantity: alloc.quantity)
-            }
-            guard changed, let data = try? encoder.encode(payload) else { return item }
-            var copy = item
-            copy.payload = data
-            return copy
-        case .openSession, .createOrder, .createReservation, .openRegister, .closeRegister,
-             .voidCash, .issueGiftVoucher:
-            return item
-        }
-    }
-
-    private func remapQueuedGiftVoucherIds(
-        localId: String,
-        cloudId: String,
-        working: inout [PosSyncQueueItem],
-        afterIndex: Int
-    ) {
-        guard localId != cloudId, afterIndex + 1 < working.count else { return }
-        for i in (afterIndex + 1) ..< working.count {
-            guard working[i].kind == .redeemGiftVoucher,
-                  var payload = try? decoder.decode(
-                      PosSyncRedeemGiftVoucherPayload.self,
-                      from: working[i].payload
-                  ),
-                  payload.giftVoucherId == localId
-            else { continue }
-            payload.giftVoucherId = cloudId
-            if let data = try? encoder.encode(payload) {
-                working[i].payload = data
-            }
+        case .createReservation, .openRegister, .closeRegister:
+            break
         }
     }
 
@@ -642,8 +636,8 @@ final class PosSyncQueue: ObservableObject {
                     copy.payload = data
                 }
             }
-        case .redeemGiftVoucher:
-            guard var payload = try? decoder.decode(PosSyncRedeemGiftVoucherPayload.self, from: item.payload)
+        case .fireCourse:
+            guard var payload = try? decoder.decode(PosSyncFireCoursePayload.self, from: item.payload)
             else { return item }
             if payload.tableSessionId == localSessionId {
                 payload.tableSessionId = cloudSessionId
@@ -651,8 +645,25 @@ final class PosSyncQueue: ObservableObject {
                     copy.payload = data
                 }
             }
-        case .openSession, .createReservation, .openRegister, .closeRegister, .voidCash,
-             .issueGiftVoucher:
+        case .moveSession:
+            guard var payload = try? decoder.decode(PosSyncMoveSessionPayload.self, from: item.payload)
+            else { return item }
+            if payload.tableSessionId == localSessionId {
+                payload.tableSessionId = cloudSessionId
+                if let data = try? encoder.encode(payload) {
+                    copy.payload = data
+                }
+            }
+        case .releaseSession:
+            guard var payload = try? decoder.decode(PosSyncReleaseSessionPayload.self, from: item.payload)
+            else { return item }
+            if payload.tableSessionId == localSessionId {
+                payload.tableSessionId = cloudSessionId
+                if let data = try? encoder.encode(payload) {
+                    copy.payload = data
+                }
+            }
+        case .openSession, .createReservation, .openRegister, .closeRegister:
             break
         }
         return copy

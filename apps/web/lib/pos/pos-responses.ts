@@ -1,6 +1,11 @@
 import "server-only";
 
-import { allocationAmountCents, derivePosPaymentState, type PosOrderStatus } from "@gwada/pos-domain";
+import {
+  allocationAmountCents,
+  derivePosPaymentState,
+  normalizePosOrderCourse,
+  type PosOrderStatus,
+} from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadFiscalForOrderReceipt } from "@/lib/pos/order-fiscal-for-receipt";
 import { resolvePosReceiptSignedUrl } from "@/lib/pos/receipt-storage";
@@ -55,7 +60,7 @@ type LineRow = {
   line_total_cents: number;
   notes: string | null;
   position: number;
-  course?: string | null;
+  course?: number | null;
   ohne_ingredient_ids?: string[] | null;
   modifiers?: unknown;
 };
@@ -110,7 +115,7 @@ export type PosOrderDto = {
     lineTotalCents: number;
     notes: string | null;
     position: number;
-    course: string;
+    course: number;
     ohneIngredientIds: string[];
     modifiers: unknown[];
   }>;
@@ -189,7 +194,7 @@ function mapOrderDto(
       lineTotalCents: Number(line.line_total_cents),
       notes: line.notes,
       position: line.position,
-      course: (line.course as string | null | undefined) ?? "other",
+      course: normalizePosOrderCourse(line.course),
       ohneIngredientIds: Array.isArray(line.ohne_ingredient_ids)
         ? line.ohne_ingredient_ids
         : [],

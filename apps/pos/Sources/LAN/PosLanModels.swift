@@ -67,6 +67,10 @@ struct PosLanHubSnapshot: Codable, Equatable, Sendable {
     /// Speisekarte für Handgeräte (optional für ältere Hubs).
     var menu: PosCloudMenuCatalog?
     var hub: PosLanHubInfo
+    /// Monotone Hub-Revision für Client-Replay / Gap-Erkennung (Phase 3).
+    var snapshotVersion: Int?
+    /// Profil-ID → Capability-Slugs (Offline-PIN-Vorbereitung; keine Klartext-PINs).
+    var waiterCaps: [String: [String]]?
 
     var resolvedAccentHex: String {
         PosDesign.resolveAccentHex(brandAccentHex)

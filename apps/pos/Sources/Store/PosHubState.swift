@@ -1,5 +1,25 @@
 import Foundation
 
+struct PosFiredCourseStore: Equatable {
+    private var bySession: [String: Set<Int>] = [:]
+
+    mutating func mark(sessionId: String, course: Int) {
+        bySession[sessionId, default: []].insert(course)
+    }
+
+    func hasAny(sessionId: String) -> Bool {
+        !(bySession[sessionId]?.isEmpty ?? true)
+    }
+
+    func has(sessionId: String, course: Int) -> Bool {
+        bySession[sessionId]?.contains(course) ?? false
+    }
+
+    mutating func clear(sessionId: String) {
+        bySession[sessionId] = nil
+    }
+}
+
 /// Autoritative lokale Hub-Daten (Floor + Speisekarte), die Handgeräte per LAN abrufen.
 final class PosHubState: @unchecked Sendable {
     static let shared = PosHubState()
@@ -8,7 +28,8 @@ final class PosHubState: @unchecked Sendable {
     private var bootstrap: PosCloudBootstrap?
     private var hubDeviceId: String = UUID().uuidString
     private var usingDemo = true
-    private var lanSharedSecret: String?
+    private var snapshotVersion: Int = 1
+    private var waiterCaps: [String: [String]] = [:]
 
     private init() {}
 
@@ -18,25 +39,19 @@ final class PosHubState: @unchecked Sendable {
         self.hubDeviceId = hubDeviceId
     }
 
-    func setLanSharedSecret(_ secret: String?) {
+    /// Erhöht die Snapshot-Revision (nach lokalen Floor-/Order-Mutationen).
+    func bumpSnapshotVersion() {
         lock.lock()
         defer { lock.unlock() }
-        lanSharedSecret = secret?.trimmingCharacters(in: .whitespacesAndNewlines)
+        snapshotVersion += 1
     }
 
-    func lanSharedSecretMatches(_ got: String) -> Bool {
+    /// Caps-Snapshot für LAN (ohne Klartext-PINs) — von MainActor nach Login/Cache-Update setzen.
+    func setWaiterCaps(_ caps: [String: [String]]) {
         lock.lock()
-        let expected = lanSharedSecret
-        lock.unlock()
-        guard let expected, !expected.isEmpty else { return false }
-        let a = Array(expected.utf8)
-        let b = Array(got.utf8)
-        guard a.count == b.count else { return false }
-        var diff: UInt8 = 0
-        for i in 0 ..< a.count {
-            diff |= a[i] ^ b[i]
-        }
-        return diff == 0
+        defer { lock.unlock() }
+        waiterCaps = caps
+        snapshotVersion += 1
     }
 
     func applyBootstrap(_ bootstrap: PosCloudBootstrap) {
@@ -44,88 +59,8 @@ final class PosHubState: @unchecked Sendable {
         defer { lock.unlock() }
         self.bootstrap = bootstrap
         self.usingDemo = false
+        snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
-        // Lokalen Kassenstatus nur überschreiben, wenn keine ausstehende Offline-Aktion.
-        let localReg = PosOfflineCaches.loadRegister()
-        if localReg?.fiscalPending != true && localReg?.pendingClose != true {
-            PosOfflineCaches.saveRegister(PosLocalRegisterState(
-                isOpen: bootstrap.register.isOpen,
-                sessionId: bootstrap.register.sessionId,
-                openedAt: bootstrap.register.openedAt,
-                openingCashCents: nil,
-                fiscalPending: false,
-                pendingClose: false,
-                pendingClosingCashCents: nil,
-                lastClosingZNr: nil,
-                suggestedOpeningCashCents: nil,
-                expectedCashCents: nil
-            ))
-        }
-    }
-
-    /// Offline Kasse öffnen/schließen → Bootstrap-Register + LAN-Snapshot.
-    func applyLocalRegister(_ state: PosLocalRegisterState) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard var bootstrap else { return }
-        bootstrap.register = PosCloudRegisterStatus(
-            isOpen: state.isOpen,
-            sessionId: state.sessionId,
-            openedAt: state.openedAt
-        )
-        self.bootstrap = bootstrap
-        PosLocalStore.saveBootstrap(bootstrap)
-        PosOfflineCaches.saveRegister(state)
-    }
-
-    func tableLabel(forSessionId sessionId: String) -> (label: String, diningTableId: String, orderNumber: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        let resolved = sessionId
-        guard let bootstrap else {
-            return ("Tisch", "", 0)
-        }
-        let session = bootstrap.floor.openSessions.first(where: { $0.id == resolved })
-        let tableId = session?.dining_table_id ?? ""
-        let table = bootstrap.floor.tables.first(where: { $0.id == tableId })
-        let label = table?.label ?? table?.name ?? "Tisch"
-        let orderNumber = bootstrap.floor.orderCountBySessionId[resolved]
-            ?? bootstrap.floor.sessionMetaBySessionId[resolved]?.orderCount
-            ?? 0
-        return (label, tableId, orderNumber)
-    }
-
-    /// Lokale Quittung nach Barkasse anlegen (auch wenn Cloud später synct).
-    func recordLocalCashReceipt(
-        sessionId: String,
-        amountCents: Int,
-        tipCents: Int,
-        receivedAmountCents: Int?,
-        fiscalPending: Bool,
-        paymentId: String? = nil
-    ) -> String {
-        let meta = tableLabel(forSessionId: sessionId)
-        let localId = UUID().uuidString
-        let receipt = PosLocalReceipt(
-            localId: localId,
-            paymentId: paymentId,
-            orderId: nil,
-            orderNumber: meta.orderNumber,
-            tableSessionId: sessionId,
-            tableLabel: meta.label,
-            diningTableId: meta.diningTableId,
-            method: "cash",
-            status: "paid",
-            amountCents: amountCents,
-            tipCents: tipCents,
-            receivedAmountCents: receivedAmountCents,
-            paidAt: PosOfflineCaches.isoNow(),
-            fiscalPending: fiscalPending,
-            canVoidCash: true,
-            dayYmd: PosOfflineCaches.todayYmd()
-        )
-        PosOfflineCaches.appendReceipt(receipt)
-        return localId
     }
 
     func loadCachedOrDemo() {
@@ -173,11 +108,8 @@ final class PosHubState: @unchecked Sendable {
     func makeSnapshot() -> PosLanHubSnapshot {
         lock.lock()
         defer { lock.unlock() }
+        let caps = waiterCaps.isEmpty ? nil : waiterCaps
         if let bootstrap {
-            let localReg = PosOfflineCaches.loadRegister()
-            let regOpen = localReg?.isOpen ?? bootstrap.register.isOpen
-            let regSession = localReg?.sessionId ?? bootstrap.register.sessionId
-            let regOpened = localReg?.openedAt ?? bootstrap.register.openedAt
             return PosLanHubSnapshot(
                 protocolVersion: PosLanProtocol.version,
                 restaurantId: bootstrap.restaurantId,
@@ -185,9 +117,9 @@ final class PosHubState: @unchecked Sendable {
                 brandAccentHex: bootstrap.resolvedAccentHex,
                 generatedAt: ISO8601DateFormatter().string(from: Date()),
                 register: PosLanRegisterState(
-                    isOpen: regOpen,
-                    sessionId: regSession,
-                    openedAt: regOpened
+                    isOpen: bootstrap.register.isOpen,
+                    sessionId: bootstrap.register.sessionId,
+                    openedAt: bootstrap.register.openedAt
                 ),
                 floor: bootstrap.floor,
                 menu: bootstrap.menu,
@@ -195,10 +127,29 @@ final class PosHubState: @unchecked Sendable {
                     deviceId: hubDeviceId,
                     displayName: PosLanProtocol.bonjourName(restaurantName: bootstrap.restaurantName),
                     role: "hub"
-                )
+                ),
+                snapshotVersion: snapshotVersion,
+                waiterCaps: caps
             )
         }
-        return DemoSnapshotFactory.makeSnapshot(hubDeviceId: hubDeviceId)
+        var demo = DemoSnapshotFactory.makeSnapshot(hubDeviceId: hubDeviceId)
+        demo.snapshotVersion = snapshotVersion
+        demo.waiterCaps = caps
+        return demo
+    }
+
+    func applyLocalRegister(_ state: PosLocalRegisterState) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var bootstrap else { return }
+        bootstrap.register = PosCloudRegisterStatus(
+            isOpen: state.isOpen,
+            sessionId: state.sessionId,
+            openedAt: state.openedAt
+        )
+        self.bootstrap = bootstrap
+        snapshotVersion += 1
+        PosLocalStore.saveBootstrap(bootstrap)
     }
 
     func makeHealth() -> PosLanHealthResponse {
@@ -239,6 +190,7 @@ final class PosHubState: @unchecked Sendable {
         bootstrap.floor.orderCountBySessionId[sessionId] = 0
         bootstrap.floor.sessionMetaBySessionId[sessionId] = PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
         self.bootstrap = bootstrap
+        snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
         return sessionId
     }
@@ -275,36 +227,83 @@ final class PosHubState: @unchecked Sendable {
             bootstrap.floor.sessionMetaBySessionId[cloud] = merged
         }
 
-        if let lines = localOpenLinesBySession.removeValue(forKey: local) {
-            var existing = localOpenLinesBySession[cloud] ?? []
-            existing.append(contentsOf: lines)
-            localOpenLinesBySession[cloud] = existing
-        }
-
         self.bootstrap = bootstrap
+        snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
     }
 
-    /// Nach Offline-Order: lokale Zeilen-IDs durch Cloud-IDs ersetzen.
-    func remapOpenLineIds(sessionId: String, mappings: [(localLineId: String, cloudLineId: String)]) {
-        let sid = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !sid.isEmpty, !mappings.isEmpty else { return }
-
+    /// Session auf freien Ziel-Tisch umhängen (Floor-Metas bleiben an sessionId).
+    @discardableResult
+    func moveLocalSession(sessionId: String, toTableId: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        guard var list = localOpenLinesBySession[sid] else { return }
-        for mapping in mappings {
-            let local = mapping.localLineId.trimmingCharacters(in: .whitespacesAndNewlines)
-            let cloud = mapping.cloudLineId.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !local.isEmpty, !cloud.isEmpty else { continue }
-            guard let idx = list.firstIndex(where: { $0.orderLineId == local || $0.id == local }) else {
-                continue
-            }
-            list[idx].id = cloud
-            list[idx].orderLineId = cloud
+        guard var bootstrap else { return false }
+        guard let idx = bootstrap.floor.openSessions.firstIndex(where: { $0.id == sessionId }) else {
+            return false
         }
-        localOpenLinesBySession[sid] = list
+        if bootstrap.floor.openSessions.contains(where: { $0.dining_table_id == toTableId }) {
+            return false
+        }
+        guard bootstrap.floor.tables.contains(where: { $0.id == toTableId && $0.is_active }) else {
+            return false
+        }
+        let old = bootstrap.floor.openSessions[idx]
+        bootstrap.floor.openSessions[idx] = PosLanOpenSession(
+            id: old.id,
+            dining_table_id: toTableId,
+            cover_count: old.cover_count,
+            opened_at: old.opened_at
+        )
+        self.bootstrap = bootstrap
+        snapshotVersion += 1
+        PosLocalStore.saveBootstrap(bootstrap)
+        return true
     }
+
+    /// Session freigeben (nach bezahlt / Abbruch vor Fire).
+    @discardableResult
+    func releaseLocalSession(sessionId: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var bootstrap else { return false }
+        let before = bootstrap.floor.openSessions.count
+        bootstrap.floor.openSessions.removeAll { $0.id == sessionId }
+        bootstrap.floor.orderCountBySessionId.removeValue(forKey: sessionId)
+        bootstrap.floor.sessionMetaBySessionId.removeValue(forKey: sessionId)
+        guard bootstrap.floor.openSessions.count < before else { return false }
+        firedCourses.clear(sessionId: sessionId)
+        self.bootstrap = bootstrap
+        snapshotVersion += 1
+        PosLocalStore.saveBootstrap(bootstrap)
+        return true
+    }
+
+    /// Ob für die Session schon ein Küchen-Fire gelaufen ist (Abbruch-Gate).
+    func hasFired(sessionId: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return firedCourses.hasAny(sessionId: sessionId)
+    }
+
+    func hasFired(sessionId: String, course: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return firedCourses.has(sessionId: sessionId, course: course)
+    }
+
+    func markFired(sessionId: String, course: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        firedCourses.mark(sessionId: sessionId, course: course)
+    }
+
+    func clearFired(sessionId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        firedCourses.clear(sessionId: sessionId)
+    }
+
+    private var firedCourses = PosFiredCourseStore()
 
     func bumpLocalOrder(sessionId: String, addCents: Int) {
         lock.lock()
@@ -317,13 +316,12 @@ final class PosHubState: @unchecked Sendable {
         meta.openCents += addCents
         bootstrap.floor.sessionMetaBySessionId[sessionId] = meta
         self.bootstrap = bootstrap
+        snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
     }
 
     private var localTickets: [[String: Any]] = []
     private var localPrintJobs: [[String: Any]] = []
-    /// Lokale offene Positionen (für Offline-Kassieren / Handheld über LAN).
-    private var localOpenLinesBySession: [String: [SessionOpenLine]] = [:]
 
     var kitchen: PosCloudKitchenConfig? {
         lock.lock()
@@ -359,7 +357,7 @@ final class PosHubState: @unchecked Sendable {
                 "name": line.name,
                 "quantity": line.quantity,
                 "detail": line.subtitle,
-                "course": line.course.rawValue,
+                "course": line.course,
                 "categoryId": categoryId ?? "",
             ]
 
@@ -569,10 +567,7 @@ final class PosHubState: @unchecked Sendable {
                     connectionType: job["connectionType"] as? String ?? "virtual",
                     host: job["host"] as? String ?? "",
                     port: UInt16(clamping: max(1, portNum)),
-                    lines: lines,
-                    kind: job["kind"] as? String ?? "kitchen",
-                    amountCents: job["amountCents"] as? Int ?? 0,
-                    tipCents: job["tipCents"] as? Int ?? 0
+                    lines: lines
                 )
             )
             localPrintJobs[i]["status"] = "printing"
@@ -627,7 +622,7 @@ final class PosHubState: @unchecked Sendable {
                 guard var lines = ticket["lines"] as? [[String: Any]] else { return ticket }
                 lines = lines.filter { line in
                     let cat = line["categoryId"] as? String ?? ""
-                    let course = line["course"] as? String ?? ""
+                    let course = (line["course"] as? Int) ?? PosCourse.parse(line["course"] as? String)
                     if let route = routes.first(where: { $0.menuCategoryId == cat }) {
                         if !(route.destination == "kds" || route.destination == "both") {
                             return false
@@ -683,102 +678,5 @@ final class PosHubState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return localPrintJobs.filter { ($0["status"] as? String) == "pending" }.count
-    }
-
-    @discardableResult
-    func appendLocalOpenLines(sessionId: String, cartLines: [PosCartLine]) -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
-        var list = localOpenLinesBySession[sessionId] ?? []
-        var createdIds: [String] = []
-        for line in cartLines {
-            let id = UUID().uuidString
-            createdIds.append(id)
-            var detailParts: [String] = []
-            if line.course != .other { detailParts.append(line.course.label) }
-            detailParts.append(contentsOf: line.modifiers.map(\.label))
-            if !line.notes.isEmpty { detailParts.append(line.notes) }
-            list.append(SessionOpenLine(
-                id: id,
-                orderLineId: id,
-                name: line.name,
-                openQuantity: line.quantity,
-                openCents: line.lineTotalCents,
-                detail: detailParts.joined(separator: " · ")
-            ))
-        }
-        localOpenLinesBySession[sessionId] = list
-        return createdIds
-    }
-
-    func localOpenLines(sessionId: String) -> [SessionOpenLine] {
-        lock.lock()
-        defer { lock.unlock() }
-        return (localOpenLinesBySession[sessionId] ?? []).filter { $0.openQuantity > 0 }
-    }
-
-    /// Bar offline: Mengen abziehen. Liefert abgebuchte Zeilen + Betrag.
-    func collectLocalCash(
-        sessionId: String,
-        allocations: [(orderLineId: String, quantity: Int)]
-    ) -> (amountCents: Int, fiscalPending: Bool) {
-        lock.lock()
-        defer { lock.unlock() }
-        var list = localOpenLinesBySession[sessionId] ?? []
-        var amount = 0
-        for alloc in allocations {
-            guard let idx = list.firstIndex(where: { $0.orderLineId == alloc.orderLineId }) else { continue }
-            let line = list[idx]
-            let qty = min(alloc.quantity, line.openQuantity)
-            guard qty > 0, line.openQuantity > 0 else { continue }
-            let unit = line.openCents / max(line.openQuantity, 1)
-            amount += unit * qty
-            let remaining = line.openQuantity - qty
-            if remaining <= 0 {
-                list.remove(at: idx)
-            } else {
-                list[idx].openQuantity = remaining
-                list[idx].openCents = unit * remaining
-            }
-        }
-        localOpenLinesBySession[sessionId] = list
-        if var bootstrap {
-            var meta = bootstrap.floor.sessionMetaBySessionId[sessionId]
-                ?? PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
-            meta.openCents = max(0, meta.openCents - amount)
-            bootstrap.floor.sessionMetaBySessionId[sessionId] = meta
-            self.bootstrap = bootstrap
-            PosLocalStore.saveBootstrap(bootstrap)
-        }
-        return (amount, true)
-    }
-
-    /// Zwischenbon mit Hinweis „Fiskalisierung fehlgeschlagen / Nachsignierung ausstehend“.
-    func enqueueFiscalPendingCashReceipt(amountCents: Int, tipCents: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        let printers = bootstrap?.kitchen?.printers ?? []
-        let printer = printers.first(where: {
-            $0.isActive && ($0.connectionType == "network" || $0.connectionType == "lan")
-        }) ?? printers.first(where: \.isActive)
-        guard let printer else { return }
-        localPrintJobs.insert([
-            "id": UUID().uuidString,
-            "printerId": printer.id,
-            "printerName": printer.name,
-            "orderNumber": 0,
-            "status": "pending",
-            "kind": "cash_fiscal_pending",
-            "amountCents": amountCents,
-            "tipCents": tipCents,
-            "connectionType": printer.connectionType,
-            "host": printer.resolvedHost ?? "",
-            "port": Int(printer.resolvedPort ?? 9100),
-            "lines": [] as [[String: Any]],
-            "createdAt": ISO8601DateFormatter().string(from: Date()),
-        ], at: 0)
-        if localPrintJobs.count > 80 {
-            localPrintJobs = Array(localPrintJobs.prefix(80))
-        }
     }
 }

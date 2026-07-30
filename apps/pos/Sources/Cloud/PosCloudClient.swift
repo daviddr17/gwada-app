@@ -1,10 +1,19 @@
 import Foundation
 
+private func posISO8601Date(from value: String) -> Date? {
+    let formatter = ISO8601DateFormatter()
+    if let date = formatter.date(from: value) {
+        return date
+    }
+    formatter.formatOptions.insert(.withFractionalSeconds)
+    return formatter.date(from: value)
+}
+
 struct PosCloudOrderItem: Encodable {
     var menuItemId: String
     var quantity: Int
     var notes: String?
-    var course: String?
+    var course: Int?
     var ohneIngredientIds: [String]?
     var modifiers: [PosCloudModifierPayload]?
 }
@@ -27,14 +36,47 @@ struct PosCloudSessionSummaryLine: Decodable, Identifiable {
     var openAmountCents: Int
     var unitPriceCents: Int
     var notes: String?
-    var course: String?
+    var course: Int?
+    var firedAt: Date?
     var modifiers: [PosCloudModifierDecoded]?
     var ohneIngredientIds: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, orderId, name, quantity, paidQuantity, openQuantity, openAmountCents, unitPriceCents
+        case notes, course, firedAt, modifiers, ohneIngredientIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        orderId = try c.decode(String.self, forKey: .orderId)
+        name = try c.decode(String.self, forKey: .name)
+        quantity = try c.decode(Int.self, forKey: .quantity)
+        paidQuantity = try c.decode(Int.self, forKey: .paidQuantity)
+        openQuantity = try c.decode(Int.self, forKey: .openQuantity)
+        openAmountCents = try c.decode(Int.self, forKey: .openAmountCents)
+        unitPriceCents = try c.decode(Int.self, forKey: .unitPriceCents)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        course = try c.decodeCourseIfPresent(forKey: .course)
+        firedAt = try c.decodeIfPresent(String.self, forKey: .firedAt)
+            .flatMap(posISO8601Date)
+        modifiers = try c.decodeIfPresent([PosCloudModifierDecoded].self, forKey: .modifiers)
+        ohneIngredientIds = try c.decodeIfPresent([String].self, forKey: .ohneIngredientIds)
+    }
 }
 
 struct PosCloudModifierDecoded: Decodable {
     var type: String?
     var label: String?
+}
+
+private extension KeyedDecodingContainer {
+    func decodeCourseIfPresent(forKey key: Key) throws -> Int? {
+        if let course = try? decode(Int.self, forKey: key) {
+            return course
+        }
+        return try decodeIfPresent(String.self, forKey: key).map(PosCourse.parse)
+    }
 }
 
 struct PosCloudSessionSummary: Decodable {
@@ -59,6 +101,33 @@ enum PosCloudClient {
 
     private static let decoder = JSONDecoder()
     private static let encoder = JSONEncoder()
+
+    struct DeviceEnrollmentClaim: Decodable {
+        var deviceId: String
+        var deviceToken: String
+        var restaurantId: String
+        var restaurantName: String
+    }
+
+    @MainActor
+    static func claimDeviceEnrollment(
+        code: String,
+        preferredName: String?
+    ) async throws -> DeviceEnrollmentClaim {
+        struct Body: Encodable {
+            var code: String
+            var installationId: String
+            var preferredName: String?
+        }
+        return try await unauthenticatedPost(
+            "/api/pos/devices/enroll",
+            body: Body(
+                code: code,
+                installationId: PosAuthStore.shared.installationId(),
+                preferredName: preferredName
+            )
+        )
+    }
 
     @MainActor
     static func fetchBootstrap(restaurantId: String) async throws -> PosCloudBootstrap {
@@ -687,10 +756,25 @@ enum PosCloudClient {
             var id: String
             var name: String
             var quantity: Int
-            var course: String?
+            var course: Int?
             var notes: String?
             var modifiers: [PosCloudModifierDecoded]?
             var detail: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id, name, quantity, course, notes, modifiers, detail
+            }
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                id = try c.decode(String.self, forKey: .id)
+                name = try c.decode(String.self, forKey: .name)
+                quantity = try c.decode(Int.self, forKey: .quantity)
+                course = try c.decodeCourseIfPresent(forKey: .course)
+                notes = try c.decodeIfPresent(String.self, forKey: .notes)
+                modifiers = try c.decodeIfPresent([PosCloudModifierDecoded].self, forKey: .modifiers)
+                detail = try c.decodeIfPresent(String.self, forKey: .detail)
+            }
         }
     }
 
@@ -706,9 +790,23 @@ enum PosCloudClient {
             var id: String
             var name: String
             var quantity: Int
-            var course: String?
+            var course: Int?
             var notes: String?
             var detail: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id, name, quantity, course, notes, detail
+            }
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                id = try c.decode(String.self, forKey: .id)
+                name = try c.decode(String.self, forKey: .name)
+                quantity = try c.decode(Int.self, forKey: .quantity)
+                course = try c.decodeCourseIfPresent(forKey: .course)
+                notes = try c.decodeIfPresent(String.self, forKey: .notes)
+                detail = try c.decodeIfPresent(String.self, forKey: .detail)
+            }
         }
         struct KdsAdvanceTicket: Decodable {
             var orderId: String?
@@ -813,7 +911,25 @@ enum PosCloudClient {
 
     @MainActor
     private static func applyDeviceAuth(to request: inout URLRequest) throws {
-        request.setValue(try PosAuthStore.shared.deviceHeaderValue(), forHTTPHeaderField: "X-Gwada-Pos-Device")
+        applyAuthHeaders(to: &request)
+        guard request.value(forHTTPHeaderField: "X-Gwada-Pos-Device") != nil
+                || request.value(forHTTPHeaderField: "X-Pos-Device-Token") != nil
+        else {
+            throw PosCloudError.unauthorized
+        }
+    }
+
+    @MainActor
+    private static func applyAuthHeaders(to request: inout URLRequest) {
+        if let value = try? PosAuthStore.shared.deviceHeaderValue() {
+            request.setValue(value, forHTTPHeaderField: "X-Gwada-Pos-Device")
+        }
+        if let deviceId = PosEnrollmentCredential.enrolledDeviceRowId,
+           let deviceToken = PosEnrollmentCredential.deviceToken
+        {
+            request.setValue(deviceId, forHTTPHeaderField: "X-Pos-Device-Id")
+            request.setValue(deviceToken, forHTTPHeaderField: "X-Pos-Device-Token")
+        }
     }
 
     @MainActor

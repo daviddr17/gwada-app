@@ -1,19 +1,13 @@
-# Temporär: Dev-DB-Migrationen per Push, weil workflow_dispatch für den Agenten 403 ist.
+# Dev-DB-Migrationen per Push (main + cursor/*), weil workflow_dispatch für den Agenten 403 ist.
 # Retry-Trigger: Push auf main mit Migrations-Pfad / Workflow-Touch.
 name: Deploy DB dev (migration push)
 
 on:
   push:
-    # Feature-Branch: Agent kann workflow_dispatch nicht (403); Push triggert Dev-Migrate.
+    # Feature-Branches: Agent kann workflow_dispatch nicht (403); Push triggert Dev-Migrate.
     branches:
-      [
-        main,
-        cursor/reservation-party-size-dashboard-ea36,
-        cursor/email-gmail-oauth-777f,
-        cursor/purchase-order-ordered-status-d3fd,
-        cursor/waha-auto-recover-restart-d3fd,
-        cursor/waha-per-server-ssh-d3fd,
-      ]
+      - main
+      - "cursor/**"
     paths:
       - "supabase/migrations/**"
       - ".github/workflows/deploy-dev-db-on-migration-push.yml"

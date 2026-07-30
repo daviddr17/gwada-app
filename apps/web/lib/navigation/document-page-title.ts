@@ -10,6 +10,9 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/docs": "Docs",
   "/impressum": "Impressum",
   "/datenschutz": "Datenschutz",
+  "/agb": "AGB",
+  "/avv": "AVV",
+  "/datenloeschung": "Datenlöschung",
   "/dashboard": "Dashboard",
   "/dashboard/menu": "Speisekarte",
   "/dashboard/menu/uebersicht": "Speisekarte",
@@ -194,6 +197,9 @@ const SEGMENT_SLUG_LABELS: Record<string, string> = {
   login: "Login",
   impressum: "Impressum",
   datenschutz: "Datenschutz",
+  agb: "AGB",
+  avv: "AVV",
+  datenloeschung: "Datenlöschung",
   docs: "Docs",
 };
 

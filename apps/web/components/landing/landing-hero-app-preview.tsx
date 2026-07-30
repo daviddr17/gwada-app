@@ -1,23 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  CalendarDays,
-  MessageCircle,
+  MoreHorizontal,
   MonitorSmartphone,
-  Users,
-  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  SIDEBAR_MODULE_DEFINITIONS,
+  type SidebarModuleId,
+} from "@/lib/constants/sidebar-modules";
 import { cn } from "@/lib/utils";
 
-type HeroTabId =
-  | "dashboard"
-  | "menu"
-  | "reservierungen"
-  | "kontakte"
-  | "pos"
-  | "mitarbeiter";
+type HeroTabId = "dashboard" | SidebarModuleId;
 
 type HeroTab = {
   id: HeroTabId;
@@ -27,52 +28,84 @@ type HeroTab = {
   icon: LucideIcon;
 };
 
-const HERO_TABS: readonly HeroTab[] = [
-  {
+const SHORT_LABELS: Partial<Record<HeroTabId, string>> = {
+  dashboard: "Home",
+  menu: "Menü",
+  inventory: "Bestand",
+  reservierungen: "Resa",
+  pos: "POS",
+  events: "Events",
+  kontakte: "Chat",
+  news: "News",
+  bewertungen: "Reviews",
+  insights: "Stats",
+  galerie: "Fotos",
+  buchfuehrung: "Buchh.",
+  dokumente: "Docs",
+  checklisten: "Checks",
+  mitarbeiter: "Team",
+};
+
+/** Primäre Reihenfolge in der Tab-Leiste; Rest folgt Sidebar-Reihenfolge. */
+const PRIMARY_TAB_IDS: readonly HeroTabId[] = [
+  "dashboard",
+  "menu",
+  "reservierungen",
+  "kontakte",
+  "pos",
+  "mitarbeiter",
+];
+
+function buildHeroTabs(): HeroTab[] {
+  const dashboard: HeroTab = {
     id: "dashboard",
     label: "Dashboard",
-    shortLabel: "Home",
+    shortLabel: SHORT_LABELS.dashboard ?? "Home",
     path: "app.gwada /dashboard",
     icon: MonitorSmartphone,
-  },
-  {
-    id: "menu",
-    label: "Speisekarte",
-    shortLabel: "Menü",
-    path: "app.gwada /dashboard/menu",
-    icon: UtensilsCrossed,
-  },
-  {
-    id: "reservierungen",
-    label: "Reservierungen",
-    shortLabel: "Resa",
-    path: "app.gwada /dashboard/reservierungen",
-    icon: CalendarDays,
-  },
-  {
-    id: "kontakte",
-    label: "Nachrichten",
-    shortLabel: "Chat",
-    path: "app.gwada /dashboard/kontakte",
-    icon: MessageCircle,
-  },
-  {
-    id: "pos",
-    label: "POS",
-    shortLabel: "POS",
-    path: "app.gwada /dashboard/pos",
-    icon: MonitorSmartphone,
-  },
-  {
-    id: "mitarbeiter",
-    label: "Mitarbeiter",
-    shortLabel: "Team",
-    path: "app.gwada /dashboard/mitarbeiter",
-    icon: Users,
-  },
-] as const;
+  };
+
+  const byId = new Map(
+    SIDEBAR_MODULE_DEFINITIONS.map((def) => {
+      const tab: HeroTab = {
+        id: def.id,
+        label: def.label,
+        shortLabel: SHORT_LABELS[def.id] ?? def.label,
+        path: `app.gwada ${def.pathPrefix}`,
+        icon: def.icon,
+      };
+      return [def.id, tab] as const;
+    }),
+  );
+
+  const seen = new Set<HeroTabId>();
+  const ordered: HeroTab[] = [];
+  for (const id of PRIMARY_TAB_IDS) {
+    if (id === "dashboard") {
+      ordered.push(dashboard);
+      seen.add("dashboard");
+      continue;
+    }
+    const tab = byId.get(id);
+    if (tab) {
+      ordered.push(tab);
+      seen.add(id);
+    }
+  }
+  for (const def of SIDEBAR_MODULE_DEFINITIONS) {
+    if (seen.has(def.id)) continue;
+    const tab = byId.get(def.id);
+    if (tab) ordered.push(tab);
+  }
+  return ordered;
+}
+
+const HERO_TABS: readonly HeroTab[] = buildHeroTabs();
 
 const AUTO_MS = 4200;
+/** Platz für „Mehr“-Tab in der Messung (kompakter auf schmalen Screens). */
+const MEHR_RESERVE_PX = 64;
+const TABLIST_GAP_PX = 2;
 
 function PanelDashboard() {
   return (
@@ -284,7 +317,79 @@ function PanelStaff() {
   );
 }
 
-function TabPanel({ id }: { id: HeroTabId }) {
+const GENERIC_ROWS: Partial<Record<HeroTabId, { t: string; m: string }[]>> = {
+  inventory: [
+    { t: "Olivenöl Bio 5l", m: "12 Flaschen · ausreichend" },
+    { t: "Parmesan 24 Mon.", m: "3 kg · nachbestellen" },
+    { t: "San Pellegrino", m: "48 Flaschen · ok" },
+  ],
+  events: [
+    { t: "Weinprobe", m: "Fr 19:00 · 24 Plätze" },
+    { t: "Firmenfeier", m: "Sa · Saal gebucht" },
+    { t: "Brunch-Sonntag", m: "So 11–14 · offen" },
+  ],
+  news: [
+    { t: "Neue Frühlingskarte", m: "Story · geplant" },
+    { t: "Happy Hour", m: "Feed · live" },
+    { t: "Team-Update", m: "Entwurf" },
+  ],
+  bewertungen: [
+    { t: "Google · 4,8★", m: "„Wundervoller Abend…“" },
+    { t: "Einladung gesendet", m: "Tisch 4 · Anna M." },
+    { t: "Antwort nötig", m: "2 neue Reviews" },
+  ],
+  insights: [
+    { t: "Umsatz heute", m: "2.480 € · +8 %" },
+    { t: "Auslastung", m: "78 % · Abend" },
+    { t: "Kanäle", m: "WA stark · Mail ruhig" },
+  ],
+  galerie: [
+    { t: "Terrasse Sommer", m: "12 Bilder · Profil" },
+    { t: "Gerichte", m: "34 Bilder · Speisekarte" },
+    { t: "Team", m: "6 Bilder · About" },
+  ],
+  buchfuehrung: [
+    { t: "RE-2026-0842", m: "1.240 € · offen" },
+    { t: "AN-2026-0118", m: "Angebot · gesendet" },
+    { t: "Beleg Lieferant", m: "Heute · Lexware" },
+  ],
+  dokumente: [
+    { t: "Arbeitsvertrag Mara", m: "PDF · aktuell" },
+    { t: "HACCP-Protokoll", m: "Diese Woche" },
+    { t: "Pachtvertrag", m: "Archiv" },
+  ],
+  checklisten: [
+    { t: "Öffnung Service", m: "6/8 erledigt" },
+    { t: "Küche HACCP", m: "4/4 erledigt" },
+    { t: "Schichtende", m: "offen" },
+  ],
+};
+
+function PanelGeneric({ id, label }: { id: HeroTabId; label: string }) {
+  const rows = GENERIC_ROWS[id] ?? [
+    { t: `${label} bereit`, m: "Modul im Überblick" },
+    { t: "Heute", m: "Keine offenen Punkte" },
+    { t: "Team", m: "Alles synchron" },
+  ];
+  return (
+    <div className="flex h-full flex-col gap-1.5 p-2.5 sm:p-3">
+      <p className="px-0.5 text-left text-[11px] font-semibold">{label}</p>
+      <div className="min-h-0 flex-1 space-y-1.5">
+        {rows.map((r) => (
+          <div
+            key={r.t}
+            className="rounded-xl border border-border/50 bg-background/80 px-2.5 py-2 text-left dark:bg-background/40"
+          >
+            <p className="truncate text-[11px] font-medium sm:text-xs">{r.t}</p>
+            <p className="truncate text-[10px] text-muted-foreground">{r.m}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TabPanel({ id, label }: { id: HeroTabId; label: string }) {
   switch (id) {
     case "menu":
       return <PanelMenu />;
@@ -296,21 +401,85 @@ function TabPanel({ id }: { id: HeroTabId }) {
       return <PanelPos />;
     case "mitarbeiter":
       return <PanelStaff />;
-    default:
+    case "dashboard":
       return <PanelDashboard />;
+    default:
+      return <PanelGeneric id={id} label={label} />;
   }
 }
 
+function tabButtonClassName(selected: boolean) {
+  return cn(
+    "relative flex min-w-0 shrink-0 items-center gap-1 rounded-t-lg px-2 py-1.5 text-[10px] font-medium transition-colors sm:gap-1.5 sm:px-2.5 sm:text-[11px]",
+    selected
+      ? "bg-card text-foreground shadow-sm dark:bg-[#121826]"
+      : "text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5",
+  );
+}
+
 /**
- * Safari-ähnliches App-Fenster: Tabs laufen automatisch durch und sind klickbar.
+ * Safari-ähnliches App-Fenster: sichtbare Tabs + „Mehr“ für Overflow,
+ * Autoplay und klickbar — alle Module erreichbar.
  */
 export function LandingHeroAppPreview({ className }: { className?: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const tablistRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [mehrOpen, setMehrOpen] = useState(false);
   const [inView, setInView] = useState(false);
   const [autoplayReady, setAutoplayReady] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(HERO_TABS.length);
+
   const active = HERO_TABS[activeIndex] ?? HERO_TABS[0];
+  const overflowTabs = HERO_TABS.slice(visibleCount);
+  const hasOverflow = overflowTabs.length > 0;
+  const activeInOverflow = hasOverflow && activeIndex >= visibleCount;
+
+  useLayoutEffect(() => {
+    const tablist = tablistRef.current;
+    const measure = measureRef.current;
+    if (!tablist || !measure) return;
+
+    const recompute = () => {
+      const buttons = Array.from(
+        measure.querySelectorAll<HTMLElement>("[data-hero-tab-measure]"),
+      );
+      if (buttons.length === 0) return;
+      const available = tablist.clientWidth;
+      if (available <= 0) return;
+
+      let used = 0;
+      let count = buttons.length;
+      for (let i = 0; i < buttons.length; i++) {
+        const w = buttons[i]!.offsetWidth;
+        const next = used + w + (i > 0 ? TABLIST_GAP_PX : 0);
+        const remaining = buttons.length - (i + 1);
+        const needMehr = remaining > 0;
+        const limit = needMehr ? available - MEHR_RESERVE_PX : available;
+        if (next > limit) {
+          count = Math.max(1, i);
+          break;
+        }
+        used = next;
+        count = i + 1;
+      }
+      setVisibleCount(count);
+    };
+
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(tablist);
+    window.addEventListener("resize", recompute);
+    const mq = window.matchMedia("(min-width: 640px)");
+    mq.addEventListener("change", recompute);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", recompute);
+      mq.removeEventListener("change", recompute);
+    };
+  }, []);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -353,13 +522,16 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
   }, []);
 
   useEffect(() => {
-    if (!autoplayReady || !inView || paused) return;
+    if (!autoplayReady || !inView || paused || mehrOpen) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = window.setInterval(() => {
       setActiveIndex((i) => (i + 1) % HERO_TABS.length);
     }, AUTO_MS);
     return () => window.clearInterval(id);
-  }, [autoplayReady, inView, paused]);
+  }, [autoplayReady, inView, paused, mehrOpen]);
+
+  const visibleTabs = HERO_TABS.slice(0, visibleCount);
+  const showProgress = autoplayReady && inView && !paused && !mehrOpen;
 
   return (
     <div
@@ -396,13 +568,36 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
           <span className="w-10 shrink-0" aria-hidden />
         </div>
 
+        {/* Measure strip — offscreen, kein Einfluss auf Scrollbreite */}
+        <div
+          ref={measureRef}
+          aria-hidden
+          className="pointer-events-none fixed top-0 -left-[100vw] flex h-0 gap-0.5 overflow-hidden whitespace-nowrap opacity-0"
+        >
+          {HERO_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <span
+                key={tab.id}
+                data-hero-tab-measure
+                className={tabButtonClassName(false)}
+              >
+                <Icon className="size-3 shrink-0 opacity-80" />
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.shortLabel}</span>
+              </span>
+            );
+          })}
+        </div>
+
         {/* Tabs */}
         <div
+          ref={tablistRef}
           role="tablist"
           aria-label="Module"
-          className="flex gap-0.5 overflow-x-auto border-b border-black/5 bg-[#dfe1e6]/80 px-1.5 pt-1.5 dark:border-white/10 dark:bg-black/25"
+          className="flex gap-0.5 overflow-hidden border-b border-black/5 bg-[#dfe1e6]/80 px-1.5 pt-1.5 dark:border-white/10 dark:bg-black/25"
         >
-          {HERO_TABS.map((tab, index) => {
+          {visibleTabs.map((tab, index) => {
             const Icon = tab.icon;
             const selected = index === activeIndex;
             return (
@@ -410,30 +605,75 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                 key={tab.id}
                 type="button"
                 role="tab"
+                aria-label={tab.label}
                 aria-selected={selected}
                 id={`hero-tab-${tab.id}`}
                 aria-controls={`hero-panel-${tab.id}`}
                 onClick={() => setActiveIndex(index)}
-                className={cn(
-                  "relative flex min-w-0 shrink-0 items-center gap-1.5 rounded-t-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                  selected
-                    ? "bg-card text-foreground shadow-sm dark:bg-[#121826]"
-                    : "text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5",
-                )}
+                className={tabButtonClassName(selected)}
               >
                 <Icon className="size-3 shrink-0 opacity-80" aria-hidden />
-                <span className="hidden sm:inline">{tab.label}</span>
-                <span className="sm:hidden">{tab.shortLabel}</span>
-                {selected && autoplayReady && inView ? (
+                <span className="hidden sm:inline" aria-hidden>
+                  {tab.label}
+                </span>
+                <span className="sm:hidden" aria-hidden>
+                  {tab.shortLabel}
+                </span>
+                {selected && showProgress ? (
                   <span
                     className="landing-hero-tab-progress absolute inset-x-1 bottom-0 h-0.5 origin-left rounded-full bg-primary/80"
                     style={{ animationDuration: `${AUTO_MS}ms` }}
-                    data-paused={paused ? "true" : undefined}
+                    data-paused={paused || mehrOpen ? "true" : undefined}
                   />
                 ) : null}
               </button>
             );
           })}
+
+          {hasOverflow ? (
+            <DropdownMenu open={mehrOpen} onOpenChange={setMehrOpen}>
+              <DropdownMenuTrigger
+                type="button"
+                className={cn(tabButtonClassName(activeInOverflow), "gap-1")}
+                aria-label="Weitere Module"
+              >
+                <MoreHorizontal className="size-3.5 shrink-0 opacity-80" aria-hidden />
+                <span>Mehr</span>
+                {activeInOverflow && showProgress ? (
+                  <span
+                    className="landing-hero-tab-progress absolute inset-x-1 bottom-0 h-0.5 origin-left rounded-full bg-primary/80"
+                    style={{ animationDuration: `${AUTO_MS}ms` }}
+                    data-paused={paused || mehrOpen ? "true" : undefined}
+                  />
+                ) : null}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                side="bottom"
+                sideOffset={6}
+                className="min-w-48 w-auto"
+              >
+                {overflowTabs.map((tab, overflowIndex) => {
+                  const Icon = tab.icon;
+                  const index = visibleCount + overflowIndex;
+                  const selected = index === activeIndex;
+                  return (
+                    <DropdownMenuItem
+                      key={tab.id}
+                      onClick={() => setActiveIndex(index)}
+                      className={cn(
+                        "min-h-9 gap-2 text-sm",
+                        selected && "bg-muted/80 font-medium",
+                      )}
+                    >
+                      <Icon className="size-3.5 opacity-80" aria-hidden />
+                      {tab.label}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
 
         {/* Address bar */}
@@ -453,14 +693,13 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
         <div
           role="tabpanel"
           id={`hero-panel-${active.id}`}
-          aria-labelledby={`hero-tab-${active.id}`}
-          className="h-[12.5rem] bg-card dark:bg-[#121826] sm:h-[14rem] md:h-[15rem]"
+          aria-labelledby={
+            activeInOverflow ? undefined : `hero-tab-${active.id}`
+          }
+          className="h-[10.75rem] bg-card dark:bg-[#121826] sm:h-[14rem] md:h-[15rem]"
         >
-          <div
-            key={active.id}
-            className="landing-hero-panel-in h-full"
-          >
-            <TabPanel id={active.id} />
+          <div key={active.id} className="landing-hero-panel-in h-full">
+            <TabPanel id={active.id} label={active.label} />
           </div>
         </div>
       </div>

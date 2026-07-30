@@ -2,6 +2,8 @@ import "server-only";
 
 import Stripe from "stripe";
 import {
+  resolveActiveStripeProfile,
+  stripeKeyLooksLikeMode,
   stripePriceIdForSlot,
   type PlatformStripeConfig,
   type StripePriceSlot,
@@ -21,12 +23,27 @@ export async function createStripeClient(): Promise<{
   config: PlatformStripeSecrets;
 } | null> {
   const config = await fetchPlatformStripeConfigAdmin();
-  if (!config.enabled || !config.secret_key) return null;
-  const stripe = new Stripe(config.secret_key, {
+  const active = resolveActiveStripeProfile(config);
+  if (!config.enabled || !active.secret_key) return null;
+  if (!stripeKeyLooksLikeMode(active.secret_key, active.mode)) {
+    console.warn(
+      "createStripeClient: secret_key passt nicht zu mode",
+      active.mode,
+    );
+    return null;
+  }
+  const stripe = new Stripe(active.secret_key, {
     apiVersion: "2026-07-29.dahlia",
     typescript: true,
   });
-  return { stripe, config };
+  return {
+    stripe,
+    config: {
+      ...config,
+      ...active,
+      enabled: config.enabled,
+    },
+  };
 }
 
 export function planPriceSlot(

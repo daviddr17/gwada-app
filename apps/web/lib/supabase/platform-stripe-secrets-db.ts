@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  resolveActiveStripeProfile,
   stripeConfigFromJson,
   type PlatformStripeConfig,
 } from "@/lib/integrations/platform-stripe-config";
@@ -28,14 +29,18 @@ export async function fetchPlatformStripeConfigAdmin(): Promise<PlatformStripeSe
     return { enabled: false };
   }
 
+  const parsed = stripeConfigFromJson(data.config);
+  const active = resolveActiveStripeProfile(parsed);
   return {
     enabled: Boolean(data.enabled),
-    ...stripeConfigFromJson(data.config),
+    ...parsed,
+    ...active,
   };
 }
 
 export async function fetchPlatformStripeSecretsAdmin(): Promise<PlatformStripeSecrets | null> {
   const platform = await fetchPlatformStripeConfigAdmin();
-  if (!platform.secret_key) return null;
+  const active = resolveActiveStripeProfile(platform);
+  if (!active.secret_key) return null;
   return platform;
 }

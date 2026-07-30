@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard } from "lucide-react";
+import { CreditCard, FlaskConical, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   SuperadminIntegrationPanel,
@@ -9,6 +9,7 @@ import {
   superadminIntegrationInputClassName,
 } from "@/components/superadmin/superadmin-integration-panel";
 import { SuperadminIntegrationStatusBadges } from "@/components/superadmin/superadmin-integration-status-badges";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,6 +28,8 @@ import type { PlatformIntegrationRow } from "@/lib/types/platform-integration";
 import type { SuperadminIntegrationConnectionHealth } from "@/lib/types/superadmin-ops-status";
 import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { cn } from "@/lib/utils";
 
 export function PlatformStripeFeatureCard({
   row,
@@ -65,6 +68,7 @@ export function PlatformStripeFeatureCard({
   const [pricePosYearly, setPricePosYearly] = useState(
     ui.price_pos_yearly ?? "",
   );
+  const [seeding, setSeeding] = useState(false);
 
   const snapshot = useMemo(
     () =>
@@ -112,23 +116,33 @@ export function PlatformStripeFeatureCard({
     snapshot,
   ]);
 
+  function applyUiProfile(
+    next: PlatformStripeConfigUi,
+    nextMode: "test" | "live",
+  ) {
+    const profile = nextMode === "live" ? next.live : next.test;
+    const src = profile ?? next;
+    setPublishableKey(src.publishable_key ?? "");
+    setSecretKey("");
+    setWebhookSecret("");
+    setPriceBasicMonthly(src.price_basic_monthly ?? "");
+    setPriceBasicYearly(src.price_basic_yearly ?? "");
+    setPriceProMonthly(src.price_pro_monthly ?? "");
+    setPriceProYearly(src.price_pro_yearly ?? "");
+    setPricePosMonthly(src.price_pos_monthly ?? "");
+    setPricePosYearly(src.price_pos_yearly ?? "");
+  }
+
   useEffect(() => {
     setEnabled(row.enabled);
     const next = row.config as PlatformStripeConfigUi;
-    setMode(next.mode ?? "test");
-    setPublishableKey(next.publishable_key ?? "");
-    setSecretKey("");
-    setWebhookSecret("");
-    setPriceBasicMonthly(next.price_basic_monthly ?? "");
-    setPriceBasicYearly(next.price_basic_yearly ?? "");
-    setPriceProMonthly(next.price_pro_monthly ?? "");
-    setPriceProYearly(next.price_pro_yearly ?? "");
-    setPricePosMonthly(next.price_pos_monthly ?? "");
-    setPricePosYearly(next.price_pos_yearly ?? "");
+    const nextMode = next.mode ?? "test";
+    setMode(nextMode);
+    applyUiProfile(next, nextMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot
   }, [snapshot]);
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
     const config: Record<string, unknown> = {
       mode,
       publishable_key: publishableKey.trim(),
@@ -149,31 +163,104 @@ export function PlatformStripeFeatureCard({
     );
     if (!ok) {
       toast.error(error ?? "Speichern fehlgeschlagen.");
-      return;
+      return false;
     }
-    toast.success("Stripe gespeichert.");
+    toast.success(
+      mode === "test"
+        ? "Stripe Sandbox (Test) gespeichert."
+        : "Stripe Live gespeichert.",
+    );
     setSecretKey("");
     setWebhookSecret("");
     onSaved();
+    return true;
   };
 
-  useRegisterSuperadminIntegrationSave("stripe", dirty, save);
+  useRegisterSuperadminIntegrationSave("stripe", dirty, async () => {
+    await save();
+  });
+
+  async function seedCatalog() {
+    setSeeding(true);
+    try {
+      // Erst speichern, damit Secret in der DB liegt (falls neu eingegeben)
+      if (dirty) {
+        const saved = await save();
+        if (!saved) return;
+      }
+      const res = await fetch("/api/superadmin/stripe/seed-catalog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode,
+          secretKey: secretKey.trim() || undefined,
+        }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        mode?: string;
+        prices?: Record<string, string>;
+        webhookSecretSaved?: boolean;
+        webhookSkippedLocalhost?: boolean;
+      };
+      if (!res.ok) {
+        toast.error(
+          data.error === "secret_key_missing"
+            ? "Zuerst einen Secret Key speichern (sk_test_… für Sandbox)."
+            : data.error === "secret_key_not_test"
+              ? "Sandbox braucht einen sk_test_ / rk_test_ Key."
+              : data.error === "secret_key_not_live"
+                ? "Live-Modus braucht einen sk_live_ / rk_live_ Key."
+                : data.error ?? "Katalog konnte nicht angelegt werden.",
+        );
+        return;
+      }
+      toast.success(
+        data.mode === "test"
+          ? "Test-Katalog angelegt (Sandbox)."
+          : "Live-Katalog angelegt.",
+      );
+      if (data.webhookSkippedLocalhost) {
+        toast.message(
+          "Webhook übersprungen (localhost). Für lokal: stripe listen --forward-to localhost:3000/api/billing/stripe/webhook",
+        );
+      } else if (data.webhookSecretSaved) {
+        toast.message("Webhook-Secret wurde automatisch gespeichert.");
+      }
+      onSaved();
+    } finally {
+      setSeeding(false);
+    }
+  }
 
   const credentialsConfigured = Boolean(ui.secret_key_configured);
+  const catalogReady = Boolean(
+    ui.price_basic_monthly && ui.price_pro_monthly && ui.price_pos_monthly,
+  );
 
   return (
     <SuperadminIntegrationPanel
       accentColor={INTEGRATION_PANEL_ACCENT.stripe}
       icon={<CreditCard className="size-5" />}
       title="Stripe (SaaS-Abos)"
-      description="Restaurant-Abos Free/Basic/Pro + POS-Add-on. Secrets nur hier — Webhook: /api/billing/stripe/webhook"
+      description="Free/Basic/Pro + POS. Dev → Modus Test (Sandbox). Live → Modus Live. Secrets nur hier."
       badges={
         <SuperadminIntegrationStatusBadges
           enabled={enabled}
           configured={credentialsConfigured}
-          configuredLabel="Secret hinterlegt"
+          configuredLabel={
+            mode === "test" ? "Test-Key hinterlegt" : "Live-Key hinterlegt"
+          }
           connection={connection}
           connectionChecking={connectionChecking}
+          extra={
+            mode === "test" ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-900 dark:text-amber-100">
+                <FlaskConical className="size-3" />
+                Sandbox
+              </span>
+            ) : null
+          }
         />
       }
       headerTrailing={
@@ -184,6 +271,35 @@ export function PlatformStripeFeatureCard({
         />
       }
     >
+      {mode === "test" ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-3 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Dev-Sandbox</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-4">
+            <li>
+              Stripe Dashboard →{" "}
+              <span className="font-medium text-foreground">Test mode</span> →
+              API keys → <code className="text-xs">sk_test_…</code> hier
+              einfügen
+            </li>
+            <li>
+              Speichern, dann{" "}
+              <span className="font-medium text-foreground">
+                Test-Katalog anlegen
+              </span>
+            </li>
+            <li>
+              Stripe aktivieren → in der App unter Einstellungen → Abo mit{" "}
+              <code className="text-xs">4242 4242 4242 4242</code> zahlen
+            </li>
+          </ol>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Live-Modus: echte Abbuchungen. Webhook:{" "}
+          <code className="text-xs">/api/billing/stripe/webhook</code>
+        </p>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label className={superadminIntegrationFieldLabelClassName}>
@@ -191,13 +307,17 @@ export function PlatformStripeFeatureCard({
           </Label>
           <Select
             value={mode}
-            onValueChange={(v) => setMode(v === "live" ? "live" : "test")}
+            onValueChange={(v) => {
+              const nextMode = v === "live" ? "live" : "test";
+              setMode(nextMode);
+              applyUiProfile(ui, nextMode);
+            }}
           >
             <SelectTrigger className={appSelectTriggerAccentCn("h-9 w-full")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="test">Test</SelectItem>
+              <SelectItem value="test">Test / Sandbox</SelectItem>
               <SelectItem value="live">Live</SelectItem>
             </SelectContent>
           </Select>
@@ -210,7 +330,7 @@ export function PlatformStripeFeatureCard({
             className={superadminIntegrationInputClassName}
             value={publishableKey}
             onChange={(e) => setPublishableKey(e.target.value)}
-            placeholder="pk_…"
+            placeholder={mode === "test" ? "pk_test_…" : "pk_live_…"}
             autoComplete="off"
           />
         </div>
@@ -218,11 +338,16 @@ export function PlatformStripeFeatureCard({
 
       <SecretInput
         id="platform-stripe-secret"
-        label="Secret Key"
+        label={mode === "test" ? "Secret Key (sk_test_…)" : "Secret Key (sk_live_…)"}
         configured={Boolean(ui.secret_key_configured)}
         value={secretKey}
         onChange={setSecretKey}
-        placeholder="sk_…"
+        placeholder={mode === "test" ? "sk_test_…" : "sk_live_…"}
+        hint={
+          mode === "test"
+            ? "Nur Test-Keys. Live-Keys gehören in den Live-Modus."
+            : undefined
+        }
       />
       <SecretInput
         id="platform-stripe-webhook"
@@ -231,11 +356,37 @@ export function PlatformStripeFeatureCard({
         value={webhookSecret}
         onChange={setWebhookSecret}
         placeholder="whsec_…"
+        hint="Wird beim Katalog-Anlegen oft automatisch gesetzt (außer localhost)."
       />
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          className={cn(brandActionButtonRoundedClassName)}
+          disabled={seeding}
+          onClick={() => void seedCatalog()}
+        >
+          {seeding ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <FlaskConical className="size-4" />
+          )}
+          {mode === "test" ? "Test-Katalog anlegen" : "Live-Katalog anlegen"}
+        </Button>
+        {catalogReady ? (
+          <span className="text-xs text-emerald-700 dark:text-emerald-300">
+            Price-IDs vorhanden
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            Noch keine Price-IDs für diesen Modus
+          </span>
+        )}
+      </div>
+
       <p className="text-xs text-muted-foreground">
-        Price-IDs aus dem Stripe-Dashboard (Products → Prices). Katalogpreise:
-        Basic 19/15€, Pro 39/31€, POS 29/23€ (Monatsäquivalent).
+        Katalogpreise: Basic 19/15€ · Pro 39/31€ · POS 29/23€ (Monatsäquivalent).
+        Test und Live haben getrennte Price-IDs.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">

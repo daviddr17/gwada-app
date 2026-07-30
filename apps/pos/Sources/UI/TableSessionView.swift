@@ -176,6 +176,8 @@ struct TableSessionView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("pos.course.\(course)")
+                        .accessibilityLabel(PosCourse.label(course))
                     }
                 }
                 .padding(.vertical, 2)

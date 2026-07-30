@@ -29,6 +29,7 @@ struct TablesHomeView: View {
                                     tableCard(table: table, open: open, meta: meta)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityIdentifier("pos.table.\(table.label)")
                             }
                         }
                         .padding(PosDesign.sectionSpacing)

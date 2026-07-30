@@ -232,6 +232,30 @@ final class PosHubState: @unchecked Sendable {
         PosLocalStore.saveBootstrap(bootstrap)
     }
 
+    /// Gästezahl einer offenen Session lokal anpassen.
+    @discardableResult
+    func updateCoverCount(sessionId: String, count: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var bootstrap else { return false }
+        guard let idx = bootstrap.floor.openSessions.firstIndex(where: { $0.id == sessionId }) else {
+            return false
+        }
+        let old = bootstrap.floor.openSessions[idx]
+        let clamped = min(50, max(1, count))
+        guard old.cover_count != clamped else { return true }
+        bootstrap.floor.openSessions[idx] = PosLanOpenSession(
+            id: old.id,
+            dining_table_id: old.dining_table_id,
+            cover_count: clamped,
+            opened_at: old.opened_at
+        )
+        self.bootstrap = bootstrap
+        snapshotVersion += 1
+        PosLocalStore.saveBootstrap(bootstrap)
+        return true
+    }
+
     /// Session auf freien Ziel-Tisch umhängen (Floor-Metas bleiben an sessionId).
     @discardableResult
     func moveLocalSession(sessionId: String, toTableId: String) -> Bool {

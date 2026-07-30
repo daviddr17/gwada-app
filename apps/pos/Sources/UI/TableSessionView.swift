@@ -17,35 +17,29 @@ struct TableSessionView: View {
     @State private var openLines: [SessionOpenLine] = []
     @State private var sendPulse = false
     @State private var activeCourse = PosCourse.main
+    @State private var guestCount = 2
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
+            courseRow
+            sentLinesHint
             if let menu = runtime.snapshot?.menu {
-                VStack(spacing: 0) {
-                    Group {
-                        if openLines.isEmpty {
-                            emptyState
-                        } else {
-                            openLinesList
-                        }
-                    }
-                    .frame(maxHeight: 300)
-                    Divider()
-                    MenuBrowserView(
-                        menu: menu,
-                        onSelect: onSelectMenuItem,
-                        quantityForItem: quantityForMenuItem
-                    )
-                }
+                MenuBrowserView(
+                    menu: menu,
+                    onSelect: onSelectMenuItem,
+                    quantityForItem: quantityForMenuItem
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                openLines.isEmpty ? AnyView(emptyState) : AnyView(openLinesList)
+                Spacer(minLength: 0)
             }
         }
         .background(PosDesign.bg)
         .navigationTitle(table.label)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if sessionId != nil {
@@ -118,7 +112,7 @@ struct TableSessionView: View {
                 sessionId: ensureSessionId(),
                 cart: $cart,
                 openLines: openLines,
-                coverCount: currentSession?.cover_count,
+                coverCount: currentSession?.cover_count ?? guestCount,
                 onSend: {
                     await sendCart()
                 },
@@ -166,32 +160,74 @@ struct TableSessionView: View {
         }
         .task {
             await refreshOpenLines()
+            syncGuestCountFromSession()
+        }
+        .onChange(of: currentSession?.cover_count) { _, newValue in
+            if let newValue { guestCount = newValue }
         }
         .preference(key: PosSessionBonActiveKey.self, value: true)
         .preference(key: PosSessionBonCartQtyKey.self, value: cartQuantity)
-        .onAppear { bonOpener.open = { showBon = true } }
+        .onAppear {
+            bonOpener.open = { showBon = true }
+            syncGuestCountFromSession()
+        }
         .onDisappear { bonOpener.open = nil }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(table.label).font(.title2.weight(.bold))
-                    HStack(spacing: 8) {
-                        PosStatusBadge(
-                            title: sessionId == nil ? "Frei" : "Besetzt",
-                            emphasized: sessionId != nil
-                        )
-                        Text("\(table.capacity) Plätze")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(table.label)
+                    .font(.title2.weight(.bold))
+                HStack(spacing: 8) {
+                    PosStatusBadge(
+                        title: sessionId == nil ? "Frei" : "Besetzt",
+                        emphasized: sessionId != nil
+                    )
+                    guestStepper
                 }
-                Spacer()
-                Text(PosMoney.format(cartTotal + openTotal))
-                    .font(.title3.weight(.bold).monospacedDigit())
             }
+            Spacer()
+            Text(PosMoney.format(cartTotal + openTotal))
+                .font(.title3.weight(.bold).monospacedDigit())
+        }
+        .padding(16)
+    }
+
+    private var guestStepper: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "person.2")
+                .font(.caption)
+            Button {
+                adjustGuests(-1)
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            .disabled(guestCount <= 1)
+            .accessibilityLabel("Gast entfernen")
+
+            Text("\(guestCount)")
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .frame(minWidth: 18)
+
+            Button {
+                adjustGuests(1)
+            } label: {
+                Image(systemName: "plus.circle")
+            }
+            .disabled(guestCount >= 20)
+            .accessibilityLabel("Gast hinzufügen")
+        }
+        .foregroundStyle(.secondary)
+        .accessibilityIdentifier("pos.session.guests")
+        .accessibilityLabel("\(guestCount) Gäste")
+    }
+
+    private var courseRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Neue Artikel auf")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -200,113 +236,82 @@ struct TableSessionView: View {
                             activeCourse = course
                         } label: {
                             PosChip(
-                                title: PosCourse.label(course),
+                                title: PosCourse.chipLabel(course),
                                 selected: activeCourse == course,
                                 tint: PosDesign.courseColor(course)
                             )
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("pos.course.\(course)")
-                        .accessibilityLabel(PosCourse.label(course))
+                        .accessibilityLabel(PosCourse.chipLabel(course))
                     }
                 }
                 .padding(.vertical, 2)
             }
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label("Noch nichts gesendet", systemImage: "cart")
-        } description: {
-            Text("Noch keine Positionen an Küche oder Bar gesendet.")
-        } actions: {
-            Text("Wähle ein Gericht in der Speisekarte. Ungesendete Positionen findest du im Bon.")
-                .font(.footnote)
+    @ViewBuilder
+    private var sentLinesHint: some View {
+        if openLines.isEmpty {
+            Text("Noch nichts gesendet — neue Artikel landen im Bon.")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var openLinesList: some View {
-        List {
-            Section("Bereits gesendet") {
-                ForEach(openLines) { line in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(line.openQuantity)× \(line.name)")
-                                .font(.body.weight(.semibold))
-                            if !line.detail.isEmpty {
-                                Text(line.detail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer()
-                        Text(PosMoney.format(line.openCents))
-                            .font(.body.monospacedDigit())
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            showSplit = true
-                        } label: {
-                            Label("Split", systemImage: "scissors")
-                        }
-                        .tint(.orange)
-                        Button {
-                            showMove = true
-                        } label: {
-                            Label("Umziehen", systemImage: "arrow.left.arrow.right")
-                        }
-                        .tint(.accentColor)
-                    }
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 6)
+        } else {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle")
+                    .font(.caption)
+                Text("\(openLines.count) gesendet · \(PosMoney.format(openTotal))")
+                    .font(.caption)
             }
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 6)
+            .accessibilityLabel("\(openLines.count) Positionen gesendet")
         }
-        .listStyle(.insetGrouped)
     }
 
     private var bottomBar: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             if sessionId != nil || !openLines.isEmpty {
-                HStack(spacing: 8) {
-                    Button {
-                        Task {
-                            let sid = ensureSessionId()
-                            let open = openTotal
-                            if open <= 0 {
-                                _ = await runtime.releaseTable(sessionId: sid, forceAbort: false)
-                            } else if !PosHubState.shared.hasFired(sessionId: sid) {
-                                _ = await runtime.releaseTable(sessionId: sid, forceAbort: true)
-                            } else {
-                                runtime.announce("Offener Betrag — erst kassieren, dann freigeben.")
-                            }
+                Button {
+                    Task {
+                        let sid = ensureSessionId()
+                        let open = openTotal
+                        if open <= 0 {
+                            _ = await runtime.releaseTable(sessionId: sid, forceAbort: false)
+                        } else if !PosHubState.shared.hasFired(sessionId: sid) {
+                            _ = await runtime.releaseTable(sessionId: sid, forceAbort: true)
+                        } else {
+                            runtime.announce("Offener Betrag — erst kassieren, dann freigeben.")
                         }
-                    } label: {
-                        Label(
-                            openTotal <= 0 ? "Freigeben" : "Abbruch",
-                            systemImage: openTotal <= 0 ? "checkmark.circle" : "xmark.circle"
-                        )
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
                     }
-                    .buttonStyle(.bordered)
+                } label: {
+                    Label(
+                        openTotal <= 0 ? "Freigeben" : "Abbruch",
+                        systemImage: openTotal <= 0 ? "checkmark.circle" : "xmark.circle"
+                    )
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                 }
+                .buttonStyle(.bordered)
             }
 
             Button {
                 showBon = true
             } label: {
                 HStack(spacing: 8) {
-                    Text("Bon")
-                    if cartQuantity > 0 {
-                        Text("\(cartQuantity)")
-                            .font(.caption.weight(.bold))
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Color.accentColor.opacity(0.25), in: Capsule())
-                    }
+                    Text(bonDockTitle)
+                    Spacer(minLength: 8)
+                    Text(PosMoney.format(cartTotal + openTotal))
+                        .font(.headline.monospacedDigit())
                 }
             }
             .buttonStyle(PosPrimaryButtonStyle())
@@ -316,11 +321,35 @@ struct TableSessionView: View {
         .background(.ultraThinMaterial)
     }
 
+    private var bonDockTitle: String {
+        var parts = ["Bon öffnen"]
+        if cartQuantity > 0 {
+            parts.append("\(cartQuantity) neu")
+        }
+        return parts.joined(separator: " · ")
+    }
+
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }
     private var openTotal: Int { openLines.reduce(0) { $0 + $1.openCents } }
     private var cartQuantity: Int { cart.reduce(0) { $0 + $1.quantity } }
     private var currentSession: PosLanOpenSession? {
         runtime.snapshot?.floor.openSessions.first(where: { $0.dining_table_id == table.id })
+    }
+
+    private func syncGuestCountFromSession() {
+        if let covers = currentSession?.cover_count {
+            guestCount = covers
+        }
+    }
+
+    private func adjustGuests(_ delta: Int) {
+        let newCount = min(20, max(1, guestCount + delta))
+        guard newCount != guestCount else { return }
+        guestCount = newCount
+        Task {
+            let sid = ensureSessionId()
+            await runtime.updateCovers(sessionId: sid, covers: newCount)
+        }
     }
 
     private func quantityForMenuItem(_ menuItemId: String) -> Int {
@@ -367,7 +396,7 @@ struct TableSessionView: View {
 
     private func ensureSessionId() -> String {
         if let sessionId { return sessionId }
-        return runtime.ensureLocalSession(tableId: table.id)
+        return runtime.ensureLocalSession(tableId: table.id, covers: guestCount)
     }
 
     private func sendCart() async -> Bool {

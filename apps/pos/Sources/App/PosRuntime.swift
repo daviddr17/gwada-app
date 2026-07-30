@@ -540,6 +540,41 @@ final class PosRuntime: ObservableObject {
         PosHubState.shared.openLocalSession(diningTableId: tableId, coverCount: covers)
     }
 
+    /// Gästezahl anpassen — lokal im Hub/Solo-Snapshot; Cloud/LAN-PATCH folgt wenn API existiert.
+    func updateCovers(sessionId: String, covers: Int) async {
+        let clamped = min(50, max(1, covers))
+
+        if role == .handheld {
+            if isSoloMode || hubBaseURL == nil {
+                guard PosHubState.shared.updateCoverCount(sessionId: sessionId, count: clamped) else { return }
+                publishSnapshot(PosHubState.shared.makeSnapshot())
+            } else {
+                patchSnapshotCoverCount(sessionId: sessionId, covers: clamped)
+            }
+            // TODO: LAN-Hub / Nest PATCH coverCount when endpoint exists
+            return
+        }
+
+        guard PosHubState.shared.updateCoverCount(sessionId: sessionId, count: clamped) else { return }
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+        // TODO: Cloud PATCH coverCount when PosCloudClient endpoint exists
+    }
+
+    private func patchSnapshotCoverCount(sessionId: String, covers: Int) {
+        guard var snap = snapshot,
+              let idx = snap.floor.openSessions.firstIndex(where: { $0.id == sessionId })
+        else { return }
+        let old = snap.floor.openSessions[idx]
+        snap.floor.openSessions[idx] = PosLanOpenSession(
+            id: old.id,
+            dining_table_id: old.dining_table_id,
+            cover_count: covers,
+            opened_at: old.opened_at
+        )
+        snap.snapshotVersion = (snap.snapshotVersion ?? 0) + 1
+        publishSnapshot(snap)
+    }
+
     func sendCart(tableId: String, lines: [PosCartLine]) async -> Bool {
         guard !lines.isEmpty else { return false }
         let restaurantId = PosHubState.shared.restaurantId

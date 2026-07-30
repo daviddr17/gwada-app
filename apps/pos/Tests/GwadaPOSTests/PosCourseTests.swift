@@ -15,6 +15,12 @@ final class PosCourseTests: XCTestCase {
         XCTAssertEqual(PosCourse.label(4), "Gang 4")
     }
 
+    func testChipLabels() {
+        XCTAssertEqual(PosCourse.chipLabel(1), "Gang 1")
+        XCTAssertEqual(PosCourse.chipLabel(2), "Gang 2")
+        XCTAssertEqual(PosCourse.chipLabel(3), "Gang 3")
+    }
+
     func testCloudCourseDtosDecodeNumericCourses() throws {
         let decoder = JSONDecoder()
         let summary = try decoder.decode(

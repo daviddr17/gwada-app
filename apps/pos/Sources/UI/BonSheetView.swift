@@ -117,7 +117,7 @@ struct BonSheetView: View {
             }
 
             if courseNeedsFire(openLines: sentLines, course: course, sessionId: sessionId) {
-                Button("\(PosCourse.label(course)) schicken") {
+                Button("\(PosCourse.chipLabel(course)) schicken") {
                     Task { await fire(course: course) }
                 }
                 .buttonStyle(.bordered)

@@ -16,6 +16,9 @@ enum PosCourse {
         }
     }
 
+    /// Numerisches Chip-Label für Session-Gang-Auswahl (Layout-Parity).
+    static func chipLabel(_ course: Int) -> String { "Gang \(course)" }
+
     static func shortLabel(_ course: Int) -> String {
         switch course {
         case 1: return "V"

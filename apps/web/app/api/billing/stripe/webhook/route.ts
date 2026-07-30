@@ -1,3 +1,4 @@
+import { syncStripeInvoiceToDb } from "@/lib/billing/sync-stripe-invoice";
 import { syncStripeSubscriptionToDb } from "@/lib/billing/sync-stripe-subscription";
 import { createStripeClient } from "@/lib/billing/stripe-server";
 import type Stripe from "stripe";
@@ -66,6 +67,27 @@ export async function POST(req: Request) {
         const result = await syncStripeSubscriptionToDb(config, sub);
         if (!result.ok) {
           console.warn(event.type, "sync", result.error);
+        }
+        break;
+      }
+      case "invoice.paid":
+      case "invoice.finalized":
+      case "invoice.updated":
+      case "invoice.voided": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const result = await syncStripeInvoiceToDb(invoice);
+        if (!result.ok) {
+          console.warn(event.type, "invoice sync", result.error);
+        }
+        break;
+      }
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const result = await syncStripeInvoiceToDb(invoice, {
+          eventHint: "payment_failed",
+        });
+        if (!result.ok) {
+          console.warn(event.type, "invoice sync", result.error);
         }
         break;
       }

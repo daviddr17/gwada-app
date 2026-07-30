@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/select";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 
+export type SuperadminToolbarFilter = {
+  label: string;
+  value: string;
+  options: readonly { value: string; label: string }[];
+  onChange: (v: string) => void;
+};
+
 export function SuperadminSearchToolbar({
   search,
   onSearchChange,
@@ -19,6 +26,7 @@ export function SuperadminSearchToolbar({
   filterValue,
   filterOptions,
   onFilterChange,
+  extraFilters,
 }: {
   search: string;
   onSearchChange: (v: string) => void;
@@ -27,11 +35,19 @@ export function SuperadminSearchToolbar({
   filterValue?: string;
   filterOptions?: readonly { value: string; label: string }[];
   onFilterChange?: (v: string) => void;
+  /** Weitere Selects rechts neben dem Primärfilter. */
+  extraFilters?: readonly SuperadminToolbarFilter[];
 }) {
-  const selectedFilterLabel =
-    filterOptions?.find((o) => o.value === (filterValue ?? "all"))?.label ??
-    filterLabel ??
-    "Filter";
+  const filters: SuperadminToolbarFilter[] = [];
+  if (filterOptions && filterOptions.length > 0 && onFilterChange) {
+    filters.push({
+      label: filterLabel ?? "Filter",
+      value: filterValue ?? "all",
+      options: filterOptions,
+      onChange: onFilterChange,
+    });
+  }
+  if (extraFilters?.length) filters.push(...extraFilters);
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -45,28 +61,37 @@ export function SuperadminSearchToolbar({
           aria-label="Suche"
         />
       </div>
-      {filterOptions && filterOptions.length > 0 && onFilterChange ? (
-        <div className="flex shrink-0 items-center gap-2">
-          {filterLabel ? (
-            <span className="text-sm text-muted-foreground">{filterLabel}</span>
-          ) : null}
-          <Select
-            value={filterValue ?? "all"}
-            onValueChange={(v) => onFilterChange(String(v))}
-          >
-            <SelectTrigger
-              className={appSelectTriggerAccentCn("h-9 min-w-[10rem]")}
-            >
-              <SelectValue>{selectedFilterLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {filterOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {filters.length > 0 ? (
+        <div className="flex flex-wrap shrink-0 items-center gap-2">
+          {filters.map((filter) => {
+            const selectedLabel =
+              filter.options.find((o) => o.value === filter.value)?.label ??
+              filter.label;
+            return (
+              <div key={filter.label} className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {filter.label}
+                </span>
+                <Select
+                  value={filter.value}
+                  onValueChange={(v) => filter.onChange(String(v))}
+                >
+                  <SelectTrigger
+                    className={appSelectTriggerAccentCn("h-9 min-w-[10rem]")}
+                  >
+                    <SelectValue>{selectedLabel}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filter.options.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </div>

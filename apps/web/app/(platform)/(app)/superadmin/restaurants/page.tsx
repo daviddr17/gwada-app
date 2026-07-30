@@ -14,6 +14,11 @@ import {
   superadminDateCellClass,
 } from "@/components/superadmin/superadmin-table-cells";
 import { Badge } from "@/components/ui/badge";
+import {
+  billingPlanLabel,
+  billingSourceLabel,
+  billingStatusLabel,
+} from "@/lib/billing/billing-status-labels";
 import { formatRestaurantTimezoneLabel } from "@/lib/restaurant/restaurant-timezone";
 
 function formatDt(iso: string | null): string {
@@ -29,6 +34,7 @@ export default function SuperadminRestaurantsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [publishedFilter, setPublishedFilter] = useState("all");
+  const [planFilter, setPlanFilter] = useState("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,6 +56,9 @@ export default function SuperadminRestaurantsPage() {
     } else if (publishedFilter === "draft") {
       list = list.filter((r) => !r.is_published);
     }
+    if (planFilter !== "all") {
+      list = list.filter((r) => (r.plan_id ?? "free") === planFilter);
+    }
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((r) => {
@@ -61,6 +70,9 @@ export default function SuperadminRestaurantsPage() {
           r.owner_email,
           r.owner_display_name,
           r.timezone,
+          r.plan_id,
+          r.plan_status,
+          r.plan_source,
         ]
           .filter(Boolean)
           .join(" ")
@@ -69,7 +81,7 @@ export default function SuperadminRestaurantsPage() {
       });
     }
     return list;
-  }, [rows, search, publishedFilter]);
+  }, [rows, search, publishedFilter, planFilter]);
 
   return (
     <div className="space-y-6 pt-2">
@@ -80,7 +92,7 @@ export default function SuperadminRestaurantsPage() {
       <SuperadminSearchToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Name, Slug, E-Mail…"
+        searchPlaceholder="Name, Slug, E-Mail, Abo…"
         filterLabel="Status"
         filterValue={publishedFilter}
         filterOptions={[
@@ -89,6 +101,19 @@ export default function SuperadminRestaurantsPage() {
           { value: "draft", label: "Entwurf" },
         ]}
         onFilterChange={setPublishedFilter}
+        extraFilters={[
+          {
+            label: "Abo",
+            value: planFilter,
+            options: [
+              { value: "all", label: "Alle Pläne" },
+              { value: "free", label: "Free" },
+              { value: "basic", label: "Basic" },
+              { value: "pro", label: "Pro" },
+            ],
+            onChange: setPlanFilter,
+          },
+        ]}
       />
 
       <SuperadminPaginatedDataTable
@@ -97,7 +122,7 @@ export default function SuperadminRestaurantsPage() {
         rowKey={(r) => r.id}
         emptyMessage="Keine Restaurants gefunden."
         itemLabel="Restaurants"
-        resetPageKey={`${search}\0${publishedFilter}`}
+        resetPageKey={`${search}\0${publishedFilter}\0${planFilter}`}
         columns={[
           {
             id: "name",
@@ -156,6 +181,44 @@ export default function SuperadminRestaurantsPage() {
             className: "text-right tabular-nums",
             sortValue: (r) => r.employee_count,
             cell: (r) => r.employee_count,
+          },
+          {
+            id: "plan",
+            header: "Abo",
+            className: superadminCellNowrapClass,
+            sortValue: (r) => r.plan_id ?? "free",
+            cell: (r) => {
+              const planId = r.plan_id ?? "free";
+              const status = r.plan_status ?? "active";
+              const source = r.plan_source ?? "manual";
+              return (
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge
+                      variant="outline"
+                      className={
+                        planId === "pro"
+                          ? "border-violet-500/40 bg-violet-500/10 text-violet-800 dark:text-violet-200"
+                          : planId === "basic"
+                            ? "border-sky-500/40 bg-sky-500/10 text-sky-800 dark:text-sky-200"
+                            : undefined
+                      }
+                    >
+                      {billingPlanLabel(planId)}
+                    </Badge>
+                    {r.has_pos_addon ? (
+                      <Badge variant="outline">POS</Badge>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {billingStatusLabel(status)}
+                    {source !== "stripe" && source !== "manual"
+                      ? ` · ${billingSourceLabel(source)}`
+                      : ""}
+                  </div>
+                </div>
+              );
+            },
           },
           {
             id: "status",

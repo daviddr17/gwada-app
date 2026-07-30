@@ -14,6 +14,7 @@ import {
 import {
   Bell,
   Building2,
+  CreditCard,
   Hourglass,
   LayoutDashboard,
   Lock,
@@ -321,6 +322,20 @@ export function AppSidebar() {
                     >
                       <Building2 />
                       <span>Restaurants</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith(
+                        "/superadmin/abonnements",
+                      )}
+                      tooltip="Abonnements"
+                      render={
+                        <Link href="/superadmin/abonnements" prefetch />
+                      }
+                    >
+                      <CreditCard />
+                      <span>Abonnements</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

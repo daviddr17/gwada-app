@@ -4,6 +4,10 @@ import { getStaffSupabase } from "@/src/lib/supabase";
 const RESERVATION_STATUS_EMBED =
   "reservation_statuses!reservations_status_id_fkey";
 
+/** Explizite FK — sonst Konflikt mit `relocated_from_dining_table_id`. */
+const RESERVATION_DINING_TABLE_EMBED =
+  "dining_tables!reservations_dining_table_id_fkey";
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -125,7 +129,7 @@ const RESERVATION_LIST_ROW_SELECT = `
   dining_table_id,
   notes,
   ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
-  dining_tables ( * )
+  ${RESERVATION_DINING_TABLE_EMBED} ( * )
 `;
 
 export async function fetchReservationsForMonth(params: {

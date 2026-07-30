@@ -7,7 +7,10 @@ import {
   type ReservationPendingChange,
 } from "@/lib/reservations/reservation-pending-change";
 import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@/lib/reservations/unconfirmed-reservations";
-import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
+import {
+  RESERVATION_DINING_TABLE_EMBED,
+  RESERVATION_STATUS_EMBED,
+} from "@/lib/supabase/reservations-db";
 import {
   readRestaurantZonedParts,
   restaurantDayBoundsIso,
@@ -190,7 +193,7 @@ export async function loadDisplayReservationsDay(
         dining_table_id,
         pending_change,
         ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
-        dining_tables ( id, table_number, table_name )
+        ${RESERVATION_DINING_TABLE_EMBED} ( id, table_number, table_name )
       `,
       )
       .eq("restaurant_id", restaurantId)
@@ -322,7 +325,7 @@ export async function loadDisplayReservationDetail(
         created_at,
         pending_change,
         ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
-        dining_tables ( id, table_number, table_name )
+        ${RESERVATION_DINING_TABLE_EMBED} ( id, table_number, table_name )
       `,
     )
     .eq("id", reservationId)
@@ -414,7 +417,7 @@ export async function loadDisplayReservationsLiveSnapshot(
         dining_table_id,
         created_at,
         ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
-        dining_tables ( id, table_number, table_name )
+        ${RESERVATION_DINING_TABLE_EMBED} ( id, table_number, table_name )
       `,
     )
     .eq("restaurant_id", restaurantId)
@@ -474,7 +477,7 @@ export async function loadDisplayReservationRowById(
         dining_table_id,
         pending_change,
         ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
-        dining_tables ( id, table_number, table_name )
+        ${RESERVATION_DINING_TABLE_EMBED} ( id, table_number, table_name )
       `,
     )
     .eq("restaurant_id", restaurantId)
@@ -523,7 +526,7 @@ export async function loadDisplayOpenReservations(restaurantId: string) {
         pending_change,
         status_before_change_id,
         ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
-        dining_tables ( id, table_number, table_name )
+        ${RESERVATION_DINING_TABLE_EMBED} ( id, table_number, table_name )
       `,
     )
     .eq("restaurant_id", restaurantId)

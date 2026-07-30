@@ -21,6 +21,13 @@ export type ReservationStatusJoin = {
 export const RESERVATION_STATUS_EMBED =
   "reservation_statuses!reservations_status_id_fkey";
 
+/**
+ * PostgREST-Embed für den zugewiesenen Tisch (`dining_table_id`).
+ * Ohne Hinweis scheitert der Join, sobald auch `relocated_from_dining_table_id` existiert.
+ */
+export const RESERVATION_DINING_TABLE_EMBED =
+  "dining_tables!reservations_dining_table_id_fkey";
+
 export type ReservationDiningTableJoin = {
   id: string;
   table_number: number;
@@ -186,7 +193,7 @@ export const RESERVATION_LIST_ROW_SELECT = `
         family_name,
         display_name
       ),
-      dining_tables ( * )
+      ${RESERVATION_DINING_TABLE_EMBED} ( * )
     `;
 
 export async function fetchReservationsForRestaurant(params: {

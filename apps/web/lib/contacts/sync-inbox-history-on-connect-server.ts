@@ -6,6 +6,11 @@ import { emailAddressFromPseudoContactId } from "@/lib/contact-messages/email-ps
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
 import {
+  attachmentKindFromImapMeta,
+  EMAIL_IMAP_EXTERNAL_PREFIX,
+  persistEmailImapMessageAttachments,
+} from "@/lib/contacts/persist-email-imap-message-attachments";
+import {
   syncContactWhatsappInbound,
   syncPseudoWhatsappThread,
 } from "@/lib/contacts/sync-contact-whatsapp-inbound";
@@ -23,7 +28,7 @@ export const INBOX_CONNECT_HISTORY_THREAD_LIMIT = 10;
 /** Pro WA-Chat: neueste Nachrichten mitspiegeln (nicht ganzer Verlauf). */
 const WHATSAPP_MESSAGES_PER_THREAD_ON_CONNECT = 30;
 
-const EXTERNAL_PREFIX = "email-imap:";
+const EXTERNAL_PREFIX = EMAIL_IMAP_EXTERNAL_PREFIX;
 
 function externalIdForUid(uid: number): string {
   return `${EXTERNAL_PREFIX}${uid}`;
@@ -181,21 +186,31 @@ async function syncEmailInboxHistoryOnConnect(
     const threadKey = threadKeyForEnvelope(party, contactByEmail);
 
     const parsed = bodies.get(env.uid);
-    const body = parsed?.body?.trim() || env.snippet?.trim();
-    if (!body) continue;
+    const meta = parsed?.attachmentMeta ?? [];
+    const body = parsed?.body?.trim() || env.snippet?.trim() || "";
+    if (!body && meta.length === 0) continue;
 
     const result = await insertContactMessageIfNew(admin, {
       restaurantId,
       contactId: threadKey,
       platform: "email",
       direction: env.outbound ? "outbound" : "inbound",
-      body,
+      body: body || " ",
       externalSourceId: extId,
       createdAt: env.date.toISOString(),
       conversationLabel: emailAddressFromPseudoContactId(threadKey) ?? undefined,
       suppressNotifications: env.outbound ? false : true,
       externalSeen: env.outbound ? undefined : env.seen,
+      attachmentKind: attachmentKindFromImapMeta(meta),
     });
+    if (result.messageId) {
+      await persistEmailImapMessageAttachments(admin, {
+        restaurantId,
+        messageId: result.messageId,
+        uid: env.uid,
+        attachments: meta,
+      });
+    }
     if (result.inserted) {
       imported += 1;
       known.add(extId);

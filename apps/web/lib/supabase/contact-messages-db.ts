@@ -7,7 +7,8 @@ import type { ConversationUnreadHint } from "@/lib/contact-messages/conversation
 import { buildContactConversationsFromRows } from "@/lib/contact-messages/build-contact-conversations";
 import { CONVERSATION_LIST_MESSAGE_ROW_LIMIT } from "@/lib/contact-messages/conversation-list-limits";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { gwadaAttachmentDownloadUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
+import { attachmentUrlFromStoragePath } from "@/lib/contact-messages/contact-message-attachment-urls";
+import { isImapAttachmentStoragePath } from "@/lib/contact-messages/imap-attachment-storage-path";
 import {
   fetchMessageAttachmentsForRestaurant,
   groupAttachmentsByMessageId,
@@ -128,11 +129,15 @@ export function mapContactMessageRowFromRecord(
     fileName: a.file_name,
     mimeType: a.mime_type,
     byteSize: a.byte_size,
-    url: gwadaAttachmentDownloadUrl({
+    url: attachmentUrlFromStoragePath({
       restaurantId,
       messageId,
       attachmentId: a.id,
+      storagePath: a.storage_path,
     }),
+    ...(isImapAttachmentStoragePath(a.storage_path)
+      ? { loadOnClick: true as const }
+      : {}),
   }));
 
   return {

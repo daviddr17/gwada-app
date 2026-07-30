@@ -10,4 +10,9 @@ export type ContactMessageAttachment = {
   url: string;
   /** Optional: Dauer in Sekunden (Sprachnachricht). */
   durationSeconds?: number | null;
+  /**
+   * Keine Auto-Vorschau (z. B. IMAP): Bytes erst bei Klick laden,
+   * damit Storage/Postfach nicht unnötig befüllt bzw. abgerufen wird.
+   */
+  loadOnClick?: boolean;
 };

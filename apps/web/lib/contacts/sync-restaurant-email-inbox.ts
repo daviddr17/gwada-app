@@ -1,6 +1,12 @@
 import "server-only";
 
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
+import {
+  attachmentKindFromImapMeta,
+  EMAIL_IMAP_EXTERNAL_PREFIX,
+  emailImapUidFromExternalSourceId,
+  persistEmailImapMessageAttachments,
+} from "@/lib/contacts/persist-email-imap-message-attachments";
 import { resolveOrCreateContactForEmailInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
 import { emailAddressFromPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
@@ -9,11 +15,14 @@ import {
   fetchImapRecentEnvelopes,
   fetchImapThreadBodies,
   imapCounterpartyEmail,
+  type ImapCredentials,
+  type ImapThreadBodyEntry,
 } from "@/lib/email/imap-inbox";
 import { reconcileEmailImapSeenInDb } from "@/lib/contacts/reconcile-email-imap-seen-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const EXTERNAL_PREFIX = "email-imap:";
+const EXTERNAL_PREFIX = EMAIL_IMAP_EXTERNAL_PREFIX;
+const ATTACHMENT_BACKFILL_LIMIT = 40;
 
 function externalIdForUid(uid: number): string {
   return `${EXTERNAL_PREFIX}${uid}`;
@@ -56,6 +65,104 @@ async function emailToContactMap(
   return map;
 }
 
+async function ingestParsedImapInbound(params: {
+  admin: SupabaseClient;
+  restaurantId: string;
+  threadKey: string;
+  uid: number;
+  parsed: ImapThreadBodyEntry;
+  externalSeen?: boolean;
+}): Promise<{ imported: boolean; messageId?: string }> {
+  const { admin, restaurantId, threadKey, uid, parsed } = params;
+  if (parsed.outbound) return { imported: false };
+
+  const meta = parsed.attachmentMeta ?? [];
+  const body = parsed.body?.trim() ?? "";
+  if (!body && meta.length === 0) return { imported: false };
+
+  const result = await ingestInboundContactMessage(admin, {
+    restaurantId,
+    contactId: threadKey,
+    platform: "email",
+    direction: "inbound",
+    body: body || " ",
+    externalSourceId: externalIdForUid(uid),
+    externalSeen: params.externalSeen,
+    attachmentKind: attachmentKindFromImapMeta(meta),
+    conversationLabel:
+      emailAddressFromPseudoContactId(threadKey) ?? undefined,
+    ...(parsed.date ? { createdAt: parsed.date.toISOString() } : {}),
+  });
+
+  const messageId = result.messageId;
+  if (messageId) {
+    await persistEmailImapMessageAttachments(admin, {
+      restaurantId,
+      messageId,
+      uid,
+      attachments: meta,
+    });
+  }
+
+  return { imported: result.imported, messageId };
+}
+
+/** Einmalig Anhang-Metadaten für bestehende email-imap:-Spiegel nachziehen. */
+export async function backfillEmailImapAttachmentMeta(
+  admin: SupabaseClient,
+  creds: ImapCredentials,
+  params: {
+    restaurantId: string;
+    contactId?: string;
+    conversationKey?: string;
+  },
+): Promise<void> {
+  let q = admin
+    .from("contact_messages")
+    .select("id, external_source_id")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("external_attachments_synced", false)
+    .like("external_source_id", `${EXTERNAL_PREFIX}%`)
+    .order("created_at", { ascending: false })
+    .limit(ATTACHMENT_BACKFILL_LIMIT);
+
+  if (params.contactId) {
+    q = q.eq("contact_id", params.contactId);
+  } else if (params.conversationKey) {
+    q = q.eq("conversation_key", params.conversationKey);
+  }
+
+  const { data: rows } = await q;
+  if (!rows?.length) return;
+
+  const pending: { messageId: string; uid: number }[] = [];
+  for (const row of rows) {
+    const messageId = (row as { id: string }).id;
+    const uid = emailImapUidFromExternalSourceId(
+      (row as { external_source_id: string | null }).external_source_id,
+    );
+    if (uid == null) continue;
+    pending.push({ messageId, uid });
+  }
+  if (pending.length === 0) return;
+
+  const { bodies, error } = await fetchImapThreadBodies(
+    creds,
+    pending.map((p) => p.uid),
+  );
+  if (error) return;
+
+  for (const item of pending) {
+    const parsed = bodies.get(item.uid);
+    await persistEmailImapMessageAttachments(admin, {
+      restaurantId: params.restaurantId,
+      messageId: item.messageId,
+      uid: item.uid,
+      attachments: parsed?.attachmentMeta ?? [],
+    });
+  }
+}
+
 /** Ein IMAP-Durchlauf pro Restaurant — eingehende Mails bekannten Kontakten zuordnen. */
 export async function syncRestaurantEmailInbox(
   admin: SupabaseClient,
@@ -90,7 +197,10 @@ export async function syncRestaurantEmailInbox(
     inboundByContact.set(threadKey, list);
   }
 
-  if (inboundByContact.size === 0) return { imported: 0, error: null };
+  if (inboundByContact.size === 0) {
+    await backfillEmailImapAttachmentMeta(admin, creds, { restaurantId });
+    return { imported: 0, error: null };
+  }
 
   const allUids = [...inboundByContact.values()].flat();
   const { data: existing } = await admin
@@ -106,7 +216,10 @@ export async function syncRestaurantEmailInbox(
   );
 
   const missingUids = allUids.filter((uid) => !known.has(externalIdForUid(uid)));
-  if (missingUids.length === 0) return { imported: 0, error: null };
+  if (missingUids.length === 0) {
+    await backfillEmailImapAttachmentMeta(admin, creds, { restaurantId });
+    return { imported: 0, error: null };
+  }
 
   const { bodies, error: bodyErr } = await fetchImapThreadBodies(
     creds,
@@ -119,20 +232,15 @@ export async function syncRestaurantEmailInbox(
     for (const uid of uids) {
       if (known.has(externalIdForUid(uid))) continue;
       const parsed = bodies.get(uid);
-      if (!parsed || parsed.outbound) continue;
-      const body = parsed.body?.trim();
-      if (!body) continue;
+      if (!parsed) continue;
 
-      const result = await ingestInboundContactMessage(admin, {
+      const result = await ingestParsedImapInbound({
+        admin,
         restaurantId,
-        contactId: threadKey,
-        platform: "email",
-        direction: "inbound",
-        body,
-        externalSourceId: externalIdForUid(uid),
+        threadKey,
+        uid,
+        parsed,
         externalSeen: false,
-        conversationLabel:
-          emailAddressFromPseudoContactId(threadKey) ?? undefined,
       });
       if (result.imported) {
         imported += 1;
@@ -140,6 +248,8 @@ export async function syncRestaurantEmailInbox(
       }
     }
   }
+
+  await backfillEmailImapAttachmentMeta(admin, creds, { restaurantId });
 
   if (imported > 0) {
     console.info(
@@ -184,8 +294,6 @@ export async function syncContactEmailInbox(
     seenByUid.set(env.uid, env.seen);
   }
 
-  if (inboundUids.length === 0) return { imported: 0, error: null };
-
   const { data: existing } = await admin
     .from("contact_messages")
     .select("external_source_id")
@@ -200,29 +308,32 @@ export async function syncContactEmailInbox(
   );
 
   const missing = inboundUids.filter((uid) => !known.has(externalIdForUid(uid)));
-  if (missing.length === 0) return { imported: 0, error: null };
-
-  const { bodies, error: bodyErr } = await fetchImapThreadBodies(creds, missing);
-  if (bodyErr) return { imported: 0, error: bodyErr };
-
   let imported = 0;
-  for (const uid of missing) {
-    const parsed = bodies.get(uid);
-    if (!parsed || parsed.outbound) continue;
-    const body = parsed.body?.trim();
-    if (!body) continue;
 
-    const result = await ingestInboundContactMessage(admin, {
-      restaurantId: params.restaurantId,
-      contactId: params.contactId,
-      platform: "email",
-      direction: "inbound",
-      body,
-      externalSourceId: externalIdForUid(uid),
-      externalSeen: seenByUid.get(uid) ?? false,
-    });
-    if (result.imported) imported += 1;
+  if (missing.length > 0) {
+    const { bodies, error: bodyErr } = await fetchImapThreadBodies(creds, missing);
+    if (bodyErr) return { imported: 0, error: bodyErr };
+
+    for (const uid of missing) {
+      const parsed = bodies.get(uid);
+      if (!parsed) continue;
+
+      const result = await ingestParsedImapInbound({
+        admin,
+        restaurantId: params.restaurantId,
+        threadKey: params.contactId,
+        uid,
+        parsed,
+        externalSeen: seenByUid.get(uid) ?? false,
+      });
+      if (result.imported) imported += 1;
+    }
   }
+
+  await backfillEmailImapAttachmentMeta(admin, creds, {
+    restaurantId: params.restaurantId,
+    contactId: params.contactId,
+  });
 
   return { imported, error: null };
 }

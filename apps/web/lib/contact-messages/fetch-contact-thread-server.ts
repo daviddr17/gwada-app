@@ -5,6 +5,7 @@ import {
   CONTACT_THREAD_PAGE_SIZE,
 } from "@/lib/contact-messages/contact-thread-pagination";
 import { isEmailPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
+import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import { isMetaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
 import {
@@ -20,8 +21,37 @@ import {
 } from "@/lib/contact-messages/contact-thread-timing";
 import { resolveContactThreadAvatarPresentation } from "@/lib/contacts/contact-thread-avatar-server";
 import { contactThreadAvatarInitials } from "@/lib/contacts/contact-thread-avatar-initials";
+import {
+  backfillEmailImapAttachmentMeta,
+  syncContactEmailInbox,
+} from "@/lib/contacts/sync-restaurant-email-inbox";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** Beim ersten Thread-Load: Anhang-Metadaten (lazy IMAP) nachziehen. */
+async function ensureEmailAttachmentMetaForThreadOpen(
+  admin: SupabaseClient,
+  params: { restaurantId: string; contactId: string },
+): Promise<void> {
+  try {
+    if (isLinkedContactId(params.contactId)) {
+      await syncContactEmailInbox(admin, params);
+      return;
+    }
+    if (!isEmailPseudoContactId(params.contactId)) return;
+    const creds = await resolveRestaurantImapCredentials(
+      admin,
+      params.restaurantId,
+    );
+    if (!creds) return;
+    await backfillEmailImapAttachmentMeta(admin, creds, {
+      restaurantId: params.restaurantId,
+      conversationKey: params.contactId,
+    });
+  } catch {
+    /* Thread-Load nicht blockieren bei IMAP-Fehlern */
+  }
+}
 
 export type ContactThreadContactMeta = {
   name: string;
@@ -357,6 +387,15 @@ export async function fetchContactThreadPageServer(
     pageLimit,
     before,
   });
+
+  if (!before) {
+    const tSync = performance.now();
+    await ensureEmailAttachmentMetaForThreadOpen(admin, {
+      restaurantId,
+      contactId,
+    });
+    mark("email_attach_sync", Math.round(performance.now() - tSync));
+  }
 
   if (isLinkedContactId(contactId)) {
     const linked = await loadLinkedThreadSlice(

@@ -47,8 +47,8 @@ export function staffListQueryOptions(
   return {
     queryKey: queryKeys.staff.list(restaurantId),
     queryFn: () => fetchStaffListForRestaurant(restaurantId),
-    staleTime: getModuleCacheStaleTime("staffLive") ?? 30_000,
-    gcTime: getModuleCacheGcTime("staffLive") ?? 5 * 60_000,
+    staleTime: getModuleCacheStaleTime("staffModule") ?? 30_000,
+    gcTime: getModuleCacheGcTime("staffModule") ?? 5 * 60_000,
   };
 }
 

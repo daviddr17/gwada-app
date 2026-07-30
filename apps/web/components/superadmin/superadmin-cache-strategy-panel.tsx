@@ -270,13 +270,14 @@ export function SuperadminCacheStrategyPanel() {
         <div className="flex items-center gap-2">
           <Workflow className="size-4 text-muted-foreground" aria-hidden />
           <h2 className="text-lg font-semibold tracking-tight">
-            Dashboard: Ladereihenfolge
+            App-Zone: Ladereihenfolge
           </h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          Beim Öffnen von <code className="font-mono text-xs">/dashboard</code> —
-          von links nach rechts. KPI-Prefetch startet schon im App-Layout; parallele
-          Schritte sind unabhängig, Inbox-Warm wartet ggf. auf Batch (unter 30 s).
+          Sobald Workspace-Restaurant ready — von links nach rechts. Warm-Prefetch
+          und Dashboard-Batch starten parallel im App-Layout (Batch idle ~1,6s);
+          Inbox-Warm überspringt, wenn Batch unter 30s alt ist. Wetter nur bei
+          aktivem Dashboard-Home Keep-alive.
         </p>
         <div className="overflow-x-auto pb-2">
           <div className="flex min-w-max items-stretch gap-2">

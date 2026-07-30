@@ -113,9 +113,15 @@ export function LandingPage() {
 
         <LandingPricing />
 
-        <footer className="border-t border-border/50 bg-muted/10 px-6 py-20 pb-40 text-center text-sm text-muted-foreground sm:pb-44 dark:bg-muted/5">
-          <p suppressHydrationWarning>
-            © {new Date().getFullYear()} {appName}. Mit Ruhe gebaut.
+        <footer className="border-t border-border/50 bg-muted/10 px-6 pt-12 pb-40 text-center text-sm text-muted-foreground sm:pt-14 sm:pb-44 dark:bg-muted/5">
+          <p
+            className="inline-flex items-center justify-center gap-2"
+            suppressHydrationWarning
+          >
+            <GwadaFaviconIcon size="chip" className="size-4 opacity-90" />
+            <span>
+              © {new Date().getFullYear()} {appName}.
+            </span>
           </p>
           <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <Link

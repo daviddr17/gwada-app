@@ -65,10 +65,41 @@ enum PosDesign {
         }
     }
 
-    static func tableStatusColor(isOpen: Bool, openCents: Int) -> Color {
-        guard isOpen else { return statusFree }
-        if openCents <= 0 { return statusOccupied.opacity(0.85) }
-        return statusOccupied
+    static let sessionAmberAfterMinutes = 45
+
+    enum PosTableChromeTone: Equatable {
+        case free
+        case occupied
+        case occupiedSoft
+        case amber
+    }
+
+    static func sessionAgeMinutes(openedAt: String, now: Date = Date()) -> Int? {
+        guard let opened = ISO8601DateFormatter().date(from: openedAt)
+            ?? isoFractional.date(from: openedAt)
+        else { return nil }
+        return max(0, Int(now.timeIntervalSince(opened) / 60))
+    }
+
+    static func sessionTimerIsAmber(ageMinutes: Int?) -> Bool {
+        guard let ageMinutes else { return false }
+        return ageMinutes >= sessionAmberAfterMinutes
+    }
+
+    static func tableStatusChromeTone(isOpen: Bool, openCents: Int, ageMinutes: Int? = nil) -> PosTableChromeTone {
+        guard isOpen else { return .free }
+        if sessionTimerIsAmber(ageMinutes: ageMinutes) { return .amber }
+        if openCents <= 0 { return .occupiedSoft }
+        return .occupied
+    }
+
+    static func tableStatusColor(isOpen: Bool, openCents: Int, ageMinutes: Int? = nil) -> Color {
+        switch tableStatusChromeTone(isOpen: isOpen, openCents: openCents, ageMinutes: ageMinutes) {
+        case .free: return statusFree
+        case .occupied: return statusOccupied
+        case .occupiedSoft: return statusOccupied.opacity(0.85)
+        case .amber: return statusAmber
+        }
     }
 
     static func normalizeHex(_ raw: String?) -> String? {

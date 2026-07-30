@@ -95,7 +95,9 @@ struct TablesHomeView: View {
     ) -> some View {
         let isOpen = open != nil
         let openCents = meta?.openCents ?? 0
-        let tint = PosDesign.tableStatusColor(isOpen: isOpen, openCents: openCents)
+        let age = open.flatMap { PosDesign.sessionAgeMinutes(openedAt: $0.opened_at, now: tick) }
+        let borderTint = PosDesign.tableStatusColor(isOpen: isOpen, openCents: openCents, ageMinutes: age)
+        let badgeTint = PosDesign.tableStatusColor(isOpen: isOpen, openCents: openCents, ageMinutes: nil)
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(table.label)
@@ -106,7 +108,7 @@ struct TablesHomeView: View {
                 PosStatusBadge(
                     title: isOpen ? "Besetzt" : "Frei",
                     emphasized: isOpen,
-                    tint: tint
+                    tint: badgeTint
                 )
             }
             Text("\(table.capacity) Plätze")
@@ -121,7 +123,9 @@ struct TablesHomeView: View {
                     Text("· \(open.cover_count) Pers.")
                         .font(.caption)
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(
+                    PosDesign.sessionTimerIsAmber(ageMinutes: age) ? PosDesign.statusAmber : Color.secondary
+                )
                 if openCents > 0 {
                     Text(PosMoney.format(openCents))
                         .font(.subheadline.weight(.semibold).monospacedDigit())
@@ -141,7 +145,7 @@ struct TablesHomeView: View {
         .background(PosDesign.cardBackground, in: RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
-                .strokeBorder(tint.opacity(isOpen ? 0.45 : 0.12), lineWidth: 1)
+                .strokeBorder(borderTint.opacity(isOpen ? 0.45 : 0.12), lineWidth: 1)
         )
     }
 

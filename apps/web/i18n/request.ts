@@ -1,4 +1,4 @@
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
 import {
   APP_LOCALE_COOKIE,
@@ -9,6 +9,11 @@ import {
 } from "./config";
 import "./global";
 
+/**
+ * UI language: cookie (user choice) → German product default.
+ * Do not follow Accept-Language — that made French browsers land on `fr`
+ * without ever picking a language (legacy `fr-GP` profile default made it worse).
+ */
 async function resolveRequestLocale(): Promise<AppLocale> {
   const store = await cookies();
   const fromCookie = store.get(APP_LOCALE_COOKIE)?.value;
@@ -17,12 +22,6 @@ async function resolveRequestLocale(): Promise<AppLocale> {
   }
   if (fromCookie) {
     return normalizeAppLocale(fromCookie);
-  }
-
-  const accept = (await headers()).get("accept-language");
-  if (accept) {
-    const primary = accept.split(",")[0]?.trim();
-    if (primary) return normalizeAppLocale(primary);
   }
 
   return DEFAULT_APP_LOCALE;

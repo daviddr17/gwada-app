@@ -11,6 +11,7 @@ import { UnifiedInboxBackgroundSyncMount } from "@/components/contacts/unified-i
 import { AppScrollUnlockOnNavigate } from "@/components/providers/app-scroll-unlock-on-navigate";
 import { SoftNavLockProvider } from "@/components/providers/soft-nav-lock-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { PersonalOnboardingProvider } from "@/components/onboarding/personal-onboarding-provider";
 import { RestaurantSetupWizardProvider } from "@/components/onboarding/restaurant-setup-wizard-provider";
 import { ProfileLocaleSyncMount } from "@/components/providers/profile-locale-sync-mount";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
@@ -82,21 +83,23 @@ export default function AppLayout({
                   <DashboardWidgetPreferencesProvider>
                     <AccentColorProvider>
                       <RestaurantSetupWizardProvider>
-                        <SoftNavLockProvider>
-                          <AppShellReadinessProvider>
-                            <AppScrollUnlockOnNavigate />
-                            <DashboardPwaSetup />
-                            <AuthCookieCleanupMount />
-                            <DashboardBatchPrefetchMount />
-                            <AppModuleWarmPrefetchMount />
-                            <UnifiedInboxBackgroundSyncMount />
-                            <AppDashboardLivePatchMount />
-                            <ProfilePresenceHeartbeat />
-                            <ProfileLocaleSyncMount />
-                            <AppModuleLiveProviders />
-                            <AppShell>{children}</AppShell>
-                          </AppShellReadinessProvider>
-                        </SoftNavLockProvider>
+                        <PersonalOnboardingProvider>
+                          <SoftNavLockProvider>
+                            <AppShellReadinessProvider>
+                              <AppScrollUnlockOnNavigate />
+                              <DashboardPwaSetup />
+                              <AuthCookieCleanupMount />
+                              <DashboardBatchPrefetchMount />
+                              <AppModuleWarmPrefetchMount />
+                              <UnifiedInboxBackgroundSyncMount />
+                              <AppDashboardLivePatchMount />
+                              <ProfilePresenceHeartbeat />
+                              <ProfileLocaleSyncMount />
+                              <AppModuleLiveProviders />
+                              <AppShell>{children}</AppShell>
+                            </AppShellReadinessProvider>
+                          </SoftNavLockProvider>
+                        </PersonalOnboardingProvider>
                       </RestaurantSetupWizardProvider>
                     </AccentColorProvider>
                   </DashboardWidgetPreferencesProvider>

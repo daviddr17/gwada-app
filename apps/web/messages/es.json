@@ -292,5 +292,54 @@
       "showMore": "Ver más",
       "showLess": "Ver menos"
     }
+  },
+  "PersonalOnboarding": {
+    "ariaLabel": "Profil einrichten",
+    "brand": "Gwada",
+    "tagline": "Dein Profil",
+    "stepOf": "Schritt {current} von {total}",
+    "close": "Schließen",
+    "back": "Zurück",
+    "continue": "Weiter",
+    "finish": "Profil speichern",
+    "saving": "Wird gespeichert…",
+    "launch": "Los geht’s",
+    "welcome": {
+      "eyebrow": "Willkommen im Team",
+      "title": "Richte dein Profil ein",
+      "description": "Sprache, Name und Erreichbarkeit — damit dein Restaurant dich sofort richtig ansprechen kann.",
+      "hint": "Dauert nur einen Moment. Du kannst alles später unter Profil noch anpassen."
+    },
+    "language": {
+      "title": "Welche Sprache soll die App sprechen?",
+      "description": "Wir starten auf Deutsch. Wähle die Sprache, in der du Gwada nutzen möchtest."
+    },
+    "identity": {
+      "title": "Wie heißt du?",
+      "description": "Vor- und Nachname erscheinen im Team, in Schichtplänen und Benachrichtigungen.",
+      "firstName": "Vorname",
+      "firstNamePlaceholder": "z. B. Marie",
+      "lastName": "Nachname",
+      "lastNamePlaceholder": "z. B. Dupont"
+    },
+    "contact": {
+      "title": "Wie erreichen wir dich?",
+      "description": "Optional — hilfreich für Schichtänderungen und Team-Nachrichten.",
+      "phone": "Telefon",
+      "phonePlaceholder": "+49 …",
+      "phoneHint": "Kannst du auch überspringen und später ergänzen."
+    },
+    "done": {
+      "title": "Willkommen, {name}",
+      "description": "Dein Profil ist bereit. Viel Erfolg im Team."
+    },
+    "errors": {
+      "namesRequired": "Bitte Vor- und Nachname eintragen.",
+      "namesFailed": "Name konnte nicht gespeichert werden.",
+      "localeFailed": "Sprache konnte nicht gespeichert werden.",
+      "phoneFailed": "Telefonnummer ungültig oder konnte nicht gespeichert werden.",
+      "authRequired": "Bitte zuerst anmelden.",
+      "saveFailed": "Profil konnte nicht gespeichert werden."
+    }
   }
 }

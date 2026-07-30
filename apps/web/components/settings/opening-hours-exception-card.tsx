@@ -58,10 +58,6 @@ function withAddedPeriod(periods: HoursPeriod[]): HoursPeriod[] {
       ];
     }
   }
-  const lastClose = periods[periods.length - 1]?.close?.trim() || "14:30";
-  if (lastClose <= "16:00") {
-    return [...periods, { open: "17:30", close: "22:00" }];
-  }
   return [...periods, { open: "17:30", close: "22:00" }];
 }
 

@@ -442,7 +442,7 @@ export function RestaurantBillingPanel() {
           </p>
         </CardHeader>
         <CardContent>
-          <BillingComparisonTable />
+          <BillingComparisonTable interval={interval} />
           <p className="mt-4 text-xs text-muted-foreground">
             POS-Add-on: {pos.price.monthlyEur}€/Monat bzw.{" "}
             {pos.price.yearlyPerMonthEur}€/Monat jährlich — zu jedem Plan

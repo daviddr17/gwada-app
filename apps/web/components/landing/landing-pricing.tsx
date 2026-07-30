@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useState } from "react";
-import { Check, Infinity as InfinityIcon } from "lucide-react";
+import { Check } from "lucide-react";
 import { BillingComparisonTable } from "@/components/billing/billing-comparison-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,46 +34,40 @@ export function LandingPricing() {
   const interval: BillingInterval = yearly ? "year" : "month";
   const savings = yearlySavingsPercent(BILLING_PLANS.pro.price);
   const pos = BILLING_ADDONS.pos;
+  const posPrice = priceForInterval(pos.price, interval);
 
   return (
     <section
       id="pricing"
-      className="scroll-mt-28 border-t border-border/50 bg-background py-28"
+      className="relative scroll-mt-28 overflow-hidden border-t border-border/50 py-28"
     >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,var(--accent)_0%,transparent_55%)] opacity-[0.07] dark:opacity-[0.12]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-border to-transparent"
+      />
+
       <div className="mx-auto max-w-6xl px-6">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
             Preise
           </p>
-          <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight md:text-4xl">
+          <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight md:text-5xl md:leading-[1.1]">
             Zahlt für Power — nicht für Köpfe
           </h2>
           <p className="mt-4 text-pretty text-muted-foreground md:text-lg">
             Unbegrenzte Mitarbeiter, Reservierungen und Speisen in jedem Plan.
-            Keine Seat-Fees. Ihr upgradet für Module — nicht für Volumen.
+            Keine Seat-Fees. Upgrade für Module — nicht für Volumen.
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm">
-            {[
-              "Keine Seat-Fees",
-              "Unbegrenzte Reservierungen",
-              "Unbegrenzte Speisen",
-            ].map((label) => (
-              <span
-                key={label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-3 py-1"
-              >
-                <InfinityIcon className="size-3.5 text-primary" />
-                {label}
-              </span>
-            ))}
-          </div>
-
-          <div className="mt-10 flex items-center justify-center gap-3">
+          <div className="mt-10 inline-flex items-center gap-3 rounded-full border border-border/60 bg-card/80 px-4 py-2 shadow-sm backdrop-blur-sm">
             <Label
               htmlFor="billing-toggle"
               className={cn(
-                "text-sm font-medium",
+                "cursor-pointer text-sm font-medium",
                 !yearly ? "text-foreground" : "text-muted-foreground",
               )}
             >
@@ -88,13 +82,13 @@ export function LandingPricing() {
             <Label
               htmlFor="billing-toggle"
               className={cn(
-                "text-sm font-medium",
+                "cursor-pointer text-sm font-medium",
                 yearly ? "text-foreground" : "text-muted-foreground",
               )}
             >
               Jährlich
               {savings != null ? (
-                <span className="ml-1.5 text-xs font-normal text-emerald-700 dark:text-emerald-400">
+                <span className="ml-1.5 rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
                   −{savings}%
                 </span>
               ) : null}
@@ -102,7 +96,7 @@ export function LandingPricing() {
           </div>
         </div>
 
-        <div className="mt-16 grid gap-6 overflow-visible pb-2 lg:grid-cols-3">
+        <div className="mt-16 grid gap-5 overflow-visible pb-2 lg:grid-cols-3 lg:gap-6">
           {PLAN_ORDER.map((planId, i) => {
             const t = BILLING_PLANS[planId];
             const price = priceForInterval(t.price, interval);
@@ -125,7 +119,7 @@ export function LandingPricing() {
                     "hover:-translate-y-1.5 hover:border-primary/25 hover:shadow-lg",
                     "dark:hover:border-primary/35 dark:hover:shadow-primary/5",
                     t.highlight &&
-                      "z-[1] overflow-visible border-primary/35 shadow-xl ring-2 ring-primary/20 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/10 lg:scale-[1.02]",
+                      "z-[1] overflow-visible border-primary/40 shadow-xl ring-2 ring-primary/20 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/10 lg:scale-[1.03]",
                   )}
                 >
                   {t.highlight ? (
@@ -134,39 +128,52 @@ export function LandingPricing() {
                     </Badge>
                   ) : null}
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-xl">{t.name}</CardTitle>
-                    <CardDescription className="text-base">
+                    <p className="text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                      {t.tagline}
+                    </p>
+                    <CardTitle className="mt-1 text-2xl tracking-tight">
+                      {t.name}
+                    </CardTitle>
+                    <CardDescription className="text-base leading-relaxed">
                       {t.pitch}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex flex-1 flex-col pt-2">
-                    <div className="mt-2 flex min-h-[3.5rem] flex-wrap items-baseline gap-1">
+                    <div className="mt-2 flex min-h-[3.75rem] flex-wrap items-baseline gap-x-1.5 gap-y-0">
                       {price === 0 ? (
                         <>
-                          <span className="text-4xl font-semibold tracking-tight">
-                            Kostenlos
+                          <span className="text-4xl font-semibold tracking-tight md:text-5xl">
+                            0€
                           </span>
                           <span className="text-sm text-muted-foreground">
-                            für immer
+                            /Monat · für immer
                           </span>
                         </>
                       ) : (
                         <>
-                          <span className="text-4xl font-semibold tracking-tight">
+                          <span className="text-4xl font-semibold tracking-tight md:text-5xl">
                             {price}€
                           </span>
                           <span className="text-sm text-muted-foreground">
                             /Monat
-                            {yearly ? " (jährlich)" : ""}
+                            {yearly ? (
+                              <span className="block text-xs sm:inline sm:before:content-['·_']">
+                                jährlich abgerechnet
+                              </span>
+                            ) : null}
                           </span>
                         </>
                       )}
                     </div>
                     <ul className="mt-8 space-y-3 text-sm text-muted-foreground">
                       {t.cardBullets.map((b) => (
-                        <li key={b} className="flex gap-2">
-                          <Check className="mt-0.5 size-4 shrink-0 text-primary" />
-                          <span>{b}</span>
+                        <li key={b} className="flex gap-2.5">
+                          <span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <Check className="size-3" strokeWidth={2.5} />
+                          </span>
+                          <span className="leading-snug text-foreground/85">
+                            {b}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -188,47 +195,54 @@ export function LandingPricing() {
         </div>
 
         <motion.div
-          className="mt-10 rounded-2xl border border-border/60 bg-muted/20 px-6 py-6 md:px-8"
+          className="mt-8 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-muted/40 via-card/80 to-card px-6 py-7 md:px-8"
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-40px" }}
           transition={{ duration: 0.45 }}
         >
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
-                Optional
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-xl">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                Optional · Add-on
               </p>
-              <h3 className="mt-2 text-xl font-semibold tracking-tight">
-                {pos.name}-Add-on — {priceForInterval(pos.price, interval)}€/Monat
-                {yearly ? " (jährlich)" : ""}
+              <h3 className="mt-2 text-2xl font-semibold tracking-tight">
+                {pos.name} — {posPrice}€
+                <span className="text-base font-normal text-muted-foreground">
+                  /Monat
+                  {yearly ? " · jährlich" : ""}
+                </span>
               </h3>
-              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                {pos.pitch} Zu jedem Plan buchbar.
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {pos.pitch} Zu Free, Basic und Pro zubuchbar.
               </p>
             </div>
-            <ul className="grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+            <ul className="grid gap-2 text-sm sm:grid-cols-2 lg:max-w-md">
               {pos.cardBullets.slice(0, 4).map((b) => (
                 <li key={b} className="flex gap-2">
                   <Check className="mt-0.5 size-4 shrink-0 text-primary" />
-                  {b}
+                  <span className="text-foreground/85">{b}</span>
                 </li>
               ))}
             </ul>
           </div>
         </motion.div>
 
-        <div className="mt-20">
-          <div className="mx-auto mb-8 max-w-2xl text-center">
-            <h3 className="text-2xl font-semibold tracking-tight">
-              Genau wissen, was wann dabei ist
+        <div className="mt-24">
+          <div className="mx-auto mb-10 max-w-2xl text-center">
+            <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
+              Vergleich
+            </p>
+            <h3 className="mt-3 text-balance text-2xl font-semibold tracking-tight md:text-3xl">
+              Alle Funktionen im Überblick
             </h3>
-            <p className="mt-3 text-muted-foreground">
-              Die Highlights ohne Limit gelten für Free, Basic und Pro — das ist
-              der Deal, den man bei Restaurant-Software fast nirgends bekommt.
+            <p className="mt-3 text-pretty text-muted-foreground">
+              Free startet ohne Seat-Fees und ohne Limits bei Speisen,
+              Reservierungen und Team-Zugängen — Module kommen mit Basic und
+              Pro dazu.
             </p>
           </div>
-          <BillingComparisonTable />
+          <BillingComparisonTable variant="landing" interval={interval} />
         </div>
       </div>
     </section>

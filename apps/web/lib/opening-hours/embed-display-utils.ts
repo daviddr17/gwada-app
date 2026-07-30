@@ -1,4 +1,8 @@
 import { WEEKDAY_LABEL_DE, WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
+import {
+  dayHoursOpenPeriods,
+  formatOpenPeriodsLabel,
+} from "@/lib/opening-hours/hours-periods";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
 
 const JS_DAY_TO_WEEKDAY: readonly Weekday[] = [
@@ -17,12 +21,13 @@ export function weekdayFromDateYmd(dateYmd: string): Weekday {
 }
 
 export function formatDayHoursLabel(
-  hours: DayHours,
+  hours: DayHours | DateHoursException,
   closedLabel = "Geschlossen",
 ): string {
   if (hours.closed) return closedLabel;
-  if (hours.open && hours.close) return `${hours.open} – ${hours.close}`;
-  return "—";
+  const periods = dayHoursOpenPeriods(hours);
+  if (periods.length === 0) return "—";
+  return formatOpenPeriodsLabel(periods, closedLabel);
 }
 
 export function formatExceptionDateDe(dateYmd: string): string {

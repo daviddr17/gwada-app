@@ -11,6 +11,10 @@ import {
   normalizeScheduleHHmm,
   openingHoursDbEnabled,
 } from "@/lib/supabase/opening-hours-db";
+import {
+  exceptionOpenPeriods,
+  withSyncedLegacyOpenClose,
+} from "@/lib/opening-hours/hours-periods";
 import { defaultExceptionDateString } from "@/lib/restaurant/date-exception-utils";
 import {
   normalizeRestaurantSlugInput,
@@ -182,8 +186,8 @@ export function validateOpeningHours(p: RestaurantProfile): string | null {
       return `Datum ${ex.date} ist mehrfach eingetragen.`;
     }
     seenDates.add(ex.date);
-    if (!ex.closed && (!ex.open?.trim() || !ex.close?.trim())) {
-      return `Bei Ausnahme am ${ex.date}: Zeiten angeben oder „geschlossen“ aktivieren.`;
+    if (!ex.closed && exceptionOpenPeriods(ex).length === 0) {
+      return `Bei Ausnahme am ${ex.date}: mindestens ein offenes Zeitfenster angeben oder „geschlossen“ aktivieren.`;
     }
   }
 
@@ -236,13 +240,18 @@ export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile
       .map((ex) => {
         const trimmed = ex.date?.trim() ?? "";
         const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
-        return {
+        const synced = withSyncedLegacyOpenClose({
           ...ex,
           date: dateOk ? trimmed : defaultExceptionDateString(),
           note: ex.note?.trim() || undefined,
-          open: ex.closed ? undefined : normalizeScheduleHHmm(ex.open),
-          close: ex.closed ? undefined : normalizeScheduleHHmm(ex.close),
-        };
+          periods: ex.closed
+            ? undefined
+            : exceptionOpenPeriods(ex).map((period) => ({
+                open: normalizeScheduleHHmm(period.open) ?? period.open,
+                close: normalizeScheduleHHmm(period.close) ?? period.close,
+              })),
+        });
+        return synced;
       })
       .sort((a, b) => a.date.localeCompare(b.date)),
   };

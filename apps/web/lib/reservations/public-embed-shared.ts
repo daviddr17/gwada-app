@@ -5,6 +5,10 @@ import {
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
 import {
+  dayHoursOpenPeriods,
+  isMinutesWithinOpenPeriods,
+} from "@/lib/opening-hours/hours-periods";
+import {
   hhmmToMinutes,
   openingDaySlotStartsMinutes,
   resolveHoursForRestaurantCalendarDay,
@@ -108,10 +112,17 @@ export function filterSlotsForMinMinutesBeforeClosing(
     config.weeklyHours,
     config.dateExceptions,
   );
-  if (hours.closed || !hours.close?.trim()) return slots;
+  const periods = dayHoursOpenPeriods(hours);
+  if (periods.length === 0) return slots;
 
-  const latestStartM = hhmmToMinutes(hours.close) - buffer;
-  return slots.filter((hm) => hhmmToMinutes(hm) <= latestStartM);
+  return slots.filter((hm) => {
+    const m = hhmmToMinutes(hm);
+    return periods.some((period) => {
+      const openM = hhmmToMinutes(period.open);
+      const closeM = hhmmToMinutes(period.close);
+      return m >= openM && m <= closeM - buffer;
+    });
+  });
 }
 
 export function publicTimeSlotsForYmd(
@@ -169,8 +180,5 @@ export function isStartWithinOpeningHours(
     config.weeklyHours,
     config.dateExceptions,
   );
-  if (hours.closed || !hours.open || !hours.close) return false;
-  const openM = hhmmToMinutes(hours.open);
-  const closeM = hhmmToMinutes(hours.close);
-  return minutes >= openM && minutes < closeM;
+  return isMinutesWithinOpenPeriods(minutes, dayHoursOpenPeriods(hours));
 }

@@ -292,5 +292,54 @@
       "showMore": "Show more",
       "showLess": "Show less"
     }
+  },
+  "PersonalOnboarding": {
+    "ariaLabel": "Set up your profile",
+    "brand": "Gwada",
+    "tagline": "Your profile",
+    "stepOf": "Step {current} of {total}",
+    "close": "Close",
+    "back": "Back",
+    "continue": "Continue",
+    "finish": "Save profile",
+    "saving": "Saving…",
+    "launch": "Let’s go",
+    "welcome": {
+      "eyebrow": "Welcome to the team",
+      "title": "Set up your profile",
+      "description": "Language, name and how to reach you — so your restaurant can address you correctly right away.",
+      "hint": "Takes a moment. You can change everything later under Profile."
+    },
+    "language": {
+      "title": "Which language should the app use?",
+      "description": "We start in German. Pick the language you want for Gwada."
+    },
+    "identity": {
+      "title": "What’s your name?",
+      "description": "First and last name appear in the team, shift plans and notifications.",
+      "firstName": "First name",
+      "firstNamePlaceholder": "e.g. Marie",
+      "lastName": "Last name",
+      "lastNamePlaceholder": "e.g. Dupont"
+    },
+    "contact": {
+      "title": "How can we reach you?",
+      "description": "Optional — useful for shift changes and team messages.",
+      "phone": "Phone",
+      "phonePlaceholder": "+49 …",
+      "phoneHint": "You can skip this and add it later."
+    },
+    "done": {
+      "title": "Welcome, {name}",
+      "description": "Your profile is ready. Have a great start with the team."
+    },
+    "errors": {
+      "namesRequired": "Please enter first and last name.",
+      "namesFailed": "Could not save your name.",
+      "localeFailed": "Could not save language.",
+      "phoneFailed": "Invalid phone number or save failed.",
+      "authRequired": "Please sign in first.",
+      "saveFailed": "Could not save profile."
+    }
   }
 }

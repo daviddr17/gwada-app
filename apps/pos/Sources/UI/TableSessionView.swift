@@ -114,6 +114,7 @@ struct TableSessionView: View {
         .sheet(isPresented: $showBon) {
             BonSheetView(
                 tableLabel: table.label,
+                sessionId: ensureSessionId(),
                 cart: $cart,
                 openLines: openLines,
                 coverCount: currentSession?.cover_count,

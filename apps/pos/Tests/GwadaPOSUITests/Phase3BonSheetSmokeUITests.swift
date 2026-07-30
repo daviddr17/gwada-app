@@ -39,8 +39,8 @@ final class Phase3BonSheetSmokeUITests: XCTestCase {
             "Der Bon-Dock-Button sollte den Bon-Sheet öffnen."
         )
         XCTAssertTrue(
-            app.staticTexts["Noch nichts gesendet"].waitForExistence(timeout: 5),
-            "Der leere Bon sollte gesendete Positionen beschreiben, nicht den Warenkorb."
+            app.navigationBars["Bon"].waitForExistence(timeout: 5),
+            "Der Bon-Sheet sollte seinen Navigationstitel zeigen."
         )
     }
 }

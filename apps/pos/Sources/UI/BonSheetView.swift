@@ -23,8 +23,16 @@ struct BonSheetActionState {
     }
 }
 
+func courseNeedsFire(openLines: [SessionOpenLine], course: Int, sessionId: String) -> Bool {
+    let courseLines = openLines.filter { $0.course == course }
+    return !courseLines.isEmpty
+        && !courseLines.contains(where: \.isFired)
+        && !PosHubState.shared.hasFired(sessionId: sessionId, course: course)
+}
+
 struct BonSheetView: View {
     let tableLabel: String
+    let sessionId: String
     @Binding var cart: [PosCartLine]
     let openLines: [SessionOpenLine]
     let coverCount: Int?
@@ -108,7 +116,7 @@ struct BonSheetView: View {
                 sentLine(line)
             }
 
-            if sentLines.contains(where: { !$0.isFired }) {
+            if courseNeedsFire(openLines: sentLines, course: course, sessionId: sessionId) {
                 Button("\(PosCourse.label(course)) schicken") {
                     Task { await fire(course: course) }
                 }
@@ -247,6 +255,7 @@ struct BonSheetView: View {
 #Preview {
     BonSheetView(
         tableLabel: "Tisch 12",
+        sessionId: "preview-session",
         cart: .constant([]),
         openLines: [],
         coverCount: 2,

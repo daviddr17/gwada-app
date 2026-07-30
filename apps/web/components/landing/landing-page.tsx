@@ -159,6 +159,24 @@ export function LandingPage() {
             >
               Datenschutz
             </Link>
+            <span className="opacity-40" aria-hidden>
+              ·
+            </span>
+            <Link
+              href="/agb"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              AGB
+            </Link>
+            <span className="opacity-40" aria-hidden>
+              ·
+            </span>
+            <Link
+              href="/avv"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              AVV
+            </Link>
           </p>
         </footer>
       </main>

@@ -302,16 +302,6 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/warteliste")}
-                      tooltip="Warteliste"
-                      render={<Link href="/superadmin/warteliste" prefetch />}
-                    >
-                      <Hourglass />
-                      <span>Warteliste</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
                       isActive={pathname.startsWith(
                         "/superadmin/restaurants",
                       )}
@@ -340,6 +330,28 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/warteliste")}
+                      tooltip="Warteliste"
+                      render={<Link href="/superadmin/warteliste" prefetch />}
+                    >
+                      <Hourglass />
+                      <span>Warteliste</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/newsletter")}
+                      tooltip="Newsletter"
+                      render={
+                        <Link href="/superadmin/newsletter" prefetch />
+                      }
+                    >
+                      <Mail />
+                      <span>Newsletter</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/integrationen")}
                       tooltip="Integrationen"
                       render={
@@ -356,7 +368,7 @@ export function AppSidebar() {
                       tooltip="WAHA"
                       render={<Link href="/superadmin/waha" prefetch />}
                     >
-                      <WhatsAppGlyph className="size-4" />
+                      <WhatsAppGlyph className="size-4 [&_path]:fill-current" />
                       <span>WAHA</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -374,6 +386,16 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/design")}
+                      tooltip="Design"
+                      render={<Link href="/superadmin/design" prefetch />}
+                    >
+                      <Palette />
+                      <span>Design</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
                       isActive={pathname.startsWith(SUPERADMIN_VORLAGEN_ROUTES.root)}
                       tooltip="Vorlagen"
                       render={
@@ -382,32 +404,6 @@ export function AppSidebar() {
                     >
                       <Files />
                       <span>Vorlagen</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith(
-                        "/superadmin/benachrichtigungen",
-                      )}
-                      tooltip="Benachrichtigungen"
-                      render={
-                        <Link href="/superadmin/benachrichtigungen" prefetch />
-                      }
-                    >
-                      <Bell />
-                      <span>Benachrichtigungen</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/newsletter")}
-                      tooltip="Newsletter"
-                      render={
-                        <Link href="/superadmin/newsletter" prefetch />
-                      }
-                    >
-                      <Mail />
-                      <span>Newsletter</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
@@ -429,12 +425,16 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/design")}
-                      tooltip="Design"
-                      render={<Link href="/superadmin/design" prefetch />}
+                      isActive={pathname.startsWith(
+                        "/superadmin/benachrichtigungen",
+                      )}
+                      tooltip="Benachrichtigungen"
+                      render={
+                        <Link href="/superadmin/benachrichtigungen" prefetch />
+                      }
                     >
-                      <Palette />
-                      <span>Design</span>
+                      <Bell />
+                      <span>Benachrichtigungen</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </>

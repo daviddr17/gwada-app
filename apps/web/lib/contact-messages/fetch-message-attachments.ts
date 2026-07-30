@@ -8,6 +8,8 @@ export type RawMessageAttachmentRow = {
   file_name: string;
   mime_type: string;
   byte_size: number | null;
+  /** Bucket-Pfad oder `imap:{uid}:{index}` (lazy Proxy, kein Storage-Objekt). */
+  storage_path: string | null;
 };
 
 export async function fetchMessageAttachmentsForRestaurant(
@@ -19,7 +21,7 @@ export async function fetchMessageAttachmentsForRestaurant(
 ): Promise<{ data: RawMessageAttachmentRow[]; error: Error | null }> {
   let q = client
     .from("contact_message_attachments")
-    .select("id, message_id, kind, file_name, mime_type, byte_size")
+    .select("id, message_id, kind, file_name, mime_type, byte_size, storage_path")
     .eq("restaurant_id", params.restaurantId);
 
   if (params.messageIds && params.messageIds.length > 0) {

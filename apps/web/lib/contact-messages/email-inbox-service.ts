@@ -252,6 +252,7 @@ function mapEnvelopesToEmailRows(
         uid: env.uid,
         index: a.index,
       }),
+      loadOnClick: true as const,
     }));
     return {
       id: `imap:${env.uid}`,

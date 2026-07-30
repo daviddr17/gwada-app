@@ -1,5 +1,8 @@
 import { CONTACT_MESSAGE_ATTACHMENTS_BUCKET } from "@/lib/constants/contact-message-attachments";
+import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
+import { parseImapAttachmentStoragePath } from "@/lib/contact-messages/imap-attachment-storage-path";
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
+import { fetchImapAttachmentContent } from "@/lib/email/imap-inbox";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -39,6 +42,40 @@ export async function GET(req: Request) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
 
+  const storagePath = row.storage_path as string;
+  const imapRef = parseImapAttachmentStoragePath(storagePath);
+  if (imapRef) {
+    const admin = createSupabaseAdminClient();
+    if (!admin) {
+      return Response.json({ error: "server_misconfigured" }, { status: 503 });
+    }
+    const creds = await resolveRestaurantImapCredentials(admin, restaurantId);
+    if (!creds) {
+      return Response.json({ error: "imap_not_configured" }, { status: 503 });
+    }
+    const { data, error: imapErr } = await fetchImapAttachmentContent(
+      creds,
+      imapRef.uid,
+      imapRef.index,
+    );
+    if (imapErr) {
+      return Response.json({ error: imapErr }, { status: 500 });
+    }
+    if (!data) {
+      return Response.json({ error: "not_found" }, { status: 404 });
+    }
+    const fileName = data.fileName || (row.file_name as string) || "anhang";
+    const mime = data.mimeType || (row.mime_type as string) || "application/octet-stream";
+    const disposition = mime.startsWith("image/") ? "inline" : "attachment";
+    return new Response(new Uint8Array(data.bytes), {
+      headers: {
+        "Content-Type": mime,
+        "Content-Disposition": `${disposition}; filename="${encodeURIComponent(fileName)}"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  }
+
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
@@ -46,7 +83,7 @@ export async function GET(req: Request) {
 
   const { data: blob, error: dlError } = await admin.storage
     .from(CONTACT_MESSAGE_ATTACHMENTS_BUCKET)
-    .download(row.storage_path as string);
+    .download(storagePath);
 
   if (dlError || !blob) {
     return Response.json(

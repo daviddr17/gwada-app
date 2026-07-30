@@ -36,11 +36,11 @@
 | `PosHubState.swift` / `PosRuntime.swift` | Optional `updateCoverCount` for guests ± |
 | Tests | Token/status helpers; smoke still green |
 
-Suggested order: **LP1 → LP2 → LP3 → LP4**.
+Suggested order: **1 → 2 → 3 → 4** (Theme → Floor → Order → Bon).
 
 ---
 
-### Task LP1: Adaptive theme tokens
+### Task 1: Adaptive theme tokens
 
 **Files:**
 - Modify: `apps/pos/Sources/UI/PosDesign.swift`
@@ -112,7 +112,7 @@ git commit -m "feat(pos): adaptive light/dark PosDesign tokens and status dots"
 
 ---
 
-### Task LP2: Floor card redesign
+### Task 2: Floor card redesign
 
 **Files:**
 - Modify: `apps/pos/Sources/UI/TablesHomeView.swift`
@@ -146,7 +146,7 @@ git commit -m "feat(pos): prototype-like floor cards with status dots"
 
 ---
 
-### Task LP3: Order chrome (menu-first + dock + guests)
+### Task 3: Order chrome (menu-first + dock + guests)
 
 **Files:**
 - Modify: `apps/pos/Sources/UI/TableSessionView.swift`
@@ -199,7 +199,7 @@ git commit -m "feat(pos): menu-first session chrome with Gang chips and Bon dock
 
 ---
 
-### Task LP4: Bon sheet polish
+### Task 4: Bon sheet polish
 
 **Files:**
 - Modify: `apps/pos/Sources/UI/BonSheetView.swift`
@@ -234,10 +234,10 @@ git commit -m "feat(pos): align Bon sheet course chrome with prototype"
 
 | Spec item | Task |
 |-----------|------|
-| Adaptive Light/Dark tokens | LP1 |
-| Floor big number + status dots | LP2 |
-| Menu-first + Gang chips + hide tab bar + dock + guests | LP3 |
-| Bon chrome | LP4 |
+| Adaptive Light/Dark tokens | 1 |
+| Floor big number + status dots | 2 |
+| Menu-first + Gang chips + hide tab bar + dock + guests | 3 |
+| Bon chrome | 4 |
 | No Kassieren | Global |
 | Amber unchanged | Global / LP2 |
 

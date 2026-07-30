@@ -111,6 +111,17 @@ enum PosDesign {
         return .besetzt
     }
 
+    static func visualStatusLabel(for status: PosTableVisualStatus) -> String {
+        switch status {
+        case .frei: return "Frei"
+        case .besetzt: return "Besetzt"
+        case .bestellt: return "Bestellt"
+        case .serviert: return "Serviert"
+        case .zahlt: return "Zahlt"
+        case .bezahlt: return "Bezahlt"
+        }
+    }
+
     static func resolveAccentHex(_ raw: String?) -> String {
         guard let normalized = normalizeHex(raw) else { return defaultAccentHex }
         return normalized

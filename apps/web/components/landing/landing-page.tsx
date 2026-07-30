@@ -114,7 +114,7 @@ export function LandingPage() {
 
         <footer className="border-t border-border/50 bg-muted/10 px-6 py-20 pb-40 text-center text-sm text-muted-foreground sm:pb-44 dark:bg-muted/5">
           <p suppressHydrationWarning>
-            © {new Date().getFullYear()} {appName}. Mit Ruhe gebaut.
+            © {new Date().getFullYear()} {appName}.
           </p>
           <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <Link

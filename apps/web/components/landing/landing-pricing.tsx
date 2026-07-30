@@ -39,7 +39,7 @@ export function LandingPricing() {
   return (
     <section
       id="pricing"
-      className="relative scroll-mt-28 overflow-hidden border-t border-border/50 py-28"
+      className="relative scroll-mt-28 overflow-hidden border-t border-border/50 pt-28 pb-14 md:pb-16"
     >
       <div
         aria-hidden

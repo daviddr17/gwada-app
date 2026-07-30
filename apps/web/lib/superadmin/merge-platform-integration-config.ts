@@ -117,6 +117,7 @@ export function mergePlatformIntegrationConfig(
       return ex[k];
     };
     return {
+      ...existing,
       mode: mode ?? "test",
       publishable_key: pick("publishable_key"),
       secret_key: secrets.secret_key,

@@ -1,3 +1,4 @@
+import { assertBillingFeature } from "@/lib/billing/assert-billing-feature";
 import {
   GWADA_DEFAULT_FROM_EMAIL,
   GWADA_DEFAULT_FROM_NAME,
@@ -114,6 +115,19 @@ export async function POST(req: Request) {
   }
 
   const useCustom = body.useCustom === true;
+
+  if (useCustom) {
+    const billing = await assertBillingFeature(
+      restaurantId,
+      "integrations.email",
+    );
+    if (!billing.ok) {
+      return Response.json(
+        { error: billing.error, feature: billing.feature },
+        { status: billing.status },
+      );
+    }
+  }
 
   if (!useCustom) {
     const { error } = await upsertRestaurantEmailIntegration(

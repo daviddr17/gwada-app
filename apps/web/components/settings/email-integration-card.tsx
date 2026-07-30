@@ -23,8 +23,11 @@ import { IntegrationGrantedScopes } from "@/components/settings/integration-gran
 import { GWADA_DEFAULT_FROM_EMAIL } from "@/lib/constants/gwada-email-defaults";
 import { useRegisterSettingsIntegrationSave } from "@/components/settings/settings-integration-save-registry";
 import { invalidateInboxAfterChannelConnect } from "@/lib/contact-messages/invalidate-inbox-after-channel-connect-client";
+import { hasBillingFeature } from "@/lib/billing/entitlements";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import type { EmailIntegrationResponse } from "@/lib/types/restaurant-integration";
@@ -65,7 +68,9 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
   const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has, loading: permLoading } = useRestaurantPermissions();
+  const { entitlements, loading: billingLoading } = useRestaurantBilling();
   const canManage = has("integrations.email");
+  const canOwnMailbox = hasBillingFeature(entitlements, "integrations.email");
   const [state, setState] = useState<EmailIntegrationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
@@ -298,34 +303,54 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
   return (
     <SettingsIntegrationPanel
       title="E-Mail"
-      description="Versendet und empfängt E-Mails in Gwada – Gwada-Standard, IMAP/SMTP, Gmail oder Outlook (OAuth)."
+      description={
+        canOwnMailbox
+          ? "Versendet und empfängt E-Mails in Gwada – Gwada-Standard, IMAP/SMTP, Gmail oder Outlook (OAuth)."
+          : "Reservierungs-Mails laufen über Gwada. Eigener Absender (SMTP/Gmail/Outlook) ab Pro."
+      }
       icon={<Mail className="text-muted-foreground" />}
       accentColor={INTEGRATION_PANEL_ACCENT.email}
       badge={badge}
       summaryLine={
         <>
           Absender:{" "}
-          <span className="font-mono text-foreground">{currentLabel}</span>
+          <span className="font-mono text-foreground">
+            {canOwnMailbox ? currentLabel : GWADA_DEFAULT_FROM_EMAIL}
+          </span>
         </>
       }
-      loading={permLoading || !workspaceReady || loading}
+      loading={permLoading || billingLoading || !workspaceReady || loading}
       denied={!canManage}
       deniedMessage="Keine Berechtigung — bitte Inhaber oder Manager um Freischaltung."
       noRestaurant={workspaceReady && !restaurantId}
       noRestaurantMessage="Wähle zuerst ein Restaurant im Workspace, um E-Mail einzurichten."
     >
+      {!canOwnMailbox ? (
+        <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
+          Free und Basic nutzen den Gwada-Absender.{" "}
+          <a
+            href={APP_ROUTES.settings.billing}
+            className="font-medium text-foreground underline underline-offset-2"
+          >
+            Pro upgraden
+          </a>{" "}
+          für eigenen SMTP/Gmail/Outlook-Absender.
+        </p>
+      ) : null}
       <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
         <div>
           <p className="text-sm font-medium">Eigenes Postfach</p>
           <p className="text-xs text-muted-foreground">
             Statt des Gwada-Standard-Absenders
+            {!canOwnMailbox ? " (Pro)" : ""}
           </p>
         </div>
         <Switch
-          checked={useCustom}
-          disabled={!sendReady}
+          checked={canOwnMailbox ? useCustom : false}
+          disabled={!sendReady || !canOwnMailbox}
           onCheckedChange={(v) => {
             const next = v === true;
+            if (next && !canOwnMailbox) return;
             setUseCustom(next);
             if (!next) setMailboxMode("smtp");
           }}

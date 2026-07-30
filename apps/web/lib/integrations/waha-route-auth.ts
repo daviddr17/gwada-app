@@ -1,3 +1,4 @@
+import { assertBillingFeature } from "@/lib/billing/assert-billing-feature";
 import { assertPlatformWhatsappEnabled } from "@/lib/integrations/platform-messaging-guard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -10,6 +11,7 @@ export type WahaRouteContext = {
 
 export async function authorizeWahaRestaurantRoute(
   restaurantIdRaw: string | null,
+  options?: { requireBilling?: boolean },
 ): Promise<
   | { ok: true; ctx: WahaRouteContext }
   | { ok: false; status: number; error: string }
@@ -49,6 +51,17 @@ export async function authorizeWahaRestaurantRoute(
   const platform = await assertPlatformWhatsappEnabled(supabase);
   if (!platform.ok) {
     return { ok: false, status: 403, error: platform.error };
+  }
+
+  const requireBilling = options?.requireBilling !== false;
+  if (requireBilling) {
+    const billing = await assertBillingFeature(
+      restaurantId,
+      "integrations.whatsapp",
+    );
+    if (!billing.ok) {
+      return { ok: false, status: 403, error: "plan_required" };
+    }
   }
 
   return {

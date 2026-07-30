@@ -9,6 +9,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const auth = await authorizeWahaRestaurantRoute(
     searchParams.get("restaurantId"),
+    { requireBilling: false },
   );
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });

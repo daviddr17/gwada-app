@@ -1,3 +1,4 @@
+import { assertBillingFeature } from "@/lib/billing/assert-billing-feature";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -59,6 +60,18 @@ export async function POST(req: Request) {
   });
   if (!allowed) {
     return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const billing = await assertBillingFeature(
+    reservation.restaurant_id as string,
+    "integrations.whatsapp",
+  );
+  if (!billing.ok) {
+    return Response.json({
+      ok: true,
+      skipped: true,
+      reason: "plan_required",
+    });
   }
 
   const admin = createSupabaseAdminClient();

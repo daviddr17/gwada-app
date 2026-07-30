@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { SidebarModuleUpsellOverlay } from "@/components/billing/sidebar-module-upsell-overlay";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { usePathname, useRouter } from "next/navigation";
@@ -139,6 +140,9 @@ export function AppSidebar() {
     reload: reloadPermissions,
   } = useRestaurantPermissions();
   const { entitlements } = useRestaurantBilling();
+  const [upsellModuleId, setUpsellModuleId] = useState<SidebarModuleId | null>(
+    null,
+  );
   const permissionsPending = permissionsLoading && permissions.size === 0;
   const inSuperadmin = pathname.startsWith("/superadmin");
   const { summary: notificationSummary } = useNotificationSummary();
@@ -463,12 +467,10 @@ export function AppSidebar() {
                             notificationSummary,
                             mod.id,
                           );
-                      const href = billingLocked
-                        ? APP_ROUTES.settings.billing
-                        : mod.href;
                       const modulePending =
+                        !billingLocked &&
                         pendingHref != null &&
-                        normalizeNavHref(href) === pendingHref;
+                        normalizeNavHref(mod.href) === pendingHref;
                       return (
                         <SidebarMenuItem key={mod.id}>
                           <SidebarMenuButton
@@ -487,7 +489,19 @@ export function AppSidebar() {
                                 ? "opacity-55 text-sidebar-foreground/55 hover:opacity-70 hover:text-sidebar-foreground/70"
                                 : undefined
                             }
-                            render={<AppNavLink href={href} />}
+                            render={
+                              billingLocked ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUpsellModuleId(mod.id);
+                                    if (isMobile) setOpenMobile(false);
+                                  }}
+                                />
+                              ) : (
+                                <AppNavLink href={mod.href} />
+                              )
+                            }
                           >
                             <Icon />
                             <span className="flex min-w-0 items-center gap-1.5">
@@ -623,6 +637,10 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
       </div>
+      <SidebarModuleUpsellOverlay
+        moduleId={upsellModuleId}
+        onClose={() => setUpsellModuleId(null)}
+      />
     </Sidebar>
   );
 }

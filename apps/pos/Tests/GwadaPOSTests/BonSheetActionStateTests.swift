@@ -27,24 +27,29 @@ final class BonSheetActionStateTests: XCTestCase {
         XCTAssertFalse(courseNeedsFire(openLines: [unfiredLine], course: 1, sessionId: sessionId))
     }
 
-    func testRejectsSendReentryUntilCurrentSendFinishes() {
-        var state = BonSheetActionState()
-
-        XCTAssertTrue(state.beginSending())
-        XCTAssertFalse(state.beginSending())
-
-        state.finishSending()
-        XCTAssertTrue(state.beginSending())
+    func testCourseNeedsSchickenWhenCartHasCourse() {
+        let line = PosCartLine(
+            menuItemId: "m1",
+            name: "Brot",
+            unitPriceCents: 300,
+            quantity: 1,
+            course: 2,
+            notes: "",
+            modifiers: []
+        )
+        XCTAssertTrue(courseNeedsSchicken(cart: [line], course: 2))
+        XCTAssertFalse(courseNeedsSchicken(cart: [line], course: 1))
+        XCTAssertFalse(courseNeedsSchicken(cart: [], course: 2))
     }
 
-    func testRejectsFireReentryForSameCourseUntilCurrentFireFinishes() {
+    func testRejectsSchickenReentryForSameCourse() {
         var state = BonSheetActionState()
 
-        XCTAssertTrue(state.beginFiring(course: 2))
-        XCTAssertFalse(state.beginFiring(course: 2))
-        XCTAssertTrue(state.beginFiring(course: 3))
+        XCTAssertTrue(state.beginSchicken(course: 2))
+        XCTAssertFalse(state.beginSchicken(course: 2))
+        XCTAssertTrue(state.beginSchicken(course: 3))
 
-        state.finishFiring(course: 2)
-        XCTAssertTrue(state.beginFiring(course: 2))
+        state.finishSchicken(course: 2)
+        XCTAssertTrue(state.beginSchicken(course: 2))
     }
 }

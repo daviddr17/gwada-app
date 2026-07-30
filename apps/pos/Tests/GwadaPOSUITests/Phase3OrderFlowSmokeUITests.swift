@@ -1,6 +1,6 @@
 import XCTest
 
-/// End-to-end Smoke Phase 3: Pair (DEBUG-Approve) → Tisch → Menü → Bon → Senden → Fire → Zur Rechnung.
+/// End-to-end Smoke: Pair → Tisch → Menü → Bon → Gang schicken → Zur Rechnung.
 final class Phase3OrderFlowSmokeUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -29,7 +29,6 @@ final class Phase3OrderFlowSmokeUITests: XCTestCase {
             .firstMatch
         if menuButton.waitForExistence(timeout: 8) {
             menuButton.tap()
-            // Configure sheet? dismiss with Hinzufügen if present
             let add = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Hinzufügen")).firstMatch
             if add.waitForExistence(timeout: 2) {
                 add.tap()
@@ -42,29 +41,31 @@ final class Phase3OrderFlowSmokeUITests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["pos.bon.sheet"].waitForExistence(timeout: 5))
 
-        let send = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Senden")).firstMatch
-        if send.waitForExistence(timeout: 3), send.isEnabled {
-            send.tap()
-            // Sheet may stay open with open lines
-            sleep(1)
+        // Prototype: one CTA „Gang N schicken“ (send + fire) — needs a cart line from the menu.
+        let schicken = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "schicken")).firstMatch
+        guard schicken.waitForExistence(timeout: 5), schicken.isEnabled else {
+            // DEBUG hub catalog may have no €-priced buttons; Bon chrome still verified.
+            XCTAssertTrue(
+                app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Noch keine Artikel")).firstMatch
+                    .waitForExistence(timeout: 3)
+                    || app.buttons["Zur Rechnung"].waitForExistence(timeout: 2),
+                "Bon-Sheet sollte leer oder mit Rechnung-CTA sichtbar sein"
+            )
+            return
         }
 
-        let fire = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "schicken")).firstMatch
-        if fire.waitForExistence(timeout: 5), fire.isEnabled {
-            fire.tap()
-            sleep(1)
-        }
+        schicken.tap()
+        sleep(1)
 
-        let bill = app.buttons["Zur Rechnung"]
+        let bill = app.descendants(matching: .any)["pos.bon.zurRechnung"]
         XCTAssertTrue(bill.waitForExistence(timeout: 5))
+        XCTAssertTrue(bill.isEnabled, "Nach Gang schicken muss Zur Rechnung aktiv sein")
         bill.tap()
 
-        // SplitPay sheet / navigation should appear (title varies)
-        let splitGoneBon = !app.descendants(matching: .any)["pos.bon.sheet"].exists
-            || app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS[c] %@ OR label CONTAINS[c] %@", "Split", "Rechnung")).firstMatch.waitForExistence(timeout: 5)
-            || app.buttons["Fertig"].waitForExistence(timeout: 3)
-            || app.buttons["Abbrechen"].waitForExistence(timeout: 3)
-        XCTAssertTrue(splitGoneBon || app.sheets.firstMatch.exists, "Zur Rechnung sollte Split/Pay öffnen")
+        let splitAppeared = app.buttons["Abbrechen"].waitForExistence(timeout: 8)
+            || app.navigationBars["Rechnung splitten"].waitForExistence(timeout: 2)
+            || app.sheets.firstMatch.waitForExistence(timeout: 2)
+        XCTAssertTrue(splitAppeared, "Zur Rechnung sollte Split/Pay öffnen")
     }
 
     @MainActor

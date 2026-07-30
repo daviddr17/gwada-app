@@ -296,6 +296,7 @@ final class PosHubState: @unchecked Sendable {
         bootstrap.floor.sessionMetaBySessionId.removeValue(forKey: sessionId)
         guard bootstrap.floor.openSessions.count < before else { return false }
         firedCourses.clear(sessionId: sessionId)
+        localOpenLinesBySession.removeValue(forKey: sessionId)
         self.bootstrap = bootstrap
         snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
@@ -328,6 +329,55 @@ final class PosHubState: @unchecked Sendable {
     }
 
     private var firedCourses = PosFiredCourseStore()
+
+    /// Offline / Demo-Hub: gesendete Positionen bleiben sichtbar bis Cloud-Summary greift.
+    private var localOpenLinesBySession: [String: [SessionOpenLine]] = [:]
+
+    func appendLocalOpenLines(sessionId: String, from cartLines: [PosCartLine]) {
+        guard !cartLines.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        var existing = localOpenLinesBySession[sessionId] ?? []
+        for line in cartLines {
+            let id = UUID().uuidString
+            existing.append(
+                SessionOpenLine(
+                    id: id,
+                    orderLineId: id,
+                    name: line.name,
+                    openQuantity: line.quantity,
+                    openCents: line.lineTotalCents,
+                    course: line.course,
+                    firedAt: nil,
+                    detail: line.subtitle,
+                    menuItemId: line.menuItemId
+                )
+            )
+        }
+        localOpenLinesBySession[sessionId] = existing
+    }
+
+    func localOpenLines(sessionId: String) -> [SessionOpenLine] {
+        lock.lock()
+        defer { lock.unlock() }
+        return localOpenLinesBySession[sessionId] ?? []
+    }
+
+    func markLocalCourseFired(sessionId: String, course: Int, at date: Date = Date()) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var lines = localOpenLinesBySession[sessionId] else { return }
+        for i in lines.indices where lines[i].course == course && lines[i].firedAt == nil {
+            lines[i].firedAt = date
+        }
+        localOpenLinesBySession[sessionId] = lines
+    }
+
+    func clearLocalOpenLines(sessionId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        localOpenLinesBySession.removeValue(forKey: sessionId)
+    }
 
     func bumpLocalOrder(sessionId: String, addCents: Int) {
         lock.lock()

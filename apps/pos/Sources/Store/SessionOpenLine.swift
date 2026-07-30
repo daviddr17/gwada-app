@@ -9,6 +9,8 @@ struct SessionOpenLine: Identifiable, Equatable, Sendable {
     var course: Int
     var firedAt: Date?
     var detail: String
+    /// Present for locally buffered lines (menu badges); cloud summary may omit it.
+    var menuItemId: String? = nil
 
     var isFired: Bool { firedAt != nil }
 }

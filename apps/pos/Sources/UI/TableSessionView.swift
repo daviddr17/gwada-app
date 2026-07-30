@@ -14,10 +14,12 @@ struct TableSessionView: View {
     @State private var showMove = false
     @State private var showMoveSession = false
     @State private var showBon = false
+    @State private var pendingSplitAfterBon = false
     @State private var openLines: [SessionOpenLine] = []
     @State private var sendPulse = false
     @State private var activeCourse = PosCourse.main
     @State private var guestCount = 2
+    @State private var bonDetent: PresentationDetent = .large
 
     var body: some View {
         VStack(spacing: 0) {
@@ -113,23 +115,24 @@ struct TableSessionView: View {
                 cart: $cart,
                 openLines: openLines,
                 coverCount: currentSession?.cover_count ?? guestCount,
-                onSend: {
-                    await sendCart()
-                },
-                onFire: { course in
-                    _ = await runtime.fireCourse(sessionId: ensureSessionId(), course: course)
-                    await refreshOpenLines()
+                onSchicken: { course in
+                    await schickenCourse(course)
                 },
                 onWeiterBestellen: {
                     showBon = false
                 },
                 onZurRechnung: {
+                    pendingSplitAfterBon = true
                     showBon = false
-                    showSplit = true
                 }
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large, .medium], selection: $bonDetent)
             .presentationDragIndicator(.visible)
+        }
+        .onChange(of: showBon) { _, isPresented in
+            guard !isPresented, pendingSplitAfterBon else { return }
+            pendingSplitAfterBon = false
+            showSplit = true
         }
         .sheet(isPresented: $showMove) {
             MoveLinesView(
@@ -255,25 +258,47 @@ struct TableSessionView: View {
 
     @ViewBuilder
     private var sentLinesHint: some View {
-        if openLines.isEmpty {
-            Text("Noch nichts gesendet — neue Artikel landen im Bon.")
+        if openLines.isEmpty && cart.isEmpty {
+            Text("Artikel antippen — der Bon sammelt die Bestellung.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 6)
-        } else {
-            HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle")
-                    .font(.caption)
-                Text("\(openLines.count) gesendet · \(PosMoney.format(openTotal))")
-                    .font(.caption)
+        } else if !openLines.isEmpty {
+            Button {
+                showBon = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "doc.text")
+                        .font(.caption)
+                    Text("\(openLines.count) auf dem Bon · \(PosMoney.format(openTotal)) — antippen")
+                        .font(.caption.weight(.semibold))
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                }
+                .foregroundStyle(PosDesign.ink)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(PosDesign.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(PosDesign.line, lineWidth: 1)
+                }
             }
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
             .padding(.horizontal, 16)
             .padding(.bottom, 6)
-            .accessibilityLabel("\(openLines.count) Positionen gesendet")
+            .accessibilityIdentifier("pos.session.openBonHint")
+            .accessibilityLabel("Bon mit \(openLines.count) Positionen öffnen")
+        } else if cartQuantity > 0 {
+            Text("\(cartQuantity) neu im Bon — unten öffnen zum Schicken.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 6)
         }
     }
 
@@ -322,11 +347,13 @@ struct TableSessionView: View {
     }
 
     private var bonDockTitle: String {
-        var parts = ["Bon öffnen"]
         if cartQuantity > 0 {
-            parts.append("\(cartQuantity) neu")
+            return "Bon öffnen · \(cartQuantity) neu"
         }
-        return parts.joined(separator: " · ")
+        if !openLines.isEmpty {
+            return "Bon öffnen · \(openLines.count) Pos."
+        }
+        return "Bon öffnen"
     }
 
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }
@@ -354,9 +381,13 @@ struct TableSessionView: View {
     }
 
     private func quantityForMenuItem(_ menuItemId: String) -> Int {
-        cart
+        let inCart = cart
             .filter { $0.menuItemId == menuItemId }
             .reduce(0) { $0 + $1.quantity }
+        let inOpen = openLines
+            .filter { $0.menuItemId == menuItemId }
+            .reduce(0) { $0 + $1.openQuantity }
+        return inCart + inOpen
     }
 
     private func onSelectMenuItem(_ item: PosCloudMenuItem) {
@@ -400,14 +431,21 @@ struct TableSessionView: View {
         return runtime.ensureLocalSession(tableId: table.id, covers: guestCount)
     }
 
-    private func sendCart() async -> Bool {
-        let ok = await runtime.sendCart(tableId: table.id, lines: cart)
-        if ok {
-            cart.removeAll()
+    /// Prototype CartSheet: „Gang N schicken“ = send course cart lines + kitchen fire.
+    @discardableResult
+    private func schickenCourse(_ course: Int) async -> Bool {
+        let sid = ensureSessionId()
+        let courseCart = cart.filter { $0.course == course }
+        if !courseCart.isEmpty {
+            let ok = await runtime.sendCart(tableId: table.id, lines: courseCart)
+            guard ok else { return false }
+            cart.removeAll { $0.course == course }
             sendPulse.toggle()
             await refreshOpenLines()
         }
-        return ok
+        _ = await runtime.fireCourse(sessionId: sid, course: course)
+        await refreshOpenLines()
+        return true
     }
 
     private func refreshOpenLines() async {

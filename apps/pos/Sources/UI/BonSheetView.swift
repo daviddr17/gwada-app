@@ -1,28 +1,23 @@
 import SwiftUI
 
 struct BonSheetActionState {
-    private(set) var sending = false
-    private(set) var firingCourses: Set<Int> = []
+    private(set) var schickenCourses: Set<Int> = []
 
-    mutating func beginSending() -> Bool {
-        guard !sending else { return false }
-        sending = true
-        return true
+    mutating func beginSchicken(course: Int) -> Bool {
+        schickenCourses.insert(course).inserted
     }
 
-    mutating func finishSending() {
-        sending = false
-    }
-
-    mutating func beginFiring(course: Int) -> Bool {
-        firingCourses.insert(course).inserted
-    }
-
-    mutating func finishFiring(course: Int) {
-        firingCourses.remove(course)
+    mutating func finishSchicken(course: Int) {
+        schickenCourses.remove(course)
     }
 }
 
+/// Unsent cart lines for a course → show „Gang N schicken“ (prototype CartSheet).
+func courseNeedsSchicken(cart: [PosCartLine], course: Int) -> Bool {
+    cart.contains { $0.course == course }
+}
+
+/// Sent open lines for a course that still need kitchen fire.
 func courseNeedsFire(openLines: [SessionOpenLine], course: Int, sessionId: String) -> Bool {
     let courseLines = openLines.filter { $0.course == course }
     return !courseLines.isEmpty
@@ -36,8 +31,8 @@ struct BonSheetView: View {
     @Binding var cart: [PosCartLine]
     let openLines: [SessionOpenLine]
     let coverCount: Int?
-    var onSend: () async -> Bool
-    var onFire: (Int) async -> Void
+    /// Prototype: one CTA per course — send that course’s cart lines and fire kitchen.
+    var onSchicken: (Int) async -> Bool
     var onWeiterBestellen: () -> Void
     var onZurRechnung: () -> Void
 
@@ -45,12 +40,23 @@ struct BonSheetView: View {
 
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }
     private var openTotal: Int { openLines.reduce(0) { $0 + $1.openCents } }
+    private var grandTotal: Int { cartTotal + openTotal }
+    private var hasAnything: Bool { !cart.isEmpty || !openLines.isEmpty }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 PaperReceiptView {
                     receiptHeader
+
+                    if !hasAnything {
+                        Text("Noch keine Artikel. Bon schließen und Artikel antippen.")
+                            .font(.subheadline)
+                            .foregroundStyle(PosDesign.muted)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 20)
+                    }
 
                     ForEach(PosCourse.uiCourses, id: \.self) { course in
                         let cartLines = cart.filter { $0.course == course }
@@ -63,6 +69,10 @@ struct BonSheetView: View {
                                 sentLines: sentLines
                             )
                         }
+                    }
+
+                    if hasAnything {
+                        summeRow
                     }
                 }
                 .padding(PosDesign.sectionSpacing)
@@ -80,27 +90,38 @@ struct BonSheetView: View {
     }
 
     private var receiptHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(spacing: 6) {
+            Text("BON")
+                .font(.caption.weight(.semibold).monospaced())
+                .tracking(1.2)
+                .foregroundStyle(PosDesign.muted)
             Text(tableLabel)
                 .font(PosDesign.fontDisplay)
                 .foregroundStyle(PosDesign.ink)
             if let coverCount {
-                Text("\(coverCount) Personen")
-                    .font(PosDesign.fontBody)
+                Text("\(coverCount) Gäste")
+                    .font(.caption.monospaced())
                     .foregroundStyle(PosDesign.muted)
             }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 8)
+    }
+
+    private var summeRow: some View {
+        VStack(spacing: 8) {
+            Divider().overlay(PosDesign.line)
             HStack {
-                Text("Offen")
-                    .foregroundStyle(PosDesign.muted)
+                Text("Summe")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(PosDesign.ink)
                 Spacer()
-                Text(PosMoney.format(cartTotal + openTotal))
-                    .font(PosDesign.fontMonoTabular)
+                Text(PosMoney.format(grandTotal))
+                    .font(.title3.weight(.semibold).monospacedDigit())
                     .foregroundStyle(PosDesign.ink)
             }
-            .padding(.top, 6)
-            Divider()
-                .overlay(PosDesign.line)
         }
+        .padding(.top, 8)
     }
 
     @ViewBuilder
@@ -109,12 +130,28 @@ struct BonSheetView: View {
         cartLines: [PosCartLine],
         sentLines: [SessionOpenLine]
     ) -> some View {
+        let allSent = cartLines.isEmpty && !sentLines.isEmpty
+        let kitchenDone = allSent && (
+            sentLines.allSatisfy(\.isFired)
+                || PosHubState.shared.hasFired(sessionId: sessionId, course: course)
+        )
+
         VStack(alignment: .leading, spacing: 10) {
-            Text(PosCourse.bonHeaderLabel(course))
-                .font(.caption.weight(.bold).monospaced())
-                .tracking(0.8)
-                .foregroundStyle(PosDesign.courseColor(course))
-                .accessibilityLabel(PosCourse.chipLabel(course))
+            HStack(spacing: 8) {
+                Text(PosCourse.bonHeaderLabel(course))
+                    .font(.caption.weight(.bold).monospaced())
+                    .tracking(0.8)
+                    .foregroundStyle(PosDesign.ink)
+                    .accessibilityLabel(PosCourse.chipLabel(course))
+                Rectangle()
+                    .fill(PosDesign.line)
+                    .frame(height: 1)
+                if kitchenDone {
+                    Text("✓ Küche")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(PosDesign.green)
+                }
+            }
 
             ForEach(cartLines) { line in
                 cartLine(line)
@@ -124,23 +161,32 @@ struct BonSheetView: View {
                 sentLine(line)
             }
 
-            if courseNeedsFire(openLines: sentLines, course: course, sessionId: sessionId) {
-                Button("\(PosCourse.chipLabel(course)) schicken") {
-                    Task { await fire(course: course) }
+            if courseNeedsSchicken(cart: cartLines, course: course)
+                || courseNeedsFire(openLines: sentLines, course: course, sessionId: sessionId)
+            {
+                Button {
+                    Task { await schicken(course: course) }
+                } label: {
+                    Text("\(PosCourse.chipLabel(course)) schicken")
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
-                .tint(PosDesign.courseColor(course))
-                .disabled(actionState.firingCourses.contains(course))
+                .buttonStyle(PosPrimaryButtonStyle())
+                .disabled(actionState.schickenCourses.contains(course))
+                .accessibilityIdentifier("pos.bon.schicken.\(course)")
             }
         }
         .padding(.vertical, 8)
     }
 
     private func cartLine(_ line: PosCartLine) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(line.quantity)× \(line.name)")
-                    .font(.body.weight(.semibold))
+        HStack(alignment: .top, spacing: 8) {
+            Text("\(line.quantity)×")
+                .font(PosDesign.fontMonoTabular)
+                .frame(width: 28, alignment: .leading)
+                .foregroundStyle(PosDesign.ink)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(line.name)
+                    .font(.body.weight(.medium))
                     .foregroundStyle(PosDesign.ink)
                 if !line.subtitle.isEmpty {
                     Text(line.subtitle)
@@ -148,42 +194,49 @@ struct BonSheetView: View {
                         .foregroundStyle(PosDesign.muted)
                 }
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 8) {
-                Text(PosMoney.format(line.lineTotalCents))
-                    .font(PosDesign.fontMonoTabular)
-                HStack(spacing: 4) {
-                    Button {
-                        decrement(line)
-                    } label: {
-                        Image(systemName: "minus")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        increment(line)
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        cycleCourse(line)
-                    } label: {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Gang wechseln")
+            Spacer(minLength: 4)
+            HStack(spacing: 4) {
+                Button {
+                    cycleCourse(line)
+                } label: {
+                    Text("G\(line.course) ↻")
+                        .font(.caption.monospaced())
                 }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Gang wechseln")
+
+                Button {
+                    decrement(line)
+                } label: {
+                    Image(systemName: "minus")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Weniger")
+
+                Button {
+                    increment(line)
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Mehr")
             }
+            Text(PosMoney.format(line.lineTotalCents))
+                .font(PosDesign.fontMonoTabular)
+                .frame(width: 64, alignment: .trailing)
+                .foregroundStyle(PosDesign.ink)
         }
     }
 
     private func sentLine(_ line: SessionOpenLine) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(line.openQuantity)× \(line.name)")
-                    .font(.body.weight(.semibold))
+        HStack(alignment: .top, spacing: 8) {
+            Text("\(line.openQuantity)×")
+                .font(PosDesign.fontMonoTabular)
+                .frame(width: 28, alignment: .leading)
+                .foregroundStyle(PosDesign.muted)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(line.name)
+                    .font(.body.weight(.medium))
                     .foregroundStyle(PosDesign.ink)
                 if !line.detail.isEmpty {
                     Text(line.detail)
@@ -191,35 +244,23 @@ struct BonSheetView: View {
                         .foregroundStyle(PosDesign.muted)
                 }
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 6) {
-                Text(PosMoney.format(line.openCents))
-                    .font(PosDesign.fontMonoTabular)
-                if line.isFired {
-                    PosStatusBadge(title: "Gefeuert", emphasized: true, tint: PosDesign.green)
-                } else {
-                    PosStatusBadge(title: "Gesendet", tint: PosDesign.courseColor(line.course))
-                }
-            }
+            Spacer(minLength: 4)
+            Text(PosMoney.format(line.openCents))
+                .font(PosDesign.fontMonoTabular)
+                .frame(width: 64, alignment: .trailing)
+                .foregroundStyle(PosDesign.ink)
         }
+        .opacity(0.62)
     }
 
     private var actions: some View {
-        VStack(spacing: 10) {
-            Button {
-                Task { await send() }
-            } label: {
-                Text("Senden · \(PosMoney.format(cartTotal))")
-            }
-            .buttonStyle(PosPrimaryButtonStyle())
-            .disabled(cart.isEmpty || actionState.sending)
-
-            HStack(spacing: 10) {
-                Button("Weiter bestellen", action: onWeiterBestellen)
-                    .buttonStyle(PosSecondaryButtonStyle())
-                Button("Zur Rechnung", action: onZurRechnung)
-                    .buttonStyle(PosSecondaryButtonStyle())
-            }
+        HStack(spacing: 10) {
+            Button("Weiter bestellen", action: onWeiterBestellen)
+                .buttonStyle(PosSecondaryButtonStyle())
+            Button("Zur Rechnung", action: onZurRechnung)
+                .buttonStyle(PosPrimaryButtonStyle())
+                .disabled(!hasAnything)
+                .accessibilityIdentifier("pos.bon.zurRechnung")
         }
         .padding(PosDesign.sectionSpacing)
         .background(PosDesign.surface)
@@ -231,17 +272,10 @@ struct BonSheetView: View {
     }
 
     @MainActor
-    private func send() async {
-        guard actionState.beginSending() else { return }
-        defer { actionState.finishSending() }
-        _ = await onSend()
-    }
-
-    @MainActor
-    private func fire(course: Int) async {
-        guard actionState.beginFiring(course: course) else { return }
-        defer { actionState.finishFiring(course: course) }
-        await onFire(course)
+    private func schicken(course: Int) async {
+        guard actionState.beginSchicken(course: course) else { return }
+        defer { actionState.finishSchicken(course: course) }
+        _ = await onSchicken(course)
     }
 
     private func decrement(_ line: PosCartLine) {
@@ -274,8 +308,7 @@ struct BonSheetView: View {
         cart: .constant([]),
         openLines: [],
         coverCount: 2,
-        onSend: { true },
-        onFire: { _ in },
+        onSchicken: { _ in true },
         onWeiterBestellen: {},
         onZurRechnung: {}
     )

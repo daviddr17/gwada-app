@@ -607,6 +607,7 @@ final class PosRuntime: ObservableObject {
 
         let addCents = lines.reduce(0) { $0 + $1.lineTotalCents }
         PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
+        PosHubState.shared.appendLocalOpenLines(sessionId: sessionId, from: lines)
         let localOrderNumber = (snapshot?.floor.orderCountBySessionId[sessionId] ?? 0) + 1
         PosHubState.shared.routeKitchenOutput(orderNumber: localOrderNumber, cartLines: lines)
         pendingPrintJobs = PosHubState.shared.pendingPrintJobCount
@@ -637,14 +638,20 @@ final class PosRuntime: ObservableObject {
         guard let sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id else {
             return []
         }
+        let local = PosHubState.shared.localOpenLines(sessionId: sessionId)
+
+        // Demo-/DEBUG-Hub ohne Cloud-Login: lokale gesendete Positionen behalten.
+        guard PosAuthStore.shared.isSignedIn else {
+            return local
+        }
+
         let restaurantId = PosHubState.shared.restaurantId
-        guard PosAuthStore.shared.isSignedIn else { return [] }
         do {
             let lines = try await PosCloudClient.fetchSessionSummary(
                 restaurantId: restaurantId,
                 sessionId: sessionId
             )
-            return lines.compactMap { line in
+            let remote = lines.compactMap { line -> SessionOpenLine? in
                 guard line.openQuantity > 0 else { return nil }
                 var detailParts: [String] = []
                 detailParts.append(PosCourse.label(line.course ?? PosCourse.default))
@@ -662,12 +669,15 @@ final class PosRuntime: ObservableObject {
                     openCents: line.openAmountCents,
                     course: line.course ?? PosCourse.default,
                     firedAt: line.firedAt,
-                    detail: detailParts.joined(separator: " · ")
+                    detail: detailParts.joined(separator: " · "),
+                    menuItemId: nil
                 )
             }
+            // Cloud leer, lokal noch da (Sync-Delay / Offline-Buchung) → lokal zeigen.
+            return remote.isEmpty && !local.isEmpty ? local : remote
         } catch {
             statusMessage = "Offene Positionen: \(error.localizedDescription)"
-            return []
+            return local
         }
     }
 
@@ -818,6 +828,7 @@ final class PosRuntime: ObservableObject {
     func fireCourse(sessionId: String, course: Int) async -> Bool {
         let restaurantId = PosHubState.shared.restaurantId
         PosHubState.shared.markFired(sessionId: sessionId, course: course)
+        PosHubState.shared.markLocalCourseFired(sessionId: sessionId, course: course)
         PosSyncQueue.shared.enqueueFireCourse(PosSyncFireCoursePayload(
             restaurantId: restaurantId,
             tableSessionId: sessionId,

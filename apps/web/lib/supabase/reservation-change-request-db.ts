@@ -111,7 +111,7 @@ export async function approveReservationChangeRequest(params: {
       status_id: restoreStatusIdFinal,
       pending_change: null,
       status_before_change_id: null,
-      ...relocatePatch,
+      ...(relocatePatch ?? {}),
     })
     .eq("id", params.reservationId);
 

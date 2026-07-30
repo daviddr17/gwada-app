@@ -209,7 +209,7 @@ export async function approveDisplayReservationChangeRequest(
       status_id: restoreStatusId,
       pending_change: null,
       status_before_change_id: null,
-      ...relocatePatch,
+      ...(relocatePatch ?? {}),
     })
     .eq("id", reservationId);
 

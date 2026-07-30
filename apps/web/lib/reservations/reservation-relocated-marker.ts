@@ -22,30 +22,27 @@ export function liveReservationIdFromListRowId(id: string): string {
 }
 
 export type RelocatedFromPatch = {
-  relocated_from_starts_at: string | null;
-  relocated_from_ends_at: string | null;
+  relocated_from_starts_at: string;
+  relocated_from_ends_at: string;
   relocated_from_dining_table_id: string | null;
 };
 
-/** Bei Terminwechsel: alten Slot merken; sonst Marker löschen. */
+/**
+ * Bei Terminwechsel: alten Slot merken.
+ * Ohne Terminwechsel: `null` (bestehende Marker-Spalten unverändert lassen).
+ */
 export function relocatedFromPatchOnDatetimeChange(params: {
   beforeStartsAt: string;
   beforeEndsAt: string;
   afterStartsAt: string;
   afterEndsAt: string;
   beforeDiningTableId: string | null;
-}): RelocatedFromPatch {
+}): RelocatedFromPatch | null {
   const moved = reservationDateTimeChanged(
     { starts_at: params.beforeStartsAt, ends_at: params.beforeEndsAt },
     { starts_at: params.afterStartsAt, ends_at: params.afterEndsAt },
   );
-  if (!moved) {
-    return {
-      relocated_from_starts_at: null,
-      relocated_from_ends_at: null,
-      relocated_from_dining_table_id: null,
-    };
-  }
+  if (!moved) return null;
   return {
     relocated_from_starts_at: params.beforeStartsAt,
     relocated_from_ends_at: params.beforeEndsAt,

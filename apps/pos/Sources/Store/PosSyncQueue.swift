@@ -31,6 +31,37 @@ struct PosSyncCreateOrderPayload: Codable, Sendable {
     var tableSessionId: String
     var items: [PosSyncOrderItem]
     var localOrderId: String
+
+    static func make(
+        restaurantId: String,
+        tableSessionId: String,
+        lines: [PosCartLine],
+        localOrderId: String = UUID().uuidString
+    ) -> PosSyncCreateOrderPayload {
+        PosSyncCreateOrderPayload(
+            restaurantId: restaurantId,
+            tableSessionId: tableSessionId,
+            items: lines.map { line in
+                PosSyncOrderItem(
+                    menuItemId: line.menuItemId,
+                    quantity: line.quantity,
+                    notes: line.notes.isEmpty ? nil : line.notes,
+                    course: line.course,
+                    ohneIngredientIds: line.ohneIngredientIds,
+                    modifiers: line.modifiers.map {
+                        PosCloudModifierPayload(
+                            type: $0.type,
+                            label: $0.label,
+                            ingredientId: $0.ingredientId,
+                            optionChoiceId: $0.optionChoiceId,
+                            priceDeltaCents: $0.priceDeltaCents
+                        )
+                    }
+                )
+            },
+            localOrderId: localOrderId
+        )
+    }
 }
 
 struct PosSyncOrderItem: Codable, Sendable {

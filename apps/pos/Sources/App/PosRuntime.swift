@@ -626,29 +626,11 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Bestellung gesendet (\(lines.count) Positionen)."
             return true
         } catch {
-            for line in lines {
-                PosSyncQueue.shared.enqueueCreateOrder(PosSyncCreateOrderPayload(
-                    restaurantId: restaurantId,
-                    tableSessionId: sessionId,
-                    items: [PosSyncOrderItem(
-                        menuItemId: line.menuItemId,
-                        quantity: line.quantity,
-                        notes: line.notes.isEmpty ? nil : line.notes,
-                        course: line.course,
-                        ohneIngredientIds: line.ohneIngredientIds,
-                        modifiers: line.modifiers.map {
-                            PosCloudModifierPayload(
-                                type: $0.type,
-                                label: $0.label,
-                                ingredientId: $0.ingredientId,
-                                optionChoiceId: $0.optionChoiceId,
-                                priceDeltaCents: $0.priceDeltaCents
-                            )
-                        }
-                    )],
-                    localOrderId: UUID().uuidString
-                ))
-            }
+            PosSyncQueue.shared.enqueueCreateOrder(PosSyncCreateOrderPayload.make(
+                restaurantId: restaurantId,
+                tableSessionId: sessionId,
+                lines: lines
+            ))
             syncPending = PosSyncQueue.shared.pendingCount
             statusMessage = "Lokal gebucht — Sync später (\(error.localizedDescription))"
             return true

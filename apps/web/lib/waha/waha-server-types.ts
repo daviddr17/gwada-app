@@ -71,6 +71,39 @@ export type WahaSessionListItem = {
   waha_server_name: string | null;
 };
 
+/** Live + DB detail for Superadmin session drawer. */
+export type WahaSessionAdminDetail = {
+  restaurantId: string;
+  sessionName: string;
+  dbStatus: string;
+  phoneNumber: string | null;
+  displayName: string | null;
+  lastError: string | null;
+  connectedAt: string | null;
+  updatedAt: string | null;
+  wahaServerId: string | null;
+  live: {
+    ok: boolean;
+    status: string | null;
+    phoneNumber: string | null;
+    displayName: string | null;
+    error: string | null;
+  };
+};
+
+export const WAHA_SESSION_ADMIN_ACTIONS = [
+  "refresh",
+  "restart",
+  "start",
+  "stop",
+  "logout",
+  "sync_webhooks",
+  "heal",
+] as const;
+
+export type WahaSessionAdminAction =
+  (typeof WAHA_SESSION_ADMIN_ACTIONS)[number];
+
 export type WahaServerCapacityAlert = {
   server_id: string;
   server_name: string;

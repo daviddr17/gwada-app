@@ -9,6 +9,8 @@ import {
   superadminCellNowrapClass,
   superadminDateCellClass,
 } from "@/components/superadmin/superadmin-table-cells";
+import { SuperadminWahaSessionDrawer } from "@/components/superadmin/superadmin-waha-session-drawer";
+import { WahaSessionStatusBadge } from "@/components/superadmin/waha-session-status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
@@ -39,6 +41,11 @@ import type {
   WahaServerPublic,
   WahaSessionListItem,
 } from "@/lib/waha/waha-server-types";
+import {
+  normalizeWahaUiStatus,
+  wahaSessionStatusBadgeClassName,
+  wahaSessionStatusLabel,
+} from "@/lib/waha/waha-session-status-ui";
 import { cn } from "@/lib/utils";
 import {
   Drawer,
@@ -48,6 +55,16 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+
+const SESSION_STATUS_FILTERS = [
+  "all",
+  "working",
+  "scan_qr",
+  "starting",
+  "failed",
+  "stopped",
+  "disconnected",
+] as const;
 
 function formatDt(iso: string | null): string {
   if (!iso) return "—";
@@ -155,6 +172,11 @@ export function SuperadminWahaScreen() {
   const [hostRebootServer, setHostRebootServer] =
     useState<WahaServerPublic | null>(null);
   const [hostRebootConfirm, setHostRebootConfirm] = useState("");
+  const [sessionStatusFilter, setSessionStatusFilter] =
+    useState<(typeof SESSION_STATUS_FILTERS)[number]>("all");
+  const [sessionDrawerRow, setSessionDrawerRow] =
+    useState<WahaSessionListItem | null>(null);
+  const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
 
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -202,24 +224,40 @@ export function SuperadminWahaScreen() {
     );
   }, [servers, serverSearch]);
 
+  const sessionStatusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: sessions.length };
+    for (const s of sessions) {
+      const key = normalizeWahaUiStatus(s.status) || "unknown";
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [sessions]);
+
   const filteredSessions = useMemo(() => {
     const q = sessionSearch.trim().toLowerCase();
-    if (!q) return sessions;
-    return sessions.filter((s) =>
-      [
+    return sessions.filter((s) => {
+      if (
+        sessionStatusFilter !== "all" &&
+        normalizeWahaUiStatus(s.status) !== sessionStatusFilter
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      return [
         s.restaurant_name,
         s.restaurant_slug,
         s.waha_session_name,
         s.status,
+        wahaSessionStatusLabel(s.status),
         s.phone_number,
         s.waha_server_name,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(q),
-    );
-  }, [sessions, sessionSearch]);
+        .includes(q);
+    });
+  }, [sessions, sessionSearch, sessionStatusFilter]);
 
   const openCreate = () => {
     setEditor(emptyEditor());
@@ -797,11 +835,39 @@ export function SuperadminWahaScreen() {
           onSearchChange={setSessionSearch}
           searchPlaceholder="Restaurant, Session, Status …"
         />
+        <div className="flex flex-wrap gap-1.5">
+          {SESSION_STATUS_FILTERS.map((key) => {
+            const active = sessionStatusFilter === key;
+            const count =
+              key === "all"
+                ? sessionStatusCounts.all
+                : (sessionStatusCounts[key] ?? 0);
+            if (key !== "all" && count === 0) return null;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSessionStatusFilter(key)}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
+                  active
+                    ? key === "all"
+                      ? "border-foreground/30 bg-foreground/5 text-foreground"
+                      : wahaSessionStatusBadgeClassName(key)
+                    : "border-border/60 text-muted-foreground hover:bg-muted/40",
+                )}
+              >
+                {key === "all" ? "Alle" : wahaSessionStatusLabel(key)}
+                <span className="tabular-nums opacity-70">{count}</span>
+              </button>
+            );
+          })}
+        </div>
         <SuperadminPaginatedDataTable
           loading={false}
           emptyMessage="Keine WhatsApp-Sessions vorhanden."
           itemLabel="Sessions"
-          resetPageKey={sessionSearch}
+          resetPageKey={`${sessionSearch}|${sessionStatusFilter}`}
           rowKey={(r) => r.restaurant_id}
           columns={[
             {
@@ -833,7 +899,7 @@ export function SuperadminWahaScreen() {
               header: "Status",
               className: superadminCellNowrapClass,
               sortValue: (r) => r.status,
-              cell: (r) => r.status,
+              cell: (r) => <WahaSessionStatusBadge status={r.status} />,
             },
             {
               id: "phone",
@@ -857,10 +923,39 @@ export function SuperadminWahaScreen() {
               sortValue: (r) => r.updated_at,
               cell: (r) => formatDt(r.updated_at),
             },
+            {
+              id: "actions",
+              header: "",
+              className: superadminCellNowrapClass,
+              sortValue: () => "",
+              cell: (r) => (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSessionDrawerRow(r);
+                    setSessionDrawerOpen(true);
+                  }}
+                >
+                  Verwalten
+                </Button>
+              ),
+            },
           ]}
           rows={filteredSessions}
         />
       </section>
+
+      <SuperadminWahaSessionDrawer
+        session={sessionDrawerRow}
+        open={sessionDrawerOpen}
+        onOpenChange={(open) => {
+          setSessionDrawerOpen(open);
+          if (!open) setSessionDrawerRow(null);
+        }}
+        onChanged={() => void load()}
+      />
 
       <Drawer
         open={editorOpen}

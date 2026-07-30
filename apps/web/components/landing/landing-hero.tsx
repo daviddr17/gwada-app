@@ -41,7 +41,7 @@ type Props = {
 };
 
 /**
- * Full-viewport Hero: Stripe-Gradient + Glas-Card, starke Typo, CTAs.
+ * Full-viewport Hero: Stripe-Gradient + Glas-Card + App-UI-Anker.
  */
 export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props) {
   const logoUrl = useMarketingHeroLogoSrc();
@@ -50,7 +50,7 @@ export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props
   return (
     <section
       id="home"
-      className="relative isolate flex min-h-dvh flex-col justify-center overflow-hidden scroll-mt-28 bg-[#f4f6fd] pt-16 pb-24 md:pb-32 dark:bg-[#0b1020]"
+      className="relative isolate flex min-h-dvh flex-col justify-center overflow-hidden scroll-mt-28 bg-[#f4f6fd] pt-16 pb-16 md:pb-24 dark:bg-[#0b1020]"
     >
       <StripeHeroCanvas />
 

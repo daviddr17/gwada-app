@@ -1162,6 +1162,13 @@ final class PosRuntime: ObservableObject {
                 let data = (try? encoder.encode(status)) ?? Data(#"{"state":"rejected"}"#.utf8)
                 return (200, data)
             }
+            #if DEBUG
+            if pathOnly == PosLanProtocol.pairDebugApproveAllPath {
+                let n = PosPairingStore.shared.approveAllPending()
+                let data = (try? JSONSerialization.data(withJSONObject: ["ok": true, "approved": n])) ?? Data()
+                return (200, data)
+            }
+            #endif
             return (404, Data(#"{"error":"not_found"}"#.utf8))
         }
 
@@ -1307,6 +1314,14 @@ final class PosRuntime: ObservableObject {
                 let data = (try? encoder.encode(challenge)) ?? Data(#"{"error":"encode"}"#.utf8)
                 return (201, data)
             }
+
+            #if DEBUG
+            if pathOnly == PosLanProtocol.pairDebugApproveAllPath {
+                let n = PosPairingStore.shared.approveAllPending()
+                let data = (try? JSONSerialization.data(withJSONObject: ["ok": true, "approved": n])) ?? Data()
+                return (200, data)
+            }
+            #endif
         }
 
         return (405, Data(#"{"error":"method_not_allowed"}"#.utf8))

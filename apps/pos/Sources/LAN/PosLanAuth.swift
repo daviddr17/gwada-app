@@ -10,6 +10,7 @@ enum PosLanAuth {
         PosLanProtocol.kdsAdvancePath,
         PosLanProtocol.pairRequestPath,
         PosLanProtocol.pairStatusPath,
+        PosLanProtocol.pairDebugApproveAllPath,
     ]
 
     static func requiresToken(pathOnly: String) -> Bool {

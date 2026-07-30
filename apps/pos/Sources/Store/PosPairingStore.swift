@@ -85,6 +85,17 @@ final class PosPairingStore: @unchecked Sendable {
         return token
     }
 
+    /// DEBUG/Smoke: alle wartenden Pairings freigeben.
+    @discardableResult
+    func approveAllPending() -> Int {
+        let ids = pendingList().map(\.pairId)
+        var count = 0
+        for id in ids {
+            if approve(pairId: id) != nil { count += 1 }
+        }
+        return count
+    }
+
     func reject(pairId: String) {
         lock.lock(); defer { lock.unlock() }
         pending.removeValue(forKey: pairId)

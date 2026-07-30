@@ -27,4 +27,19 @@ final class HubApprovePairingUITests: XCTestCase {
         )
         freigeben.tap()
     }
+
+    /// Smoke ohne Store-Wipe: Pairing-Freigabe bei laufendem Hub.
+    @MainActor
+    func testApprovePendingHandheldKeepState() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let handsets = app.buttons["Handgeräte verbinden"]
+        XCTAssertTrue(handsets.waitForExistence(timeout: 12))
+        handsets.tap()
+
+        let freigeben = app.buttons["Freigeben"].firstMatch
+        XCTAssertTrue(freigeben.waitForExistence(timeout: 20), "Pending Pairing mit Code erwartet")
+        freigeben.tap()
+    }
 }

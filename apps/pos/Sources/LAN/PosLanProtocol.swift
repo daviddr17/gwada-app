@@ -17,6 +17,8 @@ enum PosLanProtocol {
     static let printJobsPath = "/v1/print-jobs"
     static let pairRequestPath = "/v1/pair/request"
     static let pairStatusPath = "/v1/pair/status"
+    /// DEBUG-only: alle pending Pairings freigeben (Simulator-Smoke ohne iPad-Tap).
+    static let pairDebugApproveAllPath = "/v1/pair/debug-approve-all"
     static let headerProtocol = "X-Gwada-Pos-Lan"
     static let headerRestaurantId = "X-Gwada-Restaurant-Id"
     static let headerPairToken = "X-Gwada-Pair-Token"

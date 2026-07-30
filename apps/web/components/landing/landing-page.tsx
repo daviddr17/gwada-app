@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePointerFine } from "@/hooks/use-pointer-fine";
+import { GwadaFaviconIcon } from "@/components/icons/gwada-favicon-icon";
 import { LandingDock } from "@/components/landing/landing-dock";
 import { LandingHero } from "@/components/landing/landing-hero";
 import { PublicThemeToggleSlot } from "@/components/public/public-theme-toggle-slot";

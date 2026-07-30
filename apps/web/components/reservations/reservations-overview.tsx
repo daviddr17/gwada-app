@@ -49,7 +49,17 @@ import {
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
+import {
+  reservationAssignedTableLabel,
+  reservationDiningTableLabel,
+} from "@/lib/reservations/reservation-table-assignment";
+import {
+  isRelocatedMarkerRow,
+  liveReservationIdFromListRowId,
+  relocatedMarkerListRowFromReservation,
+  reservationCountsTowardDayStats,
+  RESERVATION_MOVED_STATUS_CODE,
+} from "@/lib/reservations/reservation-relocated-marker";
 import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
@@ -786,11 +796,29 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
 
   const byDay = useMemo(() => {
     const map = new Map<string, ReservationListRow[]>();
-    for (const r of rowsFiltered) {
+    const rangeStartMs = new Date(rangeStartIso).getTime();
+    const rangeEndMs = new Date(rangeEndExclusiveIso).getTime();
+    const push = (r: ReservationListRow) => {
       const k = dayKeyFromIso(r.starts_at, restaurantTimeZone);
       const arr = map.get(k);
       if (arr) arr.push(r);
       else map.set(k, [r]);
+    };
+    for (const r of rowsFiltered) {
+      if (isRelocatedMarkerRow(r)) continue;
+      const startMs = new Date(r.starts_at).getTime();
+      const inLiveRange =
+        unconfirmedMode || (startMs >= rangeStartMs && startMs < rangeEndMs);
+      if (inLiveRange) push(r);
+      const marker = relocatedMarkerListRowFromReservation(r);
+      if (!marker) continue;
+      const oldMs = new Date(marker.starts_at).getTime();
+      if (
+        unconfirmedMode ||
+        (oldMs >= rangeStartMs && oldMs < rangeEndMs)
+      ) {
+        push(marker);
+      }
     }
     for (const arr of map.values()) {
       arr.sort(
@@ -799,7 +827,13 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       );
     }
     return map;
-  }, [rowsFiltered, restaurantTimeZone]);
+  }, [
+    rowsFiltered,
+    restaurantTimeZone,
+    unconfirmedMode,
+    rangeStartIso,
+    rangeEndExclusiveIso,
+  ]);
 
   const unconfirmedDayList = useMemo(() => {
     const keys = [...byDay.keys()].sort();
@@ -844,9 +878,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     let daysWithReservations = 0;
     for (const d of visibleDays) {
       const list = byDay.get(gridDayKey(d, restaurantTimeZone)) ?? [];
-      if (list.length > 0) daysWithReservations++;
-      reservationCount += list.length;
-      guestCount += list.reduce((sum, r) => sum + r.party_size, 0);
+      const live = list.filter(reservationCountsTowardDayStats);
+      if (live.length > 0) daysWithReservations++;
+      reservationCount += live.length;
+      guestCount += live.reduce((sum, r) => sum + r.party_size, 0);
     }
     return {
       reservationCount,
@@ -1145,8 +1180,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           const key = gridDayKey(d, restaurantTimeZone);
           const holidayName = holidaysByDate[key];
           const list = byDay.get(key) ?? [];
-          const resCount = list.length;
-          const partyTotal = list.reduce((sum, r) => sum + r.party_size, 0);
+          const liveList = list.filter(reservationCountsTowardDayStats);
+          const resCount = liveList.length;
+          const partyTotal = liveList.reduce((sum, r) => sum + r.party_size, 0);
           return (
             <Card
               key={key}
@@ -1234,6 +1270,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                   <CardContent className="space-y-1.5 py-2">
                     {list.map((r) => {
                       const st = r.reservation_statuses;
+                      const isMovedMarker = isRelocatedMarkerRow(r);
                       const stripe =
                         st?.color_hex && /^#[0-9A-Fa-f]{6}$/i.test(st.color_hex)
                           ? st.color_hex
@@ -1244,12 +1281,20 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       const endLabel = timeFmt.format(
                         new Date(reservationEndsAtFromLiveInsert(r)),
                       );
-                      const tableLabel = reservationDiningTableLabel(r);
-                      const gwadaReview = gwadaReviewsByReservation.get(r.id);
+                      const tableLabel = isMovedMarker
+                        ? reservationAssignedTableLabel(r)
+                        : reservationDiningTableLabel(r);
+                      const liveId = liveReservationIdFromListRowId(r.id);
+                      const gwadaReview = isMovedMarker
+                        ? undefined
+                        : gwadaReviewsByReservation.get(r.id);
                       return (
                         <div
                           key={r.id}
-                          className="flex items-stretch gap-1.5"
+                          className={cn(
+                            "flex items-stretch gap-1.5",
+                            isMovedMarker && "opacity-80",
+                          )}
                         >
                           <button
                             type="button"
@@ -1257,9 +1302,13 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                               "min-w-0 flex-1",
                               reservationListRowButtonClassName,
                             )}
-                            aria-label={`Reservierung ${guest} bearbeiten`}
+                            aria-label={
+                              isMovedMarker
+                                ? `Verschobene Reservierung ${guest} öffnen`
+                                : `Reservierung ${guest} bearbeiten`
+                            }
                             onClick={() => {
-                              pushReservationEdit(r.id);
+                              pushReservationEdit(liveId);
                             }}
                           >
                             <div className="flex gap-3">
@@ -1292,12 +1341,18 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                                     Änderung prüfen
                                   </span>
                                 ) : null}
+                                {st?.code === RESERVATION_MOVED_STATUS_CODE ? (
+                                  <span className="rounded-md border border-indigo-500/40 bg-indigo-500/15 px-1.5 py-px text-[10px] font-medium text-indigo-800 dark:text-indigo-200">
+                                    Verschoben
+                                  </span>
+                                ) : null}
                                 {tableLabel ? (
                                   <span className="rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[11px] font-medium text-foreground">
                                     {tableLabel}
                                   </span>
                                 ) : null}
-                                {reservationInternalNoteText(r.notes) ? (
+                                {!isMovedMarker &&
+                                reservationInternalNoteText(r.notes) ? (
                                   <ReservationInternalNoteIndicator />
                                 ) : null}
                               </div>
@@ -1337,7 +1392,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                           </div>
                             </div>
                           </button>
-                          {workspaceRestaurantId && st?.code === "pending" ? (
+                          {workspaceRestaurantId &&
+                          !isMovedMarker &&
+                          st?.code === "pending" ? (
                             <div className="flex shrink-0 items-center self-center pr-0.5">
                               <ReservationQuickAcceptButton
                                 restaurantId={workspaceRestaurantId}
@@ -1389,7 +1446,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
             pendingReopenDaySheetRef.current = new Date(daySheetDay.getTime());
           }
           setDaySheetOpen(false);
-          pushReservationEdit(r.id);
+          pushReservationEdit(liveReservationIdFromListRowId(r.id));
         }}
         onCreateReservation={
           daySheetDay && workspaceRestaurantId

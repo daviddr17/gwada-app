@@ -21,6 +21,7 @@ import {
   reservationDateTimeChanged,
   shouldRescheduleTimedOutbox,
 } from "@/lib/reservations/reservation-datetime-reschedule";
+import { relocatedFromPatchOnDatetimeChange } from "@/lib/reservations/reservation-relocated-marker";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -182,6 +183,14 @@ export async function approveDisplayReservationChangeRequest(
     restoreStatus?.name ?? "—",
   );
 
+  const relocatePatch = relocatedFromPatchOnDatetimeChange({
+    beforeStartsAt: row.starts_at as string,
+    beforeEndsAt: row.ends_at as string,
+    afterStartsAt: pending.starts_at,
+    afterEndsAt: pending.ends_at,
+    beforeDiningTableId: (row.dining_table_id as string | null) ?? null,
+  });
+
   const { error } = await admin
     .from("reservations")
     .update({
@@ -200,6 +209,7 @@ export async function approveDisplayReservationChangeRequest(
       status_id: restoreStatusId,
       pending_change: null,
       status_before_change_id: null,
+      ...relocatePatch,
     })
     .eq("id", reservationId);
 

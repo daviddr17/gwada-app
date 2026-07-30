@@ -9,6 +9,7 @@ import {
   type ReservationLogSnapshot,
 } from "@/lib/reservations/reservation-log-build";
 import { insertReservationLogFromBrowser } from "@/lib/reservations/reservation-log-insert";
+import { relocatedFromPatchOnDatetimeChange } from "@/lib/reservations/reservation-relocated-marker";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -83,6 +84,14 @@ export async function approveReservationChangeRequest(params: {
   const beforeSnapshot = snapshotFromRow(row, status?.name ?? "—", "Kein Tisch");
   const afterSnapshot = snapshotFromPending(pending, restoreStatus?.name ?? "—");
 
+  const relocatePatch = relocatedFromPatchOnDatetimeChange({
+    beforeStartsAt: row.starts_at as string,
+    beforeEndsAt: row.ends_at as string,
+    afterStartsAt: pending.starts_at,
+    afterEndsAt: pending.ends_at,
+    beforeDiningTableId: (row.dining_table_id as string | null) ?? null,
+  });
+
   const restoreStatusIdFinal = restoreStatusId;
   const { error } = await sb
     .from("reservations")
@@ -102,6 +111,7 @@ export async function approveReservationChangeRequest(params: {
       status_id: restoreStatusIdFinal,
       pending_change: null,
       status_before_change_id: null,
+      ...relocatePatch,
     })
     .eq("id", params.reservationId);
 

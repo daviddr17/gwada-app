@@ -1,8 +1,18 @@
 import SwiftUI
 import UIKit
 
+/// Floor-Status für Status-Punkte (Briefing: frei … bezahlt).
+enum PosTableVisualStatus: String, CaseIterable {
+    case frei
+    case besetzt
+    case bestellt
+    case serviert
+    case zahlt
+    case bezahlt
+}
+
 /// Design Tokens + Branding für die native POS-App (Prototyp-Palette + dynamischer Accent).
-/// Surfaces bleiben System-Farben (iOS Light/Dark); Status-/Spacing-Tokens ergänzen den Prototyp.
+/// Adaptive Light/Dark semantic tokens; Light = warm cream baseline, Dark = briefing greens.
 enum PosDesign {
     static let defaultAccentHex = "#EAB308"
     static let cardRadius: CGFloat = 16
@@ -23,28 +33,82 @@ enum PosDesign {
     static let statusConflict = Color.red
     static let statusAmber = Color(red: 0.85, green: 0.55, blue: 0.15)
 
-    // MARK: - Foundation tokens (Phase 1)
+    // MARK: - Foundation tokens (adaptive Light/Dark)
 
-    static let bg = Color(red: 0.96, green: 0.95, blue: 0.93)
-    static let surface = Color(red: 1.0, green: 0.99, blue: 0.97)
-    static let surface2 = Color(red: 0.94, green: 0.93, blue: 0.90)
-    static let line = Color(red: 0.85, green: 0.83, blue: 0.79)
-    static let ink = Color(red: 0.12, green: 0.11, blue: 0.10)
-    static let muted = Color(red: 0.45, green: 0.43, blue: 0.40)
-    static let brass = Color(red: 0.72, green: 0.58, blue: 0.32)
-    static let paper = Color(red: 0.98, green: 0.96, blue: 0.90)
-    static let green = Color(red: 0.22, green: 0.55, blue: 0.35)
+    static let bg = adaptiveColor(
+        light: rgba(0.96, 0.95, 0.93),
+        dark: uiColor(hex: "#101B16")
+    )
+    static let surface = adaptiveColor(
+        light: rgba(1.0, 0.99, 0.97),
+        dark: uiColor(hex: "#18261F")
+    )
+    static let surface2 = adaptiveColor(
+        light: rgba(0.94, 0.93, 0.90),
+        dark: uiColor(hex: "#1E3028")
+    )
+    static let line = adaptiveColor(
+        light: rgba(0.85, 0.83, 0.79),
+        dark: uiColor(hex: "#2A3D34")
+    )
+    static let ink = adaptiveColor(
+        light: rgba(0.12, 0.11, 0.10),
+        dark: uiColor(hex: "#F5F0E8")
+    )
+    static let muted = adaptiveColor(
+        light: rgba(0.45, 0.43, 0.40),
+        dark: uiColor(hex: "#A8B5AD")
+    )
+    static let brass = adaptiveColor(
+        light: rgba(0.72, 0.58, 0.32),
+        dark: rgba(0.78, 0.64, 0.38)
+    )
+    static let paper = adaptiveColor(
+        light: rgba(0.98, 0.96, 0.90),
+        dark: rgba(0.14, 0.20, 0.17)
+    )
+    static let green = adaptiveColor(
+        light: rgba(0.22, 0.55, 0.35),
+        dark: rgba(0.35, 0.68, 0.48)
+    )
 
     static var fontDisplay: Font { .system(.largeTitle, design: .rounded).weight(.bold) }
     static var fontBody: Font { .body }
     static var fontMonoTabular: Font { .body.monospaced().monospacedDigit() }
 
     static var cardBackground: some ShapeStyle {
-        Color(.secondarySystemGroupedBackground)
+        surface
     }
 
     static var elevatedBackground: some ShapeStyle {
-        Color(.tertiarySystemBackground)
+        surface2
+    }
+
+    // MARK: - Status dots (floor)
+
+    static func statusDotColor(for status: PosTableVisualStatus) -> Color {
+        switch status {
+        case .frei:
+            return adaptiveColor(light: rgba(0.54, 0.53, 0.50), dark: rgba(0.42, 0.46, 0.44))
+        case .besetzt:
+            return adaptiveColor(light: rgba(0.36, 0.54, 0.45), dark: brassUIColor)
+        case .bestellt:
+            return adaptiveColor(light: rgba(0.72, 0.42, 0.13), dark: rgba(0.91, 0.55, 0.23))
+        case .serviert:
+            return adaptiveColor(light: rgba(0.24, 0.55, 0.43), dark: rgba(0.30, 0.65, 0.48))
+        case .zahlt:
+            return adaptiveColor(light: rgba(0.83, 0.57, 0.04), dark: rgba(0.92, 0.70, 0.03))
+        case .bezahlt:
+            return adaptiveColor(light: rgba(0.48, 0.36, 0.66), dark: rgba(0.65, 0.55, 0.98))
+        }
+    }
+
+    /// Heuristik bis feinere Session-States (serviert/zahlt) verfügbar sind.
+    static func visualStatus(isOpen: Bool, openCents: Int, paidSettled: Bool = false) -> PosTableVisualStatus {
+        guard isOpen else { return .frei }
+        if paidSettled { return .bezahlt }
+        if openCents > 0 { return .bestellt }
+        return .besetzt
     }
 
     static func resolveAccentHex(_ raw: String?) -> String {
@@ -117,6 +181,20 @@ enum PosDesign {
         let g = CGFloat((value >> 8) & 0xFF) / 255
         let b = CGFloat(value & 0xFF) / 255
         return UIColor(red: r, green: g, blue: b, alpha: 1)
+    }
+
+    private static func rgba(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, alpha: CGFloat = 1) -> UIColor {
+        UIColor(red: r, green: g, blue: b, alpha: alpha)
+    }
+
+    private static var brassUIColor: UIColor {
+        rgba(0.78, 0.64, 0.38)
+    }
+
+    private static func adaptiveColor(light: UIColor, dark: UIColor) -> Color {
+        Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark ? dark : light
+        })
     }
 
     /// Relative Session-Dauer ab `openedAt` ISO-8601.

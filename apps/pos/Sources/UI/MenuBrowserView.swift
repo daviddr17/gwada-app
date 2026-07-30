@@ -105,7 +105,7 @@ struct MenuBrowserView: View {
                     .padding(.vertical, 10)
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(PosDesign.bg)
         }
         .searchable(text: $search, prompt: "Gericht suchen")
     }

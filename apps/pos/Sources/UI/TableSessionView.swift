@@ -43,7 +43,7 @@ struct TableSessionView: View {
                 openLines.isEmpty ? AnyView(emptyState) : AnyView(openLinesList)
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .background(PosDesign.bg)
         .navigationTitle(table.label)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

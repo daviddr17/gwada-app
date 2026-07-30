@@ -34,7 +34,7 @@ struct TablesHomeView: View {
                         }
                         .padding(PosDesign.sectionSpacing)
                     }
-                    .background(Color(.systemGroupedBackground))
+                    .background(PosDesign.bg)
                 }
             } else {
                 ContentUnavailableView {

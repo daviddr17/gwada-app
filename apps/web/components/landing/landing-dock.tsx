@@ -50,7 +50,7 @@ const glassBlur: CSSProperties = {
 };
 
 const dockItemClass = cn(
-  "flex h-auto min-h-[3.1rem] min-w-[3rem] max-w-[4.75rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-foreground/85 hover:bg-black/6 hover:text-foreground sm:min-h-[3.25rem] sm:min-w-[3.35rem] sm:px-1.5 sm:py-1.5 dark:hover:bg-white/10",
+  "flex h-auto min-h-[2.85rem] min-w-[2.65rem] max-w-[4.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1 text-foreground/85 hover:bg-black/6 hover:text-foreground sm:min-h-[3.25rem] sm:min-w-[3.35rem] sm:max-w-[4.75rem] sm:px-1.5 sm:py-1.5 dark:hover:bg-white/10",
 );
 
 /**
@@ -70,11 +70,11 @@ export function LandingDock({ onNavigateSection }: Props) {
   );
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex justify-center px-4">
-      <div className="pointer-events-auto relative flex items-end gap-0.5 rounded-[1.35rem] sm:rounded-[1.5rem]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-3 z-50 flex justify-center px-2 sm:bottom-5 sm:px-4">
+      <div className="pointer-events-auto relative flex max-w-[100%] items-end gap-0 rounded-[1.25rem] sm:gap-0.5 sm:rounded-[1.5rem]">
         <div className={glassPlate} style={glassBlur} aria-hidden />
         <nav
-          className="relative z-[1] flex items-end gap-0.5 bg-transparent px-1 py-1.5 sm:px-1.5 sm:py-1.5"
+          className="relative z-[1] flex items-end gap-0 bg-transparent px-0.5 py-1 sm:gap-0.5 sm:px-1.5 sm:py-1.5"
           aria-label="Schnellnavigation"
         >
           {dockScrollItems.map((item) => (

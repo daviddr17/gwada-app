@@ -103,8 +103,8 @@ function buildHeroTabs(): HeroTab[] {
 const HERO_TABS: readonly HeroTab[] = buildHeroTabs();
 
 const AUTO_MS = 4200;
-/** Platz für „Mehr“-Tab in der Messung. */
-const MEHR_RESERVE_PX = 72;
+/** Platz für „Mehr“-Tab in der Messung (kompakter auf schmalen Screens). */
+const MEHR_RESERVE_PX = 64;
 const TABLIST_GAP_PX = 2;
 
 function PanelDashboard() {
@@ -410,7 +410,7 @@ function TabPanel({ id, label }: { id: HeroTabId; label: string }) {
 
 function tabButtonClassName(selected: boolean) {
   return cn(
-    "relative flex min-w-0 shrink-0 items-center gap-1.5 rounded-t-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+    "relative flex min-w-0 shrink-0 items-center gap-1 rounded-t-lg px-2 py-1.5 text-[10px] font-medium transition-colors sm:gap-1.5 sm:px-2.5 sm:text-[11px]",
     selected
       ? "bg-card text-foreground shadow-sm dark:bg-[#121826]"
       : "text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5",
@@ -568,11 +568,11 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
           <span className="w-10 shrink-0" aria-hidden />
         </div>
 
-        {/* Measure strip (gleiche Labels/Breakpoint wie sichtbare Tabs) */}
+        {/* Measure strip — offscreen, kein Einfluss auf Scrollbreite */}
         <div
           ref={measureRef}
           aria-hidden
-          className="pointer-events-none absolute -left-[9999px] top-0 flex gap-0.5 whitespace-nowrap opacity-0"
+          className="pointer-events-none fixed top-0 -left-[100vw] flex h-0 gap-0.5 overflow-hidden whitespace-nowrap opacity-0"
         >
           {HERO_TABS.map((tab) => {
             const Icon = tab.icon;
@@ -605,6 +605,7 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                 key={tab.id}
                 type="button"
                 role="tab"
+                aria-label={tab.label}
                 aria-selected={selected}
                 id={`hero-tab-${tab.id}`}
                 aria-controls={`hero-panel-${tab.id}`}
@@ -612,8 +613,12 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                 className={tabButtonClassName(selected)}
               >
                 <Icon className="size-3 shrink-0 opacity-80" aria-hidden />
-                <span className="hidden sm:inline">{tab.label}</span>
-                <span className="sm:hidden">{tab.shortLabel}</span>
+                <span className="hidden sm:inline" aria-hidden>
+                  {tab.label}
+                </span>
+                <span className="sm:hidden" aria-hidden>
+                  {tab.shortLabel}
+                </span>
                 {selected && showProgress ? (
                   <span
                     className="landing-hero-tab-progress absolute inset-x-1 bottom-0 h-0.5 origin-left rounded-full bg-primary/80"
@@ -691,7 +696,7 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
           aria-labelledby={
             activeInOverflow ? undefined : `hero-tab-${active.id}`
           }
-          className="h-[12.5rem] bg-card dark:bg-[#121826] sm:h-[14rem] md:h-[15rem]"
+          className="h-[10.75rem] bg-card dark:bg-[#121826] sm:h-[14rem] md:h-[15rem]"
         >
           <div key={active.id} className="landing-hero-panel-in h-full">
             <TabPanel id={active.id} label={active.label} />

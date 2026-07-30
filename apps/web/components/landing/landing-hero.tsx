@@ -50,7 +50,7 @@ export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props
   return (
     <section
       id="home"
-      className="relative isolate flex min-h-dvh flex-col justify-center overflow-hidden scroll-mt-28 bg-[#f4f6fd] pt-16 pb-16 md:pb-24 dark:bg-[#0b1020]"
+      className="relative isolate flex min-h-dvh flex-col justify-start overflow-hidden scroll-mt-28 bg-[#f4f6fd] pt-14 pb-28 sm:justify-center sm:pt-16 sm:pb-24 md:pb-28 dark:bg-[#0b1020]"
     >
       <StripeHeroCanvas />
 
@@ -59,7 +59,7 @@ export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props
         aria-hidden
       />
 
-      <div className="relative z-[2] mx-auto flex w-full max-w-5xl flex-col items-center px-6 text-center">
+      <div className="relative z-[2] mx-auto flex w-full max-w-5xl flex-col items-center px-4 text-center sm:px-6">
         {parallaxEnabled ? (
           <LandingHeroParallaxLoader {...cardProps} />
         ) : (

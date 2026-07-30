@@ -120,6 +120,12 @@ struct PosCartLine: Identifiable, Equatable, Sendable {
     var ohneIngredientIds: [String] {
         modifiers.compactMap { $0.type == "ohne" ? $0.ingredientId : nil }
     }
+
+    var configurationSignature: String {
+        let modIds = modifiers.map(\.id).sorted().joined(separator: ",")
+        let note = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [menuItemId, "\(course)", modIds, note].joined(separator: "|")
+    }
 }
 
 enum PosMoney {

@@ -8,7 +8,6 @@ struct TableSessionView: View {
     let sessionId: String?
 
     @State private var cart: [PosCartLine] = []
-    @State private var showMenu = false
     @State private var configuring: PosCloudMenuItem?
     @State private var showSplit = false
     @State private var showMove = false
@@ -16,15 +15,31 @@ struct TableSessionView: View {
     @State private var sending = false
     @State private var openLines: [SessionOpenLine] = []
     @State private var sendPulse = false
+    @State private var activeCourse = PosCourse.main
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            if cart.isEmpty && openLines.isEmpty {
-                emptyState
+            if let menu = runtime.snapshot?.menu {
+                VStack(spacing: 0) {
+                    Group {
+                        if cart.isEmpty && openLines.isEmpty {
+                            emptyState
+                        } else {
+                            cartList
+                        }
+                    }
+                    .frame(maxHeight: 300)
+                    Divider()
+                    MenuBrowserView(
+                        menu: menu,
+                        onSelect: onSelectMenuItem,
+                        quantityForItem: quantityForMenuItem
+                    )
+                }
             } else {
-                cartList
+                cart.isEmpty && openLines.isEmpty ? AnyView(emptyState) : AnyView(cartList)
             }
         }
         .background(Color(.systemGroupedBackground))
@@ -60,33 +75,15 @@ struct TableSessionView: View {
             bottomBar
         }
         .sensoryFeedback(.success, trigger: sendPulse)
-        .sheet(isPresented: $showMenu) {
-            if let menu = runtime.snapshot?.menu {
-                NavigationStack {
-                    MenuBrowserView(menu: menu) { item in
-                        configuring = item
-                    }
-                    .navigationTitle("Speisekarte")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Fertig") { showMenu = false }
-                        }
-                    }
-                }
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-            }
-        }
         .sheet(item: $configuring) { item in
             LineConfigureSheet(
                 item: item,
+                menu: runtime.snapshot?.menu,
                 optionGroups: runtime.snapshot?.menu?.optionGroups ?? [],
-                initialCourse: PosCourse.main,
+                initialCourse: activeCourse,
                 onConfirm: { line in
                     cart.append(line)
                     configuring = nil
-                    showMenu = false
                 },
                 onCancel: { configuring = nil }
             )
@@ -147,22 +144,42 @@ struct TableSessionView: View {
     }
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(table.label).font(.title2.weight(.bold))
-                HStack(spacing: 8) {
-                    PosStatusBadge(
-                        title: sessionId == nil ? "Frei" : "Besetzt",
-                        emphasized: sessionId != nil
-                    )
-                    Text("\(table.capacity) Plätze")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(table.label).font(.title2.weight(.bold))
+                    HStack(spacing: 8) {
+                        PosStatusBadge(
+                            title: sessionId == nil ? "Frei" : "Besetzt",
+                            emphasized: sessionId != nil
+                        )
+                        Text("\(table.capacity) Plätze")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                Spacer()
+                Text(PosMoney.format(cartTotal + openTotal))
+                    .font(.title3.weight(.bold).monospacedDigit())
             }
-            Spacer()
-            Text(PosMoney.format(cartTotal + openTotal))
-                .font(.title3.weight(.bold).monospacedDigit())
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(PosCourse.uiCourses, id: \.self) { course in
+                        Button {
+                            activeCourse = course
+                        } label: {
+                            PosChip(
+                                title: PosCourse.label(course),
+                                selected: activeCourse == course,
+                                tint: PosDesign.courseColor(course)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
         }
         .padding(16)
     }
@@ -173,13 +190,9 @@ struct TableSessionView: View {
         } description: {
             Text("Gerichte hinzufügen — Gang, Ohne-Zutaten und Hinweise wählbar.")
         } actions: {
-            Button {
-                showMenu = true
-            } label: {
-                Label("Gericht hinzufügen", systemImage: "plus")
-            }
-            .buttonStyle(PosPrimaryButtonStyle())
-            .frame(maxWidth: 280)
+            Text("Wähle ein Gericht unten in der Speisekarte.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -260,7 +273,7 @@ struct TableSessionView: View {
                     Button {
                         Task {
                             let sid = ensureSessionId()
-                            _ = await runtime.fireCourse(sessionId: sid, course: 2)
+                            _ = await runtime.fireCourse(sessionId: sid, course: activeCourse)
                         }
                     } label: {
                         Label("Fire", systemImage: "flame.fill")
@@ -295,15 +308,6 @@ struct TableSessionView: View {
             }
 
             Button {
-                showMenu = true
-            } label: {
-                Label("Gericht hinzufügen", systemImage: "plus")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            }
-            .buttonStyle(.bordered)
-
-            Button {
                 Task { await sendCart() }
             } label: {
                 if sending {
@@ -323,6 +327,56 @@ struct TableSessionView: View {
 
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }
     private var openTotal: Int { openLines.reduce(0) { $0 + $1.openCents } }
+
+    private func quantityForMenuItem(_ menuItemId: String) -> Int {
+        cart
+            .filter { $0.menuItemId == menuItemId }
+            .reduce(0) { $0 + $1.quantity }
+    }
+
+    private func onSelectMenuItem(_ item: PosCloudMenuItem) {
+        if shouldQuickAdd(item) {
+            quickAdd(item)
+            return
+        }
+        configuring = item
+    }
+
+    private func shouldQuickAdd(_ item: PosCloudMenuItem) -> Bool {
+        let relevantGroups = optionGroupsForItem(item)
+        let hasRequiredOptions = relevantGroups.contains { $0.minSelect > 0 }
+        let requiresSides = item.sides?.required == true
+        return !hasRequiredOptions && !requiresSides
+    }
+
+    private func optionGroupsForItem(_ item: PosCloudMenuItem) -> [PosCloudMenuOptionGroup] {
+        let ids = Set(item.optionGroupIds)
+        let groups = runtime.snapshot?.menu?.optionGroups ?? []
+        return groups.filter { ids.contains($0.id) && ($0.active != false) }
+    }
+
+    private func quickAdd(_ item: PosCloudMenuItem) {
+        if let idx = cart.firstIndex(where: {
+            $0.menuItemId == item.id &&
+                $0.course == activeCourse &&
+                $0.modifiers.isEmpty &&
+                $0.notes.isEmpty
+        }) {
+            cart[idx].quantity += 1
+            return
+        }
+        cart.append(
+            PosCartLine(
+                menuItemId: item.id,
+                name: item.name,
+                unitPriceCents: item.priceCents,
+                quantity: 1,
+                course: activeCourse,
+                notes: "",
+                modifiers: []
+            )
+        )
+    }
 
     private func ensureSessionId() -> String {
         if let sessionId { return sessionId }

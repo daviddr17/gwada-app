@@ -3,47 +3,13 @@ import SwiftUI
 struct MenuBrowserView: View {
     let menu: PosCloudMenuCatalog
     var onSelect: (PosCloudMenuItem) -> Void
+    var quantityForItem: (String) -> Int = { _ in 0 }
 
     @State private var search = ""
     @State private var categoryId: String?
 
     var body: some View {
-        List(filteredItems) { item in
-            Button {
-                onSelect(item)
-            } label: {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.name)
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        if !item.description.isEmpty {
-                            Text(item.description)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-                        if !(item.recipe ?? []).isEmpty {
-                            Text("Rezept · Ohne-Auswahl")
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.teal)
-                        }
-                    }
-                    Spacer()
-                    Text(PosMoney.format(item.priceCents))
-                        .font(.body.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(.primary)
-                }
-                .padding(.vertical, 4)
-            }
-        }
-        .listStyle(.plain)
-        .overlay {
-            if filteredItems.isEmpty {
-                ContentUnavailableView.search(text: search)
-            }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
+        VStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Button {
@@ -65,6 +31,81 @@ struct MenuBrowserView: View {
                 .padding(.vertical, 10)
             }
             .background(.bar)
+            .padding(.bottom, 2)
+
+            ScrollView {
+                if filteredItems.isEmpty {
+                    ContentUnavailableView.search(text: search)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.top, 32)
+                } else {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(minimum: 150), spacing: 10),
+                            GridItem(.flexible(minimum: 150), spacing: 10),
+                        ],
+                        spacing: 10
+                    ) {
+                        ForEach(filteredItems) { item in
+                            let qty = quantityForItem(item.id)
+                            Button {
+                                onSelect(item)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(alignment: .top, spacing: 6) {
+                                        Text(item.name)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(2)
+                                        Spacer(minLength: 0)
+                                        if qty > 0 {
+                                            Text("\(qty)")
+                                                .font(.caption2.weight(.bold))
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 7)
+                                                .padding(.vertical, 4)
+                                                .background(Capsule().fill(Color.accentColor))
+                                        }
+                                    }
+
+                                    if !item.description.isEmpty {
+                                        Text(item.description)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+
+                                    if !(item.recipe ?? []).isEmpty {
+                                        Text("Rezept · Ohne-Auswahl")
+                                            .font(.caption2.weight(.medium))
+                                            .foregroundStyle(.teal)
+                                    }
+
+                                    Spacer(minLength: 0)
+
+                                    Text(PosMoney.format(item.priceCents))
+                                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                                        .foregroundStyle(.primary)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+                                .padding(10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(Color(.secondarySystemBackground))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(Color(.separator).opacity(0.45), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                }
+            }
+            .background(Color(.systemGroupedBackground))
         }
         .searchable(text: $search, prompt: "Gericht suchen")
     }

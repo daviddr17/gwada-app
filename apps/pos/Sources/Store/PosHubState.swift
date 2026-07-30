@@ -1,5 +1,25 @@
 import Foundation
 
+struct PosFiredCourseStore: Equatable {
+    private var bySession: [String: Set<Int>] = [:]
+
+    mutating func mark(sessionId: String, course: Int) {
+        bySession[sessionId, default: []].insert(course)
+    }
+
+    func hasAny(sessionId: String) -> Bool {
+        !(bySession[sessionId]?.isEmpty ?? true)
+    }
+
+    func has(sessionId: String, course: Int) -> Bool {
+        bySession[sessionId]?.contains(course) ?? false
+    }
+
+    mutating func clear(sessionId: String) {
+        bySession[sessionId] = nil
+    }
+}
+
 /// Autoritative lokale Hub-Daten (Floor + Speisekarte), die Handgeräte per LAN abrufen.
 final class PosHubState: @unchecked Sendable {
     static let shared = PosHubState()
@@ -237,7 +257,7 @@ final class PosHubState: @unchecked Sendable {
         bootstrap.floor.orderCountBySessionId.removeValue(forKey: sessionId)
         bootstrap.floor.sessionMetaBySessionId.removeValue(forKey: sessionId)
         guard bootstrap.floor.openSessions.count < before else { return false }
-        firedSessionIds.remove(sessionId)
+        firedCourses.clear(sessionId: sessionId)
         self.bootstrap = bootstrap
         snapshotVersion += 1
         PosLocalStore.saveBootstrap(bootstrap)
@@ -248,16 +268,28 @@ final class PosHubState: @unchecked Sendable {
     func hasFired(sessionId: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return firedSessionIds.contains(sessionId)
+        return firedCourses.hasAny(sessionId: sessionId)
     }
 
-    func markFired(sessionId: String) {
+    func hasFired(sessionId: String, course: Int) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        firedSessionIds.insert(sessionId)
+        return firedCourses.has(sessionId: sessionId, course: course)
     }
 
-    private var firedSessionIds: Set<String> = []
+    func markFired(sessionId: String, course: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        firedCourses.mark(sessionId: sessionId, course: course)
+    }
+
+    func clearFired(sessionId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        firedCourses.clear(sessionId: sessionId)
+    }
+
+    private var firedCourses = PosFiredCourseStore()
 
     func bumpLocalOrder(sessionId: String, addCents: Int) {
         lock.lock()

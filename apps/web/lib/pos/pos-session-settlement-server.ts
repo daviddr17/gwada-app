@@ -38,6 +38,7 @@ export type SessionSummaryLine = {
   notes: string | null;
   position: number;
   course: number;
+  firedAt: string | null;
   modifiers: unknown[];
   ohneIngredientIds: string[];
 };
@@ -113,6 +114,7 @@ async function loadSessionLines(
         notes: string | null;
         position: number;
         course?: number | null;
+        fired_at: string | null;
         modifiers?: unknown;
         ohne_ingredient_ids?: string[] | null;
       }>;
@@ -142,7 +144,7 @@ async function loadSessionLines(
   const { data: lineRows, error: linesError } = await supabase
     .from("pos_order_lines")
     .select(
-      "id, order_id, menu_item_id, name, quantity, paid_quantity, unit_price_cents, line_total_cents, vat_rate, notes, position, course, modifiers, ohne_ingredient_ids",
+      "id, order_id, menu_item_id, name, quantity, paid_quantity, unit_price_cents, line_total_cents, vat_rate, notes, position, course, fired_at, modifiers, ohne_ingredient_ids",
     )
     .in("order_id", orderIds)
     .order("position");
@@ -170,6 +172,7 @@ async function loadSessionLines(
       notes: string | null;
       position: number;
       course?: number | null;
+      fired_at: string | null;
       modifiers?: unknown;
       ohne_ingredient_ids?: string[] | null;
     }>,
@@ -190,6 +193,7 @@ function mapSummaryLine(row: {
   notes: string | null;
   position: number;
   course?: number | null;
+  fired_at: string | null;
   modifiers?: unknown;
   ohne_ingredient_ids?: string[] | null;
 }): SessionSummaryLine {
@@ -214,6 +218,7 @@ function mapSummaryLine(row: {
     notes: row.notes,
     position: row.position,
     course: normalizePosOrderCourse(row.course),
+    firedAt: row.fired_at ?? null,
     modifiers: Array.isArray(row.modifiers) ? row.modifiers : [],
     ohneIngredientIds: Array.isArray(row.ohne_ingredient_ids)
       ? row.ohne_ingredient_ids

@@ -70,6 +70,53 @@ final class PosCourseTests: XCTestCase {
         XCTAssertEqual(advance.lines?[0].course, 3)
     }
 
+    func testCloudSessionSummaryLineDecodesFiredAt() throws {
+        let summary = try JSONDecoder().decode(
+            PosCloudSessionSummaryLine.self,
+            from: Data("""
+            {
+              "id": "summary-line",
+              "orderId": "order-1",
+              "name": "Dessert",
+              "quantity": 1,
+              "paidQuantity": 0,
+              "openQuantity": 1,
+              "openAmountCents": 600,
+              "unitPriceCents": 600,
+              "course": 3,
+              "firedAt": "2026-07-30T10:00:00Z"
+            }
+            """.utf8)
+        )
+
+        XCTAssertEqual(
+            summary.firedAt,
+            ISO8601DateFormatter().date(from: "2026-07-30T10:00:00Z")
+        )
+    }
+
+    func testCloudSessionSummaryLineDecodesFractionalFiredAt() throws {
+        let summary = try JSONDecoder().decode(
+            PosCloudSessionSummaryLine.self,
+            from: Data("""
+            {
+              "id": "summary-line",
+              "orderId": "order-1",
+              "name": "Dessert",
+              "quantity": 1,
+              "paidQuantity": 0,
+              "openQuantity": 1,
+              "openAmountCents": 600,
+              "unitPriceCents": 600,
+              "course": 3,
+              "firedAt": "2026-07-30T10:00:00.123Z"
+            }
+            """.utf8)
+        )
+
+        XCTAssertNotNil(summary.firedAt)
+    }
+
     func testCloudCourseDtosDecodeLegacyStringCourses() throws {
         let decoder = JSONDecoder()
         let summary = try decoder.decode(

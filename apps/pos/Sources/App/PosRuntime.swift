@@ -664,6 +664,8 @@ final class PosRuntime: ObservableObject {
                     name: line.name,
                     openQuantity: line.openQuantity,
                     openCents: line.openAmountCents,
+                    course: line.course ?? PosCourse.default,
+                    firedAt: line.firedAt,
                     detail: detailParts.joined(separator: " · ")
                 )
             }
@@ -819,7 +821,7 @@ final class PosRuntime: ObservableObject {
     @discardableResult
     func fireCourse(sessionId: String, course: Int) async -> Bool {
         let restaurantId = PosHubState.shared.restaurantId
-        PosHubState.shared.markFired(sessionId: sessionId)
+        PosHubState.shared.markFired(sessionId: sessionId, course: course)
         PosSyncQueue.shared.enqueueFireCourse(PosSyncFireCoursePayload(
             restaurantId: restaurantId,
             tableSessionId: sessionId,

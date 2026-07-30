@@ -1,5 +1,14 @@
 import Foundation
 
+private func posISO8601Date(from value: String) -> Date? {
+    let formatter = ISO8601DateFormatter()
+    if let date = formatter.date(from: value) {
+        return date
+    }
+    formatter.formatOptions.insert(.withFractionalSeconds)
+    return formatter.date(from: value)
+}
+
 struct PosCloudOrderItem: Encodable {
     var menuItemId: String
     var quantity: Int
@@ -28,12 +37,13 @@ struct PosCloudSessionSummaryLine: Decodable, Identifiable {
     var unitPriceCents: Int
     var notes: String?
     var course: Int?
+    var firedAt: Date?
     var modifiers: [PosCloudModifierDecoded]?
     var ohneIngredientIds: [String]?
 
     enum CodingKeys: String, CodingKey {
         case id, orderId, name, quantity, paidQuantity, openQuantity, openAmountCents, unitPriceCents
-        case notes, course, modifiers, ohneIngredientIds
+        case notes, course, firedAt, modifiers, ohneIngredientIds
     }
 
     init(from decoder: Decoder) throws {
@@ -48,6 +58,8 @@ struct PosCloudSessionSummaryLine: Decodable, Identifiable {
         unitPriceCents = try c.decode(Int.self, forKey: .unitPriceCents)
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         course = try c.decodeCourseIfPresent(forKey: .course)
+        firedAt = try c.decodeIfPresent(String.self, forKey: .firedAt)
+            .flatMap(posISO8601Date)
         modifiers = try c.decodeIfPresent([PosCloudModifierDecoded].self, forKey: .modifiers)
         ohneIngredientIds = try c.decodeIfPresent([String].self, forKey: .ohneIngredientIds)
     }

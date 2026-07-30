@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
+import { LandingHeroAppPreview } from "@/components/landing/landing-hero-app-preview";
 import { StripeHeroCanvas } from "@/components/landing/stripe-hero-canvas";
 import { LandingHeroCard } from "@/components/landing/landing-hero-card";
 import { useMarketingHeroLogoSrc } from "@/lib/hooks/use-marketing-hero-logo-src";
@@ -41,7 +42,7 @@ type Props = {
 };
 
 /**
- * Full-viewport Hero: Stripe-Gradient + Glas-Card, starke Typo, CTAs.
+ * Full-viewport Hero: Stripe-Gradient + Glas-Card + App-UI-Anker.
  */
 export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props) {
   const logoUrl = useMarketingHeroLogoSrc();
@@ -50,7 +51,7 @@ export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props
   return (
     <section
       id="home"
-      className="relative isolate flex min-h-dvh flex-col justify-center overflow-hidden scroll-mt-28 bg-[#f4f6fd] pt-16 pb-24 md:pb-32 dark:bg-[#0b1020]"
+      className="relative isolate flex min-h-dvh flex-col justify-center overflow-hidden scroll-mt-28 bg-[#f4f6fd] pt-16 pb-16 md:pb-24 dark:bg-[#0b1020]"
     >
       <StripeHeroCanvas />
 
@@ -59,12 +60,13 @@ export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props
         aria-hidden
       />
 
-      <div className="relative z-[2] mx-auto flex w-full max-w-5xl flex-col items-center px-6 text-center">
+      <div className="relative z-[2] mx-auto flex w-full max-w-5xl flex-col items-center gap-8 px-6 text-center md:gap-10">
         {parallaxEnabled ? (
           <LandingHeroParallaxLoader {...cardProps} />
         ) : (
           <LandingHeroCard logoUrl={logoUrl} onScrollToSection={onScrollToSection} />
         )}
+        <LandingHeroAppPreview />
       </div>
     </section>
   );

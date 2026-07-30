@@ -11,6 +11,10 @@ import {
   fiskalyConfigFromJson,
 } from "@/lib/integrations/platform-fiskaly-config";
 import {
+  mergeStripeSecretFields,
+  stripeConfigFromJson,
+} from "@/lib/integrations/platform-stripe-config";
+import {
   mergeWeatherApiKey,
   weatherConfigFromJson,
 } from "@/lib/integrations/platform-weather-config";
@@ -86,6 +90,44 @@ export function mergePlatformIntegrationConfig(
       typeof incoming.private_key === "string" ? incoming.private_key : undefined;
     merged.private_key = mergeAppleBusinessConnectPrivateKey(incKey, ex);
     return merged;
+  }
+
+  if (key === "stripe") {
+    const ex = stripeConfigFromJson(existing);
+    const secrets = mergeStripeSecretFields(
+      {
+        secret_key:
+          typeof incoming.secret_key === "string"
+            ? incoming.secret_key
+            : undefined,
+        webhook_secret:
+          typeof incoming.webhook_secret === "string"
+            ? incoming.webhook_secret
+            : undefined,
+      },
+      ex,
+    );
+    const modeRaw =
+      typeof incoming.mode === "string" ? incoming.mode.trim() : undefined;
+    const mode =
+      modeRaw === "live" ? "live" : modeRaw === "test" ? "test" : ex.mode;
+    const pick = (k: keyof typeof ex) => {
+      const v = incoming[k];
+      if (typeof v === "string") return v.trim() || undefined;
+      return ex[k];
+    };
+    return {
+      mode: mode ?? "test",
+      publishable_key: pick("publishable_key"),
+      secret_key: secrets.secret_key,
+      webhook_secret: secrets.webhook_secret,
+      price_basic_monthly: pick("price_basic_monthly"),
+      price_basic_yearly: pick("price_basic_yearly"),
+      price_pro_monthly: pick("price_pro_monthly"),
+      price_pro_yearly: pick("price_pro_yearly"),
+      price_pos_monthly: pick("price_pos_monthly"),
+      price_pos_yearly: pick("price_pos_yearly"),
+    };
   }
 
   if (key === "fiskaly") {

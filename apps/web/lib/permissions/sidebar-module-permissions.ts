@@ -1,3 +1,7 @@
+import {
+  hasSidebarModuleBillingAccess,
+  type RestaurantEntitlements,
+} from "@/lib/billing/entitlements";
 import type { SidebarModuleId } from "@/lib/constants/sidebar-modules";
 import {
   hasModuleRead,
@@ -45,7 +49,11 @@ const GALLERY_READ_KEYS: RestaurantPermissionKey[] = [
 export function hasSidebarModuleAccess(
   has: (key: RestaurantPermissionKey) => boolean,
   moduleId: SidebarModuleId,
+  entitlements?: RestaurantEntitlements | null,
 ): boolean {
+  if (!hasSidebarModuleBillingAccess(entitlements, moduleId)) {
+    return false;
+  }
   if (moduleId === "checklisten") {
     return (
       hasModuleRead(has, "staff_todos") || hasModuleRead(has, "compliance")

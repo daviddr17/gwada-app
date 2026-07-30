@@ -69,6 +69,7 @@ import {
   sidebarModuleNotificationCount,
 } from "@/lib/navigation/sidebar-module-notification-counts";
 import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasSidebarModuleAccess } from "@/lib/permissions/sidebar-module-permissions";
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
@@ -133,6 +134,7 @@ export function AppSidebar() {
     error: permissionsError,
     reload: reloadPermissions,
   } = useRestaurantPermissions();
+  const { entitlements } = useRestaurantBilling();
   const permissionsPending = permissionsLoading && permissions.size === 0;
   const inSuperadmin = pathname.startsWith("/superadmin");
   const { summary: notificationSummary } = useNotificationSummary();
@@ -148,8 +150,10 @@ export function AppSidebar() {
     // Permissions noch leer: Module trotzdem sofort klickbar (optimistic).
     // Nach dem Load filtert hasSidebarModuleAccess wie bisher.
     if (permissionsPending) return mods;
-    return mods.filter((mod) => hasSidebarModuleAccess(has, mod.id));
-  }, [sidebarModuleOrder, has, permissionsPending]);
+    return mods.filter((mod) =>
+      hasSidebarModuleAccess(has, mod.id, entitlements),
+    );
+  }, [sidebarModuleOrder, has, permissionsPending, entitlements]);
 
   const displayName = profile.name.trim() || (profileReady ? "Restaurant" : "");
   const userFullName = formatOrderProtocolUserName({ firstName, lastName });

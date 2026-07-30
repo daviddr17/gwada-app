@@ -18,6 +18,7 @@ const KEYS = new Set<string>([
   "email",
   "weather",
   "fiskaly",
+  "stripe",
   "lexoffice",
   "tripadvisor",
   "apple_business_connect",

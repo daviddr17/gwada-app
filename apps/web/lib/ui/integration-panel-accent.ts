@@ -12,6 +12,7 @@ export const INTEGRATION_PANEL_ACCENT = {
   apple_business_connect: "#1d1d1f",
   weather: "#0ea5e9",
   fiskaly: "#64748b",
+  stripe: "#635BFF",
 } as const;
 
 export type IntegrationPanelAccentKey = keyof typeof INTEGRATION_PANEL_ACCENT;

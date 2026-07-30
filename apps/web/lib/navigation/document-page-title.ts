@@ -94,6 +94,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/settings/integrationen": "Integrationen",
   "/dashboard/settings/displays": "Displays",
   "/dashboard/settings/api": "API",
+  "/dashboard/settings/abo": "Abo",
   "/dashboard/profile": "Profil",
   "/dashboard/profile/persoenliche-daten": "Übersicht",
   "/dashboard/profile/anmeldung": "Anmeldung",

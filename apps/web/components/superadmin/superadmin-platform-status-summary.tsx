@@ -35,6 +35,7 @@ const INTEGRATION_ALERT_LABELS: Record<PlatformIntegrationKey, string> = {
   email: "E-Mail",
   weather: "Wetter",
   fiskaly: "Fiskaly",
+  stripe: "Stripe",
   lexoffice: "Lexoffice",
   tripadvisor: "TripAdvisor",
   apple_business_connect: "Apple Business Connect",

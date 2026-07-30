@@ -41,6 +41,11 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     label: "API",
     matchMode: "exact",
   },
+  {
+    href: APP_ROUTES.settings.billing,
+    label: "Abo",
+    matchMode: "exact",
+  },
 ];
 
 export default function SettingsLayout({

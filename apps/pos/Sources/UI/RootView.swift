@@ -213,6 +213,7 @@ struct RootView: View {
             .tabItem { Label("Mehr", systemImage: "ellipsis.circle") }
             .tag(KellnerTab.more)
         }
+        .posKellnerTabLiquidGlass()
         .onPreferenceChange(PosSessionBonActiveKey.self) { sessionBonActive = $0 }
         .onPreferenceChange(PosSessionBonCartQtyKey.self) { sessionBonQty = $0 }
         .modifier(PosBonTabAccessoryModifier(

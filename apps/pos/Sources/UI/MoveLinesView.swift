@@ -84,7 +84,7 @@ struct MoveLinesView: View {
                 .buttonStyle(PosPrimaryButtonStyle())
                 .disabled(selected.isEmpty || targetTableId == nil)
                 .padding()
-                .background(.ultraThinMaterial)
+                .posLiquidGlassBar()
             }
             .sensoryFeedback(.success, trigger: movePulse)
         }

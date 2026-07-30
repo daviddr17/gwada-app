@@ -212,7 +212,7 @@ struct BonSheetView: View {
             }
         }
         .padding(PosDesign.sectionSpacing)
-        .background(.ultraThinMaterial)
+        .posLiquidGlassBar()
     }
 
     @MainActor

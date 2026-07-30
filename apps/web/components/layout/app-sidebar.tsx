@@ -15,6 +15,7 @@ import {
   Building2,
   Hourglass,
   LayoutDashboard,
+  Lock,
   LogOut,
   Mail,
   Palette,
@@ -71,7 +72,10 @@ import {
 import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
 import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
-import { hasSidebarModuleAccess } from "@/lib/permissions/sidebar-module-permissions";
+import {
+  hasSidebarModulePermissionAccess,
+  isSidebarModuleBillingLocked,
+} from "@/lib/permissions/sidebar-module-permissions";
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import {
@@ -147,12 +151,17 @@ export function AppSidebar() {
     const mods = sidebarModuleOrder
       .map((id: SidebarModuleId) => SIDEBAR_MODULE_BY_ID.get(id))
       .filter((mod): mod is NonNullable<typeof mod> => mod != null);
-    // Permissions noch leer: Module trotzdem sofort klickbar (optimistic).
-    // Nach dem Load filtert hasSidebarModuleAccess wie bisher.
-    if (permissionsPending) return mods;
-    return mods.filter((mod) =>
-      hasSidebarModuleAccess(has, mod.id, entitlements),
-    );
+    // Permissions noch leer: Module trotzdem sofort sichtbar (optimistic).
+    // Billing-Gesperrte bleiben sichtbar (ausgegraut + Schloss → Abo).
+    if (permissionsPending) {
+      return mods.map((mod) => ({ mod, billingLocked: false }));
+    }
+    return mods
+      .filter((mod) => hasSidebarModulePermissionAccess(has, mod.id))
+      .map((mod) => ({
+        mod,
+        billingLocked: isSidebarModuleBillingLocked(entitlements, mod.id),
+      }));
   }, [sidebarModuleOrder, has, permissionsPending, entitlements]);
 
   const displayName = profile.name.trim() || (profileReady ? "Restaurant" : "");
@@ -446,27 +455,54 @@ export function AppSidebar() {
                       </div>
                     </SidebarMenuItem>
                   ) : (
-                    orderedSidebarModules.map((mod) => {
+                    orderedSidebarModules.map(({ mod, billingLocked }) => {
                       const Icon = mod.icon;
-                      const notificationCount = sidebarModuleNotificationCount(
-                        notificationSummary,
-                        mod.id,
-                      );
+                      const notificationCount = billingLocked
+                        ? 0
+                        : sidebarModuleNotificationCount(
+                            notificationSummary,
+                            mod.id,
+                          );
+                      const href = billingLocked
+                        ? APP_ROUTES.settings.billing
+                        : mod.href;
                       const modulePending =
                         pendingHref != null &&
-                        normalizeNavHref(mod.href) === pendingHref;
+                        normalizeNavHref(href) === pendingHref;
                       return (
                         <SidebarMenuItem key={mod.id}>
                           <SidebarMenuButton
                             isActive={
-                              pathname.startsWith(mod.pathPrefix) || modulePending
+                              !billingLocked &&
+                              (pathname.startsWith(mod.pathPrefix) ||
+                                modulePending)
                             }
-                            tooltip={mod.tooltip}
-                            render={<AppNavLink href={mod.href} />}
+                            tooltip={
+                              billingLocked
+                                ? `${mod.tooltip} — Abo erforderlich`
+                                : mod.tooltip
+                            }
+                            className={
+                              billingLocked
+                                ? "opacity-55 text-sidebar-foreground/55 hover:opacity-70 hover:text-sidebar-foreground/70"
+                                : undefined
+                            }
+                            render={<AppNavLink href={href} />}
                           >
                             <Icon />
-                            <span>
-                              {formatSidebarMenuLabel(mod.label, notificationCount)}
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className="truncate">
+                                {formatSidebarMenuLabel(
+                                  mod.label,
+                                  notificationCount,
+                                )}
+                              </span>
+                              {billingLocked ? (
+                                <Lock
+                                  className="size-3.5 shrink-0 opacity-80"
+                                  aria-hidden
+                                />
+                              ) : null}
                             </span>
                           </SidebarMenuButton>
                         </SidebarMenuItem>

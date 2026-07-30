@@ -46,14 +46,11 @@ const GALLERY_READ_KEYS: RestaurantPermissionKey[] = [
   "gallery.delete",
 ];
 
-export function hasSidebarModuleAccess(
+/** Rollen-/Permissions-Sichtbarkeit (ohne Billing). */
+export function hasSidebarModulePermissionAccess(
   has: (key: RestaurantPermissionKey) => boolean,
   moduleId: SidebarModuleId,
-  entitlements?: RestaurantEntitlements | null,
 ): boolean {
-  if (!hasSidebarModuleBillingAccess(entitlements, moduleId)) {
-    return false;
-  }
   if (moduleId === "checklisten") {
     return (
       hasModuleRead(has, "staff_todos") || hasModuleRead(has, "compliance")
@@ -69,5 +66,24 @@ export function hasSidebarModuleAccess(
   if (moduleId === "galerie") {
     return GALLERY_READ_KEYS.some((key) => has(key));
   }
+  return true;
+}
+
+/** Modul sichtbar, aber Plan sperrt Zugriff → Upsell in der Sidebar. */
+export function isSidebarModuleBillingLocked(
+  entitlements: RestaurantEntitlements | null | undefined,
+  moduleId: SidebarModuleId,
+): boolean {
+  return !hasSidebarModuleBillingAccess(entitlements, moduleId);
+}
+
+/** Voller Zugriff: Permission + Billing. */
+export function hasSidebarModuleAccess(
+  has: (key: RestaurantPermissionKey) => boolean,
+  moduleId: SidebarModuleId,
+  entitlements?: RestaurantEntitlements | null,
+): boolean {
+  if (!hasSidebarModulePermissionAccess(has, moduleId)) return false;
+  if (isSidebarModuleBillingLocked(entitlements, moduleId)) return false;
   return true;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ChevronRight, Monitor, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,8 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
+import { hasBillingFeature } from "@/lib/billing/entitlements";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import {
   DISPLAY_MODULES,
   type DisplayModule,
@@ -25,6 +28,7 @@ import {
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 
@@ -37,11 +41,15 @@ type PairingInfo = {
 export function RestaurantDisplaysPanel() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has, loading: permLoading } = useRestaurantPermissions();
+  const { entitlements, loading: billingLoading } = useRestaurantBilling();
   const canManage = has("display.manage");
+  const canUseDisplays = hasBillingFeature(entitlements, "feature.displays");
 
   const [displays, setDisplays] = useState<DisplayRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading || permLoading);
+  const showSkeleton = useDeferredSkeleton(
+    loading || permLoading || billingLoading,
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -55,7 +63,15 @@ export function RestaurantDisplaysPanel() {
   );
 
   const load = useCallback(async () => {
-    if (!restaurantId) {
+    if (!restaurantId || billingLoading) {
+      if (!restaurantId) {
+        setDisplays([]);
+        setLoading(false);
+        initialLoadPendingRef.current = false;
+      }
+      return;
+    }
+    if (!canUseDisplays) {
       setDisplays([]);
       setLoading(false);
       initialLoadPendingRef.current = false;
@@ -80,7 +96,7 @@ export function RestaurantDisplaysPanel() {
         initialLoadPendingRef.current = false;
       }
     }
-  }, [restaurantId]);
+  }, [restaurantId, billingLoading, canUseDisplays]);
 
   useEffect(() => {
     initialLoadPendingRef.current = true;
@@ -229,6 +245,20 @@ export function RestaurantDisplaysPanel() {
     return (
       <p className="text-sm text-muted-foreground">
         Keine Berechtigung — „Displays verwalten“ in den Rollen erforderlich.
+      </p>
+    );
+  }
+
+  if (!canUseDisplays) {
+    return (
+      <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
+        Tablet-Displays sind ab Basic enthalten.{" "}
+        <Link
+          href={APP_ROUTES.settings.billing}
+          className="font-medium text-foreground underline underline-offset-2"
+        >
+          Abo upgraden
+        </Link>
       </p>
     );
   }

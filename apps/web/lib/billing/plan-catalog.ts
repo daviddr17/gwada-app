@@ -93,6 +93,7 @@ const BASIC_FEATURES: readonly BillingFeatureKey[] = [
   "module.checklists",
   "integrations.google_business",
   "feature.embeds",
+  "feature.displays",
 ];
 
 /** Eigene Absender (E-Mail + WhatsApp) erst ab Pro — Free/Basic nutzen Gwada-Mail. */
@@ -107,7 +108,6 @@ const PRO_FEATURES: readonly BillingFeatureKey[] = [
   "integrations.lexoffice",
   "integrations.tripadvisor",
   "feature.public_api",
-  "feature.displays",
   "feature.news_autopilot",
   "feature.review_auto_reply",
   "feature.compliance",
@@ -164,7 +164,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
       "Bestand & Bestellungen",
       "News, Events, Galerie & Bewertungen",
       "Kontakte, Dokumente & Checklisten",
-      "Website-Einbettungen & Google Business",
+      "Tablet-Displays, Einbettungen & Google Business",
     ],
   },
   pro: {
@@ -182,7 +182,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
       "Eigener E-Mail-Absender (SMTP/Gmail/Outlook)",
       "WhatsApp, Facebook & Instagram",
       "Mitarbeiter: Schichten, Zeiten, Verträge",
-      "Buchführung, Autopilot, Displays & API",
+      "Buchführung, Autopilot & API",
       "Priorisierter Support",
     ],
   },
@@ -420,7 +420,7 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
     label: "Tablet-Displays",
     hint: "Zeiterfassung, Reservierungen, Rezepte, …",
     free: false,
-    basic: false,
+    basic: true,
     pro: true,
   },
   {

@@ -188,16 +188,42 @@
   }
 }
 
-.landing-hero-preview-pulse {
-  animation: landing-hero-preview-pulse 2.8s ease-in-out infinite;
-}
-
-.landing-hero-preview-dot {
-  animation: landing-hero-preview-pulse 2.8s ease-in-out infinite;
-}
-
 .landing-hero-preview-kpi {
   animation: landing-hero-preview-kpi 3.2s ease-in-out infinite;
+}
+
+@keyframes landing-hero-tab-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.landing-hero-tab-progress {
+  animation-name: landing-hero-tab-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+.landing-hero-tab-progress[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+@keyframes landing-hero-panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.landing-hero-panel-in {
+  animation: landing-hero-panel-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -209,9 +235,9 @@
     animation: none;
   }
 
-  .landing-hero-preview-pulse,
-  .landing-hero-preview-dot,
-  .landing-hero-preview-kpi {
+  .landing-hero-preview-kpi,
+  .landing-hero-tab-progress,
+  .landing-hero-panel-in {
     animation: none;
   }
 }

@@ -9,7 +9,7 @@ struct PosCloudOrderItem: Encodable {
     var modifiers: [PosCloudModifierPayload]?
 }
 
-struct PosCloudModifierPayload: Encodable {
+struct PosCloudModifierPayload: Codable, Sendable {
     var type: String
     var label: String
     var ingredientId: String?

@@ -37,6 +37,9 @@ struct PosSyncOrderItem: Codable, Sendable {
     var menuItemId: String
     var quantity: Int
     var notes: String?
+    var course: Int?
+    var ohneIngredientIds: [String]?
+    var modifiers: [PosCloudModifierPayload]?
 }
 
 struct PosSyncCollectCashPayload: Codable, Sendable {
@@ -319,7 +322,29 @@ final class PosSyncQueue: ObservableObject {
                     "menuItemId": item.menuItemId,
                     "quantity": item.quantity,
                 ]
+                if let course = item.course { row["course"] = course }
                 if let notes = item.notes, !notes.isEmpty { row["notes"] = notes }
+                if let ohne = item.ohneIngredientIds, !ohne.isEmpty {
+                    row["ohneIngredientIds"] = ohne
+                }
+                if let modifiers = item.modifiers, !modifiers.isEmpty {
+                    row["modifiers"] = modifiers.map { modifier -> [String: Any] in
+                        var value: [String: Any] = [
+                            "type": modifier.type,
+                            "label": modifier.label,
+                        ]
+                        if let ingredientId = modifier.ingredientId {
+                            value["ingredientId"] = ingredientId
+                        }
+                        if let optionChoiceId = modifier.optionChoiceId {
+                            value["optionChoiceId"] = optionChoiceId
+                        }
+                        if let priceDeltaCents = modifier.priceDeltaCents {
+                            value["priceDeltaCents"] = priceDeltaCents
+                        }
+                        return value
+                    }
+                }
                 return row
             }
             envelope = PosNestClient.eventEnvelope(
@@ -460,7 +485,10 @@ final class PosSyncQueue: ObservableObject {
                     PosCloudOrderItem(
                         menuItemId: $0.menuItemId,
                         quantity: $0.quantity,
-                        notes: $0.notes
+                        notes: $0.notes,
+                        course: $0.course,
+                        ohneIngredientIds: $0.ohneIngredientIds,
+                        modifiers: $0.modifiers
                     )
                 }
             )

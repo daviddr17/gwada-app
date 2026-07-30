@@ -633,7 +633,18 @@ final class PosRuntime: ObservableObject {
                     items: [PosSyncOrderItem(
                         menuItemId: line.menuItemId,
                         quantity: line.quantity,
-                        notes: line.notes.isEmpty ? nil : line.notes
+                        notes: line.notes.isEmpty ? nil : line.notes,
+                        course: line.course,
+                        ohneIngredientIds: line.ohneIngredientIds,
+                        modifiers: line.modifiers.map {
+                            PosCloudModifierPayload(
+                                type: $0.type,
+                                label: $0.label,
+                                ingredientId: $0.ingredientId,
+                                optionChoiceId: $0.optionChoiceId,
+                                priceDeltaCents: $0.priceDeltaCents
+                            )
+                        }
                     )],
                     localOrderId: UUID().uuidString
                 ))

@@ -13,7 +13,6 @@ struct TableSessionView: View {
     @State private var showMove = false
     @State private var showMoveSession = false
     @State private var showBon = false
-    @State private var sending = false
     @State private var openLines: [SessionOpenLine] = []
     @State private var sendPulse = false
     @State private var activeCourse = PosCourse.main
@@ -213,11 +212,11 @@ struct TableSessionView: View {
 
     private var emptyState: some View {
         ContentUnavailableView {
-            Label("Warenkorb leer", systemImage: "cart")
+            Label("Noch nichts gesendet", systemImage: "cart")
         } description: {
-            Text("Noch keine gesendeten Positionen.")
+            Text("Noch keine Positionen an Küche oder Bar gesendet.")
         } actions: {
-            Text("Wähle ein Gericht in der Speisekarte und öffne den Bon.")
+            Text("Wähle ein Gericht in der Speisekarte. Ungesendete Positionen findest du im Bon.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -366,8 +365,6 @@ struct TableSessionView: View {
     }
 
     private func sendCart() async -> Bool {
-        sending = true
-        defer { sending = false }
         let ok = await runtime.sendCart(tableId: table.id, lines: cart)
         if ok {
             cart.removeAll()

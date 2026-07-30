@@ -1,5 +1,28 @@
 import SwiftUI
 
+struct BonSheetActionState {
+    private(set) var sending = false
+    private(set) var firingCourses: Set<Int> = []
+
+    mutating func beginSending() -> Bool {
+        guard !sending else { return false }
+        sending = true
+        return true
+    }
+
+    mutating func finishSending() {
+        sending = false
+    }
+
+    mutating func beginFiring(course: Int) -> Bool {
+        firingCourses.insert(course).inserted
+    }
+
+    mutating func finishFiring(course: Int) {
+        firingCourses.remove(course)
+    }
+}
+
 struct BonSheetView: View {
     let tableLabel: String
     @Binding var cart: [PosCartLine]
@@ -9,6 +32,8 @@ struct BonSheetView: View {
     var onFire: (Int) async -> Void
     var onWeiterBestellen: () -> Void
     var onZurRechnung: () -> Void
+
+    @State private var actionState = BonSheetActionState()
 
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }
     private var openTotal: Int { openLines.reduce(0) { $0 + $1.openCents } }
@@ -85,10 +110,11 @@ struct BonSheetView: View {
 
             if sentLines.contains(where: { !$0.isFired }) {
                 Button("\(PosCourse.label(course)) schicken") {
-                    Task { await onFire(course) }
+                    Task { await fire(course: course) }
                 }
                 .buttonStyle(.bordered)
                 .tint(PosDesign.courseColor(course))
+                .disabled(actionState.firingCourses.contains(course))
             }
         }
         .padding(.vertical, 8)
@@ -163,12 +189,12 @@ struct BonSheetView: View {
     private var actions: some View {
         VStack(spacing: 10) {
             Button {
-                Task { _ = await onSend() }
+                Task { await send() }
             } label: {
                 Text("Senden · \(PosMoney.format(cartTotal))")
             }
             .buttonStyle(PosPrimaryButtonStyle())
-            .disabled(cart.isEmpty)
+            .disabled(cart.isEmpty || actionState.sending)
 
             HStack(spacing: 10) {
                 Button("Weiter bestellen", action: onWeiterBestellen)
@@ -179,6 +205,20 @@ struct BonSheetView: View {
         }
         .padding(PosDesign.sectionSpacing)
         .background(.ultraThinMaterial)
+    }
+
+    @MainActor
+    private func send() async {
+        guard actionState.beginSending() else { return }
+        defer { actionState.finishSending() }
+        _ = await onSend()
+    }
+
+    @MainActor
+    private func fire(course: Int) async {
+        guard actionState.beginFiring(course: course) else { return }
+        defer { actionState.finishFiring(course: course) }
+        await onFire(course)
     }
 
     private func decrement(_ line: PosCartLine) {

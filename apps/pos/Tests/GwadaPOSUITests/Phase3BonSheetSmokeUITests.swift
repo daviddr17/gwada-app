@@ -38,5 +38,9 @@ final class Phase3BonSheetSmokeUITests: XCTestCase {
             app.descendants(matching: .any)["pos.bon.sheet"].waitForExistence(timeout: 5),
             "Der Bon-Dock-Button sollte den Bon-Sheet öffnen."
         )
+        XCTAssertTrue(
+            app.staticTexts["Noch nichts gesendet"].waitForExistence(timeout: 5),
+            "Der leere Bon sollte gesendete Positionen beschreiben, nicht den Warenkorb."
+        )
     }
 }

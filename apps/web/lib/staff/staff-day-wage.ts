@@ -3,7 +3,10 @@ import type {
   RestaurantStaffWorkEntryRow,
 } from "@/lib/types/staff";
 import { isStaffFixedPayType } from "@/lib/staff/staff-contract-pay";
-import { summarizeStaffWorkEntries } from "@/lib/staff/staff-work-hours-summary";
+import {
+  netWorkHoursFromWorkBreakEntries,
+  summarizeStaffWorkEntries,
+} from "@/lib/staff/staff-work-hours-summary";
 import { addDays, localDayKey } from "@/lib/staff/shift-schedule-range";
 import { startOfLocalDay } from "@/lib/reservations/month-range";
 
@@ -83,16 +86,16 @@ export function sumStaffWorkHoursForDay(
   dayYmd: string,
   now: Date = new Date(),
 ): number {
-  let workMs = 0;
-  let breakMs = 0;
+  const dayEntries: RestaurantStaffWorkEntryRow[] = [];
   for (const e of entries) {
     if (e.staff_id !== staffId) continue;
+    if (e.entry_type !== "work" && e.entry_type !== "break") continue;
     const ms = staffWorkEntryMsForDay(e, dayYmd, now);
     if (ms <= 0) continue;
-    if (e.entry_type === "work") workMs += ms;
-    else if (e.entry_type === "break") breakMs += ms;
+    dayEntries.push(e);
   }
-  return Math.max(0, workMs - breakMs) / 3_600_000;
+  // Gleiche Netto-Logik wie Monats-Summe / Schicht-Zeile (kein Doppel-Abzug Display-Pause).
+  return netWorkHoursFromWorkBreakEntries(dayEntries, now).netWorkH;
 }
 
 export type StaffDayWageLine = {

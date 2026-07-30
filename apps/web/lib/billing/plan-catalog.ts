@@ -352,6 +352,14 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
     basic: true,
     pro: true,
   },
+  {
+    id: "displays",
+    label: "Tablet-Displays",
+    hint: "Zeiterfassung, Reservierungen, Rezepte, …",
+    free: false,
+    basic: true,
+    pro: true,
+  },
 
   { type: "section", id: "sec_channels", label: "Benachrichtigungen & Kanäle" },
   {
@@ -413,14 +421,6 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
     label: "Insights (kanalübergreifend)",
     free: false,
     basic: false,
-    pro: true,
-  },
-  {
-    id: "displays",
-    label: "Tablet-Displays",
-    hint: "Zeiterfassung, Reservierungen, Rezepte, …",
-    free: false,
-    basic: true,
     pro: true,
   },
   {

@@ -83,7 +83,7 @@ export function GalleryComposeDrawer({
           previewUrl?: string;
         };
         if (!res.ok) {
-          toast.error(data.error === "storage_quota_exceeded" ? "Speicher voll (3 GB)" : "Upload fehlgeschlagen");
+          toast.error(data.error === "storage_quota_exceeded" ? "Speicherlimit erreicht" : "Upload fehlgeschlagen");
           return;
         }
         setPendingUpload({
@@ -124,7 +124,7 @@ export function GalleryComposeDrawer({
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        toast.error(data.error === "storage_quota_exceeded" ? "Speicher voll (3 GB)" : "Speichern fehlgeschlagen");
+        toast.error(data.error === "storage_quota_exceeded" ? "Speicherlimit erreicht" : "Speichern fehlgeschlagen");
         return;
       }
       toast.success("Bild hinzugefügt");

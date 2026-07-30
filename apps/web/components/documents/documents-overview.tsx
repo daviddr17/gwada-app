@@ -129,7 +129,7 @@ function formatWhen(iso: string): string {
 function uploadErrorMessage(code: string | undefined): string {
   switch (code) {
     case "storage_quota_exceeded":
-      return "Speicherlimit erreicht (max. 1 GB pro Restaurant).";
+      return "Speicherlimit erreicht (Basic 3 GB, Pro 10 GB).";
     case "invalid_file":
       return `Nur ${RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL} (max. 100 MB).`;
     case "invalid_staff":

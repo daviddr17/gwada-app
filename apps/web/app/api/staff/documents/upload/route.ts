@@ -1,13 +1,11 @@
 import { randomUUID } from "crypto";
 import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
-import {
-  RESTAURANT_DOCUMENTS_QUOTA_BYTES,
-  RESTAURANT_DOCUMENTS_STORAGE_BUCKET,
-} from "@/lib/constants/restaurant-documents";
+import { RESTAURANT_DOCUMENTS_STORAGE_BUCKET } from "@/lib/constants/restaurant-documents";
 import {
   resolveRestaurantDocumentMime,
   validateRestaurantDocumentFile,
 } from "@/lib/documents/validate-restaurant-document-file";
+import { assertWorkspaceStorageAvailable } from "@/lib/gallery/workspace-storage-server";
 import { buildRestaurantDocumentStoragePath } from "@/lib/supabase/documents-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -62,15 +60,13 @@ export async function POST(req: Request) {
 
   const staffId = staffRow.id as string;
 
-  const { data: usedRaw, error: usageError } = await admin.rpc(
-    "restaurant_workspace_used_bytes",
-    { p_restaurant_id: restaurantId },
+  const quota = await assertWorkspaceStorageAvailable(
+    admin,
+    restaurantId,
+    file.size,
   );
-  if (usageError) {
-    return Response.json({ error: usageError.message }, { status: 500 });
-  }
-  if (Number(usedRaw ?? 0) + file.size > RESTAURANT_DOCUMENTS_QUOTA_BYTES) {
-    return Response.json({ error: "storage_quota_exceeded" }, { status: 413 });
+  if (!quota.ok) {
+    return Response.json({ error: quota.error }, { status: quota.status });
   }
 
   const documentId = randomUUID();

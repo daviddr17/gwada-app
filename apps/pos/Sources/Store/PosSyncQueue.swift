@@ -57,6 +57,34 @@ struct PosSyncFireCoursePayload: Codable, Sendable {
     var tableSessionId: String
     var course: Int
     var fireAttemptId: String
+
+    enum CodingKeys: String, CodingKey {
+        case restaurantId, tableSessionId, course, fireAttemptId
+    }
+
+    init(
+        restaurantId: String,
+        tableSessionId: String,
+        course: Int,
+        fireAttemptId: String
+    ) {
+        self.restaurantId = restaurantId
+        self.tableSessionId = tableSessionId
+        self.course = course
+        self.fireAttemptId = fireAttemptId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        restaurantId = try container.decode(String.self, forKey: .restaurantId)
+        tableSessionId = try container.decode(String.self, forKey: .tableSessionId)
+        if let course = try? container.decode(Int.self, forKey: .course) {
+            self.course = course
+        } else {
+            course = PosCourse.parse(try container.decode(String.self, forKey: .course))
+        }
+        fireAttemptId = try container.decode(String.self, forKey: .fireAttemptId)
+    }
 }
 
 struct PosSyncMoveSessionPayload: Codable, Sendable {

@@ -124,4 +124,50 @@ final class PosCourseTests: XCTestCase {
         XCTAssertEqual(tickets.tickets[0].lines[0].course, 1)
         XCTAssertEqual(advance.lines?[0].course, 1)
     }
+
+    func testSyncFireCoursePayloadDecodesLegacyStringCourse() throws {
+        let payload = try JSONDecoder().decode(
+            PosSyncFireCoursePayload.self,
+            from: Data("""
+            {
+              "restaurantId": "restaurant-1",
+              "tableSessionId": "session-1",
+              "course": "main",
+              "fireAttemptId": "attempt-1"
+            }
+            """.utf8)
+        )
+
+        XCTAssertEqual(payload.course, 2)
+    }
+
+    func testSyncFireCoursePayloadDecodesNumericCourse() throws {
+        let payload = try JSONDecoder().decode(
+            PosSyncFireCoursePayload.self,
+            from: Data("""
+            {
+              "restaurantId": "restaurant-1",
+              "tableSessionId": "session-1",
+              "course": 2,
+              "fireAttemptId": "attempt-1"
+            }
+            """.utf8)
+        )
+
+        XCTAssertEqual(payload.course, 2)
+    }
+
+    func testSyncFireCoursePayloadEncodesNumericCourse() throws {
+        let data = try JSONEncoder().encode(
+            PosSyncFireCoursePayload(
+                restaurantId: "restaurant-1",
+                tableSessionId: "session-1",
+                course: 2,
+                fireAttemptId: "attempt-1"
+            )
+        )
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        XCTAssertEqual(json?["course"] as? Int, 2)
+    }
 }

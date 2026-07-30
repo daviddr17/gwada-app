@@ -309,10 +309,6 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
   const [paused, setPaused] = useState(false);
   const active = HERO_TABS[activeIndex] ?? HERO_TABS[0];
 
-  const selectTab = useEffectEvent((index: number) => {
-    setActiveIndex(index);
-  });
-
   useEffect(() => {
     if (paused) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -376,7 +372,7 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                 aria-selected={selected}
                 id={`hero-tab-${tab.id}`}
                 aria-controls={`hero-panel-${tab.id}`}
-                onClick={() => selectTab(index)}
+                onClick={() => setActiveIndex(index)}
                 className={cn(
                   "relative flex min-w-0 shrink-0 items-center gap-1.5 rounded-t-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors",
                   selected

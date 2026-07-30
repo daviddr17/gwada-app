@@ -227,9 +227,9 @@ export default function ProfilePersoenlicheDatenPage() {
   }
 
   return (
-    <div className="space-y-6 pb-4">
+    <div className="pb-4">
       <form
-        className="contents"
+        className="flex flex-col gap-6"
         onSubmit={(e) => {
           e.preventDefault();
           if (profileDirty) void handleSave();

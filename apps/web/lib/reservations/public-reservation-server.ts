@@ -33,6 +33,7 @@ import {
   reservationDateTimeChanged,
   shouldRescheduleTimedOutbox,
 } from "@/lib/reservations/reservation-datetime-reschedule";
+import { groupExceptionRowsToDateExceptions } from "@/lib/opening-hours/group-exception-rows";
 import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
@@ -82,17 +83,23 @@ export async function loadOpeningHoursAdmin(
   dateExceptions: DateHoursException[];
 }> {
   const weeklyHours = defaultWeeklyHours() as Record<Weekday, DayHours>;
-  const dateExceptions: DateHoursException[] = [];
   const { data, error } = await admin
     .from("opening_hours")
     .select(
-      "kind,weekday,exception_date,closed,opens_at,closes_at",
+      "kind,weekday,exception_date,closed,opens_at,closes_at,note",
     )
     .eq("restaurant_id", restaurantId);
   if (error) {
     console.warn("[gwada] embed opening_hours", error.message);
-    return { weeklyHours, dateExceptions };
+    return { weeklyHours, dateExceptions: [] };
   }
+  const exceptionRows: Array<{
+    exception_date: string | null;
+    closed: boolean;
+    opens_at: string | null;
+    closes_at: string | null;
+    note?: string | null;
+  }> = [];
   for (const raw of data ?? []) {
     const row = raw as {
       kind: string;
@@ -101,6 +108,7 @@ export async function loadOpeningHoursAdmin(
       closed: boolean;
       opens_at: string | null;
       closes_at: string | null;
+      note?: string | null;
     };
     if (row.kind === "weekly" && row.weekday) {
       weeklyHours[row.weekday] = {
@@ -109,16 +117,13 @@ export async function loadOpeningHoursAdmin(
         close: row.closed ? undefined : timeToHHmm(row.closes_at),
       };
     } else if (row.kind === "exception" && row.exception_date) {
-      dateExceptions.push({
-        id: row.exception_date,
-        date: row.exception_date,
-        closed: row.closed,
-        open: row.closed ? undefined : timeToHHmm(row.opens_at),
-        close: row.closed ? undefined : timeToHHmm(row.closes_at),
-      });
+      exceptionRows.push(row);
     }
   }
-  return { weeklyHours, dateExceptions };
+  return {
+    weeklyHours,
+    dateExceptions: groupExceptionRowsToDateExceptions(exceptionRows),
+  };
 }
 
 export async function fetchPublicEmbedRestaurant(

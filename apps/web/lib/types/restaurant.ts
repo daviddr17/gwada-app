@@ -11,10 +11,21 @@ export type Weekday =
 /** HH:mm (24h), z. B. 11:30 */
 export type TimeString = string;
 
+/** Offenes Zeitfenster (Google: mehrere Perioden/Tag = Pause dazwischen). */
+export type HoursPeriod = {
+  open: TimeString;
+  close: TimeString;
+};
+
 export type DayHours = {
   closed: boolean;
   open?: TimeString;
   close?: TimeString;
+  /**
+   * Mehrere offene Fenster am Tag (z. B. 11:30–14:30, 17:30–22:00).
+   * Wenn gesetzt und Länge > 1, hat Vorrang vor open/close.
+   */
+  periods?: HoursPeriod[];
 };
 
 /** Einzelnes Datum mit abweichenden Öffnungszeiten (Feiertag, Event, …) */
@@ -22,9 +33,16 @@ export type DateHoursException = {
   id: string;
   /** YYYY-MM-DD */
   date: string;
+  /** Ganztägig geschlossen */
   closed: boolean;
+  /** Legacy / erstes Fenster — bei Speichern aus periods synchronisiert */
   open?: TimeString;
   close?: TimeString;
+  /**
+   * Offene Perioden (Google Special Hours: eine Period pro Eintrag).
+   * Pause/Teilschließung = Lücke zwischen Perioden, nicht eigenes „closed“-Intervall.
+   */
+  periods?: HoursPeriod[];
   note?: string;
 };
 

@@ -10,6 +10,7 @@ import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-s
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
+import { groupExceptionRowsToDateExceptions } from "@/lib/opening-hours/group-exception-rows";
 import { timeToHHmm } from "@/lib/supabase/opening-hours-db";
 import type {
   DateHoursException,
@@ -124,20 +125,18 @@ export async function loadPublicOpeningHoursForRestaurant(
     (r) => r.kind === "weekly" && r.schedule_role === "kitchen",
   );
 
-  const dateExceptions: DateHoursException[] = [];
-  for (const raw of rows) {
-    if (raw.kind === "exception" && raw.exception_date) {
-      dateExceptions.push({
-        id: raw.exception_date,
-        date: raw.exception_date,
-        closed: raw.closed,
-        open: raw.closed ? undefined : timeToHHmm(raw.opens_at),
-        close: raw.closed ? undefined : timeToHHmm(raw.closes_at),
-        note: raw.note?.trim() || undefined,
-      });
-    }
-  }
-  dateExceptions.sort((a, b) => a.date.localeCompare(b.date));
+  const dateExceptions = groupExceptionRowsToDateExceptions(
+    rows
+      .filter((r) => r.kind === "exception" && r.exception_date)
+      .map((r) => ({
+        id: r.exception_date!,
+        exception_date: r.exception_date,
+        closed: r.closed,
+        opens_at: r.opens_at,
+        closes_at: r.closes_at,
+        note: r.note,
+      })),
+  );
 
   return {
     weeklyHours,

@@ -46,7 +46,8 @@ export type SuperadminSubscriptionRow = {
   restaurant_name: string;
   restaurant_slug: string;
   plan_id: string;
-  interval: string;
+  /** Billing cadence (month|year); RPC column `billing_interval`. */
+  billing_interval: string;
   status: string;
   source: string;
   stripe_customer_id: string | null;
@@ -180,6 +181,7 @@ export async function fetchSuperadminSubscriptions(
   }
   const rows = ((data ?? []) as SuperadminSubscriptionRow[]).map((r) => ({
     ...r,
+    billing_interval: r.billing_interval || "month",
     has_pos: Boolean(r.has_pos),
     cancel_at_period_end: Boolean(r.cancel_at_period_end),
   }));

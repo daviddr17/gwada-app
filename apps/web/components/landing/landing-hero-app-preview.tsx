@@ -446,15 +446,19 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
 
   useEffect(() => {
     if (!mehrOpen) return;
-    const onPointer = (e: MouseEvent | PointerEvent) => {
+    const onPointer = (e: PointerEvent) => {
       if (!mehrRef.current?.contains(e.target as Node)) setMehrOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setMehrOpen(false);
     };
-    document.addEventListener("pointerdown", onPointer);
+    // Nach dem öffnenden Click registrieren — sonst schließt derselbe Pointer sofort wieder.
+    const timer = window.setTimeout(() => {
+      document.addEventListener("pointerdown", onPointer);
+    }, 0);
     document.addEventListener("keydown", onKey);
     return () => {
+      window.clearTimeout(timer);
       document.removeEventListener("pointerdown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
@@ -529,9 +533,11 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
         role="region"
         aria-label="App-Vorschau"
         className={cn(
-          "overflow-hidden rounded-xl border border-neutral-200/80 bg-[#e8e9ed]/95 shadow-[0_12px_40px_-20px_rgba(0,0,0,0.22)]",
+          "rounded-xl border border-neutral-200/80 bg-[#e8e9ed]/95 shadow-[0_12px_40px_-20px_rgba(0,0,0,0.22)]",
           "ring-1 ring-black/[0.03]",
           "dark:border-white/10 dark:bg-[#1c1f2a]/95 dark:shadow-[0_12px_40px_-20px_rgba(0,0,0,0.55)] dark:ring-white/[0.05]",
+          // Offen: Dropdown darf über Address-Bar/Panel liegen; sonst Chrome clippen.
+          mehrOpen ? "overflow-visible" : "overflow-hidden",
         )}
       >
         {/* Title bar + traffic lights */}
@@ -548,7 +554,14 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
         </div>
 
         {/* Tabs: tablist nur mit role=tab — „Mehr“ als Geschwister (ARIA). */}
-        <div className="flex gap-0.5 overflow-hidden border-b border-black/5 bg-[#dfe1e6]/80 px-1.5 pt-1.5 dark:border-white/10 dark:bg-black/25">
+        <div
+          className={cn(
+            "flex gap-0.5 border-b border-black/5 bg-[#dfe1e6]/80 px-1.5 pt-1.5 dark:border-white/10 dark:bg-black/25",
+            mehrOpen
+              ? "relative z-30 overflow-visible"
+              : "overflow-hidden",
+          )}
+        >
           <div
             role="tablist"
             aria-label="Module"
@@ -619,7 +632,7 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                 <div
                   role="menu"
                   aria-label="Weitere Module"
-                  className="absolute right-0 z-20 mt-1 max-h-56 min-w-44 overflow-y-auto rounded-xl border border-border/60 bg-popover p-1.5 text-popover-foreground shadow-lg ring-1 ring-black/5 dark:ring-white/10"
+                  className="absolute top-full right-0 z-40 mt-1 max-h-56 min-w-44 overflow-y-auto rounded-xl border border-border/60 bg-popover p-1.5 text-popover-foreground shadow-lg ring-1 ring-black/5 dark:ring-white/10"
                 >
                   {overflowTabs.map((tab, overflowIndex) => {
                     const Icon = tab.icon;

@@ -1,8 +1,35 @@
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import {
+  DEFAULT_SOCIAL_FEED_PALETTE,
+  DEFAULT_SOCIAL_PREFERRED_LAYOUTS,
+  parsePreferredFeedLayouts,
+  parseSocialFeedPalette,
+  parseSocialPhotoLook,
+  type SocialFeedLayoutId,
+  type SocialFeedPalette,
+  type SocialPhotoLook,
+} from "@/lib/social/social-feed-brand-system";
+import {
   parseSocialPublishPlatforms,
   SOCIAL_DEFAULT_PUBLISH_PLATFORMS,
 } from "@/lib/social/social-publish-platforms";
+
+export type {
+  SocialFeedLayoutId,
+  SocialFeedPalette,
+  SocialPhotoLook,
+} from "@/lib/social/social-feed-brand-system";
+export {
+  DEFAULT_SOCIAL_FEED_PALETTE,
+  DEFAULT_SOCIAL_PREFERRED_LAYOUTS,
+  SOCIAL_FEED_LAYOUT_HINTS,
+  SOCIAL_FEED_LAYOUT_IDS,
+  SOCIAL_FEED_LAYOUT_LABELS,
+  SOCIAL_PHOTO_LOOK_HINTS,
+  SOCIAL_PHOTO_LOOK_LABELS,
+  SOCIAL_PHOTO_LOOKS,
+  togglePreferredFeedLayout,
+} from "@/lib/social/social-feed-brand-system";
 
 export const SOCIAL_IMAGE_STRATEGIES = [
   "own_first",
@@ -52,7 +79,12 @@ export type SocialBrandKit = {
   imageStrategy: SocialImageStrategy;
   neverAiFood: boolean;
   tone: SocialTone;
+  /** Legacy Template-Chrome — bleibt für bestehenden Render-Pfad. */
   stylePreset: SocialStylePreset;
+  /** Individuelles Feed Brand System (Palette + Foto-Look + Layouts). */
+  feedPalette: SocialFeedPalette;
+  photoLook: SocialPhotoLook;
+  preferredLayouts: SocialFeedLayoutId[];
   voiceNotes: string;
   doNot: string;
   hashtags: string[];
@@ -124,6 +156,9 @@ export function defaultSocialBrandKit(restaurantId: string): SocialBrandKit {
     neverAiFood: true,
     tone: "warm",
     stylePreset: "schlicht",
+    feedPalette: { ...DEFAULT_SOCIAL_FEED_PALETTE },
+    photoLook: "warm",
+    preferredLayouts: [...DEFAULT_SOCIAL_PREFERRED_LAYOUTS],
     voiceNotes: "",
     doNot: "",
     hashtags: [],
@@ -192,6 +227,26 @@ export function parseSocialBrandKit(
       ? Math.min(7, Math.max(1, Math.round(r.weekly_post_target)))
       : base.weeklyPostTarget;
 
+  const nestedPalette =
+    r.feedPalette && typeof r.feedPalette === "object"
+      ? (r.feedPalette as Record<string, unknown>)
+      : null;
+  const feedPalette = parseSocialFeedPalette({
+    accent: r.palette_accent ?? r.paletteAccent ?? nestedPalette?.accent,
+    surfaceDark:
+      r.palette_surface_dark ??
+      r.paletteSurfaceDark ??
+      nestedPalette?.surfaceDark,
+    surfaceLight:
+      r.palette_surface_light ??
+      r.paletteSurfaceLight ??
+      nestedPalette?.surfaceLight,
+    secondary:
+      r.palette_secondary ??
+      r.paletteSecondary ??
+      nestedPalette?.secondary,
+  });
+
   return {
     restaurantId,
     enabled: r.enabled !== false,
@@ -199,6 +254,11 @@ export function parseSocialBrandKit(
     neverAiFood: r.never_ai_food !== false,
     tone,
     stylePreset,
+    feedPalette,
+    photoLook: parseSocialPhotoLook(r.photo_look ?? r.photoLook),
+    preferredLayouts: parsePreferredFeedLayouts(
+      r.preferred_layouts ?? r.preferredLayouts,
+    ),
     voiceNotes:
       typeof r.voice_notes === "string" ? r.voice_notes.slice(0, 2000) : "",
     doNot: typeof r.do_not === "string" ? r.do_not.slice(0, 2000) : "",
@@ -227,6 +287,12 @@ export function socialBrandKitForPersistence(kit: SocialBrandKit) {
     never_ai_food: kit.neverAiFood,
     tone: kit.tone,
     style_preset: kit.stylePreset,
+    palette_accent: kit.feedPalette.accent,
+    palette_surface_dark: kit.feedPalette.surfaceDark,
+    palette_surface_light: kit.feedPalette.surfaceLight,
+    palette_secondary: kit.feedPalette.secondary,
+    photo_look: kit.photoLook,
+    preferred_layouts: kit.preferredLayouts,
     voice_notes: kit.voiceNotes.trim(),
     do_not: kit.doNot.trim(),
     hashtags: kit.hashtags,
@@ -245,12 +311,29 @@ export function parseSocialBrandKitFromClientBody(
 ): SocialBrandKit | null {
   if (!body || typeof body !== "object") return null;
   const r = body as Record<string, unknown>;
+  const feedPalette =
+    r.feedPalette && typeof r.feedPalette === "object"
+      ? (r.feedPalette as SocialFeedPalette)
+      : null;
   const merged = {
     enabled: r.enabled,
     image_strategy: r.imageStrategy ?? r.image_strategy,
     never_ai_food: r.neverAiFood ?? r.never_ai_food,
     tone: r.tone,
     style_preset: r.stylePreset ?? r.style_preset,
+    palette_accent: feedPalette?.accent ?? r.paletteAccent ?? r.palette_accent,
+    palette_surface_dark:
+      feedPalette?.surfaceDark ??
+      r.paletteSurfaceDark ??
+      r.palette_surface_dark,
+    palette_surface_light:
+      feedPalette?.surfaceLight ??
+      r.paletteSurfaceLight ??
+      r.palette_surface_light,
+    palette_secondary:
+      feedPalette?.secondary ?? r.paletteSecondary ?? r.palette_secondary,
+    photo_look: r.photoLook ?? r.photo_look,
+    preferred_layouts: r.preferredLayouts ?? r.preferred_layouts,
     voice_notes: r.voiceNotes ?? r.voice_notes,
     do_not: r.doNot ?? r.do_not,
     hashtags: r.hashtags,

@@ -17,7 +17,7 @@ export async function loadDashboardAccountingSummaryServer(
         .from("accounting_invoices")
         .select("id", { count: "exact", head: true })
         .eq("restaurant_id", restaurantId)
-        .in("status", ["open", "sent", "overdue"]),
+        .in("status", ["open", "overdue"]),
       sb
         .from("accounting_invoices")
         .select("id", { count: "exact", head: true })

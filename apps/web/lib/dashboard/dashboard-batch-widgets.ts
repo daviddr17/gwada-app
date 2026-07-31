@@ -10,6 +10,14 @@ export const DASHBOARD_BATCH_WIDGET_IDS = [
   "messages",
   "integrations",
   "inventory",
+  "pos",
+  "events",
+  "news",
+  "insights",
+  "gallery",
+  "accounting",
+  "documents",
+  "checklists",
 ] as const satisfies readonly DashboardWidgetId[];
 
 export type DashboardBatchWidgetId = (typeof DASHBOARD_BATCH_WIDGET_IDS)[number];

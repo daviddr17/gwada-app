@@ -2,13 +2,21 @@
 
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DashboardAccountingTile } from "@/components/dashboard/dashboard-accounting-tile";
+import { DashboardChecklistsTile } from "@/components/dashboard/dashboard-checklists-tile";
 import { DashboardContactsTile } from "@/components/dashboard/dashboard-contacts-tile";
+import { DashboardDocumentsTile } from "@/components/dashboard/dashboard-documents-tile";
+import { DashboardEventsTile } from "@/components/dashboard/dashboard-events-tile";
+import { DashboardGalleryTile } from "@/components/dashboard/dashboard-gallery-tile";
 import { DashboardHomePendingSkeleton } from "@/components/dashboard/dashboard-home-pending-skeleton";
 import { DashboardHeuteTile } from "@/components/dashboard/dashboard-heute-tile";
+import { DashboardInsightsTile } from "@/components/dashboard/dashboard-insights-tile";
 import { DashboardIntegrationsTile } from "@/components/dashboard/dashboard-integrations-tile";
 import { DashboardInventoryTile } from "@/components/dashboard/dashboard-inventory-tile";
 import { DashboardMenuTile } from "@/components/dashboard/dashboard-menu-tile";
 import { DashboardMessagesTile } from "@/components/dashboard/dashboard-messages-tile";
+import { DashboardNewsTile } from "@/components/dashboard/dashboard-news-tile";
+import { DashboardPosTile } from "@/components/dashboard/dashboard-pos-tile";
 import { DashboardReservationsTile } from "@/components/dashboard/dashboard-reservations-tile";
 import { DashboardReviewsTile } from "@/components/dashboard/dashboard-reviews-tile";
 import { DashboardStaffTile } from "@/components/dashboard/dashboard-staff-tile";
@@ -43,6 +51,22 @@ function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
       return <DashboardIntegrationsTile />;
     case "inventory":
       return <DashboardInventoryTile />;
+    case "pos":
+      return <DashboardPosTile />;
+    case "events":
+      return <DashboardEventsTile />;
+    case "news":
+      return <DashboardNewsTile />;
+    case "insights":
+      return <DashboardInsightsTile />;
+    case "gallery":
+      return <DashboardGalleryTile />;
+    case "accounting":
+      return <DashboardAccountingTile />;
+    case "documents":
+      return <DashboardDocumentsTile />;
+    case "checklists":
+      return <DashboardChecklistsTile />;
     default:
       return null;
   }

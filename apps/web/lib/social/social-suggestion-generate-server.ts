@@ -25,6 +25,7 @@ import {
   ensureSocialUploadTaskInDb,
   insertSocialSuggestionsInDb,
   listSocialSuggestionsFromDb,
+  skipPendingSocialSuggestionsInDb,
 } from "@/lib/social/social-suggestions-db";
 import type { SocialSuggestionAsset } from "@/lib/social/social-suggestion-types";
 
@@ -251,16 +252,27 @@ export async function generateSocialSuggestionsForRestaurant(
     return { created: 0, pending: 0, tasksCreated: false, skippedReason: "disabled" };
   }
 
-  const existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
+  let existing = await listSocialSuggestionsFromDb(sb, restaurantId, {
     statuses: ["pending", "needs_asset"],
     limit: 40,
   });
   const weekStart = startOfWeekMonday();
   const weekEnd = addDays(weekStart, 7);
-  const pendingThisWeek = existing.filter((s) => {
+  let pendingThisWeek = existing.filter((s) => {
     const t = new Date(s.plannedAt).getTime();
     return t >= weekStart.getTime() && t < weekEnd.getTime();
   });
+
+  // „Neu vorschlagen“: offene Woche verwerfen und mit aktuellem Brand Kit neu bauen.
+  if (opts?.force && existing.length > 0) {
+    await skipPendingSocialSuggestionsInDb(
+      sb,
+      restaurantId,
+      existing.map((s) => s.id),
+    );
+    existing = [];
+    pendingThisWeek = [];
+  }
 
   if (!opts?.force && pendingThisWeek.length >= kit.weeklyPostTarget) {
     return {
@@ -311,8 +323,7 @@ export async function generateSocialSuggestionsForRestaurant(
     toYmd,
   );
 
-  let need = Math.max(0, kit.weeklyPostTarget - pendingThisWeek.length);
-  if (opts?.force && need === 0) need = 1;
+  const need = Math.max(0, kit.weeklyPostTarget - pendingThisWeek.length);
   if (need === 0) {
     return { created: 0, pending: pendingThisWeek.length, tasksCreated };
   }

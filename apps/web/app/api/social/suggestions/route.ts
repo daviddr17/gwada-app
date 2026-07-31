@@ -1,5 +1,7 @@
 import { authorizeSocialNewsRestaurant } from "@/lib/social/route-auth";
 import { resolveSocialSuggestionImageUrl } from "@/lib/social/social-asset-resolve-server";
+import { fetchSocialBrandKitFromDb } from "@/lib/social/social-brand-kit-db";
+import { resolveSuggestionFeedLayout } from "@/lib/social/social-feed-layout";
 import { generateSocialSuggestionsForRestaurant } from "@/lib/social/social-suggestion-generate-server";
 import {
   listOpenSocialTasksFromDb,
@@ -30,15 +32,17 @@ export async function GET(req: Request) {
     { force: refresh },
   );
 
-  const [rawSuggestions, tasks] = await Promise.all([
+  const [rawSuggestions, tasks, kit] = await Promise.all([
     listSocialSuggestionsFromDb(admin, restaurantId, {
       statuses: ["pending", "needs_asset", "approved"],
       limit: 40,
     }),
     listOpenSocialTasksFromDb(admin, restaurantId),
+    fetchSocialBrandKitFromDb(admin, restaurantId),
   ]);
 
   // Signierte URLs immer frisch — gespeicherte Preview-URLs laufen ab.
+  // Layout an aktuelle Social-Marke (preferredLayouts) anbinden.
   const suggestions = await Promise.all(
     rawSuggestions.map(async (s) => {
       const imageUrl = await resolveSocialSuggestionImageUrl(
@@ -48,6 +52,12 @@ export async function GET(req: Request) {
       );
       return {
         ...s,
+        feedLayout: resolveSuggestionFeedLayout({
+          slotKind: s.slotKind,
+          templateId: s.templateId,
+          source: s.source,
+          preferredLayouts: kit.preferredLayouts,
+        }),
         asset: { ...s.asset, imageUrl },
       };
     }),

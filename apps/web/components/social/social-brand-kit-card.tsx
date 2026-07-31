@@ -188,7 +188,9 @@ export function SocialBrandKitCard({
       const next = data.kit ?? kit;
       setKit(next);
       setSaved(next);
-      toast.success("Social-Marke gespeichert");
+      toast.success(
+        "Social-Marke gespeichert — „Neu vorschlagen“ im Autopilot übernimmt sie",
+      );
     } finally {
       setSaving(false);
     }
@@ -212,8 +214,8 @@ export function SocialBrandKitCard({
       <CardHeader className="gap-2">
         <CardTitle className="text-xl">Social-Marke</CardTitle>
         <CardDescription>
-          Eigenes Feed Brand System für den Autopilot — Palette, Foto-Look und
-          Layouts. Posts werden vorgeschlagen; Freigabe bleibt bei euch.
+          Palette, Foto-Look und Layouts für den Autopilot. Nach dem Speichern
+          „Neu vorschlagen“ tippen — Freigabe bleibt bei euch.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

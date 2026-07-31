@@ -1106,6 +1106,46 @@ export function ReservationEditDrawer({
                     ? "Veranstaltung bearbeiten"
                     : "Reservierung bearbeiten"}
               </DrawerTitle>
+              <div
+                className="mt-2 flex flex-wrap gap-1.5"
+                role="group"
+                aria-label="Art"
+              >
+                {(
+                  [
+                    RESERVATION_KIND_GUEST,
+                    RESERVATION_KIND_PRIVATE_EVENT,
+                  ] as const
+                ).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={cn(
+                      "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                      kind === k
+                        ? "border-accent/50 bg-accent/15 text-foreground"
+                        : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+                    )}
+                    aria-pressed={kind === k}
+                    onClick={() => {
+                      setKind(k);
+                      if (
+                        k === RESERVATION_KIND_PRIVATE_EVENT &&
+                        /^\d{2}:\d{2}$/.test(timeHm)
+                      ) {
+                        const dwellN = Number.parseInt(dwellDraft, 10);
+                        const mins =
+                          Number.isFinite(dwellN) && dwellN >= 15
+                            ? dwellN
+                            : defaultDwellMinutes;
+                        setEndTimeHm(addMinutesToHm(timeHm, mins));
+                      }
+                    }}
+                  >
+                    {reservationKindLabel(k)}
+                  </button>
+                ))}
+              </div>
               <div className="space-y-1">
                 <DrawerDescription className="text-base leading-relaxed">
                   {isEdit && reservation ? (
@@ -1168,45 +1208,6 @@ export function ReservationEditDrawer({
                 />
               ) : null}
               <DrawerFormSection title="Termin & Status">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Art</Label>
-                <div className="inline-flex w-full rounded-xl border border-border/50 bg-muted/10 p-0.5">
-                  {(
-                    [
-                      RESERVATION_KIND_GUEST,
-                      RESERVATION_KIND_PRIVATE_EVENT,
-                    ] as const
-                  ).map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      className={cn(
-                        "min-w-0 flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                        kind === k
-                          ? "bg-card text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                      aria-pressed={kind === k}
-                      onClick={() => {
-                        setKind(k);
-                        if (
-                          k === RESERVATION_KIND_PRIVATE_EVENT &&
-                          /^\d{2}:\d{2}$/.test(timeHm)
-                        ) {
-                          const dwellN = Number.parseInt(dwellDraft, 10);
-                          const mins =
-                            Number.isFinite(dwellN) && dwellN >= 15
-                              ? dwellN
-                              : defaultDwellMinutes;
-                          setEndTimeHm(addMinutesToHm(timeHm, mins));
-                        }
-                      }}
-                    >
-                      {reservationKindLabel(k)}
-                    </button>
-                  ))}
-                </div>
-              </div>
               <div className={drawerTwoColClass}>
                 <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="res-status" className="text-xs text-muted-foreground">

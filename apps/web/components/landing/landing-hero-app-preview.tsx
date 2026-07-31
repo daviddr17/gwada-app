@@ -1,17 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MoreHorizontal,
   MonitorSmartphone,
   type LucideIcon,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   SIDEBAR_MODULE_DEFINITIONS,
   type SidebarModuleId,
@@ -103,9 +97,14 @@ function buildHeroTabs(): HeroTab[] {
 const HERO_TABS: readonly HeroTab[] = buildHeroTabs();
 
 const AUTO_MS = 4200;
-/** Platz für „Mehr“-Tab in der Messung (kompakter auf schmalen Screens). */
-const MEHR_RESERVE_PX = 64;
-const TABLIST_GAP_PX = 2;
+/** Sichtbare Tabs nach Viewport — ohne offsetWidth/Forced-Reflow. */
+function visibleTabCountForWidth(width: number): number {
+  if (width < 360) return 2;
+  if (width < 480) return 3;
+  if (width < 640) return 4;
+  if (width < 900) return 5;
+  return 6;
+}
 
 function PanelDashboard() {
   return (
@@ -423,63 +422,43 @@ function tabButtonClassName(selected: boolean) {
  */
 export function LandingHeroAppPreview({ className }: { className?: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const tablistRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLDivElement>(null);
+  const mehrRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [mehrOpen, setMehrOpen] = useState(false);
   const [inView, setInView] = useState(false);
   const [autoplayReady, setAutoplayReady] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(HERO_TABS.length);
+  const [visibleCount, setVisibleCount] = useState(3);
 
   const active = HERO_TABS[activeIndex] ?? HERO_TABS[0];
   const overflowTabs = HERO_TABS.slice(visibleCount);
   const hasOverflow = overflowTabs.length > 0;
   const activeInOverflow = hasOverflow && activeIndex >= visibleCount;
 
-  useLayoutEffect(() => {
-    const tablist = tablistRef.current;
-    const measure = measureRef.current;
-    if (!tablist || !measure) return;
-
+  useEffect(() => {
     const recompute = () => {
-      const buttons = Array.from(
-        measure.querySelectorAll<HTMLElement>("[data-hero-tab-measure]"),
-      );
-      if (buttons.length === 0) return;
-      const available = tablist.clientWidth;
-      if (available <= 0) return;
-
-      let used = 0;
-      let count = buttons.length;
-      for (let i = 0; i < buttons.length; i++) {
-        const w = buttons[i]!.offsetWidth;
-        const next = used + w + (i > 0 ? TABLIST_GAP_PX : 0);
-        const remaining = buttons.length - (i + 1);
-        const needMehr = remaining > 0;
-        const limit = needMehr ? available - MEHR_RESERVE_PX : available;
-        if (next > limit) {
-          count = Math.max(1, i);
-          break;
-        }
-        used = next;
-        count = i + 1;
-      }
-      setVisibleCount(count);
+      setVisibleCount(visibleTabCountForWidth(window.innerWidth));
     };
-
     recompute();
-    const ro = new ResizeObserver(recompute);
-    ro.observe(tablist);
-    window.addEventListener("resize", recompute);
-    const mq = window.matchMedia("(min-width: 640px)");
-    mq.addEventListener("change", recompute);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", recompute);
-      mq.removeEventListener("change", recompute);
-    };
+    window.addEventListener("resize", recompute, { passive: true });
+    return () => window.removeEventListener("resize", recompute);
   }, []);
+
+  useEffect(() => {
+    if (!mehrOpen) return;
+    const onPointer = (e: MouseEvent | PointerEvent) => {
+      if (!mehrRef.current?.contains(e.target as Node)) setMehrOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMehrOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [mehrOpen]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -568,31 +547,8 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
           <span className="w-10 shrink-0" aria-hidden />
         </div>
 
-        {/* Measure strip — offscreen, kein Einfluss auf Scrollbreite */}
-        <div
-          ref={measureRef}
-          aria-hidden
-          className="pointer-events-none fixed top-0 -left-[100vw] flex h-0 gap-0.5 overflow-hidden whitespace-nowrap opacity-0"
-        >
-          {HERO_TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <span
-                key={tab.id}
-                data-hero-tab-measure
-                className={tabButtonClassName(false)}
-              >
-                <Icon className="size-3 shrink-0 opacity-80" />
-                <span className="hidden sm:inline">{tab.label}</span>
-                <span className="sm:hidden">{tab.shortLabel}</span>
-              </span>
-            );
-          })}
-        </div>
-
         {/* Tabs */}
         <div
-          ref={tablistRef}
           role="tablist"
           aria-label="Module"
           className="flex gap-0.5 overflow-hidden border-b border-black/5 bg-[#dfe1e6]/80 px-1.5 pt-1.5 dark:border-white/10 dark:bg-black/25"
@@ -609,7 +565,10 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                 aria-selected={selected}
                 id={`hero-tab-${tab.id}`}
                 aria-controls={`hero-panel-${tab.id}`}
-                onClick={() => setActiveIndex(index)}
+                onClick={() => {
+                  setMehrOpen(false);
+                  setActiveIndex(index);
+                }}
                 className={tabButtonClassName(selected)}
               >
                 <Icon className="size-3 shrink-0 opacity-80" aria-hidden />
@@ -631,13 +590,19 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
           })}
 
           {hasOverflow ? (
-            <DropdownMenu open={mehrOpen} onOpenChange={setMehrOpen}>
-              <DropdownMenuTrigger
+            <div ref={mehrRef} className="relative shrink-0">
+              <button
                 type="button"
                 className={cn(tabButtonClassName(activeInOverflow), "gap-1")}
                 aria-label="Weitere Module"
+                aria-expanded={mehrOpen}
+                aria-haspopup="menu"
+                onClick={() => setMehrOpen((o) => !o)}
               >
-                <MoreHorizontal className="size-3.5 shrink-0 opacity-80" aria-hidden />
+                <MoreHorizontal
+                  className="size-3.5 shrink-0 opacity-80"
+                  aria-hidden
+                />
                 <span>Mehr</span>
                 {activeInOverflow && showProgress ? (
                   <span
@@ -646,33 +611,39 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                     data-paused={paused || mehrOpen ? "true" : undefined}
                   />
                 ) : null}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                side="bottom"
-                sideOffset={6}
-                className="min-w-48 w-auto"
-              >
-                {overflowTabs.map((tab, overflowIndex) => {
-                  const Icon = tab.icon;
-                  const index = visibleCount + overflowIndex;
-                  const selected = index === activeIndex;
-                  return (
-                    <DropdownMenuItem
-                      key={tab.id}
-                      onClick={() => setActiveIndex(index)}
-                      className={cn(
-                        "min-h-9 gap-2 text-sm",
-                        selected && "bg-muted/80 font-medium",
-                      )}
-                    >
-                      <Icon className="size-3.5 opacity-80" aria-hidden />
-                      {tab.label}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </button>
+              {mehrOpen ? (
+                <div
+                  role="menu"
+                  aria-label="Weitere Module"
+                  className="absolute right-0 z-20 mt-1 max-h-56 min-w-44 overflow-y-auto rounded-xl border border-border/60 bg-popover p-1.5 text-popover-foreground shadow-lg ring-1 ring-black/5 dark:ring-white/10"
+                >
+                  {overflowTabs.map((tab, overflowIndex) => {
+                    const Icon = tab.icon;
+                    const index = visibleCount + overflowIndex;
+                    const selected = index === activeIndex;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setActiveIndex(index);
+                          setMehrOpen(false);
+                        }}
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-muted/70",
+                          selected && "bg-muted/80 font-medium",
+                        )}
+                      >
+                        <Icon className="size-3.5 opacity-80" aria-hidden />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </div>
 

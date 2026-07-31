@@ -2,6 +2,12 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
+  "browserslist": [
+    "chrome >= 111",
+    "firefox >= 111",
+    "safari >= 16.4",
+    "not dead"
+  ],
   "scripts": {
     "dev": "dotenv -e ../../.env.development -e ../../.env.local -- next dev",
     "dev:webpack": "dotenv -e ../../.env.development -e ../../.env.local -- next dev --webpack",

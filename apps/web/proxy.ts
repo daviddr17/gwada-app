@@ -35,7 +35,14 @@ function isPublicPath(pathname: string): boolean {
     return true;
   if (pathname === "/auth/callback" || pathname.startsWith("/auth/")) return true;
   if (pathname.startsWith("/_next")) return true;
-  if (pathname === "/favicon.ico" || pathname === "/robots.txt") return true;
+  if (
+    pathname === "/favicon.ico" ||
+    pathname === "/robots.txt" ||
+    pathname === "/llms.txt" ||
+    pathname === "/sitemap.xml"
+  ) {
+    return true;
+  }
   if (pathname.startsWith("/api/")) return true;
   if (pathname.startsWith("/embed/")) return true;
   if (pathname.startsWith("/display/")) return true;

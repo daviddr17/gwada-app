@@ -1,47 +1,19 @@
 "use client";
 
 import type Lenis from "lenis";
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePointerFine } from "@/hooks/use-pointer-fine";
-import { GwadaFaviconIcon } from "@/components/icons/gwada-favicon-icon";
+import { LandingBelowFoldDeferred } from "@/components/landing/landing-below-fold-deferred";
 import { LandingDock } from "@/components/landing/landing-dock";
 import { LandingHero } from "@/components/landing/landing-hero";
-import { PublicThemeToggleSlot } from "@/components/public/public-theme-toggle-slot";
+import { PublicThemeToggleDeferred } from "@/components/public/public-theme-toggle-deferred";
 import { useLandingLenis } from "@/components/landing/use-landing-lenis";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 import {
   THEME_TRANSITION_END_EVENT,
   THEME_TRANSITION_START_EVENT,
 } from "@/lib/ui/theme-transition";
-
-/** Schwere Scroll-Sections erst nach First Paint — gleiche Optik, weniger initiales JS. */
-const LandingScrollStory = dynamic(
-  () =>
-    import("@/components/landing/landing-scroll-story").then((m) => ({
-      default: m.LandingScrollStory,
-    })),
-  { loading: () => <div className="min-h-[80vh]" aria-hidden /> },
-);
-
-const LandingIntegrationsScrollStory = dynamic(
-  () =>
-    import("@/components/landing/landing-integrations-scroll-story").then(
-      (m) => ({
-        default: m.LandingIntegrationsScrollStory,
-      }),
-    ),
-  { loading: () => <div className="min-h-[70vh]" aria-hidden /> },
-);
-
-const LandingPricing = dynamic(
-  () =>
-    import("@/components/landing/landing-pricing").then((m) => ({
-      default: m.LandingPricing,
-    })),
-  { loading: () => <div className="min-h-[65vh]" aria-hidden /> },
-);
 
 /**
  * Marketing-Startseite: Lenis + Sektionen + Dock.
@@ -100,7 +72,7 @@ export function LandingPage() {
 
   return (
     <div className="relative min-h-dvh bg-background text-foreground antialiased">
-      <PublicThemeToggleSlot />
+      <PublicThemeToggleDeferred />
 
       <main>
         <LandingHero
@@ -108,17 +80,25 @@ export function LandingPage() {
           parallaxEnabled={pointerFine}
           onScrollToSection={navigateToSection}
         />
-        <LandingScrollStory />
-        <LandingIntegrationsScrollStory />
-
-        <LandingPricing />
+        <LandingBelowFoldDeferred />
 
         <footer className="border-t border-border/50 bg-muted/10 px-6 pt-12 pb-40 text-center text-sm text-muted-foreground sm:pt-14 sm:pb-44 dark:bg-muted/5">
           <p
             className="inline-flex items-center justify-center gap-2"
             suppressHydrationWarning
           >
-            <GwadaFaviconIcon size="chip" className="size-4 opacity-90" />
+            {/* Same-Origin — kein Remote-Favicon-Preload neben dem LCP-Logo */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/favicon.ico"
+              alt=""
+              width={16}
+              height={16}
+              loading="lazy"
+              decoding="async"
+              fetchPriority="low"
+              className="size-4 opacity-90"
+            />
             <span>
               © {new Date().getFullYear()} {appName}.
             </span>

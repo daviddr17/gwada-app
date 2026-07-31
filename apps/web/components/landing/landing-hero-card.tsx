@@ -3,24 +3,59 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState, type ReactNode } from "react";
 import { LandingHeroAppPreviewPlaceholder } from "@/components/landing/landing-hero-app-preview-placeholder";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
 
-/** Code-Split: Tabs/Autoplay nicht im kritischen Hero-JS. */
+/** Code-Split + client-only: Preview nicht im LCP/SSR-HTML. */
 const LandingHeroAppPreview = dynamic(
   () =>
     import("@/components/landing/landing-hero-app-preview").then((m) => ({
       default: m.LandingHeroAppPreview,
     })),
   {
-    ssr: true,
+    ssr: false,
     loading: () => (
-      <LandingHeroAppPreviewPlaceholder className="mt-8 md:mt-10" />
+      <LandingHeroAppPreviewPlaceholder className="mt-5 sm:mt-8 md:mt-10" />
     ),
   },
 );
+
+function DeferredHeroAppPreview({ className }: { className?: string }) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const arm = () => {
+      if (!cancelled) setReady(true);
+    };
+    const win = window as Window & {
+      requestIdleCallback?: (
+        cb: () => void,
+        opts?: { timeout: number },
+      ) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof win.requestIdleCallback === "function") {
+      const id = win.requestIdleCallback(arm, { timeout: 2800 });
+      return () => {
+        cancelled = true;
+        win.cancelIdleCallback?.(id);
+      };
+    }
+    const t = window.setTimeout(arm, 1600);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, []);
+
+  if (!ready) {
+    return <LandingHeroAppPreviewPlaceholder className={className} />;
+  }
+  return <LandingHeroAppPreview className={className} />;
+}
 
 type Props = {
   logoUrl: string | null;
@@ -39,7 +74,7 @@ export function LandingHeroCard({
   return (
     <div
       className={cn(
-        "relative w-full max-w-3xl rounded-[1.75rem] border border-neutral-200/70 bg-white/80 p-5 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.12)] backdrop-blur-2xl sm:rounded-[2rem] sm:p-8 dark:border-white/10 dark:bg-black/25 dark:shadow-[0_24px_80px_-20px_rgba(0,0,0,0.6)] md:p-12",
+        "relative w-full max-w-3xl rounded-[1.75rem] border border-neutral-200/70 bg-white/90 p-5 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.12)] sm:rounded-[2rem] sm:bg-white/80 sm:p-8 sm:backdrop-blur-2xl dark:border-white/10 dark:bg-black/40 dark:shadow-[0_24px_80px_-20px_rgba(0,0,0,0.6)] sm:dark:bg-black/25 md:p-12",
         className,
       )}
     >
@@ -84,7 +119,7 @@ export function LandingHeroCard({
           Module entdecken
         </Button>
       </div>
-      <LandingHeroAppPreview className="mt-5 sm:mt-8 md:mt-10" />
+      <DeferredHeroAppPreview className="mt-5 sm:mt-8 md:mt-10" />
     </div>
   );
 }

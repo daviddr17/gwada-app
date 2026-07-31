@@ -7,6 +7,16 @@
   filter: blur(80px);
   will-change: transform;
 }
+@media (max-width: 639px) {
+  .gwada-hero-blob {
+    filter: blur(48px);
+    will-change: auto;
+  }
+  .gwada-hero-blob-c,
+  .gwada-hero-blob-d {
+    display: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .gwada-hero-blob {
     animation: none !important;
@@ -214,6 +224,17 @@
 
 .landing-hero-panel-in {
   animation: landing-hero-panel-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Mobile: sofort sichtbar für LCP — Rise nur ab sm */
+@media (max-width: 639px) {
+  .landing-hero-rise-logo,
+  .landing-hero-rise-h1,
+  .landing-hero-rise-sub,
+  .landing-hero-rise-cta,
+  .landing-hero-rise-preview {
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

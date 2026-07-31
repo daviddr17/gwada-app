@@ -1,6 +1,4 @@
-import {
-  fetchScheduledShiftsInRange,
-} from "@/lib/supabase/staff-shift-schedule-db";
+import { fetchScheduledShiftsOverlappingRange } from "@/lib/supabase/staff-shift-schedule-db";
 import {
   fetchStaffForRestaurant,
   loadStaffPositionTags,
@@ -55,7 +53,7 @@ export async function fetchReservationDayShiftStaffOverview(
 ): Promise<{ data: ReservationDayShiftStaffGroup[]; error: string | null }> {
   const { start, end } = restaurantDayBoundsIso(dayKey, timeZone);
   const [shiftsRes, staffRes, tagsRes] = await Promise.all([
-    fetchScheduledShiftsInRange(restaurantId, start, end),
+    fetchScheduledShiftsOverlappingRange(restaurantId, start, end),
     fetchStaffForRestaurant(restaurantId),
     loadStaffPositionTags(restaurantId),
   ]);

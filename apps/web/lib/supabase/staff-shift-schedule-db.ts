@@ -1,14 +1,17 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import {
-  DEFAULT_RESTAURANT_TIMEZONE,
-  restaurantZonedDateKey,
-} from "@/lib/restaurant/restaurant-timezone";
+  countScheduledStaffByRestaurantDay,
+  type ScheduledShiftCountRow,
+} from "@/lib/staff/scheduled-staff-day-counts";
 import type {
   RestaurantShiftScheduleSettingsRow,
   RestaurantShiftTemplateRow,
   RestaurantStaffScheduledShiftRow,
   StaffScheduledShiftStatus,
 } from "@/lib/types/staff-shift-schedule";
+
+const SHIFT_PAGE_SIZE = 1000;
 
 const SHIFT_SELECT = `
   id,
@@ -161,24 +164,75 @@ export async function fetchScheduledShiftsInRange(
   opts?: { staffId?: string },
 ): Promise<{ data: RestaurantStaffScheduledShiftRow[]; error: string | null }> {
   const sb = createSupabaseBrowserClient();
-  let q = sb
-    .from("restaurant_staff_scheduled_shifts")
-    .select(SHIFT_SELECT)
-    .eq("restaurant_id", restaurantId)
-    .gte("starts_at", rangeStartIso)
-    .lt("starts_at", rangeEndIso)
-    .order("starts_at");
+  const rows: RestaurantStaffScheduledShiftRow[] = [];
+  let from = 0;
 
-  if (opts?.staffId) {
-    q = q.eq("staff_id", opts.staffId);
+  for (;;) {
+    let q = sb
+      .from("restaurant_staff_scheduled_shifts")
+      .select(SHIFT_SELECT)
+      .eq("restaurant_id", restaurantId)
+      .gte("starts_at", rangeStartIso)
+      .lt("starts_at", rangeEndIso)
+      .order("starts_at")
+      .range(from, from + SHIFT_PAGE_SIZE - 1);
+
+    if (opts?.staffId) {
+      q = q.eq("staff_id", opts.staffId);
+    }
+
+    const { data, error } = await q;
+    if (error) return { data: [], error: error.message };
+    const page = (data ?? []).map((r) =>
+      mapShiftRow(r as Record<string, unknown>),
+    );
+    rows.push(...page);
+    if (page.length < SHIFT_PAGE_SIZE) break;
+    from += SHIFT_PAGE_SIZE;
   }
 
-  const { data, error } = await q;
-  if (error) return { data: [], error: error.message };
-  return {
-    data: (data ?? []).map((r) => mapShiftRow(r as Record<string, unknown>)),
-    error: null,
-  };
+  return { data: rows, error: null };
+}
+
+/**
+ * Schichten, die das Intervall [rangeStart, rangeEnd) zeitlich schneiden
+ * (nicht nur starts_at im Intervall — wichtig für Übernacht-Dienste).
+ */
+export async function fetchScheduledShiftsOverlappingRange(
+  restaurantId: string,
+  rangeStartIso: string,
+  rangeEndExclusiveIso: string,
+  opts?: { staffId?: string },
+): Promise<{ data: RestaurantStaffScheduledShiftRow[]; error: string | null }> {
+  const sb = createSupabaseBrowserClient();
+  const rows: RestaurantStaffScheduledShiftRow[] = [];
+  let from = 0;
+
+  for (;;) {
+    let q = sb
+      .from("restaurant_staff_scheduled_shifts")
+      .select(SHIFT_SELECT)
+      .eq("restaurant_id", restaurantId)
+      .lt("starts_at", rangeEndExclusiveIso)
+      .gt("ends_at", rangeStartIso)
+      .order("starts_at")
+      .range(from, from + SHIFT_PAGE_SIZE - 1);
+
+    if (opts?.staffId) {
+      q = q.eq("staff_id", opts.staffId);
+    }
+
+    const { data, error } = await q;
+    if (error) return { data: [], error: error.message };
+    const page = (data ?? []).map((r) =>
+      mapShiftRow(r as Record<string, unknown>),
+    );
+    rows.push(...page);
+    if (page.length < SHIFT_PAGE_SIZE) break;
+    from += SHIFT_PAGE_SIZE;
+  }
+
+  return { data: rows, error: null };
 }
 
 /** Eindeutige geplante Mitarbeiter pro Kalendertag (ohne abgelehnte Schichten). */
@@ -189,32 +243,30 @@ export async function fetchScheduledStaffCountsByDayForRange(
   timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): Promise<{ data: Map<string, number>; error: string | null }> {
   const sb = createSupabaseBrowserClient();
-  const { data, error } = await sb
-    .from("restaurant_staff_scheduled_shifts")
-    .select("staff_id, starts_at, status")
-    .eq("restaurant_id", restaurantId)
-    .gte("starts_at", rangeStartIso)
-    .lt("starts_at", rangeEndExclusiveIso);
+  const rows: ScheduledShiftCountRow[] = [];
+  let from = 0;
 
-  if (error) return { data: new Map(), error: error.message };
+  for (;;) {
+    const { data, error } = await sb
+      .from("restaurant_staff_scheduled_shifts")
+      .select("staff_id, starts_at, ends_at, status")
+      .eq("restaurant_id", restaurantId)
+      .lt("starts_at", rangeEndExclusiveIso)
+      .gt("ends_at", rangeStartIso)
+      .order("starts_at")
+      .range(from, from + SHIFT_PAGE_SIZE - 1);
 
-  const staffByDay = new Map<string, Set<string>>();
-  for (const row of data ?? []) {
-    if ((row.status as string) === "declined") continue;
-    const dayKey = restaurantZonedDateKey(
-      new Date(row.starts_at as string),
-      timeZone,
-    );
-    const bucket = staffByDay.get(dayKey) ?? new Set<string>();
-    bucket.add(row.staff_id as string);
-    staffByDay.set(dayKey, bucket);
+    if (error) return { data: new Map(), error: error.message };
+    const page = (data ?? []) as ScheduledShiftCountRow[];
+    rows.push(...page);
+    if (page.length < SHIFT_PAGE_SIZE) break;
+    from += SHIFT_PAGE_SIZE;
   }
 
-  const counts = new Map<string, number>();
-  for (const [dayKey, staffIds] of staffByDay) {
-    counts.set(dayKey, staffIds.size);
-  }
-  return { data: counts, error: null };
+  return {
+    data: countScheduledStaffByRestaurantDay(rows, timeZone),
+    error: null,
+  };
 }
 
 export type CreateScheduledShiftInput = {

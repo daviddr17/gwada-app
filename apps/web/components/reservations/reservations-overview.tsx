@@ -317,6 +317,15 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const [shiftStaffSheetDay, setShiftStaffSheetDay] = useState<Date | null>(
     null,
   );
+  const onShiftStaffCountResolved = useCallback((key: string, count: number) => {
+    setShiftStaffCountsByDate((prev) => {
+      if (prev.get(key) === count) return prev;
+      const next = new Map(prev);
+      if (count > 0) next.set(key, count);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
 
   const reservationIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const gwadaReviewsByReservation = useReservationGwadaReviews(
@@ -896,11 +905,21 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   /** Schichtplan-Counts unabhängig vom Reservierungsfilter; Unbestätigt kann Monate spannen. */
   const shiftStaffCountRange = useMemo(() => {
     if (!unconfirmedMode) {
-      return { start: rangeStartIso, end: rangeEndExclusiveIso };
+      const first = gridDayKey(monthStart, restaurantTimeZone);
+      const last = gridDayKey(monthEnd, restaurantTimeZone);
+      return {
+        start: restaurantDayBoundsIso(first, restaurantTimeZone).start,
+        end: restaurantDayBoundsIso(last, restaurantTimeZone).end,
+      };
     }
     const keys = [...byDay.keys()].sort();
     if (keys.length === 0) {
-      return { start: rangeStartIso, end: rangeEndExclusiveIso };
+      const first = gridDayKey(monthStart, restaurantTimeZone);
+      const last = gridDayKey(monthEnd, restaurantTimeZone);
+      return {
+        start: restaurantDayBoundsIso(first, restaurantTimeZone).start,
+        end: restaurantDayBoundsIso(last, restaurantTimeZone).end,
+      };
     }
     const first = keys[0]!;
     const last = keys[keys.length - 1]!;
@@ -911,8 +930,8 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   }, [
     unconfirmedMode,
     byDay,
-    rangeStartIso,
-    rangeEndExclusiveIso,
+    monthStart,
+    monthEnd,
     restaurantTimeZone,
   ]);
 
@@ -1501,6 +1520,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           shiftStaffSheetDay ? formatDayHeadingDe(shiftStaffSheetDay) : null
         }
         timeZone={restaurantTimeZone}
+        onStaffCountResolved={onShiftStaffCountResolved}
       />
 
       <ReservationEditDrawer

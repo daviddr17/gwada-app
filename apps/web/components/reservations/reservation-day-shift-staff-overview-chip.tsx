@@ -36,7 +36,7 @@ export function ReservationDayShiftStaffOverviewChip({
         }
       />
       <TooltipContent side="top">
-        Geplant laut Schichtplan — tippen für Übersicht
+        Geplante Schichten (nicht nur Verfügbarkeit) — tippen für Übersicht
       </TooltipContent>
     </Tooltip>
   );

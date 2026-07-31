@@ -8,7 +8,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/",
     "/login",
     "/docs",
-    "/changelog",
     "/impressum",
     "/datenschutz",
     "/agb",

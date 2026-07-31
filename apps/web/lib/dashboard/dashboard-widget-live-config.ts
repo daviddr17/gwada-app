@@ -19,9 +19,7 @@ export type DashboardWidgetLiveSummaryMap = {
 };
 
 /** Leichte Summary-Endpoints für Live-Patch (kein Full-Batch). */
-export const DASHBOARD_WIDGET_LIVE_ENDPOINTS: {
-  [K in Exclude<DashboardBatchWidgetId, "messages">]: string;
-} = {
+export const DASHBOARD_WIDGET_LIVE_ENDPOINTS = {
   menu: "/api/dashboard/menu/summary",
   contacts: "/api/dashboard/contacts/summary",
   reviews: "/api/dashboard/reviews",
@@ -29,6 +27,6 @@ export const DASHBOARD_WIDGET_LIVE_ENDPOINTS: {
   staff: "/api/dashboard/staff/summary",
   inventory: "/api/dashboard/inventory/summary",
   reservations: "/api/dashboard/reservations/summary",
-};
+} as const satisfies Partial<Record<DashboardBatchWidgetId, string>>;
 
 export type DashboardWidgetLiveFetchId = keyof typeof DASHBOARD_WIDGET_LIVE_ENDPOINTS;

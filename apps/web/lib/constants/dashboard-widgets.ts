@@ -13,7 +13,15 @@ export type DashboardWidgetId =
   | "contacts"
   | "messages"
   | "integrations"
-  | "inventory";
+  | "inventory"
+  | "pos"
+  | "events"
+  | "news"
+  | "insights"
+  | "gallery"
+  | "accounting"
+  | "documents"
+  | "checklists";
 
 /** Frühere Widget-IDs (Speisekarte), werden auf `menu` gemappt. */
 const LEGACY_MENU_WIDGET_IDS = [
@@ -44,6 +52,14 @@ export const DEFAULT_DASHBOARD_WIDGET_VISIBILITY: Record<
   messages: true,
   integrations: true,
   inventory: true,
+  pos: true,
+  events: true,
+  news: true,
+  insights: false,
+  gallery: true,
+  accounting: true,
+  documents: true,
+  checklists: true,
 };
 
 export const DASHBOARD_WIDGET_OPTIONS: readonly {
@@ -105,6 +121,46 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
     id: "inventory",
     label: "Bestand & Bestellung",
     description: "Zutaten, leerer Bestand und offene Bestellungen",
+  },
+  {
+    id: "pos",
+    label: "POS",
+    description: "Umsatz und Bons heute sowie offene Tischsessions",
+  },
+  {
+    id: "events",
+    label: "Events",
+    description: "Bevorstehende und geplante Events",
+  },
+  {
+    id: "news",
+    label: "News",
+    description: "Veröffentlichte, geplante und Entwurfs-Beiträge",
+  },
+  {
+    id: "insights",
+    label: "Insights",
+    description: "Reservierungen, Bewertungen und Nachrichten im Überblick",
+  },
+  {
+    id: "gallery",
+    label: "Galerie",
+    description: "Medien, Highlights und Speicherverbrauch",
+  },
+  {
+    id: "accounting",
+    label: "Buchführung",
+    description: "Offene Rechnungen, Belege und Kassenbuch",
+  },
+  {
+    id: "documents",
+    label: "Dokumente",
+    description: "Dokumente gesamt, Speicher und ohne Tag",
+  },
+  {
+    id: "checklists",
+    label: "Checklisten",
+    description: "Offene und überfällige Aufgaben sowie heutige Erfassungen",
   },
 ] as const;
 

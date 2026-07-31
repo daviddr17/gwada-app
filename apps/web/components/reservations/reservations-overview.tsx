@@ -1221,7 +1221,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       ) : null}
 
       {dbOk && !unconfirmedMode ? (
-        <div className="mb-4 space-y-2">
+        <div className="mb-4 flex flex-col items-start gap-2">
           <Button
             type="button"
             size="lg"
@@ -1233,16 +1233,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           </Button>
           <Button
             type="button"
-            size="lg"
+            size="sm"
             variant="outline"
-            className="h-12 w-full gap-2 rounded-xl border-border/60"
+            className="h-8 gap-1.5 rounded-full border-border/60 px-3"
             onClick={() =>
               pushReservationCreate(today, {
                 kind: RESERVATION_KIND_PRIVATE_EVENT,
               })
             }
           >
-            <Plus className="size-4" />
+            <Plus className="size-3.5" />
             Neue Veranstaltung
           </Button>
         </div>

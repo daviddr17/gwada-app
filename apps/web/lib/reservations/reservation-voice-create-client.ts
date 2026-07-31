@@ -67,6 +67,7 @@ export async function createReservationFromVoiceParsed(params: {
     guest_last_name: normalizeReservationGuestLastName(params.parsed.guestLastName),
     guest_company: null,
     guest_phone: null,
+    kind: "guest" as const,
     guest_email: null,
     party_size: params.parsed.partySize,
     starts_at: startsIso,

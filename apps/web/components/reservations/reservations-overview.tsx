@@ -114,6 +114,16 @@ import {
   reservationLiveInsertListRowRaw,
 } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import { mapRawToReservationListRow } from "@/lib/supabase/reservations-db";
+import {
+  formatReservationAssigneeNames,
+} from "@/lib/supabase/reservation-staff-assignees-db";
+import {
+  isPrivateEventReservation,
+  normalizeReservationKind,
+  RESERVATION_KIND_PRIVATE_EVENT,
+  reservationListStripeHex,
+  type ReservationKind,
+} from "@/lib/reservations/reservation-kind";
 
 const selectValueNoShrink =
   "[&_[data-slot=select-value]]:!min-w-0 [&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
@@ -261,6 +271,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         timeHm?: string;
         diningTableId?: string;
         contactId?: string;
+        kind?: ReservationKind;
       }
   >(null);
   const pendingReopenDaySheetRef = useRef<Date | null>(null);
@@ -339,6 +350,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const createTimeParam = searchParams.get("time");
   const createTableParam = searchParams.get("table");
   const createContactParam = searchParams.get("contact");
+  const createKindParam = searchParams.get("kind");
 
   useEffect(() => {
     // Keep-alive: URL nur anfassen, wenn Übersicht wirklich sichtbar ist.
@@ -494,6 +506,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           ...(reservationSheet.contactId
             ? { initialContactId: reservationSheet.contactId }
             : {}),
+          ...(reservationSheet.kind
+            ? { initialKind: reservationSheet.kind }
+            : {}),
         }
       : null;
 
@@ -526,6 +541,12 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         createContactParam && isUuidRestaurantId(createContactParam)
           ? createContactParam
           : undefined;
+      const kindFromUrl =
+        createKindParam === RESERVATION_KIND_PRIVATE_EVENT
+          ? RESERVATION_KIND_PRIVATE_EVENT
+          : createKindParam === "guest"
+            ? normalizeReservationKind("guest")
+            : undefined;
       setReservationSheet((prev) => {
         if (prev?.mode === "create") {
           return {
@@ -534,9 +555,17 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
             timeHm: timeHm ?? prev.timeHm,
             diningTableId: diningTableId ?? prev.diningTableId,
             contactId: contactId ?? prev.contactId,
+            kind: kindFromUrl ?? prev.kind,
           };
         }
-        return { mode: "create", day, timeHm, diningTableId, contactId };
+        return {
+          mode: "create",
+          day,
+          timeHm,
+          diningTableId,
+          contactId,
+          ...(kindFromUrl ? { kind: kindFromUrl } : {}),
+        };
       });
       return;
     }
@@ -557,6 +586,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     createTimeParam,
     createTableParam,
     createContactParam,
+    createKindParam,
   ]);
 
   /** `?day=YYYY-MM-DD` (ohne new): Monat springen + Tagesblatt — z. B. Suche „Zum Tag“. */
@@ -648,9 +678,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const pushReservationCreate = useCallback(
     (
       d: Date,
-      extras?: { timeHm?: string; diningTableId?: string },
+      extras?: {
+        timeHm?: string;
+        diningTableId?: string;
+        kind?: ReservationKind;
+      },
     ) => {
       if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
+      const kind = extras?.kind
+        ? normalizeReservationKind(extras.kind)
+        : undefined;
       setReservationSheet({
         mode: "create",
         day: d,
@@ -660,6 +697,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         ...(extras?.diningTableId && isUuidRestaurantId(extras.diningTableId)
           ? { diningTableId: extras.diningTableId }
           : {}),
+        ...(kind ? { kind } : {}),
       });
       const p = new URLSearchParams();
       p.set("new", "1");
@@ -669,6 +707,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       }
       if (extras?.diningTableId && isUuidRestaurantId(extras.diningTableId)) {
         p.set("table", extras.diningTableId);
+      }
+      if (kind === RESERVATION_KIND_PRIVATE_EVENT) {
+        p.set("kind", RESERVATION_KIND_PRIVATE_EVENT);
       }
       withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
@@ -1180,7 +1221,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       ) : null}
 
       {dbOk && !unconfirmedMode ? (
-        <div className="mb-4">
+        <div className="mb-4 space-y-2">
           <Button
             type="button"
             size="lg"
@@ -1189,6 +1230,20 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           >
             <Plus className="size-4" />
             Neue Reservierung
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            className="h-12 w-full gap-2 rounded-xl border-border/60"
+            onClick={() =>
+              pushReservationCreate(today, {
+                kind: RESERVATION_KIND_PRIVATE_EVENT,
+              })
+            }
+          >
+            <Plus className="size-4" />
+            Neue Veranstaltung
           </Button>
         </div>
       ) : null}
@@ -1290,10 +1345,8 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                     {list.map((r) => {
                       const st = r.reservation_statuses;
                       const isMovedMarker = isRelocatedMarkerRow(r);
-                      const stripe =
-                        st?.color_hex && /^#[0-9A-Fa-f]{6}$/i.test(st.color_hex)
-                          ? st.color_hex
-                          : "#64748b";
+                      const isEvent = isPrivateEventReservation(r);
+                      const stripe = reservationListStripeHex(r);
                       const guest =
                         `${r.guest_first_name} ${r.guest_last_name}`.trim();
                       const timeLabel = timeFmt.format(new Date(r.starts_at));
@@ -1303,6 +1356,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       const tableLabel = isMovedMarker
                         ? reservationAssignedTableLabel(r)
                         : reservationDiningTableLabel(r);
+                      const assigneeNames = isEvent
+                        ? formatReservationAssigneeNames(r.assigned_staff)
+                        : "";
                       const liveId = liveReservationIdFromListRowId(r.id);
                       const gwadaReview = isMovedMarker
                         ? undefined
@@ -1324,7 +1380,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                             aria-label={
                               isMovedMarker
                                 ? `Verschobene Reservierung ${guest} öffnen`
-                                : `Reservierung ${guest} bearbeiten`
+                                : isEvent
+                                  ? `Veranstaltung ${guest} bearbeiten`
+                                  : `Reservierung ${guest} bearbeiten`
                             }
                             onClick={() => {
                               pushReservationEdit(liveId);
@@ -1355,6 +1413,11 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                                 <span className="text-xs text-muted-foreground">
                                   {st?.name ?? "—"}
                                 </span>
+                                {isEvent ? (
+                                  <span className="rounded-md border border-violet-500/40 bg-violet-500/15 px-1.5 py-px text-[10px] font-medium text-violet-800 dark:text-violet-200">
+                                    Veranstaltung
+                                  </span>
+                                ) : null}
                                 {st?.code === "change_requested" ? (
                                   <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-1.5 py-px text-[10px] font-medium text-amber-800 dark:text-amber-200">
                                     Änderung prüfen
@@ -1392,6 +1455,11 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                               {r.guest_email ? (
                                 <div className="min-w-0 truncate text-xs text-muted-foreground sm:text-sm">
                                   {r.guest_email}
+                                </div>
+                              ) : null}
+                              {assigneeNames ? (
+                                <div className="min-w-0 truncate text-xs text-muted-foreground sm:text-sm">
+                                  Team: {assigneeNames}
                                 </div>
                               ) : null}
                             </div>

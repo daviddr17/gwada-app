@@ -8,6 +8,11 @@ import { listPublicHolidaysInRange } from "@/lib/holidays/public-holidays-server
 import { resolveRestaurantProfileImageSignedUrl } from "@/lib/restaurant/restaurant-profile-image";
 import { fetchSocialBrandKitFromDb } from "@/lib/social/social-brand-kit-db";
 import {
+  feedLayoutToLegacyTemplate,
+  pickFeedLayoutForSlot,
+} from "@/lib/social/social-feed-layout";
+import type { SocialFeedLayoutId } from "@/lib/social/social-feed-brand-system";
+import {
   captionForAmbient,
   captionForBrand,
   captionForDish,
@@ -352,6 +357,23 @@ export async function generateSocialSuggestionsForRestaurant(
     return plannedAtForDay(weekStart, day, 11 + (slotIndex % 2));
   };
 
+  const layoutFor = (
+    slotKind: Draft["slotKind"],
+    hasImage: boolean,
+  ): SocialFeedLayoutId => {
+    let layout = pickFeedLayoutForSlot({
+      slotKind,
+      preferredLayouts: kit.preferredLayouts,
+    });
+    if (!hasImage && layout === "editorial_hero") {
+      layout = pickFeedLayoutForSlot({
+        slotKind: "brand",
+        preferredLayouts: kit.preferredLayouts,
+      });
+    }
+    return layout;
+  };
+
   // 1) Holidays
   for (const h of holidays) {
     if (drafts.length >= need) break;
@@ -390,12 +412,13 @@ export async function generateSocialSuggestionsForRestaurant(
       asset.imageUrl || kit.imageStrategy !== "own_first"
         ? "pending"
         : "needs_asset";
+    const feedLayout = layoutFor("holiday", Boolean(asset.imageUrl));
 
     drafts.push({
       restaurantId,
       status,
       slotKind: "holiday",
-      templateId: asset.imageUrl ? "food_hero" : "brand_card",
+      templateId: feedLayoutToLegacyTemplate(feedLayout),
       plannedAt: `${h.date}T10:00:00.000Z`,
       title: h.name,
       caption: captionForHoliday({
@@ -404,7 +427,7 @@ export async function generateSocialSuggestionsForRestaurant(
         holidayName: h.name,
       }),
       platforms: [...kit.publishPlatforms],
-      source: { date: h.date, holidayName: h.name },
+      source: { date: h.date, holidayName: h.name, feedLayout },
       asset,
     });
   }
@@ -416,11 +439,12 @@ export async function generateSocialSuggestionsForRestaurant(
     if (!ev.coverUrl && kit.imageStrategy === "own_first") continue;
     usedEventIds.add(ev.id);
 
+    const feedLayout = layoutFor("event", Boolean(ev.coverUrl));
     drafts.push({
       restaurantId,
       status: ev.coverUrl ? "pending" : "needs_asset",
       slotKind: "event",
-      templateId: "brand_card",
+      templateId: feedLayoutToLegacyTemplate(feedLayout),
       plannedAt: nextPlan(),
       title: ev.title,
       caption: captionForEvent({
@@ -430,7 +454,7 @@ export async function generateSocialSuggestionsForRestaurant(
         whenLabel: formatEventWhen(ev.startAt),
       }),
       platforms: [...kit.publishPlatforms],
-      source: { eventId: ev.id, startAt: ev.startAt },
+      source: { eventId: ev.id, startAt: ev.startAt, feedLayout },
       asset: {
         imageUrl: ev.coverUrl,
         imageLabel: ev.title,
@@ -446,11 +470,12 @@ export async function generateSocialSuggestionsForRestaurant(
   while (drafts.length < need) {
     const dish = pickUnused(dishes, usedDishIds, (d) => d.id);
     if (!dish) break;
+    const feedLayout = layoutFor("menu_dish", true);
     drafts.push({
       restaurantId,
       status: "pending",
       slotKind: "menu_dish",
-      templateId: "food_hero",
+      templateId: feedLayoutToLegacyTemplate(feedLayout),
       plannedAt: nextPlan(),
       title: dish.name,
       caption: captionForDish({
@@ -460,7 +485,7 @@ export async function generateSocialSuggestionsForRestaurant(
         dishDescription: dish.description,
       }),
       platforms: [...kit.publishPlatforms],
-      source: { dishId: dish.id, dishName: dish.name },
+      source: { dishId: dish.id, dishName: dish.name, feedLayout },
       asset: {
         imageUrl: dish.imageUrl,
         imageLabel: dish.name,
@@ -474,11 +499,12 @@ export async function generateSocialSuggestionsForRestaurant(
   while (drafts.length < need) {
     const g = pickUnused(gallery, usedGalleryIds, (x) => x.id);
     if (!g) break;
+    const feedLayout = layoutFor("ambient", true);
     drafts.push({
       restaurantId,
       status: "pending",
       slotKind: "ambient",
-      templateId: "food_hero",
+      templateId: feedLayoutToLegacyTemplate(feedLayout),
       plannedAt: nextPlan(),
       title: titleForAmbient(g.label),
       caption: captionForAmbient({
@@ -487,7 +513,7 @@ export async function generateSocialSuggestionsForRestaurant(
         imageCaption: g.label,
       }),
       platforms: [...kit.publishPlatforms],
-      source: { galleryItemId: g.id, imageCaption: g.label },
+      source: { galleryItemId: g.id, imageCaption: g.label, feedLayout },
       asset: {
         imageUrl: g.imageUrl,
         imageLabel: g.label,
@@ -503,16 +529,17 @@ export async function generateSocialSuggestionsForRestaurant(
   while (drafts.length < need) {
     const asset = coverAsset ?? avatarAsset;
     if (!asset && kit.imageStrategy === "own_first") break;
+    const feedLayout = layoutFor("brand", Boolean(asset?.imageUrl));
     drafts.push({
       restaurantId,
       status: asset?.imageUrl ? "pending" : "needs_asset",
       slotKind: "brand",
-      templateId: "brand_card",
+      templateId: feedLayoutToLegacyTemplate(feedLayout),
       plannedAt: nextPlan(),
       title: restaurantName,
       caption: captionForBrand({ kit, restaurantName }),
       platforms: [...kit.publishPlatforms],
-      source: { kind: "brand" },
+      source: { kind: "brand", feedLayout },
       asset: asset ?? { imageUrl: null, source: "none" },
     });
     // only one brand fallback without looping forever on same asset

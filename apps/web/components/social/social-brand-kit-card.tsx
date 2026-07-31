@@ -26,26 +26,97 @@ import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import { MENU_TAXONOMY_COLOR_INPUT_CLASSNAME } from "@/lib/constants/menu-color-picker";
 import {
+  SOCIAL_FEED_LAYOUT_HINTS,
+  SOCIAL_FEED_LAYOUT_IDS,
+  SOCIAL_FEED_LAYOUT_LABELS,
   SOCIAL_IMAGE_STRATEGIES,
   SOCIAL_IMAGE_STRATEGY_LABELS,
-  SOCIAL_STYLE_PRESETS,
-  SOCIAL_STYLE_PRESET_HINTS,
-  SOCIAL_STYLE_PRESET_LABELS,
+  SOCIAL_PHOTO_LOOK_HINTS,
+  SOCIAL_PHOTO_LOOK_LABELS,
+  SOCIAL_PHOTO_LOOKS,
   SOCIAL_TONES,
   SOCIAL_TONE_LABELS,
   defaultSocialBrandKit,
+  togglePreferredFeedLayout,
   type SocialBrandKit,
+  type SocialFeedLayoutId,
+  type SocialFeedPalette,
   type SocialImageStrategy,
-  type SocialStylePreset,
+  type SocialPhotoLook,
   type SocialTone,
 } from "@/lib/social/social-brand-kit";
 import { allSocialPublishPlatformOptions } from "@/lib/social/social-publish-platforms";
+import { normalizeHex } from "@/lib/theme/color-utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
 function kitEqual(a: SocialBrandKit, b: SocialBrandKit): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function FeedColorRow({
+  id,
+  label,
+  hint,
+  value,
+  allowEmpty,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  value: string;
+  allowEmpty?: boolean;
+  onChange: (hex: string) => void;
+}) {
+  const pickerValue = normalizeHex(value) ?? "#c4a574";
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <p className="text-[11px] text-muted-foreground">{hint}</p>
+      <div className="flex items-center gap-2">
+        <input
+          id={`${id}-picker`}
+          type="color"
+          value={pickerValue}
+          onChange={(e) => onChange(e.target.value)}
+          className={MENU_TAXONOMY_COLOR_INPUT_CLASSNAME}
+          aria-label={`${label} wählen`}
+        />
+        <Input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={allowEmpty ? "optional" : "#c4a574"}
+          className="h-11 flex-1 rounded-xl font-mono text-sm"
+          spellCheck={false}
+          maxLength={7}
+        />
+        {allowEmpty && value.trim() ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-11 shrink-0 rounded-xl px-3 text-xs text-muted-foreground"
+            onClick={() => onChange("")}
+          >
+            Weg
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function patchPalette(
+  kit: SocialBrandKit,
+  patch: Partial<SocialFeedPalette>,
+): SocialBrandKit {
+  return {
+    ...kit,
+    feedPalette: { ...kit.feedPalette, ...patch },
+  };
 }
 
 export function SocialBrandKitCard({
@@ -134,13 +205,15 @@ export function SocialBrandKitCard({
     );
   }
 
+  const palette = kit.feedPalette;
+
   return (
     <Card className="border-border/50 shadow-card">
       <CardHeader className="gap-2">
         <CardTitle className="text-xl">Social-Marke</CardTitle>
         <CardDescription>
-          Tonalität, Bildstrategie und Vorlagen für den Social-Autopilot. Posts
-          werden vorgeschlagen — Freigabe bleibt bei euch.
+          Eigenes Feed Brand System für den Autopilot — Palette, Foto-Look und
+          Layouts. Posts werden vorgeschlagen; Freigabe bleibt bei euch.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -157,6 +230,156 @@ export function SocialBrandKitCard({
               setKit((k) => (k ? { ...k, enabled: enabled === true } : k))
             }
           />
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-border/50 p-3">
+          <div>
+            <p className="text-sm font-medium">Feed-Palette</p>
+            <p className="text-xs text-muted-foreground">
+              Farben für alle Posts — sorgt für ein stimmiges Gesamtbild.
+            </p>
+          </div>
+          <div
+            className="flex h-10 overflow-hidden rounded-xl border border-border/40"
+            aria-hidden
+          >
+            <span className="flex-1" style={{ backgroundColor: palette.surfaceDark }} />
+            <span className="flex-1" style={{ backgroundColor: palette.accent }} />
+            <span
+              className="flex-1"
+              style={{
+                backgroundColor: palette.secondary ?? palette.surfaceLight,
+              }}
+            />
+            <span className="flex-1" style={{ backgroundColor: palette.surfaceLight }} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FeedColorRow
+              id="feed-accent"
+              label="Akzent"
+              hint="Hairlines, dezente Highlights"
+              value={palette.accent}
+              onChange={(hex) =>
+                setKit((k) => (k ? patchPalette(k, { accent: hex }) : k))
+              }
+            />
+            <FeedColorRow
+              id="feed-secondary"
+              label="Zweitfarbe"
+              hint="Optional — z. B. für Flächen"
+              value={palette.secondary ?? ""}
+              allowEmpty
+              onChange={(hex) =>
+                setKit((k) =>
+                  k
+                    ? patchPalette(k, {
+                        secondary: hex.trim() ? hex : null,
+                      })
+                    : k,
+                )
+              }
+            />
+            <FeedColorRow
+              id="feed-dark"
+              label="Dunkle Fläche"
+              hint="Panels, Events, dunkle Karten"
+              value={palette.surfaceDark}
+              onChange={(hex) =>
+                setKit((k) => (k ? patchPalette(k, { surfaceDark: hex }) : k))
+              }
+            />
+            <FeedColorRow
+              id="feed-light"
+              label="Helle Fläche"
+              hint="Ruhige Brand- / Signature-Posts"
+              value={palette.surfaceLight}
+              onChange={(hex) =>
+                setKit((k) => (k ? patchPalette(k, { surfaceLight: hex }) : k))
+              }
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Foto-Look</Label>
+          <p className="text-xs text-muted-foreground">
+            Gleicher Grade auf allen Fotos im Feed.
+          </p>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Foto-Look">
+            {SOCIAL_PHOTO_LOOKS.map((look) => (
+              <button
+                key={look}
+                type="button"
+                className={cn(
+                  "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                  kit.photoLook === look
+                    ? "border-accent/50 bg-accent/15 text-foreground"
+                    : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+                )}
+                aria-pressed={kit.photoLook === look}
+                onClick={() =>
+                  setKit((k) =>
+                    k ? { ...k, photoLook: look as SocialPhotoLook } : k,
+                  )
+                }
+              >
+                {SOCIAL_PHOTO_LOOK_LABELS[look]}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {SOCIAL_PHOTO_LOOK_HINTS[kit.photoLook]}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Feed-Layouts</Label>
+          <p className="text-xs text-muted-foreground">
+            Mindestens eines — Autopilot rotiert nur in eurer Auswahl.
+          </p>
+          <div className="grid gap-2">
+            {SOCIAL_FEED_LAYOUT_IDS.map((layoutId) => {
+              const checked = kit.preferredLayouts.includes(layoutId);
+              return (
+                <label
+                  key={layoutId}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 transition-colors",
+                    checked
+                      ? "border-accent/40 bg-accent/5"
+                      : "border-border/50 hover:border-border",
+                  )}
+                >
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={checked}
+                    onCheckedChange={(v) => {
+                      const on = v === true;
+                      setKit((k) => {
+                        if (!k) return k;
+                        return {
+                          ...k,
+                          preferredLayouts: togglePreferredFeedLayout(
+                            k.preferredLayouts,
+                            layoutId as SocialFeedLayoutId,
+                            on,
+                          ),
+                        };
+                      });
+                    }}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">
+                      {SOCIAL_FEED_LAYOUT_LABELS[layoutId]}
+                    </span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {SOCIAL_FEED_LAYOUT_HINTS[layoutId]}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -260,58 +483,27 @@ export function SocialBrandKitCard({
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Tonalität</Label>
-            <Select
-              value={kit.tone}
-              onValueChange={(v) => {
-                if (typeof v !== "string") return;
-                if (!SOCIAL_TONES.includes(v as SocialTone)) return;
-                setKit((k) => (k ? { ...k, tone: v as SocialTone } : k));
-              }}
-            >
-              <SelectTrigger className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}>
-                <SelectValue>{SOCIAL_TONE_LABELS[kit.tone]}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {SOCIAL_TONES.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {SOCIAL_TONE_LABELS[key]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Design</Label>
-            <Select
-              value={kit.stylePreset}
-              onValueChange={(v) => {
-                if (typeof v !== "string") return;
-                if (!SOCIAL_STYLE_PRESETS.includes(v as SocialStylePreset)) return;
-                setKit((k) =>
-                  k ? { ...k, stylePreset: v as SocialStylePreset } : k,
-                );
-              }}
-            >
-              <SelectTrigger className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}>
-                <SelectValue>
-                  {SOCIAL_STYLE_PRESET_LABELS[kit.stylePreset]}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {SOCIAL_STYLE_PRESETS.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {SOCIAL_STYLE_PRESET_LABELS[key]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {SOCIAL_STYLE_PRESET_HINTS[kit.stylePreset]}
-            </p>
-          </div>
+        <div className="space-y-2">
+          <Label>Tonalität</Label>
+          <Select
+            value={kit.tone}
+            onValueChange={(v) => {
+              if (typeof v !== "string") return;
+              if (!SOCIAL_TONES.includes(v as SocialTone)) return;
+              setKit((k) => (k ? { ...k, tone: v as SocialTone } : k));
+            }}
+          >
+            <SelectTrigger className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}>
+              <SelectValue>{SOCIAL_TONE_LABELS[kit.tone]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {SOCIAL_TONES.map((key) => (
+                <SelectItem key={key} value={key}>
+                  {SOCIAL_TONE_LABELS[key]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">

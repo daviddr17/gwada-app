@@ -54,7 +54,10 @@ import {
   buildAbsenceMaps,
   isShiftPlanAbsenceEntry,
 } from "@/lib/staff/shift-plan-absence";
-import { buildAvailabilityMaps } from "@/lib/staff/shift-plan-availability";
+import {
+  buildAvailabilityMaps,
+  isUnavailableAvailabilitySlot,
+} from "@/lib/staff/shift-plan-availability";
 import type { RestaurantStaffAvailabilitySlotRow } from "@/lib/types/staff-availability";
 import {
   shiftPlanDayHeaderMinHeightClassName,
@@ -126,16 +129,34 @@ function ShiftPlanDropCell({
     disabled: hasAbsence,
   });
 
-  const showCompactAdd = editable && maxShiftsInRow > 0 && !hasAbsence;
   const visibleShifts = hasAbsence ? [] : shifts;
-  const showAvailability = availabilitySlots.length > 0 && !hasAbsence;
+  const hasPlannedShift = visibleShifts.some(
+    (shift) => shift.status !== "declined",
+  );
+  /**
+   * Verfügbarkeit = Vormerkung ohne Schicht. Neben geplanter Schicht ausblenden;
+   * „Nicht verfügbar“ bleibt sichtbar (Konflikt-Hinweis).
+   */
+  const visibleAvailabilitySlots = hasAbsence
+    ? []
+    : hasPlannedShift
+      ? availabilitySlots.filter(isUnavailableAvailabilitySlot)
+      : availabilitySlots;
+  const showAvailability = visibleAvailabilitySlots.length > 0;
   const cellItemCount =
     visibleShifts.length +
     (hasAbsence ? absences.length : 0) +
     (showAvailability ? 1 : 0);
+  const isEmptyEditable =
+    editable && !hasAbsence && visibleShifts.length === 0 && !showAvailability;
+  /** Zeilenhöhe von Nachbartagen: kompakter „+“, nicht nochmal das leere Voll-Slot-Chrome. */
+  const showCompactAdd = editable && maxShiftsInRow > 0 && !hasAbsence;
   const trailingSpacerCount = Math.max(
     0,
-    maxShiftsInRow - cellItemCount - (cellItemCount === 0 && editable && !hasAbsence ? 1 : 0),
+    maxShiftsInRow -
+      cellItemCount -
+      (isEmptyEditable && maxShiftsInRow === 0 ? 1 : 0) -
+      (showCompactAdd ? 1 : 0),
   );
 
   const inner = (
@@ -166,7 +187,7 @@ function ShiftPlanDropCell({
       {showAvailability ? (
         <div className="pointer-events-auto shrink-0">
           <ShiftPlanAvailabilityCard
-            slots={availabilitySlots}
+            slots={visibleAvailabilitySlots}
             compact
             onClick={onEditAvailability}
           />
@@ -182,7 +203,7 @@ function ShiftPlanDropCell({
           />
         </div>
       ))}
-      {editable && cellItemCount === 0 && !hasAbsence ? (
+      {isEmptyEditable && maxShiftsInRow === 0 ? (
         <>
           <ShiftPlanAddShiftSlotButton onClick={onAdd} />
           {onEditAvailability ? (
@@ -207,7 +228,7 @@ function ShiftPlanDropCell({
           >
             <Plus className="size-3.5" />
           </button>
-          {onEditAvailability && !showAvailability ? (
+          {onEditAvailability && isEmptyEditable ? (
             <div className="pointer-events-auto shrink-0">
               <ShiftPlanAddAvailabilityCompactButton
                 onClick={onEditAvailability}
@@ -961,10 +982,15 @@ function ShiftPlanDayStaffRow({
   onStaffClick?: (staff: RestaurantStaffRow) => void;
   editable: boolean;
 }) {
+  const hasAbsence = absences.some(isShiftPlanAbsenceEntry);
+  const hasPlannedShift = shifts.some((shift) => shift.status !== "declined");
+  const showsAvailabilityCard =
+    !hasAbsence &&
+    availabilitySlots.length > 0 &&
+    (!hasPlannedShift ||
+      availabilitySlots.some(isUnavailableAvailabilitySlot));
   const cellItemCount =
-    shifts.length +
-    absences.length +
-    (availabilitySlots.length > 0 && !absences.some(isShiftPlanAbsenceEntry) ? 1 : 0);
+    shifts.length + absences.length + (showsAvailabilityCard ? 1 : 0);
   const isOwner = isStaffOwnerRow(staff);
   return (
     <div

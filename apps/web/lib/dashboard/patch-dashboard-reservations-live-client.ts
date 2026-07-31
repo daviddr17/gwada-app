@@ -12,6 +12,7 @@ export type ReservationLiveInsertFields = {
   starts_at: string;
   ends_at?: string;
   dwell_minutes?: number | null;
+  kind?: string | null;
   guest_first_name: string | null;
   guest_last_name: string | null;
   guest_company?: string | null;
@@ -50,6 +51,7 @@ export function reservationLiveInsertListRowRaw(
     starts_at: insert.starts_at,
     ends_at: reservationEndsAtFromLiveInsert(insert),
     dwell_minutes: insert.dwell_minutes ?? DEFAULT_LIVE_INSERT_DWELL_MINUTES,
+    kind: insert.kind ?? "guest",
     guest_first_name: insert.guest_first_name,
     guest_last_name: insert.guest_last_name,
     guest_company: insert.guest_company ?? null,
@@ -60,6 +62,7 @@ export function reservationLiveInsertListRowRaw(
       id: insert.statusId,
       color_hex: insert.statusColorHex ?? DEFAULT_PENDING_STATUS.color_hex,
     },
+    reservation_staff_assignees: [],
   };
 }
 
@@ -124,6 +127,7 @@ export function reservationLiveInsertFromRecord(
     ends_at: typeof row.ends_at === "string" ? row.ends_at : undefined,
     dwell_minutes:
       typeof row.dwell_minutes === "number" ? row.dwell_minutes : undefined,
+    kind: typeof row.kind === "string" ? row.kind : "guest",
     guest_first_name:
       typeof row.guest_first_name === "string" ? row.guest_first_name : null,
     guest_last_name:

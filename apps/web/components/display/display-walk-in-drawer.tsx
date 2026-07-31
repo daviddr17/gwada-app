@@ -85,6 +85,7 @@ function mapToListRow(
     created_at: "",
     created_by_profile_id: null,
     created_by_profile: null,
+    kind: "guest",
     guest_first_name: r.guest_first_name,
     guest_last_name: r.guest_last_name,
     guest_company: r.guest_company,
@@ -121,6 +122,7 @@ function mapToListRow(
           area_id: tables.find((t) => t.id === r.table!.id)?.area_id ?? "",
         }
       : null,
+    assigned_staff: [],
   };
 }
 

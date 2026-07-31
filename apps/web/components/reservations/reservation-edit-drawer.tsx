@@ -7,6 +7,7 @@ import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Contact, Mail, Trash2 } from "lucide-react";
+import { SearchableMultiSelect } from "@/components/ui/combobox";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
@@ -41,6 +42,20 @@ import {
   isValidStaffPartySize,
   RESERVATION_PARTY_SIZE_MAX_STAFF,
 } from "@/lib/reservations/reservation-party-size";
+import {
+  normalizeReservationKind,
+  RESERVATION_KIND_GUEST,
+  RESERVATION_KIND_PRIVATE_EVENT,
+  reservationKindLabel,
+  type ReservationKind,
+} from "@/lib/reservations/reservation-kind";
+import { buildStaffSearchableSelectOptions } from "@/lib/staff/staff-select-options";
+import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
+import {
+  replaceReservationStaffAssignees,
+  reservationAssigneeStaffIds,
+} from "@/lib/supabase/reservation-staff-assignees-db";
+import type { RestaurantStaffRow } from "@/lib/types/staff";
 import {
   normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
@@ -157,7 +172,25 @@ export type ReservationEditDrawerCreateContext = {
   initialGuestLastName?: string;
   initialGuestPhone?: string | null;
   initialGuestEmail?: string | null;
+  /** guest (Default) oder private_event (Veranstaltung). */
+  initialKind?: ReservationKind;
 };
+
+function addOneCalendarDayYmd(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y!, m! - 1, d!));
+  dt.setUTCDate(dt.getUTCDate() + 1);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+function addMinutesToHm(hm: string, minutes: number): string {
+  const [hRaw, mRaw] = hm.split(":");
+  const h = Number.parseInt(hRaw ?? "0", 10);
+  const m = Number.parseInt(mRaw ?? "0", 10);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return "21:00";
+  const total = ((h * 60 + m + minutes) % (24 * 60) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
 
 export type ReservationWhatsappDispatchedPayload = {
   messageBody: string;
@@ -181,6 +214,7 @@ type ReservationEditDrawerProps = {
 };
 
 type BuiltReservationPayload = {
+  kind: ReservationKind;
   guest_first_name: string;
   guest_last_name: string;
   guest_company: string | null;
@@ -230,6 +264,7 @@ export function ReservationEditDrawer({
   const touchNumericProps = touchNumericInputProps(touchTablet);
   const phoneLocalInputMode = touchPhoneLocalInputMode(touchTablet);
 
+  const [kind, setKind] = useState<ReservationKind>(RESERVATION_KIND_GUEST);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [company, setCompany] = useState("");
@@ -239,15 +274,19 @@ export function ReservationEditDrawer({
   const [partySize, setPartySize] = useState("2");
   const [dateYmd, setDateYmd] = useState("");
   const [timeHm, setTimeHm] = useState("19:00");
+  const [endTimeHm, setEndTimeHm] = useState("21:00");
   const [statusId, setStatusId] = useState("");
   const [notifyEmail, setNotifyEmail] = useState(false);
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [tables, setTables] = useState<DiningTableRow[]>([]);
+  const [staffList, setStaffList] = useState<RestaurantStaffRow[]>([]);
+  const [assignedStaffIds, setAssignedStaffIds] = useState<string[]>([]);
   const [defaultDwellMinutes, setDefaultDwellMinutes] = useState(120);
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
   const [internalNote, setInternalNote] = useState("");
+  const isPrivateEvent = kind === RESERVATION_KIND_PRIVATE_EVENT;
   /** Wird der Status-Benachrichtigung (Vorlage) als „Nachricht:“ angehängt. */
   const [guestNotifyMessage, setGuestNotifyMessage] = useState("");
   const [protocolRefreshKey, setProtocolRefreshKey] = useState(0);
@@ -358,18 +397,33 @@ export function ReservationEditDrawer({
   useEffect(() => {
     if (!open || !restaurantIdForFetch) return;
     void (async () => {
-      const [{ data: tData, error: tErr }, { data: sData }, timeZone] =
-        await Promise.all([
-          fetchDiningTables(restaurantIdForFetch),
-          fetchReservationSettings(restaurantIdForFetch),
-          fetchRestaurantIanaTimezone(restaurantIdForFetch),
-        ]);
+      const [
+        { data: tData, error: tErr },
+        { data: sData },
+        timeZone,
+        { data: staffData, error: staffErr },
+      ] = await Promise.all([
+        fetchDiningTables(restaurantIdForFetch),
+        fetchReservationSettings(restaurantIdForFetch),
+        fetchRestaurantIanaTimezone(restaurantIdForFetch),
+        fetchStaffForRestaurant(restaurantIdForFetch),
+      ]);
       if (tErr) toast.error(tErr.message);
+      if (staffErr) toast.error(staffErr);
       setTables(tData);
+      setStaffList(staffData);
       setDefaultDwellMinutes(sData?.default_dwell_minutes ?? 120);
       setRestaurantTimeZone(timeZone);
     })();
   }, [open, restaurantIdForFetch]);
+
+  const staffSelectOptions = useMemo(
+    () =>
+      buildStaffSearchableSelectOptions(staffList, {
+        includeStaffIds: assignedStaffIds,
+      }),
+    [staffList, assignedStaffIds],
+  );
 
   useEffect(() => {
     if (!open || reservation) return;
@@ -401,7 +455,7 @@ export function ReservationEditDrawer({
     const justOpened = !reservationHydrateWasOpenRef.current;
     reservationHydrateWasOpenRef.current = true;
     const seedKey = reservation?.id
-      ?? `create:${createFor?.restaurantId ?? ""}:${createFor?.day ?? ""}:${createFor?.initialTimeHm ?? ""}:${createFor?.initialContactId ?? ""}`;
+      ?? `create:${createFor?.restaurantId ?? ""}:${createFor?.day ?? ""}:${createFor?.initialTimeHm ?? ""}:${createFor?.initialContactId ?? ""}:${createFor?.initialKind ?? ""}`;
     if (!justOpened && reservationHydrateSeededKeyRef.current === seedKey) return;
     reservationHydrateSeededKeyRef.current = seedKey;
 
@@ -412,6 +466,7 @@ export function ReservationEditDrawer({
         )
       : "DE";
     if (reservation) {
+      setKind(normalizeReservationKind(reservation.kind));
       setFirstName(reservationGuestFirstNameForForm(reservation.guest_first_name));
       setLastName(reservation.guest_last_name);
       setCompany(reservation.guest_company?.trim() ?? "");
@@ -430,6 +485,11 @@ export function ReservationEditDrawer({
       );
       setDateYmd(ymd);
       setTimeHm(hm);
+      const endParts = restaurantIsoToYmdHm(
+        reservation.ends_at,
+        restaurantTimeZone,
+      );
+      setEndTimeHm(endParts.hm);
       setStatusId(reservation.reservation_statuses?.id ?? "");
       initialStatusCodeRef.current =
         reservation.reservation_statuses?.code ?? null;
@@ -443,10 +503,13 @@ export function ReservationEditDrawer({
       );
       setTableId(reservation.dining_table_id ?? "__none__");
       setInternalNote(reservationInternalNoteText(reservation.notes) ?? "");
+      setAssignedStaffIds(reservationAssigneeStaffIds(reservation.assigned_staff));
       setGuestNotifyMessage("");
       return;
     }
     if (createFor) {
+      const createKind = normalizeReservationKind(createFor.initialKind);
+      setKind(createKind);
       setInternalNote("");
       setGuestNotifyMessage("");
       setFirstName("");
@@ -455,7 +518,7 @@ export function ReservationEditDrawer({
       setPhoneCountryIso(defaultIso);
       setPhoneLocal("");
       setEmail("");
-      setPartySize("2");
+      setPartySize(createKind === RESERVATION_KIND_PRIVATE_EVENT ? "20" : "2");
       setDateYmd(localDayToYmd(createFor.day));
       const hm =
         createFor.initialTimeHm &&
@@ -466,11 +529,13 @@ export function ReservationEditDrawer({
             })()
           : "19:00";
       setTimeHm(hm);
+      setEndTimeHm(addMinutesToHm(hm, defaultDwellMinutes));
       setStatusId("");
       setNotifyEmail(false);
       setNotifyWhatsapp(false);
       setTermsAccepted(true);
       setDwellDraft(String(defaultDwellMinutes));
+      setAssignedStaffIds([]);
       setTableId(
         createFor.initialDiningTableId &&
           createFor.initialDiningTableId.length > 0
@@ -537,9 +602,11 @@ export function ReservationEditDrawer({
     createFor?.initialGuestLastName,
     createFor?.initialGuestPhone,
     createFor?.initialGuestEmail,
+    createFor?.initialKind,
     restaurantIdForFetch,
     restaurantTimeZone,
     getProfileForRestaurantId,
+    defaultDwellMinutes,
   ]);
 
   useEffect(() => {
@@ -593,25 +660,64 @@ export function ReservationEditDrawer({
     }
     const startsIso = ymdHmToRestaurantIso(dateYmd, timeHm, restaurantTimeZone);
     if (!lastName.trim()) {
-      toast.error("Bitte einen Nachnamen eingeben.");
+      toast.error(
+        isPrivateEvent
+          ? "Bitte einen Nachnamen für den Ansprechpartner eingeben."
+          : "Bitte einen Nachnamen eingeben.",
+      );
       return null;
     }
-    const dwellTrim = dwellDraft.trim();
-    let minutesForEnd = defaultDwellMinutes;
-    if (dwellTrim !== "") {
-      const n = Number.parseInt(dwellTrim, 10);
-      if (!Number.isFinite(n) || n < 15 || n > 1440) {
-        toast.error("Verweildauer: 15–1440 Minuten.");
+
+    let endsIso: string;
+    let dwellStored: number;
+    if (isPrivateEvent) {
+      if (!/^\d{2}:\d{2}$/.test(endTimeHm.trim())) {
+        toast.error("Bitte eine Endzeit wählen.");
         return null;
       }
-      minutesForEnd = n;
+      let endYmd = dateYmd;
+      let candidate = ymdHmToRestaurantIso(
+        endYmd,
+        endTimeHm.trim(),
+        restaurantTimeZone,
+      );
+      if (new Date(candidate).getTime() <= new Date(startsIso).getTime()) {
+        endYmd = addOneCalendarDayYmd(dateYmd);
+        candidate = ymdHmToRestaurantIso(
+          endYmd,
+          endTimeHm.trim(),
+          restaurantTimeZone,
+        );
+      }
+      const minutesForEnd = Math.round(
+        (new Date(candidate).getTime() - new Date(startsIso).getTime()) /
+          60_000,
+      );
+      if (!Number.isFinite(minutesForEnd) || minutesForEnd < 15 || minutesForEnd > 1440) {
+        toast.error("Zeitraum: 15–1440 Minuten.");
+        return null;
+      }
+      endsIso = candidate;
+      dwellStored = minutesForEnd;
+    } else {
+      const dwellTrim = dwellDraft.trim();
+      let minutesForEnd = defaultDwellMinutes;
+      if (dwellTrim !== "") {
+        const n = Number.parseInt(dwellTrim, 10);
+        if (!Number.isFinite(n) || n < 15 || n > 1440) {
+          toast.error("Verweildauer: 15–1440 Minuten.");
+          return null;
+        }
+        minutesForEnd = n;
+      }
+      dwellStored = minutesForEnd;
+      endsIso = new Date(
+        new Date(startsIso).getTime() + minutesForEnd * 60 * 1000,
+      ).toISOString();
     }
-    const dwellStored = minutesForEnd;
-    const endsIso = new Date(
-      new Date(startsIso).getTime() + minutesForEnd * 60 * 1000,
-    ).toISOString();
 
     return {
+      kind,
       guest_first_name: normalizeReservationGuestFirstName(firstName),
       guest_last_name: normalizeReservationGuestLastName(lastName),
       guest_company: normalizeReservationGuestCompany(company),
@@ -660,11 +766,27 @@ export function ReservationEditDrawer({
         reservation.id,
         payload,
       );
-      setSaving(false);
       if (error) {
+        setSaving(false);
         toast.error(error.message);
         return;
       }
+      if (restaurantId) {
+        const { error: assignErr } = await replaceReservationStaffAssignees({
+          reservationId: reservation.id,
+          restaurantId,
+          staffIds:
+            payload.kind === RESERVATION_KIND_PRIVATE_EVENT
+              ? assignedStaffIds
+              : [],
+        });
+        if (assignErr) {
+          setSaving(false);
+          toast.error(assignErr.message);
+          return;
+        }
+      }
+      setSaving(false);
       void logReservationUpdateFromBrowser({
         reservation,
         payload,
@@ -672,7 +794,11 @@ export function ReservationEditDrawer({
         tables,
       });
       setProtocolRefreshKey((k) => k + 1);
-      toast.success("Reservierung gespeichert.");
+      toast.success(
+        payload.kind === RESERVATION_KIND_PRIVATE_EVENT
+          ? "Veranstaltung gespeichert."
+          : "Reservierung gespeichert.",
+      );
       if (restaurantId) {
         void maybeShowReservationExistingContactLinkToast(
           {
@@ -757,12 +883,25 @@ export function ReservationEditDrawer({
         restaurant_id: createFor.restaurantId,
         ...payload,
       });
-      setSaving(false);
       if (error) {
+        setSaving(false);
         toast.error(error.message);
         return;
       }
       if (created) {
+        if (payload.kind === RESERVATION_KIND_PRIVATE_EVENT) {
+          const { error: assignErr } = await replaceReservationStaffAssignees({
+            reservationId: created.id,
+            restaurantId: createFor.restaurantId,
+            staffIds: assignedStaffIds,
+          });
+          if (assignErr) {
+            setSaving(false);
+            toast.error(assignErr.message);
+            return;
+          }
+        }
+        setSaving(false);
         void logReservationCreateFromBrowser({
           restaurantId: createFor.restaurantId,
           reservationId: created.id,
@@ -782,6 +921,7 @@ export function ReservationEditDrawer({
             starts_at: payload.starts_at,
             ends_at: payload.ends_at,
             dwell_minutes: payload.dwell_minutes,
+            kind: payload.kind,
             guest_first_name: payload.guest_first_name,
             guest_last_name: payload.guest_last_name,
             guest_company: payload.guest_company,
@@ -792,11 +932,17 @@ export function ReservationEditDrawer({
             statusColorHex: status?.color_hex,
           },
         });
+      } else {
+        setSaving(false);
       }
+      const entityLabel =
+        payload.kind === RESERVATION_KIND_PRIVATE_EVENT
+          ? "Veranstaltung"
+          : "Reservierung";
       toast.success(
         created
-          ? `Reservierung #${created.reservation_number} angelegt. Gast-PIN: ${created.guest_pin}`
-          : "Reservierung angelegt.",
+          ? `${entityLabel} #${created.reservation_number} angelegt. Gast-PIN: ${created.guest_pin}`
+          : `${entityLabel} angelegt.`,
       );
       if (created && restaurantId) {
         void maybeShowReservationExistingContactLinkToast(
@@ -952,7 +1098,13 @@ export function ReservationEditDrawer({
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1 text-left">
               <DrawerTitle className="text-xl font-semibold tracking-tight">
-                {isCreate ? "Neue Reservierung" : "Reservierung bearbeiten"}
+                {isCreate
+                  ? isPrivateEvent
+                    ? "Neue Veranstaltung"
+                    : "Neue Reservierung"
+                  : isPrivateEvent
+                    ? "Veranstaltung bearbeiten"
+                    : "Reservierung bearbeiten"}
               </DrawerTitle>
               <div className="space-y-1">
                 <DrawerDescription className="text-base leading-relaxed">
@@ -1016,6 +1168,45 @@ export function ReservationEditDrawer({
                 />
               ) : null}
               <DrawerFormSection title="Termin & Status">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Art</Label>
+                <div className="inline-flex w-full rounded-xl border border-border/50 bg-muted/10 p-0.5">
+                  {(
+                    [
+                      RESERVATION_KIND_GUEST,
+                      RESERVATION_KIND_PRIVATE_EVENT,
+                    ] as const
+                  ).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      className={cn(
+                        "min-w-0 flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                        kind === k
+                          ? "bg-card text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                      aria-pressed={kind === k}
+                      onClick={() => {
+                        setKind(k);
+                        if (
+                          k === RESERVATION_KIND_PRIVATE_EVENT &&
+                          /^\d{2}:\d{2}$/.test(timeHm)
+                        ) {
+                          const dwellN = Number.parseInt(dwellDraft, 10);
+                          const mins =
+                            Number.isFinite(dwellN) && dwellN >= 15
+                              ? dwellN
+                              : defaultDwellMinutes;
+                          setEndTimeHm(addMinutesToHm(timeHm, mins));
+                        }
+                      }}
+                    >
+                      {reservationKindLabel(k)}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className={drawerTwoColClass}>
                 <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="res-status" className="text-xs text-muted-foreground">
@@ -1098,20 +1289,53 @@ export function ReservationEditDrawer({
                     htmlFor="res-time"
                     className="text-xs text-muted-foreground"
                   >
-                    Uhrzeit
+                    {isPrivateEvent ? "Von" : "Uhrzeit"}
                   </Label>
                   <Input
                     id="res-time"
                     type="time"
                     value={timeHm}
-                    onChange={(e) => setTimeHm(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setTimeHm(next);
+                      if (isPrivateEvent && /^\d{2}:\d{2}$/.test(next)) {
+                        const dwellN = Number.parseInt(dwellDraft, 10);
+                        const mins =
+                          Number.isFinite(dwellN) && dwellN >= 15
+                            ? dwellN
+                            : defaultDwellMinutes;
+                        setEndTimeHm(addMinutesToHm(next, mins));
+                      }
+                    }}
                     className={cn(fieldClass, "tabular-nums")}
                   />
                 </div>
               </div>
+              {isPrivateEvent ? (
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="res-end-time"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Bis
+                  </Label>
+                  <Input
+                    id="res-end-time"
+                    type="time"
+                    value={endTimeHm}
+                    onChange={(e) => setEndTimeHm(e.target.value)}
+                    className={cn(fieldClass, "max-w-[12rem] tabular-nums")}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Liegt die Endzeit vor der Startzeit, gilt der Folgetag.
+                  </p>
+                </div>
+              ) : null}
               </DrawerFormSection>
 
-              <DrawerFormSection title="Gast">
+              <DrawerFormSection
+                title={isPrivateEvent ? "Ansprechpartner" : "Gast"}
+              >
               <div className={drawerTwoColClass}>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-fn" className="text-xs text-muted-foreground">
@@ -1216,8 +1440,34 @@ export function ReservationEditDrawer({
               </div>
               </DrawerFormSection>
 
-              <DrawerFormSection title="Tisch & Verweildauer">
+              {isPrivateEvent ? (
+                <DrawerFormSection title="Mitarbeiter">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Zugewiesen
+                    </Label>
+                    <SearchableMultiSelect
+                      options={staffSelectOptions}
+                      value={assignedStaffIds}
+                      onChange={setAssignedStaffIds}
+                      placeholder="Mitarbeiter wählen …"
+                      searchPlaceholder="Weitere suchen …"
+                      emptyMessage="Keine aktiven Mitarbeiter."
+                      aria-label="Mitarbeiter für Veranstaltung"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Wer für diese Veranstaltung eingeplant ist (unabhängig vom
+                      Schichtplan-Tag).
+                    </p>
+                  </div>
+                </DrawerFormSection>
+              ) : null}
+
+              <DrawerFormSection
+                title={isPrivateEvent ? "Tisch" : "Tisch & Verweildauer"}
+              >
               <div className={cn(drawerTwoColClass, "sm:grid-cols-[1fr_1fr]")}>
+                {!isPrivateEvent ? (
                 <div className="space-y-1.5">
                   <Label htmlFor="res-dwell" className="text-xs text-muted-foreground">
                     Verweildauer (Min.)
@@ -1238,6 +1488,7 @@ export function ReservationEditDrawer({
                     className={cn(fieldClass, "tabular-nums")}
                   />
                 </div>
+                ) : null}
                 <div className="space-y-1.5">
                   <Label htmlFor="res-table" className="text-xs text-muted-foreground">
                     Tisch

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { Check, RefreshCw, SkipForward } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ImageIcon, RefreshCw, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { SocialTemplatePreview } from "@/components/social/social-template-preview";
 import { Button } from "@/components/ui/button";
@@ -13,28 +13,42 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
-import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import {
+  SOCIAL_FEED_LAYOUT_CHIP_LABELS,
   SOCIAL_SLOT_KIND_LABELS,
-  SOCIAL_TEMPLATE_LABELS,
   type SocialMediaTask,
   type SocialPostSuggestion,
+  type SocialSuggestionAsset,
 } from "@/lib/social/social-suggestion-types";
-import type { SocialStylePreset } from "@/lib/social/social-brand-kit";
+import type { SocialBrandKit } from "@/lib/social/social-brand-kit";
+import {
+  DEFAULT_SOCIAL_FEED_PALETTE,
+  SOCIAL_FEED_LAYOUT_IDS,
+  type SocialFeedLayoutId,
+} from "@/lib/social/social-feed-brand-system";
+import { defaultSocialBrandKit } from "@/lib/social/social-brand-kit";
 import { socialPublishPlatformLabel } from "@/lib/social/social-publish-platforms";
 import { isNewsPlatform } from "@/lib/constants/news-platforms";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
+
+type AssetOption = SocialSuggestionAsset & {
+  id: string;
+  group: "gallery" | "menu" | "profile" | "event";
+  label: string;
+};
 
 function formatPlan(iso: string): string {
   try {
@@ -50,20 +64,28 @@ function formatPlan(iso: string): string {
   }
 }
 
+const GROUP_LABELS: Record<AssetOption["group"], string> = {
+  gallery: "Galerie",
+  menu: "Speisekarte",
+  profile: "Profil",
+  event: "Events",
+};
+
 export function SocialAutopilotScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { profile } = useRestaurantProfile();
-  const { accentHex } = useAccentColor();
   const [suggestions, setSuggestions] = useState<SocialPostSuggestion[]>([]);
   const [tasks, setTasks] = useState<SocialMediaTask[]>([]);
-  const [stylePreset, setStylePreset] =
-    useState<SocialStylePreset>("schlicht");
-  const [publishStories, setPublishStories] = useState(true);
+  const [kit, setKit] = useState<SocialBrandKit | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [draftTitles, setDraftTitles] = useState<Record<string, string>>({});
   const [draftCaptions, setDraftCaptions] = useState<Record<string, string>>(
     {},
   );
+  const [assetOptions, setAssetOptions] = useState<AssetOption[]>([]);
+  const [pickerForId, setPickerForId] = useState<string | null>(null);
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const showSkeleton = useDeferredSkeleton(loading);
 
   const load = useCallback(
@@ -73,29 +95,45 @@ export function SocialAutopilotScreen() {
       try {
         const qs = new URLSearchParams({ restaurantId });
         if (opts?.refresh) qs.set("refresh", "1");
-        const [sugRes, kitRes] = await Promise.all([
+        const [sugRes, kitRes, optRes] = await Promise.all([
           fetch(`/api/social/suggestions?${qs}`),
-          fetch(`/api/social/brand-kit?restaurantId=${encodeURIComponent(restaurantId)}`),
+          fetch(
+            `/api/social/brand-kit?restaurantId=${encodeURIComponent(restaurantId)}`,
+          ),
+          fetch(
+            `/api/social/asset-options?restaurantId=${encodeURIComponent(restaurantId)}`,
+          ),
         ]);
         const sugData = (await sugRes.json().catch(() => ({}))) as {
           suggestions?: SocialPostSuggestion[];
           tasks?: SocialMediaTask[];
-          error?: string;
         };
         const kitData = (await kitRes.json().catch(() => ({}))) as {
-          kit?: { stylePreset?: SocialStylePreset; publishStories?: boolean };
+          kit?: SocialBrandKit;
+        };
+        const optData = (await optRes.json().catch(() => ({}))) as {
+          options?: AssetOption[];
         };
         if (!sugRes.ok) {
           toast.error("Vorschläge konnten nicht geladen werden");
           return;
         }
         const list = sugData.suggestions ?? [];
-        setSuggestions(list.filter((s) => s.status === "pending" || s.status === "needs_asset"));
+        setSuggestions(
+          list.filter(
+            (s) => s.status === "pending" || s.status === "needs_asset",
+          ),
+        );
         setTasks(sugData.tasks ?? []);
-        if (kitData.kit?.stylePreset) setStylePreset(kitData.kit.stylePreset);
-        if (typeof kitData.kit?.publishStories === "boolean") {
-          setPublishStories(kitData.kit.publishStories);
-        }
+        setKit(kitData.kit ?? defaultSocialBrandKit(restaurantId));
+        setAssetOptions(optData.options ?? []);
+        setDraftTitles((prev) => {
+          const next = { ...prev };
+          for (const s of list) {
+            if (next[s.id] == null) next[s.id] = s.title?.trim() ?? "";
+          }
+          return next;
+        });
         setDraftCaptions((prev) => {
           const next = { ...prev };
           for (const s of list) {
@@ -115,10 +153,67 @@ export function SocialAutopilotScreen() {
     void load();
   }, [ready, restaurantId, load]);
 
+  const patchSuggestion = useCallback(
+    async (
+      id: string,
+      patch: {
+        title?: string | null;
+        caption?: string;
+        asset?: SocialSuggestionAsset;
+        feedLayout?: SocialFeedLayoutId;
+      },
+    ) => {
+      if (!restaurantId) return;
+      const res = await fetch(`/api/social/suggestions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, ...patch }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        suggestion?: SocialPostSuggestion;
+        error?: string;
+      };
+      if (!res.ok || !data.suggestion) {
+        toast.error("Änderung konnte nicht gespeichert werden");
+        return;
+      }
+      setSuggestions((prev) =>
+        prev.map((s) => (s.id === id ? data.suggestion! : s)),
+      );
+    },
+    [restaurantId],
+  );
+
+  const scheduleTextSave = useCallback(
+    (id: string, next: { title: string; caption: string }) => {
+      if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
+      saveTimers.current[id] = setTimeout(() => {
+        void patchSuggestion(id, {
+          title: next.title.trim() || null,
+          caption: next.caption,
+        });
+      }, 500);
+    },
+    [patchSuggestion],
+  );
+
+  const preferredLayouts = useMemo(() => {
+    const fromKit = kit?.preferredLayouts ?? [];
+    return fromKit.length > 0 ? fromKit : [...SOCIAL_FEED_LAYOUT_IDS];
+  }, [kit?.preferredLayouts]);
+
   const approve = async (id: string, publishNow: boolean) => {
     if (!restaurantId) return;
     setBusyId(id);
     try {
+      if (saveTimers.current[id]) {
+        clearTimeout(saveTimers.current[id]);
+        delete saveTimers.current[id];
+      }
+      await patchSuggestion(id, {
+        title: (draftTitles[id] ?? "").trim() || null,
+        caption: draftCaptions[id] ?? "",
+      });
       const res = await fetch(`/api/social/suggestions/${id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -188,13 +283,17 @@ export function SocialAutopilotScreen() {
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
   const restaurantName = profile?.name?.trim() || "Restaurant";
+  const feedPalette = kit?.feedPalette ?? DEFAULT_SOCIAL_FEED_PALETTE;
+  const photoLook = kit?.photoLook ?? "warm";
+  const publishStories = kit?.publishStories !== false;
+  const ctaLabel = kit?.cta ?? "Tisch reservieren";
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 pb-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Fertige Vorschläge für diese Woche — freigeben, anpassen oder
-          überspringen.
+          Vorschau, Texte und Bilder anpassen — dann freigeben. Design aus eurer
+          Social-Marke.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -283,95 +382,248 @@ export function SocialAutopilotScreen() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {suggestions.map((s) => (
-            <Card key={s.id} className="border-border/50 shadow-card overflow-hidden">
-              <CardHeader className="gap-1 pb-3">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span className="rounded-full border border-border/60 px-2 py-0.5">
-                    {SOCIAL_SLOT_KIND_LABELS[s.slotKind]}
-                  </span>
-                  <span className="rounded-full border border-border/60 px-2 py-0.5">
-                    {SOCIAL_TEMPLATE_LABELS[s.templateId]}
-                  </span>
-                  {s.platforms.filter(isNewsPlatform).map((p) => (
-                    <span
-                      key={p}
-                      className="rounded-full border border-border/60 px-2 py-0.5"
-                    >
-                      {socialPublishPlatformLabel(p)}
-                    </span>
-                  ))}
-                  {publishStories &&
-                  (s.platforms.includes("facebook") ||
-                    s.platforms.includes("instagram")) ? (
+          {suggestions.map((s) => {
+            const title = draftTitles[s.id] ?? s.title?.trim() ?? "";
+            const caption = draftCaptions[s.id] ?? s.caption;
+            const layout = s.feedLayout;
+            const pickerOpen = pickerForId === s.id;
+            return (
+              <Card
+                key={s.id}
+                className="overflow-hidden border-border/50 shadow-card"
+              >
+                <CardHeader className="gap-1 pb-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span className="rounded-full border border-border/60 px-2 py-0.5">
-                      + Story
+                      {SOCIAL_SLOT_KIND_LABELS[s.slotKind]}
                     </span>
-                  ) : null}
-                  <span>{formatPlan(s.plannedAt)}</span>
-                  {s.status === "needs_asset" ? (
-                    <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-800 dark:text-amber-200">
-                      Bild fehlt
+                    <span className="rounded-full border border-border/60 px-2 py-0.5">
+                      {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}
                     </span>
-                  ) : null}
-                </div>
-                <CardTitle className="text-lg">
-                  {s.title?.trim() || "Vorschlag"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <SocialTemplatePreview
-                  templateId={s.templateId}
-                  stylePreset={stylePreset}
-                  accentHex={accentHex}
-                  restaurantName={restaurantName}
-                  title={s.title}
-                  caption={draftCaptions[s.id] ?? s.caption}
-                  imageUrl={s.asset.imageUrl}
-                />
-                <Textarea
-                  value={draftCaptions[s.id] ?? s.caption}
-                  onChange={(e) =>
-                    setDraftCaptions((prev) => ({
-                      ...prev,
-                      [s.id]: e.target.value,
-                    }))
-                  }
-                  className="min-h-28 rounded-xl"
-                />
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button
-                    type="button"
-                    className={cn("flex-1", brandActionButtonRoundedClassName)}
-                    disabled={busyId === s.id || s.status === "needs_asset"}
-                    onClick={() => void approve(s.id, true)}
-                  >
-                    <Check className="size-4" />
-                    Freigeben & posten
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 rounded-xl"
-                    disabled={busyId === s.id}
-                    onClick={() => void approve(s.id, false)}
-                  >
-                    Freigeben (planen)
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="rounded-xl"
-                    disabled={busyId === s.id}
-                    onClick={() => void skip(s.id)}
-                  >
-                    <SkipForward className="size-4" />
-                    Überspringen
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    {s.platforms.filter(isNewsPlatform).map((p) => (
+                      <span
+                        key={p}
+                        className="rounded-full border border-border/60 px-2 py-0.5"
+                      >
+                        {socialPublishPlatformLabel(p)}
+                      </span>
+                    ))}
+                    {publishStories &&
+                    (s.platforms.includes("facebook") ||
+                      s.platforms.includes("instagram")) ? (
+                      <span className="rounded-full border border-border/60 px-2 py-0.5">
+                        + Story
+                      </span>
+                    ) : null}
+                    <span>{formatPlan(s.plannedAt)}</span>
+                    {s.status === "needs_asset" ? (
+                      <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-800 dark:text-amber-200">
+                        Bild fehlt
+                      </span>
+                    ) : null}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <SocialTemplatePreview
+                    feedLayout={layout}
+                    feedPalette={feedPalette}
+                    photoLook={photoLook}
+                    restaurantName={restaurantName}
+                    title={title}
+                    caption={caption}
+                    ctaLabel={ctaLabel}
+                    imageUrl={s.asset.imageUrl}
+                  />
+
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">
+                      Layout
+                    </Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {preferredLayouts.map((layoutId) => (
+                        <button
+                          key={layoutId}
+                          type="button"
+                          className={cn(
+                            "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                            layout === layoutId
+                              ? "border-accent/50 bg-accent/15 text-foreground"
+                              : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+                          )}
+                          aria-pressed={layout === layoutId}
+                          disabled={busyId === s.id}
+                          onClick={() =>
+                            void patchSuggestion(s.id, {
+                              feedLayout: layoutId,
+                            })
+                          }
+                        >
+                          {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layoutId]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-xs text-muted-foreground">
+                        Bild
+                      </Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-full"
+                        disabled={busyId === s.id || assetOptions.length === 0}
+                        onClick={() =>
+                          setPickerForId((cur) => (cur === s.id ? null : s.id))
+                        }
+                      >
+                        <ImageIcon className="size-3.5" />
+                        {pickerOpen ? "Schließen" : "Bild wechseln"}
+                      </Button>
+                    </div>
+                    {pickerOpen ? (
+                      <div className="space-y-3 rounded-xl border border-border/50 p-3">
+                        {(
+                          ["gallery", "menu", "profile", "event"] as const
+                        ).map((group) => {
+                          const items = assetOptions.filter(
+                            (o) => o.group === group,
+                          );
+                          if (items.length === 0) return null;
+                          return (
+                            <div key={group} className="space-y-1.5">
+                              <p className="text-[11px] font-medium text-muted-foreground">
+                                {GROUP_LABELS[group]}
+                              </p>
+                              <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                                {items.map((opt) => {
+                                  const selected =
+                                    s.asset.source === opt.source &&
+                                    s.asset.sourceId === opt.sourceId;
+                                  return (
+                                    <button
+                                      key={opt.id}
+                                      type="button"
+                                      title={opt.label}
+                                      className={cn(
+                                        "relative aspect-square overflow-hidden rounded-lg border transition-colors",
+                                        selected
+                                          ? "border-accent ring-2 ring-accent/40"
+                                          : "border-border/50 hover:border-border",
+                                      )}
+                                      onClick={() => {
+                                        void patchSuggestion(s.id, {
+                                          asset: {
+                                            imageUrl: opt.imageUrl,
+                                            imageLabel: opt.imageLabel,
+                                            source: opt.source,
+                                            sourceId: opt.sourceId,
+                                            storageBucket: opt.storageBucket,
+                                            storagePath: opt.storagePath,
+                                          },
+                                        });
+                                        setPickerForId(null);
+                                      }}
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={opt.imageUrl ?? ""}
+                                        alt=""
+                                        className="size-full object-cover"
+                                      />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {assetOptions.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Keine Bilder in Galerie, Speisekarte oder Profil.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor={`title-${s.id}`}>Titel</Label>
+                    <Input
+                      id={`title-${s.id}`}
+                      value={title}
+                      onChange={(e) => {
+                        const nextTitle = e.target.value;
+                        setDraftTitles((prev) => ({
+                          ...prev,
+                          [s.id]: nextTitle,
+                        }));
+                        scheduleTextSave(s.id, {
+                          title: nextTitle,
+                          caption,
+                        });
+                      }}
+                      className="h-11 rounded-xl"
+                      placeholder="Überschrift auf dem Post"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor={`caption-${s.id}`}>Text / Caption</Label>
+                    <Textarea
+                      id={`caption-${s.id}`}
+                      value={caption}
+                      onChange={(e) => {
+                        const nextCaption = e.target.value;
+                        setDraftCaptions((prev) => ({
+                          ...prev,
+                          [s.id]: nextCaption,
+                        }));
+                        scheduleTextSave(s.id, {
+                          title,
+                          caption: nextCaption,
+                        });
+                      }}
+                      className="min-h-28 rounded-xl"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      type="button"
+                      className={cn("flex-1", brandActionButtonRoundedClassName)}
+                      disabled={busyId === s.id || s.status === "needs_asset"}
+                      onClick={() => void approve(s.id, true)}
+                    >
+                      <Check className="size-4" />
+                      Freigeben & posten
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1 rounded-xl"
+                      disabled={busyId === s.id}
+                      onClick={() => void approve(s.id, false)}
+                    >
+                      Freigeben (planen)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="rounded-xl"
+                      disabled={busyId === s.id}
+                      onClick={() => void skip(s.id)}
+                    >
+                      <SkipForward className="size-4" />
+                      Überspringen
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

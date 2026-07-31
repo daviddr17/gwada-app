@@ -1,186 +1,214 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { SocialStylePreset, SocialTemplateId } from "@/lib/social/social-brand-kit";
+import type {
+  SocialFeedLayoutId,
+  SocialFeedPalette,
+  SocialPhotoLook,
+} from "@/lib/social/social-feed-brand-system";
+import { DEFAULT_SOCIAL_FEED_PALETTE } from "@/lib/social/social-feed-brand-system";
 import { cn } from "@/lib/utils";
 
-type PreviewChrome = {
-  surface: string;
-  nameClass: string;
-  titleClass: string;
-  captionClass: string;
-  barClass: string;
-  ctaClass: string;
-  shellClass: string;
-  panelClass: string;
-  heroPad: string;
-  leftAccent?: boolean;
-};
+function photoLookFilter(look: SocialPhotoLook): string | undefined {
+  if (look === "warm") return "sepia(0.18) saturate(1.12) contrast(1.04)";
+  if (look === "cool") return "saturate(0.92) hue-rotate(12deg) brightness(1.03)";
+  return undefined;
+}
 
-const PRESET_CHROME: Record<SocialStylePreset, PreviewChrome> = {
-  schlicht: {
-    surface: "bg-neutral-100 text-neutral-900",
-    nameClass: "text-[10px] font-medium uppercase tracking-[0.16em] opacity-70",
-    titleClass: "text-xl font-semibold leading-tight tracking-tight",
-    captionClass: "line-clamp-3 text-sm opacity-90 whitespace-pre-line",
-    barClass: "h-0.5 w-8 rounded-full",
-    ctaClass: "self-start rounded-md px-2.5 py-1 text-xs font-medium text-white",
-    shellClass: "",
-    panelClass: "p-5",
-    heroPad: "p-4 pt-14",
-  },
-  modern: {
-    surface: "bg-slate-900 text-slate-50",
-    nameClass: "text-[10px] font-semibold uppercase tracking-[0.22em] opacity-65",
-    titleClass: "text-2xl font-bold leading-none tracking-tight",
-    captionClass: "line-clamp-3 text-sm opacity-85 whitespace-pre-line",
-    barClass: "h-1 w-14 rounded-none",
-    ctaClass:
-      "self-start rounded-none px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white",
-    shellClass: "pl-1",
-    panelClass: "p-5",
-    heroPad: "p-5 pt-16 pl-6",
-    leftAccent: true,
-  },
-  warm: {
-    surface: "bg-[#2a211c] text-[#f7f0e8]",
-    nameClass: "text-[11px] font-medium uppercase tracking-[0.14em] opacity-80",
-    titleClass: "font-serif text-2xl font-semibold leading-tight",
-    captionClass: "line-clamp-3 text-sm opacity-90 whitespace-pre-line",
-    barClass: "h-1.5 w-10 rounded-full",
-    ctaClass: "self-start rounded-xl px-3 py-1.5 text-xs font-medium text-white",
-    shellClass: "",
-    panelClass: "m-3 rounded-2xl bg-[#2a211c]/85 p-4",
-    heroPad: "p-5 pt-16",
-  },
-  fancy: {
-    surface: "bg-[#140f14] text-[#faf5ff]",
-    nameClass: "text-[10px] font-semibold uppercase tracking-[0.28em] opacity-70",
-    titleClass: "font-serif text-2xl font-bold leading-tight",
-    captionClass: "line-clamp-3 text-sm opacity-90 whitespace-pre-line",
-    barClass: "h-0.5 w-8 rounded-none",
-    ctaClass: "self-start rounded-full px-4 py-1.5 text-xs font-semibold text-white",
-    shellClass: "ring-1 ring-inset ring-white/20",
-    panelClass: "m-4 rounded-lg bg-[#120c18]/80 p-5",
-    heroPad: "mx-4 mb-4 rounded-lg bg-black/55 p-5 pt-6",
-  },
-  fein: {
-    surface: "bg-neutral-950 text-neutral-100",
-    nameClass: "text-[9px] font-medium uppercase tracking-[0.32em] opacity-50",
-    titleClass: "font-serif text-xl font-medium leading-snug tracking-wide",
-    captionClass: "line-clamp-3 text-xs opacity-70 whitespace-pre-line",
-    barClass: "h-px w-6 rounded-none",
-    ctaClass:
-      "self-start rounded-sm px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-white",
-    shellClass: "ring-1 ring-inset ring-white/15",
-    panelClass: "m-5 p-5",
-    heroPad: "p-6 pt-20",
-  },
-};
+function firstCaptionLine(caption: string): string {
+  return (
+    caption
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)[0] ?? caption.trim()
+  );
+}
 
 export function SocialTemplatePreview({
-  templateId,
-  stylePreset,
-  accentHex,
+  feedLayout,
+  feedPalette,
+  photoLook = "warm",
   restaurantName,
   title,
   caption,
+  ctaLabel,
   imageUrl,
   className,
 }: {
-  templateId: SocialTemplateId;
-  stylePreset: SocialStylePreset;
-  accentHex: string;
+  feedLayout: SocialFeedLayoutId;
+  feedPalette?: SocialFeedPalette | null;
+  photoLook?: SocialPhotoLook;
   restaurantName: string;
   title?: string | null;
   caption: string;
+  ctaLabel?: string | null;
   imageUrl?: string | null;
   className?: string;
 }) {
-  const chrome = PRESET_CHROME[stylePreset] ?? PRESET_CHROME.schlicht;
+  const palette = feedPalette ?? DEFAULT_SOCIAL_FEED_PALETTE;
+  const accent = palette.accent;
+  const dark = palette.surfaceDark;
+  const light = palette.surfaceLight;
+  const line = firstCaptionLine(caption);
+  const headline = title?.trim() || "Diese Woche";
+  const cta = (ctaLabel?.trim() || "Tisch reservieren") + " →";
+  const filter = photoLookFilter(photoLook);
 
-  if (templateId === "brand_card") {
+  const shell = cn(
+    "relative aspect-square overflow-hidden rounded-xl border border-border/50 shadow-card",
+    className,
+  );
+
+  if (feedLayout === "editorial_hero") {
     return (
-      <div
-        className={cn(
-          "relative aspect-square overflow-hidden rounded-xl border border-border/50 shadow-card",
-          chrome.surface,
-          chrome.shellClass,
-          className,
-        )}
-        style={
-          chrome.leftAccent
-            ? ({ borderLeftWidth: 4, borderLeftColor: accentHex } as CSSProperties)
-            : stylePreset === "fancy"
-              ? ({ ["--tw-ring-color" as string]: `${accentHex}66` } as CSSProperties)
-              : undefined
-        }
-      >
+      <div className={cn(shell, "bg-neutral-900")}>
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={imageUrl}
             alt=""
-            className="absolute inset-0 size-full object-cover opacity-35"
+            className="absolute inset-0 size-full object-cover"
+            style={filter ? { filter } : undefined}
           />
-        ) : null}
-        <div
-          className={cn(
-            "relative flex h-full flex-col justify-between",
-            chrome.panelClass,
+        ) : (
+          <div className="absolute inset-0" style={{ backgroundColor: dark }} />
+        )}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent px-5 pb-5 pt-16 text-white">
+          <p className="text-[10px] font-medium tracking-[0.2em] text-white/75 uppercase">
+            {restaurantName}
+          </p>
+          <div
+            className="mt-2 h-px w-8"
+            style={{ backgroundColor: accent }}
+            aria-hidden
+          />
+          <p className="mt-2 font-serif text-2xl leading-tight tracking-tight">
+            {headline}
+          </p>
+          {line ? (
+            <p className="mt-1 line-clamp-2 text-sm text-white/85">{line}</p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (feedLayout === "atelier_split") {
+    return (
+      <div className={shell} style={{ backgroundColor: dark }}>
+        <div className="absolute inset-x-0 top-0 h-[58%] overflow-hidden">
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageUrl}
+              alt=""
+              className="size-full object-cover"
+              style={filter ? { filter } : undefined}
+            />
+          ) : (
+            <div className="size-full" style={{ backgroundColor: dark }} />
           )}
+        </div>
+        <div
+          className="absolute inset-x-0 bottom-0 flex h-[42%] flex-col justify-between px-5 py-4"
+          style={{ backgroundColor: dark, color: light }}
         >
-          <div className={chrome.barClass} style={{ backgroundColor: accentHex }} />
           <div className="space-y-2">
-            <p className={chrome.nameClass}>{restaurantName}</p>
-            <p className={chrome.titleClass}>{title?.trim() || "Diese Woche"}</p>
-            <p className={chrome.captionClass}>{caption}</p>
+            <p className="text-[10px] font-medium tracking-[0.18em] uppercase opacity-70">
+              {restaurantName}
+            </p>
+            <p className="font-serif text-xl leading-tight">{headline}</p>
+            {line ? (
+              <p className="line-clamp-2 text-sm opacity-80">{line}</p>
+            ) : null}
           </div>
-          <div className={chrome.ctaClass} style={{ backgroundColor: accentHex }}>
-            Gwada
+          <div>
+            <div
+              className="mb-2 h-px w-10"
+              style={{ backgroundColor: accent }}
+              aria-hidden
+            />
+            <p
+              className="text-[11px] font-medium tracking-wide"
+              style={{ color: accent }}
+            >
+              {cta}
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
+  if (feedLayout === "soiree_event") {
+    return (
+      <div className={cn(shell, "bg-black")}>
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt=""
+            className="absolute inset-0 size-full object-cover opacity-55"
+            style={filter ? { filter } : undefined}
+          />
+        ) : (
+          <div className="absolute inset-0" style={{ backgroundColor: dark }} />
+        )}
+        <div
+          className="absolute inset-4 flex flex-col items-center justify-center px-4 text-center"
+          style={
+            {
+              color: light,
+              boxShadow: `inset 0 0 0 1px ${accent}99`,
+            } as CSSProperties
+          }
+        >
+          <p className="text-[10px] font-medium tracking-[0.22em] uppercase opacity-75">
+            {restaurantName}
+          </p>
+          <p className="mt-4 font-serif text-3xl leading-none tracking-tight">
+            {headline}
+          </p>
+          {line ? (
+            <p className="mt-3 line-clamp-3 text-sm opacity-85">{line}</p>
+          ) : null}
+          <div
+            className="mt-5 h-px w-12"
+            style={{ backgroundColor: accent }}
+            aria-hidden
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // signature_brand
   return (
     <div
-      className={cn(
-        "relative aspect-square overflow-hidden rounded-xl border border-border/50 bg-muted shadow-card",
-        chrome.shellClass,
-        className,
-      )}
-      style={
-        chrome.leftAccent
-          ? ({ borderLeftWidth: 4, borderLeftColor: accentHex } as CSSProperties)
-          : stylePreset === "fancy"
-            ? ({ ["--tw-ring-color" as string]: `${accentHex}55` } as CSSProperties)
-            : undefined
-      }
+      className={cn(shell, "flex flex-col items-center justify-center px-8 text-center")}
+      style={{ backgroundColor: light, color: dark }}
     >
-      {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="absolute inset-0 size-full object-cover" />
-      ) : (
-        <div className={cn("absolute inset-0", chrome.surface)} />
-      )}
       <div
-        className={cn(
-          "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent text-white",
-          chrome.heroPad,
-        )}
-      >
-        <div
-          className={cn("mb-2", chrome.barClass)}
-          style={{ backgroundColor: accentHex }}
-        />
-        <p className={cn(chrome.nameClass, "text-white/80")}>{restaurantName}</p>
-        {title ? (
-          <p className={cn("mt-1 text-white", chrome.titleClass)}>{title}</p>
-        ) : null}
-        <p className={cn("mt-1 text-white/90", chrome.captionClass)}>{caption}</p>
-      </div>
+        className="mb-4 size-12 rounded-full border"
+        style={{ borderColor: `${accent}88`, backgroundColor: `${accent}22` }}
+        aria-hidden
+      />
+      <p className="font-serif text-2xl leading-tight tracking-tight">
+        {restaurantName}
+      </p>
+      <div
+        className="my-4 h-px w-10"
+        style={{ backgroundColor: accent }}
+        aria-hidden
+      />
+      <p className="font-serif text-lg italic leading-snug opacity-90">
+        {line || headline}
+      </p>
+      {title?.trim() && line ? (
+        <p className="mt-3 text-[11px] tracking-[0.14em] uppercase opacity-55">
+          {headline}
+        </p>
+      ) : null}
     </div>
   );
 }

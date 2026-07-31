@@ -115,6 +115,9 @@ async function persistStaffDisplayPin(
     if (data.error === "pin_duplicate") {
       return { ok: false, message: "PIN bereits vergeben." };
     }
+    if (data.error === "pin_format") {
+      return { ok: false, message: "PIN muss vier Ziffern haben." };
+    }
     return {
       ok: false,
       message:

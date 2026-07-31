@@ -78,11 +78,16 @@ export function resolveSuggestionFeedLayout(params: {
   source: Record<string, unknown>;
   preferredLayouts?: SocialFeedLayoutId[];
 }): SocialFeedLayoutId {
+  const preferred =
+    params.preferredLayouts && params.preferredLayouts.length > 0
+      ? params.preferredLayouts
+      : [...SOCIAL_FEED_LAYOUT_IDS];
   const stored = parseFeedLayoutId(params.source.feedLayout);
-  if (stored) return stored;
+  // Gespeichertes Layout nur behalten, wenn es noch in der Social-Marke aktiv ist.
+  if (stored && preferred.includes(stored)) return stored;
   return pickFeedLayoutForSlot({
     slotKind: params.slotKind,
-    preferredLayouts: params.preferredLayouts ?? [...SOCIAL_FEED_LAYOUT_IDS],
+    preferredLayouts: preferred,
     legacyTemplateId: params.templateId,
   });
 }

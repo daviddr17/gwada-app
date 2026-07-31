@@ -1,18 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Check, ImageIcon, RefreshCw, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { SocialTemplatePreview } from "@/components/social/social-template-preview";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +26,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   SOCIAL_FEED_LAYOUT_CHIP_LABELS,
   SOCIAL_SLOT_KIND_LABELS,
@@ -36,9 +38,11 @@ import type { SocialBrandKit } from "@/lib/social/social-brand-kit";
 import {
   DEFAULT_SOCIAL_FEED_PALETTE,
   SOCIAL_FEED_LAYOUT_IDS,
+  SOCIAL_PHOTO_LOOK_LABELS,
   type SocialFeedLayoutId,
 } from "@/lib/social/social-feed-brand-system";
 import { defaultSocialBrandKit } from "@/lib/social/social-brand-kit";
+import { resolveSuggestionFeedLayout } from "@/lib/social/social-feed-layout";
 import { socialPublishPlatformLabel } from "@/lib/social/social-publish-platforms";
 import { isNewsPlatform } from "@/lib/constants/news-platforms";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
@@ -70,6 +74,25 @@ const GROUP_LABELS: Record<AssetOption["group"], string> = {
   profile: "Profil",
   event: "Events",
 };
+
+function MetaChip({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border border-border/60 px-2 py-0.5 text-xs text-muted-foreground",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
 
 export function SocialAutopilotScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -107,6 +130,10 @@ export function SocialAutopilotScreen() {
         const sugData = (await sugRes.json().catch(() => ({}))) as {
           suggestions?: SocialPostSuggestion[];
           tasks?: SocialMediaTask[];
+          generation?: {
+            created?: number;
+            skippedReason?: string;
+          };
         };
         const kitData = (await kitRes.json().catch(() => ({}))) as {
           kit?: SocialBrandKit;
@@ -119,28 +146,50 @@ export function SocialAutopilotScreen() {
           return;
         }
         const list = sugData.suggestions ?? [];
-        setSuggestions(
-          list.filter(
-            (s) => s.status === "pending" || s.status === "needs_asset",
-          ),
+        const open = list.filter(
+          (s) => s.status === "pending" || s.status === "needs_asset",
         );
+        setSuggestions(open);
         setTasks(sugData.tasks ?? []);
         setKit(kitData.kit ?? defaultSocialBrandKit(restaurantId));
         setAssetOptions(optData.options ?? []);
-        setDraftTitles((prev) => {
-          const next = { ...prev };
-          for (const s of list) {
-            if (next[s.id] == null) next[s.id] = s.title?.trim() ?? "";
+
+        const nextTitles: Record<string, string> = {};
+        const nextCaptions: Record<string, string> = {};
+        for (const s of list) {
+          nextTitles[s.id] = s.title?.trim() ?? "";
+          nextCaptions[s.id] = s.caption;
+        }
+        if (opts?.refresh) {
+          setDraftTitles(nextTitles);
+          setDraftCaptions(nextCaptions);
+          setPickerForId(null);
+          const gen = sugData.generation;
+          if (gen?.skippedReason === "disabled") {
+            toast.error("Autopilot ist in der Social-Marke ausgeschaltet");
+          } else if ((gen?.created ?? 0) > 0) {
+            toast.success(
+              `${gen!.created} neue Vorschläge mit eurer Social-Marke`,
+            );
+          } else {
+            toast.message("Keine neuen Vorschläge erzeugt");
           }
-          return next;
-        });
-        setDraftCaptions((prev) => {
-          const next = { ...prev };
-          for (const s of list) {
-            if (next[s.id] == null) next[s.id] = s.caption;
-          }
-          return next;
-        });
+        } else {
+          setDraftTitles((prev) => {
+            const next = { ...prev };
+            for (const s of list) {
+              if (next[s.id] == null) next[s.id] = nextTitles[s.id] ?? "";
+            }
+            return next;
+          });
+          setDraftCaptions((prev) => {
+            const next = { ...prev };
+            for (const s of list) {
+              if (next[s.id] == null) next[s.id] = nextCaptions[s.id] ?? "";
+            }
+            return next;
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -201,6 +250,17 @@ export function SocialAutopilotScreen() {
     const fromKit = kit?.preferredLayouts ?? [];
     return fromKit.length > 0 ? fromKit : [...SOCIAL_FEED_LAYOUT_IDS];
   }, [kit?.preferredLayouts]);
+
+  const layoutForSuggestion = useCallback(
+    (s: SocialPostSuggestion): SocialFeedLayoutId =>
+      resolveSuggestionFeedLayout({
+        slotKind: s.slotKind,
+        templateId: s.templateId,
+        source: s.source,
+        preferredLayouts,
+      }),
+    [preferredLayouts],
+  );
 
   const approve = async (id: string, publishNow: boolean) => {
     if (!restaurantId) return;
@@ -289,24 +349,52 @@ export function SocialAutopilotScreen() {
   const ctaLabel = kit?.cta ?? "Tisch reservieren";
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 pb-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Vorschau, Texte und Bilder anpassen — dann freigeben. Design aus eurer
-          Social-Marke.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-            onClick={() => void load({ refresh: true })}
-            disabled={loading}
-          >
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-            Neu vorschlagen
-          </Button>
+    <div className="space-y-6 pb-4">
+      <Button
+        type="button"
+        size="lg"
+        className={modulePrimaryAddButtonFullWidthClassName}
+        onClick={() => void load({ refresh: true })}
+        disabled={loading}
+      >
+        <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        Neu vorschlagen
+      </Button>
+
+      {kit ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/25 px-3 py-2.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+            <div
+              className="flex h-6 w-16 shrink-0 overflow-hidden rounded-md border border-border/40"
+              aria-hidden
+            >
+              <span
+                className="flex-1"
+                style={{ backgroundColor: feedPalette.surfaceDark }}
+              />
+              <span
+                className="flex-1"
+                style={{ backgroundColor: feedPalette.accent }}
+              />
+              <span
+                className="flex-1"
+                style={{
+                  backgroundColor:
+                    feedPalette.secondary ?? feedPalette.surfaceLight,
+                }}
+              />
+              <span
+                className="flex-1"
+                style={{ backgroundColor: feedPalette.surfaceLight }}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Social-Marke · {SOCIAL_PHOTO_LOOK_LABELS[photoLook]}
+              {preferredLayouts.length > 0
+                ? ` · ${preferredLayouts.length} Layouts`
+                : null}
+            </p>
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -314,46 +402,50 @@ export function SocialAutopilotScreen() {
             className="rounded-full"
             render={<Link href={APP_ROUTES.settings.restaurant} />}
           >
-            Social-Marke
+            Anpassen
           </Button>
         </div>
-      </div>
+      ) : null}
 
       {tasks.length > 0 ? (
         <div className="space-y-3">
           {tasks.map((task) => (
             <Card key={task.id} className="border-border/50 shadow-card">
-              <CardHeader className="gap-1.5 pb-2">
-                <CardTitle className="text-base">Aufgabe: {task.title}</CardTitle>
-                <CardDescription className="whitespace-pre-line">
-                  {task.body}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  className={brandActionButtonRoundedClassName}
-                  render={<Link href={APP_ROUTES.galerie.overview} />}
-                >
-                  Zur Galerie
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void completeTask(task.id, "done")}
-                >
-                  Erledigt
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void completeTask(task.id, "dismissed")}
-                >
-                  Später
-                </Button>
+              <CardContent className="space-y-3 pt-5">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{task.title}</p>
+                  <p className="whitespace-pre-line text-sm text-muted-foreground">
+                    {task.body}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className={brandActionButtonRoundedClassName}
+                    render={<Link href={APP_ROUTES.galerie.overview} />}
+                  >
+                    Zur Galerie
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={() => void completeTask(task.id, "done")}
+                  >
+                    Erledigt
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-full"
+                    onClick={() => void completeTask(task.id, "dismissed")}
+                  >
+                    Später
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -364,76 +456,63 @@ export function SocialAutopilotScreen() {
         <div className="space-y-4" aria-busy>
           {[0, 1].map((i) => (
             <SkeletonCardFrame key={i} className="space-y-3">
-              <Skeleton className="aspect-square w-full rounded-xl" />
-              <Skeleton className="h-20 w-full" />
+              <Skeleton className="aspect-square w-full max-w-md rounded-xl" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-24 w-full" />
             </SkeletonCardFrame>
           ))}
         </div>
       ) : suggestions.length === 0 ? (
-        <Card className="border-border/50 shadow-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Keine offenen Vorschläge</CardTitle>
-            <CardDescription>
-              Speichert eure Social-Marke und tippt „Neu vorschlagen“, oder
-              wartet auf den nächsten Wochenlauf. Mit mehr Fotos in Galerie und
-              Speisekarte werden die Vorschläge besser.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          Keine offenen Vorschläge. „Neu vorschlagen“ erzeugt Posts mit eurer
+          aktuellen Social-Marke — oder wartet auf den nächsten Wochenlauf.
+        </p>
       ) : (
         <div className="space-y-6">
           {suggestions.map((s) => {
             const title = draftTitles[s.id] ?? s.title?.trim() ?? "";
             const caption = draftCaptions[s.id] ?? s.caption;
-            const layout = s.feedLayout;
+            const layout = layoutForSuggestion(s);
             const pickerOpen = pickerForId === s.id;
             return (
               <Card
                 key={s.id}
                 className="overflow-hidden border-border/50 shadow-card"
               >
-                <CardHeader className="gap-1 pb-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span className="rounded-full border border-border/60 px-2 py-0.5">
-                      {SOCIAL_SLOT_KIND_LABELS[s.slotKind]}
-                    </span>
-                    <span className="rounded-full border border-border/60 px-2 py-0.5">
-                      {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}
-                    </span>
+                <CardContent className="space-y-4 pt-5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <MetaChip>{SOCIAL_SLOT_KIND_LABELS[s.slotKind]}</MetaChip>
+                    <MetaChip>{SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}</MetaChip>
                     {s.platforms.filter(isNewsPlatform).map((p) => (
-                      <span
-                        key={p}
-                        className="rounded-full border border-border/60 px-2 py-0.5"
-                      >
+                      <MetaChip key={p}>
                         {socialPublishPlatformLabel(p)}
-                      </span>
+                      </MetaChip>
                     ))}
                     {publishStories &&
                     (s.platforms.includes("facebook") ||
                       s.platforms.includes("instagram")) ? (
-                      <span className="rounded-full border border-border/60 px-2 py-0.5">
-                        + Story
-                      </span>
+                      <MetaChip>+ Story</MetaChip>
                     ) : null}
-                    <span>{formatPlan(s.plannedAt)}</span>
+                    <MetaChip>{formatPlan(s.plannedAt)}</MetaChip>
                     {s.status === "needs_asset" ? (
-                      <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-800 dark:text-amber-200">
+                      <MetaChip className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200">
                         Bild fehlt
-                      </span>
+                      </MetaChip>
                     ) : null}
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <SocialTemplatePreview
-                    feedLayout={layout}
-                    feedPalette={feedPalette}
-                    photoLook={photoLook}
-                    restaurantName={restaurantName}
-                    title={title}
-                    caption={caption}
-                    ctaLabel={ctaLabel}
-                    imageUrl={s.asset.imageUrl}
-                  />
+
+                  <div className="mx-auto w-full max-w-md">
+                    <SocialTemplatePreview
+                      feedLayout={layout}
+                      feedPalette={feedPalette}
+                      photoLook={photoLook}
+                      restaurantName={restaurantName}
+                      title={title}
+                      caption={caption}
+                      ctaLabel={ctaLabel}
+                      imageUrl={s.asset.imageUrl}
+                    />
+                  </div>
 
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">
@@ -593,7 +672,10 @@ export function SocialAutopilotScreen() {
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <Button
                       type="button"
-                      className={cn("flex-1", brandActionButtonRoundedClassName)}
+                      className={cn(
+                        "flex-1",
+                        brandActionButtonRoundedClassName,
+                      )}
                       disabled={busyId === s.id || s.status === "needs_asset"}
                       onClick={() => void approve(s.id, true)}
                     >

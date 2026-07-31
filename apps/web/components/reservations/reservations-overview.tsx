@@ -53,6 +53,7 @@ import {
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
 } from "@/lib/reservations/reservation-table-assignment";
+import { formatReservationQuotationJoinLabel } from "@/lib/reservations/reservation-quotation-label";
 import {
   isRelocatedMarkerRow,
   liveReservationIdFromListRowId,
@@ -1339,9 +1340,13 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       const endLabel = timeFmt.format(
                         new Date(reservationEndsAtFromLiveInsert(r)),
                       );
-                      const tableLabel = isMovedMarker
-                        ? reservationAssignedTableLabel(r)
-                        : reservationDiningTableLabel(r);
+                      const tableLabel = isEvent
+                        ? formatReservationQuotationJoinLabel(
+                            r.accounting_quotation,
+                          ) || null
+                        : isMovedMarker
+                          ? reservationAssignedTableLabel(r)
+                          : reservationDiningTableLabel(r);
                       const assigneeNames = isEvent
                         ? formatReservationAssigneeNames(r.assigned_staff)
                         : "";

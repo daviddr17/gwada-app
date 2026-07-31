@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Filter,
   Plus,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -77,7 +79,16 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleSearchFieldWrapClassName,
+  moduleSearchFilterActiveBadgeClassName,
+  moduleSearchFilterButtonClassName,
+  moduleSearchFilterButtonWrapClassName,
+  moduleSearchFilterRowClassName,
+  moduleSearchInputClassName,
+} from "@/lib/ui/module-search-filter-toolbar";
 import { publicHolidayChipClassName } from "@/lib/ui/public-holiday-chip";
+import { reservationMatchesGuestSearch } from "@/lib/reservations/reservation-guest-search";
 import { useReservationGwadaReviews } from "@/lib/hooks/use-reservation-gwada-reviews";
 import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gwada-review-types";
 import { cn } from "@/lib/utils";
@@ -306,10 +317,12 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       : String(reservationsQueryError)
     : null;
   const [filterOpen, setFilterOpen] = useState(false);
+  const [guestSearch, setGuestSearch] = useState("");
   const [statusFilterId, setStatusFilterId] = useState("all");
   /** Nur Auswirkung in Kombination mit aktuellem Monat + `visibleDays`. */
   const [hidePastReservations, setHidePastReservations] = useState(true);
   const [hideEmptyDays, setHideEmptyDays] = useState(false);
+  const guestSearchActive = guestSearch.trim().length > 0;
   const [gwadaReviewSheet, setGwadaReviewSheet] = useState<{
     review: ReservationGwadaReviewSummary;
     guestLabel: string;
@@ -840,9 +853,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   }, [statusFilterId, statusFilterOptions]);
 
   const rowsFiltered = useMemo(() => {
-    if (statusFilterId === "all") return rows;
-    return rows.filter((r) => r.reservation_statuses?.id === statusFilterId);
-  }, [rows, statusFilterId]);
+    let out = rows;
+    if (statusFilterId !== "all") {
+      out = out.filter((r) => r.reservation_statuses?.id === statusFilterId);
+    }
+    if (guestSearch.trim()) {
+      const q = guestSearch;
+      out = out.filter((r) => reservationMatchesGuestSearch(r, q));
+    }
+    return out;
+  }, [rows, statusFilterId, guestSearch]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, ReservationListRow[]>();
@@ -894,20 +914,26 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   }, [byDay]);
 
   const visibleDays = useMemo(() => {
+    const hasRows = (d: Date) =>
+      (byDay.get(gridDayKey(d, restaurantTimeZone))?.length ?? 0) > 0;
+
     if (unconfirmedMode) {
-      if (!hideEmptyDays) return unconfirmedDayList;
-      return unconfirmedDayList.filter(
-        (d) => (byDay.get(gridDayKey(d, restaurantTimeZone))?.length ?? 0) > 0,
-      );
+      if (!hideEmptyDays && !guestSearchActive) return unconfirmedDayList;
+      return unconfirmedDayList.filter(hasRows);
     }
     let out = days;
-    if (isViewingCurrentMonth && hidePastReservations) {
+    // Bei Namenssuche auch vergangene Tage des Monats zeigen.
+    if (
+      isViewingCurrentMonth &&
+      hidePastReservations &&
+      !guestSearchActive
+    ) {
       out = out.filter(
         (d) => gridDayKey(d, restaurantTimeZone) >= todayYmd,
       );
     }
-    if (hideEmptyDays) {
-      out = out.filter((d) => (byDay.get(gridDayKey(d, restaurantTimeZone))?.length ?? 0) > 0);
+    if (hideEmptyDays || guestSearchActive) {
+      out = out.filter(hasRows);
     }
     return out;
   }, [
@@ -918,6 +944,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     isViewingCurrentMonth,
     hidePastReservations,
     hideEmptyDays,
+    guestSearchActive,
     restaurantTimeZone,
     todayYmd,
   ]);
@@ -1062,12 +1089,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       <Card className="border-border/50 shadow-card">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <p className="order-2 min-w-0 text-xs text-muted-foreground sm:order-1 sm:flex-1">
-            {unconfirmedUi
-              ? "Offen und „Änderung prüfen“ — alle Monate, nach Termin sortiert."
-              : isViewingCurrentMonth && hidePastReservations
-                ? "Tage ab heute bis Monatsende."
-                : "Alle Tage des gewählten Monats."}
-            {hideEmptyDays ? " Tage ohne Reservierungen ausgeblendet." : ""}
+            {guestSearchActive
+              ? "Treffer zur Namenssuche im gewählten Zeitraum (Tippfehler ok)."
+              : unconfirmedUi
+                ? "Offen und „Änderung prüfen“ — alle Monate, nach Termin sortiert."
+                : isViewingCurrentMonth && hidePastReservations
+                  ? "Tage ab heute bis Monatsende."
+                  : "Alle Tage des gewählten Monats."}
+            {!guestSearchActive && hideEmptyDays
+              ? " Tage ohne Reservierungen ausgeblendet."
+              : ""}
             {!unconfirmedUi && statusFilterId !== "all"
               ? " Nur gewählter Status."
               : ""}
@@ -1148,12 +1179,30 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                 </Button>
               </>
             ) : null}
-            <div className="relative ml-auto shrink-0 sm:ml-0">
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className={moduleSearchFilterRowClassName}>
+            <div className={moduleSearchFieldWrapClassName}>
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                value={guestSearch}
+                onChange={(e) => setGuestSearch(e.target.value)}
+                placeholder="Name, Firma, Telefon, #Nummer …"
+                className={moduleSearchInputClassName}
+                aria-label="Reservierungen nach Namen suchen"
+              />
+            </div>
+            <div className={moduleSearchFilterButtonWrapClassName}>
               <Button
                 type="button"
                 variant="outline"
-                size="icon-sm"
-                className="rounded-full border-border/60"
+                size="icon-lg"
+                className={moduleSearchFilterButtonClassName}
                 aria-label="Filter"
                 onClick={() => setFilterOpen(true)}
               >
@@ -1162,14 +1211,14 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
               {filterActiveCount > 0 ? (
                 <Badge
                   variant="secondary"
-                  className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
+                  className={moduleSearchFilterActiveBadgeClassName}
                 >
                   {filterActiveCount}
                 </Badge>
               ) : null}
             </div>
           </div>
-        </CardHeader>
+        </CardContent>
       </Card>
 
       {!supabaseEnvOk ? (
@@ -1205,11 +1254,13 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
 
       {dbOk && !loading && visibleDays.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border/60 bg-muted/15 px-4 py-10 text-center text-sm text-muted-foreground">
-          {unconfirmedMode
-            ? "Keine unbestätigten Reservierungen — alles erledigt."
-            : hideEmptyDays
-              ? "Keine Tage mit Reservierungen im gewählten Zeitraum."
-              : "Keine Reservierungen in diesem Monat."}
+          {guestSearchActive
+            ? "Keine Treffer zur Suche im gewählten Zeitraum."
+            : unconfirmedMode
+              ? "Keine unbestätigten Reservierungen — alles erledigt."
+              : hideEmptyDays
+                ? "Keine Tage mit Reservierungen im gewählten Zeitraum."
+                : "Keine Reservierungen in diesem Monat."}
         </p>
       ) : null}
 

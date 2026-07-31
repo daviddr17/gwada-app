@@ -26,7 +26,7 @@ Gwada (gwada.app) ist die SaaS-Plattform für Restaurants und Gastro-Betriebe in
 
 ## Optional
 
-- Öffentliche Restaurant-Profile unter \`https://gwada.app/{slug}\`
+- [Dokumentation zu Profilen](https://gwada.app/docs): Öffentliche Restaurant-Seiten unter gwada.app/{slug}
 `;
 
 export function GET() {

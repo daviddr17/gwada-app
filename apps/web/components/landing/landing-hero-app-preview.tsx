@@ -547,47 +547,50 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
           <span className="w-10 shrink-0" aria-hidden />
         </div>
 
-        {/* Tabs */}
-        <div
-          role="tablist"
-          aria-label="Module"
-          className="flex gap-0.5 overflow-hidden border-b border-black/5 bg-[#dfe1e6]/80 px-1.5 pt-1.5 dark:border-white/10 dark:bg-black/25"
-        >
-          {visibleTabs.map((tab, index) => {
-            const Icon = tab.icon;
-            const selected = index === activeIndex;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-label={tab.label}
-                aria-selected={selected}
-                id={`hero-tab-${tab.id}`}
-                aria-controls={`hero-panel-${tab.id}`}
-                onClick={() => {
-                  setMehrOpen(false);
-                  setActiveIndex(index);
-                }}
-                className={tabButtonClassName(selected)}
-              >
-                <Icon className="size-3 shrink-0 opacity-80" aria-hidden />
-                <span className="hidden sm:inline" aria-hidden>
-                  {tab.label}
-                </span>
-                <span className="sm:hidden" aria-hidden>
-                  {tab.shortLabel}
-                </span>
-                {selected && showProgress ? (
-                  <span
-                    className="landing-hero-tab-progress absolute inset-x-1 bottom-0 h-0.5 origin-left rounded-full bg-primary/80"
-                    style={{ animationDuration: `${AUTO_MS}ms` }}
-                    data-paused={paused || mehrOpen ? "true" : undefined}
-                  />
-                ) : null}
-              </button>
-            );
-          })}
+        {/* Tabs: tablist nur mit role=tab — „Mehr“ als Geschwister (ARIA). */}
+        <div className="flex gap-0.5 overflow-hidden border-b border-black/5 bg-[#dfe1e6]/80 px-1.5 pt-1.5 dark:border-white/10 dark:bg-black/25">
+          <div
+            role="tablist"
+            aria-label="Module"
+            className="flex min-w-0 flex-1 gap-0.5 overflow-hidden"
+          >
+            {visibleTabs.map((tab, index) => {
+              const Icon = tab.icon;
+              const selected = index === activeIndex;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-label={tab.label}
+                  aria-selected={selected}
+                  id={`hero-tab-${tab.id}`}
+                  aria-controls={`hero-panel-${tab.id}`}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => {
+                    setMehrOpen(false);
+                    setActiveIndex(index);
+                  }}
+                  className={tabButtonClassName(selected)}
+                >
+                  <Icon className="size-3 shrink-0 opacity-80" aria-hidden />
+                  <span className="hidden sm:inline" aria-hidden>
+                    {tab.label}
+                  </span>
+                  <span className="sm:hidden" aria-hidden>
+                    {tab.shortLabel}
+                  </span>
+                  {selected && showProgress ? (
+                    <span
+                      className="landing-hero-tab-progress absolute inset-x-1 bottom-0 h-0.5 origin-left rounded-full bg-primary/80"
+                      style={{ animationDuration: `${AUTO_MS}ms` }}
+                      data-paused={paused || mehrOpen ? "true" : undefined}
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
 
           {hasOverflow ? (
             <div ref={mehrRef} className="relative shrink-0">
@@ -664,6 +667,7 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
         <div
           role="tabpanel"
           id={`hero-panel-${active.id}`}
+          aria-label={activeInOverflow ? active.label : undefined}
           aria-labelledby={
             activeInOverflow ? undefined : `hero-tab-${active.id}`
           }

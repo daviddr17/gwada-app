@@ -24,6 +24,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { positionGroupHeaderStyle } from "@/lib/staff/shift-plan-position-groups";
 import {
+  countUniquePlannedStaffIds,
   fetchReservationDayShiftStaffOverview,
   type ReservationDayShiftStaffGroup,
 } from "@/lib/staff/reservation-day-shift-staff-overview";
@@ -36,6 +37,8 @@ type ReservationDayShiftStaffSheetProps = {
   dayKey: string | null;
   dayLabel: string | null;
   timeZone: string;
+  /** Chip-Zähler mit der Tagesübersicht synchron halten. */
+  onStaffCountResolved?: (dayKey: string, count: number) => void;
 };
 
 export function ReservationDayShiftStaffSheet({
@@ -45,6 +48,7 @@ export function ReservationDayShiftStaffSheet({
   dayKey,
   dayLabel,
   timeZone,
+  onStaffCountResolved,
 }: ReservationDayShiftStaffSheetProps) {
   const [groups, setGroups] = useState<ReservationDayShiftStaffGroup[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,21 +70,36 @@ export function ReservationDayShiftStaffSheet({
         setGroups([]);
       } else {
         setGroups(data);
+        const unique = countUniquePlannedStaffIds(
+          data.flatMap((g) =>
+            g.entries.map((e) => ({
+              staff_id: e.staffId,
+              status: e.status,
+            })),
+          ),
+        );
+        onStaffCountResolved?.(dayKey, unique);
       }
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, restaurantId, dayKey, timeZone]);
+  }, [open, restaurantId, dayKey, timeZone, onStaffCountResolved]);
 
   const scheduleHref = dayKey
     ? `${APP_ROUTES.mitarbeiter.schedule}?day=${encodeURIComponent(dayKey)}`
     : APP_ROUTES.mitarbeiter.schedule;
 
-  const staffCount = new Set(
-    groups.flatMap((g) => g.entries.map((e) => e.staffId)),
-  ).size;
+  const staffCount = countUniquePlannedStaffIds(
+    groups.flatMap((g) =>
+      g.entries.map((e) => ({
+        staff_id: e.staffId,
+        status: e.status,
+      })),
+    ),
+  );
+  const shiftCount = groups.reduce((sum, g) => sum + g.entries.length, 0);
 
   return (
     <Drawer
@@ -97,7 +116,9 @@ export function ReservationDayShiftStaffSheet({
           {dayLabel ? (
             <DrawerDescription className="text-base">
               {staffCount > 0
-                ? `${dayLabel} · ${staffCount} Person${staffCount === 1 ? "" : "en"}`
+                ? shiftCount !== staffCount
+                  ? `${dayLabel} · ${staffCount} Person${staffCount === 1 ? "" : "en"} · ${shiftCount} Schichten`
+                  : `${dayLabel} · ${staffCount} Person${staffCount === 1 ? "" : "en"}`
                 : dayLabel}
             </DrawerDescription>
           ) : null}
@@ -137,7 +158,10 @@ export function ReservationDayShiftStaffSheet({
                         {group.positionName}
                       </h3>
                       <span className="ml-auto tabular-nums text-[11px] text-muted-foreground">
-                        {group.entries.length}
+                        {
+                          new Set(group.entries.map((entry) => entry.staffId))
+                            .size
+                        }
                       </span>
                     </div>
                     <ul className="divide-y divide-border/40 rounded-lg border border-border/50 bg-card">

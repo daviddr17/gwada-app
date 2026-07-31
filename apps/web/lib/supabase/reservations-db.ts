@@ -6,6 +6,10 @@ import {
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import {
+  mapReservationQuotationJoin,
+  type ReservationQuotationJoin,
+} from "@/lib/reservations/reservation-quotation-label";
+import {
   mapReservationStaffAssigneesRaw,
   type ReservationStaffAssigneeJoin,
 } from "@/lib/supabase/reservation-staff-assignees-db";
@@ -121,6 +125,7 @@ export type ReservationListRow = {
   ends_at: string;
   dwell_minutes: number | null;
   dining_table_id: string | null;
+  quotation_id: string | null;
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
@@ -133,6 +138,7 @@ export type ReservationListRow = {
   reservation_statuses: ReservationStatusJoin | null;
   dining_tables: ReservationDiningTableJoin | null;
   assigned_staff: ReservationStaffAssigneeJoin[];
+  accounting_quotation: ReservationQuotationJoin | null;
 };
 
 export function mapRawToReservationListRow(
@@ -154,8 +160,12 @@ export function mapRawToReservationListRow(
       | "guest_company"
       | "kind"
       | "assigned_staff"
+      | "quotation_id"
+      | "accounting_quotation"
     >),
     kind: normalizeReservationKind(row.kind),
+    quotation_id:
+      typeof row.quotation_id === "string" ? row.quotation_id : null,
     notes: (row.notes as string | null | undefined) ?? null,
     guest_company: (row.guest_company as string | null | undefined) ?? null,
     relocated_from_starts_at:
@@ -169,6 +179,9 @@ export function mapRawToReservationListRow(
     created_by_profile: creatorRaw as ReservationCreatorProfileJoin | null,
     assigned_staff: mapReservationStaffAssigneesRaw(
       row.reservation_staff_assignees,
+    ),
+    accounting_quotation: mapReservationQuotationJoin(
+      row.accounting_quotations,
     ),
   };
 }
@@ -194,6 +207,7 @@ export const RESERVATION_LIST_ROW_SELECT = `
       ends_at,
       dwell_minutes,
       dining_table_id,
+      quotation_id,
       notify_email,
       notify_whatsapp,
       terms_accepted,
@@ -214,6 +228,15 @@ export const RESERVATION_LIST_ROW_SELECT = `
       reservation_staff_assignees (
         staff_id,
         restaurant_staff ( id, given_name, family_name )
+      ),
+      accounting_quotations (
+        id,
+        voucher_number,
+        recipient_snapshot,
+        totals,
+        currency,
+        status,
+        voucher_date
       )
     `;
 
@@ -404,6 +427,8 @@ export type ReservationUpdatePayload = {
   ends_at: string;
   status_id: string;
   dining_table_id: string | null;
+  /** Optional; bei Display/Public weglassen → Spalte unverändert. */
+  quotation_id?: string | null;
   dwell_minutes: number | null;
   notify_email: boolean;
   notify_whatsapp: boolean;
@@ -444,6 +469,7 @@ export async function insertReservation(
       ends_at: payload.ends_at,
       status_id: payload.status_id,
       dining_table_id: payload.dining_table_id,
+      quotation_id: payload.quotation_id ?? null,
       dwell_minutes: payload.dwell_minutes,
       notify_email: payload.notify_email,
       notify_whatsapp: payload.notify_whatsapp,

@@ -7,7 +7,10 @@ import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Contact, Mail, Trash2 } from "lucide-react";
-import { SearchableMultiSelect } from "@/components/ui/combobox";
+import {
+  SearchableMultiSelect,
+  SearchableSelect,
+} from "@/components/ui/combobox";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
@@ -49,13 +52,22 @@ import {
   reservationKindLabel,
   type ReservationKind,
 } from "@/lib/reservations/reservation-kind";
+import { fetchAccountingQuotations } from "@/lib/accounting/accounting-api";
+import {
+  formatReservationQuotationJoinLabel,
+  formatReservationQuotationOptionLabel,
+} from "@/lib/reservations/reservation-quotation-label";
 import { buildStaffSearchableSelectOptions } from "@/lib/staff/staff-select-options";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
 import {
   replaceReservationStaffAssignees,
   reservationAssigneeStaffIds,
 } from "@/lib/supabase/reservation-staff-assignees-db";
+import type { AccountingQuotationRow } from "@/lib/types/accounting";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead } from "@/lib/permissions/module-crud-permissions";
+import { LIST_PAGE_SIZE_MAX } from "@/lib/constants/list-pagination";
 import {
   normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
@@ -192,6 +204,18 @@ function addMinutesToHm(hm: string, minutes: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
+function reservationQuotationSaveErrorMessage(message: string): string {
+  const m = message.toLowerCase();
+  if (
+    m.includes("reservations_quotation_id_unique") ||
+    (m.includes("quotation_id") &&
+      (m.includes("duplicate") || m.includes("unique")))
+  ) {
+    return "Dieses Angebot ist bereits einer anderen Reservierung zugeordnet.";
+  }
+  return message;
+}
+
 export type ReservationWhatsappDispatchedPayload = {
   messageBody: string;
   messageId?: string;
@@ -225,6 +249,7 @@ type BuiltReservationPayload = {
   ends_at: string;
   status_id: string;
   dining_table_id: string | null;
+  quotation_id: string | null;
   dwell_minutes: number | null;
   notify_email: boolean;
   notify_whatsapp: boolean;
@@ -285,8 +310,13 @@ export function ReservationEditDrawer({
   const [defaultDwellMinutes, setDefaultDwellMinutes] = useState(120);
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
+  const [quotationId, setQuotationId] = useState<string | null>(null);
+  const [quotations, setQuotations] = useState<AccountingQuotationRow[]>([]);
+  const [quotationsLoading, setQuotationsLoading] = useState(false);
   const [internalNote, setInternalNote] = useState("");
   const isPrivateEvent = kind === RESERVATION_KIND_PRIVATE_EVENT;
+  const { has: hasPermission } = useRestaurantPermissions();
+  const canReadAccounting = hasModuleRead(hasPermission, "accounting");
   /** Wird der Status-Benachrichtigung (Vorlage) als „Nachricht:“ angehängt. */
   const [guestNotifyMessage, setGuestNotifyMessage] = useState("");
   const [protocolRefreshKey, setProtocolRefreshKey] = useState(0);
@@ -417,6 +447,39 @@ export function ReservationEditDrawer({
     })();
   }, [open, restaurantIdForFetch]);
 
+  useEffect(() => {
+    if (!open || !restaurantIdForFetch || !isPrivateEvent || !canReadAccounting) {
+      if (!open || !isPrivateEvent) {
+        setQuotations([]);
+        setQuotationsLoading(false);
+      }
+      return;
+    }
+    let cancelled = false;
+    setQuotationsLoading(true);
+    void (async () => {
+      try {
+        const res = await fetchAccountingQuotations(restaurantIdForFetch, {
+          page: 1,
+          pageSize: LIST_PAGE_SIZE_MAX,
+          sort: "voucher_date",
+          sortDir: "desc",
+        });
+        if (!cancelled) setQuotations(res.items);
+      } catch {
+        if (!cancelled) {
+          setQuotations([]);
+          toast.error("Angebote konnten nicht geladen werden.");
+        }
+      } finally {
+        if (!cancelled) setQuotationsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, restaurantIdForFetch, isPrivateEvent, canReadAccounting]);
+
   const staffSelectOptions = useMemo(
     () =>
       buildStaffSearchableSelectOptions(staffList, {
@@ -424,6 +487,27 @@ export function ReservationEditDrawer({
       }),
     [staffList, assignedStaffIds],
   );
+
+  const quotationSelectOptions = useMemo(() => {
+    const opts = quotations.map((q) => ({
+      value: q.id,
+      label: formatReservationQuotationOptionLabel(q),
+    }));
+    if (
+      quotationId &&
+      !opts.some((o) => o.value === quotationId) &&
+      reservation?.accounting_quotation?.id === quotationId
+    ) {
+      const joinLabel = formatReservationQuotationJoinLabel(
+        reservation.accounting_quotation,
+      );
+      opts.unshift({
+        value: quotationId,
+        label: joinLabel || "Zugeordnetes Angebot",
+      });
+    }
+    return opts;
+  }, [quotations, quotationId, reservation?.accounting_quotation]);
 
   useEffect(() => {
     if (!open || reservation) return;
@@ -502,6 +586,7 @@ export function ReservationEditDrawer({
           : String(defaultDwellMinutes),
       );
       setTableId(reservation.dining_table_id ?? "__none__");
+      setQuotationId(reservation.quotation_id ?? null);
       setInternalNote(reservationInternalNoteText(reservation.notes) ?? "");
       setAssignedStaffIds(reservationAssigneeStaffIds(reservation.assigned_staff));
       setGuestNotifyMessage("");
@@ -536,11 +621,14 @@ export function ReservationEditDrawer({
       setTermsAccepted(true);
       setDwellDraft(String(defaultDwellMinutes));
       setAssignedStaffIds([]);
+      setQuotationId(null);
       setTableId(
-        createFor.initialDiningTableId &&
-          createFor.initialDiningTableId.length > 0
-          ? createFor.initialDiningTableId
-          : "__none__",
+        createKind === RESERVATION_KIND_PRIVATE_EVENT
+          ? "__none__"
+          : createFor.initialDiningTableId &&
+              createFor.initialDiningTableId.length > 0
+            ? createFor.initialDiningTableId
+            : "__none__",
       );
 
       const contactId = createFor.initialContactId;
@@ -731,8 +819,12 @@ export function ReservationEditDrawer({
       starts_at: startsIso,
       ends_at: endsIso,
       status_id: statusId,
-      dining_table_id:
-        tableAssignmentAllowed && tableId !== "__none__" ? tableId : null,
+      dining_table_id: isPrivateEvent
+        ? null
+        : tableAssignmentAllowed && tableId !== "__none__"
+          ? tableId
+          : null,
+      quotation_id: isPrivateEvent ? quotationId : null,
       dwell_minutes: dwellStored,
       notify_email: notifyEmail && hasEmail,
       notify_whatsapp: notifyWhatsapp && hasPhone,
@@ -768,7 +860,7 @@ export function ReservationEditDrawer({
       );
       if (error) {
         setSaving(false);
-        toast.error(error.message);
+        toast.error(reservationQuotationSaveErrorMessage(error.message));
         return;
       }
       if (restaurantId) {
@@ -885,7 +977,7 @@ export function ReservationEditDrawer({
       });
       if (error) {
         setSaving(false);
-        toast.error(error.message);
+        toast.error(reservationQuotationSaveErrorMessage(error.message));
         return;
       }
       if (created) {
@@ -999,23 +1091,25 @@ export function ReservationEditDrawer({
     const payload = buildPayload();
     if (!payload) return;
 
-    const check = checkTableAssignmentForSave({
-      tableId: payload.dining_table_id,
-      partySize: payload.party_size,
-      startsAt: payload.starts_at,
-      endsAt: payload.ends_at,
-      excludeReservationId: reservation?.id ?? null,
-      tables,
-      knownReservations: overlapReservations,
-    });
+    if (payload.kind !== RESERVATION_KIND_PRIVATE_EVENT) {
+      const check = checkTableAssignmentForSave({
+        tableId: payload.dining_table_id,
+        partySize: payload.party_size,
+        startsAt: payload.starts_at,
+        endsAt: payload.ends_at,
+        excludeReservationId: reservation?.id ?? null,
+        tables,
+        knownReservations: overlapReservations,
+      });
 
-    if (check.kind === "capacity_exceeded") {
-      toast.error(check.message);
-      return;
-    }
-    if (check.kind === "confirm_share") {
-      setTableSharePending({ payload, detail: check });
-      return;
+      if (check.kind === "capacity_exceeded") {
+        toast.error(check.message);
+        return;
+      }
+      if (check.kind === "confirm_share") {
+        setTableSharePending({ payload, detail: check });
+        return;
+      }
     }
 
     void executeSave(payload);
@@ -1106,6 +1200,48 @@ export function ReservationEditDrawer({
                     ? "Veranstaltung bearbeiten"
                     : "Reservierung bearbeiten"}
               </DrawerTitle>
+              <div
+                className="mt-2 flex flex-wrap gap-1.5"
+                role="group"
+                aria-label="Art"
+              >
+                {(
+                  [
+                    RESERVATION_KIND_GUEST,
+                    RESERVATION_KIND_PRIVATE_EVENT,
+                  ] as const
+                ).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={cn(
+                      "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                      kind === k
+                        ? "border-accent/50 bg-accent/15 text-foreground"
+                        : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+                    )}
+                    aria-pressed={kind === k}
+                    onClick={() => {
+                      setKind(k);
+                      if (k === RESERVATION_KIND_PRIVATE_EVENT) {
+                        setTableId("__none__");
+                        if (/^\d{2}:\d{2}$/.test(timeHm)) {
+                          const dwellN = Number.parseInt(dwellDraft, 10);
+                          const mins =
+                            Number.isFinite(dwellN) && dwellN >= 15
+                              ? dwellN
+                              : defaultDwellMinutes;
+                          setEndTimeHm(addMinutesToHm(timeHm, mins));
+                        }
+                      } else {
+                        setQuotationId(null);
+                      }
+                    }}
+                  >
+                    {reservationKindLabel(k)}
+                  </button>
+                ))}
+              </div>
               <div className="space-y-1">
                 <DrawerDescription className="text-base leading-relaxed">
                   {isEdit && reservation ? (
@@ -1168,45 +1304,6 @@ export function ReservationEditDrawer({
                 />
               ) : null}
               <DrawerFormSection title="Termin & Status">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Art</Label>
-                <div className="inline-flex w-full rounded-xl border border-border/50 bg-muted/10 p-0.5">
-                  {(
-                    [
-                      RESERVATION_KIND_GUEST,
-                      RESERVATION_KIND_PRIVATE_EVENT,
-                    ] as const
-                  ).map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      className={cn(
-                        "min-w-0 flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                        kind === k
-                          ? "bg-card text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                      aria-pressed={kind === k}
-                      onClick={() => {
-                        setKind(k);
-                        if (
-                          k === RESERVATION_KIND_PRIVATE_EVENT &&
-                          /^\d{2}:\d{2}$/.test(timeHm)
-                        ) {
-                          const dwellN = Number.parseInt(dwellDraft, 10);
-                          const mins =
-                            Number.isFinite(dwellN) && dwellN >= 15
-                              ? dwellN
-                              : defaultDwellMinutes;
-                          setEndTimeHm(addMinutesToHm(timeHm, mins));
-                        }
-                      }}
-                    >
-                      {reservationKindLabel(k)}
-                    </button>
-                  ))}
-                </div>
-              </div>
               <div className={drawerTwoColClass}>
                 <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="res-status" className="text-xs text-muted-foreground">
@@ -1463,73 +1560,129 @@ export function ReservationEditDrawer({
                 </DrawerFormSection>
               ) : null}
 
-              <DrawerFormSection
-                title={isPrivateEvent ? "Tisch" : "Tisch & Verweildauer"}
-              >
-              <div className={cn(drawerTwoColClass, "sm:grid-cols-[1fr_1fr]")}>
-                {!isPrivateEvent ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="res-dwell" className="text-xs text-muted-foreground">
-                    Verweildauer (Min.)
-                  </Label>
-                  <Input
-                    id="res-dwell"
-                    {...(touchTablet
-                      ? touchNumericProps
-                      : { type: "number" as const, min: 15, max: 1440 })}
-                    value={dwellDraft}
-                    onChange={(e) =>
-                      setDwellDraft(
-                        touchTablet
-                          ? digitsOnlyInput(e.target.value, 4)
-                          : e.target.value,
-                      )
-                    }
-                    className={cn(fieldClass, "tabular-nums")}
-                  />
-                </div>
-                ) : null}
-                <div className="space-y-1.5">
-                  <Label htmlFor="res-table" className="text-xs text-muted-foreground">
-                    Tisch
-                  </Label>
-                  <Select
-                    value={tableId}
-                    items={tableItems}
-                    disabled={!tableAssignmentAllowed}
-                    onValueChange={(v) => {
-                      if (typeof v === "string") setTableId(v);
-                    }}
+              {isPrivateEvent ? (
+                <DrawerFormSection title="Angebot">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Aus Buchführung
+                    </Label>
+                    {canReadAccounting ? (
+                      <>
+                        <SearchableSelect
+                          id="res-quotation"
+                          options={quotationSelectOptions}
+                          value={quotationId}
+                          onValueChange={(v) => setQuotationId(v || null)}
+                          placeholder={
+                            quotationsLoading
+                              ? "Angebote werden geladen …"
+                              : "Kein Angebot"
+                          }
+                          searchPlaceholder="Angebot suchen …"
+                          emptyText="Keine Angebote gefunden."
+                          clearable
+                          disabled={quotationsLoading}
+                          aria-label="Angebot zuordnen"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Optional — Angebot aus der{" "}
+                          <Link
+                            href="/dashboard/buchfuehrung/angebote"
+                            className="underline underline-offset-2 hover:text-foreground"
+                          >
+                            Buchführung
+                          </Link>
+                          .
+                        </p>
+                      </>
+                    ) : reservation?.accounting_quotation ? (
+                      <p className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-sm">
+                        {formatReservationQuotationJoinLabel(
+                          reservation.accounting_quotation,
+                        )}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">
+                        Kein Lesezugriff auf Buchführung — Angebot kann nicht
+                        gewählt werden.
+                      </p>
+                    )}
+                  </div>
+                </DrawerFormSection>
+              ) : (
+                <DrawerFormSection title="Tisch & Verweildauer">
+                  <div
+                    className={cn(drawerTwoColClass, "sm:grid-cols-[1fr_1fr]")}
                   >
-                    <SelectTrigger
-                      id="res-table"
-                      size="sm"
-                      disabled={!tableAssignmentAllowed}
-                      className={appSelectTriggerAccentCn(
-                        "h-11 min-h-11 w-full rounded-xl px-3 text-left text-sm font-normal",
-                        !tableAssignmentAllowed && "cursor-not-allowed opacity-50",
-                        selectValueNoShrink,
-                      )}
-                    >
-                      <SelectValue placeholder="Tisch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Kein Tisch</SelectItem>
-                      {tables.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {formatDiningTableLabel(t)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!tableAssignmentAllowed ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      Tischzuordnung nur bei Status „Bestätigt“.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-              </DrawerFormSection>
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="res-dwell"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Verweildauer (Min.)
+                      </Label>
+                      <Input
+                        id="res-dwell"
+                        {...(touchTablet
+                          ? touchNumericProps
+                          : { type: "number" as const, min: 15, max: 1440 })}
+                        value={dwellDraft}
+                        onChange={(e) =>
+                          setDwellDraft(
+                            touchTablet
+                              ? digitsOnlyInput(e.target.value, 4)
+                              : e.target.value,
+                          )
+                        }
+                        className={cn(fieldClass, "tabular-nums")}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="res-table"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Tisch
+                      </Label>
+                      <Select
+                        value={tableId}
+                        items={tableItems}
+                        disabled={!tableAssignmentAllowed}
+                        onValueChange={(v) => {
+                          if (typeof v === "string") setTableId(v);
+                        }}
+                      >
+                        <SelectTrigger
+                          id="res-table"
+                          size="sm"
+                          disabled={!tableAssignmentAllowed}
+                          className={appSelectTriggerAccentCn(
+                            "h-11 min-h-11 w-full rounded-xl px-3 text-left text-sm font-normal",
+                            !tableAssignmentAllowed &&
+                              "cursor-not-allowed opacity-50",
+                            selectValueNoShrink,
+                          )}
+                        >
+                          <SelectValue placeholder="Tisch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Kein Tisch</SelectItem>
+                          {tables.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {formatDiningTableLabel(t)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!tableAssignmentAllowed ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Tischzuordnung nur bei Status „Bestätigt“.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </DrawerFormSection>
+              )}
 
               {isEdit && reservation ? (
                 <DrawerFormSection title="Nachrichten">

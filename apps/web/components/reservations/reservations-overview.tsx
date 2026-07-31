@@ -53,6 +53,7 @@ import {
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
 } from "@/lib/reservations/reservation-table-assignment";
+import { formatReservationQuotationJoinLabel } from "@/lib/reservations/reservation-quotation-label";
 import {
   isRelocatedMarkerRow,
   liveReservationIdFromListRowId,
@@ -1221,7 +1222,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       ) : null}
 
       {dbOk && !unconfirmedMode ? (
-        <div className="mb-4 space-y-2">
+        <div className="mb-4">
           <Button
             type="button"
             size="lg"
@@ -1230,20 +1231,6 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           >
             <Plus className="size-4" />
             Neue Reservierung
-          </Button>
-          <Button
-            type="button"
-            size="lg"
-            variant="outline"
-            className="h-12 w-full gap-2 rounded-xl border-border/60"
-            onClick={() =>
-              pushReservationCreate(today, {
-                kind: RESERVATION_KIND_PRIVATE_EVENT,
-              })
-            }
-          >
-            <Plus className="size-4" />
-            Neue Veranstaltung
           </Button>
         </div>
       ) : null}
@@ -1353,9 +1340,13 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       const endLabel = timeFmt.format(
                         new Date(reservationEndsAtFromLiveInsert(r)),
                       );
-                      const tableLabel = isMovedMarker
-                        ? reservationAssignedTableLabel(r)
-                        : reservationDiningTableLabel(r);
+                      const tableLabel = isEvent
+                        ? formatReservationQuotationJoinLabel(
+                            r.accounting_quotation,
+                          ) || null
+                        : isMovedMarker
+                          ? reservationAssignedTableLabel(r)
+                          : reservationDiningTableLabel(r);
                       const assigneeNames = isEvent
                         ? formatReservationAssigneeNames(r.assigned_staff)
                         : "";

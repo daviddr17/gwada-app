@@ -51,6 +51,7 @@ import {
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
 } from "@/lib/reservations/reservation-table-assignment";
+import { formatReservationQuotationJoinLabel } from "@/lib/reservations/reservation-quotation-label";
 import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import {
@@ -742,8 +743,9 @@ export function DayReservationsDrawer({
     const endLabel = timeFmt.format(
       new Date(reservationEndsAtFromLiveInsert(r)),
     );
-    const tableLabel =
-      isMovedMarker || compact
+    const tableLabel = isEvent
+      ? formatReservationQuotationJoinLabel(r.accounting_quotation) || null
+      : isMovedMarker || compact
         ? reservationAssignedTableLabel(r)
         : reservationDiningTableLabel(r);
     const assigneeNames = isEvent

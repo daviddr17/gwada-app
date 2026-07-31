@@ -11,7 +11,7 @@ import { resolvePlatformBrandingFetchUrl } from "@/lib/supabase/platform-brandin
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type PlatformFaviconAsset = {
-  body: Buffer | ArrayBuffer;
+  body: ArrayBuffer;
   contentType: string;
   etag: string;
 };
@@ -22,6 +22,12 @@ const FAVICON_EDGE_PX = 64;
 
 function faviconUpstreamUrl(storagePath: string): string | null {
   return resolvePlatformBrandingFetchUrl(storagePath);
+}
+
+function bufferToArrayBuffer(buf: Buffer): ArrayBuffer {
+  const copy = new Uint8Array(buf.byteLength);
+  copy.set(buf);
+  return copy.buffer;
 }
 
 async function optimizeFaviconBuffer(
@@ -72,7 +78,7 @@ export async function loadPlatformFaviconAsset(): Promise<PlatformFaviconAsset |
     const raw = Buffer.from(await res.arrayBuffer());
     const optimized = await optimizeFaviconBuffer(raw, path);
     const asset: PlatformFaviconAsset = {
-      body: optimized.body,
+      body: bufferToArrayBuffer(optimized.body),
       contentType: optimized.contentType,
       etag: `"favicon-opt:${path}:${FAVICON_EDGE_PX}"`,
     };
@@ -92,11 +98,7 @@ export function platformFaviconResponse(
     return new Response(null, { status: 304 });
   }
 
-  const bytes = Buffer.isBuffer(asset.body)
-    ? asset.body
-    : Buffer.from(new Uint8Array(asset.body));
-
-  return new Response(new Uint8Array(bytes), {
+  return new Response(asset.body, {
     headers: {
       "Content-Type": asset.contentType,
       "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",

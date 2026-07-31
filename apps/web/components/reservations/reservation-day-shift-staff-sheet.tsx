@@ -24,6 +24,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { positionGroupHeaderStyle } from "@/lib/staff/shift-plan-position-groups";
 import {
+  countUniquePlannedStaffIds,
   fetchReservationDayShiftStaffOverview,
   type ReservationDayShiftStaffGroup,
 } from "@/lib/staff/reservation-day-shift-staff-overview";
@@ -69,9 +70,14 @@ export function ReservationDayShiftStaffSheet({
         setGroups([]);
       } else {
         setGroups(data);
-        const unique = new Set(
-          data.flatMap((g) => g.entries.map((e) => e.staffId)),
-        ).size;
+        const unique = countUniquePlannedStaffIds(
+          data.flatMap((g) =>
+            g.entries.map((e) => ({
+              staff_id: e.staffId,
+              status: e.status,
+            })),
+          ),
+        );
         onStaffCountResolved?.(dayKey, unique);
       }
       setLoading(false);
@@ -85,9 +91,14 @@ export function ReservationDayShiftStaffSheet({
     ? `${APP_ROUTES.mitarbeiter.schedule}?day=${encodeURIComponent(dayKey)}`
     : APP_ROUTES.mitarbeiter.schedule;
 
-  const staffCount = new Set(
-    groups.flatMap((g) => g.entries.map((e) => e.staffId)),
-  ).size;
+  const staffCount = countUniquePlannedStaffIds(
+    groups.flatMap((g) =>
+      g.entries.map((e) => ({
+        staff_id: e.staffId,
+        status: e.status,
+      })),
+    ),
+  );
   const shiftCount = groups.reduce((sum, g) => sum + g.entries.length, 0);
 
   return (

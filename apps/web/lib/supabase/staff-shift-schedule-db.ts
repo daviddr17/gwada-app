@@ -195,47 +195,10 @@ export async function fetchScheduledShiftsInRange(
 }
 
 /**
- * Schichten, die das Intervall [rangeStart, rangeEnd) zeitlich schneiden
- * (nicht nur starts_at im Intervall — wichtig für Übernacht-Dienste).
+ * Eindeutige geplante Mitarbeiter pro Kalendertag (ohne abgelehnte Schichten).
+ * Paginiert — ohne .range() würden >1000 Monats-Schichten still abgeschnitten
+ * und der Chip unter dem Sheet-Zähler liegen.
  */
-export async function fetchScheduledShiftsOverlappingRange(
-  restaurantId: string,
-  rangeStartIso: string,
-  rangeEndExclusiveIso: string,
-  opts?: { staffId?: string },
-): Promise<{ data: RestaurantStaffScheduledShiftRow[]; error: string | null }> {
-  const sb = createSupabaseBrowserClient();
-  const rows: RestaurantStaffScheduledShiftRow[] = [];
-  let from = 0;
-
-  for (;;) {
-    let q = sb
-      .from("restaurant_staff_scheduled_shifts")
-      .select(SHIFT_SELECT)
-      .eq("restaurant_id", restaurantId)
-      .lt("starts_at", rangeEndExclusiveIso)
-      .gt("ends_at", rangeStartIso)
-      .order("starts_at")
-      .range(from, from + SHIFT_PAGE_SIZE - 1);
-
-    if (opts?.staffId) {
-      q = q.eq("staff_id", opts.staffId);
-    }
-
-    const { data, error } = await q;
-    if (error) return { data: [], error: error.message };
-    const page = (data ?? []).map((r) =>
-      mapShiftRow(r as Record<string, unknown>),
-    );
-    rows.push(...page);
-    if (page.length < SHIFT_PAGE_SIZE) break;
-    from += SHIFT_PAGE_SIZE;
-  }
-
-  return { data: rows, error: null };
-}
-
-/** Eindeutige geplante Mitarbeiter pro Kalendertag (ohne abgelehnte Schichten). */
 export async function fetchScheduledStaffCountsByDayForRange(
   restaurantId: string,
   rangeStartIso: string,
@@ -249,10 +212,10 @@ export async function fetchScheduledStaffCountsByDayForRange(
   for (;;) {
     const { data, error } = await sb
       .from("restaurant_staff_scheduled_shifts")
-      .select("staff_id, starts_at, ends_at, status")
+      .select("staff_id, starts_at, status")
       .eq("restaurant_id", restaurantId)
+      .gte("starts_at", rangeStartIso)
       .lt("starts_at", rangeEndExclusiveIso)
-      .gt("ends_at", rangeStartIso)
       .order("starts_at")
       .range(from, from + SHIFT_PAGE_SIZE - 1);
 

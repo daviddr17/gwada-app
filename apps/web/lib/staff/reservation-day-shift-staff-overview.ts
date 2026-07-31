@@ -1,15 +1,18 @@
-import { fetchScheduledShiftsOverlappingRange } from "@/lib/supabase/staff-shift-schedule-db";
+import { fetchScheduledShiftsInRange } from "@/lib/supabase/staff-shift-schedule-db";
 import {
   fetchStaffForRestaurant,
   loadStaffPositionTags,
 } from "@/lib/supabase/staff-db";
 import { restaurantDayBoundsIso } from "@/lib/restaurant/restaurant-timezone";
+import { countUniquePlannedStaffIds } from "@/lib/staff/scheduled-staff-day-counts";
 import { staffDisplayName } from "@/lib/types/staff";
 import type { StaffPositionTagDefinition } from "@/lib/types/staff";
 import {
   formatShiftTimeRangeDe,
   type StaffScheduledShiftStatus,
 } from "@/lib/types/staff-shift-schedule";
+
+export { countUniquePlannedStaffIds };
 
 const UNASSIGNED_COLOR = "#64748b";
 
@@ -53,7 +56,7 @@ export async function fetchReservationDayShiftStaffOverview(
 ): Promise<{ data: ReservationDayShiftStaffGroup[]; error: string | null }> {
   const { start, end } = restaurantDayBoundsIso(dayKey, timeZone);
   const [shiftsRes, staffRes, tagsRes] = await Promise.all([
-    fetchScheduledShiftsOverlappingRange(restaurantId, start, end),
+    fetchScheduledShiftsInRange(restaurantId, start, end),
     fetchStaffForRestaurant(restaurantId),
     loadStaffPositionTags(restaurantId),
   ]);

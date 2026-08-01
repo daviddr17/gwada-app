@@ -60,10 +60,4 @@ export const SOCIAL_SLOT_KIND_LABELS: Record<SocialSlotKind, string> = {
   ambient: "Ambiente",
 };
 
-export const SOCIAL_TEMPLATE_LABELS: Record<SocialTemplateId, string> = {
-  food_hero: "Food Hero",
-  brand_card: "Brand Card",
-  quote: "Zitat",
-};
-
 export const SOCIAL_FEED_LAYOUT_CHIP_LABELS = SOCIAL_FEED_LAYOUT_LABELS;

@@ -84,23 +84,6 @@ export async function resolveSocialSuggestionImageUrl(
   return null;
 }
 
-export async function refreshSocialSuggestionAssets(
-  sb: SupabaseClient,
-  restaurantId: string,
-  assets: SocialSuggestionAsset[],
-): Promise<SocialSuggestionAsset[]> {
-  const out: SocialSuggestionAsset[] = [];
-  for (const asset of assets) {
-    const imageUrl = await resolveSocialSuggestionImageUrl(
-      sb,
-      restaurantId,
-      asset,
-    );
-    out.push({ ...asset, imageUrl });
-  }
-  return out;
-}
-
 export async function loadSocialImageBuffer(
   sb: SupabaseClient,
   restaurantId: string,

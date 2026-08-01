@@ -9,6 +9,7 @@ import {
 } from "@/lib/staff/staff-work-hours-summary";
 import { addDays, localDayKey } from "@/lib/staff/shift-schedule-range";
 import { startOfLocalDay } from "@/lib/reservations/month-range";
+import { restaurantDayBoundsIso } from "@/lib/restaurant/restaurant-timezone";
 
 const OPEN_CONTRACT_END = "9999-12-31";
 
@@ -17,7 +18,19 @@ function parseLocalDayYmd(dayYmd: string): Date {
   return new Date(y, m - 1, d);
 }
 
-function localDayBoundsMs(dayYmd: string): { startMs: number; endMs: number } {
+/**
+ * Tagesgrenzen in ms.
+ * Mit `timeZone` (Restaurant): korrekt auf Server (UTC) und Client.
+ * Ohne: bisheriges Ambient-Local (Browser-Monatsgitter / Statistik).
+ */
+function localDayBoundsMs(
+  dayYmd: string,
+  timeZone?: string,
+): { startMs: number; endMs: number } {
+  if (timeZone) {
+    const { start, end } = restaurantDayBoundsIso(dayYmd, timeZone);
+    return { startMs: Date.parse(start), endMs: Date.parse(end) };
+  }
   const start = startOfLocalDay(parseLocalDayYmd(dayYmd));
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
@@ -29,8 +42,12 @@ export function staffWorkEntryMsForDay(
   entry: Pick<RestaurantStaffWorkEntryRow, "starts_at" | "ends_at" | "is_open">,
   dayYmd: string,
   now: Date = new Date(),
+  timeZone?: string,
 ): number {
-  const { startMs: dayStartMs, endMs: dayEndMs } = localDayBoundsMs(dayYmd);
+  const { startMs: dayStartMs, endMs: dayEndMs } = localDayBoundsMs(
+    dayYmd,
+    timeZone,
+  );
   const entryStartMs = new Date(entry.starts_at).getTime();
   const entryEndMs = entry.is_open
     ? now.getTime()
@@ -43,13 +60,18 @@ export function staffWorkEntryMsForDay(
 /**
  * Eintrag auf den Kalendertag schneiden — Pflicht für Übernacht-Schichten,
  * sonst zählt die volle Dauer an beiden Tagen (Lohn/Stunden zu hoch).
+ * Server-Dashboard: `timeZone` des Restaurants übergeben (nicht UTC-Ambient).
  */
 export function clipStaffWorkEntryToLocalDay(
   entry: RestaurantStaffWorkEntryRow,
   dayYmd: string,
   now: Date = new Date(),
+  timeZone?: string,
 ): RestaurantStaffWorkEntryRow | null {
-  const { startMs: dayStartMs, endMs: dayEndMs } = localDayBoundsMs(dayYmd);
+  const { startMs: dayStartMs, endMs: dayEndMs } = localDayBoundsMs(
+    dayYmd,
+    timeZone,
+  );
   const entryStartMs = new Date(entry.starts_at).getTime();
   const entryEndMs = entry.is_open
     ? now.getTime()
@@ -110,16 +132,34 @@ export function sumStaffWorkHoursForDay(
   staffId: string,
   dayYmd: string,
   now: Date = new Date(),
+  timeZone?: string,
 ): number {
   const dayEntries: RestaurantStaffWorkEntryRow[] = [];
   for (const e of entries) {
     if (e.staff_id !== staffId) continue;
     if (e.entry_type !== "work" && e.entry_type !== "break") continue;
-    const clipped = clipStaffWorkEntryToLocalDay(e, dayYmd, now);
+    const clipped = clipStaffWorkEntryToLocalDay(e, dayYmd, now, timeZone);
     if (!clipped) continue;
     dayEntries.push(clipped);
   }
   // Gleiche Netto-Logik wie Monats-Summe / Schicht-Zeile (kein Doppel-Abzug Display-Pause).
+  return netWorkHoursFromWorkBreakEntries(dayEntries, now).netWorkH;
+}
+
+/** Team-Summe Netto-Arbeitszeit für einen Kalendertag (geclippt, Display-Netto). */
+export function sumTeamWorkHoursForDay(
+  entries: readonly RestaurantStaffWorkEntryRow[],
+  dayYmd: string,
+  now: Date = new Date(),
+  timeZone?: string,
+): number {
+  const dayEntries: RestaurantStaffWorkEntryRow[] = [];
+  for (const e of entries) {
+    if (e.entry_type !== "work" && e.entry_type !== "break") continue;
+    const clipped = clipStaffWorkEntryToLocalDay(e, dayYmd, now, timeZone);
+    if (!clipped) continue;
+    dayEntries.push(clipped);
+  }
   return netWorkHoursFromWorkBreakEntries(dayEntries, now).netWorkH;
 }
 
@@ -143,6 +183,8 @@ export function computeStaffDayWageBreakdown(params: {
   contracts: readonly RestaurantStaffContractRow[];
   dayYmd: string;
   now?: Date;
+  /** Restaurant-IANA — Pflicht auf dem Server, sonst UTC-Mitternacht statt Lokal. */
+  timeZone?: string;
 }): StaffDayWageBreakdown {
   const now = params.now ?? new Date();
   const staffIds = new Set<string>();
@@ -159,6 +201,7 @@ export function computeStaffDayWageBreakdown(params: {
       staffId,
       params.dayYmd,
       now,
+      params.timeZone,
     );
     if (workHours <= 0) continue;
 

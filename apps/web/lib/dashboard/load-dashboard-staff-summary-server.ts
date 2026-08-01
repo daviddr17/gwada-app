@@ -232,13 +232,15 @@ async function fetchStaffLivePresenceServer(
 async function fetchStaffWorkEntriesTodayServer(
   sb: SupabaseClient,
   restaurantId: string,
+  timeZone: string,
 ) {
-  const timeZone = await fetchRestaurantTimezoneServer(sb, restaurantId);
   const { start: rangeStart, end: rangeEnd } = restaurantDayBoundsIso(
     null,
     timeZone,
   );
 
+  // Überlappung mit dem Restaurant-Tag — nicht nur starts_at im Tag.
+  // Sonst fehlen Übernacht-Anteile von gestern (Morgenstunden) im Heute-Widget.
   const { data: closed, error: closedErr } = await sb
     .from("restaurant_staff_work_entries")
     .select(
@@ -246,10 +248,15 @@ async function fetchStaffWorkEntriesTodayServer(
     )
     .eq("restaurant_id", restaurantId)
     .eq("is_open", false)
-    .gte("starts_at", rangeStart)
-    .lt("starts_at", rangeEnd);
+    .lt("starts_at", rangeEnd)
+    .gt("ends_at", rangeStart);
 
   if (closedErr) throw new Error(closedErr.message);
+
+  // Offene Segmente: Übernacht von gestern + heute. Lookback begrenzt Geister-Stempel.
+  const openLookbackStart = new Date(
+    Date.parse(rangeStart) - 36 * 3_600_000,
+  ).toISOString();
 
   const { data: open, error: openErr } = await sb
     .from("restaurant_staff_work_entries")
@@ -258,7 +265,7 @@ async function fetchStaffWorkEntriesTodayServer(
     )
     .eq("restaurant_id", restaurantId)
     .eq("is_open", true)
-    .gte("starts_at", rangeStart)
+    .gte("starts_at", openLookbackStart)
     .lt("starts_at", rangeEnd);
 
   if (openErr) throw new Error(openErr.message);
@@ -343,11 +350,11 @@ export async function loadDashboardStaffSummaryServer(
     mapStaffRow(r as Record<string, unknown>),
   );
 
-  const [presence, todayEntries, contracts, timeZone] = await Promise.all([
+  const timeZone = await fetchRestaurantTimezoneServer(sb, restaurantId);
+  const [presence, todayEntries, contracts] = await Promise.all([
     fetchStaffLivePresenceServer(sb, restaurantId),
-    fetchStaffWorkEntriesTodayServer(sb, restaurantId),
+    fetchStaffWorkEntriesTodayServer(sb, restaurantId, timeZone),
     fetchStaffContractsForWageServer(sb, restaurantId),
-    fetchRestaurantTimezoneServer(sb, restaurantId),
   ]);
 
   const dayYmd = restaurantTodayYmd(timeZone);
@@ -355,6 +362,7 @@ export async function loadDashboardStaffSummaryServer(
     entries: todayEntries,
     contracts,
     dayYmd,
+    timeZone,
   });
 
   return {
@@ -366,6 +374,8 @@ export async function loadDashboardStaffSummaryServer(
       staff,
       presence,
       todayEntries,
+      dayYmd,
+      timeZone,
     }),
   };
 }

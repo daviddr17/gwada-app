@@ -85,6 +85,11 @@ async function renderPublishMedia(params: {
   const feedLayout =
     suggestion?.feedLayout ??
     (params.templateId === "food_hero" ? "editorial_hero" : "signature_brand");
+  const overlayRaw = suggestion?.source?.overlayLine;
+  const overlayLine =
+    typeof overlayRaw === "string" && overlayRaw.trim()
+      ? overlayRaw.trim()
+      : null;
   const rendered = await renderAndUploadSocialTemplate({
     sb: params.sb,
     restaurantId: params.restaurantId,
@@ -101,6 +106,7 @@ async function renderPublishMedia(params: {
     feedLayout,
     feedPalette: kit.feedPalette,
     photoLook: kit.photoLook,
+    overlayLine,
   });
   if (!rendered.ok) {
     // Fallback: without composed template — still need a storage path for news.

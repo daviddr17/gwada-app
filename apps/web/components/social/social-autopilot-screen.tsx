@@ -347,6 +347,8 @@ export function SocialAutopilotScreen() {
   const photoLook = kit?.photoLook ?? "warm";
   const publishStories = kit?.publishStories !== false;
   const ctaLabel = kit?.cta ?? "Tisch reservieren";
+  const logoUrl =
+    assetOptions.find((o) => o.id === "profile:avatar")?.imageUrl ?? null;
 
   return (
     <div className="space-y-6 pb-4">
@@ -511,6 +513,7 @@ export function SocialAutopilotScreen() {
                       caption={caption}
                       ctaLabel={ctaLabel}
                       imageUrl={s.asset.imageUrl}
+                      logoUrl={logoUrl}
                     />
                   </div>
 

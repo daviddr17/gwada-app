@@ -21,7 +21,7 @@ export const SOCIAL_FEED_LAYOUT_HINTS: Record<SocialFeedLayoutId, string> = {
   editorial_hero: "Gericht / Speisekarte — Foto full-bleed, wenig Text.",
   atelier_split: "Atmosphäre — Foto oben, Markenpanel unten.",
   soiree_event: "Events & Abende — Einladungs-Look.",
-  signature_brand: "Marke / Feiertag — ruhig, ohne Food-Foto.",
+  signature_brand: "Marke / Feiertag — ruhig, Logo im Zentrum, optional soft Foto.",
 };
 
 export const SOCIAL_PHOTO_LOOKS = ["warm", "cool", "neutral"] as const;

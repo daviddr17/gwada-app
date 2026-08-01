@@ -38,6 +38,8 @@ async function mirrorWahaThreadToDb(
     maxMessages?: number;
     /** Kein notification_events / Push (Session-Warmup). */
     silent?: boolean;
+    /** Nur Nachrichten ab diesem Zeitpunkt (Cron-Catch-up, kein Altverlauf). */
+    minCreatedAtMs?: number;
   },
 ): Promise<{ imported: number; error: string | null }> {
   const thread = resolveConversationThreadRef(params.threadKey);
@@ -54,10 +56,22 @@ async function mirrorWahaThreadToDb(
 
   if (error) return { imported: 0, error };
 
-  const toMirror =
+  let toMirror =
     params.maxMessages != null && params.maxMessages > 0
       ? messages.slice(-params.maxMessages)
       : messages;
+
+  if (
+    params.minCreatedAtMs != null &&
+    Number.isFinite(params.minCreatedAtMs) &&
+    params.minCreatedAtMs > 0
+  ) {
+    const minMs = params.minCreatedAtMs;
+    toMirror = toMirror.filter((m) => {
+      const t = new Date(m.created_at).getTime();
+      return Number.isFinite(t) && t >= minMs;
+    });
+  }
 
   const externalIds = toMirror
     .map((m) => m.id)
@@ -171,6 +185,7 @@ export async function syncContactWhatsappInbound(
     contactId: string;
     maxMessages?: number;
     silent?: boolean;
+    minCreatedAtMs?: number;
   },
 ): Promise<{ imported: number; error: string | null }> {
   const phone = await resolveWhatsappPhoneForContact(admin, {
@@ -187,6 +202,7 @@ export async function syncContactWhatsappInbound(
     chatIdOverride: chatId,
     maxMessages: params.maxMessages,
     silent: params.silent,
+    minCreatedAtMs: params.minCreatedAtMs,
   });
 }
 
@@ -199,6 +215,7 @@ export async function syncPseudoWhatsappThread(
     maxMessages?: number;
     conversationLabel?: string | null;
     silent?: boolean;
+    minCreatedAtMs?: number;
   },
 ): Promise<{ imported: number; error: string | null }> {
   if (!isWahaPseudoContactId(params.conversationKey)) {
@@ -216,5 +233,6 @@ export async function syncPseudoWhatsappThread(
       params.conversationLabel,
     ),
     silent: params.silent,
+    minCreatedAtMs: params.minCreatedAtMs,
   });
 }

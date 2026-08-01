@@ -70,10 +70,29 @@ async function emailToContactMap(
   return map;
 }
 
+async function restaurantAlreadyHasWhatsappMirror(
+  admin: SupabaseClient,
+  restaurantId: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from("contact_messages")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .eq("platform", "whatsapp")
+    .like("external_source_id", "waha:%")
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
 async function syncWhatsappInboxHistoryOnConnect(
   admin: SupabaseClient,
   restaurantId: string,
 ): Promise<number> {
+  // Bereits gespiegelte Inbox → kein erneuter Historien-Dump (Reconnect/Recover).
+  if (await restaurantAlreadyHasWhatsappMirror(admin, restaurantId)) {
+    return 0;
+  }
+
   const conv = await fetchWahaInboxConversations(admin, restaurantId, {
     skipDisplayNameResolve: true,
     overviewLimit: INBOX_CONNECT_HISTORY_THREAD_LIMIT,

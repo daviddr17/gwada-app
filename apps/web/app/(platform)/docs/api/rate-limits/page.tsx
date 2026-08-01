@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { DocsProse } from "@/components/docs/docs-prose";
 import {
   PUBLIC_API_READ_LIMIT_PER_IP,
@@ -54,27 +55,46 @@ export default function DocsApiRateLimitsPage() {
         <code>/api/public/embed/&#123;slug&#125;</code>, Reservierung/Kontakt-POST.
       </p>
 
-      <h2>Häufige Fehler</h2>
-      <ul>
-        <li>
-          <code>401 invalid_api_key</code> — Key fehlt, falsch oder widerrufen
-        </li>
-        <li>
-          <code>403 module_not_enabled</code> — Modul nicht für diesen Key aktiv
-        </li>
-        <li>
-          <code>403 origin_forbidden</code> — Browser-Origin nicht in Allowlist
-        </li>
-        <li>
-          <code>403 restaurant_not_published</code> — Restaurant nicht veröffentlicht
-        </li>
-        <li>
-          <code>404 not_found</code> — unbekannter Endpunkt oder keine Daten
-        </li>
-        <li>
-          <code>429 rate_limit_exceeded</code> — Limit überschritten (Key oder IP)
-        </li>
-      </ul>
+      <h2>Häufige Fehler (v1)</h2>
+      <div className="overflow-x-auto rounded-xl border border-border/50">
+        <table className="w-full min-w-[20rem] text-left text-sm">
+          <thead>
+            <tr className="border-b border-border/50 bg-muted/20">
+              <th className="px-3 py-2 font-semibold text-foreground">Status</th>
+              <th className="px-3 py-2 font-semibold text-foreground">error</th>
+              <th className="px-3 py-2 font-semibold text-foreground">Bedeutung</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ["401", "invalid_api_key", "Key fehlt, falsch oder widerrufen"],
+              ["403", "module_not_enabled", "Modul nicht für diesen Key aktiv"],
+              ["403", "origin_forbidden", "Browser-Origin nicht in Allowlist"],
+              ["403", "restaurant_not_published", "Restaurant nicht veröffentlicht"],
+              ["404", "not_found", "Unbekannter Endpunkt oder keine Daten"],
+              ["405", "method_not_allowed", "z. B. POST auf reinem Lese-Modul"],
+              ["429", "rate_limit_exceeded", "Limit überschritten (Key oder IP)"],
+              ["503", "server_misconfigured", "Serverseitige Konfiguration fehlt"],
+            ].map(([status, code, meaning]) => (
+              <tr key={code} className="border-b border-border/40 last:border-0">
+                <td className="px-3 py-2 align-top font-mono text-xs text-muted-foreground">
+                  {status}
+                </td>
+                <td className="px-3 py-2 align-top font-mono text-xs text-muted-foreground">
+                  {code}
+                </td>
+                <td className="px-3 py-2 align-top text-muted-foreground">{meaning}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Reservierungs-Schreiben kennt zusätzliche Codes (z. B.{" "}
+        <code>terms_required</code>, <code>outside_opening_hours</code>,{" "}
+        <code>invalid_credentials</code>) — siehe{" "}
+        <Link href="/docs/api/reservation">Reservierung</Link>.
+      </p>
 
       <h2>Antwortformat</h2>
       <pre>{`{
@@ -84,6 +104,22 @@ export default function DocsApiRateLimitsPage() {
       <pre>{`{
   "error": "invalid_api_key"
 }`}</pre>
+      <p>
+        Bei <code>429</code> zusätzlich Header <code>Retry-After</code> und oft{" "}
+        <code>X-RateLimit-Limit</code>.
+      </p>
+
+      <h2>Caching (GET)</h2>
+      <ul>
+        <li>
+          Die meisten Lese-Endpunkte:{" "}
+          <code>public, s-maxage=60, stale-while-revalidate=300</code>
+        </li>
+        <li>
+          News und Reservierungs-Schreiben:{" "}
+          <code>private, no-cache, no-store, must-revalidate</code>
+        </li>
+      </ul>
     </DocsProse>
   );
 }

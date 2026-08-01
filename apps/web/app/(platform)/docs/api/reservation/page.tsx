@@ -27,8 +27,29 @@ export default function DocsApiReservationPage() {
   -H "Authorization: Bearer gwada_sk_live_…" \\
   -H "Accept: application/json"`}</pre>
       <p>
-        Antwort: öffentliche Reservierungs-Konfiguration (Öffnungszeiten, Vorlauf,
-        Standard-Verweildauer, …) — gleiche Struktur wie das Embed-Widget.
+        Antwort: öffentliche Buchungs-Konfiguration — gleiche Struktur wie das
+        Embed-Widget. Cache:{" "}
+        <code>public, s-maxage=60, stale-while-revalidate=300</code>.
+      </p>
+      <pre>{`{
+  "data": {
+    "id": "uuid",
+    "name": "Restaurant Name",
+    "slug": "mein-slug",
+    "accentHex": "#c45c26",
+    "timezone": "Europe/Berlin",
+    "defaultDwellMinutes": 120,
+    "bookingLeadTimeHours": 0,
+    "minMinutesBeforeClosing": 60,
+    "embedFormFooterText": null,
+    "weeklyHours": { "monday": { "closed": false, "open": "11:30", "close": "22:00" } },
+    "dateExceptions": []
+  }
+}`}</pre>
+      <p>
+        Nutze <code>defaultDwellMinutes</code>, um <code>ends_at</code> zu berechnen,
+        wenn der Gast nur Startzeit wählt. <code>bookingLeadTimeHours</code> und
+        Öffnungszeiten/Ausnahmen bestimmen die Buchbarkeit.
       </p>
 
       <h2>Buchen</h2>
@@ -100,6 +121,29 @@ export default function DocsApiReservationPage() {
     "notify_whatsapp": true,
     "terms_accepted": true
   }'`}</pre>
+
+      <h2>Typische Schreib-Fehler</h2>
+      <ul>
+        <li>
+          <code>400 terms_required</code> / <code>last_name_required</code> /{" "}
+          <code>contact_required</code> / <code>notify_channel_required</code>
+        </li>
+        <li>
+          <code>400 booking_lead_time</code> / <code>outside_opening_hours</code>
+        </li>
+        <li>
+          <code>401 invalid_credentials</code> — falsche Nummer/PIN beim Manage
+        </li>
+        <li>
+          <code>403 not_editable</code> — storniert / abgelehnt / no-show
+        </li>
+      </ul>
+      <p>
+        Bei erfolgreicher Änderung:{" "}
+        <code>{`{ "data": { "ok": true, "change_request": false } }`}</code>.{" "}
+        <code>change_request: true</code>, wenn der Status nicht mehr{" "}
+        <code>pending</code> ist und ein Änderungswunsch angelegt wurde.
+      </p>
 
       <h2>Hinweise</h2>
       <ul>

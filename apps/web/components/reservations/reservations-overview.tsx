@@ -94,7 +94,10 @@ import { useReservationGwadaReviews } from "@/lib/hooks/use-reservation-gwada-re
 import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gwada-review-types";
 import { cn } from "@/lib/utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { reservationListRowButtonClassName } from "@/lib/ui/reservation-list-row-interactive";
+import {
+  reservationListRowButtonClassName,
+  reservationOverviewCompactRowButtonClassName,
+} from "@/lib/ui/reservation-list-row-interactive";
 import {
   keepAliveMayNavigate,
   keepAliveOwnsPathname,
@@ -113,7 +116,9 @@ import { ReservationEditDrawer } from "@/components/reservations/reservation-edi
 import { ReservationsFilterDrawer } from "@/components/reservations/reservations-filter-drawer";
 import { ReservationsOverviewPeriodStats } from "@/components/reservations/reservations-overview-period-stats";
 import { ReservationsOverviewSkeleton } from "@/components/reservations/reservations-overview-skeleton";
+import { ReservationsOverviewViewToggle } from "@/components/reservations/reservations-overview-view-toggle";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useReservationsOverviewViewMode } from "@/lib/hooks/use-reservations-overview-view-mode";
 import {
   GWADA_DASHBOARD_RESERVATIONS_LIVE_INSERT_EVENT,
   type DashboardReservationsLiveInsertDetail,
@@ -229,6 +234,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     supabaseEnvOk,
     ready: workspaceReady,
   } = useWorkspaceRestaurantUuid();
+  const {
+    mode: overviewViewMode,
+    setMode: setOverviewViewMode,
+  } = useReservationsOverviewViewMode();
   const restaurantTimeZone = useRestaurantIanaTimezone(workspaceRestaurantId);
   const todayYmd = restaurantTodayYmd(restaurantTimeZone);
   const today = useMemo(() => {
@@ -1198,6 +1207,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                 aria-label="Reservierungen nach Namen suchen"
               />
             </div>
+            <ReservationsOverviewViewToggle
+              value={overviewViewMode}
+              onChange={setOverviewViewMode}
+            />
             <div className={moduleSearchFilterButtonWrapClassName}>
               <Button
                 type="button"
@@ -1379,7 +1392,14 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
               {list.length > 0 ? (
                 <>
                   <Separator className="mx-6" />
-                  <CardContent className="space-y-1.5 py-2">
+                  <CardContent
+                    className={cn(
+                      "py-2",
+                      overviewViewMode === "compact"
+                        ? "space-y-0.5"
+                        : "space-y-1.5",
+                    )}
+                  >
                     {list.map((r) => {
                       const st = r.reservation_statuses;
                       const isMovedMarker = isRelocatedMarkerRow(r);
@@ -1405,6 +1425,103 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       const gwadaReview = isMovedMarker
                         ? undefined
                         : gwadaReviewsByReservation.get(r.id);
+                      const ariaLabel = isMovedMarker
+                        ? `Verschobene Reservierung ${guest} öffnen`
+                        : isEvent
+                          ? `Veranstaltung ${guest} bearbeiten`
+                          : `Reservierung ${guest} bearbeiten`;
+                      const openEdit = () => {
+                        pushReservationEdit(liveId);
+                      };
+                      const showQuickAccept =
+                        Boolean(workspaceRestaurantId) &&
+                        !isMovedMarker &&
+                        st?.code === "pending";
+
+                      if (overviewViewMode === "compact") {
+                        return (
+                          <div
+                            key={r.id}
+                            className={cn(
+                              "flex items-stretch gap-1",
+                              isMovedMarker && "opacity-80",
+                            )}
+                          >
+                            <button
+                              type="button"
+                              className={cn(
+                                "min-w-0 flex-1",
+                                reservationOverviewCompactRowButtonClassName,
+                              )}
+                              aria-label={ariaLabel}
+                              onClick={openEdit}
+                            >
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span
+                                  className="h-5 w-1 shrink-0 rounded-full"
+                                  style={{ backgroundColor: stripe }}
+                                  aria-hidden
+                                />
+                                <span className="w-11 shrink-0 text-sm font-semibold tabular-nums tracking-tight">
+                                  {timeLabel}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                  {guest || "—"}
+                                </span>
+                                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                  {r.party_size} Pers.
+                                </span>
+                                {tableLabel ? (
+                                  <span className="hidden max-w-[7rem] shrink-0 truncate rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[10px] font-medium sm:inline">
+                                    {tableLabel}
+                                  </span>
+                                ) : null}
+                                {isEvent ? (
+                                  <span className="hidden shrink-0 rounded-md border border-violet-500/40 bg-violet-500/15 px-1.5 py-px text-[10px] font-medium text-violet-800 sm:inline dark:text-violet-200">
+                                    Event
+                                  </span>
+                                ) : null}
+                                {st?.code === "change_requested" ? (
+                                  <span className="shrink-0 rounded-md border border-amber-500/40 bg-amber-500/15 px-1.5 py-px text-[10px] font-medium text-amber-800 dark:text-amber-200">
+                                    Änderung
+                                  </span>
+                                ) : null}
+                                {!isMovedMarker &&
+                                reservationInternalNoteText(r.notes) ? (
+                                  <ReservationInternalNoteIndicator />
+                                ) : null}
+                                {gwadaReview ? (
+                                  <ReservationGwadaReviewStarButton
+                                    review={gwadaReview}
+                                    className="shrink-0"
+                                    onOpen={() => {
+                                      setGwadaReviewSheet({
+                                        review: gwadaReview,
+                                        guestLabel: guest,
+                                        reservationNumber: r.reservation_number,
+                                      });
+                                    }}
+                                  />
+                                ) : null}
+                              </div>
+                            </button>
+                            {showQuickAccept ? (
+                              <div className="flex shrink-0 items-center self-center">
+                                <ReservationQuickAcceptButton
+                                  restaurantId={workspaceRestaurantId!}
+                                  reservationId={r.id}
+                                  statusCode={st!.code}
+                                  onConfirmed={() => {}}
+                                  onFailed={() => {
+                                    void invalidateReservations();
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      }
+
                       return (
                         <div
                           key={r.id}
@@ -1419,16 +1536,8 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                               "min-w-0 flex-1",
                               reservationListRowButtonClassName,
                             )}
-                            aria-label={
-                              isMovedMarker
-                                ? `Verschobene Reservierung ${guest} öffnen`
-                                : isEvent
-                                  ? `Veranstaltung ${guest} bearbeiten`
-                                  : `Reservierung ${guest} bearbeiten`
-                            }
-                            onClick={() => {
-                              pushReservationEdit(liveId);
-                            }}
+                            aria-label={ariaLabel}
+                            onClick={openEdit}
                           >
                             <div className="flex gap-3">
                           <div
@@ -1521,14 +1630,12 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                           </div>
                             </div>
                           </button>
-                          {workspaceRestaurantId &&
-                          !isMovedMarker &&
-                          st?.code === "pending" ? (
+                          {showQuickAccept ? (
                             <div className="flex shrink-0 items-center self-center pr-0.5">
                               <ReservationQuickAcceptButton
-                                restaurantId={workspaceRestaurantId}
+                                restaurantId={workspaceRestaurantId!}
                                 reservationId={r.id}
-                                statusCode={st.code}
+                                statusCode={st!.code}
                                 onConfirmed={() => {}}
                                 onFailed={() => {
                                   void invalidateReservations();

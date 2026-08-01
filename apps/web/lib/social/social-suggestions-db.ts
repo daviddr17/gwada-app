@@ -8,6 +8,7 @@ import {
   type SocialTemplateId,
 } from "@/lib/social/social-brand-kit";
 import type { SocialFeedLayoutId } from "@/lib/social/social-feed-brand-system";
+import { overlayLineFromCaption } from "@/lib/social/social-caption-templates";
 import {
   feedLayoutToLegacyTemplate,
   resolveSuggestionFeedLayout,
@@ -267,8 +268,14 @@ export async function updateSocialSuggestionFieldsInDb(
     const t = params.title?.trim() ?? "";
     patch.title = t ? t.slice(0, 120) : null;
   }
+  let nextSource: Record<string, unknown> | null = null;
   if (params.caption !== undefined) {
-    patch.caption = params.caption.slice(0, 4000);
+    const caption = params.caption.slice(0, 4000);
+    patch.caption = caption;
+    nextSource = {
+      ...existing.source,
+      overlayLine: overlayLineFromCaption(caption),
+    };
   }
   if (params.asset !== undefined) {
     patch.asset_json = params.asset;
@@ -282,10 +289,13 @@ export async function updateSocialSuggestionFieldsInDb(
   }
   if (params.feedLayout !== undefined) {
     patch.template_id = feedLayoutToLegacyTemplate(params.feedLayout);
-    patch.source_json = {
-      ...existing.source,
+    nextSource = {
+      ...(nextSource ?? existing.source),
       feedLayout: params.feedLayout,
     };
+  }
+  if (nextSource) {
+    patch.source_json = nextSource;
   }
 
   if (Object.keys(patch).length === 0) {

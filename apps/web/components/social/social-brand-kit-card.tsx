@@ -43,6 +43,7 @@ import {
   type SocialBrandKit,
   type SocialFeedLayoutId,
   type SocialFeedPalette,
+  type SocialHeroAsset,
   type SocialImageStrategy,
   type SocialPhotoLook,
   type SocialTone,
@@ -119,6 +120,15 @@ function patchPalette(
   };
 }
 
+type HeroOption = {
+  id: string;
+  group: "gallery" | "menu" | "profile";
+  label: string;
+  imageUrl: string | null;
+  source: SocialHeroAsset["source"];
+  sourceId: string;
+};
+
 export function SocialBrandKitCard({
   restaurantId,
 }: {
@@ -128,25 +138,66 @@ export function SocialBrandKitCard({
   const [saved, setSaved] = useState<SocialBrandKit | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [heroOptions, setHeroOptions] = useState<HeroOption[]>([]);
   const showSkeleton = useDeferredSkeleton(loading);
 
   useEffect(() => {
     if (!restaurantId) {
       setKit(null);
       setSaved(null);
+      setHeroOptions([]);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/social/brand-kit?restaurantId=${encodeURIComponent(restaurantId)}`)
-      .then(async (res) => {
-        const data = (await res.json().catch(() => ({}))) as {
+    Promise.all([
+      fetch(
+        `/api/social/brand-kit?restaurantId=${encodeURIComponent(restaurantId)}`,
+      ),
+      fetch(
+        `/api/social/asset-options?restaurantId=${encodeURIComponent(restaurantId)}`,
+      ),
+    ])
+      .then(async ([kitRes, optRes]) => {
+        const data = (await kitRes.json().catch(() => ({}))) as {
           kit?: SocialBrandKit;
+        };
+        const optData = (await optRes.json().catch(() => ({}))) as {
+          options?: Array<{
+            id: string;
+            group: string;
+            label: string;
+            imageUrl: string | null;
+            source?: string;
+            sourceId?: string;
+          }>;
         };
         if (cancelled) return;
         const next = data.kit ?? defaultSocialBrandKit(restaurantId);
         setKit(next);
         setSaved(next);
+        const heroes = (optData.options ?? [])
+          .filter(
+            (o) =>
+              (o.group === "gallery" ||
+                o.group === "menu" ||
+                o.group === "profile") &&
+              o.imageUrl &&
+              (o.source === "gallery" ||
+                o.source === "menu" ||
+                o.source === "profile") &&
+              typeof o.sourceId === "string",
+          )
+          .slice(0, 24)
+          .map((o) => ({
+            id: o.id,
+            group: o.group as HeroOption["group"],
+            label: o.label,
+            imageUrl: o.imageUrl,
+            source: o.source as SocialHeroAsset["source"],
+            sourceId: o.sourceId as string,
+          }));
+        setHeroOptions(heroes);
       })
       .catch(() => {
         if (!cancelled) {
@@ -554,9 +605,125 @@ export function SocialBrandKitCard({
               setKit((k) => (k ? { ...k, voiceNotes: e.target.value } : k))
             }
             className="min-h-20 rounded-xl"
-            placeholder="z. B. familiär, keine Anglizismen, duzen"
+            placeholder="z. B. familiär, keine Anglizismen, duzen, kurz, ohne Emoji"
           />
+          <p className="text-[11px] text-muted-foreground">
+            Stichworte steuern Ton: siezen/duzen, kurz, ohne Emoji, keine
+            Anglizismen.
+          </p>
         </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="social-gold">Gold-Captions</Label>
+          <Textarea
+            id="social-gold"
+            value={kit.goldCaptions.join("\n")}
+            onChange={(e) =>
+              setKit((k) =>
+                k
+                  ? {
+                      ...k,
+                      goldCaptions: e.target.value
+                        .split("\n")
+                        .map((line) => line.trim())
+                        .filter(Boolean)
+                        .slice(0, 10),
+                    }
+                  : k,
+              )
+            }
+            className="min-h-24 rounded-xl"
+            placeholder={
+              "Eine starke Zeile pro Zeile — z. B.\nSonntagsbraten bei uns.\nAbendlicht im Gastraum."
+            }
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Agentur-taugliche Texte aus eurer Stimme. Enthält eine Caption den
+            Gerichtnamen, hat sie Vorrang.
+          </p>
+        </div>
+
+        {heroOptions.length > 0 ? (
+          <div className="space-y-2">
+            <Label>Hero-Fotos</Label>
+            <p className="text-[11px] text-muted-foreground">
+              Bis zu 8 Favoriten — Autopilot priorisiert sie für stimmige
+              Beiträge.
+            </p>
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+              {heroOptions.map((opt) => {
+                const selected = kit.heroAssets.some(
+                  (h) => h.source === opt.source && h.id === opt.sourceId,
+                );
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={cn(
+                      "relative aspect-square overflow-hidden rounded-lg border transition-colors",
+                      selected
+                        ? "border-accent ring-2 ring-accent/40"
+                        : "border-border/50 opacity-80 hover:opacity-100",
+                    )}
+                    aria-pressed={selected}
+                    title={opt.label}
+                    onClick={() =>
+                      setKit((k) => {
+                        if (!k) return k;
+                        const exists = k.heroAssets.some(
+                          (h) =>
+                            h.source === opt.source && h.id === opt.sourceId,
+                        );
+                        if (exists) {
+                          return {
+                            ...k,
+                            heroAssets: k.heroAssets.filter(
+                              (h) =>
+                                !(
+                                  h.source === opt.source &&
+                                  h.id === opt.sourceId
+                                ),
+                            ),
+                          };
+                        }
+                        if (k.heroAssets.length >= 8) return k;
+                        return {
+                          ...k,
+                          heroAssets: [
+                            ...k.heroAssets,
+                            {
+                              source: opt.source,
+                              id: opt.sourceId,
+                              label: opt.label,
+                            },
+                          ],
+                        };
+                      })
+                    }
+                  >
+                    {opt.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={opt.imageUrl}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex size-full items-center justify-center bg-muted text-[10px] text-muted-foreground">
+                        —
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {kit.heroAssets.length > 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                {kit.heroAssets.length}/8 ausgewählt
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="space-y-2">
           <Label htmlFor="social-donot">Bitte nicht</Label>

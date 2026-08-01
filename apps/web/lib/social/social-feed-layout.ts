@@ -41,35 +41,41 @@ export function parseFeedLayoutId(raw: unknown): SocialFeedLayoutId | null {
 
 /**
  * Wählt ein Layout für Slot + Restaurant-Auswahl.
- * Bevorzugt Slot-Affinität, fällt auf erste preferredLayout zurück.
+ * Bevorzugt Slot-Affinität, vermeidet zuletzt genutzte Layouts (Feed-Rhythmus).
  */
 export function pickFeedLayoutForSlot(params: {
   slotKind: SocialSlotKind;
   preferredLayouts: SocialFeedLayoutId[];
   legacyTemplateId?: SocialTemplateId;
+  /** Zuletzt genutzte Layouts — für Abwechslung im Wochen-Feed. */
+  avoidLayouts?: SocialFeedLayoutId[];
 }): SocialFeedLayoutId {
   const preferred =
     params.preferredLayouts.length > 0
       ? params.preferredLayouts
       : ([...SOCIAL_FEED_LAYOUT_IDS] as SocialFeedLayoutId[]);
 
+  const avoid = new Set(params.avoidLayouts ?? []);
+  const fresh = preferred.filter((id) => !avoid.has(id));
+  const pool = fresh.length > 0 ? fresh : preferred;
+
   const slotWant = SLOT_PREFERRED_LAYOUT[params.slotKind];
-  if (preferred.includes(slotWant)) return slotWant;
+  if (pool.includes(slotWant)) return slotWant;
 
   // Holiday mit Foto → editorial wenn gewählt
   if (
     params.slotKind === "holiday" &&
-    preferred.includes("editorial_hero")
+    pool.includes("editorial_hero")
   ) {
     return "editorial_hero";
   }
 
   if (params.legacyTemplateId) {
     const fromLegacy = LEGACY_TEMPLATE_TO_LAYOUT[params.legacyTemplateId];
-    if (preferred.includes(fromLegacy)) return fromLegacy;
+    if (pool.includes(fromLegacy)) return fromLegacy;
   }
 
-  return preferred[0] ?? "editorial_hero";
+  return pool[0] ?? preferred[0] ?? "editorial_hero";
 }
 
 export function resolveSuggestionFeedLayout(params: {

@@ -140,10 +140,10 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
           ) {
             return;
           }
-          // Sofort Pending (Titel/Skeleton), dann explizit pushen.
+          // Sofort Pending (Titel/Cover), dann explizit pushen.
           // Flight hängt nicht am <a> im Mobile-Sheet (Close/Unmount killt sonst Nav).
-          tryAcquireNavLock(event, hrefStr);
           event.preventDefault();
+          if (!tryAcquireNavLock(event, hrefStr)) return;
           startTransition(() => {
             router.push(hrefStr);
           });

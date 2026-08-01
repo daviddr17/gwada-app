@@ -142,8 +142,10 @@ export function SoftNavPendingOverlay() {
     setChrome((prev) => ({ ...prev, title: restore }));
   }, [pending, pendingHref, pathname, setChrome]);
 
-  // Keep-alive oder bereits warme Modul-Daten: kein Skeleton über dem Ziel.
-  if (!pending || !pendingHref || pendingToWarmHome || pendingDataReady) {
+  // Warm-Home-Keep-alive previewt das Ziel selbst — kein Cover nötig.
+  // Sonst immer decken: sonst bleibt z. B. Dashboard sichtbar, während
+  // Titel/Sidebar schon aufs Ziel zeigen (warm cache → früher return null).
+  if (!pending || !pendingHref || pendingToWarmHome) {
     return null;
   }
 
@@ -152,9 +154,12 @@ export function SoftNavPendingOverlay() {
       // pointer-events-none: Overlay darf den aktivierenden Link-Klick nicht schlucken.
       className="pointer-events-none absolute inset-0 z-20 min-h-full bg-background"
       aria-live="polite"
-      aria-busy
+      aria-busy={!pendingDataReady}
     >
-      <AppMain>{skeletonForHref(pendingHref)}</AppMain>
+      {/* Warme Modul-Daten: nur decken, kein Fake-Skeleton. Kalt: Skeleton. */}
+      {!pendingDataReady ? (
+        <AppMain>{skeletonForHref(pendingHref)}</AppMain>
+      ) : null}
     </div>
   );
 }

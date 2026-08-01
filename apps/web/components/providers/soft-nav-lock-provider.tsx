@@ -31,9 +31,11 @@ export function normalizeNavHref(href: string): string {
 }
 
 /**
- * Soft-Nav Pending — sofortiges UI-Feedback (Sidebar + Overlay), kein Nav-Lock.
+ * Soft-Nav Pending — sofortiges UI-Feedback (Sidebar + Overlay).
+ * Doppel-`router.push` auf dasselbe Ziel wird blockiert; neues Ziel ersetzt
+ * das Pending (letzter Klick gewinnt), ohne parallele Flights zu stapeln.
  *
- * Pending wird synchron im click gesetzt (Titel/Skeleton sofort), bevor das
+ * Pending wird synchron im click gesetzt (Titel/Cover sofort), bevor das
  * Mobile-Menü schließt. Sheet-Close darf nicht im selben Tick den geklickten
  * Link unmounten — sonst stirbt der Next-Flight (Kaltstart mobil).
  */
@@ -59,7 +61,8 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const tryAcquireNavLock = useCallback(
     (_event: { preventDefault: () => void }, targetHref: string) => {
       const target = normalizeNavHref(targetHref);
-      if (pendingTargetRef.current === target) return true;
+      // Bereits unterwegs dorthin — kein zweites push (Race / Jump-back).
+      if (pendingTargetRef.current === target) return false;
 
       pendingTargetRef.current = target;
       if (clearTimerRef.current != null) {
@@ -67,7 +70,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         clearTimerRef.current = null;
       }
 
-      // Synchron: Nutzer sieht sofort Ziel-Titel/Skeleton — kein „nichts tun“.
+      // Synchron: Nutzer sieht sofort Ziel-Titel/Cover — kein „nichts tun“.
       setPendingHref(target);
       clearTimerRef.current = window.setTimeout(
         clearPending,

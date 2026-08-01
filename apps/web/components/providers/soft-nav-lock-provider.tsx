@@ -33,16 +33,16 @@ export function normalizeNavHref(href: string): string {
 /**
  * Soft-Nav Pending — sofortiges UI-Feedback (Sidebar + Overlay).
  * Doppel-`router.push` auf dasselbe Ziel wird blockiert; neues Ziel ersetzt
- * das Pending (letzter Klick gewinnt), ohne parallele Flights zu stapeln.
+ * das Pending (letzter Klick gewinnt).
  *
- * Pending wird synchron im click gesetzt (Titel/Cover sofort), bevor das
- * Mobile-Menü schließt. Sheet-Close darf nicht im selben Tick den geklickten
- * Link unmounten — sonst stirbt der Next-Flight (Kaltstart mobil).
+ * Pending bleibt gesetzt, bis die Ziel-URL wirklich erreicht ist und einmal
+ * gepaintet wurde — sonst weißer Flash / Dashboard-Blitzen unter dem Titel.
  */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const pendingTargetRef = useRef<string | null>(null);
   const clearTimerRef = useRef<number | null>(null);
+  const paintClearRafRef = useRef<number | null>(null);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   const clearPending = useCallback(() => {
@@ -52,10 +52,38 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(clearTimerRef.current);
       clearTimerRef.current = null;
     }
+    if (paintClearRafRef.current != null) {
+      window.cancelAnimationFrame(paintClearRafRef.current);
+      paintClearRafRef.current = null;
+    }
   }, []);
 
+  // Ziel erreicht → Cover erst nach Paint heben (kein Weiß/Dashboard-Flash).
   useEffect(() => {
-    clearPending();
+    const target = pendingTargetRef.current;
+    if (target == null) return;
+    if (normalizeNavHref(pathname) !== target) return;
+
+    let raf2: number | null = null;
+    const raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        paintClearRafRef.current = null;
+        // Nur clearen, wenn wir noch dasselbe Ziel erwarten.
+        if (pendingTargetRef.current === target) {
+          clearPending();
+        }
+      });
+      paintClearRafRef.current = raf2;
+    });
+    paintClearRafRef.current = raf1;
+
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      if (raf2 != null) window.cancelAnimationFrame(raf2);
+      if (paintClearRafRef.current === raf1 || paintClearRafRef.current === raf2) {
+        paintClearRafRef.current = null;
+      }
+    };
   }, [pathname, clearPending]);
 
   const tryAcquireNavLock = useCallback(
@@ -69,8 +97,12 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         window.clearTimeout(clearTimerRef.current);
         clearTimerRef.current = null;
       }
+      if (paintClearRafRef.current != null) {
+        window.cancelAnimationFrame(paintClearRafRef.current);
+        paintClearRafRef.current = null;
+      }
 
-      // Synchron: Nutzer sieht sofort Ziel-Titel/Cover — kein „nichts tun“.
+      // Synchron: Nutzer sieht sofort Ziel-Titel/Skeleton — kein „nichts tun“.
       setPendingHref(target);
       clearTimerRef.current = window.setTimeout(
         clearPending,
@@ -85,6 +117,9 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     () => () => {
       if (clearTimerRef.current != null) {
         window.clearTimeout(clearTimerRef.current);
+      }
+      if (paintClearRafRef.current != null) {
+        window.cancelAnimationFrame(paintClearRafRef.current);
       }
     },
     [],

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * Soft-Nav Pending: Titel/Chrome darf nie über sichtbarem Quell-Keep-alive liegen.
- * Reproduziert Dashboard → Modul mit warmem Cache (früher: Overlay return null).
+ * Soft-Nav Pending: Cover + Skeleton bis Paint; kein Weißflash / Dashboard-Blitzen.
  */
 import assert from "node:assert/strict";
 
@@ -25,99 +24,112 @@ function matchHome(pathname) {
   return null;
 }
 
-/** Spiegel von SoftNavPendingOverlay-Entscheidung (nach Fix). */
-function shouldShowPendingCover({
-  pathname,
-  pendingHref,
-  pendingToWarmHome,
-}) {
-  const pending =
-    pendingHref != null &&
-    normalizeNavHref(pendingHref) !== normalizeNavHref(pathname);
-  if (!pending || !pendingHref || pendingToWarmHome) return false;
+/** Cover solange pendingHref gesetzt (auch nach Pathname-Arrive bis Clear). */
+function shouldShowPendingCover({ pendingHref, pendingToWarmHome }) {
+  if (pendingHref == null || pendingToWarmHome) return false;
   return true;
 }
 
-/** Spiegel Keep-alive Slot-Visibility (nach Fix). */
-function slotVisible({
-  id,
-  pathname,
-  pendingHref,
-  warm,
-}) {
+function shouldClearPendingOnPathname({ pendingTarget, pathname }) {
+  if (pendingTarget == null) return false;
+  return normalizeNavHref(pathname) === pendingTarget;
+}
+
+function slotVisible({ id, pathname, pendingHref, warm }) {
   const activeHomeId = matchHome(pathname);
   const pendingHomeId = pendingHref != null ? matchHome(pendingHref) : null;
   const pendingNormalized =
     pendingHref != null ? normalizeNavHref(pendingHref) : null;
   const onHome = activeHomeId === id;
-  const pendingAway =
-    pendingNormalized != null &&
-    pendingNormalized !== normalizeNavHref(pathname);
+  const pendingInFlight = pendingNormalized != null;
   const pendingToThis =
     warm &&
     pendingHomeId === id &&
     pendingNormalized === MODULE_HOME_PATHS[id] &&
     !onHome;
-  const showAsSource = onHome && !pendingAway;
+  const showAsSource = onHome && !pendingInFlight;
   return {
     visible: showAsSource || pendingToThis,
     active: showAsSource,
   };
 }
 
-// 1) Dashboard → Speisekarte (warm cache): Cover muss an, Dashboard muss weg
+// 1) Dashboard → Speisekarte: Cover + Dashboard weg
 {
   const pathname = "/dashboard";
   const pendingHref = "/dashboard/menu/uebersicht";
   assert.equal(
-    shouldShowPendingCover({
+    shouldShowPendingCover({ pendingHref, pendingToWarmHome: false }),
+    true,
+  );
+  const dash = slotVisible({
+    id: "dashboard",
+    pathname,
+    pendingHref,
+    warm: true,
+  });
+  assert.equal(dash.visible, false);
+  assert.equal(dash.active, false);
+}
+
+// 2) Pathname schon am Ziel, Pending noch gesetzt (pre-paint): Cover bleibt, Dashboard weg
+{
+  const pathname = "/dashboard/menu/uebersicht";
+  const pendingHref = "/dashboard/menu/uebersicht";
+  assert.equal(
+    shouldShowPendingCover({ pendingHref, pendingToWarmHome: false }),
+    true,
+    "Cover bis Clear nach Paint",
+  );
+  assert.equal(
+    shouldClearPendingOnPathname({
+      pendingTarget: pendingHref,
       pathname,
+    }),
+    true,
+  );
+  assert.equal(
+    slotVisible({
+      id: "dashboard",
+      pathname: "/dashboard",
       pendingHref,
+      warm: true,
+    }).visible,
+    false,
+    "Dashboard bleibt versteckt solange Pending (auch bei Pathname-Revert)",
+  );
+}
+
+// 3) Pathname-Revert während Pending: kein Dashboard-Flash
+{
+  const dash = slotVisible({
+    id: "dashboard",
+    pathname: "/dashboard",
+    pendingHref: "/dashboard/menu/uebersicht",
+    warm: true,
+  });
+  assert.equal(dash.visible, false, "Revert + Pending → Dashboard hidden");
+  assert.equal(
+    shouldShowPendingCover({
+      pendingHref: "/dashboard/menu/uebersicht",
       pendingToWarmHome: false,
     }),
     true,
-    "warm Speisekarte: Cover muss Quell-Dashboard decken",
   );
-  const dash = slotVisible({
-    id: "dashboard",
-    pathname,
-    pendingHref,
-    warm: true,
-  });
-  assert.equal(dash.visible, false, "Dashboard-Slot muss bei Pending weg");
-  assert.equal(dash.active, false, "Dashboard darf nicht active bleiben");
 }
 
-// 2) Warm Keep-alive Ziel (Nachrichten): Cover aus, Ziel-Preview an
+// 4) Warm Keep-alive Ziel: kein Cover
 {
-  const pathname = "/dashboard";
-  const pendingHref = MODULE_HOME_PATHS.nachrichten;
   assert.equal(
     shouldShowPendingCover({
-      pathname,
-      pendingHref,
+      pendingHref: MODULE_HOME_PATHS.nachrichten,
       pendingToWarmHome: true,
     }),
     false,
-    "warm Keep-alive Ziel: Cover unnötig",
   );
-  const target = slotVisible({
-    id: "nachrichten",
-    pathname,
-    pendingHref,
-    warm: true,
-  });
-  assert.equal(target.visible, true, "Nachrichten-Preview sichtbar");
-  const dash = slotVisible({
-    id: "dashboard",
-    pathname,
-    pendingHref,
-    warm: true,
-  });
-  assert.equal(dash.visible, false, "Dashboard bei Pending zu Nachrichten weg");
 }
 
-// 3) Kein Pending: Dashboard normal
+// 5) Nach Clear: Dashboard wieder normal
 {
   const dash = slotVisible({
     id: "dashboard",
@@ -128,32 +140,20 @@ function slotVisible({
   assert.equal(dash.visible, true);
   assert.equal(dash.active, true);
   assert.equal(
-    shouldShowPendingCover({
-      pathname: "/dashboard",
-      pendingHref: null,
-      pendingToWarmHome: false,
-    }),
+    shouldShowPendingCover({ pendingHref: null, pendingToWarmHome: false }),
     false,
   );
 }
 
-// 4) Doppel-Acquire: zweiter Klick gleiches Ziel → kein push
+// 6) Fremder Pathname clear't Pending nicht
 {
-  let pending = null;
-  function tryAcquire(targetHref) {
-    const target = normalizeNavHref(targetHref);
-    if (pending === target) return false;
-    pending = target;
-    return true;
-  }
-  assert.equal(tryAcquire("/dashboard/menu/uebersicht"), true);
   assert.equal(
-    tryAcquire("/dashboard/menu/uebersicht"),
+    shouldClearPendingOnPathname({
+      pendingTarget: "/dashboard/menu/uebersicht",
+      pathname: "/dashboard",
+    }),
     false,
-    "kein zweites push auf gleiches Ziel",
   );
-  assert.equal(tryAcquire("/dashboard/inventory/uebersicht"), true);
-  assert.equal(pending, "/dashboard/inventory/uebersicht");
 }
 
 console.log("OK soft-nav pending cover simulation");

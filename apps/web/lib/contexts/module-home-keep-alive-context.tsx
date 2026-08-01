@@ -74,11 +74,9 @@ export function ModuleHomeKeepAliveProvider({
   const value = useMemo<ModuleHomeKeepAliveValue>(() => {
     const warmIds = new Set<ModuleHomeId>();
     const slots = {} as Record<ModuleHomeId, ModuleHomeSlotState>;
-    // Soft-Nav weg vom aktuellen Home: Quelle sofort verstecken (Titel/Chrome
-    // sind schon umgeschaltet — sonst bleibt z. B. Dashboard-Inhalt stehen).
-    const pendingAway =
-      pendingNormalized != null &&
-      pendingNormalized !== normalizeNavHref(pathname);
+    // Solange Soft-Nav Pending gesetzt ist: Quell-Home versteckt halten
+    // (auch wenn pathname kurz zurückspringt — sonst Dashboard-Flash).
+    const pendingInFlight = pendingNormalized != null;
 
     for (const id of MODULE_HOME_IDS) {
       const onHome = activeHomeId === id;
@@ -91,7 +89,7 @@ export function ModuleHomeKeepAliveProvider({
         pendingNormalized === MODULE_HOME_PATHS[id] &&
         !onHome;
 
-      const showAsSource = onHome && !pendingAway;
+      const showAsSource = onHome && !pendingInFlight;
 
       slots[id] = {
         warm,
@@ -106,13 +104,7 @@ export function ModuleHomeKeepAliveProvider({
       isPendingWarmHome: (href: string) =>
         isWarmModuleHomePending(href, warmIds),
     };
-  }, [
-    activeHomeId,
-    warmFlags,
-    pendingHomeId,
-    pendingNormalized,
-    pathname,
-  ]);
+  }, [activeHomeId, warmFlags, pendingHomeId, pendingNormalized]);
 
   return (
     <ModuleHomeKeepAliveContext.Provider value={value}>

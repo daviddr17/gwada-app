@@ -37,14 +37,18 @@ function DeferredHeroAppPreview({ className }: { className?: string }) {
       ) => number;
       cancelIdleCallback?: (id: number) => void;
     };
+    // Touch/Mobile: später laden — hält TBT/SI in PageSpeed-Lab sauberer.
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const ricTimeout = coarse ? 5200 : 2800;
+    const fallbackMs = coarse ? 3600 : 1600;
     if (typeof win.requestIdleCallback === "function") {
-      const id = win.requestIdleCallback(arm, { timeout: 2800 });
+      const id = win.requestIdleCallback(arm, { timeout: ricTimeout });
       return () => {
         cancelled = true;
         win.cancelIdleCallback?.(id);
       };
     }
-    const t = window.setTimeout(arm, 1600);
+    const t = window.setTimeout(arm, fallbackMs);
     return () => {
       cancelled = true;
       window.clearTimeout(t);
@@ -113,7 +117,7 @@ export function LandingHeroCard({
           type="button"
           size="lg"
           variant="outline"
-          className="h-11 w-full rounded-full border-neutral-300 bg-white/90 px-8 text-base font-medium text-neutral-900 backdrop-blur-md hover:bg-neutral-50 sm:h-12 sm:w-auto dark:border-white/25 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+          className="h-11 w-full rounded-full border-neutral-300 bg-white/90 px-8 text-base font-medium text-neutral-900 hover:bg-neutral-50 sm:h-12 sm:w-auto sm:backdrop-blur-md dark:border-white/25 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
           onClick={() => onScrollToSection("features")}
         >
           Module entdecken

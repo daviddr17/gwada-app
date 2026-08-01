@@ -78,6 +78,23 @@ const HERO_TABS: readonly HeroTab[] = buildHeroTabs();
 const AUTO_MS = 4200;
 const TAB_ROW_GAP_PX = 2;
 
+/**
+ * Tab-Breite schätzen (volle Labels) — kein DOM-Measure / Forced-Reflow (PageSpeed).
+ * Leicht übertrieben → eher „Mehr“ als abgeschnittene Labels.
+ */
+function estimateTabWidthPx(label: string, compact: boolean): number {
+  const icon = 12;
+  const gap = compact ? 4 : 6;
+  const padX = compact ? 16 : 20;
+  const char = compact ? 6.4 : 7.0;
+  return icon + gap + padX + label.length * char + 6;
+}
+
+function estimateMehrWidthPx(compact: boolean): number {
+  // MoreHorizontal size-3.5 + Label „Mehr“
+  return 14 + (compact ? 4 : 6) + (compact ? 16 : 20) + 4 * (compact ? 6.4 : 7.0) + 6;
+}
+
 /** Wie viele volle Labels in die Leiste passen — Rest → „Mehr“. */
 function countFittingTabs(
   barWidth: number,
@@ -102,6 +119,11 @@ function countFittingTabs(
     n += 1;
   }
   return Math.max(1, n);
+}
+
+function visibleTabCountForBarWidth(barWidth: number, compact: boolean): number {
+  const widths = HERO_TABS.map((t) => estimateTabWidthPx(t.label, compact));
+  return countFittingTabs(barWidth, widths, estimateMehrWidthPx(compact));
 }
 
 function PanelDashboard() {
@@ -421,7 +443,6 @@ function tabButtonClassName(selected: boolean) {
 export function LandingHeroAppPreview({ className }: { className?: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const tabBarRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLDivElement>(null);
   const mehrRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -437,23 +458,34 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
 
   useEffect(() => {
     const bar = tabBarRef.current;
-    const measure = measureRef.current;
-    if (!bar || !measure) return;
+    if (!bar) return;
 
-    const recompute = () => {
-      const tabEls = measure.querySelectorAll<HTMLElement>("[data-measure-tab]");
-      const mehrEl = measure.querySelector<HTMLElement>("[data-measure-mehr]");
-      if (tabEls.length === 0 || !mehrEl) return;
-      const tabWidths = Array.from(tabEls, (el) => el.getBoundingClientRect().width);
-      const mehrWidth = mehrEl.getBoundingClientRect().width;
-      const next = countFittingTabs(bar.clientWidth, tabWidths, mehrWidth);
+    const compactMq = window.matchMedia("(max-width: 639px)");
+    let lastBarWidth = 0;
+
+    const recompute = (barWidth: number) => {
+      if (barWidth <= 0) return;
+      lastBarWidth = barWidth;
+      const next = visibleTabCountForBarWidth(barWidth, compactMq.matches);
       setVisibleCount((prev) => (prev === next ? prev : next));
     };
 
-    const ro = new ResizeObserver(recompute);
+    // Nur contentRect aus RO — kein getBoundingClientRect / Forced-Reflow.
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      recompute(w);
+    });
     ro.observe(bar);
-    recompute();
-    return () => ro.disconnect();
+
+    const onCompactChange = () => {
+      if (lastBarWidth > 0) recompute(lastBarWidth);
+    };
+    compactMq.addEventListener("change", onCompactChange);
+
+    return () => {
+      ro.disconnect();
+      compactMq.removeEventListener("change", onCompactChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -565,7 +597,7 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
           <span className="w-10 shrink-0" aria-hidden />
         </div>
 
-        {/* Tabs: volle Modulnamen; was nicht passt → „Mehr“. */}
+        {/* Tabs: volle Modulnamen; was nicht passt → „Mehr“ (Breite geschätzt, PageSpeed). */}
         <div
           ref={tabBarRef}
           className={cn(
@@ -575,31 +607,6 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
               : "overflow-hidden",
           )}
         >
-          {/* Messleiste: volle Labels messen, ohne Layout zu beeinflussen. */}
-          <div
-            ref={measureRef}
-            className="pointer-events-none invisible absolute top-0 left-1.5 flex gap-0.5"
-            aria-hidden
-          >
-            {HERO_TABS.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <span
-                  key={tab.id}
-                  data-measure-tab
-                  className={tabButtonClassName(false)}
-                >
-                  <Icon className="size-3 shrink-0 opacity-80" />
-                  <span>{tab.label}</span>
-                </span>
-              );
-            })}
-            <span data-measure-mehr className={cn(tabButtonClassName(false), "gap-1")}>
-              <MoreHorizontal className="size-3.5 shrink-0 opacity-80" />
-              <span>Mehr</span>
-            </span>
-          </div>
-
           <div
             role="tablist"
             aria-label="Module"

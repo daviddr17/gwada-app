@@ -40,10 +40,14 @@ export function LandingBelowFoldDeferred() {
       ) => number;
       cancelIdleCallback?: (id: number) => void;
     };
+    // Touch: Framer-Sections später — PageSpeed Mobile TBT/SI.
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
     if (typeof win.requestIdleCallback === "function") {
-      idleId = win.requestIdleCallback(load, { timeout: 4000 });
+      idleId = win.requestIdleCallback(load, {
+        timeout: coarse ? 7000 : 4000,
+      });
     } else {
-      timeoutId = setTimeout(load, 2200);
+      timeoutId = setTimeout(load, coarse ? 4200 : 2200);
     }
 
     return () => {

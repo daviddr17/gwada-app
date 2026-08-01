@@ -40,6 +40,31 @@ export function staffWorkEntryMsForDay(
   return Math.max(0, clipEndMs - clipStartMs);
 }
 
+/**
+ * Eintrag auf den Kalendertag schneiden — Pflicht für Übernacht-Schichten,
+ * sonst zählt die volle Dauer an beiden Tagen (Lohn/Stunden zu hoch).
+ */
+export function clipStaffWorkEntryToLocalDay(
+  entry: RestaurantStaffWorkEntryRow,
+  dayYmd: string,
+  now: Date = new Date(),
+): RestaurantStaffWorkEntryRow | null {
+  const { startMs: dayStartMs, endMs: dayEndMs } = localDayBoundsMs(dayYmd);
+  const entryStartMs = new Date(entry.starts_at).getTime();
+  const entryEndMs = entry.is_open
+    ? now.getTime()
+    : new Date(entry.ends_at).getTime();
+  const clipStartMs = Math.max(entryStartMs, dayStartMs);
+  const clipEndMs = Math.min(entryEndMs, dayEndMs);
+  if (clipEndMs <= clipStartMs) return null;
+  return {
+    ...entry,
+    starts_at: new Date(clipStartMs).toISOString(),
+    ends_at: new Date(clipEndMs).toISOString(),
+    is_open: false,
+  };
+}
+
 /** PostgREST liefert `date` teils als ISO-String — für Vergleiche nur YYYY-MM-DD. */
 export function staffContractDateYmd(value: string | null | undefined): string | null {
   if (value == null || value === "") return null;
@@ -90,9 +115,9 @@ export function sumStaffWorkHoursForDay(
   for (const e of entries) {
     if (e.staff_id !== staffId) continue;
     if (e.entry_type !== "work" && e.entry_type !== "break") continue;
-    const ms = staffWorkEntryMsForDay(e, dayYmd, now);
-    if (ms <= 0) continue;
-    dayEntries.push(e);
+    const clipped = clipStaffWorkEntryToLocalDay(e, dayYmd, now);
+    if (!clipped) continue;
+    dayEntries.push(clipped);
   }
   // Gleiche Netto-Logik wie Monats-Summe / Schicht-Zeile (kein Doppel-Abzug Display-Pause).
   return netWorkHoursFromWorkBreakEntries(dayEntries, now).netWorkH;
@@ -217,6 +242,10 @@ export type StaffPeriodPayrollLine = {
   loggedH: number;
   breakH: number;
   netWorkH: number;
+  /** Stunden, die in den Lohn eingeflossen sind (Stundenlohn-Tage). */
+  wageHours: number;
+  /** Vertraglicher Stundenlohn in Cent, wenn einheitlich im Zeitraum. */
+  hourlyRateCents: number | null;
   wageCents: number;
   note: string | null;
 };
@@ -384,6 +413,8 @@ export function computeStaffPeriodPayrollLines(params: {
   }
 
   const wageByStaff = new Map<string, number>();
+  const wageHoursByStaff = new Map<string, number>();
+  const rateByStaff = new Map<string, number | null>();
   const noteByStaff = new Map<string, string | null>();
 
   for (
@@ -426,6 +457,15 @@ export function computeStaffPeriodPayrollLines(params: {
 
       const wageCents = Math.round(workHours * hourlyRateCents);
       wageByStaff.set(staffId, (wageByStaff.get(staffId) ?? 0) + wageCents);
+      wageHoursByStaff.set(
+        staffId,
+        (wageHoursByStaff.get(staffId) ?? 0) + workHours,
+      );
+      if (!rateByStaff.has(staffId)) {
+        rateByStaff.set(staffId, hourlyRateCents);
+      } else if (rateByStaff.get(staffId) !== hourlyRateCents) {
+        rateByStaff.set(staffId, null);
+      }
       if (noteByStaff.get(staffId) !== "Festlohn — nicht stundenbasiert") {
         noteByStaff.set(staffId, null);
       }
@@ -439,13 +479,26 @@ export function computeStaffPeriodPayrollLines(params: {
     if (hours.loggedH <= 0 && hours.breakH <= 0 && hours.netWorkH <= 0) {
       continue;
     }
+    const wageHours = Math.round((wageHoursByStaff.get(staffId) ?? 0) * 10) / 10;
+    const netWorkH = Math.round(hours.netWorkH * 10) / 10;
+    let note = noteByStaff.get(staffId) ?? null;
+    if (
+      !note &&
+      wageHours > 0 &&
+      netWorkH > 0 &&
+      Math.abs(wageHours - netWorkH) >= 0.15
+    ) {
+      note = `Lohn aus ${wageHours.toFixed(1).replace(".", ",")} h (Stundenlohn-Tage)`;
+    }
     lines.push({
       staffId,
       loggedH: Math.round(hours.loggedH * 10) / 10,
       breakH: Math.round(hours.breakH * 10) / 10,
-      netWorkH: Math.round(hours.netWorkH * 10) / 10,
+      netWorkH,
+      wageHours,
+      hourlyRateCents: rateByStaff.get(staffId) ?? null,
       wageCents: wageByStaff.get(staffId) ?? 0,
-      note: noteByStaff.get(staffId) ?? null,
+      note,
     });
   }
 

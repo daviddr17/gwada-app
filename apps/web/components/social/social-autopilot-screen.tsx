@@ -9,11 +9,19 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Check, ImageIcon, RefreshCw, SkipForward } from "lucide-react";
+import { Check, Pencil, RefreshCw, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { SocialTemplatePreview } from "@/components/social/social-template-preview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +34,8 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   SOCIAL_FEED_LAYOUT_CHIP_LABELS,
@@ -107,7 +117,8 @@ export function SocialAutopilotScreen() {
     {},
   );
   const [assetOptions, setAssetOptions] = useState<AssetOption[]>([]);
-  const [pickerForId, setPickerForId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [actionsId, setActionsId] = useState<string | null>(null);
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -163,13 +174,14 @@ export function SocialAutopilotScreen() {
         if (opts?.refresh) {
           setDraftTitles(nextTitles);
           setDraftCaptions(nextCaptions);
-          setPickerForId(null);
+          setEditId(null);
+          setActionsId(null);
           const gen = sugData.generation;
           if (gen?.skippedReason === "disabled") {
             toast.error("Autopilot ist in der Social-Marke ausgeschaltet");
           } else if ((gen?.created ?? 0) > 0) {
             toast.success(
-              `${gen!.created} neue Vorschläge mit eurer Social-Marke`,
+              `${gen!.created} neue Vorschläge mit Galerie & Speisekarte`,
             );
           } else {
             toast.message("Keine neuen Vorschläge erzeugt");
@@ -301,6 +313,8 @@ export function SocialAutopilotScreen() {
           : "Post freigegeben (geplant)",
       );
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
+      setActionsId(null);
+      setEditId(null);
     } finally {
       setBusyId(null);
     }
@@ -320,6 +334,8 @@ export function SocialAutopilotScreen() {
         return;
       }
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
+      setActionsId(null);
+      setEditId(null);
     } finally {
       setBusyId(null);
     }
@@ -350,6 +366,16 @@ export function SocialAutopilotScreen() {
   const logoUrl =
     assetOptions.find((o) => o.id === "profile:avatar")?.imageUrl ?? null;
 
+  const editing = editId
+    ? suggestions.find((s) => s.id === editId) ?? null
+    : null;
+  const acting = actionsId
+    ? suggestions.find((s) => s.id === actionsId) ?? null
+    : null;
+
+  const galleryCount = assetOptions.filter((o) => o.group === "gallery").length;
+  const menuCount = assetOptions.filter((o) => o.group === "menu").length;
+
   return (
     <div className="space-y-6 pb-4">
       <Button
@@ -365,43 +391,22 @@ export function SocialAutopilotScreen() {
 
       {kit ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/25 px-3 py-2.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-            <div
-              className="flex h-6 w-16 shrink-0 overflow-hidden rounded-md border border-border/40"
-              aria-hidden
-            >
-              <span
-                className="flex-1"
-                style={{ backgroundColor: feedPalette.surfaceDark }}
-              />
-              <span
-                className="flex-1"
-                style={{ backgroundColor: feedPalette.accent }}
-              />
-              <span
-                className="flex-1"
-                style={{
-                  backgroundColor:
-                    feedPalette.secondary ?? feedPalette.surfaceLight,
-                }}
-              />
-              <span
-                className="flex-1"
-                style={{ backgroundColor: feedPalette.surfaceLight }}
-              />
-            </div>
+          <div className="min-w-0 space-y-0.5">
             <p className="text-sm text-muted-foreground">
               Social-Marke · {SOCIAL_PHOTO_LOOK_LABELS[photoLook]}
               {preferredLayouts.length > 0
                 ? ` · ${preferredLayouts.length} Layouts`
                 : null}
             </p>
+            <p className="text-xs text-muted-foreground/90">
+              Bildquellen: {galleryCount} Galerie · {menuCount} Speisekarte
+            </p>
           </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-full"
+            className="rounded-full border-border/60"
             render={<Link href={APP_ROUTES.settings.restaurant} />}
           >
             Anpassen
@@ -420,33 +425,36 @@ export function SocialAutopilotScreen() {
                     {task.body}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-2">
                   <Button
                     type="button"
-                    size="sm"
-                    className={brandActionButtonRoundedClassName}
+                    size="lg"
+                    className={cn(
+                      "w-full",
+                      brandActionButtonRoundedClassName,
+                    )}
                     render={<Link href={APP_ROUTES.galerie.overview} />}
                   >
                     Zur Galerie
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="rounded-full"
-                    onClick={() => void completeTask(task.id, "done")}
-                  >
-                    Erledigt
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="rounded-full"
-                    onClick={() => void completeTask(task.id, "dismissed")}
-                  >
-                    Später
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 flex-1 rounded-xl"
+                      onClick={() => void completeTask(task.id, "done")}
+                    >
+                      Erledigt
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-11 flex-1 rounded-xl"
+                      onClick={() => void completeTask(task.id, "dismissed")}
+                    >
+                      Später
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -460,22 +468,31 @@ export function SocialAutopilotScreen() {
             <SkeletonCardFrame key={i} className="space-y-3">
               <Skeleton className="aspect-square w-full max-w-md rounded-xl" />
               <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-12 w-full" />
             </SkeletonCardFrame>
           ))}
         </div>
       ) : suggestions.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          Keine offenen Vorschläge. „Neu vorschlagen“ erzeugt Posts mit eurer
-          aktuellen Social-Marke — oder wartet auf den nächsten Wochenlauf.
+          Keine offenen Vorschläge. „Neu vorschlagen“ mischt Galerie- und
+          Speisekarten-Bilder — oder warte auf den nächsten Wochenlauf.
         </p>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {suggestions.map((s) => {
             const title = draftTitles[s.id] ?? s.title?.trim() ?? "";
             const caption = draftCaptions[s.id] ?? s.caption;
             const layout = layoutForSuggestion(s);
-            const pickerOpen = pickerForId === s.id;
+            const sourceLabel =
+              s.asset.source === "gallery"
+                ? "Galerie"
+                : s.asset.source === "menu"
+                  ? "Speisekarte"
+                  : s.asset.source === "event"
+                    ? "Event"
+                    : s.asset.source === "profile"
+                      ? "Profil"
+                      : "Ohne Bild";
             return (
               <Card
                 key={s.id}
@@ -484,6 +501,7 @@ export function SocialAutopilotScreen() {
                 <CardContent className="space-y-4 pt-5">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <MetaChip>{SOCIAL_SLOT_KIND_LABELS[s.slotKind]}</MetaChip>
+                    <MetaChip>{sourceLabel}</MetaChip>
                     <MetaChip>{SOCIAL_FEED_LAYOUT_CHIP_LABELS[layout]}</MetaChip>
                     {s.platforms.filter(isNewsPlatform).map((p) => (
                       <MetaChip key={p}>
@@ -517,187 +535,45 @@ export function SocialAutopilotScreen() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">
-                      Layout
-                    </Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {preferredLayouts.map((layoutId) => (
-                        <button
-                          key={layoutId}
-                          type="button"
-                          className={cn(
-                            "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                            layout === layoutId
-                              ? "border-accent/50 bg-accent/15 text-foreground"
-                              : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
-                          )}
-                          aria-pressed={layout === layoutId}
-                          disabled={busyId === s.id}
-                          onClick={() =>
-                            void patchSuggestion(s.id, {
-                              feedLayout: layoutId,
-                            })
-                          }
-                        >
-                          {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layoutId]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-xs text-muted-foreground">
-                        Bild
-                      </Label>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 rounded-full"
-                        disabled={busyId === s.id || assetOptions.length === 0}
-                        onClick={() =>
-                          setPickerForId((cur) => (cur === s.id ? null : s.id))
-                        }
-                      >
-                        <ImageIcon className="size-3.5" />
-                        {pickerOpen ? "Schließen" : "Bild wechseln"}
-                      </Button>
-                    </div>
-                    {pickerOpen ? (
-                      <div className="space-y-3 rounded-xl border border-border/50 p-3">
-                        {(
-                          ["gallery", "menu", "profile", "event"] as const
-                        ).map((group) => {
-                          const items = assetOptions.filter(
-                            (o) => o.group === group,
-                          );
-                          if (items.length === 0) return null;
-                          return (
-                            <div key={group} className="space-y-1.5">
-                              <p className="text-[11px] font-medium text-muted-foreground">
-                                {GROUP_LABELS[group]}
-                              </p>
-                              <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-                                {items.map((opt) => {
-                                  const selected =
-                                    s.asset.source === opt.source &&
-                                    s.asset.sourceId === opt.sourceId;
-                                  return (
-                                    <button
-                                      key={opt.id}
-                                      type="button"
-                                      title={opt.label}
-                                      className={cn(
-                                        "relative aspect-square overflow-hidden rounded-lg border transition-colors",
-                                        selected
-                                          ? "border-accent ring-2 ring-accent/40"
-                                          : "border-border/50 hover:border-border",
-                                      )}
-                                      onClick={() => {
-                                        void patchSuggestion(s.id, {
-                                          asset: {
-                                            imageUrl: opt.imageUrl,
-                                            imageLabel: opt.imageLabel,
-                                            source: opt.source,
-                                            sourceId: opt.sourceId,
-                                            storageBucket: opt.storageBucket,
-                                            storagePath: opt.storagePath,
-                                          },
-                                        });
-                                        setPickerForId(null);
-                                      }}
-                                    >
-                                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                                      <img
-                                        src={opt.imageUrl ?? ""}
-                                        alt=""
-                                        className="size-full object-cover"
-                                      />
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {assetOptions.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">
-                            Keine Bilder in Galerie, Speisekarte oder Profil.
-                          </p>
-                        ) : null}
-                      </div>
+                  <div className="space-y-1">
+                    {title ? (
+                      <p className="text-sm font-medium text-foreground">
+                        {title}
+                      </p>
                     ) : null}
+                    <p className="line-clamp-2 text-sm text-muted-foreground">
+                      {caption || "Kein Text"}
+                    </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor={`title-${s.id}`}>Titel</Label>
-                    <Input
-                      id={`title-${s.id}`}
-                      value={title}
-                      onChange={(e) => {
-                        const nextTitle = e.target.value;
-                        setDraftTitles((prev) => ({
-                          ...prev,
-                          [s.id]: nextTitle,
-                        }));
-                        scheduleTextSave(s.id, {
-                          title: nextTitle,
-                          caption,
-                        });
-                      }}
-                      className="h-11 rounded-xl"
-                      placeholder="Überschrift auf dem Post"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`caption-${s.id}`}>Text / Caption</Label>
-                    <Textarea
-                      id={`caption-${s.id}`}
-                      value={caption}
-                      onChange={(e) => {
-                        const nextCaption = e.target.value;
-                        setDraftCaptions((prev) => ({
-                          ...prev,
-                          [s.id]: nextCaption,
-                        }));
-                        scheduleTextSave(s.id, {
-                          title,
-                          caption: nextCaption,
-                        });
-                      }}
-                      className="min-h-28 rounded-xl"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="flex flex-col gap-2">
                     <Button
                       type="button"
+                      size="lg"
                       className={cn(
-                        "flex-1",
+                        "w-full",
                         brandActionButtonRoundedClassName,
                       )}
-                      disabled={busyId === s.id || s.status === "needs_asset"}
-                      onClick={() => void approve(s.id, true)}
+                      disabled={busyId === s.id}
+                      onClick={() => setActionsId(s.id)}
                     >
                       <Check className="size-4" />
-                      Freigeben & posten
+                      Freigeben …
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
-                      className="flex-1 rounded-xl"
+                      className="h-12 w-full rounded-xl"
                       disabled={busyId === s.id}
-                      onClick={() => void approve(s.id, false)}
+                      onClick={() => setEditId(s.id)}
                     >
-                      Freigeben (planen)
+                      <Pencil className="size-4" />
+                      Bearbeiten
                     </Button>
                     <Button
                       type="button"
                       variant="ghost"
-                      className="rounded-xl"
+                      className="h-11 w-full rounded-xl text-muted-foreground"
                       disabled={busyId === s.id}
                       onClick={() => void skip(s.id)}
                     >
@@ -711,6 +587,230 @@ export function SocialAutopilotScreen() {
           })}
         </div>
       )}
+
+      <Drawer
+        direction="bottom"
+        open={Boolean(editing)}
+        onOpenChange={(open) => {
+          if (!open) setEditId(null);
+        }}
+        repositionInputs={false}
+      >
+        <DrawerContent className={drawerContentClassName("form")}>
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Vorschlag bearbeiten</DrawerTitle>
+            <DrawerDescription>
+              Bild aus Galerie oder Speisekarte, Layout, Titel und Caption.
+            </DrawerDescription>
+          </DrawerHeader>
+          {editing ? (
+            <div className={drawerScrollAreaClassName(6)}>
+              <div className="space-y-5 pb-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Bildquelle
+                  </Label>
+                  {(["gallery", "menu", "profile", "event"] as const).map(
+                    (group) => {
+                      const items = assetOptions.filter(
+                        (o) => o.group === group,
+                      );
+                      if (items.length === 0) return null;
+                      return (
+                        <div key={group} className="space-y-1.5">
+                          <p className="text-[11px] font-medium text-muted-foreground">
+                            {GROUP_LABELS[group]} · {items.length}
+                          </p>
+                          <div className="grid grid-cols-4 gap-2">
+                            {items.map((opt) => {
+                              const selected =
+                                editing.asset.source === opt.source &&
+                                editing.asset.sourceId === opt.sourceId;
+                              return (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  title={opt.label}
+                                  className={cn(
+                                    "relative aspect-square overflow-hidden rounded-xl border transition-colors",
+                                    selected
+                                      ? "border-accent ring-2 ring-accent/40"
+                                      : "border-border/50 hover:border-border",
+                                  )}
+                                  onClick={() => {
+                                    void patchSuggestion(editing.id, {
+                                      asset: {
+                                        imageUrl: opt.imageUrl,
+                                        imageLabel: opt.imageLabel,
+                                        source: opt.source,
+                                        sourceId: opt.sourceId,
+                                        storageBucket: opt.storageBucket,
+                                        storagePath: opt.storagePath,
+                                      },
+                                    });
+                                  }}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={opt.imageUrl ?? ""}
+                                    alt=""
+                                    className="size-full object-cover"
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    },
+                  )}
+                  {assetOptions.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-border/60 px-3 py-4 text-sm text-muted-foreground">
+                      Keine Bilder in Galerie oder Speisekarte. Lade Fotos in der
+                      Galerie hoch, dann „Neu vorschlagen“.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Layout</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {preferredLayouts.map((layoutId) => {
+                      const active =
+                        layoutForSuggestion(editing) === layoutId;
+                      return (
+                        <button
+                          key={layoutId}
+                          type="button"
+                          className={cn(
+                            "inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                            active
+                              ? "border-accent/50 bg-accent/15 text-foreground"
+                              : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+                          )}
+                          aria-pressed={active}
+                          disabled={busyId === editing.id}
+                          onClick={() =>
+                            void patchSuggestion(editing.id, {
+                              feedLayout: layoutId,
+                            })
+                          }
+                        >
+                          {SOCIAL_FEED_LAYOUT_CHIP_LABELS[layoutId]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor={`edit-title-${editing.id}`}>Titel</Label>
+                  <Input
+                    id={`edit-title-${editing.id}`}
+                    value={draftTitles[editing.id] ?? ""}
+                    onChange={(e) => {
+                      const nextTitle = e.target.value;
+                      setDraftTitles((prev) => ({
+                        ...prev,
+                        [editing.id]: nextTitle,
+                      }));
+                      scheduleTextSave(editing.id, {
+                        title: nextTitle,
+                        caption: draftCaptions[editing.id] ?? "",
+                      });
+                    }}
+                    className="h-11 rounded-xl"
+                    placeholder="Überschrift auf dem Post"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor={`edit-caption-${editing.id}`}>
+                    Text / Caption
+                  </Label>
+                  <Textarea
+                    id={`edit-caption-${editing.id}`}
+                    value={draftCaptions[editing.id] ?? ""}
+                    onChange={(e) => {
+                      const nextCaption = e.target.value;
+                      setDraftCaptions((prev) => ({
+                        ...prev,
+                        [editing.id]: nextCaption,
+                      }));
+                      scheduleTextSave(editing.id, {
+                        title: draftTitles[editing.id] ?? "",
+                        caption: nextCaption,
+                      });
+                    }}
+                    className="min-h-28 rounded-xl"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <DrawerFooter>
+            <Button
+              type="button"
+              className={cn("w-full", brandActionButtonRoundedClassName)}
+              onClick={() => setEditId(null)}
+            >
+              Fertig
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+
+      <Drawer
+        direction="bottom"
+        open={Boolean(acting)}
+        onOpenChange={(open) => {
+          if (!open) setActionsId(null);
+        }}
+        repositionInputs={false}
+      >
+        <DrawerContent className={drawerContentClassName("export")}>
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Freigeben</DrawerTitle>
+            <DrawerDescription>
+              Sofort posten oder zum geplanten Zeitpunkt freigeben.
+            </DrawerDescription>
+          </DrawerHeader>
+          {acting ? (
+            <div className="flex flex-col gap-2 px-6 pb-2">
+              <Button
+                type="button"
+                size="lg"
+                className={cn("w-full", brandActionButtonRoundedClassName)}
+                disabled={
+                  busyId === acting.id || acting.status === "needs_asset"
+                }
+                onClick={() => void approve(acting.id, true)}
+              >
+                <Check className="size-4" />
+                Freigeben & posten
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full rounded-xl"
+                disabled={busyId === acting.id}
+                onClick={() => void approve(acting.id, false)}
+              >
+                Freigeben (planen)
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-11 w-full rounded-xl"
+                disabled={busyId === acting.id}
+                onClick={() => setActionsId(null)}
+              >
+                Abbrechen
+              </Button>
+            </div>
+          ) : null}
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

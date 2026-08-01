@@ -17,27 +17,8 @@ type HeroTabId = "dashboard" | SidebarModuleId;
 type HeroTab = {
   id: HeroTabId;
   label: string;
-  shortLabel: string;
   path: string;
   icon: LucideIcon;
-};
-
-const SHORT_LABELS: Partial<Record<HeroTabId, string>> = {
-  dashboard: "Home",
-  menu: "Menü",
-  inventory: "Bestand",
-  reservierungen: "Resa",
-  pos: "POS",
-  events: "Events",
-  kontakte: "Chat",
-  news: "News",
-  bewertungen: "Reviews",
-  insights: "Stats",
-  galerie: "Fotos",
-  buchfuehrung: "Buchh.",
-  dokumente: "Docs",
-  checklisten: "Checks",
-  mitarbeiter: "Team",
 };
 
 /** Primäre Reihenfolge in der Tab-Leiste; Rest folgt Sidebar-Reihenfolge. */
@@ -54,7 +35,6 @@ function buildHeroTabs(): HeroTab[] {
   const dashboard: HeroTab = {
     id: "dashboard",
     label: "Dashboard",
-    shortLabel: SHORT_LABELS.dashboard ?? "Home",
     path: "app.gwada /dashboard",
     icon: MonitorSmartphone,
   };
@@ -64,7 +44,6 @@ function buildHeroTabs(): HeroTab[] {
       const tab: HeroTab = {
         id: def.id,
         label: def.label,
-        shortLabel: SHORT_LABELS[def.id] ?? def.label,
         path: `app.gwada ${def.pathPrefix}`,
         icon: def.icon,
       };
@@ -97,13 +76,32 @@ function buildHeroTabs(): HeroTab[] {
 const HERO_TABS: readonly HeroTab[] = buildHeroTabs();
 
 const AUTO_MS = 4200;
-/** Sichtbare Tabs nach Viewport — ohne offsetWidth/Forced-Reflow. */
-function visibleTabCountForWidth(width: number): number {
-  if (width < 360) return 2;
-  if (width < 480) return 3;
-  if (width < 640) return 4;
-  if (width < 900) return 5;
-  return 6;
+const TAB_ROW_GAP_PX = 2;
+
+/** Wie viele volle Labels in die Leiste passen — Rest → „Mehr“. */
+function countFittingTabs(
+  barWidth: number,
+  tabWidths: number[],
+  mehrWidth: number,
+): number {
+  if (barWidth <= 0 || tabWidths.length === 0) return 1;
+
+  let all = 0;
+  for (let i = 0; i < tabWidths.length; i++) {
+    all += tabWidths[i]! + (i > 0 ? TAB_ROW_GAP_PX : 0);
+  }
+  if (all <= barWidth) return tabWidths.length;
+
+  const budget = barWidth - mehrWidth - TAB_ROW_GAP_PX;
+  let used = 0;
+  let n = 0;
+  for (const w of tabWidths) {
+    const next = used + (n > 0 ? TAB_ROW_GAP_PX : 0) + w;
+    if (n > 0 && next > budget) break;
+    used = next;
+    n += 1;
+  }
+  return Math.max(1, n);
 }
 
 function PanelDashboard() {
@@ -422,13 +420,15 @@ function tabButtonClassName(selected: boolean) {
  */
 export function LandingHeroAppPreview({ className }: { className?: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
   const mehrRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [mehrOpen, setMehrOpen] = useState(false);
   const [inView, setInView] = useState(false);
   const [autoplayReady, setAutoplayReady] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(3);
+  const [visibleCount, setVisibleCount] = useState(2);
 
   const active = HERO_TABS[activeIndex] ?? HERO_TABS[0];
   const overflowTabs = HERO_TABS.slice(visibleCount);
@@ -436,12 +436,24 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
   const activeInOverflow = hasOverflow && activeIndex >= visibleCount;
 
   useEffect(() => {
+    const bar = tabBarRef.current;
+    const measure = measureRef.current;
+    if (!bar || !measure) return;
+
     const recompute = () => {
-      setVisibleCount(visibleTabCountForWidth(window.innerWidth));
+      const tabEls = measure.querySelectorAll<HTMLElement>("[data-measure-tab]");
+      const mehrEl = measure.querySelector<HTMLElement>("[data-measure-mehr]");
+      if (tabEls.length === 0 || !mehrEl) return;
+      const tabWidths = Array.from(tabEls, (el) => el.getBoundingClientRect().width);
+      const mehrWidth = mehrEl.getBoundingClientRect().width;
+      const next = countFittingTabs(bar.clientWidth, tabWidths, mehrWidth);
+      setVisibleCount((prev) => (prev === next ? prev : next));
     };
+
+    const ro = new ResizeObserver(recompute);
+    ro.observe(bar);
     recompute();
-    window.addEventListener("resize", recompute, { passive: true });
-    return () => window.removeEventListener("resize", recompute);
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
@@ -553,15 +565,41 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
           <span className="w-10 shrink-0" aria-hidden />
         </div>
 
-        {/* Tabs: tablist nur mit role=tab — „Mehr“ als Geschwister (ARIA). */}
+        {/* Tabs: volle Modulnamen; was nicht passt → „Mehr“. */}
         <div
+          ref={tabBarRef}
           className={cn(
-            "flex gap-0.5 border-b border-black/5 bg-[#dfe1e6]/80 px-1.5 pt-1.5 dark:border-white/10 dark:bg-black/25",
+            "relative flex gap-0.5 border-b border-black/5 bg-[#dfe1e6]/80 px-1.5 pt-1.5 dark:border-white/10 dark:bg-black/25",
             mehrOpen
-              ? "relative z-30 overflow-visible"
+              ? "z-30 overflow-visible"
               : "overflow-hidden",
           )}
         >
+          {/* Messleiste: volle Labels messen, ohne Layout zu beeinflussen. */}
+          <div
+            ref={measureRef}
+            className="pointer-events-none invisible absolute top-0 left-1.5 flex gap-0.5"
+            aria-hidden
+          >
+            {HERO_TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <span
+                  key={tab.id}
+                  data-measure-tab
+                  className={tabButtonClassName(false)}
+                >
+                  <Icon className="size-3 shrink-0 opacity-80" />
+                  <span>{tab.label}</span>
+                </span>
+              );
+            })}
+            <span data-measure-mehr className={cn(tabButtonClassName(false), "gap-1")}>
+              <MoreHorizontal className="size-3.5 shrink-0 opacity-80" />
+              <span>Mehr</span>
+            </span>
+          </div>
+
           <div
             role="tablist"
             aria-label="Module"
@@ -587,12 +625,7 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                   className={tabButtonClassName(selected)}
                 >
                   <Icon className="size-3 shrink-0 opacity-80" aria-hidden />
-                  <span className="hidden sm:inline" aria-hidden>
-                    {tab.label}
-                  </span>
-                  <span className="sm:hidden" aria-hidden>
-                    {tab.shortLabel}
-                  </span>
+                  <span aria-hidden>{tab.label}</span>
                   {selected && showProgress ? (
                     <span
                       className="landing-hero-tab-progress absolute inset-x-1 bottom-0 h-0.5 origin-left rounded-full bg-primary/80"

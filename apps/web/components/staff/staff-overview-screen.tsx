@@ -216,8 +216,9 @@ export function StaffOverviewScreen() {
         contracts,
         dayYmd: dayDate,
         now: liveNow,
+        timeZone: restaurantTimeZone,
       }),
-    [dayEntries, contracts, dayDate, liveNow],
+    [dayEntries, contracts, dayDate, liveNow, restaurantTimeZone],
   );
 
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;

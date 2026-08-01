@@ -89,9 +89,11 @@ export const buchfuehrungGuide: UserGuidePage = {
 export const dokumenteGuide: UserGuidePage = {
   slug: "dokumente",
   title: "Dokumente",
-  description: "Dateien ablegen, versionieren, suchen und protokollieren.",
+  description:
+    "Zentrale Ablage für Verträge, Zertifikate und Unterlagen — mit Tags, Mitarbeiter-Zuordnung und Änderungsprotokoll.",
   intro: [
-    "Dokumente ist deine zentrale Ablage für Verträge, Zertifikate, Hygieneunterlagen, Behördenbriefe und andere Dateien — mit Versionshistorie und Änderungsprotokoll.",
+    "Dokumente ist deine Ablage für Verträge, Zertifikate, Hygieneunterlagen, Behördenbriefe und andere Dateien. Jeder Upload kann optional einem Mitarbeiter und einem Tag zugeordnet werden — und jede Änderung landet im Protokoll.",
+    "Die Übersicht ist eine paginierte Tabelle: Suche, Tag-Filter und Spalten-Sortierung helfen auch bei vielen Dateien den Überblick zu behalten.",
   ],
   sections: [
     {
@@ -99,32 +101,65 @@ export const dokumenteGuide: UserGuidePage = {
       table: {
         headers: ["Tab", "Zweck"],
         rows: [
-          ["Übersicht", "Alle Dokumente — Suche, Filter, Pagination"],
-          ["Statistiken", "Übersicht nach Dokumenttypen"],
-          ["Protokoll", "Wer hat wann welches Dokument geändert"],
+          ["Übersicht", "Alle Dokumente — Suche, Tag-Filter, Sortierung, Pagination"],
+          ["Statistiken", "Verteilung und Kennzahlen zu Dokumenten"],
+          ["Protokoll", "Wer hat wann welches Dokument angelegt oder geändert"],
         ],
       },
     },
     {
-      heading: "Buttons und Filter",
+      heading: "Toolbar und Aktionen",
       table: {
         headers: ["Element", "Bedeutung"],
         rows: [
-          ["Neues Dokument", "Datei hochladen mit Titel und optional Kategorie"],
-          ["Suche", "Titel und Metadaten durchsuchen"],
-          ["Filter", "Bottom Sheet: Kategorie, Zeitraum, …"],
-          ["Pagination", "x/y Dokumente · Seite — oben und unten"],
+          ["Neues Dokument", "Upload-Drawer — volle Breite über der Liste"],
+          ["Drag & Drop", "Datei auf die Seite ziehen öffnet ebenfalls den Upload"],
+          ["Tags", "Dokument-Tags verwalten (anlegen, umbenennen, löschen)"],
+          ["Suche", "Titel, Dateiname oder Tag durchsuchen"],
+          ["Tag-Filter", "Alle Tags / Ohne Tag / einzelner Tag"],
+          ["Spalten-Sortierung", "Titel, Dateiname, Tag, Uploader, Größe, Datum"],
+          ["Pagination", "x/y Dokumente · Seite — oben und unten identisch"],
           ["Vollbild-Tabelle", "Maximize-Icon für große Listen"],
         ],
       },
     },
     {
-      heading: "Versionen",
-      body: "Lädst du eine neue Version hoch, ersetzt sie die aktuelle Datei. Ältere Versionen bleiben im Protokoll nachvollziehbar — wichtig für Audits und HACCP.",
+      heading: "Dokument hochladen",
+      steps: [
+        "Dokumente → Übersicht → Neues Dokument (oder Datei auf die Seite ziehen).",
+        "Datei wählen.",
+        "Titel vergeben — klar und wiederfindbar (z. B. „HACCP-Protokoll 2026“).",
+        "Optional Tag zuweisen und optional Mitarbeiter verknüpfen (Personalakte).",
+        "Hochladen — der Eintrag erscheint in der Übersicht und im Protokoll.",
+      ],
     },
+    {
+      heading: "Bearbeiten und Notizen",
+      body: "Ein Tipp auf eine Zeile öffnet den Detail-Drawer. Dort kannst du Metadaten anpassen und Notizen hinterlegen. Notiz-Änderungen werden protokolliert — wichtig, wenn mehrere Personen Zugriff haben.",
+      items: [
+        "Titel und Tag nachträglich ändern",
+        "Mitarbeiter-Zuordnung setzen oder entfernen",
+        "Notizen für Kontext (z. B. „gültig bis …“, „Kopie an Steuerberater“)",
+        "Dokument löschen — mit Bestätigung",
+      ],
+    },
+    {
+      heading: "Protokoll",
+      body: "Im Tab Protokoll siehst du die Historie über alle Dokumente. Zusätzlich kannst du pro Dokument das Einzelprotokoll aus der Zeile öffnen. Suche nach Dokument, Nutzer oder Aktion.",
+    },
+    {
+      heading: "Mitarbeiter-Dokumente vs. Modul Dokumente",
+      body: "Personalunterlagen (Verträge, Gehaltszettel) liegen oft auch unter Mitarbeiter → Dokumente bzw. im Mitarbeiter-Profil. Das Modul Dokumente ist die betriebliche Ablage für alle — inkl. HACCP, Behörden und allgemeiner Verträge.",
+    },
+  ],
+  tips: [
+    "Lege Tags früh an (z. B. HACCP, Behörde, Vertrag) — später filterst du schneller.",
+    "Mitarbeiter-Zuordnung hilft bei Personalakten, ist aber optional.",
+    "URL-Parameter ?new=1 öffnet den Upload-Drawer direkt — nützlich für Bookmarks oder Schnellaktionen.",
   ],
   related: [
     { label: "Mitarbeiter → Dokumente", href: "/docs/handbuch/mitarbeiter" },
     { label: "Checklisten", href: "/docs/handbuch/checklisten" },
+    { label: "Buchführung", href: "/docs/handbuch/buchfuehrung" },
   ],
 };

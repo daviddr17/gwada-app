@@ -171,20 +171,35 @@ export const displayGuide: UserGuidePage = {
   slug: "display",
   title: "Display (Kiosk)",
   description:
-    "Tablet-Terminal für Zeiterfassung, Reservierungen, Rezepte und Checklisten.",
+    "Tablet-Terminal koppeln — Zeiterfassung, Reservierungen, Rezepte, Bestand und Checklisten.",
   intro: [
-    "Display verwandelt ein Tablet in ein festes Terminal — für Stempeluhr, Reservierungsliste, Küchen-Rezepte, Bestand oder HACCP-Checklisten. Ideal für Bereiche ohne Laptop.",
+    "Display verwandelt ein Tablet in ein festes Terminal — Stempeluhr, Reservierungsliste, Küchen-Rezepte, Bestand oder HACCP-Checklisten. Ideal für Bereiche ohne Laptop.",
+    "Voraussetzung: Feature Displays im Abo und die Berechtigung „Displays verwalten“. Mitarbeiter-PINs legst du unter Profil bzw. Mitarbeiter an — nicht im Display-Panel selbst.",
   ],
   sections: [
     {
-      heading: "Einrichtung",
+      heading: "Display anlegen und koppeln",
       steps: [
         "Einstellungen → Displays → Display anlegen.",
-        "Name vergeben und erlaubte Module auswählen.",
-        "Am Tablet /display/pair öffnen.",
-        "Kopplcode eingeben oder QR scannen.",
-        "Display ist verbunden — Module erscheinen auf dem Startbildschirm.",
+        "Name vergeben, Auto-Lock (15–3600 Sekunden) setzen und Module aktivieren.",
+        "Display speichern und öffnen → Koppeln — 8-stelliger Code und QR erscheinen.",
+        "Am Tablet /display/pair öffnen — Code eingeben, QR scannen oder Link mit ?code= nutzen.",
+        "Nach erfolgreicher Kopplung landet das Gerät auf /display/[slug] mit PIN-Sperre.",
       ],
+    },
+    {
+      heading: "Felder im Display-Editor",
+      table: {
+        headers: ["Feld", "Bedeutung"],
+        rows: [
+          ["Name", "Erkennbarer Gerätename (z. B. „Küche“, „Eingang“)"],
+          ["Auto-Lock", "Sekunden bis zur Sperre nach Inaktivität"],
+          ["Module", "Welche Apps auf dem Terminal erscheinen"],
+          ["Display aktiv", "Inaktives Display lässt sich nicht nutzen"],
+          ["Koppeln / Neu koppeln", "Neuen Code erzeugen — altes Tablet verliert Zugriff"],
+          ["Entkoppeln", "Verbindung zum aktuellen Gerät trennen"],
+        ],
+      },
     },
     {
       heading: "Module am Display",
@@ -196,63 +211,78 @@ export const displayGuide: UserGuidePage = {
           ["Rezepte", "Gerichte mit Zutaten für die Küche"],
           ["Bestand & Bestellung", "Lagerbestände und Bestellmengen"],
           ["Checklisten", "HACCP und ToDos am Terminal"],
-          ["Bestellungen (KDS)", "Küchen-Display — in Planung"],
         ],
       },
     },
     {
       heading: "PIN & Sperrbildschirm",
       items: [
-        "Jeder Mitarbeiter hat eine Display-PIN (Profil → Display-PIN).",
-        "Nach Inaktivität sperrt sich der Bildschirm — erneute PIN-Eingabe nötig.",
-        "Admin-PIN am Display für Einstellungen (vom Display-Manager).",
+        "Jeder Mitarbeiter setzt seine Display-PIN unter Profil → Display-PIN (oder Admin unter Mitarbeiter).",
+        "Nach Auto-Lock sperrt sich der Bildschirm — erneute PIN nötig.",
+        "Neu koppeln invalidiert das bisherige Tablet sofort.",
       ],
     },
     {
       heading: "Zeiterfassung im Detail",
-      body: "Kommen startet Schicht, Pause unterbricht Arbeitszeit, Gehen beendet Schicht. Live-Status erscheint im Dashboard unter Mitarbeiter und Heute → Aktiv.",
+      body: "Kommen startet die Schicht, Pause unterbricht die Arbeitszeit, Gehen beendet die Schicht. Live-Status erscheint im Dashboard unter Mitarbeiter und Heute → Aktiv / Abgeschlossen.",
     },
+  ],
+  tips: [
+    "Ein Display pro Standort/Bereich anlegen — so bleiben Module und Auto-Lock getrennt konfigurierbar.",
+    "Koppel-Links mit Code eignen sich gut für vorbereitete Tablets vor Schichtbeginn.",
   ],
   related: [
     { label: "Mitarbeiter", href: "/docs/handbuch/mitarbeiter" },
     { label: "Checklisten", href: "/docs/handbuch/checklisten" },
     { label: "Bestand", href: "/docs/handbuch/bestand" },
+    { label: "Einstellungen → Displays", href: "/docs/handbuch/einstellungen" },
   ],
 };
 
 export const oeffentlichesProfilGuide: UserGuidePage = {
   slug: "oeffentliches-profil",
   title: "Öffentliches Profil & Einbinden",
-  description: "Gästeseite, Profil-Apps, Veröffentlichung und Website-Widgets.",
+  description:
+    "Gästeseite unter gwada.app/[slug], Profil-Apps und Website-Widgets.",
   intro: [
-    "Jedes Restaurant hat eine öffentliche Seite unter gwada.app/[dein-slug]. Gäste finden dort News, Events, Speisekarte, Reservierung und mehr — je nach aktivierten Modulen und Veröffentlichungsstatus.",
+    "Jedes Restaurant hat eine öffentliche Seite unter gwada.app/[dein-slug]. Gäste öffnen Module als Bottom Sheets — News, Events, Galerie, Speisekarte, Reservieren, Bewertungen und Info.",
+    "Voraussetzung ist die Veröffentlichung unter Einstellungen → Übersicht sowie aktivierte Module. Widgets auf deiner eigenen Website holst du über die jeweiligen Einbinden-Tabs.",
   ],
   sections: [
     {
-      heading: "Profil-Apps (Kacheln)",
+      heading: "Profil-Apps (Dock)",
+      body: "Unten auf der Profilseite erscheinen Kacheln — nur für Module, die freigeschaltet und sinnvoll befüllt sind:",
       items: [
-        "News — aktuelle Beiträge und Stories",
+        "News — Beiträge und Stories",
         "Events — kommende Veranstaltungen",
-        "Galerie — Fotos",
+        "Galerie — Fotos und Highlights",
         "Speisekarte — digitale Karte",
         "Reservieren — Buchungsformular",
-        "Bewertungen — Gästebewertungen und Durchschnitt",
-        "Info — Kontakt, Adresse, Öffnungszeiten",
+        "Bewertungen — Sterne und Texte",
+        "Info — Kontakt, Adresse, Öffnungszeiten, Kontaktformular",
+      ],
+    },
+    {
+      heading: "Hero und Info",
+      items: [
+        "Hero zeigt Branding (Logo/Cover) und einen Öffnungsstatus-Chip",
+        "Info-Sheet: Kontakt und Öffnungszeiten",
+        "Kontaktformular: Vorname, Nachname, E-Mail, Telefon (E-Mail oder Telefon nötig), Nachricht",
       ],
     },
     {
       heading: "Veröffentlichen",
       steps: [
         "Einstellungen → Übersicht.",
-        "Slug prüfen (URL-Teil — einmalig, SEO-relevant).",
-        "Stammdaten, Bilder und Branding vollständig pflegen.",
-        "Schalter „Veröffentlicht“ aktivieren.",
-        "Profil unter gwada.app/[slug] testen.",
+        "Slug prüfen (URL-Teil — SEO-relevant, sorgfältig wählen).",
+        "Logo, Cover, Adresse und Branding vollständig pflegen.",
+        "Schalter „Veröffentlicht“ aktivieren und speichern.",
+        "Profil unter gwada.app/[slug] auf dem Handy und Desktop testen.",
       ],
     },
     {
-      heading: "Widgets einbinden (iframe)",
-      body: "Jedes Modul mit Tab „Einbinden“ liefert einen iframe-Code. Alternativ: JSON-API für eigene Frontends.",
+      heading: "Widgets einbinden",
+      body: "Jedes Modul mit Tab „Einbinden“ liefert Snippet und Vorschau. Alternativ: JSON-API mit API-Schlüssel. Loader-Skript: /embed/v1/gwada.js.",
       table: {
         headers: ["Modul", "Embed-URL"],
         rows: [
@@ -267,12 +297,21 @@ export const oeffentlichesProfilGuide: UserGuidePage = {
       },
     },
     {
-      heading: "PWA / App-Icon",
-      body: "Gäste können dein Profil als App auf dem Homescreen installieren — eigenes Icon und Name je nach Branding.",
+      heading: "Embed-Inhalte steuern",
+      body: "Welche Plattformen und wie viele Beiträge im News-/Events-Embed erscheinen, legst du in den jeweiligen Modul-Einstellungen fest (Plattform-Toggles, Max. Beiträge, Chip „Alle“).",
     },
+    {
+      heading: "PWA / Homescreen",
+      body: "Gäste können das Profil als App auf dem Homescreen installieren — Icon und Name folgen deinem Branding.",
+    },
+  ],
+  tips: [
+    "Ohne Veröffentlichung bleiben Profil und Embeds für Gäste unsichtbar.",
+    "Teste Embeds im Tab Einbinden mit der integrierten Vorschau, bevor du den Code auf die Website setzt.",
   ],
   related: [
     { label: "Einstellungen → Übersicht", href: "/docs/handbuch/einstellungen" },
+    { label: "News einbinden", href: "/docs/handbuch/news" },
     { label: "API", href: "/docs/api" },
   ],
 };
@@ -280,9 +319,10 @@ export const oeffentlichesProfilGuide: UserGuidePage = {
 export const profilGuide: UserGuidePage = {
   slug: "profil",
   title: "Profil & Benachrichtigungen",
-  description: "Persönliches Konto, Mitarbeiter-Self-Service und Restaurant-Wechsel.",
+  description:
+    "Persönliches Konto, Anmeldung, Self-Service für Mitarbeiter und Restaurant-Wechsel.",
   intro: [
-    "Über dein Profil (Avatar oben rechts) verwaltest du persönliche Daten, Anmeldung und Benachrichtigungen. Mitarbeiter sehen zusätzliche Tabs — abhängig von den Einstellungen des Restaurants.",
+    "Über dein Profil (Avatar oben rechts) verwaltest du persönliche Daten, Anmeldung und Benachrichtigungen. Mitarbeiter sehen zusätzliche Tabs — abhängig von Rolle und Restaurant-Einstellungen.",
   ],
   sections: [
     {
@@ -290,9 +330,9 @@ export const profilGuide: UserGuidePage = {
       table: {
         headers: ["Tab", "Zweck"],
         rows: [
-          ["Übersicht", "Name, E-Mail, persönliche Daten"],
-          ["Anmeldung", "Passwort ändern, aktive Sitzungen"],
-          ["Benachrichtigungen", "Push/E-Mail für App-Ereignisse"],
+          ["Persönliche Daten / Übersicht", "Name, Kontaktdaten, Profilinfos"],
+          ["Anmeldung", "Passwort, Google-Verknüpfung, Sitzungen"],
+          ["Benachrichtigungen", "Push/E-Mail je Ereignistyp"],
         ],
       },
     },
@@ -303,20 +343,33 @@ export const profilGuide: UserGuidePage = {
         rows: [
           ["Meine Arbeitszeiten", "Eigene Stempelzeiten einsehen"],
           ["Dienstplan", "Geplante Schichten"],
-          ["Verfügbarkeit", "Wunschzeiten an Team melden"],
+          ["Verfügbarkeit", "Wunschzeiten an das Team melden"],
           ["Meine Dokumente", "Personalunterlagen (Gehaltszettel, Verträge)"],
-          ["Display-PIN", "PIN für Kiosk-Terminal setzen"],
+          ["Display-PIN", "PIN für Kiosk-Terminal setzen oder ändern"],
         ],
       },
     },
     {
+      heading: "Anmeldung absichern",
+      steps: [
+        "Profil → Anmeldung öffnen.",
+        "Passwort ändern, wenn du unsichere Zugangsdaten vermutest.",
+        "Optional Google-Konto verknüpfen für schnellere Anmeldung.",
+        "Aktive Sitzungen prüfen und fremde Geräte abmelden.",
+      ],
+    },
+    {
       heading: "Mehrere Restaurants",
-      body: "Unter „Meine Restaurants“ (Avatar-Menü) wechselst du zwischen Betrieben. Jedes Restaurant hat eigene Daten, Module und Berechtigungen.",
+      body: "Unter „Meine Restaurants“ im Avatar-Menü wechselst du zwischen Betrieben. Jedes Restaurant hat eigene Daten, Module und Berechtigungen — nach dem Wechsel prüfe die Sidebar.",
     },
     {
       heading: "Benachrichtigungen",
-      body: "Steuere, bei welchen Ereignissen du Push oder E-Mail erhältst — z. B. neue Reservierung, ungelesene Nachricht, Checklisten-Erinnerung.",
+      body: "Steuere pro Ereignis, ob du Push und/oder E-Mail erhältst — z. B. neue Reservierung, ungelesene Nachricht, Schichtplan-Änderung oder Checklisten-Erinnerung. Weniger Lärm = nur die Kanäle aktivieren, die du wirklich brauchst.",
     },
+  ],
+  tips: [
+    "Display-PIN solltest du nicht mit Kollegen teilen — jedes Gerät sperrt nach Auto-Lock erneut.",
+    "Fehlt ein Mitarbeiter-Tab, liegt das an Rolle oder Modul-Freischaltung — nicht an einem Fehler.",
   ],
   related: [
     { label: "Erste Schritte", href: "/docs/erste-schritte" },

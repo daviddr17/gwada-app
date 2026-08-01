@@ -48,26 +48,42 @@ export default function DocsPage() {
 
       <h2>Module</h2>
       <p>
-        Jedes Modul hat eine eigene Handbuch-Seite mit: Tabs und Bereichen, Buttons
-        und Toolbar-Elementen, Filter-Optionen (Bottom Sheet), Formularfeldern und
-        typischen Abläufen:
+        Jede Handbuch-Seite erklärt Tabs, Toolbar, Filter (Bottom Sheet), Formulare
+        und typische Abläufe — inklusive Tipps und Querverweisen zu verwandten Modulen:
       </p>
       <ul>
         {USER_GUIDE_PAGES.map((page) => (
           <li key={page.slug}>
-            <Link href={`/docs/handbuch/${page.slug}`}>{page.title}</Link>
+            <Link href={`/docs/handbuch/${page.slug}`}>{page.title}</Link> —{" "}
+            {page.description}
           </li>
         ))}
       </ul>
 
+      <h2>So nutzt du die Docs auf dem Handy</h2>
+      <p>
+        Oben rechts öffnet <strong>Inhalt</strong> das Inhaltsverzeichnis. Abschnitte
+        (Erste Schritte, Handbuch, API) lassen sich einklappen — standardmäßig ist nur
+        der aktive Bereich ausgeklappt.
+      </p>
+
       <h2>API (Entwickler)</h2>
       <p>
         Für Headless-Einbindungen und eigene Frontends: JSON-Endpunkte mit
-        API-Schlüssel pro Restaurant.
+        API-Schlüssel pro Restaurant. Starte mit Authentifizierung und Rate Limits,
+        danach Modul-Endpunkte.
       </p>
-      <p>
-        <Link href="/docs/api">Zur API-Dokumentation →</Link>
-      </p>
+      <ul>
+        <li>
+          <Link href="/docs/api">API-Einstieg</Link>
+        </li>
+        <li>
+          <Link href="/docs/api/authentication">Authentifizierung</Link>
+        </li>
+        <li>
+          <Link href="/docs/api/reservation">Reservierung (ausführlich)</Link>
+        </li>
+      </ul>
     </DocsProse>
   );
 }

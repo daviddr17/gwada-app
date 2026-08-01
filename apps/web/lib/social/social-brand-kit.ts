@@ -112,26 +112,6 @@ export const SOCIAL_TONE_LABELS: Record<SocialTone, string> = {
   modern: "Modern & klar",
 };
 
-export const SOCIAL_STYLE_PRESET_LABELS: Record<SocialStylePreset, string> = {
-  schlicht: "Schlicht",
-  modern: "Modern",
-  warm: "Warm",
-  fancy: "Fancy",
-  fein: "Fein / Fine Dining",
-};
-
-export const SOCIAL_STYLE_PRESET_HINTS: Record<SocialStylePreset, string> = {
-  schlicht: "Ruhig, viel Bild, wenig Text — passt zu den meisten Gastros.",
-  modern: "Klare Kanten, Akzentbalken, frischer Look.",
-  warm: "Weiche Karten, einladend — wie Stammlokal.",
-  fancy: "Auffällig, starker Rahmen — für Show-Posts.",
-  fein: "Dunkel, dezent, viel Weißraum — Fine Dining / Bar.",
-};
-
-/** Alias für UI-Konsistenz („Design“). */
-export const SOCIAL_STYLE_LABELS = SOCIAL_STYLE_PRESET_LABELS;
-export const SOCIAL_STYLE_HINTS = SOCIAL_STYLE_PRESET_HINTS;
-
 const LEGACY_STYLE_MAP: Record<string, SocialStylePreset> = {
   modern_plain: "schlicht",
   warm_gastro: "warm",

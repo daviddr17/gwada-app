@@ -26,7 +26,7 @@ const SHORT_LABELS: Partial<Record<HeroTabId, string>> = {
   dashboard: "Home",
   menu: "Menü",
   inventory: "Bestand",
-  reservierungen: "Resa",
+  reservierungen: "Reservierungen",
   pos: "POS",
   events: "Events",
   kontakte: "Chat",

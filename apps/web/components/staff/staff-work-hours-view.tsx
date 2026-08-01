@@ -585,7 +585,11 @@ export function StaffWorkHoursView({
                   {formatStaffEuroCents(wageSummary.totalWageCents)}
                 </span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
-                  Erfasste Zeiten × Vertragslohn
+                  {wageSummary.totalWageCents > 0 &&
+                  wageSummary.totalNetWorkHours > 0 &&
+                  wageSummary.actualAvgHourlyWageCents != null
+                    ? `${wageSummary.totalNetWorkHours.toFixed(1).replace(".", ",")} h × ${formatStaffEuroCents(wageSummary.actualAvgHourlyWageCents)}/h`
+                    : "Erfasste Zeiten × Vertrags-Stundenlohn"}
                 </span>
               </p>
               {summary.sickDays > 0 ? (
@@ -723,9 +727,28 @@ export function StaffWorkHoursView({
                               {line.netWorkH.toFixed(1)} h
                             </td>
                             <td className="px-4 py-2.5 text-right tabular-nums font-medium">
-                              {line.wageCents > 0
-                                ? formatStaffEuroCents(line.wageCents)
-                                : "—"}
+                              {line.wageCents > 0 ? (
+                                <span className="inline-flex flex-col items-end gap-0.5">
+                                  <span>
+                                    {formatStaffEuroCents(line.wageCents)}
+                                  </span>
+                                  {line.hourlyRateCents != null &&
+                                  line.wageHours > 0 ? (
+                                    <span className="text-xs font-normal text-muted-foreground">
+                                      {line.wageHours
+                                        .toFixed(1)
+                                        .replace(".", ",")}{" "}
+                                      h ×{" "}
+                                      {formatStaffEuroCents(
+                                        line.hourlyRateCents,
+                                      )}
+                                      /h
+                                    </span>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
                             </td>
                           </tr>
                         );

@@ -29,7 +29,9 @@ Scope before Hub-Offline-Plan (#1–#10). Decisions: Simulator iPad+iPhone, Ligh
 | GwadaPOSTests (54) | pass |
 | HandheldSoloSmoke | pass |
 | Phase3BonSheetSmoke | pass |
-| Phase3OrderFlowSmoke | fail (flaky after LAN pair — `pos.bon.sheet`; hub health guard added) |
+| Phase3OrderFlowSmoke (Solo) | pass |
+| Phase3OrderFlowSmoke (LAN-Pair) | pass **wenn** Hub `:8787` läuft; sonst **XCTSkip** (kein Fail) |
+| HandheldPairToLocalHub | pass wenn Hub up; sonst XCTSkip |
 
 Hub `:8787` healthy when iPad DEBUG-Hub läuft.
 

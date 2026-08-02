@@ -27,6 +27,15 @@ final class PosEnrollmentStore: ObservableObject {
     }
 
     private init() {
+        if ProcessInfo.processInfo.arguments.contains("-UITestingResetEnrollment") {
+            UserDefaults.standard.removeObject(forKey: hubConfiguredKey)
+            UserDefaults.standard.removeObject(forKey: handheldPairedKey)
+            UserDefaults.standard.removeObject(forKey: handheldCloudReadyKey)
+            UserDefaults.standard.removeObject(forKey: handheldTokenKey)
+            UserDefaults.standard.removeObject(forKey: handheldHubURLKey)
+            UserDefaults.standard.removeObject(forKey: restaurantNameKey)
+            PosEnrollmentCredential.clear()
+        }
         isHubEnrolled = UserDefaults.standard.bool(forKey: hubConfiguredKey)
         isHandheldPaired = UserDefaults.standard.bool(forKey: handheldPairedKey)
         handheldPairToken = UserDefaults.standard.string(forKey: handheldTokenKey)
@@ -97,5 +106,12 @@ final class PosEnrollmentStore: ObservableObject {
             restaurantDisplayName = ""
             UserDefaults.standard.removeObject(forKey: restaurantNameKey)
         }
+    }
+
+    /// Nur für UITests (`-UITestingResetEnrollment`) — frischer Onboarding-Stand.
+    func resetAllHandheldForUITesting() {
+        resetHandheldPairing()
+        resetHandheldCloud()
+        PosEnrollmentCredential.clear()
     }
 }

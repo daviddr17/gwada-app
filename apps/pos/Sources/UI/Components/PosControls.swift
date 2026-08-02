@@ -198,3 +198,45 @@ struct PosStepperControl: View {
         }
     }
 }
+
+/// Kompakte Mengen-Gruppe für Bon-Zeilen: − · Menge · +
+struct PosQtyStepper: View {
+    let quantity: Int
+    var onDecrement: () -> Void
+    var onIncrement: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button(action: onDecrement) {
+                Image(systemName: "minus")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(PosDesign.ink)
+                    .frame(width: PosLayout.touchMin, height: PosLayout.touchMin)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Weniger")
+
+            Text("\(quantity)")
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundStyle(PosDesign.ink)
+                .frame(minWidth: 28)
+                .accessibilityLabel("Menge \(quantity)")
+
+            Button(action: onIncrement) {
+                Image(systemName: "plus")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(PosDesign.ink)
+                    .frame(width: PosLayout.touchMin, height: PosLayout.touchMin)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Mehr")
+        }
+        .padding(.horizontal, 4)
+        .background(PosDesign.surface2, in: Capsule())
+        .overlay {
+            Capsule().strokeBorder(PosDesign.line, lineWidth: 1)
+        }
+    }
+}

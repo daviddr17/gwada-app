@@ -168,7 +168,7 @@ struct BonSheetView: View {
             {
                 PosButton(
                     title: "\(PosCourse.chipLabel(course)) schicken",
-                    kind: .primary,
+                    kind: .secondary,
                     enabled: !actionState.schickenCourses.contains(course)
                 ) {
                     Task { await schicken(course: course) }
@@ -180,53 +180,48 @@ struct BonSheetView: View {
     }
 
     private func cartLine(_ line: PosCartLine) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("\(line.quantity)×")
-                .font(PosDesign.fontMonoTabular)
-                .frame(width: 28, alignment: .leading)
-                .foregroundStyle(PosDesign.ink)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(line.name)
-                    .font(.body.weight(.medium))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(line.quantity)×")
+                    .font(PosDesign.fontMonoTabular)
                     .foregroundStyle(PosDesign.ink)
-                if !line.subtitle.isEmpty {
-                    Text(line.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(PosDesign.muted)
+                    .frame(minWidth: 28, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(line.name)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(PosDesign.ink)
+                    if !line.subtitle.isEmpty {
+                        Text(line.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(PosDesign.muted)
+                    }
+                    Button {
+                        cycleCourse(line)
+                    } label: {
+                        Text("\(PosCourse.chipLabel(line.course)) · tippen zum Wechseln")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(PosDesign.muted)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Gang wechseln")
                 }
+                Spacer(minLength: 8)
+                Text(PosMoney.format(line.lineTotalCents))
+                    .font(.body.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(PosDesign.ink)
             }
-            Spacer(minLength: 4)
-            HStack(spacing: 4) {
-                Button {
-                    cycleCourse(line)
-                } label: {
-                    Text("G\(line.course) ↻")
-                        .font(.caption.monospaced())
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Gang wechseln")
 
-                Button {
-                    decrement(line)
-                } label: {
-                    Image(systemName: "minus")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Weniger")
-
-                Button {
-                    increment(line)
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Mehr")
+            HStack(spacing: 0) {
+                Spacer(minLength: 28)
+                PosQtyStepper(
+                    quantity: line.quantity,
+                    onDecrement: { decrement(line) },
+                    onIncrement: { increment(line) }
+                )
+                Spacer(minLength: 0)
             }
-            Text(PosMoney.format(line.lineTotalCents))
-                .font(PosDesign.fontMonoTabular)
-                .frame(width: 64, alignment: .trailing)
-                .foregroundStyle(PosDesign.ink)
         }
+        .padding(.vertical, 4)
     }
 
     private func sentLine(_ line: SessionOpenLine) -> some View {

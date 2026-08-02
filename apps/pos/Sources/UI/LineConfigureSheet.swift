@@ -25,7 +25,7 @@ struct LineConfigureSheet: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.name).font(.title3.weight(.semibold))
                             Text(PosMoney.format(liveLineTotalCents))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(PosDesign.muted)
                         }
                         Spacer()
                         Stepper("\(quantity)", value: $quantity, in: 1 ... 99)
@@ -77,7 +77,7 @@ struct LineConfigureSheet: View {
                     Section("Beilagen") {
                         Text(sideRuleText(config: sideConfig))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(PosDesign.muted)
                         ForEach(sideCandidates) { side in
                             sideToggle(side: side, max: sideConfig.max)
                         }
@@ -91,7 +91,7 @@ struct LineConfigureSheet: View {
                     Section("Ohne …") {
                         Text("Zutaten abwählen — wird als „ohne …“ gebucht.")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(PosDesign.muted)
                         ForEach(item.recipe ?? []) { ing in
                             Toggle(isOn: Binding(
                                 get: { selectedOhne.contains(ing.ingredientId) },
@@ -219,7 +219,7 @@ struct LineConfigureSheet: View {
                 Spacer()
                 if delta > 0 {
                     Text("+\(PosMoney.format(delta))")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(PosDesign.muted)
                         .font(.footnote.monospacedDigit())
                 }
             }
@@ -241,7 +241,7 @@ struct LineConfigureSheet: View {
                 Text(side.name)
                 Spacer()
                 Text("+\(PosMoney.format(sidePrice))")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                     .font(.footnote.monospacedDigit())
             }
         }

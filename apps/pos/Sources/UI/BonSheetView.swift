@@ -92,22 +92,18 @@ struct BonSheetView: View {
     }
 
     private var receiptHeader: some View {
-        VStack(spacing: 6) {
-            Text("BON")
-                .font(.caption.weight(.semibold).monospaced())
-                .tracking(1.2)
-                .foregroundStyle(PosDesign.muted)
+        VStack(alignment: .leading, spacing: 6) {
             Text(tableLabel)
-                .font(PosDesign.fontDisplay)
+                .font(.title2.weight(.bold))
                 .foregroundStyle(PosDesign.ink)
             if let coverCount {
                 Text("\(coverCount) Gäste")
-                    .font(.caption.monospaced())
+                    .font(.subheadline)
                     .foregroundStyle(PosDesign.muted)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 4)
     }
 
     private var summeRow: some View {

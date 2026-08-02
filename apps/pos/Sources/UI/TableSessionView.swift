@@ -19,8 +19,6 @@ struct TableSessionView: View {
     @State private var sendPulse = false
     @State private var activeCourse = PosCourse.main
     @State private var guestCount = 2
-    @State private var bonDetent: PresentationDetent = .large
-
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -123,7 +121,7 @@ struct TableSessionView: View {
                     showBon = false
                 }
             )
-            .presentationDetents([.large, .medium], selection: $bonDetent)
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
             .modifier(PosSheetLiquidGlassBackground())
         }
@@ -205,7 +203,7 @@ struct TableSessionView: View {
         HStack(spacing: 6) {
             Image(systemName: "person.2")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             Button {
                 adjustGuests(-1)
             } label: {
@@ -234,7 +232,7 @@ struct TableSessionView: View {
             .disabled(guestCount >= 20)
             .accessibilityLabel("Gast hinzufügen")
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(PosDesign.muted)
         .accessibilityIdentifier("pos.session.guests")
         .accessibilityLabel("\(guestCount) Gäste")
     }
@@ -243,7 +241,7 @@ struct TableSessionView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Neue Artikel auf")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -273,42 +271,35 @@ struct TableSessionView: View {
         if openLines.isEmpty && cart.isEmpty {
             Text("Artikel antippen — der Bon sammelt die Bestellung.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 6)
         } else if !openLines.isEmpty {
-            Button {
-                showBon = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "doc.text")
-                        .font(.caption)
-                    Text("\(openLines.count) auf dem Bon · \(PosMoney.format(openTotal)) — antippen")
-                        .font(.caption.weight(.semibold))
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                }
-                .foregroundStyle(PosDesign.ink)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(PosDesign.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(PosDesign.line, lineWidth: 1)
-                }
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text")
+                    .font(.caption)
+                Text("\(openLines.count) auf dem Bon · \(PosMoney.format(openTotal)) — unten öffnen")
+                    .font(.caption.weight(.semibold))
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
+            .foregroundStyle(PosDesign.muted)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PosDesign.surface2, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(PosDesign.line, lineWidth: 1)
+            }
             .padding(.horizontal, 16)
-            .padding(.vertical, 4)
             .padding(.bottom, 10)
             .accessibilityIdentifier("pos.session.openBonHint")
-            .accessibilityLabel("Bon mit \(openLines.count) Positionen öffnen")
+            .accessibilityLabel("Bon mit \(openLines.count) Positionen — unten öffnen")
         } else if cartQuantity > 0 {
             Text("\(cartQuantity) neu im Bon — unten öffnen zum Schicken.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)

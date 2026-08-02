@@ -86,7 +86,7 @@ struct HandheldOnboardingWizardView: View {
                 Task { await runtime.startHandheldSolo(preferCloud: false) }
             }
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(PosDesign.muted)
             .frame(maxWidth: .infinity)
             #endif
         }
@@ -96,14 +96,21 @@ struct HandheldOnboardingWizardView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Einrichtungs-Code")
                 .font(.title2.weight(.semibold))
+                .foregroundStyle(PosDesign.ink)
             Text("Web → POS → Geräte → Code erzeugen, hier eingeben.")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             TextField("Code", text: $setupCode)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
                 .padding(12)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(PosDesign.surface2)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12).strokeBorder(PosDesign.line, lineWidth: 1)
+                }
 
             if !errorText.isEmpty {
                 Text(errorText)

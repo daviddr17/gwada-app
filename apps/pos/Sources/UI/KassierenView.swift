@@ -72,7 +72,7 @@ struct KassierenView: View {
                         ? "Anteil schon bezahlt — weiter über „Gleich teilen“ oder Rest."
                         : "Positionen antippen, dann Auswahl oder Rest kassieren.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(PosDesign.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, PosLayout.page)
                         .padding(.bottom, PosLayout.stack)
@@ -93,7 +93,7 @@ struct KassierenView: View {
                         }
                     }
                     .padding(.horizontal, PosLayout.page)
-                    .padding(.bottom, 160)
+                    .padding(.bottom, PosLayout.page)
                 }
                 .opacity(mode == .even && !allPaid ? 0.55 : 1)
             }
@@ -144,6 +144,8 @@ struct KassierenView: View {
                     },
                     onClose: { payTarget = nil }
                 )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(item: $shownReceipt) { receipt in
                 PosGuestReceiptSheet(receipt: receipt) {
@@ -163,7 +165,7 @@ struct KassierenView: View {
                                         .font(.headline)
                                     Text("\(receipt.label ?? "Zahlung") · \(methodTitle(receipt.method))")
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(PosDesign.muted)
                                 }
                                 Spacer()
                                 Text(PosMoney.format(receipt.paidTotalCents))
@@ -179,7 +181,7 @@ struct KassierenView: View {
                         }
                     }
                 }
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
             }
             .onAppear {
                 if selected.isEmpty {
@@ -200,12 +202,12 @@ struct KassierenView: View {
                     .font(.title2.weight(.bold))
                 Text(allPaid ? "✓ Komplett bezahlt" : "Noch offen")
                     .font(.subheadline)
-                    .foregroundStyle(allPaid ? PosDesign.green : .secondary)
+                    .foregroundStyle(allPaid ? PosDesign.green : PosDesign.muted)
             }
             Spacer(minLength: 8)
             Text(PosMoney.format(openTotal))
                 .font(.title2.weight(.semibold).monospacedDigit())
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(PosDesign.ink)
         }
         .padding(.horizontal, PosLayout.page)
         .padding(.top, 8)
@@ -220,16 +222,16 @@ struct KassierenView: View {
         VStack(spacing: PosLayout.stack) {
             HStack {
                 Text("Geteilt durch")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                 Spacer()
                 PosStepperControl(value: evenN, range: 1 ... 12) { evenN = $0 }
             }
             Text(PosMoney.format(shareAmount))
                 .font(.largeTitle.weight(.semibold).monospacedDigit())
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(PosDesign.ink)
             Text("pro Anteil · letzter Anteil zahlt den Rest")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
                 .multilineTextAlignment(.center)
             if settledShareCents > 0 {
                 Text("✓ Bereits über Anteile: \(PosMoney.format(settledShareCents))")
@@ -265,14 +267,14 @@ struct KassierenView: View {
                         if !line.detail.isEmpty {
                             Text(line.detail)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(PosDesign.muted)
                                 .lineLimit(2)
                         }
                     }
                     Spacer(minLength: 4)
                     if interactive {
                         Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(isOn ? Color.accentColor : .secondary)
+                            .foregroundStyle(isOn ? PosDesign.brandAccent : PosDesign.muted)
                             .font(.title3)
                     }
                     Text(PosMoney.format(line.openCents))
@@ -291,16 +293,11 @@ struct KassierenView: View {
             if allPaid {
                 Text("✓ Alles bezahlt — Tisch freigeben, wenn die Gäste gehen.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                 PosButton(title: "\(tableLabel) freigeben", kind: .primary) {
                     Task { await onRelease() }
-                }
-                if !tableReceipts.isEmpty {
-                    PosButton(title: "Belege anzeigen (\(tableReceipts.count))", kind: .secondary) {
-                        showTableReceipts = true
-                    }
                 }
             } else if mode == .positions {
                 HStack(spacing: PosLayout.dockGap) {

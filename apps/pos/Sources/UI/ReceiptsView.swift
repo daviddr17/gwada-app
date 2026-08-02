@@ -41,7 +41,7 @@ struct ReceiptsView: View {
                                 ? "Lokale Belege (auch offline / Demo)."
                                 : "Lokale Demo-Belege — Cloud-Login bringt TSE-Quittungen.")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(PosDesign.muted)
                         }
                         ForEach(localReceipts) { receipt in
                             Button {
@@ -90,32 +90,32 @@ struct ReceiptsView: View {
             HStack {
                 Text(receipt.tableLabel)
                     .font(.headline)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(PosDesign.ink)
                 Spacer()
                 PosStatusBadge(title: "Bezahlt", emphasized: true)
             }
             HStack {
                 Text("#\(receipt.orderNumber)")
                     .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                 Text("·")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                 Text(methodLabel(receipt.method))
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                 Spacer()
                 Text(PosMoney.format(receipt.paidTotalCents))
                     .font(.body.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(PosDesign.ink)
             }
             if let label = receipt.label {
                 Text(label)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
             }
             Text("Antippen für Gastbeleg")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(PosDesign.muted)
         }
         .padding(.vertical, 4)
     }
@@ -135,12 +135,12 @@ struct ReceiptsView: View {
             HStack {
                 Text("#\(receipt.orderNumber)")
                     .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                 Text("·")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                 Text(methodLabel(receipt.method))
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                 Spacer()
                 Text(PosMoney.format(receipt.amountCents))
                     .font(.body.weight(.semibold).monospacedDigit())
@@ -148,7 +148,7 @@ struct ReceiptsView: View {
             if receipt.tipCents > 0 {
                 Text("inkl. Trinkgeld \(PosMoney.format(receipt.tipCents))")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
             }
             ShareLink(
                 item: guestReceiptText(receipt),
@@ -240,7 +240,7 @@ struct ReceiptsView: View {
                 Spacer()
                 if selected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(PosDesign.brandAccent)
                 }
             }
         }

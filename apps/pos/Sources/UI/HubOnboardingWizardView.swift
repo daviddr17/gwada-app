@@ -71,7 +71,7 @@ struct HubOnboardingWizardView: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(PosDesign.muted)
             .frame(maxWidth: .infinity)
             #endif
         }
@@ -81,13 +81,17 @@ struct HubOnboardingWizardView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Zugang")
                 .font(.title2.weight(.semibold))
+                .foregroundStyle(PosDesign.ink)
             TextField("Code aus dem Dashboard", text: $setupCode)
                 .textInputAutocapitalization(.characters)
                 .padding(12)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
+                .background(RoundedRectangle(cornerRadius: 12).fill(PosDesign.surface2))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12).strokeBorder(PosDesign.line, lineWidth: 1)
+                }
             Text("Web → POS → Geräte → Einrichtungs-Code.")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
 
             if !errorText.isEmpty {
                 Text(errorText)
@@ -130,7 +134,7 @@ struct HubOnboardingWizardView: View {
                 .foregroundStyle(PosDesign.muted)
             Text("Pairing per QR folgt im nächsten Schritt. Bis dahin: Gerät → Status.")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             Spacer()
         }
     }

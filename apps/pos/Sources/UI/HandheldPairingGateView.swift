@@ -15,35 +15,37 @@ struct HandheldPairingGateView: View {
             VStack(spacing: 20) {
                 Image(systemName: "ipad.and.iphone")
                     .font(.system(size: 48))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(PosDesign.brandAccent)
 
                 if runtime.phase == .awaitingApproval, let challenge = runtime.pairingChallenge {
                     Text("Warte auf Freigabe am iPad")
                         .font(.title2.weight(.semibold))
+                        .foregroundStyle(PosDesign.ink)
                     Text("Vergleiche diesen Code auf dem iPad und tippe dort „Freigeben“.")
                         .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(PosDesign.muted)
                         .padding(.horizontal)
                     Text(challenge.verificationCode)
                         .font(.system(size: 40, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(PosDesign.ink)
                     ProgressView()
                     Button("Abbrechen") { runtime.cancelHandheldPairing() }
                         .font(.caption)
                 } else {
                     Text("iPad-Kasse koppeln")
                         .font(.title2.weight(.semibold))
+                        .foregroundStyle(PosDesign.ink)
                     Text(
                         "Optional: Live-Tische im WLAN. Speisekarte kommt weiter aus der Cloud — Freigabe bleibt bis zum Widerruf."
                     )
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                     .padding(.horizontal)
 
                     if !runtime.statusMessage.isEmpty {
                         Text(runtime.statusMessage)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(PosDesign.muted)
                             .multilineTextAlignment(.center)
                     }
 
@@ -75,13 +77,13 @@ struct HandheldPairingGateView: View {
                         }
                     }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                     #endif
                 }
             }
             .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .background(PosDesign.bg.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Schließen") { dismiss() }

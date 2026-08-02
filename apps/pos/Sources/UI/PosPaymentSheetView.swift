@@ -76,7 +76,7 @@ struct PosPaymentSheetView: View {
                 }
             }
         }
-        .presentationDetents([.large, .medium])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .accessibilityIdentifier("pos.payment.sheet")
     }
@@ -91,11 +91,11 @@ struct PosPaymentSheetView: View {
                 }
                 Text("\(label) · \(tableName)")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
 
                 HStack {
                     Text("Zu zahlen")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(PosDesign.muted)
                     Spacer()
                     Text(PosMoney.format(totalCents))
                         .font(.title2.weight(.semibold).monospacedDigit())
@@ -136,7 +136,7 @@ struct PosPaymentSheetView: View {
                 } else {
                     Text("Zahlungsart wählen, um fortzufahren")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(PosDesign.muted)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                 }
@@ -148,7 +148,7 @@ struct PosPaymentSheetView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Trinkgeld")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     tipChip(.none, title: "Kein")
@@ -175,7 +175,7 @@ struct PosPaymentSheetView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Zahlungsart")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             HStack(spacing: 8) {
                 methodButton(.cash, title: "Bar", sub: "Rückgeld")
                 methodButton(.card, title: "Karte", sub: "EC / NFC")
@@ -196,7 +196,7 @@ struct PosPaymentSheetView: View {
                     .lineLimit(1)
                 Text(sub)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
@@ -204,11 +204,11 @@ struct PosPaymentSheetView: View {
             .padding(.horizontal, 8)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(active ? Color.accentColor.opacity(0.12) : PosDesign.surface)
+                    .fill(active ? PosDesign.brandActionFill : PosDesign.surface)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(active ? Color.accentColor : PosDesign.line, lineWidth: active ? 1.5 : 1)
+                    .strokeBorder(active ? PosDesign.brandActionBorder : PosDesign.line, lineWidth: active ? 1.5 : 1)
             }
         }
         .buttonStyle(.plain)
@@ -218,7 +218,7 @@ struct PosPaymentSheetView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Gegeben")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             HStack(spacing: 8) {
                 ForEach(tenders, id: \.self) { value in
                     Button {
@@ -235,7 +235,7 @@ struct PosPaymentSheetView: View {
             if let given = givenCents {
                 HStack {
                     Text("Rückgeld")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(PosDesign.muted)
                     Spacer()
                     Text(PosMoney.format(given - totalCents))
                         .font(.title3.weight(.semibold).monospacedDigit())
@@ -256,12 +256,12 @@ struct PosPaymentSheetView: View {
                 .font(.headline)
             Text(PosMoney.format(totalCents))
                 .font(.title3.monospacedDigit())
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(PosDesign.ink)
             Text(method == .paypal
                 ? "Gast scannt den Code (Demo)."
                 : "Gast kann Karte oder Smartphone auflegen (Demo).")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
                 .multilineTextAlignment(.center)
             Button("Abbrechen") {
                 stage = .select
@@ -281,11 +281,11 @@ struct PosPaymentSheetView: View {
                 .font(.title2.weight(.bold))
             Text("\(PosMoney.format(totalCents)) · \(methodLabel)")
                 .font(.body.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             if tipCents > 0 {
                 Text("davon \(PosMoney.format(tipCents)) Trinkgeld")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(PosDesign.muted)
             }
         }
         .frame(maxWidth: .infinity)

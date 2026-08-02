@@ -104,11 +104,8 @@ struct TablesHomeView: View {
     private func floorHeader(floor: PosLanFloorSnapshot, tableCount: Int) -> some View {
         let occupied = floor.openSessions.count
         VStack(alignment: .leading, spacing: 4) {
-            Text(floorNavigationTitle)
-                .font(.system(.title, design: .rounded).weight(.bold))
-                .foregroundStyle(PosDesign.ink)
             Text("\(occupied) von \(tableCount) Tischen belegt")
-                .font(.subheadline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(PosDesign.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

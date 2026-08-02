@@ -26,10 +26,8 @@ struct SawtoothEdge: Shape {
 struct PaperReceiptView<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
-    /// Thermopapier-Look wie Prototyp (`C.paper`) — unabhängig von Light/Dark.
-    private var paperFill: Color {
-        Color(red: 246 / 255, green: 241 / 255, blue: 226 / 255)
-    }
+    /// Thermopapier nur für echte Belege — nicht für Bestell-Bon.
+    private var paperFill: Color { PosDesign.paper }
 
     var body: some View {
         VStack(spacing: 0) {

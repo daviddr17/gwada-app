@@ -25,6 +25,16 @@ import SwiftUI
             Text("Row").font(.headline)
             PosCardRow {
                 Text("1× Wiener Schnitzel")
+                    .foregroundStyle(PosDesign.ink)
+            }
+
+            Text("Panel").font(.headline)
+            PosPanelCard {
+                Text("Bon-Inhalt ohne Quittungs-Papier")
+                    .foregroundStyle(PosDesign.ink)
+                Text("Nur echte Belege nutzen PaperReceiptView.")
+                    .font(.caption)
+                    .foregroundStyle(PosDesign.muted)
             }
         }
         .padding(PosLayout.page)

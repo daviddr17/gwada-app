@@ -11,95 +11,111 @@ enum PosTableVisualStatus: String, CaseIterable {
     case bezahlt
 }
 
-/// Design Tokens + Branding für die native POS-App (Prototyp-Palette + dynamischer Accent).
-/// Adaptive Light/Dark semantic tokens; Light = warm cream baseline, Dark = briefing greens.
+/// Design Tokens — Gwada-Marke wie Web/Superadmin (`globals.css` `--brand-accent` #EAB308).
+/// Restaurant-`brandAccentHex` wird in der POS-UI **nicht** übernommen.
+/// Light ≈ Web `:root` (nahezu weiß / Card weiß); Dark bleibt lesbar.
 enum PosDesign {
+    /// Web `--brand-accent` / AccentColor asset.
     static let defaultAccentHex = "#EAB308"
+    /// Web `--accent-foreground`.
+    static let accentForeground = Color(red: 23 / 255, green: 23 / 255, blue: 23 / 255)
+
     static let cardRadius: CGFloat = PosLayout.cardRadius
     static let chipRadius: CGFloat = PosLayout.chipRadius
     static let gridSpacing: CGFloat = 12
     static let sectionSpacing: CGFloat = PosLayout.section
     static let touchMin: CGFloat = PosLayout.touchMin
 
-    /// Dunkler Text auf warmem Gold (wie Web `--accent-foreground`).
-    static let accentForeground = Color(red: 23 / 255, green: 23 / 255, blue: 23 / 255)
+    /// Feste Markenfarbe (nicht Tenant-Override).
+    static let brandAccent = Color(uiColor: uiColor(hex: defaultAccentHex))
+
+    /// Web `--brand-action-bg` (≈ accent 13% auf Card).
+    static let brandActionFill = adaptiveColor(
+        light: uiColor(hex: "#F7F1D6"),
+        dark: uiColor(hex: "#3A3420")
+    )
+    static let brandActionFillPressed = adaptiveColor(
+        light: uiColor(hex: "#F0E6B8"),
+        dark: uiColor(hex: "#4A4228")
+    )
+    /// Web `--brand-action-border`.
+    static let brandActionBorder = adaptiveColor(
+        light: uiColor(hex: "#E5D48A"),
+        dark: uiColor(hex: "#6B5E2E")
+    )
 
     // MARK: - Status (Tischplan)
 
     static let statusFree = Color(.systemGray)
-    static let statusOccupied = Color.accentColor
-    static let statusBill = Color.orange
-    static let statusPaid = green
+    static let statusOccupied = brandAccent
     static let statusConflict = Color.red
     static let statusAmber = Color(red: 0.85, green: 0.55, blue: 0.15)
 
-    // MARK: - Foundation tokens (adaptive Light/Dark)
+    // MARK: - Foundation (Web light / readable dark)
 
+    /// Web `--background` ≈ oklch(0.99 …)
     static let bg = adaptiveColor(
-        light: rgba(0.96, 0.95, 0.93),
-        dark: uiColor(hex: "#101B16")
+        light: uiColor(hex: "#FCFCFB"),
+        dark: uiColor(hex: "#1C1C1E")
     )
+    /// Web `--card`
     static let surface = adaptiveColor(
-        light: rgba(1.0, 0.99, 0.97),
-        dark: uiColor(hex: "#18261F")
+        light: uiColor(hex: "#FFFFFF"),
+        dark: uiColor(hex: "#2C2C2E")
     )
+    /// Web `--secondary` / `--muted`
     static let surface2 = adaptiveColor(
-        light: rgba(0.94, 0.93, 0.90),
-        dark: uiColor(hex: "#1E3028")
+        light: uiColor(hex: "#F5F5F3"),
+        dark: uiColor(hex: "#3A3A3C")
     )
+    /// Web `--border`
     static let line = adaptiveColor(
-        light: rgba(0.85, 0.83, 0.79),
-        dark: uiColor(hex: "#2A3D34")
+        light: uiColor(hex: "#E8E6E1"),
+        dark: uiColor(hex: "#48484A")
     )
+    /// Web `--foreground` / primary text
     static let ink = adaptiveColor(
-        light: rgba(0.12, 0.11, 0.10),
-        dark: uiColor(hex: "#F5F0E8")
+        light: uiColor(hex: "#2C2C33"),
+        dark: uiColor(hex: "#F5F5F7")
     )
+    /// Web `--muted-foreground`
     static let muted = adaptiveColor(
-        light: rgba(0.45, 0.43, 0.40),
-        dark: uiColor(hex: "#A8B5AD")
+        light: uiColor(hex: "#6B6B76"),
+        dark: uiColor(hex: "#A1A1A6")
     )
     static let brass = adaptiveColor(
-        light: rgba(0.72, 0.58, 0.32),
-        dark: rgba(0.78, 0.64, 0.38)
+        light: uiColor(hex: "#B8924A"),
+        dark: uiColor(hex: "#C9A45C")
     )
-    static let paper = adaptiveColor(
-        light: rgba(0.98, 0.96, 0.90),
-        dark: rgba(0.14, 0.20, 0.17)
-    )
+    /// Nur für echte Belege (`PaperReceiptView`), nicht Bestell-UI.
+    static let paper = Color(red: 246 / 255, green: 241 / 255, blue: 226 / 255)
     static let green = adaptiveColor(
-        light: rgba(0.22, 0.55, 0.35),
-        dark: rgba(0.35, 0.68, 0.48)
+        light: uiColor(hex: "#2F7A4D"),
+        dark: uiColor(hex: "#3D9B63")
     )
 
     static var fontDisplay: Font { .system(.largeTitle, design: .rounded).weight(.bold) }
     static var fontBody: Font { .body }
     static var fontMonoTabular: Font { .body.monospaced().monospacedDigit() }
 
-    static var cardBackground: some ShapeStyle {
-        surface
-    }
-
-    static var elevatedBackground: some ShapeStyle {
-        surface2
-    }
+    static var cardBackground: some ShapeStyle { surface }
 
     // MARK: - Status dots (floor)
 
     static func statusDotColor(for status: PosTableVisualStatus) -> Color {
         switch status {
         case .frei:
-            return adaptiveColor(light: rgba(0.54, 0.53, 0.50), dark: rgba(0.42, 0.46, 0.44))
+            return adaptiveColor(light: uiColor(hex: "#8E8E93"), dark: uiColor(hex: "#636366"))
         case .besetzt:
-            return adaptiveColor(light: rgba(0.36, 0.54, 0.45), dark: brassUIColor)
+            return adaptiveColor(light: uiColor(hex: "#5B8A6E"), dark: brassUIColor)
         case .bestellt:
-            return adaptiveColor(light: rgba(0.72, 0.42, 0.13), dark: rgba(0.91, 0.55, 0.23))
+            return adaptiveColor(light: uiColor(hex: "#C46A18"), dark: uiColor(hex: "#E88A2E"))
         case .serviert:
-            return adaptiveColor(light: rgba(0.24, 0.55, 0.43), dark: rgba(0.30, 0.65, 0.48))
+            return adaptiveColor(light: uiColor(hex: "#2F8A68"), dark: uiColor(hex: "#3DA87A"))
         case .zahlt:
-            return adaptiveColor(light: rgba(0.83, 0.57, 0.04), dark: rgba(0.92, 0.70, 0.03))
+            return brandAccent
         case .bezahlt:
-            return adaptiveColor(light: rgba(0.48, 0.36, 0.66), dark: rgba(0.65, 0.55, 0.98))
+            return adaptiveColor(light: uiColor(hex: "#6B5B99"), dark: uiColor(hex: "#9B8AD4"))
         }
     }
 
@@ -122,9 +138,10 @@ enum PosDesign {
         }
     }
 
+    /// Immer Gwada-Marke — Restaurant-Hex wird ignoriert.
     static func resolveAccentHex(_ raw: String?) -> String {
-        guard let normalized = normalizeHex(raw) else { return defaultAccentHex }
-        return normalized
+        _ = raw
+        return defaultAccentHex
     }
 
     static func color(hex: String) -> Color {
@@ -194,15 +211,11 @@ enum PosDesign {
         return UIColor(red: r, green: g, blue: b, alpha: 1)
     }
 
-    private static func rgba(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, alpha: CGFloat = 1) -> UIColor {
-        UIColor(red: r, green: g, blue: b, alpha: alpha)
-    }
-
     private static var brassUIColor: UIColor {
-        rgba(0.78, 0.64, 0.38)
+        uiColor(hex: "#C9A45C")
     }
 
-    private static func adaptiveColor(light: UIColor, dark: UIColor) -> Color {
+    static func adaptiveColor(light: UIColor, dark: UIColor) -> Color {
         Color(UIColor { traits in
             traits.userInterfaceStyle == .dark ? dark : light
         })

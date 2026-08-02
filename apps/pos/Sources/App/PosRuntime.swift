@@ -28,12 +28,12 @@ final class PosRuntime: ObservableObject {
     @Published private(set) var syncPending: Int = 0
     @Published private(set) var isSignedIn = false
     @Published private(set) var dataSourceLabel = "—"
-    /// Aktiver Restaurant-Akzent (Gwada-Gold oder Tenant).
+    /// Feste Gwada-Marke (`#EAB308`) — nicht Restaurant-Settings.
     @Published private(set) var brandAccentHex = PosDesign.defaultAccentHex
     @Published private(set) var pendingPrintJobs = 0
 
     var brandTint: Color {
-        PosDesign.color(hex: brandAccentHex)
+        PosDesign.brandAccent
     }
 
     @Published var restaurantIdInput = ""
@@ -198,6 +198,7 @@ final class PosRuntime: ObservableObject {
 
 
     private func applyBrandAccent(fromHex raw: String?) {
+        // POS nutzt feste Gwada-Marke (Web `--brand-accent`), nicht Restaurant-Settings.
         brandAccentHex = PosDesign.resolveAccentHex(raw)
     }
 
@@ -1095,58 +1096,6 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Umziehen fehlgeschlagen: \(error.localizedDescription)"
         }
         _ = fromTableId
-    }
-
-    func addDemoOrder(tableId: String) async {
-        guard role == .hub else { return }
-        guard let menuItem = PosHubState.shared.menu?.items.first else {
-            statusMessage = "Keine Speisekarte geladen."
-            return
-        }
-        let restaurantId = PosHubState.shared.restaurantId
-
-        // Sicherstellen, dass Session existiert (online bevorzugen)
-        var sessionId: String?
-        if let open = PosHubState.shared.makeSnapshot().floor.openSessions.first(where: { $0.dining_table_id == tableId }) {
-            sessionId = open.id
-        } else {
-            await openTable(tableId: tableId, covers: 2)
-            sessionId = PosHubState.shared.makeSnapshot().floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id
-        }
-        guard let sessionId else {
-            statusMessage = "Keine Tisch-Session."
-            return
-        }
-
-        PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: menuItem.priceCents)
-        publishSnapshot(PosHubState.shared.makeSnapshot())
-
-        do {
-            _ = try await PosCloudClient.createOrder(
-                restaurantId: restaurantId,
-                tableSessionId: sessionId,
-                items: [
-                    PosCloudOrderItem(
-                        menuItemId: menuItem.id,
-                        quantity: 1,
-                        notes: nil,
-                        course: PosCourse.main,
-                        ohneIngredientIds: nil,
-                        modifiers: nil
-                    ),
-                ]
-            )
-            statusMessage = "„\(menuItem.name)“ in der Cloud gebucht."
-        } catch {
-            PosSyncQueue.shared.enqueueCreateOrder(PosSyncCreateOrderPayload(
-                restaurantId: restaurantId,
-                tableSessionId: sessionId,
-                items: [PosSyncOrderItem(menuItemId: menuItem.id, quantity: 1, notes: nil)],
-                localOrderId: UUID().uuidString
-            ))
-            syncPending = PosSyncQueue.shared.pendingCount
-            statusMessage = "„\(menuItem.name)“ lokal — Sync später (\(error.localizedDescription))"
-        }
     }
 
     private func saveConfigFromInputs() {

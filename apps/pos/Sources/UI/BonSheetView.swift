@@ -46,33 +46,35 @@ struct BonSheetView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                PaperReceiptView {
-                    receiptHeader
+                PosPanelCard {
+                    VStack(alignment: .leading, spacing: PosLayout.stack) {
+                        receiptHeader
 
-                    if !hasAnything {
-                        Text("Noch keine Artikel. Bon schließen und Artikel antippen.")
-                            .font(.subheadline)
-                            .foregroundStyle(PosDesign.muted)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 20)
-                    }
-
-                    ForEach(PosCourse.uiCourses, id: \.self) { course in
-                        let cartLines = cart.filter { $0.course == course }
-                        let sentLines = openLines.filter { $0.course == course }
-
-                        if !cartLines.isEmpty || !sentLines.isEmpty {
-                            courseSection(
-                                course: course,
-                                cartLines: cartLines,
-                                sentLines: sentLines
-                            )
+                        if !hasAnything {
+                            Text("Noch keine Artikel. Bon schließen und Artikel antippen.")
+                                .font(.subheadline)
+                                .foregroundStyle(PosDesign.muted)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 20)
                         }
-                    }
 
-                    if hasAnything {
-                        summeRow
+                        ForEach(PosCourse.uiCourses, id: \.self) { course in
+                            let cartLines = cart.filter { $0.course == course }
+                            let sentLines = openLines.filter { $0.course == course }
+
+                            if !cartLines.isEmpty || !sentLines.isEmpty {
+                                courseSection(
+                                    course: course,
+                                    cartLines: cartLines,
+                                    sentLines: sentLines
+                                )
+                            }
+                        }
+
+                        if hasAnything {
+                            summeRow
+                        }
                     }
                 }
                 .padding(PosDesign.sectionSpacing)

@@ -40,8 +40,8 @@ struct PosBonTabAccessoryButton: View {
                             .font(.caption2.weight(.bold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.accentColor))
-                            .foregroundStyle(.white)
+                            .background(Capsule().fill(PosDesign.brandAccent))
+                            .foregroundStyle(PosDesign.accentForeground)
                     }
                 }
             } icon: {

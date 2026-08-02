@@ -70,6 +70,17 @@ final class Phase3OrderFlowSmokeUITests: XCTestCase {
 
     @MainActor
     private func pairAgainstLocalHub(app: XCUIApplication) throws {
+        // Hub muss auf dem iPad-Sim laufen (DEBUG lokal), sonst schlägt Pairing fehl.
+        let health = URL(string: "http://127.0.0.1:8787/v1/health")!
+        let healthExp = expectation(description: "hub-health")
+        var hubUp = false
+        URLSession.shared.dataTask(with: health) { _, response, _ in
+            hubUp = (response as? HTTPURLResponse)?.statusCode == 200
+            healthExp.fulfill()
+        }.resume()
+        wait(for: [healthExp], timeout: 3)
+        XCTAssertTrue(hubUp, "iPad-Hub :8787 muss laufen bevor Pairing-UI-Test")
+
         let openLan = app.buttons["Stattdessen mit iPad-Kasse koppeln"]
         if openLan.waitForExistence(timeout: 4) {
             openLan.tap()

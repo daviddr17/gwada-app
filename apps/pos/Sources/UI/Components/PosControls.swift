@@ -4,7 +4,7 @@ import SwiftUI
 struct PosChip: View {
     let title: String
     var selected: Bool = false
-    var tint: Color = .accentColor
+    var tint: Color = PosDesign.brandAccent
 
     var body: some View {
         Text(title)
@@ -14,13 +14,29 @@ struct PosChip: View {
             .padding(.horizontal, PosLayout.chipPadX)
             .padding(.vertical, PosLayout.chipPadY)
             .frame(minHeight: PosLayout.touchMin)
-            .background(selected ? tint.opacity(0.18) : Color(.tertiarySystemFill))
-            .foregroundStyle(selected ? tint : .primary)
+            .background(selected ? tint.opacity(0.22) : PosDesign.surface2)
+            .foregroundStyle(selected ? PosDesign.accentForeground : PosDesign.ink)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .strokeBorder(selected ? tint.opacity(0.45) : Color.clear, lineWidth: 1)
+                    .strokeBorder(selected ? tint.opacity(0.55) : PosDesign.line, lineWidth: 1)
             )
+    }
+}
+
+/// Kartenfläche für Listen/Bon (kein Thermopapier — das bleibt `PaperReceiptView`).
+struct PosPanelCard<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(PosLayout.page)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PosDesign.surface, in: RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous)
+                    .strokeBorder(PosDesign.line, lineWidth: 1)
+            }
     }
 }
 
@@ -28,7 +44,7 @@ struct PosChip: View {
 struct PosStatusBadge: View {
     let title: String
     var emphasized: Bool = false
-    var tint: Color = .accentColor
+    var tint: Color = PosDesign.brandAccent
 
     var body: some View {
         Text(title)
@@ -37,8 +53,8 @@ struct PosStatusBadge: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(minHeight: 28)
-            .background(emphasized ? tint.opacity(0.16) : Color(.tertiarySystemFill))
-            .foregroundStyle(emphasized ? tint : .secondary)
+            .background(emphasized ? tint.opacity(0.22) : PosDesign.surface2)
+            .foregroundStyle(emphasized ? PosDesign.accentForeground : PosDesign.muted)
             .clipShape(Capsule())
     }
 }
@@ -65,13 +81,13 @@ struct PosSegmentedControl<Option: Hashable & Identifiable>: View where Option.I
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .fill(selection.id == option.id
-                                    ? Color.accentColor.opacity(0.2)
+                                    ? PosDesign.brandActionFill
                                     : Color.clear)
                         )
                         .foregroundStyle(
                             selection.id == option.id
                                 ? PosDesign.accentForeground
-                                : Color.secondary
+                                : PosDesign.muted
                         )
                 }
                 .buttonStyle(.plain)
@@ -99,7 +115,7 @@ struct PosCardRow<Content: View>: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(
-                        emphasized ? Color.accentColor.opacity(0.55) : PosDesign.line,
+                        emphasized ? PosDesign.brandAccent.opacity(0.55) : PosDesign.line,
                         lineWidth: 1
                     )
             }

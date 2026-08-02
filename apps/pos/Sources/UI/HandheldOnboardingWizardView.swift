@@ -33,12 +33,13 @@ struct HandheldOnboardingWizardView: View {
             .padding(24)
             .frame(maxWidth: 480)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .background(PosDesign.bg.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Handgerät einrichten")
                         .font(.headline)
+                        .foregroundStyle(PosDesign.ink)
                 }
             }
             .sheet(isPresented: $showLanPairing) {
@@ -52,17 +53,18 @@ struct HandheldOnboardingWizardView: View {
         VStack(alignment: .leading, spacing: 20) {
             Image(systemName: "iphone")
                 .font(.system(size: 44))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(PosDesign.brandAccent)
             Text("Gwada Service")
                 .font(.largeTitle.weight(.bold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(PosDesign.ink)
             Text("Bestellen am Tisch — Speisekarte aus der Cloud.")
                 .font(.title3.weight(.semibold))
+                .foregroundStyle(PosDesign.ink)
             Text(
                 "Einmal mit dem Code aus dem Dashboard verbinden. Danach läuft das iPhone auch ohne iPad; die Karte wird offline gespeichert."
             )
             .font(.body)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(PosDesign.muted)
             Spacer()
             Button {
                 step = .code
@@ -75,7 +77,8 @@ struct HandheldOnboardingWizardView: View {
             Button("Stattdessen mit iPad-Kasse koppeln") {
                 showLanPairing = true
             }
-            .font(.footnote)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(PosDesign.ink)
             .frame(maxWidth: .infinity)
 
             #if DEBUG
@@ -131,18 +134,19 @@ struct HandheldOnboardingWizardView: View {
         VStack(alignment: .leading, spacing: 16) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 48))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(PosDesign.brandAccent)
             Text("Bereit")
                 .font(.title2.weight(.semibold))
+                .foregroundStyle(PosDesign.ink)
             Text(
                 enrollment.restaurantDisplayName.isEmpty
                     ? "Speisekarte ist geladen. Tippe einen Tisch an, um zu bestellen."
                     : "„\(enrollment.restaurantDisplayName)“ — tippe einen Tisch an, um zu bestellen."
             )
-            .foregroundStyle(.secondary)
+            .foregroundStyle(PosDesign.muted)
             Text("Optional: unter Mehr → Gerät die iPad-Kasse koppeln (Live-Tische im WLAN).")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             Spacer()
             Button {
                 Task { await runtime.finishHandheldCloudOnboarding() }

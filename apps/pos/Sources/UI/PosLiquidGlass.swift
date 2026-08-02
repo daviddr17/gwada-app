@@ -19,10 +19,6 @@ extension View {
         modifier(PosHideTabBarModifier())
     }
 
-    /// Sheet-/Card-Chrome mit Glass, wenn verfügbar.
-    func posLiquidGlassCard(cornerRadius: CGFloat = PosDesign.cardRadius) -> some View {
-        modifier(PosLiquidGlassCardModifier(cornerRadius: cornerRadius))
-    }
 }
 
 // MARK: - Bar background
@@ -41,26 +37,6 @@ private struct PosLiquidGlassBarModifier: ViewModifier {
             }
         } else {
             content.background(.ultraThinMaterial)
-        }
-    }
-}
-
-// MARK: - Card / floating chrome
-
-private struct PosLiquidGlassCardModifier: ViewModifier {
-    let cornerRadius: CGFloat
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content.glassEffect(
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-        } else {
-            content
-                .background(
-                    .ultraThinMaterial,
-                    in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                )
         }
     }
 }

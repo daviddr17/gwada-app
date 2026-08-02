@@ -54,47 +54,47 @@ struct MenuBrowserView: View {
                                     HStack(alignment: .top, spacing: 6) {
                                         Text(item.name)
                                             .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(.primary)
+                                            .foregroundStyle(PosDesign.ink)
                                             .lineLimit(2)
                                         Spacer(minLength: 0)
                                         if qty > 0 {
                                             Text("\(qty)")
                                                 .font(.caption2.weight(.bold))
-                                                .foregroundStyle(.white)
+                                                .foregroundStyle(PosDesign.accentForeground)
                                                 .padding(.horizontal, 7)
                                                 .padding(.vertical, 4)
-                                                .background(Capsule().fill(Color.accentColor))
+                                                .background(Capsule().fill(PosDesign.brandAccent))
                                         }
                                     }
 
                                     if !item.description.isEmpty {
                                         Text(item.description)
                                             .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                            .foregroundStyle(PosDesign.muted)
                                             .lineLimit(2)
                                     }
 
                                     if !(item.recipe ?? []).isEmpty {
                                         Text("Rezept · Ohne-Auswahl")
                                             .font(.caption2.weight(.medium))
-                                            .foregroundStyle(.teal)
+                                            .foregroundStyle(PosDesign.muted)
                                     }
 
                                     Spacer(minLength: 0)
 
                                     Text(PosMoney.format(item.priceCents))
                                         .font(.subheadline.weight(.semibold).monospacedDigit())
-                                        .foregroundStyle(.primary)
+                                        .foregroundStyle(PosDesign.ink)
                                 }
                                 .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
                                 .padding(14)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color(.secondarySystemBackground))
+                                        .fill(PosDesign.surface)
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(Color(.separator).opacity(0.45), lineWidth: 1)
+                                        .stroke(PosDesign.line, lineWidth: 1)
                                 )
                             }
                             .buttonStyle(.plain)

@@ -32,12 +32,13 @@ struct HubOnboardingWizardView: View {
             .padding(24)
             .frame(maxWidth: 560)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .background(PosDesign.bg.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Kasse einrichten")
                         .font(.headline)
+                        .foregroundStyle(PosDesign.ink)
                 }
             }
         }
@@ -47,12 +48,13 @@ struct HubOnboardingWizardView: View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Gwada")
                 .font(.largeTitle.weight(.bold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(PosDesign.ink)
             Text("Dieses iPad wird deine Kasse.")
                 .font(.title2.weight(.semibold))
+                .foregroundStyle(PosDesign.ink)
             Text("Einmal einrichten — danach finden Handgeräte die Kasse im WLAN. Cloud: \(PosEnvironment.channelLabel).")
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             Spacer()
             Button {
                 step = .access
@@ -118,13 +120,14 @@ struct HubOnboardingWizardView: View {
         VStack(alignment: .leading, spacing: 16) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 48))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(PosDesign.brandAccent)
             Text("Kasse bereit")
                 .font(.title2.weight(.semibold))
+                .foregroundStyle(PosDesign.ink)
             Text(enrollment.restaurantDisplayName.isEmpty
                 ? "Handgeräte können sich jetzt verbinden."
                 : "„\(enrollment.restaurantDisplayName)“ — Handgeräte können sich jetzt verbinden.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(PosDesign.muted)
             Text("Pairing per QR folgt im nächsten Schritt. Bis dahin: Gerät → Status.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)

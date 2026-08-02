@@ -20,8 +20,6 @@ enum PosLayout {
     static let amountButtonMin: CGFloat = 64
     /// Horizontaler Innenabstand in Buttons — Text darf nicht am Rand kleben.
     static let buttonPadX: CGFloat = 16
-    /// Vertikaler Innenabstand einzeiliger Buttons.
-    static let buttonPadY: CGFloat = 14
     static let chipPadX: CGFloat = 14
     static let chipPadY: CGFloat = 10
     static let cardRadius: CGFloat = 16

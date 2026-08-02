@@ -13,11 +13,11 @@ struct PosPrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(PosDesign.accentForeground)
             .background(
                 RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous)
-                    .fill(Color.accentColor.opacity(configuration.isPressed ? 0.22 : 0.15))
+                    .fill(configuration.isPressed ? PosDesign.brandActionFillPressed : PosDesign.brandActionFill)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
+                    .strokeBorder(PosDesign.brandActionBorder, lineWidth: 1)
             )
             .opacity(configuration.isPressed ? 0.92 : 1)
             .contentShape(RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous))
@@ -32,10 +32,14 @@ struct PosSecondaryButtonStyle: ButtonStyle {
         configuration.label
             .frame(maxWidth: .infinity, minHeight: minHeight)
             .padding(.horizontal, PosLayout.buttonPadX)
-            .foregroundStyle(.primary)
+            .foregroundStyle(PosDesign.ink)
             .background(
                 RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous)
-                    .fill(Color(.tertiarySystemFill).opacity(configuration.isPressed ? 0.85 : 1))
+                    .fill(PosDesign.surface2.opacity(configuration.isPressed ? 0.85 : 1))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous)
+                    .strokeBorder(PosDesign.line, lineWidth: 1)
             )
             .opacity(configuration.isPressed ? 0.92 : 1)
             .contentShape(RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous))
@@ -48,14 +52,14 @@ struct PosOutlineAccentButtonStyle: ButtonStyle {
         configuration.label
             .frame(maxWidth: .infinity, minHeight: PosLayout.amountButtonMin)
             .padding(.horizontal, PosLayout.buttonPadX)
-            .foregroundStyle(.primary)
+            .foregroundStyle(PosDesign.ink)
             .background(
                 RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous)
                     .fill(PosDesign.surface.opacity(configuration.isPressed ? 0.7 : 1))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous)
-                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .strokeBorder(PosDesign.brandAccent, lineWidth: 2)
             )
             .opacity(configuration.isPressed ? 0.92 : 1)
             .contentShape(RoundedRectangle(cornerRadius: PosLayout.cardRadius, style: .continuous))

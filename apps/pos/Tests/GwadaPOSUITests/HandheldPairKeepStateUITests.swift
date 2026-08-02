@@ -16,11 +16,14 @@ final class HandheldPairKeepStateUITests: XCTestCase {
             return
         }
 
+        let openLan = app.buttons["Stattdessen mit iPad-Kasse koppeln"]
+        if openLan.waitForExistence(timeout: 4) {
+            openLan.tap()
+        }
+
         let host = app.textFields.firstMatch
         if host.waitForExistence(timeout: 8) {
             host.tap()
-            host.typeText("") // focus
-            // Clear + set
             if let value = host.value as? String, !value.isEmpty {
                 let delete = String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count)
                 host.typeText(delete)

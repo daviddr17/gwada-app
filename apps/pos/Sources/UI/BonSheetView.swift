@@ -29,7 +29,7 @@ struct BonSheetView: View {
     let tableLabel: String
     let sessionId: String
     @Binding var cart: [PosCartLine]
-    let openLines: [SessionOpenLine]
+    @Binding var openLines: [SessionOpenLine]
     let coverCount: Int?
     /// Prototype: one CTA per course — send that course’s cart lines and fire kitchen.
     var onSchicken: (Int) async -> Bool
@@ -164,14 +164,13 @@ struct BonSheetView: View {
             if courseNeedsSchicken(cart: cartLines, course: course)
                 || courseNeedsFire(openLines: sentLines, course: course, sessionId: sessionId)
             {
-                Button {
+                PosButton(
+                    title: "\(PosCourse.chipLabel(course)) schicken",
+                    kind: .primary,
+                    enabled: !actionState.schickenCourses.contains(course)
+                ) {
                     Task { await schicken(course: course) }
-                } label: {
-                    Text("\(PosCourse.chipLabel(course)) schicken")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PosPrimaryButtonStyle())
-                .disabled(actionState.schickenCourses.contains(course))
                 .accessibilityIdentifier("pos.bon.schicken.\(course)")
             }
         }
@@ -254,15 +253,12 @@ struct BonSheetView: View {
     }
 
     private var actions: some View {
-        HStack(spacing: 10) {
-            Button("Weiter bestellen", action: onWeiterBestellen)
-                .buttonStyle(PosSecondaryButtonStyle())
-            Button("Zur Rechnung", action: onZurRechnung)
-                .buttonStyle(PosPrimaryButtonStyle())
-                .disabled(!hasAnything)
+        HStack(spacing: PosLayout.dockGap) {
+            PosButton(title: "Weiter bestellen", kind: .secondary, action: onWeiterBestellen)
+            PosButton(title: "Zur Rechnung", kind: .primary, enabled: hasAnything, action: onZurRechnung)
                 .accessibilityIdentifier("pos.bon.zurRechnung")
         }
-        .padding(PosDesign.sectionSpacing)
+        .padding(PosLayout.page)
         .background(PosDesign.surface)
         .overlay(alignment: .top) {
             Rectangle()
@@ -306,7 +302,7 @@ struct BonSheetView: View {
         tableLabel: "Tisch 12",
         sessionId: "preview-session",
         cart: .constant([]),
-        openLines: [],
+        openLines: .constant([]),
         coverCount: 2,
         onSchicken: { _ in true },
         onWeiterBestellen: {},

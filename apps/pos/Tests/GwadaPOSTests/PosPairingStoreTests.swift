@@ -3,7 +3,7 @@ import XCTest
 
 final class PosPairingStoreTests: XCTestCase {
     private func makeStore(now: @escaping () -> Date = { Date() }) -> PosPairingStore {
-        let store = PosPairingStore(now: now)
+        let store = PosPairingStore(now: now, persistEnabled: false)
         store.configureHubInfo(PosLanHubInfo(deviceId: "hub1", displayName: "Kasse", role: "hub"))
         return store
     }
@@ -71,5 +71,20 @@ final class PosPairingStoreTests: XCTestCase {
     func test_unknownPairId_isRejected() {
         let store = makeStore()
         XCTAssertEqual(store.status(pairId: "unknown").state, .rejected)
+    }
+
+    func test_approvedTokens_surviveNewStoreInstanceWhenPersisted() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gwada-pair-test-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let first = PosPairingStore(now: { Date() }, persistEnabled: true, persistURL: url)
+        first.configureHubInfo(PosLanHubInfo(deviceId: "hub1", displayName: "Kasse", role: "hub"))
+        let challenge = first.createPending(req)
+        let token = first.approve(pairId: challenge.pairId)!
+
+        let second = PosPairingStore(now: { Date() }, persistEnabled: true, persistURL: url)
+        XCTAssertTrue(second.verify(token: token))
+        XCTAssertEqual(second.approvedList().count, 1)
     }
 }

@@ -70,8 +70,13 @@ final class Phase3OrderFlowSmokeUITests: XCTestCase {
 
     @MainActor
     private func pairAgainstLocalHub(app: XCUIApplication) throws {
+        let openLan = app.buttons["Stattdessen mit iPad-Kasse koppeln"]
+        if openLan.waitForExistence(timeout: 4) {
+            openLan.tap()
+        }
+
         let host = app.textFields.firstMatch
-        XCTAssertTrue(host.waitForExistence(timeout: 12), "Pairing-Gate erwartet")
+        XCTAssertTrue(host.waitForExistence(timeout: 12), "Pairing-Sheet erwartet")
         host.tap()
         if let value = host.value as? String, !value.isEmpty {
             host.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))

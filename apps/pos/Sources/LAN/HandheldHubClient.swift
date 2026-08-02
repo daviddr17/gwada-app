@@ -122,12 +122,14 @@ enum HandheldHubClient {
         baseURL: URL,
         diningTableId: String,
         coverCount: Int,
-        items: [(menuItemId: String, quantity: Int)],
+        items: [(menuItemId: String, quantity: Int, notes: String?, course: Int)],
         pairToken: String? = nil
     ) async throws {
         struct Item: Encodable {
             var menuItemId: String
             var quantity: Int
+            var notes: String?
+            var course: Int
         }
         struct Body: Encodable {
             var diningTableId: String
@@ -142,8 +144,31 @@ enum HandheldHubClient {
         request.httpBody = try encoder.encode(Body(
             diningTableId: diningTableId,
             coverCount: coverCount,
-            items: items.map { Item(menuItemId: $0.menuItemId, quantity: $0.quantity) }
+            items: items.map {
+                Item(menuItemId: $0.menuItemId, quantity: $0.quantity, notes: $0.notes, course: $0.course)
+            }
         ))
+        let (_, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
+    }
+
+    static func collect(
+        baseURL: URL,
+        sessionId: String,
+        lineIds: [String],
+        pairToken: String? = nil
+    ) async throws {
+        struct Body: Encodable {
+            var sessionId: String
+            var lineIds: [String]
+        }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.collectPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        request.httpBody = try encoder.encode(Body(sessionId: sessionId, lineIds: lineIds))
         let (_, response) = try await perform(request)
         guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
         guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }

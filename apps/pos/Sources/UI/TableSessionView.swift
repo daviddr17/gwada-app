@@ -10,11 +10,11 @@ struct TableSessionView: View {
 
     @State private var cart: [PosCartLine] = []
     @State private var configuring: PosCloudMenuItem?
-    @State private var showSplit = false
+    @State private var showKassieren = false
     @State private var showMove = false
     @State private var showMoveSession = false
     @State private var showBon = false
-    @State private var pendingSplitAfterBon = false
+    @State private var pendingKassierenAfterBon = false
     @State private var openLines: [SessionOpenLine] = []
     @State private var sendPulse = false
     @State private var activeCourse = PosCourse.main
@@ -44,7 +44,7 @@ struct TableSessionView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                if sessionId != nil {
+                if !resolvedSessionId.isEmpty, !resolvedSessionId.hasPrefix("pending-") {
                     Button {
                         showMoveSession = true
                     } label: {
@@ -60,12 +60,12 @@ struct TableSessionView: View {
                 .disabled(openLines.isEmpty)
                 .accessibilityLabel("Positionen umziehen")
                 Button {
-                    showSplit = true
+                    showKassieren = true
                 } label: {
                     Image(systemName: "scissors")
                 }
                 .disabled(openLines.isEmpty)
-                .accessibilityLabel("Rechnung splitten")
+                .accessibilityLabel("Rechnung kassieren")
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -87,33 +87,29 @@ struct TableSessionView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $showSplit) {
-            SplitPayView(
-                lines: openLines,
-                onPay: { picked, method, tip, received, giftVoucherId, customPaymentMethodId in
-                    showSplit = false
-                    Task {
-                        await runtime.collectSplit(
-                            sessionId: ensureSessionId(),
-                            lines: picked,
-                            method: method,
-                            tipCents: tip,
-                            receivedAmountCents: received,
-                            giftVoucherId: giftVoucherId,
-                            customPaymentMethodId: customPaymentMethodId
-                        )
-                        await refreshOpenLines()
-                    }
+        .fullScreenCover(isPresented: $showKassieren) {
+            KassierenView(
+                tableLabel: table.label,
+                sessionId: ensureSessionId(),
+                lines: $openLines,
+                onPaid: {
+                    await refreshOpenLines()
                 },
-                onCancel: { showSplit = false }
+                onRelease: {
+                    let sid = ensureSessionId()
+                    _ = await runtime.releaseTable(sessionId: sid, forceAbort: false)
+                    showKassieren = false
+                },
+                onClose: { showKassieren = false }
             )
+            .environmentObject(runtime)
         }
         .sheet(isPresented: $showBon) {
             BonSheetView(
                 tableLabel: table.label,
-                sessionId: ensureSessionId(),
+                sessionId: resolvedSessionId,
                 cart: $cart,
-                openLines: openLines,
+                openLines: $openLines,
                 coverCount: currentSession?.cover_count ?? guestCount,
                 onSchicken: { course in
                     await schickenCourse(course)
@@ -122,7 +118,7 @@ struct TableSessionView: View {
                     showBon = false
                 },
                 onZurRechnung: {
-                    pendingSplitAfterBon = true
+                    pendingKassierenAfterBon = true
                     showBon = false
                 }
             )
@@ -130,9 +126,12 @@ struct TableSessionView: View {
             .presentationDragIndicator(.visible)
         }
         .onChange(of: showBon) { _, isPresented in
-            guard !isPresented, pendingSplitAfterBon else { return }
-            pendingSplitAfterBon = false
-            showSplit = true
+            guard !isPresented, pendingKassierenAfterBon else { return }
+            pendingKassierenAfterBon = false
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                showKassieren = true
+            }
         }
         .sheet(isPresented: $showMove) {
             MoveLinesView(
@@ -156,7 +155,7 @@ struct TableSessionView: View {
             )
         }
         .sheet(isPresented: $showMoveSession) {
-            if let sid = sessionId ?? openLines.first.map({ _ in ensureSessionId() }) {
+            if let sid = sessionId ?? currentSession?.id {
                 MoveSessionSheet(sessionId: sid, fromTableId: table.id)
                     .environmentObject(runtime)
             }
@@ -178,46 +177,58 @@ struct TableSessionView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(table.label)
-                    .font(.title2.weight(.bold))
-                HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
                     PosStatusBadge(
-                        title: sessionId == nil ? "Frei" : "Besetzt",
-                        emphasized: sessionId != nil
+                        title: resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-")
+                            ? "Frei"
+                            : "Besetzt",
+                        emphasized: !(resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-"))
                     )
                     guestStepper
                 }
             }
-            Spacer()
+            Spacer(minLength: 8)
             Text(PosMoney.format(cartTotal + openTotal))
-                .font(.title3.weight(.bold).monospacedDigit())
+                .font(.title2.weight(.bold).monospacedDigit())
+                .accessibilityLabel("Summe \(PosMoney.format(cartTotal + openTotal))")
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
     }
 
     private var guestStepper: some View {
         HStack(spacing: 6) {
             Image(systemName: "person.2")
-                .font(.caption)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             Button {
                 adjustGuests(-1)
             } label: {
-                Image(systemName: "minus.circle")
+                Image(systemName: "minus.circle.fill")
+                    .font(.title2)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .disabled(guestCount <= 1)
             .accessibilityLabel("Gast entfernen")
 
             Text("\(guestCount)")
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .frame(minWidth: 18)
+                .font(.body.weight(.semibold).monospacedDigit())
+                .frame(minWidth: 24)
 
             Button {
                 adjustGuests(1)
             } label: {
-                Image(systemName: "plus.circle")
+                Image(systemName: "plus.circle.fill")
+                    .font(.title2)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .disabled(guestCount >= 20)
             .accessibilityLabel("Gast hinzufügen")
         }
@@ -227,13 +238,13 @@ struct TableSessionView: View {
     }
 
     private var courseRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Neue Artikel auf")
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     ForEach(PosCourse.uiCourses, id: \.self) { course in
                         Button {
                             activeCourse = course
@@ -249,11 +260,10 @@ struct TableSessionView: View {
                         .accessibilityLabel(PosCourse.chipLabel(course))
                     }
                 }
-                .padding(.vertical, 2)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
     }
 
     @ViewBuilder
@@ -289,44 +299,32 @@ struct TableSessionView: View {
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 16)
-            .padding(.bottom, 6)
+            .padding(.vertical, 4)
+            .padding(.bottom, 10)
             .accessibilityIdentifier("pos.session.openBonHint")
             .accessibilityLabel("Bon mit \(openLines.count) Positionen öffnen")
         } else if cartQuantity > 0 {
             Text("\(cartQuantity) neu im Bon — unten öffnen zum Schicken.")
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
-                .padding(.bottom, 6)
+                .padding(.bottom, 10)
         }
     }
 
     private var bottomBar: some View {
-        VStack(spacing: 8) {
-            if sessionId != nil || !openLines.isEmpty {
-                Button {
+        PosThumbDock {
+            if !resolvedSessionId.isEmpty,
+               !resolvedSessionId.hasPrefix("pending-"),
+               openLines.isEmpty,
+               cart.isEmpty
+            {
+                PosButton(title: "Freigeben", kind: .secondary) {
                     Task {
-                        let sid = ensureSessionId()
-                        let open = openTotal
-                        if open <= 0 {
-                            _ = await runtime.releaseTable(sessionId: sid, forceAbort: false)
-                        } else if !PosHubState.shared.hasFired(sessionId: sid) {
-                            _ = await runtime.releaseTable(sessionId: sid, forceAbort: true)
-                        } else {
-                            runtime.announce("Offener Betrag — erst kassieren, dann freigeben.")
-                        }
+                        _ = await runtime.releaseTable(sessionId: resolvedSessionId, forceAbort: false)
                     }
-                } label: {
-                    Label(
-                        openTotal <= 0 ? "Freigeben" : "Abbruch",
-                        systemImage: openTotal <= 0 ? "checkmark.circle" : "xmark.circle"
-                    )
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
                 }
-                .buttonStyle(.bordered)
             }
 
             Button {
@@ -334,16 +332,18 @@ struct TableSessionView: View {
             } label: {
                 HStack(spacing: 8) {
                     Text(bonDockTitle)
+                        .font(.headline.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                     Spacer(minLength: 8)
                     Text(PosMoney.format(cartTotal + openTotal))
                         .font(.headline.monospacedDigit())
+                        .lineLimit(1)
                 }
             }
             .buttonStyle(PosPrimaryButtonStyle())
             .accessibilityIdentifier("pos.bon.open")
         }
-        .padding(16)
-        .background(.ultraThinMaterial)
     }
 
     private var bonDockTitle: String {
@@ -361,6 +361,13 @@ struct TableSessionView: View {
     private var cartQuantity: Int { cart.reduce(0) { $0 + $1.quantity } }
     private var currentSession: PosLanOpenSession? {
         runtime.snapshot?.floor.openSessions.first(where: { $0.dining_table_id == table.id })
+    }
+
+    /// Hub-Session-ID wenn vorhanden — keine lokale Ghost-ID am gekoppelten Handgerät.
+    private var resolvedSessionId: String {
+        if let sessionId { return sessionId }
+        if let existing = currentSession?.id { return existing }
+        return ""
     }
 
     private func syncGuestCountFromSession() {
@@ -427,14 +434,13 @@ struct TableSessionView: View {
     }
 
     private func ensureSessionId() -> String {
-        if let sessionId { return sessionId }
+        if let sid = sessionId ?? currentSession?.id { return sid }
         return runtime.ensureLocalSession(tableId: table.id, covers: guestCount)
     }
 
     /// Prototype CartSheet: „Gang N schicken“ = send course cart lines + kitchen fire.
     @discardableResult
     private func schickenCourse(_ course: Int) async -> Bool {
-        let sid = ensureSessionId()
         let courseCart = cart.filter { $0.course == course }
         if !courseCart.isEmpty {
             let ok = await runtime.sendCart(tableId: table.id, lines: courseCart)
@@ -442,6 +448,10 @@ struct TableSessionView: View {
             cart.removeAll { $0.course == course }
             sendPulse.toggle()
             await refreshOpenLines()
+        }
+        // Session erst nach sendCart vom Hub — vorher kein ensureLocalSession (Ghost-ID).
+        guard let sid = currentSession?.id ?? sessionId, !sid.hasPrefix("pending-") else {
+            return !courseCart.isEmpty
         }
         _ = await runtime.fireCourse(sessionId: sid, course: course)
         await refreshOpenLines()

@@ -304,7 +304,7 @@ struct FormalInvoiceSheet: View {
             return "HTTP \(code)"
         case .unauthorized:
             return "Bitte erneut am Hub anmelden."
-        case .missingConfig, .invalidResponse, .missingRestaurant:
+        case .missingConfig, .invalidResponse, .missingRestaurant, .notModified:
             return cloud.localizedDescription
         }
     }

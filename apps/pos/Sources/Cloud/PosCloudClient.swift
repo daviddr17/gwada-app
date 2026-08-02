@@ -130,8 +130,19 @@ enum PosCloudClient {
     }
 
     @MainActor
-    static func fetchBootstrap(restaurantId: String) async throws -> PosCloudBootstrap {
-        try await get("/api/pos/bootstrap", restaurantId: restaurantId)
+    static func fetchBootstrap(
+        restaurantId: String,
+        menuRevision: String? = nil
+    ) async throws -> PosCloudBootstrap {
+        var extra: [String: String] = [:]
+        if let menuRevision, !menuRevision.isEmpty {
+            extra["menuRevision"] = menuRevision
+        }
+        return try await getDeviceOrSession(
+            "/api/pos/bootstrap",
+            restaurantId: restaurantId,
+            extraQuery: extra
+        )
     }
 
     struct RegisterStatusDto: Decodable, Sendable {
@@ -943,6 +954,27 @@ enum PosCloudClient {
         if let value = try? PosAuthStore.shared.sessionHeaderValue() {
             request.setValue(value, forHTTPHeaderField: "X-Gwada-Pos-Session")
         }
+    }
+
+    @MainActor
+    private static func getDeviceOrSession<T: Decodable>(
+        _ path: String,
+        restaurantId: String?,
+        extraQuery: [String: String] = [:]
+    ) async throws -> T {
+        var request = URLRequest(url: url(path, restaurantId: restaurantId, extraQuery: extraQuery))
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuthHeaders(to: &request)
+        applySessionAuthIfPresent(to: &request)
+        let hasDevice =
+            request.value(forHTTPHeaderField: "X-Gwada-Pos-Device") != nil
+            || request.value(forHTTPHeaderField: "X-Pos-Device-Token") != nil
+        let hasSession = request.value(forHTTPHeaderField: "X-Gwada-Pos-Session") != nil
+        guard hasDevice || hasSession else {
+            throw PosCloudError.unauthorized
+        }
+        return try await perform(request)
     }
 
     @MainActor

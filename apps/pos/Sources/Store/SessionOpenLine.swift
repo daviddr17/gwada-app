@@ -1,6 +1,6 @@
 import Foundation
 
-struct SessionOpenLine: Identifiable, Equatable, Sendable {
+struct SessionOpenLine: Identifiable, Equatable, Codable, Sendable {
     var id: String
     var orderLineId: String
     var name: String

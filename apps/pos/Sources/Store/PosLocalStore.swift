@@ -25,6 +25,25 @@ enum PosLocalStore {
         return try? JSONDecoder().decode(PosCloudBootstrap.self, from: data)
     }
 
+    private static var openLinesURL: URL {
+        directory.appendingPathComponent("local-open-lines.json")
+    }
+
+    static func saveOpenLines(_ linesBySession: [String: [SessionOpenLine]]) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(linesBySession) else { return }
+        try? data.write(to: openLinesURL, options: [.atomic])
+    }
+
+    static func loadOpenLines() -> [String: [SessionOpenLine]]? {
+        guard let data = try? Data(contentsOf: openLinesURL) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode([String: [SessionOpenLine]].self, from: data)
+    }
+
     private static var reservationsURL: URL {
         directory.appendingPathComponent("reservations-cache.json")
     }

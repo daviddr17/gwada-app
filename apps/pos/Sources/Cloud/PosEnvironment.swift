@@ -15,8 +15,11 @@ enum PosEnvironment {
     static let devSupabaseURL = URL(string: "http://95.111.229.250:8100")!
 
     /// Next gegen Dev-DB — Override per Info.plist `POSDevApiBaseURL`.
-    /// Simulator-Default: lokaler `pnpm --filter web dev` / `dev:docker`.
+    /// Simulator immer `127.0.0.1:3000` (Plist-LAN-IP gilt nur für echte Geräte).
     static var devApiBaseURL: URL {
+        #if targetEnvironment(simulator)
+        return URL(string: "http://127.0.0.1:3000")!
+        #else
         if let raw = Bundle.main.object(forInfoDictionaryKey: "POSDevApiBaseURL") as? String,
            let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
            !raw.isEmpty
@@ -24,6 +27,7 @@ enum PosEnvironment {
             return url
         }
         return URL(string: "http://127.0.0.1:3000")!
+        #endif
     }
 
     /// Anon Key: Info.plist `POSDevSupabaseAnonKey`, sonst bekannter Supabase-Demo-Key

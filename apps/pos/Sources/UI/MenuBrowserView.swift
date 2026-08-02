@@ -28,10 +28,9 @@ struct MenuBrowserView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
             }
-            .background(.bar)
-            .padding(.bottom, 2)
+            .background(PosDesign.bg)
 
             ScrollView {
                 if filteredItems.isEmpty {
@@ -87,8 +86,8 @@ struct MenuBrowserView: View {
                                         .font(.subheadline.weight(.semibold).monospacedDigit())
                                         .foregroundStyle(.primary)
                                 }
-                                .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
-                                .padding(10)
+                                .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+                                .padding(14)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                                         .fill(Color(.secondarySystemBackground))
@@ -101,8 +100,8 @@ struct MenuBrowserView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 14)
                 }
             }
             .background(PosDesign.bg)

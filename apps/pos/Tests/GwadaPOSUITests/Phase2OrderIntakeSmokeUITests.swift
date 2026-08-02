@@ -17,8 +17,8 @@ final class Phase2OrderIntakeSmokeUITests: XCTestCase {
         if tablesTab.waitForExistence(timeout: 8) {
             tablesTab.tap()
         } else {
-            // Pairing-Gate: Solo als Fallback (ohne Hub-Floor ggf. skip)
-            let solo = app.buttons["DEBUG: Solo ohne Kasse"]
+            // Onboarding: Solo als Fallback (ohne Hub-Floor ggf. skip)
+            let solo = app.buttons["DEBUG: Solo ohne Code"]
             XCTAssertTrue(
                 solo.waitForExistence(timeout: 12),
                 "Erwarte Tische-Tab oder Solo-Debug-Button"

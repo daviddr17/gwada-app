@@ -12,8 +12,12 @@ final class HandheldPairToLocalHubUITests: XCTestCase {
         app.launchArguments += ["-UITesting"]
         app.launch()
 
+        let openLan = app.buttons["Stattdessen mit iPad-Kasse koppeln"]
+        XCTAssertTrue(openLan.waitForExistence(timeout: 12), "Onboarding erwartet")
+        openLan.tap()
+
         let pair = app.buttons["Koppeln"]
-        XCTAssertTrue(pair.waitForExistence(timeout: 12), "Pairing-Gate erwartet")
+        XCTAssertTrue(pair.waitForExistence(timeout: 8), "Pairing-Sheet erwartet")
         pair.tap()
 
         let waitTitle = app.staticTexts["Warte auf Freigabe am iPad"]

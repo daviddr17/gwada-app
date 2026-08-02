@@ -16,7 +16,7 @@ final class Phase3BonSheetSmokeUITests: XCTestCase {
         if tablesTab.waitForExistence(timeout: 8) {
             tablesTab.tap()
         } else {
-            let solo = app.buttons["DEBUG: Solo ohne Kasse"]
+            let solo = app.buttons["DEBUG: Solo ohne Code"]
             XCTAssertTrue(solo.waitForExistence(timeout: 12))
             solo.tap()
             XCTAssertTrue(tablesTab.waitForExistence(timeout: 12))

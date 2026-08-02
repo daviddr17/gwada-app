@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Heutige Quittungen / Bar-Zahlungen — Storno + Tisch wieder öffnen.
+/// Heutige Quittungen — lokal (Demo) und/oder Cloud.
 struct ReceiptsView: View {
     @EnvironmentObject private var runtime: PosRuntime
 
-    @State private var receipts: [PosCloudClient.PosTodayReceiptDto] = []
+    @State private var localReceipts: [PosLocalReceipt] = []
+    @State private var cloudReceipts: [PosCloudClient.PosTodayReceiptDto] = []
     @State private var loading = false
     @State private var errorText = ""
+    @State private var shownLocal: PosLocalReceipt?
     @State private var voidTarget: PosCloudClient.PosTodayReceiptDto?
     @State private var voidReasons: [PosCloudClient.PosVoidReasonDto] = []
     @State private var selectedVoidReasonId: String?
@@ -14,34 +16,54 @@ struct ReceiptsView: View {
     @State private var showVoidSheet = false
     @State private var busyId: String?
 
+    private var isEmpty: Bool { localReceipts.isEmpty && cloudReceipts.isEmpty }
+
     var body: some View {
         Group {
-            if loading && receipts.isEmpty {
+            if loading && isEmpty {
                 ProgressView("Lade Quittungen …")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if receipts.isEmpty {
+            } else if isEmpty {
                 ContentUnavailableView {
                     Label("Keine Quittungen", systemImage: "doc.text")
                 } description: {
-                    Text(errorText.isEmpty ? "Heute noch keine Zahlungen." : errorText)
+                    Text(errorText.isEmpty
+                        ? "Heute noch keine Zahlungen. Nach dem Kassieren erscheint der Beleg hier und direkt nach der Zahlung."
+                        : errorText)
                 } actions: {
                     Button("Aktualisieren") { Task { await reload() } }
                 }
             } else {
                 List {
-                    Section {
-                        Text("Bar-Zahlungen können storniert werden — Tisch wird wieder geöffnet. PDF/Fiskaly später.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                    if !localReceipts.isEmpty {
+                        Section {
+                            Text(runtime.isSignedIn
+                                ? "Lokale Belege (auch offline / Demo)."
+                                : "Lokale Demo-Belege — Cloud-Login bringt TSE-Quittungen.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(localReceipts) { receipt in
+                            Button {
+                                shownLocal = receipt
+                            } label: {
+                                localRow(receipt)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    ForEach(receipts) { receipt in
-                        receiptRow(receipt)
+                    if !cloudReceipts.isEmpty {
+                        Section("Cloud") {
+                            ForEach(cloudReceipts) { receipt in
+                                cloudRow(receipt)
+                            }
+                        }
                     }
                 }
                 .listStyle(.insetGrouped)
             }
         }
-        .navigationTitle("Quittungen")
+        .navigationTitle("Tagesbelege")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -55,9 +77,100 @@ struct ReceiptsView: View {
         }
         .task { await reload() }
         .refreshable { await reload() }
+        .sheet(item: $shownLocal) { receipt in
+            PosGuestReceiptSheet(receipt: receipt) { shownLocal = nil }
+        }
         .sheet(isPresented: $showVoidSheet) {
             voidSheet
         }
+    }
+
+    private func localRow(_ receipt: PosLocalReceipt) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(receipt.tableLabel)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Spacer()
+                PosStatusBadge(title: "Bezahlt", emphasized: true)
+            }
+            HStack {
+                Text("#\(receipt.orderNumber)")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Text("·")
+                    .foregroundStyle(.secondary)
+                Text(methodLabel(receipt.method))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(PosMoney.format(receipt.paidTotalCents))
+                    .font(.body.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.primary)
+            }
+            if let label = receipt.label {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Text("Antippen für Gastbeleg")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func cloudRow(_ receipt: PosCloudClient.PosTodayReceiptDto) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(receipt.tableLabel)
+                    .font(.headline)
+                Spacer()
+                PosStatusBadge(
+                    title: statusLabel(receipt),
+                    emphasized: receipt.status == "paid",
+                    tint: receipt.status == "refunded" ? .secondary : .accentColor
+                )
+            }
+            HStack {
+                Text("#\(receipt.orderNumber)")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Text("·")
+                    .foregroundStyle(.secondary)
+                Text(methodLabel(receipt.method))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(PosMoney.format(receipt.amountCents))
+                    .font(.body.weight(.semibold).monospacedDigit())
+            }
+            if receipt.tipCents > 0 {
+                Text("inkl. Trinkgeld \(PosMoney.format(receipt.tipCents))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ShareLink(
+                item: guestReceiptText(receipt),
+                subject: Text("Gastbeleg \(receipt.tableLabel)"),
+                message: Text("KassenSichV-Felder folgen (TSE); Beleg teilen.")
+            ) {
+                Label("Gastbeleg teilen", systemImage: "square.and.arrow.up")
+                    .font(.subheadline.weight(.semibold))
+            }
+            if receipt.canVoidCash {
+                Button {
+                    Task { await prepareVoid(receipt) }
+                } label: {
+                    Label(
+                        busyId == receipt.paymentId ? "Storniere …" : "Stornieren",
+                        systemImage: "arrow.uturn.backward"
+                    )
+                }
+                .disabled(busyId != nil)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private var voidSheet: some View {
@@ -133,71 +246,6 @@ struct ReceiptsView: View {
         }
     }
 
-    private func receiptRow(_ receipt: PosCloudClient.PosTodayReceiptDto) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(receipt.tableLabel)
-                    .font(.headline)
-                Spacer()
-                PosStatusBadge(
-                    title: statusLabel(receipt),
-                    emphasized: receipt.status == "paid",
-                    tint: receipt.status == "refunded" ? .secondary : .accentColor
-                )
-            }
-            HStack {
-                Text("#\(receipt.orderNumber)")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                Text("·")
-                    .foregroundStyle(.secondary)
-                Text(methodLabel(receipt.method))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(PosMoney.format(receipt.amountCents))
-                    .font(.body.weight(.semibold).monospacedDigit())
-            }
-            if receipt.tipCents > 0 {
-                Text("inkl. Trinkgeld \(PosMoney.format(receipt.tipCents))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if let received = receipt.receivedAmountCents, received > receipt.amountCents {
-                Text("Gegeben \(PosMoney.format(received)) · Rückgeld \(PosMoney.format(received - receipt.amountCents))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if let paidAt = receipt.paidAt {
-                Text(Self.formatTime(paidAt))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            ShareLink(
-                item: guestReceiptText(receipt),
-                subject: Text("Gastbeleg \(receipt.tableLabel)"),
-                message: Text("KassenSichV-Felder folgen (TSE); Beleg teilen.")
-            ) {
-                Label("Gastbeleg teilen", systemImage: "square.and.arrow.up")
-                    .font(.subheadline.weight(.semibold))
-            }
-
-            if receipt.canVoidCash {
-                Button {
-                    Task { await prepareVoid(receipt) }
-                } label: {
-                    Label(
-                        busyId == receipt.paymentId ? "Storniere …" : "Stornieren",
-                        systemImage: "arrow.uturn.backward"
-                    )
-                }
-                .disabled(busyId != nil)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
     private func statusLabel(_ r: PosCloudClient.PosTodayReceiptDto) -> String {
         switch r.status {
         case "paid": return "Bezahlt"
@@ -210,6 +258,7 @@ struct ReceiptsView: View {
         switch method {
         case "cash": return "Bar"
         case "card": return "Karte"
+        case "paypal": return "PayPal"
         default: return method
         }
     }
@@ -237,17 +286,18 @@ struct ReceiptsView: View {
         loading = true
         errorText = ""
         defer { loading = false }
+        localReceipts = PosOfflineCaches.todayReceipts()
+
         guard runtime.isSignedIn else {
-            receipts = []
-            errorText = "Bitte anmelden, um Quittungen zu laden."
+            cloudReceipts = []
             return
         }
         let restaurantId = PosHubState.shared.restaurantId
         do {
-            receipts = try await PosCloudClient.fetchTodayReceipts(restaurantId: restaurantId)
+            cloudReceipts = try await PosCloudClient.fetchTodayReceipts(restaurantId: restaurantId)
         } catch {
             errorText = error.localizedDescription
-            receipts = []
+            cloudReceipts = []
         }
     }
 

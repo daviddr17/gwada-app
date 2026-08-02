@@ -60,12 +60,11 @@ struct PosBonTabAccessoryModifier: ViewModifier {
     @ObservedObject var opener: PosSessionBonOpener
 
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
+        // iOS 26: `tabViewBottomAccessory` mit leerem Inhalt rendert trotzdem eine leere Pill.
+        if #available(iOS 26, *), isActive {
             content.tabViewBottomAccessory {
-                if isActive {
-                    PosBonTabAccessoryButton(cartQuantity: cartQuantity) {
-                        opener.trigger()
-                    }
+                PosBonTabAccessoryButton(cartQuantity: cartQuantity) {
+                    opener.trigger()
                 }
             }
         } else {

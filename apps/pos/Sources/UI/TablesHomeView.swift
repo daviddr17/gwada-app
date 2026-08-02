@@ -54,8 +54,8 @@ struct TablesHomeView: View {
                     Text(
                         runtime.role == .handheld
                             ? (runtime.isSoloMode
-                                ? "Solo ohne Tischdaten — Mehr → Gerät → Solo neu laden oder anmelden."
-                                : "Kasse suchen oder Solo ohne Kasse (Mehr → Gerät).")
+                                ? "Keine Tischdaten — Mehr → Speisekarte aktualisieren oder Gerät."
+                                : "iPad suchen oder unter Mehr ohne iPad (Cloud) weiterarbeiten.")
                             : "Nach dem Login werden Tische und Speisekarte geladen."
                     )
                 }

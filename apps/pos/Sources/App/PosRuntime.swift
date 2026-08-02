@@ -81,22 +81,15 @@ final class PosRuntime: ObservableObject {
                 statusMessage = "Kasse einrichten."
             }
         case .handheld:
-            if PosEnrollmentStore.shared.isHandheldPaired {
-                // Nach Erst-Kopplung: gespeicherte Hub-URL zuerst, dann Bonjour.
-                await connectHandheld(preferredHost: Self.savedHubHostHint())
-                if phase == .connected {
-                    await pullReservationsDay(PosReservationsStore.todayYmd())
+            if PosEnrollmentStore.shared.isHandheldReady {
+                // Cloud-first: ohne iPad starten; LAN nur wenn Token da und Hub erreichbar.
+                await startHandheldSolo(preferCloud: true)
+                if PosEnrollmentStore.shared.isHandheldPaired {
+                    await tryReconnectHubKeepingPairing()
                 }
             } else {
-                // Kurz Bonjour + ggf. zuletzt genutzte Adresse; ohne Treffer bleibt Gate sichtbar
-                await connectHandheld(preferredHost: Self.savedHubHostHint())
-                if phase == .connected {
-                    PosEnrollmentStore.shared.markHandheldPaired()
-                    await pullReservationsDay(PosReservationsStore.todayYmd())
-                } else {
-                    phase = .needsLogin
-                    statusMessage = "Keine Kasse gefunden — iPad einschalten oder QR scannen."
-                }
+                phase = .needsLogin
+                statusMessage = "Handgerät einrichten."
             }
         }
     }
@@ -110,6 +103,29 @@ final class PosRuntime: ObservableObject {
         statusMessage = "Kasse eingerichtet (\(restaurantName))."
     }
 
+    /// Nach Cloud-Onboarding: Ready-Flag + Solo starten → Tabs.
+    func finishHandheldCloudOnboarding() async {
+        guard role == .handheld else { return }
+        let name = PosEnrollmentStore.shared.restaurantDisplayName
+        PosEnrollmentStore.shared.markHandheldCloudReady(
+            restaurantName: name.isEmpty ? "Restaurant" : name
+        )
+        await startHandheldSolo(preferCloud: true)
+        statusMessage = "Bereit — Tisch antippen zum Bestellen."
+    }
+
+    /// Einrichtungs-Code akzeptiert: Bootstrap in den Cache, Wizard bleibt bis „Zu den Tischen“.
+    func preloadHandheldCloudAfterEnroll(restaurantName: String) async {
+        guard role == .handheld else { return }
+        PosEnrollmentStore.shared.setRestaurantDisplayName(restaurantName)
+        PosCloudConfig.setNestClientFallbackEnabled(true)
+        PosHubState.shared.configure(hubDeviceId: hubDeviceId)
+        _ = await pullCloudBootstrap(forceDemoFallback: true)
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+        dataSourceLabel = PosHubState.shared.isDemo ? "Solo · Demo/Cache" : "Solo · Cloud"
+        statusMessage = "Speisekarte geladen — weiter tippen."
+    }
+
     /// iPhone ohne iPad: lokale Demo-/Cloud-Daten, Kellner-Tabs bleiben.
     func startHandheldSolo(preferCloud: Bool = false) async {
         guard role == .handheld else { return }
@@ -119,8 +135,12 @@ final class PosRuntime: ObservableObject {
         PosCloudConfig.setNestClientFallbackEnabled(true)
         PosHubState.shared.configure(hubDeviceId: hubDeviceId)
         isSignedIn = PosAuthStore.shared.isSignedIn
+        let wantCloud =
+            preferCloud
+            || isSignedIn
+            || PosEnrollmentCredential.hasCredential
         var cloudNote = ""
-        if preferCloud || isSignedIn {
+        if wantCloud {
             cloudNote = await pullCloudBootstrap(forceDemoFallback: true)
         } else {
             PosHubState.shared.loadCachedOrDemo()
@@ -131,9 +151,9 @@ final class PosRuntime: ObservableObject {
         let menuCount = PosHubState.shared.menu?.items.count ?? 0
         let tableCount = snapshot?.floor.tables.count ?? 0
         if cloudNote.isEmpty {
-            statusMessage = isSignedIn
-                ? "Solo — \(tableCount) Tische, \(menuCount) Gerichte."
-                : "Solo-Modus (ohne Kasse) — Demo-Daten. Optional anmelden für Cloud."
+            statusMessage = wantCloud
+                ? "Cloud — \(tableCount) Tische, \(menuCount) Gerichte."
+                : "Solo-Modus (ohne Kasse) — Demo-Daten. Optional Code aus dem Dashboard."
         } else {
             statusMessage = cloudNote
         }
@@ -210,6 +230,9 @@ final class PosRuntime: ObservableObject {
         flushTask?.cancel()
         if role == .hub {
             PosEnrollmentStore.shared.resetHubEnrollment()
+        } else {
+            PosEnrollmentStore.shared.resetHandheldCloud()
+            PosEnrollmentStore.shared.resetHandheldPairing()
         }
         phase = .needsLogin
         statusMessage = "Abgemeldet."
@@ -537,7 +560,16 @@ final class PosRuntime: ObservableObject {
     }
 
     func ensureLocalSession(tableId: String, covers: Int = 2) -> String {
-        PosHubState.shared.openLocalSession(diningTableId: tableId, coverCount: covers)
+        if let existing = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id {
+            return existing
+        }
+        // Gekoppeltes Handgerät: keine lokale Ghost-Session — sendCart/openTable öffnet am Hub.
+        if role == .handheld, hubBaseURL != nil, !isSoloMode {
+            return "pending-\(tableId)"
+        }
+        let sid = PosHubState.shared.openLocalSession(diningTableId: tableId, coverCount: covers)
+        publishSnapshot(PosHubState.shared.makeSnapshot())
+        return sid
     }
 
     /// Gästezahl anpassen — lokal im Hub/Solo-Snapshot; Cloud/LAN-PATCH folgt wenn API existiert.
@@ -577,6 +609,14 @@ final class PosRuntime: ObservableObject {
 
     func sendCart(tableId: String, lines: [PosCartLine]) async -> Bool {
         guard !lines.isEmpty else { return false }
+
+        // Gekoppeltes Handgerät: Order an Hub, Snapshot vom Hub behalten.
+        // Nie `makeSnapshot()` lokal publishen — das überschreibt den LAN-Floor und
+        // lässt `loadOpenLines` die Session (und damit die Bestellung) verlieren.
+        if role == .handheld, let base = hubBaseURL, !isSoloMode {
+            return await sendCartViaHub(baseURL: base, tableId: tableId, lines: lines)
+        }
+
         let restaurantId = PosHubState.shared.restaurantId
         var sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id
         if sessionId == nil {
@@ -634,6 +674,71 @@ final class PosRuntime: ObservableObject {
         }
     }
 
+    /// Handgerät → Hub-LAN Order; lokale Open-Lines + Hub-Snapshot für Bon/Floor.
+    private func sendCartViaHub(baseURL: URL, tableId: String, lines: [PosCartLine]) async -> Bool {
+        var sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id
+        if sessionId == nil {
+            await openTable(tableId: tableId, covers: 2)
+            sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id
+        }
+        guard let sessionId else {
+            statusMessage = "Tisch konnte nicht geöffnet werden."
+            return false
+        }
+
+        let covers = snapshot?.floor.openSessions.first(where: { $0.id == sessionId })?.cover_count ?? 2
+        let token = PosEnrollmentStore.shared.handheldPairToken
+        do {
+            try await HandheldHubClient.createOrder(
+                baseURL: baseURL,
+                diningTableId: tableId,
+                coverCount: covers,
+                items: lines.map {
+                    (
+                        menuItemId: $0.menuItemId,
+                        quantity: $0.quantity,
+                        notes: $0.notes.isEmpty ? nil : $0.notes,
+                        course: $0.course
+                    )
+                },
+                pairToken: token
+            )
+        } catch {
+            statusMessage = "Bestellung an Hub fehlgeschlagen: \(error.localizedDescription)"
+            return false
+        }
+
+        // Bon-UI auf dem Handgerät: Positionen lokal unter der Hub-Session-ID halten.
+        PosHubState.shared.appendLocalOpenLines(sessionId: sessionId, from: lines)
+
+        do {
+            let snap = try await HandheldHubClient.fetchSnapshot(
+                baseURL: baseURL,
+                restaurantId: nil,
+                pairToken: token
+            )
+            publishSnapshot(snap)
+        } catch {
+            // Floor-Meta ggf. veraltet — Open-Lines bleiben trotzdem sichtbar.
+            patchSnapshotOpenCents(sessionId: sessionId, addCents: lines.reduce(0) { $0 + $1.lineTotalCents })
+        }
+
+        statusMessage = "Bestellung gesendet (\(lines.count) Positionen)."
+        return true
+    }
+
+    private func patchSnapshotOpenCents(sessionId: String, addCents: Int) {
+        guard var snap = snapshot else { return }
+        var meta = snap.floor.sessionMetaBySessionId[sessionId]
+            ?? PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
+        meta.openCents += addCents
+        meta.orderCount += 1
+        snap.floor.sessionMetaBySessionId[sessionId] = meta
+        snap.floor.orderCountBySessionId[sessionId] = (snap.floor.orderCountBySessionId[sessionId] ?? 0) + 1
+        snap.snapshotVersion = (snap.snapshotVersion ?? 0) + 1
+        publishSnapshot(snap)
+    }
+
     func loadOpenLines(tableId: String) async -> [SessionOpenLine] {
         guard let sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id else {
             return []
@@ -681,6 +786,7 @@ final class PosRuntime: ObservableObject {
         }
     }
 
+    @discardableResult
     func collectSplit(
         sessionId: String,
         lines: [SessionOpenLine],
@@ -688,17 +794,77 @@ final class PosRuntime: ObservableObject {
         tipCents: Int,
         receivedAmountCents: Int? = nil,
         giftVoucherId: String? = nil,
-        customPaymentMethodId: String? = nil
-    ) async {
-        // Phase 5: Zahlung nur online (TSE / Mollie / Cloud-Persistenz).
+        customPaymentMethodId: String? = nil,
+        receiptLabel: String? = nil
+    ) async -> PosLocalReceipt? {
+        guard !lines.isEmpty else {
+            statusMessage = "Keine Positionen gewählt."
+            return nil
+        }
+        guard !sessionId.hasPrefix("pending-") else {
+            statusMessage = "Tisch noch nicht geöffnet."
+            return nil
+        }
+
+        let tableMeta = tableMetaForSession(sessionId)
+        let waiterName = PosAuthStore.shared.pinSession?.staffName
+            ?? PosCloudConfig.waiterProfileId
+            ?? "Service"
+        let receipt = PosOfflineCaches.makeReceipt(
+            sessionId: sessionId,
+            tableLabel: tableMeta.label,
+            diningTableId: tableMeta.tableId,
+            lines: lines,
+            method: method,
+            tipCents: tipCents,
+            receivedAmountCents: receivedAmountCents,
+            label: receiptLabel,
+            waiterName: waiterName
+        )
+        PosOfflineCaches.appendReceipt(receipt)
+
+        // Lokal immer zuerst buchen — Demo/DEBUG ohne Cloud sonst „passiert nichts“.
+        let lineIds = Set(lines.map(\.id))
+        let paidCents = PosHubState.shared.collectLocalLines(sessionId: sessionId, lineIds: lineIds)
+        if role == .hub || isSoloMode || hubBaseURL == nil {
+            publishSnapshot(PosHubState.shared.makeSnapshot())
+        } else if let base = hubBaseURL {
+            let token = PosEnrollmentStore.shared.handheldPairToken
+            do {
+                try await HandheldHubClient.collect(
+                    baseURL: base,
+                    sessionId: sessionId,
+                    lineIds: Array(lineIds),
+                    pairToken: token
+                )
+                if let snap = try? await HandheldHubClient.fetchSnapshot(
+                    baseURL: base,
+                    restaurantId: nil,
+                    pairToken: token
+                ) {
+                    publishSnapshot(snap)
+                }
+            } catch {
+                statusMessage = "Hub-Zahlung: \(error.localizedDescription) — lokal gebucht."
+            }
+        }
+
+        PosAuditLog.shared.record(
+            "payment.local",
+            detail: "\(method.rawValue):\(paidCents)",
+            sessionId: sessionId
+        )
+
+        // Ohne Cloud-Login: Demo fertig (Bar/Karte/PayPal nur UX).
+        guard PosAuthStore.shared.isSignedIn else {
+            let tipNote = tipCents > 0 ? " inkl. \(PosMoney.format(tipCents)) Tip" : ""
+            statusMessage = "Beleg #\(receipt.orderNumber) · \(method.label) · \(PosMoney.format(paidCents + tipCents))\(tipNote)"
+            return receipt
+        }
+
         guard PosNetworkMonitor.shared.canCollectPayment else {
-            statusMessage = "Zahlung nur online — bitte Netz prüfen."
-            PosAuditLog.shared.record(
-                "payment.blocked_offline",
-                detail: method.rawValue,
-                sessionId: sessionId
-            )
-            return
+            statusMessage = "Beleg #\(receipt.orderNumber) lokal — Cloud-Sync wenn online."
+            return receipt
         }
 
         let restaurantId = PosHubState.shared.restaurantId
@@ -707,7 +873,7 @@ final class PosRuntime: ObservableObject {
         if method == .voucher {
             guard let giftVoucherId, !giftVoucherId.isEmpty else {
                 statusMessage = "Gutschein fehlt — bitte scannen oder Code eingeben."
-                return
+                return receipt
             }
             do {
                 let result = try await PosCloudClient.collectVoucher(
@@ -724,17 +890,19 @@ final class PosRuntime: ObservableObject {
                     statusMessage = "Gutschein \(result.voucherCode) vollständig eingelöst."
                 }
                 await pullCloudBootstrap(forceDemoFallback: false)
-                publishSnapshot(PosHubState.shared.makeSnapshot())
+                if role == .hub || isSoloMode || hubBaseURL == nil {
+                    publishSnapshot(PosHubState.shared.makeSnapshot())
+                }
             } catch {
                 statusMessage = "Gutschein-Zahlung fehlgeschlagen — \(error.localizedDescription)"
             }
-            return
+            return receipt
         }
 
         if method == .other {
             guard let customPaymentMethodId, !customPaymentMethodId.isEmpty else {
                 statusMessage = "Zahlungsart fehlt."
-                return
+                return receipt
             }
             do {
                 try await PosCloudClient.collectCustomMethod(
@@ -744,20 +912,21 @@ final class PosRuntime: ObservableObject {
                     allocations: allocations,
                     tipCents: tipCents
                 )
-                statusMessage = "Teilzahlung kassiert."
+                statusMessage = "Teilzahlung kassiert · Beleg #\(receipt.orderNumber)."
                 await pullCloudBootstrap(forceDemoFallback: false)
-                publishSnapshot(PosHubState.shared.makeSnapshot())
+                if role == .hub || isSoloMode || hubBaseURL == nil {
+                    publishSnapshot(PosHubState.shared.makeSnapshot())
+                }
             } catch {
                 statusMessage = "Zahlung fehlgeschlagen — \(error.localizedDescription)"
             }
-            return
+            return receipt
         }
 
         if method == .card || method == .paypal {
-            // Nest Mollie-Simulate über Sync-Event (oder Next später).
             guard PosCloudConfig.nestSyncEnabled else {
-                statusMessage = "Karte/PayPal braucht Nest-URL (Mollie Simulate)."
-                return
+                statusMessage = "Beleg #\(receipt.orderNumber) · \(method.label) (Demo)."
+                return receipt
             }
             let amount = lines.reduce(0) { $0 + $1.openCents }
             let body: [String: Any] = [
@@ -780,17 +949,19 @@ final class PosRuntime: ObservableObject {
                 } else {
                     statusMessage = method == .paypal ? "PayPal (Nest) gebucht." : "Karte (Nest) gebucht."
                     await pullCloudBootstrap(forceDemoFallback: false)
-                    publishSnapshot(PosHubState.shared.makeSnapshot())
+                    if role == .hub || isSoloMode || hubBaseURL == nil {
+                        publishSnapshot(PosHubState.shared.makeSnapshot())
+                    }
                 }
             } catch {
                 statusMessage = "Unbar fehlgeschlagen — \(error.localizedDescription)"
             }
-            return
+            return receipt
         }
 
         guard method == .cash else {
-            statusMessage = "Unbar folgt — bitte Bar, Gutschein oder eigene Art nutzen."
-            return
+            statusMessage = "Beleg #\(receipt.orderNumber) lokal."
+            return receipt
         }
         do {
             try await PosCloudClient.collectCash(
@@ -800,12 +971,13 @@ final class PosRuntime: ObservableObject {
                 tipCents: tipCents,
                 receivedAmountCents: receivedAmountCents
             )
-            statusMessage = "Teilzahlung kassiert."
+            statusMessage = "Teilzahlung kassiert · Beleg #\(receipt.orderNumber)."
             await pullCloudBootstrap(forceDemoFallback: false)
-            publishSnapshot(PosHubState.shared.makeSnapshot())
+            if role == .hub || isSoloMode || hubBaseURL == nil {
+                publishSnapshot(PosHubState.shared.makeSnapshot())
+            }
             PosAuditLog.shared.record("payment.cash", detail: "ok", sessionId: sessionId)
         } catch {
-            // Online war da, Cloud-Call scheiterte → Queue (Retry), nicht „offline erlaubt“.
             PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
                 restaurantId: restaurantId,
                 tableSessionId: sessionId,
@@ -814,18 +986,32 @@ final class PosRuntime: ObservableObject {
                 receivedAmountCents: receivedAmountCents
             ))
             syncPending = PosSyncQueue.shared.pendingCount
-            statusMessage = "Zahlung lokal gequeued — \(error.localizedDescription)"
+            statusMessage = "Beleg #\(receipt.orderNumber) · Sync später"
             PosAuditLog.shared.record(
                 "payment.cash_queued",
                 detail: error.localizedDescription,
                 sessionId: sessionId
             )
         }
+        return receipt
+    }
+
+    private func tableMetaForSession(_ sessionId: String) -> (label: String, tableId: String) {
+        if let session = snapshot?.floor.openSessions.first(where: { $0.id == sessionId }),
+           let table = snapshot?.floor.tables.first(where: { $0.id == session.dining_table_id })
+        {
+            return (table.label, table.id)
+        }
+        return ("Tisch", "")
     }
 
     /// Gang an Küche feuern (Nest Outbox + lokaler KDS/Druck).
     @discardableResult
     func fireCourse(sessionId: String, course: Int) async -> Bool {
+        guard !sessionId.hasPrefix("pending-") else {
+            statusMessage = "Tisch noch nicht geöffnet."
+            return false
+        }
         let restaurantId = PosHubState.shared.restaurantId
         PosHubState.shared.markFired(sessionId: sessionId, course: course)
         PosHubState.shared.markLocalCourseFired(sessionId: sessionId, course: course)
@@ -841,7 +1027,10 @@ final class PosRuntime: ObservableObject {
         Task { await PosPrintDispatcher.shared.kick() }
         PosAuditLog.shared.record("course.fired", detail: "\(course)", sessionId: sessionId)
         statusMessage = "Gang „\(PosCourse.label(course))“ gefeuert."
-        publishSnapshot(PosHubState.shared.makeSnapshot())
+        // Handgerät am Hub: Floor-Snapshot nicht mit lokalem Demo-State überschreiben.
+        if role == .hub || isSoloMode || hubBaseURL == nil {
+            publishSnapshot(PosHubState.shared.makeSnapshot())
+        }
         return true
     }
 
@@ -1056,9 +1245,17 @@ final class PosRuntime: ObservableObject {
             return msg
         }
         do {
-            let bootstrap = try await PosCloudClient.fetchBootstrap(restaurantId: restaurantId)
+            let cachedRevision = PosHubState.shared.menuRevision
+            let bootstrap = try await PosCloudClient.fetchBootstrap(
+                restaurantId: restaurantId,
+                menuRevision: cachedRevision
+            )
             PosHubState.shared.applyBootstrap(bootstrap)
-            let msg = "Cloud-Daten geladen (\(bootstrap.floor.tables.count) Tische, \(bootstrap.menu.items.count) Gerichte)."
+            let menuCount = PosHubState.shared.menu?.items.count ?? 0
+            let unchanged = bootstrap.menuUnchanged == true
+            let msg = unchanged
+                ? "Cloud aktualisiert (\(bootstrap.floor.tables.count) Tische · Speisekarte Cache)."
+                : "Cloud-Daten geladen (\(bootstrap.floor.tables.count) Tische, \(menuCount) Gerichte)."
             statusMessage = msg
             return msg
         } catch {
@@ -1236,6 +1433,7 @@ final class PosRuntime: ObservableObject {
                     var menuItemId: String
                     var quantity: Int
                     var notes: String?
+                    var course: Int?
                 }
                 struct Req: Decodable {
                     var diningTableId: String
@@ -1249,15 +1447,6 @@ final class PosRuntime: ObservableObject {
                     diningTableId: req.diningTableId,
                     coverCount: req.coverCount ?? 2
                 )
-                var addCents = 0
-                if let menu = PosHubState.shared.menu {
-                    for item in req.items {
-                        let price = menu.items.first(where: { $0.id == item.menuItemId })?.priceCents ?? 0
-                        addCents += price * item.quantity
-                    }
-                }
-                PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
-                let orderNumber = (PosHubState.shared.makeSnapshot().floor.orderCountBySessionId[sessionId] ?? 1)
                 let cartLines: [PosCartLine] = req.items.compactMap { item in
                     guard let menuItem = PosHubState.shared.menu?.items.first(where: { $0.id == item.menuItemId }) else {
                         return nil
@@ -1267,11 +1456,18 @@ final class PosRuntime: ObservableObject {
                         name: menuItem.name,
                         unitPriceCents: menuItem.priceCents,
                         quantity: item.quantity,
-                        course: PosCourse.default,
+                        course: item.course ?? PosCourse.default,
                         notes: item.notes ?? "",
                         modifiers: []
                     )
                 }
+                guard !cartLines.isEmpty else {
+                    return (400, Data(#"{"error":"unknown_menu_items"}"#.utf8))
+                }
+                let addCents = cartLines.reduce(0) { $0 + $1.lineTotalCents }
+                PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
+                PosHubState.shared.appendLocalOpenLines(sessionId: sessionId, from: cartLines)
+                let orderNumber = (PosHubState.shared.makeSnapshot().floor.orderCountBySessionId[sessionId] ?? 1)
                 PosHubState.shared.routeKitchenOutput(orderNumber: orderNumber, cartLines: cartLines)
                 Task { await PosPrintDispatcher.shared.kick() }
                 let restaurantId = PosHubState.shared.restaurantId
@@ -1296,6 +1492,23 @@ final class PosRuntime: ObservableObject {
                 return (200, data)
             }
 
+            if pathOnly == PosLanProtocol.collectPath {
+                struct Req: Decodable {
+                    var sessionId: String
+                    var lineIds: [String]
+                }
+                guard let req = try? decoder.decode(Req.self, from: body), !req.lineIds.isEmpty else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                let paid = PosHubState.shared.collectLocalLines(
+                    sessionId: req.sessionId,
+                    lineIds: Set(req.lineIds)
+                )
+                let payload: [String: Any] = ["ok": true, "paidCents": paid]
+                let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+                return (200, data)
+            }
+
             if pathOnly == PosLanProtocol.pairRequestPath {
                 guard let req = try? decoder.decode(PosLanPairRequest.self, from: body) else {
                     return (400, Data(#"{"error":"invalid_body"}"#.utf8))
@@ -1315,6 +1528,37 @@ final class PosRuntime: ObservableObject {
         }
 
         return (405, Data(#"{"error":"method_not_allowed"}"#.utf8))
+    }
+
+    /// Versucht LAN-Hub erneut, ohne Pairing zu löschen und ohne Solo-Snapshot zu verwerfen.
+    private func tryReconnectHubKeepingPairing() async {
+        guard role == .handheld, PosEnrollmentStore.shared.isHandheldPaired else { return }
+        let previousSolo = isSoloMode
+        let previousSnap = snapshot
+        phase = .searching
+        statusMessage = "Suche iPad-Kasse …"
+        var candidates: [URL] = []
+        if let hint = Self.savedHubHostHint() {
+            candidates.append(PosLanProtocol.hubBaseURL(host: hint))
+        }
+        if let enrolled = PosEnrollmentStore.shared.handheldHubBaseURL,
+           let url = URL(string: enrolled)
+        {
+            if !candidates.contains(url) { candidates.append(url) }
+        }
+        if let connected = await tryConnectHandheldCandidates(candidates, clearPairingOn401: false) {
+            _ = connected
+            return
+        }
+        // Hub offline → Solo behalten, Pairing bleibt bis Revoke.
+        isSoloMode = previousSolo || true
+        if let previousSnap {
+            publishSnapshot(previousSnap)
+        } else {
+            publishSnapshot(PosHubState.shared.makeSnapshot())
+        }
+        phase = .connected
+        statusMessage = "Ohne iPad (Cloud/Cache) — Pairing bleibt gespeichert."
     }
 
     private func connectHandheld(preferredHost: String? = nil) async {
@@ -1354,6 +1598,12 @@ final class PosRuntime: ObservableObject {
         }
 
         guard !candidates.isEmpty else {
+            // Cloud-ready: ohne Hub weiterarbeiten, Pairing behalten.
+            if PosEnrollmentStore.shared.isHandheldCloudReady || PosEnrollmentCredential.hasCredential {
+                await startHandheldSolo(preferCloud: true)
+                statusMessage = "Keine Kasse gefunden — Cloud/Cache aktiv."
+                return
+            }
             phase = .error("Keine Kasse gefunden")
             statusMessage =
                 "Keine Kasse per WLAN gefunden. Hub-Adresse prüfen (Simulator: 127.0.0.1:8787) und „Koppeln“ tippen."
@@ -1364,13 +1614,22 @@ final class PosRuntime: ObservableObject {
             return
         }
 
+        if PosEnrollmentStore.shared.isHandheldCloudReady || PosEnrollmentCredential.hasCredential {
+            await startHandheldSolo(preferCloud: true)
+            statusMessage = "Kasse nicht erreichbar — Cloud/Cache aktiv. Pairing bleibt."
+            return
+        }
+
         phase = .error("Kasse nicht erreichbar")
         statusMessage = "Kasse nicht erreichbar — iPad einschalten?"
     }
 
     /// Versucht die Kandidaten der Reihe nach; bei Erfolg `.connected`, sonst `nil`.
     @discardableResult
-    private func tryConnectHandheldCandidates(_ candidates: [URL]) async -> URL? {
+    private func tryConnectHandheldCandidates(
+        _ candidates: [URL],
+        clearPairingOn401: Bool = false
+    ) async -> URL? {
         var lastError: String?
         for base in candidates {
             do {
@@ -1393,8 +1652,10 @@ final class PosRuntime: ObservableObject {
                     await pullReservationsDay(PosReservationsStore.todayYmd())
                     return base
                 } catch HandheldHubClientError.httpStatus(401) {
-                    // kein/ungültiger Token → Kopplung anstoßen
-                    PosEnrollmentStore.shared.resetHandheldPairing()
+                    // Token ungültig (Hub neu / revoked) — nur bei explizitem Re-Pair löschen.
+                    if clearPairingOn401 {
+                        PosEnrollmentStore.shared.resetHandheldPairing()
+                    }
                     await beginPairing(base: base)
                     return base
                 }

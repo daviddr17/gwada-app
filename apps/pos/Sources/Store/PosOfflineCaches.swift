@@ -2,6 +2,23 @@ import Foundation
 
 // MARK: - Models
 
+struct PosLocalReceiptLine: Codable, Equatable, Sendable {
+    var quantity: Int
+    var name: String
+    var detail: String
+    var totalCents: Int
+}
+
+/// Demo-TSE-Felder (§ 6 KassenSichV) — bis echte Fiskaly-Anbindung.
+struct PosLocalReceiptTse: Codable, Equatable, Sendable {
+    var transactionNumber: Int
+    var signatureCounter: Int
+    var tseSerial: String
+    var registerSerial: String
+    var signature: String
+    var processStartedAt: String
+}
+
 struct PosLocalReceipt: Codable, Identifiable, Equatable, Sendable {
     var localId: String
     var paymentId: String?
@@ -19,10 +36,17 @@ struct PosLocalReceipt: Codable, Identifiable, Equatable, Sendable {
     var fiscalPending: Bool
     var canVoidCash: Bool
     var dayYmd: String
+    /// Anzeigename der Teilzahlung (z. B. „Rest / Alles“).
+    var label: String?
+    var items: [PosLocalReceiptLine]?
+    var waiterName: String?
+    var tse: PosLocalReceiptTse?
 
     var id: String { localId }
 
     var displayPaymentId: String { paymentId ?? localId }
+
+    var paidTotalCents: Int { amountCents + tipCents }
 }
 
 struct PosCachedGiftVoucher: Codable, Identifiable, Equatable, Sendable {
@@ -93,6 +117,82 @@ enum PosOfflineCaches {
         all = all.filter { $0.dayYmd == today || $0.fiscalPending || $0.status == "void_pending" }
         if all.count > 200 { all = Array(all.prefix(200)) }
         saveReceipts(all)
+    }
+
+    static func nextBonNumber() -> Int {
+        (loadReceipts().map(\.orderNumber).max() ?? 4710) + 1
+    }
+
+    static func todayReceipts() -> [PosLocalReceipt] {
+        let today = todayYmd()
+        return loadReceipts().filter { $0.dayYmd == today }
+    }
+
+    static func receipts(forTableLabel label: String) -> [PosLocalReceipt] {
+        todayReceipts().filter { $0.tableLabel == label }
+    }
+
+    static func makeReceipt(
+        sessionId: String,
+        tableLabel: String,
+        diningTableId: String,
+        lines: [SessionOpenLine],
+        method: PosPaymentMethodKind,
+        tipCents: Int,
+        receivedAmountCents: Int?,
+        label: String?,
+        waiterName: String?
+    ) -> PosLocalReceipt {
+        let amount = lines.reduce(0) { $0 + $1.openCents }
+        let paidAt = isoNow()
+        let start = Date().addingTimeInterval(-45)
+        let tse = PosReceiptFiscalDemo.nextTse(
+            amountCents: amount,
+            processStartedAt: ISO8601DateFormatter().string(from: start),
+            processEndedAt: paidAt
+        )
+        return PosLocalReceipt(
+            localId: UUID().uuidString,
+            paymentId: nil,
+            orderId: nil,
+            orderNumber: nextBonNumber(),
+            tableSessionId: sessionId,
+            tableLabel: tableLabel,
+            diningTableId: diningTableId,
+            method: method.rawValue,
+            status: "paid",
+            amountCents: amount,
+            tipCents: tipCents,
+            receivedAmountCents: receivedAmountCents,
+            paidAt: paidAt,
+            fiscalPending: true,
+            canVoidCash: method == .cash,
+            dayYmd: todayYmd(),
+            label: label,
+            items: lines.map {
+                PosLocalReceiptLine(
+                    quantity: $0.openQuantity,
+                    name: $0.name,
+                    detail: Self.receiptDetail(from: $0.detail),
+                    totalCents: $0.openCents
+                )
+            },
+            waiterName: waiterName,
+            tse: tse
+        )
+    }
+
+    /// Gang-Labels wie „Hauptgang“ nicht als Beleg-Zusatz zeigen (Prototyp: nur Mods).
+    private static func receiptDetail(from raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let courseLabels = Set(PosCourse.uiCourses.map(PosCourse.label) + PosCourse.uiCourses.map(PosCourse.chipLabel))
+        if courseLabels.contains(trimmed) { return "" }
+        // „Hauptgang · ohne X“ → nur Mods behalten
+        let parts = trimmed.split(separator: "·").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let kept = parts.filter { !courseLabels.contains($0) }
+        return kept.joined(separator: " · ")
     }
 
     static func updateReceipt(localId: String, mutate: (inout PosLocalReceipt) -> Void) {

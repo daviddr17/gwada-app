@@ -65,8 +65,8 @@ struct RootView: View {
                 } else {
                     hubSplitView
                 }
-            } else if !enrollment.isHandheldPaired, runtime.hubBaseURL == nil, !runtime.isSoloMode {
-                HandheldPairingGateView()
+            } else if !enrollment.isHandheldReady, runtime.hubBaseURL == nil, !runtime.isSoloMode {
+                HandheldOnboardingWizardView()
             } else {
                 kellnerTabView
             }
@@ -216,9 +216,7 @@ struct RootView: View {
         .onPreferenceChange(PosSessionBonActiveKey.self) { sessionBonActive = $0 }
         .onPreferenceChange(PosSessionBonCartQtyKey.self) { sessionBonQty = $0 }
         .modifier(PosBonTabAccessoryModifier(
-            // Prefs stay true while TableSessionView remains mounted in Tische stack —
-            // only show accessory on the Tische tab (spec: not Reservierungen/Mehr).
-            isActive: sessionBonActive && kellnerTab == .tables,
+            isActive: false,
             cartQuantity: sessionBonQty,
             opener: sessionBonOpener
         ))

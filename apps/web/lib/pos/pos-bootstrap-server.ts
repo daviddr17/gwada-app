@@ -81,6 +81,13 @@ export type PosBootstrapPayload = {
   /** `restaurants.brand_accent_hex` — native POS tint */
   brandAccentHex: string | null;
   generatedAt: string;
+  /**
+   * Opaque Speisekarten-Version (max. `updated_at` der Menü-Tabellen).
+   * Clients cachen die Karte und überspringen den Menü-Body bei Gleichheit.
+   */
+  menuRevision: string;
+  /** true wenn Client `menuRevision` mitgeschickt hat und Menü unverändert ist. */
+  menuUnchanged?: boolean;
   register: Awaited<ReturnType<typeof loadRegisterStatus>>;
   floor: {
     areas: PosBootstrapFloorArea[];
@@ -103,9 +110,43 @@ export type PosBootstrapPayload = {
   };
 };
 
+/** Max. `updated_at` über Speisekarten-Tabellen → stabile Cache-Revision. */
+export async function loadPosMenuRevision(
+  supabase: SupabaseClient,
+  restaurantId: string,
+): Promise<string> {
+  // `menu_option_choices` hat kein restaurant_id — Gruppen-`updated_at` reicht für Cache-Key.
+  const tables = [
+    "menu_categories",
+    "menu_items",
+    "menu_option_groups",
+    "menu_item_side_config",
+  ] as const;
+
+  const stamps: string[] = [];
+  await Promise.all(
+    tables.map(async (table) => {
+      const { data } = await supabase
+        .from(table)
+        .select("updated_at")
+        .eq("restaurant_id", restaurantId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const raw = (data as { updated_at?: string } | null)?.updated_at;
+      if (raw) stamps.push(String(raw));
+    }),
+  );
+
+  if (stamps.length === 0) return "empty";
+  stamps.sort();
+  return stamps[stamps.length - 1] ?? "empty";
+}
+
 export async function loadPosBootstrap(
   supabase: SupabaseClient,
   restaurantId: string,
+  options?: { clientMenuRevision?: string | null },
 ): Promise<PosBootstrapPayload | { error: string; status: number }> {
   const { data: restaurant, error: restaurantError } = await supabase
     .from("restaurants")
@@ -116,6 +157,13 @@ export async function loadPosBootstrap(
   if (restaurantError || !restaurant) {
     return { error: "restaurant_not_found", status: 404 };
   }
+
+  const clientMenuRevision = options?.clientMenuRevision?.trim() || null;
+  const menuRevision = await loadPosMenuRevision(supabase, restaurantId);
+  const menuUnchanged =
+    clientMenuRevision != null &&
+    clientMenuRevision.length > 0 &&
+    clientMenuRevision === menuRevision;
 
   const [register, areasRes, tablesRes, sessionsRes, categoriesRes] =
     await Promise.all([
@@ -137,61 +185,79 @@ export async function loadPosBootstrap(
         .select("id, dining_table_id, cover_count, opened_at")
         .eq("restaurant_id", restaurantId)
         .eq("status", "open"),
-      supabase
-        .from("menu_categories")
-        .select("id, name, sort_order, is_active")
-        .eq("restaurant_id", restaurantId)
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true }),
+      menuUnchanged
+        ? Promise.resolve({
+            data: [] as {
+              id: string;
+              name: string;
+              sort_order: number;
+              is_active: boolean;
+            }[],
+            error: null,
+          })
+        : supabase
+            .from("menu_categories")
+            .select("id, name, sort_order, is_active")
+            .eq("restaurant_id", restaurantId)
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true }),
     ]);
 
-  const itemsWithRelations = await supabase
-    .from("menu_items")
-    .select(
-      `
+  const emptyItemsRes = { data: [] as unknown[], error: null };
+  const itemsWithRelations = menuUnchanged
+    ? emptyItemsRes
+    : await supabase
+        .from("menu_items")
+        .select(
+          `
       id, name, description, price, vat_rate, category_id, list_number, is_active, side_price_cents,
       menu_item_option_groups(option_group_id, sort_order),
       menu_item_recipe_lines(ingredient_id, amount, sort_order)
     `,
-    )
-    .eq("restaurant_id", restaurantId)
-    .eq("is_active", true)
-    .order("list_number", { ascending: true });
-
-  const itemsFallback = itemsWithRelations.error
-    ? await supabase
-        .from("menu_items")
-        .select(
-          "id, name, description, price, vat_rate, category_id, list_number, is_active, side_price_cents",
         )
         .eq("restaurant_id", restaurantId)
         .eq("is_active", true)
-        .order("list_number", { ascending: true })
-    : null;
+        .order("list_number", { ascending: true });
+
+  const itemsFallback =
+    !menuUnchanged && itemsWithRelations.error
+      ? await supabase
+          .from("menu_items")
+          .select(
+            "id, name, description, price, vat_rate, category_id, list_number, is_active, side_price_cents",
+          )
+          .eq("restaurant_id", restaurantId)
+          .eq("is_active", true)
+          .order("list_number", { ascending: true })
+      : null;
 
   const itemsRes = itemsFallback ?? itemsWithRelations;
 
-  const { data: ingredientRows } = await supabase
-    .from("inventory_ingredients")
-    .select("id, name")
-    .eq("restaurant_id", restaurantId)
-    .eq("is_active", true);
+  const { data: ingredientRows } = menuUnchanged
+    ? { data: [] as { id: string; name: string }[] }
+    : await supabase
+        .from("inventory_ingredients")
+        .select("id, name")
+        .eq("restaurant_id", restaurantId)
+        .eq("is_active", true);
 
   const ingredientNameById = new Map(
     (ingredientRows ?? []).map((r) => [r.id as string, String(r.name ?? "")]),
   );
 
-  const groupsRes = await supabase
-    .from("menu_option_groups")
-    .select(
-      `
+  const groupsRes = menuUnchanged
+    ? { data: [] as unknown[], error: null }
+    : await supabase
+        .from("menu_option_groups")
+        .select(
+          `
       id, name, is_active, sort_order, min_select, max_select,
       menu_option_choices(id, name, price_delta, is_active, sort_order)
     `,
-    )
-    .eq("restaurant_id", restaurantId)
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true });
+        )
+        .eq("restaurant_id", restaurantId)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
 
   if (areasRes.error || tablesRes.error || sessionsRes.error) {
     console.warn(
@@ -275,10 +341,12 @@ export async function loadPosBootstrap(
       | null;
   };
 
-  const { data: sideConfigs } = await supabase
-    .from("menu_item_side_config")
-    .select("menu_item_id, required, max_sides, included_count")
-    .eq("restaurant_id", restaurantId);
+  const { data: sideConfigs } = menuUnchanged
+    ? { data: [] as { menu_item_id: string; required: boolean; max_sides: number; included_count: number }[] }
+    : await supabase
+        .from("menu_item_side_config")
+        .select("menu_item_id, required, max_sides, included_count")
+        .eq("restaurant_id", restaurantId);
 
   const sideByItem = new Map<string, PosBootstrapMenuItemSides>();
   for (const row of sideConfigs ?? []) {
@@ -392,6 +460,8 @@ export async function loadPosBootstrap(
     restaurantName: String(restaurant.name ?? ""),
     brandAccentHex,
     generatedAt: new Date().toISOString(),
+    menuRevision,
+    ...(menuUnchanged ? { menuUnchanged: true as const } : {}),
     register,
     floor: {
       areas: (areasRes.data ?? []) as PosBootstrapFloorArea[],
@@ -400,15 +470,17 @@ export async function loadPosBootstrap(
       orderCountBySessionId,
       sessionMetaBySessionId,
     },
-    menu: {
-      categories: (categoriesRes.data ?? []).map((c) => ({
-        id: c.id as string,
-        name: c.name as string,
-        sortOrder: Number(c.sort_order ?? 0),
-      })),
-      items,
-      optionGroups,
-    },
+    menu: menuUnchanged
+      ? { categories: [], items: [], optionGroups: [] }
+      : {
+          categories: (categoriesRes.data ?? []).map((c) => ({
+            id: c.id as string,
+            name: c.name as string,
+            sortOrder: Number(c.sort_order ?? 0),
+          })),
+          items,
+          optionGroups,
+        },
     kitchen: {
       kdsDevices,
       kdsStatuses,

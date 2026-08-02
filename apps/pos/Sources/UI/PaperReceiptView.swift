@@ -26,23 +26,28 @@ struct SawtoothEdge: Shape {
 struct PaperReceiptView<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
+    /// Thermopapier-Look wie Prototyp (`C.paper`) — unabhängig von Light/Dark.
+    private var paperFill: Color {
+        Color(red: 246 / 255, green: 241 / 255, blue: 226 / 255)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             SawtoothEdge()
-                .fill(PosDesign.paper)
-                .frame(height: 8)
+                .fill(paperFill)
+                .frame(height: 10)
                 .rotationEffect(.degrees(180))
             content()
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(PosDesign.paper)
+                .background(paperFill)
             SawtoothEdge()
-                .fill(PosDesign.paper)
-                .frame(height: 8)
+                .fill(paperFill)
+                .frame(height: 10)
         }
-        .foregroundStyle(PosDesign.ink)
-        .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+        .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
     }
 }
 

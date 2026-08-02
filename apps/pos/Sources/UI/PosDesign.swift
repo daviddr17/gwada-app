@@ -15,11 +15,11 @@ enum PosTableVisualStatus: String, CaseIterable {
 /// Adaptive Light/Dark semantic tokens; Light = warm cream baseline, Dark = briefing greens.
 enum PosDesign {
     static let defaultAccentHex = "#EAB308"
-    static let cardRadius: CGFloat = 16
-    static let chipRadius: CGFloat = 999
+    static let cardRadius: CGFloat = PosLayout.cardRadius
+    static let chipRadius: CGFloat = PosLayout.chipRadius
     static let gridSpacing: CGFloat = 12
-    static let sectionSpacing: CGFloat = 16
-    static let touchMin: CGFloat = 44
+    static let sectionSpacing: CGFloat = PosLayout.section
+    static let touchMin: CGFloat = PosLayout.touchMin
 
     /// Dunkler Text auf warmem Gold (wie Web `--accent-foreground`).
     static let accentForeground = Color(red: 23 / 255, green: 23 / 255, blue: 23 / 255)
@@ -228,77 +228,4 @@ enum PosDesign {
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
-}
-
-/// Primär-CTA wie Web `brand-action-button`: weicher Accent-Tint, dunkler Text, `rounded-xl`.
-struct PosPrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .foregroundStyle(PosDesign.accentForeground)
-            .background(
-                RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
-                    .fill(Color.accentColor.opacity(configuration.isPressed ? 0.22 : 0.15))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
-            )
-            .opacity(configuration.isPressed ? 0.92 : 1)
-    }
-}
-
-/// Sekundär / Outline-Aktion.
-struct PosSecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .foregroundStyle(.primary)
-            .background(
-                RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
-                    .fill(Color(.tertiarySystemFill).opacity(configuration.isPressed ? 0.85 : 1))
-            )
-            .opacity(configuration.isPressed ? 0.92 : 1)
-    }
-}
-
-/// Kompakte Status-Pille (Frei / Besetzt / Hub online).
-struct PosStatusBadge: View {
-    let title: String
-    var emphasized: Bool = false
-    var tint: Color = .accentColor
-
-    var body: some View {
-        Text(title)
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(emphasized ? tint.opacity(0.16) : Color(.tertiarySystemFill))
-            .foregroundStyle(emphasized ? tint : .secondary)
-            .clipShape(Capsule())
-    }
-}
-
-struct PosChip: View {
-    let title: String
-    var selected: Bool = false
-    var tint: Color = .accentColor
-
-    var body: some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(selected ? tint.opacity(0.18) : Color(.tertiarySystemFill))
-            .foregroundStyle(selected ? tint : .primary)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .strokeBorder(selected ? tint.opacity(0.45) : Color.clear, lineWidth: 1)
-            )
-    }
 }

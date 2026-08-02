@@ -57,22 +57,55 @@ final class PosHubState: @unchecked Sendable {
     func applyBootstrap(_ bootstrap: PosCloudBootstrap) {
         lock.lock()
         defer { lock.unlock() }
-        self.bootstrap = bootstrap
+        var next = bootstrap
+        let keepMenu =
+            bootstrap.menuUnchanged == true
+            || (bootstrap.menu.items.isEmpty
+                && !(self.bootstrap?.menu.items.isEmpty ?? true)
+                && bootstrap.menuRevision != nil
+                && bootstrap.menuRevision == self.bootstrap?.menuRevision)
+        if keepMenu, let previous = self.bootstrap {
+            next.menu = previous.menu
+            if next.menuRevision == nil {
+                next.menuRevision = previous.menuRevision
+            }
+            next.menuUnchanged = nil
+        }
+        self.bootstrap = next
         self.usingDemo = false
         snapshotVersion += 1
-        PosLocalStore.saveBootstrap(bootstrap)
+        PosLocalStore.saveBootstrap(next)
     }
 
     func loadCachedOrDemo() {
         lock.lock()
         defer { lock.unlock() }
-        if let cached = PosLocalStore.loadBootstrap() {
+        if var cached = PosLocalStore.loadBootstrap() {
+            var dirty = false
+            // Alte DEBUG-Caches ohne Speisekarte → Demo-Menü nachziehen.
+            if cached.menu.items.isEmpty {
+                cached.menu = DemoSnapshotFactory.makeDemoMenu()
+                dirty = true
+            }
+            // Alte Fake-Session (24,50 € ohne echte Positionen) — auch wenn Menü schon gepatcht.
+            if cached.floor.openSessions.contains(where: { $0.id == "session-open-1" }) {
+                cached.floor.openSessions.removeAll { $0.id == "session-open-1" }
+                cached.floor.orderCountBySessionId.removeValue(forKey: "session-open-1")
+                cached.floor.sessionMetaBySessionId.removeValue(forKey: "session-open-1")
+                dirty = true
+            }
+            if dirty {
+                PosLocalStore.saveBootstrap(cached)
+            }
             bootstrap = cached
             usingDemo = false
         } else {
-            bootstrap = nil
+            let demo = DemoSnapshotFactory.makeBootstrap(hubDeviceId: hubDeviceId)
+            bootstrap = demo
             usingDemo = true
+            PosLocalStore.saveBootstrap(demo)
         }
+        loadLocalOpenLinesLocked()
     }
 
     var restaurantId: String {
@@ -97,6 +130,12 @@ final class PosHubState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return bootstrap?.menu
+    }
+
+    var menuRevision: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return bootstrap?.menuRevision
     }
 
     var isDemo: Bool {
@@ -225,6 +264,10 @@ final class PosHubState: @unchecked Sendable {
             merged.orderCount += meta.orderCount
             merged.openCents += meta.openCents
             bootstrap.floor.sessionMetaBySessionId[cloud] = merged
+        }
+        if let lines = localOpenLinesBySession.removeValue(forKey: local) {
+            localOpenLinesBySession[cloud] = (localOpenLinesBySession[cloud] ?? []) + lines
+            persistLocalOpenLinesLocked()
         }
 
         self.bootstrap = bootstrap
@@ -355,6 +398,7 @@ final class PosHubState: @unchecked Sendable {
             )
         }
         localOpenLinesBySession[sessionId] = existing
+        persistLocalOpenLinesLocked()
     }
 
     func localOpenLines(sessionId: String) -> [SessionOpenLine] {
@@ -371,12 +415,52 @@ final class PosHubState: @unchecked Sendable {
             lines[i].firedAt = date
         }
         localOpenLinesBySession[sessionId] = lines
+        persistLocalOpenLinesLocked()
     }
 
     func clearLocalOpenLines(sessionId: String) {
         lock.lock()
         defer { lock.unlock() }
         localOpenLinesBySession.removeValue(forKey: sessionId)
+        persistLocalOpenLinesLocked()
+    }
+
+    /// Nach Teilzahlung: gewählte Positionen entfernen und offenen Betrag senken.
+    @discardableResult
+    func collectLocalLines(sessionId: String, lineIds: Set<String>) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var lines = localOpenLinesBySession[sessionId] else { return 0 }
+        var paidCents = 0
+        var remaining: [SessionOpenLine] = []
+        for line in lines {
+            if lineIds.contains(line.id) {
+                paidCents += line.openCents
+            } else {
+                remaining.append(line)
+            }
+        }
+        localOpenLinesBySession[sessionId] = remaining.isEmpty ? nil : remaining
+        persistLocalOpenLinesLocked()
+
+        if paidCents > 0, var bootstrap = self.bootstrap {
+            var meta = bootstrap.floor.sessionMetaBySessionId[sessionId]
+                ?? PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
+            meta.openCents = max(0, meta.openCents - paidCents)
+            bootstrap.floor.sessionMetaBySessionId[sessionId] = meta
+            self.bootstrap = bootstrap
+            snapshotVersion += 1
+            PosLocalStore.saveBootstrap(bootstrap)
+        }
+        return paidCents
+    }
+
+    private func persistLocalOpenLinesLocked() {
+        PosLocalStore.saveOpenLines(localOpenLinesBySession)
+    }
+
+    private func loadLocalOpenLinesLocked() {
+        localOpenLinesBySession = PosLocalStore.loadOpenLines() ?? [:]
     }
 
     func bumpLocalOrder(sessionId: String, addCents: Int) {

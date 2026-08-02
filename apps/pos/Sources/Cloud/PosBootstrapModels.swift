@@ -317,6 +317,10 @@ struct PosCloudBootstrap: Codable, Equatable, Sendable {
     /// Restaurant-Akzent (`restaurants.brand_accent_hex`), Fallback Gwada-Gold.
     var brandAccentHex: String?
     var generatedAt: String
+    /// Opaque Speisekarten-Version vom Server (Cache / Conditional Fetch).
+    var menuRevision: String? = nil
+    /// Server hat Menü weggelassen — lokal behalten.
+    var menuUnchanged: Bool? = nil
     var register: PosCloudRegisterStatus
     var floor: PosLanFloorSnapshot
     var menu: PosCloudMenuCatalog

@@ -42,7 +42,7 @@ struct DeviceSettingsView: View {
         .navigationTitle("Gerät")
         .navigationBarTitleDisplayMode(.large)
         .confirmationDialog(
-            "Kasse neu einrichten?",
+            "Gerät zurücksetzen?",
             isPresented: $confirmSignOut,
             titleVisibility: .visible
         ) {
@@ -52,7 +52,7 @@ struct DeviceSettingsView: View {
             Text(
                 runtime.role == .hub
                     ? "Die lokale Kasse stoppt; Handgeräte verlieren die Verbindung. Danach Einrichtungs-Code oder Login."
-                    : "Cloud-Login wird entfernt; Solo nutzt dann Demo-Daten."
+                    : "Cloud-Zugang und iPad-Pairing werden entfernt. Danach erneut Einrichtungs-Code."
             )
         }
     }
@@ -83,14 +83,14 @@ struct DeviceSettingsView: View {
 
     @ViewBuilder
     private var handheldSections: some View {
-        Section("Solo / ohne iPad") {
-            Text("Für UI-Tests ohne Kasse: Solo startet mit Demo- oder Cloud-Daten.")
+        Section("Cloud / ohne iPad") {
+            Text("Speisekarte und Tische kommen von der Cloud (VPS) und bleiben lokal gecacht.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             Button {
-                Task { await runtime.startHandheldSolo(preferCloud: runtime.isSignedIn) }
+                Task { await runtime.startHandheldSolo(preferCloud: true) }
             } label: {
-                Text(runtime.isSoloMode ? "Solo-Daten neu laden" : "Ohne Kasse starten (Solo)")
+                Text(runtime.isSoloMode ? "Cloud-Daten neu laden" : "Ohne iPad (Cloud) starten")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PosPrimaryButtonStyle())
@@ -107,6 +107,9 @@ struct DeviceSettingsView: View {
         }
 
         Section("Verbindung zur Kasse") {
+            if PosEnrollmentStore.shared.isHandheldPaired {
+                LabeledContent("Pairing", value: "Gespeichert (bis Widerruf)")
+            }
             if let url = runtime.hubBaseURL {
                 LabeledContent("Hub", value: url.absoluteString)
             }
@@ -120,7 +123,7 @@ struct DeviceSettingsView: View {
             Button("Erneut nach Kasse suchen") {
                 Task { await runtime.refresh() }
             }
-            Text("Ohne erreichbare Kasse wechselt die App automatisch in den Solo-Modus.")
+            Text("Ohne erreichbare Kasse bleibt Cloud/Cache aktiv — Pairing wird nicht gelöscht.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

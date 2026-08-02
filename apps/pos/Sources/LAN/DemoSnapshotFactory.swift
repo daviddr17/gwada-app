@@ -4,19 +4,21 @@ enum DemoSnapshotFactory {
     static let restaurantId = "00000000-0000-4000-8000-000000000001"
     static let restaurantName = "Demo Restaurant"
 
-    static func makeSnapshot(hubDeviceId: String) -> PosLanHubSnapshot {
-        let areaId = "area-1"
-        let table1 = "table-1"
-        let table2 = "table-2"
-        let sessionId = "session-open-1"
+    private static let areaId = "area-1"
+    private static let table1 = "table-1"
+    private static let table2 = "table-2"
+    private static let catVorspeisen = "cat-starter"
+    private static let catHaupt = "cat-main"
+    private static let catGetranke = "cat-drinks"
 
-        return PosLanHubSnapshot(
-            protocolVersion: PosLanProtocol.version,
+    /// Vollständiger Demo-Bootstrap inkl. Speisekarte (DEBUG lokal ohne Cloud).
+    static func makeBootstrap(hubDeviceId: String = "demo-hub") -> PosCloudBootstrap {
+        PosCloudBootstrap(
             restaurantId: restaurantId,
             restaurantName: restaurantName,
             brandAccentHex: PosDesign.defaultAccentHex,
             generatedAt: ISO8601DateFormatter().string(from: Date()),
-            register: PosLanRegisterState(
+            register: PosCloudRegisterStatus(
                 isOpen: true,
                 sessionId: "register-1",
                 openedAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3600))
@@ -49,23 +51,52 @@ enum DemoSnapshotFactory {
                         is_active: true
                     ),
                 ],
-                openSessions: [
-                    PosLanOpenSession(
-                        id: sessionId,
-                        dining_table_id: table1,
-                        cover_count: 2,
-                        opened_at: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-900))
-                    ),
-                ],
-                orderCountBySessionId: [sessionId: 1],
-                sessionMetaBySessionId: [
-                    sessionId: PosLanSessionFloorMeta(orderCount: 1, openCents: 2450),
-                ]
+                openSessions: [],
+                orderCountBySessionId: [:],
+                sessionMetaBySessionId: [:]
             ),
-            menu: nil,
+            menu: makeDemoMenu(),
+            kitchen: nil
+        )
+    }
+
+    static func makeDemoMenu() -> PosCloudMenuCatalog {
+        PosCloudMenuCatalog(
+            categories: [
+                PosCloudMenuCategory(id: catVorspeisen, name: "Vorspeisen", sortOrder: 0),
+                PosCloudMenuCategory(id: catHaupt, name: "Hauptgerichte", sortOrder: 1),
+                PosCloudMenuCategory(id: catGetranke, name: "Getränke", sortOrder: 2),
+            ],
+            items: [
+                .demo(id: "item-suppe", name: "Tagessuppe", description: "Mit Brot", priceCents: 650, categoryId: catVorspeisen),
+                .demo(id: "item-salat", name: "Haussalat", description: "", priceCents: 890, categoryId: catVorspeisen),
+                .demo(id: "item-schnitzel", name: "Wiener Schnitzel", description: "mit Pommes", priceCents: 1850, categoryId: catHaupt),
+                .demo(id: "item-pasta", name: "Pasta Arrabbiata", description: "", priceCents: 1490, categoryId: catHaupt),
+                .demo(id: "item-cola", name: "Cola 0,4", description: "", priceCents: 390, categoryId: catGetranke),
+                .demo(id: "item-wasser", name: "Mineralwasser", description: "", priceCents: 320, categoryId: catGetranke),
+            ],
+            optionGroups: []
+        )
+    }
+
+    static func makeSnapshot(hubDeviceId: String) -> PosLanHubSnapshot {
+        let boot = makeBootstrap(hubDeviceId: hubDeviceId)
+        return PosLanHubSnapshot(
+            protocolVersion: PosLanProtocol.version,
+            restaurantId: boot.restaurantId,
+            restaurantName: boot.restaurantName,
+            brandAccentHex: boot.resolvedAccentHex,
+            generatedAt: boot.generatedAt,
+            register: PosLanRegisterState(
+                isOpen: boot.register.isOpen,
+                sessionId: boot.register.sessionId,
+                openedAt: boot.register.openedAt
+            ),
+            floor: boot.floor,
+            menu: boot.menu,
             hub: PosLanHubInfo(
                 deviceId: hubDeviceId,
-                displayName: PosLanProtocol.bonjourName(restaurantName: restaurantName),
+                displayName: PosLanProtocol.bonjourName(restaurantName: boot.restaurantName),
                 role: "hub"
             ),
             snapshotVersion: 1,
@@ -84,3 +115,57 @@ enum DemoSnapshotFactory {
         )
     }
 }
+
+extension PosCloudMenuItem {
+    static func demo(
+        id: String,
+        name: String,
+        description: String,
+        priceCents: Int,
+        categoryId: String
+    ) -> PosCloudMenuItem {
+        PosCloudMenuItem(
+            id: id,
+            name: name,
+            description: description,
+            priceCents: priceCents,
+            sidePriceCents: nil,
+            sides: nil,
+            vatRate: 0.19,
+            categoryId: categoryId,
+            listNumber: nil,
+            optionGroupIds: [],
+            recipe: nil,
+            active: true
+        )
+    }
+
+    init(
+        id: String,
+        name: String,
+        description: String,
+        priceCents: Int,
+        sidePriceCents: Int?,
+        sides: PosCloudMenuItemSideConfig?,
+        vatRate: Double,
+        categoryId: String,
+        listNumber: Int?,
+        optionGroupIds: [String],
+        recipe: [PosCloudRecipeIngredient]?,
+        active: Bool
+    ) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.priceCents = priceCents
+        self.sidePriceCents = sidePriceCents
+        self.sides = sides
+        self.vatRate = vatRate
+        self.categoryId = categoryId
+        self.listNumber = listNumber
+        self.optionGroupIds = optionGroupIds
+        self.recipe = recipe
+        self.active = active
+    }
+}
+

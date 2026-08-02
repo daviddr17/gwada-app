@@ -11,6 +11,11 @@ struct KdsView: View {
     /// Pro Ticket: Tap gesperrt bis Advance fertig (verhindert Doppel-Advance).
     @State private var advancingIds: Set<String> = []
 
+    /// Hub/Solo: Tickets leben in `PosHubState` (LAN „Gang schicken“), nicht in der Cloud.
+    private var usesLocalHubTickets: Bool {
+        runtime.role == .hub || runtime.isSoloMode
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             settingsBar
@@ -43,10 +48,20 @@ struct KdsView: View {
                 }
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .background(PosDesign.bg)
         .navigationTitle("KDS")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await reload() }
+        .task {
+            await reload()
+            // Neue LAN-Orders erscheinen ohne Pull-to-Refresh.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { break }
+                if usesLocalHubTickets, advancingIds.isEmpty {
+                    await reload(silent: true)
+                }
+            }
+        }
         .refreshable { await reload() }
         .sensoryFeedback(.impact(flexibility: .soft), trigger: advancingIds.count)
     }
@@ -165,6 +180,39 @@ struct KdsView: View {
     }
 
     private func persistAdvance(_ ticket: KdsTicket) async {
+        if usesLocalHubTickets {
+            let result = PosHubState.shared.advanceLocalTicket(orderId: ticket.orderId)
+            let done = (result["done"] as? Bool) == true
+            if (result["printRequested"] as? Bool) == true,
+               let nextTicket = result["ticket"] as? [String: Any],
+               let lines = nextTicket["lines"] as? [[String: Any]]
+            {
+                let orderNumber = nextTicket["orderNumber"] as? Int ?? ticket.orderNumber
+                PosHubState.shared.enqueueKitchenPrintFromCloud(
+                    orderNumber: orderNumber,
+                    printerIds: [],
+                    lines: lines
+                )
+            }
+            if done {
+                withAnimation(.easeOut(duration: 0.12)) {
+                    tickets.removeAll { $0.orderId == ticket.orderId }
+                }
+                status = tickets.isEmpty ? "Keine Küchen-Tickets." : "\(tickets.count) Tickets · Tippen = weiter"
+            } else if let next = result["ticket"] as? [String: Any] {
+                if let idx = tickets.firstIndex(where: { $0.orderId == ticket.orderId }) {
+                    tickets[idx].statusId = next["statusId"] as? String ?? tickets[idx].statusId
+                    tickets[idx].statusName =
+                        (next["statusName"] as? String)
+                        ?? (next["status"] as? String)
+                        ?? tickets[idx].statusName
+                    tickets[idx].statusColor = next["statusColor"] as? String ?? tickets[idx].statusColor
+                }
+            }
+            await reload(silent: true)
+            return
+        }
+
         guard runtime.isSignedIn, let restaurantId = PosCloudConfig.restaurantId else {
             status = "KDS: Kasse anmelden"
             await reload()
@@ -205,7 +253,6 @@ struct KdsView: View {
                     tickets[idx].statusColor = next.statusColor ?? tickets[idx].statusColor
                 }
             }
-            // Leichter Abgleich ohne sichtbares Flackern — nur wenn nötig
             if tickets.isEmpty {
                 await reload()
             }
@@ -215,48 +262,75 @@ struct KdsView: View {
         }
     }
 
-    private func reload() async {
-        status = "Aktualisiere …"
+    private func reload(silent: Bool = false) async {
+        if !silent {
+            status = "Aktualisiere …"
+        }
+
+        if usesLocalHubTickets {
+            applyLocalHubTickets()
+            return
+        }
+
         guard runtime.isSignedIn, let restaurantId = PosCloudConfig.restaurantId else {
             tickets = []
-            status = "KDS: Kasse anmelden. Lokal: http://<Kassen-IP>:8787/v1/kds?deviceId=…"
+            status = "KDS: Kasse anmelden oder Hub starten."
             return
         }
         do {
             let res = try await PosCloudClient.fetchKdsTickets(restaurantId: restaurantId)
-            if let remoteStatuses = res.statuses, !remoteStatuses.isEmpty {
-                statuses = remoteStatuses.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
-            } else if let hub = PosHubState.shared.kitchen?.activeKdsStatuses, !hub.isEmpty {
-                statuses = hub
-            }
-            tickets = res.tickets.map { t in
-                KdsTicket(
-                    orderId: t.orderId,
-                    orderNumber: t.orderNumber,
-                    statusId: t.statusId,
-                    statusName: t.statusName ?? t.status,
-                    statusColor: t.statusColor ?? "#3b82f6",
-                    lines: t.lines.map { l in
-                        var parts: [String] = []
+            applyTicketsResponse(res)
+        } catch {
+            tickets = []
+            status = error.localizedDescription
+        }
+    }
+
+    private func applyLocalHubTickets() {
+        let data = PosHubState.shared.kdsTicketsJSON()
+        do {
+            let res = try JSONDecoder().decode(PosCloudClient.KdsTicketsResponse.self, from: data)
+            applyTicketsResponse(res)
+        } catch {
+            tickets = []
+            status = "Lokale KDS-Tickets unlesbar."
+        }
+    }
+
+    private func applyTicketsResponse(_ res: PosCloudClient.KdsTicketsResponse) {
+        if let remoteStatuses = res.statuses, !remoteStatuses.isEmpty {
+            statuses = remoteStatuses.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
+        } else if let hub = PosHubState.shared.kitchen?.activeKdsStatuses, !hub.isEmpty {
+            statuses = hub
+        }
+        tickets = res.tickets.map { t in
+            KdsTicket(
+                orderId: t.orderId,
+                orderNumber: t.orderNumber,
+                statusId: t.statusId,
+                statusName: t.statusName ?? t.status,
+                statusColor: t.statusColor ?? "#3b82f6",
+                lines: t.lines.map { l in
+                    var parts: [String] = []
+                    if let detail = l.detail, !detail.isEmpty {
+                        parts.append(detail)
+                    } else {
                         parts.append(PosCourse.label(l.course ?? PosCourse.default))
                         if let mods = l.modifiers {
                             parts.append(contentsOf: mods.compactMap(\.label))
                         }
                         if let n = l.notes, !n.isEmpty { parts.append(n) }
-                        return KdsTicketLine(
-                            id: l.id,
-                            name: l.name,
-                            quantity: l.quantity,
-                            detail: parts.joined(separator: " · ")
-                        )
                     }
-                )
-            }
-            status = tickets.isEmpty ? "Keine Küchen-Tickets." : "\(tickets.count) Tickets · Tippen = weiter"
-        } catch {
-            tickets = []
-            status = error.localizedDescription
+                    return KdsTicketLine(
+                        id: l.id,
+                        name: l.name,
+                        quantity: l.quantity,
+                        detail: parts.joined(separator: " · ")
+                    )
+                }
+            )
         }
+        status = tickets.isEmpty ? "Keine Küchen-Tickets." : "\(tickets.count) Tickets · Tippen = weiter"
     }
 }
 

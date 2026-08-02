@@ -131,6 +131,7 @@ export const APP_ROUTES = {
     integrations: "/dashboard/settings/integrationen",
     displays: "/dashboard/settings/displays",
     api: "/dashboard/settings/api",
+    billing: "/dashboard/settings/abo",
   },
   profile: {
     root: "/dashboard/profile",

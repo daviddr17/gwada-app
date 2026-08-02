@@ -7,6 +7,12 @@ import {
   type SocialSlotKind,
   type SocialTemplateId,
 } from "@/lib/social/social-brand-kit";
+import type { SocialFeedLayoutId } from "@/lib/social/social-feed-brand-system";
+import { overlayLineFromCaption } from "@/lib/social/social-caption-templates";
+import {
+  feedLayoutToLegacyTemplate,
+  resolveSuggestionFeedLayout,
+} from "@/lib/social/social-feed-layout";
 import {
   SOCIAL_SUGGESTION_STATUSES,
   type SocialMediaTask,
@@ -84,6 +90,10 @@ function mapSuggestionRow(row: Record<string, unknown>): SocialPostSuggestion | 
   )
     ? (row.template_id as SocialTemplateId)
     : "brand_card";
+  const source =
+    row.source_json && typeof row.source_json === "object"
+      ? (row.source_json as Record<string, unknown>)
+      : {};
 
   return {
     id,
@@ -91,6 +101,11 @@ function mapSuggestionRow(row: Record<string, unknown>): SocialPostSuggestion | 
     status,
     slotKind,
     templateId,
+    feedLayout: resolveSuggestionFeedLayout({
+      slotKind,
+      templateId,
+      source,
+    }),
     plannedAt:
       typeof row.planned_at === "string"
         ? row.planned_at
@@ -100,10 +115,7 @@ function mapSuggestionRow(row: Record<string, unknown>): SocialPostSuggestion | 
     platforms: Array.isArray(row.platforms)
       ? row.platforms.filter((p): p is string => typeof p === "string")
       : ["facebook", "instagram"],
-    source:
-      row.source_json && typeof row.source_json === "object"
-        ? (row.source_json as Record<string, unknown>)
-        : {},
+    source,
     asset: parseAsset(row.asset_json),
     newsPostId: typeof row.news_post_id === "string" ? row.news_post_id : null,
     createdAt:
@@ -181,6 +193,27 @@ export async function insertSocialSuggestionsInDb(
   return data?.length ?? 0;
 }
 
+/** Offene Vorschläge verwerfen (z. B. vor Neu-Generierung mit aktuellem Brand Kit). */
+export async function skipPendingSocialSuggestionsInDb(
+  sb: SupabaseClient,
+  restaurantId: string,
+  suggestionIds: string[],
+): Promise<number> {
+  if (!isUuidRestaurantId(restaurantId) || suggestionIds.length === 0) return 0;
+  const { data, error } = await sb
+    .from("social_post_suggestions")
+    .update({ status: "skipped" })
+    .eq("restaurant_id", restaurantId)
+    .in("id", suggestionIds)
+    .in("status", ["pending", "needs_asset"])
+    .select("id");
+  if (error) {
+    console.warn("[gwada] skipPendingSocialSuggestionsInDb", error.message);
+    return 0;
+  }
+  return data?.length ?? 0;
+}
+
 export async function updateSocialSuggestionStatusInDb(
   sb: SupabaseClient,
   params: {
@@ -203,6 +236,86 @@ export async function updateSocialSuggestionStatusInDb(
 
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+export async function updateSocialSuggestionFieldsInDb(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    suggestionId: string;
+    title?: string | null;
+    caption?: string;
+    asset?: SocialSuggestionAsset;
+    feedLayout?: SocialFeedLayoutId;
+    status?: SocialSuggestionStatus;
+  },
+): Promise<
+  | { ok: true; suggestion: SocialPostSuggestion }
+  | { ok: false; error: string }
+> {
+  const existing = await fetchSocialSuggestionFromDb(
+    sb,
+    params.restaurantId,
+    params.suggestionId,
+  );
+  if (!existing) return { ok: false, error: "not_found" };
+  if (existing.status !== "pending" && existing.status !== "needs_asset") {
+    return { ok: false, error: "invalid_status" };
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (params.title !== undefined) {
+    const t = params.title?.trim() ?? "";
+    patch.title = t ? t.slice(0, 120) : null;
+  }
+  let nextSource: Record<string, unknown> | null = null;
+  if (params.caption !== undefined) {
+    const caption = params.caption.slice(0, 4000);
+    patch.caption = caption;
+    nextSource = {
+      ...existing.source,
+      overlayLine: overlayLineFromCaption(caption),
+    };
+  }
+  if (params.asset !== undefined) {
+    patch.asset_json = params.asset;
+    patch.status =
+      params.asset.imageUrl || params.status === "pending"
+        ? "pending"
+        : "needs_asset";
+  }
+  if (params.status !== undefined && params.asset === undefined) {
+    patch.status = params.status;
+  }
+  if (params.feedLayout !== undefined) {
+    patch.template_id = feedLayoutToLegacyTemplate(params.feedLayout);
+    nextSource = {
+      ...(nextSource ?? existing.source),
+      feedLayout: params.feedLayout,
+    };
+  }
+  if (nextSource) {
+    patch.source_json = nextSource;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return { ok: true, suggestion: existing };
+  }
+
+  const { data, error } = await sb
+    .from("social_post_suggestions")
+    .update(patch)
+    .eq("id", params.suggestionId)
+    .eq("restaurant_id", params.restaurantId)
+    .select("*")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  const mapped = data
+    ? mapSuggestionRow(data as Record<string, unknown>)
+    : null;
+  if (!mapped) return { ok: false, error: "update_failed" };
+  return { ok: true, suggestion: mapped };
 }
 
 export async function fetchSocialSuggestionFromDb(

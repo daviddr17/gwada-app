@@ -1,6 +1,18 @@
 import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@gwada/shared";
+import {
+  normalizeReservationKind,
+  type ReservationKind,
+} from "@/lib/reservations/reservation-kind";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import {
+  mapReservationQuotationJoin,
+  type ReservationQuotationJoin,
+} from "@/lib/reservations/reservation-quotation-label";
+import {
+  mapReservationStaffAssigneesRaw,
+  type ReservationStaffAssigneeJoin,
+} from "@/lib/supabase/reservation-staff-assignees-db";
 import { workspacePersistenceConfigured } from "@/lib/supabase/workspace-persistence";
 
 export function reservationsDbEnabled(): boolean {
@@ -20,6 +32,13 @@ export type ReservationStatusJoin = {
  */
 export const RESERVATION_STATUS_EMBED =
   "reservation_statuses!reservations_status_id_fkey";
+
+/**
+ * PostgREST-Embed für den zugewiesenen Tisch (`dining_table_id`).
+ * Ohne Hinweis scheitert der Join, sobald auch `relocated_from_dining_table_id` existiert.
+ */
+export const RESERVATION_DINING_TABLE_EMBED =
+  "dining_tables!reservations_dining_table_id_fkey";
 
 export type ReservationDiningTableJoin = {
   id: string;
@@ -94,6 +113,7 @@ export type ReservationListRow = {
   created_by_profile_id: string | null;
   last_status_changed_by_profile_id?: string | null;
   created_by_profile: ReservationCreatorProfileJoin | null;
+  kind: ReservationKind;
   guest_first_name: string;
   guest_last_name: string;
   guest_company: string | null;
@@ -105,6 +125,7 @@ export type ReservationListRow = {
   ends_at: string;
   dwell_minutes: number | null;
   dining_table_id: string | null;
+  quotation_id: string | null;
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
@@ -116,6 +137,8 @@ export type ReservationListRow = {
   relocated_from_dining_table_id: string | null;
   reservation_statuses: ReservationStatusJoin | null;
   dining_tables: ReservationDiningTableJoin | null;
+  assigned_staff: ReservationStaffAssigneeJoin[];
+  accounting_quotation: ReservationQuotationJoin | null;
 };
 
 export function mapRawToReservationListRow(
@@ -135,7 +158,14 @@ export function mapRawToReservationListRow(
       | "created_by_profile"
       | "notes"
       | "guest_company"
+      | "kind"
+      | "assigned_staff"
+      | "quotation_id"
+      | "accounting_quotation"
     >),
+    kind: normalizeReservationKind(row.kind),
+    quotation_id:
+      typeof row.quotation_id === "string" ? row.quotation_id : null,
     notes: (row.notes as string | null | undefined) ?? null,
     guest_company: (row.guest_company as string | null | undefined) ?? null,
     relocated_from_starts_at:
@@ -147,6 +177,12 @@ export function mapRawToReservationListRow(
     reservation_statuses: status as ReservationStatusJoin | null,
     dining_tables: normalizeReservationDiningTableJoin(tableRaw),
     created_by_profile: creatorRaw as ReservationCreatorProfileJoin | null,
+    assigned_staff: mapReservationStaffAssigneesRaw(
+      row.reservation_staff_assignees,
+    ),
+    accounting_quotation: mapReservationQuotationJoin(
+      row.accounting_quotations,
+    ),
   };
 }
 
@@ -159,6 +195,7 @@ export const RESERVATION_LIST_ROW_SELECT = `
       updated_at,
       created_by_profile_id,
       last_status_changed_by_profile_id,
+      kind,
       guest_first_name,
       guest_last_name,
       guest_company,
@@ -170,6 +207,7 @@ export const RESERVATION_LIST_ROW_SELECT = `
       ends_at,
       dwell_minutes,
       dining_table_id,
+      quotation_id,
       notify_email,
       notify_whatsapp,
       terms_accepted,
@@ -186,7 +224,20 @@ export const RESERVATION_LIST_ROW_SELECT = `
         family_name,
         display_name
       ),
-      dining_tables ( * )
+      ${RESERVATION_DINING_TABLE_EMBED} ( * ),
+      reservation_staff_assignees (
+        staff_id,
+        restaurant_staff ( id, given_name, family_name )
+      ),
+      accounting_quotations (
+        id,
+        voucher_number,
+        recipient_snapshot,
+        totals,
+        currency,
+        status,
+        voucher_date
+      )
     `;
 
 export async function fetchReservationsForRestaurant(params: {
@@ -364,6 +415,8 @@ export function defaultStaffReservationStatusId(
 }
 
 export type ReservationUpdatePayload = {
+  /** Fehlt bei Display/Public-Updates → Spalte unverändert. */
+  kind?: ReservationKind;
   guest_first_name: string;
   guest_last_name: string;
   guest_company: string | null;
@@ -374,6 +427,8 @@ export type ReservationUpdatePayload = {
   ends_at: string;
   status_id: string;
   dining_table_id: string | null;
+  /** Optional; bei Display/Public weglassen → Spalte unverändert. */
+  quotation_id?: string | null;
   dwell_minutes: number | null;
   notify_email: boolean;
   notify_whatsapp: boolean;
@@ -403,6 +458,7 @@ export async function insertReservation(
     .from("reservations")
     .insert({
       restaurant_id: payload.restaurant_id,
+      kind: payload.kind ?? "guest",
       guest_first_name: payload.guest_first_name,
       guest_last_name: payload.guest_last_name,
       guest_company: payload.guest_company,
@@ -413,6 +469,7 @@ export async function insertReservation(
       ends_at: payload.ends_at,
       status_id: payload.status_id,
       dining_table_id: payload.dining_table_id,
+      quotation_id: payload.quotation_id ?? null,
       dwell_minutes: payload.dwell_minutes,
       notify_email: payload.notify_email,
       notify_whatsapp: payload.notify_whatsapp,

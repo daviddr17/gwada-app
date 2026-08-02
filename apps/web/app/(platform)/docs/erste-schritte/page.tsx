@@ -49,8 +49,9 @@ export default function DocsErsteSchrittePage() {
       <h2>3. Dashboard erkunden</h2>
       <p>
         Nach dem Login landest du auf dem <Link href="/docs/handbuch/dashboard">Dashboard</Link>.
-        Hier siehst du Widgets mit Tagesinformationen. Über die Sidebar links erreichst
-        du alle Module — Speisekarte, Reservierungen, Mitarbeiter und weitere.
+        Hier siehst du Widgets mit Tagesinformationen. Tippe auf eine Pill oder ein Widget,
+        um Details im Bottom Sheet zu öffnen — ohne das Modul wechseln zu müssen. Über die
+        Sidebar links erreichst du alle Module.
       </p>
 
       <h2>4. Berechtigungen</h2>
@@ -61,19 +62,40 @@ export default function DocsErsteSchrittePage() {
         — sprich mit deinem Administrator.
       </p>
 
-      <h2>5. Nächste Schritte</h2>
-      <ul>
+      <h2>5. Empfohlene Einrichtung (Inhaber)</h2>
+      <ol>
         <li>
-          <Link href="/docs/navigation">Navigation verstehen</Link> — Sidebar, Tabs,
-          Schnellaktionen
+          <Link href="/docs/handbuch/einstellungen">Restaurant-Stammdaten</Link> —
+          Name, Slug, Adresse, Branding
         </li>
         <li>
-          <Link href="/docs/handbuch/einstellungen">Restaurant einrichten</Link> —
-          Name, Öffnungszeiten, Integrationen
+          Öffnungszeiten und Team/Rollen anlegen
+        </li>
+        <li>
+          <Link href="/docs/handbuch/integrationen">Integrationen</Link> verbinden
+          (WhatsApp, E-Mail, Google, …)
+        </li>
+        <li>
+          Kernmodule befüllen: Speisekarte, Reservierungen, Nachrichten
         </li>
         <li>
           <Link href="/docs/handbuch/oeffentliches-profil">Profil veröffentlichen</Link>{" "}
-          — damit Gäste dich online finden
+          und Embeds testen
+        </li>
+      </ol>
+
+      <h2>6. Nächste Schritte</h2>
+      <ul>
+        <li>
+          <Link href="/docs/navigation">Navigation verstehen</Link> — Sidebar, Tabs,
+          Filter-Sheets, Schnellaktionen
+        </li>
+        <li>
+          <Link href="/docs/handbuch/dashboard">Dashboard im Detail</Link> — Widgets und
+          Heute-Briefing
+        </li>
+        <li>
+          Auf dem Handy: oben rechts <strong>Inhalt</strong> tippen, um das Docs-Menü zu öffnen
         </li>
       </ul>
 

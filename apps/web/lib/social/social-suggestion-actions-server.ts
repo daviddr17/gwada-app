@@ -27,18 +27,14 @@ import {
 async function loadRestaurantPublishContext(
   sb: SupabaseClient,
   restaurantId: string,
-): Promise<{ name: string; accentHex: string }> {
+): Promise<{ name: string }> {
   const { data } = await sb
     .from("restaurants")
-    .select("name, brand_accent_hex")
+    .select("name")
     .eq("id", restaurantId)
     .maybeSingle();
   return {
     name: (typeof data?.name === "string" && data.name.trim()) || "Restaurant",
-    accentHex:
-      (typeof data?.brand_accent_hex === "string" &&
-        data.brand_accent_hex.trim()) ||
-      "#eab308",
   };
 }
 
@@ -77,18 +73,32 @@ async function renderPublishMedia(params: {
     params.sb,
     params.restaurantId,
   );
+  const suggestion = await fetchSocialSuggestionFromDb(
+    params.sb,
+    params.restaurantId,
+    params.suggestionId,
+  );
+  const feedLayout =
+    suggestion?.feedLayout ??
+    (params.templateId === "food_hero" ? "editorial_hero" : "signature_brand");
+  const overlayRaw = suggestion?.source?.overlayLine;
+  const overlayLine =
+    typeof overlayRaw === "string" && overlayRaw.trim()
+      ? overlayRaw.trim()
+      : null;
   const rendered = await renderAndUploadSocialTemplate({
     sb: params.sb,
     restaurantId: params.restaurantId,
     suggestionId: params.suggestionId,
-    templateId:
-      params.templateId === "quote" ? "brand_card" : params.templateId,
-    stylePreset: kit.stylePreset,
-    accentHex: ctx.accentHex,
     restaurantName: ctx.name,
     title: params.title,
     caption: params.caption,
     asset: params.asset,
+    ctaLabel: kit.cta,
+    feedLayout,
+    feedPalette: kit.feedPalette,
+    photoLook: kit.photoLook,
+    overlayLine,
   });
   if (!rendered.ok) {
     // Fallback: without composed template — still need a storage path for news.

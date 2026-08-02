@@ -1,6 +1,8 @@
 import type {
   WahaServerCapacityAlert,
   WahaServerPublic,
+  WahaSessionAdminAction,
+  WahaSessionAdminDetail,
   WahaSessionListItem,
 } from "@/lib/waha/waha-server-types";
 
@@ -40,6 +42,51 @@ export async function fetchSuperadminWahaSessions(): Promise<{
     return { sessions: [], error: body.error ?? `http_${res.status}` };
   }
   return { sessions: body.sessions ?? [] };
+}
+
+export async function fetchSuperadminWahaSessionDetail(
+  restaurantId: string,
+): Promise<{ detail?: WahaSessionAdminDetail; error?: string }> {
+  const res = await fetch(
+    `/api/superadmin/waha/sessions/${encodeURIComponent(restaurantId)}`,
+    { cache: "no-store" },
+  );
+  const body = (await res.json().catch(() => ({}))) as WahaSessionAdminDetail & {
+    error?: string;
+  };
+  if (!res.ok) {
+    return { error: body.error ?? `http_${res.status}` };
+  }
+  return { detail: body };
+}
+
+export async function runSuperadminWahaSessionAction(
+  restaurantId: string,
+  action: WahaSessionAdminAction,
+): Promise<{
+  ok?: boolean;
+  message?: string;
+  detail?: WahaSessionAdminDetail;
+  error?: string;
+}> {
+  const res = await fetch(
+    `/api/superadmin/waha/sessions/${encodeURIComponent(restaurantId)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    },
+  );
+  const body = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    detail?: WahaSessionAdminDetail;
+    error?: string;
+  };
+  if (!res.ok) {
+    return { error: body.error ?? `http_${res.status}`, message: body.message };
+  }
+  return { ok: true, message: body.message, detail: body.detail };
 }
 
 export type WahaServerWriteInput = {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertBillingFeature } from "@/lib/billing/assert-billing-feature";
 import { generatePairingCode } from "@/lib/display/display-auth-server";
 import { resolvePublicAppOrigin } from "@/lib/navigation/request-origin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -27,12 +28,21 @@ export async function POST(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
+  const restaurantId = display.restaurant_id as string;
   const { data: allowed } = await sb.rpc("auth_has_restaurant_permission", {
-    p_restaurant_id: display.restaurant_id,
+    p_restaurant_id: restaurantId,
     p_permission: "display.manage",
   });
   if (!allowed) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const billing = await assertBillingFeature(restaurantId, "feature.displays");
+  if (!billing.ok) {
+    return NextResponse.json(
+      { error: billing.error, feature: billing.feature },
+      { status: billing.status },
+    );
   }
 
   const admin = createSupabaseAdminClient();

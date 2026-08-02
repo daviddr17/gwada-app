@@ -8,11 +8,29 @@ import {
   type DashboardBatchWidgetId,
   isDashboardBatchWidgetId,
 } from "@/lib/dashboard/dashboard-batch-widgets";
+import type {
+  DashboardAccountingSummary,
+  DashboardChecklistsSummary,
+  DashboardDocumentsSummary,
+  DashboardEventsSummary,
+  DashboardGallerySummary,
+  DashboardInsightsSummary,
+  DashboardNewsSummary,
+  DashboardPosSummary,
+} from "@/lib/dashboard/dashboard-module-summary-types";
 import { fetchDashboardIntegrationsSummary } from "@/lib/dashboard/fetch-dashboard-integrations-summary";
+import { loadDashboardAccountingSummaryServer } from "@/lib/dashboard/load-dashboard-accounting-summary-server";
+import { loadDashboardChecklistsSummaryServer } from "@/lib/dashboard/load-dashboard-checklists-summary-server";
 import { loadDashboardContactsSummaryServer } from "@/lib/dashboard/load-dashboard-contacts-summary-server";
+import { loadDashboardDocumentsSummaryServer } from "@/lib/dashboard/load-dashboard-documents-summary-server";
+import { loadDashboardEventsSummaryServer } from "@/lib/dashboard/load-dashboard-events-summary-server";
+import { loadDashboardGallerySummaryServer } from "@/lib/dashboard/load-dashboard-gallery-summary-server";
+import { loadDashboardInsightsSummaryServer } from "@/lib/dashboard/load-dashboard-insights-summary-server";
 import { loadDashboardInventorySummaryServer } from "@/lib/dashboard/load-dashboard-inventory-summary-server";
 import { loadDashboardMenuSummaryServer } from "@/lib/dashboard/load-dashboard-menu-summary-server";
 import { loadDashboardMessagesSummaryServer } from "@/lib/dashboard/load-dashboard-messages-summary-server";
+import { loadDashboardNewsSummaryServer } from "@/lib/dashboard/load-dashboard-news-summary-server";
+import { loadDashboardPosSummaryServer } from "@/lib/dashboard/load-dashboard-pos-summary-server";
 import { loadDashboardReservationSummaryServer } from "@/lib/dashboard/load-dashboard-reservation-summary-server";
 import type { DashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
@@ -31,6 +49,14 @@ export type DashboardBatchSummary = {
   messages?: MessagesUnreadSummary;
   integrations?: DashboardIntegrationsSummary;
   inventory?: DashboardInventorySummary;
+  pos?: DashboardPosSummary;
+  events?: DashboardEventsSummary;
+  news?: DashboardNewsSummary;
+  insights?: DashboardInsightsSummary;
+  gallery?: DashboardGallerySummary;
+  accounting?: DashboardAccountingSummary;
+  documents?: DashboardDocumentsSummary;
+  checklists?: DashboardChecklistsSummary;
 };
 
 export type DashboardBatchSummaryErrors = Partial<
@@ -90,6 +116,48 @@ export async function loadDashboardBatchSummaryServer(
             break;
           case "inventory":
             data.inventory = await loadDashboardInventorySummaryServer(
+              sb,
+              restaurantId,
+            );
+            break;
+          case "pos":
+            data.pos = await loadDashboardPosSummaryServer(sb, restaurantId);
+            break;
+          case "events":
+            data.events = await loadDashboardEventsSummaryServer(
+              sb,
+              restaurantId,
+            );
+            break;
+          case "news":
+            data.news = await loadDashboardNewsSummaryServer(sb, restaurantId);
+            break;
+          case "insights":
+            data.insights = await loadDashboardInsightsSummaryServer(
+              sb,
+              restaurantId,
+            );
+            break;
+          case "gallery":
+            data.gallery = await loadDashboardGallerySummaryServer(
+              sb,
+              restaurantId,
+            );
+            break;
+          case "accounting":
+            data.accounting = await loadDashboardAccountingSummaryServer(
+              sb,
+              restaurantId,
+            );
+            break;
+          case "documents":
+            data.documents = await loadDashboardDocumentsSummaryServer(
+              sb,
+              restaurantId,
+            );
+            break;
+          case "checklists":
+            data.checklists = await loadDashboardChecklistsSummaryServer(
               sb,
               restaurantId,
             );

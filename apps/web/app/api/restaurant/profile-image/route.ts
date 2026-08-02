@@ -80,13 +80,11 @@ export async function POST(req: Request) {
     return Response.json({ error: uploadError.message }, { status: 500 });
   }
 
-  await userSb.storage
-    .from(RESTAURANT_PROFILE_IMAGES_BUCKET)
-    .remove(legacyRestaurantProfileImagePaths(restaurantId, kind));
-
   const column =
     kind === "avatar" ? "avatar_storage_path" : "cover_storage_path";
 
+  // DB zuerst aktualisieren — Legacy-Dateien erst danach löschen,
+  // sonst hängen Pfade an gelöschten Objekten, wenn das Update scheitert.
   const { error: updateError } = await userSb
     .from("restaurants")
     .update({
@@ -98,6 +96,10 @@ export async function POST(req: Request) {
   if (updateError) {
     return Response.json({ error: updateError.message }, { status: 500 });
   }
+
+  await userSb.storage
+    .from(RESTAURANT_PROFILE_IMAGES_BUCKET)
+    .remove(legacyRestaurantProfileImagePaths(restaurantId, kind));
 
   const { data: slugRow } = await userSb
     .from("restaurants")

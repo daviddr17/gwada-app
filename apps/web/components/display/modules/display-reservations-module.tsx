@@ -172,6 +172,7 @@ function mapDisplayReservationToListRow(
     created_at: "",
     created_by_profile_id: null,
     created_by_profile: null,
+    kind: "guest",
     guest_first_name: r.guest_first_name,
     guest_last_name: r.guest_last_name,
     guest_company: r.guest_company,
@@ -182,6 +183,7 @@ function mapDisplayReservationToListRow(
     starts_at: r.starts_at,
     ends_at: r.ends_at,
     dining_table_id: r.dining_table_id,
+    quotation_id: null,
     dwell_minutes: null,
     notify_email: false,
     notify_whatsapp: false,
@@ -208,6 +210,8 @@ function mapDisplayReservationToListRow(
           area_id: tables.find((t) => t.id === r.table!.id)?.area_id ?? "",
         }
       : null,
+    assigned_staff: [],
+    accounting_quotation: null,
   };
 }
 

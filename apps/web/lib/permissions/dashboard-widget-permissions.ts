@@ -5,6 +5,7 @@ import {
   type ModuleCrudPrefix,
 } from "@/lib/permissions/module-crud-permissions";
 import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
+import { hasPosModuleAccess } from "@/lib/permissions/sidebar-module-permissions";
 
 const DASHBOARD_WIDGET_MODULE_PREFIX: Partial<
   Record<DashboardWidgetId, ModuleCrudPrefix>
@@ -16,7 +17,19 @@ const DASHBOARD_WIDGET_MODULE_PREFIX: Partial<
   contacts: "contacts",
   messages: "contacts",
   inventory: "inventory",
+  events: "events",
+  news: "news",
+  insights: "insights",
+  accounting: "accounting",
+  documents: "documents",
 };
+
+const GALLERY_WIDGET_KEYS: RestaurantPermissionKey[] = [
+  "gallery.read",
+  "gallery.create",
+  "gallery.update",
+  "gallery.delete",
+];
 
 const INTEGRATION_WIDGET_KEYS: RestaurantPermissionKey[] = [
   "integrations.whatsapp",
@@ -75,6 +88,17 @@ export function hasDashboardWidgetAccess(
   if (options?.permissionsLoading) return true;
   if (widgetId === "integrations") {
     return INTEGRATION_WIDGET_KEYS.some((key) => has(key));
+  }
+  if (widgetId === "pos") {
+    return hasPosModuleAccess(has);
+  }
+  if (widgetId === "gallery") {
+    return GALLERY_WIDGET_KEYS.some((key) => has(key));
+  }
+  if (widgetId === "checklists") {
+    return (
+      hasModuleRead(has, "staff_todos") || hasModuleRead(has, "compliance")
+    );
   }
   const prefix = DASHBOARD_WIDGET_MODULE_PREFIX[widgetId];
   if (prefix) return hasModuleRead(has, prefix);

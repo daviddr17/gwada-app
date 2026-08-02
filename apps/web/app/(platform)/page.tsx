@@ -6,7 +6,7 @@ import { platformMarketingLogoHref } from "@/lib/platform/platform-marketing-log
 
 export const metadata: Metadata = {
   description:
-    "Reservierungen, Menü und Branding in einer ruhigen, hochwertigen Oberfläche.",
+    "Speisekarte, Reservierungen, Team und Kanäle — ein System für den ganzen Betrieb. Ohne Seat-Fees starten.",
 };
 
 export default async function Home() {

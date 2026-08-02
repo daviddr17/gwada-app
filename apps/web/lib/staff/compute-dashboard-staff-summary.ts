@@ -1,4 +1,5 @@
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
+import { sumTeamWorkHoursForDay } from "@/lib/staff/staff-day-wage";
 import type {
   RestaurantStaffRow,
   RestaurantStaffWorkEntryRow,
@@ -10,7 +11,7 @@ export type DashboardStaffSummary = {
   totalStaff: number;
   activeStaff: number;
   onBreakStaff: number;
-  /** Nur entry_type work — offene und geschlossene Segmente, ohne Pausen. */
+  /** Netto-Arbeitszeit heute — geclippt auf Restaurant-Tag, Display-Netto. */
   todayWorkHours: number;
   /** Abgeschlossene Display-Schichten heute. */
   completedShiftsToday: number;
@@ -20,6 +21,10 @@ export function computeDashboardStaffSummary(params: {
   staff: RestaurantStaffRow[];
   presence: StaffLivePresenceRow[];
   todayEntries: RestaurantStaffWorkEntryRow[];
+  /** Restaurant-Kalendertag YYYY-MM-DD. */
+  dayYmd: string;
+  /** Restaurant-IANA-Zeitzone (Server darf nicht auf UTC-Ambient clippen). */
+  timeZone: string;
   now?: Date;
 }): DashboardStaffSummary {
   const now = params.now ?? new Date();
@@ -30,19 +35,16 @@ export function computeDashboardStaffSummary(params: {
     else if (p.status === "working") activeStaff += 1;
   }
 
-  let workMs = 0;
-  for (const e of params.todayEntries) {
-    if (e.entry_type !== "work") continue;
-    const startMs = new Date(e.starts_at).getTime();
-    const endMs = e.is_open ? now.getTime() : new Date(e.ends_at).getTime();
-    workMs += Math.max(0, endMs - startMs);
-  }
-
   return {
     totalStaff: params.staff.filter((s) => s.is_active).length,
     activeStaff,
     onBreakStaff,
-    todayWorkHours: workMs / 3_600_000,
+    todayWorkHours: sumTeamWorkHoursForDay(
+      params.todayEntries,
+      params.dayYmd,
+      now,
+      params.timeZone,
+    ),
     completedShiftsToday: listCompletedDisplayShifts(params.todayEntries).length,
   };
 }

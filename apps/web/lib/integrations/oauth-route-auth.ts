@@ -1,3 +1,5 @@
+import { assertBillingFeature } from "@/lib/billing/assert-billing-feature";
+import type { BillingFeatureKey } from "@/lib/billing/plan-catalog";
 import {
   assertPlatformEmailEnabled,
   assertPlatformFacebookEnabled,
@@ -16,6 +18,8 @@ export type OAuthRouteContext = {
 async function authorizeRestaurantOAuthRoute(params: {
   restaurantIdRaw: string | null;
   permission: string;
+  /** Optional SaaS-Plan-Gate (z. B. eigener E-Mail-Absender nur Pro). */
+  billingFeature?: BillingFeatureKey;
   assertPlatform: (
     sb: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -60,6 +64,16 @@ async function authorizeRestaurantOAuthRoute(params: {
     return { ok: false, status: 403, error: platform.error };
   }
 
+  if (params.billingFeature) {
+    const billing = await assertBillingFeature(
+      restaurantId,
+      params.billingFeature,
+    );
+    if (!billing.ok) {
+      return { ok: false, status: 403, error: "plan_required" };
+    }
+  }
+
   return {
     ok: true,
     ctx: { supabase, userId: user.id, restaurantId },
@@ -70,6 +84,7 @@ export function authorizeFacebookRestaurantRoute(restaurantIdRaw: string | null)
   return authorizeRestaurantOAuthRoute({
     restaurantIdRaw,
     permission: "integrations.facebook",
+    billingFeature: "integrations.social",
     assertPlatform: assertPlatformFacebookEnabled,
   });
 }
@@ -80,6 +95,7 @@ export function authorizeInstagramRestaurantRoute(
   return authorizeRestaurantOAuthRoute({
     restaurantIdRaw,
     permission: "integrations.instagram",
+    billingFeature: "integrations.social",
     assertPlatform: assertPlatformInstagramEnabled,
   });
 }
@@ -90,6 +106,7 @@ export function authorizeGoogleBusinessRestaurantRoute(
   return authorizeRestaurantOAuthRoute({
     restaurantIdRaw,
     permission: "integrations.google_business",
+    billingFeature: "integrations.google_business",
     assertPlatform: assertPlatformGoogleBusinessEnabled,
   });
 }
@@ -98,6 +115,7 @@ export function authorizeEmailRestaurantRoute(restaurantIdRaw: string | null) {
   return authorizeRestaurantOAuthRoute({
     restaurantIdRaw,
     permission: "integrations.email",
+    billingFeature: "integrations.email",
     assertPlatform: assertPlatformEmailEnabled,
   });
 }

@@ -8,6 +8,10 @@ import {
   fiskalyConfigToUi,
 } from "@/lib/integrations/platform-fiskaly-config";
 import {
+  stripeConfigFromJson,
+  stripeConfigToUi,
+} from "@/lib/integrations/platform-stripe-config";
+import {
   weatherConfigFromJson,
   weatherConfigToUi,
 } from "@/lib/integrations/platform-weather-config";
@@ -46,6 +50,10 @@ export function platformIntegrationConfigForUi(
 
   if (key === "fiskaly") {
     return fiskalyConfigToUi(fiskalyConfigFromJson(raw));
+  }
+
+  if (key === "stripe") {
+    return stripeConfigToUi(stripeConfigFromJson(raw));
   }
 
   if (key === "email") {

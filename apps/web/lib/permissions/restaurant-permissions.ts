@@ -25,6 +25,7 @@ const LEGACY_MODULE_MANAGE_KEYS = MODULE_CRUD_PREFIXES.map(
 export const RESTAURANT_PERMISSION_KEYS = [
   "roles.manage",
   "team.manage",
+  "billing.manage",
   "integrations.whatsapp",
   "integrations.email",
   "integrations.facebook",
@@ -118,6 +119,12 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "team.manage",
       label: "Team verwalten",
       description: "Mitglieder einladen, Position zuweisen, aktivieren.",
+      group: "administration",
+    },
+    {
+      key: "billing.manage",
+      label: "Abo & Abrechnung",
+      description: "Plan wählen, POS-Add-on und Rechnungen verwalten.",
       group: "administration",
     },
     ...moduleCrudCatalogEntries(),

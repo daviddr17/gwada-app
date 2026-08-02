@@ -292,5 +292,54 @@
       "showMore": "Afficher plus",
       "showLess": "Moins"
     }
+  },
+  "PersonalOnboarding": {
+    "ariaLabel": "Configurer le profil",
+    "brand": "Gwada",
+    "tagline": "Votre profil",
+    "stepOf": "Étape {current} sur {total}",
+    "close": "Fermer",
+    "back": "Retour",
+    "continue": "Continuer",
+    "finish": "Enregistrer le profil",
+    "saving": "Enregistrement…",
+    "launch": "C’est parti",
+    "welcome": {
+      "eyebrow": "Bienvenue dans l’équipe",
+      "title": "Configurez votre profil",
+      "description": "Langue, nom et coordonnées — pour que votre restaurant vous adresse correctement.",
+      "hint": "Cela ne prend qu’un instant. Vous pourrez tout modifier plus tard dans Profil."
+    },
+    "language": {
+      "title": "Dans quelle langue utiliser l’app ?",
+      "description": "Nous démarrons en allemand. Choisissez la langue pour Gwada."
+    },
+    "identity": {
+      "title": "Comment vous appelez-vous ?",
+      "description": "Prénom et nom apparaissent dans l’équipe, les plannings et les notifications.",
+      "firstName": "Prénom",
+      "firstNamePlaceholder": "ex. Marie",
+      "lastName": "Nom",
+      "lastNamePlaceholder": "ex. Dupont"
+    },
+    "contact": {
+      "title": "Comment vous joindre ?",
+      "description": "Facultatif — utile pour les changements de service et les messages d’équipe.",
+      "phone": "Téléphone",
+      "phonePlaceholder": "+33 …",
+      "phoneHint": "Vous pouvez passer et compléter plus tard."
+    },
+    "done": {
+      "title": "Bienvenue, {name}",
+      "description": "Votre profil est prêt. Bonne continuation dans l’équipe."
+    },
+    "errors": {
+      "namesRequired": "Veuillez saisir prénom et nom.",
+      "namesFailed": "Impossible d’enregistrer le nom.",
+      "localeFailed": "Impossible d’enregistrer la langue.",
+      "phoneFailed": "Numéro invalide ou enregistrement impossible.",
+      "authRequired": "Veuillez d’abord vous connecter.",
+      "saveFailed": "Impossible d’enregistrer le profil."
+    }
   }
 }

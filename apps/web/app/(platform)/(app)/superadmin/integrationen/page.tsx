@@ -11,6 +11,7 @@ import { MicrosoftGlyph } from "@/components/icons/microsoft-glyph";
 import { IntegrationProviderCard } from "@/components/superadmin/integration-provider-card";
 import { PlatformEmailSmtpCard } from "@/components/superadmin/platform-email-smtp-card";
 import { PlatformFiskalyFeatureCard } from "@/components/superadmin/platform-fiskaly-feature-card";
+import { PlatformStripeFeatureCard } from "@/components/superadmin/platform-stripe-feature-card";
 import { PlatformLexofficeFeatureCard } from "@/components/superadmin/platform-lexoffice-feature-card";
 import { PlatformTripadvisorFeatureCard } from "@/components/superadmin/platform-tripadvisor-feature-card";
 import { PlatformAppleBusinessConnectFeatureCard } from "@/components/superadmin/platform-apple-business-connect-feature-card";
@@ -122,6 +123,7 @@ const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow>
   },
   weather: { key: "weather", enabled: false, config: {}, updated_at: "" },
   fiskaly: { key: "fiskaly", enabled: false, config: { env: "TEST" }, updated_at: "" },
+  stripe: { key: "stripe", enabled: false, config: { mode: "test" }, updated_at: "" },
   lexoffice: { key: "lexoffice", enabled: false, config: {}, updated_at: "" },
   tripadvisor: { key: "tripadvisor", enabled: false, config: {}, updated_at: "" },
   apple_business_connect: {
@@ -235,6 +237,12 @@ function SuperadminIntegrationsContent() {
             row={byKey.get("fiskaly") ?? EMPTY_PLATFORM_ROW.fiskaly}
             onSaved={() => void load()}
             connection={healthMap.fiskaly}
+            connectionChecking={healthLoading}
+          />
+          <PlatformStripeFeatureCard
+            row={byKey.get("stripe") ?? EMPTY_PLATFORM_ROW.stripe}
+            onSaved={() => void load()}
+            connection={healthMap.stripe}
             connectionChecking={healthLoading}
           />
           <PlatformWeatherFeatureCard

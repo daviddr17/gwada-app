@@ -1,7 +1,13 @@
 /**
  * Zentrale Registry für Lade- und Cache-Strategien pro Datenbereich.
- * Superadmin → „Lade- & Cache-Strategie“ visualisiert diese Datei.
+ * Superadmin → „Lade-Strategie“ visualisiert diese Datei.
  * Bei neuen Modulen: Eintrag ergänzen, Konstanten hierher ziehen, UI zeigt den Stand.
+ *
+ * Navigationsmodell (Stand 2026):
+ * - Soft-Nav zwischen App-Modulen (Provider/Caches bleiben gemountet)
+ * - Full-Load nur App ↔ Superadmin über `/zone/enter`
+ * - Realtime einmal pro App-Zone (`AppModuleLiveProviders`), nicht route-conditional
+ * - SoftNavLock = Pending-UI (Sidebar/Overlay), kein paralleler Flight-Kill
  */
 export type ModuleCacheStrategy =
   | "optimistic-local"
@@ -60,14 +66,14 @@ export const MODULE_CACHE_STRATEGY_META: Record<
     shortLabel: "SWR",
     colorClass: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
     whenToUse:
-      "Daten dürfen kurz veraltet sein; Cache zeigen, im Hintergrund nachladen (React Query / TTL).",
+      "Daten dürfen kurz veraltet sein — React Query und/oder sessionStorage-Feeds; Soft-Nav zeigt Cache sofort, Warm-Prefetch füllt im Idle nach.",
   },
   realtime: {
     label: "Realtime + kurzes staleTime",
     shortLabel: "Live",
     colorClass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
     whenToUse:
-      "Änderungen ohne Reload — Supabase Realtime + Invalidation. Live-Provider einmal pro App-Zone mounten (nicht route-conditional bei Soft-Nav).",
+      "Änderungen ohne Reload — Supabase Realtime + Invalidation/Patch. Einmal pro App-Zone in AppModuleLiveProviders (nicht route-conditional). Fallback-Poll bei Proxy/CHANNEL_ERROR.",
   },
   poll: {
     label: "Polling",
@@ -85,17 +91,107 @@ export const MODULE_CACHE_STRATEGY_META: Record<
   },
 };
 
-/** Dashboard-Ladereihenfolge (für Superadmin-Flow-Diagramm). */
+/**
+ * App-Zone-Ladereihenfolge (für Superadmin-Flow-Diagramm).
+ * Parallelität: Warm-Prefetch und Batch starten unabhängig sobald Workspace ready;
+ * Inbox-Warm überspringt, wenn Batch < 30s.
+ */
 export const DASHBOARD_LOAD_FLOW_STEP_IDS = [
+  "workspaceRestaurant",
   "dashboardWidgetPrefs",
+  "appModuleWarmPrefetch",
   "dashboardSummaries",
+  "channelConnections",
+  "unifiedInbox",
   "notificationBell",
   "dashboardWeather",
-  "unifiedInbox",
-  "channelConnections",
 ] as const;
 
 export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
+  {
+    id: "workspaceRestaurant",
+    label: "Workspace-Restaurant (UUID)",
+    scope: "chrome",
+    appModule: "App-Chrome",
+    strategy: "optimistic-local",
+    description:
+      "Aktives Restaurant für alle Module — sofort aus sessionStorage (peek), asynchron auflösen ohne „Kein Restaurant“-Flackern. Gate für Warm-Prefetch, Batch und Live-Provider.",
+    loadTriggers: [
+      "Mount App-Zone: peekCachedWorkspaceRestaurantId",
+      "getWorkspaceRestaurantId() nachziehen",
+      "GWADA_WORKSPACE_RESTAURANT_CHANGED",
+    ],
+    invalidateTriggers: [
+      "Restaurant-Wechsel in Einstellungen",
+      "Workspace-Persistenz aktualisiert",
+    ],
+    implementationFiles: [
+      "lib/hooks/use-workspace-restaurant-uuid.ts",
+      "lib/supabase/workspace-persistence.ts",
+      "components/workspace/workspace-restaurant-placeholder.tsx",
+    ],
+    status: "active",
+  },
+  {
+    id: "softNavChrome",
+    label: "Soft-Nav & Keep-Alive",
+    scope: "chrome",
+    appModule: "App-Chrome",
+    strategy: "optimistic-local",
+    description:
+      "Modulwechsel per Soft-Nav (Link/router.push) — (app)-Layout, Provider und Client-Caches bleiben gemountet. Full-Load nur App ↔ Superadmin über /zone/enter. SoftNavLock steuert Pending-Overlay/Sidebar-Highlight, blockiert keine parallelen Flights.",
+    loadTriggers: [
+      "AppNavLink / Sidebar-Klick (prefetch={false}, Intent-Warm on hover/focus)",
+      "Keep-alive Homes: Dashboard, Reservierungen, Nachrichten",
+      "Pending-Overlay übersprungen wenn isModuleSoftNavDataReady",
+    ],
+    invalidateTriggers: [
+      "Zonenwechsel App ↔ Superadmin (Full-Load)",
+      "Workspace-Restaurant-Wechsel",
+    ],
+    implementationFiles: [
+      "components/navigation/app-nav-link.tsx",
+      "components/providers/soft-nav-lock-provider.tsx",
+      "components/navigation/soft-nav-pending-overlay.tsx",
+      "components/navigation/app-module-home-keep-alives.tsx",
+      "lib/navigation/module-soft-nav-data-ready.ts",
+      "lib/navigation/workspace-zone-enter.ts",
+    ],
+    status: "active",
+    notes:
+      "Realtime nie route-conditional mounten/unmounten — Soft-Nav-Remount-Race (postgres_changes after subscribe).",
+  },
+  {
+    id: "appModuleWarmPrefetch",
+    label: "Modul-Warm-Prefetch",
+    scope: "chrome",
+    appModule: "App-Chrome",
+    strategy: "stale-while-revalidate",
+    staleTimeMs: 5 * 60_000,
+    description:
+      "Nach Workspace ready: sessionStorage → React Query seed, FULL-Route-Prefetch (Priority), kritische Queries, Idle-Warm für Speisekarte/Bestand/Feeds. Intent-Prefetch zusätzlich bei Sidebar-Hover/Tap.",
+    loadTriggers: [
+      "AppModuleWarmPrefetchMount (einmal pro Restaurant)",
+      "Idle 150ms: menu/inventory RQ + Priority-Warm",
+      "Idle 900ms: Secondary-Warm (Events, News, Galerie, Docs, Todos, Insights, POS, Reviews, Accounting)",
+      "Idle 400ms: restliche Routes FULL-prefetch (stagger)",
+      "Sidebar hover/focus → warmModuleRouteIntent",
+    ],
+    invalidateTriggers: [
+      "Workspace-Restaurant-Wechsel (Warm erneut)",
+      "Modul-CRUD invalidiert jeweilige Query-/Feed-Caches",
+    ],
+    implementationFiles: [
+      "components/providers/app-module-warm-prefetch-mount.tsx",
+      "lib/hooks/app-module-intent-prefetch.ts",
+      "lib/hooks/app-module-warm-prefetch.ts",
+      "lib/hooks/app-module-query-prefetch.ts",
+      "lib/navigation/prefetch-app-module-href.ts",
+    ],
+    status: "active",
+    notes:
+      "Warm-Skip nutzt FEED_STALE_MS = 5 Min über Feeds hinweg — unabhängig von kürzeren Screen-staleTimes.",
+  },
   {
     id: "dashboardWidgetPrefs",
     label: "Dashboard-Widget-Layout",
@@ -125,15 +221,15 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     pollIntervalMs: 60_000,
     gcTimeMs: 5 * 60_000,
     description:
-      "Reservierungen, Nachrichten, Bestand, Team, Integrationen, Bewertungen, Speisekarte — ein GET /api/dashboard/summary. Sofort aus localStorage (SWR), Hintergrund-Prefetch sobald Workspace-Restaurant ready, stilles Nachladen.",
+      "Reservierungen, Nachrichten, Bestand, Team, Integrationen, Bewertungen, Speisekarte — ein GET /api/dashboard/summary. Sofort aus localStorage (SWR), Hintergrund-Prefetch sobald Workspace-Restaurant ready, stilles Nachladen. Live-Patches app-weit über AppDashboardLivePatchMount.",
     loadTriggers: [
-      "DashboardBatchPrefetchMount im App-Layout (Workspace ready)",
+      "DashboardBatchPrefetchMount im App-Layout (Workspace ready, idle ~1.6s)",
       "Mount Dashboard-Startseite (nur sichtbare Widgets)",
-      "React Query refetchInterval 60s (sichtbarer Tab)",
+      "React Query refetchInterval 60s (sichtbarer Tab, Keep-alive Home aktiv)",
       "Kein Tab-Focus-Refetch (außer Realtime/Invalidierung)",
     ],
     invalidateTriggers: [
-      "Realtime Reservierungen / Team / Nachrichten",
+      "Realtime → AppDashboardLivePatchMount (Patch statt Voll-Refetch)",
       "GWADA_WORKSPACE_RESTAURANT_CHANGED",
       "Inbox-Cache-Update (Messages-Patch)",
     ],
@@ -145,6 +241,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "lib/dashboard/load-dashboard-batch-summary-server.ts",
       "components/providers/dashboard-batch-query-sync.tsx",
       "components/providers/dashboard-batch-prefetch-mount.tsx",
+      "components/providers/app-dashboard-live-patch-mount.tsx",
     ],
     status: "active",
   },
@@ -158,23 +255,26 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     pollIntervalMs: 60_000,
     gcTimeMs: 5 * 60_000,
     description:
-      "Unread-Items aller Module in der Glocke — React Query, kein Doppel-Poll mit Widget-Coordinator. Nachrichten: leichter Unread-Count aus Inbox-DB/WAHA (kein IMAP-Sync beim Öffnen).",
+      "Unread-Items aller Module in der Glocke — React Query + AppNotificationBellLive (notification_events). Poll 60s nur wenn Realtime nicht aktiv. Nachrichten: leichter Unread-Count aus Inbox-DB/WAHA (kein IMAP-Sync beim Öffnen).",
     loadTriggers: [
       "App-Chrome Mount (Workspace ready)",
       "Popover öffnen (nur wenn Cache stale)",
-      "Poll 60s (nur sichtbarer Tab)",
+      "Poll 60s (sichtbarer Tab, nur ohne aktives Bell-Realtime)",
     ],
     invalidateTriggers: [
       "GWADA_NOTIFICATIONS_REFRESH",
       "GWADA_DASHBOARD_MESSAGES_REFRESH (debounced 3s)",
+      "Realtime notification_events",
       "Workspace-Wechsel",
       "Mark as read",
     ],
     apiEndpoints: ["/api/notifications/summary"],
     implementationFiles: [
       "lib/hooks/use-notification-summary.ts",
+      "lib/hooks/use-notification-bell-realtime.ts",
       "lib/notifications/notification-summary-server.ts",
       "components/layout/app-chrome-notification-bell.tsx",
+      "components/providers/app-notification-bell-live.tsx",
     ],
     status: "active",
     notes:
@@ -186,16 +286,16 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     scope: "dashboard",
     appModule: "Dashboard",
     strategy: "stale-while-revalidate",
-    staleTimeMs: 15 * 60_000,
+    staleTimeMs: 3 * 60 * 60_000,
     pollIntervalMs: 60_000,
     description:
-      "Visual Crossing — localStorage + Memory (15 Min Anzeige-Cache), stiller Refetch über Dashboard-Widget-Coordinator (60s); erst nach stabilem Restaurant-Profil (Stadt).",
+      "Visual Crossing — localStorage + Memory (Anzeige-Cache max. 3h), stiller Refetch über Dashboard-Widget-Coordinator (60s) nur solange Dashboard-Home Keep-alive aktiv; erst nach stabilem Restaurant-Profil (Stadt).",
     loadTriggers: [
       "Profil ready + Standort stabil",
       "Dashboard-Mount: peek Cache, dann silent fetch",
-      "Dashboard-Widget-Coordinator 60s (silent)",
+      "Dashboard-Widget-Coordinator 60s (silent, nur Home aktiv)",
     ],
-    invalidateTriggers: ["Standort-Änderung (neuer Cache-Key)", "TTL abgelaufen"],
+    invalidateTriggers: ["Standort-Änderung (neuer Cache-Key)", "TTL 3h abgelaufen"],
     apiEndpoints: ["/api/weather"],
     implementationFiles: [
       "components/dashboard/dashboard-weather-tile.tsx",
@@ -213,7 +313,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     description:
       "WhatsApp/E-Mail/Facebook/Instagram verbunden — sessionStorage-Cache 90s, WAHA-Live-Check nur bei Cache-Miss.",
     loadTriggers: [
-      "Unified-Inbox-Mount (Dashboard-Widget, Kontakte, …)",
+      "Unified-Inbox-Mount (App-Layout, Dashboard-Widget, Kontakte, …)",
       "Weitere Screens mit Kanal-Status (Bewertungen, Mitarbeiter, …)",
     ],
     invalidateTriggers: ["TTL abgelaufen", "manuell refresh()"],
@@ -233,8 +333,9 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 5 * 60 * 1000,
     pollIntervalMs: 5 * 60 * 1000,
     description:
-      "Gwada-DB + WAHA/E-Mail/Facebook/Instagram — sessionStorage-Cache, Warm verzögert wenn Batch kürzlich lief; Realtime + 5-Min-Poll.",
+      "Gwada-DB + WAHA/E-Mail/Facebook/Instagram — sessionStorage-Cache, Warm verzögert wenn Batch kürzlich lief; Realtime + 5-Min-Poll. Mount app-weit im (app)-Layout (nicht nur Kontakte-Route).",
     loadTriggers: [
+      "UnifiedInboxBackgroundSyncMount im App-Layout",
       "Nachrichten-Widget sichtbar auf Dashboard",
       "Warm nach 400ms (übersprungen wenn Batch < 30s)",
       "Poll 5 Min",
@@ -253,6 +354,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "components/contacts/unified-inbox-background-sync-mount.tsx",
       "lib/contact-messages/unified-inbox-background-sync.ts",
       "lib/hooks/use-dashboard-live-notifications.ts",
+      "app/(platform)/(app)/layout.tsx",
     ],
     status: "active",
   },
@@ -297,7 +399,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     strategy: "realtime",
     staleTimeMs: 30_000,
     description:
-      "Unread-Zahlen aus Batch; Live-Updates via Inbox-Cache-Patch statt Voll-Invalidierung.",
+      "Unread-Zahlen aus Batch; Live-Updates via Inbox-Cache-Patch / AppDashboardLivePatchMount statt Voll-Invalidierung.",
     loadTriggers: ["Teil von dashboardSummaries Batch"],
     invalidateTriggers: [
       "Inbox-Cache-Update → setQueryData Patch",
@@ -305,7 +407,32 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     ],
     implementationFiles: [
       "components/providers/dashboard-batch-query-sync.tsx",
+      "components/providers/app-dashboard-live-patch-mount.tsx",
       "lib/contact-messages/messages-unread-summary.ts",
+    ],
+    status: "active",
+  },
+  {
+    id: "dashboardWidgetsLive",
+    label: "Dashboard-Widgets Live",
+    scope: "dashboard",
+    appModule: "Dashboard",
+    strategy: "realtime",
+    pollIntervalMs: 60_000,
+    description:
+      "Realtime auf menu/contacts/inventory/reviews/integrations — invalidiert bzw. patched Batch-Slices. Teil von AppModuleLiveProviders (Zone-Level).",
+    loadTriggers: [
+      "App-Zone platform/(app) + Workspace-Restaurant ready",
+      "Fallback: sichtbares Intervall-Polling 60s",
+    ],
+    invalidateTriggers: [
+      "Supabase postgres_changes auf Widget-Tabellen",
+      "AppDashboardLivePatchMount",
+    ],
+    implementationFiles: [
+      "components/providers/app-module-live-providers.tsx",
+      "components/providers/app-dashboard-widgets-live.tsx",
+      "lib/supabase/restaurant-table-realtime.ts",
     ],
     status: "active",
   },
@@ -315,16 +442,15 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     scope: "module",
     appModule: "Reservierungen",
     strategy: "realtime",
-    staleTimeMs: 3 * 60_000,
     pollIntervalMs: 60_000,
     description:
-      "Neue Reservierungen per Supabase Realtime — Provider in AppModuleLiveProviders (einmal pro App-Zone, solange Workspace-Restaurant ready). Nicht route-conditional mounten (Soft-Nav). Fallback-Polling 60s bei Realtime-Ausfall oder /sb-Proxy.",
+      "Neue/geänderte Reservierungen per Supabase Realtime — Provider in AppModuleLiveProviders (einmal pro App-Zone). Nicht route-conditional. Fallback-Polling 60s bei Realtime-Ausfall oder /sb-Proxy.",
     loadTriggers: [
       "App-Zone platform/(app) + Workspace-Restaurant ready",
       "Fallback: sichtbares Intervall-Polling 60s",
     ],
     invalidateTriggers: [
-      "Supabase Realtime reservations INSERT",
+      "Supabase Realtime reservations INSERT/UPDATE",
       "GWADA_DASHBOARD_RESERVATIONS_REFRESH",
     ],
     implementationFiles: [
@@ -336,21 +462,47 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     status: "active",
   },
   {
+    id: "reservationsModule",
+    label: "Reservierungen (Listen-Cache)",
+    scope: "module",
+    appModule: "Reservierungen",
+    strategy: "stale-while-revalidate",
+    staleTimeMs: 3 * 60_000,
+    gcTimeMs: 5 * 60_000,
+    description:
+      "Monats- und Unconfirmed-Listen per React Query; sessionStorage-Peek für Soft-Nav/Warm. Live-Events patchen den Cache; Keep-alive hält die Übersicht gemountet.",
+    loadTriggers: [
+      "Warm-Prefetch / Intent (Priority)",
+      "Mount Reservierungen (Keep-alive Home)",
+      "placeholderData aus sessionStorage",
+    ],
+    invalidateTriggers: [
+      "Realtime / Live-Patch",
+      "CRUD Reservierung",
+      "queryKeys.reservations.*",
+    ],
+    implementationFiles: [
+      "lib/reservations/reservations-list-query.ts",
+      "lib/reservations/reservations-month-client-cache.ts",
+      "components/reservations/reservations-overview.tsx",
+    ],
+    status: "active",
+  },
+  {
     id: "staffLive",
     label: "Mitarbeiter Live",
     scope: "module",
     appModule: "Mitarbeiter",
     strategy: "realtime",
-    staleTimeMs: 3 * 60_000,
     pollIntervalMs: 30_000,
     description:
-      "Schicht-/Team-Updates per Realtime — gleicher App-Zone-Provider wie Reservierungen (nicht route-conditional). Fallback-Polling 30s bei Realtime-Ausfall oder /sb-Proxy.",
+      "Schicht-/Team-Updates per Realtime — gleicher App-Zone-Provider wie Reservierungen. Fallback-Polling 30s bei Realtime-Ausfall oder /sb-Proxy.",
     loadTriggers: [
       "App-Zone platform/(app) + Workspace-Restaurant ready",
       "Fallback: sichtbares Intervall-Polling 30s",
     ],
     invalidateTriggers: [
-      "Supabase Realtime staff_* / shifts",
+      "Supabase Realtime restaurant_staff / work entries",
       "GWADA_STAFF_DATA_REFRESH (debounced)",
     ],
     implementationFiles: [
@@ -358,6 +510,33 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "components/providers/app-staff-live.tsx",
       "lib/hooks/use-restaurant-staff-realtime.ts",
       "lib/supabase/restaurant-table-realtime.ts",
+    ],
+    status: "active",
+  },
+  {
+    id: "staffModule",
+    label: "Mitarbeiter (Listen-Cache)",
+    scope: "module",
+    appModule: "Mitarbeiter",
+    strategy: "stale-while-revalidate",
+    staleTimeMs: 3 * 60_000,
+    gcTimeMs: 5 * 60_000,
+    description:
+      "Staff-Liste, Verträge und Day-Stats per React Query; sessionStorage-Peek + Warm-Prefetch. Live invalidiert/refetched die Queries.",
+    loadTriggers: [
+      "Warm-Prefetch / Intent (Priority)",
+      "Mount Mitarbeiter-Routen",
+      "placeholderData aus sessionStorage",
+    ],
+    invalidateTriggers: [
+      "Realtime / GWADA_STAFF_DATA_REFRESH",
+      "CRUD Mitarbeiter/Schicht",
+      "queryKeys.staff.*",
+    ],
+    implementationFiles: [
+      "lib/staff/staff-list-query.ts",
+      "lib/staff/staff-day-stats-query.ts",
+      "lib/staff/staff-list-client-cache.ts",
     ],
     status: "active",
   },
@@ -370,8 +549,12 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 3 * 60_000,
     gcTimeMs: 30 * 60_000,
     description:
-      "Gerichte + Kategorien per React Query — localStorage als placeholderData, Invalidierung bei CRUD.",
-    loadTriggers: ["Route /dashboard/menu/**", "placeholderData aus LS"],
+      "Gerichte + Kategorien per React Query — localStorage als placeholderData, Idle-Warm im App-Layout, Invalidierung bei CRUD.",
+    loadTriggers: [
+      "AppModuleWarmPrefetchMount / Intent",
+      "Route /dashboard/menu/**",
+      "placeholderData aus LS",
+    ],
     invalidateTriggers: [
       "Gericht/Kategorie CRUD",
       "queryKeys.menu.*",
@@ -395,7 +578,11 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     gcTimeMs: 30 * 60_000,
     description:
       "Zutaten + Bestellungen per React Query; Bestandsänderung invalidiert auch notifications.summary (Low-Stock-Push).",
-    loadTriggers: ["Route /dashboard/inventory/**", "placeholderData aus LS"],
+    loadTriggers: [
+      "AppModuleWarmPrefetchMount / Intent",
+      "Route /dashboard/inventory/**",
+      "placeholderData aus LS",
+    ],
     invalidateTriggers: [
       "Zutat/Bestellung speichern",
       "Bestandsänderung → notifications.summary + dashboard.summary",
@@ -439,12 +626,17 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 5 * 60 * 1000,
     pollIntervalMs: 5 * 60 * 1000,
     description:
-      "Unified-Inbox-Cache + Realtime — Background-Sync-Mount immer auf Kontakte-Routen.",
-    loadTriggers: ["/dashboard/kontakte/**"],
+      "Unified-Inbox-Cache + Realtime — Background-Sync app-weit im (app)-Layout; Kontakte-Layout nur Chrome/Keep-alive. Soft-Nav hält den Thread-State.",
+    loadTriggers: [
+      "UnifiedInboxBackgroundSyncMount (App-Layout)",
+      "Keep-alive Home Nachrichten/Kontakte",
+      "/dashboard/kontakte/**",
+    ],
     invalidateTriggers: ["Realtime", "Nachricht gesendet/gelesen"],
     implementationFiles: [
-      "app/(platform)/(app)/dashboard/kontakte/layout.tsx",
+      "components/contacts/unified-inbox-background-sync-mount.tsx",
       "lib/contact-messages/unified-inbox-cache.ts",
+      "app/(platform)/(app)/dashboard/kontakte/layout.tsx",
     ],
     status: "active",
   },
@@ -457,11 +649,12 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 5 * 60_000,
     gcTimeMs: 30 * 60_000,
     description:
-      "Gwada-Posts + externe Kanäle aus DB-Cache — sessionStorage pro Restaurant/Filter, Hintergrund-Refresh ohne Feed zu leeren.",
+      "Gwada-Posts + externe Kanäle aus DB-Cache — sessionStorage pro Restaurant/Filter, Hintergrund-Refresh ohne Feed zu leeren. Warm im Secondary-Idle.",
     loadTriggers: [
+      "Warm-Prefetch (Secondary)",
       "Mount News-Übersicht",
       "Plattform-Filter-Wechsel",
-      "Hintergrund-Sync wenn stale (Poll 5s, max 12×)",
+      "Hintergrund-Sync wenn stale (Poll 5s, max 3×)",
     ],
     invalidateTriggers: [
       "Speichern/Löschen im Detail-Drawer",
@@ -479,25 +672,56 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "Server: restaurant_news_platform_cache + after(triggerNewsFeedSyncIfStale). Plattform-Chips = Client-Filter auf Gesamt-Feed, kein API-Reload.",
   },
   {
-    id: "workspaceRestaurant",
-    label: "Workspace-Restaurant (UUID)",
-    scope: "chrome",
-    appModule: "App-Chrome",
-    strategy: "optimistic-local",
+    id: "eventsFeed",
+    label: "Events (Feed)",
+    scope: "module",
+    appModule: "Events",
+    strategy: "stale-while-revalidate",
+    staleTimeMs: 5 * 60_000,
+    gcTimeMs: 30 * 60_000,
     description:
-      "Aktives Restaurant für alle Module — sofort aus sessionStorage (peek), asynchron auflösen ohne „Kein Restaurant“-Flackern.",
-    loadTriggers: [
-      "Mount App-Zone: peekCachedWorkspaceRestaurantId",
-      "getWorkspaceRestaurantId() nachziehen",
-      "GWADA_WORKSPACE_RESTAURANT_CHANGED",
-    ],
-    invalidateTriggers: [
-      "Restaurant-Wechsel in Einstellungen",
-      "Workspace-Persistenz aktualisiert",
-    ],
+      "Event-Liste im sessionStorage; Soft-Nav zeigt Cache, Secondary-Warm füllt nach.",
+    loadTriggers: ["Warm-Prefetch (Secondary)", "Mount Events-Übersicht"],
+    invalidateTriggers: ["Event speichern / löschen", "TTL"],
     implementationFiles: [
-      "lib/hooks/use-workspace-restaurant-uuid.ts",
-      "lib/supabase/workspace-persistence.ts",
+      "lib/events/events-feed-client-cache.ts",
+      "lib/hooks/app-module-warm-prefetch.ts",
+    ],
+    status: "active",
+  },
+  {
+    id: "galleryFeed",
+    label: "Galerie (Feed)",
+    scope: "module",
+    appModule: "Galerie",
+    strategy: "stale-while-revalidate",
+    staleTimeMs: 5 * 60_000,
+    gcTimeMs: 30 * 60_000,
+    description:
+      "Galerie-Medien im sessionStorage; Soft-Nav + Secondary-Warm.",
+    loadTriggers: ["Warm-Prefetch (Secondary)", "Mount Galerie"],
+    invalidateTriggers: ["Upload / Löschen", "TTL"],
+    implementationFiles: [
+      "lib/gallery/gallery-feed-client-cache.ts",
+      "lib/hooks/app-module-warm-prefetch.ts",
+    ],
+    status: "active",
+  },
+  {
+    id: "documentsList",
+    label: "Dokumente (Liste)",
+    scope: "module",
+    appModule: "Dokumente",
+    strategy: "stale-while-revalidate",
+    staleTimeMs: 5 * 60_000,
+    gcTimeMs: 30 * 60_000,
+    description:
+      "Dokumentenliste im sessionStorage; Soft-Nav + Secondary-Warm.",
+    loadTriggers: ["Warm-Prefetch (Secondary)", "Mount Dokumente"],
+    invalidateTriggers: ["Dokument speichern / löschen", "TTL"],
+    implementationFiles: [
+      "lib/documents/documents-list-client-cache.ts",
+      "lib/hooks/app-module-warm-prefetch.ts",
     ],
     status: "active",
   },
@@ -507,13 +731,13 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     scope: "platform",
     appModule: "Display",
     strategy: "poll",
-    pollIntervalMs: 60_000,
+    pollIntervalMs: 2_000,
     description:
-      "Eigene Session-Zone (/display/[slug], kein Supabase-User-JWT). Module per fetch; Reservierungen mit Live-Signal-Poll und stillen Tag-Reloads ohne Full-Skeleton.",
+      "Eigene Session-Zone (/display/[slug], kein Supabase-User-JWT). Module per fetch; Reservierungen mit Live-Signal-Poll (2s) und stillen Tag-Reloads ohne Full-Skeleton.",
     loadTriggers: [
       "PIN-Login → GET /api/display/context",
       "Modul-Mount: reservations / inventory / recipes / time",
-      "Reservierungen: live-signal Poll 60s + GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT",
+      "Reservierungen: live-signal Poll 2s + GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT",
       "ToDo-Badge: GET /api/display/todos?badge_only=1",
     ],
     invalidateTriggers: [
@@ -538,7 +762,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     ],
     status: "active",
     notes:
-      "Skeleton nur für dynamische Bereiche beim Erstload — nicht bei Filter-/Picker-Wechsel. Kein AppModuleLiveProviders (andere Auth-Zone).",
+      "Skeleton nur für dynamische Bereiche beim Erstload — nicht bei Filter-/Picker-Wechsel. Kein AppModuleLiveProviders (andere Auth-Zone). Andere Display-Refreshes (z. B. Wetter) nutzen eigene TTLs (3h).",
   },
   {
     id: "staffTodos",
@@ -546,16 +770,20 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     scope: "module",
     appModule: "Mitarbeiter",
     strategy: "stale-while-revalidate",
-    staleTimeMs: 30_000,
+    staleTimeMs: 5 * 60_000,
     description:
-      "Todos + Mitarbeiterliste beim Mount; Suche/Filter/Sortierung clientseitig. Deferred Skeleton nur beim Erstload.",
-    loadTriggers: ["Mount /dashboard/checklisten/**"],
+      "Todos + Mitarbeiterliste — sessionStorage-Cache, Secondary-Warm; Suche/Filter/Sortierung clientseitig. Deferred Skeleton nur beim Erstload.",
+    loadTriggers: [
+      "Warm-Prefetch (Secondary)",
+      "Mount /dashboard/checklisten/**",
+    ],
     invalidateTriggers: [
       "Todo anlegen / bearbeiten / löschen",
       "Status- oder Zuweisungsänderung",
     ],
     implementationFiles: [
       "components/staff/todos/staff-todos-screen.tsx",
+      "lib/staff/staff-todos-client-cache.ts",
       "lib/supabase/staff-todos-db.ts",
       "lib/staff/staff-display-todos-server.ts",
     ],
@@ -572,8 +800,9 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 60_000,
     gcTimeMs: 30 * 60_000,
     description:
-      "Server-Pagination + Filter; Feed + Channels-Status im Memory/sessionStorage (SWR). Soft-Nav ohne Full-Skeleton, stilles Nachladen.",
+      "Server-Pagination + Filter; Feed + Channels-Status im Memory/sessionStorage (SWR). Soft-Nav ohne Full-Skeleton, stilles Nachladen. Warm-Skip 5 Min.",
     loadTriggers: [
+      "Warm-Prefetch (Secondary)",
       "Mount Bewertungen-Übersicht (peek Cache)",
       "Seitenwechsel / Filter (Server-Request)",
     ],
@@ -601,8 +830,12 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 60_000,
     gcTimeMs: 30 * 60_000,
     description:
-      "Rechnungen, Angebote, Belege, Kasse, Statistik — Client-Cache pro Filter/Seite; Soft-Nav zeigt Cache sofort, Hintergrund-Refresh.",
-    loadTriggers: ["Mount Buchführungs-Listen", "Filter-/Seitenwechsel"],
+      "Rechnungen, Angebote, Belege, Kasse, Statistik — Client-Cache pro Filter/Seite; Soft-Nav zeigt Cache sofort, Hintergrund-Refresh. Warm Secondary.",
+    loadTriggers: [
+      "Warm-Prefetch (Secondary)",
+      "Mount Buchführungs-Listen",
+      "Filter-/Seitenwechsel",
+    ],
     invalidateTriggers: ["Dokument speichern / Sync", "TTL 30 Min"],
     apiEndpoints: [
       "/api/accounting/invoices",
@@ -627,8 +860,12 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 60_000,
     gcTimeMs: 30 * 60_000,
     description:
-      "Statistik-Bundle pro Zeitraum im Client-Cache; Soft-Nav ohne Suspense-Skeleton-Flash.",
-    loadTriggers: ["Mount Insights-Übersicht", "Zeitraumwechsel"],
+      "Statistik-Bundle pro Zeitraum im Client-Cache; Soft-Nav ohne Suspense-Skeleton-Flash. Warm Secondary.",
+    loadTriggers: [
+      "Warm-Prefetch (Secondary)",
+      "Mount Insights-Übersicht",
+      "Zeitraumwechsel",
+    ],
     invalidateTriggers: ["TTL 30 Min"],
     apiEndpoints: ["/api/insights/statistics"],
     implementationFiles: [
@@ -646,8 +883,8 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 30_000,
     gcTimeMs: 15 * 60_000,
     description:
-      "KPI-Kacheln (Umsatz heute, offene Bestellungen, Kasse) — Memory/sessionStorage, Soft-Nav ohne Skeleton.",
-    loadTriggers: ["Mount POS-Übersicht"],
+      "KPI-Kacheln (Umsatz heute, offene Bestellungen, Kasse) — Memory/sessionStorage, Soft-Nav ohne Skeleton. Warm Secondary (Skip 5 Min).",
+    loadTriggers: ["Warm-Prefetch (Secondary)", "Mount POS-Übersicht"],
     invalidateTriggers: ["TTL 15 Min"],
     implementationFiles: [
       "components/pos/pos-overview-screen.tsx",
@@ -714,32 +951,32 @@ export const MODULE_CACHE_DECISION_GUIDE: {
   {
     question: "Nur UI-Einstellungen, Offline-First ok?",
     recommendation: "optimistic-local",
-    hint: "Widget-Prefs, letzte Filter — localStorage + Hintergrund-DB.",
+    hint: "Widget-Prefs, letzte Filter — localStorage + Hintergrund-DB. Workspace-UUID: peek + Resolve-Placeholder.",
   },
   {
     question: "Viele KPIs auf einer Übersichtsseite?",
     recommendation: "batch-api",
-    hint: "Ein API-Route mit parallelen Server-Loadern + React Query.",
+    hint: "Ein API-Route mit parallelen Server-Loadern + React Query; Live-Patches statt Voll-Invalidierung.",
   },
   {
     question: "Muss sofort bei DB-Änderung aktualisieren?",
     recommendation: "realtime",
-    hint: "Supabase Channel + invalidateQueries / Patch — Provider app-weit in AppModuleLiveProviders, nicht pro Route ein-/ausblenden.",
+    hint: "Supabase Channel + invalidateQueries / Patch — Provider app-weit in AppModuleLiveProviders, nicht pro Route ein-/ausblenden. Fallback-Poll dokumentieren.",
   },
   {
-    question: "Selten ändernde Listen, Zurück-Navigation wichtig?",
+    question: "Selten ändernde Listen, Soft-Nav / Zurück wichtig?",
     recommendation: "stale-while-revalidate",
-    hint: "React Query staleTime 30s–5min, placeholderData, refetchOnFocus.",
+    hint: "React Query oder sessionStorage-Feed, staleTime 30s–5min, Warm über AppModuleWarmPrefetchMount / Intent. Soft-Nav-Skeleton nur wenn !isModuleSoftNavDataReady.",
   },
   {
     question: "Kein Realtime, aber aktuell genug?",
     recommendation: "poll",
-    hint: "refetchInterval nur bei sichtbarem Tab — Intervall in Registry dokumentieren.",
+    hint: "refetchInterval nur bei sichtbarem Tab — Intervall in Registry dokumentieren (Display live-signal: 2s).",
   },
   {
     question: "Filter/Picker wechselt — nicht die ganze Seite skeletonisieren?",
     recommendation: "stale-while-revalidate",
     hint:
-      "Erstload: Skeleton nur für Datenbereich (Toolbar sichtbar lassen); Refetch silent bis neue Daten da sind. Display Reservierungen (Tag-Picker), Display Bestand/Rezepte.",
+      "Erstload: Deferred Skeleton nur für Datenbereich; Refetch silent. Keep-alive Homes (Dashboard/Reservierungen/Nachrichten) bleiben gemountet.",
   },
 ];

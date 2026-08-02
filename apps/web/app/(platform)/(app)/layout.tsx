@@ -11,12 +11,14 @@ import { UnifiedInboxBackgroundSyncMount } from "@/components/contacts/unified-i
 import { AppScrollUnlockOnNavigate } from "@/components/providers/app-scroll-unlock-on-navigate";
 import { SoftNavLockProvider } from "@/components/providers/soft-nav-lock-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { PersonalOnboardingProvider } from "@/components/onboarding/personal-onboarding-provider";
 import { RestaurantSetupWizardProvider } from "@/components/onboarding/restaurant-setup-wizard-provider";
 import { ProfileLocaleSyncMount } from "@/components/providers/profile-locale-sync-mount";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
 import { WorkspaceShellProviders } from "@/components/providers/workspace-shell-providers";
 import { AccentColorProvider } from "@/lib/contexts/accent-color-context";
 import { DashboardWidgetPreferencesProvider } from "@/lib/contexts/dashboard-widget-preferences-context";
+import { RestaurantBillingProvider } from "@/lib/contexts/restaurant-billing-context";
 import { RestaurantPermissionsProvider } from "@/lib/contexts/restaurant-permissions-context";
 import { RestaurantProfileProvider } from "@/lib/contexts/restaurant-profile-context";
 import { WorkspaceAuthSessionProvider } from "@/lib/contexts/workspace-auth-session-context";
@@ -76,29 +78,33 @@ export default function AppLayout({
         <WorkspaceAuthSessionProvider>
           <WorkspaceRestaurantProvider>
             <RestaurantPermissionsProvider>
-              <RestaurantProfileProvider>
-                <DashboardWidgetPreferencesProvider>
-                  <AccentColorProvider>
-                    <RestaurantSetupWizardProvider>
-                      <SoftNavLockProvider>
-                        <AppShellReadinessProvider>
-                          <AppScrollUnlockOnNavigate />
-                          <DashboardPwaSetup />
-                          <AuthCookieCleanupMount />
-                          <DashboardBatchPrefetchMount />
-                          <AppModuleWarmPrefetchMount />
-                          <UnifiedInboxBackgroundSyncMount />
-                          <AppDashboardLivePatchMount />
-                          <ProfilePresenceHeartbeat />
-                          <ProfileLocaleSyncMount />
-                          <AppModuleLiveProviders />
-                          <AppShell>{children}</AppShell>
-                        </AppShellReadinessProvider>
-                      </SoftNavLockProvider>
-                    </RestaurantSetupWizardProvider>
-                  </AccentColorProvider>
-                </DashboardWidgetPreferencesProvider>
-              </RestaurantProfileProvider>
+              <RestaurantBillingProvider>
+                <RestaurantProfileProvider>
+                  <DashboardWidgetPreferencesProvider>
+                    <AccentColorProvider>
+                      <RestaurantSetupWizardProvider>
+                        <PersonalOnboardingProvider>
+                          <SoftNavLockProvider>
+                            <AppShellReadinessProvider>
+                              <AppScrollUnlockOnNavigate />
+                              <DashboardPwaSetup />
+                              <AuthCookieCleanupMount />
+                              <DashboardBatchPrefetchMount />
+                              <AppModuleWarmPrefetchMount />
+                              <UnifiedInboxBackgroundSyncMount />
+                              <AppDashboardLivePatchMount />
+                              <ProfilePresenceHeartbeat />
+                              <ProfileLocaleSyncMount />
+                              <AppModuleLiveProviders />
+                              <AppShell>{children}</AppShell>
+                            </AppShellReadinessProvider>
+                          </SoftNavLockProvider>
+                        </PersonalOnboardingProvider>
+                      </RestaurantSetupWizardProvider>
+                    </AccentColorProvider>
+                  </DashboardWidgetPreferencesProvider>
+                </RestaurantProfileProvider>
+              </RestaurantBillingProvider>
             </RestaurantPermissionsProvider>
           </WorkspaceRestaurantProvider>
         </WorkspaceAuthSessionProvider>

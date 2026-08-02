@@ -31,7 +31,11 @@ export async function POST(req: Request) {
     auth.ctx.supabase,
     waha,
     auth.ctx.restaurantId,
-    { forceRestart: body.restart === true },
+    {
+      forceRestart: body.restart === true,
+      // Bewusstes Verbinden unter Integrationen — nicht Auto-Recover.
+      importInboxHistory: true,
+    },
   );
   return Response.json(result);
 }

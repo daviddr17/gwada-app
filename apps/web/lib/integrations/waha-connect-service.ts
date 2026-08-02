@@ -21,7 +21,14 @@ export async function syncWhatsappFromWaha(
   sb: SupabaseClient,
   config: WahaServerConfig,
   restaurantId: string,
-  options?: { forceRestart?: boolean },
+  options?: {
+    forceRestart?: boolean;
+    /**
+     * Nur bei bewusstem Verbinden (Integrationen): einmal Historie spiegeln.
+     * Nicht bei Auto-Recover / Status-Refresh / Heal — sonst landen alte Chats erneut in der Inbox.
+     */
+    importInboxHistory?: boolean;
+  },
 ): Promise<WahaConnectResponse> {
   const sessionName = wahaSessionNameForRestaurant(restaurantId);
   const existing = await fetchRestaurantWhatsappIntegration(sb, restaurantId);
@@ -102,7 +109,12 @@ export async function syncWhatsappFromWaha(
     console.warn("[waha] sync upsert restaurant_integrations", upsertError);
   }
 
-  if (mapped.status === "working" && !wasWorking && admin) {
+  if (
+    options?.importInboxHistory &&
+    mapped.status === "working" &&
+    !wasWorking &&
+    admin
+  ) {
     void syncInboxHistoryOnConnect(admin, {
       restaurantId,
       whatsapp: true,

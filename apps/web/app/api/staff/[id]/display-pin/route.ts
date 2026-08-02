@@ -64,10 +64,18 @@ export async function POST(
   });
 
   if (error) {
-    const msg = error.message.includes("bereits")
-      ? "pin_duplicate"
-      : error.message;
-    return NextResponse.json({ error: msg }, { status: 400 });
+    if (error.message.includes("bereits")) {
+      return NextResponse.json({ error: "pin_duplicate" }, { status: 400 });
+    }
+    console.error("[staff/display-pin] set_restaurant_staff_display_pin", {
+      staffId,
+      code: error.code,
+      message: error.message,
+    });
+    return NextResponse.json(
+      { error: "pin_save_failed" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ ok: true });

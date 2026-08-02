@@ -7,6 +7,16 @@
   filter: blur(80px);
   will-change: transform;
 }
+@media (max-width: 639px) {
+  .gwada-hero-blob {
+    filter: blur(48px);
+    will-change: auto;
+  }
+  .gwada-hero-blob-c,
+  .gwada-hero-blob-d {
+    display: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .gwada-hero-blob {
     animation: none !important;
@@ -158,22 +168,87 @@
   animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
 }
 
-.landing-hero-rise-modules {
-  --landing-hero-rise-y: 14px;
-  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
-}
-
 .landing-hero-rise-cta {
   --landing-hero-rise-y: 18px;
-  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+.landing-hero-rise-preview {
+  --landing-hero-rise-y: 22px;
+  animation: landing-hero-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
+}
+
+@keyframes landing-hero-preview-kpi {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+
+.landing-hero-preview-kpi {
+  animation: landing-hero-preview-kpi 3.2s ease-in-out infinite;
+}
+
+@keyframes landing-hero-tab-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.landing-hero-tab-progress {
+  animation-name: landing-hero-tab-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+.landing-hero-tab-progress[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+@keyframes landing-hero-panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.landing-hero-panel-in {
+  animation: landing-hero-panel-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Mobile: sofort sichtbar für LCP — Rise nur ab sm */
+@media (max-width: 639px) {
+  .landing-hero-rise-logo,
+  .landing-hero-rise-h1,
+  .landing-hero-rise-sub,
+  .landing-hero-rise-cta,
+  .landing-hero-rise-preview {
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .landing-hero-rise-logo,
   .landing-hero-rise-h1,
   .landing-hero-rise-sub,
-  .landing-hero-rise-modules,
-  .landing-hero-rise-cta {
+  .landing-hero-rise-cta,
+  .landing-hero-rise-preview {
+    animation: none;
+  }
+
+  .landing-hero-preview-kpi,
+  .landing-hero-tab-progress,
+  .landing-hero-panel-in {
     animation: none;
   }
 }

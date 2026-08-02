@@ -265,6 +265,7 @@ struct BonSheetView: View {
                 .fill(PosDesign.line)
                 .frame(height: 1)
         }
+        .posLiquidGlassBar()
     }
 
     @MainActor

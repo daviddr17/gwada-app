@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  getCachedPlatformAsset,
+  setCachedPlatformAsset,
+} from "@/lib/platform/platform-asset-memory-cache";
 import { optimizeLogoBufferForMarketing } from "@/lib/platform/platform-logo-optimize";
 import {
   isAllowedPlatformLogoStoragePath,
@@ -16,6 +20,8 @@ export type PlatformMarketingLogoAsset = {
   etag: string;
 };
 
+const LOGO_CACHE_TTL_MS = 60 * 60 * 1000;
+
 function logoUpstreamUrl(storagePath: string): string | null {
   return resolvePlatformBrandingFetchUrl(storagePath);
 }
@@ -27,20 +33,28 @@ export async function loadPlatformMarketingLogoAsset(params: {
   const path = params.storagePath.trim();
   if (!isAllowedPlatformLogoStoragePath(path)) return null;
 
+  const cacheKey = `marketing-logo:${path}:${params.theme}`;
+  const cached = getCachedPlatformAsset<PlatformMarketingLogoAsset>(cacheKey);
+  if (cached) return cached;
+
   const fetchUrl = logoUpstreamUrl(path);
   if (!fetchUrl) return null;
 
-  const res = await fetch(fetchUrl, { cache: "no-store" });
+  const res = await fetch(fetchUrl, {
+    next: { revalidate: 3600 },
+  });
   if (!res.ok) return null;
 
   const raw = Buffer.from(await res.arrayBuffer());
   const body = await optimizeLogoBufferForMarketing(raw);
 
-  return {
+  const asset: PlatformMarketingLogoAsset = {
     body,
     contentType: "image/webp",
     etag: `"marketing-logo:${path}:${params.theme}"`,
   };
+  setCachedPlatformAsset(cacheKey, asset, LOGO_CACHE_TTL_MS);
+  return asset;
 }
 
 export async function loadPlatformMarketingLogoAssetFromBranding(

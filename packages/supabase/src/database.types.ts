@@ -2541,6 +2541,39 @@ export type Database = {
         }
         Relationships: []
       }
+      reservation_staff_assignees: {
+        Row: {
+          created_at: string
+          reservation_id: string
+          staff_id: string
+        }
+        Insert: {
+          created_at?: string
+          reservation_id: string
+          staff_id: string
+        }
+        Update: {
+          created_at?: string
+          reservation_id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservation_staff_assignees_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_staff_assignees_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reservation_whatsapp_outbox: {
         Row: {
           cancelled_at: string | null
@@ -2611,6 +2644,7 @@ export type Database = {
           guest_profile_id: string | null
           id: string
           is_walk_in: boolean
+          kind: string
           notes: string | null
           notify_email: boolean
           notify_whatsapp: boolean
@@ -2645,6 +2679,7 @@ export type Database = {
           guest_profile_id?: string | null
           id?: string
           is_walk_in?: boolean
+          kind?: string
           notes?: string | null
           notify_email?: boolean
           notify_whatsapp?: boolean
@@ -2679,6 +2714,7 @@ export type Database = {
           guest_profile_id?: string | null
           id?: string
           is_walk_in?: boolean
+          kind?: string
           notes?: string | null
           notify_email?: boolean
           notify_whatsapp?: boolean
@@ -4760,7 +4796,14 @@ export type Database = {
           staff_id: string
         }[]
       }
-      restaurant_documents_quota_bytes: { Args: never; Returns: number }
+      restaurant_documents_quota_bytes: {
+        Args: { p_restaurant_id: string }
+        Returns: number
+      }
+      restaurant_workspace_quota_bytes: {
+        Args: { p_restaurant_id: string }
+        Returns: number
+      }
       restaurant_documents_used_bytes: {
         Args: { p_restaurant_id: string }
         Returns: number

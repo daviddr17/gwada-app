@@ -5,12 +5,17 @@ import { useEffect, useRef, type RefObject } from "react";
 
 /**
  * Butterweiches Scrollen nur für die Marketing-Landing (Lenis RAF-Loop).
- * Start verzögert (idle), damit Hero schneller interaktiv ist — Optik unverändert.
+ * Nur feiner Pointer (Maus/Trackpad) — auf Touch natives Scrollen (PageSpeed/SI).
+ * Start verzögert (idle), damit Hero schneller interaktiv ist.
  */
 export function useLandingLenis(): RefObject<Lenis | null> {
   const lenisRef = useRef<Lenis | null>(null);
 
   useEffect(() => {
+    if (!window.matchMedia("(pointer: fine)").matches) {
+      return;
+    }
+
     let lenis: Lenis | null = null;
     let raf = 0;
     let cancelled = false;
@@ -38,9 +43,9 @@ export function useLandingLenis(): RefObject<Lenis | null> {
     };
 
     if (typeof requestIdleCallback !== "undefined") {
-      idleId = requestIdleCallback(() => void start(), { timeout: 1200 });
+      idleId = requestIdleCallback(() => void start(), { timeout: 1800 });
     } else {
-      timeoutId = setTimeout(() => void start(), 80);
+      timeoutId = setTimeout(() => void start(), 400);
     }
 
     return () => {

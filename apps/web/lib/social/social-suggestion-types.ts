@@ -2,6 +2,8 @@ import type {
   SocialSlotKind,
   SocialTemplateId,
 } from "@/lib/social/social-brand-kit";
+import type { SocialFeedLayoutId } from "@/lib/social/social-feed-brand-system";
+import { SOCIAL_FEED_LAYOUT_LABELS } from "@/lib/social/social-feed-brand-system";
 
 export const SOCIAL_SUGGESTION_STATUSES = [
   "pending",
@@ -28,6 +30,8 @@ export type SocialPostSuggestion = {
   status: SocialSuggestionStatus;
   slotKind: SocialSlotKind;
   templateId: SocialTemplateId;
+  /** Premium-Layout (aus source.feedLayout oder Slot-Mapping). */
+  feedLayout: SocialFeedLayoutId;
   plannedAt: string;
   title: string | null;
   caption: string;
@@ -56,8 +60,4 @@ export const SOCIAL_SLOT_KIND_LABELS: Record<SocialSlotKind, string> = {
   ambient: "Ambiente",
 };
 
-export const SOCIAL_TEMPLATE_LABELS: Record<SocialTemplateId, string> = {
-  food_hero: "Food Hero",
-  brand_card: "Brand Card",
-  quote: "Zitat",
-};
+export const SOCIAL_FEED_LAYOUT_CHIP_LABELS = SOCIAL_FEED_LAYOUT_LABELS;

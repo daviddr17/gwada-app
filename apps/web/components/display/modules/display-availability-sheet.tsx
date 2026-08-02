@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
@@ -9,7 +10,13 @@ import {
 } from "@/components/ui/drawer";
 import { StaffAvailabilityEditor } from "@/components/staff/staff-availability-editor";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import {
+  drawerFormFullWidthButtonClassName,
+  drawerFormHeaderClassName,
+  drawerScrollAreaClassName,
+} from "@/lib/ui/drawer-form-section";
+import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
+import { cn } from "@/lib/utils";
 
 type DisplayAvailabilitySheetProps = {
   open: boolean;
@@ -44,13 +51,28 @@ export function DisplayAvailabilitySheet({
             Für konkrete Tage oder ausgewählte Wochen — sichtbar im Schichtplan.
           </DrawerDescription>
         </DrawerHeader>
-        <div className="max-h-[min(78dvh,42rem)] overflow-x-hidden overflow-y-auto px-4 pb-6">
+        <div className={drawerScrollAreaClassName(6)}>
           <StaffAvailabilityEditor
             restaurantId={restaurantId}
             staffId={staffId}
             compact
             displayApi
           />
+        </div>
+        <div
+          className={cn(
+            "shrink-0 border-t border-border/50 px-6 py-3",
+            appMobileBottomSafePbMdClassName,
+          )}
+        >
+          <Button
+            type="button"
+            variant="outline"
+            className={drawerFormFullWidthButtonClassName}
+            onClick={() => onOpenChange(false)}
+          >
+            Schließen
+          </Button>
         </div>
       </DrawerContent>
     </Drawer>

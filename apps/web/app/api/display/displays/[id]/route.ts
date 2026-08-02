@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertBillingFeature } from "@/lib/billing/assert-billing-feature";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DisplayModule } from "@/lib/display/display-types";
 import { deleteDisplayInstallations } from "@/lib/display/display-installation-server";
@@ -22,12 +23,22 @@ async function assertDisplayManageForDisplay(displayId: string) {
     return { ok: false as const, error: "not_found", status: 404 };
   }
 
+  const restaurantId = display.restaurant_id as string;
   const { data: allowed } = await sb.rpc("auth_has_restaurant_permission", {
-    p_restaurant_id: display.restaurant_id,
+    p_restaurant_id: restaurantId,
     p_permission: "display.manage",
   });
   if (!allowed) {
     return { ok: false as const, error: "forbidden", status: 403 };
+  }
+
+  const billing = await assertBillingFeature(restaurantId, "feature.displays");
+  if (!billing.ok) {
+    return {
+      ok: false as const,
+      error: billing.error,
+      status: billing.status,
+    };
   }
 
   return { ok: true as const, sb, display };

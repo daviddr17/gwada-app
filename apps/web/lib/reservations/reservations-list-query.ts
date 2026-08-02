@@ -52,8 +52,8 @@ export function reservationsMonthQueryOptions(
       range.rangeEndExclusiveIso,
     ),
     queryFn: () => fetchReservationsMonthList(restaurantId, range),
-    staleTime: getModuleCacheStaleTime("reservationsLive") ?? 60_000,
-    gcTime: getModuleCacheGcTime("reservationsLive") ?? 5 * 60_000,
+    staleTime: getModuleCacheStaleTime("reservationsModule") ?? 60_000,
+    gcTime: getModuleCacheGcTime("reservationsModule") ?? 5 * 60_000,
   };
 }
 
@@ -61,8 +61,8 @@ export function reservationsUnconfirmedQueryOptions(restaurantId: string) {
   return {
     queryKey: queryKeys.reservations.unconfirmed(restaurantId),
     queryFn: () => fetchReservationsUnconfirmedList(restaurantId),
-    staleTime: getModuleCacheStaleTime("reservationsLive") ?? 60_000,
-    gcTime: getModuleCacheGcTime("reservationsLive") ?? 5 * 60_000,
+    staleTime: getModuleCacheStaleTime("reservationsModule") ?? 60_000,
+    gcTime: getModuleCacheGcTime("reservationsModule") ?? 5 * 60_000,
   };
 }
 

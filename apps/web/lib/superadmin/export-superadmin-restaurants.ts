@@ -1,4 +1,9 @@
 import {
+  billingPlanLabel,
+  billingSourceLabel,
+  billingStatusLabel,
+} from "@/lib/billing/billing-status-labels";
+import {
   downloadTableCsv,
   downloadTablePdf,
 } from "@/lib/export/table-document-export";
@@ -14,6 +19,10 @@ const HEADERS = [
   "Telefon",
   "Zeitzone",
   "Team",
+  "Abo",
+  "Abo-Status",
+  "Abo-Quelle",
+  "POS",
   "Status",
   "Angelegt am",
 ] as const;
@@ -45,6 +54,10 @@ function restaurantToRow(row: SuperadminRestaurantRow): string[] {
     row.phone?.trim() ?? "",
     formatRestaurantTimezoneLabel(row.timezone),
     String(row.employee_count),
+    billingPlanLabel(row.plan_id ?? "free"),
+    billingStatusLabel(row.plan_status ?? "active"),
+    billingSourceLabel(row.plan_source ?? "manual"),
+    row.has_pos_addon ? "ja" : "nein",
     restaurantStatusLabel(row),
     formatWhen(row.created_at),
   ];

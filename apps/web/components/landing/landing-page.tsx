@@ -1,46 +1,19 @@
 "use client";
 
 import type Lenis from "lenis";
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePointerFine } from "@/hooks/use-pointer-fine";
+import { LandingBelowFoldDeferred } from "@/components/landing/landing-below-fold-deferred";
 import { LandingDock } from "@/components/landing/landing-dock";
 import { LandingHero } from "@/components/landing/landing-hero";
-import { PublicThemeToggleSlot } from "@/components/public/public-theme-toggle-slot";
+import { PublicThemeToggleDeferred } from "@/components/public/public-theme-toggle-deferred";
 import { useLandingLenis } from "@/components/landing/use-landing-lenis";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 import {
   THEME_TRANSITION_END_EVENT,
   THEME_TRANSITION_START_EVENT,
 } from "@/lib/ui/theme-transition";
-
-/** Schwere Scroll-Sections erst nach First Paint — gleiche Optik, weniger initiales JS. */
-const LandingScrollStory = dynamic(
-  () =>
-    import("@/components/landing/landing-scroll-story").then((m) => ({
-      default: m.LandingScrollStory,
-    })),
-  { loading: () => <div className="min-h-[80vh]" aria-hidden /> },
-);
-
-const LandingIntegrationsScrollStory = dynamic(
-  () =>
-    import("@/components/landing/landing-integrations-scroll-story").then(
-      (m) => ({
-        default: m.LandingIntegrationsScrollStory,
-      }),
-    ),
-  { loading: () => <div className="min-h-[70vh]" aria-hidden /> },
-);
-
-const LandingPricing = dynamic(
-  () =>
-    import("@/components/landing/landing-pricing").then((m) => ({
-      default: m.LandingPricing,
-    })),
-  { loading: () => <div className="min-h-[65vh]" aria-hidden /> },
-);
 
 /**
  * Marketing-Startseite: Lenis + Sektionen + Dock.
@@ -99,7 +72,7 @@ export function LandingPage() {
 
   return (
     <div className="relative min-h-dvh bg-background text-foreground antialiased">
-      <PublicThemeToggleSlot />
+      <PublicThemeToggleDeferred />
 
       <main>
         <LandingHero
@@ -107,14 +80,28 @@ export function LandingPage() {
           parallaxEnabled={pointerFine}
           onScrollToSection={navigateToSection}
         />
-        <LandingScrollStory />
-        <LandingIntegrationsScrollStory />
+        <LandingBelowFoldDeferred />
 
-        <LandingPricing />
-
-        <footer className="border-t border-border/50 bg-muted/10 px-6 py-20 pb-40 text-center text-sm text-muted-foreground sm:pb-44 dark:bg-muted/5">
-          <p suppressHydrationWarning>
-            © {new Date().getFullYear()} {appName}. Mit Ruhe gebaut.
+        <footer className="border-t border-border/50 bg-muted/10 px-6 pt-12 pb-40 text-center text-sm text-muted-foreground sm:pt-14 sm:pb-44 dark:bg-muted/5">
+          <p
+            className="inline-flex items-center justify-center gap-2"
+            suppressHydrationWarning
+          >
+            {/* Same-Origin — kein Remote-Favicon-Preload neben dem LCP-Logo */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/favicon.ico"
+              alt=""
+              width={16}
+              height={16}
+              loading="lazy"
+              decoding="async"
+              fetchPriority="low"
+              className="size-4 opacity-90"
+            />
+            <span>
+              © {new Date().getFullYear()} {appName}.
+            </span>
           </p>
           <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <Link
@@ -158,6 +145,24 @@ export function LandingPage() {
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               Datenschutz
+            </Link>
+            <span className="opacity-40" aria-hidden>
+              ·
+            </span>
+            <Link
+              href="/agb"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              AGB
+            </Link>
+            <span className="opacity-40" aria-hidden>
+              ·
+            </span>
+            <Link
+              href="/avv"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              AVV
             </Link>
           </p>
         </footer>

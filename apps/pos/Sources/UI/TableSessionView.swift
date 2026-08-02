@@ -41,7 +41,7 @@ struct TableSessionView: View {
         .background(PosDesign.bg)
         .navigationTitle(table.label)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
+        .posHideTabBarWhenImmersive()
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if !resolvedSessionId.isEmpty, !resolvedSessionId.hasPrefix("pending-") {
@@ -103,6 +103,7 @@ struct TableSessionView: View {
                 onClose: { showKassieren = false }
             )
             .environmentObject(runtime)
+            .modifier(PosSheetLiquidGlassBackground())
         }
         .sheet(isPresented: $showBon) {
             BonSheetView(
@@ -124,6 +125,7 @@ struct TableSessionView: View {
             )
             .presentationDetents([.large, .medium], selection: $bonDetent)
             .presentationDragIndicator(.visible)
+            .modifier(PosSheetLiquidGlassBackground())
         }
         .onChange(of: showBon) { _, isPresented in
             guard !isPresented, pendingKassierenAfterBon else { return }
@@ -344,6 +346,7 @@ struct TableSessionView: View {
             .buttonStyle(PosPrimaryButtonStyle())
             .accessibilityIdentifier("pos.bon.open")
         }
+        .posLiquidGlassBar()
     }
 
     private var bonDockTitle: String {

@@ -14,8 +14,11 @@ import {
 } from "@/components/settings/settings-integration-panel";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { invalidateInboxAfterChannelConnect } from "@/lib/contact-messages/invalidate-inbox-after-channel-connect-client";
+import { hasBillingFeature } from "@/lib/billing/entitlements";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import type { WahaConnectResponse } from "@/lib/types/restaurant-integration";
 import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import { cn } from "@/lib/utils";
@@ -36,7 +39,13 @@ const CONNECTED_POLL_MS = 45_000;
 export function WhatsappIntegrationCard() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has, loading: permLoading } = useRestaurantPermissions();
-  const canConnect = has("integrations.whatsapp");
+  const { entitlements, loading: billingLoading } = useRestaurantBilling();
+  const canConnectPermission = has("integrations.whatsapp");
+  const canConnectBilling = hasBillingFeature(
+    entitlements,
+    "integrations.whatsapp",
+  );
+  const canConnect = canConnectPermission && canConnectBilling;
   const [state, setState] = useState<WahaConnectResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -280,14 +289,26 @@ export function WhatsappIntegrationCard() {
             ? "WhatsApp ist für euer Restaurant noch nicht freigeschaltet. Bitte wende dich an euren Gwada-Administrator."
             : undefined
         }
-        loading={permLoading || !workspaceReady || loading}
-        denied={!canConnect}
+        loading={permLoading || billingLoading || !workspaceReady || loading}
+        denied={!canConnectPermission}
         deniedMessage="Deine Position hat keine Berechtigung, WhatsApp zu verbinden. Unter Einstellungen → Rollen kann ein Administrator das freischalten."
         noRestaurant={workspaceReady && !restaurantId}
         noRestaurantMessage="Wähle zuerst ein Restaurant im Workspace, um WhatsApp zu verbinden."
       >
+        {!canConnectBilling ? (
+          <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
+            WhatsApp ist ab{" "}
+            <a
+              href={APP_ROUTES.settings.billing}
+              className="font-medium text-foreground underline underline-offset-2"
+            >
+              Pro
+            </a>{" "}
+            verfügbar — eigene Nummer für Gäste-Nachrichten und Bestätigungen.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
-          {!connected ? (
+          {canConnectBilling && !connected ? (
             <Button
               type="button"
               disabled={busy || !state?.configured}
@@ -296,7 +317,8 @@ export function WhatsappIntegrationCard() {
             >
               {busy ? "Bitte warten…" : connectLabel}
             </Button>
-          ) : (
+          ) : null}
+          {canConnectBilling && connected ? (
             <Button
               type="button"
               variant="outline"
@@ -306,19 +328,24 @@ export function WhatsappIntegrationCard() {
             >
               Trennen
             </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-11 rounded-xl"
-            disabled={busy || !state?.configured}
-            onClick={() => void loadStatus(true)}
-          >
-            Status prüfen
-          </Button>
+          ) : null}
+          {canConnectBilling ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 rounded-xl"
+              disabled={busy || !state?.configured}
+              onClick={() => void loadStatus(true)}
+            >
+              Status prüfen
+            </Button>
+          ) : null}
         </div>
 
-        {(showNeuVerknuepfen || needsReconnect) && !needsAuth && state?.configured ? (
+        {canConnectBilling &&
+        (showNeuVerknuepfen || needsReconnect) &&
+        !needsAuth &&
+        state?.configured ? (
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
             {liveCheckFailed
               ? "Die Verbindung zu WhatsApp ist unterbrochen — bitte neu verknüpfen."
@@ -327,7 +354,8 @@ export function WhatsappIntegrationCard() {
           </p>
         ) : null}
 
-        {(needsAuth || (needsReconnect && state?.status === "failed")) &&
+        {canConnectBilling &&
+        (needsAuth || (needsReconnect && state?.status === "failed")) &&
         state?.configured ? (
           <div className="space-y-4 rounded-xl border border-border/50 bg-muted/20 p-4">
             <div className="flex gap-2">

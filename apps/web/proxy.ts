@@ -29,9 +29,20 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/docs" || pathname.startsWith("/docs/")) return true;
   if (pathname === "/impressum" || pathname.startsWith("/impressum/")) return true;
   if (pathname === "/datenschutz" || pathname.startsWith("/datenschutz/")) return true;
+  if (pathname === "/agb" || pathname.startsWith("/agb/")) return true;
+  if (pathname === "/avv" || pathname.startsWith("/avv/")) return true;
+  if (pathname === "/datenloeschung" || pathname.startsWith("/datenloeschung/"))
+    return true;
   if (pathname === "/auth/callback" || pathname.startsWith("/auth/")) return true;
   if (pathname.startsWith("/_next")) return true;
-  if (pathname === "/favicon.ico" || pathname === "/robots.txt") return true;
+  if (
+    pathname === "/favicon.ico" ||
+    pathname === "/robots.txt" ||
+    pathname === "/llms.txt" ||
+    pathname === "/sitemap.xml"
+  ) {
+    return true;
+  }
   if (pathname.startsWith("/api/")) return true;
   if (pathname.startsWith("/embed/")) return true;
   if (pathname.startsWith("/display/")) return true;
@@ -93,6 +104,12 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/impressum/") ||
     pathname === "/datenschutz" ||
     pathname.startsWith("/datenschutz/") ||
+    pathname === "/agb" ||
+    pathname.startsWith("/agb/") ||
+    pathname === "/avv" ||
+    pathname.startsWith("/avv/") ||
+    pathname === "/datenloeschung" ||
+    pathname.startsWith("/datenloeschung/") ||
     pathname.startsWith("/embed/") ||
     pathname.startsWith("/display/") ||
     pathname.startsWith("/api/display/") ||

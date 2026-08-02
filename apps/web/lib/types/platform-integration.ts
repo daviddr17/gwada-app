@@ -14,6 +14,7 @@ export type PlatformIntegrationKey =
   | "email"
   | "weather"
   | "fiskaly"
+  | "stripe"
   | "lexoffice"
   | "tripadvisor"
   | "apple_business_connect";
@@ -50,6 +51,7 @@ export const PLATFORM_INTEGRATION_KEYS: readonly PlatformIntegrationKey[] = [
   "email",
   "weather",
   "fiskaly",
+  "stripe",
   "lexoffice",
   "tripadvisor",
   "apple_business_connect",

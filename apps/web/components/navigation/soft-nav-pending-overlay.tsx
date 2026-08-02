@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { useLayoutEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { AppMain } from "@/components/layout/app-main";
 import { AccountingListScreenSkeleton } from "@/components/accounting/accounting-list-screen-skeleton";
@@ -24,8 +23,6 @@ import { useAppModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useModuleHomeKeepAliveOptional } from "@/lib/contexts/module-home-keep-alive-context";
 import { SIDEBAR_MODULE_DEFINITIONS } from "@/lib/constants/sidebar-modules";
 import { ContactConversationsListSkeleton } from "@/components/contacts/contact-conversations-list-skeleton";
-import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { isModuleSoftNavDataReady } from "@/lib/navigation/module-soft-nav-data-ready";
 
 /**
  * Sofortiges Modul-Skeleton über dem Scroll-Bereich — Sibling zu {children},
@@ -89,31 +86,27 @@ function titleForHref(href: string): string | null {
 
 export function SoftNavPendingOverlay() {
   const pathname = usePathname();
-  const queryClient = useQueryClient();
-  const { restaurantId } = useWorkspaceRestaurantUuid();
   const { pendingHref } = useSoftNavLock();
   const { setChrome } = useAppModuleChrome();
   const moduleKeepAlive = useModuleHomeKeepAliveOptional();
   const prevTitleRef = useRef<string | null>(null);
   const optimisticTargetRef = useRef<string | null>(null);
 
-  const pending =
-    pendingHref != null &&
-    normalizeNavHref(pendingHref) !== normalizeNavHref(pathname);
+  // Cover bleibt, solange Pending gesetzt ist — auch wenn pathname schon
+  // am Ziel ist (Clear erst nach Paint). Sonst: Weißflash / Dashboard-Blitzen.
+  const pendingInFlight = pendingHref != null;
+  const arrivedAtPending =
+    pendingInFlight &&
+    normalizeNavHref(pendingHref!) === normalizeNavHref(pathname);
+  const pendingBeforeArrive = pendingInFlight && !arrivedAtPending;
 
   const pendingToWarmHome =
-    pending &&
-    pendingHref != null &&
-    Boolean(moduleKeepAlive?.isPendingWarmHome(pendingHref));
-
-  const pendingDataReady =
-    pending &&
-    pendingHref != null &&
-    isModuleSoftNavDataReady(pendingHref, restaurantId, queryClient);
+    pendingBeforeArrive &&
+    Boolean(moduleKeepAlive?.isPendingWarmHome(pendingHref!));
 
   // Optimistischen Titel setzen; bei abgebrochenem Nav wiederherstellen.
   useLayoutEffect(() => {
-    if (pending && pendingHref) {
+    if (pendingInFlight && pendingHref) {
       const title = titleForHref(pendingHref);
       if (!title) return;
       optimisticTargetRef.current = normalizeNavHref(pendingHref);
@@ -140,10 +133,11 @@ export function SoftNavPendingOverlay() {
       return;
     }
     setChrome((prev) => ({ ...prev, title: restore }));
-  }, [pending, pendingHref, pathname, setChrome]);
+  }, [pendingInFlight, pendingHref, pathname, setChrome]);
 
-  // Keep-alive oder bereits warme Modul-Daten: kein Skeleton über dem Ziel.
-  if (!pending || !pendingHref || pendingToWarmHome || pendingDataReady) {
+  // Warm-Home-Keep-alive previewt das Ziel selbst — kein Cover nötig.
+  // Sonst immer Modul-Skeleton decken (nie leeres Weiß).
+  if (!pendingInFlight || !pendingHref || pendingToWarmHome) {
     return null;
   }
 

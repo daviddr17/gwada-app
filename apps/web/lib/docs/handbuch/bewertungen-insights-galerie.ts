@@ -130,9 +130,11 @@ export const insightsGuide: UserGuidePage = {
 export const galerieGuide: UserGuidePage = {
   slug: "galerie",
   title: "Galerie",
-  description: "Fotos verwalten, sortieren, importieren und einbinden.",
+  description:
+    "Fotos aus Gwada und verbundenen Plattformen — Highlights, Kategorien und Website-Einbindung.",
   intro: [
-    "In der Galerie lädst du Bilder hoch — Ambiente, Gerichte, Events, Team. Sie erscheinen auf dem öffentlichen Profil und in Galerie-Widgets auf deiner Website.",
+    "Die Galerie sammelt Bilder für Ambiente, Gerichte, Events und Team. Gwada-Uploads steuerst du selbst; zusätzlich erscheinen Bilder von verbundenen Plattformen (Facebook, Instagram, Google, TripAdvisor) als Feed.",
+    "Highlights heben ausgewählte Gwada-Bilder hervor — z. B. als Favoritenreihe auf dem Profil. Über Einbinden stellst du die Galerie als Widget auf deine Website.",
   ],
   sections: [
     {
@@ -140,10 +142,21 @@ export const galerieGuide: UserGuidePage = {
       table: {
         headers: ["Tab", "Zweck"],
         rows: [
-          ["Übersicht", "Bilder hochladen, sortieren, löschen"],
+          ["Übersicht", "Bilder ansehen, hochladen, Highlights pflegen"],
           ["Statistiken", "Aufrufe und Nutzung"],
-          ["Einbinden", "Galerie-Widget (iframe)"],
-          ["Einstellungen", "Facebook-Import und Optionen"],
+          ["Einbinden", "Galerie-Widget (Snippet + Vorschau, Text-Theme)"],
+          ["Einstellungen", "Hinweise zu Highlights und Plattform-Kategorien"],
+        ],
+      },
+    },
+    {
+      heading: "Filter in der Übersicht",
+      body: "Oben filterst du über Chips — kein separates Filter-Sheet:",
+      table: {
+        headers: ["Filter", "Bedeutung"],
+        rows: [
+          ["Plattform", "Alle / Gwada / Facebook / Instagram / Google / TripAdvisor"],
+          ["Kategorie", "Chips aus vorhandenen Bild-Kategorien — wechselt mit der Plattform"],
         ],
       },
     },
@@ -152,17 +165,45 @@ export const galerieGuide: UserGuidePage = {
       table: {
         headers: ["Element", "Bedeutung"],
         rows: [
-          ["Bild hinzufügen", "Datei wählen oder per Drag & Drop hochladen"],
-          ["Sortieren", "Reihenfolge per Drag & Drop — so erscheinen Bilder auf dem Profil"],
-          ["Titel", "Optionaler Bildtitel für Barrierefreiheit und SEO"],
-          ["Löschen", "Bild dauerhaft entfernen"],
-          ["Facebook-Import", "Bilder von verbundener Facebook-Seite importieren (Einstellungen)"],
+          ["Bild hinzufügen", "Gwada-Upload: Medien, Titel, Beschreibung, Kategorie"],
+          ["Highlight", "Auswahl von Gwada-Bildern als Highlight-Gruppe speichern"],
+          ["Anpinnen", "Bild in der Galerie hervorheben"],
+          ["Teilen", "Auf verbundene Kanäle teilen (wo verfügbar)"],
+          ["Bearbeiten / Löschen", "Metadaten ändern oder Bild entfernen"],
         ],
       },
     },
+    {
+      heading: "Bild hochladen (Gwada)",
+      steps: [
+        "Galerie → Übersicht → Bild hinzufügen.",
+        "Datei wählen — Titel und optional Beschreibung sowie Kategorie setzen.",
+        "Speichern — das Bild erscheint unter Plattform „Gwada“.",
+        "Optional: Bild einem Highlight zuweisen oder anpinnen.",
+      ],
+    },
+    {
+      heading: "Highlights",
+      body: "Highlights sind kuratierte Gruppen aus Gwada-Bildern. Plattform-Imports (Facebook, Instagram, …) können nicht als Highlight-Quelle dienen — nur eigene Uploads.",
+      steps: [
+        "In der Highlights-Zeile Highlight hinzufügen.",
+        "Titel vergeben und Gwada-Bilder auswählen.",
+        "Highlight speichern — erscheint als eigene Reihe.",
+      ],
+    },
+    {
+      heading: "Einbinden",
+      body: "Unter Einbinden kopierst du das Widget-Snippet. Text-Theme und Vorschau helfen, die Galerie an deine Website anzupassen. Öffentliche URL: /embed/gallery/[slug].",
+    },
+  ],
+  tips: [
+    "Externe Plattform-Bilder erscheinen erst nach Verbindung unter Integrationen.",
+    "Kategorien als Freitext halten — einheitliche Namen (z. B. „Gerichte“, „Ambiente“) erleichtern den Filter.",
+    "Für Google Business Profile gelten ggf. eigene Kategorie-Hinweise in den Galerie-Einstellungen.",
   ],
   related: [
     { label: "Galerie API", href: "/docs/api/gallery" },
-    { label: "Integrationen → Facebook", href: "/docs/handbuch/integrationen" },
+    { label: "Integrationen", href: "/docs/handbuch/integrationen" },
+    { label: "Öffentliches Profil", href: "/docs/handbuch/oeffentliches-profil" },
   ],
 };

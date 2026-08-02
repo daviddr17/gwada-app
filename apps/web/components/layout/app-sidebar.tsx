@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { SidebarModuleUpsellOverlay } from "@/components/billing/sidebar-module-upsell-overlay";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { usePathname, useRouter } from "next/navigation";
@@ -13,8 +14,10 @@ import {
 import {
   Bell,
   Building2,
+  CreditCard,
   Hourglass,
   LayoutDashboard,
+  Lock,
   LogOut,
   Mail,
   Palette,
@@ -69,8 +72,12 @@ import {
   sidebarModuleNotificationCount,
 } from "@/lib/navigation/sidebar-module-notification-counts";
 import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
-import { hasSidebarModuleAccess } from "@/lib/permissions/sidebar-module-permissions";
+import {
+  hasSidebarModulePermissionAccess,
+  isSidebarModuleBillingLocked,
+} from "@/lib/permissions/sidebar-module-permissions";
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import {
@@ -133,6 +140,10 @@ export function AppSidebar() {
     error: permissionsError,
     reload: reloadPermissions,
   } = useRestaurantPermissions();
+  const { entitlements } = useRestaurantBilling();
+  const [upsellModuleId, setUpsellModuleId] = useState<SidebarModuleId | null>(
+    null,
+  );
   const permissionsPending = permissionsLoading && permissions.size === 0;
   const inSuperadmin = pathname.startsWith("/superadmin");
   const { summary: notificationSummary } = useNotificationSummary();
@@ -145,11 +156,18 @@ export function AppSidebar() {
     const mods = sidebarModuleOrder
       .map((id: SidebarModuleId) => SIDEBAR_MODULE_BY_ID.get(id))
       .filter((mod): mod is NonNullable<typeof mod> => mod != null);
-    // Permissions noch leer: Module trotzdem sofort klickbar (optimistic).
-    // Nach dem Load filtert hasSidebarModuleAccess wie bisher.
-    if (permissionsPending) return mods;
-    return mods.filter((mod) => hasSidebarModuleAccess(has, mod.id));
-  }, [sidebarModuleOrder, has, permissionsPending]);
+    // Permissions noch leer: Module trotzdem sofort sichtbar (optimistic).
+    // Billing-Gesperrte bleiben sichtbar (ausgegraut + Schloss → Abo).
+    if (permissionsPending) {
+      return mods.map((mod) => ({ mod, billingLocked: false }));
+    }
+    return mods
+      .filter((mod) => hasSidebarModulePermissionAccess(has, mod.id))
+      .map((mod) => ({
+        mod,
+        billingLocked: isSidebarModuleBillingLocked(entitlements, mod.id),
+      }));
+  }, [sidebarModuleOrder, has, permissionsPending, entitlements]);
 
   const displayName = profile.name.trim() || (profileReady ? "Restaurant" : "");
   const userFullName = formatOrderProtocolUserName({ firstName, lastName });
@@ -284,16 +302,6 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/warteliste")}
-                      tooltip="Warteliste"
-                      render={<Link href="/superadmin/warteliste" prefetch />}
-                    >
-                      <Hourglass />
-                      <span>Warteliste</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
                       isActive={pathname.startsWith(
                         "/superadmin/restaurants",
                       )}
@@ -304,6 +312,42 @@ export function AppSidebar() {
                     >
                       <Building2 />
                       <span>Restaurants</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith(
+                        "/superadmin/abonnements",
+                      )}
+                      tooltip="Abonnements"
+                      render={
+                        <Link href="/superadmin/abonnements" prefetch />
+                      }
+                    >
+                      <CreditCard />
+                      <span>Abonnements</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/warteliste")}
+                      tooltip="Warteliste"
+                      render={<Link href="/superadmin/warteliste" prefetch />}
+                    >
+                      <Hourglass />
+                      <span>Warteliste</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/newsletter")}
+                      tooltip="Newsletter"
+                      render={
+                        <Link href="/superadmin/newsletter" prefetch />
+                      }
+                    >
+                      <Mail />
+                      <span>Newsletter</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
@@ -324,7 +368,7 @@ export function AppSidebar() {
                       tooltip="WAHA"
                       render={<Link href="/superadmin/waha" prefetch />}
                     >
-                      <WhatsAppGlyph className="size-4" />
+                      <WhatsAppGlyph className="size-4 [&_path]:fill-current" />
                       <span>WAHA</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -342,6 +386,16 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/design")}
+                      tooltip="Design"
+                      render={<Link href="/superadmin/design" prefetch />}
+                    >
+                      <Palette />
+                      <span>Design</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
                       isActive={pathname.startsWith(SUPERADMIN_VORLAGEN_ROUTES.root)}
                       tooltip="Vorlagen"
                       render={
@@ -350,32 +404,6 @@ export function AppSidebar() {
                     >
                       <Files />
                       <span>Vorlagen</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith(
-                        "/superadmin/benachrichtigungen",
-                      )}
-                      tooltip="Benachrichtigungen"
-                      render={
-                        <Link href="/superadmin/benachrichtigungen" prefetch />
-                      }
-                    >
-                      <Bell />
-                      <span>Benachrichtigungen</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/newsletter")}
-                      tooltip="Newsletter"
-                      render={
-                        <Link href="/superadmin/newsletter" prefetch />
-                      }
-                    >
-                      <Mail />
-                      <span>Newsletter</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
@@ -397,12 +425,16 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/design")}
-                      tooltip="Design"
-                      render={<Link href="/superadmin/design" prefetch />}
+                      isActive={pathname.startsWith(
+                        "/superadmin/benachrichtigungen",
+                      )}
+                      tooltip="Benachrichtigungen"
+                      render={
+                        <Link href="/superadmin/benachrichtigungen" prefetch />
+                      }
                     >
-                      <Palette />
-                      <span>Design</span>
+                      <Bell />
+                      <span>Benachrichtigungen</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </>
@@ -442,27 +474,64 @@ export function AppSidebar() {
                       </div>
                     </SidebarMenuItem>
                   ) : (
-                    orderedSidebarModules.map((mod) => {
+                    orderedSidebarModules.map(({ mod, billingLocked }) => {
                       const Icon = mod.icon;
-                      const notificationCount = sidebarModuleNotificationCount(
-                        notificationSummary,
-                        mod.id,
-                      );
+                      const notificationCount = billingLocked
+                        ? 0
+                        : sidebarModuleNotificationCount(
+                            notificationSummary,
+                            mod.id,
+                          );
                       const modulePending =
+                        !billingLocked &&
                         pendingHref != null &&
                         normalizeNavHref(mod.href) === pendingHref;
                       return (
                         <SidebarMenuItem key={mod.id}>
                           <SidebarMenuButton
                             isActive={
-                              pathname.startsWith(mod.pathPrefix) || modulePending
+                              !billingLocked &&
+                              (pathname.startsWith(mod.pathPrefix) ||
+                                modulePending)
                             }
-                            tooltip={mod.tooltip}
-                            render={<AppNavLink href={mod.href} />}
+                            tooltip={
+                              billingLocked
+                                ? `${mod.tooltip} — Abo erforderlich`
+                                : mod.tooltip
+                            }
+                            className={
+                              billingLocked
+                                ? "opacity-55 text-sidebar-foreground/55 hover:opacity-70 hover:text-sidebar-foreground/70"
+                                : undefined
+                            }
+                            render={
+                              billingLocked ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUpsellModuleId(mod.id);
+                                    if (isMobile) setOpenMobile(false);
+                                  }}
+                                />
+                              ) : (
+                                <AppNavLink href={mod.href} />
+                              )
+                            }
                           >
                             <Icon />
-                            <span>
-                              {formatSidebarMenuLabel(mod.label, notificationCount)}
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className="truncate">
+                                {formatSidebarMenuLabel(
+                                  mod.label,
+                                  notificationCount,
+                                )}
+                              </span>
+                              {billingLocked ? (
+                                <Lock
+                                  className="size-3.5 shrink-0 opacity-80"
+                                  aria-hidden
+                                />
+                              ) : null}
                             </span>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
@@ -583,6 +652,10 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
       </div>
+      <SidebarModuleUpsellOverlay
+        moduleId={upsellModuleId}
+        onClose={() => setUpsellModuleId(null)}
+      />
     </Sidebar>
   );
 }

@@ -51,6 +51,7 @@ import {
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
 } from "@/lib/reservations/reservation-table-assignment";
+import { formatReservationQuotationJoinLabel } from "@/lib/reservations/reservation-quotation-label";
 import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import {
@@ -70,6 +71,13 @@ import {
   type DiningTableRow,
 } from "@/lib/supabase/dining-floor-db";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
+import {
+  formatReservationAssigneeNames,
+} from "@/lib/supabase/reservation-staff-assignees-db";
+import {
+  isPrivateEventReservation,
+  reservationListStripeHex,
+} from "@/lib/reservations/reservation-kind";
 import {
   GuestReservationBadge,
   maxFontSizeThatFitsCaption,
@@ -728,17 +736,21 @@ export function DayReservationsDrawer({
   const renderCard = (r: ReservationListRow, compact: boolean) => {
     const st = r.reservation_statuses;
     const isMovedMarker = isRelocatedMarkerRow(r);
-    const stripe =
-      st?.color_hex && /^#[0-9A-Fa-f]{6}$/i.test(st.color_hex) ? st.color_hex : "#64748b";
+    const isEvent = isPrivateEventReservation(r);
+    const stripe = reservationListStripeHex(r);
     const guest = `${r.guest_first_name} ${r.guest_last_name}`.trim();
     const t = timeFmt.format(new Date(r.starts_at));
     const endLabel = timeFmt.format(
       new Date(reservationEndsAtFromLiveInsert(r)),
     );
-    const tableLabel =
-      isMovedMarker || compact
+    const tableLabel = isEvent
+      ? formatReservationQuotationJoinLabel(r.accounting_quotation) || null
+      : isMovedMarker || compact
         ? reservationAssignedTableLabel(r)
         : reservationDiningTableLabel(r);
+    const assigneeNames = isEvent
+      ? formatReservationAssigneeNames(r.assigned_staff)
+      : "";
     const gwadaReview = isMovedMarker
       ? undefined
       : gwadaReviewsByReservation.get(r.id);
@@ -767,7 +779,9 @@ export function DayReservationsDrawer({
             aria-label={
               isMovedMarker
                 ? `Verschobene Reservierung ${guest} öffnen`
-                : `Reservierung ${guest} bearbeiten`
+                : isEvent
+                  ? `Veranstaltung ${guest} bearbeiten`
+                  : `Reservierung ${guest} bearbeiten`
             }
             onClick={() => onEdit(r)}
           >
@@ -790,6 +804,11 @@ export function DayReservationsDrawer({
                         maxFontPx={15}
                       />
                     </div>
+                    {isEvent ? (
+                      <span className="shrink-0 rounded-md border border-violet-500/40 bg-violet-500/15 px-1.5 py-px text-[10px] font-medium text-violet-800 dark:text-violet-200">
+                        Veranstaltung
+                      </span>
+                    ) : null}
                     {tableLabel ? (
                       <span className="shrink-0 rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[11px] font-medium tabular-nums text-foreground">
                         {tableLabel}
@@ -803,6 +822,7 @@ export function DayReservationsDrawer({
                     {st?.code === RESERVATION_MOVED_STATUS_CODE
                       ? " · Verschoben"
                       : ""}
+                    {assigneeNames ? ` · Team: ${assigneeNames}` : ""}
                   </p>
                 </div>
               </div>
@@ -837,7 +857,9 @@ export function DayReservationsDrawer({
           aria-label={
             isMovedMarker
               ? `Verschobene Reservierung ${guest} öffnen`
-              : `Reservierung ${guest} bearbeiten`
+              : isEvent
+                ? `Veranstaltung ${guest} bearbeiten`
+                : `Reservierung ${guest} bearbeiten`
           }
           onClick={() => onEdit(r)}
         >
@@ -867,6 +889,11 @@ export function DayReservationsDrawer({
               </span>
               {st?.name ? (
                 <span className="text-xs text-muted-foreground">{st.name}</span>
+              ) : null}
+              {isEvent ? (
+                <span className="rounded-md border border-violet-500/40 bg-violet-500/15 px-1.5 py-px text-[10px] font-medium text-violet-800 dark:text-violet-200">
+                  Veranstaltung
+                </span>
               ) : null}
               {st?.code === RESERVATION_MOVED_STATUS_CODE ? (
                 <span className="rounded-md border border-indigo-500/40 bg-indigo-500/15 px-1.5 py-px text-[10px] font-medium text-indigo-800 dark:text-indigo-200">
@@ -898,6 +925,11 @@ export function DayReservationsDrawer({
             {r.guest_email ? (
               <p className="truncate text-xs text-muted-foreground">
                 {r.guest_email}
+              </p>
+            ) : null}
+            {assigneeNames ? (
+              <p className="truncate text-xs text-muted-foreground">
+                Team: {assigneeNames}
               </p>
             ) : null}
           </div>

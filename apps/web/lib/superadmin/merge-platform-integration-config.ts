@@ -10,6 +10,7 @@ import {
   mergeFiskalySecretFields,
   fiskalyConfigFromJson,
 } from "@/lib/integrations/platform-fiskaly-config";
+import { mergeStripeConfig } from "@/lib/integrations/platform-stripe-config";
 import {
   mergeWeatherApiKey,
   weatherConfigFromJson,
@@ -86,6 +87,10 @@ export function mergePlatformIntegrationConfig(
       typeof incoming.private_key === "string" ? incoming.private_key : undefined;
     merged.private_key = mergeAppleBusinessConnectPrivateKey(incKey, ex);
     return merged;
+  }
+
+  if (key === "stripe") {
+    return mergeStripeConfig(existing, incoming) as Record<string, unknown>;
   }
 
   if (key === "fiskaly") {

@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Filter,
   Plus,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -53,6 +55,7 @@ import {
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
 } from "@/lib/reservations/reservation-table-assignment";
+import { formatReservationQuotationJoinLabel } from "@/lib/reservations/reservation-quotation-label";
 import {
   isRelocatedMarkerRow,
   liveReservationIdFromListRowId,
@@ -77,12 +80,24 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleSearchFieldWrapClassName,
+  moduleSearchFilterActiveBadgeClassName,
+  moduleSearchFilterButtonClassName,
+  moduleSearchFilterButtonWrapClassName,
+  moduleSearchFilterRowClassName,
+  moduleSearchInputClassName,
+} from "@/lib/ui/module-search-filter-toolbar";
 import { publicHolidayChipClassName } from "@/lib/ui/public-holiday-chip";
+import { reservationMatchesGuestSearch } from "@/lib/reservations/reservation-guest-search";
 import { useReservationGwadaReviews } from "@/lib/hooks/use-reservation-gwada-reviews";
 import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gwada-review-types";
 import { cn } from "@/lib/utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { reservationListRowButtonClassName } from "@/lib/ui/reservation-list-row-interactive";
+import {
+  reservationListRowButtonClassName,
+  reservationOverviewCompactRowButtonClassName,
+} from "@/lib/ui/reservation-list-row-interactive";
 import {
   keepAliveMayNavigate,
   keepAliveOwnsPathname,
@@ -101,7 +116,9 @@ import { ReservationEditDrawer } from "@/components/reservations/reservation-edi
 import { ReservationsFilterDrawer } from "@/components/reservations/reservations-filter-drawer";
 import { ReservationsOverviewPeriodStats } from "@/components/reservations/reservations-overview-period-stats";
 import { ReservationsOverviewSkeleton } from "@/components/reservations/reservations-overview-skeleton";
+import { ReservationsOverviewViewToggle } from "@/components/reservations/reservations-overview-view-toggle";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useReservationsOverviewViewMode } from "@/lib/hooks/use-reservations-overview-view-mode";
 import {
   GWADA_DASHBOARD_RESERVATIONS_LIVE_INSERT_EVENT,
   type DashboardReservationsLiveInsertDetail,
@@ -114,6 +131,16 @@ import {
   reservationLiveInsertListRowRaw,
 } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import { mapRawToReservationListRow } from "@/lib/supabase/reservations-db";
+import {
+  formatReservationAssigneeNames,
+} from "@/lib/supabase/reservation-staff-assignees-db";
+import {
+  isPrivateEventReservation,
+  normalizeReservationKind,
+  RESERVATION_KIND_PRIVATE_EVENT,
+  reservationListStripeHex,
+  type ReservationKind,
+} from "@/lib/reservations/reservation-kind";
 
 const selectValueNoShrink =
   "[&_[data-slot=select-value]]:!min-w-0 [&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
@@ -207,6 +234,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     supabaseEnvOk,
     ready: workspaceReady,
   } = useWorkspaceRestaurantUuid();
+  const {
+    mode: overviewViewMode,
+    setMode: setOverviewViewMode,
+  } = useReservationsOverviewViewMode();
   const restaurantTimeZone = useRestaurantIanaTimezone(workspaceRestaurantId);
   const todayYmd = restaurantTodayYmd(restaurantTimeZone);
   const today = useMemo(() => {
@@ -261,6 +292,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         timeHm?: string;
         diningTableId?: string;
         contactId?: string;
+        kind?: ReservationKind;
       }
   >(null);
   const pendingReopenDaySheetRef = useRef<Date | null>(null);
@@ -295,10 +327,12 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       : String(reservationsQueryError)
     : null;
   const [filterOpen, setFilterOpen] = useState(false);
+  const [guestSearch, setGuestSearch] = useState("");
   const [statusFilterId, setStatusFilterId] = useState("all");
   /** Nur Auswirkung in Kombination mit aktuellem Monat + `visibleDays`. */
   const [hidePastReservations, setHidePastReservations] = useState(true);
   const [hideEmptyDays, setHideEmptyDays] = useState(false);
+  const guestSearchActive = guestSearch.trim().length > 0;
   const [gwadaReviewSheet, setGwadaReviewSheet] = useState<{
     review: ReservationGwadaReviewSummary;
     guestLabel: string;
@@ -317,6 +351,15 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const [shiftStaffSheetDay, setShiftStaffSheetDay] = useState<Date | null>(
     null,
   );
+  const onShiftStaffCountResolved = useCallback((key: string, count: number) => {
+    setShiftStaffCountsByDate((prev) => {
+      if (prev.get(key) === count) return prev;
+      const next = new Map(prev);
+      if (count > 0) next.set(key, count);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
 
   const reservationIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const gwadaReviewsByReservation = useReservationGwadaReviews(
@@ -330,6 +373,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const createTimeParam = searchParams.get("time");
   const createTableParam = searchParams.get("table");
   const createContactParam = searchParams.get("contact");
+  const createKindParam = searchParams.get("kind");
 
   useEffect(() => {
     // Keep-alive: URL nur anfassen, wenn Übersicht wirklich sichtbar ist.
@@ -485,6 +529,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           ...(reservationSheet.contactId
             ? { initialContactId: reservationSheet.contactId }
             : {}),
+          ...(reservationSheet.kind
+            ? { initialKind: reservationSheet.kind }
+            : {}),
         }
       : null;
 
@@ -517,6 +564,12 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         createContactParam && isUuidRestaurantId(createContactParam)
           ? createContactParam
           : undefined;
+      const kindFromUrl =
+        createKindParam === RESERVATION_KIND_PRIVATE_EVENT
+          ? RESERVATION_KIND_PRIVATE_EVENT
+          : createKindParam === "guest"
+            ? normalizeReservationKind("guest")
+            : undefined;
       setReservationSheet((prev) => {
         if (prev?.mode === "create") {
           return {
@@ -525,9 +578,17 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
             timeHm: timeHm ?? prev.timeHm,
             diningTableId: diningTableId ?? prev.diningTableId,
             contactId: contactId ?? prev.contactId,
+            kind: kindFromUrl ?? prev.kind,
           };
         }
-        return { mode: "create", day, timeHm, diningTableId, contactId };
+        return {
+          mode: "create",
+          day,
+          timeHm,
+          diningTableId,
+          contactId,
+          ...(kindFromUrl ? { kind: kindFromUrl } : {}),
+        };
       });
       return;
     }
@@ -548,6 +609,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     createTimeParam,
     createTableParam,
     createContactParam,
+    createKindParam,
   ]);
 
   /** `?day=YYYY-MM-DD` (ohne new): Monat springen + Tagesblatt — z. B. Suche „Zum Tag“. */
@@ -639,9 +701,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const pushReservationCreate = useCallback(
     (
       d: Date,
-      extras?: { timeHm?: string; diningTableId?: string },
+      extras?: {
+        timeHm?: string;
+        diningTableId?: string;
+        kind?: ReservationKind;
+      },
     ) => {
       if (!keepAliveOwnsPathname(active, pathname, "reservierungen")) return;
+      const kind = extras?.kind
+        ? normalizeReservationKind(extras.kind)
+        : undefined;
       setReservationSheet({
         mode: "create",
         day: d,
@@ -651,6 +720,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         ...(extras?.diningTableId && isUuidRestaurantId(extras.diningTableId)
           ? { diningTableId: extras.diningTableId }
           : {}),
+        ...(kind ? { kind } : {}),
       });
       const p = new URLSearchParams();
       p.set("new", "1");
@@ -660,6 +730,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       }
       if (extras?.diningTableId && isUuidRestaurantId(extras.diningTableId)) {
         p.set("table", extras.diningTableId);
+      }
+      if (kind === RESERVATION_KIND_PRIVATE_EVENT) {
+        p.set("kind", RESERVATION_KIND_PRIVATE_EVENT);
       }
       withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
@@ -790,9 +863,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   }, [statusFilterId, statusFilterOptions]);
 
   const rowsFiltered = useMemo(() => {
-    if (statusFilterId === "all") return rows;
-    return rows.filter((r) => r.reservation_statuses?.id === statusFilterId);
-  }, [rows, statusFilterId]);
+    let out = rows;
+    if (statusFilterId !== "all") {
+      out = out.filter((r) => r.reservation_statuses?.id === statusFilterId);
+    }
+    if (guestSearch.trim()) {
+      const q = guestSearch;
+      out = out.filter((r) => reservationMatchesGuestSearch(r, q));
+    }
+    return out;
+  }, [rows, statusFilterId, guestSearch]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, ReservationListRow[]>();
@@ -844,20 +924,26 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   }, [byDay]);
 
   const visibleDays = useMemo(() => {
+    const hasRows = (d: Date) =>
+      (byDay.get(gridDayKey(d, restaurantTimeZone))?.length ?? 0) > 0;
+
     if (unconfirmedMode) {
-      if (!hideEmptyDays) return unconfirmedDayList;
-      return unconfirmedDayList.filter(
-        (d) => (byDay.get(gridDayKey(d, restaurantTimeZone))?.length ?? 0) > 0,
-      );
+      if (!hideEmptyDays && !guestSearchActive) return unconfirmedDayList;
+      return unconfirmedDayList.filter(hasRows);
     }
     let out = days;
-    if (isViewingCurrentMonth && hidePastReservations) {
+    // Bei Namenssuche auch vergangene Tage des Monats zeigen.
+    if (
+      isViewingCurrentMonth &&
+      hidePastReservations &&
+      !guestSearchActive
+    ) {
       out = out.filter(
         (d) => gridDayKey(d, restaurantTimeZone) >= todayYmd,
       );
     }
-    if (hideEmptyDays) {
-      out = out.filter((d) => (byDay.get(gridDayKey(d, restaurantTimeZone))?.length ?? 0) > 0);
+    if (hideEmptyDays || guestSearchActive) {
+      out = out.filter(hasRows);
     }
     return out;
   }, [
@@ -868,6 +954,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     isViewingCurrentMonth,
     hidePastReservations,
     hideEmptyDays,
+    guestSearchActive,
     restaurantTimeZone,
     todayYmd,
   ]);
@@ -896,11 +983,21 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   /** Schichtplan-Counts unabhängig vom Reservierungsfilter; Unbestätigt kann Monate spannen. */
   const shiftStaffCountRange = useMemo(() => {
     if (!unconfirmedMode) {
-      return { start: rangeStartIso, end: rangeEndExclusiveIso };
+      const first = gridDayKey(monthStart, restaurantTimeZone);
+      const last = gridDayKey(monthEnd, restaurantTimeZone);
+      return {
+        start: restaurantDayBoundsIso(first, restaurantTimeZone).start,
+        end: restaurantDayBoundsIso(last, restaurantTimeZone).end,
+      };
     }
     const keys = [...byDay.keys()].sort();
     if (keys.length === 0) {
-      return { start: rangeStartIso, end: rangeEndExclusiveIso };
+      const first = gridDayKey(monthStart, restaurantTimeZone);
+      const last = gridDayKey(monthEnd, restaurantTimeZone);
+      return {
+        start: restaurantDayBoundsIso(first, restaurantTimeZone).start,
+        end: restaurantDayBoundsIso(last, restaurantTimeZone).end,
+      };
     }
     const first = keys[0]!;
     const last = keys[keys.length - 1]!;
@@ -911,8 +1008,8 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   }, [
     unconfirmedMode,
     byDay,
-    rangeStartIso,
-    rangeEndExclusiveIso,
+    monthStart,
+    monthEnd,
     restaurantTimeZone,
   ]);
 
@@ -1002,12 +1099,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       <Card className="border-border/50 shadow-card">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <p className="order-2 min-w-0 text-xs text-muted-foreground sm:order-1 sm:flex-1">
-            {unconfirmedUi
-              ? "Offen und „Änderung prüfen“ — alle Monate, nach Termin sortiert."
-              : isViewingCurrentMonth && hidePastReservations
-                ? "Tage ab heute bis Monatsende."
-                : "Alle Tage des gewählten Monats."}
-            {hideEmptyDays ? " Tage ohne Reservierungen ausgeblendet." : ""}
+            {guestSearchActive
+              ? "Treffer zur Namenssuche im gewählten Zeitraum (Tippfehler ok)."
+              : unconfirmedUi
+                ? "Offen und „Änderung prüfen“ — alle Monate, nach Termin sortiert."
+                : isViewingCurrentMonth && hidePastReservations
+                  ? "Tage ab heute bis Monatsende."
+                  : "Alle Tage des gewählten Monats."}
+            {!guestSearchActive && hideEmptyDays
+              ? " Tage ohne Reservierungen ausgeblendet."
+              : ""}
             {!unconfirmedUi && statusFilterId !== "all"
               ? " Nur gewählter Status."
               : ""}
@@ -1088,12 +1189,34 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                 </Button>
               </>
             ) : null}
-            <div className="relative ml-auto shrink-0 sm:ml-0">
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className={moduleSearchFilterRowClassName}>
+            <div className={moduleSearchFieldWrapClassName}>
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                value={guestSearch}
+                onChange={(e) => setGuestSearch(e.target.value)}
+                placeholder="Name, Firma, Telefon, #Nummer …"
+                className={moduleSearchInputClassName}
+                aria-label="Reservierungen nach Namen suchen"
+              />
+            </div>
+            <ReservationsOverviewViewToggle
+              value={overviewViewMode}
+              onChange={setOverviewViewMode}
+            />
+            <div className={moduleSearchFilterButtonWrapClassName}>
               <Button
                 type="button"
                 variant="outline"
-                size="icon-sm"
-                className="rounded-full border-border/60"
+                size="icon-lg"
+                className={moduleSearchFilterButtonClassName}
                 aria-label="Filter"
                 onClick={() => setFilterOpen(true)}
               >
@@ -1102,14 +1225,14 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
               {filterActiveCount > 0 ? (
                 <Badge
                   variant="secondary"
-                  className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
+                  className={moduleSearchFilterActiveBadgeClassName}
                 >
                   {filterActiveCount}
                 </Badge>
               ) : null}
             </div>
           </div>
-        </CardHeader>
+        </CardContent>
       </Card>
 
       {!supabaseEnvOk ? (
@@ -1145,11 +1268,13 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
 
       {dbOk && !loading && visibleDays.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border/60 bg-muted/15 px-4 py-10 text-center text-sm text-muted-foreground">
-          {unconfirmedMode
-            ? "Keine unbestätigten Reservierungen — alles erledigt."
-            : hideEmptyDays
-              ? "Keine Tage mit Reservierungen im gewählten Zeitraum."
-              : "Keine Reservierungen in diesem Monat."}
+          {guestSearchActive
+            ? "Keine Treffer zur Suche im gewählten Zeitraum."
+            : unconfirmedMode
+              ? "Keine unbestätigten Reservierungen — alles erledigt."
+              : hideEmptyDays
+                ? "Keine Tage mit Reservierungen im gewählten Zeitraum."
+                : "Keine Reservierungen in diesem Monat."}
         </p>
       ) : null}
 
@@ -1267,27 +1392,136 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
               {list.length > 0 ? (
                 <>
                   <Separator className="mx-6" />
-                  <CardContent className="space-y-1.5 py-2">
+                  <CardContent
+                    className={cn(
+                      "py-2",
+                      overviewViewMode === "compact"
+                        ? "space-y-0.5"
+                        : "space-y-1.5",
+                    )}
+                  >
                     {list.map((r) => {
                       const st = r.reservation_statuses;
                       const isMovedMarker = isRelocatedMarkerRow(r);
-                      const stripe =
-                        st?.color_hex && /^#[0-9A-Fa-f]{6}$/i.test(st.color_hex)
-                          ? st.color_hex
-                          : "#64748b";
+                      const isEvent = isPrivateEventReservation(r);
+                      const stripe = reservationListStripeHex(r);
                       const guest =
                         `${r.guest_first_name} ${r.guest_last_name}`.trim();
                       const timeLabel = timeFmt.format(new Date(r.starts_at));
                       const endLabel = timeFmt.format(
                         new Date(reservationEndsAtFromLiveInsert(r)),
                       );
-                      const tableLabel = isMovedMarker
-                        ? reservationAssignedTableLabel(r)
-                        : reservationDiningTableLabel(r);
+                      const tableLabel = isEvent
+                        ? formatReservationQuotationJoinLabel(
+                            r.accounting_quotation,
+                          ) || null
+                        : isMovedMarker
+                          ? reservationAssignedTableLabel(r)
+                          : reservationDiningTableLabel(r);
+                      const assigneeNames = isEvent
+                        ? formatReservationAssigneeNames(r.assigned_staff)
+                        : "";
                       const liveId = liveReservationIdFromListRowId(r.id);
                       const gwadaReview = isMovedMarker
                         ? undefined
                         : gwadaReviewsByReservation.get(r.id);
+                      const ariaLabel = isMovedMarker
+                        ? `Verschobene Reservierung ${guest} öffnen`
+                        : isEvent
+                          ? `Veranstaltung ${guest} bearbeiten`
+                          : `Reservierung ${guest} bearbeiten`;
+                      const openEdit = () => {
+                        pushReservationEdit(liveId);
+                      };
+                      const showQuickAccept =
+                        Boolean(workspaceRestaurantId) &&
+                        !isMovedMarker &&
+                        st?.code === "pending";
+
+                      if (overviewViewMode === "compact") {
+                        return (
+                          <div
+                            key={r.id}
+                            className={cn(
+                              "flex items-stretch gap-1",
+                              isMovedMarker && "opacity-80",
+                            )}
+                          >
+                            <button
+                              type="button"
+                              className={cn(
+                                "min-w-0 flex-1",
+                                reservationOverviewCompactRowButtonClassName,
+                              )}
+                              aria-label={ariaLabel}
+                              onClick={openEdit}
+                            >
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span
+                                  className="h-5 w-1 shrink-0 rounded-full"
+                                  style={{ backgroundColor: stripe }}
+                                  aria-hidden
+                                />
+                                <span className="w-11 shrink-0 text-sm font-semibold tabular-nums tracking-tight">
+                                  {timeLabel}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                  {guest || "—"}
+                                </span>
+                                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                  {r.party_size} Pers.
+                                </span>
+                                {tableLabel ? (
+                                  <span className="hidden max-w-[7rem] shrink-0 truncate rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[10px] font-medium sm:inline">
+                                    {tableLabel}
+                                  </span>
+                                ) : null}
+                                {isEvent ? (
+                                  <span className="hidden shrink-0 rounded-md border border-violet-500/40 bg-violet-500/15 px-1.5 py-px text-[10px] font-medium text-violet-800 sm:inline dark:text-violet-200">
+                                    Event
+                                  </span>
+                                ) : null}
+                                {st?.code === "change_requested" ? (
+                                  <span className="shrink-0 rounded-md border border-amber-500/40 bg-amber-500/15 px-1.5 py-px text-[10px] font-medium text-amber-800 dark:text-amber-200">
+                                    Änderung
+                                  </span>
+                                ) : null}
+                                {!isMovedMarker &&
+                                reservationInternalNoteText(r.notes) ? (
+                                  <ReservationInternalNoteIndicator />
+                                ) : null}
+                                {gwadaReview ? (
+                                  <ReservationGwadaReviewStarButton
+                                    review={gwadaReview}
+                                    className="shrink-0"
+                                    onOpen={() => {
+                                      setGwadaReviewSheet({
+                                        review: gwadaReview,
+                                        guestLabel: guest,
+                                        reservationNumber: r.reservation_number,
+                                      });
+                                    }}
+                                  />
+                                ) : null}
+                              </div>
+                            </button>
+                            {showQuickAccept ? (
+                              <div className="flex shrink-0 items-center self-center">
+                                <ReservationQuickAcceptButton
+                                  restaurantId={workspaceRestaurantId!}
+                                  reservationId={r.id}
+                                  statusCode={st!.code}
+                                  onConfirmed={() => {}}
+                                  onFailed={() => {
+                                    void invalidateReservations();
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      }
+
                       return (
                         <div
                           key={r.id}
@@ -1302,14 +1536,8 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                               "min-w-0 flex-1",
                               reservationListRowButtonClassName,
                             )}
-                            aria-label={
-                              isMovedMarker
-                                ? `Verschobene Reservierung ${guest} öffnen`
-                                : `Reservierung ${guest} bearbeiten`
-                            }
-                            onClick={() => {
-                              pushReservationEdit(liveId);
-                            }}
+                            aria-label={ariaLabel}
+                            onClick={openEdit}
                           >
                             <div className="flex gap-3">
                           <div
@@ -1336,6 +1564,11 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                                 <span className="text-xs text-muted-foreground">
                                   {st?.name ?? "—"}
                                 </span>
+                                {isEvent ? (
+                                  <span className="rounded-md border border-violet-500/40 bg-violet-500/15 px-1.5 py-px text-[10px] font-medium text-violet-800 dark:text-violet-200">
+                                    Veranstaltung
+                                  </span>
+                                ) : null}
                                 {st?.code === "change_requested" ? (
                                   <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-1.5 py-px text-[10px] font-medium text-amber-800 dark:text-amber-200">
                                     Änderung prüfen
@@ -1375,6 +1608,11 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                                   {r.guest_email}
                                 </div>
                               ) : null}
+                              {assigneeNames ? (
+                                <div className="min-w-0 truncate text-xs text-muted-foreground sm:text-sm">
+                                  Team: {assigneeNames}
+                                </div>
+                              ) : null}
                             </div>
                             {gwadaReview ? (
                               <ReservationGwadaReviewStarButton
@@ -1392,14 +1630,12 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                           </div>
                             </div>
                           </button>
-                          {workspaceRestaurantId &&
-                          !isMovedMarker &&
-                          st?.code === "pending" ? (
+                          {showQuickAccept ? (
                             <div className="flex shrink-0 items-center self-center pr-0.5">
                               <ReservationQuickAcceptButton
-                                restaurantId={workspaceRestaurantId}
+                                restaurantId={workspaceRestaurantId!}
                                 reservationId={r.id}
-                                statusCode={st.code}
+                                statusCode={st!.code}
                                 onConfirmed={() => {}}
                                 onFailed={() => {
                                   void invalidateReservations();
@@ -1501,6 +1737,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           shiftStaffSheetDay ? formatDayHeadingDe(shiftStaffSheetDay) : null
         }
         timeZone={restaurantTimeZone}
+        onStaffCountResolved={onShiftStaffCountResolved}
       />
 
       <ReservationEditDrawer

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Plus, RefreshCw, Server } from "lucide-react";
+import { AlertTriangle, MoreVertical, Plus, RefreshCw, Server } from "lucide-react";
 import { toast } from "sonner";
 import { SuperadminPaginatedDataTable } from "@/components/superadmin/superadmin-paginated-data-table";
 import { SuperadminSearchToolbar } from "@/components/superadmin/superadmin-search-toolbar";
@@ -9,8 +9,17 @@ import {
   superadminCellNowrapClass,
   superadminDateCellClass,
 } from "@/components/superadmin/superadmin-table-cells";
+import { SuperadminWahaSessionDrawer } from "@/components/superadmin/superadmin-waha-session-drawer";
+import { WahaSessionStatusBadge } from "@/components/superadmin/waha-session-status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SecretInput } from "@/components/ui/secret-input";
@@ -39,6 +48,11 @@ import type {
   WahaServerPublic,
   WahaSessionListItem,
 } from "@/lib/waha/waha-server-types";
+import {
+  normalizeWahaUiStatus,
+  wahaSessionStatusBadgeClassName,
+  wahaSessionStatusLabel,
+} from "@/lib/waha/waha-session-status-ui";
 import { cn } from "@/lib/utils";
 import {
   Drawer,
@@ -48,6 +62,16 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+
+const SESSION_STATUS_FILTERS = [
+  "all",
+  "working",
+  "scan_qr",
+  "starting",
+  "failed",
+  "stopped",
+  "disconnected",
+] as const;
 
 function formatDt(iso: string | null): string {
   if (!iso) return "—";
@@ -155,6 +179,11 @@ export function SuperadminWahaScreen() {
   const [hostRebootServer, setHostRebootServer] =
     useState<WahaServerPublic | null>(null);
   const [hostRebootConfirm, setHostRebootConfirm] = useState("");
+  const [sessionStatusFilter, setSessionStatusFilter] =
+    useState<(typeof SESSION_STATUS_FILTERS)[number]>("all");
+  const [sessionDrawerRow, setSessionDrawerRow] =
+    useState<WahaSessionListItem | null>(null);
+  const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
 
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -202,24 +231,40 @@ export function SuperadminWahaScreen() {
     );
   }, [servers, serverSearch]);
 
+  const sessionStatusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: sessions.length };
+    for (const s of sessions) {
+      const key = normalizeWahaUiStatus(s.status) || "unknown";
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [sessions]);
+
   const filteredSessions = useMemo(() => {
     const q = sessionSearch.trim().toLowerCase();
-    if (!q) return sessions;
-    return sessions.filter((s) =>
-      [
+    return sessions.filter((s) => {
+      if (
+        sessionStatusFilter !== "all" &&
+        normalizeWahaUiStatus(s.status) !== sessionStatusFilter
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      return [
         s.restaurant_name,
         s.restaurant_slug,
         s.waha_session_name,
         s.status,
+        wahaSessionStatusLabel(s.status),
         s.phone_number,
         s.waha_server_name,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(q),
-    );
-  }, [sessions, sessionSearch]);
+        .includes(q);
+    });
+  }, [sessions, sessionSearch, sessionStatusFilter]);
 
   const openCreate = () => {
     setEditor(emptyEditor());
@@ -673,115 +718,115 @@ export function SuperadminWahaScreen() {
                   Boolean(r.docker_container_name) &&
                   hasSsh &&
                   Boolean(v?.updateAvailable);
+                const rowBusy =
+                  healthBusyId === r.id ||
+                  recoverBusyId === r.id ||
+                  updateBusyId === r.id ||
+                  restartBusyId === r.id ||
+                  hostRebootBusyId === r.id;
+                const updateTitle = !hasSsh
+                  ? "SSH-Host + Key unter Bearbeiten setzen"
+                  : !r.docker_container_name
+                    ? "Docker-Container-Name unter Bearbeiten setzen"
+                    : !v?.latestVersion
+                      ? "Neueste Version unbekannt"
+                      : !v.updateAvailable
+                        ? "Bereits auf neuester Version"
+                        : `Auf ${v.latestVersion} updaten (${r.ssh_host})`;
+                const containerTitle = !hasSsh
+                  ? "SSH-Host + Key unter Bearbeiten setzen"
+                  : r.docker_container_name
+                    ? `Container ${r.docker_container_name} auf ${r.ssh_host}`
+                    : "Docker-Container-Name unter Bearbeiten setzen";
+                const hostTitle = hasSsh
+                  ? `WAHA-Host ${r.ssh_host} neu starten`
+                  : "SSH-Host + Key unter Bearbeiten setzen";
                 return (
-                <div className="flex flex-wrap items-center gap-1 justify-end">
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="outline"
-                    disabled={healthBusyId === r.id}
-                    onClick={() => void onHealth(r.id)}
-                    aria-label="Health-Check"
-                  >
-                    <RefreshCw
-                      className={cn(
-                        "size-3.5",
-                        healthBusyId === r.id && "animate-spin",
-                      )}
-                    />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={recoverBusyId === r.id}
-                    onClick={() => void onRecoverSessions(r)}
-                  >
-                    {recoverBusyId === r.id ? "…" : "Sessions heilen"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={
-                      updateBusyId === r.id ||
-                      !r.docker_container_name ||
-                      !hasSsh ||
-                      !updateReady
-                    }
-                    title={
-                      !hasSsh
-                        ? "SSH-Host + Key unter Bearbeiten setzen"
-                        : !r.docker_container_name
-                          ? "Docker-Container-Name unter Bearbeiten setzen"
-                          : !v?.latestVersion
-                            ? "Neueste Version unbekannt"
-                            : !v.updateAvailable
-                              ? "Bereits auf neuester Version"
-                              : `Auf ${v.latestVersion} updaten (${r.ssh_host})`
-                    }
-                    onClick={() => {
-                      setUpdateConfirmTyped("");
-                      setUpdateConfirmServer(r);
-                    }}
-                  >
-                    {updateBusyId === r.id ? "…" : "Update"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={
-                      restartBusyId === r.id ||
-                      !r.docker_container_name ||
-                      !hasSsh
-                    }
-                    title={
-                      !hasSsh
-                        ? "SSH-Host + Key unter Bearbeiten setzen"
-                        : r.docker_container_name
-                          ? `Container ${r.docker_container_name} auf ${r.ssh_host}`
-                          : "Docker-Container-Name unter Bearbeiten setzen"
-                    }
-                    onClick={() => void onRestartContainer(r)}
-                  >
-                    {restartBusyId === r.id ? "…" : "Container"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={hostRebootBusyId === r.id || !hasSsh}
-                    title={
-                      hasSsh
-                        ? `WAHA-Host ${r.ssh_host} neu starten`
-                        : "SSH-Host + Key unter Bearbeiten setzen"
-                    }
-                    onClick={() => {
-                      setHostRebootConfirm("");
-                      setHostRebootServer(r);
-                    }}
-                  >
-                    {hostRebootBusyId === r.id ? "…" : "Host"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openEdit(r)}
-                  >
-                    Bearbeiten
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive"
-                    onClick={() => void onDelete(r)}
-                  >
-                    Löschen
-                  </Button>
-                </div>
+                  <div className="flex justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="outline"
+                            className="rounded-full"
+                            aria-label="Server-Aktionen"
+                            disabled={rowBusy}
+                          />
+                        }
+                      >
+                        {rowBusy ? (
+                          <RefreshCw className="size-3.5 animate-spin" />
+                        ) : (
+                          <MoreVertical className="size-3.5" />
+                        )}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className="min-w-48 w-auto"
+                      >
+                        <DropdownMenuItem
+                          disabled={healthBusyId === r.id}
+                          onClick={() => void onHealth(r.id)}
+                        >
+                          Health-Check
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={recoverBusyId === r.id}
+                          onClick={() => void onRecoverSessions(r)}
+                        >
+                          Sessions heilen
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={
+                            updateBusyId === r.id ||
+                            !r.docker_container_name ||
+                            !hasSsh ||
+                            !updateReady
+                          }
+                          title={updateTitle}
+                          onClick={() => {
+                            setUpdateConfirmTyped("");
+                            setUpdateConfirmServer(r);
+                          }}
+                        >
+                          Update
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={
+                            restartBusyId === r.id ||
+                            !r.docker_container_name ||
+                            !hasSsh
+                          }
+                          title={containerTitle}
+                          onClick={() => void onRestartContainer(r)}
+                        >
+                          Container neu starten
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={hostRebootBusyId === r.id || !hasSsh}
+                          title={hostTitle}
+                          onClick={() => {
+                            setHostRebootConfirm("");
+                            setHostRebootServer(r);
+                          }}
+                        >
+                          Host neu starten
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => openEdit(r)}>
+                          Bearbeiten
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => void onDelete(r)}
+                        >
+                          Löschen
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 );
               },
             },
@@ -797,11 +842,39 @@ export function SuperadminWahaScreen() {
           onSearchChange={setSessionSearch}
           searchPlaceholder="Restaurant, Session, Status …"
         />
+        <div className="flex flex-wrap gap-1.5">
+          {SESSION_STATUS_FILTERS.map((key) => {
+            const active = sessionStatusFilter === key;
+            const count =
+              key === "all"
+                ? sessionStatusCounts.all
+                : (sessionStatusCounts[key] ?? 0);
+            if (key !== "all" && count === 0) return null;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSessionStatusFilter(key)}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
+                  active
+                    ? key === "all"
+                      ? "border-foreground/30 bg-foreground/5 text-foreground"
+                      : wahaSessionStatusBadgeClassName(key)
+                    : "border-border/60 text-muted-foreground hover:bg-muted/40",
+                )}
+              >
+                {key === "all" ? "Alle" : wahaSessionStatusLabel(key)}
+                <span className="tabular-nums opacity-70">{count}</span>
+              </button>
+            );
+          })}
+        </div>
         <SuperadminPaginatedDataTable
           loading={false}
           emptyMessage="Keine WhatsApp-Sessions vorhanden."
           itemLabel="Sessions"
-          resetPageKey={sessionSearch}
+          resetPageKey={`${sessionSearch}|${sessionStatusFilter}`}
           rowKey={(r) => r.restaurant_id}
           columns={[
             {
@@ -810,9 +883,16 @@ export function SuperadminWahaScreen() {
               sortValue: (r) => r.restaurant_name ?? r.restaurant_id,
               cell: (r) => (
                 <div className="min-w-0">
-                  <div className="font-medium truncate">
+                  <button
+                    type="button"
+                    className="block max-w-full truncate text-left font-medium hover:underline"
+                    onClick={() => {
+                      setSessionDrawerRow(r);
+                      setSessionDrawerOpen(true);
+                    }}
+                  >
                     {r.restaurant_name ?? "—"}
-                  </div>
+                  </button>
                   {r.restaurant_slug ? (
                     <div className="text-xs text-muted-foreground">
                       {r.restaurant_slug}
@@ -833,7 +913,7 @@ export function SuperadminWahaScreen() {
               header: "Status",
               className: superadminCellNowrapClass,
               sortValue: (r) => r.status,
-              cell: (r) => r.status,
+              cell: (r) => <WahaSessionStatusBadge status={r.status} />,
             },
             {
               id: "phone",
@@ -861,6 +941,16 @@ export function SuperadminWahaScreen() {
           rows={filteredSessions}
         />
       </section>
+
+      <SuperadminWahaSessionDrawer
+        session={sessionDrawerRow}
+        open={sessionDrawerOpen}
+        onOpenChange={(open) => {
+          setSessionDrawerOpen(open);
+          if (!open) setSessionDrawerRow(null);
+        }}
+        onChanged={() => void load()}
+      />
 
       <Drawer
         open={editorOpen}

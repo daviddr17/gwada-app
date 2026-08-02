@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SuperadminPaginatedDataTable } from "@/components/superadmin/superadmin-paginated-data-table";
 import { SuperadminSearchToolbar } from "@/components/superadmin/superadmin-search-toolbar";
+import { SuperadminUserProfileDrawer } from "@/components/superadmin/superadmin-user-profile-drawer";
 import {
   fetchSuperadminUsers,
   type SuperadminUserRow,
@@ -36,6 +37,10 @@ export default function SuperadminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [localeFilter, setLocaleFilter] = useState("all");
+  const [selectedUser, setSelectedUser] = useState<SuperadminUserRow | null>(
+    null,
+  );
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,7 +96,7 @@ export default function SuperadminUsersPage() {
   return (
     <div className="space-y-6 pt-2">
       <p className="text-sm text-muted-foreground">
-        Alle registrierten Konten mit Profil- und Anmeldeinformationen.
+        Alle registrierten Konten — Zeile antippen für Profil.
       </p>
 
       <SuperadminSearchToolbar
@@ -111,13 +116,19 @@ export default function SuperadminUsersPage() {
         emptyMessage="Keine User gefunden."
         itemLabel="User"
         resetPageKey={`${search}\0${localeFilter}`}
+        onRowClick={(r) => {
+          setSelectedUser(r);
+          setDrawerOpen(true);
+        }}
         columns={[
           {
             id: "email",
             header: "E-Mail",
             sortValue: (r) => r.email ?? "",
             cell: (r) => (
-              <span className="font-medium">{r.email ?? "—"}</span>
+              <span className="font-medium underline-offset-2 group-hover/row:underline">
+                {r.email ?? "—"}
+              </span>
             ),
           },
           {
@@ -200,6 +211,15 @@ export default function SuperadminUsersPage() {
             ),
           },
         ]}
+      />
+
+      <SuperadminUserProfileDrawer
+        user={selectedUser}
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setSelectedUser(null);
+        }}
       />
     </div>
   );

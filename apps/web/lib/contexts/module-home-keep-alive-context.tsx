@@ -74,6 +74,9 @@ export function ModuleHomeKeepAliveProvider({
   const value = useMemo<ModuleHomeKeepAliveValue>(() => {
     const warmIds = new Set<ModuleHomeId>();
     const slots = {} as Record<ModuleHomeId, ModuleHomeSlotState>;
+    // Solange Soft-Nav Pending gesetzt ist: Quell-Home versteckt halten
+    // (auch wenn pathname kurz zurückspringt — sonst Dashboard-Flash).
+    const pendingInFlight = pendingNormalized != null;
 
     for (const id of MODULE_HOME_IDS) {
       const onHome = activeHomeId === id;
@@ -86,10 +89,12 @@ export function ModuleHomeKeepAliveProvider({
         pendingNormalized === MODULE_HOME_PATHS[id] &&
         !onHome;
 
+      const showAsSource = onHome && !pendingInFlight;
+
       slots[id] = {
         warm,
-        visible: onHome || pendingToThis,
-        active: onHome,
+        visible: showAsSource || pendingToThis,
+        active: showAsSource,
       };
     }
 

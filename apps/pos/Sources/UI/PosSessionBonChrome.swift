@@ -48,6 +48,7 @@ struct PosBonTabAccessoryButton: View {
                 Image(systemName: "doc.text")
             }
         }
+        .modifier(PosBonTabAccessoryGlassChrome())
         .accessibilityIdentifier("pos.bon.tabAccessory")
     }
 }

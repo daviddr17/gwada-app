@@ -4,6 +4,8 @@ enum HandheldHubClientError: LocalizedError {
     case unreachable(URL)
     case invalidResponse
     case httpStatus(Int)
+    /// Hub hard-reject (session gone / unpaired / invalid) — Outbox-Item droppen.
+    case hubRejected(status: Int, message: String)
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +15,8 @@ enum HandheldHubClientError: LocalizedError {
             return "Ungültige Antwort von der Kasse."
         case .httpStatus(let code):
             return "Kasse antwortete mit HTTP \(code)."
+        case .hubRejected(_, let message):
+            return message
         }
     }
 }
@@ -122,20 +126,28 @@ enum HandheldHubClient {
         baseURL: URL,
         diningTableId: String,
         coverCount: Int,
-        items: [(menuItemId: String, quantity: Int, notes: String?, course: Int)],
-        pairToken: String? = nil
+        items: [(menuItemId: String, quantity: Int, notes: String?, course: Int, clientLineId: String)],
+        pairToken: String? = nil,
+        sessionId: String? = nil,
+        eventId: String? = nil,
+        requireExistingSession: Bool = false
     ) async throws {
         struct Item: Encodable {
             var menuItemId: String
             var quantity: Int
             var notes: String?
             var course: Int
+            var clientLineId: String
         }
         struct Body: Encodable {
             var diningTableId: String
             var coverCount: Int
             var items: [Item]
+            var sessionId: String?
+            var eventId: String?
+            var requireExistingSession: Bool
         }
+        struct ErrorBody: Decodable { var error: String? }
         var request = URLRequest(url: url(baseURL, path: PosLanProtocol.createOrderPath))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -145,30 +157,60 @@ enum HandheldHubClient {
             diningTableId: diningTableId,
             coverCount: coverCount,
             items: items.map {
-                Item(menuItemId: $0.menuItemId, quantity: $0.quantity, notes: $0.notes, course: $0.course)
-            }
+                Item(
+                    menuItemId: $0.menuItemId,
+                    quantity: $0.quantity,
+                    notes: $0.notes,
+                    course: $0.course,
+                    clientLineId: $0.clientLineId
+                )
+            },
+            sessionId: sessionId,
+            eventId: eventId,
+            requireExistingSession: requireExistingSession
         ))
-        let (_, response) = try await perform(request)
+        let (data, response) = try await perform(request)
         guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
-        guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
+        if http.statusCode == 200 { return }
+        let message = (try? decoder.decode(ErrorBody.self, from: data))?.error
+            ?? "HTTP \(http.statusCode)"
+        if http.statusCode == 409 || http.statusCode == 422 || http.statusCode == 404 {
+            throw HandheldHubClientError.hubRejected(status: http.statusCode, message: message)
+        }
+        throw HandheldHubClientError.httpStatus(http.statusCode)
     }
 
     static func collect(
         baseURL: URL,
         sessionId: String,
         lineIds: [String],
+        method: String,
+        tipCents: Int = 0,
+        receivedAmountCents: Int? = nil,
+        paymentAttemptId: String? = nil,
         pairToken: String? = nil
     ) async throws {
         struct Body: Encodable {
             var sessionId: String
             var lineIds: [String]
+            var method: String
+            var tipCents: Int
+            var receivedAmountCents: Int?
+            var paymentAttemptId: String?
         }
         var request = URLRequest(url: url(baseURL, path: PosLanProtocol.collectPath))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
         applyPairToken(pairToken, to: &request)
-        request.httpBody = try encoder.encode(Body(sessionId: sessionId, lineIds: lineIds))
+        request.httpBody = try encoder.encode(Body(
+            sessionId: sessionId,
+            lineIds: lineIds,
+            method: method,
+            tipCents: tipCents,
+            receivedAmountCents: receivedAmountCents,
+            paymentAttemptId: paymentAttemptId
+        ))
         let (_, response) = try await perform(request)
         guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
         guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }

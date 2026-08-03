@@ -350,7 +350,8 @@ enum PosCloudClient {
         tableSessionId: String,
         allocations: [(orderLineId: String, quantity: Int)],
         tipCents: Int = 0,
-        receivedAmountCents: Int? = nil
+        receivedAmountCents: Int? = nil,
+        paymentAttemptId: String? = nil
     ) async throws -> String {
         struct Allocation: Encodable {
             var orderLineId: String
@@ -362,9 +363,14 @@ enum PosCloudClient {
             var allocations: [Allocation]
             var tipCents: Int
             var receivedAmountCents: Int?
+            var paymentAttemptId: String?
         }
         struct Res: Decodable {
             var paymentId: String
+        }
+        var headers: [String: String] = [:]
+        if let attempt = paymentAttemptId?.trimmingCharacters(in: .whitespacesAndNewlines), !attempt.isEmpty {
+            headers["Idempotency-Key"] = attempt
         }
         let res: Res = try await post(
             "/api/pos/payments/collect-cash-allocations",
@@ -373,8 +379,10 @@ enum PosCloudClient {
                 tableSessionId: tableSessionId,
                 allocations: allocations.map { Allocation(orderLineId: $0.orderLineId, quantity: $0.quantity) },
                 tipCents: tipCents,
-                receivedAmountCents: receivedAmountCents
-            )
+                receivedAmountCents: receivedAmountCents,
+                paymentAttemptId: paymentAttemptId
+            ),
+            headers: headers
         )
         return res.paymentId
     }
@@ -991,10 +999,17 @@ enum PosCloudClient {
     }
 
     @MainActor
-    private static func post<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+    private static func post<T: Decodable, B: Encodable>(
+        _ path: String,
+        body: B,
+        headers: [String: String] = [:]
+    ) async throws -> T {
         var request = URLRequest(url: url(path, restaurantId: nil))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        for (key, value) in headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
         try await applySessionAuth(to: &request)
         request.httpBody = try encoder.encode(body)
         return try await perform(request)

@@ -494,6 +494,8 @@ export async function collectCashAllocations(params: {
   allocations: CollectAllocationInput[];
   tipCents?: number;
   receivedAmountCents?: number | null;
+  /** Client Idempotenz (Hub Sync Queue paymentAttemptId). */
+  paymentAttemptId?: string | null;
 }): Promise<
   | { ok: true; paymentId: string }
   | { ok: false; error: string; status: number }
@@ -501,6 +503,19 @@ export async function collectCashAllocations(params: {
   const register = await getOpenRegisterSession(params.restaurantId);
   if (!register) {
     return { ok: false, error: "register_closed", status: 403 };
+  }
+
+  const clientAttemptId = params.paymentAttemptId?.trim() || null;
+  if (clientAttemptId) {
+    const { data: existing } = await params.supabase
+      .from("pos_payments")
+      .select("id")
+      .eq("restaurant_id", params.restaurantId)
+      .eq("client_attempt_id", clientAttemptId)
+      .maybeSingle();
+    if (existing?.id) {
+      return { ok: true, paymentId: existing.id as string };
+    }
   }
 
   const { data: session, error: sessionError } = await params.supabase
@@ -607,11 +622,24 @@ export async function collectCashAllocations(params: {
       status: "paid",
       paid_at: new Date().toISOString(),
       restaurant_payment_method_id: cashMethod?.id ?? null,
+      client_attempt_id: clientAttemptId,
     })
     .select("id")
     .single();
 
   if (payError || !payment) {
+    // Race: paralleler Retry mit gleicher Attempt-ID.
+    if (clientAttemptId && payError?.code === "23505") {
+      const { data: raced } = await params.supabase
+        .from("pos_payments")
+        .select("id")
+        .eq("restaurant_id", params.restaurantId)
+        .eq("client_attempt_id", clientAttemptId)
+        .maybeSingle();
+      if (raced?.id) {
+        return { ok: true, paymentId: raced.id as string };
+      }
+    }
     console.warn("[pos] collect allocations payment", payError?.message);
     return { ok: false, error: "payment_failed", status: 500 };
   }

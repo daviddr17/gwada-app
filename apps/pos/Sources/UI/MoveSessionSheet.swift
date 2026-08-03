@@ -65,7 +65,7 @@ struct MoveSessionSheet: View {
                     Button("Umziehen") {
                         Task { await move() }
                     }
-                    .disabled(busy || targetTableId == nil)
+                    .disabled(busy || targetTableId == nil || !runtime.canMutateLiveFloor)
                 }
             }
         }

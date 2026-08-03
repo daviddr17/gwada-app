@@ -33,6 +33,15 @@ final class PosEnrollmentStoreTests: XCTestCase {
         XCTAssertTrue(store.isHandheldCloudReady)
         XCTAssertTrue(store.isHandheldReady)
         XCTAssertFalse(store.isHandheldPaired)
+        XCTAssertFalse(store.isHandheldServiceReady)
         XCTAssertEqual(store.restaurantDisplayName, "Testaurant")
+    }
+
+    func test_serviceReady_requiresPairing() {
+        let store = PosEnrollmentStore.shared
+        store.markHandheldCloudReady(restaurantName: "Testaurant")
+        XCTAssertFalse(store.isHandheldServiceReady)
+        store.markHandheldPaired(token: "tok", hubBaseURL: "http://127.0.0.1:8787")
+        XCTAssertTrue(store.isHandheldServiceReady)
     }
 }

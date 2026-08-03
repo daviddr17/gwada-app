@@ -33,6 +33,11 @@ struct RootView: View {
             case .device: return "gearshape"
             }
         }
+
+        /// Gutscheine an der Kasse vorerst aus — Feature bleibt im Code, nur ohne Menü-Einstieg.
+        static var menuItems: [SidebarItem] {
+            allCases.filter { $0 != .giftVouchers }
+        }
     }
 
     enum KellnerTab: Hashable {
@@ -54,6 +59,7 @@ struct RootView: View {
     @StateObject private var sessionBonOpener = PosSessionBonOpener()
     @State private var sessionBonActive = false
     @State private var sessionBonQty = 0
+    @State private var bannerTick = Date()
 
     var body: some View {
         Group {
@@ -65,7 +71,7 @@ struct RootView: View {
                 } else {
                     hubSplitView
                 }
-            } else if !enrollment.isHandheldReady, runtime.hubBaseURL == nil, !runtime.isSoloMode {
+            } else if showHandheldOnboarding {
                 HandheldOnboardingWizardView()
             } else {
                 kellnerTabView
@@ -81,6 +87,7 @@ struct RootView: View {
             }
         }
         .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { now in
+            bannerTick = now
             guard pinLock.isUnlocked, pinLock.hasPinConfigured else { return }
             let idle = now.timeIntervalSince(lastInteraction)
             if idle >= pinLock.autoLockSeconds {
@@ -94,6 +101,64 @@ struct RootView: View {
             lastInteraction = Date()
         }
         .overlay(alignment: .top) {
+            hubStatusCapsules
+                .padding(.top, 4)
+        }
+        .sheet(item: $runtime.outboxConflict) { conflict in
+            OutboxConflictSheet(
+                conflict: conflict,
+                onDismiss: { runtime.dismissOutboxConflict() },
+                onReload: {
+                    runtime.dismissOutboxConflict()
+                    Task { await runtime.reconnectToHub() }
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var hubStatusCapsules: some View {
+        // bannerTick hält 45‑Min-Stale aktuell ohne Navigation.
+        let _ = bannerTick
+        VStack(spacing: 4) {
+            if runtime.hubConnectionBannerSearching {
+                Text("Suche Kasse …")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(PosDesign.brandAccent.opacity(0.95), in: Capsule())
+                    .foregroundStyle(PosDesign.ink)
+            } else if runtime.isHubDisconnectedWhilePaired {
+                Button {
+                    Task { await runtime.reconnectToHub() }
+                } label: {
+                    Text(hubDisconnectedBannerText)
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            (runtime.isHubDisconnectedStale ? Color.orange : PosDesign.brandAccent)
+                                .opacity(0.95),
+                            in: Capsule()
+                        )
+                        .foregroundStyle(PosDesign.ink)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Erneut nach Kasse suchen")
+            } else if runtime.outboxPending > 0 {
+                Button {
+                    Task { _ = await runtime.flushHandheldOutbox() }
+                } label: {
+                    Text("Nicht synchronisiert (\(runtime.outboxPending))")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(PosDesign.brandAccent.opacity(0.95), in: Capsule())
+                        .foregroundStyle(PosDesign.ink)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Ausstehende Bestellungen senden")
+            }
             if !network.isOnline {
                 Text("Offline — Bestellen OK · Zahlung gesperrt")
                     .font(.caption2.weight(.semibold))
@@ -101,10 +166,31 @@ struct RootView: View {
                     .padding(.vertical, 6)
                     .background(.red.opacity(0.9), in: Capsule())
                     .foregroundStyle(.white)
-                    .padding(.top, 4)
                     .allowsHitTesting(false)
             }
         }
+    }
+
+    private var hubDisconnectedBannerText: String {
+        let n = runtime.outboxPending
+        if runtime.isHubDisconnectedStale {
+            if n > 0 {
+                return "Kasse seit >45 Min getrennt · \(n) ausstehend — bitte verbinden"
+            }
+            return "Kasse seit >45 Min getrennt — bitte verbinden"
+        }
+        if n > 0 {
+            return "Kasse getrennt · Nicht synchronisiert (\(n)) · Kassieren gesperrt"
+        }
+        return "Kasse getrennt — Bestellen aus Cache · Kassieren gesperrt"
+    }
+
+    /// Tabs nur mit Hub-Pairing; DEBUG-Solo als Labor-Ausnahme.
+    private var showHandheldOnboarding: Bool {
+        if PosSecurityPolicy.allowsSoloMode, runtime.isSoloMode { return false }
+        if enrollment.isHandheldServiceReady { return false }
+        if runtime.hubBaseURL != nil { return false }
+        return true
     }
 
     // MARK: - iPad Hub
@@ -113,7 +199,7 @@ struct RootView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $selection) {
                 Section {
-                    ForEach(SidebarItem.allCases) { item in
+                    ForEach(SidebarItem.menuItems) { item in
                         if item == .receipts && !runtime.isSignedIn && runtime.role == .hub {
                             Label(item.title, systemImage: item.systemImage)
                                 .foregroundStyle(.secondary)
@@ -211,6 +297,7 @@ struct RootView: View {
                 MoreMenuView()
             }
             .tabItem { Label("Mehr", systemImage: "ellipsis.circle") }
+            .badge(runtime.outboxPending)
             .tag(KellnerTab.more)
         }
         .posKellnerTabLiquidGlass()

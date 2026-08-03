@@ -36,10 +36,12 @@ struct KassierenView: View {
     @State private var payTarget: PayTarget?
     @State private var shownReceipt: PosLocalReceipt?
     @State private var showTableReceipts = false
+    @State private var payError = ""
 
     private var openTotal: Int { lines.reduce(0) { $0 + $1.openCents } }
     private var allPaid: Bool { lines.isEmpty }
     private var shareActive: Bool { settledShareCents > 0 }
+    private var canPay: Bool { runtime.canCollectAtRegister }
     private var shareAmount: Int {
         PosSplitBillState.shareCents(openCents: openTotal, evenN: evenN)
     }
@@ -57,6 +59,22 @@ struct KassierenView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 header
+                if !canPay, !allPaid {
+                    Text("Kassieren nur mit erreichbarer Kasse.")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, PosLayout.page)
+                        .padding(.bottom, PosLayout.stack)
+                }
+                if !payError.isEmpty {
+                    Text(payError)
+                        .font(.subheadline)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, PosLayout.page)
+                        .padding(.bottom, PosLayout.stack)
+                }
                 if !allPaid {
                     modePicker
                         .padding(.horizontal, PosLayout.page)
@@ -125,6 +143,7 @@ struct KassierenView: View {
                     onComplete: { method, tip, received in
                         payTarget = nil
                         Task {
+                            payError = ""
                             let receipt = await runtime.collectSplit(
                                 sessionId: sessionId,
                                 lines: target.lines,
@@ -133,6 +152,12 @@ struct KassierenView: View {
                                 receivedAmountCents: received,
                                 receiptLabel: target.label
                             )
+                            guard let receipt else {
+                                payError = runtime.statusMessage.isEmpty
+                                    ? "Zahlung fehlgeschlagen."
+                                    : runtime.statusMessage
+                                return
+                            }
                             if mode == .even, target.label.contains("Anteil") {
                                 settledShareCents += target.lines.reduce(0) { $0 + $1.openCents }
                                 evenN = max(1, evenN - 1)
@@ -305,7 +330,7 @@ struct KassierenView: View {
                         title: "Auswahl",
                         amountCents: selectedTotal,
                         kind: .secondary,
-                        enabled: selectedTotal > 0 && !shareActive
+                        enabled: canPay && selectedTotal > 0 && !shareActive
                     ) {
                         openPay(lines: selectedLines, label: "Auswahl")
                     }
@@ -313,7 +338,7 @@ struct KassierenView: View {
                         title: "Rest / Alles",
                         amountCents: openTotal,
                         kind: .primary,
-                        enabled: openTotal > 0
+                        enabled: canPay && openTotal > 0
                     ) {
                         openPay(lines: lines, label: "Rest / Alles")
                     }
@@ -324,7 +349,7 @@ struct KassierenView: View {
                         title: "1 Anteil",
                         amountCents: shareAmount,
                         kind: .primary,
-                        enabled: openTotal > 0
+                        enabled: canPay && openTotal > 0
                     ) {
                         openSharePay()
                     }
@@ -332,7 +357,7 @@ struct KassierenView: View {
                         title: "Rest",
                         amountCents: openTotal,
                         kind: .secondary,
-                        enabled: openTotal > 0
+                        enabled: canPay && openTotal > 0
                     ) {
                         openPay(lines: lines, label: "Rest")
                     }
@@ -342,7 +367,8 @@ struct KassierenView: View {
     }
 
     private func openPay(lines payLines: [SessionOpenLine], label: String) {
-        guard !payLines.isEmpty else { return }
+        guard canPay, !payLines.isEmpty else { return }
+        payError = ""
         payTarget = PayTarget(lines: payLines, label: label)
     }
 

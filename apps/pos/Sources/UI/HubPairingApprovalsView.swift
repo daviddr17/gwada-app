@@ -42,12 +42,12 @@ struct HubPairingApprovalsView: View {
                     if approved.isEmpty {
                         Text("Noch keine Geräte.").foregroundStyle(.secondary)
                     }
-                    ForEach(approved, id: \.token) { d in
+                    ForEach(approved, id: \.tokenHash) { d in
                         HStack {
                             Text(d.deviceName)
                             Spacer()
                             Button("Widerrufen", role: .destructive) {
-                                PosPairingStore.shared.revoke(token: d.token)
+                                PosPairingStore.shared.revoke(tokenHash: d.tokenHash)
                                 reload()
                             }.font(.caption)
                         }

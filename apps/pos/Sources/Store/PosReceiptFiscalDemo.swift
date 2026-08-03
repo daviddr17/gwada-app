@@ -1,6 +1,7 @@
 import Foundation
 
 /// Prototyp-Stammdaten für Gastbeleg / TSE-Demo (§ 6 KassenSichV) bis Fiskaly live ist.
+/// Nur über `PosSecurityPolicy.allowsDemoFiscalTse` (DEBUG) an Belege hängen — nie in Release als echt ausgeben.
 enum PosReceiptFiscalDemo {
     static let street = "Hirschgasse 12"
     static let city = "65183 Wiesbaden"

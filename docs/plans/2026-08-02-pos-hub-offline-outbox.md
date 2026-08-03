@@ -1,6 +1,6 @@
 # POS: Hub-Pflicht + Handheld-Offline-Outbox (Lightspeed-nah)
 
-> **Status:** Entscheidungen fest — Implementierung noch nicht gestartet  
+> **Status:** Phase 1–6 implementiert (2026-08-02 / 2026-08-03) — Plan abgeschlossen  
 > **Branch:** `cursor/pos-layout-parity-2026-07-30`  
 > **App:** `apps/pos`  
 > **Datum:** 2026-08-02  
@@ -66,36 +66,36 @@ Schlüsseldateien: `PosRuntime.swift`, `PosEnrollmentStore.swift`, `PosHubState.
 
 ## Implementierungsphasen
 
-### Phase 1 — Hub-Pflicht & Pairing-Gate
-- Nach Cloud-Code: kein „Zu den Tischen“ ohne erfolgreiche Hub-Freigabe.
-- Solo nur `#if DEBUG`.
-- Banner „Kasse getrennt“ wenn paired aber Hub down.
+### Phase 1 — Hub-Pflicht & Pairing-Gate ✅
+- Nach Cloud-Code: kein Service ohne erfolgreiche Hub-Freigabe (`isHandheldServiceReady` = paired).
+- Solo nur `#if DEBUG` / `PosSecurityPolicy.allowsSoloMode`.
+- Banner „Kasse getrennt“ wenn paired aber Hub down; Kassieren in dem Zustand gesperrt.
 - Pairing-Token bleibt bis Widerruf (Reconnect ohne erneutes Freigeben).
 
-### Phase 2 — Snapshot-Cache am Handgerät
-- Letzter Hub-Snapshot persistent (Floor + Menü + offene Lines).
-- Offline: nur diese offenen Tische bedienen; Speisekarte aus Cache.
-- Kein neues `open session` offline (Entscheidung 6).
+### Phase 2 — Snapshot-Cache am Handgerät ✅
+- Letzter Hub-Snapshot persistent (`PosHandheldSnapshotCache`: Floor + Menü).
+- Offline: offene Tische aus Cache bedienen; freie Tische ausgegraut; Speisekarte aus Cache.
+- Kein neues `open session` offline (`canOpenNewTableSession` / Walk-in gesperrt).
+- Bestellen/Kassieren ohne Hub weiter gesperrt (Outbox = Phase 3).
 
-### Phase 3 — Handheld-Outbox → Hub-Flush
-- Durable Outbox (App-Kill überleben): Orders (+ erlaubte Mutationen; **keine** Resa-Writes).
-- Idempotente Event-IDs; **kein** Auto-Drop nach Zeit.
-- Auto-Flush bei Reconnect + manueller Retry.
-- Hub: Merge-C (additiv / hart ablehnen).
-- UX: Badge „Nicht synchronisiert (n)“; ab ~45 Min ohne Hub verstärkter Banner.
+### Phase 3 — Handheld-Outbox → Hub-Flush ✅
+- Durable Outbox (`PosHandheldOutbox`): Orders mit `eventId` / `clientLineId`.
+- Auto-Flush nach Reconnect + manueller Retry (Mehr / Gerät).
+- Hub: additiv mergen; `session_gone` / Duplikat-Events; Hard-Reject → Snapshot neu.
+- UX: Badge „Nicht synchronisiert (n)“; ab ~45 Min verstärkter Banner.
 
-### Phase 4 — Ops-Gates
+### Phase 4 — Ops-Gates ✅
 - Ohne Hub: Kassieren + neue Session + Resa-Schreiben gesperrt; Resa-UI read-only aus Cache.
 - Mit Hub: Kassieren über `/v1/collect` (Fehler klar an UI); Resa schreiben über Hub.
 
-### Phase 5 — Hub → Cloud / Fiskaly
-- iPad-`PosSyncQueue` härten.
-- Echte TSE später; Vermerk-Pfad (2b) erst nach Phase 4 evaluieren.
+### Phase 5 — Hub → Cloud / Fiskaly ✅
+- iPad-`PosSyncQueue` gehärtet: Hub `/v1/collect` → Queue; Offline-Collect immer enqueue; FIFO-Stop; Nest Line-Mapping; Flush on reconnect; `markReceiptSynced`.
+- Echte TSE später; Vermerk-Pfad (2b) bleibt geparkt.
 
-### Phase 6 — UX Lightspeed-nah
-- Badge „Nicht synchronisiert (n)“.
-- Konflikt-Sheet bei hartem Flush-Reject.
-- Stabile Bonjour-Reconnect-UX.
+### Phase 6 — UX Lightspeed-nah ✅
+- Badge „Nicht synchronisiert (n)“ (Capsule + Mehr-Tab); tippbar → Flush / Reconnect.
+- Konflikt-Sheet bei hartem Flush-Reject (`OutboxConflictSheet`).
+- Stabile Bonjour-Reconnect-UX (`reconnectToHub`, Auto-Retry ~45s, Suche-Banner).
 
 ---
 

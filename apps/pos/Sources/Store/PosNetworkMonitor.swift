@@ -1,7 +1,7 @@
 import Foundation
 import Network
 
-/// Online/Offline für Zahlungs-Gate (Phase 5: Zahlung nur online).
+/// Online/Offline für Zahlungs-Gate + Sync-Flush bei Reconnect.
 @MainActor
 final class PosNetworkMonitor: ObservableObject {
     static let shared = PosNetworkMonitor()
@@ -9,14 +9,25 @@ final class PosNetworkMonitor: ObservableObject {
     @Published private(set) var isOnline = true
     @Published private(set) var isExpensive = false
 
+    /// Wird aufgerufen wenn Pfad von offline → online wechselt (Hub Sync-Flush).
+    var onBecameOnline: (() -> Void)?
+
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "app.gwada.pos.network")
+    private var wasOnline = true
 
     private init() {
         monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
-                self?.isOnline = path.status == .satisfied
-                self?.isExpensive = path.isExpensive
+                guard let self else { return }
+                let online = path.status == .satisfied
+                let becameOnline = online && !self.wasOnline
+                self.wasOnline = online
+                self.isOnline = online
+                self.isExpensive = path.isExpensive
+                if becameOnline {
+                    self.onBecameOnline?()
+                }
             }
         }
         monitor.start(queue: queue)

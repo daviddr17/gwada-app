@@ -1,7 +1,8 @@
 import Foundation
+import Security
 
 /// Hub-seitige Kopplungs-State-Machine (thread-safe, aus HTTP-Handler nutzbar).
-/// Approved Tokens werden persistiert — iPad-Rebuild darf gekoppelte iPhones nicht vergessen.
+/// Approved Tokens: Klartext nur in-memory zur einmaligen Auslieferung; Persistenz nur SHA-256-Hashes.
 final class PosPairingStore: @unchecked Sendable {
     static let shared = PosPairingStore()
 
@@ -16,8 +17,43 @@ final class PosPairingStore: @unchecked Sendable {
     struct ApprovedDevice: Sendable, Equatable, Codable {
         var installationId: String
         var deviceName: String
-        var token: String
+        /// SHA-256 hex of pair token (never plaintext on disk).
+        var tokenHash: String
         var approvedAt: Date
+
+        enum CodingKeys: String, CodingKey {
+            case installationId, deviceName, tokenHash, approvedAt
+            case token // legacy plaintext (migrate → hash)
+        }
+
+        init(installationId: String, deviceName: String, tokenHash: String, approvedAt: Date) {
+            self.installationId = installationId
+            self.deviceName = deviceName
+            self.tokenHash = tokenHash
+            self.approvedAt = approvedAt
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            installationId = try c.decode(String.self, forKey: .installationId)
+            deviceName = try c.decode(String.self, forKey: .deviceName)
+            approvedAt = try c.decode(Date.self, forKey: .approvedAt)
+            if let hash = try c.decodeIfPresent(String.self, forKey: .tokenHash), !hash.isEmpty {
+                tokenHash = hash
+            } else if let legacy = try c.decodeIfPresent(String.self, forKey: .token), !legacy.isEmpty {
+                tokenHash = PosTokenHash.sha256Hex(legacy)
+            } else {
+                tokenHash = ""
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(installationId, forKey: .installationId)
+            try c.encode(deviceName, forKey: .deviceName)
+            try c.encode(tokenHash, forKey: .tokenHash)
+            try c.encode(approvedAt, forKey: .approvedAt)
+        }
     }
 
     let pendingTTL: TimeInterval = 300
@@ -30,11 +66,11 @@ final class PosPairingStore: @unchecked Sendable {
     private var rejected: Set<String> = []
     private var expiredPairIds: Set<String> = []
     private var approvedByPair: [String: ApprovedDevice] = [:]
-    private var validTokens: Set<String> = []
+    private var validTokenHashes: Set<String> = []
+    /// Klartext nur bis das Handgerät `pair/status` abholt (nicht persistiert).
+    private var deliveryTokensByPair: [String: String] = [:]
     private var hubInfo: PosLanHubInfo?
 
-    /// - Parameter persistEnabled: `false` in Unit-Tests (kein Application-Support-I/O).
-    /// - Parameter persistURL: Override für Tests; Standard = Application Support.
     init(
         now: @escaping () -> Date = { Date() },
         persistEnabled: Bool = true,
@@ -45,7 +81,17 @@ final class PosPairingStore: @unchecked Sendable {
         self.persistFileURL = persistURL ?? Self.defaultPersistURL
         if persistEnabled, let persisted = Self.loadPersisted(from: self.persistFileURL) {
             approvedByPair = persisted.approvedByPair
-            validTokens = Set(persisted.tokens)
+            validTokenHashes = Set(persisted.tokenHashes)
+            for raw in persisted.legacyPlainTokens ?? [] where !raw.isEmpty {
+                validTokenHashes.insert(PosTokenHash.sha256Hex(raw))
+            }
+            for device in approvedByPair.values where !device.tokenHash.isEmpty {
+                validTokenHashes.insert(device.tokenHash)
+            }
+            // Legacy plaintext → rewrite hashed-only.
+            if persisted.legacyPlainTokens?.isEmpty == false || persisted.usedLegacyTokenField {
+                persistLocked()
+            }
         }
     }
 
@@ -71,8 +117,9 @@ final class PosPairingStore: @unchecked Sendable {
     func status(pairId: String) -> PosLanPairStatus {
         lock.lock(); defer { lock.unlock() }
         expireLocked()
-        if let approved = approvedByPair[pairId] {
-            return PosLanPairStatus(state: .approved, token: approved.token, hub: hubInfo)
+        if approvedByPair[pairId] != nil {
+            let delivery = deliveryTokensByPair.removeValue(forKey: pairId)
+            return PosLanPairStatus(state: .approved, token: delivery, hub: hubInfo)
         }
         if pending[pairId] != nil {
             return PosLanPairStatus(state: .pending, token: nil, hub: nil)
@@ -89,13 +136,15 @@ final class PosPairingStore: @unchecked Sendable {
         expireLocked()
         guard let p = pending.removeValue(forKey: pairId) else { return nil }
         let token = Self.makeToken()
+        let hash = PosTokenHash.sha256Hex(token)
         approvedByPair[pairId] = ApprovedDevice(
             installationId: p.installationId,
             deviceName: p.deviceName,
-            token: token,
+            tokenHash: hash,
             approvedAt: now()
         )
-        validTokens.insert(token)
+        validTokenHashes.insert(hash)
+        deliveryTokensByPair[pairId] = token
         persistLocked()
         return token
     }
@@ -118,13 +167,19 @@ final class PosPairingStore: @unchecked Sendable {
 
     func verify(token: String) -> Bool {
         lock.lock(); defer { lock.unlock() }
-        return validTokens.contains(token)
+        let hash = PosTokenHash.sha256Hex(token)
+        return validTokenHashes.contains(hash)
     }
 
     func revoke(token: String) {
+        revoke(tokenHash: PosTokenHash.sha256Hex(token))
+    }
+
+    func revoke(tokenHash hash: String) {
         lock.lock(); defer { lock.unlock() }
-        validTokens.remove(token)
-        approvedByPair = approvedByPair.filter { $0.value.token != token }
+        validTokenHashes.remove(hash)
+        approvedByPair = approvedByPair.filter { $0.value.tokenHash != hash }
+        deliveryTokensByPair = deliveryTokensByPair.filter { PosTokenHash.sha256Hex($0.value) != hash }
         persistLocked()
     }
 
@@ -142,8 +197,46 @@ final class PosPairingStore: @unchecked Sendable {
     // MARK: - Persist
 
     private struct Persisted: Codable {
-        var tokens: [String]
+        var tokenHashes: [String]
         var approvedByPair: [String: ApprovedDevice]
+        /// Migration from older plaintext format.
+        var legacyPlainTokens: [String]? = nil
+        var usedLegacyTokenField: Bool = false
+
+        enum CodingKeys: String, CodingKey {
+            case tokenHashes, approvedByPair, tokens
+        }
+
+        init(tokenHashes: [String], approvedByPair: [String: ApprovedDevice]) {
+            self.tokenHashes = tokenHashes
+            self.approvedByPair = approvedByPair
+            self.legacyPlainTokens = nil
+            self.usedLegacyTokenField = false
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            approvedByPair = try c.decodeIfPresent([String: ApprovedDevice].self, forKey: .approvedByPair) ?? [:]
+            if let hashes = try c.decodeIfPresent([String].self, forKey: .tokenHashes) {
+                tokenHashes = hashes
+                legacyPlainTokens = nil
+                usedLegacyTokenField = false
+            } else if let plain = try c.decodeIfPresent([String].self, forKey: .tokens) {
+                tokenHashes = []
+                legacyPlainTokens = plain
+                usedLegacyTokenField = true
+            } else {
+                tokenHashes = []
+                legacyPlainTokens = nil
+                usedLegacyTokenField = false
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(tokenHashes, forKey: .tokenHashes)
+            try c.encode(approvedByPair, forKey: .approvedByPair)
+        }
     }
 
     private static var defaultPersistURL: URL {
@@ -155,7 +248,7 @@ final class PosPairingStore: @unchecked Sendable {
 
     private func persistLocked() {
         guard persistEnabled else { return }
-        let payload = Persisted(tokens: Array(validTokens), approvedByPair: approvedByPair)
+        let payload = Persisted(tokenHashes: Array(validTokenHashes), approvedByPair: approvedByPair)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(payload) else { return }
@@ -168,8 +261,6 @@ final class PosPairingStore: @unchecked Sendable {
         decoder.dateDecodingStrategy = .iso8601
         return try? decoder.decode(Persisted.self, from: data)
     }
-
-    // MARK: - Intern (lock muss gehalten sein)
 
     private func expireLocked() {
         let cutoff = now().addingTimeInterval(-pendingTTL)

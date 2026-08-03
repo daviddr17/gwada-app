@@ -87,4 +87,44 @@ final class PosPairingStoreTests: XCTestCase {
         XCTAssertTrue(second.verify(token: token))
         XCTAssertEqual(second.approvedList().count, 1)
     }
+
+    func test_persistedFile_containsHashNotPlaintext() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gwada-pair-hash-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = PosPairingStore(now: { Date() }, persistEnabled: true, persistURL: url)
+        let challenge = store.createPending(req)
+        let token = store.approve(pairId: challenge.pairId)!
+        let raw = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertFalse(raw.contains(token), "Klartext-Token darf nicht auf Disk liegen")
+        XCTAssertTrue(raw.contains("tokenHashes") || raw.contains(PosTokenHash.sha256Hex(token)))
+    }
+
+    func test_status_deliversPlaintextTokenOnlyOnce() {
+        let store = makeStore()
+        let challenge = store.createPending(req)
+        let token = store.approve(pairId: challenge.pairId)!
+        XCTAssertEqual(store.status(pairId: challenge.pairId).token, token)
+        XCTAssertNil(store.status(pairId: challenge.pairId).token)
+        XCTAssertEqual(store.status(pairId: challenge.pairId).state, .approved)
+    }
+
+    func test_migratesLegacyPlaintextTokensFile() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gwada-pair-legacy-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let legacyToken = "legacy-plain-token-abc"
+        let legacyJSON = """
+        {"tokens":["\(legacyToken)"],"approvedByPair":{}}
+        """
+        try Data(legacyJSON.utf8).write(to: url)
+
+        let store = PosPairingStore(now: { Date() }, persistEnabled: true, persistURL: url)
+        XCTAssertTrue(store.verify(token: legacyToken))
+        let rewritten = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertFalse(rewritten.contains(legacyToken))
+        XCTAssertTrue(rewritten.contains(PosTokenHash.sha256Hex(legacyToken)))
+    }
 }

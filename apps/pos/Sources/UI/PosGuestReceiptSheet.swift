@@ -39,13 +39,18 @@ struct PosGuestReceiptSheet: View {
     private var shareText: String {
         var lines: [String] = [
             venueName,
-            "\(PosReceiptFiscalDemo.street), \(PosReceiptFiscalDemo.city)",
-            "\(PosReceiptFiscalDemo.taxNumber) · \(PosReceiptFiscalDemo.vatId)",
-            "",
-            "Beleg-Nr. \(receipt.orderNumber) · Tisch \(receipt.tableLabel) · Kellner \(waiterLabel)",
-            formatDateTime(receipt.paidAt),
-            "",
         ]
+        if PosSecurityPolicy.allowsDemoFiscalTse {
+            lines.append("DEMO-BELEG — nicht fiskalisch")
+            lines.append("\(PosReceiptFiscalDemo.street), \(PosReceiptFiscalDemo.city)")
+            lines.append("\(PosReceiptFiscalDemo.taxNumber) · \(PosReceiptFiscalDemo.vatId)")
+        } else if receipt.fiscalPending {
+            lines.append("Fiskalisierung ausstehend")
+        }
+        lines.append("")
+        lines.append("Beleg-Nr. \(receipt.orderNumber) · Tisch \(receipt.tableLabel) · Kellner \(waiterLabel)")
+        lines.append(formatDateTime(receipt.paidAt))
+        lines.append("")
         for item in receipt.items ?? [] {
             var row = "\(item.quantity)x \(item.name)"
             if !item.detail.isEmpty { row += " (\(item.detail))" }
@@ -72,7 +77,11 @@ struct PosGuestReceiptSheet: View {
         }
         if let tse = receipt.tse {
             lines.append("")
-            lines.append("— TSE —")
+            if PosSecurityPolicy.allowsDemoFiscalTse {
+                lines.append("— DEMO-TSE (nicht rechtsgültig) —")
+            } else {
+                lines.append("— TSE —")
+            }
             lines.append("TSE-Transaktions-Nr.: \(tse.transactionNumber)")
             lines.append("TSE-Signaturzaehler: \(tse.signatureCounter)")
             lines.append("Vorgangsbeginn: \(formatDateTime(tse.processStartedAt))")
@@ -132,18 +141,29 @@ struct PosGuestReceiptSheet: View {
                     .font(.system(size: 17, weight: .heavy, design: .rounded))
                     .tracking(0.6)
                     .multilineTextAlignment(.center)
-                Text("\(PosReceiptFiscalDemo.street) · \(PosReceiptFiscalDemo.city)")
-                    .font(.system(size: 10.5).monospaced())
-                    .foregroundStyle(paperMuted)
-                Text(PosReceiptFiscalDemo.phone)
-                    .font(.system(size: 10.5).monospaced())
-                    .foregroundStyle(paperMuted)
-                Text(PosReceiptFiscalDemo.taxNumber)
-                    .font(.system(size: 10.5).monospaced())
-                    .foregroundStyle(paperMuted)
-                Text(PosReceiptFiscalDemo.vatId)
-                    .font(.system(size: 10.5).monospaced())
-                    .foregroundStyle(paperMuted)
+                if PosSecurityPolicy.allowsDemoFiscalTse {
+                    Text("DEMO-BELEG — nicht fiskalisch")
+                        .font(.system(size: 10, weight: .bold).monospaced())
+                        .foregroundStyle(.red.opacity(0.85))
+                        .padding(.top, 2)
+                    Text("\(PosReceiptFiscalDemo.street) · \(PosReceiptFiscalDemo.city)")
+                        .font(.system(size: 10.5).monospaced())
+                        .foregroundStyle(paperMuted)
+                    Text(PosReceiptFiscalDemo.phone)
+                        .font(.system(size: 10.5).monospaced())
+                        .foregroundStyle(paperMuted)
+                    Text(PosReceiptFiscalDemo.taxNumber)
+                        .font(.system(size: 10.5).monospaced())
+                        .foregroundStyle(paperMuted)
+                    Text(PosReceiptFiscalDemo.vatId)
+                        .font(.system(size: 10.5).monospaced())
+                        .foregroundStyle(paperMuted)
+                } else if receipt.fiscalPending {
+                    Text("Fiskalisierung ausstehend")
+                        .font(.system(size: 10, weight: .semibold).monospaced())
+                        .foregroundStyle(paperMuted)
+                        .padding(.top, 2)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.bottom, 8)
@@ -231,6 +251,12 @@ struct PosGuestReceiptSheet: View {
             dashedLine
 
             if let tse = receipt.tse {
+                if PosSecurityPolicy.allowsDemoFiscalTse {
+                    Text("DEMO-TSE — nicht rechtsgültig")
+                        .font(.system(size: 10, weight: .bold).monospaced())
+                        .foregroundStyle(.red.opacity(0.85))
+                        .padding(.bottom, 4)
+                }
                 Text("TSE-SICHERHEITSEINRICHTUNG")
                     .font(.system(size: 10, weight: .semibold).monospaced())
                     .tracking(1.4)

@@ -62,7 +62,7 @@ struct TableSessionView: View {
                 } label: {
                     Image(systemName: "scissors")
                 }
-                .disabled(openLines.isEmpty)
+                .disabled(openLines.isEmpty || !runtime.canCollectAtRegister)
                 .accessibilityLabel("Rechnung kassieren")
             }
         }
@@ -318,6 +318,7 @@ struct TableSessionView: View {
                         _ = await runtime.releaseTable(sessionId: resolvedSessionId, forceAbort: false)
                     }
                 }
+                .disabled(!runtime.canMutateLiveFloor)
             }
 
             Button {

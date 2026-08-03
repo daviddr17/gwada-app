@@ -145,12 +145,17 @@ enum PosOfflineCaches {
     ) -> PosLocalReceipt {
         let amount = lines.reduce(0) { $0 + $1.openCents }
         let paidAt = isoNow()
-        let start = Date().addingTimeInterval(-45)
-        let tse = PosReceiptFiscalDemo.nextTse(
-            amountCents: amount,
-            processStartedAt: ISO8601DateFormatter().string(from: start),
-            processEndedAt: paidAt
-        )
+        let tse: PosLocalReceiptTse?
+        if PosSecurityPolicy.allowsDemoFiscalTse {
+            let start = Date().addingTimeInterval(-45)
+            tse = PosReceiptFiscalDemo.nextTse(
+                amountCents: amount,
+                processStartedAt: ISO8601DateFormatter().string(from: start),
+                processEndedAt: paidAt
+            )
+        } else {
+            tse = nil
+        }
         return PosLocalReceipt(
             localId: UUID().uuidString,
             paymentId: nil,
@@ -165,6 +170,7 @@ enum PosOfflineCaches {
             tipCents: tipCents,
             receivedAmountCents: receivedAmountCents,
             paidAt: paidAt,
+            // Release: pending until cloud/TSE; DEBUG demo TSE is still marked pending.
             fiscalPending: true,
             canVoidCash: method == .cash,
             dayYmd: todayYmd(),

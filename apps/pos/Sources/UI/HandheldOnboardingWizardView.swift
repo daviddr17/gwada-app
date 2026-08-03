@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 #endif
 
-/// iPhone: 3 Schritte — Willkommen → Einrichtungs-Code → Fertig (Cloud, ohne iPad).
+/// iPhone: Willkommen → Einrichtungs-Code → Hub-Koppeln (Hub Pflicht nach Phase 1).
 struct HandheldOnboardingWizardView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @StateObject private var enrollment = PosEnrollmentStore.shared
@@ -46,6 +46,11 @@ struct HandheldOnboardingWizardView: View {
                 HandheldPairingGateView()
                     .environmentObject(runtime)
             }
+            .onChange(of: enrollment.isHandheldPaired) { _, paired in
+                if paired {
+                    showLanPairing = false
+                }
+            }
         }
     }
 
@@ -57,11 +62,11 @@ struct HandheldOnboardingWizardView: View {
             Text("Gwada Service")
                 .font(.largeTitle.weight(.bold))
                 .foregroundStyle(PosDesign.ink)
-            Text("Bestellen am Tisch — Speisekarte aus der Cloud.")
+            Text("Bestellen am Tisch — mit der iPad-Kasse im WLAN.")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(PosDesign.ink)
             Text(
-                "Einmal mit dem Code aus dem Dashboard verbinden. Danach läuft das iPhone auch ohne iPad; die Karte wird offline gespeichert."
+                "Zuerst Einrichtungs-Code aus dem Dashboard, danach die Kasse koppeln. Ohne Freigabe am iPad kein Service."
             )
             .font(.body)
             .foregroundStyle(PosDesign.muted)
@@ -74,7 +79,7 @@ struct HandheldOnboardingWizardView: View {
             }
             .buttonStyle(PosPrimaryButtonStyle())
 
-            Button("Stattdessen mit iPad-Kasse koppeln") {
+            Button("Bereits Cloud — Kasse koppeln") {
                 showLanPairing = true
             }
             .font(.footnote.weight(.semibold))
@@ -142,26 +147,35 @@ struct HandheldOnboardingWizardView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(PosDesign.brandAccent)
-            Text("Bereit")
+            Text("Cloud bereit")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(PosDesign.ink)
             Text(
                 enrollment.restaurantDisplayName.isEmpty
-                    ? "Speisekarte ist geladen. Tippe einen Tisch an, um zu bestellen."
-                    : "„\(enrollment.restaurantDisplayName)“ — tippe einen Tisch an, um zu bestellen."
+                    ? "Speisekarte ist geladen. Als Nächstes die iPad-Kasse koppeln."
+                    : "„\(enrollment.restaurantDisplayName)“ — jetzt iPad-Kasse koppeln."
             )
             .foregroundStyle(PosDesign.muted)
-            Text("Optional: unter Mehr → Gerät die iPad-Kasse koppeln (Live-Tische im WLAN).")
+            Text("Ohne Kassen-Freigabe im WLAN startet der Service nicht.")
                 .font(.footnote)
                 .foregroundStyle(PosDesign.muted)
             Spacer()
             Button {
-                Task { await runtime.finishHandheldCloudOnboarding() }
+                showLanPairing = true
             } label: {
-                Text("Zu den Tischen")
+                Text("Kasse koppeln")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PosPrimaryButtonStyle())
+
+            #if DEBUG
+            Button("DEBUG: Zu den Tischen (Solo)") {
+                Task { await runtime.finishHandheldCloudOnboarding() }
+            }
+            .font(.caption)
+            .foregroundStyle(PosDesign.muted)
+            .frame(maxWidth: .infinity)
+            #endif
         }
     }
 
@@ -186,6 +200,7 @@ struct HandheldOnboardingWizardView: View {
             runtime.restaurantIdInput = claim.restaurantId
             PosEnrollmentStore.shared.setRestaurantDisplayName(claim.restaurantName)
             await runtime.preloadHandheldCloudAfterEnroll(restaurantName: claim.restaurantName)
+            PosEnrollmentStore.shared.markHandheldCloudReady(restaurantName: claim.restaurantName)
             step = .done
         } catch {
             errorText = error.localizedDescription

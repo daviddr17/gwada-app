@@ -19,6 +19,8 @@ struct PosSyncQueueItem: Codable, Identifiable, Equatable, Sendable {
     var payload: Data
     var attempts: Int
     var lastError: String?
+    /// Gesetzt wenn Item aus der aktiven FIFO-Queue entfernt wurde (Review P1-4).
+    var deadLetteredAt: String?
 }
 
 struct PosSyncOpenSessionPayload: Codable, Sendable {
@@ -33,12 +35,16 @@ struct PosSyncCreateOrderPayload: Codable, Sendable {
     var tableSessionId: String
     var items: [PosSyncOrderItem]
     var localOrderId: String
+    var localLineIds: [String]?
+
+    var resolvedLocalLineIds: [String] { localLineIds ?? [] }
 
     static func make(
         restaurantId: String,
         tableSessionId: String,
         lines: [PosCartLine],
-        localOrderId: String = UUID().uuidString
+        localOrderId: String = UUID().uuidString,
+        localLineIds: [String]? = nil
     ) -> PosSyncCreateOrderPayload {
         PosSyncCreateOrderPayload(
             restaurantId: restaurantId,
@@ -61,7 +67,8 @@ struct PosSyncCreateOrderPayload: Codable, Sendable {
                     }
                 )
             },
-            localOrderId: localOrderId
+            localOrderId: localOrderId,
+            localLineIds: localLineIds ?? lines.map(\.id)
         )
     }
 }
@@ -81,6 +88,20 @@ struct PosSyncCollectCashPayload: Codable, Sendable {
     var allocations: [PosSyncCashAllocation]
     var tipCents: Int
     var receivedAmountCents: Int?
+    /// Stabile Idempotenz (`hub:payment:{id}`) — LAN `paymentAttemptId`.
+    var paymentAttemptId: String?
+    /// Lokaler Beleg → nach Flush `markReceiptSynced`.
+    var receiptLocalId: String?
+    /// `cash` | `card` | `paypal` (Default cash).
+    var method: String?
+    /// Für Nest unbar (`payment.completed` amountCents).
+    var amountCents: Int?
+
+    var resolvedMethod: String { method ?? "cash" }
+    var resolvedPaymentAttemptId: String? {
+        let t = paymentAttemptId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return t.isEmpty ? nil : t
+    }
 }
 
 struct PosSyncCashAllocation: Codable, Sendable {
@@ -152,6 +173,8 @@ final class PosSyncQueue: ObservableObject {
     static let shared = PosSyncQueue()
 
     @Published private(set) var items: [PosSyncQueueItem] = []
+    /// Permanent fehlgeschlagene Items — blockieren FIFO nicht mehr.
+    @Published private(set) var deadLetters: [PosSyncQueueItem] = []
     @Published private(set) var isFlushing = false
     @Published private(set) var lastFlushMessage: String = ""
 
@@ -165,140 +188,134 @@ final class PosSyncQueue: ObservableObject {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
+    private struct PersistBlob: Codable {
+        var items: [PosSyncQueueItem]
+        var deadLetters: [PosSyncQueueItem]
+    }
+
     private init() {
         load()
     }
 
     var pendingCount: Int { items.count }
+    var deadLetterCount: Int { deadLetters.count }
+
+    /// Permanent → Dead-Letter (FIFO geht weiter). Offline/5xx → Kopf behalten, Stop.
+    static func shouldDeadLetter(error: Error, attempts: Int) -> Bool {
+        if attempts >= maxFlushAttempts { return true }
+        guard let cloud = error as? PosCloudError else { return false }
+        switch cloud {
+        case .missingConfig:
+            return true
+        case .httpStatus(let code, _):
+            // 4xx außer Auth/Rate-Limit: Payload/Config kaputt — nicht ewig blockieren.
+            if code == 401 || code == 408 || code == 429 { return false }
+            return (400 ... 499).contains(code)
+        case .unauthorized, .offline, .invalidResponse, .missingRestaurant, .notModified:
+            return false
+        }
+    }
 
     func enqueue(_ item: PosSyncQueueItem) {
         items.append(item)
         persist()
     }
 
+    private func makeItem(
+        id: String = UUID().uuidString,
+        kind: PosSyncQueueItemKind,
+        payload: Data
+    ) -> PosSyncQueueItem {
+        PosSyncQueueItem(
+            id: id,
+            kind: kind,
+            createdAt: ISO8601DateFormatter().string(from: Date()),
+            payload: payload,
+            attempts: 0,
+            lastError: nil,
+            deadLetteredAt: nil
+        )
+    }
+
     func enqueueOpenSession(_ payload: PosSyncOpenSessionPayload) {
         let data = (try? encoder.encode(payload)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .openSession,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
+        enqueue(makeItem(kind: .openSession, payload: data))
     }
 
     func enqueueCreateOrder(_ payload: PosSyncCreateOrderPayload) {
         var resolved = payload
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
         let data = (try? encoder.encode(resolved)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .createOrder,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
+        enqueue(makeItem(kind: .createOrder, payload: data))
     }
 
+    /// Enqueued Zahlung. Gleiche `paymentAttemptId` / Queue-ID → kein Duplikat.
     func enqueueCollectCash(_ payload: PosSyncCollectCashPayload) {
         var resolved = payload
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+        resolved.allocations = payload.allocations.map {
+            PosSyncCashAllocation(
+                orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
+                quantity: $0.quantity
+            )
+        }
+        let itemId = resolved.resolvedPaymentAttemptId ?? UUID().uuidString
+        if items.contains(where: { $0.id == itemId }) { return }
+        if resolved.paymentAttemptId == nil {
+            resolved.paymentAttemptId = itemId
+        }
         let data = (try? encoder.encode(resolved)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .collectCash,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
+        enqueue(makeItem(id: itemId, kind: .collectCash, payload: data))
     }
 
     func enqueueFireCourse(_ payload: PosSyncFireCoursePayload) {
         var resolved = payload
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
         let data = (try? encoder.encode(resolved)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .fireCourse,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
+        enqueue(makeItem(kind: .fireCourse, payload: data))
     }
 
     func enqueueMoveSession(_ payload: PosSyncMoveSessionPayload) {
         var resolved = payload
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
         let data = (try? encoder.encode(resolved)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .moveSession,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
+        enqueue(makeItem(kind: .moveSession, payload: data))
     }
 
     func enqueueReleaseSession(_ payload: PosSyncReleaseSessionPayload) {
         var resolved = payload
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
         let data = (try? encoder.encode(resolved)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .releaseSession,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
+        enqueue(makeItem(kind: .releaseSession, payload: data))
     }
 
     func enqueueCreateReservation(_ payload: PosCreateReservationPayload) {
         let data = (try? encoder.encode(payload)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .createReservation,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
+        enqueue(makeItem(kind: .createReservation, payload: data))
     }
 
     func enqueueOpenRegister(_ payload: PosSyncOpenRegisterPayload) {
         let data = (try? encoder.encode(payload)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .openRegister,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
+        enqueue(makeItem(kind: .openRegister, payload: data))
     }
 
     func enqueueCloseRegister(_ payload: PosSyncCloseRegisterPayload) {
         let data = (try? encoder.encode(payload)) ?? Data()
-        enqueue(PosSyncQueueItem(
-            id: UUID().uuidString,
-            kind: .closeRegister,
-            createdAt: ISO8601DateFormatter().string(from: Date()),
-            payload: data,
-            attempts: 0,
-            lastError: nil
-        ))
+        enqueue(makeItem(kind: .closeRegister, payload: data))
     }
 
-    func flushIfPossible() async {
-        guard !isFlushing, !items.isEmpty else { return }
+    /// Max. Versuche bevor Item in Dead-Letter wandert (FIFO geht weiter).
+    static let maxFlushAttempts = 25
+    /// Soft-Warnung wenn Queue wächst (kein Hard-Drop).
+    static let pendingWarnThreshold = 80
+
+    /// Anzahl erfolgreich synchronisierter Items in diesem Lauf (0 = nichts / geblockt).
+    @discardableResult
+    func flushIfPossible() async -> Int {
+        guard !isFlushing, !items.isEmpty else { return 0 }
         guard PosAuthStore.shared.isSignedIn else {
             lastFlushMessage = "Sync wartet auf Login."
-            return
+            return 0
         }
         isFlushing = true
         defer { isFlushing = false }
@@ -307,11 +324,12 @@ final class PosSyncQueue: ObservableObject {
         var working = items
         var remaining: [PosSyncQueueItem] = []
         var synced = 0
-        var stoppedOffline = false
+        var deadLetteredThisRun = 0
+        var stopped = false
         var index = 0
 
         while index < working.count {
-            if stoppedOffline {
+            if stopped {
                 remaining.append(contentsOf: working[index...])
                 break
             }
@@ -323,23 +341,44 @@ final class PosSyncQueue: ObservableObject {
             } catch {
                 item.attempts += 1
                 item.lastError = error.localizedDescription
-                remaining.append(item)
-                if case PosCloudError.offline = error {
-                    stoppedOffline = true
-                    if index + 1 < working.count {
-                        remaining.append(contentsOf: working[(index + 1)...])
-                    }
-                    break
+                if Self.shouldDeadLetter(error: error, attempts: item.attempts) {
+                    item.deadLetteredAt = ISO8601DateFormatter().string(from: Date())
+                    deadLetters.append(item)
+                    deadLetteredThisRun += 1
+                    index += 1
+                    continue
                 }
+                remaining.append(item)
+                // Temporär (Offline/5xx/Auth): FIFO hart — Queue nicht überspringen.
+                stopped = true
+                if index + 1 < working.count {
+                    remaining.append(contentsOf: working[(index + 1)...])
+                }
+                break
             }
             index += 1
         }
 
         items = remaining
         persist()
-        lastFlushMessage = synced > 0
-            ? "\(synced) Vorgang(e) synchronisiert\(PosCloudConfig.nestSyncEnabled ? " (Nest)" : "")."
-            : (remaining.isEmpty ? "Queue leer." : "Sync ausstehend (\(remaining.count)).")
+        if synced > 0 {
+            lastFlushMessage = "\(synced) Vorgang(e) synchronisiert\(PosCloudConfig.nestSyncEnabled ? " (Nest)" : "")."
+        } else if remaining.isEmpty, deadLetteredThisRun > 0 {
+            lastFlushMessage = "\(deadLetteredThisRun) Vorgang(e) in Dead-Letter (nicht erneut)."
+        } else if remaining.isEmpty {
+            lastFlushMessage = "Queue leer."
+        } else if let head = remaining.first, head.attempts >= Self.maxFlushAttempts {
+            lastFlushMessage =
+                "Sync blockiert (\(remaining.count) offen): \(head.lastError ?? "Fehler") — \(head.attempts)× versucht."
+        } else if deadLetterCount > 0, remaining.count > 0 {
+            lastFlushMessage =
+                "Sync ausstehend (\(remaining.count)) · Dead-Letter \(deadLetterCount)."
+        } else if remaining.count >= Self.pendingWarnThreshold {
+            lastFlushMessage = "Sync-Queue groß (\(remaining.count) offen)."
+        } else {
+            lastFlushMessage = "Sync ausstehend (\(remaining.count))."
+        }
+        return synced
     }
 
     private func process(
@@ -435,10 +474,17 @@ final class PosSyncQueue: ObservableObject {
         case .collectCash:
             var payload = try decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
             payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            payload.allocations = payload.allocations.map {
+                PosSyncCashAllocation(
+                    orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
+                    quantity: $0.quantity
+                )
+            }
             item.payload = (try? encoder.encode(payload)) ?? item.payload
+            let method = payload.resolvedMethod
             var body: [String: Any] = [
                 "sessionId": payload.tableSessionId,
-                "method": "cash",
+                "method": method,
                 "tipCents": payload.tipCents,
                 "settlementMode": "item",
                 "allocations": payload.allocations.map {
@@ -448,9 +494,15 @@ final class PosSyncQueue: ObservableObject {
             if let received = payload.receivedAmountCents {
                 body["receivedAmountCents"] = received
             }
+            if method == "card" || method == "paypal" {
+                let amount = payload.amountCents
+                    ?? 0
+                body["amountCents"] = amount
+            }
+            let paymentKey = payload.resolvedPaymentAttemptId ?? item.id
             envelope = PosNestClient.eventEnvelope(
                 type: "payment.completed",
-                idempotencyKey: "hub:payment:\(item.id)",
+                idempotencyKey: "hub:payment:\(paymentKey)",
                 sessionId: payload.tableSessionId,
                 payload: body
             )
@@ -518,6 +570,29 @@ final class PosSyncQueue: ObservableObject {
                     afterIndex: index
                 )
             }
+            if item.kind == .createOrder,
+               let payload = try? decoder.decode(PosSyncCreateOrderPayload.self, from: item.payload)
+            {
+                let cloudLines = Self.nestOrderLines(from: result.result)
+                if !cloudLines.isEmpty {
+                    applyLineMapping(
+                        sessionId: payload.tableSessionId,
+                        localLineIds: payload.resolvedLocalLineIds,
+                        cloudLines: cloudLines,
+                        working: &working,
+                        afterIndex: index
+                    )
+                }
+            }
+            if item.kind == .collectCash,
+               let payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload),
+               let receiptId = payload.receiptLocalId, !receiptId.isEmpty
+            {
+                let paymentId = payload.resolvedPaymentAttemptId
+                    ?? result.result?["paymentId"]?.stringValue
+                    ?? item.id
+                PosOfflineCaches.markReceiptSynced(localId: receiptId, paymentId: paymentId)
+            }
         case "rejected":
             throw PosCloudError.httpStatus(
                 422,
@@ -526,6 +601,39 @@ final class PosSyncQueue: ObservableObject {
         default:
             throw PosCloudError.httpStatus(500, "nest_status:\(result.status)")
         }
+    }
+
+    private static func nestOrderLines(
+        from result: PosNestClient.NestJSONValue?
+    ) -> [PosCloudClient.PosCloudCreateOrderResult.Line] {
+        guard let linesVal = result?["lines"], case .array(let arr) = linesVal else { return [] }
+        var out: [PosCloudClient.PosCloudCreateOrderResult.Line] = []
+        for (idx, entry) in arr.enumerated() {
+            guard case .object(let obj) = entry,
+                  let id = obj["id"]?.stringValue, !id.isEmpty
+            else { continue }
+            let position: Int
+            if case .number(let n) = obj["position"] {
+                position = Int(n)
+            } else {
+                position = idx
+            }
+            let quantity: Int
+            if case .number(let n) = obj["quantity"] {
+                quantity = max(1, Int(n))
+            } else {
+                quantity = 1
+            }
+            out.append(
+                PosCloudClient.PosCloudCreateOrderResult.Line(
+                    id: id,
+                    menuItemId: obj["menuItemId"]?.stringValue,
+                    quantity: quantity,
+                    position: position
+                )
+            )
+        }
+        return out.sorted { $0.position < $1.position }
     }
 
     private func processViaNext(
@@ -552,7 +660,7 @@ final class PosSyncQueue: ObservableObject {
             var payload = try decoder.decode(PosSyncCreateOrderPayload.self, from: item.payload)
             payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
             item.payload = (try? encoder.encode(payload)) ?? item.payload
-            _ = try await PosCloudClient.createOrder(
+            let result = try await PosCloudClient.createOrder(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
                 items: payload.items.map {
@@ -566,18 +674,36 @@ final class PosSyncQueue: ObservableObject {
                     )
                 }
             )
+            applyLineMapping(
+                sessionId: payload.tableSessionId,
+                localLineIds: payload.resolvedLocalLineIds,
+                cloudLines: result.lines,
+                working: &working,
+                afterIndex: index
+            )
 
         case .collectCash:
             var payload = try decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
             payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            payload.allocations = payload.allocations.map {
+                PosSyncCashAllocation(
+                    orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
+                    quantity: $0.quantity
+                )
+            }
             item.payload = (try? encoder.encode(payload)) ?? item.payload
             try await PosCloudClient.collectCash(
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
                 allocations: payload.allocations.map { ($0.orderLineId, $0.quantity) },
                 tipCents: payload.tipCents,
-                receivedAmountCents: payload.receivedAmountCents
+                receivedAmountCents: payload.receivedAmountCents,
+                paymentAttemptId: payload.resolvedPaymentAttemptId ?? item.id
             )
+            if let receiptId = payload.receiptLocalId, !receiptId.isEmpty {
+                let paymentId = payload.resolvedPaymentAttemptId ?? item.id
+                PosOfflineCaches.markReceiptSynced(localId: receiptId, paymentId: paymentId)
+            }
 
         case .fireCourse, .moveSession, .releaseSession:
             throw PosCloudError.missingConfig(
@@ -587,6 +713,50 @@ final class PosSyncQueue: ObservableObject {
         case .createReservation, .openRegister, .closeRegister:
             break
         }
+    }
+
+    private func applyLineMapping(
+        sessionId: String,
+        localLineIds: [String],
+        cloudLines: [PosCloudClient.PosCloudCreateOrderResult.Line],
+        working: inout [PosSyncQueueItem],
+        afterIndex: Int
+    ) {
+        let sorted = cloudLines.sorted { $0.position < $1.position }
+        var mappings: [String: String] = [:]
+        for (local, cloud) in zip(localLineIds, sorted) {
+            PosOrderLineIdMap.shared.remember(localLineId: local, cloudLineId: cloud.id)
+            mappings[local] = cloud.id
+        }
+        if !mappings.isEmpty {
+            PosHubState.shared.remapOpenLineIds(
+                sessionId: sessionId,
+                mappings: mappings.map { (localLineId: $0.key, cloudLineId: $0.value) }
+            )
+        }
+        guard afterIndex + 1 < working.count, !mappings.isEmpty else { return }
+        for i in (afterIndex + 1) ..< working.count {
+            working[i] = remapQueueItemLineIds(working[i], mappings: mappings)
+        }
+    }
+
+    private func remapQueueItemLineIds(
+        _ item: PosSyncQueueItem,
+        mappings: [String: String]
+    ) -> PosSyncQueueItem {
+        guard item.kind == .collectCash,
+              var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
+        else { return item }
+        var changed = false
+        payload.allocations = payload.allocations.map { alloc in
+            guard let cloud = mappings[alloc.orderLineId] else { return alloc }
+            changed = true
+            return PosSyncCashAllocation(orderLineId: cloud, quantity: alloc.quantity)
+        }
+        guard changed, let data = try? encoder.encode(payload) else { return item }
+        var copy = item
+        copy.payload = data
+        return copy
     }
 
     private func applySessionMapping(
@@ -670,16 +840,29 @@ final class PosSyncQueue: ObservableObject {
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: fileURL),
-              let saved = try? decoder.decode([PosSyncQueueItem].self, from: data) else {
+        guard let data = try? Data(contentsOf: fileURL) else {
             items = []
+            deadLetters = []
             return
         }
-        items = saved
+        if let blob = try? decoder.decode(PersistBlob.self, from: data) {
+            items = blob.items.filter { $0.deadLetteredAt == nil }
+            deadLetters = blob.deadLetters + blob.items.filter { $0.deadLetteredAt != nil }
+            return
+        }
+        // Legacy: nur Array aktiver Items.
+        if let saved = try? decoder.decode([PosSyncQueueItem].self, from: data) {
+            items = saved.filter { $0.deadLetteredAt == nil }
+            deadLetters = saved.filter { $0.deadLetteredAt != nil }
+            return
+        }
+        items = []
+        deadLetters = []
     }
 
     private func persist() {
-        guard let data = try? encoder.encode(items) else { return }
+        let blob = PersistBlob(items: items, deadLetters: deadLetters)
+        guard let data = try? encoder.encode(blob) else { return }
         try? data.write(to: fileURL, options: [.atomic])
     }
 }

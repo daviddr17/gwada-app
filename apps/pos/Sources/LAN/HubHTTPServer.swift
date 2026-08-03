@@ -164,7 +164,7 @@ final class HubHTTPServer: @unchecked Sendable {
             "Connection: close",
             "Access-Control-Allow-Origin: *",
             "Access-Control-Allow-Methods: GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers: Content-Type, \(PosLanProtocol.headerProtocol), \(PosLanProtocol.headerRestaurantId), \(PosLanProtocol.headerPairToken)",
+            "Access-Control-Allow-Headers: Content-Type, \(PosLanProtocol.headerProtocol), \(PosLanProtocol.headerRestaurantId), \(PosLanProtocol.headerPairToken), \(PosLanProtocol.headerLanSecret)",
             "\(PosLanProtocol.headerProtocol): \(PosLanProtocol.version)",
         ]
         let head = headerLines.joined(separator: "\r\n") + "\r\n\r\n"

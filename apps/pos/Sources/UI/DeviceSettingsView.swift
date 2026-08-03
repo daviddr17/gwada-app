@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// Gerät / Login / Hub-Status (Sidebar „Gerät“ / Mehr → Gerät).
+/// Gerät / Verbindung — Waiter-schlank; Nest/Admin nur DEBUG (Review B).
 struct DeviceSettingsView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var hubIP = ""
     @State private var confirmSignOut = false
+    @State private var showSupport = false
 
     var body: some View {
         List {
             Section("Gerät") {
-                LabeledContent("Erkennung", value: runtime.detectionLabel)
                 LabeledContent("Rolle", value: runtime.role.title)
                 HStack {
                     Text("Status")
@@ -19,13 +19,11 @@ struct DeviceSettingsView: View {
                         emphasized: runtime.phase == .hubReady || runtime.phase == .connected
                     )
                 }
+                #if DEBUG
                 if runtime.isSoloMode {
-                    LabeledContent("Modus", value: "Solo (ohne Kasse)")
+                    LabeledContent("Modus", value: "Solo (Labor)")
                 }
-                if runtime.role == .hub {
-                    LabeledContent("Sync-Queue", value: "\(runtime.syncPending) offen")
-                    LabeledContent("Druck-Queue", value: "\(runtime.pendingPrintJobs) offen")
-                }
+                #endif
                 if !runtime.statusMessage.isEmpty {
                     Text(runtime.statusMessage)
                         .font(.footnote)
@@ -65,13 +63,16 @@ struct DeviceSettingsView: View {
                 "Bonjour",
                 value: runtime.bonjourPublishing ? "Aktiv (_gwada-pos._tcp)" : "—"
             )
-            LabeledContent("Daten", value: runtime.dataSourceLabel)
-            Text("Handgeräte, KDS & Druck-Jobs über lokales WLAN — auch ohne Internet.")
+            LabeledContent("Sync-Queue", value: "\(runtime.syncPending) offen")
+            Text("Handgeräte über lokales WLAN — auch ohne Internet.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
 
+        #if DEBUG
         nestSyncSection
+        #endif
+
         Section {
             Button("Kasse neu einrichten", role: .destructive) {
                 confirmSignOut = true
@@ -83,93 +84,95 @@ struct DeviceSettingsView: View {
 
     @ViewBuilder
     private var handheldSections: some View {
-        Section("Cloud / ohne iPad") {
-            Text("Speisekarte und Tische kommen von der Cloud (VPS) und bleiben lokal gecacht.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            Button {
-                Task { await runtime.startHandheldSolo(preferCloud: true) }
-            } label: {
-                Text(runtime.isSoloMode ? "Cloud-Daten neu laden" : "Ohne iPad (Cloud) starten")
-                    .frame(maxWidth: .infinity)
+        #if DEBUG
+        if PosSecurityPolicy.allowsSoloMode {
+            Section("DEBUG · Solo ohne iPad") {
+                Text("Nur Labor — produktiv ist die Hub-Kopplung Pflicht.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button {
+                    Task { await runtime.startHandheldSolo(preferCloud: true) }
+                } label: {
+                    Text(runtime.isSoloMode ? "Cloud-Daten neu laden" : "Ohne iPad (Cloud) starten")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PosPrimaryButtonStyle())
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                .listRowBackground(Color.clear)
             }
-            .buttonStyle(PosPrimaryButtonStyle())
-            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-            .listRowBackground(Color.clear)
-
-            Toggle(
-                "Nest-Fallback (ohne Hub)",
-                isOn: Binding(
-                    get: { PosCloudConfig.nestClientFallbackEnabled },
-                    set: { PosCloudConfig.setNestClientFallbackEnabled($0) }
-                )
-            )
         }
+        #endif
 
         Section("Verbindung zur Kasse") {
             if PosEnrollmentStore.shared.isHandheldPaired {
                 LabeledContent("Pairing", value: "Gespeichert (bis Widerruf)")
             }
-            if let url = runtime.hubBaseURL {
-                LabeledContent("Hub", value: url.absoluteString)
+            if runtime.isHubDisconnectedWhilePaired {
+                Text("Kasse getrennt — Cache aktiv. Banner oben antippen zum Suchen.")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
             }
-            TextField("Hub-IP (Fallback)", text: $hubIP)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.numbersAndPunctuation)
-            Button("Hub-IP speichern & abrufen") {
-                Task { await runtime.saveManualHost(hubIP) }
-            }
-            .disabled(hubIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Erneut nach Kasse suchen") {
-                Task { await runtime.refresh() }
+                Task { await runtime.reconnectToHub() }
             }
-            Text("Ohne erreichbare Kasse bleibt Cloud/Cache aktiv — Pairing wird nicht gelöscht.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            .disabled(runtime.hubConnectionBannerSearching)
+
+            DisclosureGroup("Support · Hub-IP", isExpanded: $showSupport) {
+                if let url = runtime.hubBaseURL {
+                    LabeledContent("Hub", value: url.host ?? url.absoluteString)
+                }
+                TextField("Hub-IP (Fallback)", text: $hubIP)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.numbersAndPunctuation)
+                Button("Hub-IP speichern & abrufen") {
+                    Task { await runtime.saveManualHost(hubIP) }
+                }
+                .disabled(hubIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
         }
 
+        #if DEBUG
         nestSyncSection
+        #endif
+
         Section {
             Button("Abmelden", role: .destructive) {
                 confirmSignOut = true
             }
+        } footer: {
+            Text("Setzt Einrichtung und Pairing zurück. Nur wenn das Gerät neu eingerichtet werden soll.")
         }
     }
 
+    #if DEBUG
     @ViewBuilder
     private var nestSyncSection: some View {
-        Section("Nest Sync") {
+        Section("DEBUG · Nest Sync") {
             LabeledContent(
                 "Outbox",
                 value: PosCloudConfig.nestSyncEnabled ? "Nest aktiv" : "Next `/api/pos`"
             )
             LabeledContent("Gerät-ID", value: String(PosDeviceIdentity.id.prefix(8)) + "…")
-            LabeledContent("Daten", value: runtime.dataSourceLabel)
-            LabeledContent("API", value: PosCloudConfig.apiBaseURL.host ?? PosCloudConfig.apiBaseURL.absoluteString)
-            Button("Cloud-Daten neu laden") {
-                Task { await runtime.reloadCloudData() }
+            TextField("Nest API-Basis", text: $runtime.nestApiBaseInput)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.URL)
+            TextField("Waiter Profile-ID", text: $runtime.waiterProfileIdInput)
+                .textInputAutocapitalization(.never)
+            Button("Speichern") {
+                runtime.saveNestSettingsFromInputs()
             }
-            DisclosureGroup("Nest / Waiter") {
-                TextField("Nest API-Basis", text: $runtime.nestApiBaseInput)
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.URL)
-                TextField("Waiter Profile-ID", text: $runtime.waiterProfileIdInput)
-                    .textInputAutocapitalization(.never)
-                Button("Speichern") {
-                    runtime.saveNestSettingsFromInputs()
-                }
-                if PosCloudConfig.nestSyncEnabled {
-                    Toggle(
-                        "Nest-Fallback (Hub offline)",
-                        isOn: Binding(
-                            get: { PosCloudConfig.nestClientFallbackEnabled },
-                            set: { PosCloudConfig.setNestClientFallbackEnabled($0) }
-                        )
+            if PosCloudConfig.nestSyncEnabled {
+                Toggle(
+                    "Nest-Fallback (Hub offline)",
+                    isOn: Binding(
+                        get: { PosCloudConfig.nestClientFallbackEnabled },
+                        set: { PosCloudConfig.setNestClientFallbackEnabled($0) }
                     )
-                }
+                )
             }
         }
     }
+    #endif
 
     private var phaseLabel: String {
         switch runtime.phase {
@@ -180,6 +183,9 @@ struct DeviceSettingsView: View {
         case .searching: return "Suche Kasse …"
         case .awaitingApproval: return "Warte auf Freigabe …"
         case .connected:
+            if runtime.isHubDisconnectedWhilePaired {
+                return "Kasse getrennt"
+            }
             return runtime.isSoloMode ? "Solo aktiv" : "Mit Kasse verbunden"
         case .error(let message): return message
         }

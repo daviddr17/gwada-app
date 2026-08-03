@@ -58,7 +58,7 @@ struct WalkInSheet: View {
                     Button("Platzieren") {
                         Task { await place() }
                     }
-                    .disabled(busy || selectedTableId == nil)
+                    .disabled(busy || selectedTableId == nil || !runtime.canOpenNewTableSession)
                 }
             }
         }
@@ -72,6 +72,10 @@ struct WalkInSheet: View {
     }
 
     private func place() async {
+        guard runtime.canOpenNewTableSession else {
+            runtime.announce("Neuer Tisch nur mit erreichbarer Kasse.")
+            return
+        }
         guard let tableId = selectedTableId else { return }
         busy = true
         defer { busy = false }

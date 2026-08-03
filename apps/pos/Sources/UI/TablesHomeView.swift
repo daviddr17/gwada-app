@@ -25,13 +25,21 @@ struct TablesHomeView: View {
                                 ForEach(tables) { table in
                                     let open = floor.openSessions.first { $0.dining_table_id == table.id }
                                     let meta = open.flatMap { floor.sessionMetaBySessionId[$0.id] }
-                                    NavigationLink {
-                                        TableSessionView(table: table, sessionId: open?.id)
-                                    } label: {
+                                    let cacheOnlyFree =
+                                        runtime.isHubDisconnectedWhilePaired && open == nil
+                                    if cacheOnlyFree {
                                         tableCard(table: table, open: open, meta: meta)
+                                            .opacity(0.45)
+                                            .accessibilityLabel("\(table.label), geschlossen — Kasse getrennt")
+                                    } else {
+                                        NavigationLink {
+                                            TableSessionView(table: table, sessionId: open?.id)
+                                        } label: {
+                                            tableCard(table: table, open: open, meta: meta)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityIdentifier("pos.table.\(table.label)")
                                     }
-                                    .buttonStyle(.plain)
-                                    .accessibilityIdentifier("pos.table.\(table.label)")
                                 }
                             }
                             statusLegend
@@ -53,9 +61,11 @@ struct TablesHomeView: View {
                 } description: {
                     Text(
                         runtime.role == .handheld
-                            ? (runtime.isSoloMode
-                                ? "Keine Tischdaten — Mehr → Speisekarte aktualisieren oder Gerät."
-                                : "iPad suchen oder unter Mehr ohne iPad (Cloud) weiterarbeiten.")
+                            ? (runtime.isHubDisconnectedWhilePaired
+                                ? "Kein Cache — einmal mit der Kasse verbinden, dann offline weiterarbeiten."
+                                : (runtime.isSoloMode
+                                    ? "Keine Tischdaten — Mehr → Speisekarte aktualisieren oder Gerät."
+                                    : "iPad suchen oder unter Mehr die Kasse koppeln."))
                             : "Nach dem Login werden Tische und Speisekarte geladen."
                     )
                 }
@@ -71,6 +81,7 @@ struct TablesHomeView: View {
                 } label: {
                     Image(systemName: "person.badge.plus")
                 }
+                .disabled(!runtime.canOpenNewTableSession)
                 .accessibilityLabel("Walk-in")
             }
             ToolbarItem(placement: .topBarTrailing) {

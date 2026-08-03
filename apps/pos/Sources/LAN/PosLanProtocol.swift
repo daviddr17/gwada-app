@@ -23,6 +23,7 @@ enum PosLanProtocol {
     static let headerProtocol = "X-Gwada-Pos-Lan"
     static let headerRestaurantId = "X-Gwada-Restaurant-Id"
     static let headerPairToken = "X-Gwada-Pair-Token"
+    static let headerLanSecret = "X-Gwada-Pos-Lan-Secret"
 
     static func bonjourName(restaurantName: String) -> String {
         let base = "Gwada Kasse · \(restaurantName.trimmingCharacters(in: .whitespacesAndNewlines))"

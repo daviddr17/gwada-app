@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// iPhone: optional LAN-Kopplung mit iPad (Cloud läuft ohne Hub).
+/// iPhone: LAN-Kopplung mit iPad-Kasse (Hub Pflicht nach Phase 1).
 struct HandheldPairingGateView: View {
     @EnvironmentObject private var runtime: PosRuntime
     #if DEBUG
@@ -36,7 +36,7 @@ struct HandheldPairingGateView: View {
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(PosDesign.ink)
                     Text(
-                        "Optional: Live-Tische im WLAN. Speisekarte kommt weiter aus der Cloud — Freigabe bleibt bis zum Widerruf."
+                        "Gleiches WLAN, Freigabe am iPad. Die Kopplung bleibt bis zum Widerruf — danach Live-Tische und Kassieren über die Kasse."
                     )
                     .multilineTextAlignment(.center)
                     .foregroundStyle(PosDesign.muted)

@@ -120,18 +120,29 @@ export class OrdersService {
       };
     }
 
-    const { error: linesError } = await sb
+    const { data: insertedLines, error: linesError } = await sb
       .from("pos_order_lines")
-      .insert(lineRows.map((row) => ({ ...row, order_id: order.id })));
+      .insert(lineRows.map((row) => ({ ...row, order_id: order.id })))
+      .select("id, position, menu_item_id, quantity");
     if (linesError) {
       await sb.from("pos_orders").delete().eq("id", order.id);
       return { ok: false as const, error: linesError.message, status: 500 };
     }
 
+    const lines = (insertedLines ?? [])
+      .map((l) => ({
+        id: l.id as string,
+        position: Number(l.position ?? 0),
+        menuItemId: (l.menu_item_id as string | null) ?? undefined,
+        quantity: Number(l.quantity ?? 1),
+      }))
+      .sort((a, b) => a.position - b.position);
+
     return {
       ok: true as const,
       orderId: order.id as string,
       orderNumber: order.order_number as number,
+      lines,
     };
   }
 

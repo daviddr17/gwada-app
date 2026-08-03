@@ -43,6 +43,8 @@ struct ReservationsView: View {
             fabButton
                 .padding(.trailing, 20)
                 .padding(.bottom, 20)
+                .opacity(runtime.canWriteReservations ? 1 : 0.35)
+                .disabled(!runtime.canWriteReservations)
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Reservierungen")
@@ -54,6 +56,7 @@ struct ReservationsView: View {
                 } label: {
                     Image(systemName: "person.badge.plus")
                 }
+                .disabled(!runtime.canWriteReservations)
                 .accessibilityLabel("Walk-in")
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -114,6 +117,13 @@ struct ReservationsView: View {
                 Text(errorText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+
+            if !runtime.canWriteReservations {
+                Text("Nur Anzeige — Reservierungen anlegen nur mit erreichbarer Kasse.")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, PosDesign.sectionSpacing)
@@ -309,6 +319,7 @@ struct ReservationsView: View {
 
     private var fabButton: some View {
         Button {
+            guard runtime.canWriteReservations else { return }
             prepareCreateDefaults()
             showCreate = true
         } label: {
@@ -582,6 +593,10 @@ struct ReservationsView: View {
 
     private func create() async {
         errorText = ""
+        guard runtime.canWriteReservations else {
+            errorText = "Reservierung nur mit erreichbarer Kasse."
+            return
+        }
         let last = guestLastName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !last.isEmpty else {
             errorText = "Nachname erforderlich."

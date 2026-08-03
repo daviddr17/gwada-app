@@ -136,7 +136,14 @@ export class SyncService {
           })),
         });
         return r.ok
-          ? { ok: true, result: { orderId: r.orderId, orderNumber: r.orderNumber } }
+          ? {
+              ok: true,
+              result: {
+                orderId: r.orderId,
+                orderNumber: r.orderNumber,
+                lines: r.lines ?? [],
+              },
+            }
           : { ok: false, error: r.error };
       }
       case "course.fired": {

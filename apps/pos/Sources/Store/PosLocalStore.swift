@@ -1,7 +1,10 @@
 import Foundation
 
 /// Persistenter Cache für Bootstrap (Floor + Speisekarte) auf dem Kassen-iPad.
+/// Encode + Disk-I/O laufen auf einer Serial-Queue — Aufrufer (auch unter `PosHubState`-Lock) blockieren nicht.
 enum PosLocalStore {
+    private static let ioQueue = DispatchQueue(label: "app.gwada.pos.local-store", qos: .utility)
+
     private static var directory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = base.appendingPathComponent("GwadaPOS", isDirectory: true)
@@ -14,10 +17,11 @@ enum PosLocalStore {
     }
 
     static func saveBootstrap(_ bootstrap: PosCloudBootstrap) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(bootstrap) else { return }
-        try? data.write(to: bootstrapURL, options: [.atomic])
+        ioQueue.async {
+            let encoder = JSONEncoder()
+            guard let data = try? encoder.encode(bootstrap) else { return }
+            try? data.write(to: bootstrapURL, options: [.atomic])
+        }
     }
 
     static func loadBootstrap() -> PosCloudBootstrap? {
@@ -30,11 +34,12 @@ enum PosLocalStore {
     }
 
     static func saveOpenLines(_ linesBySession: [String: [SessionOpenLine]]) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(linesBySession) else { return }
-        try? data.write(to: openLinesURL, options: [.atomic])
+        ioQueue.async {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            guard let data = try? encoder.encode(linesBySession) else { return }
+            try? data.write(to: openLinesURL, options: [.atomic])
+        }
     }
 
     static func loadOpenLines() -> [String: [SessionOpenLine]]? {
@@ -49,14 +54,20 @@ enum PosLocalStore {
     }
 
     static func saveReservationsCache(_ cache: [String: PosReservationsDayDto]) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(cache) else { return }
-        try? data.write(to: reservationsURL, options: [.atomic])
+        ioQueue.async {
+            let encoder = JSONEncoder()
+            guard let data = try? encoder.encode(cache) else { return }
+            try? data.write(to: reservationsURL, options: [.atomic])
+        }
     }
 
     static func loadReservationsCache() -> [String: PosReservationsDayDto]? {
         guard let data = try? Data(contentsOf: reservationsURL) else { return nil }
         return try? JSONDecoder().decode([String: PosReservationsDayDto].self, from: data)
+    }
+
+    /// Tests: wartet auf ausstehende Writes.
+    static func flushForTests() {
+        ioQueue.sync {}
     }
 }

@@ -10,6 +10,7 @@ type CollectAllocationsBody = {
   allocations?: Array<{ orderLineId?: string; quantity?: number }>;
   tipCents?: number;
   receivedAmountCents?: number | null;
+  paymentAttemptId?: string | null;
 };
 
 export async function POST(request: Request) {
@@ -41,6 +42,10 @@ export async function POST(request: Request) {
     return posError("empty_allocations", 400);
   }
 
+  const headerAttempt = request.headers.get("Idempotency-Key")?.trim() || null;
+  const paymentAttemptId =
+    body.paymentAttemptId?.trim() || headerAttempt || null;
+
   const result = await collectCashAllocations({
     supabase: authResult.auth.supabase,
     restaurantId: authResult.auth.restaurantId,
@@ -48,6 +53,7 @@ export async function POST(request: Request) {
     allocations,
     tipCents: body.tipCents,
     receivedAmountCents: body.receivedAmountCents,
+    paymentAttemptId,
   });
 
   if (!result.ok) {

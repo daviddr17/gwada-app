@@ -22,15 +22,31 @@ enum HandheldHubClientError: LocalizedError {
 }
 
 enum HandheldHubClient {
-    private static let session: URLSession = {
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 8
-        config.timeoutIntervalForResource = 12
-        return URLSession(configuration: config)
-    }()
+    private static let sessionLock = NSLock()
+    private static var pinnedFingerprint: String?
+    private static var urlSession: URLSession = HandheldHubTLS.makeSession(pinnedFingerprintHex: nil)
 
     private static let decoder = JSONDecoder()
     private static let encoder = JSONEncoder()
+
+    /// Pin nach Pairing / aus Enrollment setzen (nil = TOFU für ersten Kontakt).
+    static func configureTLSPin(fingerprintHex: String?) {
+        sessionLock.lock()
+        defer { sessionLock.unlock() }
+        let normalized = fingerprintHex?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let pin = (normalized?.isEmpty == false) ? normalized : nil
+        guard pin != pinnedFingerprint else { return }
+        pinnedFingerprint = pin
+        urlSession = HandheldHubTLS.makeSession(pinnedFingerprintHex: pin)
+    }
+
+    private static func activeSession() -> URLSession {
+        sessionLock.lock()
+        defer { sessionLock.unlock() }
+        return urlSession
+    }
 
     private static func applyPairToken(_ token: String?, to request: inout URLRequest) {
         if let token, !token.isEmpty {
@@ -222,7 +238,7 @@ enum HandheldHubClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
         request.httpBody = try encoder.encode(req)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await activeSession().data(for: request)
         guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
         guard http.statusCode == 201 || http.statusCode == 200 else {
             throw HandheldHubClientError.httpStatus(http.statusCode)
@@ -235,11 +251,24 @@ enum HandheldHubClient {
         let target = URL(string: "\(url(baseURL, path: PosLanProtocol.pairStatusPath).absoluteString)?pairId=\(escaped)")!
         var request = URLRequest(url: target)
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await activeSession().data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw HandheldHubClientError.invalidResponse
         }
         return try decoder.decode(PosLanPairStatus.self, from: data)
+    }
+
+    static func refreshPairing(baseURL: URL, pairToken: String) async throws -> PosLanPairRefreshResponse {
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.pairRefreshPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        request.httpBody = Data("{}".utf8)
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
+        return try decoder.decode(PosLanPairRefreshResponse.self, from: data)
     }
 
     private static func url(_ base: URL, path: String) -> URL {
@@ -248,9 +277,9 @@ enum HandheldHubClient {
 
     private static func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
         do {
-            return try await session.data(for: request)
+            return try await activeSession().data(for: request)
         } catch {
-            throw HandheldHubClientError.unreachable(request.url ?? URL(string: "http://invalid")!)
+            throw HandheldHubClientError.unreachable(request.url ?? URL(string: "https://invalid")!)
         }
     }
 }

@@ -20,17 +20,26 @@ final class PosPairingStore: @unchecked Sendable {
         /// SHA-256 hex of pair token (never plaintext on disk).
         var tokenHash: String
         var approvedAt: Date
+        /// Wann der Token ungültig wird (P2-1). Fehlt bei Legacy → Migration.
+        var expiresAt: Date?
 
         enum CodingKeys: String, CodingKey {
-            case installationId, deviceName, tokenHash, approvedAt
+            case installationId, deviceName, tokenHash, approvedAt, expiresAt
             case token // legacy plaintext (migrate → hash)
         }
 
-        init(installationId: String, deviceName: String, tokenHash: String, approvedAt: Date) {
+        init(
+            installationId: String,
+            deviceName: String,
+            tokenHash: String,
+            approvedAt: Date,
+            expiresAt: Date?
+        ) {
             self.installationId = installationId
             self.deviceName = deviceName
             self.tokenHash = tokenHash
             self.approvedAt = approvedAt
+            self.expiresAt = expiresAt
         }
 
         init(from decoder: Decoder) throws {
@@ -38,6 +47,7 @@ final class PosPairingStore: @unchecked Sendable {
             installationId = try c.decode(String.self, forKey: .installationId)
             deviceName = try c.decode(String.self, forKey: .deviceName)
             approvedAt = try c.decode(Date.self, forKey: .approvedAt)
+            expiresAt = try c.decodeIfPresent(Date.self, forKey: .expiresAt)
             if let hash = try c.decodeIfPresent(String.self, forKey: .tokenHash), !hash.isEmpty {
                 tokenHash = hash
             } else if let legacy = try c.decodeIfPresent(String.self, forKey: .token), !legacy.isEmpty {
@@ -53,10 +63,15 @@ final class PosPairingStore: @unchecked Sendable {
             try c.encode(deviceName, forKey: .deviceName)
             try c.encode(tokenHash, forKey: .tokenHash)
             try c.encode(approvedAt, forKey: .approvedAt)
+            try c.encodeIfPresent(expiresAt, forKey: .expiresAt)
         }
     }
 
     let pendingTTL: TimeInterval = 300
+    /// Pair-Token Lebensdauer (Schicht-Fenster).
+    let tokenTTL: TimeInterval = 8 * 60 * 60
+    /// Nach Expiry noch kurz refreshbar.
+    let refreshGraceTTL: TimeInterval = 15 * 60
 
     private let lock = NSLock()
     private let now: () -> Date
@@ -70,6 +85,11 @@ final class PosPairingStore: @unchecked Sendable {
     /// Klartext nur bis das Handgerät `pair/status` abholt (nicht persistiert).
     private var deliveryTokensByPair: [String: String] = [:]
     private var hubInfo: PosLanHubInfo?
+    private let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
 
     init(
         now: @escaping () -> Date = { Date() },
@@ -83,13 +103,33 @@ final class PosPairingStore: @unchecked Sendable {
             approvedByPair = persisted.approvedByPair
             validTokenHashes = Set(persisted.tokenHashes)
             for raw in persisted.legacyPlainTokens ?? [] where !raw.isEmpty {
-                validTokenHashes.insert(PosTokenHash.sha256Hex(raw))
+                let hash = PosTokenHash.sha256Hex(raw)
+                validTokenHashes.insert(hash)
+                if !approvedByPair.values.contains(where: { $0.tokenHash == hash }) {
+                    let pairId = "legacy-\(hash.prefix(12))"
+                    let approvedAt = now()
+                    approvedByPair[pairId] = ApprovedDevice(
+                        installationId: pairId,
+                        deviceName: "Legacy",
+                        tokenHash: hash,
+                        approvedAt: approvedAt,
+                        expiresAt: approvedAt.addingTimeInterval(tokenTTL)
+                    )
+                }
             }
             for device in approvedByPair.values where !device.tokenHash.isEmpty {
                 validTokenHashes.insert(device.tokenHash)
             }
+            // Legacy ohne expiresAt → Schicht-Fenster ab approvedAt.
+            var migratedExpiry = false
+            for (pairId, device) in approvedByPair where device.expiresAt == nil {
+                var copy = device
+                copy.expiresAt = device.approvedAt.addingTimeInterval(tokenTTL)
+                approvedByPair[pairId] = copy
+                migratedExpiry = true
+            }
             // Legacy plaintext → rewrite hashed-only.
-            if persisted.legacyPlainTokens?.isEmpty == false || persisted.usedLegacyTokenField {
+            if persisted.legacyPlainTokens?.isEmpty == false || persisted.usedLegacyTokenField || migratedExpiry {
                 persistLocked()
             }
         }
@@ -117,17 +157,23 @@ final class PosPairingStore: @unchecked Sendable {
     func status(pairId: String) -> PosLanPairStatus {
         lock.lock(); defer { lock.unlock() }
         expireLocked()
-        if approvedByPair[pairId] != nil {
+        if let device = approvedByPair[pairId] {
             let delivery = deliveryTokensByPair.removeValue(forKey: pairId)
-            return PosLanPairStatus(state: .approved, token: delivery, hub: hubInfo)
+            let expires = device.expiresAt.map { isoFormatter.string(from: $0) }
+            return PosLanPairStatus(
+                state: .approved,
+                token: delivery,
+                hub: hubInfo,
+                tokenExpiresAt: expires
+            )
         }
         if pending[pairId] != nil {
-            return PosLanPairStatus(state: .pending, token: nil, hub: nil)
+            return PosLanPairStatus(state: .pending, token: nil, hub: nil, tokenExpiresAt: nil)
         }
         if expiredPairIds.contains(pairId) {
-            return PosLanPairStatus(state: .expired, token: nil, hub: nil)
+            return PosLanPairStatus(state: .expired, token: nil, hub: nil, tokenExpiresAt: nil)
         }
-        return PosLanPairStatus(state: .rejected, token: nil, hub: nil)
+        return PosLanPairStatus(state: .rejected, token: nil, hub: nil, tokenExpiresAt: nil)
     }
 
     @discardableResult
@@ -137,11 +183,13 @@ final class PosPairingStore: @unchecked Sendable {
         guard let p = pending.removeValue(forKey: pairId) else { return nil }
         let token = Self.makeToken()
         let hash = PosTokenHash.sha256Hex(token)
+        let approvedAt = now()
         approvedByPair[pairId] = ApprovedDevice(
             installationId: p.installationId,
             deviceName: p.deviceName,
             tokenHash: hash,
-            approvedAt: now()
+            approvedAt: approvedAt,
+            expiresAt: approvedAt.addingTimeInterval(tokenTTL)
         )
         validTokenHashes.insert(hash)
         deliveryTokensByPair[pairId] = token
@@ -167,8 +215,38 @@ final class PosPairingStore: @unchecked Sendable {
 
     func verify(token: String) -> Bool {
         lock.lock(); defer { lock.unlock() }
-        let hash = PosTokenHash.sha256Hex(token)
-        return validTokenHashes.contains(hash)
+        prunePastGraceLocked()
+        guard let device = deviceForTokenLocked(token) else { return false }
+        let expires = device.expiresAt ?? device.approvedAt.addingTimeInterval(tokenTTL)
+        return now() < expires
+    }
+
+    /// Rotiert Token wenn noch gültig oder in Grace nach Expiry.
+    func refresh(token: String) -> PosLanPairRefreshResponse? {
+        lock.lock(); defer { lock.unlock() }
+        prunePastGraceLocked()
+        guard let pairId = pairIdForTokenLocked(token),
+              var device = approvedByPair[pairId]
+        else { return nil }
+        let expires = device.expiresAt ?? device.approvedAt.addingTimeInterval(tokenTTL)
+        guard now() < expires.addingTimeInterval(refreshGraceTTL) else { return nil }
+        let oldHash = device.tokenHash
+        let newToken = Self.makeToken()
+        let newHash = PosTokenHash.sha256Hex(newToken)
+        let issuedAt = now()
+        let expiresAt = issuedAt.addingTimeInterval(tokenTTL)
+        device.tokenHash = newHash
+        device.approvedAt = issuedAt
+        device.expiresAt = expiresAt
+        approvedByPair[pairId] = device
+        validTokenHashes.remove(oldHash)
+        validTokenHashes.insert(newHash)
+        persistLocked()
+        return PosLanPairRefreshResponse(
+            token: newToken,
+            expiresAt: isoFormatter.string(from: expiresAt),
+            hub: hubInfo
+        )
     }
 
     func revoke(token: String) {
@@ -191,6 +269,7 @@ final class PosPairingStore: @unchecked Sendable {
 
     func approvedList() -> [ApprovedDevice] {
         lock.lock(); defer { lock.unlock() }
+        prunePastGraceLocked()
         return approvedByPair.values.sorted { $0.approvedAt < $1.approvedAt }
     }
 
@@ -270,6 +349,33 @@ final class PosPairingStore: @unchecked Sendable {
             pending.removeValue(forKey: pairId)
             expiredPairIds.insert(pairId)
         }
+    }
+
+    /// `pairId` wenn Token-Hash bekannt (auch während Grace nach Expiry).
+    private func pairIdForTokenLocked(_ token: String) -> String? {
+        let hash = PosTokenHash.sha256Hex(token)
+        guard validTokenHashes.contains(hash) else { return nil }
+        return approvedByPair.first(where: { $0.value.tokenHash == hash })?.key
+    }
+
+    private func deviceForTokenLocked(_ token: String) -> ApprovedDevice? {
+        guard let pairId = pairIdForTokenLocked(token) else { return nil }
+        return approvedByPair[pairId]
+    }
+
+    /// Entfernt nur Tokens nach TTL + Grace — Grace bleibt für Refresh nutzbar.
+    private func prunePastGraceLocked() {
+        let t = now()
+        var removed = false
+        for (pairId, device) in approvedByPair {
+            let expires = device.expiresAt ?? device.approvedAt.addingTimeInterval(tokenTTL)
+            if t >= expires.addingTimeInterval(refreshGraceTTL) {
+                validTokenHashes.remove(device.tokenHash)
+                approvedByPair.removeValue(forKey: pairId)
+                removed = true
+            }
+        }
+        if removed { persistLocked() }
     }
 
     private static func makeToken() -> String {

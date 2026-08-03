@@ -53,6 +53,15 @@ struct PosLanHubInfo: Codable, Equatable, Sendable {
     var deviceId: String
     var displayName: String
     var role: String
+    /// SHA-256 Fingerprint des Hub-TLS-Zerts (lowercase hex), P2-1.
+    var tlsFingerprint: String?
+
+    init(deviceId: String, displayName: String, role: String, tlsFingerprint: String? = nil) {
+        self.deviceId = deviceId
+        self.displayName = displayName
+        self.role = role
+        self.tlsFingerprint = tlsFingerprint
+    }
 }
 
 struct PosLanHubSnapshot: Codable, Equatable, Sendable {

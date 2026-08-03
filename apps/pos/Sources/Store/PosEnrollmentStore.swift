@@ -13,6 +13,7 @@ final class PosEnrollmentStore: ObservableObject {
     private let handheldHubURLKey = "gwada_pos_handheld_hub_url"
     private let restaurantNameKey = "gwada_pos_enrolled_restaurant_name"
     private let pairTokenKeychainAccount = "hub_pair_token"
+    private let tlsFingerprintKeychainAccount = "hub_tls_fingerprint"
 
     @Published private(set) var isHubEnrolled: Bool
     /// LAN-Kopplung mit iPad-Kasse (Token bis Revoke).
@@ -21,6 +22,7 @@ final class PosEnrollmentStore: ObservableObject {
     @Published private(set) var isHandheldCloudReady: Bool
     @Published private(set) var handheldPairToken: String?
     @Published private(set) var handheldHubBaseURL: String?
+    @Published private(set) var handheldTlsFingerprint: String?
     @Published private(set) var restaurantDisplayName: String
 
     /// Onboarding fertig für Service: LAN-Pairing (oder DEBUG-Solo über Runtime).
@@ -44,16 +46,26 @@ final class PosEnrollmentStore: ObservableObject {
             UserDefaults.standard.removeObject(forKey: handheldHubURLKey)
             UserDefaults.standard.removeObject(forKey: restaurantNameKey)
             PosKeychain.delete(account: pairTokenKeychainAccount)
+            PosKeychain.delete(account: tlsFingerprintKeychainAccount)
             PosEnrollmentCredential.clear()
         }
         isHubEnrolled = UserDefaults.standard.bool(forKey: hubConfiguredKey)
         isHandheldPaired = UserDefaults.standard.bool(forKey: handheldPairedKey)
-        handheldHubBaseURL = UserDefaults.standard.string(forKey: handheldHubURLKey)
+        if let rawURL = UserDefaults.standard.string(forKey: handheldHubURLKey) {
+            let normalized = PosLanProtocol.normalizeHubBaseURLString(rawURL)
+            handheldHubBaseURL = normalized
+            if normalized != rawURL {
+                UserDefaults.standard.set(normalized, forKey: handheldHubURLKey)
+            }
+        } else {
+            handheldHubBaseURL = nil
+        }
         restaurantDisplayName = UserDefaults.standard.string(forKey: restaurantNameKey) ?? ""
         handheldPairToken = Self.loadPairTokenMigratingLegacy(
             keychainAccount: pairTokenKeychainAccount,
             legacyDefaultsKey: legacyHandheldTokenKey
         )
+        handheldTlsFingerprint = PosKeychain.get(account: tlsFingerprintKeychainAccount)
         var cloudReady = UserDefaults.standard.bool(forKey: handheldCloudReadyKey)
         // Resume: Credential da, Flag fehlte (Crash mitten im Wizard) → als bereit werten.
         if !cloudReady, PosEnrollmentCredential.hasCredential {
@@ -87,14 +99,25 @@ final class PosEnrollmentStore: ObservableObject {
         UserDefaults.standard.set(true, forKey: handheldPairedKey)
     }
 
-    func markHandheldPaired(token: String, hubBaseURL: String) {
+    func markHandheldPaired(token: String, hubBaseURL: String, tlsFingerprint: String? = nil) {
         isHandheldPaired = true
         handheldPairToken = token
-        handheldHubBaseURL = hubBaseURL
+        let normalized = PosLanProtocol.normalizeHubBaseURLString(hubBaseURL)
+        handheldHubBaseURL = normalized
         UserDefaults.standard.set(true, forKey: handheldPairedKey)
         PosKeychain.set(token, account: pairTokenKeychainAccount)
         UserDefaults.standard.removeObject(forKey: legacyHandheldTokenKey)
-        UserDefaults.standard.set(hubBaseURL, forKey: handheldHubURLKey)
+        UserDefaults.standard.set(normalized, forKey: handheldHubURLKey)
+        if let tlsFingerprint, !tlsFingerprint.isEmpty {
+            handheldTlsFingerprint = tlsFingerprint.lowercased()
+            PosKeychain.set(tlsFingerprint.lowercased(), account: tlsFingerprintKeychainAccount)
+        }
+    }
+
+    func updatePairToken(_ token: String) {
+        handheldPairToken = token
+        PosKeychain.set(token, account: pairTokenKeychainAccount)
+        UserDefaults.standard.removeObject(forKey: legacyHandheldTokenKey)
     }
 
     func resetHubEnrollment() {
@@ -108,10 +131,12 @@ final class PosEnrollmentStore: ObservableObject {
         isHandheldPaired = false
         handheldPairToken = nil
         handheldHubBaseURL = nil
+        handheldTlsFingerprint = nil
         UserDefaults.standard.removeObject(forKey: handheldPairedKey)
         UserDefaults.standard.removeObject(forKey: legacyHandheldTokenKey)
         UserDefaults.standard.removeObject(forKey: handheldHubURLKey)
         PosKeychain.delete(account: pairTokenKeychainAccount)
+        PosKeychain.delete(account: tlsFingerprintKeychainAccount)
     }
 
     func resetHandheldCloud() {

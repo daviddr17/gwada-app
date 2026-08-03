@@ -24,4 +24,13 @@ struct PosLanPairStatus: Codable, Equatable, Sendable {
     var state: PosLanPairState
     var token: String?
     var hub: PosLanHubInfo?
+    /// ISO8601 — wann der Pair-Token abläuft (P2-1).
+    var tokenExpiresAt: String?
+}
+
+/// Antwort auf `POST /v1/pair/refresh`.
+struct PosLanPairRefreshResponse: Codable, Equatable, Sendable {
+    var token: String
+    var expiresAt: String
+    var hub: PosLanHubInfo?
 }

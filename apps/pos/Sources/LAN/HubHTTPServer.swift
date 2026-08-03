@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import Security
 
 /// Minimaler HTTP/1.1-Server für die iPad-Kasse (Network.framework).
 final class HubHTTPServer: @unchecked Sendable {
@@ -7,16 +8,30 @@ final class HubHTTPServer: @unchecked Sendable {
 
     private let port: NWEndpoint.Port
     private let handler: Handler
+    private let tlsIdentity: SecIdentity?
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "app.gwada.pos.hub-http")
 
-    init(port: UInt16 = PosLanProtocol.hubPort, handler: @escaping Handler) {
+    init(
+        port: UInt16 = PosLanProtocol.hubPort,
+        tlsIdentity: SecIdentity? = nil,
+        handler: @escaping Handler
+    ) {
         self.port = NWEndpoint.Port(rawValue: port)!
+        self.tlsIdentity = tlsIdentity
         self.handler = handler
     }
 
     func start() throws {
-        let parameters = NWParameters.tcp
+        let parameters: NWParameters
+        if let identity = tlsIdentity {
+            let tls = NWProtocolTLS.Options()
+            let secIdentity = sec_identity_create(identity)!
+            sec_protocol_options_set_local_identity(tls.securityProtocolOptions, secIdentity)
+            parameters = NWParameters(tls: tls, tcp: NWProtocolTCP.Options())
+        } else {
+            parameters = NWParameters.tcp
+        }
         parameters.allowLocalEndpointReuse = true
         let listener = try NWListener(using: parameters, on: port)
         self.listener = listener

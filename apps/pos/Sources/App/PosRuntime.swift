@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import SwiftUI
 
 @MainActor
@@ -160,6 +161,9 @@ final class PosRuntime: ObservableObject {
                 statusMessage = "Kasse einrichten."
             }
         case .handheld:
+            HandheldHubClient.configureTLSPin(
+                fingerprintHex: PosEnrollmentStore.shared.handheldTlsFingerprint
+            )
             if PosEnrollmentStore.shared.isHandheldPaired {
                 restoreHandheldSnapshotCacheIfNeeded()
                 await tryReconnectHubKeepingPairing()
@@ -1658,8 +1662,24 @@ final class PosRuntime: ObservableObject {
     private func startHub() async {
         stopHub()
         PosHubState.shared.configure(hubDeviceId: hubDeviceId)
+
+        let tlsIdentity: SecIdentity
+        do {
+            tlsIdentity = try PosHubTLSIdentity.loadOrCreate()
+        } catch {
+            phase = .error(error.localizedDescription)
+            statusMessage = "TLS-Identität fehlgeschlagen: \(error.localizedDescription)"
+            return
+        }
+        let tlsFingerprint = PosHubTLSIdentity.certificateFingerprintSHA256Hex(identity: tlsIdentity)
+
         PosPairingStore.shared.configureHubInfo(
-            PosLanHubInfo(deviceId: hubDeviceId, displayName: PosHubState.shared.restaurantName, role: "hub")
+            PosLanHubInfo(
+                deviceId: hubDeviceId,
+                displayName: PosHubState.shared.restaurantName,
+                role: "hub",
+                tlsFingerprint: tlsFingerprint
+            )
         )
         PosHubState.shared.loadCachedOrDemo()
 
@@ -1669,7 +1689,7 @@ final class PosRuntime: ObservableObject {
         dataSourceLabel = PosHubState.shared.isDemo ? "Demo/Cache" : "Cloud-Cache"
         await pullReservationsDay(PosReservationsStore.todayYmd())
 
-        let server = HubHTTPServer { method, path, headers, body in
+        let server = HubHTTPServer(tlsIdentity: tlsIdentity) { method, path, headers, body in
             Self.handleHubRequest(method: method, path: path, headers: headers, body: body)
         }
 
@@ -1680,16 +1700,17 @@ final class PosRuntime: ObservableObject {
             advertiser.publish(
                 name: name,
                 port: Int(PosLanProtocol.hubPort),
-                restaurantId: PosHubState.shared.restaurantId
+                restaurantId: PosHubState.shared.restaurantId,
+                tlsFingerprint: tlsFingerprint
             )
             bonjourPublishing = true
             phase = .hubReady
             if !isSignedIn {
-                statusMessage = "Kasse läuft lokal. Anmelden für Cloud-Pull & Sync."
+                statusMessage = "Kasse läuft lokal (TLS). Anmelden für Cloud-Pull & Sync."
             } else {
                 statusMessage = PosHubState.shared.isDemo
-                    ? "Kasse läuft (Cache). Cloud-Refresh fehlgeschlagen?"
-                    : "Kasse läuft — lokale Daten bereit, Sync-Queue aktiv."
+                    ? "Kasse läuft (Cache, TLS). Cloud-Refresh fehlgeschlagen?"
+                    : "Kasse läuft (TLS) — lokale Daten bereit, Sync-Queue aktiv."
             }
             startPeriodicFlush()
             wireNetworkFlush()
@@ -1802,7 +1823,9 @@ final class PosRuntime: ObservableObject {
 
         let pathOnly = lanPathOnly(path)
 
-        if PosLanAuth.requiresToken(pathOnly: pathOnly) {
+        if pathOnly != PosLanProtocol.pairRefreshPath,
+           PosLanAuth.requiresToken(pathOnly: pathOnly)
+        {
             let token = headers[PosLanProtocol.headerPairToken.lowercased()] ?? ""
             guard PosPairingStore.shared.verify(token: token) else {
                 return (401, Data(#"{"error":"unpaired"}"#.utf8))
@@ -2152,6 +2175,15 @@ final class PosRuntime: ObservableObject {
                 return (201, data)
             }
 
+            if pathOnly == PosLanProtocol.pairRefreshPath {
+                let token = headers[PosLanProtocol.headerPairToken.lowercased()] ?? ""
+                guard let refreshed = PosPairingStore.shared.refresh(token: token) else {
+                    return (401, Data(#"{"error":"refresh_denied"}"#.utf8))
+                }
+                let data = (try? encoder.encode(refreshed)) ?? Data(#"{"error":"encode"}"#.utf8)
+                return (200, data)
+            }
+
             #if DEBUG
             if pathOnly == PosLanProtocol.pairDebugApproveAllPath {
                 let n = PosPairingStore.shared.approveAllPending()
@@ -2358,9 +2390,47 @@ final class PosRuntime: ObservableObject {
                     }
                     return base
                 } catch HandheldHubClientError.httpStatus(401) {
-                    // Token ungültig (Hub neu / revoked) — nur bei explizitem Re-Pair löschen.
+                    // P2-1: kurzer Token — einmal refresh versuchen, bevor Re-Pair.
+                    if let token,
+                       let refreshed = try? await HandheldHubClient.refreshPairing(
+                        baseURL: base,
+                        pairToken: token
+                       )
+                    {
+                        PosEnrollmentStore.shared.updatePairToken(refreshed.token)
+                        if let fp = refreshed.hub?.tlsFingerprint {
+                            PosEnrollmentStore.shared.markHandheldPaired(
+                                token: refreshed.token,
+                                hubBaseURL: base.absoluteString,
+                                tlsFingerprint: fp
+                            )
+                            HandheldHubClient.configureTLSPin(fingerprintHex: fp)
+                        }
+                        if let snap = try? await HandheldHubClient.fetchSnapshot(
+                            baseURL: base,
+                            restaurantId: health.restaurantId,
+                            pairToken: refreshed.token
+                        ) {
+                            rememberHubHost(base)
+                            hubBaseURL = base
+                            isSoloMode = false
+                            setHubDisconnectedAt(nil)
+                            stopHubReconnectLoop()
+                            publishSnapshot(snap)
+                            phase = .connected
+                            statusMessage = "Verbunden mit \(snap.hub.displayName)."
+                            await pullReservationsDay(PosReservationsStore.todayYmd())
+                            if PosHandheldOutbox.shared.pendingCount > 0 {
+                                _ = await flushHandheldOutbox()
+                            } else {
+                                refreshOutboxPending()
+                            }
+                            return base
+                        }
+                    }
                     if clearPairingOn401 {
                         PosEnrollmentStore.shared.resetHandheldPairing()
+                        HandheldHubClient.configureTLSPin(fingerprintHex: nil)
                     }
                     await beginPairing(base: base)
                     return base
@@ -2469,11 +2539,15 @@ final class PosRuntime: ObservableObject {
                 switch status.state {
                 case .approved:
                     guard let token = status.token else { continue }
+                    let fp = status.hub?.tlsFingerprint
+                        ?? HandheldHubTLS.lastAcceptedFingerprintHex
                     await MainActor.run {
                         PosEnrollmentStore.shared.markHandheldPaired(
                             token: token,
-                            hubBaseURL: base.absoluteString
+                            hubBaseURL: base.absoluteString,
+                            tlsFingerprint: fp
                         )
+                        HandheldHubClient.configureTLSPin(fingerprintHex: fp)
                         self?.pairingChallenge = nil
                     }
                     await self?.connectHandheld(preferredHost: {

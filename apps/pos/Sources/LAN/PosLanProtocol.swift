@@ -18,6 +18,8 @@ enum PosLanProtocol {
     static let printJobsPath = "/v1/print-jobs"
     static let pairRequestPath = "/v1/pair/request"
     static let pairStatusPath = "/v1/pair/status"
+    /// Kurzer Pair-Token erneuern (P2-1) — braucht aktuellen/grace Token.
+    static let pairRefreshPath = "/v1/pair/refresh"
     /// DEBUG-only: alle pending Pairings freigeben (Simulator-Smoke ohne iPad-Tap).
     static let pairDebugApproveAllPath = "/v1/pair/debug-approve-all"
     static let headerProtocol = "X-Gwada-Pos-Lan"
@@ -37,6 +39,15 @@ enum PosLanProtocol {
             .split(separator: "/").first
             .map(String.init) ?? host
         let hostname = cleaned.split(separator: ":").first.map(String.init) ?? cleaned
-        return URL(string: "http://\(hostname):\(port)")!
+        return URL(string: "https://\(hostname):\(port)")!
+    }
+
+    /// Alte `http://`-Enrollment-URLs auf HTTPS heben.
+    static func normalizeHubBaseURLString(_ raw: String) -> String {
+        if raw.hasPrefix("https://") { return raw }
+        if raw.hasPrefix("http://") {
+            return "https://" + raw.dropFirst("http://".count)
+        }
+        return hubBaseURL(host: raw).absoluteString
     }
 }

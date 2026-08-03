@@ -110,6 +110,42 @@ final class PosPairingStoreTests: XCTestCase {
         XCTAssertEqual(store.status(pairId: challenge.pairId).state, .approved)
     }
 
+    func test_tokenExpires_andRefreshWithinGrace() {
+        var current = Date(timeIntervalSince1970: 2_000_000)
+        let store = makeStore(now: { current })
+        let challenge = store.createPending(req)
+        let token = store.approve(pairId: challenge.pairId)!
+        XCTAssertTrue(store.verify(token: token))
+
+        current = current.addingTimeInterval(store.tokenTTL + 1)
+        XCTAssertFalse(store.verify(token: token), "nach TTL nicht mehr gültig")
+
+        let refreshed = store.refresh(token: token)
+        XCTAssertNotNil(refreshed, "innerhalb Grace noch refreshbar")
+        XCTAssertNotEqual(refreshed?.token, token)
+        XCTAssertTrue(store.verify(token: refreshed!.token))
+        XCTAssertFalse(store.verify(token: token))
+    }
+
+    func test_refreshDenied_afterGrace() {
+        var current = Date(timeIntervalSince1970: 3_000_000)
+        let store = makeStore(now: { current })
+        let challenge = store.createPending(req)
+        let token = store.approve(pairId: challenge.pairId)!
+        current = current.addingTimeInterval(store.tokenTTL + store.refreshGraceTTL + 1)
+        XCTAssertNil(store.refresh(token: token))
+        XCTAssertFalse(store.verify(token: token))
+    }
+
+    func test_status_includesTokenExpiresAt() {
+        let store = makeStore()
+        let challenge = store.createPending(req)
+        _ = store.approve(pairId: challenge.pairId)
+        let status = store.status(pairId: challenge.pairId)
+        XCTAssertEqual(status.state, .approved)
+        XCTAssertNotNil(status.tokenExpiresAt)
+    }
+
     func test_migratesLegacyPlaintextTokensFile() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("gwada-pair-legacy-\(UUID().uuidString).json")

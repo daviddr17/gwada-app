@@ -61,7 +61,7 @@ Der Hub-Offline-Pfad (Phases 1–6) ist funktional geschlossen und getestet. Res
 
 | ID | Finding | Status |
 |----|---------|--------|
-| **P2-1** | Cleartext HTTP + langlebiger Pair-Token | **offen** (bewusst später) |
+| **P2-1** | Cleartext HTTP + langlebiger Pair-Token | **erledigt** — Hub HTTPS + Pin; Token 8h + Refresh |
 | **P2-2** | Reconnect erste Suche ~45s | **teilweise** — erste Suche ~8s |
 | **P2-3** | Soft-Fail Outbox nur Statuszeile | offen / by design |
 | **P2-4** | Pair status unauth | offen |

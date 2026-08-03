@@ -15,7 +15,7 @@ final class PosEnrollmentStoreTests: XCTestCase {
         XCTAssertTrue(store.isHandheldPaired)
         XCTAssertTrue(store.isHandheldReady)
         XCTAssertEqual(store.handheldPairToken, "tok_xyz")
-        XCTAssertEqual(store.handheldHubBaseURL, "http://127.0.0.1:8787")
+        XCTAssertEqual(store.handheldHubBaseURL, "https://127.0.0.1:8787")
     }
 
     func test_reset_clearsTokenAndHost() {

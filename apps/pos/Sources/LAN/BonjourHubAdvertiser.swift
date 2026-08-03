@@ -5,7 +5,7 @@ final class BonjourHubAdvertiser: NSObject, NetServiceDelegate {
     private var service: NetService?
     private(set) var isPublishing = false
 
-    func publish(name: String, port: Int, restaurantId: String) {
+    func publish(name: String, port: Int, restaurantId: String, tlsFingerprint: String? = nil) {
         stop()
         let service = NetService(
             domain: PosLanProtocol.bonjourDomain,
@@ -15,12 +15,16 @@ final class BonjourHubAdvertiser: NSObject, NetServiceDelegate {
         )
         service.includesPeerToPeer = true
         service.delegate = self
-        let txt: [String: Data] = [
+        var txt: [String: Data] = [
             "restaurantId": Data(restaurantId.utf8),
             "role": Data("hub".utf8),
             "path": Data("/v1".utf8),
             "protocol": Data(String(PosLanProtocol.version).utf8),
+            "tls": Data("1".utf8),
         ]
+        if let tlsFingerprint, !tlsFingerprint.isEmpty {
+            txt["fp"] = Data(tlsFingerprint.utf8)
+        }
         service.setTXTRecord(NetService.data(fromTXTRecord: txt))
         self.service = service
         service.publish()

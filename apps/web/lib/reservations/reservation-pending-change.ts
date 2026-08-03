@@ -1,4 +1,5 @@
 import { normalizeReservationGuestCompany } from "@/lib/reservations/reservation-guest-name";
+import { reservationIsoInstantsEqual } from "@/lib/reservations/reservation-datetime-reschedule";
 import {
   DEFAULT_RESTAURANT_TIMEZONE,
   formatReservationSlotInRestaurantTz,
@@ -152,10 +153,8 @@ export function reservationChangeDiffKeys(
     keys.push("guest_company");
   }
   if (current.party_size !== pending.party_size) keys.push("party_size");
-  if (
-    current.starts_at !== pending.starts_at ||
-    current.ends_at !== pending.ends_at
-  ) {
+  // Nur Start vergleichen (Instant, nicht ISO-String). ends_at/Dauer ist intern.
+  if (!reservationIsoInstantsEqual(current.starts_at, pending.starts_at)) {
     keys.push("starts_at");
   }
   if ((current.guest_phone ?? "") !== (pending.guest_phone ?? "")) {

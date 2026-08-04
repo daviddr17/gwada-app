@@ -52,6 +52,10 @@ import {
   reservationKindLabel,
   type ReservationKind,
 } from "@/lib/reservations/reservation-kind";
+import {
+  findEventAssigneeShiftOverlaps,
+  type EventStaffShiftOverlap,
+} from "@/lib/reservations/reservation-event-staff-overlap";
 import { fetchAccountingQuotations } from "@/lib/accounting/accounting-api";
 import {
   formatReservationQuotationJoinLabel,
@@ -283,6 +287,10 @@ export function ReservationEditDrawer({
     payload: BuiltReservationPayload;
     detail: Extract<TableAssignmentCheck, { kind: "confirm_share" }>;
   } | null>(null);
+  const [eventStaffOverlapPending, setEventStaffOverlapPending] = useState<{
+    payload: BuiltReservationPayload;
+    overlaps: EventStaffShiftOverlap[];
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
   const touchTablet = useIsTouchTablet();
@@ -410,7 +418,9 @@ export function ReservationEditDrawer({
     (next: boolean) => {
       if (!next) {
         if (
-          (confirmDeleteOpen || tableSharePending !== null) &&
+          (confirmDeleteOpen ||
+            tableSharePending !== null ||
+            eventStaffOverlapPending !== null) &&
           !allowDrawerCloseRef.current
         ) {
           return;
@@ -421,7 +431,12 @@ export function ReservationEditDrawer({
       }
       onOpenChange(next);
     },
-    [confirmDeleteOpen, tableSharePending, onOpenChange],
+    [
+      confirmDeleteOpen,
+      tableSharePending,
+      eventStaffOverlapPending,
+      onOpenChange,
+    ],
   );
 
   useEffect(() => {
@@ -958,6 +973,7 @@ export function ReservationEditDrawer({
       initialStatusCodeRef.current = newStatusCode;
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
+      setEventStaffOverlapPending(null);
       dispatchReservationOpenResolvedLivePatch({
         restaurantId: reservation.restaurant_id,
         reservationId: reservation.id,
@@ -1083,36 +1099,61 @@ export function ReservationEditDrawer({
       }
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
+      setEventStaffOverlapPending(null);
       onSaved();
     }
   };
 
   const handleSave = () => {
-    const payload = buildPayload();
-    if (!payload) return;
+    void (async () => {
+      const payload = buildPayload();
+      if (!payload) return;
 
-    if (payload.kind !== RESERVATION_KIND_PRIVATE_EVENT) {
-      const check = checkTableAssignmentForSave({
-        tableId: payload.dining_table_id,
-        partySize: payload.party_size,
-        startsAt: payload.starts_at,
-        endsAt: payload.ends_at,
-        excludeReservationId: reservation?.id ?? null,
-        tables,
-        knownReservations: overlapReservations,
-      });
+      if (payload.kind !== RESERVATION_KIND_PRIVATE_EVENT) {
+        const check = checkTableAssignmentForSave({
+          tableId: payload.dining_table_id,
+          partySize: payload.party_size,
+          startsAt: payload.starts_at,
+          endsAt: payload.ends_at,
+          excludeReservationId: reservation?.id ?? null,
+          tables,
+          knownReservations: overlapReservations,
+        });
 
-      if (check.kind === "capacity_exceeded") {
-        toast.error(check.message);
+        if (check.kind === "capacity_exceeded") {
+          toast.error(check.message);
+          return;
+        }
+        if (check.kind === "confirm_share") {
+          setTableSharePending({ payload, detail: check });
+          return;
+        }
+        await executeSave(payload);
         return;
       }
-      if (check.kind === "confirm_share") {
-        setTableSharePending({ payload, detail: check });
-        return;
-      }
-    }
 
-    void executeSave(payload);
+      const restaurantId =
+        reservation?.restaurant_id ?? createFor?.restaurantId ?? null;
+      if (restaurantId && assignedStaffIds.length > 0) {
+        const { overlaps, error } = await findEventAssigneeShiftOverlaps({
+          restaurantId,
+          startsAt: payload.starts_at,
+          endsAt: payload.ends_at,
+          staffIds: assignedStaffIds,
+          timeZone: restaurantTimeZone,
+        });
+        if (error) {
+          toast.error(error);
+          return;
+        }
+        if (overlaps.length > 0) {
+          setEventStaffOverlapPending({ payload, overlaps });
+          return;
+        }
+      }
+
+      await executeSave(payload);
+    })();
   };
 
   const handleDeleteReservation = async () => {
@@ -1553,8 +1594,8 @@ export function ReservationEditDrawer({
                       aria-label="Mitarbeiter für Veranstaltung"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Wer für diese Veranstaltung eingeplant ist (unabhängig vom
-                      Schichtplan-Tag).
+                      Team für diese Veranstaltung. Bei Überschneidung mit einer
+                      Schicht erscheint vor dem Speichern eine Warnung.
                     </p>
                   </div>
                 </DrawerFormSection>
@@ -1879,6 +1920,44 @@ export function ReservationEditDrawer({
       onConfirm={async () => {
         if (!tableSharePending) return;
         await executeSave(tableSharePending.payload);
+      }}
+    />
+
+    <ConfirmDialog
+      open={eventStaffOverlapPending !== null}
+      onOpenChange={(o) => {
+        if (!o) setEventStaffOverlapPending(null);
+      }}
+      title="Zeiten überschneiden sich"
+      destructive={false}
+      confirmLabel="Trotzdem speichern"
+      cancelLabel="Abbrechen"
+      confirmDisabled={saving}
+      description={
+        eventStaffOverlapPending ? (
+          <>
+            Folgende Mitarbeiter haben im Veranstaltungszeitraum bereits eine
+            Schicht:
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+              {eventStaffOverlapPending.overlaps.map((item) => (
+                <li key={`${item.staffId}-${item.shiftTimeLabel}`}>
+                  <span className="font-medium text-foreground">
+                    {item.staffName}
+                  </span>
+                  {" · "}
+                  {item.shiftTimeLabel}
+                </li>
+              ))}
+            </ul>
+            <br />
+            Trotzdem zuweisen und speichern?
+          </>
+        ) : null
+      }
+      onConfirm={async () => {
+        if (!eventStaffOverlapPending) return;
+        await executeSave(eventStaffOverlapPending.payload);
+        setEventStaffOverlapPending(null);
       }}
     />
   </>

@@ -104,10 +104,12 @@ import {
 } from "@/lib/navigation/module-home-keep-alive";
 import { DayReservationsDrawer } from "@/components/reservations/day-reservations-drawer";
 import { ReservationDayNoteOverviewChip } from "@/components/reservations/reservation-day-note-overview-chip";
+import { ReservationDayEventStaffOverviewChip } from "@/components/reservations/reservation-day-event-staff-overview-chip";
 import { ReservationDayShiftStaffOverviewChip } from "@/components/reservations/reservation-day-shift-staff-overview-chip";
 import { ReservationDayShiftStaffSheet } from "@/components/reservations/reservation-day-shift-staff-sheet";
 import { ReservationDayNotesSheet } from "@/components/reservations/reservation-day-notes-sheet";
 import { fetchReservationDayNoteCountsForRange } from "@/lib/supabase/reservation-day-notes-db";
+import { countEventStaffByRestaurantDay } from "@/lib/staff/reservation-day-event-staff";
 import { fetchScheduledStaffCountsByDayForRange } from "@/lib/supabase/staff-shift-schedule-db";
 import { ReservationGwadaReviewSheet } from "@/components/reservations/reservation-gwada-review-sheet";
 import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
@@ -344,6 +346,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const [shiftStaffCountsByDate, setShiftStaffCountsByDate] = useState<
     Map<string, number>
   >(new Map());
+  const [eventStaffCountsByDate, setEventStaffCountsByDate] = useState<
+    Map<string, number>
+  >(new Map());
   const [dayNotesReloadNonce, setDayNotesReloadNonce] = useState(0);
   const [dayNotesSheetOpen, setDayNotesSheetOpen] = useState(false);
   const [dayNotesSheetDay, setDayNotesSheetDay] = useState<Date | null>(null);
@@ -360,6 +365,18 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       return next;
     });
   }, []);
+  const onEventStaffCountResolved = useCallback(
+    (key: string, count: number) => {
+      setEventStaffCountsByDate((prev) => {
+        if (prev.get(key) === count) return prev;
+        const next = new Map(prev);
+        if (count > 0) next.set(key, count);
+        else next.delete(key);
+        return next;
+      });
+    },
+    [],
+  );
 
   const reservationIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const gwadaReviewsByReservation = useReservationGwadaReviews(
@@ -1044,6 +1061,17 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     restaurantTimeZone,
   ]);
 
+  /** Unabhängig vom Statusfilter — Veranstaltungs-Team aus geladenen Zeilen. */
+  useEffect(() => {
+    if (!dbOk) {
+      setEventStaffCountsByDate(new Map());
+      return;
+    }
+    setEventStaffCountsByDate(
+      countEventStaffByRestaurantDay(rows, restaurantTimeZone),
+    );
+  }, [rows, restaurantTimeZone, dbOk]);
+
   const filterActiveCount = useMemo(() => {
     if (unconfirmedUi) {
       let n = 1;
@@ -1360,12 +1388,24 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                           ? "1 Person"
                           : `${partyTotal} Personen`}
                       </span>
-                      {/* Unabhängig vom Reservierungs-Statusfilter — Schichtplan-Stand. */}
+                      {/* Unabhängig vom Reservierungs-Statusfilter — Schichtplan / Veranstaltungen. */}
                       {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
                         <>
                           <span aria-hidden>·</span>
                           <ReservationDayShiftStaffOverviewChip
                             count={shiftStaffCountsByDate.get(key) ?? 0}
+                            onClick={() => {
+                              setShiftStaffSheetDay(d);
+                              setShiftStaffSheetOpen(true);
+                            }}
+                          />
+                        </>
+                      ) : null}
+                      {(eventStaffCountsByDate.get(key) ?? 0) > 0 ? (
+                        <>
+                          <span aria-hidden>·</span>
+                          <ReservationDayEventStaffOverviewChip
+                            count={eventStaffCountsByDate.get(key) ?? 0}
                             onClick={() => {
                               setShiftStaffSheetDay(d);
                               setShiftStaffSheetOpen(true);
@@ -1738,6 +1778,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         }
         timeZone={restaurantTimeZone}
         onStaffCountResolved={onShiftStaffCountResolved}
+        onEventStaffCountResolved={onEventStaffCountResolved}
       />
 
       <ReservationEditDrawer

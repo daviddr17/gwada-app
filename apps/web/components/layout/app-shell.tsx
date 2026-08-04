@@ -121,6 +121,11 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
             <AppChromeCenterFavicon />
             <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
+            {chrome.headerActions ? (
+              <div className="flex shrink-0 items-center gap-2">
+                {chrome.headerActions}
+              </div>
+            ) : null}
             {/* Desktop-Chrome: Suche, Glocke, Profil, … — mobil in Bottom-Nav / Menü */}
             <div className="hidden shrink-0 items-center gap-2 md:flex">
               <DashboardGlobalSearchTrigger />

@@ -77,15 +77,15 @@ export function DashboardWidgetsPanel() {
       <CardHeader className="gap-2">
         <CardTitle className="text-xl">Dashboard</CardTitle>
         <CardDescription className="text-base leading-relaxed">
-          Wähle, welche Bereiche auf dem{" "}
+          Auch direkt vom{" "}
           <AppNavLink
             href="/dashboard"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
             Dashboard
           </AppNavLink>{" "}
-          erscheinen, und ziehe sie per Ziehen und Ablegen in die gewünschte
-          Reihenfolge.
+          über das Raster-Icon anordenbar. Hier dieselben Kacheln ein- und
+          ausblenden sowie per Ziehen sortieren.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

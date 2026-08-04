@@ -20,8 +20,8 @@ import {
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import type { DashboardCalendarDaySummary } from "@/lib/dashboard/dashboard-calendar-types";
-import { PRIVATE_EVENT_STRIPE_HEX } from "@/lib/reservations/reservation-kind";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { APP_SIGNAL_COLORS } from "@/lib/ui/app-signal-colors";
 import {
   loadOpeningHoursForRestaurant,
   replaceOpeningHoursForRestaurant,
@@ -151,34 +151,38 @@ export function DashboardCalendarDaySheet({
                 <SignalRow
                   label="Reservierungen"
                   value={String(day.reservationCount)}
-                  color="var(--accent)"
+                  color={APP_SIGNAL_COLORS.reservations}
                 />
                 <SignalRow
                   label="Veranstaltungen"
                   value={String(day.privateEventCount)}
-                  color={PRIVATE_EVENT_STRIPE_HEX}
+                  color={APP_SIGNAL_COLORS.events}
                 />
                 <SignalRow
                   label="Mitarbeiter geplant"
                   value={String(day.plannedStaffCount)}
-                  color="#64748b"
+                  color={APP_SIGNAL_COLORS.staff}
                 />
                 <SignalRow
                   label="Geplante Posts"
                   value={String(day.scheduledNewsCount)}
-                  color="#059669"
+                  color={APP_SIGNAL_COLORS.news}
                 />
                 {day.hoursException ? (
                   <SignalRow
                     label="Sonderöffnungszeiten"
                     value={day.hoursException.label}
-                    color={day.hoursException.closed ? "#dc2626" : "#ea580c"}
+                    color={
+                      day.hoursException.closed
+                        ? APP_SIGNAL_COLORS.hoursClosed
+                        : APP_SIGNAL_COLORS.hoursOpen
+                    }
                   />
                 ) : (
                   <SignalRow
                     label="Sonderöffnungszeiten"
                     value="—"
-                    color="#ea580c"
+                    color={APP_SIGNAL_COLORS.hoursOpen}
                   />
                 )}
               </ul>

@@ -3,7 +3,6 @@
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardAccountingTile } from "@/components/dashboard/dashboard-accounting-tile";
-import { DashboardCalendarTile } from "@/components/dashboard/dashboard-calendar-tile";
 import { DashboardChecklistsTile } from "@/components/dashboard/dashboard-checklists-tile";
 import { DashboardContactsTile } from "@/components/dashboard/dashboard-contacts-tile";
 import { DashboardDocumentsTile } from "@/components/dashboard/dashboard-documents-tile";
@@ -34,8 +33,6 @@ function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   switch (id) {
     case "heute":
       return <DashboardHeuteTile />;
-    case "calendar":
-      return <DashboardCalendarTile />;
     case "menu":
       return <DashboardMenuTile />;
     case "reservations":
@@ -75,7 +72,11 @@ function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   }
 }
 
-export function DashboardHomePage() {
+type DashboardHomePageProps = {
+  onOpenArrange?: () => void;
+};
+
+export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}) {
   const {
     visibility,
     order,
@@ -119,14 +120,18 @@ export function DashboardHomePage() {
     return (
       <div className="flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
         <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-          Für das Dashboard sind aktuell keine Widgets sichtbar — entweder sind
-          sie deaktiviert oder deine Position hat keinen Lesezugriff auf die
-          zugehörigen Module. Unter Einstellungen kannst du Widgets einblenden,
-          sofern sie für deine Rolle verfügbar sind.
+          Keine Kacheln sichtbar — entweder ausgeblendet oder ohne
+          Modulzugriff. Über das Raster-Icon oben kannst du sie anordnen.
         </p>
-        <Button render={<AppNavLink href={APP_ROUTES.settings.dashboard} />}>
-          Dashboard-Einstellungen
-        </Button>
+        {onOpenArrange ? (
+          <Button type="button" onClick={onOpenArrange}>
+            Dashboard anordnen
+          </Button>
+        ) : (
+          <Button render={<AppNavLink href={APP_ROUTES.settings.dashboard} />}>
+            Dashboard-Einstellungen
+          </Button>
+        )}
       </div>
     );
   }

@@ -18,6 +18,8 @@ import {
 import {
   DASHBOARD_WIDGET_STORAGE_KEY,
   defaultDashboardWidgetPrefs,
+  mergeDashboardWidgetVisibility,
+  normalizeWidgetOrder,
   reorderDashboardWidgetOrder,
   type DashboardWidgetId,
   type DashboardWidgetPrefs,
@@ -50,6 +52,10 @@ export type DashboardWidgetPreferencesValue = {
   shortcuts: DashboardWidgetPrefs["shortcuts"];
   setWidgetVisible: (id: DashboardWidgetId, visible: boolean) => void;
   reorderWidgets: (dragId: DashboardWidgetId, dropId: DashboardWidgetId) => void;
+  /** Sichtbarkeit + Reihenfolge in einem Speichern (Dashboard anordnen). */
+  applyWidgetLayout: (
+    next: Pick<DashboardWidgetPrefs, "visibility" | "order">,
+  ) => void;
   setShortcutVisible: (id: DashboardShortcutId, visible: boolean) => void;
   reorderShortcuts: (dragId: DashboardShortcutId, dropId: DashboardShortcutId) => void;
   /** True sobald initiale Prefs verfügbar sind (optimistisch aus Cache oder Defaults). */
@@ -254,6 +260,21 @@ export function useDashboardWidgetPreferencesState(): DashboardWidgetPreferences
     [persistPrefs],
   );
 
+  const applyWidgetLayout = useCallback(
+    (layout: Pick<DashboardWidgetPrefs, "visibility" | "order">) => {
+      setPrefs((p) => {
+        const next: DashboardWidgetPrefs = {
+          ...p,
+          visibility: mergeDashboardWidgetVisibility(layout.visibility),
+          order: normalizeWidgetOrder(layout.order),
+        };
+        void persistPrefs(next, p);
+        return next;
+      });
+    },
+    [persistPrefs],
+  );
+
   const setShortcutVisible = useCallback(
     (id: DashboardShortcutId, visible: boolean) => {
       setPrefs((p) => {
@@ -305,6 +326,7 @@ export function useDashboardWidgetPreferencesState(): DashboardWidgetPreferences
       shortcuts: prefs.shortcuts,
       setWidgetVisible,
       reorderWidgets,
+      applyWidgetLayout,
       setShortcutVisible,
       reorderShortcuts,
       isReady,
@@ -316,6 +338,7 @@ export function useDashboardWidgetPreferencesState(): DashboardWidgetPreferences
       prefs.shortcuts,
       setWidgetVisible,
       reorderWidgets,
+      applyWidgetLayout,
       setShortcutVisible,
       reorderShortcuts,
       isReady,

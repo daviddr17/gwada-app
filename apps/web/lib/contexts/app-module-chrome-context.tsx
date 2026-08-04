@@ -13,12 +13,15 @@ export type AppModuleChromeState = {
   subnav: AppModuleSubnav | null;
   /** Zweite Chip-Leiste unter der Modul-Subnav (z. B. POS → Einstellungen). */
   secondarySubnav: AppModuleSubnav | null;
+  /** Modul-eigene Aktionen rechts im Header (z. B. Dashboard Kalender / Anordnen). */
+  headerActions: React.ReactNode | null;
 };
 
 const EMPTY: AppModuleChromeState = {
   title: "",
   subnav: null,
   secondarySubnav: null,
+  headerActions: null,
 };
 
 type Ctx = {
@@ -64,10 +67,12 @@ export function RegisterModuleChrome({
   title,
   subnavAriaLabel,
   subnavItems,
+  headerActions = null,
 }: {
   title: string;
   subnavAriaLabel: string | null;
   subnavItems: readonly ModuleSubnavItem[] | null;
+  headerActions?: React.ReactNode | null;
 }) {
   const { setChrome } = useAppModuleChrome();
 
@@ -80,6 +85,7 @@ export function RegisterModuleChrome({
           : null,
       // Nested layouts may own the secondary strip — don't wipe it here.
       secondarySubnav: prev.secondarySubnav,
+      headerActions: headerActions ?? null,
     }));
     return () => {
       // Soft-Nav: nicht blind auf EMPTY — SoftNavPendingOverlay / nächstes Modul
@@ -89,7 +95,7 @@ export function RegisterModuleChrome({
         return EMPTY;
       });
     };
-  }, [title, subnavAriaLabel, subnavItems, setChrome]);
+  }, [title, subnavAriaLabel, subnavItems, headerActions, setChrome]);
 
   return null;
 }

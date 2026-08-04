@@ -3,6 +3,7 @@
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardAccountingTile } from "@/components/dashboard/dashboard-accounting-tile";
+import { DashboardCalendarTile } from "@/components/dashboard/dashboard-calendar-tile";
 import { DashboardChecklistsTile } from "@/components/dashboard/dashboard-checklists-tile";
 import { DashboardContactsTile } from "@/components/dashboard/dashboard-contacts-tile";
 import { DashboardDocumentsTile } from "@/components/dashboard/dashboard-documents-tile";
@@ -33,6 +34,8 @@ function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   switch (id) {
     case "heute":
       return <DashboardHeuteTile />;
+    case "calendar":
+      return <DashboardCalendarTile />;
     case "menu":
       return <DashboardMenuTile />;
     case "reservations":

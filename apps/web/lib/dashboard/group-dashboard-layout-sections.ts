@@ -6,7 +6,7 @@ export type DashboardLayoutSection = {
   span: 1 | 2;
 };
 
-const FULL_WIDTH_WIDGETS = new Set<DashboardWidgetId>(["heute"]);
+const FULL_WIDTH_WIDGETS = new Set<DashboardWidgetId>(["heute", "calendar"]);
 
 /** Sichtbare Widgets in Nutzerreihenfolge inkl. Layout-Span. */
 export function groupDashboardLayoutSections(

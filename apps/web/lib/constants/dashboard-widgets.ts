@@ -5,6 +5,7 @@ import {
 
 export type DashboardWidgetId =
   | "heute"
+  | "calendar"
   | "menu"
   | "reservations"
   | "reviews"
@@ -43,6 +44,7 @@ export const DEFAULT_DASHBOARD_WIDGET_VISIBILITY: Record<
   boolean
 > = {
   heute: true,
+  calendar: true,
   menu: true,
   reservations: true,
   reviews: false,
@@ -72,6 +74,12 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
     label: "Heute",
     description:
       "Tagesüberblick: Reservierungen, Team, Nachrichten und Hinweise auf einen Blick",
+  },
+  {
+    id: "calendar",
+    label: "Kalender",
+    description:
+      "Monatsübersicht: Reservierungen, Veranstaltungen, Schichtplan, Feiertage, geplante Posts und Sonderöffnungszeiten",
   },
   {
     id: "menu",

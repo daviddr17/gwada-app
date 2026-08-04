@@ -34,6 +34,7 @@ import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-st
 import { useDashboardReservationStats } from "@/lib/hooks/use-dashboard-reservation-stats";
 import { useDashboardStaffStats } from "@/lib/hooks/use-dashboard-staff-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { usePlatformWeatherAvailable } from "@/lib/hooks/use-platform-weather-available";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -140,6 +141,7 @@ export function DashboardHeuteTile() {
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const { entitlements } = useRestaurantBilling();
   const { available: weatherAvailable } = usePlatformWeatherAvailable();
   const reservations = useDashboardReservationStats();
   const staff = useDashboardStaffStats();
@@ -160,6 +162,7 @@ export function DashboardHeuteTile() {
     permissionsLoading,
     weatherAvailable,
     weatherLoading: false,
+    entitlements,
   };
 
   const can = {

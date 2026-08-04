@@ -43,7 +43,8 @@ export const DASHBOARD_WIDGET_STORAGE_KEY = "gwada-dashboard-widgets";
 
 /**
  * Schlankes Standard-Set — Rest über „Anordnen“ zuschaltbar.
- * Wetter erscheint nur, wenn Plattform-Wetter freigeschaltet ist.
+ * Effektive Sichtbarkeit zusätzlich: Rolle ∩ Restaurant-Abo
+ * (`hasDashboardWidgetAccess`). Wetter nur bei Plattform-Freigabe.
  */
 export const DEFAULT_DASHBOARD_WIDGET_VISIBILITY: Record<
   DashboardWidgetId,

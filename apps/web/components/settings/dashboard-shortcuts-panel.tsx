@@ -18,6 +18,7 @@ import {
   DASHBOARD_SHORTCUT_OPTIONS,
   type DashboardShortcutId,
 } from "@/lib/constants/dashboard-shortcuts";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
@@ -38,6 +39,7 @@ export function DashboardShortcutsPanel() {
     permittedShortcutIds,
   } = useDashboardEffectiveWidgetPrefs();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const { entitlements } = useRestaurantBilling();
 
   const orderedOptions = useMemo(
     () =>
@@ -67,7 +69,7 @@ export function DashboardShortcutsPanel() {
     if (
       checked &&
       !permissionsLoading &&
-      !hasDashboardShortcutAccess(has, id)
+      !hasDashboardShortcutAccess(has, id, entitlements)
     ) {
       return;
     }

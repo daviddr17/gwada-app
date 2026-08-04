@@ -84,8 +84,8 @@ export function DashboardWidgetsPanel() {
           >
             Dashboard
           </AppNavLink>{" "}
-          über das Raster-Icon anordenbar. Hier dieselben Kacheln ein- und
-          ausblenden sowie per Ziehen sortieren.
+          über das Raster-Icon anordenbar. Nur Module mit Rollenrecht und
+          Abo erscheinen — hier ein-/ausblenden und per Ziehen sortieren.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

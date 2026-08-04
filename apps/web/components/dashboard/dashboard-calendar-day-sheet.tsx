@@ -188,54 +188,65 @@ export function DashboardCalendarDaySheet({
               </ul>
             ) : null}
           </DrawerFormSection>
+
+          <DrawerFormSection title="Öffnen">
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                size="lg"
+                className={cn("h-10", brandActionButtonRoundedClassName)}
+                render={
+                  <AppNavLink
+                    href={reservationsHref}
+                    onClick={() => onOpenChange(false)}
+                  />
+                }
+              >
+                Reservierungen
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(drawerFormFullWidthButtonClassName, "h-10")}
+                render={
+                  <AppNavLink
+                    href={scheduleHref}
+                    onClick={() => onOpenChange(false)}
+                  />
+                }
+              >
+                Schichtplan
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(drawerFormFullWidthButtonClassName, "h-10")}
+                render={
+                  <AppNavLink
+                    href={newsHref}
+                    onClick={() => onOpenChange(false)}
+                  />
+                }
+              >
+                News
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(drawerFormFullWidthButtonClassName, "h-10")}
+                render={
+                  <AppNavLink
+                    href={hoursHref}
+                    onClick={() => onOpenChange(false)}
+                  />
+                }
+              >
+                Öffnungszeiten
+              </Button>
+            </div>
+          </DrawerFormSection>
         </div>
 
         <div className="shrink-0 space-y-2 border-t border-border/50 px-6 pb-6 pt-4">
-          <Button
-            size="lg"
-            className={cn("h-11 w-full", brandActionButtonRoundedClassName)}
-            render={
-              <AppNavLink
-                href={reservationsHref}
-                onClick={() => onOpenChange(false)}
-              />
-            }
-          >
-            Reservierungen
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={drawerFormFullWidthButtonClassName}
-            render={
-              <AppNavLink
-                href={scheduleHref}
-                onClick={() => onOpenChange(false)}
-              />
-            }
-          >
-            Schichtplan
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={drawerFormFullWidthButtonClassName}
-            render={
-              <AppNavLink href={newsHref} onClick={() => onOpenChange(false)} />
-            }
-          >
-            News
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={drawerFormFullWidthButtonClassName}
-            render={
-              <AppNavLink href={hoursHref} onClick={() => onOpenChange(false)} />
-            }
-          >
-            Öffnungszeiten bearbeiten
-          </Button>
           {day && !day.hoursException?.closed ? (
             <Button
               type="button"

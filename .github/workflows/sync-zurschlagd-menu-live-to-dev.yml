@@ -1,0 +1,43 @@
+name: Sync zurschlagd menu Live → Dev
+
+# Liest Speisekarte nur von Live, ersetzt Dev-Menü für slug zurschlagd.
+# Kein Live-Schreiben.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: sync-zurschlagd-menu-live-to-dev
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
+
+      - name: Sync menu Live → Dev on VPS
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            scripts/vps-sync-zurschlagd-menu-live-to-dev-remote.sh \
+            "root@${LIVE_VPS_HOST}:/tmp/vps-sync-zurschlagd-menu-live-to-dev-remote.sh"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            "chmod +x /tmp/vps-sync-zurschlagd-menu-live-to-dev-remote.sh && bash /tmp/vps-sync-zurschlagd-menu-live-to-dev-remote.sh"

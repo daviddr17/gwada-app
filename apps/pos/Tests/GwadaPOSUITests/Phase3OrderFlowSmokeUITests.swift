@@ -55,6 +55,8 @@ final class Phase3OrderFlowSmokeUITests: XCTestCase {
         XCTAssertTrue(tableCard.waitForExistence(timeout: 15), "Tisch 1 erwartet")
         tableCard.tap()
 
+        PosUITestSessionHelpers.ensureOrderingPhase(app: app)
+
         let bon = app.descendants(matching: .any)["pos.bon.open"]
         XCTAssertTrue(bon.waitForExistence(timeout: 10), "Bon-Dock sollte sichtbar sein")
         if bon.isHittable {

@@ -35,6 +35,8 @@ struct PosCloudSessionSummaryLine: Decodable, Identifiable {
     var openQuantity: Int
     var openAmountCents: Int
     var unitPriceCents: Int
+    /// Original line total (for slice settlement). Falls back to unit×qty if API omits.
+    var lineTotalCents: Int
     var notes: String?
     var course: Int?
     var firedAt: Date?
@@ -43,7 +45,7 @@ struct PosCloudSessionSummaryLine: Decodable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, orderId, name, quantity, paidQuantity, openQuantity, openAmountCents, unitPriceCents
-        case notes, course, firedAt, modifiers, ohneIngredientIds
+        case lineTotalCents, notes, course, firedAt, modifiers, ohneIngredientIds
     }
 
     init(from decoder: Decoder) throws {
@@ -56,6 +58,8 @@ struct PosCloudSessionSummaryLine: Decodable, Identifiable {
         openQuantity = try c.decode(Int.self, forKey: .openQuantity)
         openAmountCents = try c.decode(Int.self, forKey: .openAmountCents)
         unitPriceCents = try c.decode(Int.self, forKey: .unitPriceCents)
+        lineTotalCents = try c.decodeIfPresent(Int.self, forKey: .lineTotalCents)
+            ?? max(openAmountCents, unitPriceCents * max(quantity, 0))
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         course = try c.decodeCourseIfPresent(forKey: .course)
         firedAt = try c.decodeIfPresent(String.self, forKey: .firedAt)

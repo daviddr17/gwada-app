@@ -64,11 +64,13 @@ struct PosSegmentedControl<Option: Hashable & Identifiable>: View where Option.I
     let options: [Option]
     @Binding var selection: Option
     var title: (Option) -> String
+    var enabled: Bool = true
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(options) { option in
                 Button {
+                    guard enabled else { return }
                     selection = option
                 } label: {
                     Text(title(option))
@@ -91,6 +93,8 @@ struct PosSegmentedControl<Option: Hashable & Identifiable>: View where Option.I
                         )
                 }
                 .buttonStyle(.plain)
+                .disabled(!enabled)
+                .accessibilityAddTraits(selection.id == option.id ? [.isSelected] : [])
             }
         }
         .padding(4)
@@ -99,6 +103,8 @@ struct PosSegmentedControl<Option: Hashable & Identifiable>: View where Option.I
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(PosDesign.line, lineWidth: 1)
         }
+        .opacity(enabled ? 1 : 0.55)
+        .accessibilityHint(enabled ? "" : "Modus gesperrt")
     }
 }
 
@@ -163,11 +169,13 @@ struct PosChipScroller<Content: View>: View {
 struct PosStepperControl: View {
     let value: Int
     var range: ClosedRange<Int> = 1 ... 20
+    var enabled: Bool = true
     var onChange: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             Button {
+                guard enabled else { return }
                 onChange(max(range.lowerBound, value - 1))
             } label: {
                 Image(systemName: "minus.circle.fill")
@@ -176,7 +184,7 @@ struct PosStepperControl: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(value <= range.lowerBound)
+            .disabled(!enabled || value <= range.lowerBound)
             .accessibilityLabel("Weniger")
 
             Text("\(value)")
@@ -185,6 +193,7 @@ struct PosStepperControl: View {
                 .accessibilityLabel("\(value)")
 
             Button {
+                guard enabled else { return }
                 onChange(min(range.upperBound, value + 1))
             } label: {
                 Image(systemName: "plus.circle.fill")
@@ -193,9 +202,10 @@ struct PosStepperControl: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(value >= range.upperBound)
+            .disabled(!enabled || value >= range.upperBound)
             .accessibilityLabel("Mehr")
         }
+        .opacity(enabled ? 1 : 0.45)
     }
 }
 

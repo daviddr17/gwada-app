@@ -11,6 +11,8 @@ enum PosLanProtocol {
     static let openSessionPath = "/v1/sessions"
     static let createOrderPath = "/v1/orders"
     static let collectPath = "/v1/collect"
+    static let fireCoursePath = "/v1/fire"
+    static let releaseSessionPath = "/v1/sessions/release"
     static let reservationsPath = "/v1/reservations"
     static let kdsPath = "/v1/kds"
     static let kdsTicketsPath = "/v1/kds/tickets"
@@ -26,6 +28,9 @@ enum PosLanProtocol {
     static let headerRestaurantId = "X-Gwada-Restaurant-Id"
     static let headerPairToken = "X-Gwada-Pair-Token"
     static let headerLanSecret = "X-Gwada-Pos-Lan-Secret"
+    /// Staff-Session vom Handgerät (sessionId.sessionToken) — Collect-Authz.
+    static let headerStaffSession = "X-Gwada-Staff-Session"
+    static let headerStaffId = "X-Gwada-Staff-Id"
 
     static func bonjourName(restaurantName: String) -> String {
         let base = "Gwada Kasse · \(restaurantName.trimmingCharacters(in: .whitespacesAndNewlines))"

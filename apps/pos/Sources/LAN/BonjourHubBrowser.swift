@@ -5,6 +5,8 @@ struct DiscoveredPosHub: Equatable, Identifiable, Sendable {
     var name: String
     var host: String
     var port: Int
+    /// SHA-256 Fingerprint aus Bonjour TXT `fp` (lowercase hex).
+    var tlsFingerprint: String?
 
     var baseURL: URL {
         PosLanProtocol.hubBaseURL(host: host, port: UInt16(port))
@@ -72,13 +74,28 @@ final class BonjourHubBrowser: NSObject, NetServiceBrowserDelegate, NetServiceDe
         let hub = DiscoveredPosHub(
             name: sender.name,
             host: cleanedHost,
-            port: port
+            port: port,
+            tlsFingerprint: Self.tlsFingerprint(from: sender)
         )
         found[hub.id] = hub
     }
 
     func netService(_ sender: NetService, didNotResolve errorDict: [String: NSNumber]) {
         print("[Bonjour] resolve failed: \(errorDict)")
+    }
+
+    private static func tlsFingerprint(from service: NetService) -> String? {
+        guard let raw = service.txtRecordData() else { return nil }
+        let dict = NetService.dictionary(fromTXTRecord: raw)
+        guard let data = dict["fp"] ?? dict["FP"],
+              let fp = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased(),
+              !fp.isEmpty
+        else {
+            return nil
+        }
+        return fp
     }
 
     private func preferredIPv4(from service: NetService) -> String? {

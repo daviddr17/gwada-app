@@ -3,12 +3,12 @@ import SwiftUI
 /// Tisch-Session: Warenkorb + Speisekarte + Split / Umziehen.
 struct TableSessionView: View {
     @EnvironmentObject private var runtime: PosRuntime
-    @EnvironmentObject private var bonOpener: PosSessionBonOpener
 
     let table: PosLanFloorTable
     let sessionId: String?
 
     @State private var cart: [PosCartLine] = []
+    @State private var didRestoreDraftCart = false
     @State private var configuring: PosCloudMenuItem?
     @State private var showKassieren = false
     @State private var showMove = false
@@ -16,24 +16,69 @@ struct TableSessionView: View {
     @State private var showBon = false
     @State private var pendingKassierenAfterBon = false
     @State private var openLines: [SessionOpenLine] = []
+    @State private var paidHistory: [PaidHistoryLine] = []
+    @State private var phase: PosSessionPhase = .ordering
+    @State private var didApplyStartPhase = false
     @State private var sendPulse = false
     @State private var activeCourse = PosCourse.main
     @State private var guestCount = 2
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider()
-            courseRow
-            sentLinesHint
-            if let menu = runtime.snapshot?.menu {
-                MenuBrowserView(
-                    menu: menu,
-                    onSelect: onSelectMenuItem,
-                    quantityForItem: quantityForMenuItem
+            if phase == .overview {
+                TableSessionOverviewView(
+                    openLines: openLines,
+                    sessionId: resolvedSessionId,
+                    tableLabel: table.label,
+                    paidCents: overviewPaidCents,
+                    historyLineCount: paidHistory.count,
+                    onOrder: { phase = .ordering },
+                    onCollect: { showKassieren = true },
+                    onRelease: {
+                        Task {
+                            _ = await runtime.releaseTable(
+                                sessionId: resolvedSessionId,
+                                forceAbort: false
+                            )
+                        }
+                    },
+                    onOpenBon: { showBon = true },
+                    onOpenHistory: { phase = .history },
+                    canCollect: runtime.canCollectAtRegister,
+                    canRelease: runtime.canMutateLiveFloor
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if phase == .history {
+                TableSessionHistoryView(
+                    lines: paidHistory,
+                    openLines: openLines,
+                    tableLabel: table.label,
+                    onOrder: { phase = .ordering },
+                    onCollect: { showKassieren = true },
+                    onRelease: {
+                        Task {
+                            _ = await runtime.releaseTable(
+                                sessionId: resolvedSessionId,
+                                forceAbort: false
+                            )
+                        }
+                    },
+                    canCollect: runtime.canCollectAtRegister,
+                    canRelease: runtime.canMutateLiveFloor
+                )
             } else {
-                Spacer(minLength: 0)
+                Divider()
+                courseRow
+                sentLinesHint
+                if let menu = runtime.snapshot?.menu {
+                    MenuBrowserView(
+                        menu: menu,
+                        onSelect: onSelectMenuItem,
+                        quantityForItem: quantityForMenuItem
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Spacer(minLength: 0)
+                }
             }
         }
         .background(PosDesign.bg)
@@ -42,32 +87,58 @@ struct TableSessionView: View {
         .posHideTabBarWhenImmersive()
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                if !resolvedSessionId.isEmpty, !resolvedSessionId.hasPrefix("pending-") {
-                    Button {
-                        showMoveSession = true
-                    } label: {
-                        Image(systemName: "arrow.left.arrow.right.circle")
+                if phase == .ordering {
+                    if !openLines.isEmpty {
+                        Button("Übersicht") {
+                            phase = .overview
+                        }
+                        .accessibilityIdentifier("pos.session.overview.back")
+                    } else if !paidHistory.isEmpty {
+                        Button("Historie") {
+                            phase = .history
+                        }
+                        .accessibilityIdentifier("pos.session.history.back")
                     }
-                    .accessibilityLabel("Tisch umziehen")
                 }
-                Button {
-                    showMove = true
+                if phase == .history, !openLines.isEmpty {
+                    Button("Übersicht") {
+                        phase = .overview
+                    }
+                    .accessibilityIdentifier("pos.session.overview.back")
+                }
+                Menu {
+                    Button("Tisch umziehen") {
+                        showMoveSession = true
+                    }
+                    .disabled(
+                        resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-")
+                    )
+                    Button("Positionen umziehen") {
+                        showMove = true
+                    }
+                    .disabled(openLines.isEmpty)
                 } label: {
                     Image(systemName: "arrow.left.arrow.right")
                 }
-                .disabled(openLines.isEmpty)
-                .accessibilityLabel("Positionen umziehen")
-                Button {
-                    showKassieren = true
-                } label: {
-                    Image(systemName: "scissors")
+                .accessibilityLabel("Umziehen")
+                .accessibilityIdentifier("pos.session.moveMenu")
+                // Überblick/Historie haben Kassieren im Dock — kein zweites Scheren-Icon.
+                if phase == .ordering {
+                    Button {
+                        showKassieren = true
+                    } label: {
+                        Image(systemName: "scissors")
+                    }
+                    .disabled(openLines.isEmpty || !runtime.canCollectAtRegister)
+                    .accessibilityLabel("Rechnung kassieren")
+                    .accessibilityIdentifier("pos.session.kassierenToolbar")
                 }
-                .disabled(openLines.isEmpty || !runtime.canCollectAtRegister)
-                .accessibilityLabel("Rechnung kassieren")
             }
         }
         .safeAreaInset(edge: .bottom) {
-            bottomBar
+            if phase == .ordering {
+                bottomBar
+            }
         }
         .sensoryFeedback(.success, trigger: sendPulse)
         .sheet(item: $configuring) { item in
@@ -92,13 +163,17 @@ struct TableSessionView: View {
                 lines: $openLines,
                 onPaid: {
                     await refreshOpenLines()
+                    refreshPaidHistory()
                 },
                 onRelease: {
                     let sid = ensureSessionId()
                     _ = await runtime.releaseTable(sessionId: sid, forceAbort: false)
                     showKassieren = false
                 },
-                onClose: { showKassieren = false }
+                onClose: {
+                    showKassieren = false
+                    applyPhaseAfterSettlement()
+                }
             )
             .environmentObject(runtime)
             .modifier(PosSheetLiquidGlassBackground())
@@ -161,38 +236,68 @@ struct TableSessionView: View {
             }
         }
         .task {
+            restoreDraftCartIfNeeded()
             await refreshOpenLines()
+            refreshPaidHistory()
             syncGuestCountFromSession()
+            if !didApplyStartPhase {
+                phase = PosSessionOverviewMath.startPhase(
+                    openLines: openLines,
+                    historyNonEmpty: !paidHistory.isEmpty
+                )
+                didApplyStartPhase = true
+            }
         }
         .onChange(of: currentSession?.cover_count) { _, newValue in
             if let newValue { guestCount = newValue }
         }
-        .preference(key: PosSessionBonActiveKey.self, value: true)
-        .preference(key: PosSessionBonCartQtyKey.self, value: cartQuantity)
-        .onAppear {
-            bonOpener.open = { showBon = true }
-            syncGuestCountFromSession()
+        .onChange(of: cart) { _, newCart in
+            guard didRestoreDraftCart else { return }
+            persistDraftCart(newCart)
         }
-        .onDisappear { bonOpener.open = nil }
+        .onChange(of: draftCartSessionId) { _, _ in
+            guard didRestoreDraftCart else { return }
+            persistDraftCart(cart)
+        }
+        .onChange(of: currentSession?.id) { oldId, newId in
+            // Remote/andere Station: Session weg → Entwurf UI leeren (Disk bereits gepruned).
+            guard didRestoreDraftCart else { return }
+            guard let oldId, !oldId.hasPrefix("pending-"), newId == nil else { return }
+            if !cart.isEmpty { cart = [] }
+        }
+        .onAppear {
+            syncGuestCountFromSession()
+            restoreDraftCartIfNeeded()
+        }
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 10) {
-                    PosStatusBadge(
-                        title: resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-")
-                            ? "Frei"
-                            : "Besetzt",
-                        emphasized: !(resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-"))
-                    )
-                    guestStepper
+        let occupied = !(resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-"))
+        let sumCents = cartTotal + openTotal
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(occupied ? PosDesign.green : PosDesign.muted.opacity(0.4))
+                        .frame(width: 8, height: 8)
+                    Text(occupied ? "Tisch besetzt" : "Tisch frei")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(occupied ? PosDesign.ink : PosDesign.muted)
+                        .lineLimit(1)
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(occupied ? "Tisch besetzt" : "Tisch frei")
+
+                Spacer(minLength: 8)
+                Text(PosMoney.format(sumCents))
+                    .font(.title2.weight(.bold).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .layoutPriority(1)
+                    .accessibilityLabel("Summe \(PosMoney.format(sumCents))")
             }
-            Spacer(minLength: 8)
-            Text(PosMoney.format(cartTotal + openTotal))
-                .font(.title2.weight(.bold).monospacedDigit())
-                .accessibilityLabel("Summe \(PosMoney.format(cartTotal + openTotal))")
+
+            guestStepper
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
@@ -201,9 +306,11 @@ struct TableSessionView: View {
 
     private var guestStepper: some View {
         HStack(spacing: 6) {
-            Image(systemName: "person.2")
-                .font(.subheadline)
+            Text("Gäste")
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(PosDesign.muted)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Button {
                 adjustGuests(-1)
             } label: {
@@ -218,7 +325,8 @@ struct TableSessionView: View {
 
             Text("\(guestCount)")
                 .font(.body.weight(.semibold).monospacedDigit())
-                .frame(minWidth: 24)
+                .frame(minWidth: 28)
+                .foregroundStyle(PosDesign.ink)
 
             Button {
                 adjustGuests(1)
@@ -231,8 +339,9 @@ struct TableSessionView: View {
             .buttonStyle(.plain)
             .disabled(guestCount >= 20)
             .accessibilityLabel("Gast hinzufügen")
+
+            Spacer(minLength: 0)
         }
-        .foregroundStyle(PosDesign.muted)
         .accessibilityIdentifier("pos.session.guests")
         .accessibilityLabel("\(guestCount) Gäste")
     }
@@ -354,6 +463,17 @@ struct TableSessionView: View {
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }
     private var openTotal: Int { openLines.reduce(0) { $0 + $1.openCents } }
     private var cartQuantity: Int { cart.reduce(0) { $0 + $1.quantity } }
+    private var overviewPaidCents: Int {
+        let tableReceipts = PosOfflineCaches.receipts(forTableLabel: table.label)
+        let overviewReceipts = PosSessionOverviewMath.overviewReceipts(
+            resolvedSessionId: resolvedSessionId,
+            tableReceipts: tableReceipts
+        )
+        return PosSessionOverviewMath.paidCents(
+            openLines: openLines,
+            receipts: overviewReceipts
+        )
+    }
     private var currentSession: PosLanOpenSession? {
         runtime.snapshot?.floor.openSessions.first(where: { $0.dining_table_id == table.id })
     }
@@ -363,6 +483,44 @@ struct TableSessionView: View {
         if let sessionId { return sessionId }
         if let existing = currentSession?.id { return existing }
         return ""
+    }
+
+    private func refreshPaidHistory() {
+        let sid = resolvedSessionId
+        guard !sid.isEmpty, !sid.hasPrefix("pending-") else {
+            paidHistory = []
+            return
+        }
+        let tableReceipts = PosOfflineCaches.receipts(forTableLabel: table.label)
+        let sessionReceipts = PosSessionOverviewMath.overviewReceipts(
+            resolvedSessionId: sid,
+            tableReceipts: tableReceipts
+        )
+        paidHistory = PosPaidHistoryStore.rebuild(sessionId: sid, receipts: sessionReceipts)
+    }
+
+    private func applyPhaseAfterSettlement() {
+        phase = PosSessionOverviewMath.startPhase(
+            openLines: openLines,
+            historyNonEmpty: !paidHistory.isEmpty
+        )
+    }
+
+    /// Session-ID für Draft-Persistenz (nil = Tisch-Key).
+    private var draftCartSessionId: String? {
+        let sid = resolvedSessionId
+        guard !sid.isEmpty, !sid.hasPrefix("pending-") else { return nil }
+        return sid
+    }
+
+    private func restoreDraftCartIfNeeded() {
+        guard !didRestoreDraftCart else { return }
+        cart = PosDraftCartStore.load(diningTableId: table.id, sessionId: draftCartSessionId)
+        didRestoreDraftCart = true
+    }
+
+    private func persistDraftCart(_ lines: [PosCartLine]) {
+        PosDraftCartStore.save(lines, diningTableId: table.id, sessionId: draftCartSessionId)
     }
 
     private func syncGuestCountFromSession() {
@@ -382,14 +540,11 @@ struct TableSessionView: View {
         }
     }
 
+    /// Speisekarte-Badge: nur ungeschickter Entwurf (Cart), nicht bereits geschickte Bon-Zeilen.
     private func quantityForMenuItem(_ menuItemId: String) -> Int {
-        let inCart = cart
+        cart
             .filter { $0.menuItemId == menuItemId }
             .reduce(0) { $0 + $1.quantity }
-        let inOpen = openLines
-            .filter { $0.menuItemId == menuItemId }
-            .reduce(0) { $0 + $1.openQuantity }
-        return inCart + inOpen
     }
 
     private func onSelectMenuItem(_ item: PosCloudMenuItem) {

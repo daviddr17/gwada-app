@@ -61,20 +61,6 @@ private struct PosHideTabBarModifier: ViewModifier {
     }
 }
 
-// MARK: - Bon accessory: Glass capsule (iOS 26)
-
-struct PosBonTabAccessoryGlassChrome: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content
-                .padding(.horizontal, 4)
-                .glassEffect(in: Capsule())
-        } else {
-            content
-        }
-    }
-}
-
 /// Sheet-Hintergrund mit Material (Liquid-Glass-Nähe auf allen iOS-Versionen).
 struct PosSheetLiquidGlassBackground: ViewModifier {
     func body(content: Content) -> some View {

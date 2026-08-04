@@ -98,7 +98,7 @@ struct PosCartModifier: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-struct PosCartLine: Identifiable, Equatable, Sendable {
+struct PosCartLine: Identifiable, Equatable, Codable, Sendable {
     var id: String = UUID().uuidString
     var menuItemId: String
     var name: String

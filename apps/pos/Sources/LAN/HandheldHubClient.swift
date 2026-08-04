@@ -29,7 +29,7 @@ enum HandheldHubClient {
     private static let decoder = JSONDecoder()
     private static let encoder = JSONEncoder()
 
-    /// Pin nach Pairing / aus Enrollment setzen (nil = TOFU für ersten Kontakt).
+    /// Pin nach Pairing / aus Enrollment setzen (nil = optional TOFU nur in DEBUG).
     static func configureTLSPin(fingerprintHex: String?) {
         sessionLock.lock()
         defer { sessionLock.unlock() }
@@ -39,7 +39,15 @@ enum HandheldHubClient {
         let pin = (normalized?.isEmpty == false) ? normalized : nil
         guard pin != pinnedFingerprint else { return }
         pinnedFingerprint = pin
-        urlSession = HandheldHubTLS.makeSession(pinnedFingerprintHex: pin)
+        urlSession = HandheldHubTLS.makeSession(
+            pinnedFingerprintHex: pin,
+            allowTrustOnFirstUse: pin == nil && PosSecurityPolicy.allowsTlsTrustOnFirstUse
+        )
+    }
+
+    /// Vor Pairing/Connect: Bonjour-Fingerprint setzen (kein TOFU auf fremdem Cert).
+    static func prepareExpectedTLSFingerprint(_ fingerprintHex: String?) {
+        configureTLSPin(fingerprintHex: fingerprintHex)
     }
 
     private static func activeSession() -> URLSession {
@@ -51,6 +59,19 @@ enum HandheldHubClient {
     private static func applyPairToken(_ token: String?, to request: inout URLRequest) {
         if let token, !token.isEmpty {
             request.setValue(token, forHTTPHeaderField: PosLanProtocol.headerPairToken)
+        }
+    }
+
+    private static func applyStaffProof(
+        staffId: String?,
+        staffSessionHeader: String?,
+        to request: inout URLRequest
+    ) {
+        if let staffId, !staffId.isEmpty {
+            request.setValue(staffId, forHTTPHeaderField: PosLanProtocol.headerStaffId)
+        }
+        if let staffSessionHeader, !staffSessionHeader.isEmpty {
+            request.setValue(staffSessionHeader, forHTTPHeaderField: PosLanProtocol.headerStaffSession)
         }
     }
 
@@ -199,37 +220,104 @@ enum HandheldHubClient {
     static func collect(
         baseURL: URL,
         sessionId: String,
-        lineIds: [String],
+        allocations: [(lineId: String, quantity: Int)],
         method: String,
         tipCents: Int = 0,
         receivedAmountCents: Int? = nil,
         paymentAttemptId: String? = nil,
-        pairToken: String? = nil
+        pairToken: String? = nil,
+        staffId: String? = nil,
+        staffSessionId: String? = nil,
+        staffSessionHeader: String? = nil
     ) async throws {
+        struct Alloc: Encodable {
+            var lineId: String
+            var quantity: Int
+        }
         struct Body: Encodable {
             var sessionId: String
-            var lineIds: [String]
+            var allocations: [Alloc]
             var method: String
             var tipCents: Int
             var receivedAmountCents: Int?
             var paymentAttemptId: String?
+            var staffId: String?
+            var staffSessionId: String?
         }
         var request = URLRequest(url: url(baseURL, path: PosLanProtocol.collectPath))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
         applyPairToken(pairToken, to: &request)
+        applyStaffProof(staffId: staffId, staffSessionHeader: staffSessionHeader, to: &request)
         request.httpBody = try encoder.encode(Body(
             sessionId: sessionId,
-            lineIds: lineIds,
+            allocations: allocations.map { Alloc(lineId: $0.lineId, quantity: $0.quantity) },
             method: method,
             tipCents: tipCents,
             receivedAmountCents: receivedAmountCents,
-            paymentAttemptId: paymentAttemptId
+            paymentAttemptId: paymentAttemptId,
+            staffId: staffId,
+            staffSessionId: staffSessionId
         ))
         let (_, response) = try await perform(request)
         guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
         guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
+    }
+
+    static func fireCourse(
+        baseURL: URL,
+        sessionId: String,
+        course: Int,
+        fireAttemptId: String? = nil,
+        pairToken: String? = nil
+    ) async throws {
+        struct Body: Encodable {
+            var sessionId: String
+            var course: Int
+            var fireAttemptId: String?
+        }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.fireCoursePath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        request.httpBody = try encoder.encode(Body(
+            sessionId: sessionId,
+            course: course,
+            fireAttemptId: fireAttemptId
+        ))
+        let (_, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
+    }
+
+    static func releaseSession(
+        baseURL: URL,
+        sessionId: String,
+        forceAbort: Bool = false,
+        pairToken: String? = nil
+    ) async throws {
+        struct Body: Encodable {
+            var sessionId: String
+            var forceAbort: Bool
+        }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.releaseSessionPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        request.httpBody = try encoder.encode(Body(sessionId: sessionId, forceAbort: forceAbort))
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        if http.statusCode == 200 { return }
+        struct ErrorBody: Decodable { var error: String? }
+        let message = (try? decoder.decode(ErrorBody.self, from: data))?.error
+            ?? "HTTP \(http.statusCode)"
+        if http.statusCode == 409 || http.statusCode == 422 || http.statusCode == 404 {
+            throw HandheldHubClientError.hubRejected(status: http.statusCode, message: message)
+        }
+        throw HandheldHubClientError.httpStatus(http.statusCode)
     }
 
     static func requestPairing(baseURL: URL, request req: PosLanPairRequest) async throws -> PosLanPairChallenge {

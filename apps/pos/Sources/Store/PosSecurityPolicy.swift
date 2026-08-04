@@ -38,6 +38,15 @@ enum PosSecurityPolicy {
         #endif
     }
 
+    /// TLS Trust-on-first-use ohne Bonjour-Fingerprint — nur DEBUG (Simulator/manuell).
+    static var allowsTlsTrustOnFirstUse: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
+    }
+
     static let allowedCollectMethods: Set<String> = [
         PosPaymentMethodKind.cash.rawValue,
         PosPaymentMethodKind.card.rawValue,

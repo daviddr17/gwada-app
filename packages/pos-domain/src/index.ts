@@ -28,6 +28,7 @@ export {
   deriveLinePaymentState,
   deriveSessionSettlementState,
   openLineQuantity,
+  sliceAmountCents,
   type PosLinePaymentState,
   type PosSessionLineInput,
   type PosSessionSettlementState,

@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  allocationAmountCents,
   normalizePosOrderCourse,
   openLineQuantity,
+  sliceAmountCents,
 } from "@gwada/pos-domain";
 import { SupabaseAdminService } from "../supabase-admin.service";
 import { RegisterGateService } from "../sessions/sessions.service";
@@ -265,9 +265,11 @@ export class PaymentsService {
       if (qty > openQty + 1e-9) {
         return { ok: false as const, error: "allocation_exceeds_open", status: 400 };
       }
-      const cents = allocationAmountCents(
+      const paidBefore = Number(line.paid_quantity ?? 0);
+      const cents = sliceAmountCents(
         Number(line.line_total_cents),
         Number(line.quantity),
+        paidBefore,
         qty,
       );
       amountCents += cents;

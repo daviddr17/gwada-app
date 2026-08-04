@@ -7,6 +7,16 @@ struct PosLocalReceiptLine: Codable, Equatable, Sendable {
     var name: String
     var detail: String
     var totalCents: Int
+    /// Gang der bezahlten Position (für Historie-Sektionen); ältere Belege: nil → default.
+    var course: Int?
+
+    init(quantity: Int, name: String, detail: String, totalCents: Int, course: Int? = nil) {
+        self.quantity = quantity
+        self.name = name
+        self.detail = detail
+        self.totalCents = totalCents
+        self.course = course
+    }
 }
 
 /// Demo-TSE-Felder (§ 6 KassenSichV) — bis echte Fiskaly-Anbindung.
@@ -180,7 +190,8 @@ enum PosOfflineCaches {
                     quantity: $0.openQuantity,
                     name: $0.name,
                     detail: Self.receiptDetail(from: $0.detail),
-                    totalCents: $0.openCents
+                    totalCents: $0.openCents,
+                    course: $0.course
                 )
             },
             waiterName: waiterName,

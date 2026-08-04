@@ -37,11 +37,14 @@ struct BonSheetView: View {
     var onZurRechnung: () -> Void
 
     @State private var actionState = BonSheetActionState()
+    @State private var showClearDraftConfirm = false
 
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }
     private var openTotal: Int { openLines.reduce(0) { $0 + $1.openCents } }
     private var grandTotal: Int { cartTotal + openTotal }
     private var hasAnything: Bool { !cart.isEmpty || !openLines.isEmpty }
+    private var cartQuantity: Int { cart.reduce(0) { $0 + $1.quantity } }
+    private var needsClearDraftConfirm: Bool { cart.count > 1 || cartQuantity > 1 }
 
     var body: some View {
         NavigationStack {
@@ -75,6 +78,17 @@ struct BonSheetView: View {
                         if hasAnything {
                             summeRow
                         }
+
+                        if !cart.isEmpty {
+                            PosButton(title: "Entwurf leeren", kind: .secondary) {
+                                if needsClearDraftConfirm {
+                                    showClearDraftConfirm = true
+                                } else {
+                                    cart = []
+                                }
+                            }
+                            .accessibilityIdentifier("pos.bon.clearDraft")
+                        }
                     }
                 }
                 .padding(PosDesign.sectionSpacing)
@@ -86,6 +100,14 @@ struct BonSheetView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .safeAreaInset(edge: .bottom) {
                 actions
+            }
+            .alert("Entwurf leeren?", isPresented: $showClearDraftConfirm) {
+                Button("Abbrechen", role: .cancel) {}
+                Button("Leeren", role: .destructive) {
+                    cart = []
+                }
+            } message: {
+                Text("Alle ungeschickten Positionen werden entfernt.")
             }
         }
         .accessibilityIdentifier("pos.bon.sheet")

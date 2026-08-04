@@ -41,6 +41,8 @@ final class Phase2OrderIntakeSmokeUITests: XCTestCase {
             "Session-Navigation für Tisch 1 sollte erscheinen"
         )
 
+        PosUITestSessionHelpers.ensureOrderingPhase(app: app)
+
         let hauptgang = app.descendants(matching: .any)["pos.course.2"]
         XCTAssertTrue(
             hauptgang.waitForExistence(timeout: 8),

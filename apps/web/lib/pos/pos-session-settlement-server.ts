@@ -7,6 +7,7 @@ import {
   deriveSessionSettlementState,
   normalizePosOrderCourse,
   openLineQuantity,
+  sliceAmountCents,
   type PosLinePaymentState,
 } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -212,7 +213,10 @@ function mapSummaryLine(row: {
     openQuantity: openQty,
     unitPriceCents: Number(row.unit_price_cents),
     lineTotalCents,
-    openAmountCents: allocationAmountCents(lineTotalCents, quantity, openQty),
+    openAmountCents: Math.max(
+      0,
+      lineTotalCents - allocationAmountCents(lineTotalCents, quantity, paidQuantity),
+    ),
     vatRate: Number(row.vat_rate),
     linePaymentState: deriveLinePaymentState(quantity, paidQuantity),
     notes: row.notes,
@@ -583,9 +587,11 @@ export async function collectCashAllocations(params: {
     if (qty > openQty + 1e-9) {
       return { ok: false, error: "allocation_exceeds_open_quantity", status: 400 };
     }
-    const cents = allocationAmountCents(
+    const paidBefore = Number(line.paid_quantity ?? 0);
+    const cents = sliceAmountCents(
       Number(line.line_total_cents),
       Number(line.quantity),
+      paidBefore,
       qty,
     );
     amountCents += cents;
@@ -790,9 +796,11 @@ export async function collectCustomMethodAllocations(params: {
     if (qty > openQty + 1e-9) {
       return { ok: false, error: "allocation_exceeds_open_quantity", status: 400 };
     }
-    const cents = allocationAmountCents(
+    const paidBefore = Number(line.paid_quantity ?? 0);
+    const cents = sliceAmountCents(
       Number(line.line_total_cents),
       Number(line.quantity),
+      paidBefore,
       qty,
     );
     amountCents += cents;
@@ -963,9 +971,11 @@ export async function collectVoucherAllocations(params: {
     if (qty > openQty + 1e-9) {
       return { ok: false, error: "allocation_exceeds_open_quantity", status: 400 };
     }
-    const cents = allocationAmountCents(
+    const paidBefore = Number(line.paid_quantity ?? 0);
+    const cents = sliceAmountCents(
       Number(line.line_total_cents),
       Number(line.quantity),
+      paidBefore,
       qty,
     );
     amountCents += cents;

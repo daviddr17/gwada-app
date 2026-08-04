@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Reservierungen — Schedule-Timeline (Wochenstreifen + vertikale Tagesachse).
+/// Reservierungen — Schedule-Timeline (scrollbar Tagesleiste + vertikale Tagesachse).
 struct ReservationsView: View {
     @EnvironmentObject private var runtime: PosRuntime
 
@@ -21,18 +21,23 @@ struct ReservationsView: View {
     @State private var creating = false
     @State private var showWalkIn = false
     @State private var timelineTick = Date()
+    /// Horizontale Tagesleiste (Vergangenheit → Zukunft).
+    @State private var stripDays: [Date] = []
 
     private let hourHeight: CGFloat = 88
     private let timeColumnWidth: CGFloat = 52
     private let defaultStartHour = 17
     private let defaultEndHour = 23
+    private let dateChipWidth: CGFloat = 52
+    /// Tage vor heute / nach heute in der Leiste.
+    private let stripPastDays = 30
+    private let stripFutureDays = 90
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
                 headerChrome
-                weekStrip
-                    .padding(.horizontal, PosDesign.sectionSpacing)
+                dateStrip
                     .padding(.bottom, 12)
 
                 Divider().opacity(0.35)
@@ -78,9 +83,16 @@ struct ReservationsView: View {
                 }
             }
         }
-        .task { syncFromStore() }
+        .task {
+            #if DEBUG
+            PosDemoReservations.seedIfNeeded(tables: runtime.snapshot?.floor.tables ?? [])
+            #endif
+            rebuildDateStrip()
+            syncFromStore()
+        }
         .onChange(of: selectedDate) { _, _ in
             expandedReservationId = nil
+            ensureSelectedDateInStrip()
             syncFromStore()
         }
         .sheet(isPresented: $showCreate) {
@@ -159,43 +171,126 @@ struct ReservationsView: View {
         return f.string(from: selectedDate).capitalized
     }
 
-    // MARK: - Week strip
+    // MARK: - Date strip (scrollbar)
 
-    private var weekStrip: some View {
-        let days = weekDays(around: selectedDate)
-        return HStack(spacing: 6) {
-            ForEach(days, id: \.self) { date in
-                let selected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
-                let isToday = Calendar.current.isDateInToday(date)
-                Button {
-                    selectedDate = date
-                } label: {
-                    VStack(spacing: 6) {
-                        Text(weekdayShort(date))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(selected ? Color.accentColor : .secondary)
-                        Text(dayNumber(date))
-                            .font(.headline.monospacedDigit().weight(.semibold))
-                            .foregroundStyle(selected ? PosDesign.accentForeground : .primary)
+    private var dateStrip: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(stripDays, id: \.self) { date in
+                        dateChip(date)
+                            .id(Self.ymd(from: date))
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(selected ? Color.accentColor.opacity(0.22) : Color.clear)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(
-                                selected
-                                    ? Color.accentColor.opacity(0.45)
-                                    : (isToday ? Color.accentColor.opacity(0.25) : Color.clear),
-                                lineWidth: 1
-                            )
-                    )
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, PosDesign.sectionSpacing)
             }
+            .accessibilityIdentifier("pos.reservations.dateStrip")
+            .onAppear {
+                rebuildDateStrip()
+                scrollStrip(to: selectedDate, proxy: proxy, animated: false)
+            }
+            .onChange(of: selectedDate) { _, newDate in
+                ensureSelectedDateInStrip()
+                scrollStrip(to: newDate, proxy: proxy, animated: true)
+            }
+        }
+    }
+
+    private func dateChip(_ date: Date) -> some View {
+        let selected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
+        let isToday = Calendar.current.isDateInToday(date)
+        return Button {
+            selectedDate = Calendar.current.startOfDay(for: date)
+        } label: {
+            VStack(spacing: 6) {
+                Text(weekdayShort(date))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(selected ? Color.accentColor : .secondary)
+                Text(dayNumber(date))
+                    .font(.headline.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(selected ? PosDesign.accentForeground : .primary)
+            }
+            .frame(width: dateChipWidth)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(selected ? Color.accentColor.opacity(0.22) : Color(.secondarySystemGroupedBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(
+                        selected
+                            ? Color.accentColor.opacity(0.45)
+                            : (isToday ? Color.accentColor.opacity(0.35) : Color.clear),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(dateChipAccessibilityLabel(date))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    private func dateChipAccessibilityLabel(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateStyle = .full
+        return f.string(from: date)
+    }
+
+    private func rebuildDateStrip() {
+        var cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let start = cal.date(byAdding: .day, value: -stripPastDays, to: today),
+              let end = cal.date(byAdding: .day, value: stripFutureDays, to: today)
+        else {
+            stripDays = [today]
+            return
+        }
+        var days: [Date] = []
+        var cursor = start
+        while cursor <= end {
+            days.append(cursor)
+            guard let next = cal.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        // Auswahl außerhalb der Standardspanne → Leiste erweitern
+        let selected = cal.startOfDay(for: selectedDate)
+        if selected < start {
+            var extra: [Date] = []
+            var c = selected
+            while c < start {
+                extra.append(c)
+                guard let n = cal.date(byAdding: .day, value: 1, to: c) else { break }
+                c = n
+            }
+            days = extra + days
+        } else if selected > end {
+            var c = cal.date(byAdding: .day, value: 1, to: end) ?? selected
+            while c <= selected {
+                days.append(c)
+                guard let n = cal.date(byAdding: .day, value: 1, to: c) else { break }
+                c = n
+            }
+        }
+        stripDays = days
+    }
+
+    private func ensureSelectedDateInStrip() {
+        let selected = Calendar.current.startOfDay(for: selectedDate)
+        if !stripDays.contains(where: { Calendar.current.isDate($0, inSameDayAs: selected) }) {
+            rebuildDateStrip()
+        }
+    }
+
+    private func scrollStrip(to date: Date, proxy: ScrollViewProxy, animated: Bool) {
+        let id = Self.ymd(from: date)
+        if animated {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                proxy.scrollTo(id, anchor: .center)
+            }
+        } else {
+            proxy.scrollTo(id, anchor: .center)
         }
     }
 
@@ -473,16 +568,6 @@ struct ReservationsView: View {
     }
 
     // MARK: - Week helpers
-
-    private func weekDays(around date: Date) -> [Date] {
-        var cal = Calendar.current
-        cal.firstWeekday = 2 // Montag
-        let weekday = cal.component(.weekday, from: date)
-        let daysFromMonday = (weekday + 5) % 7
-        guard let monday = cal.date(byAdding: .day, value: -daysFromMonday, to: cal.startOfDay(for: date))
-        else { return [date] }
-        return (0 ..< 7).compactMap { cal.date(byAdding: .day, value: $0, to: monday) }
-    }
 
     private func weekdayShort(_ date: Date) -> String {
         let f = DateFormatter()

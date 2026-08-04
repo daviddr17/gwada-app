@@ -252,6 +252,9 @@ final class PosRuntime: ObservableObject {
         } else {
             statusMessage = cloudNote
         }
+        #if DEBUG
+        PosDemoReservations.seedIfNeeded(tables: snapshot?.floor.tables ?? [])
+        #endif
         await pullReservationsDay(PosReservationsStore.todayYmd())
         syncPending = PosSyncQueue.shared.pendingCount
     }
@@ -347,6 +350,12 @@ final class PosRuntime: ObservableObject {
             if persistHandheldCache, role == .handheld, PosEnrollmentStore.shared.isHandheldPaired {
                 PosHandheldSnapshotCache.save(snap)
             }
+            PosDraftCartStore.pruneMissingSessions(
+                openSessionIds: Set(snap.floor.openSessions.map(\.id))
+            )
+            PosPaidHistoryStore.pruneMissingSessions(
+                openSessionIds: Set(snap.floor.openSessions.map(\.id))
+            )
         }
         pendingPrintJobs = PosHubState.shared.pendingPrintJobCount
     }
@@ -905,6 +914,7 @@ final class PosRuntime: ObservableObject {
 
         let covers = snapshot?.floor.openSessions.first(where: { $0.id == sessionId })?.cover_count ?? 2
         let token = PosEnrollmentStore.shared.handheldPairToken
+        let eventId = UUID().uuidString
         do {
             try await HandheldHubClient.createOrder(
                 baseURL: baseURL,
@@ -919,7 +929,10 @@ final class PosRuntime: ObservableObject {
                         clientLineId: $0.id
                     )
                 },
-                pairToken: token
+                pairToken: token,
+                sessionId: sessionId,
+                eventId: eventId,
+                requireExistingSession: true
             )
         } catch let HandheldHubClientError.hubRejected(_, message) {
             statusMessage = "Bestellung abgelehnt: \(message)"
@@ -1129,11 +1142,17 @@ final class PosRuntime: ObservableObject {
                     course: line.course ?? PosCourse.default,
                     firedAt: line.firedAt,
                     detail: detailParts.joined(separator: " · "),
-                    menuItemId: nil
+                    menuItemId: nil,
+                    lineQuantity: line.quantity,
+                    lineTotalCents: line.lineTotalCents
                 )
             }
-            // Cloud leer, lokal noch da (Sync-Delay / Offline-Buchung) → lokal zeigen.
-            return remote.isEmpty && !local.isEmpty ? local : remote
+            // Cloud leer ODER Handgerät mit lokalen clientLineIds: lokal bevorzugen.
+            // Sonst überschreibt Cloud-Summary die LAN-IDs und Kassieren scheitert (unknown_lines).
+            if !local.isEmpty {
+                return local
+            }
+            return remote
         } catch {
             statusMessage = "Offene Positionen: \(error.localizedDescription)"
             return local
@@ -1151,7 +1170,31 @@ final class PosRuntime: ObservableObject {
         customPaymentMethodId: String? = nil,
         receiptLabel: String? = nil
     ) async -> PosLocalReceipt? {
-        guard !lines.isEmpty else {
+        let allocations = lines.compactMap { PosPayAllocation.make(from: $0, quantity: $0.openQuantity) }
+        return await collectSplit(
+            sessionId: sessionId,
+            allocations: allocations,
+            method: method,
+            tipCents: tipCents,
+            receivedAmountCents: receivedAmountCents,
+            giftVoucherId: giftVoucherId,
+            customPaymentMethodId: customPaymentMethodId,
+            receiptLabel: receiptLabel
+        )
+    }
+
+    @discardableResult
+    func collectSplit(
+        sessionId: String,
+        allocations: [PosPayAllocation],
+        method: PosPaymentMethodKind,
+        tipCents: Int,
+        receivedAmountCents: Int? = nil,
+        giftVoucherId: String? = nil,
+        customPaymentMethodId: String? = nil,
+        receiptLabel: String? = nil
+    ) async -> PosLocalReceipt? {
+        guard !allocations.isEmpty else {
             statusMessage = "Keine Positionen gewählt."
             return nil
         }
@@ -1168,17 +1211,43 @@ final class PosRuntime: ObservableObject {
             return nil
         }
 
-        let lineIds = Set(lines.map(\.id))
-        switch PosHubState.shared.validateCollectLines(sessionId: sessionId, lineIds: lineIds) {
+        let allocPairs = allocations.map { (lineId: $0.lineId, quantity: $0.quantity) }
+        let validated: PosHubState.CollectAllocationValidation =
+            PosHubState.shared.validateCollectAllocations(sessionId: sessionId, allocations: allocPairs)
+        let resolvedAllocs: [PosHubState.ResolvedCollectAllocation]
+        switch validated {
         case .unknownLines:
             statusMessage = "Zahlung abgebrochen — Positionen unbekannt oder bereits kassiert."
             return nil
         case .noOpenLines:
             statusMessage = "Keine offenen Positionen mehr."
             return nil
-        case .ok:
-            break
+        case .exceedsOpen:
+            statusMessage = "Menge übersteigt den offenen Rest."
+            return nil
+        case .ok(_, let resolved):
+            resolvedAllocs = resolved
         }
+
+        // Beleg nur aus hub-validierten Beträgen (nicht Client-amountCents).
+        let metaByLine = Dictionary(uniqueKeysWithValues: allocations.map { ($0.lineId, $0) })
+        let receiptLines: [SessionOpenLine] = resolvedAllocs.map { r in
+            let meta = metaByLine[r.lineId]
+            return SessionOpenLine(
+                id: r.lineId,
+                orderLineId: r.orderLineId,
+                name: meta?.name ?? "Position",
+                openQuantity: r.quantity,
+                openCents: r.amountCents,
+                course: meta?.course ?? PosCourse.default,
+                firedAt: nil,
+                detail: meta?.detail ?? "",
+                menuItemId: meta?.menuItemId,
+                lineQuantity: r.quantity,
+                lineTotalCents: r.amountCents
+            )
+        }
+        let validatedPaidCents = resolvedAllocs.reduce(0) { $0 + $1.amountCents }
 
         // Gekoppeltes Handgerät: Hub Pflicht — nur Bar über LAN settle (Review A).
         if role == .handheld, PosEnrollmentStore.shared.isHandheldPaired, !isSoloMode {
@@ -1201,15 +1270,23 @@ final class PosRuntime: ObservableObject {
             let token = PosEnrollmentStore.shared.handheldPairToken
             let attemptId = UUID().uuidString
             do {
+                let pin = PosAuthStore.shared.pinSession
+                let staffSessionHeader: String? = {
+                    guard let pin, !pin.isOffline else { return nil }
+                    return "\(pin.sessionId).\(pin.sessionToken)"
+                }()
                 try await HandheldHubClient.collect(
                     baseURL: base,
                     sessionId: sessionId,
-                    lineIds: Array(lineIds),
+                    allocations: allocPairs,
                     method: method.rawValue,
                     tipCents: tipCents,
                     receivedAmountCents: receivedAmountCents,
                     paymentAttemptId: attemptId,
-                    pairToken: token
+                    pairToken: token,
+                    staffId: pin?.staffId,
+                    staffSessionId: pin?.sessionId,
+                    staffSessionHeader: staffSessionHeader
                 )
             } catch {
                 statusMessage = "Zahlung an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
@@ -1224,7 +1301,7 @@ final class PosRuntime: ObservableObject {
                 sessionId: sessionId,
                 tableLabel: tableMeta.label,
                 diningTableId: tableMeta.tableId,
-                lines: lines,
+                lines: receiptLines,
                 method: method,
                 tipCents: tipCents,
                 receivedAmountCents: receivedAmountCents,
@@ -1232,8 +1309,7 @@ final class PosRuntime: ObservableObject {
                 waiterName: waiterName
             )
             PosOfflineCaches.appendReceipt(receipt)
-            // Hub hat Zeilen bereits removed — lokal spiegeln + Beleg nicht ewig fiscalPending.
-            _ = PosHubState.shared.collectLocalLines(sessionId: sessionId, lineIds: lineIds)
+            _ = PosHubState.shared.collectLocalAllocations(sessionId: sessionId, allocations: allocPairs)
             PosOfflineCaches.markReceiptSynced(localId: receipt.localId, paymentId: attemptId)
             if let snap = try? await HandheldHubClient.fetchSnapshot(
                 baseURL: base,
@@ -1242,7 +1318,7 @@ final class PosRuntime: ObservableObject {
             ) {
                 publishSnapshot(snap)
             }
-            let paidCents = lines.reduce(0) { $0 + $1.openCents }
+            let paidCents = validatedPaidCents
             let tipNote = tipCents > 0 ? " inkl. \(PosMoney.format(tipCents)) Tip" : ""
             statusMessage =
                 "Beleg #\(receipt.orderNumber) · \(method.label) · \(PosMoney.format(paidCents + tipCents))\(tipNote)"
@@ -1262,7 +1338,7 @@ final class PosRuntime: ObservableObject {
             sessionId: sessionId,
             tableLabel: tableMeta.label,
             diningTableId: tableMeta.tableId,
-            lines: lines,
+            lines: receiptLines,
             method: method,
             tipCents: tipCents,
             receivedAmountCents: receivedAmountCents,
@@ -1271,7 +1347,10 @@ final class PosRuntime: ObservableObject {
         )
         PosOfflineCaches.appendReceipt(receipt)
 
-        let paidCents = PosHubState.shared.collectLocalLines(sessionId: sessionId, lineIds: lineIds)
+        let paidCents = PosHubState.shared.collectLocalAllocations(
+            sessionId: sessionId,
+            allocations: allocPairs
+        )
         if shouldPublishLocalHubFloor {
             publishSnapshot(PosHubState.shared.makeSnapshot())
         } else if let base = hubBaseURL {
@@ -1299,7 +1378,7 @@ final class PosRuntime: ObservableObject {
                 enqueueLocalCollectForSync(
                     receipt: receipt,
                     sessionId: sessionId,
-                    lines: lines,
+                    allocations: allocations,
                     tipCents: tipCents,
                     receivedAmountCents: receivedAmountCents,
                     method: method,
@@ -1312,8 +1391,8 @@ final class PosRuntime: ObservableObject {
         }
 
         let restaurantId = PosHubState.shared.restaurantId
-        let allocations = lines.map {
-            (PosOrderLineIdMap.shared.resolve($0.orderLineId), $0.openQuantity)
+        let cloudAllocations = allocations.map {
+            (PosOrderLineIdMap.shared.resolve($0.orderLineId), $0.quantity)
         }
 
         if method == .voucher {
@@ -1330,7 +1409,7 @@ final class PosRuntime: ObservableObject {
                     restaurantId: restaurantId,
                     tableSessionId: sessionId,
                     giftVoucherId: giftVoucherId,
-                    allocations: allocations,
+                    allocations: cloudAllocations,
                     tipCents: tipCents
                 )
                 if result.remainingVoucherCents > 0 {
@@ -1367,7 +1446,7 @@ final class PosRuntime: ObservableObject {
                     restaurantId: restaurantId,
                     tableSessionId: sessionId,
                     paymentMethodId: customPaymentMethodId,
-                    allocations: allocations,
+                    allocations: cloudAllocations,
                     tipCents: tipCents
                 )
                 PosOfflineCaches.markReceiptSynced(
@@ -1389,7 +1468,7 @@ final class PosRuntime: ObservableObject {
             enqueueLocalCollectForSync(
                 receipt: receipt,
                 sessionId: sessionId,
-                lines: lines,
+                allocations: allocations,
                 tipCents: tipCents,
                 receivedAmountCents: receivedAmountCents,
                 method: method,
@@ -1423,7 +1502,7 @@ final class PosRuntime: ObservableObject {
         enqueueLocalCollectForSync(
             receipt: receipt,
             sessionId: sessionId,
-            lines: lines,
+            allocations: allocations,
             tipCents: tipCents,
             receivedAmountCents: receivedAmountCents,
             method: .cash,
@@ -1459,7 +1538,7 @@ final class PosRuntime: ObservableObject {
     private func enqueueLocalCollectForSync(
         receipt: PosLocalReceipt,
         sessionId: String,
-        lines: [SessionOpenLine],
+        allocations: [PosPayAllocation],
         tipCents: Int,
         receivedAmountCents: Int?,
         method: PosPaymentMethodKind,
@@ -1469,10 +1548,10 @@ final class PosRuntime: ObservableObject {
         PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
             restaurantId: PosHubState.shared.restaurantId,
             tableSessionId: sessionId,
-            allocations: lines.map {
+            allocations: allocations.map {
                 PosSyncCashAllocation(
                     orderLineId: PosOrderLineIdMap.shared.resolve($0.orderLineId),
-                    quantity: $0.openQuantity
+                    quantity: $0.quantity
                 )
             },
             tipCents: tipCents,
@@ -1506,7 +1585,37 @@ final class PosRuntime: ObservableObject {
                 statusMessage = "Feuern nur mit erreichbarer Kasse."
                 return false
             }
+            guard let base = hubBaseURL else {
+                statusMessage = "Feuern nur mit erreichbarer Kasse."
+                return false
+            }
+            let attemptId = UUID().uuidString
+            do {
+                try await HandheldHubClient.fireCourse(
+                    baseURL: base,
+                    sessionId: sessionId,
+                    course: course,
+                    fireAttemptId: attemptId,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                )
+            } catch {
+                statusMessage = "Feuern an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                return false
+            }
+            PosHubState.shared.markFired(sessionId: sessionId, course: course)
+            PosHubState.shared.markLocalCourseFired(sessionId: sessionId, course: course)
+            PosAuditLog.shared.record("course.fired", detail: "\(course)", sessionId: sessionId)
+            statusMessage = "Gang „\(PosCourse.label(course))“ gefeuert."
+            if let snap = try? await HandheldHubClient.fetchSnapshot(
+                baseURL: base,
+                restaurantId: nil,
+                pairToken: PosEnrollmentStore.shared.handheldPairToken
+            ) {
+                publishSnapshot(snap)
+            }
+            return true
         }
+
         let restaurantId = PosHubState.shared.restaurantId
         PosHubState.shared.markFired(sessionId: sessionId, course: course)
         PosHubState.shared.markLocalCourseFired(sessionId: sessionId, course: course)
@@ -1526,14 +1635,6 @@ final class PosRuntime: ObservableObject {
         statusMessage = "Gang „\(PosCourse.label(course))“ gefeuert."
         if shouldPublishLocalHubFloor {
             publishSnapshot(PosHubState.shared.makeSnapshot())
-        } else if let base = hubBaseURL {
-            if let snap = try? await HandheldHubClient.fetchSnapshot(
-                baseURL: base,
-                restaurantId: nil,
-                pairToken: PosEnrollmentStore.shared.handheldPairToken
-            ) {
-                publishSnapshot(snap)
-            }
         }
         return true
     }
@@ -1551,16 +1652,31 @@ final class PosRuntime: ObservableObject {
                 statusMessage = "Freigeben nur mit erreichbarer Kasse."
                 return false
             }
-            // Kein makeSnapshot — LAN-Floor nicht mit lokalem Bootstrap überschreiben.
+            guard let base = hubBaseURL else {
+                statusMessage = "Freigeben nur mit erreichbarer Kasse."
+                return false
+            }
+            do {
+                try await HandheldHubClient.releaseSession(
+                    baseURL: base,
+                    sessionId: sessionId,
+                    forceAbort: forceAbort,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                )
+            } catch let HandheldHubClientError.hubRejected(_, message) {
+                statusMessage = "Freigeben abgelehnt: \(message)"
+                return false
+            } catch {
+                statusMessage = "Freigeben an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                return false
+            }
             _ = PosHubState.shared.releaseLocalSession(sessionId: sessionId)
             removeSessionFromHandheldSnapshot(sessionId)
-            if let base = hubBaseURL,
-               let snap = try? await HandheldHubClient.fetchSnapshot(
-                   baseURL: base,
-                   restaurantId: nil,
-                   pairToken: PosEnrollmentStore.shared.handheldPairToken
-               )
-            {
+            if let snap = try? await HandheldHubClient.fetchSnapshot(
+                baseURL: base,
+                restaurantId: nil,
+                pairToken: PosEnrollmentStore.shared.handheldPairToken
+            ) {
                 publishSnapshot(snap)
             }
             PosAuditLog.shared.record(
@@ -1568,9 +1684,7 @@ final class PosRuntime: ObservableObject {
                 detail: forceAbort ? "abort_handheld" : "release_handheld",
                 sessionId: sessionId
             )
-            statusMessage = forceAbort
-                ? "Tisch abgebrochen (lokal)."
-                : "Tisch freigegeben — bitte an der Kasse prüfen."
+            statusMessage = forceAbort ? "Tisch abgebrochen." : "Tisch freigegeben."
             return true
         }
 
@@ -2078,15 +2192,62 @@ final class PosRuntime: ObservableObject {
             }
 
             if pathOnly == PosLanProtocol.collectPath {
+                struct AllocIn: Decodable {
+                    var lineId: String?
+                    var orderLineId: String?
+                    var quantity: Int?
+                }
                 struct Req: Decodable {
                     var sessionId: String
-                    var lineIds: [String]
+                    var lineIds: [String]?
+                    var allocations: [AllocIn]?
                     var method: String
                     var tipCents: Int?
                     var receivedAmountCents: Int?
                     var paymentAttemptId: String?
+                    var staffId: String?
+                    var staffSessionId: String?
                 }
-                guard let req = try? decoder.decode(Req.self, from: body), !req.lineIds.isEmpty else {
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                let allocPairs: [(lineId: String, quantity: Int)] = {
+                    if let raw = req.allocations, !raw.isEmpty {
+                        let open = PosHubState.shared.localOpenLines(sessionId: req.sessionId)
+                        let byId = Dictionary(uniqueKeysWithValues: open.map { ($0.id, $0) })
+                        let byOrder = Dictionary(uniqueKeysWithValues: open.map { ($0.orderLineId, $0) })
+                        return raw.compactMap { row -> (lineId: String, quantity: Int)? in
+                            let qty = row.quantity ?? 0
+                            guard qty > 0 else { return nil }
+                            if let lid = row.lineId?.trimmingCharacters(in: .whitespacesAndNewlines),
+                               !lid.isEmpty,
+                               byId[lid] != nil
+                            {
+                                return (lid, qty)
+                            }
+                            if let oid = row.orderLineId?.trimmingCharacters(in: .whitespacesAndNewlines),
+                               !oid.isEmpty,
+                               let line = byOrder[oid]
+                            {
+                                return (line.id, qty)
+                            }
+                            let fallback = (row.lineId ?? row.orderLineId ?? "")
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !fallback.isEmpty else { return nil }
+                            return (fallback, qty)
+                        }
+                    }
+                    // Legacy: volle Mengen für lineIds.
+                    let ids = req.lineIds ?? []
+                    guard !ids.isEmpty else { return [] }
+                    let lines = PosHubState.shared.localOpenLines(sessionId: req.sessionId)
+                    let byId = Dictionary(uniqueKeysWithValues: lines.map { ($0.id, $0) })
+                    return ids.compactMap { id -> (lineId: String, quantity: Int)? in
+                        guard let line = byId[id] else { return (id, 1) }
+                        return (id, line.openQuantity)
+                    }
+                }()
+                guard !allocPairs.isEmpty else {
                     return (400, Data(#"{"error":"invalid_body"}"#.utf8))
                 }
                 guard PosSecurityPolicy.isAllowedCollectMethod(req.method) else {
@@ -2105,23 +2266,39 @@ final class PosRuntime: ObservableObject {
                     if !staffSignedIn {
                         return (403, Data(#"{"error":"staff_required"}"#.utf8))
                     }
+                    // Pair-Token allein reicht nicht: Handgerät muss Staff-Proof mitschicken.
+                    let headerStaffId = (headers[PosLanProtocol.headerStaffId.lowercased()] ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let bodyStaffId = (req.staffId ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let staffId = !headerStaffId.isEmpty ? headerStaffId : bodyStaffId
+                    let staffSessionId = (req.staffSessionId ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let staffSessionHeader = (headers[PosLanProtocol.headerStaffSession.lowercased()] ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !staffId.isEmpty, !staffSessionId.isEmpty || !staffSessionHeader.isEmpty else {
+                        return (403, Data(#"{"error":"staff_proof_required"}"#.utf8))
+                    }
                 }
                 if let attemptId = req.paymentAttemptId,
                    !PosHubState.shared.registerCollectAttemptId(attemptId)
                 {
                     return (409, Data(#"{"error":"duplicate_attempt"}"#.utf8))
                 }
-                let lineIds = Set(req.lineIds)
-                guard let settled = PosHubState.shared.settleCollectLines(
+                guard let settled = PosHubState.shared.settleCollectAllocations(
                     sessionId: req.sessionId,
-                    lineIds: lineIds
+                    allocations: allocPairs
                 ) else {
-                    // Race / bereits kassiert — nichts enqueueen.
-                    switch PosHubState.shared.validateCollectLines(sessionId: req.sessionId, lineIds: lineIds) {
+                    switch PosHubState.shared.validateCollectAllocations(
+                        sessionId: req.sessionId,
+                        allocations: allocPairs
+                    ) {
                     case .unknownLines:
                         return (400, Data(#"{"error":"unknown_lines"}"#.utf8))
                     case .noOpenLines:
                         return (400, Data(#"{"error":"no_open_lines"}"#.utf8))
+                    case .exceedsOpen:
+                        return (400, Data(#"{"error":"allocation_exceeds_open_quantity"}"#.utf8))
                     case .ok:
                         return (409, Data(#"{"error":"nothing_to_collect"}"#.utf8))
                     }
@@ -2164,6 +2341,77 @@ final class PosRuntime: ObservableObject {
                 ]
                 let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
                 return (200, data)
+            }
+
+            if pathOnly == PosLanProtocol.fireCoursePath {
+                struct Req: Decodable {
+                    var sessionId: String
+                    var course: Int
+                    var fireAttemptId: String?
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                guard req.course >= 1 else {
+                    return (400, Data(#"{"error":"invalid_course"}"#.utf8))
+                }
+                guard PosHubState.shared.hasOpenSession(id: req.sessionId, diningTableId: nil) else {
+                    return (409, Data(#"{"error":"session_gone"}"#.utf8))
+                }
+                PosHubState.shared.markFired(sessionId: req.sessionId, course: req.course)
+                PosHubState.shared.markLocalCourseFired(sessionId: req.sessionId, course: req.course)
+                let restaurantId = PosHubState.shared.restaurantId
+                let attemptId = {
+                    let t = req.fireAttemptId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    return t.isEmpty ? UUID().uuidString : t
+                }()
+                Task { @MainActor in
+                    PosAuditLog.shared.record(
+                        "course.fired",
+                        detail: "lan:\(req.course)",
+                        sessionId: req.sessionId
+                    )
+                    PosSyncQueue.shared.enqueueFireCourse(PosSyncFireCoursePayload(
+                        restaurantId: restaurantId,
+                        tableSessionId: req.sessionId,
+                        course: req.course,
+                        fireAttemptId: attemptId
+                    ))
+                    await PosSyncQueue.shared.flushIfPossible()
+                    await PosPrintDispatcher.shared.kick()
+                }
+                return (200, Data(#"{"ok":true}"#.utf8))
+            }
+
+            if pathOnly == PosLanProtocol.releaseSessionPath {
+                struct Req: Decodable {
+                    var sessionId: String
+                    var forceAbort: Bool?
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                let forceAbort = req.forceAbort == true
+                if forceAbort, PosHubState.shared.hasFired(sessionId: req.sessionId) {
+                    return (409, Data(#"{"error":"already_fired"}"#.utf8))
+                }
+                guard PosHubState.shared.releaseLocalSession(sessionId: req.sessionId) else {
+                    return (404, Data(#"{"error":"session_gone"}"#.utf8))
+                }
+                let restaurantId = PosHubState.shared.restaurantId
+                Task { @MainActor in
+                    PosAuditLog.shared.record(
+                        forceAbort ? "session.aborted" : "session.released",
+                        detail: forceAbort ? "lan_abort" : "lan_release",
+                        sessionId: req.sessionId
+                    )
+                    PosSyncQueue.shared.enqueueReleaseSession(PosSyncReleaseSessionPayload(
+                        restaurantId: restaurantId,
+                        tableSessionId: req.sessionId
+                    ))
+                    await PosSyncQueue.shared.flushIfPossible()
+                }
+                return (200, Data(#"{"ok":true}"#.utf8))
             }
 
             if pathOnly == PosLanProtocol.pairRequestPath {
@@ -2362,9 +2610,16 @@ final class PosRuntime: ObservableObject {
         clearPairingOn401: Bool = false
     ) async -> URL? {
         var lastError: String?
+        let discovered: [DiscoveredPosHub]
+        if PosEnrollmentStore.shared.handheldTlsFingerprint == nil {
+            discovered = await browser.scan(timeout: 2.5)
+        } else {
+            discovered = []
+        }
         for base in candidates {
             do {
                 statusMessage = "Verbinde \(base.host ?? "") …"
+                applyTLSPin(base: base, discovered: discovered)
                 let health = try await HandheldHubClient.fetchHealth(baseURL: base)
                 guard health.ok else { throw HandheldHubClientError.invalidResponse }
                 let token = PosEnrollmentStore.shared.handheldPairToken
@@ -2490,6 +2745,7 @@ final class PosRuntime: ObservableObject {
 
     func startHandheldPairing(host: String) async {
         let base = PosLanProtocol.hubBaseURL(host: host)
+        await prepareTLSPinBeforeConnect(base: base)
         await beginPairing(base: base)
     }
 
@@ -2511,6 +2767,46 @@ final class PosRuntime: ObservableObject {
         statusMessage = ""
     }
 
+    /// Bonjour-`fp` oder Enrollment-Pin vor TLS-Handshake setzen (kein blinder TOFU in Release).
+    private func prepareTLSPinBeforeConnect(base: URL) async {
+        let discovered: [DiscoveredPosHub]
+        if PosEnrollmentStore.shared.handheldTlsFingerprint == nil {
+            discovered = await browser.scan(timeout: 2.8)
+        } else {
+            discovered = []
+        }
+        applyTLSPin(base: base, discovered: discovered)
+    }
+
+    private func applyTLSPin(base: URL, discovered: [DiscoveredPosHub]) {
+        if let enrolled = PosEnrollmentStore.shared.handheldTlsFingerprint,
+           !enrolled.isEmpty
+        {
+            HandheldHubClient.prepareExpectedTLSFingerprint(enrolled)
+            return
+        }
+        if let fp = Self.matchingTlsFingerprint(base: base, hubs: discovered) {
+            HandheldHubClient.prepareExpectedTLSFingerprint(fp)
+            return
+        }
+        HandheldHubClient.configureTLSPin(fingerprintHex: nil)
+    }
+
+    private static func matchingTlsFingerprint(base: URL, hubs: [DiscoveredPosHub]) -> String? {
+        let host = (base.host ?? "").lowercased()
+        let port = base.port ?? Int(PosLanProtocol.hubPort)
+        for hub in hubs {
+            let hubHost = hub.host.lowercased()
+            let hostMatch = hubHost == host
+                || hubHost.hasPrefix(host + ".")
+                || host.hasPrefix(hubHost.replacingOccurrences(of: ".local", with: ""))
+            if hostMatch, hub.port == port, let fp = hub.tlsFingerprint, !fp.isEmpty {
+                return fp
+            }
+        }
+        return nil
+    }
+
     private func beginPairing(base: URL) async {
         do {
             let req = PosLanPairRequest(
@@ -2524,8 +2820,11 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Warte auf Freigabe am iPad …"
             pollPairing(base: base, pairId: challenge.pairId)
         } catch {
-            phase = .error(error.localizedDescription)
-            statusMessage = "Kopplung fehlgeschlagen: \(error.localizedDescription)"
+            let hint = PosSecurityPolicy.allowsTlsTrustOnFirstUse
+                ? error.localizedDescription
+                : "\(error.localizedDescription) — Kasse per WLAN suchen (TLS-Fingerprint)."
+            phase = .error(hint)
+            statusMessage = "Kopplung fehlgeschlagen: \(hint)"
         }
     }
 

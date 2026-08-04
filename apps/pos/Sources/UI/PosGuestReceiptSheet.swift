@@ -121,6 +121,7 @@ struct PosGuestReceiptSheet: View {
                         .buttonStyle(PosPrimaryButtonStyle())
 
                         PosButton(title: "Schließen", kind: .secondary, action: onClose)
+                            .accessibilityIdentifier("pos.guestReceipt.close")
                     }
                     .padding(.horizontal, PosLayout.pageTight)
                     .padding(.top, PosLayout.stack)

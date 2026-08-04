@@ -50,6 +50,25 @@ export function allocationAmountCents(
   return Math.round((total * alloc) / qty);
 }
 
+/**
+ * Cents for the next `allocQuantity` units after `paidQuantityBefore` already paid.
+ * Uses cumulative proportional rounding so slices sum to the line total.
+ */
+export function sliceAmountCents(
+  lineTotalCents: number,
+  lineQuantity: number,
+  paidQuantityBefore: number,
+  allocQuantity: number,
+): number {
+  const paid = Math.max(0, Number(paidQuantityBefore) || 0);
+  const alloc = Math.max(0, Number(allocQuantity) || 0);
+  if (alloc <= 0) return 0;
+  return (
+    allocationAmountCents(lineTotalCents, lineQuantity, paid + alloc) -
+    allocationAmountCents(lineTotalCents, lineQuantity, paid)
+  );
+}
+
 export function deriveSessionSettlementState(
   lines: PosSessionLineInput[],
 ): PosSessionSettlementState {
@@ -69,7 +88,8 @@ export function deriveSessionSettlementState(
     const openQty = openLineQuantity(qty, paidQty);
     if (openQty > 0) {
       openLineCount += 1;
-      openCents += allocationAmountCents(lineTotal, qty, openQty);
+      // Rest = Original − bereits bezahlt (kein Doppelrunden auf openQty).
+      openCents += Math.max(0, Math.round(lineTotal) - paidPart);
     }
   }
 

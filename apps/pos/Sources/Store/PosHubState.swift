@@ -426,6 +426,7 @@ final class PosHubState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard var bootstrap else { return false }
+        let diningTableId = bootstrap.floor.openSessions.first(where: { $0.id == sessionId })?.dining_table_id
         let before = bootstrap.floor.openSessions.count
         bootstrap.floor.openSessions.removeAll { $0.id == sessionId }
         bootstrap.floor.orderCountBySessionId.removeValue(forKey: sessionId)
@@ -433,9 +434,13 @@ final class PosHubState: @unchecked Sendable {
         guard bootstrap.floor.openSessions.count < before else { return false }
         firedCourses.clear(sessionId: sessionId)
         localOpenLinesBySession.removeValue(forKey: sessionId)
+        kassierenLocksBySession.removeValue(forKey: sessionId)
+        persistKassierenLocksLocked()
         self.bootstrap = bootstrap
         bumpSnapshotVersionLocked()
         PosLocalStore.saveBootstrap(bootstrap)
+        PosDraftCartStore.clear(diningTableId: diningTableId, sessionId: sessionId)
+        PosPaidHistoryStore.clear(sessionId: sessionId)
         return true
     }
 
@@ -468,6 +473,8 @@ final class PosHubState: @unchecked Sendable {
 
     /// Offline / Demo-Hub: gesendete Positionen bleiben sichtbar bis Cloud-Summary greift.
     private var localOpenLinesBySession: [String: [SessionOpenLine]] = [:]
+    /// Kassieren-Modus-Lock pro Session (Positions ↔ Gleich teilen).
+    private var kassierenLocksBySession: [String: PosKassierenLockState] = [:]
 
     /// Hängt offene Positionen an. Nutzt `PosCartLine.id` (LAN: `clientLineId`), damit Hub und Handgerät dieselben IDs teilen.
     @discardableResult
@@ -490,7 +497,9 @@ final class PosHubState: @unchecked Sendable {
                     course: line.course,
                     firedAt: nil,
                     detail: line.subtitle,
-                    menuItemId: line.menuItemId
+                    menuItemId: line.menuItemId,
+                    lineQuantity: line.quantity,
+                    lineTotalCents: line.lineTotalCents
                 )
             )
         }
@@ -542,11 +551,62 @@ final class PosHubState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         localOpenLinesBySession.removeValue(forKey: sessionId)
+        kassierenLocksBySession.removeValue(forKey: sessionId)
+        persistLocalOpenLinesLocked()
+        persistKassierenLocksLocked()
+    }
+
+    /// Ersetzt lokale Open-Lines (Tests / Demo-Seed).
+    func replaceLocalOpenLines(sessionId: String, lines: [SessionOpenLine]) {
+        lock.lock()
+        defer { lock.unlock() }
+        localOpenLinesBySession[sessionId] = lines.isEmpty ? nil : lines
         persistLocalOpenLinesLocked()
     }
 
-    /// Atomar: validate + Allocations aus aktuellem Stand + Collect.
+    func kassierenLock(sessionId: String) -> PosKassierenLockState? {
+        lock.lock()
+        defer { lock.unlock() }
+        return kassierenLocksBySession[sessionId]
+    }
+
+    func setKassierenLock(sessionId: String, state: PosKassierenLockState) {
+        lock.lock()
+        defer { lock.unlock() }
+        kassierenLocksBySession[sessionId] = state
+        persistKassierenLocksLocked()
+    }
+
+    func clearKassierenLock(sessionId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        kassierenLocksBySession.removeValue(forKey: sessionId)
+        persistKassierenLocksLocked()
+    }
+
+    /// Atomar: validate + Teilmengen-Collect.
     /// `nil` wenn nichts zu zahlen / Race (kein Enqueue).
+    func settleCollectAllocations(
+        sessionId: String,
+        allocations: [(lineId: String, quantity: Int)]
+    ) -> (paidCents: Int, allocations: [PosSyncCashAllocation], amountCents: Int)? {
+        lock.lock()
+        defer { lock.unlock() }
+        switch validateCollectAllocationsLocked(sessionId: sessionId, allocations: allocations) {
+        case .ok(let paidCents, let resolved):
+            guard paidCents > 0, !resolved.isEmpty else { return nil }
+            let syncAllocs = resolved.map {
+                PosSyncCashAllocation(orderLineId: $0.orderLineId, quantity: $0.quantity)
+            }
+            applyCollectAllocationsLocked(sessionId: sessionId, resolved: resolved, paidCents: paidCents)
+            return (paidCents, syncAllocs, paidCents)
+        case .unknownLines, .noOpenLines, .exceedsOpen:
+            return nil
+        }
+    }
+
+    /// Atomar: validate + volle Zeilen (Legacy).
+    /// Alle `lineIds` müssen bekannt sein — unbekannte IDs → kein Partial-Settle.
     func settleCollectLines(
         sessionId: String,
         lineIds: Set<String>
@@ -554,26 +614,40 @@ final class PosHubState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         switch validateCollectLinesLocked(sessionId: sessionId, lineIds: lineIds) {
-        case .ok(let paidCents):
-            guard paidCents > 0, let lines = localOpenLinesBySession[sessionId] else { return nil }
-            let toPay = lines.filter { lineIds.contains($0.id) }
-            guard !toPay.isEmpty else { return nil }
-            let allocations = toPay.map {
-                PosSyncCashAllocation(orderLineId: $0.orderLineId, quantity: $0.openQuantity)
-            }
-            let amountCents = toPay.reduce(0) { $0 + $1.openCents }
-            applyCollectLocked(sessionId: sessionId, lineIds: lineIds, paidCents: paidCents)
-            return (paidCents, allocations, amountCents)
         case .unknownLines, .noOpenLines:
+            return nil
+        case .ok:
+            break
+        }
+        guard let lines = localOpenLinesBySession[sessionId] else { return nil }
+        let allocs: [(lineId: String, quantity: Int)] = lines
+            .filter { lineIds.contains($0.id) }
+            .map { ($0.id, $0.openQuantity) }
+        switch validateCollectAllocationsLocked(sessionId: sessionId, allocations: allocs) {
+        case .ok(let paidCents, let resolved):
+            guard paidCents > 0, !resolved.isEmpty else { return nil }
+            let syncAllocs = resolved.map {
+                PosSyncCashAllocation(orderLineId: $0.orderLineId, quantity: $0.quantity)
+            }
+            applyCollectAllocationsLocked(sessionId: sessionId, resolved: resolved, paidCents: paidCents)
+            return (paidCents, syncAllocs, paidCents)
+        case .unknownLines, .noOpenLines, .exceedsOpen:
             return nil
         }
     }
 
-    /// Nach Teilzahlung: gewählte Positionen entfernen und offenen Betrag senken.
-    /// Unbekannte `lineIds` → 0 (keine Mutation); Aufrufer soll vorher `validateCollectLines` nutzen.
+    /// Nach Teilzahlung: gewählte Positionen entfernen bzw. Mengen reduzieren.
     @discardableResult
     func collectLocalLines(sessionId: String, lineIds: Set<String>) -> Int {
         settleCollectLines(sessionId: sessionId, lineIds: lineIds)?.paidCents ?? 0
+    }
+
+    @discardableResult
+    func collectLocalAllocations(
+        sessionId: String,
+        allocations: [(lineId: String, quantity: Int)]
+    ) -> Int {
+        settleCollectAllocations(sessionId: sessionId, allocations: allocations)?.paidCents ?? 0
     }
 
     enum CollectLineValidation: Equatable {
@@ -582,11 +656,34 @@ final class PosHubState: @unchecked Sendable {
         case noOpenLines
     }
 
+    enum CollectAllocationValidation: Equatable {
+        case ok(paidCents: Int, resolved: [ResolvedCollectAllocation])
+        case unknownLines
+        case noOpenLines
+        case exceedsOpen
+    }
+
+    struct ResolvedCollectAllocation: Equatable {
+        var lineId: String
+        var orderLineId: String
+        var quantity: Int
+        var amountCents: Int
+    }
+
     /// Prüft, dass alle `lineIds` zur Session gehören und summiert den offenen Betrag.
     func validateCollectLines(sessionId: String, lineIds: Set<String>) -> CollectLineValidation {
         lock.lock()
         defer { lock.unlock() }
         return validateCollectLinesLocked(sessionId: sessionId, lineIds: lineIds)
+    }
+
+    func validateCollectAllocations(
+        sessionId: String,
+        allocations: [(lineId: String, quantity: Int)]
+    ) -> CollectAllocationValidation {
+        lock.lock()
+        defer { lock.unlock() }
+        return validateCollectAllocationsLocked(sessionId: sessionId, allocations: allocations)
     }
 
     private func validateCollectLinesLocked(sessionId: String, lineIds: Set<String>) -> CollectLineValidation {
@@ -602,10 +699,63 @@ final class PosHubState: @unchecked Sendable {
         return .ok(paidCents: paid)
     }
 
-    private func applyCollectLocked(sessionId: String, lineIds: Set<String>, paidCents: Int) {
-        guard let lines = localOpenLinesBySession[sessionId] else { return }
-        let remaining = lines.filter { !lineIds.contains($0.id) }
-        localOpenLinesBySession[sessionId] = remaining.isEmpty ? nil : remaining
+    private func validateCollectAllocationsLocked(
+        sessionId: String,
+        allocations: [(lineId: String, quantity: Int)]
+    ) -> CollectAllocationValidation {
+        let normalized = Dictionary(grouping: allocations.filter { $0.quantity > 0 }, by: \.lineId)
+            .mapValues { $0.reduce(0) { $0 + $1.quantity } }
+        guard !normalized.isEmpty else { return .noOpenLines }
+        guard let lines = localOpenLinesBySession[sessionId], !lines.isEmpty else {
+            return .noOpenLines
+        }
+        let byId = Dictionary(uniqueKeysWithValues: lines.map { ($0.id, $0) })
+        var resolved: [ResolvedCollectAllocation] = []
+        var paid = 0
+        for (lineId, qty) in normalized {
+            guard let line = byId[lineId] else { return .unknownLines }
+            guard qty <= line.openQuantity else { return .exceedsOpen }
+            let cents = PosSettlementMath.sliceAmountCents(
+                lineTotalCents: line.settlementLineTotalCents,
+                lineQuantity: line.settlementLineQuantity,
+                paidQuantityBefore: line.paidQuantity,
+                allocQuantity: qty
+            )
+            guard cents > 0 else { return .exceedsOpen }
+            paid += cents
+            resolved.append(ResolvedCollectAllocation(
+                lineId: line.id,
+                orderLineId: line.orderLineId,
+                quantity: qty,
+                amountCents: cents
+            ))
+        }
+        return .ok(paidCents: paid, resolved: resolved)
+    }
+
+    private func applyCollectAllocationsLocked(
+        sessionId: String,
+        resolved: [ResolvedCollectAllocation],
+        paidCents: Int
+    ) {
+        guard var lines = localOpenLinesBySession[sessionId] else { return }
+        let payById = Dictionary(uniqueKeysWithValues: resolved.map { ($0.lineId, $0) })
+        var next: [SessionOpenLine] = []
+        for line in lines {
+            guard let pay = payById[line.id] else {
+                next.append(line)
+                continue
+            }
+            let leftQty = line.openQuantity - pay.quantity
+            if leftQty <= 0 { continue }
+            var copy = line
+            copy.openQuantity = leftQty
+            copy.lineQuantity = line.settlementLineQuantity
+            copy.lineTotalCents = line.settlementLineTotalCents
+            copy.syncOpenCentsFromOriginal()
+            next.append(copy)
+        }
+        localOpenLinesBySession[sessionId] = next.isEmpty ? nil : next
         persistLocalOpenLinesLocked()
 
         if paidCents > 0, var bootstrap = self.bootstrap {
@@ -617,6 +767,19 @@ final class PosHubState: @unchecked Sendable {
             bumpSnapshotVersionLocked()
             PosLocalStore.saveBootstrap(bootstrap)
         }
+    }
+
+    private func applyCollectLocked(sessionId: String, lineIds: Set<String>, paidCents: Int) {
+        guard let lines = localOpenLinesBySession[sessionId] else { return }
+        let allocs = lines.filter { lineIds.contains($0.id) }.map {
+            ResolvedCollectAllocation(
+                lineId: $0.id,
+                orderLineId: $0.orderLineId,
+                quantity: $0.openQuantity,
+                amountCents: $0.openCents
+            )
+        }
+        applyCollectAllocationsLocked(sessionId: sessionId, resolved: allocs, paidCents: paidCents)
     }
 
     // MARK: Collect idempotency (hub)
@@ -658,8 +821,13 @@ final class PosHubState: @unchecked Sendable {
         PosLocalStore.saveOpenLines(localOpenLinesBySession)
     }
 
+    private func persistKassierenLocksLocked() {
+        PosLocalStore.saveKassierenLocks(kassierenLocksBySession)
+    }
+
     private func loadLocalOpenLinesLocked() {
         localOpenLinesBySession = PosLocalStore.loadOpenLines() ?? [:]
+        kassierenLocksBySession = PosLocalStore.loadKassierenLocks() ?? [:]
     }
 
     func bumpLocalOrder(sessionId: String, addCents: Int) {

@@ -27,6 +27,8 @@ final class Phase3BonSheetSmokeUITests: XCTestCase {
         XCTAssertTrue(tableCard.waitForExistence(timeout: 15))
         tableCard.tap()
 
+        PosUITestSessionHelpers.ensureOrderingPhase(app: app)
+
         let bon = app.descendants(matching: .any)["pos.bon.open"]
         XCTAssertTrue(
             bon.waitForExistence(timeout: 10),

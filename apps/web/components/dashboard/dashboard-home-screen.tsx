@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, LayoutGrid } from "lucide-react";
 import { DashboardArrangeSheet } from "@/components/dashboard/dashboard-arrange-sheet";
 import { DashboardCalendarOverlay } from "@/components/dashboard/dashboard-calendar-overlay";
@@ -15,6 +15,13 @@ import { useDashboardPageBackgroundRefresh } from "@/lib/dashboard/dashboard-wid
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return target.isContentEditable;
+}
+
 /** Dashboard-Home — Keep-alive unter App-Shell; `active` steuert Arbeit/Chrome/FAB. */
 export function DashboardHomeScreen({ active = true }: { active?: boolean }) {
   useDashboardPageBackgroundRefresh(active);
@@ -22,6 +29,27 @@ export function DashboardHomeScreen({ active = true }: { active?: boolean }) {
   const [arrangeOpen, setArrangeOpen] = useState(false);
   const prefs = useDashboardWidgetPreferences();
   const { permittedWidgetIds } = useDashboardEffectiveWidgetPrefs();
+
+  useEffect(() => {
+    if (!active) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      // ⌘⇧C / Ctrl+⇧C — nicht ⌘C (System-Kopieren).
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        !event.shiftKey ||
+        event.key.toLowerCase() !== "c"
+      ) {
+        return;
+      }
+      if (isEditableTarget(event.target)) return;
+      event.preventDefault();
+      setCalendarOpen((open) => !open);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [active]);
 
   const headerActions = useMemo(
     () => (
@@ -31,7 +59,8 @@ export function DashboardHomeScreen({ active = true }: { active?: boolean }) {
           variant="outline"
           size="icon-sm"
           className="shrink-0 rounded-full border-border/60"
-          aria-label="Kalender"
+          aria-label="Kalender (⇧⌘C)"
+          title="Kalender (⇧⌘C)"
           onClick={() => setCalendarOpen(true)}
         >
           <CalendarDays className="size-4" />
@@ -42,6 +71,7 @@ export function DashboardHomeScreen({ active = true }: { active?: boolean }) {
           size="icon-sm"
           className="shrink-0 rounded-full border-border/60"
           aria-label="Dashboard anordnen"
+          title="Dashboard anordnen"
           onClick={() => setArrangeOpen(true)}
         >
           <LayoutGrid className="size-4" />

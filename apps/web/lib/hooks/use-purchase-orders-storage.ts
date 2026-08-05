@@ -507,6 +507,31 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     [afterOrdersMutation, failSave, queryClient, restaurantId, useDbInventory],
   );
 
+  /** Sofort in UI/Cache schreiben (vor await Persist) — bei Fehler zurückrollen. */
+  const applyOrdersOptimistic = useCallback(
+    (next: PurchaseOrder[]) => {
+      if (useDbInventory) {
+        if (restaurantId) {
+          queryClient.setQueryData(
+            queryKeys.inventory.purchaseOrders(restaurantId),
+            next,
+          );
+        }
+        mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+          version: 1 as const,
+          orders: next,
+        });
+        return;
+      }
+      setLocalOrders(next);
+      mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+        version: 1 as const,
+        orders: next,
+      });
+    },
+    [queryClient, restaurantId, useDbInventory],
+  );
+
   const getOpenLineContext = useCallback(
     (supplierId: string, ingredientId: string): OpenLineContext => {
       if (!supplierId.trim()) {
@@ -732,17 +757,22 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const normalized =
         ymd && /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
       if (target.deliveryDate === normalized) return true;
+      const previous = orders;
       const next = orders.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      if (!(await persist(next))) return false;
+      applyOrdersOptimistic(next);
+      if (!(await persist(next))) {
+        applyOrdersOptimistic(previous);
+        return false;
+      }
       toast.success(
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
         { id: `order-delivery-${orderId}` },
       );
       return true;
     },
-    [orders, persist],
+    [applyOrdersOptimistic, orders, persist],
   );
 
   const updateLineQuantity = useCallback(

@@ -244,6 +244,9 @@ export function DisplayReservationsModule() {
     null,
   );
   const [editReservationId, setEditReservationId] = useState<string | null>(null);
+  const handleEditDrawerOpenChange = useCallback((nextOpen: boolean) => {
+    if (!nextOpen) setEditReservationId(null);
+  }, []);
   const [openReservations, setOpenReservations] = useState<DisplayReservationRow[]>(
     [],
   );
@@ -1438,9 +1441,7 @@ export function DisplayReservationsModule() {
 
       <DisplayReservationEditDrawer
         open={editReservationId !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditReservationId(null);
-        }}
+        onOpenChange={handleEditDrawerOpenChange}
         reservationId={editReservationId}
         statuses={statuses}
         tables={tables}

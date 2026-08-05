@@ -556,10 +556,10 @@ struct TableSessionView: View {
     }
 
     private func shouldQuickAdd(_ item: PosCloudMenuItem) -> Bool {
-        let relevantGroups = optionGroupsForItem(item)
-        let hasRequiredOptions = relevantGroups.contains { $0.minSelect > 0 }
-        let requiresSides = item.sides?.required == true
-        return !hasRequiredOptions && !requiresSides
+        PosMenuQuickAdd.shouldQuickAdd(
+            item: item,
+            optionGroups: optionGroupsForItem(item)
+        )
     }
 
     private func optionGroupsForItem(_ item: PosCloudMenuItem) -> [PosCloudMenuOptionGroup] {

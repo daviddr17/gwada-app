@@ -108,6 +108,15 @@ final class PosHubState: @unchecked Sendable {
                 cached.menu = DemoSnapshotFactory.makeDemoMenu()
                 dirty = true
             }
+            // Solo-Demo-Restaurant: Menü immer an aktuelle Factory anbinden
+            // (Rezept/Beilagen), sonst bleibt ein alter Disk-Cache ohne Sheet-Felder.
+            if cached.restaurantId == DemoSnapshotFactory.restaurantId {
+                let freshMenu = DemoSnapshotFactory.makeDemoMenu()
+                if cached.menu != freshMenu {
+                    cached.menu = freshMenu
+                    dirty = true
+                }
+            }
             // Alte Fake-Session (24,50 € ohne echte Positionen) — auch wenn Menü schon gepatcht.
             if cached.floor.openSessions.contains(where: { $0.id == "session-open-1" }) {
                 cached.floor.openSessions.removeAll { $0.id == "session-open-1" }

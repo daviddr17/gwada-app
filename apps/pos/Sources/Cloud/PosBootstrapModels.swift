@@ -74,6 +74,12 @@ struct PosCloudRecipeIngredient: Codable, Equatable, Identifiable, Sendable {
         try c.encode(name, forKey: .name)
         try c.encode(amount, forKey: .amount)
     }
+
+    init(ingredientId: String, name: String, amount: Double) {
+        self.ingredientId = ingredientId
+        self.name = name
+        self.amount = amount
+    }
 }
 
 struct PosCloudMenuItem: Codable, Equatable, Identifiable, Sendable {

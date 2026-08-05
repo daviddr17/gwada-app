@@ -10,6 +10,7 @@ enum DemoSnapshotFactory {
     private static let catVorspeisen = "cat-starter"
     private static let catHaupt = "cat-main"
     private static let catGetranke = "cat-drinks"
+    private static let catBeilagen = "cat-sides"
 
     /// Vollständiger Demo-Bootstrap inkl. Speisekarte (DEBUG lokal ohne Cloud).
     static func makeBootstrap(hubDeviceId: String = "demo-hub") -> PosCloudBootstrap {
@@ -65,13 +66,58 @@ enum DemoSnapshotFactory {
             categories: [
                 PosCloudMenuCategory(id: catVorspeisen, name: "Vorspeisen", sortOrder: 0),
                 PosCloudMenuCategory(id: catHaupt, name: "Hauptgerichte", sortOrder: 1),
-                PosCloudMenuCategory(id: catGetranke, name: "Getränke", sortOrder: 2),
+                PosCloudMenuCategory(id: catBeilagen, name: "Beilagen", sortOrder: 2),
+                PosCloudMenuCategory(id: catGetranke, name: "Getränke", sortOrder: 3),
             ],
             items: [
                 .demo(id: "item-suppe", name: "Tagessuppe", description: "Mit Brot", priceCents: 650, categoryId: catVorspeisen),
                 .demo(id: "item-salat", name: "Haussalat", description: "", priceCents: 890, categoryId: catVorspeisen),
-                .demo(id: "item-schnitzel", name: "Wiener Schnitzel", description: "mit Pommes", priceCents: 1850, categoryId: catHaupt),
+                PosCloudMenuItem(
+                    id: "item-schnitzel",
+                    name: "Wiener Schnitzel",
+                    description: "mit Beilage nach Wahl",
+                    priceCents: 1850,
+                    sidePriceCents: nil,
+                    sides: PosCloudMenuItemSideConfig(required: false, max: 2, includedCount: 1),
+                    vatRate: 0.19,
+                    categoryId: catHaupt,
+                    listNumber: nil,
+                    optionGroupIds: [],
+                    recipe: [
+                        PosCloudRecipeIngredient(ingredientId: "demo-ing-tomato", name: "Tomaten", amount: 1),
+                        PosCloudRecipeIngredient(ingredientId: "demo-ing-onion", name: "Zwiebeln", amount: 1),
+                    ],
+                    active: true
+                ),
                 .demo(id: "item-pasta", name: "Pasta Arrabbiata", description: "", priceCents: 1490, categoryId: catHaupt),
+                PosCloudMenuItem(
+                    id: "item-pommes",
+                    name: "Pommes",
+                    description: "",
+                    priceCents: 450,
+                    sidePriceCents: 450,
+                    sides: nil,
+                    vatRate: 0.19,
+                    categoryId: catBeilagen,
+                    listNumber: 1,
+                    optionGroupIds: [],
+                    recipe: nil,
+                    active: true
+                ),
+                PosCloudMenuItem(
+                    id: "item-kroketten",
+                    name: "Kroketten",
+                    description: "",
+                    priceCents: 490,
+                    sidePriceCents: 490,
+                    sides: nil,
+                    vatRate: 0.19,
+                    categoryId: catBeilagen,
+                    listNumber: 2,
+                    optionGroupIds: [],
+                    recipe: nil,
+                    active: true
+                ),
                 .demo(id: "item-cola", name: "Cola 0,4", description: "", priceCents: 390, categoryId: catGetranke),
                 .demo(id: "item-wasser", name: "Mineralwasser", description: "", priceCents: 320, categoryId: catGetranke),
             ],

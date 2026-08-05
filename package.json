@@ -57,6 +57,7 @@
     "db:push:local": "supabase db push --local",
     "db:seed:demo-user": "supabase db query --local -f supabase/seed_demo_user.sql",
     "db:seed:dining-floor": "supabase db query --local -f supabase/seed_dining_floor_demo.sql",
+    "db:seed:pos-solo-menu": "bash scripts/seed-pos-solo-rich-menu-dev.sh",
     "db:backfill:guest-pins:local": "supabase db query --local -f scripts/backfill-reservation-guest-pins.sql",
     "db:setup:live-url": "node scripts/set-supabase-db-url.mjs",
     "db:tunnel:live": "bash scripts/db-tunnel-live.sh",

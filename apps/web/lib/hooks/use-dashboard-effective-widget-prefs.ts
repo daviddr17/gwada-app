@@ -11,13 +11,14 @@ import {
   type DashboardWidgetAccessOptions,
 } from "@/lib/permissions/dashboard-widget-permissions";
 import type { DashboardShortcutId } from "@/lib/constants/dashboard-shortcuts";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { useClientMounted } from "@/lib/hooks/use-client-mounted";
 import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
 import { usePlatformWeatherAvailable } from "@/lib/hooks/use-platform-weather-available";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 
 /**
- * Widget-/Shortcut-Sichtbarkeit ∩ Modul-Lese-Rechte (wie Sidebar).
+ * Widget-/Shortcut-Sichtbarkeit ∩ Rollen-Rechte ∩ Restaurant-Abo (wie Sidebar-Vollzugriff).
  * Wetter nur bei Superadmin-Freigabe + API-Key.
  */
 export function useDashboardEffectiveWidgetPrefs() {
@@ -31,6 +32,7 @@ export function useDashboardEffectiveWidgetPrefs() {
     reload: reloadPermissions,
   } = useRestaurantPermissions();
   const permissionsPending = permissionsLoading && permissions.size === 0;
+  const { entitlements } = useRestaurantBilling();
   const { available: weatherAvailable, loading: weatherLoading } =
     usePlatformWeatherAvailable();
 
@@ -39,8 +41,15 @@ export function useDashboardEffectiveWidgetPrefs() {
       permissionsLoading: !mounted || permissionsPending,
       weatherAvailable,
       weatherLoading: !mounted || weatherLoading,
+      entitlements,
     }),
-    [mounted, permissionsPending, weatherAvailable, weatherLoading],
+    [
+      mounted,
+      permissionsPending,
+      weatherAvailable,
+      weatherLoading,
+      entitlements,
+    ],
   );
 
   const visibility = useMemo(
@@ -61,10 +70,11 @@ export function useDashboardEffectiveWidgetPrefs() {
             prefs.shortcuts.visibility,
             has,
             permissionsPending,
+            entitlements,
           )
         : prefs.shortcuts.visibility,
     }),
-    [mounted, prefs.shortcuts, has, permissionsPending],
+    [mounted, prefs.shortcuts, has, permissionsPending, entitlements],
   );
 
   const batchWidgets = useMemo(
@@ -84,10 +94,19 @@ export function useDashboardEffectiveWidgetPrefs() {
     () =>
       mounted
         ? (Object.keys(shortcuts.visibility) as DashboardShortcutId[]).filter(
-            (id) => permissionsPending || hasDashboardShortcutAccess(has, id),
+            (id) =>
+              permissionsPending ||
+              hasDashboardShortcutAccess(has, id, entitlements),
           )
         : (Object.keys(prefs.shortcuts.visibility) as DashboardShortcutId[]),
-    [mounted, shortcuts.visibility, prefs.shortcuts.visibility, has, permissionsPending],
+    [
+      mounted,
+      shortcuts.visibility,
+      prefs.shortcuts.visibility,
+      has,
+      permissionsPending,
+      entitlements,
+    ],
   );
 
   return {

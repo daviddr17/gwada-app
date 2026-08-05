@@ -30,6 +30,10 @@ import {
 import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
 import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
 import {
+  diffAddedPermissionKeys,
+  notifyStaffPermissionsGrantedClient,
+} from "@/lib/staff/notify-staff-permissions-granted-client";
+import {
   fetchPositionPermissionKeys,
   fetchPositionUsageCounts,
   updatePositionPermissions,
@@ -203,6 +207,10 @@ export function RestaurantPositionEditDrawer({
     }
 
     if (permDirty && !isOwner) {
+      const addedKeys = diffAddedPermissionKeys(
+        [...permBaseline],
+        [...permDraft],
+      );
       const { error } = await updatePositionPermissions(
         sb,
         position.id,
@@ -214,6 +222,14 @@ export function RestaurantPositionEditDrawer({
         return;
       }
       setPermBaseline(new Set(permDraft));
+      if (addedKeys.length > 0) {
+        void notifyStaffPermissionsGrantedClient({
+          restaurantId,
+          positionId: position.id,
+          addedKeys,
+          positionName: trimmedName || position.name,
+        });
+      }
     }
 
     setSaving(false);

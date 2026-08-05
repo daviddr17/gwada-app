@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   Bell,
+  Cake,
   CalendarDays,
   CheckCircle2,
   Clock,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { DashboardCompactInlineMetrics } from "@/components/dashboard/dashboard-compact-list";
 import { DashboardHeuteAufmerksamkeitSheet } from "@/components/dashboard/dashboard-heute-aufmerksamkeit-sheet";
+import { DashboardHeuteBirthdaysSheet } from "@/components/dashboard/dashboard-heute-birthdays-sheet";
 import { DashboardHeuteWorkHoursSheet } from "@/components/dashboard/dashboard-heute-work-hours-sheet";
 import { DashboardInventoryAlertsSheet } from "@/components/dashboard/dashboard-inventory-alerts-sheet";
 import { DashboardMessagesListSheet } from "@/components/dashboard/dashboard-messages-list-sheet";
@@ -44,6 +46,7 @@ import {
 } from "@/lib/restaurant/restaurant-timezone";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
+import { listStaffBirthdaysToday } from "@/lib/staff/staff-birthdays-today";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +56,8 @@ type HeuteMetricTone =
   | "attention"
   | "success"
   | "warning"
-  | "break";
+  | "break"
+  | "birthday";
 
 const HEUTE_METRIC_TONE_CLASS: Record<HeuteMetricTone, string> = {
   neutral: "border-border/50 bg-background/70",
@@ -67,6 +71,8 @@ const HEUTE_METRIC_TONE_CLASS: Record<HeuteMetricTone, string> = {
     "border-amber-500/45 bg-amber-500/14 dark:border-amber-400/35 dark:bg-amber-500/15",
   break:
     "border-amber-400/40 bg-amber-400/12 dark:border-amber-300/30 dark:bg-amber-400/12",
+  birthday:
+    "border-pink-500/40 bg-pink-500/12 dark:border-pink-400/35 dark:bg-pink-500/15",
 };
 
 const HEUTE_METRIC_VALUE_CLASS: Record<HeuteMetricTone, string> = {
@@ -76,6 +82,7 @@ const HEUTE_METRIC_VALUE_CLASS: Record<HeuteMetricTone, string> = {
   success: "text-emerald-800 dark:text-emerald-300",
   warning: "text-amber-800 dark:text-amber-300",
   break: "text-amber-800 dark:text-amber-200",
+  birthday: "text-pink-800 dark:text-pink-300",
 };
 
 function HeuteMetricPill({
@@ -157,6 +164,7 @@ export function DashboardHeuteTile() {
   const [aufmerksamkeitSheetOpen, setAufmerksamkeitSheetOpen] = useState(false);
   const [messagesSheetOpen, setMessagesSheetOpen] = useState(false);
   const [inventorySheetOpen, setInventorySheetOpen] = useState(false);
+  const [birthdaysSheetOpen, setBirthdaysSheetOpen] = useState(false);
 
   const accessOptions = {
     permissionsLoading,
@@ -229,6 +237,12 @@ export function DashboardHeuteTile() {
   const todayUpcomingReservations =
     reservations.summary?.todayUpcomingReservations ?? 0;
   const todayUpcomingGuests = reservations.summary?.todayUpcomingGuests ?? 0;
+
+  const birthdaysToday = useMemo(
+    () =>
+      can.staff ? listStaffBirthdaysToday(staff.staff, staffTodayYmd) : [],
+    [can.staff, staff.staff, staffTodayYmd],
+  );
 
   return (
     <DashboardWidgetShell
@@ -303,6 +317,15 @@ export function DashboardHeuteTile() {
 
         {can.staff && staff.summary ? (
           <>
+            {birthdaysToday.length > 0 ? (
+              <HeuteMetricPill
+                label="Geburt"
+                value={String(birthdaysToday.length)}
+                onClick={() => setBirthdaysSheetOpen(true)}
+                tone="birthday"
+                icon={<Cake aria-hidden />}
+              />
+            ) : null}
             <HeuteMetricPill
               label="Team"
               value={String(staff.summary.activeStaff)}
@@ -416,6 +439,15 @@ export function DashboardHeuteTile() {
           rows={unreadMessages}
           totalUnread={messages.summary.total_unread}
           timeZone={restaurantTimeZone}
+        />
+      ) : null}
+
+      {birthdaysSheetOpen && can.staff ? (
+        <DashboardHeuteBirthdaysSheet
+          open={birthdaysSheetOpen}
+          onOpenChange={setBirthdaysSheetOpen}
+          birthdays={birthdaysToday}
+          dayLabel={todayLabel}
         />
       ) : null}
 

@@ -41,6 +41,7 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
       "staff_invite_declined",
       "staff_display_clock_in",
       "staff_display_clock_out",
+      "staff_permissions_granted",
     ],
   },
   {

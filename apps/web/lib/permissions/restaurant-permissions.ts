@@ -324,6 +324,11 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
     },
   ] as const;
 
+export function restaurantPermissionLabel(key: string): string {
+  const entry = RESTAURANT_PERMISSION_CATALOG.find((e) => e.key === key);
+  return entry?.label ?? key;
+}
+
 /** Alle Keys — für System-Position „Inhaber“. */
 export const ALL_RESTAURANT_PERMISSION_KEYS: RestaurantPermissionKey[] = [
   ...RESTAURANT_PERMISSION_CATALOG.map((e) => e.key),

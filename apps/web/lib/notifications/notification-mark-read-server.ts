@@ -67,6 +67,10 @@ import {
   dismissStaffInviteResponseNotification,
   isStaffInviteResponseModule,
 } from "@/lib/notifications/notification-staff-invite-server";
+import {
+  dismissAllStaffPermissionsGrantedNotifications,
+  dismissStaffPermissionsGrantedNotification,
+} from "@/lib/notifications/notification-staff-permissions-server";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
 import { isContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
@@ -376,6 +380,24 @@ export async function markNotificationReadServer(
         userId,
         inviteId,
         module,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "staff_permissions_granted": {
+      if (!itemId) {
+        const all = await dismissAllStaffPermissionsGrantedNotifications(sb, {
+          restaurantId,
+          userId,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const unlockId = itemId ?? meta?.unlockId;
+      if (!unlockId) return { ok: false, error: "invalid_request" };
+      const result = await dismissStaffPermissionsGrantedNotification(sb, {
+        restaurantId,
+        userId,
+        unlockId,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }

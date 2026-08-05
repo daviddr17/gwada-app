@@ -22,6 +22,7 @@ import { DashboardReviewsTile } from "@/components/dashboard/dashboard-reviews-t
 import { DashboardStaffTile } from "@/components/dashboard/dashboard-staff-tile";
 import { DashboardWeatherTile } from "@/components/dashboard/dashboard-weather-tile";
 import { DashboardWidgetErrorBoundaryWithReset } from "@/components/dashboard/dashboard-widget-error-boundary";
+import { DashboardPermissionUnlockCelebration } from "@/components/dashboard/dashboard-permission-unlock-celebration";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
@@ -137,17 +138,20 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
   }
 
   return (
-    <div className="grid gap-4 pt-2 lg:grid-cols-2">
-      {orderedVisible.map(({ id, span }) => (
-        <div
-          key={id}
-          className={cn("min-w-0", span === 2 && "lg:col-span-2")}
-        >
-          <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
-            <DashboardWidgetById id={id} />
-          </DashboardWidgetErrorBoundaryWithReset>
-        </div>
-      ))}
-    </div>
+    <>
+      <DashboardPermissionUnlockCelebration />
+      <div className="grid gap-4 pt-2 lg:grid-cols-2">
+        {orderedVisible.map(({ id, span }) => (
+          <div
+            key={id}
+            className={cn("min-w-0", span === 2 && "lg:col-span-2")}
+          >
+            <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
+              <DashboardWidgetById id={id} />
+            </DashboardWidgetErrorBoundaryWithReset>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

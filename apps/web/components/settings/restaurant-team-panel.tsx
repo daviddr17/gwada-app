@@ -28,9 +28,14 @@ import {
   isRestaurantOwnerRole,
 } from "@/lib/types/employee-role";
 import {
+  fetchPositionPermissionKeys,
   fetchRestaurantPositions,
   type RestaurantPositionRow,
 } from "@/lib/supabase/restaurant-positions-db";
+import {
+  diffAddedPermissionKeys,
+  notifyStaffPermissionsGrantedClient,
+} from "@/lib/staff/notify-staff-permissions-granted-client";
 import { TagColorStripe } from "@/lib/ui/tag-color-stripe";
 import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -129,6 +134,19 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
     setBusyId(row.id);
     try {
       const sb = createSupabaseBrowserClient();
+      const prevPosition =
+        positions.find((p) => p.slug === row.role) ?? null;
+      const [prevKeysRes, nextKeysRes] = await Promise.all([
+        prevPosition
+          ? fetchPositionPermissionKeys(sb, prevPosition.id)
+          : Promise.resolve({ keys: [] as string[], error: null }),
+        fetchPositionPermissionKeys(sb, nextPositionId),
+      ]);
+      const addedKeys = diffAddedPermissionKeys(
+        prevKeysRes.keys,
+        nextKeysRes.keys,
+      );
+
       const { error } = await sb
         .from("restaurant_employees")
         .update({ role: nextRole, position_id: nextPositionId })
@@ -138,6 +156,14 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
         return;
       }
       toast.success("Rolle aktualisiert.");
+      if (restaurantId && addedKeys.length > 0 && row.profileId) {
+        void notifyStaffPermissionsGrantedClient({
+          restaurantId,
+          profileId: row.profileId,
+          addedKeys,
+          positionName: nextPosition?.name ?? nextRole,
+        });
+      }
       await load();
     } finally {
       setBusyId(null);

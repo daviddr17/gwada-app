@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { PersonalProfileHeader } from "@/components/profile/personal-profile-header";
 import { ProfileDocumentsSummaryCard } from "@/components/profile/profile-documents-summary-card";
 import { ProfileLanguageCard } from "@/components/profile/profile-language-card";
+import { ProfileLoginStreakCard } from "@/components/profile/profile-login-streak-card";
 import { ProfilePersoenlicheDatenSkeleton } from "@/components/profile/profile-persoenliche-daten-skeleton";
 import {
   SettingsStickySaveBar,
@@ -248,6 +249,8 @@ export default function ProfilePersoenlicheDatenPage() {
           onImagePathsChange={patchImagePaths}
           disabled={!isHydrated || saving}
         />
+
+        <ProfileLoginStreakCard />
 
         <ProfileDocumentsSummaryCard />
 

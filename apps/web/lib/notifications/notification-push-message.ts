@@ -544,6 +544,29 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "staff_permissions_granted": {
+      const labels = Array.isArray(p.permissionLabels)
+        ? p.permissionLabels.filter((v): v is string => typeof v === "string")
+        : [];
+      const positionName = pickString(p.positionName);
+      const preview =
+        labels.length === 0
+          ? "Neue Modul-Rechte"
+          : labels.length <= 3
+            ? labels.join(", ")
+            : `${labels.slice(0, 3).join(", ")} +${labels.length - 3}`;
+      return buildPushMessage({
+        prefix,
+        headline: "Neue Rechte freigeschaltet",
+        subject: `${prefix}Neue Rechte freigeschaltet`,
+        href: absoluteAppUrl(moduleDef.href),
+        details: detailLines([
+          preview,
+          positionName ? `Rolle: ${positionName}` : null,
+          "Öffne das Dashboard — deine neuen Möglichkeiten warten.",
+        ]),
+      });
+    }
     case "changelog": {
       const title = pickString(p.title) ?? "Changelog";
       const version = pickString(p.version);

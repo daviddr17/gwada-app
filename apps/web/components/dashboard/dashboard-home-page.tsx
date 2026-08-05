@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardAccountingTile } from "@/components/dashboard/dashboard-accounting-tile";
@@ -26,8 +27,29 @@ import { AppNavLink } from "@/components/navigation/app-nav-link";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
+import { useLongPress } from "@/lib/hooks/use-long-press";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
+
+function DashboardWidgetArrangeTarget({
+  onOpenArrange,
+  children,
+}: {
+  onOpenArrange?: () => void;
+  children: ReactNode;
+}) {
+  const longPress = useLongPress(() => onOpenArrange?.(), {
+    enableContextMenu: Boolean(onOpenArrange),
+  });
+
+  if (!onOpenArrange) return children;
+
+  return (
+    <div className="min-w-0 touch-manipulation" {...longPress}>
+      {children}
+    </div>
+  );
+}
 
 function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   switch (id) {
@@ -121,7 +143,7 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
       <div className="flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
         <p className="max-w-md text-sm text-muted-foreground sm:text-base">
           Keine Kacheln sichtbar — entweder ausgeblendet oder ohne
-          Modulzugriff. Über das Raster-Icon oben kannst du sie anordnen.
+          Modulzugriff. Anordnen geht auch über Einstellungen.
         </p>
         {onOpenArrange ? (
           <Button type="button" onClick={onOpenArrange}>
@@ -143,9 +165,11 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
           key={id}
           className={cn("min-w-0", span === 2 && "lg:col-span-2")}
         >
-          <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
-            <DashboardWidgetById id={id} />
-          </DashboardWidgetErrorBoundaryWithReset>
+          <DashboardWidgetArrangeTarget onOpenArrange={onOpenArrange}>
+            <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
+              <DashboardWidgetById id={id} />
+            </DashboardWidgetErrorBoundaryWithReset>
+          </DashboardWidgetArrangeTarget>
         </div>
       ))}
     </div>

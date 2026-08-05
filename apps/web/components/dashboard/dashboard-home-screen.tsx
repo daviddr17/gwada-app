@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, LayoutGrid } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { DashboardArrangeSheet } from "@/components/dashboard/dashboard-arrange-sheet";
 import { DashboardCalendarOverlay } from "@/components/dashboard/dashboard-calendar-overlay";
 import { DashboardFab } from "@/components/dashboard/dashboard-fab";
@@ -53,30 +53,17 @@ export function DashboardHomeScreen({ active = true }: { active?: boolean }) {
 
   const headerActions = useMemo(
     () => (
-      <div className="flex items-center gap-1.5">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          className="shrink-0 rounded-full border-border/60"
-          aria-label="Kalender (⇧⌘C)"
-          title="Kalender (⇧⌘C)"
-          onClick={() => setCalendarOpen(true)}
-        >
-          <CalendarDays className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          className="shrink-0 rounded-full border-border/60"
-          aria-label="Dashboard anordnen"
-          title="Dashboard anordnen"
-          onClick={() => setArrangeOpen(true)}
-        >
-          <LayoutGrid className="size-4" />
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        className="shrink-0 rounded-full border-border/60"
+        aria-label="Kalender (⇧⌘C)"
+        title="Kalender (⇧⌘C)"
+        onClick={() => setCalendarOpen(true)}
+      >
+        <CalendarDays className="size-4" />
+      </Button>
     ),
     [],
   );

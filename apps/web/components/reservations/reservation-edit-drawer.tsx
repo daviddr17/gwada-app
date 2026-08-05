@@ -327,6 +327,8 @@ export function ReservationEditDrawer({
   /** Wenn ein Modal (Löschen / Tisch teilen) offen ist, unterdrückt Vaul fälschlich `onOpenChange(false)` — außer nach explizitem Schließen. */
   const allowDrawerCloseRef = useRef(false);
   const initialStatusCodeRef = useRef<string | null>(null);
+  /** Create: Status-Dropdown nicht von Auto-Select „Offen“ überschreiben lassen. */
+  const statusTouchedByUserRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
@@ -615,7 +617,10 @@ export function ReservationEditDrawer({
           : "19:00";
       setTimeHm(hm);
       setEndTimeHm(addMinutesToHm(hm, defaultDwellMinutes));
-      setStatusId("");
+      statusTouchedByUserRef.current = false;
+      setStatusId(
+        statuses.length > 0 ? defaultStaffReservationStatusId(statuses) : "",
+      );
       setNotifyEmail(false);
       setNotifyWhatsapp(false);
       setTermsAccepted(true);
@@ -699,10 +704,8 @@ export function ReservationEditDrawer({
 
   useEffect(() => {
     if (!open || reservation || !createFor || statuses.length === 0) return;
-    setStatusId((cur) => {
-      if (cur) return cur;
-      return defaultStaffReservationStatusId(statuses);
-    });
+    if (statusTouchedByUserRef.current) return;
+    setStatusId(defaultStaffReservationStatusId(statuses));
   }, [open, reservation, createFor, statuses]);
 
   useEffect(() => {
@@ -981,6 +984,26 @@ export function ReservationEditDrawer({
         return;
       }
       if (created) {
+        // Sofort nach Insert — vor Staff-Assign/WhatsApp, sonst Realtime-Toast + falsches Unbestätigt.
+        const status = statuses.find((s) => s.id === payload.status_id);
+        dispatchDashboardReservationCreateLivePatch({
+          restaurantId: createFor.restaurantId,
+          insert: {
+            id: created.id,
+            starts_at: payload.starts_at,
+            ends_at: payload.ends_at,
+            dwell_minutes: payload.dwell_minutes,
+            kind: payload.kind,
+            guest_first_name: payload.guest_first_name,
+            guest_last_name: payload.guest_last_name,
+            guest_company: payload.guest_company,
+            party_size: payload.party_size,
+            statusId: payload.status_id,
+            statusCode: status?.code ?? "confirmed",
+            statusName: status?.name ?? "Bestätigt",
+            statusColorHex: status?.color_hex,
+          },
+        });
         if (payload.kind === RESERVATION_KIND_PRIVATE_EVENT) {
           const { error: assignErr } = await replaceReservationStaffAssignees({
             reservationId: created.id,
@@ -1003,26 +1026,6 @@ export function ReservationEditDrawer({
           payload,
           statuses,
           tables,
-        });
-        // Sofort — sonst schlägt Realtime den WhatsApp-Await und zeigt den Live-Toast.
-        const status = statuses.find((s) => s.id === payload.status_id);
-        dispatchDashboardReservationCreateLivePatch({
-          restaurantId: createFor.restaurantId,
-          insert: {
-            id: created.id,
-            starts_at: payload.starts_at,
-            ends_at: payload.ends_at,
-            dwell_minutes: payload.dwell_minutes,
-            kind: payload.kind,
-            guest_first_name: payload.guest_first_name,
-            guest_last_name: payload.guest_last_name,
-            guest_company: payload.guest_company,
-            party_size: payload.party_size,
-            statusId: payload.status_id,
-            statusCode: status?.code ?? "confirmed",
-            statusName: status?.name ?? "Bestätigt",
-            statusColorHex: status?.color_hex,
-          },
         });
       } else {
         setSaving(false);
@@ -1314,6 +1317,7 @@ export function ReservationEditDrawer({
                     items={statusItems}
                     onValueChange={(v) => {
                       if (typeof v !== "string") return;
+                      statusTouchedByUserRef.current = true;
                       setStatusId(v);
                       const next = statuses.find((s) => s.id === v);
                       if (next?.code !== "confirmed") setTableId("__none__");

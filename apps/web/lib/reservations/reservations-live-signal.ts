@@ -11,7 +11,7 @@ export type ReservationsLiveSignal = {
 };
 
 const LIVE_SIGNAL_SELECT =
-  "id, created_at, starts_at, ends_at, dwell_minutes, guest_first_name, guest_last_name, guest_company, party_size";
+  "id, created_at, starts_at, ends_at, dwell_minutes, guest_first_name, guest_last_name, guest_company, party_size, status_id, created_by_profile_id, reservation_statuses ( id, code, name, color_hex )";
 
 function mapLiveSignalRow(
   data: Record<string, unknown> | null,

@@ -60,17 +60,17 @@ export function reservationLiveInsertListRowRaw(
       code: insert.statusCode,
       name: insert.statusName,
       id: insert.statusId,
-      color_hex: insert.statusColorHex ?? DEFAULT_PENDING_STATUS.color_hex,
+      color_hex: insert.statusColorHex ?? DEFAULT_UNKNOWN_STATUS.color_hex,
     },
     reservation_staff_assignees: [],
   };
 }
 
-const DEFAULT_PENDING_STATUS: ReservationStatusJoin = {
+const DEFAULT_UNKNOWN_STATUS: ReservationStatusJoin = {
   id: "",
-  code: "pending",
-  name: "Unbestätigt",
-  color_hex: "#eab308",
+  code: "",
+  name: "—",
+  color_hex: "#94a3b8",
 };
 
 const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 50;
@@ -121,6 +121,16 @@ export function reservationLiveInsertFromRecord(
         })
       : null;
 
+  // Realtime-/Poll-Rows oft ohne Status-Join — nicht als pending annehmen
+  // (sonst +1 Unbestätigt bei bestätigten Eigenanlagen).
+  const statusId =
+    statusObj?.id ??
+    (typeof row.status_id === "string" ? row.status_id : "");
+  const statusCode =
+    typeof statusObj?.code === "string" ? statusObj.code : "";
+  const statusName =
+    typeof statusObj?.name === "string" ? statusObj.name : "—";
+
   return {
     id,
     starts_at: startsAt,
@@ -136,9 +146,9 @@ export function reservationLiveInsertFromRecord(
       typeof row.guest_company === "string" ? row.guest_company : null,
     party_size:
       Number.isFinite(partySize) && partySize > 0 ? partySize : 1,
-    statusId: statusObj?.id ?? "",
-    statusCode: statusObj?.code ?? DEFAULT_PENDING_STATUS.code,
-    statusName: statusObj?.name ?? DEFAULT_PENDING_STATUS.name,
+    statusId,
+    statusCode,
+    statusName,
     statusColorHex: statusObj?.color_hex,
   };
 }
@@ -159,23 +169,38 @@ export function patchDashboardReservationSummaryFromInsert(
   timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): DashboardReservationSummary {
   const statusJoin: ReservationStatusJoin = {
-    ...DEFAULT_PENDING_STATUS,
+    ...DEFAULT_UNKNOWN_STATUS,
+    id: insert.statusId || DEFAULT_UNKNOWN_STATUS.id,
     code: insert.statusCode,
     name: insert.statusName,
+    color_hex: insert.statusColorHex ?? DEFAULT_UNKNOWN_STATUS.color_hex,
   };
   const rowLike = { reservation_statuses: statusJoin };
   const guests = Math.max(0, insert.party_size);
   const todayKey = restaurantZonedDateKey(today, timeZone);
   const inWeek = isInWeekRange(insert.starts_at, today, timeZone);
   const counts = countsTowardGuestTotals(insert.statusCode);
+  const alreadyCountedToday = summary.todayList.some((r) => r.id === insert.id);
+  const alreadyUnconfirmed = summary.unconfirmedList.some(
+    (r) => r.id === insert.id,
+  );
 
   let next = { ...summary };
 
-  if (isUnconfirmedReservation(rowLike)) {
+  // Falsches Live-pending korrigieren, wenn später confirmed/unknown kommt.
+  if (!isUnconfirmedReservation(rowLike) && alreadyUnconfirmed) {
+    next = {
+      ...next,
+      unconfirmedCount: Math.max(0, next.unconfirmedCount - 1),
+      unconfirmedList: next.unconfirmedList.filter((r) => r.id !== insert.id),
+    };
+  }
+
+  if (isUnconfirmedReservation(rowLike) && !alreadyUnconfirmed) {
     next = { ...next, unconfirmedCount: next.unconfirmedCount + 1 };
   }
 
-  if (counts && inWeek) {
+  if (counts && inWeek && !alreadyCountedToday) {
     next = {
       ...next,
       weekReservations: next.weekReservations + 1,

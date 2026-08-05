@@ -23,6 +23,11 @@ final class PosRuntime: ObservableObject {
     private var pairingPollTask: Task<Void, Never>?
     /// Handgerät ohne iPad-Kasse (Demo/Cloud lokal) — UI bleibt Kellner-Tabs.
     @Published private(set) var isSoloMode = false
+    /// Nach Abmelden: Wizard bleibt sichtbar, bis Solo/Pairing bewusst abgeschlossen wird.
+    /// Verhindert, dass ein noch laufender Solo-Load den Code-Schritt sofort wieder zumacht.
+    @Published private(set) var forceHandheldOnboarding = false
+    /// Inkrement bei signOut — veraltete Solo-/Connect-Tasks dürfen State nicht zurücksetzen.
+    private var handheldSessionEpoch = 0
     @Published private(set) var snapshot: PosLanHubSnapshot?
     @Published private(set) var bonjourPublishing = false
     @Published private(set) var statusMessage: String = ""
@@ -164,7 +169,10 @@ final class PosRuntime: ObservableObject {
             HandheldHubClient.configureTLSPin(
                 fingerprintHex: PosEnrollmentStore.shared.handheldTlsFingerprint
             )
-            if PosEnrollmentStore.shared.isHandheldPaired {
+            if forceHandheldOnboarding {
+                phase = .needsLogin
+                statusMessage = "Handgerät einrichten."
+            } else if PosEnrollmentStore.shared.isHandheldPaired {
                 restoreHandheldSnapshotCacheIfNeeded()
                 await tryReconnectHubKeepingPairing()
             } else if PosSecurityPolicy.allowsSoloMode, PosEnrollmentStore.shared.isHandheldCloudReady {
@@ -224,6 +232,8 @@ final class PosRuntime: ObservableObject {
             phase = .needsLogin
             return
         }
+        let epoch = handheldSessionEpoch
+        forceHandheldOnboarding = false
         phase = .starting
         isSoloMode = true
         hubBaseURL = nil
@@ -237,9 +247,11 @@ final class PosRuntime: ObservableObject {
         var cloudNote = ""
         if wantCloud {
             cloudNote = await pullCloudBootstrap(forceDemoFallback: true)
+            guard epoch == handheldSessionEpoch else { return }
         } else {
             PosHubState.shared.loadCachedOrDemo()
         }
+        guard epoch == handheldSessionEpoch else { return }
         publishSnapshot(PosHubState.shared.makeSnapshot())
         dataSourceLabel = PosHubState.shared.isDemo ? "Solo · Demo/Cache" : "Solo · Cloud"
         phase = .connected
@@ -256,6 +268,7 @@ final class PosRuntime: ObservableObject {
         PosDemoReservations.seedIfNeeded(tables: snapshot?.floor.tables ?? [])
         #endif
         await pullReservationsDay(PosReservationsStore.todayYmd())
+        guard epoch == handheldSessionEpoch else { return }
         syncPending = PosSyncQueue.shared.pendingCount
     }
 
@@ -381,7 +394,16 @@ final class PosRuntime: ObservableObject {
         flushTask?.cancel()
         if role == .hub {
             PosEnrollmentStore.shared.resetHubEnrollment()
+            forceHandheldOnboarding = false
         } else {
+            handheldSessionEpoch += 1
+            forceHandheldOnboarding = true
+            hubBaseURL = nil
+            pairingChallenge = nil
+            pairingPollTask?.cancel()
+            pairingPollTask = nil
+            snapshot = nil
+            dataSourceLabel = "—"
             PosEnrollmentStore.shared.resetHandheldCloud()
             PosEnrollmentStore.shared.resetHandheldPairing()
             PosHandheldSnapshotCache.clear()
@@ -393,6 +415,82 @@ final class PosRuntime: ObservableObject {
         }
         phase = .needsLogin
         statusMessage = "Abgemeldet."
+    }
+
+    /// Kompletter lokaler Reset → Wizard von vorn. Geräte-ID / Installation-ID bleiben.
+    func factoryResetApp() {
+        stopHub()
+        flushTask?.cancel()
+        pairingPollTask?.cancel()
+        pairingPollTask = nil
+        stopHubReconnectLoop()
+
+        PosLocalStore.flushForTests()
+        PosLocalStore.clearAllPersistedFiles()
+
+        PosHubState.shared.resetForFactoryReset()
+        PosReservationsStore.shared.clearAll()
+        PosDraftCartStore.clearAll()
+        PosPaidHistoryStore.clearAll()
+        PosSyncQueue.shared.clearAll()
+        PosOrderLineIdMap.shared.clearAll()
+        PosSessionIdMap.shared.clearAll()
+        PosWaiterPinCache.shared.clearAll()
+        PosAuditLog.shared.clearAll()
+        PosOfflineCaches.clearAll()
+        PosHandheldSnapshotCache.clear()
+        PosHandheldOutbox.shared.clear()
+
+        PosEnrollmentCredential.clear()
+        PosAuthStore.shared.clearDevice()
+        PosPinLockStore.shared.clearPin()
+        PosCloudConfig.clearTenantOverrides()
+        HandheldHubClient.configureTLSPin(fingerprintHex: nil)
+        Self.clearGwadaUserDefaultsPreservingDeviceIdentity()
+
+        if role == .hub {
+            PosEnrollmentStore.shared.resetHubEnrollment()
+            forceHandheldOnboarding = false
+        } else {
+            handheldSessionEpoch += 1
+            forceHandheldOnboarding = true
+            PosEnrollmentStore.shared.resetHandheldCloud()
+            PosEnrollmentStore.shared.resetHandheldPairing()
+        }
+
+        isSignedIn = false
+        isSoloMode = false
+        hubBaseURL = nil
+        pairingChallenge = nil
+        snapshot = nil
+        dataSourceLabel = "—"
+        statusMessage = "App zurückgesetzt — bitte neu einrichten."
+        syncPending = 0
+        outboxPending = 0
+        pendingPrintJobs = 0
+        outboxConflict = nil
+        setHubDisconnectedAt(nil)
+        restaurantIdInput = ""
+        nestApiBaseInput = ""
+        waiterProfileIdInput = ""
+        apiBaseInput = PosCloudConfig.apiBaseURL.absoluteString
+        supabaseUrlInput = PosCloudConfig.supabaseURL.absoluteString
+        supabaseAnonInput = PosCloudConfig.supabaseAnonKey
+        phase = .needsLogin
+        PosAuditLog.shared.record("app.factory_reset", detail: "local wipe, device id kept")
+    }
+
+    private static func clearGwadaUserDefaultsPreservingDeviceIdentity() {
+        let keep: Set<String> = [
+            "gwada_pos_stable_device_id",
+            "gwada_pos_installation_id",
+        ]
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("gwada_pos_") {
+            if !keep.contains(key) {
+                defaults.removeObject(forKey: key)
+            }
+        }
     }
 
     func refresh() async {
@@ -413,8 +511,13 @@ final class PosRuntime: ObservableObject {
             } else if PosEnrollmentStore.shared.isHandheldPaired {
                 await tryReconnectHubKeepingPairing()
                 await pullReservationsDay(PosReservationsStore.shared.selectedDayYmd)
-            } else if PosSecurityPolicy.allowsSoloMode {
-                await startHandheldSolo(preferCloud: isSignedIn)
+            } else if forceHandheldOnboarding {
+                statusMessage = "Bitte Einrichtungs-Code eingeben."
+            } else if PosSecurityPolicy.allowsSoloMode,
+                      PosEnrollmentStore.shared.isHandheldCloudReady
+                        || PosEnrollmentCredential.hasCredential
+            {
+                await startHandheldSolo(preferCloud: isSignedIn || PosEnrollmentCredential.hasCredential)
             } else {
                 statusMessage = "iPad-Kasse koppeln — Hub ist Pflicht."
             }
@@ -1639,6 +1742,130 @@ final class PosRuntime: ObservableObject {
         return true
     }
 
+    /// Storniert eine geschickte Position. Der Hub bleibt bei gekoppelten Geräten SoT.
+    @discardableResult
+    func voidOpenLine(
+        sessionId: String,
+        lineId: String,
+        quantity: Int,
+        voidReasonId: String,
+        note: String?
+    ) async -> Bool {
+        let waiterProfileId = Self.nonEmptyId(PosAuthStore.shared.pinSession?.staffId)
+            ?? Self.nonEmptyId(PosCloudConfig.waiterProfileId)
+        let waiterCaps = waiterProfileId.map { profileId in
+            Set(
+                PosWaiterPinCache.shared.caps(for: profileId)
+                    + (snapshot?.waiterCaps?[profileId] ?? [])
+            )
+        } ?? []
+        var hasVoidCap = waiterCaps.contains("void")
+        #if DEBUG
+        if PosSecurityPolicy.allowsSoloMode, isSoloMode {
+            hasVoidCap = true
+        }
+        #endif
+
+        let idempotencyKey = UUID().uuidString
+        let normalizedNote = PosLineVoidPolicy.normalizedVoidNote(note)
+
+        if role == .handheld, PosEnrollmentStore.shared.isHandheldPaired, !isSoloMode {
+            guard let base = hubBaseURL else {
+                // V1 deliberately blocks instead of adding a second mutation outbox.
+                statusMessage = "Kasse getrennt — Storno später."
+                return false
+            }
+            do {
+                try await HandheldHubClient.voidLine(
+                    baseURL: base,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken,
+                    sessionId: sessionId,
+                    lineId: lineId,
+                    quantity: quantity,
+                    voidReasonId: voidReasonId,
+                    note: normalizedNote,
+                    waiterProfileId: waiterProfileId,
+                    idempotencyKey: idempotencyKey
+                )
+            } catch {
+                statusMessage = "Storno an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                return false
+            }
+
+            // Der Hub-HTTP-Handler enqueued den Sync mit demselben Request-Key.
+            PosAuditLog.shared.record(
+                "order.line_voided",
+                detail: "lan:\(lineId):qty=\(quantity):reason=\(voidReasonId)",
+                sessionId: sessionId
+            )
+            if let snap = try? await HandheldHubClient.fetchSnapshot(
+                baseURL: base,
+                restaurantId: nil,
+                pairToken: PosEnrollmentStore.shared.handheldPairToken
+            ) {
+                publishSnapshot(snap)
+            }
+            statusMessage = "Position storniert."
+            return true
+        }
+
+        guard shouldPublishLocalHubFloor else {
+            statusMessage = "Kasse getrennt — Storno später."
+            return false
+        }
+
+        let lineWasFired = PosHubState.shared.localOpenLines(sessionId: sessionId)
+            .first(where: { $0.id == lineId || $0.orderLineId == lineId })?
+            .isFired ?? false
+        switch PosHubState.shared.voidLocalOpenLine(
+            sessionId: sessionId,
+            lineId: lineId,
+            quantity: quantity,
+            voidReasonId: voidReasonId,
+            note: normalizedNote,
+            hasVoidCap: hasVoidCap,
+            idempotencyKey: idempotencyKey
+        ) {
+        case .success(.ok(_, _, let idempotentReplay)):
+            if !idempotentReplay {
+                PosSyncQueue.shared.enqueueLineVoided(PosSyncLineVoidedPayload(
+                    restaurantId: PosHubState.shared.restaurantId,
+                    tableSessionId: sessionId,
+                    lineId: lineId,
+                    quantity: quantity,
+                    voidReasonId: voidReasonId,
+                    note: normalizedNote,
+                    wasFired: lineWasFired,
+                    waiterProfileId: waiterProfileId,
+                    idempotencyKey: idempotencyKey
+                ))
+                syncPending = PosSyncQueue.shared.pendingCount
+                await PosSyncQueue.shared.flushIfPossible()
+                syncPending = PosSyncQueue.shared.pendingCount
+                PosAuditLog.shared.record(
+                    "order.line_voided",
+                    detail: "local:\(lineId):qty=\(quantity):reason=\(voidReasonId):fired=\(lineWasFired)",
+                    sessionId: sessionId
+                )
+                Task { await PosPrintDispatcher.shared.kick() }
+            }
+            publishSnapshot(PosHubState.shared.makeSnapshot())
+            statusMessage = "Position storniert."
+            return true
+        case .failure(.lineNotFound):
+            statusMessage = "Position nicht mehr offen."
+        case .failure(.invalidQuantity):
+            statusMessage = "Storno-Menge ist nicht mehr verfügbar."
+        case .failure(.voidCapRequired):
+            statusMessage = "Nur mit Storno-Recht."
+        case .failure(.missingVoidReason):
+            statusMessage = "Bitte Storno-Grund wählen."
+        case .failure(.missingIdempotencyKey):
+            statusMessage = "Storno konnte nicht vorbereitet werden."
+        }
+        return false
+    }
+
     /// Tisch freigeben (nach bezahlt) oder Abbruch nur vor erstem Fire.
     @discardableResult
     func releaseTable(sessionId: String, forceAbort: Bool = false) async -> Bool {
@@ -1885,6 +2112,14 @@ final class PosRuntime: ObservableObject {
                 menuRevision: cachedRevision
             )
             PosHubState.shared.applyBootstrap(bootstrap)
+            // Fallback: ältere API ohne voidReasons im Bootstrap.
+            if PosOfflineCaches.loadVoidReasons().isEmpty {
+                if let reasons = try? await PosCloudClient.fetchVoidReasons(restaurantId: restaurantId),
+                   !reasons.isEmpty
+                {
+                    PosOfflineCaches.saveVoidReasons(reasons)
+                }
+            }
             let menuCount = PosHubState.shared.menu?.items.count ?? 0
             let unchanged = bootstrap.menuUnchanged == true
             let msg = unchanged
@@ -2383,6 +2618,82 @@ final class PosRuntime: ObservableObject {
                 return (200, Data(#"{"ok":true}"#.utf8))
             }
 
+            if pathOnly == PosLanProtocol.voidLinePath {
+                struct Req: Decodable {
+                    var sessionId: String
+                    var lineId: String
+                    var quantity: Int
+                    var voidReasonId: String
+                    var note: String?
+                    var waiterProfileId: String?
+                    var idempotencyKey: String
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                let waiterProfileId = req.waiterProfileId?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let waiterCaps = PosHubState.shared.makeSnapshot().waiterCaps ?? [:]
+                let hasVoidCap = !waiterProfileId.isEmpty
+                    && (waiterCaps[waiterProfileId]?.contains("void") == true)
+                let restaurantId = PosHubState.shared.restaurantId
+                let lineWasFired = PosHubState.shared.localOpenLines(sessionId: req.sessionId)
+                    .first(where: { $0.id == req.lineId || $0.orderLineId == req.lineId })?
+                    .isFired ?? false
+
+                switch PosHubState.shared.voidLocalOpenLine(
+                    sessionId: req.sessionId,
+                    lineId: req.lineId,
+                    quantity: req.quantity,
+                    voidReasonId: req.voidReasonId,
+                    note: req.note,
+                    hasVoidCap: hasVoidCap,
+                    idempotencyKey: req.idempotencyKey
+                ) {
+                case .success(.ok(let remainingOpenQuantity, let kitchenStorno, let idempotentReplay)):
+                    if !idempotentReplay {
+                        Task { @MainActor in
+                            PosAuditLog.shared.record(
+                                "order.line_voided",
+                                detail: "hub:\(req.lineId):qty=\(req.quantity):reason=\(req.voidReasonId):fired=\(lineWasFired)",
+                                sessionId: req.sessionId
+                            )
+                            PosSyncQueue.shared.enqueueLineVoided(PosSyncLineVoidedPayload(
+                                restaurantId: restaurantId,
+                                tableSessionId: req.sessionId,
+                                lineId: req.lineId,
+                                quantity: req.quantity,
+                                voidReasonId: req.voidReasonId,
+                                note: PosLineVoidPolicy.normalizedVoidNote(req.note),
+                                wasFired: lineWasFired,
+                                waiterProfileId: waiterProfileId.isEmpty ? nil : waiterProfileId,
+                                idempotencyKey: req.idempotencyKey
+                            ))
+                            await PosSyncQueue.shared.flushIfPossible()
+                            await PosPrintDispatcher.shared.kick()
+                        }
+                    }
+                    let payload: [String: Any] = [
+                        "ok": true,
+                        "openQuantity": remainingOpenQuantity,
+                        "kitchenStorno": kitchenStorno,
+                    ]
+                    let data = (try? JSONSerialization.data(withJSONObject: payload))
+                        ?? Data(#"{"ok":true}"#.utf8)
+                    return (200, data)
+                case .failure(.lineNotFound):
+                    return (404, Data(#"{"error":"line_not_found"}"#.utf8))
+                case .failure(.voidCapRequired):
+                    return (403, Data(#"{"error":"void_cap_required"}"#.utf8))
+                case .failure(.invalidQuantity):
+                    return (400, Data(#"{"error":"invalid_quantity"}"#.utf8))
+                case .failure(.missingVoidReason):
+                    return (400, Data(#"{"error":"missing_void_reason"}"#.utf8))
+                case .failure(.missingIdempotencyKey):
+                    return (400, Data(#"{"error":"missing_idempotency_key"}"#.utf8))
+                }
+            }
+
             if pathOnly == PosLanProtocol.releaseSessionPath {
                 struct Req: Decodable {
                     var sessionId: String
@@ -2567,6 +2878,7 @@ final class PosRuntime: ObservableObject {
                 return
             }
             if PosSecurityPolicy.allowsSoloMode,
+               !forceHandheldOnboarding,
                PosEnrollmentStore.shared.isHandheldCloudReady || PosEnrollmentCredential.hasCredential
             {
                 await startHandheldSolo(preferCloud: true)
@@ -2592,6 +2904,7 @@ final class PosRuntime: ObservableObject {
         }
 
         if PosSecurityPolicy.allowsSoloMode,
+           !forceHandheldOnboarding,
            PosEnrollmentStore.shared.isHandheldCloudReady || PosEnrollmentCredential.hasCredential
         {
             await startHandheldSolo(preferCloud: true)
@@ -2632,6 +2945,7 @@ final class PosRuntime: ObservableObject {
                     rememberHubHost(base)
                     hubBaseURL = base
                     isSoloMode = false
+                    forceHandheldOnboarding = false
                     setHubDisconnectedAt(nil)
                     stopHubReconnectLoop()
                     publishSnapshot(snap)
@@ -2669,6 +2983,7 @@ final class PosRuntime: ObservableObject {
                             rememberHubHost(base)
                             hubBaseURL = base
                             isSoloMode = false
+                            forceHandheldOnboarding = false
                             setHubDisconnectedAt(nil)
                             stopHubReconnectLoop()
                             publishSnapshot(snap)
@@ -2847,6 +3162,7 @@ final class PosRuntime: ObservableObject {
                             tlsFingerprint: fp
                         )
                         HandheldHubClient.configureTLSPin(fingerprintHex: fp)
+                        self?.forceHandheldOnboarding = false
                         self?.pairingChallenge = nil
                     }
                     await self?.connectHandheld(preferredHost: {

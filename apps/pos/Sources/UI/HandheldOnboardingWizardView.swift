@@ -116,6 +116,10 @@ struct HandheldOnboardingWizardView: View {
                 .overlay {
                     RoundedRectangle(cornerRadius: 12).strokeBorder(PosDesign.line, lineWidth: 1)
                 }
+                .onChange(of: setupCode) { _, _ in
+                    // Tippen zählt als Aktivität — sonst greift der PIN-Auto-Lock und reißt den Wizard weg.
+                    PosPinLockStore.shared.noteUserActivity()
+                }
 
             if !errorText.isEmpty {
                 Text(errorText)

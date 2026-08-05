@@ -57,7 +57,37 @@ enum DemoSnapshotFactory {
                 sessionMetaBySessionId: [:]
             ),
             menu: makeDemoMenu(),
-            kitchen: nil
+            kitchen: nil,
+            voidReasons: [
+                PosCloudClient.PosVoidReasonDto(
+                    id: "demo-void-wrong-order",
+                    name: "Falsch bestellt",
+                    restoreInventory: true,
+                    sortOrder: 0,
+                    isActive: true
+                ),
+                PosCloudClient.PosVoidReasonDto(
+                    id: "demo-void-guest",
+                    name: "Gast storniert",
+                    restoreInventory: true,
+                    sortOrder: 1,
+                    isActive: true
+                ),
+                PosCloudClient.PosVoidReasonDto(
+                    id: "demo-void-served",
+                    name: "Bereits ausgegeben",
+                    restoreInventory: false,
+                    sortOrder: 2,
+                    isActive: true
+                ),
+                PosCloudClient.PosVoidReasonDto(
+                    id: "demo-void-test",
+                    name: "Test / Fehlbuchung",
+                    restoreInventory: true,
+                    sortOrder: 3,
+                    isActive: true
+                ),
+            ]
         )
     }
 

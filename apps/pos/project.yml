@@ -52,7 +52,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         ITSAppUsesNonExemptEncryption: false
-        POSDevApiBaseURL: http://192.168.178.62:3000
+        POSDevApiBaseURL: http://192.168.178.124:3000
   GwadaPOSTests:
     type: bundle.unit-test
     platform: iOS

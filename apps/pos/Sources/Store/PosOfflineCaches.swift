@@ -296,6 +296,15 @@ enum PosOfflineCaches {
         try? data.write(to: registerURL, options: [.atomic])
     }
 
+    /// Factory-Reset: Quittungen, Gutscheine, Register, Storno-Gründe.
+    static func clearAll() {
+        let fm = FileManager.default
+        try? fm.removeItem(at: receiptsURL)
+        try? fm.removeItem(at: vouchersURL)
+        try? fm.removeItem(at: voidReasonsURL)
+        try? fm.removeItem(at: registerURL)
+    }
+
     // MARK: Helpers
 
     static func todayYmd() -> String {

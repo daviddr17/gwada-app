@@ -11,8 +11,10 @@ struct TableSessionOverviewView: View {
     var onRelease: () -> Void
     var onOpenBon: () -> Void
     var onOpenHistory: (() -> Void)? = nil
+    var onVoidLine: ((SessionOpenLine) -> Void)? = nil
     var canCollect: Bool
     var canRelease: Bool
+    var canVoidFired: Bool = false
 
     private var openCents: Int { PosSessionOverviewMath.openCents(openLines: openLines) }
     private var sections: [(course: Int, lines: [SessionOpenLine])] {
@@ -21,48 +23,30 @@ struct TableSessionOverviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: PosLayout.stack) {
+            List {
+                Section {
                     statsRow
                     if historyLineCount > 0, let onOpenHistory {
-                        Button(action: onOpenHistory) {
-                            HStack(spacing: 8) {
-                                Text("Historie")
-                                    .font(.subheadline.weight(.semibold))
-                                Text("\(historyLineCount)")
-                                    .font(.caption2.weight(.bold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Capsule().fill(PosDesign.brandAccent.opacity(0.25)))
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(PosDesign.muted)
-                            }
-                            .foregroundStyle(PosDesign.ink)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(PosDesign.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .strokeBorder(PosDesign.line, lineWidth: 1)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("pos.session.overview.history")
-                        .accessibilityLabel("Historie, \(historyLineCount) Positionen")
+                        historyButton(action: onOpenHistory)
                     }
                     if openCents == 0 {
                         paidStatusChip
                     }
-                    ForEach(sections, id: \.course) { section in
-                        courseSection(course: section.course, lines: section.lines)
-                    }
                 }
-                .padding(.horizontal, PosLayout.page)
-                .padding(.top, 12)
-                .padding(.bottom, 24)
+                .listRowInsets(
+                    EdgeInsets(top: 4, leading: PosLayout.page, bottom: 4, trailing: PosLayout.page)
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
+                ForEach(sections, id: \.course) { section in
+                    courseSection(course: section.course, lines: section.lines)
+                }
             }
+            .listStyle(.plain)
+            .listSectionSpacing(PosLayout.stack)
+            .scrollContentBackground(.hidden)
+            .padding(.top, 8)
             dock
         }
         .accessibilityIdentifier("pos.session.overview")
@@ -106,24 +90,83 @@ struct TableSessionOverviewView: View {
         }
     }
 
+    private func historyButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text("Historie")
+                    .font(.subheadline.weight(.semibold))
+                Text("\(historyLineCount)")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(PosDesign.brandAccent.opacity(0.25)))
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(PosDesign.muted)
+            }
+            .foregroundStyle(PosDesign.ink)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(PosDesign.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(PosDesign.line, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("pos.session.overview.history")
+        .accessibilityLabel("Historie, \(historyLineCount) Positionen")
+    }
+
     private func courseSection(course: Int, lines: [SessionOpenLine]) -> some View {
         let header = PosSessionOverviewMath.courseStatusLabel(
             course: course,
             openLines: openLines,
             sessionId: sessionId
         )
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(header)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PosDesign.ink)
-                .accessibilityIdentifier("pos.session.overview.course.\(course)")
-
+        return Section {
             ForEach(lines) { line in
                 Button(action: onOpenBon) {
                     lineRow(line)
                 }
                 .buttonStyle(.plain)
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        onVoidLine?(line)
+                    } label: {
+                        Label(
+                            line.isFired && !canVoidFired
+                                ? "Storno (Recht fehlt)"
+                                : "Stornieren",
+                            systemImage: "arrow.uturn.backward"
+                        )
+                    }
+                }
+                .contextMenu {
+                    Button(role: .destructive) {
+                        onVoidLine?(line)
+                    } label: {
+                        Label(
+                            line.isFired && !canVoidFired
+                                ? "Stornieren… (Recht fehlt)"
+                                : "Stornieren…",
+                            systemImage: "arrow.uturn.backward"
+                        )
+                    }
+                }
+                .listRowInsets(
+                    EdgeInsets(top: 4, leading: PosLayout.page, bottom: 4, trailing: PosLayout.page)
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
             }
+        } header: {
+            Text(header)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(PosDesign.ink)
+                .textCase(nil)
+                .accessibilityIdentifier("pos.session.overview.course.\(course)")
         }
     }
 

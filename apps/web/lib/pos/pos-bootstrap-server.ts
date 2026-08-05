@@ -16,6 +16,10 @@ import {
 } from "@/lib/pos/pos-kds-statuses-server";
 import { listPosPrinters } from "@/lib/pos/pos-printers-server";
 import { listPosCategoryRoutes } from "@/lib/pos/pos-category-routes-server";
+import {
+  ensureDefaultPosVoidReasons,
+  type PosVoidReason,
+} from "@/lib/pos/pos-void-reasons-server";
 import type { MenuOptionChoice, MenuOptionGroup } from "@/lib/types/menu";
 
 export type PosBootstrapFloorArea = {
@@ -108,6 +112,8 @@ export type PosBootstrapPayload = {
     printers: Awaited<ReturnType<typeof listPosPrinters>>;
     categoryRoutes: Awaited<ReturnType<typeof listPosCategoryRoutes>>;
   };
+  /** Storno-Gründe — Stammdaten, lokal cachen (wie Speisekarte). */
+  voidReasons: PosVoidReason[];
 };
 
 /** Max. `updated_at` über Speisekarten-Tabellen → stabile Cache-Revision. */
@@ -440,12 +446,14 @@ export async function loadPosBootstrap(
     })
     .filter((g) => g.choices.length > 0);
 
-  const [kdsDevices, kdsStatuses, printers, categoryRoutes] = await Promise.all([
-    listPosKdsDevices(supabase, restaurantId),
-    ensureDefaultPosKdsStatuses(supabase, restaurantId),
-    listPosPrinters(supabase, restaurantId),
-    listPosCategoryRoutes(supabase, restaurantId),
-  ]);
+  const [kdsDevices, kdsStatuses, printers, categoryRoutes, voidReasons] =
+    await Promise.all([
+      listPosKdsDevices(supabase, restaurantId),
+      ensureDefaultPosKdsStatuses(supabase, restaurantId),
+      listPosPrinters(supabase, restaurantId),
+      listPosCategoryRoutes(supabase, restaurantId),
+      ensureDefaultPosVoidReasons(supabase, restaurantId),
+    ]);
 
   const brandAccentHex =
     normalizeHex(
@@ -487,5 +495,6 @@ export async function loadPosBootstrap(
       printers,
       categoryRoutes,
     },
+    voidReasons,
   };
 }

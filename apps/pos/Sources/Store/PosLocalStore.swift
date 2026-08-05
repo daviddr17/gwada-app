@@ -133,4 +133,20 @@ enum PosLocalStore {
     static func flushForTests() {
         ioQueue.sync {}
     }
+
+    /// Löscht alle Dateien unter Application Support/GwadaPOS (Caches, Queues, Maps).
+    static func clearAllPersistedFiles() {
+        ioQueue.sync {
+            let fm = FileManager.default
+            let dir = directory
+            guard let entries = try? fm.contentsOfDirectory(
+                at: dir,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            ) else { return }
+            for url in entries {
+                try? fm.removeItem(at: url)
+            }
+        }
+    }
 }

@@ -22,6 +22,11 @@ struct TableSessionView: View {
     @State private var sendPulse = false
     @State private var activeCourse = PosCourse.main
     @State private var guestCount = 2
+    @State private var voidTarget: SessionOpenLine?
+    @State private var voidReasons: [PosCloudClient.PosVoidReasonDto] = []
+    @State private var voidReasonsLoading = false
+    @State private var voidSubmitting = false
+    @State private var voidError = ""
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -44,8 +49,10 @@ struct TableSessionView: View {
                     },
                     onOpenBon: { showBon = true },
                     onOpenHistory: { phase = .history },
+                    onVoidLine: { line in prepareVoid(line) },
                     canCollect: runtime.canCollectAtRegister,
-                    canRelease: runtime.canMutateLiveFloor
+                    canRelease: runtime.canMutateLiveFloor,
+                    canVoidFired: canVoidFired
                 )
             } else if phase == .history {
                 TableSessionHistoryView(
@@ -152,6 +159,30 @@ struct TableSessionView: View {
                     configuring = nil
                 },
                 onCancel: { configuring = nil }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $voidTarget) { line in
+            LineVoidSheet(
+                line: line,
+                reasons: voidReasons,
+                canVoidFired: canVoidFired,
+                reasonsLoading: voidReasonsLoading,
+                isSubmitting: voidSubmitting,
+                errorMessage: voidError,
+                onConfirm: { quantity, reasonId, note in
+                    submitVoid(
+                        line: line,
+                        quantity: quantity,
+                        reasonId: reasonId,
+                        note: note
+                    )
+                },
+                onCancel: {
+                    voidTarget = nil
+                    voidError = ""
+                }
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
@@ -474,6 +505,23 @@ struct TableSessionView: View {
             receipts: overviewReceipts
         )
     }
+    private var canVoidFired: Bool {
+        #if DEBUG
+        if PosSecurityPolicy.allowsSoloMode, runtime.isSoloMode {
+            // Labor-/Solo-Betrieb hat kein serverseitig gepflegtes Kellner-Cap.
+            return true
+        }
+        #endif
+        let rawProfileId = PosAuthStore.shared.pinSession?.staffId
+            ?? PosCloudConfig.waiterProfileId
+            ?? ""
+        let profileId = rawProfileId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !profileId.isEmpty else { return false }
+        return Set(
+            PosWaiterPinCache.shared.caps(for: profileId)
+                + (runtime.snapshot?.waiterCaps?[profileId] ?? [])
+        ).contains("void")
+    }
     private var currentSession: PosLanOpenSession? {
         runtime.snapshot?.floor.openSessions.first(where: { $0.dining_table_id == table.id })
     }
@@ -497,6 +545,72 @@ struct TableSessionView: View {
             tableReceipts: tableReceipts
         )
         paidHistory = PosPaidHistoryStore.rebuild(sessionId: sid, receipts: sessionReceipts)
+    }
+
+    private func prepareVoid(_ line: SessionOpenLine) {
+        voidReasons = PosOfflineCaches.loadVoidReasons()
+        voidReasonsLoading = voidReasons.isEmpty
+        voidSubmitting = false
+        voidError = ""
+        voidTarget = line
+        Task { await refreshVoidReasons() }
+    }
+
+    private func refreshVoidReasons() async {
+        // CloudConfig = enrolled Restaurant; HubState fällt sonst auf Demo-UUID zurück.
+        let restaurantId =
+            (PosCloudConfig.restaurantId?.trimmingCharacters(in: .whitespacesAndNewlines))
+                .flatMap { $0.isEmpty ? nil : $0 }
+            ?? PosHubState.shared.restaurantId
+        let isDemoFallback = restaurantId == DemoSnapshotFactory.restaurantId
+        guard !restaurantId.isEmpty, !isDemoFallback else {
+            voidReasonsLoading = false
+            if voidReasons.isEmpty {
+                voidError = "Kein Restaurant verknüpft — bitte Cloud laden / enrollen."
+            }
+            return
+        }
+        do {
+            let fetched = try await PosCloudClient.fetchVoidReasons(restaurantId: restaurantId)
+            PosOfflineCaches.saveVoidReasons(fetched)
+            voidReasons = fetched
+            if fetched.isEmpty {
+                voidError = "Keine Storno-Gründe in der Cloud — unter POS-Einstellungen anlegen."
+            }
+        } catch {
+            if voidReasons.isEmpty {
+                voidError =
+                    "Storno-Gründe offline. Einmal Cloud laden (wie Speisekarte), dann erneut versuchen."
+            }
+        }
+        voidReasonsLoading = false
+    }
+
+    private func submitVoid(
+        line: SessionOpenLine,
+        quantity: Int,
+        reasonId: String,
+        note: String
+    ) {
+        guard !voidSubmitting else { return }
+        voidSubmitting = true
+        voidError = ""
+        Task {
+            let succeeded = await runtime.voidOpenLine(
+                sessionId: resolvedSessionId,
+                lineId: line.id,
+                quantity: quantity,
+                voidReasonId: reasonId,
+                note: note
+            )
+            if succeeded {
+                await refreshOpenLines()
+                voidTarget = nil
+            } else {
+                voidError = runtime.statusMessage
+            }
+            voidSubmitting = false
+        }
     }
 
     private func applyPhaseAfterSettlement() {

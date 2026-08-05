@@ -79,13 +79,14 @@ struct RootView: View {
                 pinLock.lock(reason: "scene_background")
             }
             if phase == .active {
+                pinLock.noteUserActivity()
                 lastInteraction = Date()
             }
         }
         .onReceive(Timer.publish(every: 15, on: .main, in: .common).autoconnect()) { now in
             bannerTick = now
             guard pinLock.isUnlocked, pinLock.hasPinConfigured else { return }
-            let idle = now.timeIntervalSince(lastInteraction)
+            let idle = now.timeIntervalSince(max(lastInteraction, pinLock.lastUserActivityAt))
             if idle >= pinLock.autoLockSeconds {
                 pinLock.lock(reason: "auto_idle")
             }
@@ -183,6 +184,8 @@ struct RootView: View {
 
     /// Tabs nur mit Hub-Pairing; DEBUG-Solo als Labor-Ausnahme.
     private var showHandheldOnboarding: Bool {
+        // Nach Abmelden Wizard festhalten — auch wenn ein alter Solo-Task noch isSoloMode setzt.
+        if runtime.forceHandheldOnboarding { return true }
         if PosSecurityPolicy.allowsSoloMode, runtime.isSoloMode { return false }
         if enrollment.isHandheldServiceReady { return false }
         if runtime.hubBaseURL != nil { return false }

@@ -5,6 +5,7 @@ struct DeviceSettingsView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var hubIP = ""
     @State private var confirmSignOut = false
+    @State private var confirmFactoryReset = false
     @State private var showSupport = false
 
     var body: some View {
@@ -53,6 +54,20 @@ struct DeviceSettingsView: View {
                     : "Cloud-Zugang und iPad-Pairing werden entfernt. Danach erneut Einrichtungs-Code."
             )
         }
+        .confirmationDialog(
+            "App komplett zurücksetzen?",
+            isPresented: $confirmFactoryReset,
+            titleVisibility: .visible
+        ) {
+            Button("Alles löschen & neu starten", role: .destructive) {
+                runtime.factoryResetApp()
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text(
+                "Alle lokalen Daten werden entfernt (Speisekarte-Cache, Entwürfe, Outbox, PIN). Die Geräte-ID bleibt — danach startet die Einrichtung von vorn."
+            )
+        }
     }
 
     @ViewBuilder
@@ -77,8 +92,11 @@ struct DeviceSettingsView: View {
             Button("Kasse neu einrichten", role: .destructive) {
                 confirmSignOut = true
             }
+            Button("App zurücksetzen", role: .destructive) {
+                confirmFactoryReset = true
+            }
         } footer: {
-            Text("Öffnet den Einrichtungs-Assistenten erneut (Einrichtungs-Code).")
+            Text("Neu einrichten: nur Enrollment. App zurücksetzen: alle lokalen Caches weg, Wizard von vorn (Geräte-ID bleibt).")
         }
     }
 
@@ -139,8 +157,11 @@ struct DeviceSettingsView: View {
             Button("Abmelden", role: .destructive) {
                 confirmSignOut = true
             }
+            Button("App zurücksetzen", role: .destructive) {
+                confirmFactoryReset = true
+            }
         } footer: {
-            Text("Setzt Einrichtung und Pairing zurück. Nur wenn das Gerät neu eingerichtet werden soll.")
+            Text("Abmelden: nur Cloud/Pairing. App zurücksetzen: alle lokalen Daten weg, Einrichtung von vorn (Geräte-ID bleibt).")
         }
     }
 

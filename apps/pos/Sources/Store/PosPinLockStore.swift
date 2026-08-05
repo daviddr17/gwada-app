@@ -48,6 +48,13 @@ final class PosPinLockStore: ObservableObject {
         }
     }
 
+    /// Letzte Nutzeraktion (Tippen, Tabs, …) — für Idle-Auto-Lock.
+    private(set) var lastUserActivityAt = Date()
+
+    func noteUserActivity() {
+        lastUserActivityAt = Date()
+    }
+
     func configurePin(_ pin: String) -> Bool {
         let digits = pin.filter(\.isNumber)
         guard digits.count == 6 else { return false }

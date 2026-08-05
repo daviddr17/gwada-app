@@ -114,4 +114,12 @@ enum PosDraftCartStore {
         defer { lock.unlock() }
         cache = nil
     }
+
+    /// Factory-Reset: Memory + Disk.
+    static func clearAll() {
+        lock.lock()
+        cache = [:]
+        PosLocalStore.saveDraftCarts([:])
+        lock.unlock()
+    }
 }

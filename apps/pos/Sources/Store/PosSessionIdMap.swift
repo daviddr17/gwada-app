@@ -52,6 +52,14 @@ final class PosSessionIdMap: @unchecked Sendable {
         return localToCloud[localSessionId]
     }
 
+    /// Factory-Reset.
+    func clearAll() {
+        lock.lock()
+        localToCloud = [:]
+        lock.unlock()
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
     private func load() {
         guard let data = try? Data(contentsOf: fileURL),
               let saved = try? JSONDecoder().decode([String: String].self, from: data)

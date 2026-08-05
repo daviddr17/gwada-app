@@ -60,6 +60,12 @@ final class PosWaiterPinCache: ObservableObject {
         Dictionary(uniqueKeysWithValues: waiters.map { ($0.profileId, $0.caps) })
     }
 
+    /// Factory-Reset.
+    func clearAll() {
+        waiters = []
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
     private func load() {
         guard let data = try? Data(contentsOf: fileURL),
               let saved = try? decoder.decode([PosCachedWaiter].self, from: data) else {

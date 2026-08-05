@@ -332,6 +332,8 @@ struct PosCloudBootstrap: Codable, Equatable, Sendable {
     var menu: PosCloudMenuCatalog
     /// Optional für ältere Caches / Server.
     var kitchen: PosCloudKitchenConfig?
+    /// Storno-Gründe (Stammdaten). Optional für ältere Caches / Server.
+    var voidReasons: [PosCloudClient.PosVoidReasonDto]? = nil
 
     var resolvedAccentHex: String {
         PosDesign.resolveAccentHex(brandAccentHex)

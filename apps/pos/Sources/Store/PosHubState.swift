@@ -45,6 +45,21 @@ final class PosHubState: @unchecked Sendable {
         self.hubDeviceId = hubDeviceId
     }
 
+    /// Factory-Reset: Bootstrap, Open-Lines, Locks — Disk separat über `PosLocalStore`.
+    func resetForFactoryReset() {
+        lock.lock()
+        bootstrap = nil
+        usingDemo = true
+        snapshotVersion = 1
+        waiterCaps = [:]
+        generatedAtForVersion = nil
+        encodedSnapshotCache = nil
+        firedCourses = PosFiredCourseStore()
+        localOpenLinesBySession = [:]
+        kassierenLocksBySession = [:]
+        lock.unlock()
+    }
+
     private func bumpSnapshotVersionLocked() {
         snapshotVersion += 1
         encodedSnapshotCache = nil
@@ -96,6 +111,12 @@ final class PosHubState: @unchecked Sendable {
         self.usingDemo = false
         bumpSnapshotVersionLocked()
         PosLocalStore.saveBootstrap(next)
+        if let reasons = next.voidReasons {
+            let active = reasons.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
+            if !active.isEmpty {
+                PosOfflineCaches.saveVoidReasons(active)
+            }
+        }
     }
 
     func loadCachedOrDemo() {
@@ -129,11 +150,25 @@ final class PosHubState: @unchecked Sendable {
             }
             bootstrap = cached
             usingDemo = false
+            if let reasons = cached.voidReasons {
+                let active = reasons.filter(\.isActive).sorted { $0.sortOrder < $1.sortOrder }
+                if !active.isEmpty, PosOfflineCaches.loadVoidReasons().isEmpty {
+                    PosOfflineCaches.saveVoidReasons(active)
+                }
+            } else if cached.restaurantId == DemoSnapshotFactory.restaurantId,
+                      PosOfflineCaches.loadVoidReasons().isEmpty,
+                      let demoReasons = DemoSnapshotFactory.makeBootstrap().voidReasons
+            {
+                PosOfflineCaches.saveVoidReasons(demoReasons.filter(\.isActive))
+            }
         } else {
             let demo = DemoSnapshotFactory.makeBootstrap(hubDeviceId: hubDeviceId)
             bootstrap = demo
             usingDemo = true
             PosLocalStore.saveBootstrap(demo)
+            if let reasons = demo.voidReasons, !reasons.isEmpty {
+                PosOfflineCaches.saveVoidReasons(reasons.filter(\.isActive))
+            }
         }
         loadLocalOpenLinesLocked()
     }
@@ -561,6 +596,8 @@ final class PosHubState: @unchecked Sendable {
         defer { lock.unlock() }
         localOpenLinesBySession.removeValue(forKey: sessionId)
         kassierenLocksBySession.removeValue(forKey: sessionId)
+        let idemPrefix = "\(sessionId):"
+        consumedVoidIdempotencyKeys = consumedVoidIdempotencyKeys.filter { !$0.hasPrefix(idemPrefix) }
         persistLocalOpenLinesLocked()
         persistKassierenLocksLocked()
     }
@@ -571,6 +608,95 @@ final class PosHubState: @unchecked Sendable {
         defer { lock.unlock() }
         localOpenLinesBySession[sessionId] = lines.isEmpty ? nil : lines
         persistLocalOpenLinesLocked()
+    }
+
+    // MARK: Line void (Positions-Storno)
+
+    private var consumedVoidIdempotencyKeys: Set<String> = []
+
+    @discardableResult
+    func voidLocalOpenLine(
+        sessionId: String,
+        lineId: String,
+        quantity: Int,
+        voidReasonId: String,
+        note: String?,
+        hasVoidCap: Bool,
+        idempotencyKey: String
+    ) -> Result<PosLineVoidResult, PosLineVoidError> {
+        lock.lock()
+        defer { lock.unlock() }
+        let sid = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lid = lineId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let idemKey = idempotencyKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !idemKey.isEmpty else {
+            return .failure(.missingIdempotencyKey)
+        }
+        let idemComposite = "\(sid):\(lid):\(idemKey)"
+
+        if consumedVoidIdempotencyKeys.contains(idemComposite) {
+            let remaining = localOpenLinesBySession[sid]?
+                .first(where: { $0.id == lid || $0.orderLineId == lid })?
+                .openQuantity ?? 0
+            return .success(.ok(remainingOpenQuantity: remaining, kitchenStorno: false, idempotentReplay: true))
+        }
+
+        guard var lines = localOpenLinesBySession[sid], !lines.isEmpty else {
+            return .failure(.lineNotFound)
+        }
+        guard let idx = lines.firstIndex(where: { $0.id == lid || $0.orderLineId == lid }) else {
+            return .failure(.lineNotFound)
+        }
+
+        let line = lines[idx]
+        guard quantity >= 1, quantity <= line.openQuantity else {
+            return .failure(.invalidQuantity)
+        }
+        guard PosLineVoidPolicy.allowsVoid(lineFired: line.isFired, hasVoidCap: hasVoidCap) else {
+            return .failure(.voidCapRequired)
+        }
+        guard !voidReasonId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(.missingVoidReason)
+        }
+
+        let lineWasFired = line.isFired
+        let openCentsBefore = line.openCents
+        var copy = line
+        copy.openQuantity -= quantity
+        copy.lineQuantity = line.settlementLineQuantity
+        copy.lineTotalCents = line.settlementLineTotalCents
+        copy.syncOpenCentsFromOriginal()
+        let voidedCents = max(0, openCentsBefore - (copy.openQuantity > 0 ? copy.openCents : 0))
+        let remaining = copy.openQuantity
+
+        if copy.openQuantity <= 0 {
+            lines.remove(at: idx)
+        } else {
+            lines[idx] = copy
+        }
+        localOpenLinesBySession[sid] = lines.isEmpty ? nil : lines
+        persistLocalOpenLinesLocked()
+
+        consumedVoidIdempotencyKeys.insert(idemComposite)
+
+        if lineWasFired {
+            let kitchenNote = PosLineVoidPolicy.normalizedVoidNote(note)
+            enqueueKitchenStornoLocked(line: line, voidQuantity: quantity, note: kitchenNote)
+        }
+
+        if voidedCents > 0, var bootstrap = self.bootstrap {
+            var meta = bootstrap.floor.sessionMetaBySessionId[sid]
+                ?? PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
+            meta.openCents = max(0, meta.openCents - voidedCents)
+            bootstrap.floor.sessionMetaBySessionId[sid] = meta
+            self.bootstrap = bootstrap
+            bumpSnapshotVersionLocked()
+            PosLocalStore.saveBootstrap(bootstrap)
+        } else {
+            bumpSnapshotVersionLocked()
+        }
+
+        return .success(.ok(remainingOpenQuantity: remaining, kitchenStorno: lineWasFired, idempotentReplay: false))
     }
 
     func kassierenLock(sessionId: String) -> PosKassierenLockState? {
@@ -1070,6 +1196,75 @@ final class PosHubState: @unchecked Sendable {
         }
         if localPrintJobs.count > 80 {
             localPrintJobs = Array(localPrintJobs.prefix(80))
+        }
+    }
+
+    /// KDS-Storno-Ticket + Bondruck für bereits gefeuerte Position.
+    /// Wenn KDS und/oder Drucker konfiguriert sind: beide Kanäle anstoßen (nicht route-exklusiv).
+    private func enqueueKitchenStornoLocked(line: SessionOpenLine, voidQuantity: Int, note: String?) {
+        let menuItems = bootstrap?.menu.items ?? []
+        let itemById = Dictionary(uniqueKeysWithValues: menuItems.map { ($0.id, $0) })
+        let routes = bootstrap?.kitchen?.categoryRoutes ?? []
+        let routeByCat = Dictionary(uniqueKeysWithValues: routes.map { ($0.menuCategoryId, $0) })
+        let printers = (bootstrap?.kitchen?.printers ?? []).filter(\.isActive)
+        let kdsDevices = (bootstrap?.kitchen?.kdsDevices ?? []).filter(\.isActive)
+        let statuses = bootstrap?.kitchen?.activeKdsStatuses ?? []
+        let firstStatus = statuses.first
+
+        let hasKds = !kdsDevices.isEmpty || !statuses.isEmpty
+        let hasPrinters = !printers.isEmpty
+        guard hasKds || hasPrinters else { return }
+
+        let categoryId = line.menuItemId.flatMap { itemById[$0]?.categoryId } ?? ""
+        let route = routeByCat[categoryId]
+
+        var detail = line.detail
+        if let note, !note.isEmpty {
+            detail = detail.isEmpty ? note : "\(detail) — \(note)"
+        }
+
+        let payload: [String: Any] = [
+            "id": line.id,
+            "name": "STORNO: \(line.name)",
+            "quantity": voidQuantity,
+            "detail": detail,
+            "course": line.course,
+            "categoryId": categoryId,
+        ]
+
+        if hasKds {
+            let ticket: [String: Any] = [
+                "orderId": UUID().uuidString,
+                "orderNumber": 0,
+                "status": firstStatus?.name ?? "Neu",
+                "statusId": firstStatus?.id ?? "",
+                "statusName": firstStatus?.name ?? "Neu",
+                "statusColor": firstStatus?.color ?? "#3b82f6",
+                "lines": [payload],
+                "storno": true,
+            ]
+            localTickets.insert(ticket, at: 0)
+            if localTickets.count > 40 {
+                localTickets = Array(localTickets.prefix(40))
+            }
+        }
+
+        if hasPrinters {
+            let targetIds: [String]
+            if let ids = route?.printerIds, !ids.isEmpty {
+                targetIds = ids
+            } else {
+                targetIds = printers.map(\.id)
+            }
+            var printLinesByPrinter: [String: [[String: Any]]] = [:]
+            for pid in targetIds {
+                printLinesByPrinter[pid, default: []].append(payload)
+            }
+            enqueuePrintJobsLocked(
+                orderNumber: 0,
+                printLinesByPrinter: printLinesByPrinter,
+                printers: printers
+            )
         }
     }
 

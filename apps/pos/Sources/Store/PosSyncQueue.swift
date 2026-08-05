@@ -5,6 +5,7 @@ enum PosSyncQueueItemKind: String, Codable, Sendable {
     case createOrder
     case collectCash
     case fireCourse
+    case lineVoided
     case moveSession
     case releaseSession
     case createReservation
@@ -155,6 +156,18 @@ struct PosSyncFireCoursePayload: Codable, Sendable {
     }
 }
 
+struct PosSyncLineVoidedPayload: Codable, Sendable {
+    var restaurantId: String
+    var tableSessionId: String
+    var lineId: String
+    var quantity: Int
+    var voidReasonId: String
+    var note: String?
+    var wasFired: Bool
+    var waiterProfileId: String?
+    var idempotencyKey: String
+}
+
 struct PosSyncMoveSessionPayload: Codable, Sendable {
     var restaurantId: String
     var tableSessionId: String
@@ -199,6 +212,15 @@ final class PosSyncQueue: ObservableObject {
 
     var pendingCount: Int { items.count }
     var deadLetterCount: Int { deadLetters.count }
+
+    /// Factory-Reset: Queue + Dead-Letters leeren.
+    func clearAll() {
+        items = []
+        deadLetters = []
+        lastFlushMessage = ""
+        isFlushing = false
+        try? FileManager.default.removeItem(at: fileURL)
+    }
 
     /// Permanent → Dead-Letter (FIFO geht weiter). Offline/5xx → Kopf behalten, Stop.
     static func shouldDeadLetter(error: Error, attempts: Int) -> Bool {
@@ -273,6 +295,15 @@ final class PosSyncQueue: ObservableObject {
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
         let data = (try? encoder.encode(resolved)) ?? Data()
         enqueue(makeItem(kind: .fireCourse, payload: data))
+    }
+
+    func enqueueLineVoided(_ payload: PosSyncLineVoidedPayload) {
+        var resolved = payload
+        resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+        resolved.lineId = PosOrderLineIdMap.shared.resolve(payload.lineId)
+        if items.contains(where: { $0.id == resolved.idempotencyKey }) { return }
+        let data = (try? encoder.encode(resolved)) ?? Data()
+        enqueue(makeItem(id: resolved.idempotencyKey, kind: .lineVoided, payload: data))
     }
 
     func enqueueMoveSession(_ payload: PosSyncMoveSessionPayload) {
@@ -387,7 +418,7 @@ final class PosSyncQueue: ObservableObject {
         index: Int
     ) async throws {
         switch item.kind {
-        case .openSession, .createOrder, .collectCash, .fireCourse, .moveSession, .releaseSession:
+        case .openSession, .createOrder, .collectCash, .fireCourse, .lineVoided, .moveSession, .releaseSession:
             if PosCloudConfig.nestSyncEnabled {
                 try await processViaNest(&item, working: &working, index: index)
             } else {
@@ -519,6 +550,29 @@ final class PosSyncQueue: ObservableObject {
                     "sessionId": payload.tableSessionId,
                     "course": payload.course,
                 ]
+            )
+
+        case .lineVoided:
+            var payload = try decoder.decode(PosSyncLineVoidedPayload.self, from: item.payload)
+            payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
+            payload.lineId = PosOrderLineIdMap.shared.resolve(payload.lineId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            var body: [String: Any] = [
+                "sessionId": payload.tableSessionId,
+                "lineId": payload.lineId,
+                "quantity": payload.quantity,
+                "voidReasonId": payload.voidReasonId,
+                "wasFired": payload.wasFired,
+            ]
+            if let note = payload.note, !note.isEmpty { body["note"] = note }
+            if let waiterProfileId = payload.waiterProfileId, !waiterProfileId.isEmpty {
+                body["waiterProfileId"] = waiterProfileId
+            }
+            envelope = PosNestClient.eventEnvelope(
+                type: "order.line_voided",
+                idempotencyKey: payload.idempotencyKey,
+                sessionId: payload.tableSessionId,
+                payload: body
             )
 
         case .moveSession:
@@ -710,6 +764,11 @@ final class PosSyncQueue: ObservableObject {
                 "Nest-URL (für \(item.kind.rawValue); Next-Fallback fehlt)"
             )
 
+        case .lineVoided:
+            // V1 has no Next endpoint for line voids. Treat the local audit as the fallback
+            // instead of permanently blocking or dead-lettering the FIFO queue.
+            break
+
         case .createReservation, .openRegister, .closeRegister:
             break
         }
@@ -744,18 +803,29 @@ final class PosSyncQueue: ObservableObject {
         _ item: PosSyncQueueItem,
         mappings: [String: String]
     ) -> PosSyncQueueItem {
-        guard item.kind == .collectCash,
-              var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
-        else { return item }
-        var changed = false
-        payload.allocations = payload.allocations.map { alloc in
-            guard let cloud = mappings[alloc.orderLineId] else { return alloc }
-            changed = true
-            return PosSyncCashAllocation(orderLineId: cloud, quantity: alloc.quantity)
-        }
-        guard changed, let data = try? encoder.encode(payload) else { return item }
         var copy = item
-        copy.payload = data
+        switch item.kind {
+        case .collectCash:
+            guard var payload = try? decoder.decode(PosSyncCollectCashPayload.self, from: item.payload)
+            else { return item }
+            var changed = false
+            payload.allocations = payload.allocations.map { alloc in
+                guard let cloud = mappings[alloc.orderLineId] else { return alloc }
+                changed = true
+                return PosSyncCashAllocation(orderLineId: cloud, quantity: alloc.quantity)
+            }
+            guard changed, let data = try? encoder.encode(payload) else { return item }
+            copy.payload = data
+        case .lineVoided:
+            guard var payload = try? decoder.decode(PosSyncLineVoidedPayload.self, from: item.payload),
+                  let cloud = mappings[payload.lineId]
+            else { return item }
+            payload.lineId = cloud
+            guard let data = try? encoder.encode(payload) else { return item }
+            copy.payload = data
+        default:
+            return item
+        }
         return copy
     }
 
@@ -808,6 +878,15 @@ final class PosSyncQueue: ObservableObject {
             }
         case .fireCourse:
             guard var payload = try? decoder.decode(PosSyncFireCoursePayload.self, from: item.payload)
+            else { return item }
+            if payload.tableSessionId == localSessionId {
+                payload.tableSessionId = cloudSessionId
+                if let data = try? encoder.encode(payload) {
+                    copy.payload = data
+                }
+            }
+        case .lineVoided:
+            guard var payload = try? decoder.decode(PosSyncLineVoidedPayload.self, from: item.payload)
             else { return item }
             if payload.tableSessionId == localSessionId {
                 payload.tableSessionId = cloudSessionId

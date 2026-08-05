@@ -123,4 +123,17 @@ enum PosCloudConfig {
         _ = supabaseAnonKey
         _ = apiBaseURL
     }
+
+    /// Factory-Reset: Tenant-/DEBUG-Overrides (Geräte-ID bleibt unberührt).
+    static func clearTenantOverrides() {
+        UserDefaults.standard.removeObject(forKey: restaurantIdKey)
+        UserDefaults.standard.removeObject(forKey: nestApiBaseKey)
+        UserDefaults.standard.removeObject(forKey: waiterProfileIdKey)
+        UserDefaults.standard.removeObject(forKey: nestClientFallbackKey)
+        #if DEBUG
+        UserDefaults.standard.removeObject(forKey: apiBaseKey)
+        UserDefaults.standard.removeObject(forKey: supabaseUrlKey)
+        UserDefaults.standard.removeObject(forKey: supabaseAnonKeyKey)
+        #endif
+    }
 }

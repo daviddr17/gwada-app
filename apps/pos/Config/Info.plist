@@ -36,7 +36,7 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Gwada POS verbindet iPhone-Handgeräte mit der iPad-Kasse im lokalen WLAN.</string>
 	<key>POSDevApiBaseURL</key>
-	<string>http://192.168.178.62:3000</string>
+	<string>http://192.168.178.124:3000</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

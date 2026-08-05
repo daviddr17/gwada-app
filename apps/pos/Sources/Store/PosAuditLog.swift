@@ -62,6 +62,12 @@ final class PosAuditLog: ObservableObject {
         }.joined(separator: "\n")
     }
 
+    /// Factory-Reset.
+    func clearAll() {
+        events = []
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
     private func load() {
         guard let data = try? Data(contentsOf: fileURL),
               let saved = try? decoder.decode([PosAuditEvent].self, from: data)

@@ -292,6 +292,45 @@ enum HandheldHubClient {
         guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
     }
 
+    static func voidLine(
+        baseURL: URL,
+        pairToken: String?,
+        sessionId: String,
+        lineId: String,
+        quantity: Int,
+        voidReasonId: String,
+        note: String?,
+        waiterProfileId: String?,
+        idempotencyKey: String
+    ) async throws {
+        struct Body: Encodable {
+            var sessionId: String
+            var lineId: String
+            var quantity: Int
+            var voidReasonId: String
+            var note: String?
+            var waiterProfileId: String?
+            var idempotencyKey: String
+        }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.voidLinePath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        request.httpBody = try encoder.encode(Body(
+            sessionId: sessionId,
+            lineId: lineId,
+            quantity: quantity,
+            voidReasonId: voidReasonId,
+            note: note,
+            waiterProfileId: waiterProfileId,
+            idempotencyKey: idempotencyKey
+        ))
+        let (_, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
+    }
+
     static func releaseSession(
         baseURL: URL,
         sessionId: String,

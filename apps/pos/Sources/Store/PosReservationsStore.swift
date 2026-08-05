@@ -62,6 +62,16 @@ final class PosReservationsStore: @unchecked Sendable {
         return cache[ymd]
     }
 
+    /// Factory-Reset: Memory + Disk.
+    func clearAll() {
+        lock.lock()
+        cache = [:]
+        lastLoadedAtValue = nil
+        selectedDayYmdValue = Self.todayYmd()
+        lock.unlock()
+        PosLocalStore.saveReservationsCache([:])
+    }
+
     /// Optimistic local insert (pending sync).
     func upsertLocalReservation(
         _ reservation: PosReservationDto,

@@ -27,3 +27,58 @@ enum PosLineVoidPolicy {
         return String(trimmed.prefix(80))
     }
 }
+
+/// Hub LAN void authorization — caps from authenticated staff only (never spoofable body waiter id alone).
+enum PosLanVoidAuth {
+    static func authenticatedStaffId(headerStaffId: String?, bodyStaffId: String?) -> String {
+        let header = headerStaffId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !header.isEmpty { return header }
+        return bodyStaffId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    static func hasStaffProof(
+        staffId: String,
+        staffSessionId: String?,
+        staffSessionHeader: String?
+    ) -> Bool {
+        guard !staffId.isEmpty else { return false }
+        let session = staffSessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let header = staffSessionHeader?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !session.isEmpty || !header.isEmpty
+    }
+
+    /// Cap only for the authenticated profile. Lab may pass `allowWithoutStaffInLab` when staff proof is skipped.
+    static func hasVoidCap(
+        authenticatedStaffId: String,
+        waiterCaps: [String: [String]],
+        allowWithoutStaffInLab: Bool
+    ) -> Bool {
+        if !authenticatedStaffId.isEmpty {
+            return waiterCaps[authenticatedStaffId]?.contains("void") == true
+        }
+        return allowWithoutStaffInLab
+    }
+}
+
+/// After a successful Hub LAN void, mirror the mutation onto the handheld local open-line cache (like collect).
+enum PosLineVoidMirror {
+    @discardableResult
+    static func applyLocalMirror(
+        sessionId: String,
+        lineId: String,
+        quantity: Int,
+        voidReasonId: String,
+        note: String?,
+        idempotencyKey: String
+    ) -> Result<PosLineVoidResult, PosLineVoidError> {
+        PosHubState.shared.voidLocalOpenLine(
+            sessionId: sessionId,
+            lineId: lineId,
+            quantity: quantity,
+            voidReasonId: voidReasonId,
+            note: note,
+            hasVoidCap: true,
+            idempotencyKey: idempotencyKey
+        )
+    }
+}

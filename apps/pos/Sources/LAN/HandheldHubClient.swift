@@ -301,7 +301,10 @@ enum HandheldHubClient {
         voidReasonId: String,
         note: String?,
         waiterProfileId: String?,
-        idempotencyKey: String
+        idempotencyKey: String,
+        staffId: String? = nil,
+        staffSessionId: String? = nil,
+        staffSessionHeader: String? = nil
     ) async throws {
         struct Body: Encodable {
             var sessionId: String
@@ -310,6 +313,8 @@ enum HandheldHubClient {
             var voidReasonId: String
             var note: String?
             var waiterProfileId: String?
+            var staffId: String?
+            var staffSessionId: String?
             var idempotencyKey: String
         }
         var request = URLRequest(url: url(baseURL, path: PosLanProtocol.voidLinePath))
@@ -317,6 +322,7 @@ enum HandheldHubClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
         applyPairToken(pairToken, to: &request)
+        applyStaffProof(staffId: staffId, staffSessionHeader: staffSessionHeader, to: &request)
         request.httpBody = try encoder.encode(Body(
             sessionId: sessionId,
             lineId: lineId,
@@ -324,6 +330,8 @@ enum HandheldHubClient {
             voidReasonId: voidReasonId,
             note: note,
             waiterProfileId: waiterProfileId,
+            staffId: staffId,
+            staffSessionId: staffSessionId,
             idempotencyKey: idempotencyKey
         ))
         let (_, response) = try await perform(request)

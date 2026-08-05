@@ -1776,6 +1776,8 @@ final class PosRuntime: ObservableObject {
                 return false
             }
             do {
+                let pin = PosAuthStore.shared.pinSession
+                let staffSessionHeader: String? = pin.map { "\($0.sessionId).\($0.sessionToken)" }
                 try await HandheldHubClient.voidLine(
                     baseURL: base,
                     pairToken: PosEnrollmentStore.shared.handheldPairToken,
@@ -1785,12 +1787,25 @@ final class PosRuntime: ObservableObject {
                     voidReasonId: voidReasonId,
                     note: normalizedNote,
                     waiterProfileId: waiterProfileId,
-                    idempotencyKey: idempotencyKey
+                    idempotencyKey: idempotencyKey,
+                    staffId: pin?.staffId,
+                    staffSessionId: pin?.sessionId,
+                    staffSessionHeader: staffSessionHeader
                 )
             } catch {
                 statusMessage = "Storno an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
                 return false
             }
+
+            // Mirror Hub mutation locally (like collect) so Bon/Overview drop voided qty.
+            _ = PosLineVoidMirror.applyLocalMirror(
+                sessionId: sessionId,
+                lineId: lineId,
+                quantity: quantity,
+                voidReasonId: voidReasonId,
+                note: normalizedNote,
+                idempotencyKey: idempotencyKey
+            )
 
             // Der Hub-HTTP-Handler enqueued den Sync mit demselben Request-Key.
             PosAuditLog.shared.record(
@@ -2626,20 +2641,50 @@ final class PosRuntime: ObservableObject {
                     var voidReasonId: String
                     var note: String?
                     var waiterProfileId: String?
+                    var staffId: String?
+                    var staffSessionId: String?
                     var idempotencyKey: String
                 }
                 guard let req = try? decoder.decode(Req.self, from: body) else {
                     return (400, Data(#"{"error":"invalid_body"}"#.utf8))
                 }
-                let waiterProfileId = req.waiterProfileId?
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let headerStaffId = (headers[PosLanProtocol.headerStaffId.lowercased()] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let bodyStaffId = (req.staffId ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let authenticatedStaffId = PosLanVoidAuth.authenticatedStaffId(
+                    headerStaffId: headerStaffId,
+                    bodyStaffId: bodyStaffId
+                )
+                let staffSessionId = (req.staffSessionId ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let staffSessionHeader = (headers[PosLanProtocol.headerStaffSession.lowercased()] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let allowLabWithoutStaff = PosSecurityPolicy.allowsHubCollectWithoutStaffSession
+                if !allowLabWithoutStaff {
+                    let staffSignedIn = DispatchQueue.main.sync { PosAuthStore.shared.isSignedIn }
+                    if !staffSignedIn {
+                        return (403, Data(#"{"error":"staff_required"}"#.utf8))
+                    }
+                    guard PosLanVoidAuth.hasStaffProof(
+                        staffId: authenticatedStaffId,
+                        staffSessionId: staffSessionId.isEmpty ? nil : staffSessionId,
+                        staffSessionHeader: staffSessionHeader.isEmpty ? nil : staffSessionHeader
+                    ) else {
+                        return (403, Data(#"{"error":"staff_proof_required"}"#.utf8))
+                    }
+                }
                 let waiterCaps = PosHubState.shared.makeSnapshot().waiterCaps ?? [:]
-                let hasVoidCap = !waiterProfileId.isEmpty
-                    && (waiterCaps[waiterProfileId]?.contains("void") == true)
+                let hasVoidCap = PosLanVoidAuth.hasVoidCap(
+                    authenticatedStaffId: authenticatedStaffId,
+                    waiterCaps: waiterCaps,
+                    allowWithoutStaffInLab: allowLabWithoutStaff && authenticatedStaffId.isEmpty
+                )
                 let restaurantId = PosHubState.shared.restaurantId
                 let lineWasFired = PosHubState.shared.localOpenLines(sessionId: req.sessionId)
                     .first(where: { $0.id == req.lineId || $0.orderLineId == req.lineId })?
                     .isFired ?? false
+                let auditWaiterId = authenticatedStaffId.isEmpty ? nil : authenticatedStaffId
 
                 switch PosHubState.shared.voidLocalOpenLine(
                     sessionId: req.sessionId,
@@ -2666,7 +2711,7 @@ final class PosRuntime: ObservableObject {
                                 voidReasonId: req.voidReasonId,
                                 note: PosLineVoidPolicy.normalizedVoidNote(req.note),
                                 wasFired: lineWasFired,
-                                waiterProfileId: waiterProfileId.isEmpty ? nil : waiterProfileId,
+                                waiterProfileId: auditWaiterId,
                                 idempotencyKey: req.idempotencyKey
                             ))
                             await PosSyncQueue.shared.flushIfPossible()

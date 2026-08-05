@@ -6,6 +6,101 @@ final class PosLineVoidTests: XCTestCase {
         XCTAssertEqual(PosLanProtocol.voidLinePath, "/v1/lines/void")
     }
 
+    func testLanVoidAuth_ignoresSpoofedWaiterProfileIdForCap() {
+        let caps: [String: [String]] = [
+            "waiter-junior": ["order"],
+            "waiter-manager": ["order", "void"],
+        ]
+        // Authenticated junior must not gain void via spoofed manager id in the body.
+        XCTAssertFalse(
+            PosLanVoidAuth.hasVoidCap(
+                authenticatedStaffId: "waiter-junior",
+                waiterCaps: caps,
+                allowWithoutStaffInLab: false
+            )
+        )
+        XCTAssertTrue(
+            PosLanVoidAuth.hasVoidCap(
+                authenticatedStaffId: "waiter-manager",
+                waiterCaps: caps,
+                allowWithoutStaffInLab: false
+            )
+        )
+    }
+
+    func testLanVoidAuth_requiresStaffProofInProduction() {
+        XCTAssertFalse(
+            PosLanVoidAuth.hasStaffProof(
+                staffId: "",
+                staffSessionId: "s1",
+                staffSessionHeader: nil
+            )
+        )
+        XCTAssertFalse(
+            PosLanVoidAuth.hasStaffProof(
+                staffId: "waiter-1",
+                staffSessionId: nil,
+                staffSessionHeader: nil
+            )
+        )
+        XCTAssertTrue(
+            PosLanVoidAuth.hasStaffProof(
+                staffId: "waiter-1",
+                staffSessionId: "sess",
+                staffSessionHeader: nil
+            )
+        )
+        XCTAssertEqual(
+            PosLanVoidAuth.authenticatedStaffId(
+                headerStaffId: "from-header",
+                bodyStaffId: "from-body"
+            ),
+            "from-header"
+        )
+    }
+
+    func testLanVoidAuth_labAllowsCapWithoutStaff() {
+        XCTAssertTrue(
+            PosLanVoidAuth.hasVoidCap(
+                authenticatedStaffId: "",
+                waiterCaps: [:],
+                allowWithoutStaffInLab: true
+            )
+        )
+        XCTAssertFalse(
+            PosLanVoidAuth.hasVoidCap(
+                authenticatedStaffId: "",
+                waiterCaps: [:],
+                allowWithoutStaffInLab: false
+            )
+        )
+    }
+
+    func testMirrorHubVoid_updatesLocalOpenLines() {
+        let sid = "void-mirror-\(UUID().uuidString)"
+        defer { PosHubState.shared.clearLocalOpenLines(sessionId: sid) }
+        PosHubState.shared.replaceLocalOpenLines(sessionId: sid, lines: [
+            SessionOpenLine(
+                id: "L1", orderLineId: "L1", name: "Schnitzel",
+                openQuantity: 2, openCents: 3700, course: 1, firedAt: nil,
+                detail: "", menuItemId: "m1", lineQuantity: 2, lineTotalCents: 3700
+            ),
+        ])
+        let r = PosLineVoidMirror.applyLocalMirror(
+            sessionId: sid,
+            lineId: "L1",
+            quantity: 1,
+            voidReasonId: "reason-1",
+            note: nil,
+            idempotencyKey: "mirror-key-1"
+        )
+        guard case .success(.ok(let rem, _, false)) = r else {
+            return XCTFail("\(r)")
+        }
+        XCTAssertEqual(rem, 1)
+        XCTAssertEqual(PosHubState.shared.localOpenLines(sessionId: sid)[0].openQuantity, 1)
+    }
+
     func testSyncLineVoidedPayload_codableRoundTrip() throws {
         let payload = PosSyncLineVoidedPayload(
             restaurantId: "restaurant-1",

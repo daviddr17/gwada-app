@@ -405,10 +405,27 @@ export async function generateSocialSuggestionsForRestaurant(
 
   const usedDishIds = new Set(
     pendingThisWeek
-      .filter((s) => s.slotKind === "menu_dish")
-      .map((s) => String(s.source.dishId ?? "")),
+      .map((s) => {
+        if (s.slotKind === "menu_dish") {
+          return String(s.source.dishId ?? s.asset.sourceId ?? "");
+        }
+        if (s.asset.source === "menu" && s.asset.sourceId) {
+          return String(s.asset.sourceId);
+        }
+        return "";
+      })
+      .filter(Boolean),
   );
-  const usedGalleryIds = new Set<string>();
+  const usedGalleryIds = new Set(
+    pendingThisWeek
+      .map((s) => {
+        if (s.asset.source === "gallery" && s.asset.sourceId) {
+          return String(s.asset.sourceId);
+        }
+        return String(s.source.galleryItemId ?? "");
+      })
+      .filter(Boolean),
+  );
   const usedEventIds = new Set(
     pendingThisWeek
       .filter((s) => s.slotKind === "event")
@@ -606,10 +623,10 @@ export async function generateSocialSuggestionsForRestaurant(
     });
   }
 
-  // 3) Menu dishes (Hero-Gerichte zuerst)
-  while (drafts.length < need) {
+  // 3) Speisekarte + Galerie mischen — Galerie nicht hinter Gerichten „verhungern“ lassen
+  const pushDishDraft = (): boolean => {
     const dish = pickUnused(dishes, usedDishIds, (d) => d.id);
-    if (!dish) break;
+    if (!dish) return false;
     const feedLayout = layoutFor("menu_dish", true);
     const caption = captionForDish({
       kit,
@@ -638,12 +655,12 @@ export async function generateSocialSuggestionsForRestaurant(
         sourceId: dish.id,
       },
     });
-  }
+    return true;
+  };
 
-  // 4) Ambient from gallery (Hero-Fotos zuerst)
-  while (drafts.length < need) {
+  const pushGalleryDraft = (): boolean => {
     const g = pickUnused(gallery, usedGalleryIds, (x) => x.id);
-    if (!g) break;
+    if (!g) return false;
     const feedLayout = layoutFor("ambient", true);
     const caption = captionForAmbient({
       kit,
@@ -673,6 +690,72 @@ export async function generateSocialSuggestionsForRestaurant(
         storagePath: g.storagePath,
       },
     });
+    return true;
+  };
+
+  const remainingAfterEvents = Math.max(0, need - drafts.length);
+  const availableDishes = dishes.filter((d) => !usedDishIds.has(d.id)).length;
+  const availableGallery = gallery.filter((g) => !usedGalleryIds.has(g.id))
+    .length;
+
+  let dishBudget = 0;
+  let galleryBudget = 0;
+  if (availableDishes > 0 && availableGallery > 0) {
+    // Mindestens ein Galerie-Slot, wenn ≥2 Posts fehlen — sonst 50/50 (Galerie zuerst).
+    galleryBudget =
+      remainingAfterEvents >= 2
+        ? Math.max(1, Math.ceil(remainingAfterEvents / 2))
+        : kit.imageStrategy === "own_first"
+          ? 1
+          : Math.ceil(remainingAfterEvents / 2);
+    galleryBudget = Math.min(galleryBudget, availableGallery);
+    dishBudget = Math.min(
+      remainingAfterEvents - galleryBudget,
+      availableDishes,
+    );
+    // Rest auf die jeweils andere Quelle umlegen
+    const leftover = remainingAfterEvents - dishBudget - galleryBudget;
+    if (leftover > 0) {
+      const extraGallery = Math.min(
+        leftover,
+        availableGallery - galleryBudget,
+      );
+      galleryBudget += extraGallery;
+      dishBudget += Math.min(
+        leftover - extraGallery,
+        availableDishes - dishBudget,
+      );
+    }
+  } else if (availableGallery > 0) {
+    galleryBudget = Math.min(remainingAfterEvents, availableGallery);
+  } else {
+    dishBudget = Math.min(remainingAfterEvents, availableDishes);
+  }
+
+  // Galerie zuerst einstreuen, dann abwechselnd — verhindert „nur ein Gericht“-Feeds
+  let preferGalleryNext = galleryBudget > 0;
+  while (drafts.length < need && (dishBudget > 0 || galleryBudget > 0)) {
+    let pushed = false;
+    if (preferGalleryNext && galleryBudget > 0) {
+      pushed = pushGalleryDraft();
+      if (pushed) galleryBudget -= 1;
+    } else if (dishBudget > 0) {
+      pushed = pushDishDraft();
+      if (pushed) dishBudget -= 1;
+    } else if (galleryBudget > 0) {
+      pushed = pushGalleryDraft();
+      if (pushed) galleryBudget -= 1;
+    }
+    if (!pushed) break;
+    preferGalleryNext = !preferGalleryNext;
+  }
+
+  // Rest auffüllen, falls Budgets durch pickUnused früher leer waren
+  while (drafts.length < need && pushGalleryDraft()) {
+    /* ambient */
+  }
+  while (drafts.length < need && pushDishDraft()) {
+    /* dishes */
   }
 
   // 5) Brand / cover fallback — Hero-Profilbilder bevorzugen

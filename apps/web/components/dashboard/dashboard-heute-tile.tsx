@@ -34,6 +34,7 @@ import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-st
 import { useDashboardReservationStats } from "@/lib/hooks/use-dashboard-reservation-stats";
 import { useDashboardStaffStats } from "@/lib/hooks/use-dashboard-staff-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { usePlatformWeatherAvailable } from "@/lib/hooks/use-platform-weather-available";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -140,6 +141,7 @@ export function DashboardHeuteTile() {
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const { entitlements } = useRestaurantBilling();
   const { available: weatherAvailable } = usePlatformWeatherAvailable();
   const reservations = useDashboardReservationStats();
   const staff = useDashboardStaffStats();
@@ -160,6 +162,7 @@ export function DashboardHeuteTile() {
     permissionsLoading,
     weatherAvailable,
     weatherLoading: false,
+    entitlements,
   };
 
   const can = {
@@ -255,88 +258,85 @@ export function DashboardHeuteTile() {
       error={null}
       loadingContent={<DashboardHeuteTileSkeleton />}
     >
-      <div className="space-y-2.5">
-        <p className="text-[11px] font-medium text-muted-foreground">{todayLabel}</p>
+      <DashboardCompactInlineMetrics className="gap-1.5">
+        {/* Aufmerksamkeit zuerst — unbestätigt / ungelesen vor Tagesstatistik */}
+        {canShowAufmerksamkeit ? (
+          <HeuteMetricPill
+            label="Achtung"
+            value={String(aufmerksamkeitCount)}
+            onClick={() => setAufmerksamkeitSheetOpen(true)}
+            tone={aufmerksamkeitCount > 0 ? "attention" : "neutral"}
+            icon={<Bell aria-hidden />}
+          />
+        ) : null}
 
-        <DashboardCompactInlineMetrics className="gap-1.5">
-          {can.reservations && reservations.summary ? (
-            <>
-              <HeuteMetricPill
-                label="Reserv."
-                value={`${todayUpcomingReservations} · ${todayUpcomingGuests} P.`}
-                onClick={() => setReservationSheetMode("today_upcoming")}
-                tone={todayUpcomingReservations > 0 ? "accent" : "neutral"}
-                icon={<CalendarDays aria-hidden />}
-              />
-              <HeuteMetricPill
-                label="Offen"
-                value={String(reservations.summary.unconfirmedCount)}
-                onClick={() => setReservationSheetMode("unconfirmed")}
-                tone={
-                  reservations.summary.unconfirmedCount > 0 ? "attention" : "neutral"
-                }
-                icon={<AlertTriangle aria-hidden />}
-              />
-            </>
-          ) : null}
-
-          {canShowAufmerksamkeit ? (
+        {can.reservations && reservations.summary ? (
+          <>
             <HeuteMetricPill
-              label="Aufmerk."
-              value={String(aufmerksamkeitCount)}
-              onClick={() => setAufmerksamkeitSheetOpen(true)}
-              tone={aufmerksamkeitCount > 0 ? "attention" : "neutral"}
-              icon={<Bell aria-hidden />}
+              label="Unbest."
+              value={String(reservations.summary.unconfirmedCount)}
+              onClick={() => setReservationSheetMode("unconfirmed")}
+              tone={
+                reservations.summary.unconfirmedCount > 0 ? "attention" : "neutral"
+              }
+              icon={<AlertTriangle aria-hidden />}
             />
-          ) : null}
-
-          {can.staff && staff.summary ? (
-            <>
-              <HeuteMetricPill
-                label="Aktiv"
-                value={String(staff.summary.activeStaff)}
-                onClick={() => setPresenceSheetMode("working")}
-                tone={staff.summary.activeStaff > 0 ? "success" : "neutral"}
-                icon={<UserCheck aria-hidden />}
-              />
-              <HeuteMetricPill
-                label="Abgeschlossen"
-                value={String(staff.summary.completedShiftsToday)}
-                onClick={() => setCompletedSheetOpen(true)}
-                tone={staff.summary.completedShiftsToday > 0 ? "success" : "neutral"}
-                icon={<CheckCircle2 aria-hidden />}
-              />
-              <HeuteMetricPill
-                label="Heute"
-                value={todayWorkHours > 0 ? formatHoursDe(todayWorkHours) : "0 h"}
-                onClick={() => setWorkHoursSheetOpen(true)}
-                tone={todayWorkHours > 0 ? "accent" : "neutral"}
-                icon={<Clock aria-hidden />}
-              />
-            </>
-          ) : null}
-
-          {can.messages && messages.summary ? (
             <HeuteMetricPill
-              label="Post"
-              value={String(messages.summary.total_unread)}
-              onClick={() => setMessagesSheetOpen(true)}
-              tone={messages.summary.total_unread > 0 ? "attention" : "neutral"}
-              icon={<MessageCircle aria-hidden />}
+              label="Heute"
+              value={`${todayUpcomingReservations} · ${todayUpcomingGuests} P.`}
+              onClick={() => setReservationSheetMode("today_upcoming")}
+              tone={todayUpcomingReservations > 0 ? "accent" : "neutral"}
+              icon={<CalendarDays aria-hidden />}
             />
-          ) : null}
+          </>
+        ) : null}
 
-          {can.inventory && inventory.summary && inventoryAlerts ? (
+        {can.messages && messages.summary ? (
+          <HeuteMetricPill
+            label="Chats"
+            value={String(messages.summary.total_unread)}
+            onClick={() => setMessagesSheetOpen(true)}
+            tone={messages.summary.total_unread > 0 ? "attention" : "neutral"}
+            icon={<MessageCircle aria-hidden />}
+          />
+        ) : null}
+
+        {can.staff && staff.summary ? (
+          <>
             <HeuteMetricPill
-              label="Bestand"
-              value={`${inventory.summary.emptyStock} · ${inventory.summary.openOrders}`}
-              onClick={() => setInventorySheetOpen(true)}
-              tone="warning"
-              icon={<Package aria-hidden />}
+              label="Team"
+              value={String(staff.summary.activeStaff)}
+              onClick={() => setPresenceSheetMode("working")}
+              tone={staff.summary.activeStaff > 0 ? "success" : "neutral"}
+              icon={<UserCheck aria-hidden />}
             />
-          ) : null}
-        </DashboardCompactInlineMetrics>
-      </div>
+            <HeuteMetricPill
+              label="Fertig"
+              value={String(staff.summary.completedShiftsToday)}
+              onClick={() => setCompletedSheetOpen(true)}
+              tone={staff.summary.completedShiftsToday > 0 ? "success" : "neutral"}
+              icon={<CheckCircle2 aria-hidden />}
+            />
+            <HeuteMetricPill
+              label="Std."
+              value={todayWorkHours > 0 ? formatHoursDe(todayWorkHours) : "0 h"}
+              onClick={() => setWorkHoursSheetOpen(true)}
+              tone={todayWorkHours > 0 ? "accent" : "neutral"}
+              icon={<Clock aria-hidden />}
+            />
+          </>
+        ) : null}
+
+        {can.inventory && inventory.summary && inventoryAlerts ? (
+          <HeuteMetricPill
+            label="Bestand"
+            value={`${inventory.summary.emptyStock} · ${inventory.summary.openOrders}`}
+            onClick={() => setInventorySheetOpen(true)}
+            tone="warning"
+            icon={<Package aria-hidden />}
+          />
+        ) : null}
+      </DashboardCompactInlineMetrics>
 
       {reservationSheetMode && can.reservations && reservations.summary ? (
         <DashboardReservationsListSheet

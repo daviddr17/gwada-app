@@ -30,6 +30,9 @@ const LEGACY_MENU_WIDGET_IDS = [
   "categoryChart",
 ] as const;
 
+/** Früheres Kalender-Widget → jetzt Header-Overlay, aus Prefs entfernen. */
+const LEGACY_REMOVED_WIDGET_IDS = ["calendar"] as const;
+
 export type DashboardWidgetPrefs = {
   visibility: Record<DashboardWidgetId, boolean>;
   order: DashboardWidgetId[];
@@ -38,28 +41,33 @@ export type DashboardWidgetPrefs = {
 
 export const DASHBOARD_WIDGET_STORAGE_KEY = "gwada-dashboard-widgets";
 
+/**
+ * Schlankes Standard-Set — Rest über „Anordnen“ zuschaltbar.
+ * Effektive Sichtbarkeit zusätzlich: Rolle ∩ Restaurant-Abo
+ * (`hasDashboardWidgetAccess`). Wetter nur bei Plattform-Freigabe.
+ */
 export const DEFAULT_DASHBOARD_WIDGET_VISIBILITY: Record<
   DashboardWidgetId,
   boolean
 > = {
   heute: true,
-  menu: true,
   reservations: true,
-  reviews: false,
   staff: true,
-  weather: true,
-  contacts: true,
   messages: true,
-  integrations: true,
-  inventory: true,
-  pos: true,
-  events: true,
-  news: true,
+  weather: true,
+  menu: false,
+  reviews: false,
+  contacts: false,
+  integrations: false,
+  inventory: false,
+  pos: false,
+  events: false,
+  news: false,
   insights: false,
-  gallery: true,
-  accounting: true,
-  documents: true,
-  checklists: true,
+  gallery: false,
+  accounting: false,
+  documents: false,
+  checklists: false,
 };
 
 export const DASHBOARD_WIDGET_OPTIONS: readonly {
@@ -70,97 +78,92 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
   {
     id: "heute",
     label: "Heute",
-    description:
-      "Tagesüberblick: Reservierungen, Team, Nachrichten und Hinweise auf einen Blick",
-  },
-  {
-    id: "menu",
-    label: "Speisekarte",
-    description: "Gerichte, Kategorien, Preise und Top-Kategorie",
+    description: "Was heute zählt — unbestätigt, Team, Nachrichten",
   },
   {
     id: "reservations",
     label: "Reservierungen",
-    description:
-      "Nächste Reservierungen, Unbestätigtes und Ø Personen in der Kalenderwoche",
-  },
-  {
-    id: "reviews",
-    label: "Bewertungen",
-    description:
-      "Neueste Bewertungen und Ø im Plattform-Vergleich (Gwada, Google, Facebook)",
+    description: "Unbestätigtes und heutige Termine",
   },
   {
     id: "staff",
     label: "Mitarbeiter",
-    description:
-      "Live-Schichten vom Display (Aktiv/Pause) und erfasste Arbeitszeit heute",
-  },
-  {
-    id: "weather",
-    label: "Wetter",
-    description: "Aktuelles Wetter am Restaurantstandort",
-  },
-  {
-    id: "contacts",
-    label: "Kontakte",
-    description: "Anzahl Kontakte, mit Reservierung und Firmenkontakte",
+    description: "Wer ist da — Aktiv, Pause, Stunden",
   },
   {
     id: "messages",
     label: "Nachrichten",
-    description: "Ungelesene Chats auf Gwada und WhatsApp",
+    description: "Ungelesene Chats",
+  },
+  {
+    id: "weather",
+    label: "Wetter",
+    description: "Wetter am Standort",
+  },
+  {
+    id: "menu",
+    label: "Speisekarte",
+    description: "Gerichte und Kategorien",
+  },
+  {
+    id: "reviews",
+    label: "Bewertungen",
+    description: "Neueste Bewertungen",
+  },
+  {
+    id: "contacts",
+    label: "Kontakte",
+    description: "Kontakte gesamt",
   },
   {
     id: "integrations",
     label: "Integrationen",
-    description:
-      "Freigeschaltete Kanäle (WhatsApp, E-Mail, Social) — verbunden in Farbe, offen ausgegraut",
+    description: "Verbundene Kanäle",
   },
   {
     id: "inventory",
-    label: "Bestand & Bestellung",
-    description: "Zutaten, leerer Bestand und offene Bestellungen",
+    label: "Bestand",
+    description: "Leere Bestände und Bestellungen",
   },
   {
     id: "pos",
     label: "POS",
-    description: "Umsatz und Bons heute sowie offene Tischsessions",
+    description: "Umsatz und offene Tische",
   },
   {
     id: "events",
     label: "Events",
-    description: "Bevorstehende und geplante Events",
+    description: "Geplante Events",
   },
   {
     id: "news",
     label: "News",
-    description: "Veröffentlichte, geplante und Entwurfs-Beiträge",
+    description: "Beiträge und Planung",
   },
   {
     id: "insights",
     label: "Insights",
-    description: "Reservierungen, Bewertungen und Nachrichten im Überblick",
+    description: "Kennzahlen im Überblick",
   },
   {
     id: "gallery",
     label: "Galerie",
-    description: "Medien, Highlights und Speicherverbrauch",
+    description: "Medien und Speicher",
   },
   {
     id: "accounting",
     label: "Buchführung",
-    description: "Offene Rechnungen, Belege und Kassenbuch",
+    description: "Rechnungen und Belege",
   },
   {
     id: "documents",
     label: "Dokumente",
-    description: "Dokumente gesamt, Speicher und ohne Tag",
+    description: "Dokumente und Speicher",
   },
   {
     id: "checklists",
     label: "Checklisten",
-    description: "Offene und überfällige Aufgaben sowie heutige Erfassungen",
+    description: "Offene Aufgaben",
   },
 ] as const;
 
@@ -175,6 +178,9 @@ export function canonicalDashboardWidgetId(
 ): DashboardWidgetId | null {
   if ((LEGACY_MENU_WIDGET_IDS as readonly string[]).includes(raw)) {
     return "menu";
+  }
+  if ((LEGACY_REMOVED_WIDGET_IDS as readonly string[]).includes(raw)) {
+    return null;
   }
   if (ORDER_SET.has(raw as DashboardWidgetId)) {
     return raw as DashboardWidgetId;

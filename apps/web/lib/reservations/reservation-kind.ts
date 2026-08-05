@@ -1,5 +1,6 @@
 import type { ReservationStatusJoin } from "@/lib/supabase/reservations-db";
 import { reservationStatusStripeHex } from "@/lib/reservations/reservation-status-ui";
+import { APP_SIGNAL_COLORS } from "@/lib/ui/app-signal-colors";
 
 /** Normale Gast-Reservierung (Default). */
 export const RESERVATION_KIND_GUEST = "guest" as const;
@@ -10,8 +11,8 @@ export type ReservationKind =
   | typeof RESERVATION_KIND_GUEST
   | typeof RESERVATION_KIND_PRIVATE_EVENT;
 
-/** Streifenfarbe für Veranstaltungen in Tageslisten (unabhängig vom Status). */
-export const PRIVATE_EVENT_STRIPE_HEX = "#7c3aed";
+/** Streifenfarbe für Veranstaltungen — gleich `APP_SIGNAL_COLORS.events`. */
+export const PRIVATE_EVENT_STRIPE_HEX = APP_SIGNAL_COLORS.events;
 
 export function isReservationKind(value: unknown): value is ReservationKind {
   return value === RESERVATION_KIND_GUEST || value === RESERVATION_KIND_PRIVATE_EVENT;

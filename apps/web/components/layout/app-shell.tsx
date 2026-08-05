@@ -107,7 +107,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           />
         </div>
         <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex h-full w-max min-w-full items-center gap-2 ps-4 pe-4 sm:gap-3 sm:pe-6">
+          <div className="flex h-full w-max min-w-full items-center gap-2 ps-4 sm:gap-3">
             <div className="flex shrink-0 items-center gap-2">
               {chrome.title ? (
                 <h1 className="whitespace-nowrap text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
@@ -121,36 +121,44 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
             <AppChromeCenterFavicon />
             <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
-            {/* Desktop-Chrome: Suche, Glocke, Profil, … — mobil in Bottom-Nav / Menü */}
-            <div className="hidden shrink-0 items-center gap-2 md:flex">
-              <DashboardGlobalSearchTrigger />
-              <AppChromeNotificationBell />
-              <AppChromeRestaurantProfileLink />
-              <Button
-                variant="outline"
-                size="icon-sm"
-                className="shrink-0 rounded-full border-border/60"
-                aria-label="Profil"
-                render={<AppNavLink href={APP_ROUTES.profile.personal} />}
-              >
-                <UserRound className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                className="shrink-0 rounded-full border-border/60"
-                aria-label="Einstellungen"
-                render={<AppNavLink href={APP_ROUTES.settings.root} />}
-              >
-                <Settings className="size-4" />
-              </Button>
-              <DashboardPwaInstallButton />
-              <ModeToggle size="icon-sm" />
+          </div>
+        </div>
+        {/* Rechts fest: Modul-Aktionen (Kalender/Anordnen) bleiben mobil sichtbar */}
+        <div className="flex shrink-0 items-center gap-1.5 pe-3 ps-1 sm:gap-2 sm:pe-6">
+          {chrome.headerActions ? (
+            <div className="flex shrink-0 items-center gap-1.5">
+              {chrome.headerActions}
             </div>
-            {/* Mobil: nur Theme — Rest in Bottom-Nav / Vollbild-Menü */}
-            <div className="flex shrink-0 items-center gap-2 md:hidden">
-              <ModeToggle size="icon-sm" />
-            </div>
+          ) : null}
+          {/* Desktop-Chrome: Suche, Glocke, Profil, … — mobil in Bottom-Nav / Menü */}
+          <div className="hidden shrink-0 items-center gap-2 md:flex">
+            <DashboardGlobalSearchTrigger />
+            <AppChromeNotificationBell />
+            <AppChromeRestaurantProfileLink />
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="shrink-0 rounded-full border-border/60"
+              aria-label="Profil"
+              render={<AppNavLink href={APP_ROUTES.profile.personal} />}
+            >
+              <UserRound className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="shrink-0 rounded-full border-border/60"
+              aria-label="Einstellungen"
+              render={<AppNavLink href={APP_ROUTES.settings.root} />}
+            >
+              <Settings className="size-4" />
+            </Button>
+            <DashboardPwaInstallButton />
+            <ModeToggle size="icon-sm" />
+          </div>
+          {/* Mobil: Theme neben Modul-Aktionen */}
+          <div className="flex shrink-0 items-center gap-1.5 md:hidden">
+            <ModeToggle size="icon-sm" />
           </div>
         </div>
       </header>

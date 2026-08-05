@@ -128,13 +128,32 @@ export const shiftPlanLayoutMotionTransition = {
 };
 
 /** Feste Breite der sticky Mitarbeiter-Spalte (Name + Stundenzeile). */
+export const SHIFT_PLAN_STAFF_COLUMN_REM = 11.5;
 export const shiftPlanStaffColumnClassName =
   "box-border w-[11.5rem] min-w-[11.5rem] max-w-[11.5rem]";
 
 /** Feste Breite der Tages-Spalten (Datum variiert nicht in der Breite). */
+export const SHIFT_PLAN_DAY_COLUMN_REM = 6.25;
 export const shiftPlanDayColumnClassName =
   "box-border w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem]";
 
 /** Feste Breite der Wochen-Pfeil-Spalten. */
+export const SHIFT_PLAN_WEEK_NAV_COLUMN_REM = 2.5;
 export const shiftPlanWeekNavColumnClassName =
   "box-border w-10 min-w-[2.5rem] max-w-[2.5rem]";
+
+/**
+ * Tabellen-Mindestbreite = Summe der Spaltenbreiten.
+ * Feste `min-w-[48rem]` bläht die Namensspalte in der Tagesansicht auf
+ * (eine Tages-Spalte + Nav ≪ 48rem → table-fixed verteilt Restbreite).
+ */
+export function shiftPlanTableMinWidthRem(
+  dayCount: number,
+  showWeekNav: boolean,
+): number {
+  return (
+    SHIFT_PLAN_STAFF_COLUMN_REM +
+    Math.max(0, dayCount) * SHIFT_PLAN_DAY_COLUMN_REM +
+    (showWeekNav ? 2 * SHIFT_PLAN_WEEK_NAV_COLUMN_REM : 0)
+  );
+}

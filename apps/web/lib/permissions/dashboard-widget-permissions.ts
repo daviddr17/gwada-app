@@ -1,5 +1,12 @@
+import {
+  hasBillingFeature,
+  hasSidebarModuleBillingAccess,
+  type RestaurantEntitlements,
+} from "@/lib/billing/entitlements";
+import type { BillingFeatureKey } from "@/lib/billing/plan-catalog";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import type { DashboardShortcutId } from "@/lib/constants/dashboard-shortcuts";
+import type { SidebarModuleId } from "@/lib/constants/sidebar-modules";
 import {
   hasModuleRead,
   type ModuleCrudPrefix,
@@ -24,6 +31,27 @@ const DASHBOARD_WIDGET_MODULE_PREFIX: Partial<
   documents: "documents",
 };
 
+/** Widget → Sidebar-Modul für Abo-Gates (wie Sidebar-Upsell). */
+const DASHBOARD_WIDGET_SIDEBAR_MODULE: Partial<
+  Record<DashboardWidgetId, SidebarModuleId>
+> = {
+  menu: "menu",
+  reservations: "reservierungen",
+  reviews: "bewertungen",
+  staff: "mitarbeiter",
+  contacts: "kontakte",
+  messages: "kontakte",
+  inventory: "inventory",
+  pos: "pos",
+  events: "events",
+  news: "news",
+  insights: "insights",
+  gallery: "galerie",
+  accounting: "buchfuehrung",
+  documents: "dokumente",
+  checklists: "checklisten",
+};
+
 const GALLERY_WIDGET_KEYS: RestaurantPermissionKey[] = [
   "gallery.read",
   "gallery.create",
@@ -42,6 +70,15 @@ const INTEGRATION_WIDGET_KEYS: RestaurantPermissionKey[] = [
   "settings.restaurant",
 ];
 
+const INTEGRATION_BILLING_FEATURES: readonly BillingFeatureKey[] = [
+  "integrations.email",
+  "integrations.google_business",
+  "integrations.social",
+  "integrations.whatsapp",
+  "integrations.lexoffice",
+  "integrations.tripadvisor",
+];
+
 const DASHBOARD_SHORTCUT_MODULE_PREFIX: Record<
   DashboardShortcutId,
   ModuleCrudPrefix
@@ -58,13 +95,59 @@ const DASHBOARD_SHORTCUT_MODULE_PREFIX: Record<
   review_invite: "reviews",
 };
 
+const DASHBOARD_SHORTCUT_SIDEBAR_MODULE: Record<
+  DashboardShortcutId,
+  SidebarModuleId
+> = {
+  reservation: "reservierungen",
+  menu_dish: "menu",
+  inventory_ingredient: "inventory",
+  contact: "kontakte",
+  document: "dokumente",
+  staff_member: "mitarbeiter",
+  staff_shift: "mitarbeiter",
+  staff_work_entry: "mitarbeiter",
+  shift_template: "mitarbeiter",
+  review_invite: "bewertungen",
+};
+
 export type DashboardWidgetAccessOptions = {
   permissionsLoading?: boolean;
   weatherAvailable?: boolean;
   weatherLoading?: boolean;
+  /** Restaurant-Abo; null/undefined = fail-open (wie `hasBillingFeature`). */
+  entitlements?: RestaurantEntitlements | null;
 };
 
-/** Modul-Lese-Rechte wie Sidebar; Wetter nur bei Superadmin-Freigabe + API-Key. */
+function hasWidgetBillingAccess(
+  widgetId: DashboardWidgetId,
+  entitlements: RestaurantEntitlements | null | undefined,
+): boolean {
+  if (widgetId === "weather" || widgetId === "heute") return true;
+  if (widgetId === "integrations") {
+    if (!entitlements?.enforcing) return true;
+    return INTEGRATION_BILLING_FEATURES.some((feature) =>
+      hasBillingFeature(entitlements, feature),
+    );
+  }
+  const moduleId = DASHBOARD_WIDGET_SIDEBAR_MODULE[widgetId];
+  if (!moduleId) return true;
+  return hasSidebarModuleBillingAccess(entitlements, moduleId);
+}
+
+function hasRoleAndBillingModule(
+  has: (key: RestaurantPermissionKey) => boolean,
+  prefix: ModuleCrudPrefix,
+  moduleId: SidebarModuleId,
+  entitlements: RestaurantEntitlements | null | undefined,
+): boolean {
+  return (
+    hasModuleRead(has, prefix) &&
+    hasSidebarModuleBillingAccess(entitlements, moduleId)
+  );
+}
+
+/** Modul-Lese-Rechte ∩ Abo (wie Sidebar-Vollzugriff); Wetter = Plattform-Flag. */
 export function hasDashboardWidgetAccess(
   has: (key: RestaurantPermissionKey) => boolean,
   widgetId: DashboardWidgetId,
@@ -76,41 +159,58 @@ export function hasDashboardWidgetAccess(
   }
   if (widgetId === "heute") {
     if (options?.permissionsLoading) return true;
+    const entitlements = options?.entitlements;
     return (
-      hasModuleRead(has, "reservations") ||
-      hasModuleRead(has, "staff") ||
-      hasModuleRead(has, "contacts") ||
-      hasModuleRead(has, "inventory") ||
-      hasModuleRead(has, "reviews") ||
+      hasRoleAndBillingModule(
+        has,
+        "reservations",
+        "reservierungen",
+        entitlements,
+      ) ||
+      hasRoleAndBillingModule(has, "staff", "mitarbeiter", entitlements) ||
+      hasRoleAndBillingModule(has, "contacts", "kontakte", entitlements) ||
+      hasRoleAndBillingModule(has, "inventory", "inventory", entitlements) ||
+      hasRoleAndBillingModule(has, "reviews", "bewertungen", entitlements) ||
       options?.weatherAvailable === true
     );
   }
   if (options?.permissionsLoading) return true;
   if (widgetId === "integrations") {
-    return INTEGRATION_WIDGET_KEYS.some((key) => has(key));
+    if (!INTEGRATION_WIDGET_KEYS.some((key) => has(key))) return false;
+    return hasWidgetBillingAccess(widgetId, options?.entitlements);
   }
   if (widgetId === "pos") {
-    return hasPosModuleAccess(has);
+    if (!hasPosModuleAccess(has)) return false;
+    return hasWidgetBillingAccess(widgetId, options?.entitlements);
   }
   if (widgetId === "gallery") {
-    return GALLERY_WIDGET_KEYS.some((key) => has(key));
+    if (!GALLERY_WIDGET_KEYS.some((key) => has(key))) return false;
+    return hasWidgetBillingAccess(widgetId, options?.entitlements);
   }
   if (widgetId === "checklists") {
-    return (
-      hasModuleRead(has, "staff_todos") || hasModuleRead(has, "compliance")
-    );
+    if (
+      !(
+        hasModuleRead(has, "staff_todos") || hasModuleRead(has, "compliance")
+      )
+    ) {
+      return false;
+    }
+    return hasWidgetBillingAccess(widgetId, options?.entitlements);
   }
   const prefix = DASHBOARD_WIDGET_MODULE_PREFIX[widgetId];
-  if (prefix) return hasModuleRead(has, prefix);
-  return true;
+  if (prefix && !hasModuleRead(has, prefix)) return false;
+  return hasWidgetBillingAccess(widgetId, options?.entitlements);
 }
 
 export function hasDashboardShortcutAccess(
   has: (key: RestaurantPermissionKey) => boolean,
   shortcutId: DashboardShortcutId,
+  entitlements?: RestaurantEntitlements | null,
 ): boolean {
   const prefix = DASHBOARD_SHORTCUT_MODULE_PREFIX[shortcutId];
-  return hasModuleRead(has, prefix);
+  if (!hasModuleRead(has, prefix)) return false;
+  const moduleId = DASHBOARD_SHORTCUT_SIDEBAR_MODULE[shortcutId];
+  return hasSidebarModuleBillingAccess(entitlements, moduleId);
 }
 
 export function effectiveDashboardWidgetVisibility(
@@ -130,12 +230,14 @@ export function effectiveDashboardShortcutVisibility(
   visibility: Record<DashboardShortcutId, boolean>,
   has: (key: RestaurantPermissionKey) => boolean,
   permissionsLoading: boolean,
+  entitlements?: RestaurantEntitlements | null,
 ): Record<DashboardShortcutId, boolean> {
   const out = { ...visibility };
   for (const id of Object.keys(out) as DashboardShortcutId[]) {
     if (!visibility[id]) continue;
     out[id] =
-      permissionsLoading || hasDashboardShortcutAccess(has, id);
+      permissionsLoading ||
+      hasDashboardShortcutAccess(has, id, entitlements);
   }
   return out;
 }

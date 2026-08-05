@@ -176,18 +176,24 @@ export function SocialBrandKitCard({
         const next = data.kit ?? defaultSocialBrandKit(restaurantId);
         setKit(next);
         setSaved(next);
-        const heroes = (optData.options ?? [])
-          .filter(
-            (o) =>
-              (o.group === "gallery" ||
-                o.group === "menu" ||
-                o.group === "profile") &&
-              o.imageUrl &&
-              (o.source === "gallery" ||
-                o.source === "menu" ||
-                o.source === "profile") &&
-              typeof o.sourceId === "string",
-          )
+        const eligible = (optData.options ?? []).filter(
+          (o) =>
+            (o.group === "gallery" ||
+              o.group === "menu" ||
+              o.group === "profile") &&
+            o.imageUrl &&
+            (o.source === "gallery" ||
+              o.source === "menu" ||
+              o.source === "profile") &&
+            typeof o.sourceId === "string",
+        );
+        // Ausgewogen: Galerie soll Speisekarte nicht komplett verdrängen
+        const byGroup = {
+          gallery: eligible.filter((o) => o.group === "gallery").slice(0, 12),
+          menu: eligible.filter((o) => o.group === "menu").slice(0, 10),
+          profile: eligible.filter((o) => o.group === "profile").slice(0, 2),
+        };
+        const heroes = [...byGroup.gallery, ...byGroup.menu, ...byGroup.profile]
           .slice(0, 24)
           .map((o) => ({
             id: o.id,

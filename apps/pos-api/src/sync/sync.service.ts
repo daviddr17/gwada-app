@@ -209,6 +209,26 @@ export class SyncService {
 
         const sb = this.supabaseAdmin.getClient();
 
+        // Same confirmed gate as Web `seatPosReservation` — before open/seat.
+        const { data: reservation } = await sb
+          .from("reservations")
+          .select(
+            "id, restaurant_id, reservation_statuses!reservations_status_id_fkey ( code )",
+          )
+          .eq("id", reservationId)
+          .maybeSingle();
+        if (!reservation || reservation.restaurant_id !== ctx.restaurantId) {
+          return { ok: false, error: "reservation_not_found" };
+        }
+
+        const statusRaw = (reservation as Record<string, unknown>)
+          .reservation_statuses;
+        const statusOne = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
+        const statusCode =
+          statusOne && typeof statusOne === "object" && "code" in statusOne
+            ? String((statusOne as { code: string }).code)
+            : "";
+
         const { data: linkedOpen } = await sb
           .from("pos_table_sessions")
           .select("id")
@@ -218,6 +238,7 @@ export class SyncService {
           .maybeSingle();
 
         let sessionId = (linkedOpen?.id as string | undefined) ?? null;
+        let tableOccupiedByOther = false;
 
         if (!sessionId) {
           const { data: existingOpen } = await sb
@@ -231,9 +252,22 @@ export class SyncService {
             if ((existingOpen.reservation_id as string | null) === reservationId) {
               sessionId = existingOpen.id as string;
             } else {
-              return { ok: false, error: "table_occupied" };
+              tableOccupiedByOther = true;
             }
           }
+        }
+
+        // Sync replay: already seated + linked session → skip (ack success).
+        if (statusCode === "seated" && sessionId) {
+          return { ok: true, result: { sessionId } };
+        }
+
+        if (statusCode !== "confirmed") {
+          return { ok: false, error: "invalid_status" };
+        }
+
+        if (tableOccupiedByOther) {
+          return { ok: false, error: "table_occupied" };
         }
 
         if (!sessionId) {
@@ -271,15 +305,6 @@ export class SyncService {
         const seatedStatusId = seatedStatus?.id as string | undefined;
         if (!seatedStatusId) {
           return { ok: false, error: "seated_status_missing" };
-        }
-
-        const { data: reservation } = await sb
-          .from("reservations")
-          .select("id, restaurant_id, status_id")
-          .eq("id", reservationId)
-          .maybeSingle();
-        if (!reservation || reservation.restaurant_id !== ctx.restaurantId) {
-          return { ok: false, error: "reservation_not_found" };
         }
 
         const { error: updateError } = await sb

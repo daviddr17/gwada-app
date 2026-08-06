@@ -20,6 +20,9 @@ struct ReservationsView: View {
     @State private var notes = ""
     @State private var creating = false
     @State private var showWalkIn = false
+    @State private var seatTarget: PosReservationDto?
+    @State private var seatSubmitting = false
+    @State private var seatError = ""
     @State private var timelineTick = Date()
     /// Horizontale Tagesleiste (Vergangenheit → Zukunft).
     @State private var stripDays: [Date] = []
@@ -102,9 +105,30 @@ struct ReservationsView: View {
             WalkInSheet()
                 .environmentObject(runtime)
         }
+        .sheet(item: $seatTarget) { reservation in
+            ReservationSeatSheet(
+                reservation: reservation,
+                freeTables: freeTablesForSeat,
+                isSubmitting: seatSubmitting,
+                errorMessage: seatError,
+                onConfirm: { tableId in
+                    Task { await confirmSeat(reservation: reservation, tableId: tableId) }
+                },
+                onCancel: {
+                    seatTarget = nil
+                    seatError = ""
+                }
+            )
+        }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { date in
             timelineTick = date
         }
+    }
+
+    private var freeTablesForSeat: [PosLanFloorTable] {
+        guard let floor = runtime.snapshot?.floor else { return [] }
+        let occupied = Set(floor.openSessions.map(\.dining_table_id))
+        return floor.tables.filter { $0.is_active && !occupied.contains($0.id) }
     }
 
     // MARK: - Header
@@ -375,7 +399,13 @@ struct ReservationsView: View {
                     reservation: item.reservation,
                     timeRangeLabel: timeRangeLabel(item.reservation),
                     expanded: expandedReservationId == item.reservation.id,
-                    conflictSoon: conflictUnder60(item.reservation)
+                    conflictSoon: conflictUnder60(item.reservation),
+                    canSeat: PosReservationSeatPolicy.canSeat(statusCode: item.reservation.status?.code)
+                        && runtime.canOpenNewTableSession,
+                    onSeat: {
+                        seatError = ""
+                        seatTarget = item.reservation
+                    }
                 ) {
                     withAnimation(.snappy(duration: 0.22)) {
                         if expandedReservationId == item.reservation.id {
@@ -676,6 +706,28 @@ struct ReservationsView: View {
         }
     }
 
+    private func confirmSeat(reservation: PosReservationDto, tableId: String) async {
+        seatError = ""
+        seatSubmitting = true
+        defer { seatSubmitting = false }
+        let sessionId = await runtime.seatReservation(
+            reservationId: reservation.id,
+            diningTableId: tableId,
+            coverCount: reservation.partySize,
+            dayYmd: Self.ymd(from: selectedDate)
+        )
+        if sessionId != nil {
+            seatTarget = nil
+            expandedReservationId = nil
+            syncFromStore()
+            // pendingOpenTableId already set by runtime — RootView switches to Tische.
+        } else {
+            seatError = runtime.statusMessage.isEmpty
+                ? "Platzieren fehlgeschlagen."
+                : runtime.statusMessage
+        }
+    }
+
     private func create() async {
         errorText = ""
         guard runtime.canWriteReservations else {
@@ -810,59 +862,74 @@ private struct ReservationTimelineCard: View {
     let timeRangeLabel: String
     let expanded: Bool
     let conflictSoon: Bool
+    var canSeat: Bool = false
+    var onSeat: (() -> Void)?
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(reservation.guestLabel)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(expanded ? 2 : 1)
+        VStack(alignment: .leading, spacing: 6) {
+            Button(action: onTap) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(reservation.guestLabel)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(expanded ? 2 : 1)
 
-                Text(statusLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-
-                if expanded, let notes = reservation.notes, !notes.isEmpty {
-                    Text(notes)
+                    Text(statusLine)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color(.tertiarySystemFill))
-                        )
-                }
-
-                HStack(alignment: .center, spacing: 8) {
-                    partyAvatars
-                    Spacer(minLength: 4)
-                    Label(timeRangeLabel, systemImage: "clock")
-                        .font(.caption2.monospacedDigit().weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .labelStyle(.titleAndIcon)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+
+                    Spacer(minLength: 0)
+
+                    if expanded, let notes = reservation.notes, !notes.isEmpty {
+                        Text(notes)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color(.tertiarySystemFill))
+                            )
+                    }
+
+                    HStack(alignment: .center, spacing: 8) {
+                        partyAvatars
+                        Spacer(minLength: 4)
+                        Label(timeRangeLabel, systemImage: "clock")
+                            .font(.caption2.monospacedDigit().weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .labelStyle(.titleAndIcon)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(
-                RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
-                    .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: conflictSoon || expanded ? 1.5 : 1)
-            )
+            .buttonStyle(.plain)
+
+            if expanded, canSeat, let onSeat {
+                Button(action: onSeat) {
+                    Label("Platzieren", systemImage: "person.line.dotted.person")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+                .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
+                .strokeBorder(borderColor, lineWidth: conflictSoon || expanded ? 1.5 : 1)
+        )
     }
 
     private var statusLine: String {

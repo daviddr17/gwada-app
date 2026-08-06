@@ -97,6 +97,15 @@ struct RootView: View {
         .onChange(of: kellnerTab) { _, _ in
             lastInteraction = Date()
         }
+        .onChange(of: runtime.pendingOpenTableId) { _, tableId in
+            guard tableId != nil else { return }
+            // Nach Platzieren aus Timeline → Tische + Session öffnen.
+            if runtime.role == .hub {
+                selection = .tables
+            } else {
+                kellnerTab = .tables
+            }
+        }
         .overlay(alignment: .top) {
             hubStatusCapsules
                 .padding(.top, 4)

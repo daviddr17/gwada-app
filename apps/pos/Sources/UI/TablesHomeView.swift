@@ -5,6 +5,10 @@ struct TablesHomeView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var tableSearch = ""
     @State private var showWalkIn = false
+    @State private var seatTarget: PosReservationDto?
+    @State private var seatSubmitting = false
+    @State private var seatError = ""
+    @State private var autoOpenTableId: String?
     @State private var tick = Date()
 
     private let columns = [
@@ -97,9 +101,46 @@ struct TablesHomeView: View {
             WalkInSheet()
                 .environmentObject(runtime)
         }
+        .sheet(item: $seatTarget) { reservation in
+            ReservationSeatSheet(
+                reservation: reservation,
+                freeTables: freeTablesForSeat,
+                isSubmitting: seatSubmitting,
+                errorMessage: seatError,
+                onConfirm: { tableId in
+                    Task { await confirmSeat(reservation: reservation, tableId: tableId) }
+                },
+                onCancel: {
+                    seatTarget = nil
+                    seatError = ""
+                }
+            )
+        }
+        .navigationDestination(isPresented: Binding(
+            get: { autoOpenTableId != nil },
+            set: { if !$0 { autoOpenTableId = nil } }
+        )) {
+            if let tableId = autoOpenTableId,
+               let floor = runtime.snapshot?.floor,
+               let table = floor.tables.first(where: { $0.id == tableId })
+            {
+                let open = floor.openSessions.first { $0.dining_table_id == table.id }
+                TableSessionView(table: table, sessionId: open?.id)
+            }
+        }
+        .onAppear { consumePendingOpenTable() }
+        .onChange(of: runtime.pendingOpenTableId) { _, _ in
+            consumePendingOpenTable()
+        }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { date in
             tick = date
         }
+    }
+
+    private var freeTablesForSeat: [PosLanFloorTable] {
+        guard let floor = runtime.snapshot?.floor else { return [] }
+        let occupied = Set(floor.openSessions.map(\.dining_table_id))
+        return floor.tables.filter { $0.is_active && !occupied.contains($0.id) }
     }
 
     private var floorNavigationTitle: String {
@@ -195,11 +236,21 @@ struct TablesHomeView: View {
                             .foregroundStyle(PosDesign.ink)
                     }
                 }
-                if let hint = nextReservationHint(for: table.id) {
-                    Text(hint)
-                        .font(.caption2)
-                        .foregroundStyle(PosDesign.statusConflict)
-                        .lineLimit(2)
+                if let upcoming = nextSeatableReservation(for: table.id) {
+                    let mins = Int(upcoming.start.timeIntervalSince(Date()) / 60)
+                    Button {
+                        seatError = ""
+                        seatTarget = upcoming.reservation
+                    } label: {
+                        Text("Res. in \(max(0, mins)) min · \(upcoming.reservation.guestLabel)")
+                            .font(.caption2)
+                            .foregroundStyle(PosDesign.statusConflict)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!runtime.canOpenNewTableSession)
                 }
             }
         }
@@ -235,11 +286,12 @@ struct TablesHomeView: View {
         return PosDesign.muted
     }
 
-    private func nextReservationHint(for tableId: String) -> String? {
+    private func nextSeatableReservation(for tableId: String) -> (reservation: PosReservationDto, start: Date)? {
         guard let day = PosReservationsStore.shared.currentDay else { return nil }
         let now = Date()
         let upcoming = day.reservations
             .compactMap { r -> (PosReservationDto, Date)? in
+                guard PosReservationSeatPolicy.canSeat(statusCode: r.status?.code) else { return nil }
                 guard let start = Self.parseStarts(r.startsAt) else { return nil }
                 guard start > now, start.timeIntervalSince(now) < 3600 else { return nil }
                 if let tid = r.diningTableId, !tid.isEmpty, tid != tableId { return nil }
@@ -247,9 +299,35 @@ struct TablesHomeView: View {
             }
             .sorted { $0.1 < $1.1 }
             .first
-        guard let (r, start) = upcoming else { return nil }
-        let mins = Int(start.timeIntervalSince(now) / 60)
-        return "Res. in \(mins) min · \(r.guestLabel)"
+        return upcoming.map { (reservation: $0.0, start: $0.1) }
+    }
+
+    private func confirmSeat(reservation: PosReservationDto, tableId: String) async {
+        seatError = ""
+        seatSubmitting = true
+        defer { seatSubmitting = false }
+        let sessionId = await runtime.seatReservation(
+            reservationId: reservation.id,
+            diningTableId: tableId,
+            coverCount: reservation.partySize,
+            dayYmd: PosReservationsStore.shared.selectedDayYmd
+        )
+        if sessionId != nil {
+            seatTarget = nil
+            consumePendingOpenTable()
+        } else {
+            seatError = runtime.statusMessage.isEmpty
+                ? "Platzieren fehlgeschlagen."
+                : runtime.statusMessage
+        }
+    }
+
+    private func consumePendingOpenTable() {
+        guard let tableId = runtime.consumePendingOpenTableId() else { return }
+        // Kurz verzögern damit Snapshot nach Seat schon die Session hat.
+        DispatchQueue.main.async {
+            autoOpenTableId = tableId
+        }
     }
 
     private func filteredTables(_ tables: [PosLanFloorTable]) -> [PosLanFloorTable] {

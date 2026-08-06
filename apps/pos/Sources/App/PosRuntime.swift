@@ -43,6 +43,8 @@ final class PosRuntime: ObservableObject {
     @Published private(set) var hubDisconnectedAt: Date?
     /// Phase 6: Hard-Reject Sheet (Tisch zu / Session weg).
     @Published var outboxConflict: OutboxConflictPresentation?
+    /// Nach Platzieren / Cross-Tab: TablesHomeView öffnet diese Tisch-Session.
+    @Published var pendingOpenTableId: String?
 
     /// Paired + Hub down länger als 45 Min → verstärkter Banner.
     var isHubDisconnectedStale: Bool {
@@ -1879,6 +1881,138 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Storno konnte nicht vorbereitet werden."
         }
         return false
+    }
+
+    /// Reservierung platzieren → offene Tisch-Session. Gibt `tableSessionId` zurück.
+    @discardableResult
+    func seatReservation(
+        reservationId: String,
+        diningTableId: String,
+        coverCount: Int,
+        dayYmd: String? = nil
+    ) async -> String? {
+        let idempotencyKey = UUID().uuidString
+        let covers = max(1, coverCount)
+        let rid = reservationId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tid = diningTableId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rid.isEmpty, !tid.isEmpty else {
+            statusMessage = "Reservierung oder Tisch ungültig."
+            return nil
+        }
+
+        if role == .handheld, PosEnrollmentStore.shared.isHandheldPaired, !isSoloMode {
+            guard let base = hubBaseURL else {
+                statusMessage = "Kasse getrennt — Platzieren später."
+                return nil
+            }
+            do {
+                let pin = PosAuthStore.shared.pinSession
+                let staffSessionHeader: String? = pin.map { "\($0.sessionId).\($0.sessionToken)" }
+                let result = try await HandheldHubClient.seatReservation(
+                    baseURL: base,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken,
+                    reservationId: rid,
+                    diningTableId: tid,
+                    coverCount: covers,
+                    idempotencyKey: idempotencyKey,
+                    staffId: pin?.staffId,
+                    staffSessionId: pin?.sessionId,
+                    staffSessionHeader: staffSessionHeader
+                )
+                // Mirror Hub mutation: Floor-Session + Resa-Cache (kein Ghost auf HubState).
+                patchSnapshotOpenedSession(
+                    tableId: result.diningTableId,
+                    sessionId: result.tableSessionId,
+                    covers: covers
+                )
+                _ = PosReservationsStore.shared.markSeated(
+                    reservationId: rid,
+                    diningTableId: result.diningTableId,
+                    dayYmd: dayYmd
+                )
+                PosAuditLog.shared.record(
+                    "reservation.seated",
+                    detail: "lan:\(rid):table=\(result.diningTableId)",
+                    sessionId: result.tableSessionId
+                )
+                if let snap = try? await HandheldHubClient.fetchSnapshot(
+                    baseURL: base,
+                    restaurantId: nil,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                ) {
+                    publishSnapshot(snap)
+                }
+                statusMessage = "Gäste platziert."
+                pendingOpenTableId = result.diningTableId
+                return result.tableSessionId
+            } catch let HandheldHubClientError.hubRejected(status, message) {
+                if status == 409 || message.contains("table_occupied") {
+                    statusMessage = "Tisch ist belegt."
+                } else if status == 404 {
+                    statusMessage = "Reservierung oder Tisch nicht gefunden."
+                } else {
+                    statusMessage = "Platzieren an Kasse fehlgeschlagen: \(message)"
+                }
+                return nil
+            } catch {
+                statusMessage = "Platzieren an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                return nil
+            }
+        }
+
+        guard shouldPublishLocalHubFloor else {
+            statusMessage = "Kasse getrennt — Platzieren später."
+            return nil
+        }
+
+        switch PosHubState.shared.seatLocalReservation(
+            reservationId: rid,
+            diningTableId: tid,
+            coverCount: covers,
+            dayYmd: dayYmd,
+            idempotencyKey: idempotencyKey
+        ) {
+        case .success(.ok(let tableSessionId, let seatedTableId, let idempotentReplay)):
+            if !idempotentReplay {
+                PosSyncQueue.shared.enqueueReservationSeated(PosSyncReservationSeatedPayload(
+                    restaurantId: PosHubState.shared.restaurantId,
+                    reservationId: rid,
+                    diningTableId: seatedTableId,
+                    coverCount: covers,
+                    localSessionId: tableSessionId,
+                    idempotencyKey: idempotencyKey
+                ))
+                syncPending = PosSyncQueue.shared.pendingCount
+                await PosSyncQueue.shared.flushIfPossible()
+                syncPending = PosSyncQueue.shared.pendingCount
+                PosAuditLog.shared.record(
+                    "reservation.seated",
+                    detail: "local:\(rid):table=\(seatedTableId)",
+                    sessionId: tableSessionId
+                )
+            }
+            publishSnapshot(PosHubState.shared.makeSnapshot())
+            statusMessage = "Gäste platziert."
+            pendingOpenTableId = seatedTableId
+            return tableSessionId
+        case .failure(.reservationNotFound):
+            statusMessage = "Reservierung nicht gefunden."
+        case .failure(.invalidStatus):
+            statusMessage = "Nur bestätigte Reservierungen platzieren."
+        case .failure(.tableNotFound):
+            statusMessage = "Tisch nicht gefunden."
+        case .failure(.tableOccupied):
+            statusMessage = "Tisch ist belegt."
+        case .failure(.missingIdempotencyKey):
+            statusMessage = "Platzieren konnte nicht vorbereitet werden."
+        }
+        return nil
+    }
+
+    func consumePendingOpenTableId() -> String? {
+        let id = pendingOpenTableId
+        pendingOpenTableId = nil
+        return id
     }
 
     /// Tisch freigeben (nach bezahlt) oder Abbruch nur vor erstem Fire.

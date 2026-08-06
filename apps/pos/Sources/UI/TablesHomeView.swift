@@ -32,17 +32,12 @@ struct TablesHomeView: View {
                                     let cacheOnlyFree =
                                         runtime.isHubDisconnectedWhilePaired && open == nil
                                     if cacheOnlyFree {
-                                        tableCard(table: table, open: open, meta: meta)
+                                        tableCard(table: table, open: open, meta: meta, navigable: false)
                                             .opacity(0.45)
                                             .accessibilityLabel("\(table.label), geschlossen — Kasse getrennt")
                                     } else {
-                                        NavigationLink {
-                                            TableSessionView(table: table, sessionId: open?.id)
-                                        } label: {
-                                            tableCard(table: table, open: open, meta: meta)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityIdentifier("pos.table.\(table.label)")
+                                        tableCard(table: table, open: open, meta: meta, navigable: true)
+                                            .accessibilityIdentifier("pos.table.\(table.label)")
                                     }
                                 }
                             }
@@ -185,15 +180,91 @@ struct TablesHomeView: View {
     private func tableCard(
         table: PosLanFloorTable,
         open: PosLanOpenSession?,
-        meta: PosLanSessionFloorMeta?
+        meta: PosLanSessionFloorMeta?,
+        navigable: Bool
     ) -> some View {
         let isOpen = open != nil
         let openCents = meta?.openCents ?? 0
         let age = open.flatMap { PosDesign.sessionAgeMinutes(openedAt: $0.opened_at, now: tick) }
         let visualStatus = PosDesign.visualStatus(isOpen: isOpen, openCents: openCents)
-        let dotColor = PosDesign.statusDotColor(for: visualStatus)
         let borderTint = PosDesign.tableStatusColor(isOpen: isOpen, openCents: openCents, ageMinutes: age)
         let timerAmber = PosDesign.sessionTimerIsAmber(ageMinutes: age)
+        let upcoming = nextSeatableReservation(for: table.id)
+
+        // Platzieren-Hint außerhalb NavigationLink — sonst stiehlt der Link den Tap.
+        VStack(alignment: .leading, spacing: 8) {
+            if navigable {
+                NavigationLink {
+                    TableSessionView(table: table, sessionId: open?.id)
+                } label: {
+                    tableCardMain(
+                        table: table,
+                        open: open,
+                        openCents: openCents,
+                        visualStatus: visualStatus,
+                        timerAmber: timerAmber,
+                        isOpen: isOpen
+                    )
+                }
+                .buttonStyle(.plain)
+            } else {
+                tableCardMain(
+                    table: table,
+                    open: open,
+                    openCents: openCents,
+                    visualStatus: visualStatus,
+                    timerAmber: timerAmber,
+                    isOpen: isOpen
+                )
+            }
+
+            if let upcoming {
+                let mins = Int(upcoming.start.timeIntervalSince(Date()) / 60)
+                Button {
+                    seatError = ""
+                    seatTarget = upcoming.reservation
+                } label: {
+                    Text("Res. in \(max(0, mins)) min · \(upcoming.reservation.guestLabel)")
+                        .font(.caption2)
+                        .foregroundStyle(PosDesign.statusConflict)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .disabled(!runtime.canOpenNewTableSession)
+                .accessibilityLabel("Platzieren: \(upcoming.reservation.guestLabel)")
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+        .background {
+            if isOpen {
+                RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
+                    .fill(PosDesign.surface)
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
+                .strokeBorder(
+                    isOpen ? borderTint.opacity(timerAmber ? 0.55 : 0.35) : PosDesign.line,
+                    style: isOpen
+                        ? StrokeStyle(lineWidth: 1)
+                        : StrokeStyle(lineWidth: 1.5, dash: [5, 4])
+                )
+        }
+    }
+
+    @ViewBuilder
+    private func tableCardMain(
+        table: PosLanFloorTable,
+        open: PosLanOpenSession?,
+        openCents: Int,
+        visualStatus: PosTableVisualStatus,
+        timerAmber: Bool,
+        isOpen: Bool
+    ) -> some View {
+        let dotColor = PosDesign.statusDotColor(for: visualStatus)
 
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center) {
@@ -224,53 +295,20 @@ struct TablesHomeView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(floorCardSubtitle(isOpen: isOpen, visualStatus: visualStatus, coverCount: open?.cover_count))
-                        .font(.subheadline)
-                        .foregroundStyle(subtitleColor(for: visualStatus, isOpen: isOpen))
-                    Spacer(minLength: 4)
-                    if isOpen, openCents > 0 {
-                        Text(PosMoney.format(openCents))
-                            .font(PosDesign.fontMonoTabular.weight(.semibold))
-                            .foregroundStyle(PosDesign.ink)
-                    }
-                }
-                if let upcoming = nextSeatableReservation(for: table.id) {
-                    let mins = Int(upcoming.start.timeIntervalSince(Date()) / 60)
-                    Button {
-                        seatError = ""
-                        seatTarget = upcoming.reservation
-                    } label: {
-                        Text("Res. in \(max(0, mins)) min · \(upcoming.reservation.guestLabel)")
-                            .font(.caption2)
-                            .foregroundStyle(PosDesign.statusConflict)
-                            .multilineTextAlignment(.leading)
-                            .lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!runtime.canOpenNewTableSession)
+            HStack(alignment: .firstTextBaseline) {
+                Text(floorCardSubtitle(isOpen: isOpen, visualStatus: visualStatus, coverCount: open?.cover_count))
+                    .font(.subheadline)
+                    .foregroundStyle(subtitleColor(for: visualStatus, isOpen: isOpen))
+                Spacer(minLength: 4)
+                if isOpen, openCents > 0 {
+                    Text(PosMoney.format(openCents))
+                        .font(PosDesign.fontMonoTabular.weight(.semibold))
+                        .foregroundStyle(PosDesign.ink)
                 }
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
-        .background {
-            if isOpen {
-                RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
-                    .fill(PosDesign.surface)
-            }
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: PosDesign.cardRadius, style: .continuous)
-                .strokeBorder(
-                    isOpen ? borderTint.opacity(timerAmber ? 0.55 : 0.35) : PosDesign.line,
-                    style: isOpen
-                        ? StrokeStyle(lineWidth: 1)
-                        : StrokeStyle(lineWidth: 1.5, dash: [5, 4])
-                )
-        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .contentShape(Rectangle())
     }
 
     private func floorCardSubtitle(isOpen: Bool, visualStatus: PosTableVisualStatus, coverCount: Int?) -> String {

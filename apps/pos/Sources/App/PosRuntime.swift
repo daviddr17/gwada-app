@@ -2633,6 +2633,84 @@ final class PosRuntime: ObservableObject {
                 return (200, Data(#"{"ok":true}"#.utf8))
             }
 
+            if pathOnly == PosLanProtocol.seatReservationPath {
+                struct Req: Decodable {
+                    var reservationId: String
+                    var diningTableId: String
+                    var coverCount: Int
+                    var idempotencyKey: String
+                    var staffId: String?
+                    var staffSessionId: String?
+                    var dayYmd: String?
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body"}"#.utf8))
+                }
+                let headerStaffId = (headers[PosLanProtocol.headerStaffId.lowercased()] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let bodyStaffId = (req.staffId ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let authenticatedStaffId = PosLanVoidAuth.authenticatedStaffId(
+                    headerStaffId: headerStaffId,
+                    bodyStaffId: bodyStaffId
+                )
+                let staffSessionId = (req.staffSessionId ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let staffSessionHeader = (headers[PosLanProtocol.headerStaffSession.lowercased()] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let allowLabWithoutStaff = PosSecurityPolicy.allowsHubCollectWithoutStaffSession
+                if !allowLabWithoutStaff {
+                    let staffSignedIn = DispatchQueue.main.sync { PosAuthStore.shared.isSignedIn }
+                    if !staffSignedIn {
+                        return (403, Data(#"{"error":"staff_required"}"#.utf8))
+                    }
+                    guard PosLanVoidAuth.hasStaffProof(
+                        staffId: authenticatedStaffId,
+                        staffSessionId: staffSessionId.isEmpty ? nil : staffSessionId,
+                        staffSessionHeader: staffSessionHeader.isEmpty ? nil : staffSessionHeader
+                    ) else {
+                        return (403, Data(#"{"error":"staff_proof_required"}"#.utf8))
+                    }
+                }
+                switch PosHubState.shared.seatLocalReservation(
+                    reservationId: req.reservationId,
+                    diningTableId: req.diningTableId,
+                    coverCount: req.coverCount,
+                    dayYmd: req.dayYmd,
+                    idempotencyKey: req.idempotencyKey
+                ) {
+                case .success(.ok(let tableSessionId, let diningTableId, let idempotentReplay)):
+                    if !idempotentReplay {
+                        // TODO(Task 3): enqueue PosSyncQueue.reservationSeated + flush
+                        Task { @MainActor in
+                            PosAuditLog.shared.record(
+                                "reservation.seated",
+                                detail: "hub:\(req.reservationId):table=\(diningTableId)",
+                                sessionId: tableSessionId
+                            )
+                        }
+                    }
+                    let payload: [String: Any] = [
+                        "ok": true,
+                        "tableSessionId": tableSessionId,
+                        "diningTableId": diningTableId,
+                    ]
+                    let data = (try? JSONSerialization.data(withJSONObject: payload))
+                        ?? Data(#"{"ok":true}"#.utf8)
+                    return (200, data)
+                case .failure(.reservationNotFound):
+                    return (404, Data(#"{"error":"reservation_not_found"}"#.utf8))
+                case .failure(.tableNotFound):
+                    return (404, Data(#"{"error":"table_not_found"}"#.utf8))
+                case .failure(.tableOccupied):
+                    return (409, Data(#"{"error":"table_occupied"}"#.utf8))
+                case .failure(.invalidStatus):
+                    return (400, Data(#"{"error":"invalid_status"}"#.utf8))
+                case .failure(.missingIdempotencyKey):
+                    return (400, Data(#"{"error":"missing_idempotency_key"}"#.utf8))
+                }
+            }
+
             if pathOnly == PosLanProtocol.voidLinePath {
                 struct Req: Decodable {
                     var sessionId: String

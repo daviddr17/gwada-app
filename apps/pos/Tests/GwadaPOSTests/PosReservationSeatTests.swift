@@ -2,6 +2,11 @@ import XCTest
 @testable import GwadaPOS
 
 final class PosReservationSeatTests: XCTestCase {
+    func testSeatReservationPath_matchesLANContract() {
+        XCTAssertEqual(PosLanProtocol.seatReservationPath, "/v1/reservations/seat")
+        XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.seatReservationPath))
+    }
+
     func testPolicy_onlyConfirmed() {
         XCTAssertTrue(PosReservationSeatPolicy.canSeat(statusCode: "confirmed"))
         XCTAssertFalse(PosReservationSeatPolicy.canSeat(statusCode: "pending"))

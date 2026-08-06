@@ -292,6 +292,59 @@ enum HandheldHubClient {
         guard http.statusCode == 200 else { throw HandheldHubClientError.httpStatus(http.statusCode) }
     }
 
+    static func seatReservation(
+        baseURL: URL,
+        pairToken: String?,
+        reservationId: String,
+        diningTableId: String,
+        coverCount: Int,
+        idempotencyKey: String,
+        staffId: String? = nil,
+        staffSessionId: String? = nil,
+        staffSessionHeader: String? = nil
+    ) async throws -> (tableSessionId: String, diningTableId: String) {
+        struct Body: Encodable {
+            var reservationId: String
+            var diningTableId: String
+            var coverCount: Int
+            var idempotencyKey: String
+            var staffId: String?
+            var staffSessionId: String?
+        }
+        struct Ok: Decodable {
+            var ok: Bool?
+            var tableSessionId: String
+            var diningTableId: String
+        }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.seatReservationPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        applyStaffProof(staffId: staffId, staffSessionHeader: staffSessionHeader, to: &request)
+        request.httpBody = try encoder.encode(Body(
+            reservationId: reservationId,
+            diningTableId: diningTableId,
+            coverCount: coverCount,
+            idempotencyKey: idempotencyKey,
+            staffId: staffId,
+            staffSessionId: staffSessionId
+        ))
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard http.statusCode == 200 else {
+            struct ErrorBody: Decodable { var error: String? }
+            let message = (try? decoder.decode(ErrorBody.self, from: data))?.error
+                ?? "HTTP \(http.statusCode)"
+            if http.statusCode == 409 || http.statusCode == 404 || http.statusCode == 403 {
+                throw HandheldHubClientError.hubRejected(status: http.statusCode, message: message)
+            }
+            throw HandheldHubClientError.httpStatus(http.statusCode)
+        }
+        let ok = try decoder.decode(Ok.self, from: data)
+        return (tableSessionId: ok.tableSessionId, diningTableId: ok.diningTableId)
+    }
+
     static func voidLine(
         baseURL: URL,
         pairToken: String?,

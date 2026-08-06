@@ -39,6 +39,48 @@ final class PosReservationSeatTests: XCTestCase {
         XCTAssertEqual(cached?.status?.code, "confirmed")
     }
 
+    func testSyncReservationSeatedPayload_codableRoundTrip() throws {
+        let payload = PosSyncReservationSeatedPayload(
+            restaurantId: "restaurant-1",
+            reservationId: "resa-1",
+            diningTableId: "table-1",
+            coverCount: 4,
+            localSessionId: "session-local-1",
+            idempotencyKey: "seat-1"
+        )
+
+        let data = try JSONEncoder().encode(payload)
+        let decoded = try JSONDecoder().decode(PosSyncReservationSeatedPayload.self, from: data)
+
+        XCTAssertEqual(decoded.restaurantId, payload.restaurantId)
+        XCTAssertEqual(decoded.reservationId, payload.reservationId)
+        XCTAssertEqual(decoded.diningTableId, payload.diningTableId)
+        XCTAssertEqual(decoded.coverCount, payload.coverCount)
+        XCTAssertEqual(decoded.localSessionId, payload.localSessionId)
+        XCTAssertEqual(decoded.idempotencyKey, payload.idempotencyKey)
+    }
+
+    @MainActor
+    func testSyncReservationSeated_enqueuesOnceWithIdempotencyKey() {
+        PosSyncQueue.shared.clearAll()
+        defer { PosSyncQueue.shared.clearAll() }
+        let payload = PosSyncReservationSeatedPayload(
+            restaurantId: "restaurant-1",
+            reservationId: "resa-1",
+            diningTableId: "table-1",
+            coverCount: 2,
+            localSessionId: "session-local-1",
+            idempotencyKey: "seat-idempotency-key"
+        )
+
+        PosSyncQueue.shared.enqueueReservationSeated(payload)
+        PosSyncQueue.shared.enqueueReservationSeated(payload)
+
+        XCTAssertEqual(PosSyncQueue.shared.items.count, 1)
+        XCTAssertEqual(PosSyncQueue.shared.items.first?.kind, .reservationSeated)
+        XCTAssertEqual(PosSyncQueue.shared.items.first?.id, payload.idempotencyKey)
+    }
+
     func testSeat_freeTable_opensSessionAndMarksSeated() {
         let suffix = UUID().uuidString
         let tableId = "seat-free-t-\(suffix)"

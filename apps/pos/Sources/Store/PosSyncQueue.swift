@@ -6,6 +6,7 @@ enum PosSyncQueueItemKind: String, Codable, Sendable {
     case collectCash
     case fireCourse
     case lineVoided
+    case reservationSeated
     case moveSession
     case releaseSession
     case createReservation
@@ -168,6 +169,15 @@ struct PosSyncLineVoidedPayload: Codable, Sendable {
     var idempotencyKey: String
 }
 
+struct PosSyncReservationSeatedPayload: Codable, Sendable {
+    var restaurantId: String
+    var reservationId: String
+    var diningTableId: String
+    var coverCount: Int
+    var localSessionId: String
+    var idempotencyKey: String
+}
+
 struct PosSyncMoveSessionPayload: Codable, Sendable {
     var restaurantId: String
     var tableSessionId: String
@@ -306,6 +316,15 @@ final class PosSyncQueue: ObservableObject {
         enqueue(makeItem(id: resolved.idempotencyKey, kind: .lineVoided, payload: data))
     }
 
+    /// Enqueues seat sync once per `idempotencyKey` (LAN / Hub replay-safe).
+    func enqueueReservationSeated(_ payload: PosSyncReservationSeatedPayload) {
+        var resolved = payload
+        resolved.localSessionId = PosSessionIdMap.shared.resolve(payload.localSessionId)
+        if items.contains(where: { $0.id == resolved.idempotencyKey }) { return }
+        let data = (try? encoder.encode(resolved)) ?? Data()
+        enqueue(makeItem(id: resolved.idempotencyKey, kind: .reservationSeated, payload: data))
+    }
+
     func enqueueMoveSession(_ payload: PosSyncMoveSessionPayload) {
         var resolved = payload
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
@@ -418,7 +437,7 @@ final class PosSyncQueue: ObservableObject {
         index: Int
     ) async throws {
         switch item.kind {
-        case .openSession, .createOrder, .collectCash, .fireCourse, .lineVoided, .moveSession, .releaseSession:
+        case .openSession, .createOrder, .collectCash, .fireCourse, .lineVoided, .reservationSeated, .moveSession, .releaseSession:
             if PosCloudConfig.nestSyncEnabled {
                 try await processViaNest(&item, working: &working, index: index)
             } else {
@@ -575,6 +594,23 @@ final class PosSyncQueue: ObservableObject {
                 payload: body
             )
 
+        case .reservationSeated:
+            var payload = try decoder.decode(PosSyncReservationSeatedPayload.self, from: item.payload)
+            payload.localSessionId = PosSessionIdMap.shared.resolve(payload.localSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            envelope = PosNestClient.eventEnvelope(
+                type: "reservation.seated",
+                idempotencyKey: payload.idempotencyKey,
+                sessionId: payload.localSessionId,
+                payload: [
+                    "reservationId": payload.reservationId,
+                    "diningTableId": payload.diningTableId,
+                    "tableId": payload.diningTableId,
+                    "coverCount": payload.coverCount,
+                    "localSessionId": payload.localSessionId,
+                ]
+            )
+
         case .moveSession:
             var payload = try decoder.decode(PosSyncMoveSessionPayload.self, from: item.payload)
             payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
@@ -615,6 +651,17 @@ final class PosSyncQueue: ObservableObject {
         case "applied", "duplicate":
             if item.kind == .openSession,
                let payload = try? decoder.decode(PosSyncOpenSessionPayload.self, from: item.payload),
+               let remote = result.result?["sessionId"]?.stringValue
+            {
+                applySessionMapping(
+                    localSessionId: payload.localSessionId,
+                    cloudSessionId: remote,
+                    working: &working,
+                    afterIndex: index
+                )
+            }
+            if item.kind == .reservationSeated,
+               let payload = try? decoder.decode(PosSyncReservationSeatedPayload.self, from: item.payload),
                let remote = result.result?["sessionId"]?.stringValue
             {
                 applySessionMapping(
@@ -769,6 +816,25 @@ final class PosSyncQueue: ObservableObject {
             // instead of permanently blocking or dead-lettering the FIFO queue.
             break
 
+        case .reservationSeated:
+            var payload = try decoder.decode(PosSyncReservationSeatedPayload.self, from: item.payload)
+            payload.localSessionId = PosSessionIdMap.shared.resolve(payload.localSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            let cloudSessionId = try await PosCloudClient.seatReservation(
+                restaurantId: payload.restaurantId,
+                reservationId: payload.reservationId,
+                diningTableId: payload.diningTableId,
+                coverCount: payload.coverCount,
+                localSessionId: payload.localSessionId,
+                idempotencyKey: payload.idempotencyKey
+            )
+            applySessionMapping(
+                localSessionId: payload.localSessionId,
+                cloudSessionId: cloudSessionId,
+                working: &working,
+                afterIndex: index
+            )
+
         case .createReservation, .openRegister, .closeRegister:
             break
         }
@@ -912,7 +978,7 @@ final class PosSyncQueue: ObservableObject {
                     copy.payload = data
                 }
             }
-        case .openSession, .createReservation, .openRegister, .closeRegister:
+        case .openSession, .createReservation, .openRegister, .closeRegister, .reservationSeated:
             break
         }
         return copy

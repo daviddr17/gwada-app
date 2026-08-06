@@ -256,6 +256,44 @@ enum PosCloudClient {
     }
 
     @MainActor
+    static func seatReservation(
+        restaurantId: String,
+        reservationId: String,
+        diningTableId: String,
+        coverCount: Int,
+        localSessionId: String?,
+        idempotencyKey: String
+    ) async throws -> String {
+        struct Body: Encodable {
+            var restaurantId: String
+            var reservationId: String
+            var diningTableId: String
+            var coverCount: Int
+            var localSessionId: String?
+            var idempotencyKey: String
+        }
+        struct Response: Decodable { var sessionId: String }
+        var headers: [String: String] = [:]
+        let key = idempotencyKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !key.isEmpty {
+            headers["Idempotency-Key"] = key
+        }
+        let res: Response = try await post(
+            "/api/pos/reservations/seat",
+            body: Body(
+                restaurantId: restaurantId,
+                reservationId: reservationId,
+                diningTableId: diningTableId,
+                coverCount: coverCount,
+                localSessionId: localSessionId,
+                idempotencyKey: idempotencyKey
+            ),
+            headers: headers
+        )
+        return res.sessionId
+    }
+
+    @MainActor
     static func createOrder(
         restaurantId: String,
         tableSessionId: String,

@@ -199,6 +199,104 @@ export class SyncService {
         });
         return r.ok ? { ok: true, result: { released: true } } : { ok: false, error: r.error };
       }
+      case "reservation.seated": {
+        const reservationId = String(p.reservationId ?? "").trim();
+        const diningTableId = String(p.diningTableId ?? p.tableId ?? "").trim();
+        const coverCount = Number(p.coverCount ?? 2);
+        if (!reservationId || !diningTableId) {
+          return { ok: false, error: "invalid_payload" };
+        }
+
+        const sb = this.supabaseAdmin.getClient();
+
+        const { data: linkedOpen } = await sb
+          .from("pos_table_sessions")
+          .select("id")
+          .eq("restaurant_id", ctx.restaurantId)
+          .eq("reservation_id", reservationId)
+          .eq("status", "open")
+          .maybeSingle();
+
+        let sessionId = (linkedOpen?.id as string | undefined) ?? null;
+
+        if (!sessionId) {
+          const { data: existingOpen } = await sb
+            .from("pos_table_sessions")
+            .select("id, reservation_id")
+            .eq("dining_table_id", diningTableId)
+            .eq("status", "open")
+            .maybeSingle();
+
+          if (existingOpen) {
+            if ((existingOpen.reservation_id as string | null) === reservationId) {
+              sessionId = existingOpen.id as string;
+            } else {
+              return { ok: false, error: "table_occupied" };
+            }
+          }
+        }
+
+        if (!sessionId) {
+          const opened = await this.sessions.open({
+            restaurantId: ctx.restaurantId,
+            diningTableId,
+            coverCount,
+            profileId: ctx.profileId,
+            reservationId,
+          });
+          if (!opened.ok) {
+            return { ok: false, error: opened.error };
+          }
+          sessionId = opened.sessionId;
+
+          // sessions.open returns any open session on the table — reject foreign ones.
+          const { data: openedRow } = await sb
+            .from("pos_table_sessions")
+            .select("id, reservation_id")
+            .eq("id", sessionId)
+            .maybeSingle();
+          if (
+            openedRow &&
+            (openedRow.reservation_id as string | null) !== reservationId
+          ) {
+            return { ok: false, error: "table_occupied" };
+          }
+        }
+
+        const { data: seatedStatus } = await sb
+          .from("reservation_statuses")
+          .select("id")
+          .eq("code", "seated")
+          .maybeSingle();
+        const seatedStatusId = seatedStatus?.id as string | undefined;
+        if (!seatedStatusId) {
+          return { ok: false, error: "seated_status_missing" };
+        }
+
+        const { data: reservation } = await sb
+          .from("reservations")
+          .select("id, restaurant_id, status_id")
+          .eq("id", reservationId)
+          .maybeSingle();
+        if (!reservation || reservation.restaurant_id !== ctx.restaurantId) {
+          return { ok: false, error: "reservation_not_found" };
+        }
+
+        const { error: updateError } = await sb
+          .from("reservations")
+          .update({
+            status_id: seatedStatusId,
+            dining_table_id: diningTableId,
+          })
+          .eq("id", reservationId)
+          .eq("restaurant_id", ctx.restaurantId);
+
+        if (updateError) {
+          return { ok: false, error: updateError.message };
+        }
+
+        return { ok: true, result: { sessionId } };
+      }
       default:
         return { ok: false, error: `unsupported_type:${ev.type}` };
     }

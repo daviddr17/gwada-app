@@ -2681,13 +2681,22 @@ final class PosRuntime: ObservableObject {
                 ) {
                 case .success(.ok(let tableSessionId, let diningTableId, let idempotentReplay)):
                     if !idempotentReplay {
-                        // TODO(Task 3): enqueue PosSyncQueue.reservationSeated + flush
                         Task { @MainActor in
                             PosAuditLog.shared.record(
                                 "reservation.seated",
                                 detail: "hub:\(req.reservationId):table=\(diningTableId)",
                                 sessionId: tableSessionId
                             )
+                            let restaurantId = PosHubState.shared.restaurantId
+                            PosSyncQueue.shared.enqueueReservationSeated(PosSyncReservationSeatedPayload(
+                                restaurantId: restaurantId,
+                                reservationId: req.reservationId,
+                                diningTableId: diningTableId,
+                                coverCount: req.coverCount,
+                                localSessionId: tableSessionId,
+                                idempotencyKey: req.idempotencyKey
+                            ))
+                            await PosSyncQueue.shared.flushIfPossible()
                         }
                     }
                     let payload: [String: Any] = [

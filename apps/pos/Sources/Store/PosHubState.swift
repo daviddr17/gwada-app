@@ -57,6 +57,8 @@ final class PosHubState: @unchecked Sendable {
         firedCourses = PosFiredCourseStore()
         localOpenLinesBySession = [:]
         kassierenLocksBySession = [:]
+        sessionReservationMap = [:]
+        consumedSeatIdempotency = [:]
         lock.unlock()
     }
 
@@ -340,6 +342,112 @@ final class PosHubState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return bootstrap?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id
+    }
+
+    // MARK: Reservation seat (Platzieren)
+
+    /// Local map sessionId → reservationId (Sync/UI later).
+    private var sessionReservationMap: [String: String] = [:]
+    /// Idempotency: key → (sessionId, diningTableId).
+    private var consumedSeatIdempotency: [String: (sessionId: String, tableId: String)] = [:]
+
+    func seatLocalReservation(
+        reservationId: String,
+        diningTableId: String,
+        coverCount: Int,
+        dayYmd: String?,
+        idempotencyKey: String
+    ) -> Result<PosReservationSeatResult, PosReservationSeatError> {
+        let idemKey = idempotencyKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !idemKey.isEmpty else {
+            return .failure(.missingIdempotencyKey)
+        }
+
+        lock.lock()
+        if let prior = consumedSeatIdempotency[idemKey] {
+            lock.unlock()
+            return .success(
+                .ok(
+                    tableSessionId: prior.sessionId,
+                    diningTableId: prior.tableId,
+                    idempotentReplay: true
+                )
+            )
+        }
+        lock.unlock()
+
+        let rid = reservationId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tid = diningTableId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rid.isEmpty, !tid.isEmpty else {
+            return .failure(.reservationNotFound)
+        }
+
+        let ymd: String = {
+            if let dayYmd {
+                let trimmed = dayYmd.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+            return PosReservationsStore.shared.selectedDayYmd
+        }()
+        guard let day = PosReservationsStore.shared.cachedDay(ymd),
+              let reservation = day.reservations.first(where: { $0.id == rid })
+        else {
+            return .failure(.reservationNotFound)
+        }
+        guard PosReservationSeatPolicy.canSeat(statusCode: reservation.status?.code) else {
+            return .failure(.invalidStatus)
+        }
+
+        lock.lock()
+        if let prior = consumedSeatIdempotency[idemKey] {
+            lock.unlock()
+            return .success(
+                .ok(
+                    tableSessionId: prior.sessionId,
+                    diningTableId: prior.tableId,
+                    idempotentReplay: true
+                )
+            )
+        }
+        guard var bootstrap else {
+            lock.unlock()
+            return .failure(.tableNotFound)
+        }
+        guard bootstrap.floor.tables.contains(where: { $0.id == tid && $0.is_active }) else {
+            lock.unlock()
+            return .failure(.tableNotFound)
+        }
+        if bootstrap.floor.openSessions.contains(where: { $0.dining_table_id == tid }) {
+            lock.unlock()
+            return .failure(.tableOccupied)
+        }
+
+        let sessionId = UUID().uuidString
+        let session = PosLanOpenSession(
+            id: sessionId,
+            dining_table_id: tid,
+            cover_count: max(1, coverCount),
+            opened_at: ISO8601DateFormatter().string(from: Date())
+        )
+        bootstrap.floor.openSessions.append(session)
+        bootstrap.floor.orderCountBySessionId[sessionId] = 0
+        bootstrap.floor.sessionMetaBySessionId[sessionId] = PosLanSessionFloorMeta(orderCount: 0, openCents: 0)
+        self.bootstrap = bootstrap
+        sessionReservationMap[sessionId] = rid
+        consumedSeatIdempotency[idemKey] = (sessionId: sessionId, tableId: tid)
+        bumpSnapshotVersionLocked()
+        PosLocalStore.saveBootstrap(bootstrap)
+        lock.unlock()
+
+        _ = PosReservationsStore.shared.markSeated(
+            reservationId: rid,
+            diningTableId: tid,
+            dayYmd: ymd
+        )
+
+        return .success(
+            .ok(tableSessionId: sessionId, diningTableId: tid, idempotentReplay: false)
+        )
     }
 
     func hasOpenSession(id sessionId: String, diningTableId: String?) -> Bool {

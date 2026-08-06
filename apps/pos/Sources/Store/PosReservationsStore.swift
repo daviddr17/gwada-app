@@ -72,6 +72,49 @@ final class PosReservationsStore: @unchecked Sendable {
         PosLocalStore.saveReservationsCache([:])
     }
 
+    /// Updates cached reservation to seated + diningTableId; returns false if not found.
+    @discardableResult
+    func markSeated(reservationId: String, diningTableId: String, dayYmd: String?) -> Bool {
+        lock.lock()
+        let ymd: String = {
+            if let dayYmd {
+                let trimmed = dayYmd.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+            return selectedDayYmdValue
+        }()
+        guard var day = cache[ymd],
+              let idx = day.reservations.firstIndex(where: { $0.id == reservationId })
+        else {
+            lock.unlock()
+            return false
+        }
+        var reservation = day.reservations[idx]
+        let seatedStatus = day.statuses.first(where: { $0.code == "seated" })
+            ?? PosReservationStatusDto(
+                id: "status-seated",
+                code: "seated",
+                name: "Platziert",
+                colorHex: "#15803D"
+            )
+        reservation.status = seatedStatus
+        reservation.diningTableId = diningTableId
+        if let table = day.tables.first(where: { $0.id == diningTableId }) {
+            reservation.table = PosReservationTableRefDto(
+                id: table.id,
+                tableNumber: table.tableNumber,
+                tableName: table.tableName
+            )
+        }
+        day.reservations[idx] = reservation
+        cache[ymd] = day
+        lastLoadedAtValue = Date()
+        let snapshot = cache
+        lock.unlock()
+        PosLocalStore.saveReservationsCache(snapshot)
+        return true
+    }
+
     /// Optimistic local insert (pending sync).
     func upsertLocalReservation(
         _ reservation: PosReservationDto,

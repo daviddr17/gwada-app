@@ -363,23 +363,17 @@ final class PosHubState: @unchecked Sendable {
             return .failure(.missingIdempotencyKey)
         }
 
-        lock.lock()
-        if let prior = consumedSeatIdempotency[idemKey] {
-            lock.unlock()
-            return .success(
-                .ok(
-                    tableSessionId: prior.sessionId,
-                    diningTableId: prior.tableId,
-                    idempotentReplay: true
-                )
-            )
+        if let replay = seatIdempotentReplayIfPresent(idemKey: idemKey) {
+            return .success(replay)
         }
-        lock.unlock()
 
         let rid = reservationId.trimmingCharacters(in: .whitespacesAndNewlines)
         let tid = diningTableId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !rid.isEmpty, !tid.isEmpty else {
+        guard !rid.isEmpty else {
             return .failure(.reservationNotFound)
+        }
+        guard !tid.isEmpty else {
+            return .failure(.tableNotFound)
         }
 
         let ymd: String = {
@@ -392,9 +386,17 @@ final class PosHubState: @unchecked Sendable {
         guard let day = PosReservationsStore.shared.cachedDay(ymd),
               let reservation = day.reservations.first(where: { $0.id == rid })
         else {
+            // Concurrent peer may have seated (and consumed this key) while we unlocked.
+            if let replay = seatIdempotentReplayIfPresent(idemKey: idemKey) {
+                return .success(replay)
+            }
             return .failure(.reservationNotFound)
         }
         guard PosReservationSeatPolicy.canSeat(statusCode: reservation.status?.code) else {
+            // Peer already seated same reservation with this key → replay, not .invalidStatus.
+            if let replay = seatIdempotentReplayIfPresent(idemKey: idemKey) {
+                return .success(replay)
+            }
             return .failure(.invalidStatus)
         }
 
@@ -419,6 +421,10 @@ final class PosHubState: @unchecked Sendable {
         }
         if bootstrap.floor.openSessions.contains(where: { $0.dining_table_id == tid }) {
             lock.unlock()
+            // Peer may have seated via this key onto the same table.
+            if let replay = seatIdempotentReplayIfPresent(idemKey: idemKey) {
+                return .success(replay)
+            }
             return .failure(.tableOccupied)
         }
 
@@ -447,6 +453,18 @@ final class PosHubState: @unchecked Sendable {
 
         return .success(
             .ok(tableSessionId: sessionId, diningTableId: tid, idempotentReplay: false)
+        )
+    }
+
+    /// Re-check consumed seat keys under lock (post-unlock race with concurrent peer).
+    private func seatIdempotentReplayIfPresent(idemKey: String) -> PosReservationSeatResult? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let prior = consumedSeatIdempotency[idemKey] else { return nil }
+        return .ok(
+            tableSessionId: prior.sessionId,
+            diningTableId: prior.tableId,
+            idempotentReplay: true
         )
     }
 

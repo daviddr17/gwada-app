@@ -107,6 +107,71 @@ final class PosReservationSeatTests: XCTestCase {
         XCTAssertEqual(sessions.count, 1)
     }
 
+    /// Sequential stand-in for concurrent peer race: reservation already seated + same key → replay
+    /// (not `.invalidStatus` from `canSeat` failing on `seated`).
+    func testSeat_alreadySeated_sameKey_idempotentReplay() {
+        let suffix = UUID().uuidString
+        let tableId = "seat-race-t-\(suffix)"
+        let resaId = "seat-race-r-\(suffix)"
+        let day = "2099-01-04"
+        let key = "seat-race-\(suffix)"
+        defer { cleanup(tableSessionOn: tableId, dayYmd: day) }
+
+        seedBootstrap(tableId: tableId)
+        seedConfirmedReservation(id: resaId, dayYmd: day, assignedTableId: tableId, floorTableId: tableId)
+
+        let first = PosHubState.shared.seatLocalReservation(
+            reservationId: resaId,
+            diningTableId: tableId,
+            coverCount: 2,
+            dayYmd: day,
+            idempotencyKey: key
+        )
+        guard case .success(.ok(let sessionId, _, let replay1)) = first else {
+            return XCTFail("\(first)")
+        }
+        XCTAssertFalse(replay1)
+
+        let seated = PosReservationsStore.shared.cachedDay(day)?
+            .reservations.first(where: { $0.id == resaId })
+        XCTAssertEqual(seated?.status?.code, "seated")
+
+        // Same key after peer already seated — must replay, not fail canSeat/.invalidStatus.
+        let second = PosHubState.shared.seatLocalReservation(
+            reservationId: resaId,
+            diningTableId: tableId,
+            coverCount: 2,
+            dayYmd: day,
+            idempotencyKey: key
+        )
+        guard case .success(.ok(let sessionId2, let table2, let replay2)) = second else {
+            return XCTFail("expected idempotentReplay, got \(second)")
+        }
+        XCTAssertTrue(replay2)
+        XCTAssertEqual(sessionId2, sessionId)
+        XCTAssertEqual(table2, tableId)
+    }
+
+    func testSeat_emptyTableId_tableNotFound() {
+        let suffix = UUID().uuidString
+        let tableId = "seat-empty-t-\(suffix)"
+        let resaId = "seat-empty-r-\(suffix)"
+        let day = "2099-01-05"
+        defer { cleanup(tableSessionOn: tableId, dayYmd: day) }
+
+        seedBootstrap(tableId: tableId)
+        seedConfirmedReservation(id: resaId, dayYmd: day, assignedTableId: nil, floorTableId: tableId)
+
+        let result = PosHubState.shared.seatLocalReservation(
+            reservationId: resaId,
+            diningTableId: "   ",
+            coverCount: 2,
+            dayYmd: day,
+            idempotencyKey: "seat-empty-\(suffix)"
+        )
+        XCTAssertEqual(result, .failure(.tableNotFound))
+    }
+
     // MARK: - Helpers
 
     private func cleanup(tableSessionOn tableId: String, dayYmd: String) {

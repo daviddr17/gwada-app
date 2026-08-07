@@ -38,35 +38,23 @@ export const MODULE_HOME_PATHS: Record<ModuleHomeId, string> = {
 };
 
 /**
- * Nach erstem KPI — häufigste Homes, gestaffelt.
- * Rest idle/später oder per Sidebar-Intent (kein Dashboard-Spike).
+ * Leichtes Idle-Prewarm auf Dashboard (nur wenn Nutzer bleibt).
+ * Kein Massen-Mount — sonst laggt Dashboard + Soft-Nav.
  */
-export const MODULE_HOME_PRIORITY_PREWARM_IDS: readonly ModuleHomeId[] = [
+export const MODULE_HOME_IDLE_PREWARM_IDS: readonly ModuleHomeId[] = [
   "menu",
-  "inventory",
   "reservierungen",
-  "nachrichten",
-  "mitarbeiter",
 ];
 
-/** Idle nach Priority — alle übrigen Sidebar-Homes. */
-export const MODULE_HOME_SECONDARY_PREWARM_IDS: readonly ModuleHomeId[] = [
-  "pos",
-  "events",
-  "news",
-  "bewertungen",
-  "insights",
-  "galerie",
-  "buchfuehrung",
-  "dokumente",
-  "checklisten",
-];
+/** Max. zusätzliche warme Homes neben Dashboard + aktuellem Home (LRU). */
+export const MODULE_HOME_MAX_EXTRA_WARM = 3;
 
-/** @deprecated Prefer PRIORITY + SECONDARY. */
-export const MODULE_HOME_PREWARM_IDS: readonly ModuleHomeId[] = [
-  ...MODULE_HOME_PRIORITY_PREWARM_IDS,
-  ...MODULE_HOME_SECONDARY_PREWARM_IDS,
-];
+/** @deprecated */
+export const MODULE_HOME_PRIORITY_PREWARM_IDS = MODULE_HOME_IDLE_PREWARM_IDS;
+/** @deprecated — Secondary nur noch per Intent. */
+export const MODULE_HOME_SECONDARY_PREWARM_IDS: readonly ModuleHomeId[] = [];
+/** @deprecated */
+export const MODULE_HOME_PREWARM_IDS = MODULE_HOME_IDLE_PREWARM_IDS;
 
 export const MODULE_HOME_IDS = Object.keys(
   MODULE_HOME_PATHS,
@@ -85,7 +73,6 @@ export function isModuleHomePath(
   if (id === "dashboard") return isDashboardHomePath(pathname);
   const path = normalizePath(pathname);
   if (path === MODULE_HOME_PATHS[id]) return true;
-  // Sidebar Events: /dashboard/events → Redirect-Home
   if (id === "events" && path === APP_ROUTES.events.root) return true;
   return false;
 }
@@ -106,18 +93,10 @@ export function isWarmModuleHomePending(
   return id != null && warmIds.has(id);
 }
 
-/**
- * Pflicht vor jedem router.push/replace in Keep-alive-Homes.
- * Warm + inactive bleibt gemountet — Navigation darf Soft-Nav nie zurückreißen.
- */
 export function keepAliveMayNavigate(active: boolean): boolean {
   return active === true;
 }
 
-/**
- * URL-Mutation nur auf dem eigenen Modul-Home (zusätzlich zu `active`).
- * Verhindert z. B. `?unconfirmed=1` auf `/dashboard/menu` nach Soft-Nav + Drawer-Close.
- */
 export function keepAliveOwnsPathname(
   active: boolean,
   pathname: string,

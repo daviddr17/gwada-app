@@ -143,7 +143,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     loadTriggers: [
       "AppNavLink / Sidebar-Klick (prefetch={false}, Intent-Warm on hover/focus)",
       "Keep-alive Homes: Dashboard, Reservierungen, Nachrichten",
-      "Pending-Overlay übersprungen wenn isModuleSoftNavDataReady",
+      "Pending-Overlay übersprungen bei warmem Keep-alive-Home (Preview)",
     ],
     invalidateTriggers: [
       "Zonenwechsel App ↔ Superadmin (Full-Load)",

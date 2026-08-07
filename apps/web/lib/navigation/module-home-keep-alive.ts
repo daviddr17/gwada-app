@@ -2,13 +2,31 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
 
 /** Module homes that stay warm under the App-Shell (hide, don't unmount). */
-export type ModuleHomeId = "dashboard" | "reservierungen" | "nachrichten";
+export type ModuleHomeId =
+  | "dashboard"
+  | "menu"
+  | "inventory"
+  | "reservierungen"
+  | "nachrichten"
+  | "mitarbeiter";
 
 export const MODULE_HOME_PATHS: Record<ModuleHomeId, string> = {
   dashboard: APP_ROUTES.dashboard,
+  menu: APP_ROUTES.menu.overview,
+  inventory: APP_ROUTES.inventory.overview,
   reservierungen: APP_ROUTES.reservierungen.overview,
   nachrichten: APP_ROUTES.kontakte.messages,
+  mitarbeiter: APP_ROUTES.mitarbeiter.overview,
 };
+
+/** Homes die nach Workspace-Ready vorgewärmt werden (erster Soft-Nav ohne Cold-Mount). */
+export const MODULE_HOME_PREWARM_IDS: readonly ModuleHomeId[] = [
+  "menu",
+  "inventory",
+  "reservierungen",
+  "nachrichten",
+  "mitarbeiter",
+];
 
 export const MODULE_HOME_IDS = Object.keys(
   MODULE_HOME_PATHS,

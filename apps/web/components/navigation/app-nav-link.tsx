@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   forwardRef,
-  startTransition,
   useCallback,
   type ComponentPropsWithoutRef,
   type FocusEvent,
@@ -142,11 +141,11 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
           }
           // Sofort Pending (Titel/Cover), dann explizit pushen.
           // Flight hängt nicht am <a> im Mobile-Sheet (Close/Unmount killt sonst Nav).
+          // Kein startTransition: sonst wartet der erste Soft-Nav hinter Dashboard-Stream
+          // (Transition = low priority) und fühlt sich 10–20s „hängend“ an.
           event.preventDefault();
           if (!tryAcquireNavLock(event, hrefStr)) return;
-          startTransition(() => {
-            router.push(hrefStr);
-          });
+          router.push(hrefStr);
         }}
       >
         {children}

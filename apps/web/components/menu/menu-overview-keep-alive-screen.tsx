@@ -1,10 +1,10 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 import { AppMain } from "@/components/layout/app-main";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
+import { MenuOverviewScreen } from "@/components/menu/menu-overview-screen";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
-import { isModuleHomePath } from "@/lib/navigation/module-home-keep-alive";
 
 const MENU_NAV: readonly ModuleSubnavItem[] = [
   {
@@ -35,23 +35,26 @@ const MENU_NAV: readonly ModuleSubnavItem[] = [
   },
 ];
 
-export default function MenuLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  const pathname = usePathname();
-  // Übersicht: Keep-alive unter App-Shell besitzt Chrome + Inhalt.
-  if (isModuleHomePath(pathname, "menu")) {
-    return null;
-  }
-
+/** Keep-alive Host für Speisekarte-Übersicht. */
+export function MenuOverviewKeepAliveScreen({
+  active,
+}: {
+  active: boolean;
+}) {
   return (
     <>
-      <RegisterModuleChrome
-        title="Speisekarte"
-        subnavAriaLabel="Speisekarten-Bereiche"
-        subnavItems={MENU_NAV}
-      />
-      <AppMain>{children}</AppMain>
+      {active ? (
+        <RegisterModuleChrome
+          title="Speisekarte"
+          subnavAriaLabel="Speisekarten-Bereiche"
+          subnavItems={MENU_NAV}
+        />
+      ) : null}
+      <AppMain>
+        <Suspense fallback={null}>
+          <MenuOverviewScreen active={active} />
+        </Suspense>
+      </AppMain>
     </>
   );
 }

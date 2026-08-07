@@ -33,6 +33,10 @@ import {
   localDayKey,
   startOfLocalDay,
 } from "@/lib/reservations/month-range";
+import {
+  keepAliveMayNavigate,
+  keepAliveOwnsPathname,
+} from "@/lib/navigation/module-home-keep-alive";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type {
   RestaurantStaffRow,
@@ -52,7 +56,7 @@ function formatEuro(cents: number): string {
   return formatStaffEuroCents(cents);
 }
 
-export function StaffOverviewScreen() {
+export function StaffOverviewScreen({ active = true }: { active?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -104,14 +108,16 @@ export function StaffOverviewScreen() {
   }, [invalidateStaffList, invalidateDayStats]);
 
   const clearStaffQueryParam = useCallback(() => {
+    if (!keepAliveMayNavigate(active)) return;
     const p = new URLSearchParams(searchParams.toString());
     if (!p.has("staff")) return;
     p.delete("staff");
     const q = p.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-  }, [searchParams, router, pathname]);
+  }, [active, searchParams, router, pathname]);
 
   useEffect(() => {
+    if (!keepAliveOwnsPathname(active, pathname, "mitarbeiter")) return;
     if (searchParams.get("new") !== "1") return;
     setFormMode("create");
     setEditStaff(null);
@@ -120,10 +126,11 @@ export function StaffOverviewScreen() {
     p.delete("new");
     const q = p.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-  }, [searchParams, router, pathname]);
+  }, [active, searchParams, router, pathname]);
 
   /** Glocke / Deep-Link: ?staff=<uuid> öffnet genau diesen Mitarbeiter. */
   useEffect(() => {
+    if (!keepAliveOwnsPathname(active, pathname, "mitarbeiter")) return;
     if (!staffIdFromUrl) {
       openedStaffFromUrlRef.current = null;
       return;
@@ -150,6 +157,8 @@ export function StaffOverviewScreen() {
     setFormOpen(true);
     clearStaffQueryParam();
   }, [
+    active,
+    pathname,
     staffIdFromUrl,
     staffListLoading,
     rows,

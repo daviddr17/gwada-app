@@ -74,6 +74,7 @@ import {
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
+import { keepAliveOwnsPathname } from "@/lib/navigation/module-home-keep-alive";
 import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import { useMenuStorage } from "@/lib/hooks/use-menu-storage";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
@@ -695,7 +696,7 @@ function InventoryTableUnitSelect({
   );
 }
 
-export function InventoryScreen() {
+export function InventoryScreen({ active = true }: { active?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -779,13 +780,14 @@ export function InventoryScreen() {
   );
 
   useEffect(() => {
+    if (!keepAliveOwnsPathname(active, pathname, "inventory")) return;
     if (searchParams.get("new") !== "1") return;
     setIngredientDrawerOpen(true);
     const p = new URLSearchParams(searchParams.toString());
     p.delete("new");
     const q = p.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-  }, [searchParams, router, pathname]);
+  }, [active, searchParams, router, pathname]);
 
   const storeFor = useCallback(
     (kind: InventoryTaxonomyKind): TaxonomyStore => {

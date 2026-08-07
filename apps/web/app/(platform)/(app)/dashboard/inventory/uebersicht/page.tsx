@@ -1,12 +1,6 @@
-"use client";
-
-import { Suspense } from "react";
-import { InventoryScreen } from "@/components/inventory/inventory-screen";
-
+/**
+ * UI liegt in {@link AppModuleHomeKeepAlives} (Bestand-Slot).
+ */
 export default function InventoryOverviewPage() {
-  return (
-    <Suspense fallback={null}>
-      <InventoryScreen />
-    </Suspense>
-  );
+  return null;
 }

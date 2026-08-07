@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
@@ -16,11 +17,16 @@ import {
 import {
   MODULE_HOME_IDS,
   MODULE_HOME_PATHS,
+  MODULE_HOME_PREWARM_IDS,
   isModuleHomePath,
   isWarmModuleHomePending,
   matchModuleHomeId,
   type ModuleHomeId,
 } from "@/lib/navigation/module-home-keep-alive";
+import { onDashboardFirstKpiReady } from "@/lib/dashboard/dashboard-first-kpi-ready";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
 export type ModuleHomeSlotState = {
   warm: boolean;
@@ -40,10 +46,16 @@ const ModuleHomeKeepAliveContext =
 function emptySlots(): Record<ModuleHomeId, boolean> {
   return {
     dashboard: false,
+    menu: false,
+    inventory: false,
     reservierungen: false,
     nachrichten: false,
+    mitarbeiter: false,
   };
 }
+
+/** Failsafe: Keep-alive Homes auch ohne KPI-Event vorwärmen. */
+const PREWARM_FAILSAFE_MS = 1_000;
 
 export function ModuleHomeKeepAliveProvider({
   children,
@@ -52,6 +64,7 @@ export function ModuleHomeKeepAliveProvider({
 }) {
   const pathname = usePathname();
   const { pendingHref } = useSoftNavLock();
+  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const activeHomeId = matchModuleHomeId(pathname);
   const [warmFlags, setWarmFlags] = useState(() => {
     const initial = emptySlots();
@@ -65,6 +78,59 @@ export function ModuleHomeKeepAliveProvider({
       prev[activeHomeId] ? prev : { ...prev, [activeHomeId]: true },
     );
   }, [activeHomeId]);
+
+  // Erster Soft-Nav: Slots schon gemountet + Daten warm — Preview ohne RSC-Wartezeit.
+  useEffect(() => {
+    if (
+      !workspaceReady ||
+      !restaurantId ||
+      !isUuidRestaurantId(restaurantId)
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    let prewarmStarted = false;
+    const timers: number[] = [];
+
+    const markPrewarmStaggered = () => {
+      if (cancelled || prewarmStarted) return;
+      prewarmStarted = true;
+      MODULE_HOME_PREWARM_IDS.forEach((id, index) => {
+        timers.push(
+          window.setTimeout(() => {
+            if (cancelled) return;
+            setWarmFlags((prev) =>
+              prev[id] ? prev : { ...prev, [id]: true },
+            );
+          }, index * 120),
+        );
+      });
+    };
+
+    if (!isDashboardHomePath(pathname)) {
+      markPrewarmStaggered();
+      return () => {
+        cancelled = true;
+        for (const id of timers) window.clearTimeout(id);
+      };
+    }
+
+    const unsub = onDashboardFirstKpiReady(
+      restaurantId,
+      markPrewarmStaggered,
+    );
+    const failsafe = window.setTimeout(
+      markPrewarmStaggered,
+      PREWARM_FAILSAFE_MS,
+    );
+    return () => {
+      cancelled = true;
+      unsub();
+      window.clearTimeout(failsafe);
+      for (const id of timers) window.clearTimeout(id);
+    };
+  }, [pathname, restaurantId, workspaceReady]);
 
   const pendingHomeId =
     pendingHref != null ? matchModuleHomeId(pendingHref) : null;

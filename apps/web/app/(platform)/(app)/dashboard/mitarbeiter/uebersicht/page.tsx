@@ -1,12 +1,6 @@
-"use client";
-
-import { Suspense } from "react";
-import { StaffOverviewScreen } from "@/components/staff/staff-overview-screen";
-
+/**
+ * UI liegt in {@link AppModuleHomeKeepAlives} (Mitarbeiter-Slot).
+ */
 export default function MitarbeiterUebersichtPage() {
-  return (
-    <Suspense fallback={null}>
-      <StaffOverviewScreen />
-    </Suspense>
-  );
+  return null;
 }

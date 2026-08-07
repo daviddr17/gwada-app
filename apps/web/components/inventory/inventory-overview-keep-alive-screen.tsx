@@ -1,11 +1,11 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { Suspense } from "react";
+import { InventoryScreen } from "@/components/inventory/inventory-screen";
 import { InventoryVoiceFabRoute } from "@/components/inventory/inventory-voice-fab-route";
 import { AppMain } from "@/components/layout/app-main";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
-import { isModuleHomePath } from "@/lib/navigation/module-home-keep-alive";
 
 const INVENTORY_NAV: readonly ModuleSubnavItem[] = [
   {
@@ -27,24 +27,27 @@ const INVENTORY_NAV: readonly ModuleSubnavItem[] = [
   },
 ];
 
-export default function InventoryLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  const pathname = usePathname();
-  // Übersicht: Keep-alive unter App-Shell besitzt Chrome + Inhalt.
-  if (isModuleHomePath(pathname, "inventory")) {
-    return null;
-  }
-
+/** Keep-alive Host für Bestand-Übersicht. */
+export function InventoryOverviewKeepAliveScreen({
+  active,
+}: {
+  active: boolean;
+}) {
   return (
     <>
-      <RegisterModuleChrome
-        title="Bestand"
-        subnavAriaLabel="Bestand-Bereiche"
-        subnavItems={INVENTORY_NAV}
-      />
-      <AppMain>{children}</AppMain>
-      <InventoryVoiceFabRoute />
+      {active ? (
+        <RegisterModuleChrome
+          title="Bestand"
+          subnavAriaLabel="Bestand-Bereiche"
+          subnavItems={INVENTORY_NAV}
+        />
+      ) : null}
+      <AppMain>
+        <Suspense fallback={null}>
+          <InventoryScreen active={active} />
+        </Suspense>
+      </AppMain>
+      {active ? <InventoryVoiceFabRoute /> : null}
     </>
   );
 }

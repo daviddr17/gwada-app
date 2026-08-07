@@ -9,6 +9,7 @@ import { StaffModuleStickyBar } from "@/components/staff/staff-module-sticky-bar
 import { StaffModuleSelectionProvider } from "@/lib/contexts/staff-module-selection-context";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { isModuleHomePath } from "@/lib/navigation/module-home-keep-alive";
 import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 
@@ -65,6 +66,11 @@ function MitarbeiterLayoutInner({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
     pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten") ||
     pathname.startsWith("/dashboard/mitarbeiter/export");
+
+  // Übersicht: Keep-alive unter App-Shell besitzt Chrome + Inhalt.
+  if (isModuleHomePath(pathname, "mitarbeiter")) {
+    return null;
+  }
 
   if (!permissionsLoading && !canRead) {
     return (

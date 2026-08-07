@@ -81,18 +81,47 @@ export async function loadDashboardReviewsSummary(
   userId: string,
   sb: SupabaseClient,
 ): Promise<DashboardReviewsSummary> {
-  const { data: gwadaRows, count: gwadaCountRaw } = await sb
-    .from("gwada_reviews")
-    .select(
-      "id, rating, comment, guest_display_name, created_at, reservation_id, invitation_id",
-      { count: "exact" },
-    )
-    .eq("restaurant_id", restaurantId)
-    .order("created_at", { ascending: false })
-    .limit(500);
+  // Recent (voll) + Ratings-Sample (schlank) parallel — kein 500er Full-Row-Payload.
+  const [
+    gwadaRecentResult,
+    gwadaRatingsResult,
+    googleIntegration,
+    facebookIntegration,
+    tripadvisorIntegration,
+    cachedFeed,
+    platformFlags,
+  ] = await Promise.all([
+    sb
+      .from("gwada_reviews")
+      .select(
+        "id, rating, comment, guest_display_name, created_at, reservation_id, invitation_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    sb
+      .from("gwada_reviews")
+      .select("rating", { count: "exact" })
+      .eq("restaurant_id", restaurantId)
+      .order("created_at", { ascending: false })
+      .limit(500),
+    fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
+      oauthConfigFromJson(raw),
+    ),
+    fetchRestaurantOAuthIntegrationAdmin(restaurantId, "facebook", (raw) =>
+      oauthConfigFromJson(raw),
+    ),
+    fetchRestaurantTripadvisorConfigAdmin(restaurantId),
+    readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook", "tripadvisor"]),
+    fetchReviewPlatformMessagingFlags(sb),
+  ]);
 
-  const gwadaAll = gwadaRows ?? [];
-  const gwadaRecentRows = gwadaAll.slice(0, 8);
+  const gwadaRecentRows = gwadaRecentResult.data ?? [];
+  const gwadaRatingRows = gwadaRatingsResult.data ?? [];
+  const gwadaCount = gwadaRatingsResult.count ?? gwadaRatingRows.length;
+  const gwadaAvg = averageRating(
+    gwadaRatingRows.map((r) => ({ rating: Number(r.rating) })),
+  );
 
   const admin = createSupabaseAdminClient();
   const contactByReviewId =
@@ -121,23 +150,6 @@ export async function loadDashboardReviewsSummary(
     contactId: contactByReviewId.get(r.id as string) ?? null,
   }));
 
-  const gwadaCount = gwadaCountRaw ?? gwadaAll.length;
-  const gwadaAvg = averageRating(
-    gwadaAll.map((r) => ({ rating: Number(r.rating) })),
-  );
-
-  const [googleIntegration, facebookIntegration, tripadvisorIntegration, cachedFeed, platformFlags] =
-    await Promise.all([
-      fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
-        oauthConfigFromJson(raw),
-      ),
-      fetchRestaurantOAuthIntegrationAdmin(restaurantId, "facebook", (raw) =>
-        oauthConfigFromJson(raw),
-      ),
-      fetchRestaurantTripadvisorConfigAdmin(restaurantId),
-      readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook", "tripadvisor"]),
-      fetchReviewPlatformMessagingFlags(sb),
-    ]);
 
   const googleIntegrationOk = googleIntegration?.status === "working";
   const facebookIntegrationOk = facebookIntegration?.status === "working";

@@ -16,6 +16,7 @@ import type {
 } from "@/lib/types/staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/** Dashboard-KPI/Sheets — ohne Adress-/Vertrags-Joins der Mitarbeiterliste. */
 const STAFF_SELECT = `
   id,
   restaurant_id,
@@ -26,14 +27,6 @@ const STAFF_SELECT = `
   given_name,
   family_name,
   birth_date,
-  nationality,
-  address_line1,
-  address_line2,
-  postal_code,
-  city,
-  country,
-  email,
-  phone,
   is_active,
   avatar_storage_path,
   created_at,
@@ -43,26 +36,11 @@ const STAFF_SELECT = `
     background_color,
     is_active
   ),
-  restaurant_position:restaurant_positions (
-    id,
-    name,
-    slug
-  ),
   linked_profile:profiles!profile_id (
     given_name,
     family_name,
     display_name,
     last_seen_at
-  ),
-  linked_employee:restaurant_employees!employee_id (
-    id,
-    role,
-    is_active,
-    restaurant_position:restaurant_positions!position_id (
-      id,
-      name,
-      slug
-    )
   )
 `;
 
@@ -72,11 +50,6 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
     | { id: string; name: string; background_color: string; is_active: boolean }[]
     | null;
   const tagOne = Array.isArray(tagRaw) ? (tagRaw[0] ?? null) : tagRaw;
-  const posRaw = r.restaurant_position as
-    | { id: string; name: string; slug: string }
-    | { id: string; name: string; slug: string }[]
-    | null;
-  const posOne = Array.isArray(posRaw) ? (posRaw[0] ?? null) : posRaw;
   const profileRaw = r.linked_profile as
     | {
         given_name: string | null;
@@ -92,29 +65,6 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
       }[]
     | null;
   const profileOne = Array.isArray(profileRaw) ? (profileRaw[0] ?? null) : profileRaw;
-  const empRaw = r.linked_employee as
-    | {
-        id: string;
-        role: string;
-        is_active: boolean;
-        restaurant_position:
-          | { id: string; name: string; slug: string }
-          | { id: string; name: string; slug: string }[]
-          | null;
-      }
-    | {
-        id: string;
-        role: string;
-        is_active: boolean;
-        restaurant_position:
-          | { id: string; name: string; slug: string }
-          | { id: string; name: string; slug: string }[]
-          | null;
-      }[]
-    | null;
-  const empOne = Array.isArray(empRaw) ? (empRaw[0] ?? null) : empRaw;
-  const empPosRaw = empOne?.restaurant_position;
-  const empPosOne = Array.isArray(empPosRaw) ? (empPosRaw[0] ?? null) : (empPosRaw ?? null);
 
   return {
     id: r.id as string,
@@ -126,14 +76,14 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
     given_name: r.given_name as string,
     family_name: r.family_name as string,
     birth_date: (r.birth_date as string | null) ?? null,
-    nationality: (r.nationality as string | null) ?? null,
-    address_line1: (r.address_line1 as string | null) ?? null,
-    address_line2: (r.address_line2 as string | null) ?? null,
-    postal_code: (r.postal_code as string | null) ?? null,
-    city: (r.city as string | null) ?? null,
-    country: (r.country as string | null) ?? null,
-    email: (r.email as string | null) ?? null,
-    phone: (r.phone as string | null) ?? null,
+    nationality: null,
+    address_line1: null,
+    address_line2: null,
+    postal_code: null,
+    city: null,
+    country: null,
+    email: null,
+    phone: null,
     is_active: Boolean(r.is_active),
     avatar_storage_path: (r.avatar_storage_path as string | null) ?? null,
     created_at: r.created_at as string,
@@ -146,9 +96,7 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
           is_active: tagOne.is_active,
         }
       : null,
-    restaurant_position: posOne
-      ? { id: posOne.id, name: posOne.name, slug: posOne.slug }
-      : null,
+    restaurant_position: null,
     linked_profile: profileOne
       ? {
           given_name: profileOne.given_name,
@@ -157,20 +105,7 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
           last_seen_at: profileOne.last_seen_at ?? null,
         }
       : null,
-    linked_employee: empOne
-      ? {
-          id: empOne.id,
-          role: empOne.role,
-          is_active: empOne.is_active,
-          restaurant_position: empPosOne
-            ? {
-                id: empPosOne.id,
-                name: empPosOne.name,
-                slug: empPosOne.slug,
-              }
-            : null,
-        }
-      : null,
+    linked_employee: null,
   };
 }
 
@@ -337,25 +272,29 @@ export async function loadDashboardStaffSummaryServer(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<DashboardStaffSummaryPayload> {
-  const { data: staffRows, error: staffErr } = await sb
-    .from("restaurant_staff")
-    .select(STAFF_SELECT)
-    .eq("restaurant_id", restaurantId)
-    .order("family_name", { ascending: true })
-    .order("given_name", { ascending: true });
+  const [staffResult, timeZone, presence, contracts] = await Promise.all([
+    sb
+      .from("restaurant_staff")
+      .select(STAFF_SELECT)
+      .eq("restaurant_id", restaurantId)
+      .order("family_name", { ascending: true })
+      .order("given_name", { ascending: true }),
+    fetchRestaurantTimezoneServer(sb, restaurantId),
+    fetchStaffLivePresenceServer(sb, restaurantId),
+    fetchStaffContractsForWageServer(sb, restaurantId),
+  ]);
 
-  if (staffErr) throw new Error(staffErr.message);
+  if (staffResult.error) throw new Error(staffResult.error.message);
 
-  const staff = (staffRows ?? []).map((r) =>
+  const staff = (staffResult.data ?? []).map((r) =>
     mapStaffRow(r as Record<string, unknown>),
   );
 
-  const timeZone = await fetchRestaurantTimezoneServer(sb, restaurantId);
-  const [presence, todayEntries, contracts] = await Promise.all([
-    fetchStaffLivePresenceServer(sb, restaurantId),
-    fetchStaffWorkEntriesTodayServer(sb, restaurantId, timeZone),
-    fetchStaffContractsForWageServer(sb, restaurantId),
-  ]);
+  const todayEntries = await fetchStaffWorkEntriesTodayServer(
+    sb,
+    restaurantId,
+    timeZone,
+  );
 
   const dayYmd = restaurantTodayYmd(timeZone);
   const wageBreakdown = computeStaffDayWageBreakdown({

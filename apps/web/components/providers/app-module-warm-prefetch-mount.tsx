@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
   prefetchCriticalModuleQueries,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/hooks/app-module-warm-prefetch";
 import { prefetchAppModuleQueryCaches } from "@/lib/hooks/app-module-query-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { APP_MODULE_PREFETCH_ROUTES } from "@/lib/navigation/app-module-route-prefetch";
 import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
@@ -20,6 +21,8 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
 const ROUTE_PREFETCH_STAGGER_MS = 40;
+/** Auf Dashboard-Home: Batch zuerst — Staff/Reservierungen-Warm nicht parallel kämpfen lassen. */
+const CRITICAL_WARM_AFTER_DASHBOARD_BATCH_MS = 2_800;
 
 /**
  * Workspace ready → Full-Route-Prefetch sofort, kritische Modul-Daten kurz danach.
@@ -29,6 +32,7 @@ const ROUTE_PREFETCH_STAGGER_MS = 40;
 export function AppModuleWarmPrefetchMount() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const pathname = usePathname();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const warmedForRef = useRef<string | null>(null);
 
@@ -49,18 +53,25 @@ export function AppModuleWarmPrefetchMount() {
       prefetchAppModuleHref(router, route);
     }
 
-    // Kritische Daten sofort anstoßen — nicht hinter Dashboard-Batch warten.
-    prefetchCriticalModuleQueries(queryClient, restaurantId);
+    const deferCriticalForDashboard = isDashboardHomePath(pathname);
+    if (deferCriticalForDashboard) {
+      // Cold-Start auf /dashboard: Batch (Heute-KPIs) hat Vorrang vor Modul-Warm.
+      runWhenIdle(() => {
+        prefetchCriticalModuleQueries(queryClient, restaurantId);
+      }, CRITICAL_WARM_AFTER_DASHBOARD_BATCH_MS);
+    } else {
+      prefetchCriticalModuleQueries(queryClient, restaurantId);
+    }
 
     // Speisekarte/Bestand/… — Daten vor dem ersten Tap (kein Hover auf Touch).
     runWhenIdle(() => {
       prefetchAppModuleQueryCaches(queryClient, restaurantId);
       warmPriorityModuleDataCaches(queryClient, restaurantId);
-    }, 150);
+    }, deferCriticalForDashboard ? 1_200 : 150);
 
     runWhenIdle(() => {
       warmAppModuleSecondaryCaches(queryClient, restaurantId);
-    }, 900);
+    }, deferCriticalForDashboard ? 2_000 : 900);
 
     // Restliche Module FULL-prefetchen.
     runWhenIdle(() => {
@@ -72,8 +83,8 @@ export function AppModuleWarmPrefetchMount() {
         }, index * ROUTE_PREFETCH_STAGGER_MS);
         index += 1;
       }
-    }, 400);
-  }, [queryClient, restaurantId, router, workspaceReady]);
+    }, deferCriticalForDashboard ? 900 : 400);
+  }, [queryClient, pathname, restaurantId, router, workspaceReady]);
 
   return null;
 }

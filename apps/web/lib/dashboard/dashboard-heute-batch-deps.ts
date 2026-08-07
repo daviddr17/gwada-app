@@ -9,13 +9,15 @@ import {
 } from "@/lib/permissions/dashboard-widget-permissions";
 import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
 
-/** Batch-Daten für das Heute-Widget (auch wenn Einzel-Widgets ausgeblendet sind). */
+/**
+ * Batch-Daten für das Heute-Widget (auch wenn Einzel-Widgets ausgeblendet sind).
+ * Ohne reviews — Heute nutzt Reviews nicht; spart Cold-Start-Latenz.
+ */
 export const DASHBOARD_HEUTE_BATCH_WIDGET_IDS = [
   "reservations",
   "staff",
   "messages",
   "inventory",
-  "reviews",
 ] as const satisfies readonly DashboardBatchWidgetId[];
 
 export function resolveDashboardBatchWidgetIds(

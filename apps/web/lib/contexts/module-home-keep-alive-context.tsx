@@ -93,6 +93,8 @@ export function ModuleHomeKeepAliveProvider({
     if (activeHomeId) initial[activeHomeId] = true;
     return initial;
   });
+  const warmFlagsRef = useRef(warmFlags);
+  warmFlagsRef.current = warmFlags;
   /** LRU-Reihenfolge der Extra-Homes (älteste zuerst). */
   const warmOrderRef = useRef<ModuleHomeId[]>([]);
 
@@ -104,6 +106,14 @@ export function ModuleHomeKeepAliveProvider({
       if (active) protectedIds.add(active);
       if (pending) protectedIds.add(pending);
 
+      // Schon warm und keine Eviction nötig → nur LRU anfassen, kein Re-Render.
+      if (prev[id]) {
+        let order = warmOrderRef.current.filter((x) => x !== id);
+        order.push(id);
+        warmOrderRef.current = order;
+        return prev;
+      }
+
       const next = { ...prev, [id]: true };
       if (active) next[active] = true;
       if (pending) next[pending] = true;
@@ -111,7 +121,6 @@ export function ModuleHomeKeepAliveProvider({
       let order = warmOrderRef.current.filter((x) => x !== id);
       order.push(id);
 
-      // Evict älteste nicht-geschützte Homes über dem Cap.
       const extras = order.filter((x) => !protectedIds.has(x) && next[x]);
       while (extras.length > MODULE_HOME_MAX_EXTRA_WARM) {
         const evict = extras.shift();
@@ -125,11 +134,14 @@ export function ModuleHomeKeepAliveProvider({
     });
   }, []);
 
-  const ensureModuleHomeWarm = useCallback(
+  const warmModuleHomeSync = useCallback(
     (id: ModuleHomeId) => {
       if (id === "dashboard") return;
-      // Nur Intent: ein Slot sync mounten — Preview ohne RSC-Wartezeit.
-      // Kein Bulk-Prewarm mit flushSync (das laggt).
+      // Bereits warm: kein flushSync (Ping-Pong / Rapid-Clicks sonst Main-Thread-Jank).
+      if (warmFlagsRef.current[id]) {
+        applyWarmFlags(id);
+        return;
+      }
       flushSync(() => {
         applyWarmFlags(id);
       });
@@ -137,20 +149,22 @@ export function ModuleHomeKeepAliveProvider({
     [applyWarmFlags],
   );
 
+  const ensureModuleHomeWarm = useCallback(
+    (id: ModuleHomeId) => {
+      warmModuleHomeSync(id);
+    },
+    [warmModuleHomeSync],
+  );
+
   useLayoutEffect(() => {
     if (!activeHomeId) return;
     applyWarmFlags(activeHomeId);
   }, [activeHomeId, applyWarmFlags]);
 
-  // Sidebar Intent: sync Preview (ein Modul), nicht Massen-Mount.
+  // Sidebar Intent: sync nur beim ersten Mount des Ziel-Moduls.
   useEffect(
-    () =>
-      onModuleHomeWarmIntent((id) => {
-        flushSync(() => {
-          applyWarmFlags(id);
-        });
-      }),
-    [applyWarmFlags],
+    () => onModuleHomeWarmIntent((id) => warmModuleHomeSync(id)),
+    [warmModuleHomeSync],
   );
 
   // Nur 1–2 Homes, sehr spät, nur solange Nutzer auf Dashboard bleibt.

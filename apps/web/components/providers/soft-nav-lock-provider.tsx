@@ -29,8 +29,8 @@ type SoftNavLockValue = {
 
 const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
 
-const PENDING_CLEAR_FAILSAFE_MS = 8_000;
-const PENDING_RETRY_EXTRA_MS = 4_000;
+const PENDING_CLEAR_FAILSAFE_MS = 3_500;
+const PENDING_RETRY_EXTRA_MS = 2_500;
 
 export function normalizeNavHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;

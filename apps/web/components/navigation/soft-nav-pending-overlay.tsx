@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useLayoutEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppMain } from "@/components/layout/app-main";
 import { AccountingListScreenSkeleton } from "@/components/accounting/accounting-list-screen-skeleton";
 import { DocumentsOverviewTableSkeleton } from "@/components/documents/documents-overview-skeleton";
@@ -23,6 +24,8 @@ import { useAppModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useModuleHomeKeepAliveOptional } from "@/lib/contexts/module-home-keep-alive-context";
 import { SIDEBAR_MODULE_DEFINITIONS } from "@/lib/constants/sidebar-modules";
 import { ContactConversationsListSkeleton } from "@/components/contacts/contact-conversations-list-skeleton";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { isModuleSoftNavDataReady } from "@/lib/navigation/module-soft-nav-data-ready";
 
 /**
  * Sofortiges Modul-Skeleton über dem Scroll-Bereich — Sibling zu {children},
@@ -86,6 +89,8 @@ function titleForHref(href: string): string | null {
 
 export function SoftNavPendingOverlay() {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
+  const { restaurantId } = useWorkspaceRestaurantUuid();
   const { pendingHref } = useSoftNavLock();
   const { setChrome } = useAppModuleChrome();
   const moduleKeepAlive = useModuleHomeKeepAliveOptional();
@@ -136,8 +141,18 @@ export function SoftNavPendingOverlay() {
   }, [pendingInFlight, pendingHref, pathname, setChrome]);
 
   // Warm-Home-Keep-alive previewt das Ziel selbst — kein Cover nötig.
-  // Sonst immer Modul-Skeleton decken (nie leeres Weiß).
   if (!pendingInFlight || !pendingHref || pendingToWarmHome) {
+    return null;
+  }
+
+  // Cache warm + FULL-Prefetch: kein Overlay (Titel wechselt schon, Flight ~instant).
+  // Cache kalt: Modul-Skeleton bis Paint — sonst wirkt der Wechsel 3–5s „hängend“.
+  const dataReady = isModuleSoftNavDataReady(
+    pendingHref,
+    restaurantId,
+    queryClient,
+  );
+  if (dataReady) {
     return null;
   }
 

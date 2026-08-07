@@ -94,7 +94,7 @@ export const MODULE_CACHE_STRATEGY_META: Record<
 /**
  * App-Zone-Ladereihenfolge (für Superadmin-Flow-Diagramm).
  * Dashboard-Batch streamt Widgets als NDJSON (Time-to-first-KPI).
- * Auf /dashboard: kritisches Modul-Warm verzögert. Inbox-Warm skip wenn Batch < 30s.
+ * FULL-Routes sofort; API-Warm nach erstem KPI-Event (Failsafe ~0.9s). Inbox-Warm skip nur bei warmem Cache.
  */
 export const DASHBOARD_LOAD_FLOW_STEP_IDS = [
   "workspaceRestaurant",
@@ -169,12 +169,13 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     strategy: "stale-while-revalidate",
     staleTimeMs: 5 * 60_000,
     description:
-      "Nach Workspace ready: sessionStorage → React Query seed, FULL-Route-Prefetch (Priority), kritische Queries, Idle-Warm für Speisekarte/Bestand/Feeds. Auf Dashboard-Home wird kritischer Warm (~2.8s) verzögert, damit der Batch-KPI-Fetch nicht konkurriert. Intent-Prefetch zusätzlich bei Sidebar-Hover/Tap.",
+      "Nach Workspace ready: sessionStorage → React Query seed, alle Sidebar FULL-Routes sofort (Top-5 zuerst). Modul-API-Daten nach erstem Dashboard-KPI (oder sofort wenn Batch-Cache warm / nicht auf /dashboard). Intent-Prefetch bei Sidebar-Hover/Tap.",
     loadTriggers: [
       "AppModuleWarmPrefetchMount (einmal pro Restaurant)",
-      "Idle 150ms (bzw. 1.2s auf /dashboard): menu/inventory RQ + Priority-Warm",
-      "Idle 900ms (bzw. 2s auf /dashboard): Secondary-Warm",
-      "Idle 400ms (bzw. 900ms auf /dashboard): restliche Routes FULL-prefetch (stagger)",
+      "FULL-Prefetch: APP_MODULE_PRIORITY_ROUTES sofort",
+      "notifyDashboardFirstKpiReady → critical + menu/inventory + Priority-Daten",
+      "Failsafe 0.9s auf /dashboard ohne KPI-Event",
+      "Idle danach: Secondary-Warm + Nested-Routes FULL",
       "Sidebar hover/focus → warmModuleRouteIntent",
     ],
     invalidateTriggers: [

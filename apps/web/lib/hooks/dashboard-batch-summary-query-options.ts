@@ -7,6 +7,7 @@ import {
   peekDashboardBatchSummaryCache,
   writeDashboardBatchSummaryCache,
 } from "@/lib/dashboard/dashboard-batch-summary-cache";
+import { notifyDashboardFirstKpiReady } from "@/lib/dashboard/dashboard-first-kpi-ready";
 import { fetchDashboardBatchSummaryClient } from "@/lib/dashboard/fetch-dashboard-batch-summary-client";
 import {
   DASHBOARD_SUMMARY_GC_MS,
@@ -82,6 +83,7 @@ export function dashboardBatchSummaryQueryOptions(
     }): Promise<DashboardBatchQueryData> => {
       const { client } = ctx;
       const queryKey = queryKeys.dashboard.summary(restaurantId, widgets);
+      let firstKpiNotified = false;
 
       const publish = (payload: DashboardBatchQueryData): DashboardBatchQueryData => {
         const existing = client.getQueryData(queryKey);
@@ -95,6 +97,10 @@ export function dashboardBatchSummaryQueryOptions(
         );
         client.setQueryData(queryKey, reconciled);
         writeDashboardBatchSummaryCache(restaurantId, widgets, reconciled);
+        if (!firstKpiNotified && Object.keys(reconciled.data).length > 0) {
+          firstKpiNotified = true;
+          notifyDashboardFirstKpiReady(restaurantId);
+        }
         return reconciled;
       };
 

@@ -169,13 +169,13 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     strategy: "stale-while-revalidate",
     staleTimeMs: 5 * 60_000,
     description:
-      "Nach Workspace ready: sessionStorage → React Query seed, alle Sidebar FULL-Routes sofort (Top-5 zuerst). Modul-API-Daten nach erstem Dashboard-KPI (oder sofort wenn Batch-Cache warm / nicht auf /dashboard). Intent-Prefetch bei Sidebar-Hover/Tap.",
+      "Nach Workspace ready: sessionStorage → React Query seed, Sidebar FULL-Routes gestaffelt (Top-5 zuerst, ~40ms). Modul-API-Daten nach erstem Dashboard-KPI (oder sofort wenn Batch-Cache warm / nicht auf /dashboard). Soft-Nav bricht Warm nicht ab. Intent-Prefetch bei Sidebar-Hover/Tap.",
     loadTriggers: [
-      "AppModuleWarmPrefetchMount (einmal pro Restaurant)",
-      "FULL-Prefetch: APP_MODULE_PRIORITY_ROUTES sofort",
+      "AppModuleWarmPrefetchMount (einmal pro Restaurant, zwei Effects)",
+      "FULL-Prefetch gestaffelt: Top-5 → Priority → Nested",
       "notifyDashboardFirstKpiReady → critical + menu/inventory + Priority-Daten",
       "Failsafe 0.9s auf /dashboard ohne KPI-Event",
-      "Idle danach: Secondary-Warm + Nested-Routes FULL",
+      "Idle ~200ms: Secondary-Warm (News/Reviews/…)",
       "Sidebar hover/focus → warmModuleRouteIntent",
     ],
     invalidateTriggers: [

@@ -26,40 +26,93 @@ const ROUTE_PREFETCH_STAGGER_MS = 40;
 const DASHBOARD_WARM_FAILSAFE_MS = 900;
 
 /**
- * Workspace ready → alle Sidebar-Routes FULL sofort (RSC vor erstem Tap).
- * Modul-API-Warm nach erstem Dashboard-KPI (oder sofort wenn Batch warm / nicht /dashboard),
- * damit der Stream nicht gegen Staff/Menu/Inbox kämpft.
+ * Workspace ready → Sidebar FULL gestaffelt (RSC vor erstem Tap).
+ * Modul-API-Warm nach erstem Dashboard-KPI (oder sofort wenn Batch warm / nicht /dashboard).
+ * Soft-Nav darf den Warm nicht abbrechen (kein cancel bei Pathname-Wechsel).
  */
 export function AppModuleWarmPrefetchMount() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const warmedForRef = useRef<string | null>(null);
+  const routesWarmedForRef = useRef<string | null>(null);
+  const dataWarmedForRef = useRef<string | null>(null);
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
 
+  // FULL-Routes einmal pro Restaurant — überlebt Soft-Nav.
   useEffect(() => {
     if (
       !workspaceReady ||
       !restaurantId ||
       !isUuidRestaurantId(restaurantId) ||
-      warmedForRef.current === restaurantId
+      routesWarmedForRef.current === restaurantId
     ) {
       return;
     }
-    warmedForRef.current = restaurantId;
+    routesWarmedForRef.current = restaurantId;
 
-    seedPriorityModuleQueryCaches(queryClient, restaurantId);
-
-    // FULL-RSC konkurriert kaum mit Batch-API — sofort alle Priority-Module.
-    // Top-5 zuerst (gleiche Tick-Reihenfolge), dann restliche Sidebar.
+    const timers: number[] = [];
     const immediateFull = new Set<string>(APP_MODULE_IMMEDIATE_FULL_ROUTES);
+    let fullIndex = 0;
+
+    const scheduleFull = (route: string) => {
+      const delay = fullIndex * ROUTE_PREFETCH_STAGGER_MS;
+      fullIndex += 1;
+      timers.push(
+        window.setTimeout(() => {
+          prefetchAppModuleHref(router, route);
+        }, delay),
+      );
+    };
+
     for (const route of APP_MODULE_IMMEDIATE_FULL_ROUTES) {
-      prefetchAppModuleHref(router, route);
+      scheduleFull(route);
     }
     for (const route of APP_MODULE_PRIORITY_ROUTES) {
       if (immediateFull.has(route)) continue;
-      prefetchAppModuleHref(router, route);
+      scheduleFull(route);
     }
+
+    // Nested / Settings-Routen nach Sidebar.
+    const seen = new Set<string>([
+      ...APP_MODULE_IMMEDIATE_FULL_ROUTES,
+      ...APP_MODULE_PRIORITY_ROUTES,
+    ]);
+    let nestedIndex = 0;
+    for (const route of APP_MODULE_PREFETCH_ROUTES) {
+      if (seen.has(route)) continue;
+      seen.add(route);
+      const delay = fullIndex * ROUTE_PREFETCH_STAGGER_MS + nestedIndex * ROUTE_PREFETCH_STAGGER_MS;
+      nestedIndex += 1;
+      timers.push(
+        window.setTimeout(() => {
+          prefetchAppModuleHref(router, route);
+        }, delay),
+      );
+    }
+
+    return () => {
+      for (const id of timers) window.clearTimeout(id);
+      if (routesWarmedForRef.current === restaurantId) {
+        routesWarmedForRef.current = null;
+      }
+    };
+  }, [queryClient, restaurantId, router, workspaceReady]);
+
+  // API-Daten einmal pro Restaurant — KPI-gated, Soft-Nav bricht nicht ab.
+  useEffect(() => {
+    if (
+      !workspaceReady ||
+      !restaurantId ||
+      !isUuidRestaurantId(restaurantId) ||
+      dataWarmedForRef.current === restaurantId
+    ) {
+      return;
+    }
+    dataWarmedForRef.current = restaurantId;
+
+    seedPriorityModuleQueryCaches(queryClient, restaurantId);
 
     let cancelled = false;
     let warmStarted = false;
@@ -79,28 +132,10 @@ export function AppModuleWarmPrefetchMount() {
       runWhenIdle(() => {
         if (cancelled) return;
         warmAppModuleSecondaryCaches(queryClient, restaurantId);
-      }, 350);
-
-      runWhenIdle(() => {
-        if (cancelled) return;
-        const seen = new Set<string>([
-          ...APP_MODULE_IMMEDIATE_FULL_ROUTES,
-          ...APP_MODULE_PRIORITY_ROUTES,
-        ]);
-        let index = 0;
-        for (const route of APP_MODULE_PREFETCH_ROUTES) {
-          if (seen.has(route)) continue;
-          seen.add(route);
-          window.setTimeout(() => {
-            if (cancelled) return;
-            prefetchAppModuleHref(router, route);
-          }, index * ROUTE_PREFETCH_STAGGER_MS);
-          index += 1;
-        }
-      }, 120);
+      }, 200);
     };
 
-    const onDashboard = isDashboardHomePath(pathname);
+    const onDashboard = isDashboardHomePath(pathnameRef.current);
     const hasCachedKpis = Boolean(
       peekDashboardBatchSummaryCache(restaurantId, []),
     );
@@ -113,10 +148,12 @@ export function AppModuleWarmPrefetchMount() {
       }
       return () => {
         cancelled = true;
+        if (dataWarmedForRef.current === restaurantId) {
+          dataWarmedForRef.current = null;
+        }
       };
     }
 
-    // Dashboard Cold-Start: erstes Stream-KPI → dann warm (Batch behält Head-Start).
     const unsub = onDashboardFirstKpiReady(restaurantId, startModuleWarm);
     const failsafe = window.setTimeout(
       startModuleWarm,
@@ -127,8 +164,11 @@ export function AppModuleWarmPrefetchMount() {
       cancelled = true;
       unsub();
       window.clearTimeout(failsafe);
+      if (dataWarmedForRef.current === restaurantId) {
+        dataWarmedForRef.current = null;
+      }
     };
-  }, [queryClient, pathname, restaurantId, router, workspaceReady]);
+  }, [queryClient, restaurantId, workspaceReady]);
 
   return null;
 }

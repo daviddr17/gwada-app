@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, FileText } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useMyRestaurantStaff } from "@/lib/hooks/use-my-restaurant-staff";
 import { useStaffProfileVisibility } from "@/lib/hooks/use-staff-profile-visibility";
@@ -43,24 +44,26 @@ export function ProfileDocumentsSummaryCard() {
   }
 
   return (
-    <Link
-      href={APP_ROUTES.profile.documents}
-      className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/15 px-4 py-3 transition-colors hover:bg-muted/25"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <FileText className="size-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0">
-          <p className="text-sm font-medium">Meine Dokumente</p>
-          <p className="text-xs text-muted-foreground">
-            {loading || visibilityLoading
-              ? "Wird geladen …"
-              : count === 0
-                ? "Verträge und Dokumente"
-                : `${count} Dokument${count === 1 ? "" : "e"}`}
-          </p>
+    <Card className="gap-0 border-border/50 py-0 shadow-card">
+      <Link
+        href={APP_ROUTES.profile.documents}
+        className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/20"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <FileText className="size-5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Meine Dokumente</p>
+            <p className="text-xs text-muted-foreground">
+              {loading || visibilityLoading
+                ? "Wird geladen …"
+                : count === 0
+                  ? "Verträge und Dokumente"
+                  : `${count} Dokument${count === 1 ? "" : "e"}`}
+            </p>
+          </div>
         </div>
-      </div>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-    </Link>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+      </Link>
+    </Card>
   );
 }

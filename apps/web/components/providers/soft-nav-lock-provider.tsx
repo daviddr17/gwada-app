@@ -29,8 +29,8 @@ type SoftNavLockValue = {
 
 const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
 
-const PENDING_CLEAR_FAILSAFE_MS = 3_500;
-const PENDING_RETRY_EXTRA_MS = 2_500;
+const PENDING_CLEAR_FAILSAFE_MS = 6_000;
+const PENDING_RETRY_EXTRA_MS = 3_500;
 
 export function normalizeNavHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -88,6 +88,8 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         if (raw && target && !atTarget && !failsafeRetriedRef.current) {
           // Ein Retry statt Snap-back auf das Quell-Modul.
           failsafeRetriedRef.current = true;
+          // Coalesce-Queue leeren und hart erneut pushen.
+          flushSoftNavPush(router);
           router.push(raw);
           armFailsafe(PENDING_RETRY_EXTRA_MS);
           return;

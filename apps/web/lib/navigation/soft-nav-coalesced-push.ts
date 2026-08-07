@@ -4,40 +4,32 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
 
 /**
  * Schnelle Soft-Nav-Klicks → nur das letzte Ziel wirklich `router.push`en.
- * Erster Klick: sofort (leading). Weitere innerhalb des Fensters: trailing.
+ * Pending-UI bleibt synchron; der Flight wird nicht mit Dutzenden RSC-Requests zugeschüttet.
  */
-const COALESCE_MS = 48;
+const COALESCE_MS = 32;
 
 let pendingHref: string | null = null;
 let timer: number | null = null;
 let lastPushedHref: string | null = null;
-let coalesceOpen = false;
 
 export function coalesceSoftNavPush(
   router: AppRouterInstance,
   href: string,
 ): void {
   pendingHref = href;
-  if (!coalesceOpen) {
-    coalesceOpen = true;
-    flushSoftNavPush(router);
-    timer = window.setTimeout(() => {
-      timer = null;
-      coalesceOpen = false;
-      if (pendingHref) flushSoftNavPush(router);
-    }, COALESCE_MS);
-    return;
-  }
   if (timer != null) window.clearTimeout(timer);
   timer = window.setTimeout(() => {
     timer = null;
-    coalesceOpen = false;
     flushSoftNavPush(router);
   }, COALESCE_MS);
 }
 
 /** Sofort pushen (Failsafe-Retry / letzter Stand). */
 export function flushSoftNavPush(router: AppRouterInstance): string | null {
+  if (timer != null) {
+    window.clearTimeout(timer);
+    timer = null;
+  }
   const target = pendingHref;
   pendingHref = null;
   if (!target) return null;
@@ -55,5 +47,4 @@ export function resetSoftNavCoalescedPushForTests(): void {
   timer = null;
   pendingHref = null;
   lastPushedHref = null;
-  coalesceOpen = false;
 }

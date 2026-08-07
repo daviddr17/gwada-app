@@ -101,51 +101,54 @@ export function ProfileLoginStreakCard() {
               </div>
             </div>
 
-            <div className="overflow-x-auto pb-1">
-              <div className="inline-flex gap-3">
-                <div className="flex flex-col justify-between py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {WEEKDAY_LABELS.map((label, index) =>
-                    index % 2 === 1 ? (
-                      <span key={label} className="leading-none">
-                        {label}
-                      </span>
-                    ) : (
-                      <span key={label} className="invisible leading-none">
-                        {label}
-                      </span>
-                    ),
-                  )}
-                </div>
-                <div className="flex gap-[3px]">
-                  {columns.map((week, weekIndex) => (
-                    <div key={weekIndex} className="flex flex-col gap-[3px]">
-                      {week.map((cell, dayIndex) => {
-                        const empty = !cell.day;
-                        return (
-                          <span
-                            key={`${weekIndex}-${dayIndex}`}
-                            title={
-                              empty
-                                ? undefined
-                                : cell.active
-                                  ? `${cell.day} · aktiv`
-                                  : cell.day
-                            }
-                            className={cn(
-                              "size-2.5 rounded-[3px] sm:size-3",
-                              empty
-                                ? "bg-transparent"
-                                : cell.active
-                                  ? "bg-orange-500 shadow-[0_0_0_1px_color-mix(in_oklch,var(--color-orange-500)_35%,transparent)]"
-                                  : "bg-muted/70 ring-1 ring-border/40",
-                            )}
-                            aria-hidden={empty}
-                          />
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
+            <div className="flex w-full gap-2 sm:gap-3">
+              <div className="flex shrink-0 flex-col justify-between py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                {WEEKDAY_LABELS.map((label, index) =>
+                  index % 2 === 1 ? (
+                    <span key={label} className="leading-none">
+                      {label}
+                    </span>
+                  ) : (
+                    <span key={label} className="invisible leading-none">
+                      {label}
+                    </span>
+                  ),
+                )}
+              </div>
+              <div
+                className="grid min-w-0 flex-1 gap-[3px]"
+                style={{
+                  gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+                }}
+              >
+                {columns.map((week, weekIndex) => (
+                  <div key={weekIndex} className="flex min-w-0 flex-col gap-[3px]">
+                    {week.map((cell, dayIndex) => {
+                      const empty = !cell.day;
+                      return (
+                        <span
+                          key={`${weekIndex}-${dayIndex}`}
+                          title={
+                            empty
+                              ? undefined
+                              : cell.active
+                                ? `${cell.day} · aktiv`
+                                : cell.day
+                          }
+                          className={cn(
+                            "aspect-square w-full rounded-[2px] sm:rounded-[3px]",
+                            empty
+                              ? "bg-transparent"
+                              : cell.active
+                                ? "bg-orange-500 shadow-[0_0_0_1px_color-mix(in_oklch,var(--color-orange-500)_35%,transparent)]"
+                                : "bg-muted/70 ring-1 ring-border/40",
+                          )}
+                          aria-hidden={empty}
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground">

@@ -908,6 +908,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const nextStock = lineDeliveryStockQuantity(nextLinePreview);
       const stockDelta = nextStock - prevStock;
 
+      const previous = orders;
       const next: PurchaseOrder[] = structuredClone(orders);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
@@ -946,10 +947,14 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         autoClosed = true;
       }
 
-      if (!(await persist(next))) return { ok: false };
+      applyOrdersOptimistic(next);
+      if (!(await persist(next))) {
+        applyOrdersOptimistic(previous);
+        return { ok: false };
+      }
       return { ok: true, stockDelta, autoClosed };
     },
-    [orders, persist],
+    [applyOrdersOptimistic, orders, persist],
   );
 
   const clearLineDelivery = useCallback(
@@ -974,6 +979,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         return { ok: false };
       }
 
+      const previous = orders;
       const next: PurchaseOrder[] = structuredClone(orders);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
@@ -998,10 +1004,14 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       };
       o.log.push(logEntry);
 
-      if (!(await persist(next))) return { ok: false };
+      applyOrdersOptimistic(next);
+      if (!(await persist(next))) {
+        applyOrdersOptimistic(previous);
+        return { ok: false };
+      }
       return { ok: true, stockDelta: -prevStock };
     },
-    [orders, persist],
+    [applyOrdersOptimistic, orders, persist],
   );
 
   /** @deprecated Kompatibilität — nutzt setLineDelivery(delivered) */

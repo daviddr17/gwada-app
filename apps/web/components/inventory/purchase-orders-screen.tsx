@@ -446,16 +446,39 @@ export function PurchaseOrdersScreen() {
         nextStock = input.deliveredQuantity ?? 0;
       }
       const previewDelta = nextStock - prevStock;
-      if (!(await applyStockDelta(order, line, previewDelta, previewDelta >= 0 ? "delivery" : "revert"))) {
-        return;
+
+      // Sync-Check vor Optimistic UI — kein kurzes Aufblitzen bei ungültigem Bestand
+      if (previewDelta !== 0) {
+        const ing = ingredients.find((i) => i.id === line.ingredientId);
+        if (!ing) {
+          toast.error("Zutat nicht gefunden – Bestand kann nicht angepasst werden.");
+          return;
+        }
+        if (ing.currentStock + previewDelta < 0) {
+          toast.error("Bestand reicht für diese Mengenänderung nicht aus.");
+          return;
+        }
       }
 
+      // Zuerst Liefer-Antwort (optimistic), danach Bestand — Chip reagiert sofort
       const result = await setLineDelivery(orderId, lineId, input, actor);
       if (!result.ok) {
-        await applyStockDelta(order, line, -previewDelta, previewDelta >= 0 ? "revert" : "delivery");
         toast.error("Liefer-Antwort konnte nicht gespeichert werden.");
         return;
       }
+
+      if (
+        !(await applyStockDelta(
+          order,
+          line,
+          previewDelta,
+          previewDelta >= 0 ? "delivery" : "revert",
+        ))
+      ) {
+        await clearLineDelivery(orderId, lineId, actor);
+        return;
+      }
+
       if (result.stockDelta !== previewDelta && result.stockDelta !== 0) {
         // rare drift — ignore; persist already done
       }
@@ -485,6 +508,8 @@ export function PurchaseOrdersScreen() {
     [
       actor,
       applyStockDelta,
+      clearLineDelivery,
+      ingredients,
       orders,
       setLineDelivery,
       unitLabelForLine,
@@ -497,20 +522,42 @@ export function PurchaseOrdersScreen() {
       const line = order?.lines.find((l) => l.id === lineId);
       if (!order || !line) return;
       const prevStock = lineDeliveryStockQuantity(line);
-      if (!(await applyStockDelta(order, line, -prevStock, "revert"))) return;
+
+      // Optimistic zurücksetzen zuerst — Chip reagiert sofort
       const result = await clearLineDelivery(orderId, lineId, actor);
       if (!result.ok) {
-        await applyStockDelta(order, line, prevStock, "delivery");
         toast.error("Liefer-Antwort konnte nicht zurückgesetzt werden.");
         return;
       }
+
+      if (!(await applyStockDelta(order, line, -prevStock, "revert"))) {
+        await setLineDelivery(
+          orderId,
+          lineId,
+          {
+            status: line.deliveryStatus ?? "delivered",
+            deliveredQuantity: line.deliveredQuantity,
+            note: line.deliveryNote,
+          },
+          actor,
+        );
+        return;
+      }
+
       toast.success(
         prevStock > 0
           ? `Lieferung von „${line.ingredientName}“ zurückgesetzt – Bestand −${prevStock} ${unitLabelForLine(line)}.`
           : `Liefer-Antwort zu „${line.ingredientName}“ zurückgesetzt.`,
       );
     },
-    [actor, applyStockDelta, clearLineDelivery, orders, unitLabelForLine],
+    [
+      actor,
+      applyStockDelta,
+      clearLineDelivery,
+      orders,
+      setLineDelivery,
+      unitLabelForLine,
+    ],
   );
 
   const requestCloseOrder = useCallback(

@@ -85,9 +85,10 @@ export function PurchaseOrderLineDeliveryControls({
   const selectOutcome = (status: PurchaseOrderLineDeliveryStatus) => {
     if (disabled || pending) return;
     if (status === "delivered") {
-      void run(async () => {
+      // Sofortiger UI-Feedback; Persist läuft optimistic im Parent
+      setDraftStatus("delivered");
+      void Promise.resolve(onCommit({ status: "delivered" })).finally(() => {
         setDraftStatus(null);
-        await onCommit({ status: "delivered" });
       });
       return;
     }
@@ -172,12 +173,11 @@ export function PurchaseOrderLineDeliveryControls({
           <button
             type="button"
             disabled={disabled || pending}
-            onClick={() =>
-              void run(async () => {
-                setDraftStatus(null);
-                await onClear();
-              })
-            }
+            onClick={() => {
+              if (disabled || pending) return;
+              setDraftStatus(null);
+              void Promise.resolve(onClear());
+            }}
             className="ml-0.5 text-[10px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
           >
             Zurück

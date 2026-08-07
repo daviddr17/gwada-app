@@ -42,8 +42,11 @@ export function useDashboardBatchSlice<K extends DashboardBatchWidgetId>(
   return {
     summary,
     loading:
-      batchEnabled && query.isLoading && summary == null && widgetError == null,
-    error: widgetError ?? (summary == null && batchEnabled ? fatalError : null),
+      batchEnabled &&
+      summary == null &&
+      widgetError == null &&
+      (query.isLoading || query.isFetching),
+    error: widgetError ?? (summary == null && batchEnabled && !query.isFetching ? fatalError : null),
     ready: batchEnabled || retainWarm,
   };
 }

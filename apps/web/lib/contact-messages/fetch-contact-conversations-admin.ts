@@ -1,7 +1,10 @@
 import "server-only";
 
 import { buildContactConversationsFromRows } from "@/lib/contact-messages/build-contact-conversations";
-import { CONVERSATION_LIST_MESSAGE_ROW_LIMIT } from "@/lib/contact-messages/conversation-list-limits";
+import {
+  CONVERSATION_LIST_MESSAGE_ROW_LIMIT,
+  DASHBOARD_CONVERSATION_LIST_MESSAGE_ROW_LIMIT,
+} from "@/lib/contact-messages/conversation-list-limits";
 import {
   fetchMessageAttachmentsForRestaurant,
   groupAttachmentsByMessageId,
@@ -42,6 +45,10 @@ export async function fetchContactConversationsAdmin(
 ): Promise<ContactConversationPreview[]> {
   if (!isUuidRestaurantId(params.restaurantId)) return [];
 
+  const rowLimit = params.light
+    ? DASHBOARD_CONVERSATION_LIST_MESSAGE_ROW_LIMIT
+    : CONVERSATION_LIST_MESSAGE_ROW_LIMIT;
+
   const { data: messages, error } = await admin
     .from("contact_messages")
     .select(
@@ -53,7 +60,7 @@ export async function fetchContactConversationsAdmin(
     .eq("restaurant_id", params.restaurantId)
     .eq("platform", params.platform)
     .order("created_at", { ascending: false })
-    .limit(CONVERSATION_LIST_MESSAGE_ROW_LIMIT);
+    .limit(rowLimit);
 
   if (error) {
     console.warn("[contact-inbox] conversations admin", error.message);

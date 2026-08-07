@@ -3,8 +3,18 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
+type SupabaseServerClient = Awaited<
+  ReturnType<typeof createSupabaseServerClient>
+>;
+
 export type DashboardRestaurantAuth =
-  | { ok: true; restaurantId: string; userId: string }
+  | {
+      ok: true;
+      restaurantId: string;
+      userId: string;
+      /** Auth-Client wiederverwenden — kein zweites createSupabaseServerClient. */
+      sb: SupabaseServerClient;
+    }
   | { ok: false; error: string; status: number };
 
 export async function authorizeDashboardRestaurant(
@@ -31,5 +41,5 @@ export async function authorizeDashboardRestaurant(
     return { ok: false, error: "forbidden", status: 403 };
   }
 
-  return { ok: true, restaurantId: id, userId: user.id };
+  return { ok: true, restaurantId: id, userId: user.id, sb };
 }

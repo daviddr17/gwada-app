@@ -2,7 +2,6 @@ import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboar
 import { parseDashboardBatchWidgetsParam } from "@/lib/dashboard/dashboard-batch-widgets";
 import { filterDashboardBatchWidgetsForRestaurant } from "@/lib/dashboard/filter-dashboard-batch-widgets-server";
 import { loadDashboardBatchSummaryServer } from "@/lib/dashboard/load-dashboard-batch-summary-server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +16,7 @@ export async function GET(req: Request) {
   const requested = parseDashboardBatchWidgetsParam(
     url.searchParams.get("widgets"),
   );
-  const sb = await createSupabaseServerClient();
+  const sb = auth.sb;
   const widgets = await filterDashboardBatchWidgetsForRestaurant(
     sb,
     auth.restaurantId,

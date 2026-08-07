@@ -18,18 +18,19 @@ import { APP_MODULE_IMMEDIATE_FULL_ROUTES } from "@/lib/navigation/app-module-im
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { APP_MODULE_PREFETCH_ROUTES } from "@/lib/navigation/app-module-route-prefetch";
 import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
+import { isSoftNavFlightActive } from "@/lib/navigation/soft-nav-flight";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
 /** Langsamer Stagger — weniger Main-Thread-/Netz-Druck während Dashboard-Stream. */
-const ROUTE_PREFETCH_STAGGER_MS = 120;
+const ROUTE_PREFETCH_STAGGER_MS = 160;
 /** FULL-Prefetch erst nach KPI (+ Pause), nicht sofort bei Workspace-Ready. */
-const FULL_PREFETCH_AFTER_KPI_MS = 2_400;
-const FULL_PREFETCH_FAILSAFE_MS = 7_000;
+const FULL_PREFETCH_AFTER_KPI_MS = 4_500;
+const FULL_PREFETCH_FAILSAFE_MS = 10_000;
 /** Priority-API nach KPI; Secondary deutlich später. */
-const PRIORITY_DATA_AFTER_KPI_MS = 900;
-const SECONDARY_DATA_AFTER_KPI_MS = 6_500;
-const DASHBOARD_WARM_FAILSAFE_MS = 5_500;
+const PRIORITY_DATA_AFTER_KPI_MS = 1_200;
+const SECONDARY_DATA_AFTER_KPI_MS = 8_000;
+const DASHBOARD_WARM_FAILSAFE_MS = 6_500;
 
 /**
  * Background-Warm für Soft-Nav — absichtlich **nach** Dashboard-First-Paint.
@@ -75,6 +76,17 @@ export function AppModuleWarmPrefetchMount() {
         fullIndex += 1;
         timers.push(
           window.setTimeout(() => {
+            // Soft-Nav hat Vorrang — Prefetch später nachholen.
+            if (isSoftNavFlightActive()) {
+              timers.push(
+                window.setTimeout(() => {
+                  if (!isSoftNavFlightActive()) {
+                    prefetchAppModuleHref(router, route);
+                  }
+                }, 800),
+              );
+              return;
+            }
             prefetchAppModuleHref(router, route);
           }, delay),
         );

@@ -11,6 +11,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import { usePathname } from "next/navigation";
 import {
   normalizeNavHref,
@@ -67,9 +68,9 @@ function emptySlots(): Record<ModuleHomeId, boolean> {
   };
 }
 
-/** Idle-Prewarm erst wenn Dashboard wirklich „fertig“ wirkt. */
-const IDLE_PREWARM_AFTER_KPI_MS = 5_000;
-const IDLE_PREWARM_GAP_MS = 700;
+/** Idle-Prewarm erst wenn Dashboard-Stream durch ist — nicht alle Module. */
+const IDLE_PREWARM_AFTER_KPI_MS = 2_400;
+const IDLE_PREWARM_GAP_MS = 450;
 
 export function ModuleHomeKeepAliveProvider({
   children,
@@ -127,8 +128,11 @@ export function ModuleHomeKeepAliveProvider({
   const ensureModuleHomeWarm = useCallback(
     (id: ModuleHomeId) => {
       if (id === "dashboard") return;
-      // Kein flushSync — sonst Main-Thread-Jank beim Sidebar-Tap.
-      applyWarmFlags(id);
+      // Nur Intent: ein Slot sync mounten — Preview ohne RSC-Wartezeit.
+      // Kein Bulk-Prewarm mit flushSync (das laggt).
+      flushSync(() => {
+        applyWarmFlags(id);
+      });
     },
     [applyWarmFlags],
   );
@@ -138,9 +142,14 @@ export function ModuleHomeKeepAliveProvider({
     applyWarmFlags(activeHomeId);
   }, [activeHomeId, applyWarmFlags]);
 
-  // Sidebar Intent: mount ohne Sync-Flush (Skeleton bis Paint ist ok).
+  // Sidebar Intent: sync Preview (ein Modul), nicht Massen-Mount.
   useEffect(
-    () => onModuleHomeWarmIntent((id) => applyWarmFlags(id)),
+    () =>
+      onModuleHomeWarmIntent((id) => {
+        flushSync(() => {
+          applyWarmFlags(id);
+        });
+      }),
     [applyWarmFlags],
   );
 

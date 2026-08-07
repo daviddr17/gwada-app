@@ -11,6 +11,10 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { coalesceSoftNavPush } from "@/lib/navigation/soft-nav-coalesced-push";
+import {
+  beginSoftNavFlight,
+  endSoftNavFlight,
+} from "@/lib/navigation/soft-nav-flight";
 
 type SoftNavLockValue = {
   tryAcquireNavLock: (
@@ -57,6 +61,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     pendingTargetRef.current = null;
     pendingRawHrefRef.current = null;
     failsafeRetriedRef.current = false;
+    endSoftNavFlight();
     setPendingHref(null);
     if (clearTimerRef.current != null) {
       window.clearTimeout(clearTimerRef.current);
@@ -137,6 +142,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
       pendingTargetRef.current = target;
       pendingRawHrefRef.current = targetHref;
       failsafeRetriedRef.current = false;
+      beginSoftNavFlight(targetHref);
       if (paintClearRafRef.current != null) {
         window.cancelAnimationFrame(paintClearRafRef.current);
         paintClearRafRef.current = null;

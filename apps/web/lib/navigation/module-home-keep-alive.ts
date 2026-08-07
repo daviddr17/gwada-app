@@ -44,10 +44,11 @@ export const MODULE_HOME_PATHS: Record<ModuleHomeId, string> = {
 export const MODULE_HOME_IDLE_PREWARM_IDS: readonly ModuleHomeId[] = [
   "menu",
   "reservierungen",
+  "inventory",
 ];
 
 /** Max. zusätzliche warme Homes neben Dashboard + aktuellem Home (LRU). */
-export const MODULE_HOME_MAX_EXTRA_WARM = 3;
+export const MODULE_HOME_MAX_EXTRA_WARM = 4;
 
 /** @deprecated */
 export const MODULE_HOME_PRIORITY_PREWARM_IDS = MODULE_HOME_IDLE_PREWARM_IDS;

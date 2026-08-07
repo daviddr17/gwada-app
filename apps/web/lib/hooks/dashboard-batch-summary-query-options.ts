@@ -7,10 +7,6 @@ import {
   peekDashboardBatchSummaryCache,
   writeDashboardBatchSummaryCache,
 } from "@/lib/dashboard/dashboard-batch-summary-cache";
-import {
-  mergeDashboardBatchQueryData,
-  partitionDashboardBatchWidgets,
-} from "@/lib/dashboard/dashboard-batch-priority";
 import { fetchDashboardBatchSummaryClient } from "@/lib/dashboard/fetch-dashboard-batch-summary-client";
 import {
   DASHBOARD_SUMMARY_GC_MS,
@@ -23,9 +19,22 @@ import type { DashboardBatchQueryData } from "@/lib/hooks/use-dashboard-batch-su
 export async function fetchDashboardBatchQueryData(
   restaurantId: string,
   widgets: readonly DashboardBatchWidgetId[],
-  options?: { persistCache?: boolean },
+  options?: {
+    persistCache?: boolean;
+    onPartial?: (partial: DashboardBatchQueryData) => void;
+  },
 ): Promise<DashboardBatchQueryData> {
-  const result = await fetchDashboardBatchSummaryClient(restaurantId, widgets);
+  const result = await fetchDashboardBatchSummaryClient(restaurantId, widgets, {
+    stream: Boolean(options?.onPartial),
+    onPartial: options?.onPartial
+      ? (partial) => {
+          options.onPartial?.({
+            data: partial.data,
+            errors: partial.errors,
+          });
+        }
+      : undefined,
+  });
   if (result.error && !result.data) {
     throw new Error(result.error);
   }
@@ -54,25 +63,6 @@ function batchSummaryWithMessagesFromInboxCache(
   };
 }
 
-function withDeferredPlaceholders(
-  partial: DashboardBatchQueryData,
-  restaurantId: string,
-  fullWidgets: readonly DashboardBatchWidgetId[],
-  deferred: readonly DashboardBatchWidgetId[],
-): DashboardBatchQueryData {
-  if (deferred.length === 0) return partial;
-  const cached = peekDashboardBatchSummaryCache(restaurantId, fullWidgets);
-  if (!cached) return partial;
-
-  const data = { ...partial.data };
-  for (const id of deferred) {
-    if (data[id] == null && cached.data[id] != null) {
-      Object.assign(data, { [id]: cached.data[id] });
-    }
-  }
-  return { data, errors: partial.errors };
-}
-
 export function dashboardBatchSummaryQueryOptions(
   restaurantId: string,
   widgets: readonly DashboardBatchWidgetId[],
@@ -91,49 +81,31 @@ export function dashboardBatchSummaryQueryOptions(
       };
     }): Promise<DashboardBatchQueryData> => {
       const { client } = ctx;
-      const { priority, deferred } = partitionDashboardBatchWidgets(widgets);
       const queryKey = queryKeys.dashboard.summary(restaurantId, widgets);
 
-      const finalize = (payload: DashboardBatchQueryData): DashboardBatchQueryData => {
+      const publish = (payload: DashboardBatchQueryData): DashboardBatchQueryData => {
+        const existing = client.getQueryData(queryKey);
+        const merged: DashboardBatchQueryData = {
+          data: { ...(existing?.data ?? {}), ...payload.data },
+          errors: { ...(existing?.errors ?? {}), ...payload.errors },
+        };
         const reconciled = batchSummaryWithMessagesFromInboxCache(
-          payload,
+          merged,
           restaurantId,
         );
+        client.setQueryData(queryKey, reconciled);
         writeDashboardBatchSummaryCache(restaurantId, widgets, reconciled);
         return reconciled;
       };
 
-      // Ein Phasen-Request, wenn nichts zu staffeln ist.
-      if (priority.length === 0 || deferred.length === 0) {
-        const payload = await fetchDashboardBatchQueryData(restaurantId, widgets, {
-          persistCache: false,
-        });
-        return finalize(payload);
-      }
-
-      // Phase 1: Heute-kritische KPIs → UI sofort aktualisieren.
-      const priorityPayload = await fetchDashboardBatchQueryData(
-        restaurantId,
-        priority,
-        { persistCache: false },
-      );
-      const existing = client.getQueryData(queryKey);
-      const phase1Base = mergeDashboardBatchQueryData(
-        { data: existing?.data ?? {}, errors: existing?.errors ?? {} },
-        priorityPayload,
-      );
-      const phase1 = finalize(
-        withDeferredPlaceholders(phase1Base, restaurantId, widgets, deferred),
-      );
-      client.setQueryData(queryKey, phase1);
-
-      // Phase 2: restliche Kacheln (Menü, News, …).
-      const deferredPayload = await fetchDashboardBatchQueryData(
-        restaurantId,
-        deferred,
-        { persistCache: false },
-      );
-      return finalize(mergeDashboardBatchQueryData(phase1, deferredPayload));
+      // NDJSON: jedes Widget paintet sofort — wie „Apps in 1s“, nicht erst am Batch-Ende.
+      const payload = await fetchDashboardBatchQueryData(restaurantId, widgets, {
+        persistCache: false,
+        onPartial: (partial) => {
+          publish(partial);
+        },
+      });
+      return publish(payload);
     },
     staleTime: DASHBOARD_SUMMARY_STALE_MS,
     gcTime: DASHBOARD_SUMMARY_GC_MS,

@@ -26,10 +26,19 @@ export async function authorizeDashboardRestaurant(
   }
 
   const sb = await createSupabaseServerClient();
+  // getSession = lokales JWT (schnell). Fallback getUser nur wenn Session fehlt.
+  // Staff-RPC + RLS sichern den Datenzugriff trotzdem ab.
   const {
-    data: { user },
-  } = await sb.auth.getUser();
-  if (!user) {
+    data: { session },
+  } = await sb.auth.getSession();
+  let userId = session?.user?.id ?? null;
+  if (!userId) {
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
+    userId = user?.id ?? null;
+  }
+  if (!userId) {
     return { ok: false, error: "unauthorized", status: 401 };
   }
 
@@ -41,5 +50,5 @@ export async function authorizeDashboardRestaurant(
     return { ok: false, error: "forbidden", status: 403 };
   }
 
-  return { ok: true, restaurantId: id, userId: user.id, sb };
+  return { ok: true, restaurantId: id, userId, sb };
 }

@@ -93,8 +93,8 @@ export const MODULE_CACHE_STRATEGY_META: Record<
 
 /**
  * App-Zone-Ladereihenfolge (für Superadmin-Flow-Diagramm).
- * Auf /dashboard Cold-Start: Batch Phase-1 (Heute-KPIs) vor kritischem Modul-Warm;
- * sonst Warm + Batch parallel. Inbox-Warm überspringt, wenn Batch < 30s.
+ * Dashboard-Batch streamt Widgets als NDJSON (Time-to-first-KPI).
+ * Auf /dashboard: kritisches Modul-Warm verzögert. Inbox-Warm skip wenn Batch < 30s.
  */
 export const DASHBOARD_LOAD_FLOW_STEP_IDS = [
   "workspaceRestaurant",
@@ -221,10 +221,10 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     pollIntervalMs: 60_000,
     gcTimeMs: 5 * 60_000,
     description:
-      "Reservierungen, Nachrichten, Bestand, Team, Integrationen, Bewertungen, Speisekarte — GET /api/dashboard/summary in zwei Phasen (Heute-kritisch zuerst, Rest danach). Sofort aus localStorage (SWR), Hintergrund-Prefetch sobald Workspace-Restaurant ready, stilles Nachladen. Live-Patches app-weit über AppDashboardLivePatchMount.",
+      "Reservierungen, Nachrichten, Bestand, Team, … — GET /api/dashboard/summary als NDJSON-Stream (jedes Widget paintet sofort). Sofort aus localStorage (SWR), Hintergrund-Prefetch sobald Workspace-Restaurant ready. Live-Patches app-weit über AppDashboardLivePatchMount.",
     loadTriggers: [
       "DashboardBatchPrefetchMount im App-Layout (Workspace ready, idle ~1.6s)",
-      "Mount Dashboard-Startseite: Phase-1 Heute-Deps, Phase-2 restliche Widgets",
+      "Mount Dashboard-Startseite: stream=1, onPartial → setQueryData pro Widget",
       "React Query refetchInterval 60s (sichtbarer Tab, Keep-alive Home aktiv)",
       "Kein Tab-Focus-Refetch (außer Realtime/Invalidierung)",
     ],

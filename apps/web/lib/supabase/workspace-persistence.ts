@@ -50,6 +50,9 @@ let restaurantIdInFlight: {
 
 const SESSION_RESTAURANT_ID_KEY = "gwada:workspace-restaurant-id";
 const SESSION_RESTAURANT_USER_KEY = "gwada:workspace-restaurant-user";
+/** Überlebt Tab-Close / PWA-Kaltstart — peek ohne DB-Waterfall. */
+const LOCAL_RESTAURANT_ID_KEY = "gwada:workspace-restaurant-id:v1";
+const LOCAL_RESTAURANT_USER_KEY = "gwada:workspace-restaurant-user:v1";
 
 export const GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT =
   "gwada:workspace-restaurant-changed";
@@ -63,27 +66,50 @@ function persistWorkspaceRestaurantIdToSession(
   cacheKey: string,
   id: string | null,
 ): void {
-  if (typeof sessionStorage === "undefined") return;
+  if (typeof sessionStorage !== "undefined") {
+    try {
+      if (!id) {
+        sessionStorage.removeItem(SESSION_RESTAURANT_ID_KEY);
+        sessionStorage.removeItem(SESSION_RESTAURANT_USER_KEY);
+      } else {
+        sessionStorage.setItem(SESSION_RESTAURANT_USER_KEY, cacheKey);
+        sessionStorage.setItem(SESSION_RESTAURANT_ID_KEY, id);
+      }
+    } catch {
+      /* quota / private mode */
+    }
+  }
+  if (typeof localStorage === "undefined") return;
   try {
     if (!id) {
-      sessionStorage.removeItem(SESSION_RESTAURANT_ID_KEY);
-      sessionStorage.removeItem(SESSION_RESTAURANT_USER_KEY);
+      localStorage.removeItem(LOCAL_RESTAURANT_ID_KEY);
+      localStorage.removeItem(LOCAL_RESTAURANT_USER_KEY);
       return;
     }
-    sessionStorage.setItem(SESSION_RESTAURANT_USER_KEY, cacheKey);
-    sessionStorage.setItem(SESSION_RESTAURANT_ID_KEY, id);
+    localStorage.setItem(LOCAL_RESTAURANT_USER_KEY, cacheKey);
+    localStorage.setItem(LOCAL_RESTAURANT_ID_KEY, id);
   } catch {
     /* quota / private mode */
   }
 }
 
 function readWorkspaceRestaurantIdFromSession(cacheKey: string): string | null {
-  if (typeof sessionStorage === "undefined") return null;
+  if (typeof sessionStorage !== "undefined") {
+    try {
+      if (sessionStorage.getItem(SESSION_RESTAURANT_USER_KEY) === cacheKey) {
+        const id = sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY);
+        if (id && UUID_RE.test(id)) return id;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (typeof localStorage === "undefined") return null;
   try {
-    if (sessionStorage.getItem(SESSION_RESTAURANT_USER_KEY) !== cacheKey) {
+    if (localStorage.getItem(LOCAL_RESTAURANT_USER_KEY) !== cacheKey) {
       return null;
     }
-    const id = sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY);
+    const id = localStorage.getItem(LOCAL_RESTAURANT_ID_KEY);
     return id && UUID_RE.test(id) ? id : null;
   } catch {
     return null;
@@ -101,20 +127,32 @@ export function invalidateWorkspaceRestaurantCache(): void {
       /* ignore */
     }
   }
+  if (typeof localStorage !== "undefined") {
+    try {
+      localStorage.removeItem(LOCAL_RESTAURANT_ID_KEY);
+      localStorage.removeItem(LOCAL_RESTAURANT_USER_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** Session-Credentials für synchronen localStorage-Zugriff (z. B. Dashboard-Widget-Prefs). */
+/** Session-/Local-Credentials für synchronen Zugriff (z. B. Dashboard-Widget-Prefs). */
 export function peekCachedWorkspaceRestaurantSession(): {
   userKey: string;
   restaurantId: string;
 } | null {
   if (typeof window === "undefined") return null;
   try {
-    const restaurantId = sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY);
-    const userKey = sessionStorage.getItem(SESSION_RESTAURANT_USER_KEY);
+    const restaurantId =
+      sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY) ??
+      localStorage.getItem(LOCAL_RESTAURANT_ID_KEY);
+    const userKey =
+      sessionStorage.getItem(SESSION_RESTAURANT_USER_KEY) ??
+      localStorage.getItem(LOCAL_RESTAURANT_USER_KEY);
     if (restaurantId && UUID_RE.test(restaurantId) && userKey) {
       return { userKey, restaurantId };
     }
@@ -131,11 +169,19 @@ export function peekCachedWorkspaceRestaurantId(): string | null {
   const mem = workspaceRestaurantCache?.id;
   if (mem && UUID_RE.test(mem)) return mem;
   try {
-    const id = sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY);
+    const id =
+      sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY) ??
+      localStorage.getItem(LOCAL_RESTAURANT_ID_KEY);
     if (id && UUID_RE.test(id)) {
       const userKey =
-        sessionStorage.getItem(SESSION_RESTAURANT_USER_KEY) ?? "__anon__";
+        sessionStorage.getItem(SESSION_RESTAURANT_USER_KEY) ??
+        localStorage.getItem(LOCAL_RESTAURANT_USER_KEY) ??
+        "__anon__";
       workspaceRestaurantCache = { key: userKey, id };
+      // session leer (neuer Tab) → aus localStorage zurückspiegeln
+      if (!sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY)) {
+        persistWorkspaceRestaurantIdToSession(userKey, id);
+      }
       return id;
     }
   } catch {

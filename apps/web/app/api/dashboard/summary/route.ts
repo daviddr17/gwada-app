@@ -1,4 +1,5 @@
 import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboard-restaurant";
+import type { DashboardBatchNdjsonLine } from "@/lib/dashboard/dashboard-batch-ndjson";
 import { parseDashboardBatchWidgetsParam } from "@/lib/dashboard/dashboard-batch-widgets";
 import { filterDashboardBatchWidgetsForRestaurant } from "@/lib/dashboard/filter-dashboard-batch-widgets-server";
 import { loadDashboardBatchSummaryServer } from "@/lib/dashboard/load-dashboard-batch-summary-server";
@@ -16,6 +17,10 @@ export async function GET(req: Request) {
   const requested = parseDashboardBatchWidgetsParam(
     url.searchParams.get("widgets"),
   );
+  const stream =
+    url.searchParams.get("stream") === "1" ||
+    req.headers.get("accept")?.includes("application/x-ndjson") === true;
+
   const sb = auth.sb;
   const widgets = await filterDashboardBatchWidgetsForRestaurant(
     sb,
@@ -23,19 +28,60 @@ export async function GET(req: Request) {
     requested,
   );
 
-  try {
-    const { data, errors } = await loadDashboardBatchSummaryServer(
-      sb,
-      auth.restaurantId,
-      auth.userId,
-      widgets,
-    );
-    return Response.json(
-      { data, errors },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "load_failed";
-    return Response.json({ error: message }, { status: 500 });
+  if (!stream) {
+    try {
+      const { data, errors } = await loadDashboardBatchSummaryServer(
+        sb,
+        auth.restaurantId,
+        auth.userId,
+        widgets,
+      );
+      return Response.json(
+        { data, errors },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "load_failed";
+      return Response.json({ error: message }, { status: 500 });
+    }
   }
+
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const write = (line: DashboardBatchNdjsonLine) => {
+        controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
+      };
+      try {
+        const { errors } = await loadDashboardBatchSummaryServer(
+          sb,
+          auth.restaurantId,
+          auth.userId,
+          widgets,
+          {
+            onWidget: (result) => {
+              write(
+                result.error
+                  ? { w: result.widget, e: result.error }
+                  : { w: result.widget, d: result.data },
+              );
+            },
+          },
+        );
+        write({ done: true, errors });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "load_failed";
+        write({ done: true, error: message });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(body, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
 }

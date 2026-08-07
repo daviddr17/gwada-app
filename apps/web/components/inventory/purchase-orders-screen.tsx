@@ -3,8 +3,11 @@
 import { ChevronDown, ClipboardList, Filter } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
+import {
+  PurchaseOrderCloseDeliveryDrawer,
+  type PurchaseOrderCloseDeliveryException,
+} from "@/components/inventory/purchase-order-close-delivery-drawer";
 import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
 import { PurchaseOrderCompactLinesList } from "@/components/inventory/purchase-order-compact-lines-list";
 import type { LineDeliveryCommit } from "@/components/inventory/purchase-order-line-delivery-controls";
@@ -17,6 +20,7 @@ import {
 } from "@/components/inventory/purchase-orders-filter-drawer";
 import {
   allPurchaseOrderLinesResolved,
+  isLineDeliveryResolved,
   lineDeliveryStockQuantity,
 } from "@/lib/inventory/purchase-order-line-delivery";
 import {
@@ -172,12 +176,14 @@ export function PurchaseOrdersScreen() {
     updateLineQuantity,
     setLineDelivery,
     clearLineDelivery,
+    resolveOpenDeliveriesAndClose,
     syncSupplierNamesFromTaxonomy,
     healCreatorAttribution,
   } = usePurchaseOrdersStorage();
   const {
     ingredients,
     updateIngredient,
+    applyDeliveryStockDeltas,
     isHydrated: ingredientsHydrated,
   } = useIngredientsStorage();
   const suppliers = useInventoryTaxonomyStorage(
@@ -572,6 +578,74 @@ export function PurchaseOrdersScreen() {
       setCloseConfirmOrderId(order.id);
     },
     [actor, closeOrder],
+  );
+
+  const closeDeliveryOrder = useMemo(
+    () => orders.find((o) => o.id === closeConfirmOrderId) ?? null,
+    [closeConfirmOrderId, orders],
+  );
+
+  const handleCloseWithDeliveries = useCallback(
+    async (exceptions: PurchaseOrderCloseDeliveryException[]) => {
+      const order = closeDeliveryOrder;
+      if (!order) return;
+
+      const result = await resolveOpenDeliveriesAndClose(
+        order.id,
+        exceptions,
+        actor,
+      );
+      if (!result.ok) {
+        toast.error("Bestellung konnte nicht abgeschlossen werden.");
+        return;
+      }
+
+      const stockOk = await applyDeliveryStockDeltas(
+        result.stockDeltas.map((d) => ({
+          ingredientId: d.ingredientId,
+          delta: d.delta,
+          unitId: d.unitId,
+          unitLabel: d.unitLabel,
+          orderId: order.id,
+          supplierName: supplierNameForOrder(order),
+        })),
+        actor,
+      );
+      if (!stockOk) {
+        toast.error(
+          "Lieferung gespeichert, aber Bestand konnte nicht vollständig angepasst werden.",
+        );
+      } else {
+        const openCount = order.lines.filter(
+          (l) => !isLineDeliveryResolved(l),
+        ).length;
+        const deliveredCount = openCount - exceptions.length;
+        const stockSum = result.stockDeltas.reduce((s, d) => s + d.delta, 0);
+        if (exceptions.length === 0) {
+          toast.success(
+            stockSum > 0
+              ? `Alles geliefert – Bestand +${stockSum}.`
+              : "Alles geliefert – Bestellung abgeschlossen.",
+          );
+        } else {
+          toast.success(
+            stockSum > 0
+              ? `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand +${stockSum}.`
+              : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"}.`,
+          );
+        }
+      }
+
+      setCloseConfirmOrderId(null);
+      setStatusFilter("closed");
+    },
+    [
+      actor,
+      applyDeliveryStockDeltas,
+      closeDeliveryOrder,
+      resolveOpenDeliveriesAndClose,
+      supplierNameForOrder,
+    ],
   );
 
   const restaurantName = profile.name.trim() || undefined;
@@ -1023,22 +1097,14 @@ export function PurchaseOrdersScreen() {
         }}
       />
 
-      <ConfirmDialog
+      <PurchaseOrderCloseDeliveryDrawer
+        order={closeDeliveryOrder}
         open={closeConfirmOrderId != null}
         onOpenChange={(open) => {
           if (!open) setCloseConfirmOrderId(null);
         }}
-        title="Wirklich abschließen?"
-        description="Noch nicht alle Positionen haben eine Liefer-Antwort. Trotzdem abschließen?"
-        confirmLabel="Abschließen"
-        cancelLabel="Abbrechen"
-        destructive={false}
-        onConfirm={async () => {
-          const id = closeConfirmOrderId;
-          if (!id) return;
-          const ok = await closeOrder(id, actor, { force: true });
-          if (ok) setStatusFilter("closed");
-        }}
+        unitLabelForLine={unitLabelForLine}
+        onConfirm={handleCloseWithDeliveries}
       />
     </div>
   );

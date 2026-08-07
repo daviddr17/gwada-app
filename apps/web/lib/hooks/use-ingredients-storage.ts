@@ -564,6 +564,112 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
     [ingredients, persist],
   );
 
+  const applyDeliveryStockDeltas = useCallback(
+    async (
+      deltas: ReadonlyArray<{
+        ingredientId: string;
+        delta: number;
+        unitId: string;
+        unitLabel: string;
+        orderId: string;
+        supplierName: string;
+      }>,
+      actor: OrderProtocolActor,
+    ): Promise<boolean> => {
+      if (deltas.length === 0) return true;
+
+      // Mehrere Deltas pro Zutat zusammenfassen
+      const byIngredient = new Map<
+        string,
+        {
+          delta: number;
+          unitId: string;
+          unitLabel: string;
+          orderId: string;
+          supplierName: string;
+        }
+      >();
+      for (const d of deltas) {
+        if (d.delta === 0) continue;
+        const prev = byIngredient.get(d.ingredientId);
+        if (prev) {
+          byIngredient.set(d.ingredientId, {
+            ...prev,
+            delta: prev.delta + d.delta,
+          });
+        } else {
+          byIngredient.set(d.ingredientId, {
+            delta: d.delta,
+            unitId: d.unitId,
+            unitLabel: d.unitLabel,
+            orderId: d.orderId,
+            supplierName: d.supplierName,
+          });
+        }
+      }
+      if (byIngredient.size === 0) return true;
+
+      let next = ingredients;
+      const at = new Date().toISOString();
+      const firstName = actor.firstName.trim();
+      const lastName = actor.lastName.trim();
+
+      for (const [ingredientId, d] of byIngredient) {
+        const prev = next.find((x) => x.id === ingredientId);
+        if (!prev) {
+          toast.error("Zutat nicht gefunden – Bestand kann nicht angepasst werden.");
+          return false;
+        }
+        const newStock = prev.currentStock + d.delta;
+        if (newStock < 0) {
+          toast.error("Bestand reicht für diese Mengenänderung nicht aus.");
+          return false;
+        }
+        const logEntry =
+          d.delta >= 0
+            ? ({
+                id: createId(),
+                at,
+                userFirstName: firstName,
+                userLastName: lastName,
+                kind: "stock_from_delivery" as const,
+                fromQuantity: prev.currentStock,
+                toQuantity: newStock,
+                unitId: d.unitId,
+                unitLabel: d.unitLabel,
+                orderId: d.orderId,
+                supplierName: d.supplierName,
+              } satisfies IngredientStockLogEntry)
+            : ({
+                id: createId(),
+                at,
+                userFirstName: firstName,
+                userLastName: lastName,
+                kind: "stock_delivery_reverted" as const,
+                fromQuantity: prev.currentStock,
+                toQuantity: newStock,
+                unitId: d.unitId,
+                unitLabel: d.unitLabel,
+                orderId: d.orderId,
+                supplierName: d.supplierName,
+              } satisfies IngredientStockLogEntry);
+
+        next = next.map((x) =>
+          x.id === ingredientId
+            ? {
+                ...x,
+                currentStock: newStock,
+                stockLog: [...(x.stockLog ?? []), logEntry],
+              }
+            : x,
+        );
+      }
+
+      return persist(next, undefined, { stockChanged: true });
+    },
+    [ingredients, persist],
+  );
+
   const removeIngredient = useCallback(
     async (id: string) => {
       await persist(ingredients.filter((x) => x.id !== id), "remove");
@@ -575,6 +681,7 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
     ingredients,
     addIngredient,
     updateIngredient,
+    applyDeliveryStockDeltas,
     removeIngredient,
     isHydrated,
   };

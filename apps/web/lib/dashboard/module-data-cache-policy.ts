@@ -94,7 +94,7 @@ export const MODULE_CACHE_STRATEGY_META: Record<
 /**
  * App-Zone-Ladereihenfolge (für Superadmin-Flow-Diagramm).
  * Dashboard-Batch streamt Widgets als NDJSON (Time-to-first-KPI).
- * Auf /dashboard: kritisches Modul-Warm verzögert. Inbox-Warm skip wenn Batch < 30s.
+ * FULL-Routes sofort; API-Warm nach erstem KPI-Event (Failsafe ~0.9s). Inbox-Warm skip nur bei warmem Cache.
  */
 export const DASHBOARD_LOAD_FLOW_STEP_IDS = [
   "workspaceRestaurant",
@@ -142,8 +142,9 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "Modulwechsel per Soft-Nav (Link/router.push) — (app)-Layout, Provider und Client-Caches bleiben gemountet. Full-Load nur App ↔ Superadmin über /zone/enter. SoftNavLock steuert Pending-Overlay/Sidebar-Highlight, blockiert keine parallelen Flights.",
     loadTriggers: [
       "AppNavLink / Sidebar-Klick (prefetch={false}, Intent-Warm on hover/focus)",
-      "Keep-alive Homes: Dashboard, Reservierungen, Nachrichten",
-      "Pending-Overlay übersprungen wenn isModuleSoftNavDataReady",
+      "Keep-alive Homes: alle Sidebar-Übersichten (+ Dashboard)",
+      "Priority-Prewarm nach KPI; Secondary idle/~2.2s; Intent flushSync",
+      "Pending-Overlay übersprungen bei warmem Keep-alive-Home (Preview)",
     ],
     invalidateTriggers: [
       "Zonenwechsel App ↔ Superadmin (Full-Load)",
@@ -169,12 +170,13 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     strategy: "stale-while-revalidate",
     staleTimeMs: 5 * 60_000,
     description:
-      "Nach Workspace ready: sessionStorage → React Query seed, FULL-Route-Prefetch (Priority), kritische Queries, Idle-Warm für Speisekarte/Bestand/Feeds. Auf Dashboard-Home wird kritischer Warm (~2.8s) verzögert, damit der Batch-KPI-Fetch nicht konkurriert. Intent-Prefetch zusätzlich bei Sidebar-Hover/Tap.",
+      "Nach Workspace ready: sessionStorage → React Query seed, Sidebar FULL-Routes gestaffelt (Top-5 zuerst, ~40ms). Modul-API-Daten nach erstem Dashboard-KPI (oder sofort wenn Batch-Cache warm / nicht auf /dashboard). Soft-Nav bricht Warm nicht ab. Intent-Prefetch bei Sidebar-Hover/Tap.",
     loadTriggers: [
-      "AppModuleWarmPrefetchMount (einmal pro Restaurant)",
-      "Idle 150ms (bzw. 1.2s auf /dashboard): menu/inventory RQ + Priority-Warm",
-      "Idle 900ms (bzw. 2s auf /dashboard): Secondary-Warm",
-      "Idle 400ms (bzw. 900ms auf /dashboard): restliche Routes FULL-prefetch (stagger)",
+      "AppModuleWarmPrefetchMount (einmal pro Restaurant, zwei Effects)",
+      "FULL-Prefetch gestaffelt: Top-5 → Priority → Nested",
+      "notifyDashboardFirstKpiReady → critical + menu/inventory + Priority-Daten",
+      "Failsafe 0.9s auf /dashboard ohne KPI-Event",
+      "Idle ~200ms: Secondary-Warm (News/Reviews/…)",
       "Sidebar hover/focus → warmModuleRouteIntent",
     ],
     invalidateTriggers: [

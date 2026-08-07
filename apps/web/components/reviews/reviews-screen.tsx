@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
 import { Filter, GalleryVerticalEnd, Link2, List, ScrollText, Search } from "lucide-react";
 import {
   countReviewsDrawerActiveFilters,
@@ -170,8 +171,8 @@ function withNextPageToken(
   return { ...prev, [currentPage + 1]: nextToken };
 }
 
-export function ReviewsScreen() {
-  const router = useRouter();
+export function ReviewsScreen({ active = true }: { active?: boolean }) {
+  const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const platformParam = searchParams.get("platform");

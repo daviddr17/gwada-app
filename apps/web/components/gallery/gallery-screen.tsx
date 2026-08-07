@@ -91,7 +91,8 @@ function initialGalleryFeedFromCache(restaurantId: string | null): {
   };
 }
 
-export function GalleryScreen() {
+export function GalleryScreen({ active = true }: { active?: boolean }) {
+  void active;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { getProfileForRestaurantId, isReady: profileReady } =
     useRestaurantProfile();

@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
 import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -100,13 +101,13 @@ function initialNewsFeedFromCache(restaurantId: string | null): {
   };
 }
 
-export function NewsScreen() {
+export function NewsScreen({ active = true }: { active?: boolean }) {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "news");
   const canManage = hasModuleCreate(has, "news");
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
 
   const [platformFilter, setPlatformFilterState] = useState<NewsPlatformFilter>(

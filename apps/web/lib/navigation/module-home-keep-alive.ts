@@ -2,13 +2,71 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
 
 /** Module homes that stay warm under the App-Shell (hide, don't unmount). */
-export type ModuleHomeId = "dashboard" | "reservierungen" | "nachrichten";
+export type ModuleHomeId =
+  | "dashboard"
+  | "menu"
+  | "inventory"
+  | "reservierungen"
+  | "pos"
+  | "events"
+  | "nachrichten"
+  | "news"
+  | "bewertungen"
+  | "insights"
+  | "galerie"
+  | "buchfuehrung"
+  | "dokumente"
+  | "checklisten"
+  | "mitarbeiter";
 
 export const MODULE_HOME_PATHS: Record<ModuleHomeId, string> = {
   dashboard: APP_ROUTES.dashboard,
+  menu: APP_ROUTES.menu.overview,
+  inventory: APP_ROUTES.inventory.overview,
   reservierungen: APP_ROUTES.reservierungen.overview,
+  pos: APP_ROUTES.pos.overview,
+  events: APP_ROUTES.events.overview,
   nachrichten: APP_ROUTES.kontakte.messages,
+  news: APP_ROUTES.news.overview,
+  bewertungen: APP_ROUTES.bewertungen.overview,
+  insights: APP_ROUTES.insights.overview,
+  galerie: APP_ROUTES.galerie.overview,
+  buchfuehrung: APP_ROUTES.buchfuehrung.invoices,
+  dokumente: APP_ROUTES.dokumente.overview,
+  checklisten: APP_ROUTES.checklisten.root,
+  mitarbeiter: APP_ROUTES.mitarbeiter.overview,
 };
+
+/**
+ * Nach erstem KPI — häufigste Homes, gestaffelt.
+ * Rest idle/später oder per Sidebar-Intent (kein Dashboard-Spike).
+ */
+export const MODULE_HOME_PRIORITY_PREWARM_IDS: readonly ModuleHomeId[] = [
+  "menu",
+  "inventory",
+  "reservierungen",
+  "nachrichten",
+  "mitarbeiter",
+];
+
+/** Idle nach Priority — alle übrigen Sidebar-Homes. */
+export const MODULE_HOME_SECONDARY_PREWARM_IDS: readonly ModuleHomeId[] = [
+  "pos",
+  "events",
+  "news",
+  "bewertungen",
+  "insights",
+  "galerie",
+  "buchfuehrung",
+  "dokumente",
+  "checklisten",
+];
+
+/** @deprecated Prefer PRIORITY + SECONDARY. */
+export const MODULE_HOME_PREWARM_IDS: readonly ModuleHomeId[] = [
+  ...MODULE_HOME_PRIORITY_PREWARM_IDS,
+  ...MODULE_HOME_SECONDARY_PREWARM_IDS,
+];
 
 export const MODULE_HOME_IDS = Object.keys(
   MODULE_HOME_PATHS,
@@ -25,7 +83,11 @@ export function isModuleHomePath(
   id: ModuleHomeId,
 ): boolean {
   if (id === "dashboard") return isDashboardHomePath(pathname);
-  return normalizePath(pathname) === MODULE_HOME_PATHS[id];
+  const path = normalizePath(pathname);
+  if (path === MODULE_HOME_PATHS[id]) return true;
+  // Sidebar Events: /dashboard/events → Redirect-Home
+  if (id === "events" && path === APP_ROUTES.events.root) return true;
+  return false;
 }
 
 export function matchModuleHomeId(pathname: string): ModuleHomeId | null {

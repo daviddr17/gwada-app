@@ -3,17 +3,18 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { peekDashboardBatchSummaryCache } from "@/lib/dashboard/dashboard-batch-summary-cache";
+import { onDashboardFirstKpiReady } from "@/lib/dashboard/dashboard-first-kpi-ready";
 import {
   prefetchCriticalModuleQueries,
   seedPriorityModuleQueryCaches,
   warmPriorityModuleDataCaches,
 } from "@/lib/hooks/app-module-intent-prefetch";
-import {
-  warmAppModuleSecondaryCaches,
-} from "@/lib/hooks/app-module-warm-prefetch";
+import { warmAppModuleSecondaryCaches } from "@/lib/hooks/app-module-warm-prefetch";
 import { prefetchAppModuleQueryCaches } from "@/lib/hooks/app-module-query-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
+import { APP_MODULE_IMMEDIATE_FULL_ROUTES } from "@/lib/navigation/app-module-immediate-prefetch-routes";
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { APP_MODULE_PREFETCH_ROUTES } from "@/lib/navigation/app-module-route-prefetch";
 import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
@@ -21,70 +22,153 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
 const ROUTE_PREFETCH_STAGGER_MS = 40;
-/** Auf Dashboard-Home: Batch zuerst — Staff/Reservierungen-Warm nicht parallel kämpfen lassen. */
-const CRITICAL_WARM_AFTER_DASHBOARD_BATCH_MS = 2_800;
+/** Failsafe: falls Stream hängt, Daten-Warm trotzdem starten. */
+const DASHBOARD_WARM_FAILSAFE_MS = 900;
 
 /**
- * Workspace ready → Full-Route-Prefetch sofort, kritische Modul-Daten kurz danach.
- * AUTO-Prefetch stoppt an loading.tsx — FULL lädt das Page-Segment vor dem Klick.
- * Mobile: Priority-Modul-Daten ohne Hover vorwärmen.
+ * Workspace ready → Sidebar FULL gestaffelt (RSC vor erstem Tap).
+ * Modul-API-Warm nach erstem Dashboard-KPI (oder sofort wenn Batch warm / nicht /dashboard).
+ * Soft-Nav darf den Warm nicht abbrechen (kein cancel bei Pathname-Wechsel).
  */
 export function AppModuleWarmPrefetchMount() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const warmedForRef = useRef<string | null>(null);
+  const routesWarmedForRef = useRef<string | null>(null);
+  const dataWarmedForRef = useRef<string | null>(null);
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
 
+  // FULL-Routes einmal pro Restaurant — überlebt Soft-Nav.
   useEffect(() => {
     if (
       !workspaceReady ||
       !restaurantId ||
       !isUuidRestaurantId(restaurantId) ||
-      warmedForRef.current === restaurantId
+      routesWarmedForRef.current === restaurantId
     ) {
       return;
     }
-    warmedForRef.current = restaurantId;
+    routesWarmedForRef.current = restaurantId;
+
+    const timers: number[] = [];
+    const immediateFull = new Set<string>(APP_MODULE_IMMEDIATE_FULL_ROUTES);
+    let fullIndex = 0;
+
+    const scheduleFull = (route: string) => {
+      const delay = fullIndex * ROUTE_PREFETCH_STAGGER_MS;
+      fullIndex += 1;
+      timers.push(
+        window.setTimeout(() => {
+          prefetchAppModuleHref(router, route);
+        }, delay),
+      );
+    };
+
+    for (const route of APP_MODULE_IMMEDIATE_FULL_ROUTES) {
+      scheduleFull(route);
+    }
+    for (const route of APP_MODULE_PRIORITY_ROUTES) {
+      if (immediateFull.has(route)) continue;
+      scheduleFull(route);
+    }
+
+    // Nested / Settings-Routen nach Sidebar.
+    const seen = new Set<string>([
+      ...APP_MODULE_IMMEDIATE_FULL_ROUTES,
+      ...APP_MODULE_PRIORITY_ROUTES,
+    ]);
+    let nestedIndex = 0;
+    for (const route of APP_MODULE_PREFETCH_ROUTES) {
+      if (seen.has(route)) continue;
+      seen.add(route);
+      const delay = fullIndex * ROUTE_PREFETCH_STAGGER_MS + nestedIndex * ROUTE_PREFETCH_STAGGER_MS;
+      nestedIndex += 1;
+      timers.push(
+        window.setTimeout(() => {
+          prefetchAppModuleHref(router, route);
+        }, delay),
+      );
+    }
+
+    return () => {
+      for (const id of timers) window.clearTimeout(id);
+      if (routesWarmedForRef.current === restaurantId) {
+        routesWarmedForRef.current = null;
+      }
+    };
+  }, [queryClient, restaurantId, router, workspaceReady]);
+
+  // API-Daten einmal pro Restaurant — KPI-gated, Soft-Nav bricht nicht ab.
+  useEffect(() => {
+    if (
+      !workspaceReady ||
+      !restaurantId ||
+      !isUuidRestaurantId(restaurantId) ||
+      dataWarmedForRef.current === restaurantId
+    ) {
+      return;
+    }
+    dataWarmedForRef.current = restaurantId;
 
     seedPriorityModuleQueryCaches(queryClient, restaurantId);
 
-    for (const route of APP_MODULE_PRIORITY_ROUTES) {
-      prefetchAppModuleHref(router, route);
-    }
+    let cancelled = false;
+    let warmStarted = false;
 
-    const deferCriticalForDashboard = isDashboardHomePath(pathname);
-    if (deferCriticalForDashboard) {
-      // Cold-Start auf /dashboard: Batch (Heute-KPIs) hat Vorrang vor Modul-Warm.
-      runWhenIdle(() => {
-        prefetchCriticalModuleQueries(queryClient, restaurantId);
-      }, CRITICAL_WARM_AFTER_DASHBOARD_BATCH_MS);
-    } else {
+    const startModuleWarm = () => {
+      if (cancelled || warmStarted) return;
+      warmStarted = true;
+
       prefetchCriticalModuleQueries(queryClient, restaurantId);
+
+      runWhenIdle(() => {
+        if (cancelled) return;
+        prefetchAppModuleQueryCaches(queryClient, restaurantId);
+        warmPriorityModuleDataCaches(queryClient, restaurantId);
+      }, 40);
+
+      runWhenIdle(() => {
+        if (cancelled) return;
+        warmAppModuleSecondaryCaches(queryClient, restaurantId);
+      }, 200);
+    };
+
+    const onDashboard = isDashboardHomePath(pathnameRef.current);
+    const hasCachedKpis = Boolean(
+      peekDashboardBatchSummaryCache(restaurantId, []),
+    );
+
+    if (!onDashboard || hasCachedKpis) {
+      if (hasCachedKpis && onDashboard) {
+        runWhenIdle(startModuleWarm, 120);
+      } else {
+        startModuleWarm();
+      }
+      return () => {
+        cancelled = true;
+        if (dataWarmedForRef.current === restaurantId) {
+          dataWarmedForRef.current = null;
+        }
+      };
     }
 
-    // Speisekarte/Bestand/… — Daten vor dem ersten Tap (kein Hover auf Touch).
-    runWhenIdle(() => {
-      prefetchAppModuleQueryCaches(queryClient, restaurantId);
-      warmPriorityModuleDataCaches(queryClient, restaurantId);
-    }, deferCriticalForDashboard ? 1_200 : 150);
+    const unsub = onDashboardFirstKpiReady(restaurantId, startModuleWarm);
+    const failsafe = window.setTimeout(
+      startModuleWarm,
+      DASHBOARD_WARM_FAILSAFE_MS,
+    );
 
-    runWhenIdle(() => {
-      warmAppModuleSecondaryCaches(queryClient, restaurantId);
-    }, deferCriticalForDashboard ? 2_000 : 900);
-
-    // Restliche Module FULL-prefetchen.
-    runWhenIdle(() => {
-      let index = 0;
-      for (const route of APP_MODULE_PREFETCH_ROUTES) {
-        if (APP_MODULE_PRIORITY_ROUTES.includes(route)) continue;
-        window.setTimeout(() => {
-          prefetchAppModuleHref(router, route);
-        }, index * ROUTE_PREFETCH_STAGGER_MS);
-        index += 1;
+    return () => {
+      cancelled = true;
+      unsub();
+      window.clearTimeout(failsafe);
+      if (dataWarmedForRef.current === restaurantId) {
+        dataWarmedForRef.current = null;
       }
-    }, deferCriticalForDashboard ? 900 : 400);
-  }, [queryClient, pathname, restaurantId, router, workspaceReady]);
+    };
+  }, [queryClient, restaurantId, workspaceReady]);
 
   return null;
 }

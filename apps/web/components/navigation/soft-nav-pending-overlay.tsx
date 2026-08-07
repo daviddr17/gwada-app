@@ -136,7 +136,6 @@ export function SoftNavPendingOverlay() {
   }, [pendingInFlight, pendingHref, pathname, setChrome]);
 
   // Warm-Home-Keep-alive previewt das Ziel selbst — kein Cover nötig.
-  // Sonst immer Modul-Skeleton decken (nie leeres Weiß).
   if (!pendingInFlight || !pendingHref || pendingToWarmHome) {
     return null;
   }

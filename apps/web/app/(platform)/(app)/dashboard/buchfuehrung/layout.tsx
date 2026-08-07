@@ -1,8 +1,10 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { AppMain } from "@/components/layout/app-main";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
+import { isModuleHomePath } from "@/lib/navigation/module-home-keep-alive";
 
 const BUCHFUEHRUNG_NAV: readonly ModuleSubnavItem[] = [
   {
@@ -41,6 +43,11 @@ const BUCHFUEHRUNG_NAV: readonly ModuleSubnavItem[] = [
 export default function BuchfuehrungLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+
+  const pathname = usePathname();
+  if (isModuleHomePath(pathname, "buchfuehrung")) {
+    return null;
+  }
   return (
     <>
       <RegisterModuleChrome

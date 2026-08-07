@@ -10,9 +10,15 @@ import {
   CHECKLISTEN_NAV,
   CHECKLISTEN_ROUTES,
 } from "@/lib/navigation/checklisten-routes";
+import { isModuleHomePath } from "@/lib/navigation/module-home-keep-alive";
+import { usePathname } from "next/navigation";
 
 function ChecklistenLayoutInner({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  if (isModuleHomePath(pathname, "checklisten")) {
+    return null;
+  }
   const canReadTodos = hasModuleRead(has, "staff_todos");
   const canReadCompliance = hasModuleRead(has, "compliance");
   const canAccess = canReadTodos || canReadCompliance;

@@ -88,12 +88,16 @@ import { cn } from "@/lib/utils";
 import { useMenuViewMode } from "@/hooks/use-menu-view-mode";
 import { readModuleChipStripHeightPx } from "@/lib/layout/module-chip-strip";
 import { getAppScrollRoot } from "@/lib/layout/app-scroll-root";
+import {
+  keepAliveMayNavigate,
+  keepAliveOwnsPathname,
+} from "@/lib/navigation/module-home-keep-alive";
 
 const APP_HEADER_PX = 53; /* --app-chrome-header-h: p-2 + h-9 + p-2 + border */
 
 const MENU_BASE = "/dashboard/menu/uebersicht";
 
-export function MenuOverviewScreen() {
+export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { restaurantId: workspaceRestaurantId } = useWorkspaceRestaurantUuid();
@@ -451,25 +455,28 @@ export function MenuOverviewScreen() {
 
   const closeDishDrawer = useCallback(() => {
     setDishSheet(null);
+    if (!keepAliveMayNavigate(active)) return;
     router.replace(MENU_BASE, { scroll: false });
-  }, [router]);
+  }, [active, router]);
 
   const openCreateDrawer = useCallback(() => {
     setDishSheet({ mode: "create" });
+    if (!keepAliveMayNavigate(active)) return;
     router.push(`${MENU_BASE}?new=1`, { scroll: false });
-  }, [router]);
+  }, [active, router]);
 
   const openEditDrawer = useCallback(
     (id: string) => {
       const item = getItemById(id);
       if (!item) return;
       setDishSheet({ mode: "edit", item });
+      if (!keepAliveMayNavigate(active)) return;
       router.push(
         `${MENU_BASE}?dish=${encodeURIComponent(id)}`,
         { scroll: false },
       );
     },
-    [getItemById, router],
+    [active, getItemById, router],
   );
 
   const handleDishDrawerOpenChange = useCallback(
@@ -481,6 +488,7 @@ export function MenuOverviewScreen() {
 
   // Deep-Link / Zurück: URL → Sheet (Öffnen per Klick setzt State schon vorher).
   useEffect(() => {
+    if (!keepAliveOwnsPathname(active, MENU_BASE, "menu")) return;
     const dishId = searchParams.get("dish");
     const isNew = searchParams.get("new") === "1";
     if (isNew) {
@@ -500,7 +508,7 @@ export function MenuOverviewScreen() {
       return;
     }
     setDishSheet(null);
-  }, [searchParams, getItemById, items]);
+  }, [active, searchParams, getItemById, items]);
 
   const filterActiveCount = useMemo(() => {
     let n = 0;

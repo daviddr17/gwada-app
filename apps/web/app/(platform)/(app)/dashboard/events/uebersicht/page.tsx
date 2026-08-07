@@ -1,5 +1,4 @@
-import { EventsScreen } from "@/components/events/events-screen";
-
+/** UI in AppModuleHomeKeepAlives (Events-Slot). */
 export default function EventsUebersichtPage() {
-  return <EventsScreen />;
+  return null;
 }

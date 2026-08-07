@@ -74,7 +74,7 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
     const router = useRouter();
     const queryClient = useQueryClient();
     const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-    const { tryAcquireNavLock } = useSoftNavLock();
+    const { tryAcquireNavLock, scheduleSoftNavPush } = useSoftNavLock();
     const hrefStr = hrefToString(href);
     const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
 
@@ -139,13 +139,12 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
           ) {
             return;
           }
-          // Sofort Pending (Titel/Cover), dann explizit pushen.
+          // Sofort Pending (Titel/Cover), Push coalesced (letzter Klick gewinnt).
           // Flight hängt nicht am <a> im Mobile-Sheet (Close/Unmount killt sonst Nav).
-          // Kein startTransition: sonst wartet der erste Soft-Nav hinter Dashboard-Stream
-          // (Transition = low priority) und fühlt sich 10–20s „hängend“ an.
+          // Kein startTransition: sonst wartet der erste Soft-Nav hinter Dashboard-Stream.
           event.preventDefault();
           if (!tryAcquireNavLock(event, hrefStr)) return;
-          router.push(hrefStr);
+          scheduleSoftNavPush(hrefStr);
         }}
       >
         {children}

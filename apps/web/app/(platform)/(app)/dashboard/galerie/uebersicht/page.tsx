@@ -1,10 +1,4 @@
-import { Suspense } from "react";
-import { GalleryScreen } from "@/components/gallery/gallery-screen";
-
-export default function GalerieUebersichtPage() {
-  return (
-    <Suspense fallback={null}>
-      <GalleryScreen />
-    </Suspense>
-  );
+/** UI in AppModuleHomeKeepAlives (Galerie-Slot). */
+export default function GalerieOverviewPage() {
+  return null;
 }

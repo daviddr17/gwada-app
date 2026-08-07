@@ -88,7 +88,7 @@ export const SIDEBAR_MODULE_DEFINITIONS: readonly SidebarModuleDefinition[] = [
     id: "events",
     label: "Events",
     tooltip: "Events",
-    href: "/dashboard/events",
+    href: "/dashboard/events/uebersicht",
     pathPrefix: "/dashboard/events",
     icon: PartyPopper,
   },

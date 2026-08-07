@@ -19,7 +19,8 @@ import {
 import { isMissingSchemaError } from "@/lib/supabase/schema-error";
 import type { RestaurantStaffTodoRow } from "@/lib/types/staff-todos";
 
-export function ChecklistenOverviewScreen() {
+export function ChecklistenOverviewScreen({ active = true }: { active?: boolean }) {
+  void active;
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canReadTodos = hasModuleRead(has, "staff_todos");

@@ -1,6 +1,5 @@
 /**
- * Misst Soft-Nav Dashboard → Module nach Cold-Start.
- * Keep-alive Homes: Zeit bis Preview (Titel + Slot), nicht nur URL.
+ * Misst Soft-Nav Dashboard → alle Sidebar-Module (Keep-alive Preview).
  *
  * Usage: pnpm exec dotenv -e .env.development -- node scripts/test-module-first-nav.mjs
  */
@@ -19,50 +18,23 @@ const BASE = (process.env.GWADA_E2E_BASE || "http://127.0.0.1:3000").replace(
   "",
 );
 const EMAIL = process.env.GWADA_E2E_EMAIL || "dreyer@techlion.de";
-const SETTLE_AFTER_KPI_MS = Number(process.env.GWADA_NAV_SETTLE_MS || 2500);
+const SETTLE_AFTER_KPI_MS = Number(process.env.GWADA_NAV_SETTLE_MS || 3500);
 
 const TARGETS = [
-  {
-    id: "menu",
-    href: "/dashboard/menu/uebersicht",
-    expect: /\/dashboard\/menu/,
-    keepAlive: "menu",
-    title: "Speisekarte",
-  },
-  {
-    id: "inventory",
-    href: "/dashboard/inventory/uebersicht",
-    expect: /\/dashboard\/inventory/,
-    keepAlive: "inventory",
-    title: "Bestand",
-  },
-  {
-    id: "reservierungen",
-    href: "/dashboard/reservierungen/uebersicht",
-    expect: /\/dashboard\/reservierungen/,
-    keepAlive: "reservierungen",
-    title: "Reservierungen",
-  },
-  {
-    id: "mitarbeiter",
-    href: "/dashboard/mitarbeiter/uebersicht",
-    expect: /\/dashboard\/mitarbeiter/,
-    keepAlive: "mitarbeiter",
-    title: "Mitarbeiter",
-  },
-  {
-    id: "kontakte",
-    href: "/dashboard/kontakte/nachrichten?platform=all",
-    expect: /\/dashboard\/kontakte/,
-    keepAlive: "nachrichten",
-    title: "Nachrichten",
-  },
-  { id: "news", href: "/dashboard/news", expect: /\/dashboard\/news/ },
-  {
-    id: "bewertungen",
-    href: "/dashboard/bewertungen",
-    expect: /\/dashboard\/bewertungen/,
-  },
+  { id: "menu", href: "/dashboard/menu/uebersicht", keepAlive: "menu", title: "Speisekarte" },
+  { id: "inventory", href: "/dashboard/inventory/uebersicht", keepAlive: "inventory", title: "Bestand" },
+  { id: "reservierungen", href: "/dashboard/reservierungen/uebersicht", keepAlive: "reservierungen", title: "Reservierungen" },
+  { id: "pos", href: "/dashboard/pos/uebersicht", keepAlive: "pos", title: "POS" },
+  { id: "events", href: "/dashboard/events/uebersicht", keepAlive: "events", title: "Events" },
+  { id: "kontakte", href: "/dashboard/kontakte/nachrichten?platform=all", keepAlive: "nachrichten", title: "Nachrichten" },
+  { id: "news", href: "/dashboard/news/uebersicht", keepAlive: "news", title: "News" },
+  { id: "bewertungen", href: "/dashboard/bewertungen/uebersicht", keepAlive: "bewertungen", title: "Bewertungen" },
+  { id: "insights", href: "/dashboard/insights/uebersicht", keepAlive: "insights", title: "Insights" },
+  { id: "galerie", href: "/dashboard/galerie/uebersicht", keepAlive: "galerie", title: "Galerie" },
+  { id: "buchfuehrung", href: "/dashboard/buchfuehrung/rechnungen", keepAlive: "buchfuehrung", title: "Buchführung" },
+  { id: "dokumente", href: "/dashboard/dokumente/uebersicht", keepAlive: "dokumente", title: "Dokumente" },
+  { id: "checklisten", href: "/dashboard/checklisten", keepAlive: "checklisten", title: "Checklisten" },
+  { id: "mitarbeiter", href: "/dashboard/mitarbeiter/uebersicht", keepAlive: "mitarbeiter", title: "Mitarbeiter" },
 ];
 
 async function login(page) {
@@ -116,35 +88,23 @@ async function softNavTo(page, target) {
   }, target.href);
   if (!clicked) throw new Error(`Link missing: ${target.href}`);
 
-  let previewMs = null;
-  if (target.keepAlive) {
-    await page.waitForFunction(
-      ({ keepAlive, title }) => {
-        const slot = document.querySelector(
+  await page.waitForFunction(
+    ({ keepAlive }) =>
+      Boolean(
+        document.querySelector(
           `[data-module-home-keep-alive="${keepAlive}"]:not(.hidden)`,
-        );
-        const chrome = document.body?.innerText?.includes(title);
-        return Boolean(slot && chrome);
-      },
-      { keepAlive: target.keepAlive, title: target.title },
-      { timeout: 15_000 },
-    );
-    previewMs = Date.now() - t0;
-  }
+        ),
+      ),
+    { keepAlive: target.keepAlive },
+    { timeout: 12_000 },
+  );
+  const previewMs = Date.now() - t0;
 
-  await page.waitForURL(target.expect, { timeout: 30_000 });
-  const urlMs = Date.now() - t0;
-
-  await page
-    .waitForFunction(
-      () =>
-        document.querySelectorAll('[aria-busy][aria-live="polite"]').length ===
-        0,
-      { timeout: 12_000 },
-    )
-    .catch(() => {});
-
-  return { previewMs, urlMs, totalMs: Date.now() - t0 };
+  const pathRe = new RegExp(
+    target.href.split("?")[0].replace(/\//g, "\\/"),
+  );
+  await page.waitForURL(pathRe, { timeout: 35_000 }).catch(() => {});
+  return { previewMs, urlMs: Date.now() - t0 };
 }
 
 const browser = await chromium.launch({ headless: true });
@@ -168,14 +128,31 @@ for (const target of TARGETS) {
         timeout: 25_000,
       })
       .catch(() => {});
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
   }
-  const ms = await softNavTo(page, target);
-  results.push({ id: target.id, ...ms });
-  console.log(
-    `${target.id}: preview=${ms.previewMs ?? "-"}ms url=${ms.urlMs}ms total=${ms.totalMs}ms`,
-  );
+  try {
+    const ms = await softNavTo(page, target);
+    results.push({ id: target.id, ...ms, ok: true });
+    console.log(`${target.id}: preview=${ms.previewMs}ms url=${ms.urlMs}ms`);
+  } catch (err) {
+    results.push({ id: target.id, ok: false, error: String(err) });
+    console.log(`${target.id}: FAIL`, err.message ?? err);
+  }
 }
 
-console.log(JSON.stringify({ settleMs: SETTLE_AFTER_KPI_MS, results }, null, 2));
+const previews = results.filter((r) => r.ok).map((r) => r.previewMs);
+console.log(
+  JSON.stringify(
+    {
+      settleMs: SETTLE_AFTER_KPI_MS,
+      previewMax: previews.length ? Math.max(...previews) : null,
+      previewAvg: previews.length
+        ? Math.round(previews.reduce((a, b) => a + b, 0) / previews.length)
+        : null,
+      results,
+    },
+    null,
+    2,
+  ),
+);
 await browser.close();

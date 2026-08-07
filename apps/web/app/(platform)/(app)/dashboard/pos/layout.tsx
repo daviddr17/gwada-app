@@ -8,6 +8,8 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { hasPosModuleAccess } from "@/lib/permissions/sidebar-module-permissions";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { isModuleHomePath } from "@/lib/navigation/module-home-keep-alive";
+import { usePathname } from "next/navigation";
 
 const POS_NAV: readonly ModuleSubnavItem[] = [
   {
@@ -49,7 +51,11 @@ const POS_NAV: readonly ModuleSubnavItem[] = [
 ];
 
 function PosLayoutInner({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  if (isModuleHomePath(pathname, "pos")) {
+    return null;
+  }
   const canAccess = hasPosModuleAccess(has);
 
   if (!permissionsLoading && !canAccess) {

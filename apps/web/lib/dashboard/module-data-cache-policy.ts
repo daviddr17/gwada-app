@@ -142,7 +142,8 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "Modulwechsel per Soft-Nav (Link/router.push) — (app)-Layout, Provider und Client-Caches bleiben gemountet. Full-Load nur App ↔ Superadmin über /zone/enter. SoftNavLock steuert Pending-Overlay/Sidebar-Highlight, blockiert keine parallelen Flights.",
     loadTriggers: [
       "AppNavLink / Sidebar-Klick (prefetch={false}, Intent-Warm on hover/focus)",
-      "Keep-alive Homes: Dashboard, Reservierungen, Nachrichten",
+      "Keep-alive Homes: alle Sidebar-Übersichten (+ Dashboard)",
+      "Priority-Prewarm nach KPI; Secondary idle/~2.2s; Intent flushSync",
       "Pending-Overlay übersprungen bei warmem Keep-alive-Home (Preview)",
     ],
     invalidateTriggers: [

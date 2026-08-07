@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
 import {
   Download,
   FileText,
@@ -263,8 +264,8 @@ function initialDocumentsFromCache(restaurantId: string | null): {
   };
 }
 
-export function DocumentsOverview() {
-  const router = useRouter();
+export function DocumentsOverview({ active = true }: { active?: boolean }) {
+  const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();

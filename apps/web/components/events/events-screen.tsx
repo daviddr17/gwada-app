@@ -68,7 +68,8 @@ function initialEventsFeedFromCache(restaurantId: string | null): {
   };
 }
 
-export function EventsScreen() {
+export function EventsScreen({ active = true }: { active?: boolean }) {
+  void active;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "events");

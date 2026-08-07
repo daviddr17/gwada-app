@@ -124,7 +124,8 @@ function formatWhen(iso: string | null, timeZone: string): string {
   return formatRestaurantDateTime(iso, timeZone);
 }
 
-export function StaffTodosScreen() {
+export function StaffTodosScreen({ active = true }: { active?: boolean }) {
+  void active;
   const searchParams = useSearchParams();
   const staffFilterFromUrl = searchParams.get("staff");
 

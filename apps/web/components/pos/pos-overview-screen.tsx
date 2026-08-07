@@ -82,7 +82,8 @@ function formatCents(cents: number): string {
   }).format(cents / 100);
 }
 
-export function PosOverviewScreen() {
+export function PosOverviewScreen({ active = true }: { active?: boolean }) {
+  void active;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const [loading, setLoading] = useState(true);
   const [activeCount, setActiveCount] = useState<number | null>(null);

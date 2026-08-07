@@ -104,19 +104,10 @@ export function AppModuleWarmPrefetchMount() {
         ...APP_MODULE_IMMEDIATE_FULL_ROUTES,
         ...APP_MODULE_PRIORITY_ROUTES,
       ]);
-      let nestedIndex = 0;
       for (const route of APP_MODULE_PREFETCH_ROUTES) {
         if (seen.has(route)) continue;
         seen.add(route);
-        const delay =
-          fullIndex * ROUTE_PREFETCH_STAGGER_MS +
-          nestedIndex * ROUTE_PREFETCH_STAGGER_MS;
-        nestedIndex += 1;
-        timers.push(
-          window.setTimeout(() => {
-            prefetchAppModuleHref(router, route);
-          }, delay),
-        );
+        scheduleFull(route);
       }
     };
 

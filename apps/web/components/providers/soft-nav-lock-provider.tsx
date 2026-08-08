@@ -10,7 +10,10 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { coalesceSoftNavPush } from "@/lib/navigation/soft-nav-coalesced-push";
+import {
+  coalesceSoftNavPush,
+  flushSoftNavPush,
+} from "@/lib/navigation/soft-nav-coalesced-push";
 import {
   beginSoftNavFlight,
   endSoftNavFlight,

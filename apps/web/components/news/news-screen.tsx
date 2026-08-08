@@ -11,6 +11,7 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
+import { keepAliveOwnsPathname } from "@/lib/navigation/module-home-keep-alive";
 import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -334,6 +335,7 @@ export function NewsScreen({ active = true }: { active?: boolean }) {
   }, []);
 
   useEffect(() => {
+    if (!keepAliveOwnsPathname(active, pathname, "news")) return;
     if (searchParams.get("new") === "1" && canManage) {
       setComposeOpen(true);
       const next = new URLSearchParams(searchParams.toString());
@@ -342,7 +344,7 @@ export function NewsScreen({ active = true }: { active?: boolean }) {
         scroll: false,
       });
     }
-  }, [searchParams, canManage, router]);
+  }, [active, searchParams, canManage, router, pathname]);
 
   const sortedItems = useMemo(() => sortNewsItemsByDate(items), [items]);
 

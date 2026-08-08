@@ -183,6 +183,7 @@ export function StaffShiftPlanScreen({
   );
 
   useEffect(() => {
+    if (!pathname.startsWith("/dashboard/mitarbeiter/schichtplan")) return;
     const newParam = searchParams.get("new");
     if (!newParam) return;
     const p = new URLSearchParams(searchParams.toString());

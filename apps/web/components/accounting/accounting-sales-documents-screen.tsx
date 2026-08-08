@@ -5,6 +5,7 @@ import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
+import { keepAliveMayNavigate } from "@/lib/navigation/module-home-keep-alive";
 import { AccountingCatalogToolbar } from "@/components/accounting/accounting-catalog-toolbar";
 import { AccountingFilterDrawer } from "@/components/accounting/accounting-filter-drawer";
 import { AccountingListSearch } from "@/components/accounting/accounting-list-search";
@@ -352,6 +353,10 @@ export function AccountingSalesDocumentsScreen({
   );
 
   useEffect(() => {
+    // Keep-alive: ?new=1 nur wenn dieses Buchführungs-Screen aktiv ist
+    // (sonst öffnen Rechnungen/Angebote mit bei Dashboard-Shortcuts anderer Module).
+    if (!keepAliveMayNavigate(active)) return;
+    if (!pathname.startsWith("/dashboard/buchfuehrung/")) return;
     if (searchParams.get("new") === "1" && canManage) {
       setEditRow(null);
       setDrawerOpen(true);
@@ -362,7 +367,13 @@ export function AccountingSalesDocumentsScreen({
         { scroll: false },
       );
     }
-  }, [searchParams, canManage, router, pathname]);
+  }, [active, searchParams, canManage, router, pathname]);
+
+  useEffect(() => {
+    if (active) return;
+    setDrawerOpen(false);
+    setSheetOpen(false);
+  }, [active]);
 
   const selectPlatform = setPlatformFilter;
 

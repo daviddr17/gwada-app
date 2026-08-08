@@ -172,6 +172,7 @@ export function StaffWorkHoursView({
   const [dayForNew, setDayForNew] = useState<Date | null>(null);
 
   useEffect(() => {
+    if (!pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten")) return;
     if (searchParams.get("new") !== "1") return;
     setEditEntry(null);
     setDayForNew(startOfLocalDay(new Date()));

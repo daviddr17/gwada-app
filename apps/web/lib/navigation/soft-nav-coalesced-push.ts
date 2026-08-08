@@ -6,7 +6,7 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
  * Schnelle Soft-Nav-Klicks → nur das letzte Ziel wirklich `router.push`en.
  * Pending-UI bleibt synchron; der Flight wird nicht mit Dutzenden RSC-Requests zugeschüttet.
  */
-const COALESCE_MS = 40;
+const COALESCE_MS = 32;
 
 let pendingHref: string | null = null;
 let timer: number | null = null;
@@ -33,9 +33,6 @@ export function flushSoftNavPush(router: AppRouterInstance): string | null {
   const target = pendingHref;
   pendingHref = null;
   if (!target) return null;
-  if (lastPushedHref === target) {
-    // Trotzdem erneut pushen — vorheriger Flight kann verworfen worden sein.
-  }
   lastPushedHref = target;
   router.push(target);
   return target;

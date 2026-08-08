@@ -11,6 +11,10 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { coalesceSoftNavPush } from "@/lib/navigation/soft-nav-coalesced-push";
+import {
+  beginSoftNavFlight,
+  endSoftNavFlight,
+} from "@/lib/navigation/soft-nav-flight";
 
 type SoftNavLockValue = {
   tryAcquireNavLock: (
@@ -25,8 +29,8 @@ type SoftNavLockValue = {
 
 const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
 
-const PENDING_CLEAR_FAILSAFE_MS = 8_000;
-const PENDING_RETRY_EXTRA_MS = 4_000;
+const PENDING_CLEAR_FAILSAFE_MS = 6_000;
+const PENDING_RETRY_EXTRA_MS = 3_500;
 
 export function normalizeNavHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -57,6 +61,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     pendingTargetRef.current = null;
     pendingRawHrefRef.current = null;
     failsafeRetriedRef.current = false;
+    endSoftNavFlight();
     setPendingHref(null);
     if (clearTimerRef.current != null) {
       window.clearTimeout(clearTimerRef.current);
@@ -83,6 +88,8 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         if (raw && target && !atTarget && !failsafeRetriedRef.current) {
           // Ein Retry statt Snap-back auf das Quell-Modul.
           failsafeRetriedRef.current = true;
+          // Coalesce-Queue leeren und hart erneut pushen.
+          flushSoftNavPush(router);
           router.push(raw);
           armFailsafe(PENDING_RETRY_EXTRA_MS);
           return;
@@ -137,6 +144,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
       pendingTargetRef.current = target;
       pendingRawHrefRef.current = targetHref;
       failsafeRetriedRef.current = false;
+      beginSoftNavFlight(targetHref);
       if (paintClearRafRef.current != null) {
         window.cancelAnimationFrame(paintClearRafRef.current);
         paintClearRafRef.current = null;

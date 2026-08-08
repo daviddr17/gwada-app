@@ -270,8 +270,6 @@ export function ContactsOverview() {
     router.replace(q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht");
   }, [contactParam, router, searchParams]);
 
-  const pathname = usePathname();
-
   useEffect(() => {
     // Nur auf der Kontakte-Übersicht — nicht bei fremdem ?new=1 (Keep-alive Soft-Nav).
     if (!pathname.startsWith("/dashboard/kontakte/uebersicht")) return;

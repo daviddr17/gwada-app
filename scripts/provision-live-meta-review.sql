@@ -8,14 +8,14 @@ declare
   v_email text := 'meta-review@gwada.app';
   v_password text := 'MetaReview-Gwada-2026!';
   v_user_id uuid;
-  v_rid uuid := 'a11e0000-1111-4111-8111-meta00000001'::uuid;
+  v_rid uuid := 'a11e0000-1111-4111-8111-111111111101'::uuid;
   v_tz text := 'Europe/Berlin';
   pos_owner uuid;
 begin
   select id into v_user_id from auth.users where lower(email) = lower(v_email) limit 1;
 
   if v_user_id is null then
-    v_user_id := 'a11e0000-1111-4111-8111-meta00000002'::uuid;
+    v_user_id := 'a11e0000-1111-4111-8111-111111111102'::uuid;
     insert into auth.users (
       id, instance_id, aud, role, email, encrypted_password,
       email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
@@ -133,7 +133,7 @@ begin
     id, restaurant_id, profile_id, given_name, family_name,
     email, phone, restaurant_position_id, is_active
   ) values (
-    'a11e0000-1111-4111-8111-meta00000003'::uuid,
+    'a11e0000-1111-4111-8111-111111111103'::uuid,
     v_rid, v_user_id, 'Meta', 'Reviewer', v_email, null, pos_owner, true
   )
   on conflict (id) do update set

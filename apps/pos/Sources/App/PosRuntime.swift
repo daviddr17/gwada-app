@@ -870,7 +870,7 @@ final class PosRuntime: ObservableObject {
         if role == .handheld, !shouldPublishLocalHubFloor {
             guard canMutateLiveFloor, let base = hubBaseURL, !isSoloMode else {
                 statusMessage = "Mergen nur mit erreichbarer Kasse."
-                return .failure(.sourceNotFound)
+                return .failure(.hubUnavailable)
             }
             do {
                 let pin = PosAuthStore.shared.pinSession
@@ -896,33 +896,21 @@ final class PosRuntime: ObservableObject {
                 return .success(.ok(
                     targetSessionId: merged.targetSessionId,
                     coverCount: merged.coverCount,
-                    idempotentReplay: false
+                    idempotentReplay: merged.idempotentReplay
                 ))
-            } catch let HandheldHubClientError.hubRejected(_, message) {
-                let error: PosSessionMergeError
-                switch message {
-                case "same_session":
-                    error = .sameSession
-                case "target_not_found":
-                    error = .targetNotFound
-                case "kassieren_active":
-                    error = .kassierenActive
-                case "missing_idempotency_key":
-                    error = .missingIdempotencyKey
-                default:
-                    error = .sourceNotFound
-                }
+            } catch let hubError as HandheldHubClientError {
+                let error = Self.mergeError(for: hubError)
                 setMergeFailureStatus(error)
                 return .failure(error)
             } catch {
                 statusMessage = "Mergen an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
-                return .failure(.sourceNotFound)
+                return .failure(.hubUnavailable)
             }
         }
 
         guard shouldPublishLocalHubFloor else {
             statusMessage = "Mergen nur mit erreichbarer Kasse."
-            return .failure(.sourceNotFound)
+            return .failure(.hubUnavailable)
         }
 
         let floor = PosHubState.shared.makeSnapshot().floor
@@ -979,6 +967,28 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Mergen während des Kassierens nicht möglich."
         case .missingIdempotencyKey:
             statusMessage = "Mergen konnte nicht vorbereitet werden."
+        case .hubUnavailable:
+            statusMessage = "Mergen nur mit erreichbarer Kasse."
+        }
+    }
+
+    nonisolated static func mergeError(for error: HandheldHubClientError) -> PosSessionMergeError {
+        guard case .hubRejected(_, let message) = error else {
+            return .hubUnavailable
+        }
+        switch message {
+        case "same_session":
+            return .sameSession
+        case "source_not_found":
+            return .sourceNotFound
+        case "target_not_found":
+            return .targetNotFound
+        case "kassieren_active":
+            return .kassierenActive
+        case "missing_idempotency_key":
+            return .missingIdempotencyKey
+        default:
+            return .hubUnavailable
         }
     }
 
@@ -2441,6 +2451,12 @@ final class PosRuntime: ObservableObject {
         return nil
     }
 
+    nonisolated static func persistHubSessionMerge(_ payload: PosSyncSessionMergedPayload) {
+        DispatchQueue.main.sync {
+            PosSyncQueue.shared.enqueueSessionMerged(payload)
+        }
+    }
+
     private nonisolated static func handleHubRequest(
         method: String,
         path: String,
@@ -3036,21 +3052,22 @@ final class PosRuntime: ObservableObject {
                        let sourceDiningTableId,
                        let targetDiningTableId
                     {
+                        let syncPayload = PosSyncSessionMergedPayload(
+                            restaurantId: PosHubState.shared.restaurantId,
+                            sourceSessionId: req.sourceSessionId,
+                            targetSessionId: targetSessionId,
+                            sourceDiningTableId: sourceDiningTableId,
+                            targetDiningTableId: targetDiningTableId,
+                            coverCount: coverCount,
+                            idempotencyKey: req.idempotencyKey
+                        )
+                        Self.persistHubSessionMerge(syncPayload)
                         Task { @MainActor in
                             PosAuditLog.shared.record(
                                 "session.merged",
                                 detail: "hub:\(sourceDiningTableId)->\(targetDiningTableId)",
                                 sessionId: targetSessionId
                             )
-                            PosSyncQueue.shared.enqueueSessionMerged(PosSyncSessionMergedPayload(
-                                restaurantId: PosHubState.shared.restaurantId,
-                                sourceSessionId: req.sourceSessionId,
-                                targetSessionId: targetSessionId,
-                                sourceDiningTableId: sourceDiningTableId,
-                                targetDiningTableId: targetDiningTableId,
-                                coverCount: coverCount,
-                                idempotencyKey: req.idempotencyKey
-                            ))
                             await PosSyncQueue.shared.flushIfPossible()
                         }
                     }
@@ -3058,6 +3075,7 @@ final class PosRuntime: ObservableObject {
                         "ok": true,
                         "targetSessionId": targetSessionId,
                         "coverCount": coverCount,
+                        "idempotentReplay": idempotentReplay,
                     ]
                     let data = (try? JSONSerialization.data(withJSONObject: payload))
                         ?? Data(#"{"ok":true}"#.utf8)
@@ -3072,6 +3090,8 @@ final class PosRuntime: ObservableObject {
                     return (409, Data(#"{"error":"kassieren_active","code":"kassieren_active"}"#.utf8))
                 case .failure(.missingIdempotencyKey):
                     return (400, Data(#"{"error":"missing_idempotency_key","code":"missing_idempotency_key"}"#.utf8))
+                case .failure(.hubUnavailable):
+                    return (503, Data(#"{"error":"hub_unavailable","code":"hub_unavailable"}"#.utf8))
                 }
             }
 

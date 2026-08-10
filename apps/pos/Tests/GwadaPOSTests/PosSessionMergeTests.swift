@@ -7,6 +7,61 @@ final class PosSessionMergeTests: XCTestCase {
         XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.mergeSessionsPath))
     }
 
+    func testMergeLANResponse_preservesReplayAndDefaultsMissingFieldToFalse() throws {
+        let replay = try JSONDecoder().decode(
+            PosLanSessionMergeResponse.self,
+            from: Data(#"{"ok":true,"targetSessionId":"target","coverCount":5,"idempotentReplay":true}"#.utf8)
+        )
+        let legacy = try JSONDecoder().decode(
+            PosLanSessionMergeResponse.self,
+            from: Data(#"{"ok":true,"targetSessionId":"target","coverCount":5}"#.utf8)
+        )
+
+        XCTAssertTrue(replay.idempotentReplay)
+        XCTAssertFalse(legacy.idempotentReplay)
+    }
+
+    func testMergeHubTransportFailure_mapsToHubUnavailable() {
+        XCTAssertEqual(
+            PosRuntime.mergeError(for: HandheldHubClientError.unreachable(URL(string: "https://hub.local")!)),
+            .hubUnavailable
+        )
+        XCTAssertEqual(
+            PosRuntime.mergeError(for: HandheldHubClientError.invalidResponse),
+            .hubUnavailable
+        )
+    }
+
+    func testMergeHubReject_mapsDomainErrorWithoutCallingItConnectivity() {
+        XCTAssertEqual(
+            PosRuntime.mergeError(
+                for: HandheldHubClientError.hubRejected(status: 404, message: "source_not_found")
+            ),
+            .sourceNotFound
+        )
+    }
+
+    @MainActor
+    func testHubMergePersistence_finishesBeforeReturning() async {
+        PosSyncQueue.shared.clearAll()
+        defer { PosSyncQueue.shared.clearAll() }
+        let payload = PosSyncSessionMergedPayload(
+            restaurantId: "restaurant-1",
+            sourceSessionId: "session-source",
+            targetSessionId: "session-target",
+            sourceDiningTableId: "table-source",
+            targetDiningTableId: "table-target",
+            coverCount: 5,
+            idempotencyKey: "merge-http-persistence"
+        )
+
+        await Task.detached {
+            PosRuntime.persistHubSessionMerge(payload)
+        }.value
+
+        XCTAssertEqual(PosSyncQueue.shared.items.first?.id, payload.idempotencyKey)
+    }
+
     func testSyncSessionMergedPayload_codableRoundTrip() throws {
         let payload = PosSyncSessionMergedPayload(
             restaurantId: "restaurant-1",

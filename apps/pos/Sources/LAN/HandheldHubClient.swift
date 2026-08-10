@@ -354,18 +354,13 @@ enum HandheldHubClient {
         staffId: String? = nil,
         staffSessionId: String? = nil,
         staffSessionHeader: String? = nil
-    ) async throws -> (targetSessionId: String, coverCount: Int) {
+    ) async throws -> (targetSessionId: String, coverCount: Int, idempotentReplay: Bool) {
         struct Body: Encodable {
             var sourceSessionId: String
             var targetSessionId: String
             var idempotencyKey: String
             var staffId: String?
             var staffSessionId: String?
-        }
-        struct Ok: Decodable {
-            var ok: Bool?
-            var targetSessionId: String
-            var coverCount: Int
         }
         struct ErrorBody: Decodable {
             var code: String?
@@ -396,8 +391,12 @@ enum HandheldHubClient {
             }
             throw HandheldHubClientError.httpStatus(http.statusCode)
         }
-        let ok = try decoder.decode(Ok.self, from: data)
-        return (targetSessionId: ok.targetSessionId, coverCount: ok.coverCount)
+        let ok = try decoder.decode(PosLanSessionMergeResponse.self, from: data)
+        return (
+            targetSessionId: ok.targetSessionId,
+            coverCount: ok.coverCount,
+            idempotentReplay: ok.idempotentReplay
+        )
     }
 
     static func voidLine(

@@ -345,6 +345,61 @@ enum HandheldHubClient {
         return (tableSessionId: ok.tableSessionId, diningTableId: ok.diningTableId)
     }
 
+    static func mergeSessions(
+        baseURL: URL,
+        pairToken: String?,
+        sourceSessionId: String,
+        targetSessionId: String,
+        idempotencyKey: String,
+        staffId: String? = nil,
+        staffSessionId: String? = nil,
+        staffSessionHeader: String? = nil
+    ) async throws -> (targetSessionId: String, coverCount: Int) {
+        struct Body: Encodable {
+            var sourceSessionId: String
+            var targetSessionId: String
+            var idempotencyKey: String
+            var staffId: String?
+            var staffSessionId: String?
+        }
+        struct Ok: Decodable {
+            var ok: Bool?
+            var targetSessionId: String
+            var coverCount: Int
+        }
+        struct ErrorBody: Decodable {
+            var code: String?
+            var error: String?
+        }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.mergeSessionsPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        applyStaffProof(staffId: staffId, staffSessionHeader: staffSessionHeader, to: &request)
+        request.httpBody = try encoder.encode(Body(
+            sourceSessionId: sourceSessionId,
+            targetSessionId: targetSessionId,
+            idempotencyKey: idempotencyKey,
+            staffId: staffId,
+            staffSessionId: staffSessionId
+        ))
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else {
+            throw HandheldHubClientError.invalidResponse
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            if let rejected = try? decoder.decode(ErrorBody.self, from: data),
+               let message = rejected.code ?? rejected.error
+            {
+                throw HandheldHubClientError.hubRejected(status: http.statusCode, message: message)
+            }
+            throw HandheldHubClientError.httpStatus(http.statusCode)
+        }
+        let ok = try decoder.decode(Ok.self, from: data)
+        return (targetSessionId: ok.targetSessionId, coverCount: ok.coverCount)
+    }
+
     static func voidLine(
         baseURL: URL,
         pairToken: String?,

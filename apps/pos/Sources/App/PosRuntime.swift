@@ -2864,6 +2864,69 @@ final class PosRuntime: ObservableObject {
                 }
             }
 
+            if pathOnly == PosLanProtocol.mergeSessionsPath {
+                struct Req: Decodable {
+                    var sourceSessionId: String
+                    var targetSessionId: String
+                    var idempotencyKey: String
+                    var staffId: String?
+                    var staffSessionId: String?
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body","code":"invalid_body"}"#.utf8))
+                }
+                let headerStaffId = (headers[PosLanProtocol.headerStaffId.lowercased()] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let bodyStaffId = (req.staffId ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let authenticatedStaffId = PosLanVoidAuth.authenticatedStaffId(
+                    headerStaffId: headerStaffId,
+                    bodyStaffId: bodyStaffId
+                )
+                let staffSessionId = (req.staffSessionId ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let staffSessionHeader = (headers[PosLanProtocol.headerStaffSession.lowercased()] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !PosSecurityPolicy.allowsHubCollectWithoutStaffSession {
+                    let staffSignedIn = DispatchQueue.main.sync { PosAuthStore.shared.isSignedIn }
+                    guard staffSignedIn,
+                          PosLanVoidAuth.hasStaffProof(
+                              staffId: authenticatedStaffId,
+                              staffSessionId: staffSessionId.isEmpty ? nil : staffSessionId,
+                              staffSessionHeader: staffSessionHeader.isEmpty ? nil : staffSessionHeader
+                          )
+                    else {
+                        return (403, Data(#"{"error":"staff_proof_required","code":"staff_proof_required"}"#.utf8))
+                    }
+                }
+                switch PosHubState.shared.mergeLocalSessions(
+                    sourceSessionId: req.sourceSessionId,
+                    targetSessionId: req.targetSessionId,
+                    idempotencyKey: req.idempotencyKey
+                ) {
+                case .success(.ok(let targetSessionId, let coverCount, _)):
+                    // Task 3 adds audit + Sync-Queue enqueue for `table.merged`.
+                    let payload: [String: Any] = [
+                        "ok": true,
+                        "targetSessionId": targetSessionId,
+                        "coverCount": coverCount,
+                    ]
+                    let data = (try? JSONSerialization.data(withJSONObject: payload))
+                        ?? Data(#"{"ok":true}"#.utf8)
+                    return (200, data)
+                case .failure(.sameSession):
+                    return (400, Data(#"{"error":"same_session","code":"same_session"}"#.utf8))
+                case .failure(.sourceNotFound):
+                    return (404, Data(#"{"error":"source_not_found","code":"source_not_found"}"#.utf8))
+                case .failure(.targetNotFound):
+                    return (404, Data(#"{"error":"target_not_found","code":"target_not_found"}"#.utf8))
+                case .failure(.kassierenActive):
+                    return (409, Data(#"{"error":"kassieren_active","code":"kassieren_active"}"#.utf8))
+                case .failure(.missingIdempotencyKey):
+                    return (400, Data(#"{"error":"missing_idempotency_key","code":"missing_idempotency_key"}"#.utf8))
+                }
+            }
+
             if pathOnly == PosLanProtocol.voidLinePath {
                 struct Req: Decodable {
                     var sessionId: String

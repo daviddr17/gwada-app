@@ -9,6 +9,7 @@ enum PosLanProtocol {
     static let healthPath = "/v1/health"
     static let snapshotPath = "/v1/snapshot"
     static let openSessionPath = "/v1/sessions"
+    static let mergeSessionsPath = "/v1/sessions/merge"
     static let createOrderPath = "/v1/orders"
     static let collectPath = "/v1/collect"
     static let fireCoursePath = "/v1/fire"

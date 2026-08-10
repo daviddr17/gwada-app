@@ -2,6 +2,11 @@ import XCTest
 @testable import GwadaPOS
 
 final class PosSessionMergeTests: XCTestCase {
+    func testMergeSessionsPath_matchesLANContract() {
+        XCTAssertEqual(PosLanProtocol.mergeSessionsPath, "/v1/sessions/merge")
+        XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.mergeSessionsPath))
+    }
+
     func testPolicy_blocksAnyKassierenLock() {
         XCTAssertTrue(PosSessionMergePolicy.canMerge(sourceLocked: false, targetLocked: false))
         XCTAssertFalse(PosSessionMergePolicy.canMerge(sourceLocked: true, targetLocked: false))

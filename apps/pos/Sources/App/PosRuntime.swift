@@ -860,6 +860,128 @@ final class PosRuntime: ObservableObject {
         return true
     }
 
+    /// Quell-Session vollständig in die Ziel-Session mergen.
+    @discardableResult
+    func mergeSessions(
+        sourceSessionId: String,
+        targetSessionId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async -> Result<PosSessionMergeResult, PosSessionMergeError> {
+        if role == .handheld, !shouldPublishLocalHubFloor {
+            guard canMutateLiveFloor, let base = hubBaseURL, !isSoloMode else {
+                statusMessage = "Mergen nur mit erreichbarer Kasse."
+                return .failure(.sourceNotFound)
+            }
+            do {
+                let pin = PosAuthStore.shared.pinSession
+                let staffSessionHeader: String? = pin.map { "\($0.sessionId).\($0.sessionToken)" }
+                let merged = try await HandheldHubClient.mergeSessions(
+                    baseURL: base,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken,
+                    sourceSessionId: sourceSessionId,
+                    targetSessionId: targetSessionId,
+                    idempotencyKey: idempotencyKey,
+                    staffId: pin?.staffId,
+                    staffSessionId: pin?.sessionId,
+                    staffSessionHeader: staffSessionHeader
+                )
+                if let snap = try? await HandheldHubClient.fetchSnapshot(
+                    baseURL: base,
+                    restaurantId: nil,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                ) {
+                    publishSnapshot(snap)
+                }
+                statusMessage = "Tische zusammengeführt."
+                return .success(.ok(
+                    targetSessionId: merged.targetSessionId,
+                    coverCount: merged.coverCount,
+                    idempotentReplay: false
+                ))
+            } catch let HandheldHubClientError.hubRejected(_, message) {
+                let error: PosSessionMergeError
+                switch message {
+                case "same_session":
+                    error = .sameSession
+                case "target_not_found":
+                    error = .targetNotFound
+                case "kassieren_active":
+                    error = .kassierenActive
+                case "missing_idempotency_key":
+                    error = .missingIdempotencyKey
+                default:
+                    error = .sourceNotFound
+                }
+                setMergeFailureStatus(error)
+                return .failure(error)
+            } catch {
+                statusMessage = "Mergen an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                return .failure(.sourceNotFound)
+            }
+        }
+
+        guard shouldPublishLocalHubFloor else {
+            statusMessage = "Mergen nur mit erreichbarer Kasse."
+            return .failure(.sourceNotFound)
+        }
+
+        let floor = PosHubState.shared.makeSnapshot().floor
+        let sourceDiningTableId = floor.openSessions
+            .first(where: { $0.id == sourceSessionId })?.dining_table_id
+        let targetDiningTableId = floor.openSessions
+            .first(where: { $0.id == targetSessionId })?.dining_table_id
+        let result = PosHubState.shared.mergeLocalSessions(
+            sourceSessionId: sourceSessionId,
+            targetSessionId: targetSessionId,
+            idempotencyKey: idempotencyKey
+        )
+        switch result {
+        case .success(.ok(let mergedTargetSessionId, let coverCount, let idempotentReplay)):
+            if !idempotentReplay,
+               let sourceDiningTableId,
+               let targetDiningTableId
+            {
+                PosSyncQueue.shared.enqueueSessionMerged(PosSyncSessionMergedPayload(
+                    restaurantId: PosHubState.shared.restaurantId,
+                    sourceSessionId: sourceSessionId,
+                    targetSessionId: mergedTargetSessionId,
+                    sourceDiningTableId: sourceDiningTableId,
+                    targetDiningTableId: targetDiningTableId,
+                    coverCount: coverCount,
+                    idempotencyKey: idempotencyKey
+                ))
+                PosAuditLog.shared.record(
+                    "session.merged",
+                    detail: "local:\(sourceDiningTableId)->\(targetDiningTableId)",
+                    sessionId: mergedTargetSessionId
+                )
+            }
+            publishSnapshot(PosHubState.shared.makeSnapshot())
+            syncPending = PosSyncQueue.shared.pendingCount
+            await PosSyncQueue.shared.flushIfPossible()
+            syncPending = PosSyncQueue.shared.pendingCount
+            statusMessage = "Tische zusammengeführt."
+        case .failure(let error):
+            setMergeFailureStatus(error)
+        }
+        return result
+    }
+
+    private func setMergeFailureStatus(_ error: PosSessionMergeError) {
+        switch error {
+        case .sameSession:
+            statusMessage = "Quelle und Ziel müssen verschieden sein."
+        case .sourceNotFound:
+            statusMessage = "Quell-Session nicht gefunden."
+        case .targetNotFound:
+            statusMessage = "Ziel-Session nicht gefunden."
+        case .kassierenActive:
+            statusMessage = "Mergen während des Kassierens nicht möglich."
+        case .missingIdempotencyKey:
+            statusMessage = "Mergen konnte nicht vorbereitet werden."
+        }
+    }
+
     func ensureLocalSession(tableId: String, covers: Int = 2) -> String {
         if let existing = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id {
             return existing
@@ -2899,13 +3021,39 @@ final class PosRuntime: ObservableObject {
                         return (403, Data(#"{"error":"staff_proof_required","code":"staff_proof_required"}"#.utf8))
                     }
                 }
+                let floor = PosHubState.shared.makeSnapshot().floor
+                let sourceDiningTableId = floor.openSessions
+                    .first(where: { $0.id == req.sourceSessionId })?.dining_table_id
+                let targetDiningTableId = floor.openSessions
+                    .first(where: { $0.id == req.targetSessionId })?.dining_table_id
                 switch PosHubState.shared.mergeLocalSessions(
                     sourceSessionId: req.sourceSessionId,
                     targetSessionId: req.targetSessionId,
                     idempotencyKey: req.idempotencyKey
                 ) {
-                case .success(.ok(let targetSessionId, let coverCount, _)):
-                    // Task 3 adds audit + Sync-Queue enqueue for `table.merged`.
+                case .success(.ok(let targetSessionId, let coverCount, let idempotentReplay)):
+                    if !idempotentReplay,
+                       let sourceDiningTableId,
+                       let targetDiningTableId
+                    {
+                        Task { @MainActor in
+                            PosAuditLog.shared.record(
+                                "session.merged",
+                                detail: "hub:\(sourceDiningTableId)->\(targetDiningTableId)",
+                                sessionId: targetSessionId
+                            )
+                            PosSyncQueue.shared.enqueueSessionMerged(PosSyncSessionMergedPayload(
+                                restaurantId: PosHubState.shared.restaurantId,
+                                sourceSessionId: req.sourceSessionId,
+                                targetSessionId: targetSessionId,
+                                sourceDiningTableId: sourceDiningTableId,
+                                targetDiningTableId: targetDiningTableId,
+                                coverCount: coverCount,
+                                idempotencyKey: req.idempotencyKey
+                            ))
+                            await PosSyncQueue.shared.flushIfPossible()
+                        }
+                    }
                     let payload: [String: Any] = [
                         "ok": true,
                         "targetSessionId": targetSessionId,

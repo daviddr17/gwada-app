@@ -7,6 +7,51 @@ final class PosSessionMergeTests: XCTestCase {
         XCTAssertTrue(PosLanAuth.requiresToken(pathOnly: PosLanProtocol.mergeSessionsPath))
     }
 
+    func testSyncSessionMergedPayload_codableRoundTrip() throws {
+        let payload = PosSyncSessionMergedPayload(
+            restaurantId: "restaurant-1",
+            sourceSessionId: "session-source",
+            targetSessionId: "session-target",
+            sourceDiningTableId: "table-source",
+            targetDiningTableId: "table-target",
+            coverCount: 5,
+            idempotencyKey: "merge-idempotency-key"
+        )
+
+        let data = try JSONEncoder().encode(payload)
+        let decoded = try JSONDecoder().decode(PosSyncSessionMergedPayload.self, from: data)
+
+        XCTAssertEqual(decoded.restaurantId, payload.restaurantId)
+        XCTAssertEqual(decoded.sourceSessionId, payload.sourceSessionId)
+        XCTAssertEqual(decoded.targetSessionId, payload.targetSessionId)
+        XCTAssertEqual(decoded.sourceDiningTableId, payload.sourceDiningTableId)
+        XCTAssertEqual(decoded.targetDiningTableId, payload.targetDiningTableId)
+        XCTAssertEqual(decoded.coverCount, payload.coverCount)
+        XCTAssertEqual(decoded.idempotencyKey, payload.idempotencyKey)
+    }
+
+    @MainActor
+    func testSyncSessionMerged_enqueuesOnceWithIdempotencyKey() {
+        PosSyncQueue.shared.clearAll()
+        defer { PosSyncQueue.shared.clearAll() }
+        let payload = PosSyncSessionMergedPayload(
+            restaurantId: "restaurant-1",
+            sourceSessionId: "session-source",
+            targetSessionId: "session-target",
+            sourceDiningTableId: "table-source",
+            targetDiningTableId: "table-target",
+            coverCount: 5,
+            idempotencyKey: "merge-idempotency-key"
+        )
+
+        PosSyncQueue.shared.enqueueSessionMerged(payload)
+        PosSyncQueue.shared.enqueueSessionMerged(payload)
+
+        XCTAssertEqual(PosSyncQueue.shared.items.count, 1)
+        XCTAssertEqual(PosSyncQueue.shared.items.first?.kind, .sessionMerged)
+        XCTAssertEqual(PosSyncQueue.shared.items.first?.id, payload.idempotencyKey)
+    }
+
     func testPolicy_blocksAnyKassierenLock() {
         XCTAssertTrue(PosSessionMergePolicy.canMerge(sourceLocked: false, targetLocked: false))
         XCTAssertFalse(PosSessionMergePolicy.canMerge(sourceLocked: true, targetLocked: false))

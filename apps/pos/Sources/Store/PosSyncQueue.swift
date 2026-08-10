@@ -8,6 +8,7 @@ enum PosSyncQueueItemKind: String, Codable, Sendable {
     case lineVoided
     case reservationSeated
     case moveSession
+    case sessionMerged
     case releaseSession
     case createReservation
     case openRegister
@@ -184,6 +185,16 @@ struct PosSyncMoveSessionPayload: Codable, Sendable {
     var toTableId: String
 }
 
+struct PosSyncSessionMergedPayload: Codable, Sendable {
+    var restaurantId: String
+    var sourceSessionId: String
+    var targetSessionId: String
+    var sourceDiningTableId: String
+    var targetDiningTableId: String
+    var coverCount: Int
+    var idempotencyKey: String
+}
+
 struct PosSyncReleaseSessionPayload: Codable, Sendable {
     var restaurantId: String
     var tableSessionId: String
@@ -332,6 +343,16 @@ final class PosSyncQueue: ObservableObject {
         enqueue(makeItem(kind: .moveSession, payload: data))
     }
 
+    /// Enqueues merge sync once per `idempotencyKey` (LAN / Hub replay-safe).
+    func enqueueSessionMerged(_ payload: PosSyncSessionMergedPayload) {
+        var resolved = payload
+        resolved.sourceSessionId = PosSessionIdMap.shared.resolve(payload.sourceSessionId)
+        resolved.targetSessionId = PosSessionIdMap.shared.resolve(payload.targetSessionId)
+        if items.contains(where: { $0.id == resolved.idempotencyKey }) { return }
+        let data = (try? encoder.encode(resolved)) ?? Data()
+        enqueue(makeItem(id: resolved.idempotencyKey, kind: .sessionMerged, payload: data))
+    }
+
     func enqueueReleaseSession(_ payload: PosSyncReleaseSessionPayload) {
         var resolved = payload
         resolved.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
@@ -437,7 +458,7 @@ final class PosSyncQueue: ObservableObject {
         index: Int
     ) async throws {
         switch item.kind {
-        case .openSession, .createOrder, .collectCash, .fireCourse, .lineVoided, .reservationSeated, .moveSession, .releaseSession:
+        case .openSession, .createOrder, .collectCash, .fireCourse, .lineVoided, .reservationSeated, .moveSession, .sessionMerged, .releaseSession:
             if PosCloudConfig.nestSyncEnabled {
                 try await processViaNest(&item, working: &working, index: index)
             } else {
@@ -626,6 +647,26 @@ final class PosSyncQueue: ObservableObject {
                 ]
             )
 
+        case .sessionMerged:
+            var payload = try decoder.decode(PosSyncSessionMergedPayload.self, from: item.payload)
+            payload.sourceSessionId = PosSessionIdMap.shared.resolve(payload.sourceSessionId)
+            payload.targetSessionId = PosSessionIdMap.shared.resolve(payload.targetSessionId)
+            item.payload = (try? encoder.encode(payload)) ?? item.payload
+            envelope = PosNestClient.eventEnvelope(
+                type: "table.merged",
+                idempotencyKey: payload.idempotencyKey,
+                sessionId: payload.targetSessionId,
+                payload: [
+                    "restaurantId": payload.restaurantId,
+                    "sourceSessionId": payload.sourceSessionId,
+                    "targetSessionId": payload.targetSessionId,
+                    "sourceDiningTableId": payload.sourceDiningTableId,
+                    "targetDiningTableId": payload.targetDiningTableId,
+                    "coverCount": payload.coverCount,
+                    "idempotencyKey": payload.idempotencyKey,
+                ]
+            )
+
         case .releaseSession:
             var payload = try decoder.decode(PosSyncReleaseSessionPayload.self, from: item.payload)
             payload.tableSessionId = PosSessionIdMap.shared.resolve(payload.tableSessionId)
@@ -806,7 +847,7 @@ final class PosSyncQueue: ObservableObject {
                 PosOfflineCaches.markReceiptSynced(localId: receiptId, paymentId: paymentId)
             }
 
-        case .fireCourse, .moveSession, .releaseSession:
+        case .fireCourse, .moveSession, .sessionMerged, .releaseSession:
             throw PosCloudError.missingConfig(
                 "Nest-URL (für \(item.kind.rawValue); Next-Fallback fehlt)"
             )
@@ -968,6 +1009,21 @@ final class PosSyncQueue: ObservableObject {
                 if let data = try? encoder.encode(payload) {
                     copy.payload = data
                 }
+            }
+        case .sessionMerged:
+            guard var payload = try? decoder.decode(PosSyncSessionMergedPayload.self, from: item.payload)
+            else { return item }
+            var changed = false
+            if payload.sourceSessionId == localSessionId {
+                payload.sourceSessionId = cloudSessionId
+                changed = true
+            }
+            if payload.targetSessionId == localSessionId {
+                payload.targetSessionId = cloudSessionId
+                changed = true
+            }
+            if changed, let data = try? encoder.encode(payload) {
+                copy.payload = data
             }
         case .releaseSession:
             guard var payload = try? decoder.decode(PosSyncReleaseSessionPayload.self, from: item.payload)

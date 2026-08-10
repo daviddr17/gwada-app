@@ -4,6 +4,7 @@ import {
   fetchImapMessageSnippets,
   fetchImapRecentEnvelopes,
   fetchImapThreadBodies,
+  imapCounterpartyDisplayName,
   imapCounterpartyEmail,
   imapSetMessagesSeen,
   type ImapCredentials,
@@ -11,6 +12,7 @@ import {
   type ImapThreadBodyEntry,
 } from "@/lib/email/imap-inbox";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
+import { pickContactThreadTitle } from "@/lib/contacts/contact-thread-title";
 import { emailAddressFromPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
@@ -65,6 +67,7 @@ function buildEmailToContactMap(
     const name = contactDisplayName({
       first_name: row.first_name as string,
       last_name: row.last_name as string,
+      company: (row.company as string | null | undefined) ?? null,
     });
     const emails = row.contact_emails;
     const list = Array.isArray(emails) ? emails : [];
@@ -94,6 +97,7 @@ export async function fetchEmailInboxConversations(
       id,
       first_name,
       last_name,
+      company,
       contact_emails ( email )
     `,
     )
@@ -115,10 +119,17 @@ export async function fetchEmailInboxConversations(
     const existing = byKey.get(key);
     const unseenInbound = !msg.outbound && !msg.seen;
 
+    const fromDisplay = imapCounterpartyDisplayName(msg, creds.email);
+    const displayName = pickContactThreadTitle(
+      matched?.name,
+      fromDisplay,
+      party,
+    );
+
     if (!existing) {
       byKey.set(key, {
         contact_id: key,
-        contact_name: matched?.name ?? party,
+        contact_name: displayName,
         platform: "email",
         last_body: msg.snippet,
         last_at: lastAt,
@@ -146,6 +157,11 @@ export async function fetchEmailInboxConversations(
       existing.last_at = lastAt;
       existing.last_direction = msg.outbound ? "outbound" : "inbound";
       existing.last_attachment_kind = undefined;
+      // Absendername nachziehen, wenn bisher nur Platzhalter/E-Mail.
+      existing.contact_name = pickContactThreadTitle(
+        displayName,
+        existing.contact_name,
+      );
     }
   }
 

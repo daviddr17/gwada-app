@@ -13,6 +13,7 @@ import {
   wahaChatIdFromPseudoContactId,
 } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { contactThreadDisplayName } from "@/lib/supabase/contacts-db";
+import { pickContactThreadTitle } from "@/lib/contacts/contact-thread-title";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import {
   createContactThreadTiming,
@@ -76,6 +77,7 @@ export type ContactThreadPageResult = {
 type ContactRow = {
   first_name: string;
   last_name: string;
+  company?: string | null;
   contact_phones?: { phone: string }[] | { phone: string } | null;
   contact_emails?: { email: string }[] | { email: string } | null;
   contact_messaging_ids?: { platform: string; external_sender_id: string }[] | null;
@@ -100,6 +102,7 @@ async function loadContactRow(
       `
       first_name,
       last_name,
+      company,
       contact_phones ( phone ),
       contact_emails ( email ),
       contact_messaging_ids ( platform, external_sender_id )
@@ -149,7 +152,13 @@ function contactMetaFromRow(
 
   const phone = firstPhoneFromRow(contact);
   const email = firstEmailFromRow(contact);
-  const name = contactThreadDisplayName(contact);
+  // Nie leeren Titel → UI-Fallback „Kontakt“; E-Mail/Telefon sind besser lesbar.
+  const name = pickContactThreadTitle(
+    contactThreadDisplayName(contact),
+    email,
+    phone,
+    fallbackName,
+  );
 
   return {
     name,

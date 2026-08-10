@@ -18,6 +18,14 @@ struct PosFiredCourseStore: Equatable {
     mutating func clear(sessionId: String) {
         bySession[sessionId] = nil
     }
+
+    mutating func absorb(from otherSessionId: String, into targetSessionId: String) {
+        let courses = bySession[otherSessionId] ?? []
+        if !courses.isEmpty {
+            bySession[targetSessionId, default: []].formUnion(courses)
+        }
+        bySession[otherSessionId] = nil
+    }
 }
 
 /// Autoritative lokale Hub-Daten (Floor + Speisekarte), die Handgeräte per LAN abrufen.
@@ -59,6 +67,7 @@ final class PosHubState: @unchecked Sendable {
         kassierenLocksBySession = [:]
         sessionReservationMap = [:]
         consumedSeatIdempotency = [:]
+        consumedSessionMergeIdempotency = [:]
         lock.unlock()
     }
 
@@ -607,6 +616,100 @@ final class PosHubState: @unchecked Sendable {
         return true
     }
 
+    func mergeLocalSessions(
+        sourceSessionId: String,
+        targetSessionId: String,
+        idempotencyKey: String
+    ) -> Result<PosSessionMergeResult, PosSessionMergeError> {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let idemKey = idempotencyKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !idemKey.isEmpty else {
+            return .failure(.missingIdempotencyKey)
+        }
+        if case .ok(let targetSessionId, let coverCount, _) = consumedSessionMergeIdempotency[idemKey] {
+            return .success(
+                .ok(
+                    targetSessionId: targetSessionId,
+                    coverCount: coverCount,
+                    idempotentReplay: true
+                )
+            )
+        }
+        guard sourceSessionId != targetSessionId else {
+            return .failure(.sameSession)
+        }
+        guard var bootstrap else {
+            return .failure(.sourceNotFound)
+        }
+        guard let sourceSession = bootstrap.floor.openSessions.first(where: { $0.id == sourceSessionId }) else {
+            return .failure(.sourceNotFound)
+        }
+        guard let targetIndex = bootstrap.floor.openSessions.firstIndex(where: { $0.id == targetSessionId }) else {
+            return .failure(.targetNotFound)
+        }
+        let targetSession = bootstrap.floor.openSessions[targetIndex]
+        guard PosSessionMergePolicy.canMerge(
+            sourceLocked: kassierenLocksBySession[sourceSessionId] != nil,
+            targetLocked: kassierenLocksBySession[targetSessionId] != nil
+        ) else {
+            return .failure(.kassierenActive)
+        }
+
+        var targetLines = localOpenLinesBySession[targetSessionId] ?? []
+        var targetLineIds = Set(targetLines.map(\.id))
+        var movedLines = localOpenLinesBySession[sourceSessionId] ?? []
+        for index in movedLines.indices {
+            if targetLineIds.contains(movedLines[index].id) {
+                movedLines[index].id = UUID().uuidString
+            }
+            targetLineIds.insert(movedLines[index].id)
+        }
+        targetLines.append(contentsOf: movedLines)
+        localOpenLinesBySession[targetSessionId] = targetLines.isEmpty ? nil : targetLines
+        localOpenLinesBySession[sourceSessionId] = nil
+        persistLocalOpenLinesLocked()
+
+        let coverCount = max(1, sourceSession.cover_count + targetSession.cover_count)
+        bootstrap.floor.openSessions[targetIndex] = PosLanOpenSession(
+            id: targetSession.id,
+            dining_table_id: targetSession.dining_table_id,
+            cover_count: coverCount,
+            opened_at: targetSession.opened_at
+        )
+        bootstrap.floor.openSessions.removeAll { $0.id == sourceSessionId }
+
+        let sourceOrderCount = bootstrap.floor.orderCountBySessionId.removeValue(forKey: sourceSessionId) ?? 0
+        let targetOrderCount = bootstrap.floor.orderCountBySessionId[targetSessionId] ?? 0
+        let mergedOrderCount = sourceOrderCount + targetOrderCount
+        bootstrap.floor.orderCountBySessionId[targetSessionId] = mergedOrderCount
+        bootstrap.floor.sessionMetaBySessionId.removeValue(forKey: sourceSessionId)
+        bootstrap.floor.sessionMetaBySessionId[targetSessionId] = PosLanSessionFloorMeta(
+            orderCount: mergedOrderCount,
+            openCents: targetLines.reduce(0) { $0 + $1.openCents }
+        )
+
+        firedCourses.absorb(from: sourceSessionId, into: targetSessionId)
+        kassierenLocksBySession.removeValue(forKey: sourceSessionId)
+        persistKassierenLocksLocked()
+        PosDraftCartStore.clear(
+            diningTableId: sourceSession.dining_table_id,
+            sessionId: sourceSessionId
+        )
+
+        self.bootstrap = bootstrap
+        bumpSnapshotVersionLocked()
+        PosLocalStore.saveBootstrap(bootstrap)
+        let result = PosSessionMergeResult.ok(
+            targetSessionId: targetSessionId,
+            coverCount: coverCount,
+            idempotentReplay: false
+        )
+        consumedSessionMergeIdempotency[idemKey] = result
+        return .success(result)
+    }
+
     /// Session freigeben (nach bezahlt / Abbruch vor Fire).
     @discardableResult
     func releaseLocalSession(sessionId: String) -> Bool {
@@ -662,6 +765,7 @@ final class PosHubState: @unchecked Sendable {
     private var localOpenLinesBySession: [String: [SessionOpenLine]] = [:]
     /// Kassieren-Modus-Lock pro Session (Positions ↔ Gleich teilen).
     private var kassierenLocksBySession: [String: PosKassierenLockState] = [:]
+    private var consumedSessionMergeIdempotency: [String: PosSessionMergeResult] = [:]
 
     /// Hängt offene Positionen an. Nutzt `PosCartLine.id` (LAN: `clientLineId`), damit Hub und Handgerät dieselben IDs teilen.
     @discardableResult

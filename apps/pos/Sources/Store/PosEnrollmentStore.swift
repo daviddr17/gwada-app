@@ -153,6 +153,9 @@ final class PosEnrollmentStore: ObservableObject {
         resetHandheldPairing()
         resetHandheldCloud()
         PosEnrollmentCredential.clear()
+        PosLocalStore.clearBootstrap()
+        // Alte „Platziert“ / Seat-Test-Resas sonst blockieren Platzieren.
+        PosReservationsStore.shared.clearAll()
     }
 
     private static func loadPairTokenMigratingLegacy(

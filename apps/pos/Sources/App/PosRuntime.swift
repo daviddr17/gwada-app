@@ -266,9 +266,12 @@ final class PosRuntime: ObservableObject {
         } else {
             statusMessage = cloudNote
         }
-        #if DEBUG
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-UITestingResetEnrollment") {
+            PosReservationsStore.shared.clearAll()
+        }
         PosDemoReservations.seedIfNeeded(tables: snapshot?.floor.tables ?? [])
-        #endif
+#endif
         await pullReservationsDay(PosReservationsStore.todayYmd())
         guard epoch == handheldSessionEpoch else { return }
         syncPending = PosSyncQueue.shared.pendingCount
@@ -2242,6 +2245,13 @@ final class PosRuntime: ObservableObject {
     }
 
     private func pullCloudBootstrap(forceDemoFallback: Bool) async -> String {
+        // UITests: nie Cloud-Floor (kann 1 Tisch / Seat-Test-Cache sein) — immer Demo mit 2 Tischen.
+        if ProcessInfo.processInfo.arguments.contains("-UITestingResetEnrollment")
+            || ProcessInfo.processInfo.arguments.contains("-UITestingForceDemoFloor")
+        {
+            PosHubState.shared.loadCachedOrDemo()
+            return "UITest · Demo-Floor (2 Tische)"
+        }
         let canCloud = PosAuthStore.shared.isSignedIn || PosEnrollmentCredential.hasCredential
         guard canCloud else {
             if forceDemoFallback {

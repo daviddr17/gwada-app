@@ -234,6 +234,7 @@ struct TablesHomeView: View {
                 .buttonStyle(.plain)
                 .disabled(!runtime.canOpenNewTableSession)
                 .accessibilityLabel("Platzieren: \(upcoming.reservation.guestLabel)")
+                .accessibilityIdentifier("pos.floor.seatHint")
             }
         }
         .padding(14)

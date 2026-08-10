@@ -41,6 +41,12 @@ enum PosLocalStore {
         return try? JSONDecoder().decode(PosCloudBootstrap.self, from: data)
     }
 
+    static func clearBootstrap() {
+        ioQueue.sync {
+            try? FileManager.default.removeItem(at: bootstrapURL)
+        }
+    }
+
     private static var openLinesURL: URL {
         directory.appendingPathComponent("local-open-lines.json")
     }

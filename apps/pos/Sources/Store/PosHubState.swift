@@ -124,6 +124,17 @@ final class PosHubState: @unchecked Sendable {
     func loadCachedOrDemo() {
         lock.lock()
         defer { lock.unlock() }
+        // UITests: immer frischer Demo-Floor mit 2 Tischen (kein Cloud-/Seat-Test-Cache).
+        if ProcessInfo.processInfo.arguments.contains("-UITestingResetEnrollment")
+            || ProcessInfo.processInfo.arguments.contains("-UITestingForceDemoFloor")
+        {
+            let demo = DemoSnapshotFactory.makeBootstrap(hubDeviceId: hubDeviceId)
+            bootstrap = demo
+            usingDemo = true
+            PosLocalStore.saveBootstrap(demo)
+            loadLocalOpenLinesLocked()
+            return
+        }
         if var cached = PosLocalStore.loadBootstrap() {
             var dirty = false
             // Alte DEBUG-Caches ohne Speisekarte → Demo-Menü nachziehen.
@@ -131,12 +142,18 @@ final class PosHubState: @unchecked Sendable {
                 cached.menu = DemoSnapshotFactory.makeDemoMenu()
                 dirty = true
             }
-            // Solo-Demo-Restaurant: Menü immer an aktuelle Factory anbinden
-            // (Rezept/Beilagen), sonst bleibt ein alter Disk-Cache ohne Sheet-Felder.
+            // Solo-Demo-Restaurant: Menü + Floor (immer 2 Tische) an Factory anbinden.
             if cached.restaurantId == DemoSnapshotFactory.restaurantId {
-                let freshMenu = DemoSnapshotFactory.makeDemoMenu()
-                if cached.menu != freshMenu {
-                    cached.menu = freshMenu
+                let fresh = DemoSnapshotFactory.makeBootstrap(hubDeviceId: hubDeviceId)
+                if cached.menu != fresh.menu {
+                    cached.menu = fresh.menu
+                    dirty = true
+                }
+                let cachedTableIds = Set(cached.floor.tables.map(\.id))
+                let freshTableIds = Set(fresh.floor.tables.map(\.id))
+                if cachedTableIds != freshTableIds || cached.floor.tables.count != 2 {
+                    cached.floor.areas = fresh.floor.areas
+                    cached.floor.tables = fresh.floor.tables
                     dirty = true
                 }
             }

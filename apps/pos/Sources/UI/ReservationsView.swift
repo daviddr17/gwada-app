@@ -25,6 +25,9 @@ struct ReservationsView: View {
     @State private var seatError = ""
     @State private var timelineTick = Date()
     /// Horizontale Tagesleiste (Vergangenheit → Zukunft).
+    @State private var showDatePicker = false
+    @State private var jumpWeekText = ""
+    @State private var jumpYearText = ""
     @State private var stripDays: [Date] = []
 
     private let hourHeight: CGFloat = 88
@@ -120,6 +123,9 @@ struct ReservationsView: View {
                 }
             )
         }
+        .sheet(isPresented: $showDatePicker) {
+            datePickerSheet
+        }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { date in
             timelineTick = date
         }
@@ -168,31 +174,96 @@ struct ReservationsView: View {
     }
 
     private var monthYearMenu: some View {
-        Menu {
-            DatePicker(
-                "Monat",
-                selection: $selectedDate,
-                displayedComponents: [.date]
-            )
-            .datePickerStyle(.graphical)
-            .labelsHidden()
+        Button {
+            jumpWeekText = "\(PosCalendarFormatting.isoWeekOfYear(selectedDate))"
+            jumpYearText = "\(PosCalendarFormatting.yearForWeekOfYear(selectedDate))"
+            showDatePicker = true
         } label: {
             HStack(spacing: 6) {
-                Text(monthYearLabel)
+                Text(PosCalendarFormatting.headerLabel(selectedDate))
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Datum und Kalenderwoche wählen")
+        .accessibilityIdentifier("pos.reservations.dateHeader")
     }
 
-    private var monthYearLabel: String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "de_DE")
-        f.dateFormat = "LLLL yyyy"
-        return f.string(from: selectedDate).capitalized
+    private var datePickerSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Datum") {
+                    DatePicker(
+                        "Tag",
+                        selection: $selectedDate,
+                        displayedComponents: [.date]
+                    )
+                    .datePickerStyle(.graphical)
+                    .environment(\.locale, Locale(identifier: "de_DE"))
+                    .accessibilityIdentifier("pos.reservations.datePicker")
+                }
+                Section {
+                    HStack {
+                        Text("KW")
+                        TextField("KW", text: $jumpWeekText)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityIdentifier("pos.reservations.jumpWeek")
+                    }
+                    HStack {
+                        Text("Jahr")
+                        TextField("Jahr", text: $jumpYearText)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityIdentifier("pos.reservations.jumpYear")
+                    }
+                    Button("Zu KW springen") {
+                        jumpToEnteredWeek()
+                    }
+                    .disabled(!canJumpToWeek)
+                    .accessibilityIdentifier("pos.reservations.jumpWeekButton")
+                } header: {
+                    Text("Kalenderwoche")
+                } footer: {
+                    Text("Montag der gewählten ISO-Kalenderwoche wird ausgewählt.")
+                }
+            }
+            .navigationTitle("Datum wählen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Schließen") { showDatePicker = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") { showDatePicker = false }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private var canJumpToWeek: Bool {
+        guard let w = Int(jumpWeekText.trimmingCharacters(in: .whitespaces)),
+              let y = Int(jumpYearText.trimmingCharacters(in: .whitespaces))
+        else { return false }
+        return (1...53).contains(w) && (2000...2100).contains(y)
+    }
+
+    private func jumpToEnteredWeek() {
+        guard let w = Int(jumpWeekText.trimmingCharacters(in: .whitespaces)),
+              let y = Int(jumpYearText.trimmingCharacters(in: .whitespaces)),
+              let monday = PosCalendarFormatting.mondayOfIsoWeek(week: w, yearForWeek: y)
+        else { return }
+        selectedDate = monday
+        rebuildDateStrip()
+        showDatePicker = false
     }
 
     // MARK: - Date strip (scrollbar)
@@ -211,31 +282,52 @@ struct ReservationsView: View {
             .accessibilityIdentifier("pos.reservations.dateStrip")
             .onAppear {
                 rebuildDateStrip()
-                scrollStrip(to: selectedDate, proxy: proxy, animated: false)
+                // ScrollViewProxy.scrollTo ist beim ersten Layout oft noch wirkungslos —
+                // ohne Nachzug bleibt die Leiste am Anfang (heute−30, z. B. „Sa. 11“ im Juli).
+                DispatchQueue.main.async {
+                    scrollStrip(to: selectedDate, proxy: proxy, animated: false)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    scrollStrip(to: selectedDate, proxy: proxy, animated: false)
+                }
             }
             .onChange(of: selectedDate) { _, newDate in
                 ensureSelectedDateInStrip()
-                scrollStrip(to: newDate, proxy: proxy, animated: true)
+                DispatchQueue.main.async {
+                    scrollStrip(to: newDate, proxy: proxy, animated: true)
+                }
+            }
+            .onChange(of: stripDays) { _, _ in
+                DispatchQueue.main.async {
+                    scrollStrip(to: selectedDate, proxy: proxy, animated: false)
+                }
             }
         }
     }
 
     private func dateChip(_ date: Date) -> some View {
-        let selected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
-        let isToday = Calendar.current.isDateInToday(date)
+        let cal = PosCalendarFormatting.germanGregorian
+        let selected = cal.isDate(date, inSameDayAs: selectedDate)
+        let isToday = cal.isDateInToday(date)
+        let otherMonth = cal.component(.month, from: date) != cal.component(.month, from: selectedDate)
         return Button {
-            selectedDate = Calendar.current.startOfDay(for: date)
+            selectedDate = PosCalendarFormatting.startOfDay(date)
         } label: {
-            VStack(spacing: 6) {
-                Text(weekdayShort(date))
+            VStack(spacing: 4) {
+                Text(PosCalendarFormatting.weekdayShort(date))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(selected ? Color.accentColor : .secondary)
-                Text(dayNumber(date))
+                Text(PosCalendarFormatting.dayNumber(date))
                     .font(.headline.monospacedDigit().weight(.semibold))
                     .foregroundStyle(selected ? PosDesign.accentForeground : .primary)
+                if otherMonth {
+                    Text(monthAbbrev(date))
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
             }
             .frame(width: dateChipWidth)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(selected ? Color.accentColor.opacity(0.22) : Color(.secondarySystemGroupedBackground))
@@ -252,18 +344,30 @@ struct ReservationsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(dateChipAccessibilityLabel(date))
+        .accessibilityIdentifier("pos.reservations.day.\(Self.ymd(from: date))")
         .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    private func monthAbbrev(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.calendar = PosCalendarFormatting.germanGregorian
+        f.timeZone = .current
+        f.dateFormat = "MMM"
+        return f.string(from: date)
     }
 
     private func dateChipAccessibilityLabel(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "de_DE")
+        f.calendar = PosCalendarFormatting.germanGregorian
+        f.timeZone = .current
         f.dateStyle = .full
         return f.string(from: date)
     }
 
     private func rebuildDateStrip() {
-        var cal = Calendar.current
+        let cal = PosCalendarFormatting.germanGregorian
         let today = cal.startOfDay(for: Date())
         guard let start = cal.date(byAdding: .day, value: -stripPastDays, to: today),
               let end = cal.date(byAdding: .day, value: stripFutureDays, to: today)
@@ -301,8 +405,9 @@ struct ReservationsView: View {
     }
 
     private func ensureSelectedDateInStrip() {
-        let selected = Calendar.current.startOfDay(for: selectedDate)
-        if !stripDays.contains(where: { Calendar.current.isDate($0, inSameDayAs: selected) }) {
+        let cal = PosCalendarFormatting.germanGregorian
+        let selected = cal.startOfDay(for: selectedDate)
+        if !stripDays.contains(where: { cal.isDate($0, inSameDayAs: selected) }) {
             rebuildDateStrip()
         }
     }
@@ -395,10 +500,13 @@ struct ReservationsView: View {
                 let width = (contentWidth - CGFloat(max(0, item.laneCount - 1)) * 6)
                     / CGFloat(max(1, item.laneCount))
                 let x = timeColumnWidth + 10 + CGFloat(item.lane) * (width + 6)
+                let isExpanded = expandedReservationId == item.reservation.id
+                let baseHeight = max(64, item.height)
+                let cardHeight = isExpanded ? max(baseHeight, 176) : baseHeight
                 ReservationTimelineCard(
                     reservation: item.reservation,
                     timeRangeLabel: timeRangeLabel(item.reservation),
-                    expanded: expandedReservationId == item.reservation.id,
+                    expanded: isExpanded,
                     conflictSoon: conflictUnder60(item.reservation),
                     canSeat: PosReservationSeatPolicy.canSeat(statusCode: item.reservation.status?.code)
                         && runtime.canOpenNewTableSession,
@@ -415,7 +523,8 @@ struct ReservationsView: View {
                         }
                     }
                 }
-                .frame(width: width, height: max(64, item.height), alignment: .top)
+                .frame(width: width, height: cardHeight, alignment: .top)
+                .zIndex(isExpanded ? 20 : 0)
                 .offset(x: x, y: item.y)
             }
         }
@@ -600,14 +709,11 @@ struct ReservationsView: View {
     // MARK: - Week helpers
 
     private func weekdayShort(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "de_DE")
-        f.dateFormat = "EE"
-        return f.string(from: date)
+        PosCalendarFormatting.weekdayShort(date)
     }
 
     private func dayNumber(_ date: Date) -> String {
-        String(Calendar.current.component(.day, from: date))
+        PosCalendarFormatting.dayNumber(date)
     }
 
     private func daySummary(_ day: PosReservationsDayDto) -> String {
@@ -873,25 +979,36 @@ private struct ReservationTimelineCard: View {
                     Text(reservation.guestLabel)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                        .lineLimit(expanded ? 2 : 1)
+                        .lineLimit(expanded ? nil : 1)
+                        .fixedSize(horizontal: false, vertical: expanded)
 
-                    Text(statusLine)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    Spacer(minLength: 0)
+                    if expanded {
+                        Text(statusPrimary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(reservation.tableLabel)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(statusLine)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
 
                     if expanded, let notes = reservation.notes, !notes.isEmpty {
                         Text(notes)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                             .padding(10)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .fill(Color(.tertiarySystemFill))
                             )
+                    } else {
+                        Spacer(minLength: 0)
                     }
 
                     HStack(alignment: .center, spacing: 8) {
@@ -901,8 +1018,8 @@ private struct ReservationTimelineCard: View {
                             .font(.caption2.monospacedDigit().weight(.medium))
                             .foregroundStyle(.secondary)
                             .labelStyle(.titleAndIcon)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
+                            .lineLimit(expanded ? 2 : 1)
+                            .minimumScaleFactor(expanded ? 1 : 0.85)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -917,6 +1034,7 @@ private struct ReservationTimelineCard: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
+                .accessibilityIdentifier("pos.reservations.seat")
             }
         }
         .padding(12)
@@ -932,17 +1050,20 @@ private struct ReservationTimelineCard: View {
         )
     }
 
-    private var statusLine: String {
+    private var statusPrimary: String {
         var parts: [String] = []
         if let status = reservation.status?.name, !status.isEmpty {
             parts.append(status)
         }
         parts.append("\(reservation.partySize) Pers.")
-        parts.append(reservation.tableLabel)
         if conflictSoon {
             parts.append("bald")
         }
         return parts.joined(separator: " · ")
+    }
+
+    private var statusLine: String {
+        "\(statusPrimary) · \(reservation.tableLabel)"
     }
 
     private var borderColor: Color {

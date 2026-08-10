@@ -90,6 +90,7 @@ struct ReservationSeatSheet: View {
             }
             .navigationTitle("Platzieren")
             .navigationBarTitleDisplayMode(.inline)
+            .accessibilityIdentifier("pos.seat.sheet")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen", action: onCancel)
@@ -101,6 +102,7 @@ struct ReservationSeatSheet: View {
                         onConfirm(id)
                     }
                     .disabled(!canConfirm)
+                    .accessibilityIdentifier("pos.seat.confirm")
                 }
             }
         }

@@ -126,7 +126,9 @@ struct TableSessionView: View {
                         showMergeSession = true
                     }
                     .disabled(
-                        resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-")
+                        resolvedSessionId.isEmpty
+                            || resolvedSessionId.hasPrefix("pending-")
+                            || !hasMergeTarget
                     )
                     .accessibilityIdentifier("pos.session.mergeMenu")
                     Button("Positionen umziehen") {
@@ -515,6 +517,15 @@ struct TableSessionView: View {
 
     private var cartTotal: Int { cart.reduce(0) { $0 + $1.lineTotalCents } }
     private var openTotal: Int { openLines.reduce(0) { $0 + $1.openCents } }
+
+    private var hasMergeTarget: Bool {
+        guard let floor = runtime.snapshot?.floor else { return false }
+        return !PosSessionMergeTargets.candidates(
+            floor: floor,
+            sourceSessionId: resolvedSessionId,
+            sourceTableId: table.id
+        ).isEmpty
+    }
     private var cartQuantity: Int { cart.reduce(0) { $0 + $1.quantity } }
     private var overviewPaidCents: Int {
         let tableReceipts = PosOfflineCaches.receipts(forTableLabel: table.label)

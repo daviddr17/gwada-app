@@ -113,6 +113,35 @@ final class PosSessionMergeTests: XCTestCase {
         XCTAssertFalse(PosSessionMergePolicy.canMerge(sourceLocked: false, targetLocked: true))
     }
 
+    func testMergeTargets_onlyReturnsOtherActiveOccupiedTablesWithMeta() {
+        let sourceTable = makeFloorTable(id: "table-source", number: 1)
+        let targetTable = makeFloorTable(id: "table-target", number: 2)
+        let inactiveTable = makeFloorTable(id: "table-inactive", number: 3, isActive: false)
+        let floor = PosLanFloorSnapshot(
+            areas: [],
+            tables: [sourceTable, targetTable, inactiveTable],
+            openSessions: [
+                makeOpenSession(id: "session-source", tableId: sourceTable.id, covers: 2),
+                makeOpenSession(id: "session-target", tableId: targetTable.id, covers: 3),
+                makeOpenSession(id: "session-inactive", tableId: inactiveTable.id, covers: 4),
+            ],
+            orderCountBySessionId: [:],
+            sessionMetaBySessionId: [
+                "session-target": PosLanSessionFloorMeta(orderCount: 2, openCents: 4_200),
+            ]
+        )
+
+        let candidates = PosSessionMergeTargets.candidates(
+            floor: floor,
+            sourceSessionId: "session-source",
+            sourceTableId: sourceTable.id
+        )
+
+        XCTAssertEqual(candidates.map(\.id), ["session-target"])
+        XCTAssertEqual(candidates.first?.session.cover_count, 3)
+        XCTAssertEqual(candidates.first?.meta?.openCents, 4_200)
+    }
+
     func testMerge_absorbsLinesAndSumsCovers_freesSourceTable() {
         let hub = makeHub()
         let tables = hub.makeSnapshot().floor.tables.filter(\.is_active)
@@ -374,5 +403,29 @@ final class PosSessionMergeTests: XCTestCase {
         )
         line.id = id
         return line
+    }
+
+    private func makeFloorTable(id: String, number: Int, isActive: Bool = true) -> PosLanFloorTable {
+        PosLanFloorTable(
+            id: id,
+            area_id: "area-main",
+            table_number: number,
+            table_name: nil,
+            capacity: 4,
+            is_active: isActive
+        )
+    }
+
+    private func makeOpenSession(
+        id: String,
+        tableId: String,
+        covers: Int
+    ) -> PosLanOpenSession {
+        PosLanOpenSession(
+            id: id,
+            dining_table_id: tableId,
+            cover_count: covers,
+            opened_at: "2026-08-10T10:00:00Z"
+        )
     }
 }

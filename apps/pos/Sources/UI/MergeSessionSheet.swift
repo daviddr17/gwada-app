@@ -1,5 +1,36 @@
 import SwiftUI
 
+struct PosSessionMergeTarget: Identifiable {
+    let table: PosLanFloorTable
+    let session: PosLanOpenSession
+    let meta: PosLanSessionFloorMeta?
+
+    var id: String { session.id }
+}
+
+enum PosSessionMergeTargets {
+    static func candidates(
+        floor: PosLanFloorSnapshot,
+        sourceSessionId: String,
+        sourceTableId: String
+    ) -> [PosSessionMergeTarget] {
+        floor.openSessions.compactMap { session in
+            guard session.id != sourceSessionId,
+                  let table = floor.tables.first(where: {
+                      $0.id == session.dining_table_id
+                          && $0.id != sourceTableId
+                          && $0.is_active
+                  })
+            else { return nil }
+            return PosSessionMergeTarget(
+                table: table,
+                session: session,
+                meta: floor.sessionMetaBySessionId[session.id]
+            )
+        }
+    }
+}
+
 /// Führt eine belegte Quell-Session vollständig mit einer anderen belegten Session zusammen.
 struct MergeSessionSheet: View {
     @EnvironmentObject private var runtime: PosRuntime
@@ -13,18 +44,13 @@ struct MergeSessionSheet: View {
     @State private var busy = false
     @State private var errorText = ""
 
-    private var candidates: [(table: PosLanFloorTable, session: PosLanOpenSession)] {
+    private var candidates: [PosSessionMergeTarget] {
         guard let floor = runtime.snapshot?.floor else { return [] }
-        return floor.openSessions.compactMap { session in
-            guard session.id != sourceSessionId,
-                  let table = floor.tables.first(where: {
-                      $0.id == session.dining_table_id
-                          && $0.id != sourceTableId
-                          && $0.is_active
-                  })
-            else { return nil }
-            return (table, session)
-        }
+        return PosSessionMergeTargets.candidates(
+            floor: floor,
+            sourceSessionId: sourceSessionId,
+            sourceTableId: sourceTableId
+        )
     }
 
     var body: some View {
@@ -40,13 +66,28 @@ struct MergeSessionSheet: View {
                         Text("Kein anderer belegter Tisch.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(candidates.indices, id: \.self) { index in
-                            let candidate = candidates[index]
+                        ForEach(candidates) { candidate in
                             Button {
                                 targetSessionId = candidate.session.id
                             } label: {
                                 HStack {
-                                    Text(candidate.table.label).foregroundStyle(.primary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(candidate.table.label)
+                                            .foregroundStyle(.primary)
+                                        HStack(spacing: 6) {
+                                            Text(
+                                                candidate.session.cover_count == 1
+                                                    ? "1 Gast"
+                                                    : "\(candidate.session.cover_count) Gäste"
+                                            )
+                                            if let meta = candidate.meta {
+                                                Text("·")
+                                                Text("\(PosMoney.format(meta.openCents)) offen")
+                                            }
+                                        }
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    }
                                     Spacer()
                                     if targetSessionId == candidate.session.id {
                                         Image(systemName: "checkmark.circle.fill")

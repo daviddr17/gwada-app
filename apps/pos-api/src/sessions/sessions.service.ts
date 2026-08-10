@@ -242,6 +242,111 @@ export class SessionsService {
     return { ok: true as const };
   }
 
+  async mergeSessions(params: {
+    restaurantId: string;
+    sourceSessionId: string;
+    targetSessionId: string;
+    coverCount?: number;
+  }): Promise<
+    | { ok: true; coverCount: number }
+    | { ok: false; error: string; status: number }
+  > {
+    if (params.sourceSessionId === params.targetSessionId) {
+      return { ok: false, error: "same_session", status: 400 };
+    }
+
+    const sb = this.sb();
+    const [{ data: source }, { data: target }] = await Promise.all([
+      sb
+        .from("pos_table_sessions")
+        .select("id, restaurant_id, status, cover_count")
+        .eq("id", params.sourceSessionId)
+        .maybeSingle(),
+      sb
+        .from("pos_table_sessions")
+        .select("id, restaurant_id, status, cover_count")
+        .eq("id", params.targetSessionId)
+        .maybeSingle(),
+    ]);
+
+    if (
+      !source ||
+      !target ||
+      source.restaurant_id !== params.restaurantId ||
+      target.restaurant_id !== params.restaurantId
+    ) {
+      return { ok: false, error: "session_not_found", status: 404 };
+    }
+
+    const targetIsActive = ACTIVE_SESSION_STATUSES.includes(
+      target.status as (typeof ACTIVE_SESSION_STATUSES)[number],
+    );
+    if (!targetIsActive) {
+      return { ok: false, error: "session_not_active", status: 400 };
+    }
+
+    const sourceIsActive = ACTIVE_SESSION_STATUSES.includes(
+      source.status as (typeof ACTIVE_SESSION_STATUSES)[number],
+    );
+    if (!sourceIsActive) {
+      const { data: remainingOrder, error: remainingOrderError } = await sb
+        .from("pos_orders")
+        .select("id")
+        .eq("table_session_id", params.sourceSessionId)
+        .eq("restaurant_id", params.restaurantId)
+        .limit(1)
+        .maybeSingle();
+      if (remainingOrderError) {
+        return { ok: false, error: remainingOrderError.message, status: 500 };
+      }
+      if (remainingOrder) {
+        return { ok: false, error: "session_not_active", status: 400 };
+      }
+      return {
+        ok: true,
+        coverCount: Math.max(1, Number(target.cover_count) || 1),
+      };
+    }
+
+    const { error: moveError } = await sb
+      .from("pos_orders")
+      .update({ table_session_id: params.targetSessionId })
+      .eq("table_session_id", params.sourceSessionId)
+      .eq("restaurant_id", params.restaurantId);
+    if (moveError) {
+      return { ok: false, error: moveError.message, status: 500 };
+    }
+
+    const requestedCoverCount =
+      params.coverCount ?? Number(source.cover_count) + Number(target.cover_count);
+    const coverCount = Math.max(
+      1,
+      Number.isFinite(requestedCoverCount) ? Math.round(requestedCoverCount) : 1,
+    );
+    const { error: targetError } = await sb
+      .from("pos_table_sessions")
+      .update({ cover_count: coverCount })
+      .eq("id", params.targetSessionId)
+      .eq("restaurant_id", params.restaurantId);
+    if (targetError) {
+      return { ok: false, error: targetError.message, status: 500 };
+    }
+
+    const { error: sourceError } = await sb
+      .from("pos_table_sessions")
+      .update({
+        status: "closed",
+        closed_at: new Date().toISOString(),
+      })
+      .eq("id", params.sourceSessionId)
+      .eq("restaurant_id", params.restaurantId);
+    if (sourceError) {
+      return { ok: false, error: sourceError.message, status: 500 };
+    }
+
+    return { ok: true, coverCount };
+  }
+
   async moveTable(params: {
     restaurantId: string;
     sessionId: string;

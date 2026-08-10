@@ -164,6 +164,15 @@ export class SyncService {
         });
         return r.ok ? { ok: true, result: r } : { ok: false, error: r.error };
       }
+      case "table.merged": {
+        const r = await this.sessions.mergeSessions({
+          restaurantId: ctx.restaurantId,
+          sourceSessionId: String(p.sourceSessionId ?? ""),
+          targetSessionId: String(p.targetSessionId ?? ev.sessionId ?? ""),
+          coverCount: p.coverCount == null ? undefined : Number(p.coverCount),
+        });
+        return r.ok ? { ok: true, result: r } : { ok: false, error: r.error };
+      }
       case "payment.completed": {
         const method = String(p.method ?? "cash");
         const allocations = Array.isArray(p.allocations)

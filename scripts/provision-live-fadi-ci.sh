@@ -51,6 +51,10 @@ echo "=== Live-DB: Fadis BurgerStation provisionieren ==="
 psql "${DB_URL}" -v ON_ERROR_STOP=1 -f scripts/provision-live-fadis-burgerstation.sql
 
 echo ""
+echo "=== Live-DB: Gwada Meta Review Demo provisionieren ==="
+psql "${DB_URL}" -v ON_ERROR_STOP=1 -f scripts/provision-live-meta-review.sql
+
+echo ""
 echo "=== Magic-Link an ${FADI_EMAIL} senden ==="
 HTTP_CODE="$(curl -sS -o /tmp/gwada-magic-link-response.json -w "%{http_code}" \
   -X POST "${LIVE_APP_ORIGIN}/api/auth/magic-link" \

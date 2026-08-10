@@ -19,7 +19,9 @@ import {
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
 import { Button } from "@/components/ui/button";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { usePlatformMessagingFlags } from "@/lib/hooks/use-platform-messaging-flags";
+import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
 import type { PlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +30,8 @@ function IntegrationenContent({
 }: {
   initialPlatformFlags: PlatformMessagingFlags;
 }) {
+  const { profile } = useRestaurantProfile();
+  const hideWhatsappForMetaReview = isMetaReviewDemoRestaurantSlug(profile.slug);
   const {
     whatsappEnabled,
     emailEnabled,
@@ -55,7 +59,7 @@ function IntegrationenContent({
   }
 
   const anyEnabled =
-    whatsappEnabled ||
+    (whatsappEnabled && !hideWhatsappForMetaReview) ||
     emailEnabled ||
     facebookEnabled ||
     instagramEnabled ||
@@ -76,7 +80,9 @@ function IntegrationenContent({
     <>
       <div className="space-y-6">
         <IntegrationenInsightsLinkCard />
-        {whatsappEnabled ? <WhatsappIntegrationCard /> : null}
+        {whatsappEnabled && !hideWhatsappForMetaReview ? (
+          <WhatsappIntegrationCard />
+        ) : null}
         {facebookEnabled ? (
           <Suspense fallback={null}>
             <FacebookIntegrationCard />

@@ -9,7 +9,7 @@ import {
   findStaffContractForDay,
   staffContractActiveOnDay,
   computeStaffPeriodWageSummary,
-  staffWorkEntryMsForDay,
+  sumTeamWorkHoursForDay,
 } from "@/lib/staff/staff-day-wage";
 import {
   formatHoursDe,
@@ -134,16 +134,8 @@ function workHoursByDay(
     day = addDays(day, 1)
   ) {
     const dayYmd = localDayKey(day);
-    let workMs = 0;
-    let breakMs = 0;
-    for (const e of entries) {
-      if (e.entry_type !== "work" && e.entry_type !== "break") continue;
-      const ms = staffWorkEntryMsForDay(e, dayYmd, now);
-      if (ms <= 0) continue;
-      if (e.entry_type === "work") workMs += ms;
-      else breakMs += ms;
-    }
-    const hours = Math.max(0, workMs - breakMs) / 3_600_000;
+    // Gleiche Netto-Logik wie Tag/Lohn/Dashboard (kein Doppel-Abzug Display-Pause).
+    const hours = sumTeamWorkHoursForDay(entries, dayYmd, now);
     if (hours > 0) netByDay.set(dayYmd, hours);
   }
 
@@ -159,27 +151,16 @@ function countSickDays(entries: RestaurantStaffWorkEntryRow[]): number {
   return days.size;
 }
 
-function workHoursByWeek(
-  entries: RestaurantStaffWorkEntryRow[],
-  now: Date,
+/** Wochen-Netto aus Tages-Netto (konsistent mit Display-/Legacy-Pause-Logik). */
+function workHoursByWeekFromDays(
+  dayHours: Map<string, number>,
 ): Map<string, number> {
-  const workByWeek = new Map<string, number>();
-  const breakByWeek = new Map<string, number>();
-  for (const e of entries) {
-    if (e.entry_type !== "work" && e.entry_type !== "break") continue;
-    const start = new Date(e.starts_at);
-    const endMs = e.is_open ? now.getTime() : new Date(e.ends_at).getTime();
-    const hours = Math.max(0, endMs - start.getTime()) / 3_600_000;
-    const weekStart = localDayKey(startOfWeekMonday(start));
-    if (e.entry_type === "work") {
-      workByWeek.set(weekStart, (workByWeek.get(weekStart) ?? 0) + hours);
-    } else {
-      breakByWeek.set(weekStart, (breakByWeek.get(weekStart) ?? 0) + hours);
-    }
-  }
   const byWeek = new Map<string, number>();
-  for (const [weekStart, workH] of workByWeek) {
-    byWeek.set(weekStart, Math.max(0, workH - (breakByWeek.get(weekStart) ?? 0)));
+  for (const [dayYmd, hours] of dayHours) {
+    const weekStart = localDayKey(
+      startOfWeekMonday(parseLocalDayKey(dayYmd)),
+    );
+    byWeek.set(weekStart, (byWeek.get(weekStart) ?? 0) + hours);
   }
   return byWeek;
 }
@@ -237,15 +218,6 @@ export function computeStaffStatistics(
       ? Math.round((workSummary.netWorkH / activeStaff.length) * 10) / 10
       : null;
 
-  const weekHoursMap = workHoursByWeek(input.workEntries, now);
-  const byWeek = [...weekHoursMap.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([weekStart, hours]) => ({
-      weekStart,
-      week: formatWeekLabel(weekStart),
-      hours: Math.round(hours * 10) / 10,
-    }));
-
   const dayHoursMap = workHoursByDay(
     input.workEntries,
     input.periodStart,
@@ -257,6 +229,15 @@ export function computeStaffStatistics(
     .map(([dayYmd, hours]) => ({
       dayYmd,
       day: formatDayLabel(dayYmd),
+      hours: Math.round(hours * 10) / 10,
+    }));
+
+  const weekHoursMap = workHoursByWeekFromDays(dayHoursMap);
+  const byWeek = [...weekHoursMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([weekStart, hours]) => ({
+      weekStart,
+      week: formatWeekLabel(weekStart),
       hours: Math.round(hours * 10) / 10,
     }));
 

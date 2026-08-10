@@ -13,6 +13,7 @@ import {
 } from "@/lib/integrations/platform-messaging-guard";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchRestaurantOAuthIntegration } from "@/lib/supabase/restaurant-oauth-integration-db";
+import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
@@ -26,14 +27,28 @@ export async function GET(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const waPlatform = await assertPlatformWhatsappEnabled(auth.supabase);
+  const admin = createSupabaseAdminClient();
+  let metaReviewDemo = false;
+  if (admin) {
+    const { data: rest } = await admin
+      .from("restaurants")
+      .select("slug")
+      .eq("id", auth.restaurantId)
+      .maybeSingle();
+    metaReviewDemo = isMetaReviewDemoRestaurantSlug(
+      (rest as { slug?: string } | null)?.slug,
+    );
+  }
+
+  const waPlatform = metaReviewDemo
+    ? ({ ok: false as const, error: "whatsapp_disabled" as const })
+    : await assertPlatformWhatsappEnabled(auth.supabase);
   const emPlatform = await assertPlatformEmailEnabled(auth.supabase);
   const fbPlatform = await assertPlatformFacebookEnabled(auth.supabase);
   const igPlatform = await assertPlatformInstagramEnabled(auth.supabase);
 
   let whatsappConnected = false;
   if (waPlatform.ok) {
-    const admin = createSupabaseAdminClient();
     const config = await getWahaServerConfigForRestaurantAdmin(
       auth.restaurantId,
     );
@@ -46,7 +61,6 @@ export async function GET(req: Request) {
 
   let emailConnected = false;
   if (emPlatform.ok) {
-    const admin = createSupabaseAdminClient();
     if (admin) {
       const creds = await resolveRestaurantImapCredentials(
         admin,

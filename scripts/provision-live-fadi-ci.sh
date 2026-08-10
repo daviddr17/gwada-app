@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
-# CI: Fadis BurgerStation auf Live provisionieren + Magic-Link senden.
+# CI: TEMP — nur Meta App Review Demo (Fadi-SQL aktuell broken wegen main_category_id).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-
-LIVE_APP_ORIGIN="${LIVE_APP_ORIGIN:-https://gwada.app}"
-FADI_EMAIL="${FADI_EMAIL:-fadih32@gmail.com}"
 
 # shellcheck source=scripts/tunnel-live-lib.sh
 source "${ROOT}/scripts/tunnel-live-lib.sh"
@@ -47,27 +44,9 @@ DB_URL="postgresql://postgres:${POSTGRES_PASSWORD}@127.0.0.1:${LIVE_TUNNEL_LOCAL
 export PGSSLMODE=disable
 
 echo ""
-echo "=== Live-DB: Fadis BurgerStation provisionieren ==="
-psql "${DB_URL}" -v ON_ERROR_STOP=1 -f scripts/provision-live-fadis-burgerstation.sql
-
-echo ""
 echo "=== Live-DB: Gwada Meta Review Demo provisionieren ==="
 psql "${DB_URL}" -v ON_ERROR_STOP=1 -f scripts/provision-live-meta-review.sql
 
 echo ""
-echo "=== Magic-Link an ${FADI_EMAIL} senden ==="
-HTTP_CODE="$(curl -sS -o /tmp/gwada-magic-link-response.json -w "%{http_code}" \
-  -X POST "${LIVE_APP_ORIGIN}/api/auth/magic-link" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"${FADI_EMAIL}\",\"next\":\"/dashboard\"}")"
-
-if [[ "${HTTP_CODE}" != "200" ]]; then
-  echo "Magic-Link fehlgeschlagen (HTTP ${HTTP_CODE}):" >&2
-  cat /tmp/gwada-magic-link-response.json >&2
-  exit 1
-fi
-
-echo "Magic-Link gesendet."
-cat /tmp/gwada-magic-link-response.json
-echo ""
-echo "Fertig: ${FADI_EMAIL} → fadis-burgerstation"
+echo "Fertig: meta-review@gwada.app → gwada-meta-review-demo"
+echo "Password: MetaReview-Gwada-2026!"

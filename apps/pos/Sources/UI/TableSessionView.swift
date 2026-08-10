@@ -3,6 +3,7 @@ import SwiftUI
 /// Tisch-Session: Warenkorb + Speisekarte + Split / Umziehen.
 struct TableSessionView: View {
     @EnvironmentObject private var runtime: PosRuntime
+    @Environment(\.dismiss) private var dismiss
 
     let table: PosLanFloorTable
     let sessionId: String?
@@ -13,6 +14,7 @@ struct TableSessionView: View {
     @State private var showKassieren = false
     @State private var showMove = false
     @State private var showMoveSession = false
+    @State private var showMergeSession = false
     @State private var showBon = false
     @State private var pendingKassierenAfterBon = false
     @State private var openLines: [SessionOpenLine] = []
@@ -120,6 +122,13 @@ struct TableSessionView: View {
                     .disabled(
                         resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-")
                     )
+                    Button("Tisch mergen") {
+                        showMergeSession = true
+                    }
+                    .disabled(
+                        resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-")
+                    )
+                    .accessibilityIdentifier("pos.session.mergeMenu")
                     Button("Positionen umziehen") {
                         showMove = true
                     }
@@ -265,6 +274,19 @@ struct TableSessionView: View {
                 MoveSessionSheet(sessionId: sid, fromTableId: table.id)
                     .environmentObject(runtime)
             }
+        }
+        .sheet(isPresented: $showMergeSession) {
+            MergeSessionSheet(
+                sourceSessionId: resolvedSessionId,
+                sourceTableId: table.id,
+                onMerged: {
+                    Task { @MainActor in
+                        await Task.yield()
+                        dismiss()
+                    }
+                }
+            )
+            .environmentObject(runtime)
         }
         .task {
             restoreDraftCartIfNeeded()

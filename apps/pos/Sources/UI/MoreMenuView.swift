@@ -8,6 +8,8 @@ struct MoreMenuView: View {
     @StateObject private var enrollment = PosEnrollmentStore.shared
 
     @State private var showLanPairing = false
+    @State private var showIssueCashBag = false
+    @State private var showCloseCashBag = false
 
     private var caps: Set<String> {
         let profileId = PosCloudConfig.waiterProfileId
@@ -63,6 +65,23 @@ struct MoreMenuView: View {
             }
 
             Section("Schicht") {
+                if runtime.canShowIssueCashBag {
+                    Button {
+                        showIssueCashBag = true
+                    } label: {
+                        Label("Wechselgeld ausgeben", systemImage: "banknote")
+                    }
+                }
+                if runtime.openCashBagId != nil {
+                    Button {
+                        showCloseCashBag = true
+                    } label: {
+                        Label("Schicht beenden", systemImage: "tray.and.arrow.down")
+                    }
+                    if let expected = runtime.openCashBagExpectedCents {
+                        LabeledContent("Börse Soll", value: PosMoney.format(expected))
+                    }
+                }
                 Button {
                     lock.lock(reason: "more_menu")
                 } label: {
@@ -106,6 +125,14 @@ struct MoreMenuView: View {
         .navigationBarTitleDisplayMode(.large)
         .sheet(isPresented: $showLanPairing) {
             HandheldPairingGateView()
+                .environmentObject(runtime)
+        }
+        .sheet(isPresented: $showIssueCashBag) {
+            CashBagIssueSheet()
+                .environmentObject(runtime)
+        }
+        .sheet(isPresented: $showCloseCashBag) {
+            CashBagCloseSheet()
                 .environmentObject(runtime)
         }
     }

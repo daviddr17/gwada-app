@@ -994,6 +994,37 @@ final class PosRuntime: ObservableObject {
         return PosHubState.shared.expectedCentsForOpenCashBag(staffProfileId: staffId)
     }
 
+    /// Offene Börse des angemeldeten Kellners (Hub/Solo lokal).
+    var openCashBagId: String? {
+        guard let staffId = PosAuthStore.shared.pinSession?.staffId, !staffId.isEmpty else { return nil }
+        return PosHubState.shared.openCashBag(for: staffId)?.id
+    }
+
+    /// Hub/Solo: Kassieren blockiert, solange keine eigene offene Börse.
+    var isCollectBlockedWithoutCashBag: Bool {
+        guard shouldPublishLocalHubFloor else { return false }
+        let staffId = PosAuthStore.shared.pinSession?.staffId ?? ""
+        if staffId.isEmpty, PosSecurityPolicy.allowsUnsignedLocalCollect {
+            return false
+        }
+        return PosHubState.shared.openCashBag(for: staffId) == nil
+    }
+
+    /// Hub immer; Solo nur mit Kassen-/Issue-Recht.
+    var canShowIssueCashBag: Bool {
+        if role == .hub { return true }
+        guard PosSecurityPolicy.allowsSoloMode, isSoloMode else { return false }
+        let keys = PosAuthStore.shared.pinSession?.permissionKeys ?? []
+        if keys.contains("pos.kasse.manage")
+            || keys.contains("cash_count")
+            || keys.contains("cash_bag.issue")
+        {
+            return true
+        }
+        // Solo-DEBUG ohne PIN: Issue trotzdem erlauben (Lab).
+        return PosAuthStore.shared.pinSession == nil
+    }
+
     /// Wechselgeld ausgeben (Hub/Solo lokal + Sync; gekoppelt → LAN-Hub).
     @discardableResult
     func issueCashBag(staffProfileId: String, openingFloatCents: Int) async -> Bool {

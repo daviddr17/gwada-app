@@ -104,6 +104,15 @@ struct KassierenView: View {
                         .padding(.horizontal, PosLayout.page)
                         .padding(.bottom, PosLayout.stack)
                 }
+                if runtime.isCollectBlockedWithoutCashBag, !allPaid {
+                    Text(PosRuntime.collectRequiresOpenCashBagMessage)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, PosLayout.page)
+                        .padding(.bottom, PosLayout.stack)
+                        .accessibilityIdentifier("pos.cashBag.collectBlocked")
+                }
                 if !payError.isEmpty {
                     Text(payError)
                         .font(.subheadline)

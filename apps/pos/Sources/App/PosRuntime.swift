@@ -988,6 +988,369 @@ final class PosRuntime: ObservableObject {
         }
     }
 
+    /// Soll der offenen Börse des angemeldeten Kellners (Hub/Solo lokal).
+    var openCashBagExpectedCents: Int? {
+        guard let staffId = PosAuthStore.shared.pinSession?.staffId, !staffId.isEmpty else { return nil }
+        return PosHubState.shared.expectedCentsForOpenCashBag(staffProfileId: staffId)
+    }
+
+    /// Wechselgeld ausgeben (Hub/Solo lokal + Sync; gekoppelt → LAN-Hub).
+    @discardableResult
+    func issueCashBag(staffProfileId: String, openingFloatCents: Int) async -> Bool {
+        let staff = staffProfileId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !staff.isEmpty, openingFloatCents >= 0 else {
+            statusMessage = "Ungültiger Betrag oder Kellner."
+            return false
+        }
+        let issuedBy = PosAuthStore.shared.pinSession?.staffId
+            ?? PosCloudConfig.waiterProfileId
+            ?? staff
+        let idempotencyKey = UUID().uuidString
+
+        if role == .handheld, !shouldPublishLocalHubFloor {
+            guard canMutateLiveFloor, let base = hubBaseURL, !isSoloMode else {
+                statusMessage = "Wechselgeld nur mit erreichbarer Kasse."
+                return false
+            }
+            do {
+                let pin = PosAuthStore.shared.pinSession
+                let staffSessionHeader: String? = pin.map { "\($0.sessionId).\($0.sessionToken)" }
+                _ = try await HandheldHubClient.issueCashBag(
+                    baseURL: base,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken,
+                    staffProfileId: staff,
+                    openingFloatCents: openingFloatCents,
+                    idempotencyKey: idempotencyKey,
+                    issuedByProfileId: issuedBy,
+                    staffId: pin?.staffId,
+                    staffSessionHeader: staffSessionHeader
+                )
+                if let snap = try? await HandheldHubClient.fetchSnapshot(
+                    baseURL: base,
+                    restaurantId: nil,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                ) {
+                    publishSnapshot(snap)
+                }
+                statusMessage = "Wechselgeld ausgegeben."
+                return true
+            } catch {
+                statusMessage = "Wechselgeld fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                return false
+            }
+        }
+
+        guard shouldPublishLocalHubFloor else {
+            statusMessage = "Wechselgeld nur mit erreichbarer Kasse."
+            return false
+        }
+
+        switch PosHubState.shared.issueLocalCashBag(
+            staffProfileId: staff,
+            openingFloatCents: openingFloatCents,
+            issuedBy: issuedBy,
+            idempotencyKey: idempotencyKey
+        ) {
+        case .success(let bag):
+            PosSyncQueue.shared.enqueueCashBagIssued(PosSyncCashBagIssuedPayload(
+                restaurantId: PosHubState.shared.restaurantId,
+                bagId: bag.id,
+                staffProfileId: staff,
+                openingFloatCents: openingFloatCents,
+                idempotencyKey: idempotencyKey,
+                issuedByProfileId: issuedBy
+            ))
+            publishSnapshot(PosHubState.shared.makeSnapshot())
+            syncPending = PosSyncQueue.shared.pendingCount
+            await PosSyncQueue.shared.flushIfPossible()
+            syncPending = PosSyncQueue.shared.pendingCount
+            statusMessage = "Wechselgeld ausgegeben."
+            return true
+        case .failure(.noOpenRegister):
+            statusMessage = "Zuerst Restaurant-Kasse öffnen."
+            return false
+        case .failure(.alreadyOpen):
+            statusMessage = "Kellner hat bereits eine offene Börse."
+            return false
+        case .failure:
+            statusMessage = "Wechselgeld konnte nicht ausgegeben werden."
+            return false
+        }
+    }
+
+    /// Börse schließen (Zählen) — Manager-PIN bei großer Diff.
+    @discardableResult
+    func closeCashBag(bagId: String, closingCountCents: Int, managerPin: String?) async -> Bool {
+        let id = bagId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty, closingCountCents >= 0 else {
+            statusMessage = "Ungültige Börse oder Zählbetrag."
+            return false
+        }
+        let pinTrimmed = managerPin?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let managerOverride = Self.managerPinVerified(pinTrimmed)
+
+        if role == .handheld, !shouldPublishLocalHubFloor {
+            guard canMutateLiveFloor, let base = hubBaseURL, !isSoloMode else {
+                statusMessage = "Schichtende nur mit erreichbarer Kasse."
+                return false
+            }
+            do {
+                let pin = PosAuthStore.shared.pinSession
+                let staffSessionHeader: String? = pin.map { "\($0.sessionId).\($0.sessionToken)" }
+                _ = try await HandheldHubClient.closeCashBag(
+                    baseURL: base,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken,
+                    bagId: id,
+                    closingCountCents: closingCountCents,
+                    managerPin: pinTrimmed?.isEmpty == false ? pinTrimmed : nil,
+                    staffId: pin?.staffId,
+                    staffSessionHeader: staffSessionHeader
+                )
+                if let snap = try? await HandheldHubClient.fetchSnapshot(
+                    baseURL: base,
+                    restaurantId: nil,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                ) {
+                    publishSnapshot(snap)
+                }
+                statusMessage = "Schicht beendet."
+                return true
+            } catch let hubError as HandheldHubClientError {
+                if case .hubRejected(_, let message) = hubError, message == "manager_pin_required" {
+                    statusMessage = "Manager-PIN für Differenz erforderlich."
+                } else {
+                    statusMessage = "Schichtende fehlgeschlagen: \(Self.hubOpsErrorMessage(hubError))"
+                }
+                return false
+            } catch {
+                statusMessage = "Schichtende fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                return false
+            }
+        }
+
+        guard shouldPublishLocalHubFloor else {
+            statusMessage = "Schichtende nur mit erreichbarer Kasse."
+            return false
+        }
+
+        let closedBy = PosAuthStore.shared.pinSession?.staffId
+        let idempotencyKey = UUID().uuidString
+        switch PosHubState.shared.closeLocalCashBag(
+            bagId: id,
+            countCents: closingCountCents,
+            thresholdCents: PosHubState.defaultCashBagDiffThresholdCents,
+            managerOverride: managerOverride
+        ) {
+        case .success(let difference):
+            PosSyncQueue.shared.enqueueCashBagClosed(PosSyncCashBagClosedPayload(
+                restaurantId: PosHubState.shared.restaurantId,
+                bagId: id,
+                closingCountCents: closingCountCents,
+                idempotencyKey: idempotencyKey,
+                closedByProfileId: closedBy,
+                managerOverrideProfileId: managerOverride ? Self.managerProfileId(for: pinTrimmed) : nil,
+                managerPinVerified: managerOverride,
+                managerPin: managerOverride ? pinTrimmed : nil
+            ))
+            publishSnapshot(PosHubState.shared.makeSnapshot())
+            syncPending = PosSyncQueue.shared.pendingCount
+            await PosSyncQueue.shared.flushIfPossible()
+            syncPending = PosSyncQueue.shared.pendingCount
+            if difference == 0 {
+                statusMessage = "Schicht beendet."
+            } else {
+                statusMessage = "Schicht beendet · Diff \(PosMoney.format(difference))."
+            }
+            return true
+        case .failure(.managerPinRequired):
+            statusMessage = "Manager-PIN für Differenz erforderlich."
+            return false
+        case .failure(.noOpenBag):
+            statusMessage = "Keine offene Börse gefunden."
+            return false
+        case .failure:
+            statusMessage = "Schichtende fehlgeschlagen."
+            return false
+        }
+    }
+
+    /// Tisch-Owner übergeben; optional Börse mitübergeben.
+    @discardableResult
+    func transferShift(
+        sessionIds: [String],
+        toProfileId: String,
+        toPin: String,
+        transferCashBag: Bool
+    ) async -> Bool {
+        let toId = toProfileId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pin = toPin.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !toId.isEmpty, !pin.isEmpty else {
+            statusMessage = "Empfänger und PIN erforderlich."
+            return false
+        }
+        let fromId = PosAuthStore.shared.pinSession?.staffId
+            ?? PosCloudConfig.waiterProfileId
+            ?? ""
+        guard !fromId.isEmpty, fromId != toId else {
+            statusMessage = "Ungültiger Empfänger."
+            return false
+        }
+
+        if role == .handheld, !shouldPublishLocalHubFloor {
+            guard canMutateLiveFloor, let base = hubBaseURL, !isSoloMode else {
+                statusMessage = "Übergabe nur mit erreichbarer Kasse."
+                return false
+            }
+            do {
+                let authPin = PosAuthStore.shared.pinSession
+                let staffSessionHeader: String? = authPin.map { "\($0.sessionId).\($0.sessionToken)" }
+                try await HandheldHubClient.handoverCashBag(
+                    baseURL: base,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken,
+                    fromProfileId: fromId,
+                    toProfileId: toId,
+                    toPin: pin,
+                    sessionIds: sessionIds,
+                    transferCashBag: transferCashBag,
+                    staffId: authPin?.staffId,
+                    staffSessionHeader: staffSessionHeader
+                )
+                if let snap = try? await HandheldHubClient.fetchSnapshot(
+                    baseURL: base,
+                    restaurantId: nil,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                ) {
+                    publishSnapshot(snap)
+                }
+                statusMessage = transferCashBag ? "Schicht und Börse übergeben." : "Schicht übergeben."
+                return true
+            } catch {
+                statusMessage = "Übergabe fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                return false
+            }
+        }
+
+        guard shouldPublishLocalHubFloor else {
+            statusMessage = "Übergabe nur mit erreichbarer Kasse."
+            return false
+        }
+
+        guard Self.verifyStaffPin(pin, matchesProfileId: toId) else {
+            statusMessage = "PIN des Empfängers ungültig."
+            return false
+        }
+
+        if transferCashBag {
+            let fromBagIdBefore = PosHubState.shared.openCashBag(for: fromId)?.id
+            switch PosHubState.shared.handoverLocalCashBag(from: fromId, to: toId) {
+            case .success(let toBag):
+                let idempotencyKey = UUID().uuidString
+                PosSyncQueue.shared.enqueueCashBagHandover(PosSyncCashBagHandoverPayload(
+                    restaurantId: PosHubState.shared.restaurantId,
+                    fromProfileId: fromId,
+                    toProfileId: toId,
+                    idempotencyKey: idempotencyKey,
+                    fromBagId: fromBagIdBefore,
+                    toBagId: toBag.id
+                ))
+                publishSnapshot(PosHubState.shared.makeSnapshot())
+            case .failure(.noOpenBag):
+                statusMessage = "Keine offene Börse zum Übergeben."
+                return false
+            case .failure(.targetHasOpenBag):
+                statusMessage = "Empfänger hat bereits eine offene Börse."
+                return false
+            case .failure:
+                statusMessage = "Börsen-Übergabe fehlgeschlagen."
+                return false
+            }
+        }
+
+        if PosCloudConfig.nestSyncEnabled, !sessionIds.isEmpty {
+            do {
+                try await PosNestClient.transferShift(
+                    toProfileId: toId,
+                    sessionIds: sessionIds,
+                    toPin: pin,
+                    transferCashBag: false // bag already local+queued
+                )
+            } catch {
+                statusMessage = "Tische lokal, Cloud-Übergabe später: \(error.localizedDescription)"
+                syncPending = PosSyncQueue.shared.pendingCount
+                await PosSyncQueue.shared.flushIfPossible()
+                syncPending = PosSyncQueue.shared.pendingCount
+                return true
+            }
+        }
+
+        syncPending = PosSyncQueue.shared.pendingCount
+        await PosSyncQueue.shared.flushIfPossible()
+        syncPending = PosSyncQueue.shared.pendingCount
+        statusMessage = transferCashBag ? "Schicht und Börse übergeben." : "Schicht übergeben."
+        return true
+    }
+
+    /// Gate: Bar/Kassieren braucht offene Börse (Hub/Solo SoT).
+    static let collectRequiresOpenCashBagMessage = "Zuerst Wechselgeld / Börse öffnen."
+
+    private func requireOpenCashBagForCollect() -> Bool {
+        guard shouldPublishLocalHubFloor else { return true }
+        let staffId = PosAuthStore.shared.pinSession?.staffId ?? ""
+        if staffId.isEmpty, PosSecurityPolicy.allowsUnsignedLocalCollect {
+            return true
+        }
+        if PosHubState.shared.openCashBag(for: staffId) == nil {
+            statusMessage = Self.collectRequiresOpenCashBagMessage
+            return false
+        }
+        return true
+    }
+
+    private func recordLocalCashSaleIfNeeded(
+        method: PosPaymentMethodKind,
+        paidCents: Int,
+        tipCents: Int,
+        paymentId: String
+    ) {
+        guard method == .cash, shouldPublishLocalHubFloor else { return }
+        let staffId = PosAuthStore.shared.pinSession?.staffId ?? ""
+        guard !staffId.isEmpty else { return }
+        let amount = max(0, paidCents + tipCents)
+        _ = PosHubState.shared.applyLocalCashSale(
+            cashierProfileId: staffId,
+            amountCents: amount,
+            paymentId: paymentId,
+            idempotencyKey: "cash-sale:\(paymentId)"
+        )
+    }
+
+    private static func managerPinVerified(_ pin: String?) -> Bool {
+        guard let pin, !pin.isEmpty else { return false }
+        guard let roster = PosAuthRosterStore.shared.roster,
+              let staff = PosOfflinePin.resolveStaff(pin: pin, roster: roster)
+        else { return false }
+        return staff.permissions.contains("pos.kasse.manage")
+            || staff.permissions.contains("cash_count")
+            || staff.permissions.contains("cash_bag.issue")
+    }
+
+    private static func managerProfileId(for pin: String?) -> String? {
+        guard let pin, !pin.isEmpty,
+              let roster = PosAuthRosterStore.shared.roster,
+              let staff = PosOfflinePin.resolveStaff(pin: pin, roster: roster)
+        else { return nil }
+        return staff.id
+    }
+
+    private static func verifyStaffPin(_ pin: String, matchesProfileId profileId: String) -> Bool {
+        guard let roster = PosAuthRosterStore.shared.roster,
+              let staff = PosOfflinePin.resolveStaff(pin: pin, roster: roster)
+        else { return false }
+        if staff.id == profileId { return true }
+        if let pid = staff.profile_id, pid == profileId { return true }
+        return false
+    }
+
     func ensureLocalSession(tableId: String, covers: Int = 2) -> String {
         if let existing = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id {
             return existing
@@ -1446,6 +1809,9 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Kassieren nur mit erreichbarer Kasse."
             return nil
         }
+        guard requireOpenCashBagForCollect() else {
+            return nil
+        }
 
         let allocPairs = allocations.map { (lineId: $0.lineId, quantity: $0.quantity) }
         let validated: PosHubState.CollectAllocationValidation =
@@ -1525,7 +1891,12 @@ final class PosRuntime: ObservableObject {
                     staffSessionHeader: staffSessionHeader
                 )
             } catch {
-                statusMessage = "Zahlung an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                let msg = Self.hubOpsErrorMessage(error)
+                if msg == "no_open_bag" || msg.contains("no_open_bag") {
+                    statusMessage = Self.collectRequiresOpenCashBagMessage
+                } else {
+                    statusMessage = "Zahlung an Kasse fehlgeschlagen: \(msg)"
+                }
                 return nil
             }
 
@@ -1586,6 +1957,12 @@ final class PosRuntime: ObservableObject {
         let paidCents = PosHubState.shared.collectLocalAllocations(
             sessionId: sessionId,
             allocations: allocPairs
+        )
+        recordLocalCashSaleIfNeeded(
+            method: method,
+            paidCents: paidCents,
+            tipCents: tipCents,
+            paymentId: receipt.localId
         )
         if shouldPublishLocalHubFloor {
             publishSnapshot(PosHubState.shared.makeSnapshot())
@@ -2459,6 +2836,24 @@ final class PosRuntime: ObservableObject {
         }
     }
 
+    nonisolated static func persistHubCashBagIssued(_ payload: PosSyncCashBagIssuedPayload) {
+        DispatchQueue.main.sync {
+            PosSyncQueue.shared.enqueueCashBagIssued(payload)
+        }
+    }
+
+    nonisolated static func persistHubCashBagClosed(_ payload: PosSyncCashBagClosedPayload) {
+        DispatchQueue.main.sync {
+            PosSyncQueue.shared.enqueueCashBagClosed(payload)
+        }
+    }
+
+    nonisolated static func persistHubCashBagHandover(_ payload: PosSyncCashBagHandoverPayload) {
+        DispatchQueue.main.sync {
+            PosSyncQueue.shared.enqueueCashBagHandover(payload)
+        }
+    }
+
     private nonisolated static func handleHubRequest(
         method: String,
         path: String,
@@ -2814,6 +3209,21 @@ final class PosRuntime: ObservableObject {
                         return (403, Data(#"{"error":"staff_proof_required"}"#.utf8))
                     }
                 }
+                let cashBagCashierId: String = {
+                    let headerStaffId = (headers[PosLanProtocol.headerStaffId.lowercased()] ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let bodyStaffId = (req.staffId ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !headerStaffId.isEmpty { return headerStaffId }
+                    if !bodyStaffId.isEmpty { return bodyStaffId }
+                    return DispatchQueue.main.sync { PosAuthStore.shared.pinSession?.staffId ?? "" }
+                }()
+                if req.method == PosPaymentMethodKind.cash.rawValue,
+                   !cashBagCashierId.isEmpty,
+                   PosHubState.shared.openCashBag(for: cashBagCashierId) == nil
+                {
+                    return (409, Data(#"{"error":"no_open_bag","code":"no_open_bag"}"#.utf8))
+                }
                 if let attemptId = req.paymentAttemptId,
                    !PosHubState.shared.registerCollectAttemptId(attemptId)
                 {
@@ -2846,6 +3256,14 @@ final class PosRuntime: ObservableObject {
                     let t = req.paymentAttemptId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                     return t.isEmpty ? UUID().uuidString : t
                 }()
+                if method == PosPaymentMethodKind.cash.rawValue, !cashBagCashierId.isEmpty {
+                    _ = PosHubState.shared.applyLocalCashSale(
+                        cashierProfileId: cashBagCashierId,
+                        amountCents: max(0, paid + tip),
+                        paymentId: attemptId,
+                        idempotencyKey: "cash-sale:\(attemptId)"
+                    )
+                }
                 let allocations = settled.allocations
                 let amountCents = settled.amountCents
                 Task { @MainActor in
@@ -3262,6 +3680,200 @@ final class PosRuntime: ObservableObject {
                     await PosSyncQueue.shared.flushIfPossible()
                 }
                 return (200, Data(#"{"ok":true}"#.utf8))
+            }
+
+            if pathOnly == PosLanProtocol.cashBagIssuePath {
+                struct Req: Decodable {
+                    var staffProfileId: String
+                    var openingFloatCents: Int
+                    var idempotencyKey: String
+                    var issuedByProfileId: String?
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body","code":"invalid_body"}"#.utf8))
+                }
+                let issuedBy = {
+                    let fromBody = (req.issuedByProfileId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !fromBody.isEmpty { return fromBody }
+                    let headerStaffId = (headers[PosLanProtocol.headerStaffId.lowercased()] ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !headerStaffId.isEmpty { return headerStaffId }
+                    return DispatchQueue.main.sync { PosAuthStore.shared.pinSession?.staffId ?? "" }
+                }()
+                switch PosHubState.shared.issueLocalCashBag(
+                    staffProfileId: req.staffProfileId,
+                    openingFloatCents: req.openingFloatCents,
+                    issuedBy: issuedBy.isEmpty ? req.staffProfileId : issuedBy,
+                    idempotencyKey: req.idempotencyKey
+                ) {
+                case .success(let bag):
+                    Self.persistHubCashBagIssued(PosSyncCashBagIssuedPayload(
+                        restaurantId: PosHubState.shared.restaurantId,
+                        bagId: bag.id,
+                        staffProfileId: req.staffProfileId,
+                        openingFloatCents: req.openingFloatCents,
+                        idempotencyKey: req.idempotencyKey,
+                        issuedByProfileId: issuedBy.isEmpty ? nil : issuedBy
+                    ))
+                    Task { @MainActor in
+                        PosAuditLog.shared.record(
+                            "cash_bag.issued",
+                            detail: "\(req.openingFloatCents)",
+                            sessionId: nil
+                        )
+                        await PosSyncQueue.shared.flushIfPossible()
+                    }
+                    let payload: [String: Any] = ["ok": true, "bagId": bag.id]
+                    let data = (try? JSONSerialization.data(withJSONObject: payload))
+                        ?? Data(#"{"ok":true}"#.utf8)
+                    return (200, data)
+                case .failure(.noOpenRegister):
+                    return (409, Data(#"{"error":"no_open_register","code":"no_open_register"}"#.utf8))
+                case .failure(.alreadyOpen):
+                    return (409, Data(#"{"error":"already_open","code":"already_open"}"#.utf8))
+                case .failure(.invalidAmount):
+                    return (400, Data(#"{"error":"invalid_amount","code":"invalid_amount"}"#.utf8))
+                case .failure:
+                    return (400, Data(#"{"error":"issue_failed","code":"issue_failed"}"#.utf8))
+                }
+            }
+
+            if pathOnly == PosLanProtocol.cashBagClosePath {
+                struct Req: Decodable {
+                    var bagId: String
+                    var closingCountCents: Int
+                    var managerPin: String?
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body","code":"invalid_body"}"#.utf8))
+                }
+                let pinTrimmed = req.managerPin?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let managerOverride = DispatchQueue.main.sync {
+                    Self.managerPinVerified(pinTrimmed)
+                }
+                let closedBy = DispatchQueue.main.sync { PosAuthStore.shared.pinSession?.staffId }
+                let managerProfileId = DispatchQueue.main.sync {
+                    Self.managerProfileId(for: pinTrimmed)
+                }
+                let idempotencyKey = UUID().uuidString
+                switch PosHubState.shared.closeLocalCashBag(
+                    bagId: req.bagId,
+                    countCents: req.closingCountCents,
+                    thresholdCents: PosHubState.defaultCashBagDiffThresholdCents,
+                    managerOverride: managerOverride
+                ) {
+                case .success(let difference):
+                    Self.persistHubCashBagClosed(PosSyncCashBagClosedPayload(
+                        restaurantId: PosHubState.shared.restaurantId,
+                        bagId: req.bagId,
+                        closingCountCents: req.closingCountCents,
+                        idempotencyKey: idempotencyKey,
+                        closedByProfileId: closedBy,
+                        managerOverrideProfileId: managerOverride ? managerProfileId : nil,
+                        managerPinVerified: managerOverride,
+                        managerPin: managerOverride ? pinTrimmed : nil
+                    ))
+                    Task { @MainActor in
+                        PosAuditLog.shared.record(
+                            "cash_bag.closed",
+                            detail: "diff=\(difference)",
+                            sessionId: nil
+                        )
+                        await PosSyncQueue.shared.flushIfPossible()
+                    }
+                    let payload: [String: Any] = [
+                        "ok": true,
+                        "differenceCents": difference,
+                    ]
+                    let data = (try? JSONSerialization.data(withJSONObject: payload))
+                        ?? Data(#"{"ok":true}"#.utf8)
+                    return (200, data)
+                case .failure(.managerPinRequired):
+                    return (403, Data(#"{"error":"manager_pin_required","code":"manager_pin_required"}"#.utf8))
+                case .failure(.noOpenBag):
+                    return (404, Data(#"{"error":"no_open_bag","code":"no_open_bag"}"#.utf8))
+                case .failure(.invalidAmount):
+                    return (400, Data(#"{"error":"invalid_amount","code":"invalid_amount"}"#.utf8))
+                case .failure:
+                    return (400, Data(#"{"error":"close_failed","code":"close_failed"}"#.utf8))
+                }
+            }
+
+            if pathOnly == PosLanProtocol.cashBagHandoverPath {
+                struct Req: Decodable {
+                    var fromProfileId: String
+                    var toProfileId: String
+                    var toPin: String
+                    var sessionIds: [String]?
+                    var transferCashBag: Bool?
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body","code":"invalid_body"}"#.utf8))
+                }
+                let toId = req.toProfileId.trimmingCharacters(in: .whitespacesAndNewlines)
+                let fromId = req.fromProfileId.trimmingCharacters(in: .whitespacesAndNewlines)
+                let pin = req.toPin.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !toId.isEmpty, !fromId.isEmpty, !pin.isEmpty else {
+                    return (400, Data(#"{"error":"invalid_body","code":"invalid_body"}"#.utf8))
+                }
+                let pinOk = DispatchQueue.main.sync {
+                    Self.verifyStaffPin(pin, matchesProfileId: toId)
+                }
+                guard pinOk else {
+                    return (403, Data(#"{"error":"invalid_pin","code":"invalid_pin"}"#.utf8))
+                }
+                let wantBag = req.transferCashBag != false
+                var toBagId: String?
+                if wantBag {
+                    let fromBagIdBefore = PosHubState.shared.openCashBag(for: fromId)?.id
+                    switch PosHubState.shared.handoverLocalCashBag(from: fromId, to: toId) {
+                    case .success(let toBag):
+                        toBagId = toBag.id
+                        let idempotencyKey = UUID().uuidString
+                        Self.persistHubCashBagHandover(PosSyncCashBagHandoverPayload(
+                            restaurantId: PosHubState.shared.restaurantId,
+                            fromProfileId: fromId,
+                            toProfileId: toId,
+                            idempotencyKey: idempotencyKey,
+                            fromBagId: fromBagIdBefore,
+                            toBagId: toBag.id
+                        ))
+                    case .failure(.noOpenBag):
+                        return (409, Data(#"{"error":"no_open_bag","code":"no_open_bag"}"#.utf8))
+                    case .failure(.targetHasOpenBag):
+                        return (409, Data(#"{"error":"target_has_open_bag","code":"target_has_open_bag"}"#.utf8))
+                    case .failure:
+                        return (400, Data(#"{"error":"handover_failed","code":"handover_failed"}"#.utf8))
+                    }
+                }
+                let sessionIds = req.sessionIds ?? []
+                Task { @MainActor in
+                    PosAuditLog.shared.record(
+                        "cash_bag.handover",
+                        detail: "\(fromId)->\(toId)",
+                        sessionId: sessionIds.first
+                    )
+                    if PosCloudConfig.nestSyncEnabled, !sessionIds.isEmpty {
+                        try? await PosNestClient.transferShift(
+                            toProfileId: toId,
+                            sessionIds: sessionIds,
+                            toPin: pin,
+                            transferCashBag: false
+                        )
+                    }
+                    await PosSyncQueue.shared.flushIfPossible()
+                }
+                var payload: [String: Any] = [
+                    "ok": true,
+                    "fromProfileId": fromId,
+                    "toProfileId": toId,
+                ]
+                if let toBagId {
+                    payload["toBagId"] = toBagId
+                }
+                let data = (try? JSONSerialization.data(withJSONObject: payload))
+                    ?? Data(#"{"ok":true}"#.utf8)
+                return (200, data)
             }
 
             if pathOnly == PosLanProtocol.pairRequestPath {

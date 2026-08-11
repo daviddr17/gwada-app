@@ -120,4 +120,63 @@ enum PosNestClient {
         }
         return ev
     }
+
+    /// Nest `POST /v1/shifts/transfer` — Tisch-Owner (+ optional Börse).
+    @MainActor
+    static func transferShift(
+        toProfileId: String,
+        sessionIds: [String],
+        toPin: String,
+        transferCashBag: Bool
+    ) async throws {
+        guard PosCloudConfig.nestSyncEnabled else {
+            throw PosCloudError.missingConfig("Nest API-Basis")
+        }
+        guard let restaurantId = PosCloudConfig.restaurantId, !restaurantId.isEmpty else {
+            throw PosCloudError.missingRestaurant
+        }
+        let waiterId: String
+        if let configured = PosCloudConfig.waiterProfileId, !configured.isEmpty {
+            waiterId = configured
+        } else if let fromAuth = PosAuthStore.shared.pinSession?.staffId, !fromAuth.isEmpty {
+            waiterId = fromAuth
+        } else {
+            throw PosCloudError.missingConfig("Waiter Profile-ID")
+        }
+
+        let url = PosCloudConfig.nestApiBaseURL!
+            .appendingPathComponent("v1")
+            .appendingPathComponent("shifts")
+            .appendingPathComponent("transfer")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(restaurantId, forHTTPHeaderField: "X-Restaurant-Id")
+        request.setValue(waiterId, forHTTPHeaderField: "X-Waiter-Profile-Id")
+        request.setValue(PosDeviceIdentity.id, forHTTPHeaderField: "X-Device-Id")
+
+        let body: [String: Any] = [
+            "toProfileId": toProfileId,
+            "sessionIds": sessionIds,
+            "toPin": toPin,
+            "transferCashBag": transferCashBag,
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw PosCloudError.offline
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw PosCloudError.invalidResponse
+        }
+        guard (200 ... 299).contains(http.statusCode) else {
+            throw PosCloudError.httpStatus(http.statusCode, String(data: data, encoding: .utf8))
+        }
+    }
 }

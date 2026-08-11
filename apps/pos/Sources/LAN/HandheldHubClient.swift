@@ -503,6 +503,136 @@ enum HandheldHubClient {
         throw HandheldHubClientError.httpStatus(http.statusCode)
     }
 
+    static func issueCashBag(
+        baseURL: URL,
+        pairToken: String?,
+        staffProfileId: String,
+        openingFloatCents: Int,
+        idempotencyKey: String,
+        issuedByProfileId: String? = nil,
+        staffId: String? = nil,
+        staffSessionHeader: String? = nil
+    ) async throws -> String {
+        struct Body: Encodable {
+            var staffProfileId: String
+            var openingFloatCents: Int
+            var idempotencyKey: String
+            var issuedByProfileId: String?
+        }
+        struct Ok: Decodable {
+            var bagId: String
+        }
+        struct ErrorBody: Decodable { var error: String?; var code: String? }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.cashBagIssuePath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        applyStaffProof(staffId: staffId, staffSessionHeader: staffSessionHeader, to: &request)
+        request.httpBody = try encoder.encode(Body(
+            staffProfileId: staffProfileId,
+            openingFloatCents: openingFloatCents,
+            idempotencyKey: idempotencyKey,
+            issuedByProfileId: issuedByProfileId
+        ))
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            let decoded = try? decoder.decode(ErrorBody.self, from: data)
+            let message = decoded?.code ?? decoded?.error ?? "HTTP \(http.statusCode)"
+            if http.statusCode == 409 || http.statusCode == 400 || http.statusCode == 404 {
+                throw HandheldHubClientError.hubRejected(status: http.statusCode, message: message)
+            }
+            throw HandheldHubClientError.httpStatus(http.statusCode)
+        }
+        return try decoder.decode(Ok.self, from: data).bagId
+    }
+
+    static func closeCashBag(
+        baseURL: URL,
+        pairToken: String?,
+        bagId: String,
+        closingCountCents: Int,
+        managerPin: String? = nil,
+        staffId: String? = nil,
+        staffSessionHeader: String? = nil
+    ) async throws -> Int {
+        struct Body: Encodable {
+            var bagId: String
+            var closingCountCents: Int
+            var managerPin: String?
+        }
+        struct Ok: Decodable {
+            var differenceCents: Int
+        }
+        struct ErrorBody: Decodable { var error: String?; var code: String? }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.cashBagClosePath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        applyStaffProof(staffId: staffId, staffSessionHeader: staffSessionHeader, to: &request)
+        request.httpBody = try encoder.encode(Body(
+            bagId: bagId,
+            closingCountCents: closingCountCents,
+            managerPin: managerPin
+        ))
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            let decoded = try? decoder.decode(ErrorBody.self, from: data)
+            let message = decoded?.code ?? decoded?.error ?? "HTTP \(http.statusCode)"
+            if http.statusCode == 409 || http.statusCode == 400 || http.statusCode == 403 || http.statusCode == 404 {
+                throw HandheldHubClientError.hubRejected(status: http.statusCode, message: message)
+            }
+            throw HandheldHubClientError.httpStatus(http.statusCode)
+        }
+        return try decoder.decode(Ok.self, from: data).differenceCents
+    }
+
+    static func handoverCashBag(
+        baseURL: URL,
+        pairToken: String?,
+        fromProfileId: String,
+        toProfileId: String,
+        toPin: String,
+        sessionIds: [String] = [],
+        transferCashBag: Bool = true,
+        staffId: String? = nil,
+        staffSessionHeader: String? = nil
+    ) async throws {
+        struct Body: Encodable {
+            var fromProfileId: String
+            var toProfileId: String
+            var toPin: String
+            var sessionIds: [String]
+            var transferCashBag: Bool
+        }
+        struct ErrorBody: Decodable { var error: String?; var code: String? }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.cashBagHandoverPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        applyStaffProof(staffId: staffId, staffSessionHeader: staffSessionHeader, to: &request)
+        request.httpBody = try encoder.encode(Body(
+            fromProfileId: fromProfileId,
+            toProfileId: toProfileId,
+            toPin: toPin,
+            sessionIds: sessionIds,
+            transferCashBag: transferCashBag
+        ))
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        if http.statusCode == 200 { return }
+        let decoded = try? decoder.decode(ErrorBody.self, from: data)
+        let message = decoded?.code ?? decoded?.error ?? "HTTP \(http.statusCode)"
+        if http.statusCode == 409 || http.statusCode == 400 || http.statusCode == 403 || http.statusCode == 404 {
+            throw HandheldHubClientError.hubRejected(status: http.statusCode, message: message)
+        }
+        throw HandheldHubClientError.httpStatus(http.statusCode)
+    }
+
     static func requestPairing(baseURL: URL, request req: PosLanPairRequest) async throws -> PosLanPairChallenge {
         var request = URLRequest(url: url(baseURL, path: PosLanProtocol.pairRequestPath))
         request.httpMethod = "POST"

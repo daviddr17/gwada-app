@@ -629,6 +629,20 @@ final class PosHubState: @unchecked Sendable {
         return openCashBagLocked(for: staffProfileId)
     }
 
+    /// Soll (expected) for the staff member's currently open bag, if any.
+    func expectedCentsForOpenCashBag(staffProfileId: String) -> Int? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let bag = openCashBagLocked(for: staffProfileId) else { return nil }
+        return PosCashBagMath.expectedCents(
+            openingFloatCents: bag.openingFloatCents,
+            movements: movementsLocked(for: bag.id)
+        )
+    }
+
+    /// Default Diff-Schwelle (Cent) when restaurant config is not cached locally.
+    static let defaultCashBagDiffThresholdCents = 500
+
     private func openCashBagLocked(for staffProfileId: String) -> PosWaiterCashBag? {
         localCashBags.first { $0.staffProfileId == staffProfileId && $0.status == .open }
     }

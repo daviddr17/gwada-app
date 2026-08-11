@@ -179,6 +179,7 @@ test("transferSessions rolls back owners when handover fails", async () => {
   const cashBags = {
     handover: async () =>
       ({ ok: false as const, error: "from_bag_not_open", status: 404 }),
+    resolveHandoverReplay: async () => null,
   } as unknown as CashBagsService;
 
   const { records, service } = createShiftsService({
@@ -219,6 +220,51 @@ test("transferSessions rolls back owners when handover fails", async () => {
   assert.equal(updates.length, 2);
   assert.deepEqual(updates[0]?.values, { owner_profile_id: "to-profile" });
   assert.deepEqual(updates[1]?.values, { owner_profile_id: "from-profile" });
+});
+
+test("transferSessions succeeds without rollback when handover already done", async () => {
+  const cashBags = {
+    handover: async () =>
+      ({ ok: false as const, error: "from_bag_not_open", status: 404 }),
+    resolveHandoverReplay: async () => ({ toBagId: "bag-to-existing" }),
+  } as unknown as CashBagsService;
+
+  const { records, service } = createShiftsService({
+    responses: [
+      {
+        data: [
+          {
+            id: "sess-1",
+            owner_profile_id: "from-profile",
+            status: "open",
+          },
+        ],
+      },
+      { data: null, error: null }, // owner update → to
+    ],
+    cashBags,
+  });
+
+  const result = await service.transferSessions({
+    restaurantId: "rest-1",
+    fromProfileId: "from-profile",
+    toProfileId: "to-profile",
+    sessionIds: ["sess-1"],
+    toPin: "1234",
+    transferCashBag: true,
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.deepEqual(result.transferredSessionIds, ["sess-1"]);
+    assert.equal(result.toBagId, "bag-to-existing");
+  }
+
+  const updates = records.filter(
+    (r) => r.table === "pos_table_sessions" && r.action === "update",
+  );
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0]?.values, { owner_profile_id: "to-profile" });
 });
 
 test("transferSessions without transferCashBag skips handover", async () => {

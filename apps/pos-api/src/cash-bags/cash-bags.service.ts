@@ -394,6 +394,47 @@ export class CashBagsService {
     return { ok: true, differenceCents };
   }
 
+  /**
+   * Idempotent replay: from bag already handed_over → open to bag owned by recipient.
+   */
+  async resolveHandoverReplay(params: {
+    restaurantId: string;
+    fromProfileId: string;
+    toProfileId: string;
+  }): Promise<{ toBagId: string } | null> {
+    const sb = this.sb();
+
+    const { data: fromBag } = await sb
+      .from("pos_waiter_cash_bags")
+      .select("handed_over_to_bag_id")
+      .eq("restaurant_id", params.restaurantId)
+      .eq("staff_profile_id", params.fromProfileId)
+      .eq("status", "handed_over")
+      .not("handed_over_to_bag_id", "is", null)
+      .order("closed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const toBagId = fromBag?.handed_over_to_bag_id as string | undefined;
+    if (!toBagId) return null;
+
+    const { data: toBag } = await sb
+      .from("pos_waiter_cash_bags")
+      .select("id, staff_profile_id, status")
+      .eq("id", toBagId)
+      .maybeSingle();
+
+    if (
+      !toBag ||
+      toBag.status !== "open" ||
+      toBag.staff_profile_id !== params.toProfileId
+    ) {
+      return null;
+    }
+
+    return { toBagId: toBag.id as string };
+  }
+
   async handover(params: {
     restaurantId: string;
     fromProfileId: string;

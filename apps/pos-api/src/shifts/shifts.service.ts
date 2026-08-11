@@ -88,6 +88,25 @@ export class ShiftsService {
     });
 
     if (!hand.ok) {
+      const replayEligible =
+        hand.error === "from_bag_not_open" ||
+        hand.error === "to_already_has_open_bag";
+      if (replayEligible) {
+        const replay = await this.cashBags.resolveHandoverReplay({
+          restaurantId: params.restaurantId,
+          fromProfileId: params.fromProfileId,
+          toProfileId: params.toProfileId,
+        });
+        if (replay) {
+          return {
+            ok: true as const,
+            transferredSessionIds: ids,
+            fromProfileId: params.fromProfileId,
+            toProfileId: params.toProfileId,
+            toBagId: replay.toBagId,
+          };
+        }
+      }
       await this.rollbackOwners(previousOwners);
       return hand;
     }

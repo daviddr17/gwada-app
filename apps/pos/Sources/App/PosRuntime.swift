@@ -269,6 +269,7 @@ final class PosRuntime: ObservableObject {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-UITestingResetEnrollment") {
             PosReservationsStore.shared.clearAll()
+            PosUITestCashBagLab.seedIfNeeded()
         }
         PosDemoReservations.seedIfNeeded(tables: snapshot?.floor.tables ?? [])
 #endif

@@ -76,6 +76,7 @@ struct MoreMenuView: View {
                     } label: {
                         Label("Wechselgeld ausgeben", systemImage: "banknote")
                     }
+                    .accessibilityIdentifier("pos.cashBag.issueMenu")
                 }
                 Button {
                     showHandover = true
@@ -89,6 +90,7 @@ struct MoreMenuView: View {
                     } label: {
                         Label("Schicht beenden", systemImage: "tray.and.arrow.down")
                     }
+                    .accessibilityIdentifier("pos.cashBag.closeMenu")
                     if let expected = runtime.openCashBagExpectedCents {
                         LabeledContent("Börse Soll", value: PosMoney.format(expected))
                     }

@@ -144,6 +144,10 @@ final class PosHubState: @unchecked Sendable {
             usingDemo = true
             PosLocalStore.saveBootstrap(demo)
             loadLocalOpenLinesLocked()
+            // Frische Börsen — sonst blockiert Issue „alreadyOpen“ aus altem Disk-Stand.
+            localCashBags = []
+            localCashBagMovements = []
+            persistLocalCashBagsLocked()
             return
         }
         if var cached = PosLocalStore.loadBootstrap() {
@@ -622,6 +626,15 @@ final class PosHubState: @unchecked Sendable {
 
     private var localCashBags: [PosWaiterCashBag] = []
     private var localCashBagMovements: [PosCashBagMovement] = []
+
+    /// UITests: In-Memory + Disk Börsen leeren (nach Demo-Load).
+    func clearLocalCashBagsForUITesting() {
+        lock.lock()
+        defer { lock.unlock() }
+        localCashBags = []
+        localCashBagMovements = []
+        persistLocalCashBagsLocked()
+    }
 
     func openCashBag(for staffProfileId: String) -> PosWaiterCashBag? {
         lock.lock()

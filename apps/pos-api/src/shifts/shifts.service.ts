@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { CashBagsService } from "../cash-bags/cash-bags.service";
 import { SupabaseAdminService } from "../supabase-admin.service";
 
 /**
@@ -8,7 +9,10 @@ import { SupabaseAdminService } from "../supabase-admin.service";
  */
 @Injectable()
 export class ShiftsService {
-  constructor(private readonly supabaseAdmin: SupabaseAdminService) {}
+  constructor(
+    private readonly supabaseAdmin: SupabaseAdminService,
+    private readonly cashBags: CashBagsService,
+  ) {}
 
   async transferSessions(params: {
     restaurantId: string;
@@ -16,6 +20,7 @@ export class ShiftsService {
     toProfileId: string;
     sessionIds: string[];
     toPin: string;
+    transferCashBag?: boolean;
   }) {
     if (!params.sessionIds.length) {
       return { ok: false as const, error: "no_sessions", status: 400 };
@@ -54,6 +59,11 @@ export class ShiftsService {
     }
 
     const ids = transferable.map((s) => s.id as string);
+    const previousOwners = transferable.map((s) => ({
+      id: s.id as string,
+      ownerProfileId: s.owner_profile_id as string | null,
+    }));
+
     const { error: updError } = await sb
       .from("pos_table_sessions")
       .update({ owner_profile_id: params.toProfileId })
@@ -61,12 +71,53 @@ export class ShiftsService {
 
     if (updError) return { ok: false as const, error: updError.message, status: 500 };
 
+    if (!params.transferCashBag) {
+      return {
+        ok: true as const,
+        transferredSessionIds: ids,
+        fromProfileId: params.fromProfileId,
+        toProfileId: params.toProfileId,
+      };
+    }
+
+    // Supabase JS has no multi-table SQL transaction — compensate owners on bag failure.
+    const hand = await this.cashBags.handover({
+      restaurantId: params.restaurantId,
+      fromProfileId: params.fromProfileId,
+      toProfileId: params.toProfileId,
+    });
+
+    if (!hand.ok) {
+      await this.rollbackOwners(previousOwners);
+      return hand;
+    }
+
     return {
       ok: true as const,
       transferredSessionIds: ids,
       fromProfileId: params.fromProfileId,
       toProfileId: params.toProfileId,
+      toBagId: hand.toBagId,
     };
+  }
+
+  private async rollbackOwners(
+    previousOwners: Array<{ id: string; ownerProfileId: string | null }>,
+  ): Promise<void> {
+    const sb = this.supabaseAdmin.getClient();
+    for (const row of previousOwners) {
+      const { error } = await sb
+        .from("pos_table_sessions")
+        .update({ owner_profile_id: row.ownerProfileId })
+        .eq("id", row.id);
+      if (error) {
+        console.warn(
+          "[pos-api] rollback session owner after cash-bag handover failure",
+          row.id,
+          error.message,
+        );
+      }
+    }
   }
 
   private async verifyPin(

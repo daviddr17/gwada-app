@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { normalizePosOrderCourse } from "@gwada/pos-domain";
+import { CashBagsService } from "../cash-bags/cash-bags.service";
 import { SupabaseAdminService } from "../supabase-admin.service";
 import { SessionsService } from "../sessions/sessions.service";
 import { OrdersService } from "../orders/orders.service";
@@ -21,6 +22,7 @@ export class SyncService {
     private readonly sessions: SessionsService,
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
+    private readonly cashBags: CashBagsService,
   ) {}
 
   async ingest(params: {
@@ -213,6 +215,60 @@ export class SyncService {
           profileId: ctx.profileId,
         });
         return r.ok ? { ok: true, result: { released: true } } : { ok: false, error: r.error };
+      }
+      case "cash_bag.issued": {
+        const staffProfileId = String(
+          p.staffProfileId ?? p.toProfileId ?? ctx.profileId,
+        ).trim();
+        const openingFloatCents = Number(p.openingFloatCents ?? 0);
+        const idempotencyKey = String(
+          p.idempotencyKey ?? ev.idempotencyKey ?? "",
+        ).trim();
+        const r = await this.cashBags.issue({
+          restaurantId: ctx.restaurantId,
+          staffProfileId,
+          openingFloatCents,
+          issuedByProfileId: String(p.issuedByProfileId ?? ctx.profileId),
+          idempotencyKey,
+        });
+        return r.ok
+          ? { ok: true, result: { bagId: r.bagId } }
+          : { ok: false, error: r.error };
+      }
+      case "cash_bag.closed": {
+        const bagId = String(p.bagId ?? "").trim();
+        if (!bagId) {
+          return { ok: false, error: "invalid_payload" };
+        }
+        const r = await this.cashBags.close({
+          restaurantId: ctx.restaurantId,
+          bagId,
+          closingCountCents: Number(p.closingCountCents ?? 0),
+          closedByProfileId: String(p.closedByProfileId ?? ctx.profileId),
+          managerOverrideProfileId:
+            (p.managerOverrideProfileId as string | null | undefined) ?? null,
+          managerPinVerified: Boolean(p.managerPinVerified),
+        });
+        return r.ok
+          ? { ok: true, result: { differenceCents: r.differenceCents } }
+          : { ok: false, error: r.error };
+      }
+      case "cash_bag.handover": {
+        const fromProfileId = String(
+          p.fromProfileId ?? ctx.profileId,
+        ).trim();
+        const toProfileId = String(p.toProfileId ?? "").trim();
+        if (!fromProfileId || !toProfileId) {
+          return { ok: false, error: "invalid_payload" };
+        }
+        const r = await this.cashBags.handover({
+          restaurantId: ctx.restaurantId,
+          fromProfileId,
+          toProfileId,
+        });
+        return r.ok
+          ? { ok: true, result: { toBagId: r.toBagId } }
+          : { ok: false, error: r.error };
       }
       case "reservation.seated": {
         const reservationId = String(p.reservationId ?? "").trim();

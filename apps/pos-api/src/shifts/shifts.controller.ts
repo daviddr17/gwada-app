@@ -15,6 +15,7 @@ export class ShiftsController {
       toProfileId?: string;
       sessionIds?: string[];
       toPin?: string;
+      transferCashBag?: boolean;
     },
   ) {
     const r = await this.shifts.transferSessions({
@@ -23,6 +24,7 @@ export class ShiftsController {
       toProfileId: body.toProfileId ?? "",
       sessionIds: body.sessionIds ?? [],
       toPin: body.toPin ?? "",
+      transferCashBag: Boolean(body.transferCashBag),
     });
     if (!r.ok) throw new HttpException({ error: r.error }, r.status);
     return r;

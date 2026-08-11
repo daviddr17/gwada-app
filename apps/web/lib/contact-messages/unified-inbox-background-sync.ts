@@ -98,9 +98,10 @@ function scheduleLiveRefresh(params: UnifiedInboxSyncParams) {
 }
 
 function shouldWarmOnStart(restaurantId: string): boolean {
-  if (shouldSkipInboxWarmAfterBatch(restaurantId)) return false;
   const cached = peekUnifiedInboxCache(restaurantId);
+  // Leerer Cache immer wärmen — Batch-Skip gilt nur gegen Doppel-Fetch, nicht gegen Kälte.
   if (!cached) return true;
+  if (shouldSkipInboxWarmAfterBatch(restaurantId)) return false;
   const age = peekUnifiedInboxCacheAgeMs(restaurantId);
   if (age == null) return true;
   return age >= UNIFIED_INBOX_BACKGROUND_POLL_MS;

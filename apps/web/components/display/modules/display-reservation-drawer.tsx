@@ -137,7 +137,7 @@ export function DisplayReservationDrawer({
 }) {
   const timeZone = useDisplayRestaurantTimezone();
   const scrollRef = useRef<HTMLDivElement>(null);
-  useDrawerFormKeyboardAssist({ open, scrollRef });
+  const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
   const step = normalizeBookingTimeStepMinutes(bookingTimeStepMinutes);
   const [countries, setCountries] = useState<CountryReference[]>(
     COUNTRIES_REFERENCE_FALLBACK,
@@ -322,7 +322,12 @@ export function DisplayReservationDrawer({
   };
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      direction="bottom"
+      repositionInputs={repositionInputs}
+    >
       <DrawerContent className={drawerContentClassName("displayForm")}>
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">

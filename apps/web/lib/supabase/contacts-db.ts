@@ -623,7 +623,13 @@ export function contactThreadDisplayName(row: {
   last_name: string;
   company?: string | null;
 }): string {
-  return formatGwadaContactTitle(contactPersonalName(row), row.company);
+  const titled = formatGwadaContactTitle(
+    contactPersonalName(row),
+    row.company,
+  ).trim();
+  if (titled) return titled;
+  // Wie contactDisplayName — nie leerer String (sonst UI „Kontakt“).
+  return contactDisplayName(row);
 }
 
 export {

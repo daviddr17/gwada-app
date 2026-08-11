@@ -1,12 +1,6 @@
-"use client";
-
-import { Suspense } from "react";
-import { MenuOverviewScreen } from "@/components/menu/menu-overview-screen";
-
+/**
+ * UI liegt in {@link AppModuleHomeKeepAlives} (Speisekarte-Slot).
+ */
 export default function MenuUebersichtPage() {
-  return (
-    <Suspense fallback={<div className="min-h-[40vh] bg-background" />}>
-      <MenuOverviewScreen />
-    </Suspense>
-  );
+  return null;
 }

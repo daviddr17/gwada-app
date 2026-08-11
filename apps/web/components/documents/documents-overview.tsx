@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
+import { keepAliveOwnsPathname } from "@/lib/navigation/module-home-keep-alive";
 import {
   Download,
   FileText,
@@ -263,8 +265,8 @@ function initialDocumentsFromCache(restaurantId: string | null): {
   };
 }
 
-export function DocumentsOverview() {
-  const router = useRouter();
+export function DocumentsOverview({ active = true }: { active?: boolean }) {
+  const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
@@ -330,13 +332,20 @@ export function DocumentsOverview() {
   }, []);
 
   useEffect(() => {
+    // Keep-alive: globales ?new=1 gilt nur für das aktive Dokumente-Home.
+    if (!keepAliveOwnsPathname(active, pathname, "dokumente")) return;
     if (searchParams.get("new") !== "1") return;
     openUploadDrawer();
     const p = new URLSearchParams(searchParams.toString());
     p.delete("new");
     const q = p.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-  }, [searchParams, router, pathname, openUploadDrawer]);
+  }, [active, searchParams, router, pathname, openUploadDrawer]);
+
+  useEffect(() => {
+    if (active) return;
+    setFormOpen(false);
+  }, [active]);
 
   const activeTags = useMemo(
     () => documentTags.items.filter((t) => t.active !== false),

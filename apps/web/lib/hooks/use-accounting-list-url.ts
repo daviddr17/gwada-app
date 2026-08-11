@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
 import {
   isDefaultSalesDocumentSort,
   isDefaultVoucherSort,
@@ -55,13 +56,20 @@ type VoucherListUrl = AccountingListUrlBase & {
   toggleSort: (key: AccountingVoucherSortKey) => void;
 };
 
-export function useAccountingListUrl(sortMode: "sales"): SalesListUrl;
-export function useAccountingListUrl(sortMode: "voucher"): VoucherListUrl;
+export function useAccountingListUrl(
+  sortMode: "sales",
+  active?: boolean,
+): SalesListUrl;
+export function useAccountingListUrl(
+  sortMode: "voucher",
+  active?: boolean,
+): VoucherListUrl;
 export function useAccountingListUrl(
   sortMode: AccountingListSortMode = "sales",
+  active = true,
 ): SalesListUrl | VoucherListUrl {
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
 
   const page = parseListPageParam(searchParams.get("page"));

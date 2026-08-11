@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, MessageSquare, Plus, Search, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -153,6 +153,7 @@ function ChannelCell({ values }: { values: string[] }) {
 
 export function ContactsOverview() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const contactParam = searchParams.get("contact");
   const platformParam = searchParams.get("platform");
@@ -270,6 +271,8 @@ export function ContactsOverview() {
   }, [contactParam, router, searchParams]);
 
   useEffect(() => {
+    // Nur auf der Kontakte-Übersicht — nicht bei fremdem ?new=1 (Keep-alive Soft-Nav).
+    if (!pathname.startsWith("/dashboard/kontakte/uebersicht")) return;
     if (searchParams.get("new") !== "1") return;
     setCreateDraft(null);
     setEditContactId(null);
@@ -281,7 +284,7 @@ export function ContactsOverview() {
       q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht",
       { scroll: false },
     );
-  }, [searchParams, router]);
+  }, [pathname, searchParams, router]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey !== key) {

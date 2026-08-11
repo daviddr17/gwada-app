@@ -20,6 +20,7 @@ import {
   Clock,
   UserCheck,
   UserX,
+  Unlock,
 } from "lucide-react";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
@@ -45,6 +46,7 @@ export const NOTIFICATION_MODULE_IDS = [
   "staff_invite_declined",
   "staff_display_clock_in",
   "staff_display_clock_out",
+  "staff_permissions_granted",
 ] as const;
 
 export type NotificationModuleId = (typeof NOTIFICATION_MODULE_IDS)[number];
@@ -265,6 +267,16 @@ export const NOTIFICATION_MODULES: Record<
     settingsPushWhatsappLabel:
       "WhatsApp bei Display-Schichtende / Auto-Abmeldung",
     settingsPushEmailLabel: "E-Mail bei Display-Schichtende / Auto-Abmeldung",
+  },
+  staff_permissions_granted: {
+    id: "staff_permissions_granted",
+    label: "Neue Rechte",
+    labelPlural: "Neue Rechte",
+    href: "/dashboard",
+    icon: Unlock,
+    settingsInAppLabel: "Neue Modul-Rechte in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei neuen Rechten",
+    settingsPushEmailLabel: "E-Mail bei neuen Rechten",
   },
 };
 

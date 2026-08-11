@@ -48,13 +48,13 @@ function DayDots({ day }: { day: DashboardCalendarDaySummary }) {
   if (day.hoursException) {
     dots.push(day.hoursException.closed ? DOT.hoursClosed : DOT.hours);
   }
-  if (dots.length === 0) return <span className="h-1.5" aria-hidden />;
+  if (dots.length === 0) return <span className="h-1.5 md:h-2" aria-hidden />;
   return (
-    <span className="flex h-1.5 items-center justify-center gap-0.5">
+    <span className="flex h-1.5 items-center justify-center gap-0.5 md:h-2 md:gap-1">
       {dots.slice(0, 4).map((color, i) => (
         <span
           key={`${color}-${i}`}
-          className="size-1.5 rounded-full"
+          className="size-1.5 rounded-full md:size-2"
           style={{ backgroundColor: color }}
         />
       ))}
@@ -64,9 +64,9 @@ function DayDots({ day }: { day: DashboardCalendarDaySummary }) {
 
 function LegendItem({ color, label }: { color: string; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground md:text-xs">
       <span
-        className="size-1.5 rounded-full"
+        className="size-1.5 rounded-full md:size-2"
         style={{ backgroundColor: color }}
         aria-hidden
       />
@@ -160,31 +160,33 @@ export function DashboardCalendarOverlay({
         <div
           className={cn(
             appFullscreenOverlayScrollClassName,
-            "px-3 py-4 sm:px-5",
+            "px-3 py-4 sm:px-5 md:px-8 md:py-6",
           )}
         >
-          <div className="mx-auto w-full max-w-lg space-y-4">
+          <div className="mx-auto flex w-full max-w-lg flex-col gap-4 md:max-w-4xl md:gap-5 lg:max-w-5xl xl:max-w-6xl">
             <div className="flex items-center justify-between gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
+                className="md:size-10"
                 aria-label="Vorheriger Monat"
                 onClick={() => setMonth((m) => shiftMonthKey(m, -1))}
               >
-                <ChevronLeft className="size-4" />
+                <ChevronLeft className="size-4 md:size-5" />
               </Button>
-              <p className="text-sm font-medium capitalize text-foreground">
+              <p className="text-sm font-medium capitalize text-foreground md:text-lg">
                 {formatMonthTitleDe(month)}
               </p>
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
+                className="md:size-10"
                 aria-label="Nächster Monat"
                 onClick={() => setMonth((m) => shiftMonthKey(m, 1))}
               >
-                <ChevronRight className="size-4" />
+                <ChevronRight className="size-4 md:size-5" />
               </Button>
             </div>
 
@@ -195,58 +197,71 @@ export function DashboardCalendarOverlay({
             ) : showSkeleton ? (
               <div className="space-y-3" aria-busy>
                 <Skeleton className="h-10 w-full rounded-xl" />
-                <Skeleton className="h-64 w-full rounded-xl" />
+                <Skeleton className="h-64 w-full rounded-xl md:h-[28rem]" />
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-7 gap-1.5">
-                  {DASHBOARD_CALENDAR_WEEKDAY_LABELS.map((label) => (
-                    <div
-                      key={label}
-                      className="py-1 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
-                    >
-                      {label}
-                    </div>
-                  ))}
-                  {gridCells.map((day, index) => {
-                    if (!day) {
-                      return (
-                        <div key={`empty-${index}`} className="min-h-12" />
-                      );
-                    }
-                    const isToday = day.date === todayYmd;
-                    const hasSignals = dashboardCalendarDayHasSignals(day);
-                    return (
-                      <button
-                        key={day.date}
-                        type="button"
-                        onClick={() => setSelectedDate(day.date)}
-                        className={cn(
-                          "flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border px-0.5 py-1.5 text-sm transition-colors",
-                          "hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                          isToday
-                            ? "border-accent/50 bg-accent/10 font-semibold text-foreground"
-                            : hasSignals
-                              ? "border-border/50 bg-card text-foreground"
-                              : "border-transparent text-muted-foreground",
-                          day.hoursException?.closed &&
-                            "bg-red-500/8 dark:bg-red-500/12",
-                          day.holidayName &&
-                            !day.hoursException?.closed &&
-                            "bg-amber-500/8 dark:bg-amber-500/12",
-                        )}
-                        aria-label={`${day.date}${hasSignals ? ", mit Einträgen" : ""}`}
+                <div className="space-y-1.5 md:space-y-2">
+                  <div className="grid grid-cols-7 gap-1.5 md:gap-2.5 lg:gap-3">
+                    {DASHBOARD_CALENDAR_WEEKDAY_LABELS.map((label) => (
+                      <div
+                        key={label}
+                        className="py-1 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground md:py-1.5 md:text-xs"
                       >
-                        <span className="tabular-nums leading-none">
-                          {Number(day.date.slice(-2))}
-                        </span>
-                        <DayDots day={day} />
-                      </button>
-                    );
-                  })}
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    className={cn(
+                      "grid grid-cols-7 gap-1.5 md:gap-2.5 lg:gap-3",
+                      "md:min-h-[min(36rem,calc(100dvh-16rem))] md:auto-rows-fr",
+                    )}
+                  >
+                    {gridCells.map((day, index) => {
+                      if (!day) {
+                        return (
+                          <div
+                            key={`empty-${index}`}
+                            className="min-h-12 md:min-h-0"
+                          />
+                        );
+                      }
+                      const isToday = day.date === todayYmd;
+                      const hasSignals = dashboardCalendarDayHasSignals(day);
+                      return (
+                        <button
+                          key={day.date}
+                          type="button"
+                          onClick={() => setSelectedDate(day.date)}
+                          className={cn(
+                            "flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border px-0.5 py-1.5 text-sm transition-colors",
+                            "md:min-h-0 md:gap-1.5 md:rounded-2xl md:px-1 md:py-2 md:text-base",
+                            "hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                            isToday
+                              ? "border-accent/50 bg-accent/10 font-semibold text-foreground"
+                              : hasSignals
+                                ? "border-border/50 bg-card text-foreground"
+                                : "border-transparent text-muted-foreground",
+                            day.hoursException?.closed &&
+                              "bg-red-500/8 dark:bg-red-500/12",
+                            day.holidayName &&
+                              !day.hoursException?.closed &&
+                              "bg-amber-500/8 dark:bg-amber-500/12",
+                          )}
+                          aria-label={`${day.date}${hasSignals ? ", mit Einträgen" : ""}`}
+                        >
+                          <span className="tabular-nums leading-none md:text-lg lg:text-xl">
+                            {Number(day.date.slice(-2))}
+                          </span>
+                          <DayDots day={day} />
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap gap-x-3 gap-y-1.5 border-t border-border/40 pt-3">
+                <div className="flex flex-wrap gap-x-3 gap-y-1.5 border-t border-border/40 pt-3 md:gap-x-5 md:pt-4">
                   <LegendItem color={DOT.reservations} label="Reservierungen" />
                   <LegendItem color={DOT.events} label="Veranstaltungen" />
                   <LegendItem color={DOT.staff} label="Schichtplan" />

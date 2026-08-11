@@ -1,7 +1,9 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { AppMain } from "@/components/layout/app-main";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
+import { isModuleHomePath } from "@/lib/navigation/module-home-keep-alive";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 
 const INSIGHTS_NAV: readonly ModuleSubnavItem[] = [
@@ -18,6 +20,11 @@ export default function InsightsLayout({
 }: {
   children: React.ReactNode;
 }) {
+
+  const pathname = usePathname();
+  if (isModuleHomePath(pathname, "insights")) {
+    return null;
+  }
   return (
     <>
       <RegisterModuleChrome

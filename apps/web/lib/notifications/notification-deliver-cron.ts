@@ -19,6 +19,7 @@ import { isNotificationModuleId } from "@/lib/notifications/notification-modules
 import { filterStaffTodoPushTargets } from "@/lib/notifications/notification-staff-todos-server";
 import { filterStaffContractSignedPushTargets } from "@/lib/notifications/notification-staff-contract-server";
 import { filterStaffInviteResponsePushTargets } from "@/lib/notifications/notification-staff-invite-server";
+import { filterStaffPermissionsGrantedPushTargets } from "@/lib/notifications/notification-staff-permissions-server";
 import { filterStaffShiftPushTargets } from "@/lib/notifications/notification-staff-shift-server";
 import {
   defaultNotificationPreferences,
@@ -196,6 +197,9 @@ async function fanOutEvent(
     moduleId === "staff_invite_declined"
   ) {
     targets = await filterStaffInviteResponsePushTargets(admin, event, targets);
+  }
+  if (moduleId === "staff_permissions_granted") {
+    targets = await filterStaffPermissionsGrantedPushTargets(event, targets);
   }
   if (moduleId === "staff_shift_start" || moduleId === "staff_shift_end") {
     targets = await filterStaffShiftPushTargets(admin, event, targets);

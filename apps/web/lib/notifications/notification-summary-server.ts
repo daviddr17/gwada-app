@@ -11,6 +11,7 @@ import { loadStaffDisplayClockNotificationItems } from "@/lib/notifications/noti
 import {
   loadStaffInviteResponseNotificationItems,
 } from "@/lib/notifications/notification-staff-invite-server";
+import { loadStaffPermissionsGrantedNotificationItems } from "@/lib/notifications/notification-staff-permissions-server";
 import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
@@ -487,6 +488,22 @@ const MODULE_BUILDERS: Record<
         limit: BELL_ITEMS_PER_MODULE,
       },
     );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_permissions_granted: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_permissions_granted;
+    const { items, totalCount } =
+      await loadStaffPermissionsGrantedNotificationItems(ctx.sb, {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        limit: BELL_ITEMS_PER_MODULE,
+      });
     return {
       id: def.id,
       count: totalCount,

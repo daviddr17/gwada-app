@@ -1,13 +1,4 @@
-"use client";
-
-import { Suspense } from "react";
-import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
-import { NewsScreen } from "@/components/news/news-screen";
-
+/** UI in AppModuleHomeKeepAlives (News-Slot). */
 export default function NewsOverviewPage() {
-  return (
-    <Suspense fallback={<NewsFeedSkeleton viewMode="list" />}>
-      <NewsScreen />
-    </Suspense>
-  );
+  return null;
 }

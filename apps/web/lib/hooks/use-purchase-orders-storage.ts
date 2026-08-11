@@ -43,6 +43,7 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import {
   allPurchaseOrderLinesResolved,
+  isLineDeliveryResolved,
   lineDeliveryStockQuantity,
 } from "@/lib/inventory/purchase-order-line-delivery";
 import {
@@ -507,6 +508,31 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     [afterOrdersMutation, failSave, queryClient, restaurantId, useDbInventory],
   );
 
+  /** Sofort in UI/Cache schreiben (vor await Persist) — bei Fehler zurückrollen. */
+  const applyOrdersOptimistic = useCallback(
+    (next: PurchaseOrder[]) => {
+      if (useDbInventory) {
+        if (restaurantId) {
+          queryClient.setQueryData(
+            queryKeys.inventory.purchaseOrders(restaurantId),
+            next,
+          );
+        }
+        mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+          version: 1 as const,
+          orders: next,
+        });
+        return;
+      }
+      setLocalOrders(next);
+      mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+        version: 1 as const,
+        orders: next,
+      });
+    },
+    [queryClient, restaurantId, useDbInventory],
+  );
+
   const getOpenLineContext = useCallback(
     (supplierId: string, ingredientId: string): OpenLineContext => {
       if (!supplierId.trim()) {
@@ -732,17 +758,22 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const normalized =
         ymd && /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
       if (target.deliveryDate === normalized) return true;
+      const previous = orders;
       const next = orders.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      if (!(await persist(next))) return false;
+      applyOrdersOptimistic(next);
+      if (!(await persist(next))) {
+        applyOrdersOptimistic(previous);
+        return false;
+      }
       toast.success(
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
         { id: `order-delivery-${orderId}` },
       );
       return true;
     },
-    [orders, persist],
+    [applyOrdersOptimistic, orders, persist],
   );
 
   const updateLineQuantity = useCallback(
@@ -878,6 +909,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const nextStock = lineDeliveryStockQuantity(nextLinePreview);
       const stockDelta = nextStock - prevStock;
 
+      const previous = orders;
       const next: PurchaseOrder[] = structuredClone(orders);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
@@ -916,10 +948,14 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         autoClosed = true;
       }
 
-      if (!(await persist(next))) return { ok: false };
+      applyOrdersOptimistic(next);
+      if (!(await persist(next))) {
+        applyOrdersOptimistic(previous);
+        return { ok: false };
+      }
       return { ok: true, stockDelta, autoClosed };
     },
-    [orders, persist],
+    [applyOrdersOptimistic, orders, persist],
   );
 
   const clearLineDelivery = useCallback(
@@ -944,6 +980,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         return { ok: false };
       }
 
+      const previous = orders;
       const next: PurchaseOrder[] = structuredClone(orders);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
@@ -968,10 +1005,162 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       };
       o.log.push(logEntry);
 
-      if (!(await persist(next))) return { ok: false };
+      applyOrdersOptimistic(next);
+      if (!(await persist(next))) {
+        applyOrdersOptimistic(previous);
+        return { ok: false };
+      }
       return { ok: true, stockDelta: -prevStock };
     },
-    [orders, persist],
+    [applyOrdersOptimistic, orders, persist],
+  );
+
+  /**
+   * Offene Positionen auflösen + Bestellung abschließen (ein Persist).
+   * Ausnahmen: nicht geliefert / abweichend; Rest → geliefert.
+   * Bereits beantwortete Positionen bleiben unverändert.
+   */
+  const resolveOpenDeliveriesAndClose = useCallback(
+    async (
+      orderId: string,
+      exceptions: ReadonlyArray<{
+        lineId: string;
+        status: "not_delivered" | "partial";
+        deliveredQuantity?: number;
+        note?: string;
+      }>,
+      actor: OrderProtocolActor,
+    ): Promise<
+      | {
+          ok: true;
+          stockDeltas: Array<{
+            lineId: string;
+            ingredientId: string;
+            delta: number;
+            unitId: string;
+            unitLabel: string;
+          }>;
+        }
+      | { ok: false }
+    > => {
+      const target = orders.find((o) => o.id === orderId);
+      if (!target || target.status !== "ordered") {
+        toast.error("Bestellung nicht gefunden oder nicht im Status Bestellt.");
+        return { ok: false };
+      }
+
+      const exceptionById = new Map(exceptions.map((e) => [e.lineId, e]));
+      if (exceptionById.size !== exceptions.length) {
+        toast.error("Jede Position darf nur einmal als Ausnahme gewählt werden.");
+        return { ok: false };
+      }
+
+      for (const ex of exceptions) {
+        const line = target.lines.find((l) => l.id === ex.lineId);
+        if (!line || isLineDeliveryResolved(line)) {
+          toast.error("Ungültige Ausnahme-Position.");
+          return { ok: false };
+        }
+        if (ex.status === "partial") {
+          if (
+            typeof ex.deliveredQuantity !== "number" ||
+            !Number.isFinite(ex.deliveredQuantity) ||
+            ex.deliveredQuantity < 0
+          ) {
+            toast.error("Bitte gelieferte Menge für abweichende Positionen angeben.");
+            return { ok: false };
+          }
+        }
+      }
+
+      const previous = orders;
+      const next: PurchaseOrder[] = structuredClone(orders);
+      const o = next.find((x) => x.id === orderId);
+      if (!o) return { ok: false };
+
+      const stockDeltas: Array<{
+        lineId: string;
+        ingredientId: string;
+        delta: number;
+        unitId: string;
+        unitLabel: string;
+      }> = [];
+      const now = new Date().toISOString();
+
+      for (const l of o.lines) {
+        if (isLineDeliveryResolved(l)) continue;
+
+        const ex = exceptionById.get(l.id);
+        const prevStock = lineDeliveryStockQuantity(l);
+
+        let status: PurchaseOrderLineDeliveryStatus;
+        let deliveredQuantity: number;
+        let note: string | undefined;
+
+        if (ex?.status === "not_delivered") {
+          status = "not_delivered";
+          deliveredQuantity = 0;
+          note = ex.note?.trim() || undefined;
+        } else if (ex?.status === "partial") {
+          status = "partial";
+          deliveredQuantity = ex.deliveredQuantity ?? 0;
+          note = ex.note?.trim() || undefined;
+        } else {
+          status = "delivered";
+          deliveredQuantity = l.quantity;
+        }
+
+        l.deliveryStatus = status;
+        l.deliveredQuantity = deliveredQuantity;
+        l.deliveredAt = now;
+        if (note) l.deliveryNote = note;
+        else delete l.deliveryNote;
+
+        const nextStock = lineDeliveryStockQuantity(l);
+        const delta = nextStock - prevStock;
+        if (delta !== 0) {
+          stockDeltas.push({
+            lineId: l.id,
+            ingredientId: l.ingredientId,
+            delta,
+            unitId: l.unitId,
+            unitLabel: l.unitLabel,
+          });
+        }
+
+        const logEntry: PurchaseOrderLogMarkedDelivered = {
+          id: createId(),
+          at: now,
+          ...protocolActorNameFields(actor),
+          kind: "marked_delivered",
+          ingredientId: l.ingredientId,
+          ingredientName: l.ingredientName,
+          quantity: nextStock,
+          unitId: l.unitId,
+          unitLabel: l.unitLabel,
+          lineId: l.id,
+          deliveryStatus: status,
+          ...(note ? { note } : {}),
+        };
+        o.log.push(logEntry);
+      }
+
+      if (!allPurchaseOrderLinesResolved(o.lines)) {
+        toast.error("Noch nicht alle Positionen bearbeitet.");
+        return { ok: false };
+      }
+
+      o.status = "closed";
+      appendStatusChangeLog(o, "ordered", "closed", actor);
+
+      applyOrdersOptimistic(next);
+      if (!(await persist(next))) {
+        applyOrdersOptimistic(previous);
+        return { ok: false };
+      }
+      return { ok: true, stockDeltas };
+    },
+    [applyOrdersOptimistic, orders, persist],
   );
 
   /** @deprecated Kompatibilität — nutzt setLineDelivery(delivered) */
@@ -1044,6 +1233,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     updateLineQuantity,
     setLineDelivery,
     clearLineDelivery,
+    resolveOpenDeliveriesAndClose,
     markLineDelivered,
     unmarkLineDelivered,
     syncSupplierNamesFromTaxonomy,

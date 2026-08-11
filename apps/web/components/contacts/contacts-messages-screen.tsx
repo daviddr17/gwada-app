@@ -242,6 +242,7 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { inboxConversationAvatarInitials } from "@/lib/contacts/inbox-conversation-avatar-initials";
+import { pickContactThreadTitle } from "@/lib/contacts/contact-thread-title";
 import { stripHtmlToPlainText } from "@/lib/text/strip-html-to-plain-text";
 import { cn } from "@/lib/utils";
 
@@ -1016,7 +1017,14 @@ export function ContactsMessagesScreen({
       });
 
     const applyContactMeta = (meta: NonNullable<typeof contact>) => {
-      setContactName((prev) => meta.name || listTitle || prev);
+      setContactName((prev) =>
+        pickContactThreadTitle(
+          meta.name,
+          listTitle,
+          convPreview?.contact_name,
+          prev,
+        ),
+      );
       setThreadAvatarUrl(meta.avatarUrl ?? null);
       setHasPhone(meta.hasPhone);
       setHasEmail(meta.hasEmail);
@@ -1049,15 +1057,21 @@ export function ContactsMessagesScreen({
       setHasPhone(false);
       setHasEmail(false);
     } else if (isEmailPseudoContactId(contactParam)) {
-      setContactName(convPreview?.contact_name ?? "E-Mail");
+      setContactName(
+        pickContactThreadTitle(convPreview?.contact_name, listTitle, "E-Mail"),
+      );
       setHasPhone(false);
       setHasEmail(true);
     } else if (isWahaPseudoContactId(contactParam)) {
       setContactName(
-        wahaConversationDisplayName({
-          contact_id: contactParam,
-          contact_name: convPreview?.contact_name ?? "WhatsApp",
-        }),
+        pickContactThreadTitle(
+          wahaConversationDisplayName({
+            contact_id: contactParam,
+            contact_name: convPreview?.contact_name ?? "WhatsApp",
+          }),
+          listTitle,
+          "WhatsApp",
+        ),
       );
       setHasPhone(true);
       setHasEmail(false);
@@ -1065,11 +1079,12 @@ export function ContactsMessagesScreen({
       if (pseudoChatId) setWhatsappThreadChatId(pseudoChatId);
     }
 
-    const resolvedName =
-      contact?.name ??
-      listTitle ??
-      convPreview?.contact_name ??
-      contactNameRef.current;
+    const resolvedName = pickContactThreadTitle(
+      contact?.name,
+      listTitle,
+      convPreview?.contact_name,
+      contactNameRef.current,
+    );
 
     setMessages((prev) => {
       let next = mergeLoadedThreadWithOptimistic(data, prev);
@@ -1716,11 +1731,11 @@ export function ContactsMessagesScreen({
       setHasEmail(false);
       setHasFacebookId(false);
       setHasInstagramId(false);
-      const previewTitle =
-        preview?.contact_name?.trim() ||
-        wahaThreadTitleFromPreview(preview) ||
-        "";
-      if (previewTitle) setContactName(previewTitle);
+      const previewTitle = pickContactThreadTitle(
+        preview?.contact_name,
+        wahaThreadTitleFromPreview(preview),
+      );
+      if (previewTitle !== "Kontakt") setContactName(previewTitle);
       setMessages([]);
       setWhatsappThreadPhone(null);
       setWhatsappThreadChatId(null);

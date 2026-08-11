@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
+import { keepAliveOwnsPathname } from "@/lib/navigation/module-home-keep-alive";
 import { Filter, GalleryVerticalEnd, Link2, List, ScrollText, Search } from "lucide-react";
 import {
   countReviewsDrawerActiveFilters,
@@ -170,8 +172,8 @@ function withNextPageToken(
   return { ...prev, [currentPage + 1]: nextToken };
 }
 
-export function ReviewsScreen() {
-  const router = useRouter();
+export function ReviewsScreen({ active = true }: { active?: boolean }) {
+  const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const platformParam = searchParams.get("platform");
@@ -245,6 +247,7 @@ export function ReviewsScreen() {
   );
 
   useEffect(() => {
+    if (!keepAliveOwnsPathname(active, pathname, "bewertungen")) return;
     if (searchParams.get("new") !== "invite") return;
     setPlatformFilter("gwada");
     setInviteSheetOpen(true);
@@ -256,7 +259,7 @@ export function ReviewsScreen() {
       q ? `/dashboard/bewertungen/uebersicht?${q}` : "/dashboard/bewertungen/uebersicht",
       { scroll: false },
     );
-  }, [searchParams, router]);
+  }, [active, searchParams, router, pathname]);
 
   const [protocolReview, setProtocolReview] = useState<UnifiedReview | null>(null);
   const [overviewProtocolOpen, setOverviewProtocolOpen] = useState(false);

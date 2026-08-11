@@ -143,7 +143,7 @@ export function DisplayReservationEditDrawer({
 }) {
   const timeZone = useDisplayRestaurantTimezone();
   const scrollRef = useRef<HTMLDivElement>(null);
-  useDrawerFormKeyboardAssist({ open, scrollRef });
+  const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
   const step = normalizeBookingTimeStepMinutes(
     bookingTimeStepMinutes,
   ) as BookingTimeStepMinutes;
@@ -154,6 +154,8 @@ export function DisplayReservationEditDrawer({
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<DisplayReservationDetail | null>(null);
   const allowDrawerCloseRef = useRef(false);
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
   const [tableSharePending, setTableSharePending] = useState<{
     payload: BuiltPayload;
     detail: Extract<TableAssignmentCheck, { kind: "confirm_share" }>;
@@ -212,10 +214,13 @@ export function DisplayReservationEditDrawer({
     },
     [defaultDwellMinutes, timeZone],
   );
+  const populateFromDetailRef = useRef(populateFromDetail);
+  populateFromDetailRef.current = populateFromDetail;
 
   useEffect(() => {
     if (!open || !reservationId) {
       setDetail(null);
+      setLoading(false);
       return;
     }
     let cancelled = false;
@@ -237,15 +242,15 @@ export function DisplayReservationEditDrawer({
               "Reservierung konnte nicht geladen werden.",
             ),
           );
-          onOpenChange(false);
+          onOpenChangeRef.current(false);
           return;
         }
         setDetail(data);
-        populateFromDetail(data);
+        populateFromDetailRef.current(data);
       } catch {
         if (!cancelled) {
           toast.error("Reservierung konnte nicht geladen werden.");
-          onOpenChange(false);
+          onOpenChangeRef.current(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -254,7 +259,9 @@ export function DisplayReservationEditDrawer({
     return () => {
       cancelled = true;
     };
-  }, [open, reservationId, onOpenChange, populateFromDetail]);
+    // Nur open/reservationId — sonst laden Live-Updates das Sheet erneut (Flicker).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [open, reservationId]);
 
   const handleDrawerOpenChange = useCallback(
     (next: boolean) => {
@@ -490,7 +497,7 @@ export function DisplayReservationEditDrawer({
         open={open}
         onOpenChange={handleDrawerOpenChange}
         direction="bottom"
-        repositionInputs={false}
+        repositionInputs={repositionInputs}
       >
         <DrawerContent className={drawerContentClassName("displayForm")}>
           <DrawerHeader className={drawerFormHeaderClassName(6)}>

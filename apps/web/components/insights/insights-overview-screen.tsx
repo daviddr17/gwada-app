@@ -24,6 +24,7 @@ import {
   Star,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
 import { toast } from "sonner";
 import { GwadaUsageInsightsPanels } from "@/components/insights/gwada-usage-insights-panels";
 import { LexofficeInsightsPanels } from "@/components/insights/lexoffice-insights-panels";
@@ -200,8 +201,8 @@ function DayLineChart({
   );
 }
 
-export function InsightsOverviewScreen() {
-  const router = useRouter();
+export function InsightsOverviewScreen({ active = true }: { active?: boolean }) {
+  const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =

@@ -19,6 +19,8 @@ export type ImapEnvelopeMessage = {
   uid: number;
   date: Date;
   from: string;
+  /** Anzeigename aus Envelope From (z. B. „Nicole Herwig“), falls vorhanden. */
+  fromName: string | null;
   to: string[];
   subject: string;
   snippet: string;
@@ -154,6 +156,12 @@ export async function fetchImapRecentEnvelopes(
           extractEmailAddress(env.from?.[0]?.address) ??
           extractEmailAddress(env.sender?.[0]?.address) ??
           "";
+        const fromNameRaw =
+          env.from?.[0]?.name?.trim() ||
+          env.sender?.[0]?.name?.trim() ||
+          "";
+        const fromName =
+          fromNameRaw && !fromNameRaw.includes("@") ? fromNameRaw : null;
         const to = addressesFromEnvelope(env.to);
         const cc = addressesFromEnvelope(env.cc);
         const allTo = [...to, ...cc];
@@ -165,6 +173,7 @@ export async function fetchImapRecentEnvelopes(
           uid: msg.uid,
           date,
           from,
+          fromName,
           to: allTo,
           subject,
           snippet: subject,
@@ -375,4 +384,17 @@ export function imapCounterpartyEmail(
     if (n && n !== account) return n;
   }
   return null;
+}
+
+/** Absender-Anzeigename der Gegenstelle (nur Inbound mit From-Name). */
+export function imapCounterpartyDisplayName(
+  msg: ImapEnvelopeMessage,
+  accountEmail: string,
+): string | null {
+  const account = accountEmail.trim().toLowerCase();
+  if (msg.outbound) return null;
+  if (!msg.from || msg.from === account) return null;
+  const name = msg.fromName?.trim();
+  if (!name || name.includes("@")) return null;
+  return name;
 }

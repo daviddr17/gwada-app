@@ -38,6 +38,7 @@ import {
 } from "@/lib/hooks/app-module-warm-prefetch";
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
+import { requestModuleHomeWarmForHref } from "@/lib/navigation/module-home-warm-intent";
 
 function normalizeModuleHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -218,6 +219,8 @@ export function warmModuleRouteIntent(
   restaurantId: string,
   href: string,
 ): void {
+  // Keep-alive-Slot sync mounten — Soft-Nav Preview ohne RSC-Wartezeit.
+  requestModuleHomeWarmForHref(href);
   prefetchAppModuleHref(router, href);
   warmModuleData(queryClient, restaurantId, href);
 }

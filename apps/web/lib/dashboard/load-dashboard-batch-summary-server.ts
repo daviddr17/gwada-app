@@ -63,11 +63,113 @@ export type DashboardBatchSummaryErrors = Partial<
   Record<DashboardBatchWidgetId, string>
 >;
 
+export type DashboardBatchWidgetResult<
+  K extends DashboardBatchWidgetId = DashboardBatchWidgetId,
+> = {
+  widget: K;
+  data?: DashboardBatchSummary[K];
+  error?: string;
+};
+
+async function loadDashboardBatchWidgetServer(
+  sb: SupabaseClient,
+  restaurantId: string,
+  userId: string,
+  widget: DashboardBatchWidgetId,
+): Promise<DashboardBatchWidgetResult> {
+  switch (widget) {
+    case "menu":
+      return {
+        widget,
+        data: await loadDashboardMenuSummaryServer(sb, restaurantId),
+      };
+    case "reservations":
+      return {
+        widget,
+        data: await loadDashboardReservationSummaryServer(sb, restaurantId),
+      };
+    case "reviews":
+      return {
+        widget,
+        data: await loadDashboardReviewsSummary(restaurantId, userId, sb),
+      };
+    case "staff":
+      return {
+        widget,
+        data: await loadDashboardStaffSummaryServer(sb, restaurantId),
+      };
+    case "contacts":
+      return {
+        widget,
+        data: await loadDashboardContactsSummaryServer(sb, restaurantId),
+      };
+    case "messages":
+      return {
+        widget,
+        data: await loadDashboardMessagesSummaryServer(restaurantId, userId),
+      };
+    case "integrations":
+      return {
+        widget,
+        data: await fetchDashboardIntegrationsSummary(sb, restaurantId),
+      };
+    case "inventory":
+      return {
+        widget,
+        data: await loadDashboardInventorySummaryServer(sb, restaurantId),
+      };
+    case "pos":
+      return {
+        widget,
+        data: await loadDashboardPosSummaryServer(sb, restaurantId),
+      };
+    case "events":
+      return {
+        widget,
+        data: await loadDashboardEventsSummaryServer(sb, restaurantId),
+      };
+    case "news":
+      return {
+        widget,
+        data: await loadDashboardNewsSummaryServer(sb, restaurantId),
+      };
+    case "insights":
+      return {
+        widget,
+        data: await loadDashboardInsightsSummaryServer(sb, restaurantId),
+      };
+    case "gallery":
+      return {
+        widget,
+        data: await loadDashboardGallerySummaryServer(sb, restaurantId),
+      };
+    case "accounting":
+      return {
+        widget,
+        data: await loadDashboardAccountingSummaryServer(sb, restaurantId),
+      };
+    case "documents":
+      return {
+        widget,
+        data: await loadDashboardDocumentsSummaryServer(sb, restaurantId),
+      };
+    case "checklists":
+      return {
+        widget,
+        data: await loadDashboardChecklistsSummaryServer(sb, restaurantId),
+      };
+  }
+}
+
 export async function loadDashboardBatchSummaryServer(
   sb: SupabaseClient,
   restaurantId: string,
   userId: string,
   widgets: readonly DashboardBatchWidgetId[],
+  options?: {
+    /** Pro fertigem Widget — für NDJSON-Streaming (Time-to-first-KPI). */
+    onWidget?: (result: DashboardBatchWidgetResult) => void;
+  },
 ): Promise<{ data: DashboardBatchSummary; errors: DashboardBatchSummaryErrors }> {
   const unique = [...new Set(widgets.filter(isDashboardBatchWidgetId))];
   const data: DashboardBatchSummary = {};
@@ -76,95 +178,20 @@ export async function loadDashboardBatchSummaryServer(
   await Promise.all(
     unique.map(async (widget) => {
       try {
-        switch (widget) {
-          case "menu":
-            data.menu = await loadDashboardMenuSummaryServer(sb, restaurantId);
-            break;
-          case "reservations":
-            data.reservations = await loadDashboardReservationSummaryServer(
-              sb,
-              restaurantId,
-            );
-            break;
-          case "reviews":
-            data.reviews = await loadDashboardReviewsSummary(
-              restaurantId,
-              userId,
-              sb,
-            );
-            break;
-          case "staff":
-            data.staff = await loadDashboardStaffSummaryServer(sb, restaurantId);
-            break;
-          case "contacts":
-            data.contacts = await loadDashboardContactsSummaryServer(
-              sb,
-              restaurantId,
-            );
-            break;
-          case "messages":
-            data.messages = await loadDashboardMessagesSummaryServer(
-              restaurantId,
-              userId,
-            );
-            break;
-          case "integrations":
-            data.integrations = await fetchDashboardIntegrationsSummary(
-              sb,
-              restaurantId,
-            );
-            break;
-          case "inventory":
-            data.inventory = await loadDashboardInventorySummaryServer(
-              sb,
-              restaurantId,
-            );
-            break;
-          case "pos":
-            data.pos = await loadDashboardPosSummaryServer(sb, restaurantId);
-            break;
-          case "events":
-            data.events = await loadDashboardEventsSummaryServer(
-              sb,
-              restaurantId,
-            );
-            break;
-          case "news":
-            data.news = await loadDashboardNewsSummaryServer(sb, restaurantId);
-            break;
-          case "insights":
-            data.insights = await loadDashboardInsightsSummaryServer(
-              sb,
-              restaurantId,
-            );
-            break;
-          case "gallery":
-            data.gallery = await loadDashboardGallerySummaryServer(
-              sb,
-              restaurantId,
-            );
-            break;
-          case "accounting":
-            data.accounting = await loadDashboardAccountingSummaryServer(
-              sb,
-              restaurantId,
-            );
-            break;
-          case "documents":
-            data.documents = await loadDashboardDocumentsSummaryServer(
-              sb,
-              restaurantId,
-            );
-            break;
-          case "checklists":
-            data.checklists = await loadDashboardChecklistsSummaryServer(
-              sb,
-              restaurantId,
-            );
-            break;
+        const result = await loadDashboardBatchWidgetServer(
+          sb,
+          restaurantId,
+          userId,
+          widget,
+        );
+        if (result.data !== undefined) {
+          Object.assign(data, { [widget]: result.data });
         }
+        options?.onWidget?.(result);
       } catch (e) {
-        errors[widget] = e instanceof Error ? e.message : "load_failed";
+        const error = e instanceof Error ? e.message : "load_failed";
+        errors[widget] = error;
+        options?.onWidget?.({ widget, error });
       }
     }),
   );

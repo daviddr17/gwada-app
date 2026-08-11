@@ -1,5 +1,7 @@
 import { assertBillingFeature } from "@/lib/billing/assert-billing-feature";
 import { assertPlatformWhatsappEnabled } from "@/lib/integrations/platform-messaging-guard";
+import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -19,6 +21,22 @@ export async function authorizeWahaRestaurantRoute(
   const restaurantId = restaurantIdRaw?.trim() ?? "";
   if (!isUuidRestaurantId(restaurantId)) {
     return { ok: false, status: 400, error: "invalid_restaurant_id" };
+  }
+
+  const admin = createSupabaseAdminClient();
+  if (admin) {
+    const { data: rest } = await admin
+      .from("restaurants")
+      .select("slug")
+      .eq("id", restaurantId)
+      .maybeSingle();
+    if (
+      isMetaReviewDemoRestaurantSlug(
+        (rest as { slug?: string } | null)?.slug,
+      )
+    ) {
+      return { ok: false, status: 403, error: "whatsapp_disabled" };
+    }
   }
 
   const supabase = await createSupabaseServerClient();

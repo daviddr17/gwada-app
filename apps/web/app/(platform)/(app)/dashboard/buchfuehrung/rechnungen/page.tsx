@@ -1,12 +1,4 @@
-"use client";
-
-import { Suspense } from "react";
-import { AccountingInvoicesScreen } from "@/components/accounting/accounting-invoices-screen";
-
+/** UI in AppModuleHomeKeepAlives (Buchführung-Slot). */
 export default function BuchfuehrungRechnungenPage() {
-  return (
-    <Suspense fallback={null}>
-      <AccountingInvoicesScreen />
-    </Suspense>
-  );
+  return null;
 }

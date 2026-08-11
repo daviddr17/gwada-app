@@ -10,6 +10,8 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
+import { keepAliveOwnsPathname } from "@/lib/navigation/module-home-keep-alive";
 import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -100,13 +102,13 @@ function initialNewsFeedFromCache(restaurantId: string | null): {
   };
 }
 
-export function NewsScreen() {
+export function NewsScreen({ active = true }: { active?: boolean }) {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "news");
   const canManage = hasModuleCreate(has, "news");
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
 
   const [platformFilter, setPlatformFilterState] = useState<NewsPlatformFilter>(
@@ -333,6 +335,7 @@ export function NewsScreen() {
   }, []);
 
   useEffect(() => {
+    if (!keepAliveOwnsPathname(active, pathname, "news")) return;
     if (searchParams.get("new") === "1" && canManage) {
       setComposeOpen(true);
       const next = new URLSearchParams(searchParams.toString());
@@ -341,7 +344,7 @@ export function NewsScreen() {
         scroll: false,
       });
     }
-  }, [searchParams, canManage, router]);
+  }, [active, searchParams, canManage, router, pathname]);
 
   const sortedItems = useMemo(() => sortNewsItemsByDate(items), [items]);
 

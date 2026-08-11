@@ -3,6 +3,9 @@ import "server-only";
 import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+// Multi-step bag writes use ordering + compensating deletes; the Supabase JS admin
+// client cannot run SQL transactions (BEGIN/COMMIT) across separate table calls.
+
 export type CashBagStatus = "open" | "handed_over" | "closed";
 
 type CashBagMovementRow = {
@@ -238,6 +241,23 @@ export async function closeWaiterCashBag(params: {
     return { ok: false, error: "manager_pin_required", status: 403 };
   }
 
+  const { data: closeMovement, error: movementError } = await admin
+    .from("pos_waiter_cash_bag_movements")
+    .insert({
+      restaurant_id: params.restaurantId,
+      cash_bag_id: bag.id,
+      register_session_id: bag.register_session_id,
+      kind: "close_count",
+      amount_cents: closingCountCents,
+      created_by_profile_id: params.closedByProfileId,
+    })
+    .select("id")
+    .single();
+
+  if (movementError || !closeMovement) {
+    return { ok: false, error: movementError?.message ?? "movement_insert_failed", status: 500 };
+  }
+
   const closedAt = new Date().toISOString();
   const { error: updateError } = await admin
     .from("pos_waiter_cash_bags")
@@ -255,22 +275,11 @@ export async function closeWaiterCashBag(params: {
     .eq("id", bag.id);
 
   if (updateError) {
+    await admin
+      .from("pos_waiter_cash_bag_movements")
+      .delete()
+      .eq("id", closeMovement.id);
     return { ok: false, error: updateError.message, status: 500 };
-  }
-
-  const { error: movementError } = await admin
-    .from("pos_waiter_cash_bag_movements")
-    .insert({
-      restaurant_id: params.restaurantId,
-      cash_bag_id: bag.id,
-      register_session_id: bag.register_session_id,
-      kind: "close_count",
-      amount_cents: closingCountCents,
-      created_by_profile_id: params.closedByProfileId,
-    });
-
-  if (movementError) {
-    return { ok: false, error: movementError.message, status: 500 };
   }
 
   return { ok: true, differenceCents };
@@ -310,7 +319,7 @@ export async function applyCashSaleToOpenBag(params: {
     return { ok: false, error: "no_open_bag", status: 409 };
   }
 
-  const { error: movementError } = await admin
+  const { data: movement, error: movementError } = await admin
     .from("pos_waiter_cash_bag_movements")
     .insert({
       restaurant_id: params.restaurantId,
@@ -321,7 +330,9 @@ export async function applyCashSaleToOpenBag(params: {
       payment_id: params.paymentId,
       idempotency_key: idempotencyKey,
       created_by_profile_id: params.cashierProfileId,
-    });
+    })
+    .select("id")
+    .single();
 
   if (movementError) {
     if (movementError.code === "23505") {
@@ -336,8 +347,11 @@ export async function applyCashSaleToOpenBag(params: {
     }
     return { ok: false, error: movementError.message, status: 500 };
   }
+  if (!movement) {
+    return { ok: false, error: "movement_insert_failed", status: 500 };
+  }
 
-  await admin
+  const { error: paymentError } = await admin
     .from("pos_payments")
     .update({
       cashier_profile_id: params.cashierProfileId,
@@ -345,6 +359,11 @@ export async function applyCashSaleToOpenBag(params: {
     })
     .eq("id", params.paymentId)
     .eq("restaurant_id", params.restaurantId);
+
+  if (paymentError) {
+    await admin.from("pos_waiter_cash_bag_movements").delete().eq("id", movement.id);
+    return { ok: false, error: paymentError.message, status: 500 };
+  }
 
   return { ok: true, bagId: openBag.id };
 }
@@ -373,6 +392,9 @@ export async function handoverCashBag(params: {
   );
   if (!fromBag) {
     return { ok: false, error: "from_bag_not_open", status: 404 };
+  }
+  if (fromBag.register_session_id !== session.id) {
+    return { ok: false, error: "stale_bag_session", status: 409 };
   }
 
   const toOpenBag = await findOpenBagForStaff(

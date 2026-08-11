@@ -199,6 +199,10 @@ export class SyncService {
           receivedAmountCents:
             p.receivedAmountCents == null ? null : Number(p.receivedAmountCents),
           settlementMode: p.settlementMode === "amount" ? "amount" : "item",
+          clientAttemptId:
+            (p.paymentAttemptId as string | undefined) ??
+            (p.clientAttemptId as string | undefined) ??
+            null,
         });
         return r.ok ? { ok: true, result: r } : { ok: false, error: r.error };
       }

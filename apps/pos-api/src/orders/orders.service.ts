@@ -7,7 +7,10 @@ import {
 } from "@gwada/pos-domain";
 import { SupabaseAdminService } from "../supabase-admin.service";
 import { RegisterGateService } from "../sessions/sessions.service";
-import { CashBagsService } from "../cash-bags/cash-bags.service";
+import {
+  CashBagsService,
+  cashSaleIdempotencyKey,
+} from "../cash-bags/cash-bags.service";
 
 export type OrderLineInput = {
   menuItemId: string;
@@ -212,6 +215,8 @@ export class PaymentsService {
     tipCents?: number;
     receivedAmountCents?: number | null;
     settlementMode?: "item" | "amount";
+    /** Client Idempotenz (Hub Sync Queue paymentAttemptId) — aligns bag key with web. */
+    clientAttemptId?: string | null;
     /** Internal: Mollie stub reuses settlement without waiter bag. */
     skipCashBag?: boolean;
   }) {
@@ -224,6 +229,8 @@ export class PaymentsService {
     if (!register) return { ok: false as const, error: "register_closed", status: 403 };
 
     const sb = this.sb();
+    const clientAttemptId = params.clientAttemptId?.trim() || null;
+
     const { data: session } = await sb
       .from("pos_table_sessions")
       .select("id, status, settlement_mode, settled_cents, even_n")
@@ -307,36 +314,70 @@ export class PaymentsService {
         method: "cash",
         status: "paid",
         paid_at: new Date().toISOString(),
+        client_attempt_id: clientAttemptId,
       })
       .select("id")
       .single();
 
     if (payError || !payment) {
+      if (clientAttemptId && payError?.code === "23505") {
+        const { data: raced } = await sb
+          .from("pos_payments")
+          .select("id, amount_cents, tip_cents")
+          .eq("restaurant_id", params.restaurantId)
+          .eq("client_attempt_id", clientAttemptId)
+          .maybeSingle();
+        if (raced?.id) {
+          return {
+            ok: true as const,
+            paymentId: raced.id as string,
+            amountCents: Number(raced.amount_cents ?? 0),
+            tipCents: Number(raced.tip_cents ?? 0),
+            tse: null,
+            fullyPaid: false,
+          };
+        }
+      }
       return { ok: false as const, error: payError?.message ?? "payment_failed", status: 500 };
     }
+
+    const paymentId = payment.id as string;
+    let bagApplied = false;
 
     if (!params.skipCashBag) {
       const bag = await this.cashBags.applyCashSaleToOpenBag({
         restaurantId: params.restaurantId,
         cashierProfileId,
-        paymentId: payment.id as string,
+        paymentId,
         amountCents: amountCents + tipCents,
-        idempotencyKey: `cash_sale:${payment.id}`,
+        idempotencyKey: cashSaleIdempotencyKey(paymentId, clientAttemptId),
       });
       if (!bag.ok) {
-        await sb.from("pos_payments").delete().eq("id", payment.id);
+        await sb.from("pos_payments").delete().eq("id", paymentId);
         return { ok: false as const, error: bag.error, status: bag.status };
       }
+      bagApplied = true;
     }
 
+    const rollbackCashCollectAfterBag = async () => {
+      if (bagApplied) {
+        await this.cashBags.deleteCashSaleMovementForPayment({
+          restaurantId: params.restaurantId,
+          paymentId,
+        });
+      }
+      await sb.from("pos_payments").delete().eq("id", paymentId);
+    };
+
     const allocRows = resolved.map((r) => ({
-      payment_id: payment.id,
+      payment_id: paymentId,
       order_line_id: r.orderLineId,
       quantity: r.quantity,
       amount_cents: r.amountCents,
     }));
     const { error: allocError } = await sb.from("pos_payment_line_allocations").insert(allocRows);
     if (allocError) {
+      await rollbackCashCollectAfterBag();
       return { ok: false as const, error: allocError.message, status: 500 };
     }
 
@@ -366,7 +407,7 @@ export class PaymentsService {
 
     const tse = await this.signPayment({
       restaurantId: params.restaurantId,
-      paymentId: payment.id as string,
+      paymentId,
       orderId: primaryOrderId,
       amountCents: amountCents + tipCents,
       tipCents,
@@ -402,7 +443,7 @@ export class PaymentsService {
 
     return {
       ok: true as const,
-      paymentId: payment.id as string,
+      paymentId,
       amountCents: amountCents + tipCents,
       tipCents,
       tse,

@@ -53,6 +53,31 @@ export function cashSaleIdempotencyKey(
   return attempt ? `cash_sale:${attempt}` : `cash_sale:${paymentId}`;
 }
 
+/**
+ * Compensating delete for cash_sale journal rows after a failed collect
+ * (payment may be deleted separately — movements have no FK cascade).
+ */
+export async function deleteCashSaleMovementForPayment(params: {
+  restaurantId: string;
+  paymentId: string;
+}): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
+  const { error } = await admin
+    .from("pos_waiter_cash_bag_movements")
+    .delete()
+    .eq("restaurant_id", params.restaurantId)
+    .eq("payment_id", params.paymentId)
+    .eq("kind", "cash_sale");
+  if (error) {
+    console.warn(
+      "[pos] delete cash_sale movement for payment",
+      params.paymentId,
+      error.message,
+    );
+  }
+}
+
 async function loadBagMovements(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   cashBagId: string,

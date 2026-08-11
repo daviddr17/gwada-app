@@ -2,6 +2,15 @@ import { Injectable } from "@nestjs/common";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SupabaseAdminService } from "../supabase-admin.service";
 
+/** Mirror of web `cashSaleIdempotencyKey` — prefer client attempt when present. */
+export function cashSaleIdempotencyKey(
+  paymentId: string,
+  clientAttemptId?: string | null,
+): string {
+  const attempt = clientAttemptId?.trim();
+  return attempt ? `cash_sale:${attempt}` : `cash_sale:${paymentId}`;
+}
+
 /**
  * Thin Nest mirror of apps/web/lib/pos/waiter-cash-bag-server applyCashSaleToOpenBag.
  * Keep rules in sync with the Next.js helper (Task 2/3).
@@ -12,6 +21,26 @@ export class CashBagsService {
 
   private sb(): SupabaseClient {
     return this.supabaseAdmin.getClient();
+  }
+
+  /** Compensating delete — movements have no FK cascade to pos_payments. */
+  async deleteCashSaleMovementForPayment(params: {
+    restaurantId: string;
+    paymentId: string;
+  }): Promise<void> {
+    const { error } = await this.sb()
+      .from("pos_waiter_cash_bag_movements")
+      .delete()
+      .eq("restaurant_id", params.restaurantId)
+      .eq("payment_id", params.paymentId)
+      .eq("kind", "cash_sale");
+    if (error) {
+      console.warn(
+        "[pos-api] delete cash_sale movement for payment",
+        params.paymentId,
+        error.message,
+      );
+    }
   }
 
   async applyCashSaleToOpenBag(params: {

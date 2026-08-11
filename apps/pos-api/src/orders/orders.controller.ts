@@ -58,6 +58,8 @@ export class PaymentsController {
       tipCents?: number;
       receivedAmountCents?: number | null;
       settlementMode?: "item" | "amount";
+      paymentAttemptId?: string | null;
+      clientAttemptId?: string | null;
     },
   ) {
     const r = await this.payments.collectCash({
@@ -68,6 +70,7 @@ export class PaymentsController {
       tipCents: body.tipCents,
       receivedAmountCents: body.receivedAmountCents,
       settlementMode: body.settlementMode,
+      clientAttemptId: body.paymentAttemptId ?? body.clientAttemptId,
     });
     if (!r.ok) throw new HttpException({ error: r.error }, r.status);
     return r;

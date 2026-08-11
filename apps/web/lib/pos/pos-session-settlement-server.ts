@@ -21,7 +21,11 @@ import { posPaymentMethodEnumForKind } from "@/lib/types/pos-payment-methods";
 import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
 import { tryGeneratePosPaymentReceipt } from "@/lib/pos/generate-pos-receipt";
 import { resolvePosReceiptSignedUrl } from "@/lib/pos/receipt-storage";
-import { applyCashSaleToOpenBag, cashSaleIdempotencyKey } from "@/lib/pos/waiter-cash-bag-server";
+import {
+  applyCashSaleToOpenBag,
+  cashSaleIdempotencyKey,
+  deleteCashSaleMovementForPayment,
+} from "@/lib/pos/waiter-cash-bag-server";
 
 export type SessionSummaryLine = {
   id: string;
@@ -679,6 +683,14 @@ export async function collectCashAllocations(params: {
     };
   }
 
+  const rollbackCashCollectAfterBag = async () => {
+    await deleteCashSaleMovementForPayment({
+      restaurantId: params.restaurantId,
+      paymentId,
+    });
+    await params.supabase.from("pos_payments").delete().eq("id", paymentId);
+  };
+
   await params.supabase
     .from("pos_payments")
     .update({ split_group: paymentId })
@@ -697,7 +709,7 @@ export async function collectCashAllocations(params: {
 
   if (allocError) {
     console.warn("[pos] collect allocations insert", allocError.message);
-    await params.supabase.from("pos_payments").delete().eq("id", paymentId);
+    await rollbackCashCollectAfterBag();
     return { ok: false, error: "allocation_failed", status: 500 };
   }
 
@@ -711,12 +723,14 @@ export async function collectCashAllocations(params: {
 
     if (lineError) {
       console.warn("[pos] update paid_quantity", lineError.message);
+      await rollbackCashCollectAfterBag();
       return { ok: false, error: "update_line_failed", status: 500 };
     }
   }
 
   const pipeline = await runPosPaymentPipelineForPayment(paymentId);
   if (!pipeline.ok) {
+    await rollbackCashCollectAfterBag();
     return { ok: false, error: pipeline.error, status: 500 };
   }
 

@@ -10,6 +10,11 @@ struct MoreMenuView: View {
     @State private var showLanPairing = false
     @State private var showIssueCashBag = false
     @State private var showCloseCashBag = false
+    @State private var showHandover = false
+
+    private var myOpenSessionIds: [String] {
+        runtime.snapshot?.floor.openSessions.map(\.id) ?? []
+    }
 
     private var caps: Set<String> {
         let profileId = PosCloudConfig.waiterProfileId
@@ -72,6 +77,12 @@ struct MoreMenuView: View {
                         Label("Wechselgeld ausgeben", systemImage: "banknote")
                     }
                 }
+                Button {
+                    showHandover = true
+                } label: {
+                    Label("Schichtübergabe", systemImage: "person.2")
+                }
+                .accessibilityIdentifier("pos.shift.handoverMenu")
                 if runtime.openCashBagId != nil {
                     Button {
                         showCloseCashBag = true
@@ -133,6 +144,10 @@ struct MoreMenuView: View {
         }
         .sheet(isPresented: $showCloseCashBag) {
             CashBagCloseSheet()
+                .environmentObject(runtime)
+        }
+        .sheet(isPresented: $showHandover) {
+            ShiftHandoverSheet(sessionIds: myOpenSessionIds)
                 .environmentObject(runtime)
         }
     }

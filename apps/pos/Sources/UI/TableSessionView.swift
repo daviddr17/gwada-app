@@ -15,6 +15,7 @@ struct TableSessionView: View {
     @State private var showMove = false
     @State private var showMoveSession = false
     @State private var showMergeSession = false
+    @State private var showHandover = false
     @State private var showBon = false
     @State private var pendingKassierenAfterBon = false
     @State private var openLines: [SessionOpenLine] = []
@@ -135,6 +136,14 @@ struct TableSessionView: View {
                         showMove = true
                     }
                     .disabled(openLines.isEmpty)
+                    Divider()
+                    Button("Schichtübergabe") {
+                        showHandover = true
+                    }
+                    .disabled(
+                        resolvedSessionId.isEmpty || resolvedSessionId.hasPrefix("pending-")
+                    )
+                    .accessibilityIdentifier("pos.session.handoverMenu")
                 } label: {
                     Image(systemName: "arrow.left.arrow.right")
                 }
@@ -297,6 +306,12 @@ struct TableSessionView: View {
                     }
                 }
             )
+            .environmentObject(runtime)
+        }
+        .sheet(isPresented: $showHandover) {
+            ShiftHandoverSheet(sessionIds: [resolvedSessionId].filter {
+                !$0.isEmpty && !$0.hasPrefix("pending-")
+            })
             .environmentObject(runtime)
         }
         .task {

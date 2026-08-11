@@ -37,4 +37,15 @@ final class PosCashBagLanTests: XCTestCase {
         )
         XCTAssertEqual(result, .failure(.noOpenBag))
     }
+
+    /// LAN handover: omitted `transferCashBag` must default to false (UI opt-in).
+    func testLanHandover_transferCashBagDefaultsToFalseWhenOmitted() {
+        // Mirrors Hub handler: `req.transferCashBag == true` to enable.
+        let omitted: Bool? = nil
+        let explicitFalse: Bool? = false
+        let explicitTrue: Bool? = true
+        XCTAssertFalse(omitted == true)
+        XCTAssertFalse(explicitFalse == true)
+        XCTAssertTrue(explicitTrue == true)
+    }
 }

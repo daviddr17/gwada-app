@@ -13,6 +13,12 @@ struct PosAuthRosterStaff: Codable, Equatable, Sendable, Identifiable {
     var displayName: String {
         "\(given_name) \(family_name)".trimmingCharacters(in: .whitespaces)
     }
+
+    /// Cash-bag / handover staff key = `profiles.id` when present (not `restaurant_staff.id`).
+    var cashBagProfileId: String {
+        let pid = profile_id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return pid.isEmpty ? id : pid
+    }
 }
 
 struct PosAuthRoster: Codable, Equatable, Sendable {

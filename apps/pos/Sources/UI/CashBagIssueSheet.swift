@@ -26,7 +26,8 @@ struct CashBagIssueSheet: View {
                         Picker("Kellner", selection: $selectedStaffId) {
                             Text("Bitte wählen").tag(String?.none)
                             ForEach(staffOptions) { staff in
-                                Text(staff.displayName).tag(Optional(staff.id))
+                                // Tag = profiles.id (cash-bag namespace), not restaurant_staff.id.
+                                Text(staff.displayName).tag(Optional(staff.cashBagProfileId))
                             }
                         }
                     }
@@ -64,7 +65,7 @@ struct CashBagIssueSheet: View {
         .accessibilityIdentifier("pos.cashBag.issueSheet")
         .onAppear {
             if selectedStaffId == nil {
-                selectedStaffId = staffOptions.first?.id
+                selectedStaffId = staffOptions.first?.cashBagProfileId
             }
         }
     }

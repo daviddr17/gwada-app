@@ -55,6 +55,13 @@ struct PosPinSession: Codable, Equatable, Sendable {
         isOffline = try c.decodeIfPresent(Bool.self, forKey: .isOffline) ?? false
         offlinePinProof = try c.decodeIfPresent(String.self, forKey: .offlinePinProof)
     }
+
+    /// Waiter cash-bag staff key = `profiles.id` (same as Nest `auth.profileId` / web collect).
+    /// Never use `restaurant_staff.id` (`staffId`) as the bag namespace when `profileId` is known.
+    var cashBagProfileId: String {
+        let pid = profileId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return pid.isEmpty ? staffId : pid
+    }
 }
 
 private struct PosPinApiResponse: Decodable {

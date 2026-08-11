@@ -991,24 +991,28 @@ final class PosRuntime: ObservableObject {
 
     /// Soll der offenen Börse des angemeldeten Kellners (Hub/Solo lokal).
     var openCashBagExpectedCents: Int? {
-        guard let staffId = PosAuthStore.shared.pinSession?.staffId, !staffId.isEmpty else { return nil }
-        return PosHubState.shared.expectedCentsForOpenCashBag(staffProfileId: staffId)
+        guard let profileId = PosAuthStore.shared.pinSession?.cashBagProfileId, !profileId.isEmpty else {
+            return nil
+        }
+        return PosHubState.shared.expectedCentsForOpenCashBag(staffProfileId: profileId)
     }
 
     /// Offene Börse des angemeldeten Kellners (Hub/Solo lokal).
     var openCashBagId: String? {
-        guard let staffId = PosAuthStore.shared.pinSession?.staffId, !staffId.isEmpty else { return nil }
-        return PosHubState.shared.openCashBag(for: staffId)?.id
+        guard let profileId = PosAuthStore.shared.pinSession?.cashBagProfileId, !profileId.isEmpty else {
+            return nil
+        }
+        return PosHubState.shared.openCashBag(for: profileId)?.id
     }
 
     /// Hub/Solo: Kassieren blockiert, solange keine eigene offene Börse.
     var isCollectBlockedWithoutCashBag: Bool {
         guard shouldPublishLocalHubFloor else { return false }
-        let staffId = PosAuthStore.shared.pinSession?.staffId ?? ""
-        if staffId.isEmpty, PosSecurityPolicy.allowsUnsignedLocalCollect {
+        let profileId = PosAuthStore.shared.pinSession?.cashBagProfileId ?? ""
+        if profileId.isEmpty, PosSecurityPolicy.allowsUnsignedLocalCollect {
             return false
         }
-        return PosHubState.shared.openCashBag(for: staffId) == nil
+        return PosHubState.shared.openCashBag(for: profileId) == nil
     }
 
     /// Hub immer; Solo nur mit Kassen-/Issue-Recht.
@@ -1034,7 +1038,7 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Ungültiger Betrag oder Kellner."
             return false
         }
-        let issuedBy = PosAuthStore.shared.pinSession?.staffId
+        let issuedBy = PosAuthStore.shared.pinSession?.cashBagProfileId
             ?? PosCloudConfig.waiterProfileId
             ?? staff
         let idempotencyKey = UUID().uuidString
@@ -1165,7 +1169,7 @@ final class PosRuntime: ObservableObject {
             return false
         }
 
-        let closedBy = PosAuthStore.shared.pinSession?.staffId
+        let closedBy = PosAuthStore.shared.pinSession?.cashBagProfileId
         let idempotencyKey = UUID().uuidString
         switch PosHubState.shared.closeLocalCashBag(
             bagId: id,
@@ -1220,7 +1224,7 @@ final class PosRuntime: ObservableObject {
             statusMessage = "Empfänger und PIN erforderlich."
             return false
         }
-        let fromId = PosAuthStore.shared.pinSession?.staffId
+        let fromId = PosAuthStore.shared.pinSession?.cashBagProfileId
             ?? PosCloudConfig.waiterProfileId
             ?? ""
         guard !fromId.isEmpty, fromId != toId else {
@@ -1327,11 +1331,11 @@ final class PosRuntime: ObservableObject {
 
     private func requireOpenCashBagForCollect() -> Bool {
         guard shouldPublishLocalHubFloor else { return true }
-        let staffId = PosAuthStore.shared.pinSession?.staffId ?? ""
-        if staffId.isEmpty, PosSecurityPolicy.allowsUnsignedLocalCollect {
+        let profileId = PosAuthStore.shared.pinSession?.cashBagProfileId ?? ""
+        if profileId.isEmpty, PosSecurityPolicy.allowsUnsignedLocalCollect {
             return true
         }
-        if PosHubState.shared.openCashBag(for: staffId) == nil {
+        if PosHubState.shared.openCashBag(for: profileId) == nil {
             statusMessage = Self.collectRequiresOpenCashBagMessage
             return false
         }
@@ -1345,11 +1349,11 @@ final class PosRuntime: ObservableObject {
         paymentId: String
     ) {
         guard method == .cash, shouldPublishLocalHubFloor else { return }
-        let staffId = PosAuthStore.shared.pinSession?.staffId ?? ""
-        guard !staffId.isEmpty else { return }
+        let profileId = PosAuthStore.shared.pinSession?.cashBagProfileId ?? ""
+        guard !profileId.isEmpty else { return }
         let amount = max(0, paidCents + tipCents)
         _ = PosHubState.shared.applyLocalCashSale(
-            cashierProfileId: staffId,
+            cashierProfileId: profileId,
             amountCents: amount,
             paymentId: paymentId,
             idempotencyKey: "cash-sale:\(paymentId)"
@@ -1371,7 +1375,7 @@ final class PosRuntime: ObservableObject {
               let roster = PosAuthRosterStore.shared.roster,
               let staff = PosOfflinePin.resolveStaff(pin: pin, roster: roster)
         else { return nil }
-        return staff.id
+        return staff.cashBagProfileId
     }
 
     private static func verifyStaffPin(_ pin: String, matchesProfileId profileId: String) -> Bool {
@@ -3727,10 +3731,9 @@ final class PosRuntime: ObservableObject {
                 let issuedBy = {
                     let fromBody = (req.issuedByProfileId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                     if !fromBody.isEmpty { return fromBody }
-                    let headerStaffId = (headers[PosLanProtocol.headerStaffId.lowercased()] ?? "")
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !headerStaffId.isEmpty { return headerStaffId }
-                    return DispatchQueue.main.sync { PosAuthStore.shared.pinSession?.staffId ?? "" }
+                    return DispatchQueue.main.sync {
+                        PosAuthStore.shared.pinSession?.cashBagProfileId ?? ""
+                    }
                 }()
                 switch PosHubState.shared.issueLocalCashBag(
                     staffProfileId: req.staffProfileId,
@@ -3783,7 +3786,9 @@ final class PosRuntime: ObservableObject {
                 let managerOverride = DispatchQueue.main.sync {
                     Self.managerPinVerified(pinTrimmed)
                 }
-                let closedBy = DispatchQueue.main.sync { PosAuthStore.shared.pinSession?.staffId }
+                let closedBy = DispatchQueue.main.sync {
+                    PosAuthStore.shared.pinSession?.cashBagProfileId
+                }
                 let managerProfileId = DispatchQueue.main.sync {
                     Self.managerProfileId(for: pinTrimmed)
                 }
@@ -3854,7 +3859,8 @@ final class PosRuntime: ObservableObject {
                 guard pinOk else {
                     return (403, Data(#"{"error":"invalid_pin","code":"invalid_pin"}"#.utf8))
                 }
-                let wantBag = req.transferCashBag != false
+                // Match UI default: omit / nil → do not transfer bag (opt-in with true).
+                let wantBag = req.transferCashBag == true
                 var toBagId: String?
                 if wantBag {
                     let fromBagIdBefore = PosHubState.shared.openCashBag(for: fromId)?.id

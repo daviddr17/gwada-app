@@ -17,6 +17,7 @@ type WaiterCashBagRow = {
   id: string;
   restaurant_id: string;
   register_session_id: string;
+  /** `profiles.id` of the waiter who holds the bag — not `restaurant_staff.id`. */
   staff_profile_id: string;
   status: CashBagStatus;
   opening_float_cents: number;

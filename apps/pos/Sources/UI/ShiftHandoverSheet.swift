@@ -15,14 +15,17 @@ struct ShiftHandoverSheet: View {
     @State private var busy = false
     @State private var errorText = ""
 
-    private var currentStaffId: String {
-        PosAuthStore.shared.pinSession?.staffId
-            ?? PosCloudConfig.waiterProfileId
-            ?? ""
+    /// Current waiter key for bag transfer = `profiles.id`.
+    private var currentProfileId: String {
+        if let pin = PosAuthStore.shared.pinSession {
+            let pid = pin.cashBagProfileId
+            if !pid.isEmpty { return pid }
+        }
+        return PosCloudConfig.waiterProfileId ?? ""
     }
 
     private var recipients: [(id: String, name: String)] {
-        let me = currentStaffId
+        let me = currentProfileId
         let fromCache = pinCache.waiters
             .filter { $0.profileId != me && !$0.profileId.isEmpty }
             .map { (id: $0.profileId, name: $0.name) }
@@ -32,8 +35,8 @@ struct ShiftHandoverSheet: View {
             }
         }
         return (PosAuthRosterStore.shared.roster?.staff ?? [])
-            .filter { $0.id != me && !$0.id.isEmpty }
-            .map { (id: $0.id, name: $0.displayName) }
+            .filter { $0.cashBagProfileId != me && !$0.cashBagProfileId.isEmpty }
+            .map { (id: $0.cashBagProfileId, name: $0.displayName) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 

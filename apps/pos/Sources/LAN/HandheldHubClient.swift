@@ -597,7 +597,7 @@ enum HandheldHubClient {
         toProfileId: String,
         toPin: String,
         sessionIds: [String] = [],
-        transferCashBag: Bool = true,
+        transferCashBag: Bool = false,
         staffId: String? = nil,
         staffSessionHeader: String? = nil
     ) async throws {

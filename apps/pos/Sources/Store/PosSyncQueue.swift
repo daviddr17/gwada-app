@@ -757,13 +757,16 @@ final class PosSyncQueue: ObservableObject {
             var body: [String: Any] = [
                 "bagId": payload.bagId,
                 "closingCountCents": payload.closingCountCents,
-                "managerPinVerified": payload.managerPinVerified ?? false,
             ]
             if let closedBy = payload.closedByProfileId, !closedBy.isEmpty {
                 body["closedByProfileId"] = closedBy
             }
             if let manager = payload.managerOverrideProfileId, !manager.isEmpty {
                 body["managerOverrideProfileId"] = manager
+            }
+            // Nest verifies managerPin server-side — never rely on client managerPinVerified alone.
+            if let pin = payload.managerPin?.trimmingCharacters(in: .whitespacesAndNewlines), !pin.isEmpty {
+                body["managerPin"] = pin
             }
             envelope = PosNestClient.eventEnvelope(
                 type: "cash_bag.closed",

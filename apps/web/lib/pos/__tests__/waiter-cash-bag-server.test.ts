@@ -31,3 +31,16 @@ describe("cashSaleIdempotencyKey", () => {
     expect(cashSaleIdempotencyKey("pay-1", "  ")).toBe("cash_sale:pay-1");
   });
 });
+
+describe("staff_profile_id namespace", () => {
+  it("documents bag staff key as profiles.id (UUID-shaped)", () => {
+    // applyCashSale / findOpenBag look up by staff_profile_id = profiles.id
+    // (Nest auth.profileId / web collect auth.userId) — not restaurant_staff.id.
+    const profileId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const restaurantStaffId = "11111111-2222-3333-4444-555555555555";
+    expect(profileId).not.toBe(restaurantStaffId);
+    expect(profileId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+  });
+});

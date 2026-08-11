@@ -34,6 +34,7 @@ type WaiterCashBagRow = {
   id: string;
   restaurant_id: string;
   register_session_id: string;
+  /** `profiles.id` of the waiter who holds the bag — not `restaurant_staff.id`. */
   staff_profile_id: string;
   status: string;
   opening_float_cents: number;
@@ -121,6 +122,67 @@ export class CashBagsService {
       .maybeSingle();
     const threshold = Number(data?.waiter_cash_bag_diff_threshold_cents ?? 500);
     return Number.isFinite(threshold) && threshold >= 0 ? threshold : 500;
+  }
+
+  /**
+   * Server-side manager PIN for cash_bag.closed (web `/api/pos/cash-bags/close` parity).
+   * Never trust a client `managerPinVerified` boolean alone.
+   */
+  async verifyManagerPinForClose(
+    restaurantId: string,
+    managerPin: string | null | undefined,
+  ): Promise<
+    | { ok: true; verified: false }
+    | { ok: true; verified: true; profileId: string }
+    | { ok: false; error: string }
+  > {
+    const pin = (managerPin ?? "").trim();
+    if (!pin) {
+      return { ok: true, verified: false };
+    }
+    if (!/^[0-9]{4}$/.test(pin)) {
+      return { ok: false, error: "invalid_manager_pin" };
+    }
+    if (process.env.POS_AUTH_RELAXED === "1") {
+      return { ok: true, verified: true, profileId: "relaxed-manager" };
+    }
+
+    const sb = this.sb();
+    const { data: resolved } = await sb.rpc(
+      "resolve_restaurant_staff_by_display_pin",
+      {
+        p_restaurant_id: restaurantId,
+        p_pin: pin,
+      },
+    );
+    const staffId =
+      (typeof resolved === "string"
+        ? resolved
+        : Array.isArray(resolved)
+          ? (resolved[0] as string | undefined)
+          : null) ?? null;
+    if (!staffId) {
+      return { ok: false, error: "invalid_manager_pin" };
+    }
+
+    const { data: keys } = await sb.rpc("staff_display_permission_keys", {
+      p_staff_id: staffId,
+    });
+    const keySet = new Set<string>((keys as string[] | null) ?? []);
+    if (!keySet.has("pos.kasse.manage")) {
+      return { ok: false, error: "manager_pin_forbidden" };
+    }
+
+    const { data: staff } = await sb
+      .from("restaurant_staff")
+      .select("profile_id")
+      .eq("id", staffId)
+      .maybeSingle();
+    const profileId = (staff?.profile_id as string | null)?.trim() ?? "";
+    if (!profileId) {
+      return { ok: false, error: "manager_profile_missing" };
+    }
+    return { ok: true, verified: true, profileId };
   }
 
   /** Compensating delete — movements have no FK cascade to pos_payments. */

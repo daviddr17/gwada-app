@@ -118,9 +118,11 @@ test("cash_bag.handover maps payload to CashBagsService.handover", async () => {
   assert.deepEqual(result, { ok: true, result: { toBagId: "bag-to" } });
 });
 
-test("cash_bag.closed maps payload to CashBagsService.close", async () => {
+test("cash_bag.closed ignores client managerPinVerified without PIN", async () => {
   let received: Parameters<CashBagsService["close"]>[0] | undefined;
   const cashBags = {
+    verifyManagerPinForClose: async () =>
+      ({ ok: true as const, verified: false as const }),
     close: async (params: Parameters<CashBagsService["close"]>[0]) => {
       received = params;
       return { ok: true as const, differenceCents: -50 };
@@ -137,7 +139,7 @@ test("cash_bag.closed maps payload to CashBagsService.close", async () => {
         bagId: "bag-1",
         closingCountCents: 9_950,
         managerPinVerified: true,
-        managerOverrideProfileId: "manager-1",
+        managerOverrideProfileId: "spoofed-manager",
       },
     },
   );
@@ -147,8 +149,56 @@ test("cash_bag.closed maps payload to CashBagsService.close", async () => {
     bagId: "bag-1",
     closingCountCents: 9_950,
     closedByProfileId: "closer",
-    managerOverrideProfileId: "manager-1",
-    managerPinVerified: true,
+    managerOverrideProfileId: null,
+    managerPinVerified: false,
   });
   assert.deepEqual(result, { ok: true, result: { differenceCents: -50 } });
+});
+
+test("cash_bag.closed verifies managerPin server-side", async () => {
+  let received: Parameters<CashBagsService["close"]>[0] | undefined;
+  let pinSeen: string | null | undefined;
+  const cashBags = {
+    verifyManagerPinForClose: async (
+      _restaurantId: string,
+      managerPin: string | null | undefined,
+    ) => {
+      pinSeen = managerPin;
+      return {
+        ok: true as const,
+        verified: true as const,
+        profileId: "manager-profile",
+      };
+    },
+    close: async (params: Parameters<CashBagsService["close"]>[0]) => {
+      received = params;
+      return { ok: true as const, differenceCents: -3_000 };
+    },
+  } as unknown as CashBagsService;
+  const applyEvent = createApplyEvent({} as SessionsService, cashBags);
+
+  const result = await applyEvent(
+    { restaurantId: "restaurant", profileId: "closer" },
+    {
+      idempotencyKey: "close-pin-1",
+      type: "cash_bag.closed",
+      payload: {
+        bagId: "bag-1",
+        closingCountCents: 12_000,
+        managerPin: "1234",
+        managerPinVerified: false,
+      },
+    },
+  );
+
+  assert.equal(pinSeen, "1234");
+  assert.deepEqual(received, {
+    restaurantId: "restaurant",
+    bagId: "bag-1",
+    closingCountCents: 12_000,
+    closedByProfileId: "closer",
+    managerOverrideProfileId: "manager-profile",
+    managerPinVerified: true,
+  });
+  assert.deepEqual(result, { ok: true, result: { differenceCents: -3_000 } });
 });

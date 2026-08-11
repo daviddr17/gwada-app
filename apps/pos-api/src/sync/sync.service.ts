@@ -240,14 +240,21 @@ export class SyncService {
         if (!bagId) {
           return { ok: false, error: "invalid_payload" };
         }
+        // Never trust client `managerPinVerified` — verify PIN server-side (web close parity).
+        const manager = await this.cashBags.verifyManagerPinForClose(
+          ctx.restaurantId,
+          typeof p.managerPin === "string" ? p.managerPin : null,
+        );
+        if (!manager.ok) {
+          return { ok: false, error: manager.error };
+        }
         const r = await this.cashBags.close({
           restaurantId: ctx.restaurantId,
           bagId,
           closingCountCents: Number(p.closingCountCents ?? 0),
           closedByProfileId: String(p.closedByProfileId ?? ctx.profileId),
-          managerOverrideProfileId:
-            (p.managerOverrideProfileId as string | null | undefined) ?? null,
-          managerPinVerified: Boolean(p.managerPinVerified),
+          managerOverrideProfileId: manager.verified ? manager.profileId : null,
+          managerPinVerified: manager.verified,
         });
         return r.ok
           ? { ok: true, result: { differenceCents: r.differenceCents } }

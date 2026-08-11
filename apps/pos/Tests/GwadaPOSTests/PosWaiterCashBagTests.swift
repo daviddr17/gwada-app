@@ -167,6 +167,49 @@ final class PosWaiterCashBagTests: XCTestCase {
         XCTAssertEqual(targetBusy, .failure(.targetHasOpenBag))
     }
 
+    /// Documents cash-bag staff key = `profiles.id`, not `restaurant_staff.id`.
+    func testCashBagStaffKey_prefersProfileIdOverRestaurantStaffId() {
+        let restaurantStaffId = "11111111-2222-3333-4444-555555555555"
+        let profileId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        XCTAssertNotEqual(restaurantStaffId, profileId)
+
+        let rosterStaff = PosAuthRosterStaff(
+            id: restaurantStaffId,
+            given_name: "Anna",
+            family_name: "Waiter",
+            profile_id: profileId,
+            position_name: "Service",
+            offline_pin_hash: "deadbeef",
+            permissions: ["pos.kasse.use"]
+        )
+        XCTAssertEqual(rosterStaff.cashBagProfileId, profileId)
+
+        let session = PosPinSession(
+            sessionId: "sess-1",
+            sessionToken: "tok",
+            staffId: restaurantStaffId,
+            staffName: "Anna Waiter",
+            profileId: profileId,
+            permissionKeys: ["pos.kasse.use"],
+            isOffline: true
+        )
+        XCTAssertEqual(session.cashBagProfileId, profileId)
+
+        let hub = makeHub(registerOpen: true)
+        let issued = hub.issueLocalCashBag(
+            staffProfileId: profileId,
+            openingFloatCents: 1_000,
+            issuedBy: "manager-profile",
+            idempotencyKey: "issue-profile-ns"
+        )
+        guard case .success(let bag) = issued else {
+            return XCTFail("issue failed: \(issued)")
+        }
+        XCTAssertEqual(bag.staffProfileId, profileId)
+        XCTAssertNil(hub.openCashBag(for: restaurantStaffId))
+        XCTAssertEqual(hub.openCashBag(for: profileId)?.id, bag.id)
+    }
+
     private func makeHub(registerOpen: Bool) -> PosHubState {
         let hub = PosHubState.shared
         hub.resetForFactoryReset()

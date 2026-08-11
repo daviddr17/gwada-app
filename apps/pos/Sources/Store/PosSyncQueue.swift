@@ -13,6 +13,9 @@ enum PosSyncQueueItemKind: String, Codable, Sendable {
     case createReservation
     case openRegister
     case closeRegister
+    case cashBagIssued
+    case cashBagClosed
+    case cashBagHandover
 }
 
 struct PosSyncQueueItem: Codable, Identifiable, Equatable, Sendable {
@@ -200,6 +203,36 @@ struct PosSyncReleaseSessionPayload: Codable, Sendable {
     var tableSessionId: String
 }
 
+struct PosSyncCashBagIssuedPayload: Codable, Sendable, Equatable {
+    var restaurantId: String
+    var bagId: String
+    var staffProfileId: String
+    var openingFloatCents: Int
+    var idempotencyKey: String
+    var issuedByProfileId: String?
+}
+
+struct PosSyncCashBagClosedPayload: Codable, Sendable, Equatable {
+    var restaurantId: String
+    var bagId: String
+    var closingCountCents: Int
+    var idempotencyKey: String
+    var closedByProfileId: String?
+    var managerOverrideProfileId: String?
+    var managerPinVerified: Bool?
+    /// Next-only: manager display PIN resolved server-side.
+    var managerPin: String?
+}
+
+struct PosSyncCashBagHandoverPayload: Codable, Sendable, Equatable {
+    var restaurantId: String
+    var fromProfileId: String
+    var toProfileId: String
+    var idempotencyKey: String
+    var fromBagId: String?
+    var toBagId: String?
+}
+
 /// FIFO-Queue: lokale Aktionen → Cloud (Nest Outbox oder Next `/api/pos`), sobald online.
 /// Offline-Open: lokale Session-ID wird beim Flush gemappt; nachfolgende Orders nutzen die Cloud-ID.
 @MainActor
@@ -375,6 +408,27 @@ final class PosSyncQueue: ObservableObject {
         enqueue(makeItem(kind: .closeRegister, payload: data))
     }
 
+    /// Enqueues cash-bag issue once per `idempotencyKey`.
+    func enqueueCashBagIssued(_ payload: PosSyncCashBagIssuedPayload) {
+        if items.contains(where: { $0.id == payload.idempotencyKey }) { return }
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(makeItem(id: payload.idempotencyKey, kind: .cashBagIssued, payload: data))
+    }
+
+    /// Enqueues cash-bag close once per `idempotencyKey`.
+    func enqueueCashBagClosed(_ payload: PosSyncCashBagClosedPayload) {
+        if items.contains(where: { $0.id == payload.idempotencyKey }) { return }
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(makeItem(id: payload.idempotencyKey, kind: .cashBagClosed, payload: data))
+    }
+
+    /// Enqueues cash-bag handover once per `idempotencyKey`.
+    func enqueueCashBagHandover(_ payload: PosSyncCashBagHandoverPayload) {
+        if items.contains(where: { $0.id == payload.idempotencyKey }) { return }
+        let data = (try? encoder.encode(payload)) ?? Data()
+        enqueue(makeItem(id: payload.idempotencyKey, kind: .cashBagHandover, payload: data))
+    }
+
     /// Max. Versuche bevor Item in Dead-Letter wandert (FIFO geht weiter).
     static let maxFlushAttempts = 25
     /// Soft-Warnung wenn Queue wächst (kein Hard-Drop).
@@ -458,7 +512,7 @@ final class PosSyncQueue: ObservableObject {
         index: Int
     ) async throws {
         switch item.kind {
-        case .openSession, .createOrder, .collectCash, .fireCourse, .lineVoided, .reservationSeated, .moveSession, .sessionMerged, .releaseSession:
+        case .openSession, .createOrder, .collectCash, .fireCourse, .lineVoided, .reservationSeated, .moveSession, .sessionMerged, .releaseSession, .cashBagIssued, .cashBagClosed, .cashBagHandover:
             if PosCloudConfig.nestSyncEnabled {
                 try await processViaNest(&item, working: &working, index: index)
             } else {
@@ -680,6 +734,63 @@ final class PosSyncQueue: ObservableObject {
                 ]
             )
 
+        case .cashBagIssued:
+            let payload = try decoder.decode(PosSyncCashBagIssuedPayload.self, from: item.payload)
+            var body: [String: Any] = [
+                "bagId": payload.bagId,
+                "staffProfileId": payload.staffProfileId,
+                "openingFloatCents": payload.openingFloatCents,
+                "idempotencyKey": payload.idempotencyKey,
+            ]
+            if let issuedBy = payload.issuedByProfileId, !issuedBy.isEmpty {
+                body["issuedByProfileId"] = issuedBy
+            }
+            envelope = PosNestClient.eventEnvelope(
+                type: "cash_bag.issued",
+                idempotencyKey: payload.idempotencyKey,
+                sessionId: nil,
+                payload: body
+            )
+
+        case .cashBagClosed:
+            let payload = try decoder.decode(PosSyncCashBagClosedPayload.self, from: item.payload)
+            var body: [String: Any] = [
+                "bagId": payload.bagId,
+                "closingCountCents": payload.closingCountCents,
+                "managerPinVerified": payload.managerPinVerified ?? false,
+            ]
+            if let closedBy = payload.closedByProfileId, !closedBy.isEmpty {
+                body["closedByProfileId"] = closedBy
+            }
+            if let manager = payload.managerOverrideProfileId, !manager.isEmpty {
+                body["managerOverrideProfileId"] = manager
+            }
+            envelope = PosNestClient.eventEnvelope(
+                type: "cash_bag.closed",
+                idempotencyKey: payload.idempotencyKey,
+                sessionId: nil,
+                payload: body
+            )
+
+        case .cashBagHandover:
+            let payload = try decoder.decode(PosSyncCashBagHandoverPayload.self, from: item.payload)
+            var body: [String: Any] = [
+                "fromProfileId": payload.fromProfileId,
+                "toProfileId": payload.toProfileId,
+            ]
+            if let fromBagId = payload.fromBagId, !fromBagId.isEmpty {
+                body["fromBagId"] = fromBagId
+            }
+            if let toBagId = payload.toBagId, !toBagId.isEmpty {
+                body["toBagId"] = toBagId
+            }
+            envelope = PosNestClient.eventEnvelope(
+                type: "cash_bag.handover",
+                idempotencyKey: payload.idempotencyKey,
+                sessionId: nil,
+                payload: body
+            )
+
         case .createReservation, .openRegister, .closeRegister:
             return
         }
@@ -847,9 +958,27 @@ final class PosSyncQueue: ObservableObject {
                 PosOfflineCaches.markReceiptSynced(localId: receiptId, paymentId: paymentId)
             }
 
-        case .fireCourse, .moveSession, .sessionMerged, .releaseSession:
+        case .fireCourse, .moveSession, .sessionMerged, .releaseSession, .cashBagHandover:
             throw PosCloudError.missingConfig(
                 "Nest-URL (für \(item.kind.rawValue); Next-Fallback fehlt)"
+            )
+
+        case .cashBagIssued:
+            let payload = try decoder.decode(PosSyncCashBagIssuedPayload.self, from: item.payload)
+            _ = try await PosCloudClient.issueCashBag(
+                restaurantId: payload.restaurantId,
+                staffProfileId: payload.staffProfileId,
+                openingFloatCents: payload.openingFloatCents,
+                idempotencyKey: payload.idempotencyKey
+            )
+
+        case .cashBagClosed:
+            let payload = try decoder.decode(PosSyncCashBagClosedPayload.self, from: item.payload)
+            _ = try await PosCloudClient.closeCashBag(
+                restaurantId: payload.restaurantId,
+                bagId: payload.bagId,
+                closingCountCents: payload.closingCountCents,
+                managerPin: payload.managerPin
             )
 
         case .lineVoided:
@@ -1034,7 +1163,8 @@ final class PosSyncQueue: ObservableObject {
                     copy.payload = data
                 }
             }
-        case .openSession, .createReservation, .openRegister, .closeRegister, .reservationSeated:
+        case .openSession, .createReservation, .openRegister, .closeRegister, .reservationSeated,
+             .cashBagIssued, .cashBagClosed, .cashBagHandover:
             break
         }
         return copy

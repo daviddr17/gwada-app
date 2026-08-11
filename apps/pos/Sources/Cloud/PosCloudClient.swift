@@ -217,6 +217,72 @@ enum PosCloudClient {
         )
     }
 
+    struct CashBagIssueResult: Decodable, Sendable {
+        var ok: Bool?
+        var bagId: String
+    }
+
+    struct CashBagCloseResult: Decodable, Sendable {
+        var ok: Bool?
+        var differenceCents: Int
+    }
+
+    @MainActor
+    static func issueCashBag(
+        restaurantId: String,
+        staffProfileId: String,
+        openingFloatCents: Int,
+        idempotencyKey: String
+    ) async throws -> String {
+        struct Body: Encodable {
+            var staffProfileId: String
+            var openingFloatCents: Int
+            var idempotencyKey: String
+        }
+        var headers: [String: String] = [:]
+        let key = idempotencyKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !key.isEmpty {
+            headers["Idempotency-Key"] = key
+        }
+        let enc =
+            restaurantId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? restaurantId
+        let res: CashBagIssueResult = try await post(
+            "/api/pos/cash-bags/issue?restaurantId=\(enc)",
+            body: Body(
+                staffProfileId: staffProfileId,
+                openingFloatCents: openingFloatCents,
+                idempotencyKey: idempotencyKey
+            ),
+            headers: headers
+        )
+        return res.bagId
+    }
+
+    @MainActor
+    static func closeCashBag(
+        restaurantId: String,
+        bagId: String,
+        closingCountCents: Int,
+        managerPin: String? = nil
+    ) async throws -> Int {
+        struct Body: Encodable {
+            var bagId: String
+            var closingCountCents: Int
+            var managerPin: String?
+        }
+        let enc =
+            restaurantId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? restaurantId
+        let res: CashBagCloseResult = try await post(
+            "/api/pos/cash-bags/close?restaurantId=\(enc)",
+            body: Body(
+                bagId: bagId,
+                closingCountCents: closingCountCents,
+                managerPin: managerPin
+            )
+        )
+        return res.differenceCents
+    }
+
     @MainActor
     static func fetchReservationsDay(
         restaurantId: String,

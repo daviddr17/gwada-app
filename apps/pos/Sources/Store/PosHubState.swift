@@ -68,6 +68,8 @@ final class PosHubState: @unchecked Sendable {
         sessionReservationMap = [:]
         consumedSeatIdempotency = [:]
         consumedSessionMergeIdempotency = [:]
+        localCashBags = []
+        localCashBagMovements = []
         lock.unlock()
     }
 
@@ -614,6 +616,237 @@ final class PosHubState: @unchecked Sendable {
         bumpSnapshotVersionLocked()
         PosLocalStore.saveBootstrap(bootstrap)
         return true
+    }
+
+    // MARK: Waiter cash bags (local Hub/Solo)
+
+    private var localCashBags: [PosWaiterCashBag] = []
+    private var localCashBagMovements: [PosCashBagMovement] = []
+
+    func openCashBag(for staffProfileId: String) -> PosWaiterCashBag? {
+        lock.lock()
+        defer { lock.unlock() }
+        return openCashBagLocked(for: staffProfileId)
+    }
+
+    private func openCashBagLocked(for staffProfileId: String) -> PosWaiterCashBag? {
+        localCashBags.first { $0.staffProfileId == staffProfileId && $0.status == .open }
+    }
+
+    private func openRegisterSessionIdLocked() -> String? {
+        guard let register = bootstrap?.register, register.isOpen else { return nil }
+        let sid = register.sessionId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return sid.isEmpty ? nil : sid
+    }
+
+    private func bagByIdempotencyKeyLocked(_ key: String) -> PosWaiterCashBag? {
+        guard let movement = localCashBagMovements.first(where: { $0.idempotencyKey == key }) else {
+            return nil
+        }
+        return localCashBags.first { $0.id == movement.cashBagId }
+    }
+
+    private func movementsLocked(for bagId: String) -> [PosCashBagMovement] {
+        localCashBagMovements.filter { $0.cashBagId == bagId }
+    }
+
+    func issueLocalCashBag(
+        staffProfileId: String,
+        openingFloatCents: Int,
+        issuedBy: String,
+        idempotencyKey: String
+    ) -> Result<PosWaiterCashBag, PosCashBagError> {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let staff = staffProfileId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let issuer = issuedBy.trimmingCharacters(in: .whitespacesAndNewlines)
+        let idemKey = idempotencyKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !staff.isEmpty, !issuer.isEmpty, !idemKey.isEmpty else {
+            return .failure(.invalidAmount)
+        }
+        guard openingFloatCents >= 0 else {
+            return .failure(.invalidAmount)
+        }
+
+        if let replay = bagByIdempotencyKeyLocked(idemKey) {
+            return .success(replay)
+        }
+        guard let registerSessionId = openRegisterSessionIdLocked() else {
+            return .failure(.noOpenRegister)
+        }
+        if openCashBagLocked(for: staff) != nil {
+            return .failure(.alreadyOpen)
+        }
+
+        let bagId = UUID().uuidString
+        let bag = PosWaiterCashBag(
+            id: bagId,
+            staffProfileId: staff,
+            registerSessionId: registerSessionId,
+            status: .open,
+            openingFloatCents: openingFloatCents,
+            closingCountCents: nil,
+            differenceCents: nil,
+            handedOverToBagId: nil
+        )
+        let movement = PosCashBagMovement(
+            id: UUID().uuidString,
+            cashBagId: bagId,
+            kind: "float_out",
+            amountCents: openingFloatCents,
+            idempotencyKey: idemKey
+        )
+        localCashBags.append(bag)
+        localCashBagMovements.append(movement)
+        persistLocalCashBagsLocked()
+        return .success(bag)
+    }
+
+    func applyLocalCashSale(
+        cashierProfileId: String,
+        amountCents: Int,
+        paymentId: String,
+        idempotencyKey: String
+    ) -> Result<String, PosCashBagError> {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let cashier = cashierProfileId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let idemKey = idempotencyKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cashier.isEmpty, !idemKey.isEmpty else {
+            return .failure(.invalidAmount)
+        }
+        guard amountCents >= 0 else {
+            return .failure(.invalidAmount)
+        }
+
+        if let replay = bagByIdempotencyKeyLocked(idemKey) {
+            return .success(replay.id)
+        }
+        guard let bag = openCashBagLocked(for: cashier) else {
+            return .failure(.noOpenBag)
+        }
+
+        let movement = PosCashBagMovement(
+            id: UUID().uuidString,
+            cashBagId: bag.id,
+            kind: "cash_sale",
+            amountCents: amountCents,
+            idempotencyKey: idemKey
+        )
+        localCashBagMovements.append(movement)
+        persistLocalCashBagsLocked()
+        _ = paymentId
+        return .success(bag.id)
+    }
+
+    func closeLocalCashBag(
+        bagId: String,
+        countCents: Int,
+        thresholdCents: Int,
+        managerOverride: Bool
+    ) -> Result<Int, PosCashBagError> {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard countCents >= 0, thresholdCents >= 0 else {
+            return .failure(.invalidAmount)
+        }
+        guard let idx = localCashBags.firstIndex(where: { $0.id == bagId }) else {
+            return .failure(.noOpenBag)
+        }
+        guard localCashBags[idx].status == .open else {
+            return .failure(.noOpenBag)
+        }
+
+        let bag = localCashBags[idx]
+        let expected = PosCashBagMath.expectedCents(
+            openingFloatCents: bag.openingFloatCents,
+            movements: movementsLocked(for: bag.id)
+        )
+        let difference = countCents - expected
+        if abs(difference) >= thresholdCents && !managerOverride {
+            return .failure(.managerPinRequired)
+        }
+
+        localCashBagMovements.append(
+            PosCashBagMovement(
+                id: UUID().uuidString,
+                cashBagId: bag.id,
+                kind: "close_count",
+                amountCents: countCents,
+                idempotencyKey: nil
+            )
+        )
+        localCashBags[idx].status = .closed
+        localCashBags[idx].closingCountCents = countCents
+        localCashBags[idx].differenceCents = difference
+        persistLocalCashBagsLocked()
+        return .success(difference)
+    }
+
+    func handoverLocalCashBag(from: String, to: String) -> Result<PosWaiterCashBag, PosCashBagError> {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let fromStaff = from.trimmingCharacters(in: .whitespacesAndNewlines)
+        let toStaff = to.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !fromStaff.isEmpty, !toStaff.isEmpty else {
+            return .failure(.invalidAmount)
+        }
+        guard let registerSessionId = openRegisterSessionIdLocked() else {
+            return .failure(.noOpenRegister)
+        }
+        guard let fromIdx = localCashBags.firstIndex(where: {
+            $0.staffProfileId == fromStaff && $0.status == .open
+        }) else {
+            return .failure(.noOpenBag)
+        }
+        if openCashBagLocked(for: toStaff) != nil {
+            return .failure(.targetHasOpenBag)
+        }
+
+        let fromBag = localCashBags[fromIdx]
+        let handoverAmount = PosCashBagMath.expectedCents(
+            openingFloatCents: fromBag.openingFloatCents,
+            movements: movementsLocked(for: fromBag.id)
+        )
+        let toBagId = UUID().uuidString
+        let toBag = PosWaiterCashBag(
+            id: toBagId,
+            staffProfileId: toStaff,
+            registerSessionId: registerSessionId,
+            status: .open,
+            openingFloatCents: handoverAmount,
+            closingCountCents: nil,
+            differenceCents: nil,
+            handedOverToBagId: nil
+        )
+
+        localCashBags[fromIdx].status = .handedOver
+        localCashBags[fromIdx].handedOverToBagId = toBagId
+        localCashBags.append(toBag)
+        localCashBagMovements.append(
+            PosCashBagMovement(
+                id: UUID().uuidString,
+                cashBagId: fromBag.id,
+                kind: "handover",
+                amountCents: handoverAmount,
+                idempotencyKey: nil
+            )
+        )
+        localCashBagMovements.append(
+            PosCashBagMovement(
+                id: UUID().uuidString,
+                cashBagId: toBagId,
+                kind: "handover",
+                amountCents: handoverAmount,
+                idempotencyKey: nil
+            )
+        )
+        persistLocalCashBagsLocked()
+        return .success(toBag)
     }
 
     func mergeLocalSessions(
@@ -1207,9 +1440,16 @@ final class PosHubState: @unchecked Sendable {
         PosLocalStore.saveKassierenLocks(kassierenLocksBySession)
     }
 
+    private func persistLocalCashBagsLocked() {
+        PosLocalStore.saveCashBags(localCashBags)
+        PosLocalStore.saveCashBagMovements(localCashBagMovements)
+    }
+
     private func loadLocalOpenLinesLocked() {
         localOpenLinesBySession = PosLocalStore.loadOpenLines() ?? [:]
         kassierenLocksBySession = PosLocalStore.loadKassierenLocks() ?? [:]
+        localCashBags = PosLocalStore.loadCashBags() ?? []
+        localCashBagMovements = PosLocalStore.loadCashBagMovements() ?? []
     }
 
     func bumpLocalOrder(sessionId: String, addCents: Int) {

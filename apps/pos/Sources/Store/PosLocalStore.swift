@@ -135,6 +135,40 @@ enum PosLocalStore {
         return try? JSONDecoder().decode([String: [PaidHistoryLine]].self, from: data)
     }
 
+    private static var cashBagsURL: URL {
+        directory.appendingPathComponent("waiter-cash-bags.json")
+    }
+
+    private static var cashBagMovementsURL: URL {
+        directory.appendingPathComponent("waiter-cash-bag-movements.json")
+    }
+
+    static func saveCashBags(_ bags: [PosWaiterCashBag]) {
+        ioQueue.async {
+            let encoder = JSONEncoder()
+            guard let data = try? encoder.encode(bags) else { return }
+            try? data.write(to: cashBagsURL, options: [.atomic])
+        }
+    }
+
+    static func loadCashBags() -> [PosWaiterCashBag]? {
+        guard let data = try? Data(contentsOf: cashBagsURL) else { return nil }
+        return try? JSONDecoder().decode([PosWaiterCashBag].self, from: data)
+    }
+
+    static func saveCashBagMovements(_ movements: [PosCashBagMovement]) {
+        ioQueue.async {
+            let encoder = JSONEncoder()
+            guard let data = try? encoder.encode(movements) else { return }
+            try? data.write(to: cashBagMovementsURL, options: [.atomic])
+        }
+    }
+
+    static func loadCashBagMovements() -> [PosCashBagMovement]? {
+        guard let data = try? Data(contentsOf: cashBagMovementsURL) else { return nil }
+        return try? JSONDecoder().decode([PosCashBagMovement].self, from: data)
+    }
+
     /// Tests: wartet auf ausstehende Writes.
     static func flushForTests() {
         ioQueue.sync {}

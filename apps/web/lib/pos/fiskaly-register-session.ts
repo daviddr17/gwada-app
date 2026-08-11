@@ -216,6 +216,7 @@ export async function closeRegisterSession(
   const closedAt = new Date().toISOString();
   const expectedCashCents = await computeExpectedCashCents({
     restaurantId,
+    registerSessionId: session.id,
     sessionOpenedAt: session.opened_at,
     sessionClosedAt: closedAt,
     openingCashCents: Number(session.opening_cash_cents),

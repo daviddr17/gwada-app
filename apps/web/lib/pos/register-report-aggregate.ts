@@ -108,6 +108,7 @@ export async function getRegisterSessionById(
 
 export async function computeExpectedCashCents(params: {
   restaurantId: string;
+  registerSessionId: string;
   sessionOpenedAt: string;
   sessionClosedAt?: string;
   openingCashCents: number;
@@ -115,7 +116,7 @@ export async function computeExpectedCashCents(params: {
   const admin = createSupabaseAdminClient();
   if (!admin) return params.openingCashCents;
 
-  let query = admin
+  let paymentsQuery = admin
     .from("pos_payments")
     .select("amount_cents")
     .eq("restaurant_id", params.restaurantId)
@@ -124,17 +125,41 @@ export async function computeExpectedCashCents(params: {
     .gte("paid_at", params.sessionOpenedAt);
 
   if (params.sessionClosedAt) {
-    query = query.lte("paid_at", params.sessionClosedAt);
+    paymentsQuery = paymentsQuery.lte("paid_at", params.sessionClosedAt);
   }
 
-  const { data: payments } = await query;
+  let movementsQuery = admin
+    .from("pos_waiter_cash_bag_movements")
+    .select("kind, amount_cents")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("register_session_id", params.registerSessionId)
+    .gte("created_at", params.sessionOpenedAt);
+
+  if (params.sessionClosedAt) {
+    movementsQuery = movementsQuery.lte("created_at", params.sessionClosedAt);
+  }
+
+  const [{ data: payments }, { data: movements }] = await Promise.all([
+    paymentsQuery,
+    movementsQuery,
+  ]);
 
   let cashSalesCents = 0;
   for (const row of payments ?? []) {
     cashSalesCents += Number(row.amount_cents ?? 0);
   }
 
-  return params.openingCashCents + cashSalesCents;
+  let floatOutsCents = 0;
+  let dropInsCents = 0;
+  for (const row of movements ?? []) {
+    const amount = Number(row.amount_cents ?? 0);
+    if (row.kind === "float_out") floatOutsCents += amount;
+    if (row.kind === "drop_in") dropInsCents += amount;
+  }
+
+  return (
+    params.openingCashCents + cashSalesCents - floatOutsCents + dropInsCents
+  );
 }
 
 export async function loadRegisterSessionAggregate(
@@ -202,6 +227,7 @@ export async function loadRegisterSessionAggregate(
     session.expected_cash_cents ??
     (await computeExpectedCashCents({
       restaurantId: session.restaurant_id,
+      registerSessionId: session.id,
       sessionOpenedAt: session.opened_at,
       sessionClosedAt: session.closed_at ?? undefined,
       openingCashCents: Number(session.opening_cash_cents),

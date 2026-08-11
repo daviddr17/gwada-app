@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { bagExpectedCents } from "../waiter-cash-bag-server";
+import {
+  bagExpectedCents,
+  cashSaleIdempotencyKey,
+} from "../waiter-cash-bag-server";
 
 describe("bagExpectedCents", () => {
   it("start + sales - drops", () => {
@@ -13,5 +16,18 @@ describe("bagExpectedCents", () => {
         ],
       }),
     ).toBe(13_000); // 100 + 50 - 20
+  });
+});
+
+describe("cashSaleIdempotencyKey", () => {
+  it("prefers client attempt id when present", () => {
+    expect(cashSaleIdempotencyKey("pay-1", "attempt-9")).toBe(
+      "cash_sale:attempt-9",
+    );
+  });
+
+  it("falls back to payment id", () => {
+    expect(cashSaleIdempotencyKey("pay-1", null)).toBe("cash_sale:pay-1");
+    expect(cashSaleIdempotencyKey("pay-1", "  ")).toBe("cash_sale:pay-1");
   });
 });

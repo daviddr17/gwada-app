@@ -21,6 +21,7 @@ import { SyncService } from "./sync/sync.service";
 import { SyncController } from "./sync/sync.controller";
 import { ShiftsService } from "./shifts/shifts.service";
 import { ShiftsController } from "./shifts/shifts.controller";
+import { CashBagsService } from "./cash-bags/cash-bags.service";
 
 @Module({
   controllers: [
@@ -41,6 +42,7 @@ import { ShiftsController } from "./shifts/shifts.controller";
     SessionsService,
     OrdersService,
     PaymentsService,
+    CashBagsService,
     SyncService,
     ShiftsService,
   ],

@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     tipCents: body.tipCents,
     receivedAmountCents: body.receivedAmountCents,
     paymentAttemptId,
+    cashierProfileId: authResult.auth.userId ?? "",
   });
 
   if (!result.ok) {

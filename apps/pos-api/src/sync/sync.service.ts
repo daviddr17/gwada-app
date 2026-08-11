@@ -182,6 +182,7 @@ export class SyncService {
           const r = await this.payments.createMolliePayment({
             restaurantId: ctx.restaurantId,
             sessionId: String(ev.sessionId ?? p.sessionId ?? ""),
+            cashierProfileId: ctx.profileId,
             method,
             amountCents: Number(p.amountCents ?? 0),
             tipCents: Number(p.tipCents ?? 0),
@@ -192,6 +193,7 @@ export class SyncService {
         const r = await this.payments.collectCash({
           restaurantId: ctx.restaurantId,
           sessionId: String(ev.sessionId ?? p.sessionId ?? ""),
+          cashierProfileId: ctx.profileId,
           allocations,
           tipCents: Number(p.tipCents ?? 0),
           receivedAmountCents:

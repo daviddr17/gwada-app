@@ -21,6 +21,7 @@ import { posPaymentMethodEnumForKind } from "@/lib/types/pos-payment-methods";
 import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
 import { tryGeneratePosPaymentReceipt } from "@/lib/pos/generate-pos-receipt";
 import { resolvePosReceiptSignedUrl } from "@/lib/pos/receipt-storage";
+import { applyCashSaleToOpenBag, cashSaleIdempotencyKey } from "@/lib/pos/waiter-cash-bag-server";
 
 export type SessionSummaryLine = {
   id: string;
@@ -498,12 +499,19 @@ export async function collectCashAllocations(params: {
   allocations: CollectAllocationInput[];
   tipCents?: number;
   receivedAmountCents?: number | null;
+  /** PIN staff / cashier who owns the open waiter cash bag. */
+  cashierProfileId: string;
   /** Client Idempotenz (Hub Sync Queue paymentAttemptId). */
   paymentAttemptId?: string | null;
 }): Promise<
   | { ok: true; paymentId: string }
   | { ok: false; error: string; status: number }
 > {
+  const cashierProfileId = params.cashierProfileId?.trim() ?? "";
+  if (!cashierProfileId) {
+    return { ok: false, error: "cashier_required", status: 403 };
+  }
+
   const register = await getOpenRegisterSession(params.restaurantId);
   if (!register) {
     return { ok: false, error: "register_closed", status: 403 };
@@ -651,6 +659,25 @@ export async function collectCashAllocations(params: {
   }
 
   const paymentId = payment.id as string;
+  const paidCents = amountCents + tipCents;
+  const bagIdempotencyKey = cashSaleIdempotencyKey(paymentId, clientAttemptId);
+
+  const bagResult = await applyCashSaleToOpenBag({
+    restaurantId: params.restaurantId,
+    cashierProfileId,
+    paymentId,
+    amountCents: paidCents,
+    idempotencyKey: bagIdempotencyKey,
+  });
+
+  if (!bagResult.ok) {
+    await params.supabase.from("pos_payments").delete().eq("id", paymentId);
+    return {
+      ok: false,
+      error: bagResult.error,
+      status: bagResult.status,
+    };
+  }
 
   await params.supabase
     .from("pos_payments")

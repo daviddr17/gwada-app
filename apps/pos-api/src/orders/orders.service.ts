@@ -7,6 +7,7 @@ import {
 } from "@gwada/pos-domain";
 import { SupabaseAdminService } from "../supabase-admin.service";
 import { RegisterGateService } from "../sessions/sessions.service";
+import { CashBagsService } from "../cash-bags/cash-bags.service";
 
 export type OrderLineInput = {
   menuItemId: string;
@@ -196,6 +197,7 @@ export class PaymentsService {
   constructor(
     private readonly supabaseAdmin: SupabaseAdminService,
     private readonly registerGate: RegisterGateService,
+    private readonly cashBags: CashBagsService,
   ) {}
 
   private sb(): SupabaseClient {
@@ -205,11 +207,19 @@ export class PaymentsService {
   async collectCash(params: {
     restaurantId: string;
     sessionId: string;
+    cashierProfileId: string;
     allocations: Array<{ orderLineId: string; quantity: number }>;
     tipCents?: number;
     receivedAmountCents?: number | null;
     settlementMode?: "item" | "amount";
+    /** Internal: Mollie stub reuses settlement without waiter bag. */
+    skipCashBag?: boolean;
   }) {
+    const cashierProfileId = params.cashierProfileId?.trim() ?? "";
+    if (!params.skipCashBag && !cashierProfileId) {
+      return { ok: false as const, error: "cashier_required", status: 403 };
+    }
+
     const register = await this.registerGate.requireOpenRegister(params.restaurantId);
     if (!register) return { ok: false as const, error: "register_closed", status: 403 };
 
@@ -305,6 +315,20 @@ export class PaymentsService {
       return { ok: false as const, error: payError?.message ?? "payment_failed", status: 500 };
     }
 
+    if (!params.skipCashBag) {
+      const bag = await this.cashBags.applyCashSaleToOpenBag({
+        restaurantId: params.restaurantId,
+        cashierProfileId,
+        paymentId: payment.id as string,
+        amountCents: amountCents + tipCents,
+        idempotencyKey: `cash_sale:${payment.id}`,
+      });
+      if (!bag.ok) {
+        await sb.from("pos_payments").delete().eq("id", payment.id);
+        return { ok: false as const, error: bag.error, status: bag.status };
+      }
+    }
+
     const allocRows = resolved.map((r) => ({
       payment_id: payment.id,
       order_line_id: r.orderLineId,
@@ -389,6 +413,7 @@ export class PaymentsService {
   async createMolliePayment(params: {
     restaurantId: string;
     sessionId: string;
+    cashierProfileId: string;
     method: "card" | "paypal";
     amountCents: number;
     tipCents?: number;
@@ -401,9 +426,11 @@ export class PaymentsService {
     const cash = await this.collectCash({
       restaurantId: params.restaurantId,
       sessionId: params.sessionId,
+      cashierProfileId: params.cashierProfileId,
       allocations: params.allocations,
       tipCents: params.tipCents,
       settlementMode: "amount",
+      skipCashBag: true,
     });
     // For now card/paypal go through same settlement path after "confirmation".
     // Return a checkout placeholder when Mollie not configured.

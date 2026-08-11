@@ -63,6 +63,7 @@ export class PaymentsController {
     const r = await this.payments.collectCash({
       restaurantId: auth.restaurantId,
       sessionId: body.sessionId ?? "",
+      cashierProfileId: auth.profileId,
       allocations: body.allocations ?? [],
       tipCents: body.tipCents,
       receivedAmountCents: body.receivedAmountCents,
@@ -87,6 +88,7 @@ export class PaymentsController {
     const r = await this.payments.createMolliePayment({
       restaurantId: auth.restaurantId,
       sessionId: body.sessionId ?? "",
+      cashierProfileId: auth.profileId,
       method: body.method === "paypal" ? "paypal" : "card",
       amountCents: Number(body.amountCents ?? 0),
       tipCents: body.tipCents,

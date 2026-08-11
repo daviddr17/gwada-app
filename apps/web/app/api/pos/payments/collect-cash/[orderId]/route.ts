@@ -63,6 +63,7 @@ export async function PATCH(
     allocations,
     tipCents: body.tipCents,
     receivedAmountCents: body.receivedAmountCents,
+    cashierProfileId: authResult.auth.userId ?? "",
   });
 
   if (!result.ok) {

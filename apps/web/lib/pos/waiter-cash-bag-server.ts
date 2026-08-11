@@ -44,6 +44,15 @@ export function bagExpectedCents(params: {
   return params.openingFloatCents + sales - drops;
 }
 
+/** Stable idempotency key for cash_sale movements tied to a payment. */
+export function cashSaleIdempotencyKey(
+  paymentId: string,
+  clientAttemptId?: string | null,
+): string {
+  const attempt = clientAttemptId?.trim();
+  return attempt ? `cash_sale:${attempt}` : `cash_sale:${paymentId}`;
+}
+
 async function loadBagMovements(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   cashBagId: string,
@@ -366,6 +375,57 @@ export async function applyCashSaleToOpenBag(params: {
   }
 
   return { ok: true, bagId: openBag.id };
+}
+
+export async function listOpenWaiterCashBags(params: {
+  restaurantId: string;
+}): Promise<
+  | {
+      ok: true;
+      bags: Array<{
+        id: string;
+        staffProfileId: string;
+        registerSessionId: string;
+        openingFloatCents: number;
+        openedAt: string;
+        expectedCents: number;
+      }>;
+    }
+  | { ok: false; error: string; status: number }
+> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { ok: false, error: "admin_unavailable", status: 500 };
+
+  const { data, error } = await admin
+    .from("pos_waiter_cash_bags")
+    .select(
+      "id, staff_profile_id, register_session_id, opening_float_cents, opened_at",
+    )
+    .eq("restaurant_id", params.restaurantId)
+    .eq("status", "open")
+    .order("opened_at", { ascending: true });
+
+  if (error) {
+    return { ok: false, error: error.message, status: 500 };
+  }
+
+  const bags = [];
+  for (const row of data ?? []) {
+    const movements = await loadBagMovements(admin, row.id as string);
+    bags.push({
+      id: row.id as string,
+      staffProfileId: row.staff_profile_id as string,
+      registerSessionId: row.register_session_id as string,
+      openingFloatCents: Number(row.opening_float_cents),
+      openedAt: row.opened_at as string,
+      expectedCents: bagExpectedCents({
+        openingFloatCents: Number(row.opening_float_cents),
+        movements,
+      }),
+    });
+  }
+
+  return { ok: true, bags };
 }
 
 export async function handoverCashBag(params: {

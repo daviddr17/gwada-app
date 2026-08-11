@@ -801,44 +801,40 @@ final class PosRuntime: ObservableObject {
         }
     }
 
-    /// Gesamte Session umziehen (Hub lokal + Outbox; Handheld nur mit Live-Hub).
+    /// Gesamte Session umziehen (Solo/Hub lokal + Sync; gekoppelt → LAN-Hub).
     @discardableResult
     func moveSession(sessionId: String, toTableId: String) async -> Bool {
-        if role == .handheld {
-            guard canMutateLiveFloor else {
+        // Gekoppeltes Handheld: Hub-LAN SoT (wie Mergen).
+        if role == .handheld, !shouldPublishLocalHubFloor {
+            guard canMutateLiveFloor, let base = hubBaseURL, !isSoloMode else {
                 statusMessage = "Umziehen nur mit erreichbarer Kasse."
                 return false
             }
-            // Nest-Fallback nur DEBUG-Solo — gekoppelt: Hub-SoT, kein paralleles Cloud-Move.
-            if PosSecurityPolicy.allowsSoloMode,
-               isSoloMode,
-               !PosEnrollmentStore.shared.isHandheldPaired,
-               PosCloudConfig.nestClientFallbackEnabled,
-               PosCloudConfig.nestSyncEnabled
-            {
-                PosSyncQueue.shared.enqueueMoveSession(PosSyncMoveSessionPayload(
-                    restaurantId: PosCloudConfig.restaurantId ?? "",
-                    tableSessionId: sessionId,
+            do {
+                try await HandheldHubClient.moveSession(
+                    baseURL: base,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken,
+                    sessionId: sessionId,
                     toTableId: toTableId
-                ))
-                await PosSyncQueue.shared.flushIfPossible()
-                syncPending = PosSyncQueue.shared.pendingCount
-                if var snap = snapshot,
-                   let idx = snap.floor.openSessions.firstIndex(where: { $0.id == sessionId })
-                {
-                    let old = snap.floor.openSessions[idx]
-                    snap.floor.openSessions[idx] = PosLanOpenSession(
-                        id: old.id,
-                        dining_table_id: toTableId,
-                        cover_count: old.cover_count,
-                        opened_at: old.opened_at
-                    )
+                )
+                if let snap = try? await HandheldHubClient.fetchSnapshot(
+                    baseURL: base,
+                    restaurantId: nil,
+                    pairToken: PosEnrollmentStore.shared.handheldPairToken
+                ) {
                     publishSnapshot(snap)
                 }
-                statusMessage = "Tisch umgezogen (Nest-Fallback)."
+                statusMessage = "Tisch umgezogen."
                 return true
+            } catch {
+                statusMessage = "Umziehen an Kasse fehlgeschlagen: \(Self.hubOpsErrorMessage(error))"
+                return false
             }
-            statusMessage = "Umziehen bitte an der Kasse."
+        }
+
+        // Solo / Hub-Gerät: lokale Mutation + Sync-Queue.
+        guard shouldPublishLocalHubFloor else {
+            statusMessage = "Umziehen nur mit erreichbarer Kasse."
             return false
         }
 
@@ -2457,6 +2453,12 @@ final class PosRuntime: ObservableObject {
         }
     }
 
+    nonisolated static func persistHubSessionMove(_ payload: PosSyncMoveSessionPayload) {
+        DispatchQueue.main.sync {
+            PosSyncQueue.shared.enqueueMoveSession(payload)
+        }
+    }
+
     private nonisolated static func handleHubRequest(
         method: String,
         path: String,
@@ -3227,6 +3229,36 @@ final class PosRuntime: ObservableObject {
                         restaurantId: restaurantId,
                         tableSessionId: req.sessionId
                     ))
+                    await PosSyncQueue.shared.flushIfPossible()
+                }
+                return (200, Data(#"{"ok":true}"#.utf8))
+            }
+
+            if pathOnly == PosLanProtocol.moveSessionPath {
+                struct Req: Decodable {
+                    var sessionId: String
+                    var toTableId: String
+                }
+                guard let req = try? decoder.decode(Req.self, from: body) else {
+                    return (400, Data(#"{"error":"invalid_body","code":"invalid_body"}"#.utf8))
+                }
+                let sessionId = req.sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+                let toTableId = req.toTableId.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !sessionId.isEmpty, !toTableId.isEmpty else {
+                    return (400, Data(#"{"error":"invalid_body","code":"invalid_body"}"#.utf8))
+                }
+                guard PosHubState.shared.moveLocalSession(sessionId: sessionId, toTableId: toTableId) else {
+                    return (409, Data(#"{"error":"move_failed","code":"target_occupied_or_unknown"}"#.utf8))
+                }
+                let restaurantId = PosHubState.shared.restaurantId
+                // Sync vor Ack (wie Merge).
+                Self.persistHubSessionMove(PosSyncMoveSessionPayload(
+                    restaurantId: restaurantId,
+                    tableSessionId: sessionId,
+                    toTableId: toTableId
+                ))
+                Task { @MainActor in
+                    PosAuditLog.shared.record("session.moved", detail: toTableId, sessionId: sessionId)
                     await PosSyncQueue.shared.flushIfPossible()
                 }
                 return (200, Data(#"{"ok":true}"#.utf8))

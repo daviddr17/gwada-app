@@ -273,8 +273,17 @@ struct TableSessionView: View {
         }
         .sheet(isPresented: $showMoveSession) {
             if let sid = sessionId ?? currentSession?.id {
-                MoveSessionSheet(sessionId: sid, fromTableId: table.id)
-                    .environmentObject(runtime)
+                MoveSessionSheet(
+                    sessionId: sid,
+                    fromTableId: table.id,
+                    onMoved: {
+                        Task { @MainActor in
+                            await Task.yield()
+                            dismiss()
+                        }
+                    }
+                )
+                .environmentObject(runtime)
             }
         }
         .sheet(isPresented: $showMergeSession) {

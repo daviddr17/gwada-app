@@ -7,6 +7,7 @@ struct MoveSessionSheet: View {
 
     let sessionId: String
     let fromTableId: String
+    let onMoved: () -> Void
 
     @State private var targetTableId: String?
     @State private var busy = false
@@ -46,6 +47,7 @@ struct MoveSessionSheet: View {
                                     }
                                 }
                             }
+                            .accessibilityIdentifier("pos.session.moveTarget.\(table.label)")
                         }
                     }
                 }
@@ -55,8 +57,9 @@ struct MoveSessionSheet: View {
                     }
                 }
             }
-            .navigationTitle("Tisch umziehen")
+            .navigationTitle("Umziehen")
             .navigationBarTitleDisplayMode(.inline)
+            .accessibilityIdentifier("pos.session.moveSheet")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
@@ -66,6 +69,7 @@ struct MoveSessionSheet: View {
                         Task { await move() }
                     }
                     .disabled(busy || targetTableId == nil || !runtime.canMutateLiveFloor)
+                    .accessibilityIdentifier("pos.session.moveConfirm")
                 }
             }
         }
@@ -75,10 +79,12 @@ struct MoveSessionSheet: View {
     private func move() async {
         guard let toId = targetTableId else { return }
         busy = true
+        errorText = ""
         defer { busy = false }
         let ok = await runtime.moveSession(sessionId: sessionId, toTableId: toId)
         if ok {
             dismiss()
+            onMoved()
         } else {
             errorText = runtime.statusMessage.isEmpty
                 ? "Umziehen fehlgeschlagen."

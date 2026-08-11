@@ -474,6 +474,35 @@ enum HandheldHubClient {
         throw HandheldHubClientError.httpStatus(http.statusCode)
     }
 
+    /// Gesamte Session auf einen anderen (freien) Tisch umziehen.
+    static func moveSession(
+        baseURL: URL,
+        pairToken: String?,
+        sessionId: String,
+        toTableId: String
+    ) async throws {
+        struct Body: Encodable {
+            var sessionId: String
+            var toTableId: String
+        }
+        var request = URLRequest(url: url(baseURL, path: PosLanProtocol.moveSessionPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("1", forHTTPHeaderField: PosLanProtocol.headerProtocol)
+        applyPairToken(pairToken, to: &request)
+        request.httpBody = try encoder.encode(Body(sessionId: sessionId, toTableId: toTableId))
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else { throw HandheldHubClientError.invalidResponse }
+        if http.statusCode == 200 { return }
+        struct ErrorBody: Decodable { var error: String?; var code: String? }
+        let decoded = try? decoder.decode(ErrorBody.self, from: data)
+        let message = decoded?.code ?? decoded?.error ?? "HTTP \(http.statusCode)"
+        if http.statusCode == 409 || http.statusCode == 404 || http.statusCode == 400 {
+            throw HandheldHubClientError.hubRejected(status: http.statusCode, message: message)
+        }
+        throw HandheldHubClientError.httpStatus(http.statusCode)
+    }
+
     static func requestPairing(baseURL: URL, request req: PosLanPairRequest) async throws -> PosLanPairChallenge {
         var request = URLRequest(url: url(baseURL, path: PosLanProtocol.pairRequestPath))
         request.httpMethod = "POST"

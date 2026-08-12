@@ -138,6 +138,7 @@ import {
   removeWhatsappMessageByWahaId,
 } from "@/lib/contact-messages/optimistic-thread-messages";
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
+import { ensureWhatsappWahaProxyAttachments } from "@/lib/contact-messages/ensure-whatsapp-waha-proxy-attachments";
 import { dedupeWhatsappOutboundThreadRows, isWahaEditableMessage, contactThreadRowsEqual } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import { editWahaMessageClient } from "@/lib/contact-messages/waha-typing-client";
 import {
@@ -536,9 +537,15 @@ export function ContactsMessagesScreen({
     let rows = enrichMessagesWithWahaReactionIds(messages);
     rows = dedupeWhatsappOutboundThreadRows(rows);
     rows = dropOptimisticMatchingAnchors(rows);
+    if (restaurantId) {
+      rows = ensureWhatsappWahaProxyAttachments(rows, {
+        restaurantId,
+        chatId: whatsappThreadChatId,
+      });
+    }
     if (!contactParam) return rows;
     return rows.filter((m) => m.contact_id === contactParam);
-  }, [messages, contactParam]);
+  }, [messages, contactParam, restaurantId, whatsappThreadChatId]);
 
   const inferredReachability = useMemo(
     () => inferContactReachabilityFromMessages(displayMessages),

@@ -2,7 +2,11 @@ import "server-only";
 
 import { parseWahaMessageMedia } from "@/lib/contact-messages/waha-message-media";
 import type { WahaServerConfig } from "@/lib/waha/waha-config";
-import { wahaGetChatMessages, type WahaChatMessage } from "@/lib/waha/waha-inbox";
+import {
+  wahaGetChatMessageById,
+  wahaGetChatMessages,
+  type WahaChatMessage,
+} from "@/lib/waha/waha-inbox";
 
 async function wahaFetchBinary(
   config: WahaServerConfig,
@@ -28,12 +32,42 @@ async function wahaFetchBinary(
   }
 }
 
+async function resolveMediaFromMessage(
+  config: WahaServerConfig,
+  msg: WahaChatMessage,
+): Promise<{ blob: Blob; mime: string; fileName: string } | null> {
+  const parsed = parseWahaMessageMedia(msg);
+  if (!parsed?.url) return null;
+
+  const fetched = await wahaFetchBinary(config, parsed.url);
+  if (!fetched) return null;
+
+  return {
+    blob: fetched.blob,
+    mime: fetched.mime || parsed.mimetype,
+    fileName: parsed.filename,
+  };
+}
+
 export async function wahaResolveMessageMediaBlob(params: {
   config: WahaServerConfig;
   restaurantId: string;
   chatId: string;
   messageId: string;
 }): Promise<{ blob: Blob; mime: string; fileName: string } | null> {
+  const byId = await wahaGetChatMessageById({
+    config: params.config,
+    restaurantId: params.restaurantId,
+    chatId: params.chatId,
+    messageId: params.messageId,
+    downloadMedia: true,
+  });
+  if (byId.ok) {
+    const fromId = await resolveMediaFromMessage(params.config, byId.data);
+    if (fromId) return fromId;
+  }
+
+  // Fallback: Chat-Verlauf scannen (ältere WAHA-Versionen ohne get-by-id).
   const result = await wahaGetChatMessages({
     config: params.config,
     restaurantId: params.restaurantId,
@@ -46,15 +80,5 @@ export async function wahaResolveMessageMediaBlob(params: {
   const msg = result.data.find((m: WahaChatMessage) => m.id === params.messageId);
   if (!msg) return null;
 
-  const parsed = parseWahaMessageMedia(msg);
-  if (!parsed?.url) return null;
-
-  const fetched = await wahaFetchBinary(params.config, parsed.url);
-  if (!fetched) return null;
-
-  return {
-    blob: fetched.blob,
-    mime: fetched.mime || parsed.mimetype,
-    fileName: parsed.filename,
-  };
+  return resolveMediaFromMessage(params.config, msg);
 }

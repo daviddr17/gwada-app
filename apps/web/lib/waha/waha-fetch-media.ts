@@ -32,7 +32,6 @@ export function resolveWahaMediaFetchUrl(
     ) {
       return `${base}${path}${parsed.search}`;
     }
-    // Relative host-Gleichheit egal: gleiche API-Pfadstruktur unter base
     if (path.startsWith("/api/")) {
       return `${base}${path}${parsed.search}`;
     }
@@ -106,7 +105,7 @@ function sniffMediaBytes(bytes: Uint8Array): MediaSniff {
     return { kind: "mime", mime: "application/zip" };
   }
   const start = String.fromCharCode(
-    ...bytes.slice(0, Math.min(64, bytes.length)),
+    ...bytes.slice(0, Math.min(96, bytes.length)),
   )
     .trimStart()
     .toLowerCase();
@@ -114,6 +113,7 @@ function sniffMediaBytes(bytes: Uint8Array): MediaSniff {
     start.startsWith("<!doctype html") ||
     start.startsWith("<html") ||
     start.startsWith("<head") ||
+    start.startsWith("<!doctype") ||
     start.startsWith("{\"") ||
     start.startsWith("{ \"")
   ) {
@@ -138,11 +138,29 @@ export function ensureMediaFileName(
   return `${raw}${ext}`;
 }
 
+function filenameFromContentDisposition(
+  header: string | null,
+): string | null {
+  if (!header) return null;
+  const utf8 = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header);
+  if (utf8?.[1]) {
+    try {
+      return decodeURIComponent(utf8[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      /* ignore */
+    }
+  }
+  const plain = /filename\s*=\s*"([^"]+)"/i.exec(header)
+    ?? /filename\s*=\s*([^;]+)/i.exec(header);
+  const value = plain?.[1]?.trim().replace(/^"|"$/g, "");
+  return value || null;
+}
+
 async function wahaFetchBinary(
   config: WahaServerConfig,
   mediaUrl: string,
   fallbackMime?: string,
-): Promise<{ bytes: Uint8Array; mime: string } | null> {
+): Promise<{ bytes: Uint8Array; mime: string; fileNameFromHeader: string | null } | null> {
   const path = resolveWahaMediaFetchUrl(config, mediaUrl);
   if (!path) return null;
 
@@ -158,6 +176,9 @@ async function wahaFetchBinary(
 
     const headerMime =
       res.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+    const fileNameFromHeader = filenameFromContentDisposition(
+      res.headers.get("content-disposition"),
+    );
     const buffer = new Uint8Array(await res.arrayBuffer());
     if (buffer.byteLength === 0) return null;
 
@@ -175,10 +196,39 @@ async function wahaFetchBinary(
         : null) ||
       "application/octet-stream";
 
-    return { bytes: buffer, mime };
+    return { bytes: buffer, mime, fileNameFromHeader };
   } catch {
     return null;
   }
+}
+
+function candidateMediaUrls(
+  msg: WahaChatMessage,
+  parsedUrl: string,
+  mime: string,
+): string[] {
+  const out: string[] = [];
+  const push = (value: string) => {
+    const v = value.trim();
+    if (v && !out.includes(v)) out.push(v);
+  };
+
+  push(parsedUrl);
+
+  const id = msg.id?.trim();
+  if (id) {
+    push(`/api/files/${id}`);
+    const ext = extensionForMime(mime);
+    if (ext) push(`/api/files/${id}${ext}`);
+    // Manche Engines speichern nur den Hash-Teil
+    const hash = id.includes("_") ? id.split("_").pop() : null;
+    if (hash && hash.length >= 8) {
+      push(`/api/files/${hash}`);
+      if (ext) push(`/api/files/${hash}${ext}`);
+    }
+  }
+
+  return out;
 }
 
 async function resolveMediaFromMessage(
@@ -186,22 +236,39 @@ async function resolveMediaFromMessage(
   msg: WahaChatMessage,
 ): Promise<{ bytes: Uint8Array; mime: string; fileName: string } | null> {
   const parsed = parseWahaMessageMedia(msg);
-  if (!parsed?.url) return null;
+  if (!parsed) return null;
 
-  const fetched = await wahaFetchBinary(
-    config,
-    parsed.url,
-    parsed.mimetype,
-  );
-  if (!fetched) return null;
+  const urls = candidateMediaUrls(msg, parsed.url, parsed.mimetype);
+  if (urls.length === 0) return null;
 
-  return {
-    bytes: fetched.bytes,
-    mime: fetched.mime || parsed.mimetype,
-    fileName: ensureMediaFileName(
-      parsed.filename || "Datei",
+  for (const url of urls) {
+    const fetched = await wahaFetchBinary(config, url, parsed.mimetype);
+    if (!fetched) continue;
+
+    const fileName = ensureMediaFileName(
+      fetched.fileNameFromHeader || parsed.filename || "Datei",
       fetched.mime || parsed.mimetype,
-    ),
+    );
+
+    return {
+      bytes: fetched.bytes,
+      mime: fetched.mime || parsed.mimetype,
+      fileName,
+    };
+  }
+
+  return null;
+}
+
+function toBlobResult(resolved: {
+  bytes: Uint8Array;
+  mime: string;
+  fileName: string;
+}): { blob: Blob; mime: string; fileName: string } {
+  return {
+    blob: new Blob([Buffer.from(resolved.bytes)], { type: resolved.mime }),
+    mime: resolved.mime,
+    fileName: resolved.fileName,
   };
 }
 
@@ -211,25 +278,32 @@ export async function wahaResolveMessageMediaBlob(params: {
   chatId: string;
   messageId: string;
 }): Promise<{ blob: Blob; mime: string; fileName: string } | null> {
-  const byId = await wahaGetChatMessageById({
-    config: params.config,
-    restaurantId: params.restaurantId,
-    chatId: params.chatId,
-    messageId: params.messageId,
-    downloadMedia: true,
-  });
-  if (byId.ok) {
+  const attempts: Array<{ chatId: string; messageId: string }> = [
+    { chatId: params.chatId, messageId: params.messageId },
+  ];
+  // GOWS/NOWEB: Nachricht über alle Chats per Raw-ID
+  const rawId = params.messageId.includes("_")
+    ? params.messageId.split("_").pop()!
+    : params.messageId;
+  if (rawId && rawId !== params.messageId) {
+    attempts.push({ chatId: "all", messageId: rawId });
+  }
+  attempts.push({ chatId: "all", messageId: params.messageId });
+
+  for (const attempt of attempts) {
+    const byId = await wahaGetChatMessageById({
+      config: params.config,
+      restaurantId: params.restaurantId,
+      chatId: attempt.chatId,
+      messageId: attempt.messageId,
+      downloadMedia: true,
+    });
+    if (!byId.ok) continue;
     const fromId = await resolveMediaFromMessage(params.config, byId.data);
-    if (fromId) {
-      return {
-        blob: new Blob([Buffer.from(fromId.bytes)], { type: fromId.mime }),
-        mime: fromId.mime,
-        fileName: fromId.fileName,
-      };
-    }
+    if (fromId) return toBlobResult(fromId);
   }
 
-  // Fallback: Chat-Verlauf scannen (ältere WAHA-Versionen ohne get-by-id).
+  // Fallback: Chat-Verlauf scannen
   const result = await wahaGetChatMessages({
     config: params.config,
     restaurantId: params.restaurantId,
@@ -239,15 +313,15 @@ export async function wahaResolveMessageMediaBlob(params: {
   });
   if (!result.ok) return null;
 
-  const msg = result.data.find((m: WahaChatMessage) => m.id === params.messageId);
+  const msg = result.data.find(
+    (m: WahaChatMessage) =>
+      m.id === params.messageId ||
+      m.id?.endsWith(`_${rawId}`) ||
+      m.id === rawId,
+  );
   if (!msg) return null;
 
   const resolved = await resolveMediaFromMessage(params.config, msg);
   if (!resolved) return null;
-
-  return {
-    blob: new Blob([Buffer.from(resolved.bytes)], { type: resolved.mime }),
-    mime: resolved.mime,
-    fileName: resolved.fileName,
-  };
+  return toBlobResult(resolved);
 }

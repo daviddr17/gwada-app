@@ -46,7 +46,8 @@ export async function GET(req: Request) {
   const mime = media.mime.toLowerCase();
   if (
     mime.startsWith("text/html") ||
-    mime.startsWith("application/json")
+    mime.startsWith("application/json") ||
+    mime.startsWith("text/plain")
   ) {
     return Response.json({ error: "invalid_media" }, { status: 502 });
   }
@@ -60,7 +61,9 @@ export async function GET(req: Request) {
     headers: {
       "Content-Type": media.mime,
       "Content-Disposition": contentDisposition(media.fileName, inline),
-      "Cache-Control": "private, max-age=3600",
+      "X-Gwada-Filename": encodeURIComponent(media.fileName),
+      // Kein Browser-Cache: alte HTML-Fehlerantworten sonst Stunden speichern.
+      "Cache-Control": "private, no-store",
     },
   });
 }

@@ -106,6 +106,68 @@ function readDurationSeconds(
   return null;
 }
 
+/** Originalname aus WhatsApp documentMessage / media-Metadaten. */
+export function readWahaDocumentFileName(
+  data: Record<string, unknown> | null | undefined,
+): string {
+  if (!data) return "";
+
+  const top =
+    readStringField(data.filename) ||
+    readStringField(data.fileName) ||
+    readStringField(data.title);
+  if (top) return top;
+
+  const message = data.message;
+  if (!message || typeof message !== "object") return "";
+  const msg = message as Record<string, unknown>;
+
+  const direct = msg.documentMessage as Record<string, unknown> | undefined;
+  const nestedDoc =
+    (
+      msg.documentWithCaptionMessage as
+        | { message?: { documentMessage?: Record<string, unknown> } }
+        | undefined
+    )?.message?.documentMessage ?? undefined;
+
+  for (const doc of [direct, nestedDoc]) {
+    if (!doc) continue;
+    const name =
+      readStringField(doc.fileName) ||
+      readStringField(doc.filename) ||
+      readStringField(doc.title);
+    if (name) return name;
+  }
+  return "";
+}
+
+function readWahaDocumentMime(
+  data: Record<string, unknown> | null | undefined,
+): string {
+  if (!data) return "";
+  const top = readStringField(data.mimetype) || readStringField(data.mimeType);
+  if (top) return top;
+
+  const message = data.message;
+  if (!message || typeof message !== "object") return "";
+  const msg = message as Record<string, unknown>;
+  const direct = msg.documentMessage as Record<string, unknown> | undefined;
+  const nestedDoc =
+    (
+      msg.documentWithCaptionMessage as
+        | { message?: { documentMessage?: Record<string, unknown> } }
+        | undefined
+    )?.message?.documentMessage ?? undefined;
+
+  for (const doc of [direct, nestedDoc]) {
+    if (!doc) continue;
+    const mime =
+      readStringField(doc.mimetype) || readStringField(doc.mimeType);
+    if (mime) return mime;
+  }
+  return "";
+}
+
 export function attachmentKindFromWahaTypeAndMime(
   wahaType: string,
   mime: string,
@@ -165,6 +227,7 @@ export function parseWahaMessageMedia(m: WahaChatMessage): WahaParsedMedia | nul
     hasMedia?: boolean;
     media?: Record<string, unknown> | null;
     type?: string;
+    id?: string;
   };
 
   const data =
@@ -172,26 +235,31 @@ export function parseWahaMessageMedia(m: WahaChatMessage): WahaParsedMedia | nul
       ? (raw._data as Record<string, unknown>)
       : null;
   const dataType = resolveWahaMessageType(raw, data);
+  const docName = readWahaDocumentFileName(data);
+  const docMime = readWahaDocumentMime(data);
+  const fallbackName = docName || fallbackFilenameForType(dataType);
 
   const top = mediaFromRecord(
     raw.media ?? undefined,
-    fallbackFilenameForType(dataType),
+    fallbackName,
     dataType,
   );
   if (top) {
     return {
       ...top,
+      filename: docName || top.filename,
+      mimetype: docMime || top.mimetype,
       durationSeconds: readDurationSeconds(data),
     };
   }
 
   if (!data) {
     if (!raw.hasMedia) return null;
-    const mime = fallbackMimeForType(dataType);
+    const mime = docMime || fallbackMimeForType(dataType);
     return {
       url: "",
       mimetype: mime,
-      filename: fallbackFilenameForType(dataType),
+      filename: fallbackName,
       kind: kindFromMime(mime, dataType),
     };
   }
@@ -201,12 +269,14 @@ export function parseWahaMessageMedia(m: WahaChatMessage): WahaParsedMedia | nul
       (data._data as Record<string, unknown> | undefined)?.media as
         | Record<string, unknown>
         | undefined,
-    fallbackFilenameForType(dataType),
+    fallbackName,
     dataType,
   );
   if (nested) {
     return {
       ...nested,
+      filename: docName || nested.filename,
+      mimetype: docMime || nested.mimetype,
       durationSeconds: readDurationSeconds(data),
     };
   }
@@ -216,11 +286,14 @@ export function parseWahaMessageMedia(m: WahaChatMessage): WahaParsedMedia | nul
   }
 
   const mime =
+    docMime ||
     readStringField(data.mimetype) ||
     readStringField(raw.media?.mimetype) ||
     fallbackMimeForType(dataType);
   const filename =
-    readStringField(data.filename) || fallbackFilenameForType(dataType);
+    docName ||
+    readStringField(data.filename) ||
+    fallbackFilenameForType(dataType);
 
   return {
     url: "",

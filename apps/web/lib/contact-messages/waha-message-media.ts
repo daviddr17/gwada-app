@@ -150,7 +150,7 @@ function fallbackFilenameForType(dataType: string): string {
   if (dataType === "image" || dataType === "sticker") return "bild.jpg";
   if (dataType === "video") return "video.mp4";
   if (VOICE_WAHA_TYPES.has(dataType)) return "sprachnachricht.ogg";
-  return "datei";
+  return "Datei";
 }
 
 function fallbackMimeForType(dataType: string): string {

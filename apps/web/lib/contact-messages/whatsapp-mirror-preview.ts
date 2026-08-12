@@ -7,10 +7,9 @@ import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 
 const WHATSAPP_MIRROR_PLACEHOLDER_BODIES = new Set([
   "",
-  "Anhang",
-  "WhatsApp-Anhang",
+  "anhang",
+  "whatsapp-anhang",
   "datei",
-  "Datei",
 ]);
 
 /** DB-Spiegeltext für WAHA-Nachrichten ohne Text (Sync / Webhook). */
@@ -26,7 +25,9 @@ export function whatsappMirrorBodyFromContactRow(m: ContactMessageRow): string {
 }
 
 export function isWhatsappMirrorPlaceholderBody(body: string): boolean {
-  return WHATSAPP_MIRROR_PLACEHOLDER_BODIES.has(body.trim());
+  return WHATSAPP_MIRROR_PLACEHOLDER_BODIES.has(
+    body.replace(/\s+/g, " ").trim().toLowerCase(),
+  );
 }
 
 export function isRedundantWhatsappMediaBody(
@@ -138,17 +139,40 @@ function isNearbyWhatsappDuplicateSend(
 export function dedupeWhatsappOutboundThreadRows(
   messages: ContactMessageRow[],
 ): ContactMessageRow[] {
-  return messages.filter((message) => {
+  const withMergedAttachments = messages.map((message) => {
+    if (messageDisplayPlatform(message) !== "whatsapp") return message;
+    if (message.direction !== "outbound") return message;
+    if (!isWhatsappSyncAnchorRow(message)) return message;
+    if (message.attachments?.length) return message;
+
+    const donor = messages.find(
+      (other) =>
+        other.id !== message.id &&
+        !isWhatsappSyncAnchorRow(other) &&
+        Boolean(other.attachments?.length) &&
+        isNearbyWhatsappDuplicateSend(message, other),
+    );
+    if (!donor?.attachments?.length) return message;
+    return { ...message, attachments: donor.attachments };
+  });
+
+  return withMergedAttachments.filter((message) => {
     if (messageDisplayPlatform(message) !== "whatsapp") return true;
     if (message.direction !== "outbound") return true;
     if (isWhatsappSyncAnchorRow(message)) return true;
 
-    const hasNearbyAnchor = messages.some(
+    const nearbyAnchor = withMergedAttachments.find(
       (other) =>
         isWhatsappSyncAnchorRow(other) &&
         isNearbyWhatsappDuplicateSend(message, other),
     );
-    return !hasNearbyAnchor;
+    if (!nearbyAnchor) return true;
+
+    // Pending mit Storage-Anhängen behalten, wenn der Anker weiter ohne Datei ist.
+    if (message.attachments?.length && !nearbyAnchor.attachments?.length) {
+      return true;
+    }
+    return false;
   });
 }
 

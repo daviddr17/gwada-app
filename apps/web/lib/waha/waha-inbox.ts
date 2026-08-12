@@ -141,6 +141,24 @@ export async function wahaGetChatMessages(params: {
   return { ok: true, data: list };
 }
 
+/** Einzelne Nachricht inkl. optionalem Media-Download (WAHA get-by-id). */
+export async function wahaGetChatMessageById(params: {
+  config: WahaServerConfig;
+  restaurantId: string;
+  chatId: string;
+  messageId: string;
+  downloadMedia?: boolean;
+}): Promise<WahaFetchJson<WahaChatMessage>> {
+  const session = wahaSessionNameForRestaurant(params.restaurantId);
+  const chatId = encodeURIComponent(params.chatId);
+  const messageId = encodeURIComponent(params.messageId);
+  const downloadMedia = params.downloadMedia !== false;
+  return wahaJsonGet<WahaChatMessage>(
+    params.config,
+    `/api/${encodeURIComponent(session)}/chats/${chatId}/messages/${messageId}?downloadMedia=${downloadMedia}`,
+  );
+}
+
 /** Ungelesen laut Overview; 0 wenn letzte eingehende Nachricht in WhatsApp bereits gelesen (ack ≥ 3). */
 export function wahaEffectiveUnreadCount(
   chat: WahaChatOverviewItem,

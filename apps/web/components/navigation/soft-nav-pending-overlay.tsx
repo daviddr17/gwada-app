@@ -95,13 +95,11 @@ export function SoftNavPendingOverlay() {
   // Cover bleibt, solange Pending gesetzt ist — auch wenn pathname schon
   // am Ziel ist (Clear erst nach Paint). Sonst: Weißflash / Dashboard-Blitzen.
   const pendingInFlight = pendingHref != null;
-  const arrivedAtPending =
-    pendingInFlight &&
-    normalizeNavHref(pendingHref!) === normalizeNavHref(pathname);
-  const pendingBeforeArrive = pendingInFlight && !arrivedAtPending;
 
+  // Warm-Home: gesamtes Pending inkl. Nach-Arrive ohne Cover — Keep-alive
+  // bleibt sichtbar (Chrome/Subnav), sonst Skeleton ohne Chips.
   const pendingToWarmHome =
-    pendingBeforeArrive &&
+    pendingInFlight &&
     Boolean(moduleKeepAlive?.isPendingWarmHome(pendingHref!));
 
   // Optimistischen Titel setzen; bei abgebrochenem Nav wiederherstellen.

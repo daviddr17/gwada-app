@@ -11,10 +11,17 @@ const GALLERY_NAV: readonly ModuleSubnavItem[] = [
   { href: "/dashboard/galerie/einstellungen", label: "Einstellungen", matchMode: "prefix" },
 ];
 
-export function GalleryOverviewKeepAliveScreen({ active }: { active: boolean }) {
+export function GalleryOverviewKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="Galerie"
       subnavAriaLabel="Galerie-Bereiche"
       subnavItems={GALLERY_NAV}

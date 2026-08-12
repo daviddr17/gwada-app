@@ -11,10 +11,17 @@ const EVENTS_NAV: readonly ModuleSubnavItem[] = [
   { href: "/dashboard/events/einstellungen", label: "Einstellungen", matchMode: "prefix" },
 ];
 
-export function EventsOverviewKeepAliveScreen({ active }: { active: boolean }) {
+export function EventsOverviewKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="Events"
       subnavAriaLabel="Events-Bereiche"
       subnavItems={EVENTS_NAV}

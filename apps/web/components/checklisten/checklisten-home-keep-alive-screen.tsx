@@ -7,13 +7,20 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { CHECKLISTEN_NAV } from "@/lib/navigation/checklisten-routes";
 import { hasModuleRead } from "@/lib/permissions/module-crud-permissions";
 
-export function ChecklistenHomeKeepAliveScreen({ active }: { active: boolean }) {
+export function ChecklistenHomeKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canReadTodos = hasModuleRead(has, "staff_todos");
 
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="Checklisten"
       subnavAriaLabel="Checklisten-Bereiche"
       subnavItems={CHECKLISTEN_NAV}

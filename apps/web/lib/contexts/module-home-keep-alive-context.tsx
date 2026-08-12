@@ -227,10 +227,13 @@ export function ModuleHomeKeepAliveProvider({
 
       const pendingToThis = warm && pendingHomeId === id && !onHome;
       const showAsSource = onHome && !pendingInFlight;
+      // Nach Pathname-Arrive bleibt Soft-Nav kurz pending — Slot nicht verstecken,
+      // sonst Subnav/Inhalt weg und Overlay-Skeleton ohne Chips.
+      const onHomeWhilePending = onHome && pendingInFlight;
 
       slots[id] = {
         warm,
-        visible: showAsSource || pendingToThis,
+        visible: showAsSource || pendingToThis || onHomeWhilePending,
         active: showAsSource,
       };
     }

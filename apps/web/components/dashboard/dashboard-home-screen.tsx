@@ -22,8 +22,14 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
-/** Dashboard-Home — Keep-alive unter App-Shell; `active` steuert Arbeit/Chrome/FAB. */
-export function DashboardHomeScreen({ active = true }: { active?: boolean }) {
+/** Dashboard-Home — Keep-alive unter App-Shell; `active` steuert Arbeit/FAB, `showChrome` den Header. */
+export function DashboardHomeScreen({
+  active = true,
+  showChrome = active,
+}: {
+  active?: boolean;
+  showChrome?: boolean;
+}) {
   useDashboardPageBackgroundRefresh(active);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [arrangeOpen, setArrangeOpen] = useState(false);
@@ -84,7 +90,7 @@ export function DashboardHomeScreen({ active = true }: { active?: boolean }) {
   return (
     <>
       {active ? <DashboardBatchQuerySync /> : null}
-      {active ? (
+      {showChrome ? (
         <RegisterModuleChrome
           title="Dashboard"
           subnavAriaLabel={null}

@@ -10,10 +10,17 @@ const DOCUMENTS_NAV: readonly ModuleSubnavItem[] = [
   { href: "/dashboard/dokumente/protokoll", label: "Protokoll", matchMode: "exact" },
 ];
 
-export function DocumentsOverviewKeepAliveScreen({ active }: { active: boolean }) {
+export function DocumentsOverviewKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="Dokumente"
       subnavAriaLabel="Dokumente-Bereiche"
       subnavItems={DOCUMENTS_NAV}

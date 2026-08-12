@@ -10,12 +10,14 @@ import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 /** Keep-alive Host für Reservierungen-Übersicht (Chrome + FAB nur wenn active). */
 export function ReservationsOverviewKeepAliveScreen({
   active,
+  showChrome = active,
 }: {
   active: boolean;
+  showChrome?: boolean;
 }) {
   return (
     <>
-      {active ? (
+      {showChrome ? (
         <RegisterModuleChrome
           title="Reservierungen"
           subnavAriaLabel="Reservierungs-Bereiche"

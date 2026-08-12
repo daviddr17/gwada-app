@@ -30,12 +30,14 @@ const INVENTORY_NAV: readonly ModuleSubnavItem[] = [
 /** Keep-alive Host für Bestand-Übersicht. */
 export function InventoryOverviewKeepAliveScreen({
   active,
+  showChrome = active,
 }: {
   active: boolean;
+  showChrome?: boolean;
 }) {
   return (
     <>
-      {active ? (
+      {showChrome ? (
         <RegisterModuleChrome
           title="Bestand"
           subnavAriaLabel="Bestand-Bereiche"

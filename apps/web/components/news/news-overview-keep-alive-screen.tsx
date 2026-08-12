@@ -12,10 +12,17 @@ const NEWS_NAV: readonly ModuleSubnavItem[] = [
   { href: "/dashboard/news/einstellungen", label: "Einstellungen", matchMode: "prefix" },
 ];
 
-export function NewsOverviewKeepAliveScreen({ active }: { active: boolean }) {
+export function NewsOverviewKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="News"
       subnavAriaLabel="News-Bereiche"
       subnavItems={NEWS_NAV}

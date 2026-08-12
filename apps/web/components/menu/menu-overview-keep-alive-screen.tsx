@@ -38,12 +38,14 @@ const MENU_NAV: readonly ModuleSubnavItem[] = [
 /** Keep-alive Host für Speisekarte-Übersicht. */
 export function MenuOverviewKeepAliveScreen({
   active,
+  showChrome = active,
 }: {
   active: boolean;
+  showChrome?: boolean;
 }) {
   return (
     <>
-      {active ? (
+      {showChrome ? (
         <RegisterModuleChrome
           title="Speisekarte"
           subnavAriaLabel="Speisekarten-Bereiche"

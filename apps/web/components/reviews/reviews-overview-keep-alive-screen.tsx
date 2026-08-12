@@ -11,10 +11,17 @@ const BEWERTUNGEN_NAV: readonly ModuleSubnavItem[] = [
   { href: "/dashboard/bewertungen/einstellungen", label: "Einstellungen", matchMode: "prefix" },
 ];
 
-export function ReviewsOverviewKeepAliveScreen({ active }: { active: boolean }) {
+export function ReviewsOverviewKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="Bewertungen"
       subnavAriaLabel="Bewertungen-Bereiche"
       subnavItems={BEWERTUNGEN_NAV}

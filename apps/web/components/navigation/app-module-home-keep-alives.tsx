@@ -22,49 +22,112 @@ export function AppModuleHomeKeepAlives() {
   return (
     <>
       <ModuleHomeKeepAliveSlot id="dashboard">
-        {(active) => <DashboardHomeScreen active={active} />}
+        {({ active, showChrome }) => (
+          <DashboardHomeScreen active={active} showChrome={showChrome} />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="menu">
-        {(active) => <MenuOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <MenuOverviewKeepAliveScreen active={active} showChrome={showChrome} />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="inventory">
-        {(active) => <InventoryOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <InventoryOverviewKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="reservierungen">
-        {(active) => <ReservationsOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <ReservationsOverviewKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="pos">
-        {(active) => <PosOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <PosOverviewKeepAliveScreen active={active} showChrome={showChrome} />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="events">
-        {(active) => <EventsOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <EventsOverviewKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="nachrichten">
-        {(active) => <ContactsMessagesKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <ContactsMessagesKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="news">
-        {(active) => <NewsOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <NewsOverviewKeepAliveScreen active={active} showChrome={showChrome} />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="bewertungen">
-        {(active) => <ReviewsOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <ReviewsOverviewKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="insights">
-        {(active) => <InsightsOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <InsightsOverviewKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="galerie">
-        {(active) => <GalleryOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <GalleryOverviewKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="buchfuehrung">
-        {(active) => <AccountingInvoicesKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <AccountingInvoicesKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="dokumente">
-        {(active) => <DocumentsOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <DocumentsOverviewKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="checklisten">
-        {(active) => <ChecklistenHomeKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <ChecklistenHomeKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
       <ModuleHomeKeepAliveSlot id="mitarbeiter">
-        {(active) => <StaffOverviewKeepAliveScreen active={active} />}
+        {({ active, showChrome }) => (
+          <StaffOverviewKeepAliveScreen
+            active={active}
+            showChrome={showChrome}
+          />
+        )}
       </ModuleHomeKeepAliveSlot>
     </>
   );

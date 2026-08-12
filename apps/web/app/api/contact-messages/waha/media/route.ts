@@ -4,6 +4,13 @@ import { wahaResolveMessageMediaBlob } from "@/lib/waha/waha-fetch-media";
 
 export const dynamic = "force-dynamic";
 
+function contentDisposition(fileName: string, inline: boolean): string {
+  const fallback = fileName.replace(/[^\x20-\x7E]/g, "_").replace(/"/g, "");
+  const encoded = encodeURIComponent(fileName);
+  const kind = inline ? "inline" : "attachment";
+  return `${kind}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const restaurantId = url.searchParams.get("restaurantId")?.trim() ?? "";
@@ -36,17 +43,23 @@ export async function GET(req: Request) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
 
-  const disposition =
-    media.mime.startsWith("image/") ||
-    media.mime.startsWith("audio/") ||
-    media.mime.startsWith("video/")
-      ? "inline"
-      : "attachment";
+  const mime = media.mime.toLowerCase();
+  if (
+    mime.startsWith("text/html") ||
+    mime.startsWith("application/json")
+  ) {
+    return Response.json({ error: "invalid_media" }, { status: 502 });
+  }
+
+  const inline =
+    mime.startsWith("image/") ||
+    mime.startsWith("audio/") ||
+    mime.startsWith("video/");
 
   return new Response(media.blob, {
     headers: {
       "Content-Type": media.mime,
-      "Content-Disposition": `${disposition}; filename="${encodeURIComponent(media.fileName)}"`,
+      "Content-Disposition": contentDisposition(media.fileName, inline),
       "Cache-Control": "private, max-age=3600",
     },
   });

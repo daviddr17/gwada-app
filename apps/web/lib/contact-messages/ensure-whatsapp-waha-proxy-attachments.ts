@@ -97,9 +97,6 @@ export function ensureWhatsappWahaProxyAttachments(
             ? displayFileNameForKind(att.kind, m.body)
             : att.fileName,
           url: needsUrl ? proxyUrl : att.url,
-          ...(att.kind === "image" && needsUrl
-            ? { loadOnClick: true as const }
-            : {}),
         };
       });
       if (!changed) return m;
@@ -123,7 +120,6 @@ export function ensureWhatsappWahaProxyAttachments(
           fileName: displayFileNameForKind(kind, m.body),
           mimeType: mimeForAttachmentKind(kind),
           url: proxyUrl,
-          loadOnClick: kind === "image" ? true : undefined,
         },
       ],
     };

@@ -125,14 +125,8 @@ export function ContactMessageAttachments({
         }
 
         if (a.kind === "image") {
-          // IMAP u. Ä. / WAHA-Proxy: Chip statt <img src> — Bytes erst bei Klick.
-          // Proxy-Anhänge (IMAP/WAHA): nie direkt im Browser öffnen — Fetch+Blob.
-          if (
-            a.loadOnClick ||
-            a.url.includes("/waha/media") ||
-            a.url.includes("/email/attachment") ||
-            a.url.includes("/attachments/download")
-          ) {
+          // IMAP: Bytes erst bei Klick (Privacy/Traffic). WhatsApp/Storage: Inline-Vorschau.
+          if (a.loadOnClick || !a.url?.trim()) {
             return (
               <AttachmentDownloadChip
                 key={a.id}

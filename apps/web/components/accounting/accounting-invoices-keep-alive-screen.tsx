@@ -13,10 +13,17 @@ const BUCHFUEHRUNG_NAV: readonly ModuleSubnavItem[] = [
   { href: "/dashboard/buchfuehrung/einstellungen", label: "Einstellungen", matchMode: "exact" },
 ];
 
-export function AccountingInvoicesKeepAliveScreen({ active }: { active: boolean }) {
+export function AccountingInvoicesKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="Buchführung"
       subnavAriaLabel="Buchführung-Bereiche"
       subnavItems={BUCHFUEHRUNG_NAV}

@@ -15,10 +15,17 @@ const POS_NAV: readonly ModuleSubnavItem[] = [
   { href: APP_ROUTES.pos.settings, label: "Einstellungen", matchMode: "prefix" },
 ];
 
-export function PosOverviewKeepAliveScreen({ active }: { active: boolean }) {
+export function PosOverviewKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="POS"
       subnavAriaLabel="POS-Bereiche"
       subnavItems={POS_NAV}

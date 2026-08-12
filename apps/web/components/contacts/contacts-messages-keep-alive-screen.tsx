@@ -9,12 +9,14 @@ import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 /** Keep-alive Host für Nachrichten-Inbox (Chrome nur wenn active). */
 export function ContactsMessagesKeepAliveScreen({
   active,
+  showChrome = active,
 }: {
   active: boolean;
+  showChrome?: boolean;
 }) {
   return (
     <>
-      {active ? (
+      {showChrome ? (
         <RegisterModuleChrome
           title="Nachrichten"
           subnavAriaLabel="Nachrichten-Bereiche"

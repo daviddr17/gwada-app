@@ -10,6 +10,13 @@ import {
 } from "@/lib/navigation/module-home-keep-alive";
 import { cn } from "@/lib/utils";
 
+export type ModuleHomeKeepAliveRenderProps = {
+  /** Interaktiv / echte Route (nicht Soft-Nav-Preview). */
+  active: boolean;
+  /** Titel + Subnav registrieren — auch während Soft-Nav-Preview/Pending. */
+  showChrome: boolean;
+};
+
 /**
  * Hält ein Modul-Home warm unter der App-Shell.
  * Soft-Nav weg: verstecken. Live/Glocke bleiben app-weit.
@@ -20,7 +27,7 @@ export function ModuleHomeKeepAliveSlot({
   children,
 }: {
   id: ModuleHomeId;
-  children: (active: boolean) => ReactNode;
+  children: (slot: ModuleHomeKeepAliveRenderProps) => ReactNode;
 }) {
   const pathname = usePathname();
   const { warm, visible, active } = useModuleHomeSlot(id);
@@ -29,6 +36,7 @@ export function ModuleHomeKeepAliveSlot({
   const wasVisibleRef = useRef(visible);
   // false — erster aktiver Mount soll restore (0) statt fremde Scroll-Pos behalten.
   const wasActiveRef = useRef(false);
+  const showChrome = visible || onHome;
 
   useLayoutEffect(() => {
     const root = getAppScrollRoot();
@@ -75,7 +83,7 @@ export function ModuleHomeKeepAliveSlot({
       aria-hidden={!interactive}
       {...(!interactive ? ({ inert: "" } as Record<string, string>) : {})}
     >
-      {children(active)}
+      {children({ active, showChrome })}
     </div>
   );
 }

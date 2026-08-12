@@ -356,10 +356,7 @@ export function StaffOverviewScreen({ active = true }: { active?: boolean }) {
         </Button>
       </div>
 
-          {staffListLoading && !showTableSkeleton ? (
-            <div className="min-h-[22rem]" aria-busy="true" />
-          ) : null}
-          {showTableSkeleton ? (
+          {showTableSkeleton || (staffListLoading && rows.length === 0) ? (
             <StaffOverviewTableSkeleton />
           ) : (
             <StaffOverviewTable

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { AppMain } from "@/components/layout/app-main";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { StaffOverviewScreen } from "@/components/staff/staff-overview-screen";
+import { StaffOverviewTableSkeleton } from "@/components/staff/staff-overview-skeleton";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 
 const STAFF_NAV: readonly ModuleSubnavItem[] = [
@@ -53,12 +54,14 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
 /** Keep-alive Host für Mitarbeiter-Übersicht. */
 export function StaffOverviewKeepAliveScreen({
   active,
+  showChrome = active,
 }: {
   active: boolean;
+  showChrome?: boolean;
 }) {
   return (
     <>
-      {active ? (
+      {showChrome ? (
         <RegisterModuleChrome
           title="Mitarbeiter"
           subnavAriaLabel="Mitarbeiter-Bereiche"
@@ -66,7 +69,7 @@ export function StaffOverviewKeepAliveScreen({
         />
       ) : null}
       <AppMain>
-        <Suspense fallback={null}>
+        <Suspense fallback={<StaffOverviewTableSkeleton />}>
           <StaffOverviewScreen active={active} />
         </Suspense>
       </AppMain>

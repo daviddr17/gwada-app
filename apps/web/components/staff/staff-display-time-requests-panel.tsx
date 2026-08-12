@@ -101,15 +101,8 @@ export function StaffDisplayTimeRequestsPanel({
     }
   };
 
-  if (loading) {
-    return (
-      <Card className={cn("border-border/50 shadow-card", className)}>
-        <CardContent className="min-h-20 py-4" aria-busy="true" />
-      </Card>
-    );
-  }
-
-  if (rows.length === 0) return null;
+  // Kein leerer weißer Card-Platzhalter — Panel nur bei offenen Anfragen.
+  if (loading || rows.length === 0) return null;
 
   return (
     <Card className={cn("border-accent/25 bg-accent/5 shadow-card", className)}>

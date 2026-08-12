@@ -1,15 +1,9 @@
+import { attachmentDownloadHeaders } from "@/lib/contact-messages/attachment-download-headers";
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
 import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaResolveMessageMediaBlob } from "@/lib/waha/waha-fetch-media";
 
 export const dynamic = "force-dynamic";
-
-function contentDisposition(fileName: string, inline: boolean): string {
-  const fallback = fileName.replace(/[^\x20-\x7E]/g, "_").replace(/"/g, "");
-  const encoded = encodeURIComponent(fileName);
-  const kind = inline ? "inline" : "attachment";
-  return `${kind}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
-}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -52,18 +46,10 @@ export async function GET(req: Request) {
     return Response.json({ error: "invalid_media" }, { status: 502 });
   }
 
-  const inline =
-    mime.startsWith("image/") ||
-    mime.startsWith("audio/") ||
-    mime.startsWith("video/");
-
   return new Response(media.blob, {
-    headers: {
-      "Content-Type": media.mime,
-      "Content-Disposition": contentDisposition(media.fileName, inline),
-      "X-Gwada-Filename": encodeURIComponent(media.fileName),
-      // Kein Browser-Cache: alte HTML-Fehlerantworten sonst Stunden speichern.
-      "Cache-Control": "private, no-store",
-    },
+    headers: attachmentDownloadHeaders({
+      fileName: media.fileName,
+      mimeType: media.mime,
+    }),
   });
 }

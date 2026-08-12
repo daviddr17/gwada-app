@@ -24,6 +24,7 @@ import {
 import { ContactMessageAttachments } from "@/components/contacts/contact-message-attachments";
 import { ContactMessageEmailBody } from "@/components/contacts/contact-message-email-body";
 import { deleteWahaMessageClient } from "@/lib/contact-messages/waha-typing-client";
+import { attachmentKindFromWhatsappMirrorBody } from "@/lib/contact-messages/ensure-whatsapp-waha-proxy-attachments";
 import {
   isRedundantWhatsappMediaBody,
   isWahaEditableMessage,
@@ -218,10 +219,35 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
   const longPress = useMessageReactionLongPress(() => onPickerOpenChange(true));
   const isEmail = messageDisplayPlatform(primary) === "email";
   const hasHtmlBody = Boolean(primary.body_html?.trim());
+  const mediaPlaceholderKind =
+    !primary.attachments?.length && !isEmail
+      ? attachmentKindFromWhatsappMirrorBody(primary.body)
+      : null;
   const showTextBody =
     Boolean(primary.body.trim()) &&
+    !mediaPlaceholderKind &&
     !isRedundantWhatsappMediaBody(primary.body, primary.attachments);
   const hasBody = showTextBody || hasHtmlBody;
+  const fallbackMediaAttachments =
+    mediaPlaceholderKind != null
+      ? [
+          {
+            id: "media-placeholder",
+            kind: mediaPlaceholderKind,
+            fileName:
+              mediaPlaceholderKind === "image"
+                ? "Bild"
+                : mediaPlaceholderKind === "voice"
+                  ? "Sprachnachricht"
+                  : mediaPlaceholderKind === "video"
+                    ? "Video"
+                    : "Datei",
+            mimeType: "application/octet-stream",
+            url: "",
+            loadOnClick: true as const,
+          },
+        ]
+      : null;
   const [deleting, setDeleting] = useState(false);
   const [toolbarHover, setToolbarHover] = useState(false);
   const toolbarHoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -303,9 +329,13 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
           )}
           {...(showReactions ? longPress : {})}
         >
-          {primary.attachments?.length ? (
+          {primary.attachments?.length || fallbackMediaAttachments ? (
             <ContactMessageAttachments
-              attachments={primary.attachments}
+              attachments={
+                primary.attachments?.length
+                  ? primary.attachments
+                  : fallbackMediaAttachments!
+              }
               outbound={outbound}
               variant={isEmail ? "email" : "default"}
               className={hasBody ? "mb-2" : undefined}

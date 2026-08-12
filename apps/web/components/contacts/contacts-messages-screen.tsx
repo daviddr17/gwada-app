@@ -537,10 +537,15 @@ export function ContactsMessagesScreen({
     let rows = enrichMessagesWithWahaReactionIds(messages);
     rows = dedupeWhatsappOutboundThreadRows(rows);
     rows = dropOptimisticMatchingAnchors(rows);
-    if (restaurantId) {
+    const chatId =
+      whatsappThreadChatId ??
+      (contactParam && isWahaPseudoContactId(contactParam)
+        ? wahaChatIdFromPseudoContactId(contactParam)
+        : null);
+    if (restaurantId && chatId) {
       rows = ensureWhatsappWahaProxyAttachments(rows, {
         restaurantId,
-        chatId: whatsappThreadChatId,
+        chatId,
       });
     }
     if (!contactParam) return rows;

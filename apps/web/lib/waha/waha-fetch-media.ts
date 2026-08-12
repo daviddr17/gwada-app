@@ -272,12 +272,10 @@ function toBlobResult(resolved: {
   };
 }
 
-export async function wahaResolveMessageMediaBlob(params: {
-  config: WahaServerConfig;
-  restaurantId: string;
+function wahaMediaLookupAttempts(params: {
   chatId: string;
   messageId: string;
-}): Promise<{ blob: Blob; mime: string; fileName: string } | null> {
+}): { attempts: Array<{ chatId: string; messageId: string }>; rawId: string } {
   const attempts: Array<{ chatId: string; messageId: string }> = [
     { chatId: params.chatId, messageId: params.messageId },
   ];
@@ -289,6 +287,70 @@ export async function wahaResolveMessageMediaBlob(params: {
     attempts.push({ chatId: "all", messageId: rawId });
   }
   attempts.push({ chatId: "all", messageId: params.messageId });
+  return { attempts, rawId };
+}
+
+function mediaMetaFromMessage(
+  msg: WahaChatMessage,
+): { fileName: string; mime: string } | null {
+  const parsed = parseWahaMessageMedia(msg);
+  if (!parsed) return null;
+  const rawName = parsed.filename?.trim() || "";
+  if (!rawName || rawName.toLowerCase() === "datei") return null;
+  return {
+    fileName: ensureMediaFileName(rawName, parsed.mimetype),
+    mime: parsed.mimetype,
+  };
+}
+
+/** Nur Metadaten (Dateiname) — ohne Media-Bytes von WAHA zu laden. */
+export async function wahaResolveMessageMediaMeta(params: {
+  config: WahaServerConfig;
+  restaurantId: string;
+  chatId: string;
+  messageId: string;
+}): Promise<{ fileName: string; mime: string } | null> {
+  const { attempts, rawId } = wahaMediaLookupAttempts(params);
+
+  for (const attempt of attempts) {
+    const byId = await wahaGetChatMessageById({
+      config: params.config,
+      restaurantId: params.restaurantId,
+      chatId: attempt.chatId,
+      messageId: attempt.messageId,
+      downloadMedia: false,
+    });
+    if (!byId.ok) continue;
+    const meta = mediaMetaFromMessage(byId.data);
+    if (meta) return meta;
+  }
+
+  const result = await wahaGetChatMessages({
+    config: params.config,
+    restaurantId: params.restaurantId,
+    chatId: params.chatId,
+    limit: 120,
+    downloadMedia: false,
+  });
+  if (!result.ok) return null;
+
+  const msg = result.data.find(
+    (m: WahaChatMessage) =>
+      m.id === params.messageId ||
+      m.id?.endsWith(`_${rawId}`) ||
+      m.id === rawId,
+  );
+  if (!msg) return null;
+  return mediaMetaFromMessage(msg);
+}
+
+export async function wahaResolveMessageMediaBlob(params: {
+  config: WahaServerConfig;
+  restaurantId: string;
+  chatId: string;
+  messageId: string;
+}): Promise<{ blob: Blob; mime: string; fileName: string } | null> {
+  const { attempts, rawId } = wahaMediaLookupAttempts(params);
 
   for (const attempt of attempts) {
     const byId = await wahaGetChatMessageById({
@@ -303,7 +365,6 @@ export async function wahaResolveMessageMediaBlob(params: {
     if (fromId) return toBlobResult(fromId);
   }
 
-  // Fallback: Chat-Verlauf scannen
   const result = await wahaGetChatMessages({
     config: params.config,
     restaurantId: params.restaurantId,

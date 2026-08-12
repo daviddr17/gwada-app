@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ContactMessageVideoPlayer } from "@/components/contacts/contact-message-video-player";
 import { ContactMessageVoicePlayer } from "@/components/contacts/contact-message-voice-player";
 import { downloadContactAttachmentClient } from "@/lib/contact-messages/download-attachment-client";
+import {
+  isGenericAttachmentDisplayName,
+  rememberAttachmentDisplayName,
+  resolveWahaAttachmentDisplayName,
+} from "@/lib/contact-messages/resolve-attachment-display-name";
 import type { ContactMessageAttachment } from "@/lib/types/contact-message-attachment";
 import { cn } from "@/lib/utils";
 
@@ -31,20 +36,46 @@ function AttachmentDownloadChip({
   attachment: ContactMessageAttachment;
   outbound?: boolean;
 }) {
+  const fallbackName = attachment.fileName?.trim() || "Datei";
+  const [displayName, setDisplayName] = useState(fallbackName);
   const [busy, setBusy] = useState(false);
   const sizeLabel = formatByteSize(attachment.byteSize ?? null);
 
+  useEffect(() => {
+    setDisplayName(fallbackName);
+  }, [fallbackName, attachment.url]);
+
+  useEffect(() => {
+    const url = attachment.url?.trim();
+    if (!url?.includes("/waha/media")) return;
+    if (!isGenericAttachmentDisplayName(fallbackName)) return;
+
+    let cancelled = false;
+    void resolveWahaAttachmentDisplayName(url).then((name) => {
+      if (cancelled || !name) return;
+      setDisplayName(name);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [attachment.url, fallbackName]);
+
   const onDownload = async () => {
-    if (!attachment.url?.trim() || busy) return;
+    const url = attachment.url?.trim();
+    if (!url || busy) return;
     setBusy(true);
     const result = await downloadContactAttachmentClient({
-      url: attachment.url,
-      fileName: attachment.fileName || "Datei",
+      url,
+      fileName: displayName || fallbackName,
     });
     setBusy(false);
     if (!result.ok) {
       toast.error("Datei konnte nicht geladen werden.");
       return;
+    }
+    if (result.fileName) {
+      rememberAttachmentDisplayName(url, result.fileName);
+      setDisplayName(result.fileName);
     }
   };
 
@@ -63,7 +94,7 @@ function AttachmentDownloadChip({
     >
       <FileText className="size-4 shrink-0 opacity-70" aria-hidden />
       <span className="min-w-0 flex-1 truncate font-medium">
-        {attachment.fileName || "Datei"}
+        {displayName}
       </span>
       {sizeLabel ? (
         <span className="shrink-0 text-muted-foreground">{sizeLabel}</span>

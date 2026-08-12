@@ -78,14 +78,17 @@ type ContactRow = {
   first_name: string;
   last_name: string;
   company?: string | null;
-  contact_phones?: { phone: string }[] | { phone: string } | null;
+  contact_phones?:
+    | { phone_display: string; is_primary?: boolean; sort_order?: number }[]
+    | { phone_display: string; is_primary?: boolean; sort_order?: number }
+    | null;
   contact_emails?: { email: string }[] | { email: string } | null;
   contact_messaging_ids?: { platform: string; external_sender_id: string }[] | null;
 };
 
 function hasMessagingPlatform(
   rows: ContactRow["contact_messaging_ids"],
-  platform: "facebook" | "instagram",
+  platform: "facebook" | "instagram" | "whatsapp",
 ): boolean {
   const list = Array.isArray(rows) ? rows : [];
   return list.some((r) => r.platform === platform && r.external_sender_id?.trim());
@@ -103,7 +106,7 @@ async function loadContactRow(
       first_name,
       last_name,
       company,
-      contact_phones ( phone ),
+      contact_phones ( phone_display, is_primary, sort_order ),
       contact_emails ( email ),
       contact_messaging_ids ( platform, external_sender_id )
     `,
@@ -121,7 +124,28 @@ function firstPhoneFromRow(contact: ContactRow): string | null {
     : contact.contact_phones
       ? [contact.contact_phones]
       : [];
-  return rows[0]?.phone?.trim() ?? null;
+  const sorted = [...rows].sort(
+    (a, b) =>
+      Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)) ||
+      (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  for (const row of sorted) {
+    const phone = row.phone_display?.trim();
+    if (phone) return phone;
+  }
+  return null;
+}
+
+function whatsappChatIdFromContactRow(contact: ContactRow): string | null {
+  const fromPhone = guestPhoneToWhatsAppChatId(firstPhoneFromRow(contact));
+  if (fromPhone) return fromPhone;
+  const list = Array.isArray(contact.contact_messaging_ids)
+    ? contact.contact_messaging_ids
+    : [];
+  const wa = list.find(
+    (r) => r.platform === "whatsapp" && r.external_sender_id?.trim(),
+  );
+  return wa?.external_sender_id.trim() ?? null;
 }
 
 function firstEmailFromRow(contact: ContactRow): string | null {
@@ -164,7 +188,7 @@ function contactMetaFromRow(
     name,
     hasPhone: Boolean(phone),
     hasEmail: Boolean(email),
-    whatsappThreadChatId: guestPhoneToWhatsAppChatId(phone),
+    whatsappThreadChatId: whatsappChatIdFromContactRow(contact),
     hasFacebookId: hasMessagingPlatform(contact.contact_messaging_ids, "facebook"),
     hasInstagramId: hasMessagingPlatform(
       contact.contact_messaging_ids,

@@ -53,6 +53,11 @@ function displayFileNameForKind(
   return "Datei";
 }
 
+function isGenericDateiFileName(fileName: string | null | undefined): boolean {
+  const t = fileName?.trim().toLowerCase() ?? "";
+  return t === "datei" || t === "anhang" || t === "whatsapp-anhang";
+}
+
 /**
  * WAHA-Spiegelzeilen speichern oft nur „datei“/„Datei“ ohne
  * `contact_message_attachments`. Für die Bubble einen Download über den
@@ -67,11 +72,43 @@ export function ensureWhatsappWahaProxyAttachments(
   if (!chatId || !restaurantId) return messages;
 
   return messages.map((m) => {
-    if (m.attachments?.length) return m;
     if (messageDisplayPlatform(m) !== "whatsapp") return m;
 
     const wahaMessageId = resolveWahaMessageKey(m);
     if (!wahaMessageId) return m;
+
+    const proxyUrl = wahaMediaProxyUrl({
+      restaurantId,
+      chatId,
+      messageId: wahaMessageId,
+    });
+
+    if (m.attachments?.length) {
+      let changed = false;
+      const nextAttachments = m.attachments.map((att) => {
+        const needsName =
+          isGenericDateiFileName(att.fileName) || !att.fileName.trim();
+        const needsUrl = !att.url?.trim();
+        if (!needsName && !needsUrl) return att;
+        changed = true;
+        return {
+          ...att,
+          fileName: needsName
+            ? displayFileNameForKind(att.kind, m.body)
+            : att.fileName,
+          url: needsUrl ? proxyUrl : att.url,
+          ...(att.kind === "image" && needsUrl
+            ? { loadOnClick: true as const }
+            : {}),
+        };
+      });
+      if (!changed) return m;
+      return {
+        ...m,
+        waha_message_id: m.waha_message_id ?? wahaMessageId,
+        attachments: nextAttachments,
+      };
+    }
 
     const kind = attachmentKindFromWhatsappMirrorBody(m.body);
     if (!kind) return m;
@@ -85,11 +122,7 @@ export function ensureWhatsappWahaProxyAttachments(
           kind,
           fileName: displayFileNameForKind(kind, m.body),
           mimeType: mimeForAttachmentKind(kind),
-          url: wahaMediaProxyUrl({
-            restaurantId,
-            chatId,
-            messageId: wahaMessageId,
-          }),
+          url: proxyUrl,
           loadOnClick: kind === "image" ? true : undefined,
         },
       ],

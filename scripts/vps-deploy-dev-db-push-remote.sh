@@ -53,6 +53,31 @@ if ! docker exec "${DB_CID}" test -x "${SUPABASE_BIN}"; then
   SUPABASE_BIN="/tmp/supabase-cli/supabase"
 fi
 
+echo "→ Dev: Remote-Migrationen ohne lokale Datei als reverted markieren …"
+mapfile -t REMOTE_VERS < <(
+  docker compose exec -T -e PGPASSWORD="${PW}" db \
+    psql -U supabase_admin -h localhost -p "${DB_PORT}" -d postgres -tAc \
+    "select version from supabase_migrations.schema_migrations order by version;" \
+    | tr -d '\r'
+)
+repair_args=()
+shopt -s nullglob
+for ver in "${REMOTE_VERS[@]}"; do
+  ver="${ver//[[:space:]]/}"
+  [[ -z "${ver}" ]] && continue
+  matches=("${mig_root}/supabase/migrations/${ver}_"*.sql)
+  if ((${#matches[@]} == 0)); then
+    repair_args+=("${ver}")
+  fi
+done
+if ((${#repair_args[@]} > 0)); then
+  echo "  reverted: ${repair_args[*]}"
+  docker compose exec -T -w /tmp/migrations db \
+    env PGSSLMODE=disable \
+    "${SUPABASE_BIN}" migration repair --status reverted --db-url "${DB_URL}" \
+    "${repair_args[@]}"
+fi
+
 echo "→ supabase db push (im DB-Container, localhost:${DB_PORT}) …"
 docker compose exec -T -w /tmp/migrations db \
   env PGSSLMODE=disable \

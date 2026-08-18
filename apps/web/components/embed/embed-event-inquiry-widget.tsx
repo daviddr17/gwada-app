@@ -162,7 +162,7 @@ export function EmbedEventInquiryWidget({
     (code: string | undefined) => {
       if (!code) return t("genericError");
       const key = API_ERROR_KEYS[code];
-      return key ? t(key) : t("errorInvalidRequest");
+      return key ? t(key as Parameters<typeof t>[0]) : t("errorInvalidRequest");
     },
     [t],
   );

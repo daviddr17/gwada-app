@@ -98,7 +98,7 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   const canManage = hasModuleCreate(has, "events");
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useKeepAliveGatedRouter();
+  const router = useKeepAliveGatedRouter(active);
   void canRead;
 
   const initialFeedRef = useRef<ReturnType<typeof initialEventsFeedFromCache> | null>(

@@ -18,6 +18,7 @@ import {
   type DashboardWidgetPrefs,
 } from "@/lib/constants/dashboard-widgets";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { drawerChromeMaxWidthClassName } from "@/lib/ui/drawer-chrome";
 import { cn } from "@/lib/utils";
 
 type Visibility = DashboardWidgetPrefs["visibility"];
@@ -147,7 +148,7 @@ export function DashboardArrangeSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto max-w-lg">
+      <DrawerContent className={cn("mx-auto", drawerChromeMaxWidthClassName)}>
         <DrawerHeader className="text-left">
           <DrawerTitle>Dashboard anordnen</DrawerTitle>
           <DrawerDescription>

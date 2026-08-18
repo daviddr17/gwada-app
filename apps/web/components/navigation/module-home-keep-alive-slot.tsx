@@ -36,7 +36,9 @@ export function ModuleHomeKeepAliveSlot({
   const wasVisibleRef = useRef(visible);
   // false — erster aktiver Mount soll restore (0) statt fremde Scroll-Pos behalten.
   const wasActiveRef = useRef(false);
-  const showChrome = visible || onHome;
+  // Nur der sichtbare Slot darf Chrome setzen — sonst bleibt die alte
+  // Überschrift/Chips über dem Ziel-Preview (oder umgekehrt).
+  const showChrome = visible;
 
   useLayoutEffect(() => {
     const root = getAppScrollRoot();
@@ -74,8 +76,8 @@ export function ModuleHomeKeepAliveSlot({
       data-module-home-keep-alive={id}
       className={cn(
         visible
-          ? onHome
-            ? "relative"
+          ? active
+            ? "relative min-h-full"
             : "absolute inset-0 z-10 min-h-full bg-background"
           : "hidden",
         !interactive && "pointer-events-none",

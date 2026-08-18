@@ -24,6 +24,7 @@ import {
   isModuleHomePath,
   isWarmModuleHomePending,
   matchModuleHomeId,
+  moduleHomeSlotVisibility,
   type ModuleHomeId,
 } from "@/lib/navigation/module-home-keep-alive";
 import { onDashboardFirstKpiReady } from "@/lib/dashboard/dashboard-first-kpi-ready";
@@ -221,21 +222,15 @@ export function ModuleHomeKeepAliveProvider({
     const pendingInFlight = pendingNormalized != null;
 
     for (const id of MODULE_HOME_IDS) {
-      const onHome = activeHomeId === id;
-      const warm = warmFlags[id] || onHome;
-      if (warm) warmIds.add(id);
-
-      const pendingToThis = warm && pendingHomeId === id && !onHome;
-      const showAsSource = onHome && !pendingInFlight;
-      // Nach Pathname-Arrive bleibt Soft-Nav kurz pending — Slot nicht verstecken,
-      // sonst Subnav/Inhalt weg und Overlay-Skeleton ohne Chips.
-      const onHomeWhilePending = onHome && pendingInFlight;
-
-      slots[id] = {
-        warm,
-        visible: showAsSource || pendingToThis || onHomeWhilePending,
-        active: showAsSource,
-      };
+      const slot = moduleHomeSlotVisibility({
+        id,
+        activeHomeId,
+        pendingHomeId,
+        pendingInFlight,
+        warmFlag: warmFlags[id],
+      });
+      if (slot.warm) warmIds.add(id);
+      slots[id] = slot;
     }
 
     return {

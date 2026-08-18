@@ -94,6 +94,42 @@ export function isWarmModuleHomePending(
   return id != null && warmIds.has(id);
 }
 
+export type ModuleHomeSlotVisibility = {
+  warm: boolean;
+  visible: boolean;
+  active: boolean;
+};
+
+/**
+ * Welches Keep-alive-Home den Scroll-Bereich füllt.
+ * Quelle während eines Flights zu einem anderen Home nie sichtbar halten —
+ * sonst bleibt der alte Inhalt unter der neuen Überschrift.
+ */
+export function moduleHomeSlotVisibility({
+  id,
+  activeHomeId,
+  pendingHomeId,
+  pendingInFlight,
+  warmFlag,
+}: {
+  id: ModuleHomeId;
+  activeHomeId: ModuleHomeId | null;
+  pendingHomeId: ModuleHomeId | null;
+  pendingInFlight: boolean;
+  warmFlag: boolean;
+}): ModuleHomeSlotVisibility {
+  const onHome = activeHomeId === id;
+  const warm = warmFlag || onHome;
+  const pendingToThis = warm && pendingHomeId === id && !onHome;
+  const showAsSource = onHome && !pendingInFlight;
+  const arrivedPending = onHome && pendingInFlight && pendingHomeId === id;
+  return {
+    warm,
+    visible: showAsSource || pendingToThis || arrivedPending,
+    active: showAsSource,
+  };
+}
+
 export function keepAliveMayNavigate(active: boolean): boolean {
   return active === true;
 }

@@ -12,6 +12,8 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { drawerChromeMaxWidthClassName } from "@/lib/ui/drawer-chrome";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { accountingFormControlClassName } from "@/lib/ui/accounting-form-styles";
@@ -36,7 +38,9 @@ export function AccountingCashOpeningBalanceDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto max-w-lg rounded-t-[1.75rem]">
+      <DrawerContent
+        className={cn("mx-auto rounded-t-[1.75rem]", drawerChromeMaxWidthClassName)}
+      >
         <DrawerHeader>
           <DrawerTitle>Anfangsbestand</DrawerTitle>
           <DrawerDescription>

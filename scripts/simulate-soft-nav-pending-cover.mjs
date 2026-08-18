@@ -42,14 +42,11 @@ function slotVisible({ id, pathname, pendingHref, warm }) {
     pendingHref != null ? normalizeNavHref(pendingHref) : null;
   const onHome = activeHomeId === id;
   const pendingInFlight = pendingNormalized != null;
-  const pendingToThis =
-    warm &&
-    pendingHomeId === id &&
-    pendingNormalized === MODULE_HOME_PATHS[id] &&
-    !onHome;
+  const pendingToThis = warm && pendingHomeId === id && !onHome;
   const showAsSource = onHome && !pendingInFlight;
+  const arrivedPending = onHome && pendingInFlight && pendingHomeId === id;
   return {
-    visible: showAsSource || pendingToThis,
+    visible: showAsSource || pendingToThis || arrivedPending,
     active: showAsSource,
   };
 }
@@ -70,6 +67,18 @@ function slotVisible({ id, pathname, pendingHref, warm }) {
   });
   assert.equal(dash.visible, false);
   assert.equal(dash.active, false);
+}
+
+// 1b) Warm-Ziel während Pending: Preview sichtbar, Quelle weg
+{
+  const menu = slotVisible({
+    id: "reservierungen",
+    pathname: "/dashboard",
+    pendingHref: MODULE_HOME_PATHS.reservierungen,
+    warm: true,
+  });
+  assert.equal(menu.visible, true, "Warm-Ziel preview während Pending");
+  assert.equal(menu.active, false);
 }
 
 // 2) Pathname schon am Ziel, Pending noch gesetzt (pre-paint): Cover bleibt, Dashboard weg
@@ -98,6 +107,18 @@ function slotVisible({ id, pathname, pendingHref, warm }) {
     false,
     "Dashboard bleibt versteckt solange Pending (auch bei Pathname-Revert)",
   );
+}
+
+// 2b) Ziel-Home nach Arrive, Pending noch gesetzt: sichtbar (Chrome/Chips), nicht aktiv
+{
+  const menu = slotVisible({
+    id: "reservierungen",
+    pathname: MODULE_HOME_PATHS.reservierungen,
+    pendingHref: MODULE_HOME_PATHS.reservierungen,
+    warm: true,
+  });
+  assert.equal(menu.visible, true, "Ziel nach Arrive während Pending sichtbar");
+  assert.equal(menu.active, false);
 }
 
 // 3) Pathname-Revert während Pending: kein Dashboard-Flash

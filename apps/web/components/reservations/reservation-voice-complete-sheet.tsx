@@ -24,6 +24,7 @@ import {
 } from "@/lib/reservations/parse-reservation-voice-text";
 import { RESERVATION_PARTY_SIZE_MAX_STAFF } from "@/lib/reservations/reservation-party-size";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { drawerChromeMaxWidthClassName } from "@/lib/ui/drawer-chrome";
 import { SpeechLiveCaption } from "@/lib/ui/speech-live-caption";
 import { isVoiceConfirmUtterance } from "@/lib/voice/voice-confirm-utterance";
 import { cn } from "@/lib/utils";
@@ -300,7 +301,7 @@ export function ReservationVoiceCompleteSheet({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className="mx-auto max-h-[92vh] max-w-lg">
+      <DrawerContent className={cn("mx-auto max-h-[92vh]", drawerChromeMaxWidthClassName)}>
         <DrawerHeader className="pb-2 text-left">
           <DrawerTitle className="text-xl">
             {isComplete ? "Reservierung anlegen?" : "Reservierung ergänzen"}

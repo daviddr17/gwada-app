@@ -14,6 +14,7 @@ import {
   EVENTS_FILTER_ALL,
   type EventsPlatformFilter,
 } from "@/lib/constants/events-platforms";
+import { EVENTS_FILTER_PRIVATE } from "@/lib/events/events-dashboard-filter";
 import { paginateListItems } from "@/lib/constants/list-pagination";
 import { defaultEventsPlatformFilterWithoutAll } from "@/lib/events/events-embed-platforms";
 import { EVENTS_FEED_PAGE_SIZE } from "@/lib/events/events-feed-pagination";
@@ -191,7 +192,10 @@ function EmbedEventsWidgetBody({
           <div className="mb-4">
             <EventsPlatformFilterChips
               value={resolvedFilter}
-              onChange={setPlatformFilter}
+              onChange={(next) => {
+                if (next === EVENTS_FILTER_PRIVATE) return;
+                setPlatformFilter(next);
+              }}
               availablePlatforms={availablePlatforms}
               showAllChip={showAllChip}
               allLabel={t("filterAll")}

@@ -14,6 +14,7 @@ import {
 } from "@/lib/reservations/reservation-guest-name";
 import { isValidStaffPartySize } from "@/lib/reservations/reservation-party-size";
 import {
+  buildReservationLogChanges,
   buildReservationLogDetails,
   reservationSnapshotFromPayload,
 } from "@/lib/reservations/reservation-log-build";
@@ -264,7 +265,10 @@ export async function createPublicEventInquiry(
       guestLast,
       guestCompany,
     ),
-    details: buildReservationLogDetails(null, after),
+    details: buildReservationLogDetails(
+      buildReservationLogChanges(null, after, restaurant.timezone),
+      { actorSource: "guest", summary: "Veranstaltungsanfrage" },
+    ),
   });
 
   void dispatchReservationWhatsapp(admin, data.id, "created").catch((e) => {

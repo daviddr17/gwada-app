@@ -185,7 +185,8 @@ export async function markNotificationReadServer(
 
     case "reservations_pending":
     case "reservations_change_request":
-    case "reservations_cancellation": {
+    case "reservations_cancellation":
+    case "events_inquiry": {
       if (!itemId) {
         const all = await dismissAllReservationNotifications(admin, {
           restaurantId,

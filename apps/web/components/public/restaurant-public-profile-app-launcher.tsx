@@ -241,7 +241,7 @@ function ProfileAppSheetOverlay({
   const [reservationTermsOpen, setReservationTermsOpen] = useState(false);
 
   useEffect(() => {
-    if (activeApp !== "reserve") {
+    if (activeApp !== "reserve" && activeApp !== "events") {
       setReservationTermsOpen(false);
     }
   }, [activeApp]);
@@ -748,7 +748,7 @@ function ProfileAppSheetOverlay({
           </m.div>
         </div>
       </m.div>
-      {activeApp === "reserve" && reservation ? (
+      {(activeApp === "reserve" || activeApp === "events") && reservation ? (
         <EmbedReservationTermsSheet
           open={reservationTermsOpen}
           onOpenChange={setReservationTermsOpen}
@@ -913,7 +913,22 @@ function ProfileAppContent({
           loadingFallback={<RestaurantPublicProfileModuleSkeleton variant="events" />}
           error={errors.events}
         >
-          {events ? <RestaurantPublicProfileEvents events={events} /> : null}
+          {events ? (
+            <RestaurantPublicProfileEvents
+              events={events}
+              reservation={reservation}
+              reservationLoading={loading.reservation}
+              reservationError={errors.reservation}
+              reservationTermsSheet={reservationTermsSheet}
+              onInquiryVisible={() => {
+                reportRestaurantUsageBeacon({
+                  slug: profile.slug,
+                  source: "profile",
+                  dimension: "module:event_inquiry",
+                });
+              }}
+            />
+          ) : null}
         </ModulePanel>
       </div>
     );
@@ -989,6 +1004,7 @@ export function RestaurantPublicProfileAppLauncher({
       }
       const app = apps.find((a) => a.id === appId);
       if (app?.module) void loadModule(app.module);
+      if (appId === "events") void loadModule("reservation");
       setActiveApp(appId);
       reportRestaurantUsageBeacon({
         slug: profile.slug,
@@ -1025,6 +1041,7 @@ export function RestaurantPublicProfileAppLauncher({
 
       setActiveApp(appId);
       if (app.module) void loadModule(app.module);
+      if (appId === "events") void loadModule("reservation");
       reportRestaurantUsageBeacon({
         slug: profile.slug,
         source: "profile",

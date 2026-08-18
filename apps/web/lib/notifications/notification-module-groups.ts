@@ -27,6 +27,12 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
     ],
   },
   {
+    id: "events",
+    title: "Events",
+    description: "Anfragen für private Veranstaltungen.",
+    moduleIds: ["events_inquiry"],
+  },
+  {
     id: "staff",
     title: "Mitarbeiter",
     description: "Schichten und ToDo-Listen als eigene Hinweise.",

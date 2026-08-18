@@ -15,7 +15,8 @@ type NotificationModuleAccessRule =
   | { kind: "always" }
   | { kind: "module"; prefix: ModuleCrudPrefix }
   | { kind: "staffProfile" }
-  | { kind: "staffModuleOrProfile"; prefix: ModuleCrudPrefix };
+  | { kind: "staffModuleOrProfile"; prefix: ModuleCrudPrefix }
+  | { kind: "anyModule"; prefixes: readonly ModuleCrudPrefix[] };
 
 const NOTIFICATION_MODULE_ACCESS: Record<
   NotificationModuleId,
@@ -27,6 +28,7 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   reservations_pending: { kind: "module", prefix: "reservations" },
   reservations_change_request: { kind: "module", prefix: "reservations" },
   reservations_cancellation: { kind: "module", prefix: "reservations" },
+  events_inquiry: { kind: "anyModule", prefixes: ["events", "reservations"] },
   staff_shift_start: { kind: "staffModuleOrProfile", prefix: "staff" },
   staff_shift_end: { kind: "staffModuleOrProfile", prefix: "staff" },
   staff_todo_completed: { kind: "staffModuleOrProfile", prefix: "staff_todos" },
@@ -59,6 +61,8 @@ export function isNotificationModuleVisibleForUser(
       return ctx.hasStaffProfile;
     case "staffModuleOrProfile":
       return hasModuleRead(ctx.has, rule.prefix) || ctx.hasStaffProfile;
+    case "anyModule":
+      return rule.prefixes.some((prefix) => hasModuleRead(ctx.has, prefix));
     default:
       return false;
   }

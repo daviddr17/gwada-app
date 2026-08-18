@@ -81,7 +81,7 @@ export async function createAccountingQuotation(
   sb: SupabaseClient,
   params: {
     restaurantId: string;
-    userId: string;
+    userId: string | null;
     input: AccountingSalesDocumentInput;
   },
 ): Promise<{ row: AccountingQuotationRow | null; error: string | null }> {

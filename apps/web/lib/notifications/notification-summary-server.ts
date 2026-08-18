@@ -182,7 +182,8 @@ async function buildReservationModule(
     module:
       | "reservations_pending"
       | "reservations_change_request"
-      | "reservations_cancellation";
+      | "reservations_cancellation"
+      | "events_inquiry";
   },
 ): Promise<NotificationModuleSummary> {
   const def = NOTIFICATION_MODULES[params.module];
@@ -346,6 +347,8 @@ const MODULE_BUILDERS: Record<
       ...ctx,
       module: "reservations_cancellation",
     }),
+  events_inquiry: (ctx) =>
+    buildReservationModule(ctx.sb, { ...ctx, module: "events_inquiry" }),
   staff_shift_start: (ctx) =>
     buildStaffShiftModule(ctx.sb, {
       restaurantId: ctx.restaurantId,

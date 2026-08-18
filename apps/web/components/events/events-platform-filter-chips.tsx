@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGrid } from "lucide-react";
+import { LayoutGrid, Lock } from "lucide-react";
 import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
 import {
   EVENTS_FILTER_ALL,
@@ -8,8 +8,12 @@ import {
   EVENTS_PLATFORM_LABELS,
   EVENTS_PLATFORM_ORDER,
   type EventsPlatform,
-  type EventsPlatformFilter,
 } from "@/lib/constants/events-platforms";
+import {
+  EVENTS_FILTER_PRIVATE,
+  EVENTS_FILTER_PRIVATE_LABEL,
+  type EventsDashboardFilter,
+} from "@/lib/events/events-dashboard-filter";
 import { cn } from "@/lib/utils";
 
 export function EventsPlatformFilterChips({
@@ -17,13 +21,15 @@ export function EventsPlatformFilterChips({
   onChange,
   availablePlatforms,
   showAllChip = true,
+  showPrivateChip = false,
   allLabel = EVENTS_FILTER_LABELS.all,
   disabled,
 }: {
-  value: EventsPlatformFilter;
-  onChange: (next: EventsPlatformFilter) => void;
+  value: EventsDashboardFilter;
+  onChange: (next: EventsDashboardFilter) => void;
   availablePlatforms: Set<string>;
   showAllChip?: boolean;
+  showPrivateChip?: boolean;
   allLabel?: string;
   disabled?: boolean;
 }) {
@@ -45,6 +51,24 @@ export function EventsPlatformFilterChips({
         >
           <LayoutGrid className="size-4 shrink-0" aria-hidden />
           <span>{allLabel}</span>
+        </button>
+      ) : null}
+      {showPrivateChip ? (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(EVENTS_FILTER_PRIVATE)}
+          className={cn(
+            "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+            value === EVENTS_FILTER_PRIVATE
+              ? "border-accent/50 bg-accent/15 text-foreground"
+              : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+            disabled && "pointer-events-none opacity-50",
+          )}
+          aria-pressed={value === EVENTS_FILTER_PRIVATE}
+        >
+          <Lock className="size-4 shrink-0" aria-hidden />
+          <span>{EVENTS_FILTER_PRIVATE_LABEL}</span>
         </button>
       ) : null}
       {EVENTS_PLATFORM_ORDER.filter(

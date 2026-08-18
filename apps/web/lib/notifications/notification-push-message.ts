@@ -275,6 +275,20 @@ export function buildNotificationPushText(
         details: reservationDetails(p, timeZone),
       });
     }
+    case "events_inquiry": {
+      const guest = pickString(p.guestLabel) ?? "Gast";
+      const company = pickString(p.guestCompany);
+      return buildPushMessage({
+        prefix,
+        headline: "Neue Veranstaltungs-Anfrage",
+        subject: `${prefix}Veranstaltungs-Anfrage — ${guest}`,
+        href,
+        details: detailLines([
+          company ? `Firma: ${company}` : null,
+          reservationDetails(p, timeZone),
+        ]),
+      });
+    }
     case "staff_shift_start": {
       const staffName = pickString(p.staffName) ?? "Mitarbeiter";
       const label = pickString(p.label);

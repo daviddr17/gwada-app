@@ -15,6 +15,7 @@ const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
   Record<SidebarModuleId, readonly NotificationModuleId[]>
 > = {
   reservierungen: ["reservations_pending"],
+  events: ["events_inquiry"],
   kontakte: ["messages"],
   bewertungen: ["reviews"],
   buchfuehrung: [

@@ -4,11 +4,13 @@ import type {
   NotificationItem,
   NotificationSummary,
 } from "@/lib/notifications/notification-types";
+import { privateEventOverviewHref } from "@/lib/events/private-event-href";
 
 const RESERVATION_LIVE_MODULES = new Set<NotificationModuleId>([
   "reservations_pending",
   "reservations_change_request",
   "reservations_cancellation",
+  "events_inquiry",
 ]);
 
 export function isReservationNotificationModule(
@@ -55,7 +57,10 @@ export function patchNotificationSummaryFromReservationEvent(
     id: params.referenceId,
     title: guestLabel,
     subtitle: subtitleParts.join(" · ") || modDef.label,
-    href: `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(params.referenceId)}`,
+    href:
+      params.module === "events_inquiry"
+        ? privateEventOverviewHref(params.referenceId)
+        : `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(params.referenceId)}`,
     at: startsAt,
     meta: { reservationId: params.referenceId },
   };

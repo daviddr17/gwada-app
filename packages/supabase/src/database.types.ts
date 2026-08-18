@@ -673,6 +673,56 @@ export type Database = {
           },
         ]
       }
+      event_packages: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string
+          id: string
+          kind: string
+          name: string
+          price_per_person: number
+          restaurant_id: string
+          sort_order: number
+          tax_rate_percent: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          kind: string
+          name: string
+          price_per_person: number
+          restaurant_id: string
+          sort_order?: number
+          tax_rate_percent?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          kind?: string
+          name?: string
+          price_per_person?: number
+          restaurant_id?: string
+          sort_order?: number
+          tax_rate_percent?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_packages_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gwada_review_invitations: {
         Row: {
           completed_at: string | null
@@ -2643,6 +2693,7 @@ export type Database = {
           guest_pin_hash: string | null
           guest_profile_id: string | null
           id: string
+          invoice_id: string | null
           is_walk_in: boolean
           kind: string
           notes: string | null
@@ -2650,6 +2701,7 @@ export type Database = {
           notify_whatsapp: boolean
           party_size: number
           pending_change: Json | null
+          quotation_id: string | null
           relocated_from_dining_table_id: string | null
           relocated_from_ends_at: string | null
           relocated_from_starts_at: string | null
@@ -2678,6 +2730,7 @@ export type Database = {
           guest_pin_hash?: string | null
           guest_profile_id?: string | null
           id?: string
+          invoice_id?: string | null
           is_walk_in?: boolean
           kind?: string
           notes?: string | null
@@ -2685,6 +2738,7 @@ export type Database = {
           notify_whatsapp?: boolean
           party_size?: number
           pending_change?: Json | null
+          quotation_id?: string | null
           relocated_from_dining_table_id?: string | null
           relocated_from_ends_at?: string | null
           relocated_from_starts_at?: string | null
@@ -2713,6 +2767,7 @@ export type Database = {
           guest_pin_hash?: string | null
           guest_profile_id?: string | null
           id?: string
+          invoice_id?: string | null
           is_walk_in?: boolean
           kind?: string
           notes?: string | null
@@ -2720,6 +2775,7 @@ export type Database = {
           notify_whatsapp?: boolean
           party_size?: number
           pending_change?: Json | null
+          quotation_id?: string | null
           relocated_from_dining_table_id?: string | null
           relocated_from_ends_at?: string | null
           relocated_from_starts_at?: string | null

@@ -5,6 +5,7 @@ export type EmbedAppearanceWidget =
   | "reviews"
   | "news"
   | "events"
+  | "event_inquiry"
   | "reservation"
   | "gallery";
 
@@ -46,6 +47,7 @@ export function parseEmbedAppearanceWidget(
     id === "reviews" ||
     id === "news" ||
     id === "events" ||
+    id === "event_inquiry" ||
     id === "reservation" ||
     id === "gallery"
   ) {

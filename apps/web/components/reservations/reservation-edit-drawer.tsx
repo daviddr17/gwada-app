@@ -52,7 +52,12 @@ import {
   reservationKindLabel,
   type ReservationKind,
 } from "@/lib/reservations/reservation-kind";
-import { fetchAccountingQuotations } from "@/lib/accounting/accounting-api";
+import { fetchAccountingInvoices, fetchAccountingQuotations } from "@/lib/accounting/accounting-api";
+import { PrivateEventSalesDocumentHost } from "@/components/events/private-event-sales-document-host";
+import {
+  formatReservationInvoiceJoinLabel,
+  formatReservationInvoiceOptionLabel,
+} from "@/lib/reservations/reservation-invoice-label";
 import {
   formatReservationQuotationJoinLabel,
   formatReservationQuotationOptionLabel,
@@ -63,10 +68,10 @@ import {
   replaceReservationStaffAssignees,
   reservationAssigneeStaffIds,
 } from "@/lib/supabase/reservation-staff-assignees-db";
-import type { AccountingQuotationRow } from "@/lib/types/accounting";
+import type { AccountingInvoiceRow, AccountingQuotationRow } from "@/lib/types/accounting";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
-import { hasModuleRead } from "@/lib/permissions/module-crud-permissions";
+import { hasModuleCreate, hasModuleRead } from "@/lib/permissions/module-crud-permissions";
 import { LIST_PAGE_SIZE_MAX } from "@/lib/constants/list-pagination";
 import {
   normalizeReservationGuestCompany,
@@ -204,7 +209,7 @@ function addMinutesToHm(hm: string, minutes: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-function reservationQuotationSaveErrorMessage(message: string): string {
+function reservationDocumentSaveErrorMessage(message: string): string {
   const m = message.toLowerCase();
   if (
     m.includes("reservations_quotation_id_unique") ||
@@ -212,6 +217,13 @@ function reservationQuotationSaveErrorMessage(message: string): string {
       (m.includes("duplicate") || m.includes("unique")))
   ) {
     return "Dieses Angebot ist bereits einer anderen Reservierung zugeordnet.";
+  }
+  if (
+    m.includes("reservations_invoice_id_unique") ||
+    (m.includes("invoice_id") &&
+      (m.includes("duplicate") || m.includes("unique")))
+  ) {
+    return "Diese Rechnung ist bereits einer anderen Reservierung zugeordnet.";
   }
   return message;
 }
@@ -235,6 +247,8 @@ type ReservationEditDrawerProps = {
   onSaved: () => void;
   /** Nach erfolgreichem WhatsApp-Statusversand (für Chat-Optimistic). */
   onWhatsappDispatched?: (payload: ReservationWhatsappDispatchedPayload) => void;
+  /** Art fest verdrahten (Events-Modul: immer Veranstaltung). */
+  lockKind?: ReservationKind;
 };
 
 type BuiltReservationPayload = {
@@ -250,6 +264,7 @@ type BuiltReservationPayload = {
   status_id: string;
   dining_table_id: string | null;
   quotation_id: string | null;
+  invoice_id: string | null;
   dwell_minutes: number | null;
   notify_email: boolean;
   notify_whatsapp: boolean;
@@ -266,6 +281,7 @@ export function ReservationEditDrawer({
   stackAboveInboxOverlay = false,
   onSaved,
   onWhatsappDispatched,
+  lockKind,
 }: ReservationEditDrawerProps) {
   const isEdit = Boolean(reservation);
   const isCreate = Boolean(createFor) && !reservation;
@@ -313,10 +329,17 @@ export function ReservationEditDrawer({
   const [quotationId, setQuotationId] = useState<string | null>(null);
   const [quotations, setQuotations] = useState<AccountingQuotationRow[]>([]);
   const [quotationsLoading, setQuotationsLoading] = useState(false);
+  const [invoiceId, setInvoiceId] = useState<string | null>(null);
+  const [invoices, setInvoices] = useState<AccountingInvoiceRow[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [salesDocKind, setSalesDocKind] = useState<"quotation" | "invoice" | null>(
+    null,
+  );
   const [internalNote, setInternalNote] = useState("");
   const isPrivateEvent = kind === RESERVATION_KIND_PRIVATE_EVENT;
   const { has: hasPermission } = useRestaurantPermissions();
   const canReadAccounting = hasModuleRead(hasPermission, "accounting");
+  const canCreateAccounting = hasModuleCreate(hasPermission, "accounting");
   /** Wird der Status-Benachrichtigung (Vorlage) als „Nachricht:“ angehängt. */
   const [guestNotifyMessage, setGuestNotifyMessage] = useState("");
   const [protocolRefreshKey, setProtocolRefreshKey] = useState(0);
@@ -452,27 +475,44 @@ export function ReservationEditDrawer({
       if (!open || !isPrivateEvent) {
         setQuotations([]);
         setQuotationsLoading(false);
+        setInvoices([]);
+        setInvoicesLoading(false);
       }
       return;
     }
     let cancelled = false;
     setQuotationsLoading(true);
+    setInvoicesLoading(true);
     void (async () => {
       try {
-        const res = await fetchAccountingQuotations(restaurantIdForFetch, {
-          page: 1,
-          pageSize: LIST_PAGE_SIZE_MAX,
-          sort: "voucher_date",
-          sortDir: "desc",
-        });
-        if (!cancelled) setQuotations(res.items);
+        const [qRes, iRes] = await Promise.all([
+          fetchAccountingQuotations(restaurantIdForFetch, {
+            page: 1,
+            pageSize: LIST_PAGE_SIZE_MAX,
+            sort: "voucher_date",
+            sortDir: "desc",
+          }),
+          fetchAccountingInvoices(restaurantIdForFetch, {
+            page: 1,
+            pageSize: LIST_PAGE_SIZE_MAX,
+            sort: "voucher_date",
+            sortDir: "desc",
+          }),
+        ]);
+        if (cancelled) return;
+        setQuotations(qRes.items);
+        setInvoices(iRes.items);
       } catch {
         if (!cancelled) {
           setQuotations([]);
-          toast.error("Angebote konnten nicht geladen werden.");
+          setInvoices([]);
+          toast.error("Buchhaltungsbelege konnten nicht geladen werden.");
         }
       } finally {
-        if (!cancelled) setQuotationsLoading(false);
+        if (!cancelled) {
+          setQuotationsLoading(false);
+          setInvoicesLoading(false);
+        }
       }
     })();
     return () => {
@@ -509,6 +549,27 @@ export function ReservationEditDrawer({
     return opts;
   }, [quotations, quotationId, reservation?.accounting_quotation]);
 
+  const invoiceSelectOptions = useMemo(() => {
+    const opts = invoices.map((q) => ({
+      value: q.id,
+      label: formatReservationInvoiceOptionLabel(q),
+    }));
+    if (
+      invoiceId &&
+      !opts.some((o) => o.value === invoiceId) &&
+      reservation?.accounting_invoice?.id === invoiceId
+    ) {
+      const joinLabel = formatReservationInvoiceJoinLabel(
+        reservation.accounting_invoice,
+      );
+      opts.unshift({
+        value: invoiceId,
+        label: joinLabel || "Zugeordnete Rechnung",
+      });
+    }
+    return opts;
+  }, [invoices, invoiceId, reservation?.accounting_invoice]);
+
   useEffect(() => {
     if (!open || reservation) return;
     if (!createFor) return;
@@ -539,7 +600,7 @@ export function ReservationEditDrawer({
     const justOpened = !reservationHydrateWasOpenRef.current;
     reservationHydrateWasOpenRef.current = true;
     const seedKey = reservation?.id
-      ?? `create:${createFor?.restaurantId ?? ""}:${createFor?.day ?? ""}:${createFor?.initialTimeHm ?? ""}:${createFor?.initialContactId ?? ""}:${createFor?.initialKind ?? ""}`;
+      ?? `create:${createFor?.restaurantId ?? ""}:${createFor?.day ?? ""}:${createFor?.initialTimeHm ?? ""}:${createFor?.initialContactId ?? ""}:${createFor?.initialKind ?? ""}:${lockKind ?? ""}`;
     if (!justOpened && reservationHydrateSeededKeyRef.current === seedKey) return;
     reservationHydrateSeededKeyRef.current = seedKey;
 
@@ -550,7 +611,7 @@ export function ReservationEditDrawer({
         )
       : "DE";
     if (reservation) {
-      setKind(normalizeReservationKind(reservation.kind));
+      setKind(normalizeReservationKind(lockKind ?? reservation.kind));
       setFirstName(reservationGuestFirstNameForForm(reservation.guest_first_name));
       setLastName(reservation.guest_last_name);
       setCompany(reservation.guest_company?.trim() ?? "");
@@ -587,13 +648,16 @@ export function ReservationEditDrawer({
       );
       setTableId(reservation.dining_table_id ?? "__none__");
       setQuotationId(reservation.quotation_id ?? null);
+      setInvoiceId(reservation.invoice_id ?? null);
       setInternalNote(reservationInternalNoteText(reservation.notes) ?? "");
       setAssignedStaffIds(reservationAssigneeStaffIds(reservation.assigned_staff));
       setGuestNotifyMessage("");
       return;
     }
     if (createFor) {
-      const createKind = normalizeReservationKind(createFor.initialKind);
+      const createKind = normalizeReservationKind(
+        lockKind ?? createFor.initialKind,
+      );
       setKind(createKind);
       setInternalNote("");
       setGuestNotifyMessage("");
@@ -622,6 +686,7 @@ export function ReservationEditDrawer({
       setDwellDraft(String(defaultDwellMinutes));
       setAssignedStaffIds([]);
       setQuotationId(null);
+      setInvoiceId(null);
       setTableId(
         createKind === RESERVATION_KIND_PRIVATE_EVENT
           ? "__none__"
@@ -691,6 +756,7 @@ export function ReservationEditDrawer({
     createFor?.initialGuestPhone,
     createFor?.initialGuestEmail,
     createFor?.initialKind,
+    lockKind,
     restaurantIdForFetch,
     restaurantTimeZone,
     getProfileForRestaurantId,
@@ -825,6 +891,7 @@ export function ReservationEditDrawer({
           ? tableId
           : null,
       quotation_id: isPrivateEvent ? quotationId : null,
+      invoice_id: isPrivateEvent ? invoiceId : null,
       dwell_minutes: dwellStored,
       notify_email: notifyEmail && hasEmail,
       notify_whatsapp: notifyWhatsapp && hasPhone,
@@ -860,7 +927,7 @@ export function ReservationEditDrawer({
       );
       if (error) {
         setSaving(false);
-        toast.error(reservationQuotationSaveErrorMessage(error.message));
+        toast.error(reservationDocumentSaveErrorMessage(error.message));
         return;
       }
       if (restaurantId) {
@@ -977,7 +1044,7 @@ export function ReservationEditDrawer({
       });
       if (error) {
         setSaving(false);
-        toast.error(reservationQuotationSaveErrorMessage(error.message));
+        toast.error(reservationDocumentSaveErrorMessage(error.message));
         return;
       }
       if (created) {
@@ -1200,6 +1267,7 @@ export function ReservationEditDrawer({
                     ? "Veranstaltung bearbeiten"
                     : "Reservierung bearbeiten"}
               </DrawerTitle>
+              {lockKind ? null : (
               <div
                 className="mt-2 flex flex-wrap gap-1.5"
                 role="group"
@@ -1242,6 +1310,7 @@ export function ReservationEditDrawer({
                   </button>
                 ))}
               </div>
+              )}
               <div className="space-y-1">
                 <DrawerDescription className="text-base leading-relaxed">
                   {isEdit && reservation ? (
@@ -1561,52 +1630,102 @@ export function ReservationEditDrawer({
               ) : null}
 
               {isPrivateEvent ? (
-                <DrawerFormSection title="Angebot">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">
-                      Aus Buchführung
-                    </Label>
-                    {canReadAccounting ? (
-                      <>
-                        <SearchableSelect
-                          id="res-quotation"
-                          options={quotationSelectOptions}
-                          value={quotationId}
-                          onValueChange={(v) => setQuotationId(v || null)}
-                          placeholder={
-                            quotationsLoading
-                              ? "Angebote werden geladen …"
-                              : "Kein Angebot"
-                          }
-                          searchPlaceholder="Angebot suchen …"
-                          emptyText="Keine Angebote gefunden."
-                          clearable
-                          disabled={quotationsLoading}
-                          aria-label="Angebot zuordnen"
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          Optional — Angebot aus der{" "}
-                          <Link
-                            href="/dashboard/buchfuehrung/angebote"
-                            className="underline underline-offset-2 hover:text-foreground"
-                          >
-                            Buchführung
-                          </Link>
-                          .
+                <DrawerFormSection title="Angebot & Rechnung">
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Angebot
+                      </Label>
+                      {canReadAccounting ? (
+                        <>
+                          <SearchableSelect
+                            id="res-quotation"
+                            options={quotationSelectOptions}
+                            value={quotationId}
+                            onValueChange={(v) => setQuotationId(v || null)}
+                            placeholder={
+                              quotationsLoading
+                                ? "Angebote werden geladen …"
+                                : "Kein Angebot"
+                            }
+                            searchPlaceholder="Angebot suchen …"
+                            emptyText="Keine Angebote gefunden."
+                            clearable
+                            disabled={quotationsLoading}
+                            aria-label="Angebot zuordnen"
+                          />
+                          {canCreateAccounting ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl"
+                              onClick={() => setSalesDocKind("quotation")}
+                            >
+                              Angebot erstellen
+                            </Button>
+                          ) : null}
+                        </>
+                      ) : reservation?.accounting_quotation ? (
+                        <p className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-sm">
+                          {formatReservationQuotationJoinLabel(
+                            reservation.accounting_quotation,
+                          )}
                         </p>
-                      </>
-                    ) : reservation?.accounting_quotation ? (
-                      <p className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-sm">
-                        {formatReservationQuotationJoinLabel(
-                          reservation.accounting_quotation,
-                        )}
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-muted-foreground">
-                        Kein Lesezugriff auf Buchführung — Angebot kann nicht
-                        gewählt werden.
-                      </p>
-                    )}
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground">
+                          Kein Lesezugriff auf Buchführung — Angebot kann nicht
+                          gewählt werden.
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Rechnung
+                      </Label>
+                      {canReadAccounting ? (
+                        <>
+                          <SearchableSelect
+                            id="res-invoice"
+                            options={invoiceSelectOptions}
+                            value={invoiceId}
+                            onValueChange={(v) => setInvoiceId(v || null)}
+                            placeholder={
+                              invoicesLoading
+                                ? "Rechnungen werden geladen …"
+                                : "Keine Rechnung"
+                            }
+                            searchPlaceholder="Rechnung suchen …"
+                            emptyText="Keine Rechnungen gefunden."
+                            clearable
+                            disabled={invoicesLoading}
+                            aria-label="Rechnung zuordnen"
+                          />
+                          {canCreateAccounting ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl"
+                              onClick={() => setSalesDocKind("invoice")}
+                            >
+                              Rechnung erstellen
+                            </Button>
+                          ) : null}
+                        </>
+                      ) : reservation?.accounting_invoice ? (
+                        <p className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-sm">
+                          {formatReservationInvoiceJoinLabel(
+                            reservation.accounting_invoice,
+                          )}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground">
+                          Kein Lesezugriff auf Buchführung — Rechnung kann nicht
+                          gewählt werden.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </DrawerFormSection>
               ) : (
@@ -1881,6 +2000,23 @@ export function ReservationEditDrawer({
         await executeSave(tableSharePending.payload);
       }}
     />
+    {restaurantIdForFetch && isPrivateEvent ? (
+      <PrivateEventSalesDocumentHost
+        restaurantId={restaurantIdForFetch}
+        kind={salesDocKind}
+        open={salesDocKind != null}
+        onOpenChange={(open) => {
+          if (!open) setSalesDocKind(null);
+        }}
+        onCreated={(kind, id) => {
+          if (kind === "quotation") setQuotationId(id);
+          else setInvoiceId(id);
+          toast.success(
+            kind === "quotation" ? "Angebot erstellt." : "Rechnung erstellt.",
+          );
+        }}
+      />
+    ) : null}
   </>
   );
 }

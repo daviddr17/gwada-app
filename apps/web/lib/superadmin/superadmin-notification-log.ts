@@ -89,7 +89,8 @@ export function sourceTimestampFromPayload(
   if (
     module === "reservations_pending" ||
     module === "reservations_change_request" ||
-    module === "reservations_cancellation"
+    module === "reservations_cancellation" ||
+    module === "events_inquiry"
   ) {
     return pick("startsAt");
   }
@@ -117,7 +118,8 @@ export function sourceTimestampLabel(module: string): string {
   if (
     module === "reservations_pending" ||
     module === "reservations_change_request" ||
-    module === "reservations_cancellation"
+    module === "reservations_cancellation" ||
+    module === "events_inquiry"
   ) {
     return "Termin";
   }
@@ -173,7 +175,8 @@ export function formatNotificationPayloadSummary(
   if (
     module === "reservations_pending" ||
     module === "reservations_change_request" ||
-    module === "reservations_cancellation"
+    module === "reservations_cancellation" ||
+    module === "events_inquiry"
   ) {
     const guest = typeof p.guestLabel === "string" ? p.guestLabel : "Gast";
     const party =

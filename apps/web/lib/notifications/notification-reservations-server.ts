@@ -8,6 +8,8 @@ import {
 import {
   isSelfOriginatedNotification,
 } from "@/lib/notifications/notification-self-origin";
+import { privateEventOverviewHref } from "@/lib/events/private-event-href";
+import { RESERVATION_KIND_PRIVATE_EVENT } from "@/lib/reservations/reservation-kind";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 
 async function fetchReservationGuestMessagePreviews(
@@ -56,12 +58,14 @@ const STATUS_BY_MODULE: Record<
     | "reservations_pending"
     | "reservations_change_request"
     | "reservations_cancellation"
+    | "events_inquiry"
   >,
   string
 > = {
   reservations_pending: "pending",
   reservations_change_request: "change_requested",
   reservations_cancellation: "cancelled",
+  events_inquiry: "pending",
 };
 
 async function fetchDismissedReservationIds(
@@ -104,7 +108,8 @@ export async function loadReservationNotificationItems(
     module:
       | "reservations_pending"
       | "reservations_change_request"
-      | "reservations_cancellation";
+      | "reservations_cancellation"
+      | "events_inquiry";
     limit?: number;
   },
 ) {
@@ -123,6 +128,11 @@ export async function loadReservationNotificationItems(
     .select(RESERVATION_LIST_ROW_SELECT)
     .eq("restaurant_id", params.restaurantId)
     .eq("status_id", statusId);
+
+  query =
+    params.module === "events_inquiry"
+      ? query.eq("kind", RESERVATION_KIND_PRIVATE_EVENT)
+      : query.neq("kind", RESERVATION_KIND_PRIVATE_EVENT);
 
   if (params.module === "reservations_cancellation") {
     const since = new Date(
@@ -152,7 +162,10 @@ export async function loadReservationNotificationItems(
     .map((row) => mapRawToReservationListRow(row as Record<string, unknown>))
     .filter((r) => !dismissed.has(r.id))
     .filter((r) => {
-      if (params.module === "reservations_pending") {
+      if (
+        params.module === "reservations_pending" ||
+        params.module === "events_inquiry"
+      ) {
         return !isSelfOriginatedNotification(
           params.userId,
           r.created_by_profile_id,
@@ -166,7 +179,9 @@ export async function loadReservationNotificationItems(
 
   const items = filtered.slice(0, limit).map((r) => {
       const guestLabel =
-        `${r.guest_first_name} ${r.guest_last_name}`.trim() || "Gast";
+        `${r.guest_first_name} ${r.guest_last_name}`.trim() ||
+        r.guest_company?.trim() ||
+        "Gast";
       const subtitleParts = [
         `${r.party_size} Gäste`,
         r.reservation_statuses?.name ?? "—",
@@ -174,11 +189,17 @@ export async function loadReservationNotificationItems(
       if (params.module === "reservations_change_request") {
         subtitleParts.push("Änderung prüfen");
       }
+      if (params.module === "events_inquiry" && r.guest_company?.trim()) {
+        subtitleParts.unshift(r.guest_company.trim());
+      }
       return {
         id: r.id,
         title: guestLabel,
         subtitle: subtitleParts.join(" · "),
-        href: `/dashboard/reservierungen/uebersicht?reservation=${r.id}`,
+        href:
+          params.module === "events_inquiry"
+            ? privateEventOverviewHref(r.id)
+            : `/dashboard/reservierungen/uebersicht?reservation=${r.id}`,
         at:
           params.module === "reservations_cancellation"
             ? (r.updated_at ?? r.starts_at)
@@ -191,7 +212,8 @@ export async function loadReservationNotificationItems(
     });
 
   if (
-    params.module === "reservations_pending" &&
+    (params.module === "reservations_pending" ||
+      params.module === "events_inquiry") &&
     filtered.length > 0
   ) {
     const guestMessages = await fetchReservationGuestMessagePreviews(sb, {
@@ -219,7 +241,8 @@ export async function dismissReservationNotification(
     module:
       | "reservations_pending"
       | "reservations_change_request"
-      | "reservations_cancellation";
+      | "reservations_cancellation"
+      | "events_inquiry";
   },
 ): Promise<{ error: string | null }> {
   const { error } = await sb
@@ -245,7 +268,8 @@ export async function dismissAllReservationNotifications(
     module:
       | "reservations_pending"
       | "reservations_change_request"
-      | "reservations_cancellation";
+      | "reservations_cancellation"
+      | "events_inquiry";
   },
 ): Promise<{ error: string | null }> {
   const statusCode = STATUS_BY_MODULE[params.module];
@@ -263,6 +287,11 @@ export async function dismissAllReservationNotifications(
     .select("id")
     .eq("restaurant_id", params.restaurantId)
     .eq("status_id", statusId);
+
+  query =
+    params.module === "events_inquiry"
+      ? query.eq("kind", RESERVATION_KIND_PRIVATE_EVENT)
+      : query.neq("kind", RESERVATION_KIND_PRIVATE_EVENT);
 
   if (params.module === "reservations_cancellation") {
     const since = new Date(

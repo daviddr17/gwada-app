@@ -79,6 +79,14 @@
       },
       available: true,
     },
+    event_inquiry: {
+      title: "Veranstaltungs-Anfrage",
+      minHeight: 520,
+      path: function (slug) {
+        return "/embed/veranstaltung/" + encodeURIComponent(slug);
+      },
+      available: true,
+    },
     gallery: {
       title: "Galerie",
       minHeight: 520,

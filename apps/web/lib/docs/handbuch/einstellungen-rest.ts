@@ -254,7 +254,7 @@ export const oeffentlichesProfilGuide: UserGuidePage = {
       body: "Unten auf der Profilseite erscheinen Kacheln — nur für Module, die freigeschaltet und sinnvoll befüllt sind:",
       items: [
         "News — Beiträge und Stories",
-        "Events — kommende Veranstaltungen",
+        "Events — öffentliche Termine und Tab „Anfrage“ für private Feiern",
         "Galerie — Fotos und Highlights",
         "Speisekarte — digitale Karte",
         "Reservieren — Buchungsformular",
@@ -291,6 +291,7 @@ export const oeffentlichesProfilGuide: UserGuidePage = {
           ["Bewertungen", "/embed/bewertungen/[slug]"],
           ["News", "/embed/news/[slug]"],
           ["Events", "/embed/events/[slug]"],
+          ["Veranstaltungs-Anfrage", "/embed/veranstaltung/[slug]"],
           ["Galerie", "/embed/gallery/[slug]"],
           ["Öffnungszeiten", "/embed/oeffnungszeiten/[slug]"],
         ],

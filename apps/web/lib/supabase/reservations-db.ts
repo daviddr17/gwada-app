@@ -1,10 +1,15 @@
 import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@gwada/shared";
 import {
   normalizeReservationKind,
+  RESERVATION_KIND_PRIVATE_EVENT,
   type ReservationKind,
 } from "@/lib/reservations/reservation-kind";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import {
+  mapReservationInvoiceJoin,
+  type ReservationInvoiceJoin,
+} from "@/lib/reservations/reservation-invoice-label";
 import {
   mapReservationQuotationJoin,
   type ReservationQuotationJoin,
@@ -126,6 +131,7 @@ export type ReservationListRow = {
   dwell_minutes: number | null;
   dining_table_id: string | null;
   quotation_id: string | null;
+  invoice_id: string | null;
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
@@ -139,6 +145,7 @@ export type ReservationListRow = {
   dining_tables: ReservationDiningTableJoin | null;
   assigned_staff: ReservationStaffAssigneeJoin[];
   accounting_quotation: ReservationQuotationJoin | null;
+  accounting_invoice: ReservationInvoiceJoin | null;
 };
 
 export function mapRawToReservationListRow(
@@ -161,11 +168,14 @@ export function mapRawToReservationListRow(
       | "kind"
       | "assigned_staff"
       | "quotation_id"
+      | "invoice_id"
       | "accounting_quotation"
+      | "accounting_invoice"
     >),
     kind: normalizeReservationKind(row.kind),
     quotation_id:
       typeof row.quotation_id === "string" ? row.quotation_id : null,
+    invoice_id: typeof row.invoice_id === "string" ? row.invoice_id : null,
     notes: (row.notes as string | null | undefined) ?? null,
     guest_company: (row.guest_company as string | null | undefined) ?? null,
     relocated_from_starts_at:
@@ -183,6 +193,7 @@ export function mapRawToReservationListRow(
     accounting_quotation: mapReservationQuotationJoin(
       row.accounting_quotations,
     ),
+    accounting_invoice: mapReservationInvoiceJoin(row.accounting_invoices),
   };
 }
 
@@ -208,6 +219,7 @@ export const RESERVATION_LIST_ROW_SELECT = `
       dwell_minutes,
       dining_table_id,
       quotation_id,
+      invoice_id,
       notify_email,
       notify_whatsapp,
       terms_accepted,
@@ -230,6 +242,15 @@ export const RESERVATION_LIST_ROW_SELECT = `
         restaurant_staff ( id, given_name, family_name )
       ),
       accounting_quotations (
+        id,
+        voucher_number,
+        recipient_snapshot,
+        totals,
+        currency,
+        status,
+        voucher_date
+      ),
+      accounting_invoices (
         id,
         voucher_number,
         recipient_snapshot,
@@ -322,6 +343,7 @@ export async function fetchUnconfirmedReservationsForRestaurant(
     .select(RESERVATION_LIST_ROW_SELECT)
     .eq("restaurant_id", restaurantId)
     .in("status_id", statusIds)
+    .neq("kind", RESERVATION_KIND_PRIVATE_EVENT)
     .order("starts_at", { ascending: true });
 
   if (error) {
@@ -429,6 +451,7 @@ export type ReservationUpdatePayload = {
   dining_table_id: string | null;
   /** Optional; bei Display/Public weglassen → Spalte unverändert. */
   quotation_id?: string | null;
+  invoice_id?: string | null;
   dwell_minutes: number | null;
   notify_email: boolean;
   notify_whatsapp: boolean;
@@ -470,6 +493,7 @@ export async function insertReservation(
       status_id: payload.status_id,
       dining_table_id: payload.dining_table_id,
       quotation_id: payload.quotation_id ?? null,
+      invoice_id: payload.invoice_id ?? null,
       dwell_minutes: payload.dwell_minutes,
       notify_email: payload.notify_email,
       notify_whatsapp: payload.notify_whatsapp,

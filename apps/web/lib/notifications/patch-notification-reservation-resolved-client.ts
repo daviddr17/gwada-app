@@ -5,12 +5,18 @@ import {
   shouldDecrementUnconfirmedCount,
 } from "@/lib/reservations/reservation-open-status";
 
+export function notificationModulesForOpenReservationStatus(
+  code: string,
+): NotificationModuleId[] {
+  if (code === "pending") return ["reservations_pending", "events_inquiry"];
+  if (code === "change_requested") return ["reservations_change_request"];
+  return [];
+}
+
 export function notificationModuleForOpenReservationStatus(
   code: string,
 ): NotificationModuleId | null {
-  if (code === "pending") return "reservations_pending";
-  if (code === "change_requested") return "reservations_change_request";
-  return null;
+  return notificationModulesForOpenReservationStatus(code)[0] ?? null;
 }
 
 /** Glocke: Reservierung aus pending/change_request-Modul entfernen. */
@@ -22,16 +28,19 @@ export function patchNotificationSummaryRemoveReservation(
     nextStatusCode: string;
   },
 ): NotificationSummary {
-  const moduleId = notificationModuleForOpenReservationStatus(
+  const moduleIds = notificationModulesForOpenReservationStatus(
     params.previousStatusCode,
   );
-  if (!moduleId || !isOpenReservationStatusCode(params.previousStatusCode)) {
+  if (
+    moduleIds.length === 0 ||
+    !isOpenReservationStatusCode(params.previousStatusCode)
+  ) {
     return summary;
   }
 
   const modules = summary.modules
     .map((mod) => {
-      if (mod.id !== moduleId) return mod;
+      if (!moduleIds.includes(mod.id)) return mod;
       const items = mod.items.filter((i) => i.id !== params.reservationId);
       const removed = mod.items.length - items.length;
       if (removed === 0) return mod;

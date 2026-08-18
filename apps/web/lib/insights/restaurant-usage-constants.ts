@@ -21,6 +21,7 @@ export const EMBED_USAGE_DIMENSIONS = [
   "reviews",
   "news",
   "events",
+  "event_inquiry",
   "gallery",
   "opening_hours",
 ] as const;
@@ -49,6 +50,7 @@ export const EMBED_USAGE_LABELS: Record<EmbedUsageDimension, string> = {
   reviews: "Bewertungen",
   news: "News",
   events: "Events",
+  event_inquiry: "Veranstaltungs-Anfrage",
   gallery: "Galerie",
   opening_hours: "Öffnungszeiten",
 };
@@ -59,6 +61,7 @@ export const PROFILE_MODULE_USAGE_LABELS: Record<string, string> = {
   reviews: "Bewertungen",
   news: "News",
   events: "Events",
+  event_inquiry: "Veranstaltungs-Anfrage",
   gallery: "Galerie",
   info: "Info",
 };

@@ -21,6 +21,7 @@ import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button"
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import type { DashboardCalendarDaySummary } from "@/lib/dashboard/dashboard-calendar-types";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { eventsOverviewDayHref } from "@/lib/events/private-event-href";
 import { APP_SIGNAL_COLORS } from "@/lib/ui/app-signal-colors";
 import {
   loadOpeningHoursForRestaurant,
@@ -122,6 +123,9 @@ export function DashboardCalendarDaySheet({
   const scheduleHref = day
     ? `${APP_ROUTES.mitarbeiter.schedule}?day=${encodeURIComponent(day.date)}`
     : APP_ROUTES.mitarbeiter.schedule;
+  const eventsHref = day
+    ? eventsOverviewDayHref(day.date)
+    : APP_ROUTES.events.overview;
   const newsHref = APP_ROUTES.news.overview;
   const hoursHref = APP_ROUTES.settings.openingHours;
 
@@ -215,6 +219,19 @@ export function DashboardCalendarDaySheet({
                 }
               >
                 Schichtplan
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(drawerFormFullWidthButtonClassName, "h-10")}
+                render={
+                  <AppNavLink
+                    href={eventsHref}
+                    onClick={() => onOpenChange(false)}
+                  />
+                }
+              >
+                Events
               </Button>
               <Button
                 type="button"

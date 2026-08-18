@@ -1,3 +1,4 @@
+import { isPrivateEventReservation } from "@/lib/reservations/reservation-kind";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 
 /** Query-Parameter für die Übersicht „alle unbestätigten“. */
@@ -16,8 +17,11 @@ export function reservationsUnconfirmedOverviewHref(): string {
 }
 
 export function isUnconfirmedReservation(
-  row: Pick<ReservationListRow, "reservation_statuses">,
+  row: Pick<ReservationListRow, "reservation_statuses"> & {
+    kind?: string | null;
+  },
 ): boolean {
+  if (isPrivateEventReservation(row)) return false;
   const code = row.reservation_statuses?.code ?? "";
   return (UNCONFIRMED_RESERVATION_STATUS_CODES as readonly string[]).includes(
     code,

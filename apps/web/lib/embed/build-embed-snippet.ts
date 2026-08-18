@@ -105,6 +105,14 @@ export function buildEventsEmbedSnippet(
   return buildGwadaEmbedSnippet({ widget: "events", slug, origin });
 }
 
+/** Veranstaltungs-Anfrage — privates Event / Firmenfeier / Hochzeit. */
+export function buildEventInquiryEmbedSnippet(
+  slug: string,
+  origin?: string,
+): GwadaEmbedSnippet {
+  return buildGwadaEmbedSnippet({ widget: "event_inquiry", slug, origin });
+}
+
 /** Öffnungszeiten-Widget — reguläre Zeiten, optional Küche + Sondertermine. */
 export function buildOpeningHoursEmbedSnippet(
   slug: string,

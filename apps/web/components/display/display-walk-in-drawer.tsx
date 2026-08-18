@@ -97,6 +97,7 @@ function mapToListRow(
     ends_at: r.ends_at,
     dining_table_id: r.dining_table_id,
     quotation_id: null,
+    invoice_id: null,
     dwell_minutes: null,
     notify_email: false,
     notify_whatsapp: false,
@@ -125,6 +126,7 @@ function mapToListRow(
       : null,
     assigned_staff: [],
     accounting_quotation: null,
+    accounting_invoice: null,
   };
 }
 

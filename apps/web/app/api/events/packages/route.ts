@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   }
 
   const parsed = parseEventPackageWriteFields(body);
-  if (parsed.error) {
+  if (parsed.error !== null) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 

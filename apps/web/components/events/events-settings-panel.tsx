@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
+import { toast } from "sonner";
 import { EmbedProfilePlatformToggles } from "@/components/embed/embed-profile-platform-toggles";
 import { EventsMenusSettings } from "@/components/events/events-menus-settings";
 import { EventsPackagesSettings } from "@/components/events/events-packages-settings";
@@ -71,30 +72,66 @@ export function EventsSettingsPanel() {
     let cancelled = false;
     void (async () => {
       setLoading(true);
-      const params = new URLSearchParams({ restaurantId });
-      const [eventsRes, newsSettingsRes, channelsRes] = await Promise.all([
-        fetch(`/api/events/settings?${params}`),
-        fetch(`/api/news/settings?${params}`),
-        fetch(`/api/news/whatsapp-channels?${params}`),
-      ]);
-      const eventsData = (await eventsRes.json()) as { settings?: EventsSettings };
-      const newsSettingsData = (await newsSettingsRes.json()) as {
-        settings?: { whatsapp_channel_ids?: string[] };
-      };
-      const channelsData = (await channelsRes.json()) as {
-        channels?: WahaChannelOption[];
-      };
-      if (cancelled) return;
-      if (eventsData.settings) {
-        setSettings(eventsData.settings);
-        setSavedSettings(eventsData.settings);
+      try {
+        const params = new URLSearchParams({ restaurantId });
+        const [eventsRes, newsSettingsRes] = await Promise.all([
+          fetch(`/api/events/settings?${params}`),
+          fetch(`/api/news/settings?${params}`),
+        ]);
+        const eventsData = (await eventsRes.json().catch(() => ({}))) as {
+          settings?: EventsSettings;
+        };
+        const newsSettingsData = (await newsSettingsRes.json().catch(() => ({}))) as {
+          settings?: { whatsapp_channel_ids?: string[] };
+        };
+        if (cancelled) return;
+        if (eventsRes.ok && eventsData.settings) {
+          setSettings(eventsData.settings);
+          setSavedSettings(eventsData.settings);
+        } else if (!eventsRes.ok) {
+          toast.error("Einstellungen konnten nicht geladen werden.");
+        }
+        setNewsWhatsappChannelIds(
+          newsSettingsData.settings?.whatsapp_channel_ids ?? [],
+        );
+      } catch {
+        if (!cancelled) {
+          toast.error("Einstellungen konnten nicht geladen werden.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setNewsWhatsappChannelIds(newsSettingsData.settings?.whatsapp_channel_ids ?? []);
-      setWhatsappChannels(channelsData.channels ?? []);
-      setLoading(false);
     })();
     return () => {
       cancelled = true;
+    };
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 4_000);
+    void (async () => {
+      try {
+        const params = new URLSearchParams({ restaurantId });
+        const res = await fetch(`/api/news/whatsapp-channels?${params}`, {
+          signal: controller.signal,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          channels?: WahaChannelOption[];
+        };
+        if (!cancelled) setWhatsappChannels(data.channels ?? []);
+      } catch {
+        if (!cancelled) setWhatsappChannels([]);
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
   }, [restaurantId]);
 
@@ -166,112 +203,115 @@ export function EventsSettingsPanel() {
 
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
-  if (loading || showSkeleton) {
-    return (
-      <SkeletonCardFrame className="rounded-2xl border border-border/50 p-6 shadow-card">
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="mt-4 h-10 w-full" />
-      </SkeletonCardFrame>
-    );
-  }
+
+  const embedPending = loading || showSkeleton;
 
   return (
     <div className="space-y-6 pb-24">
       <EventsMenusSettings restaurantId={restaurantId} />
       <EventsPackagesSettings restaurantId={restaurantId} />
 
-      <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
-        <div>
-          <h2 className="text-base font-semibold">WhatsApp Kanal</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Event-Ankündigungen nutzen denselben WhatsApp-Kanal wie News.
-          </p>
-        </div>
-        <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-3">
-          <p className="text-sm font-medium">{newsWhatsappSelectionLabel}</p>
-          <p className="text-xs text-muted-foreground">
-            {whatsappConnected
-              ? "Kanal-Auswahl und Anlegen erfolgen in den News-Einstellungen."
-              : "WhatsApp zuerst unter Einstellungen → Integrationen verbinden, danach Kanal in News hinterlegen."}
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            render={
-              <AppNavLink href="/dashboard/news/einstellungen" prefetch={false} />
-            }
-            nativeButton={false}
-            disabled={connectorsLoading}
-          >
-            In News-Einstellungen ändern
-            <ArrowUpRight className="size-4" aria-hidden />
-          </Button>
-        </div>
-      </section>
+      {embedPending ? (
+        <SkeletonCardFrame className="rounded-2xl border border-border/50 p-6 shadow-card">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="mt-4 h-10 w-full" />
+        </SkeletonCardFrame>
+      ) : (
+        <>
+          <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
+            <div>
+              <h2 className="text-base font-semibold">WhatsApp Kanal</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Event-Ankündigungen nutzen denselben WhatsApp-Kanal wie News.
+              </p>
+            </div>
+            <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-3">
+              <p className="text-sm font-medium">{newsWhatsappSelectionLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                {whatsappConnected
+                  ? "Kanal-Auswahl und Anlegen erfolgen in den News-Einstellungen."
+                  : "WhatsApp zuerst unter Einstellungen → Integrationen verbinden, danach Kanal in News hinterlegen."}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl"
+                render={
+                  <AppNavLink href="/dashboard/news/einstellungen" prefetch={false} />
+                }
+                nativeButton={false}
+                disabled={connectorsLoading}
+              >
+                In News-Einstellungen ändern
+                <ArrowUpRight className="size-4" aria-hidden />
+              </Button>
+            </div>
+          </section>
 
-      <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
-        <div>
-          <h2 className="text-base font-semibold">{publicSurfaceProfileAndEmbedTitle}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {publicSurfaceProfileAndEmbedDescription}
-          </p>
-        </div>
-        <div className="space-y-1">
-          <Label>Standard-Ansicht in der Einbindung</Label>
-          <p className="text-sm text-foreground">Timeline</p>
-          <p className="text-xs text-muted-foreground">
-            Chronologische Darstellung mit Datumsspalte und kompaktem Vorschaubild — im
-            Dashboard und in der Website-Einbindung identisch.
-          </p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="events-embed-max">Max. Events in Einbindung</Label>
-          <Input
-            id="events-embed-max"
-            type="number"
-            min={1}
-            max={100}
-            value={settings.embed_max_items}
-            onChange={(e) =>
-              setSettings((s) => ({
-                ...s,
-                embed_max_items: Number(e.target.value) || 24,
-              }))
-            }
-            className="max-w-[8rem]"
-          />
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <Label htmlFor="events-embed-all">Chip „Alle“ anzeigen</Label>
-          <Switch
-            id="events-embed-all"
-            checked={settings.embed_show_all_filter}
-            onCheckedChange={(checked) =>
-              setSettings((s) => ({ ...s, embed_show_all_filter: checked }))
-            }
-          />
-        </div>
-        <EmbedProfilePlatformToggles
-          platforms={embedPlatformToggleItems}
-          values={settings.embed_platforms}
-          onChange={(embed_platforms) =>
-            setSettings((s) => ({ ...s, embed_platforms }))
-          }
-        />
-      </section>
+          <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
+            <div>
+              <h2 className="text-base font-semibold">{publicSurfaceProfileAndEmbedTitle}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {publicSurfaceProfileAndEmbedDescription}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label>Standard-Ansicht in der Einbindung</Label>
+              <p className="text-sm text-foreground">Timeline</p>
+              <p className="text-xs text-muted-foreground">
+                Chronologische Darstellung mit Datumsspalte und kompaktem Vorschaubild — im
+                Dashboard und in der Website-Einbindung identisch.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="events-embed-max">Max. Events in Einbindung</Label>
+              <Input
+                id="events-embed-max"
+                type="number"
+                min={1}
+                max={100}
+                value={settings.embed_max_items}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    embed_max_items: Number(e.target.value) || 24,
+                  }))
+                }
+                className="max-w-[8rem]"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="events-embed-all">Chip „Alle“ anzeigen</Label>
+              <Switch
+                id="events-embed-all"
+                checked={settings.embed_show_all_filter}
+                onCheckedChange={(checked) =>
+                  setSettings((s) => ({ ...s, embed_show_all_filter: checked }))
+                }
+              />
+            </div>
+            <EmbedProfilePlatformToggles
+              platforms={embedPlatformToggleItems}
+              values={settings.embed_platforms}
+              onChange={(embed_platforms) =>
+                setSettings((s) => ({ ...s, embed_platforms }))
+              }
+            />
+          </section>
 
-      <SettingsStickySaveBar show={dirty}>
-        <Button
-          type="button"
-          className={settingsAccentSaveButtonClassName}
-          disabled={saving || !dirty}
-          onClick={() => void save()}
-        >
-          Speichern
-        </Button>
-      </SettingsStickySaveBar>
+          <SettingsStickySaveBar show={dirty}>
+            <Button
+              type="button"
+              className={settingsAccentSaveButtonClassName}
+              disabled={saving || !dirty}
+              onClick={() => void save()}
+            >
+              Speichern
+            </Button>
+          </SettingsStickySaveBar>
+        </>
+      )}
     </div>
   );
 }

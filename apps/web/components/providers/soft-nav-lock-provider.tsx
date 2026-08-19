@@ -18,6 +18,7 @@ import {
   beginSoftNavFlight,
   endSoftNavFlight,
 } from "@/lib/navigation/soft-nav-flight";
+import { isSoftNavPendingArrived } from "@/lib/navigation/module-home-keep-alive";
 
 type SoftNavLockValue = {
   tryAcquireNavLock: (
@@ -87,7 +88,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         const target = pendingTargetRef.current;
         const atTarget =
           target != null &&
-          normalizeNavHref(pathnameRef.current) === target;
+          isSoftNavPendingArrived(pathnameRef.current, target);
         if (raw && target && !atTarget && !failsafeRetriedRef.current) {
           // Ein Retry statt Snap-back auf das Quell-Modul.
           failsafeRetriedRef.current = true;
@@ -107,7 +108,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const target = pendingTargetRef.current;
     if (target == null) return;
-    if (normalizeNavHref(pathname) !== target) return;
+    if (!isSoftNavPendingArrived(pathname, target)) return;
 
     let raf2: number | null = null;
     const raf1 = window.requestAnimationFrame(() => {

@@ -94,6 +94,23 @@ export function isWarmModuleHomePending(
   return id != null && warmIds.has(id);
 }
 
+/**
+ * Soft-Nav-Ziel erreicht — inkl. Home-Aliase
+ * (`/dashboard/events` Redirect → `/dashboard/events/uebersicht`).
+ * Unterrouten (Einstellungen, Statistiken, …) nur bei exaktem Pfad.
+ */
+export function isSoftNavPendingArrived(
+  pathname: string,
+  pendingTarget: string,
+): boolean {
+  const path = normalizePath(pathname);
+  const dest = normalizePath(pendingTarget);
+  if (path === dest) return true;
+  const pathHome = matchModuleHomeId(path);
+  const destHome = matchModuleHomeId(dest);
+  return pathHome != null && pathHome === destHome;
+}
+
 export type ModuleHomeSlotVisibility = {
   warm: boolean;
   visible: boolean;

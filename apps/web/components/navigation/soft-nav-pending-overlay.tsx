@@ -8,6 +8,7 @@ import { AccountingListScreenSkeleton } from "@/components/accounting/accounting
 import { DocumentsOverviewTableSkeleton } from "@/components/documents/documents-overview-skeleton";
 import { InventoryScreenSkeleton } from "@/components/inventory/inventory-screen-skeleton";
 import { MenuOverviewSkeleton } from "@/components/menu/menu-overview-skeleton";
+import { EventsFeedSkeleton } from "@/components/events/events-feed-skeleton";
 import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
 import { ReservationsOverviewSkeleton } from "@/components/reservations/reservations-overview-skeleton";
 import { DashboardHomePendingSkeleton } from "@/components/dashboard/dashboard-home-pending-skeleton";
@@ -23,6 +24,7 @@ import { useAppModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useModuleHomeKeepAliveOptional } from "@/lib/contexts/module-home-keep-alive-context";
 import { SIDEBAR_MODULE_DEFINITIONS } from "@/lib/constants/sidebar-modules";
 import { ContactConversationsListSkeleton } from "@/components/contacts/contact-conversations-list-skeleton";
+import { isSoftNavPendingArrived } from "@/lib/navigation/module-home-keep-alive";
 
 /**
  * Sofortiges Modul-Skeleton über dem Scroll-Bereich — Sibling zu {children},
@@ -69,6 +71,14 @@ function skeletonForHref(href: string): ReactNode {
     return <AccountingListScreenSkeleton columnCount={6} />;
   }
   if (path.startsWith("/dashboard/news")) return <NewsFeedSkeleton />;
+  if (
+    path.startsWith("/dashboard/events/einstellungen") ||
+    path.startsWith("/dashboard/events/einbinden") ||
+    path.startsWith("/dashboard/events/statistiken")
+  ) {
+    return <GenericModulePendingSkeleton />;
+  }
+  if (path.startsWith("/dashboard/events")) return <EventsFeedSkeleton />;
   if (path.startsWith("/dashboard/checklisten")) {
     return <StaffTodosTableSkeleton />;
   }
@@ -121,7 +131,7 @@ export function SoftNavPendingOverlay() {
     prevTitleRef.current = null;
     if (!target || restore == null) return;
     // Navigation erfolgreich — Titel halten (RegisterModuleChrome / Unmount-Race).
-    if (normalizeNavHref(pathname) === target) {
+    if (isSoftNavPendingArrived(pathname, target)) {
       const title = titleForHref(target);
       if (title) {
         setChrome((prev) =>

@@ -8,6 +8,7 @@ const MODULE_HOME_PATHS = {
   dashboard: "/dashboard",
   reservierungen: "/dashboard/reservierungen/uebersicht",
   nachrichten: "/dashboard/kontakte/nachrichten",
+  events: "/dashboard/events/uebersicht",
 };
 
 function normalizeNavHref(href) {
@@ -21,6 +22,9 @@ function matchHome(pathname) {
   if (path === MODULE_HOME_PATHS.dashboard) return "dashboard";
   if (path === MODULE_HOME_PATHS.reservierungen) return "reservierungen";
   if (path === MODULE_HOME_PATHS.nachrichten) return "nachrichten";
+  if (path === MODULE_HOME_PATHS.events || path === "/dashboard/events") {
+    return "events";
+  }
   return null;
 }
 
@@ -32,7 +36,12 @@ function shouldShowPendingCover({ pendingHref, pendingToWarmHome }) {
 
 function shouldClearPendingOnPathname({ pendingTarget, pathname }) {
   if (pendingTarget == null) return false;
-  return normalizeNavHref(pathname) === pendingTarget;
+  const path = normalizeNavHref(pathname);
+  const dest = normalizeNavHref(pendingTarget);
+  if (path === dest) return true;
+  const a = matchHome(path);
+  const b = matchHome(dest);
+  return a != null && a === b;
 }
 
 function slotVisible({ id, pathname, pendingHref, warm }) {
@@ -174,6 +183,26 @@ function slotVisible({ id, pathname, pendingHref, warm }) {
       pathname: "/dashboard",
     }),
     false,
+  );
+}
+
+// 7) Events-Root Redirect: Pending auf /dashboard/events gilt auf Übersicht als angekommen
+{
+  assert.equal(
+    shouldClearPendingOnPathname({
+      pendingTarget: "/dashboard/events",
+      pathname: "/dashboard/events/uebersicht",
+    }),
+    true,
+    "Events-Root-Redirect räumt Pending",
+  );
+  assert.equal(
+    shouldClearPendingOnPathname({
+      pendingTarget: "/dashboard/events",
+      pathname: "/dashboard/events/einstellungen",
+    }),
+    false,
+    "Events-Einstellungen ist kein Home-Alias",
   );
 }
 

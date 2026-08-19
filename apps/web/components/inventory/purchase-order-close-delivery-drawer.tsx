@@ -16,6 +16,7 @@ import {
   DrawerFormSection,
 } from "@/components/ui/drawer-form-section";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { isLineDeliveryResolved } from "@/lib/inventory/purchase-order-line-delivery";
 import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import type { PurchaseOrder, PurchaseOrderLine } from "@/lib/types/purchase-order";
@@ -36,6 +37,7 @@ type PurchaseOrderCloseDeliveryDrawerProps = {
   unitLabelForLine: (line: PurchaseOrderLine) => string;
   onConfirm: (
     exceptions: PurchaseOrderCloseDeliveryException[],
+    options: { skipStock: boolean },
   ) => void | Promise<void>;
 };
 
@@ -52,6 +54,7 @@ export function PurchaseOrderCloseDeliveryDrawer({
     {},
   );
   const [pending, setPending] = useState(false);
+  const [skipStock, setSkipStock] = useState(false);
 
   const unresolvedLines = useMemo(
     () => (order ? order.lines.filter((l) => !isLineDeliveryResolved(l)) : []),
@@ -71,6 +74,7 @@ export function PurchaseOrderCloseDeliveryDrawer({
     setNotDeliveredIds([]);
     setPartialIds([]);
     setPartialQtyById({});
+    setSkipStock(false);
     setPending(false);
   });
 
@@ -135,7 +139,7 @@ export function PurchaseOrderCloseDeliveryDrawer({
           ),
         })),
       ];
-      await onConfirm(exceptions);
+      await onConfirm(exceptions, { skipStock });
     } finally {
       setPending(false);
     }
@@ -259,6 +263,27 @@ export function PurchaseOrderCloseDeliveryDrawer({
                     ))}
                   </div>
                 ) : null}
+              </div>
+            </DrawerFormSection>
+
+            <DrawerFormSection title="Bestand">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-0.5">
+                  <Label htmlFor="po-close-skip-stock">
+                    Bestand nicht anpassen
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Aktuellen Lagerbestand belassen — z. B. wenn du die Lieferung
+                    schon gezählt hast und die Bestellung nur nachträglich
+                    abhakst.
+                  </p>
+                </div>
+                <Switch
+                  id="po-close-skip-stock"
+                  checked={skipStock}
+                  disabled={pending}
+                  onCheckedChange={(checked) => setSkipStock(checked === true)}
+                />
               </div>
             </DrawerFormSection>
           </DrawerFormScrollArea>

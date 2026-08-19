@@ -586,7 +586,10 @@ export function PurchaseOrdersScreen() {
   );
 
   const handleCloseWithDeliveries = useCallback(
-    async (exceptions: PurchaseOrderCloseDeliveryException[]) => {
+    async (
+      exceptions: PurchaseOrderCloseDeliveryException[],
+      options: { skipStock: boolean },
+    ) => {
       const order = closeDeliveryOrder;
       if (!order) return;
 
@@ -600,17 +603,20 @@ export function PurchaseOrdersScreen() {
         return;
       }
 
-      const stockOk = await applyDeliveryStockDeltas(
-        result.stockDeltas.map((d) => ({
-          ingredientId: d.ingredientId,
-          delta: d.delta,
-          unitId: d.unitId,
-          unitLabel: d.unitLabel,
-          orderId: order.id,
-          supplierName: supplierNameForOrder(order),
-        })),
-        actor,
-      );
+      const skipStock = options.skipStock === true;
+      const stockOk = skipStock
+        ? true
+        : await applyDeliveryStockDeltas(
+            result.stockDeltas.map((d) => ({
+              ingredientId: d.ingredientId,
+              delta: d.delta,
+              unitId: d.unitId,
+              unitLabel: d.unitLabel,
+              orderId: order.id,
+              supplierName: supplierNameForOrder(order),
+            })),
+            actor,
+          );
       if (!stockOk) {
         toast.error(
           "Lieferung gespeichert, aber Bestand konnte nicht vollständig angepasst werden.",
@@ -620,8 +626,16 @@ export function PurchaseOrdersScreen() {
           (l) => !isLineDeliveryResolved(l),
         ).length;
         const deliveredCount = openCount - exceptions.length;
-        const stockSum = result.stockDeltas.reduce((s, d) => s + d.delta, 0);
-        if (exceptions.length === 0) {
+        const stockSum = skipStock
+          ? 0
+          : result.stockDeltas.reduce((s, d) => s + d.delta, 0);
+        if (skipStock) {
+          toast.success(
+            exceptions.length === 0
+              ? "Alles geliefert – Bestand unverändert."
+              : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand unverändert.`,
+          );
+        } else if (exceptions.length === 0) {
           toast.success(
             stockSum > 0
               ? `Alles geliefert – Bestand +${stockSum}.`

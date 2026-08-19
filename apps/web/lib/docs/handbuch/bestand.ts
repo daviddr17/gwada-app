@@ -61,7 +61,7 @@ export const bestandGuide: UserGuidePage = {
           ["Zeitraum: Vergangene Bestellungen", "Abgeschlossene Bestellungen"],
           ["Lieferant / Produktionsstelle", "Filter auf Bestellliste"],
           ["Protokoll", "Wer hat wann welche Menge geändert"],
-          ["Schließen", "Bestellung abschließen (Einkauf erledigt)"],
+          ["Abschließen", "Offene Positionen als geliefert buchen; optional Bestand nicht anpassen (nachträgliches Abhaken)"],
           ["Wieder öffnen", "Abgeschlossene Bestellung reaktivieren"],
         ],
       },

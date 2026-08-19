@@ -19,7 +19,7 @@
     "start": "pnpm --filter web start",
     "start:live": "pnpm --filter web start:live",
     "lint": "pnpm --filter web lint",
-    "test:keep-alive-nav": "node scripts/test-module-home-keep-alive-nav.mjs && node scripts/audit-module-home-keep-alive-nav.mjs && node scripts/simulate-sidebar-soft-nav-keepalive.mjs",
+    "test:keep-alive-nav": "node scripts/test-legacy-migrate-once.mjs && node scripts/test-module-home-keep-alive-nav.mjs && node scripts/audit-module-home-keep-alive-nav.mjs && node scripts/simulate-sidebar-soft-nav-keepalive.mjs",
     "test:keep-alive-nav:e2e": "dotenv -e .env.development -- node scripts/e2e-sidebar-soft-nav-keepalive.mjs",
     "test:keep-alive-nav:e2e:mobile": "GWADA_E2E_MOBILE=1 dotenv -e .env.development -- node scripts/e2e-sidebar-soft-nav-keepalive.mjs",
     "test:keep-alive-nav:e2e:mobile-menu-close": "dotenv -e .env.development -- node scripts/e2e-mobile-menu-keepalive-close.mjs",

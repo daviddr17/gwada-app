@@ -13,8 +13,6 @@ import {
 import { scheduleModuleSubnavRoutePrefetches } from "@/lib/hooks/module-subnav-route-prefetch";
 import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
-import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { cn } from "@/lib/utils";
 
 export type ModuleSubnavItem = {
@@ -64,7 +62,7 @@ export function ModuleChipNav({
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const { restaurantId } = useWorkspaceRestaurantUuid();
   const prefetchTimeoutsRef = useRef<number[]>([]);
 
   useLayoutEffect(() => {
@@ -74,9 +72,7 @@ export function ModuleChipNav({
     prefetchTimeoutsRef.current = scheduleModuleSubnavRoutePrefetches(
       router,
       queryClient,
-      workspaceReady && restaurantId && isUuidRestaurantId(restaurantId)
-        ? restaurantId
-        : null,
+      restaurantId,
       items,
       pathname,
     );
@@ -86,21 +82,13 @@ export function ModuleChipNav({
       }
       prefetchTimeoutsRef.current = [];
     };
-  }, [items, pathname, queryClient, restaurantId, router, workspaceReady]);
+  }, [items, pathname, queryClient, restaurantId, router]);
 
   const warmOnIntent = useCallback(
     (href: string) => {
-      if (
-        !workspaceReady ||
-        !restaurantId ||
-        !isUuidRestaurantId(restaurantId)
-      ) {
-        prefetchAppModuleHref(router, href);
-        return;
-      }
       warmModuleRouteIntent(router, queryClient, restaurantId, href);
     },
-    [queryClient, restaurantId, router, workspaceReady],
+    [queryClient, restaurantId, router],
   );
 
   return (

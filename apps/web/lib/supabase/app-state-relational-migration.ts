@@ -38,12 +38,45 @@ import type { PurchaseOrder, PurchaseOrdersPersistenceV1 } from "@/lib/types/pur
 
 const MENU_STORAGE_KEY = "gwada-menu-v1";
 
+const legacyMigrateAttempted = new Set<string>();
+
+export type LegacyRelationalMigrateOptions = {
+  /** Caller hat die Tabelle schon leer geladen — kein zweites Full-SELECT. */
+  skipExistingCheck?: boolean;
+};
+
+/** Ein Versuch pro Key und Session (leeres Restaurant nicht bei jedem Fetch neu migrieren). */
+export function takeLegacyMigrateAttempt(key: string): boolean {
+  if (legacyMigrateAttempted.has(key)) return false;
+  legacyMigrateAttempted.add(key);
+  return true;
+}
+
+/**
+ * Erst laden, nur bei leerer Tabelle einmal Legacy-Migrate.
+ * Vermeidet das bisherige migrate→load-Doppel (Speisekarte ~2× Full-Query).
+ */
+export async function loadRelationalOrLegacyMigrate<T>(
+  attemptKey: string,
+  load: () => Promise<T[] | null>,
+  migrateEmpty: () => Promise<void>,
+): Promise<T[] | null> {
+  const first = await load();
+  if (first && first.length > 0) return first;
+  if (!takeLegacyMigrateAttempt(attemptKey)) return first;
+  await migrateEmpty();
+  return load();
+}
+
 /** Einmalige Übernahme aus `restaurant_app_state`, wenn relationale Tabellen leer sind. */
 export async function migrateMenuItemsFromLegacyAppStateIfEmpty(
   restaurantId: string,
+  options?: LegacyRelationalMigrateOptions,
 ): Promise<void> {
-  const existing = await loadMenuItemsRelational();
-  if (existing && existing.length > 0) return;
+  if (!options?.skipExistingCheck) {
+    const existing = await loadMenuItemsRelational();
+    if (existing && existing.length > 0) return;
+  }
 
   const legacyRaw = await readLegacyRestaurantAppStatePayload(MENU_STORAGE_KEY);
   if (!Array.isArray(legacyRaw) || legacyRaw.length === 0) return;
@@ -62,9 +95,12 @@ export async function migrateMenuItemsFromLegacyAppStateIfEmpty(
 export async function migrateMenuMainCategoriesIfEmpty(
   restaurantId: string,
   fallback: MenuMainCategoryDefinition[],
+  options?: LegacyRelationalMigrateOptions,
 ): Promise<void> {
-  const existing = await loadMenuMainCategoriesRelational(restaurantId);
-  if (existing && existing.length > 0) return;
+  if (!options?.skipExistingCheck) {
+    const existing = await loadMenuMainCategoriesRelational(restaurantId);
+    if (existing && existing.length > 0) return;
+  }
 
   for (const row of fallback) {
     if (typeof row.name !== "string") continue;
@@ -75,9 +111,12 @@ export async function migrateMenuMainCategoriesIfEmpty(
 export async function migrateMenuCategoriesFromLegacyAppStateIfEmpty(
   restaurantId: string,
   fallback: MenuCategoryDefinition[],
+  options?: LegacyRelationalMigrateOptions,
 ): Promise<void> {
-  const existing = await loadMenuCategoriesRelational(restaurantId);
-  if (existing && existing.length > 0) return;
+  if (!options?.skipExistingCheck) {
+    const existing = await loadMenuCategoriesRelational(restaurantId);
+    if (existing && existing.length > 0) return;
+  }
 
   const mainRows = await loadMenuMainCategoriesRelational(restaurantId);
   const defaultMainId =
@@ -120,9 +159,12 @@ export async function migrateMenuTaxonomyFromLegacyAppStateIfEmpty(
   storageKey: string,
   restaurantId: string,
   fallback: MenuTaxonomyDefinition[],
+  options?: LegacyRelationalMigrateOptions,
 ): Promise<void> {
-  const existing = await loadMenuTaxonomyRelational(table);
-  if (existing && existing.length > 0) return;
+  if (!options?.skipExistingCheck) {
+    const existing = await loadMenuTaxonomyRelational(table);
+    if (existing && existing.length > 0) return;
+  }
 
   const legacyRaw = await readLegacyRestaurantAppStatePayload(storageKey);
   const legacy =
@@ -145,9 +187,12 @@ export async function migrateMenuTaxonomyFromLegacyAppStateIfEmpty(
 export async function migrateIngredientsFromLegacyAppStateIfEmpty(
   restaurantId: string,
   ingredients: Ingredient[],
+  options?: LegacyRelationalMigrateOptions,
 ): Promise<void> {
-  const existing = await loadIngredientsRelational();
-  if (existing && existing.length > 0) return;
+  if (!options?.skipExistingCheck) {
+    const existing = await loadIngredientsRelational();
+    if (existing && existing.length > 0) return;
+  }
 
   const legacyRaw = await readLegacyRestaurantAppStatePayload(INGREDIENT_STORAGE_KEY);
   if (!Array.isArray(legacyRaw) || legacyRaw.length === 0) {
@@ -165,9 +210,12 @@ export async function migrateIngredientsFromLegacyAppStateIfEmpty(
 
 export async function migratePurchaseOrdersFromLegacyAppStateIfEmpty(
   restaurantId: string,
+  options?: LegacyRelationalMigrateOptions,
 ): Promise<void> {
-  const existing = await loadPurchaseOrdersRelational();
-  if (existing && existing.length > 0) return;
+  if (!options?.skipExistingCheck) {
+    const existing = await loadPurchaseOrdersRelational();
+    if (existing && existing.length > 0) return;
+  }
 
   const legacyRaw = await readLegacyRestaurantAppStatePayload(PURCHASE_ORDERS_STORAGE_KEY);
   if (!legacyRaw || typeof legacyRaw !== "object" || Array.isArray(legacyRaw)) {

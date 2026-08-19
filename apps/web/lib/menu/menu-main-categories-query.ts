@@ -4,7 +4,7 @@ import {
   MAIN_CATEGORY_STORAGE_KEY,
   DEFAULT_MAIN_CATEGORIES,
 } from "@/lib/constants/main-categories";
-import { migrateMenuMainCategoriesIfEmpty } from "@/lib/supabase/app-state-relational-migration";
+import { loadRelationalOrLegacyMigrate, migrateMenuMainCategoriesIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import { loadMenuMainCategoriesRelational } from "@/lib/supabase/menu-db";
 import {
   getWorkspaceRestaurantId,
@@ -59,10 +59,16 @@ export async function fetchMenuMainCategoriesForRestaurant(): Promise<
 > {
   const rid = await getWorkspaceRestaurantId();
   const seed = defaultMenuMainCategories();
-  if (rid) {
-    await migrateMenuMainCategoriesIfEmpty(rid, seed);
-  }
-  const rows = await loadMenuMainCategoriesRelational(rid);
+  const rows = rid
+    ? await loadRelationalOrLegacyMigrate(
+        `menu-main:${rid}`,
+        () => loadMenuMainCategoriesRelational(rid),
+        () =>
+          migrateMenuMainCategoriesIfEmpty(rid, seed, {
+            skipExistingCheck: true,
+          }),
+      )
+    : await loadMenuMainCategoriesRelational(rid);
   if (rows && rows.length > 0) {
     const next = rows.map(normalizeMainCategory);
     mirrorWorkspaceJsonLocal(MAIN_CATEGORY_STORAGE_KEY, next);

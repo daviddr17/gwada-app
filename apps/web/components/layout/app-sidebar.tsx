@@ -5,7 +5,7 @@ import Link from "next/link";
 import { SidebarModuleUpsellOverlay } from "@/components/billing/sidebar-module-upsell-overlay";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuthLogoutTransition } from "@/components/auth/auth-logout-transition-provider";
 import {
   normalizeNavHref,
@@ -64,8 +64,6 @@ import {
   type SidebarModuleId,
 } from "@/lib/constants/sidebar-modules";
 import { useSidebarModuleOrder } from "@/lib/contexts/sidebar-module-order-context";
-import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
-import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 import { formatSidebarMenuLabel } from "@/lib/navigation/format-sidebar-menu-label";
 import {
   sidebarChangelogUnreadCount,
@@ -124,7 +122,6 @@ function restaurantInitials(name: string): string {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { pendingHref } = useSoftNavLock();
   const { logout, isLoggingOut } = useAuthLogoutTransition();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -180,12 +177,6 @@ export function AppSidebar() {
   const headerTooltip = userFullName
     ? `${userFullName} · ${displayName || "Restaurant"}`
     : displayName || "Restaurant";
-
-  useEffect(() => {
-    for (const href of APP_MODULE_PRIORITY_ROUTES) {
-      prefetchAppModuleHref(router, href);
-    }
-  }, [router]);
 
   // Menü erst nach Pending/Pathname schließen — nie sync im Link-click.
   // Sync-Close startet Sheet-Dismiss und unmountet den geklickten <a> bevor

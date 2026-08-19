@@ -39,6 +39,7 @@ import {
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 import { requestModuleHomeWarmForHref } from "@/lib/navigation/module-home-warm-intent";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
 function normalizeModuleHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -212,15 +213,16 @@ export function warmPriorityModuleDataCaches(
   });
 }
 
-/** Hover/Focus/Tap: volles Page-Segment + Modul-Daten vor dem Klick wärmen. */
+/** Hover/Focus/Tap: Keep-alive sofort, RSC + Daten sobald Restaurant da ist. */
 export function warmModuleRouteIntent(
   router: AppRouterInstance,
   queryClient: QueryClient,
-  restaurantId: string,
+  restaurantId: string | null | undefined,
   href: string,
 ): void {
-  // Keep-alive-Slot sync mounten — Soft-Nav Preview ohne RSC-Wartezeit.
   requestModuleHomeWarmForHref(href);
   prefetchAppModuleHref(router, href);
-  warmModuleData(queryClient, restaurantId, href);
+  if (restaurantId && isUuidRestaurantId(restaurantId)) {
+    warmModuleData(queryClient, restaurantId, href);
+  }
 }

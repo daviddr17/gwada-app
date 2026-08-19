@@ -2,7 +2,7 @@
 
 import { INGREDIENT_STORAGE_KEY } from "@/lib/constants/inventory-storage";
 import { SEED_INGREDIENTS } from "@/lib/data/inventory-seeds";
-import { migrateIngredientsFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
+import { loadRelationalOrLegacyMigrate, migrateIngredientsFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import { loadIngredientsRelational } from "@/lib/supabase/inventory-db";
 import {
   getWorkspaceRestaurantId,
@@ -93,10 +93,16 @@ export function peekIngredientsCache(): Ingredient[] | null {
 export async function fetchIngredientsForRestaurant(): Promise<Ingredient[]> {
   const rid = await getWorkspaceRestaurantId();
   const seed = [...SEED_INGREDIENTS];
-  if (rid) {
-    await migrateIngredientsFromLegacyAppStateIfEmpty(rid, seed);
-  }
-  const rows = await loadIngredientsRelational(rid);
+  const rows = rid
+    ? await loadRelationalOrLegacyMigrate(
+        `ingredients:${rid}`,
+        () => loadIngredientsRelational(rid),
+        () =>
+          migrateIngredientsFromLegacyAppStateIfEmpty(rid, seed, {
+            skipExistingCheck: true,
+          }),
+      )
+    : await loadIngredientsRelational(rid);
   if (rows === null) {
     return seed;
   }

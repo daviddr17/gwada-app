@@ -69,9 +69,9 @@ function emptySlots(): Record<ModuleHomeId, boolean> {
   };
 }
 
-/** Idle-Prewarm erst wenn Dashboard-Stream durch ist — nicht alle Module. */
-const IDLE_PREWARM_AFTER_KPI_MS = 2_400;
-const IDLE_PREWARM_GAP_MS = 450;
+/** Idle-Prewarm nach First-Paint — nicht Sekunden warten. */
+const IDLE_PREWARM_AFTER_KPI_MS = 700;
+const IDLE_PREWARM_GAP_MS = 280;
 
 export function ModuleHomeKeepAliveProvider({
   children,

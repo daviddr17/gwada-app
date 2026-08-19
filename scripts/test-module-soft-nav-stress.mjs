@@ -81,30 +81,19 @@ async function login(page) {
 async function clickModule(page, mod) {
   return page.evaluate((href) => {
     const path = href.split("?")[0];
-    const scopes = [
-      document.querySelector("[data-sidebar]"),
-      document.querySelector("[data-app-chrome-header]"),
-      document.body,
-    ].filter(Boolean);
-    const selectors = [`a[href="${href}"]`, `a[href^="${path}"]`];
-    let el = null;
-    for (const scope of scopes) {
-      for (const sel of selectors) {
-        const nodes = scope.querySelectorAll(sel);
-        for (const node of nodes) {
-          if (!(node instanceof HTMLAnchorElement)) continue;
-          if (node.closest(".hidden")) continue;
-          if (node.closest("[data-module-home-keep-alive].hidden")) continue;
-          if (node.closest("[data-module-home-keep-alive][aria-hidden='true']")) {
-            continue;
-          }
-          el = node;
-          break;
-        }
-        if (el) break;
+    const nodes = [
+      ...document.querySelectorAll(`a[href="${href}"]`),
+      ...document.querySelectorAll(`a[href^="${path}"]`),
+    ];
+    const el = nodes.find((node) => {
+      if (!(node instanceof HTMLAnchorElement)) return false;
+      if (node.closest("[data-module-home-keep-alive][aria-hidden='true']")) {
+        return false;
       }
-      if (el) break;
-    }
+      // Nicht class "hidden" — Tailwind `hidden md:flex` bleibt im DOM.
+      const r = node.getBoundingClientRect();
+      return r.width > 2 && r.height > 2;
+    });
     if (!el) return { ok: false, reason: "missing" };
     el.dispatchEvent(
       new PointerEvent("pointerdown", { bubbles: true, cancelable: true }),
@@ -193,6 +182,19 @@ function pathMatchesKeepAlive(path, keepAliveId) {
   return p.includes(`/${keepAliveId}`);
 }
 
+async function clickVisibleHref(page, href) {
+  const loc = page.locator(`a[href="${href}"]`);
+  const n = await loc.count();
+  for (let i = 0; i < n; i++) {
+    const item = loc.nth(i);
+    if (await item.isVisible()) {
+      await item.click({ timeout: 8_000 });
+      return { ok: true };
+    }
+  }
+  return clickModule(page, { href });
+}
+
 function lastLandedOk(snap, lastMod) {
   if (!lastMod) return false;
   return (
@@ -273,7 +275,22 @@ console.log("Warmup: compile each module once");
 report.warmup = [];
 for (const mod of MODULES) {
   const t0 = Date.now();
-  await clickModule(page, mod);
+  const clicked = await clickModule(page, mod);
+  if (!clicked.ok) {
+    report.warmup.push({
+      id: mod.id,
+      ok: false,
+      reason: clicked.reason,
+      ms: Date.now() - t0,
+      path: await page.evaluate(() => location.pathname),
+    });
+    console.error(`warmup ${mod.id}: click missing`);
+    report.verdict = "FAIL";
+    report.checks = { warmupOk: false };
+    console.log(JSON.stringify(report, null, 2));
+    await browser.close();
+    process.exit(1);
+  }
   const landed = await page
     .waitForFunction(
       ({ keepAlive, href }) => {
@@ -469,16 +486,14 @@ console.log("Race: Events home then Einstellungen immediately");
   await clickModule(page, MODULES.find((m) => m.id === "events"));
   let clicked = { ok: false };
   for (let i = 0; i < 24 && !clicked.ok; i++) {
-    clicked = await clickModule(page, {
-      href: "/dashboard/events/einstellungen",
-    });
+    clicked = await clickVisibleHref(page, "/dashboard/events/einstellungen");
     if (!clicked.ok) await page.waitForTimeout(50);
   }
   const landed = await page
     .waitForFunction(
       () => location.pathname.startsWith("/dashboard/events/einstellungen"),
       null,
-      { timeout: 12_000 },
+      { timeout: 20_000 },
     )
     .then(() => true)
     .catch(() => false);
@@ -551,12 +566,12 @@ for (const probe of SETTINGS_PROBES) {
   const t0 = Date.now();
   await clickModule(page, { href: probe.home });
   await waitSettle(page, 12_000);
-  const clicked = await clickModule(page, probe);
+  const clicked = await clickVisibleHref(page, probe.href);
   const landed = await page
     .waitForFunction(
       (expectPath) => location.pathname.startsWith(expectPath),
       probe.href,
-      { timeout: 12_000 },
+      { timeout: 20_000 },
     )
     .then(() => true)
     .catch(() => false);

@@ -175,8 +175,8 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "AppModuleWarmPrefetchMount (einmal pro Restaurant, zwei Effects)",
       "FULL-Prefetch gestaffelt: Top-5 → Priority → Nested",
       "notifyDashboardFirstKpiReady → critical + menu/inventory + Priority-Daten",
-      "Failsafe 0.9s auf /dashboard ohne KPI-Event",
-      "Idle ~200ms: Secondary-Warm (News/Reviews/…)",
+      "Failsafe 2.5s auf /dashboard ohne KPI-Event",
+      "Idle ~5s: Secondary-Warm (News/Reviews/…)",
       "Sidebar hover/focus → warmModuleRouteIntent",
     ],
     invalidateTriggers: [

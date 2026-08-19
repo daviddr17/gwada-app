@@ -17,7 +17,6 @@ import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
-import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -73,25 +72,17 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
     const pathname = usePathname();
     const router = useRouter();
     const queryClient = useQueryClient();
-    const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+    const { restaurantId } = useWorkspaceRestaurantUuid();
     const { tryAcquireNavLock, scheduleSoftNavPush, pendingHref } =
       useSoftNavLock();
     const hrefStr = hrefToString(href);
     const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
 
     const warmOnIntent = useCallback(() => {
-      if (
-        !crossModuleNav ||
-        !workspaceReady ||
-        !restaurantId ||
-        !isUuidRestaurantId(restaurantId)
-      ) {
-        return;
-      }
+      if (!crossModuleNav) return;
       warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
     }, [
       crossModuleNav,
-      workspaceReady,
       restaurantId,
       router,
       queryClient,

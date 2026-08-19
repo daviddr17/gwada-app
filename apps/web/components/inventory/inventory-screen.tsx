@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { IngredientDrawer } from "@/components/inventory/ingredient-drawer";
 import { InventoryMobileStockList, InventoryCompactStockList } from "@/components/inventory/inventory-mobile-stock-list";
 import { InventoryModuleViewToggle } from "@/components/inventory/inventory-module-view-toggle";
@@ -725,12 +726,11 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
     isHydrated: ingredientsHydrated,
   } = useIngredientsStorage();
 
-  const { items: menuItems, isHydrated: menuHydrated } = useMenuStorage();
-  const { actor, isHydrated: userNameHydrated } = usePersonalProfileNames();
+  const { items: menuItems } = useMenuStorage();
+  const { actor } = usePersonalProfileNames();
   const {
     addLine,
     updateLineQuantity,
-    isHydrated: ordersHydrated,
     getOpenLineContext,
   } = usePurchaseOrdersStorage();
   const {
@@ -1002,14 +1002,12 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
 
   const ready =
     ingredientsHydrated &&
-    menuHydrated &&
-    ordersHydrated &&
-    userNameHydrated &&
     suppliers.isHydrated &&
     ingredientCategories.isHydrated &&
     productionSites.isHydrated &&
     brands.isHydrated &&
     units.isHydrated;
+  const showInventorySkeleton = useDeferredSkeleton(!ready);
 
   if (!permissionsLoading && !canRead) {
     return <ModuleAccessDenied label="Bestand" />;
@@ -1018,7 +1016,11 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
   return (
     <>
       {!ready ? (
-        <InventoryScreenSkeleton />
+        showInventorySkeleton ? (
+          <InventoryScreenSkeleton />
+        ) : (
+          <div aria-busy className="min-h-[24rem]" />
+        )
       ) : (
         <div className="w-full">
       <div className="mb-4 flex flex-wrap gap-2">

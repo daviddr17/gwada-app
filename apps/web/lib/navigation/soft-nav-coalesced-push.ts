@@ -5,8 +5,15 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
 /**
  * Schnelle Soft-Nav-Klicks → nur das letzte Ziel wirklich `router.push`en.
  * Pending-UI bleibt synchron; der Flight wird nicht mit Dutzenden RSC-Requests zugeschüttet.
+ *
+ * Leading: erster Klick nach Idle pusht sofort (kein künstliches Lag).
+ * Trailing: weitere Klicks im 120ms-Fenster coalescen — letzter gewinnt, weniger RSC/431.
+ *
+ * Next 16: `router.push` nicht synchron im Click (Stream kann ihn schlucken).
+ * `setTimeout(0)` löst den Push aus dem Event; Pending bleibt synchron.
+ * `startTransition` nicht — laufende Dashboard-Fetches können die Transition aushungern.
  */
-const COALESCE_MS = 32;
+const COALESCE_MS = 120;
 
 let pendingHref: string | null = null;
 let timer: number | null = null;
@@ -17,10 +24,18 @@ export function coalesceSoftNavPush(
   href: string,
 ): void {
   pendingHref = href;
-  if (timer != null) window.clearTimeout(timer);
+  if (timer != null) {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      timer = null;
+      flushSoftNavPush(router);
+    }, COALESCE_MS);
+    return;
+  }
+  flushSoftNavPush(router);
   timer = window.setTimeout(() => {
     timer = null;
-    flushSoftNavPush(router);
+    if (pendingHref) flushSoftNavPush(router);
   }, COALESCE_MS);
 }
 
@@ -34,7 +49,9 @@ export function flushSoftNavPush(router: AppRouterInstance): string | null {
   pendingHref = null;
   if (!target) return null;
   lastPushedHref = target;
-  router.push(target);
+  window.setTimeout(() => {
+    router.push(target);
+  }, 0);
   return target;
 }
 

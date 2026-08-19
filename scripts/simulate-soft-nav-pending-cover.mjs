@@ -25,6 +25,12 @@ function matchHome(pathname) {
   if (path === MODULE_HOME_PATHS.events || path === "/dashboard/events") {
     return "events";
   }
+  if (path === "/dashboard/menu/uebersicht" || path === "/dashboard/menu") {
+    return "menu";
+  }
+  if (path === "/dashboard/news/uebersicht" || path === "/dashboard/news") {
+    return "news";
+  }
   return null;
 }
 
@@ -203,6 +209,96 @@ function slotVisible({ id, pathname, pendingHref, warm }) {
     }),
     false,
     "Events-Einstellungen ist kein Home-Alias",
+  );
+}
+
+// 8) Andere Modul-Roots analog (Speisekarte, News)
+{
+  assert.equal(
+    shouldClearPendingOnPathname({
+      pendingTarget: "/dashboard/menu",
+      pathname: "/dashboard/menu/uebersicht",
+    }),
+    true,
+    "Menu-Root-Redirect räumt Pending",
+  );
+  assert.equal(
+    shouldClearPendingOnPathname({
+      pendingTarget: "/dashboard/news",
+      pathname: "/dashboard/news/einstellungen",
+    }),
+    false,
+    "News-Einstellungen ist kein Home-Alias",
+  );
+}
+
+function shouldAbandon({ pathname, pendingFrom, pendingTarget }) {
+  if (pendingFrom == null || pendingTarget == null) return false;
+  if (shouldClearPendingOnPathname({ pendingTarget, pathname })) return false;
+  if (normalizeNavHref(pathname) === normalizeNavHref(pendingFrom)) return false;
+  // Anderes Modul-Home = älterer RSC, Pending behalten.
+  if (matchHome(pathname) != null) return false;
+  return true;
+}
+
+function shouldRetryFailsafe({ pathname, pendingFrom, pendingTarget }) {
+  if (pendingFrom == null || pendingTarget == null) return false;
+  if (shouldClearPendingOnPathname({ pendingTarget, pathname })) return false;
+  return normalizeNavHref(pathname) === normalizeNavHref(pendingFrom);
+}
+
+// 9) Chip Einstellungen während Overview-Flight: Pending aufgeben, kein Retry
+{
+  assert.equal(
+    shouldAbandon({
+      pathname: "/dashboard/events/einstellungen",
+      pendingFrom: "/dashboard",
+      pendingTarget: "/dashboard/events/uebersicht",
+    }),
+    true,
+    "Einstellungen während Events-Flight gibt Pending auf",
+  );
+  assert.equal(
+    shouldRetryFailsafe({
+      pathname: "/dashboard/events/einstellungen",
+      pendingFrom: "/dashboard",
+      pendingTarget: "/dashboard/events/uebersicht",
+    }),
+    false,
+    "Failsafe darf nicht von Einstellungen zurück auf Übersicht pushen",
+  );
+}
+
+// 10) Hänger auf der Quelle: Failsafe darf retryen
+{
+  assert.equal(
+    shouldRetryFailsafe({
+      pathname: "/dashboard",
+      pendingFrom: "/dashboard",
+      pendingTarget: "/dashboard/menu/uebersicht",
+    }),
+    true,
+  );
+  assert.equal(
+    shouldAbandon({
+      pathname: "/dashboard",
+      pendingFrom: "/dashboard",
+      pendingTarget: "/dashboard/menu/uebersicht",
+    }),
+    false,
+  );
+}
+
+// 11) Älterer Speisekarte-RSC während Events-Pending: nicht aufgeben
+{
+  assert.equal(
+    shouldAbandon({
+      pathname: "/dashboard/menu/uebersicht",
+      pendingFrom: "/dashboard",
+      pendingTarget: "/dashboard/events/uebersicht",
+    }),
+    false,
+    "Stale Speisekarte-RSC darf Events-Pending nicht aufgeben",
   );
 }
 

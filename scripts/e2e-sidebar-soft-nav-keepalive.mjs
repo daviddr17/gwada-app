@@ -31,7 +31,12 @@ const TARGETS = [
     expect: "/dashboard/reservierungen",
   },
   { id: "pos", href: "/dashboard/pos/uebersicht", expect: "/dashboard/pos" },
-  { id: "events", href: "/dashboard/events", expect: "/dashboard/events" },
+  { id: "events", href: "/dashboard/events/uebersicht", expect: "/dashboard/events" },
+  {
+    id: "kontakte",
+    href: "/dashboard/kontakte/nachrichten?platform=all",
+    expect: "/dashboard/kontakte/nachrichten",
+  },
   { id: "news", href: "/dashboard/news/uebersicht", expect: "/dashboard/news" },
   {
     id: "bewertungen",
@@ -179,7 +184,7 @@ async function softNavClick(page, mod) {
 async function assertStable(page, mod) {
   await page.waitForTimeout(1400);
   let p = pathOnly(page.url());
-  if (p.includes("/kontakte/nachrichten")) {
+  if (p.includes("/kontakte/nachrichten") && mod.id !== "kontakte") {
     throw new Error(`hijacked → ${page.url()}`);
   }
   if (mod.id === "dashboard" ? p !== "/dashboard" : !p.startsWith(mod.expect)) {
@@ -187,7 +192,7 @@ async function assertStable(page, mod) {
   }
   await page.waitForTimeout(1600);
   p = pathOnly(page.url());
-  if (p.includes("/kontakte/nachrichten")) {
+  if (p.includes("/kontakte/nachrichten") && mod.id !== "kontakte") {
     throw new Error(`delayed hijack → ${page.url()}`);
   }
   return p;

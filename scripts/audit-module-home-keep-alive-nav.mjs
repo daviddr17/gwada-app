@@ -114,7 +114,7 @@ const expected = [
   "/dashboard/inventory/uebersicht",
   "/dashboard/reservierungen/uebersicht",
   "/dashboard/pos/uebersicht",
-  "/dashboard/events",
+  "/dashboard/events/uebersicht",
   "/dashboard/kontakte/nachrichten?platform=all",
   "/dashboard/news/uebersicht",
   "/dashboard/bewertungen/uebersicht",

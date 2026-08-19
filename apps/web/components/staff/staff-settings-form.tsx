@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -425,12 +426,12 @@ export function StaffSettingsForm() {
               </Select>
               <p className="text-xs text-muted-foreground">
                 Tags verwalten im Modul{" "}
-                <Link
-                  href="/dashboard/dokumente"
+                <AppNavLink
+                  href={APP_ROUTES.dokumente.overview}
                   className="text-accent underline-offset-4 hover:underline"
                 >
                   Dokumente
-                </Link>
+                </AppNavLink>
                 .
               </p>
             </div>

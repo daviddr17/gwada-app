@@ -74,7 +74,8 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
     const router = useRouter();
     const queryClient = useQueryClient();
     const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-    const { tryAcquireNavLock, scheduleSoftNavPush } = useSoftNavLock();
+    const { tryAcquireNavLock, scheduleSoftNavPush, pendingHref } =
+      useSoftNavLock();
     const hrefStr = hrefToString(href);
     const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
 
@@ -128,7 +129,12 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
             event.preventDefault();
             return;
           }
-          if (!crossModuleNav) return;
+          if (!crossModuleNav) {
+            // Gleicher Modul-Stamm: native Link — außer ein Flight läuft schon
+            // (Events-Übersicht pending + Chip Einstellungen). Sonst bleibt
+            // die Home-Vorschau liegen und der Failsafe kickt zurück.
+            if (!pendingHref) return;
+          }
           // Cmd/Ctrl-Klick etc. → natives Link-Verhalten (neuer Tab).
           if (
             event.metaKey ||
@@ -141,7 +147,6 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
           }
           // Sofort Pending (Titel/Cover), Push coalesced (letzter Klick gewinnt).
           // Flight hängt nicht am <a> im Mobile-Sheet (Close/Unmount killt sonst Nav).
-          // Kein startTransition: sonst wartet der erste Soft-Nav hinter Dashboard-Stream.
           event.preventDefault();
           if (!tryAcquireNavLock(event, hrefStr)) return;
           scheduleSoftNavPush(hrefStr);

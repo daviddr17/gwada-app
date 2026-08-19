@@ -140,6 +140,13 @@ export function SoftNavPendingOverlay() {
       }
       return;
     }
+    const landedTitle = titleForHref(pathname);
+    if (landedTitle) {
+      setChrome((prev) =>
+        prev.title === landedTitle ? prev : { ...prev, title: landedTitle },
+      );
+      return;
+    }
     setChrome((prev) => ({ ...prev, title: restore }));
   }, [pendingInFlight, pendingHref, pathname, setChrome]);
 

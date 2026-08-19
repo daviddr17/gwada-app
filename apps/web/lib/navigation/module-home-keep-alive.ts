@@ -67,15 +67,23 @@ function normalizePath(pathname: string): string {
   return path || APP_ROUTES.dashboard;
 }
 
+/** `/dashboard/menu` ≡ Übersicht, `/dashboard/kontakte` ≡ Nachrichten, … */
+export function moduleHomeRootAlias(homePath: string): string | null {
+  const parts = homePath.split("/").filter(Boolean);
+  if (parts[0] !== "dashboard" || parts.length < 3) return null;
+  return `/${parts[0]}/${parts[1]}`;
+}
+
 export function isModuleHomePath(
   pathname: string,
   id: ModuleHomeId,
 ): boolean {
   if (id === "dashboard") return isDashboardHomePath(pathname);
   const path = normalizePath(pathname);
-  if (path === MODULE_HOME_PATHS[id]) return true;
-  if (id === "events" && path === APP_ROUTES.events.root) return true;
-  return false;
+  const homePath = MODULE_HOME_PATHS[id];
+  if (path === homePath) return true;
+  const alias = moduleHomeRootAlias(homePath);
+  return alias != null && path === alias;
 }
 
 export function matchModuleHomeId(pathname: string): ModuleHomeId | null {
@@ -96,7 +104,7 @@ export function isWarmModuleHomePending(
 
 /**
  * Soft-Nav-Ziel erreicht — inkl. Home-Aliase
- * (`/dashboard/events` Redirect → `/dashboard/events/uebersicht`).
+ * (`/dashboard/menu` Redirect → `/dashboard/menu/uebersicht`).
  * Unterrouten (Einstellungen, Statistiken, …) nur bei exaktem Pfad.
  */
 export function isSoftNavPendingArrived(
@@ -109,6 +117,37 @@ export function isSoftNavPendingArrived(
   const pathHome = matchModuleHomeId(path);
   const destHome = matchModuleHomeId(dest);
   return pathHome != null && pathHome === destHome;
+}
+
+/**
+ * Pathname hat die Quelle verlassen, ohne am Pending-Ziel (inkl. Home-Alias)
+ * anzukommen — nur bei Unterrouten (Einstellungen, Statistiken, …).
+ *
+ * Nicht aufgeben, wenn ein älterer RSC auf einem *anderen Modul-Home*
+ * ankommt (Speisekarte-Flight, während Events schon pending ist).
+ */
+export function shouldAbandonSoftNavPending(
+  pathname: string,
+  pendingFrom: string | null,
+  pendingTarget: string | null,
+): boolean {
+  if (pendingFrom == null || pendingTarget == null) return false;
+  if (isSoftNavPendingArrived(pathname, pendingTarget)) return false;
+  const path = normalizePath(pathname);
+  if (path === normalizePath(pendingFrom)) return false;
+  if (matchModuleHomeId(path) != null) return false;
+  return true;
+}
+
+/** Failsafe-Retry nur, wenn wir noch auf der Quelle hängen. */
+export function shouldRetrySoftNavFailsafe(
+  pathname: string,
+  pendingFrom: string | null,
+  pendingTarget: string | null,
+): boolean {
+  if (pendingFrom == null || pendingTarget == null) return false;
+  if (isSoftNavPendingArrived(pathname, pendingTarget)) return false;
+  return normalizePath(pathname) === normalizePath(pendingFrom);
 }
 
 export type ModuleHomeSlotVisibility = {

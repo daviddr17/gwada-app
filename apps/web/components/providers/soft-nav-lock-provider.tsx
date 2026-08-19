@@ -18,7 +18,11 @@ import {
   beginSoftNavFlight,
   endSoftNavFlight,
 } from "@/lib/navigation/soft-nav-flight";
-import { isSoftNavPendingArrived } from "@/lib/navigation/module-home-keep-alive";
+import {
+  isSoftNavPendingArrived,
+  shouldAbandonSoftNavPending,
+  shouldRetrySoftNavFailsafe,
+} from "@/lib/navigation/module-home-keep-alive";
 
 type SoftNavLockValue = {
   tryAcquireNavLock: (
@@ -33,8 +37,8 @@ type SoftNavLockValue = {
 
 const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
 
-const PENDING_CLEAR_FAILSAFE_MS = 6_000;
-const PENDING_RETRY_EXTRA_MS = 3_500;
+const PENDING_CLEAR_FAILSAFE_MS = 5_000;
+const PENDING_RETRY_EXTRA_MS = 2_000;
 
 export function normalizeNavHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -55,6 +59,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   pathnameRef.current = pathname;
 
   const pendingTargetRef = useRef<string | null>(null);
+  const pendingFromRef = useRef<string | null>(null);
   const pendingRawHrefRef = useRef<string | null>(null);
   const clearTimerRef = useRef<number | null>(null);
   const paintClearRafRef = useRef<number | null>(null);
@@ -63,6 +68,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
 
   const clearPending = useCallback(() => {
     pendingTargetRef.current = null;
+    pendingFromRef.current = null;
     pendingRawHrefRef.current = null;
     failsafeRetriedRef.current = false;
     endSoftNavFlight();
@@ -86,15 +92,16 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         clearTimerRef.current = null;
         const raw = pendingRawHrefRef.current;
         const target = pendingTargetRef.current;
-        const atTarget =
-          target != null &&
-          isSoftNavPendingArrived(pathnameRef.current, target);
-        if (raw && target && !atTarget && !failsafeRetriedRef.current) {
-          // Ein Retry statt Snap-back auf das Quell-Modul.
+        const from = pendingFromRef.current;
+        const retry =
+          Boolean(raw && target) &&
+          shouldRetrySoftNavFailsafe(pathnameRef.current, from, target);
+        if (retry && !failsafeRetriedRef.current) {
+          // Nur wenn wir noch auf der Quelle hängen — nicht zurück von
+          // Einstellungen/Unterseiten auf die Übersicht pushen.
           failsafeRetriedRef.current = true;
-          // Coalesce-Queue leeren und hart erneut pushen.
           flushSoftNavPush(router);
-          router.push(raw);
+          router.push(raw!);
           armFailsafe(PENDING_RETRY_EXTRA_MS);
           return;
         }
@@ -105,9 +112,16 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   );
 
   // Ziel erreicht → Cover erst nach Paint heben (kein Weiß/Dashboard-Flash).
+  // Anderes Ziel (Einstellungen während Overview-Flight) → Pending sofort aufgeben.
   useEffect(() => {
     const target = pendingTargetRef.current;
     if (target == null) return;
+    if (
+      shouldAbandonSoftNavPending(pathname, pendingFromRef.current, target)
+    ) {
+      clearPending();
+      return;
+    }
     if (!isSoftNavPendingArrived(pathname, target)) return;
 
     let raf2: number | null = null;
@@ -146,6 +160,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
       if (pendingTargetRef.current === target) return false;
 
       pendingTargetRef.current = target;
+      pendingFromRef.current = normalizeNavHref(pathnameRef.current);
       pendingRawHrefRef.current = targetHref;
       failsafeRetriedRef.current = false;
       beginSoftNavFlight(targetHref);

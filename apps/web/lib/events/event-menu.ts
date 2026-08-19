@@ -489,7 +489,7 @@ export function eventMenuQuoteLines(
 export function eventMenuEstimateTotal(
   menu: Pick<
     EventMenu,
-    "pricePerPerson" | "kidsPricePerPerson" | "courses" | "addons"
+    "name" | "description" | "pricePerPerson" | "kidsPricePerPerson" | "courses" | "addons"
   >,
   selection: EventMenuSelection,
   partySize: number,

@@ -168,6 +168,7 @@ import {
 } from "@/lib/contact-messages/inbox-link-contact-errors";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import {
+  isSilentClientSendResult,
   sendContactMessageUserMessage,
   triggerEmailInboxSend,
   triggerLinkEmailThreadToContact,
@@ -318,6 +319,17 @@ function contactInboxMarkUnreadErrorMessage(error: string): string {
     default:
       return `Als ungelesen markieren: ${error}`;
   }
+}
+
+function toastContactSendResult(
+  result: SendContactMessageApiResult | null,
+  successMessage: string,
+) {
+  if (isSilentClientSendResult(result)) return;
+  const warn = sendContactMessageUserMessage(result);
+  if (warn) toast.warning(warn);
+  else if (result?.ok) toast.success(successMessage);
+  else toast.error("Senden fehlgeschlagen.");
 }
 
 export function ContactsMessagesScreen({
@@ -2235,10 +2247,7 @@ export function ContactsMessagesScreen({
           removeOptimisticMessage(prev, optimisticWhatsapp!.id),
         );
       }
-      const warn = sendContactMessageUserMessage(result);
-      if (warn) toast.warning(warn);
-      else if (result?.ok) toast.success("Nachricht gesendet.");
-      else toast.error("Senden fehlgeschlagen.");
+      toastContactSendResult(result, "Nachricht gesendet.");
       if (result?.ok) {
         if (sendWhatsapp || (voiceNote && channels.includes("whatsapp"))) {
           applyWhatsappSendSuccess(optimisticWhatsapp, result);
@@ -2277,10 +2286,7 @@ export function ContactsMessagesScreen({
           removeOptimisticMessage(prev, optimisticWhatsapp.id),
         );
       }
-      const warn = sendContactMessageUserMessage(result);
-      if (warn) toast.warning(warn);
-      else if (result?.ok) toast.success("WhatsApp-Nachricht gesendet.");
-      else toast.error("Senden fehlgeschlagen.");
+      toastContactSendResult(result, "WhatsApp-Nachricht gesendet.");
       if (result?.ok) {
         applyWhatsappSendSuccess(optimisticWhatsapp, result);
         void loadConversations({ silent: true });
@@ -2306,10 +2312,7 @@ export function ContactsMessagesScreen({
             files,
           });
       setSending(false);
-      const warn = sendContactMessageUserMessage(result);
-      if (warn) toast.warning(warn);
-      else if (result?.ok) toast.success("E-Mail gesendet.");
-      else toast.error("Senden fehlgeschlagen.");
+      toastContactSendResult(result, "E-Mail gesendet.");
       void loadThread();
       void loadConversations();
       return;
@@ -2341,15 +2344,12 @@ export function ContactsMessagesScreen({
           removeOptimisticMessage(prev, optimisticMeta!.id),
         );
       }
-      const warn = sendContactMessageUserMessage(result);
-      if (warn) toast.warning(warn);
-      else if (result?.ok) {
-        toast.success(
-          metaThreadPlatform === "instagram"
-            ? "Instagram-Nachricht gesendet."
-            : "Messenger-Nachricht gesendet.",
-        );
-      } else toast.error("Senden fehlgeschlagen.");
+      toastContactSendResult(
+        result,
+        metaThreadPlatform === "instagram"
+          ? "Instagram-Nachricht gesendet."
+          : "Messenger-Nachricht gesendet.",
+      );
       if (result?.ok) {
         void loadThread({ silent: true });
         void loadConversations({ silent: true });

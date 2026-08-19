@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { EmbedProfilePlatformToggles } from "@/components/embed/embed-profile-platform-toggles";
+import { EventsMenusSettings } from "@/components/events/events-menus-settings";
 import { EventsPackagesSettings } from "@/components/events/events-packages-settings";
 import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
@@ -176,6 +177,7 @@ export function EventsSettingsPanel() {
 
   return (
     <div className="space-y-6 pb-24">
+      <EventsMenusSettings restaurantId={restaurantId} />
       <EventsPackagesSettings restaurantId={restaurantId} />
 
       <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">

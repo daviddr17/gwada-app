@@ -2,10 +2,17 @@ import "server-only";
 
 import {
   createEventInquiryQuotation,
-  formatEventPackageNotes,
+  formatEventInquiryNotes,
 } from "@/lib/events/create-event-inquiry-quotation";
 import { isEventPackageId } from "@/lib/events/event-package";
+import {
+  isEventMenuId,
+  parseGuestEventMenuSelection,
+  type EventMenu,
+  type EventMenuSelection,
+} from "@/lib/events/event-menu";
 import { loadActiveEventPackagesByIds } from "@/lib/events/event-packages-server";
+import { loadActiveEventMenuById } from "@/lib/events/event-menus-server";
 import { RESERVATION_KIND_PRIVATE_EVENT } from "@/lib/reservations/reservation-kind";
 import {
   normalizeReservationGuestCompany,
@@ -43,6 +50,8 @@ export type PublicEventInquiryCreateBody = {
   occasion?: string | null;
   message?: string | null;
   package_ids?: string[] | null;
+  menu_id?: string | null;
+  menu_selection?: unknown;
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
@@ -76,18 +85,6 @@ function parseRequestedPackageIds(raw: string[] | null | undefined): string[] | 
     if (!ids.includes(value)) ids.push(value);
   }
   return ids;
-}
-
-function formatInquiryNotes(
-  occasion: string,
-  message: string,
-  packageNotes: string | null,
-): string | null {
-  const parts: string[] = [];
-  if (occasion) parts.push(`Anlass: ${occasion}`);
-  if (packageNotes) parts.push(packageNotes);
-  if (message) parts.push(message);
-  return parts.length > 0 ? parts.join("\n\n") : null;
 }
 
 async function pendingStatusId(admin: SupabaseClient): Promise<string | null> {
@@ -171,11 +168,41 @@ export async function createPublicEventInquiry(
   if (selectedPackages == null) {
     return { data: null, error: "invalid_packages", status: 400 };
   }
-  const notes = formatInquiryNotes(
+
+  const menuIdRaw = typeof body.menu_id === "string" ? body.menu_id.trim() : "";
+  let selectedMenu: EventMenu | null = null;
+  let menuSelection: EventMenuSelection | null = null;
+  if (menuIdRaw) {
+    if (!isEventMenuId(menuIdRaw)) {
+      return { data: null, error: "invalid_menu", status: 400 };
+    }
+    selectedMenu = await loadActiveEventMenuById(admin, restaurant.id, menuIdRaw);
+    if (!selectedMenu) {
+      return { data: null, error: "invalid_menu", status: 400 };
+    }
+    const parsedMenu = parseGuestEventMenuSelection(
+      body.menu_selection,
+      selectedMenu,
+      body.party_size,
+    );
+    if (parsedMenu.error !== null) {
+      return { data: null, error: parsedMenu.error, status: 400 };
+    }
+    menuSelection = parsedMenu.selection;
+  }
+
+  const packagesForQuote = selectedMenu
+    ? selectedPackages.filter((pkg) => pkg.kind !== "buffet")
+    : selectedPackages;
+
+  const notes = formatEventInquiryNotes({
     occasion,
     message,
-    formatEventPackageNotes(selectedPackages),
-  );
+    packages: packagesForQuote,
+    menu: selectedMenu,
+    menuSelection,
+    partySize: body.party_size,
+  });
 
   const { data, error } = await admin
     .from("reservations")
@@ -212,7 +239,9 @@ export async function createPublicEventInquiry(
     timezone: restaurant.timezone,
     startsAtIso: startsAt,
     partySize: body.party_size,
-    packages: selectedPackages,
+    packages: packagesForQuote,
+    menu: selectedMenu,
+    menuSelection,
     guestFirstName: guestFirst,
     guestLastName: guestLast,
     guestCompany,

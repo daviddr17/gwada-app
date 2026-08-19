@@ -95,11 +95,15 @@ export function EmbedEventInquiryPackages({
   packages,
   selection,
   onSelectionChange,
+  hideBuffet = false,
+  showEstimate = true,
   labels,
 }: {
   packages: PublicEventPackage[];
   selection: EventInquiryPackageSelection;
   onSelectionChange: (next: EventInquiryPackageSelection) => void;
+  hideBuffet?: boolean;
+  showEstimate?: boolean;
   labels: {
     title: string;
     hint: string;
@@ -119,6 +123,7 @@ export function EmbedEventInquiryPackages({
   const buffets = packagesOfKind(packages, "buffet");
   const drinks = packagesOfKind(packages, "drinks");
   const extras = packagesOfKind(packages, "extra");
+  if (hideBuffet && drinks.length === 0 && extras.length === 0) return null;
   const selectedIds = selectedEventInquiryPackageIds(selection);
   const selectedPackages = packages.filter((pkg) => selectedIds.includes(pkg.id));
 
@@ -133,7 +138,7 @@ export function EmbedEventInquiryPackages({
         </p>
       </div>
 
-      {buffets.length > 0 ? (
+      {buffets.length > 0 && !hideBuffet ? (
         <PackageKindSection label={labels.buffet}>
           <PackageChoiceButton
             selected={selection.buffetId == null}
@@ -206,6 +211,7 @@ export function EmbedEventInquiryPackages({
         </PackageKindSection>
       ) : null}
 
+      {showEstimate ? (
       <div className="rounded-xl bg-background/70 px-3 py-2.5">
         {selectedPackages.length > 0 ? (
           <>
@@ -222,6 +228,7 @@ export function EmbedEventInquiryPackages({
           </p>
         )}
       </div>
+      ) : null}
     </div>
   );
 }

@@ -1,3 +1,8 @@
+import {
+  CLIENT_SEND_ABORTED,
+  isSilentClientSendResult,
+  shouldSilenceClientSendFailure,
+} from "@/lib/network/client-send-abort";
 import type { DispatchEvent } from "@/lib/reservations/reservation-email-dispatch";
 import type { EmailDispatchApiResult } from "@/lib/reservations/email-dispatch-client-response";
 
@@ -27,6 +32,8 @@ export function emailDispatchUserMessage(
   options?: { isSuperadmin?: boolean },
 ): string | null {
   const isSuperadmin = options?.isSuperadmin === true;
+
+  if (isSilentClientSendResult(result)) return null;
 
   if (!result) {
     return isSuperadmin
@@ -84,6 +91,9 @@ export async function triggerReservationEmailDispatch(
     }
     return body;
   } catch (e) {
+    if (shouldSilenceClientSendFailure(e)) {
+      return { ok: false, skipped: CLIENT_SEND_ABORTED };
+    }
     console.warn("[gwada] email dispatch", e);
     return null;
   }

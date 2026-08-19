@@ -10,6 +10,10 @@ import {
   selectedEventInquiryPackageIds,
   type EventInquiryPackageSelection,
 } from "@/components/embed/embed-event-inquiry-packages";
+import {
+  EmbedEventInquiryMenus,
+  selectionWithMenu,
+} from "@/components/embed/embed-event-inquiry-menus";
 import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import type { AppLocale } from "@/i18n/config";
@@ -46,6 +50,13 @@ import {
 import { RESERVATION_PARTY_SIZE_MAX_STAFF } from "@/lib/reservations/reservation-party-size";
 import { cn } from "@/lib/utils";
 import {
+  EMPTY_EVENT_MENU_SELECTION,
+  eventMenuEstimateTotal,
+  findEventMenuCourseIssues,
+  type EventMenuSelection,
+  type PublicEventMenu,
+} from "@/lib/events/event-menu";
+import {
   eventPackageEstimateTotal,
   type PublicEventPackage,
 } from "@/lib/events/event-package";
@@ -59,6 +70,7 @@ type FieldErrors = {
   contact?: boolean;
   notifyChannel?: boolean;
   terms?: boolean;
+  menu?: boolean;
 };
 
 const API_ERROR_KEYS: Record<string, string> = {
@@ -71,6 +83,7 @@ const API_ERROR_KEYS: Record<string, string> = {
   create_failed: "errorCreateFailed",
   last_name_required: "errorInvalidRequest",
   invalid_packages: "errorInvalidPackages",
+  invalid_menu: "errorInvalidMenu",
 };
 
 function scheduleTermsSheetOpen(onOpenChange: (open: boolean) => void) {
@@ -132,6 +145,10 @@ export function EmbedEventInquiryWidget({
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [packages, setPackages] = useState<PublicEventPackage[]>([]);
+  const [menus, setMenus] = useState<PublicEventMenu[]>([]);
+  const [menuSelection, setMenuSelection] = useState<EventMenuSelection>(
+    EMPTY_EVENT_MENU_SELECTION,
+  );
   const [packageSelection, setPackageSelection] =
     useState<EventInquiryPackageSelection>({
       buffetId: null,
@@ -184,11 +201,13 @@ export function EmbedEventInquiryWidget({
           return tr("hintNotifyChannel");
         case "terms":
           return tr("hintTerms");
+        case "menu":
+          return t("hintMenu");
         default:
           return "";
       }
     },
-    [tr],
+    [t, tr],
   );
 
   const footerText = useMemo(
@@ -201,12 +220,22 @@ export function EmbedEventInquiryWidget({
     void (async () => {
       try {
         const params = new URLSearchParams({ slug: config.slug });
-        const res = await fetch(`/api/public/event-packages?${params}`);
-        const data = (await res.json().catch(() => ({}))) as {
+        const [packagesRes, menusRes] = await Promise.all([
+          fetch(`/api/public/event-packages?${params}`),
+          fetch(`/api/public/event-menus?${params}`),
+        ]);
+        const packagesData = (await packagesRes.json().catch(() => ({}))) as {
           packages?: PublicEventPackage[];
         };
-        if (!cancelled && Array.isArray(data.packages)) {
-          setPackages(data.packages);
+        const menusData = (await menusRes.json().catch(() => ({}))) as {
+          menus?: PublicEventMenu[];
+        };
+        if (cancelled) return;
+        if (Array.isArray(packagesData.packages)) {
+          setPackages(packagesData.packages);
+        }
+        if (Array.isArray(menusData.menus)) {
+          setMenus(menusData.menus);
         }
       } catch {
         /* Formular bleibt ohne Kalkulator nutzbar */
@@ -220,12 +249,37 @@ export function EmbedEventInquiryWidget({
   const partyCount = Number.parseInt(partySize, 10);
   const partyForEstimate =
     Number.isFinite(partyCount) && partyCount > 0 ? partyCount : 0;
-  const selectedPackageIds = selectedEventInquiryPackageIds(packageSelection);
-  const estimateTotal = eventPackageEstimateTotal(
+  const selectedMenu = menus.find((menu) => menu.id === menuSelection.menuId) ?? null;
+  const selectedPackageIds = selectedEventInquiryPackageIds(
+    selectedMenu
+      ? { ...packageSelection, buffetId: null }
+      : packageSelection,
+  );
+  const packageEstimate = eventPackageEstimateTotal(
     packages.filter((pkg) => selectedPackageIds.includes(pkg.id)),
     partyForEstimate,
   );
-  const resizeDeps = [success, packages.length, selectedPackageIds.join("|"), partySize];
+  const menuEstimate = selectedMenu
+    ? eventMenuEstimateTotal(selectedMenu, menuSelection, partyForEstimate)
+    : 0;
+  const estimateTotal = Math.round((packageEstimate + menuEstimate) * 100) / 100;
+  const resizeDeps = [
+    success,
+    packages.length,
+    menus.length,
+    selectedPackageIds.join("|"),
+    menuSelection.menuId,
+    JSON.stringify(menuSelection.courseCounts),
+    JSON.stringify(menuSelection.addonCounts),
+    JSON.stringify(menuSelection.wishes),
+    partySize,
+  ];
+
+  useEffect(() => {
+    setMenuSelection((prev) =>
+      selectionWithMenu(menus, prev.menuId, partyForEstimate, prev.wishes, prev),
+    );
+  }, [menus, partyForEstimate]);
 
   const onSubmit = async () => {
     setFormError(null);
@@ -248,6 +302,13 @@ export function EmbedEventInquiryWidget({
     const waOn = notifyWhatsapp && hasPhone;
     if (!emailOn && !waOn) nextErrors.notifyChannel = true;
     if (!termsAccepted) nextErrors.terms = true;
+    if (
+      Number.isFinite(party) &&
+      selectedMenu &&
+      findEventMenuCourseIssues(selectedMenu, menuSelection, party).length > 0
+    ) {
+      nextErrors.menu = true;
+    }
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       setFormError(t("checkFields"));
@@ -276,6 +337,14 @@ export function EmbedEventInquiryWidget({
           terms_accepted: true,
           website,
           package_ids: selectedPackageIds,
+          menu_id: menuSelection.menuId,
+          menu_selection: menuSelection.menuId
+            ? {
+                wishes: menuSelection.wishes,
+                course_counts: menuSelection.courseCounts,
+                addon_counts: menuSelection.addonCounts,
+              }
+            : null,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -404,9 +473,57 @@ export function EmbedEventInquiryWidget({
           </div>
         </div>
 
+        <EmbedEventInquiryMenus
+          menus={menus}
+          partySize={partyForEstimate}
+          selection={menuSelection}
+          onSelectionChange={(next) => {
+            setMenuSelection(next);
+            clearFieldError("menu");
+            if (next.menuId) {
+              setPackageSelection((prev) => ({ ...prev, buffetId: null }));
+            }
+          }}
+          labels={{
+            title: t("menusTitle"),
+            hint: t("menusHint"),
+            none: t("menusNone"),
+            perPerson: (price) => t("packagesPerPerson", { price }),
+            kidsPrice: (price) => t("menusKidsPrice", { price }),
+            partyRange: (range) => range,
+            tooFew: (min) => t("menusTooFew", { min }),
+            tooMany: (max) => t("menusTooMany", { max }),
+            wishesTitle: t("wishesTitle"),
+            wishesHint: t("wishesHint"),
+            diet: {
+              vegetarian: t("dietVegetarian"),
+              vegan: t("dietVegan"),
+              gluten_free: t("dietGlutenFree"),
+              lactose_free: t("dietLactoseFree"),
+              no_pork: t("dietNoPork"),
+              kids: t("dietKids"),
+            },
+            coursesTitle: t("coursesTitle"),
+            included: t("coursesIncluded"),
+            assigned: (assigned, expected) =>
+              t("coursesAssigned", { assigned, expected }),
+            extraPrice: (price) => t("coursesExtra", { price }),
+            addonsTitle: t("menuAddonsTitle"),
+            addonPerPerson: t("addonPerPerson"),
+            addonFlat: t("addonFlat"),
+            addonExcludeKids: t("addonExcludeKids"),
+            wishWarning: (diet) => t("wishWarning", { diet }),
+          }}
+        />
+        {fieldErrors.menu ? (
+          <p className="text-xs text-destructive">{hint("menu")}</p>
+        ) : null}
+
         <EmbedEventInquiryPackages
           packages={packages}
           selection={packageSelection}
+          hideBuffet={Boolean(menuSelection.menuId)}
+          showEstimate={menus.length === 0}
           onSelectionChange={setPackageSelection}
           labels={{
             title: t("packagesTitle"),
@@ -425,6 +542,28 @@ export function EmbedEventInquiryWidget({
             noneSelected: t("packagesNoneSelected"),
           }}
         />
+
+        {menus.length > 0 ? (
+          <div className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
+            {estimateTotal > 0 ? (
+              <>
+                <p className="text-sm font-medium" data-embed-mt>
+                  {t("packagesEstimate", {
+                    total: formatMenuPrice(estimateTotal),
+                    count: partyForEstimate,
+                  })}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground" data-embed-mt>
+                  {t("packagesEstimateHint")}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground" data-embed-mt>
+                {t("packagesNoneSelected")}
+              </p>
+            )}
+          </div>
+        ) : null}
 
         <div className="grid w-full min-w-0 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">

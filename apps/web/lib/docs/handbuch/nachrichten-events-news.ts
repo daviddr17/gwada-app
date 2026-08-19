@@ -147,7 +147,7 @@ export const eventsGuide: UserGuidePage = {
           ["Übersicht", "Öffentliche Events und private Vorgänge, Filter-Chips"],
           ["Statistiken", "Aufrufe und Reichweite öffentlicher Termine"],
           ["Einbinden", "Öffentlicher Feed und Veranstaltungs-Anfrage"],
-          ["Einstellungen", "Anfrage-Pakete, Embed-Optionen und Plattform-Hinweise"],
+          ["Einstellungen", "Menüvorschläge, Anfrage-Pakete, Embed-Optionen und Plattform-Hinweise"],
         ],
       },
     },
@@ -161,8 +161,19 @@ export const eventsGuide: UserGuidePage = {
         "Events → Übersicht → Neue Veranstaltung.",
         "Ansprechpartner, Firma, Datum, Personen und Notizen ausfüllen.",
         "Optional Mitarbeiter zuweisen.",
-        "Wenn Gäste Pakete gewählt haben, liegt schon ein Gwada-Angebot am Vorgang — sonst Angebot selbst anlegen.",
+        "Wenn Gäste Menü oder Pakete gewählt haben, liegt schon ein Gwada-Angebot am Vorgang — sonst Angebot selbst anlegen.",
         "Rechnung über die Buchführung erstellen und am Vorgang verknüpfen.",
+      ],
+    },
+    {
+      heading: "Menüvorschläge",
+      steps: [
+        "Events → Einstellungen → Menüvorschläge.",
+        "Menü anlegen: Name, Preis pro Person, optional Kinderpreis, min./max. Personen.",
+        "Gänge pflegen (Vorspeise, Hauptgang, Dessert). Pro Gang: inklusive für alle — oder Gäste verteilen die Personen auf Gerichte (z. B. 30× Fleisch, 10× vegetarisch).",
+        "Gerichte kennzeichnen (vegetarisch, vegan, glutenfrei, Kinder) und optional Aufpreis setzen.",
+        "Optionen wie Weinbegleitung (pro Person, ohne Kinder) oder Pauschalen ergänzen.",
+        "Im Anfrageformular wählen Gäste ein Menü, tragen Wünsche als Personenzahl ein und klicken die Gerichte zusammen — daraus entsteht das Gwada-Angebot.",
       ],
     },
     {
@@ -211,14 +222,14 @@ export const eventsGuide: UserGuidePage = {
     },
     {
       heading: "Einbinden",
-      body: "Unter Einbinden gibt es zwei Snippets. Öffentliche Events: Feed unter /embed/events/[slug] — nur veröffentlichte Termine. Veranstaltungs-Anfrage: Formular unter /embed/veranstaltung/[slug] — Name, Firma, Wunschdatum, Personen, Anlass, optional Buffet/Getränke, Nachricht. Auf dem öffentlichen Profil steckt dasselbe Formular im Events-Sheet unter dem Tab „Anfrage“. Anfragen erscheinen als unbestätigte private Veranstaltung in Events, nicht unter Reservierungen → Unbestätigt.",
+      body: "Unter Einbinden gibt es zwei Snippets. Öffentliche Events: Feed unter /embed/events/[slug] — nur veröffentlichte Termine. Veranstaltungs-Anfrage: Formular unter /embed/veranstaltung/[slug] — Name, Firma, Wunschdatum, Personen, Anlass, optional Menü (Gerichte nach Personen), Buffet/Getränke, Nachricht. Auf dem öffentlichen Profil steckt dasselbe Formular im Events-Sheet unter dem Tab „Anfrage“. Anfragen erscheinen als unbestätigte private Veranstaltung in Events, nicht unter Reservierungen → Unbestätigt.",
     },
   ],
   tips: [
     "Instagram-Ankündigungen brauchen ein Cover-Bild.",
     "Für reine Gwada-Sichtbarkeit reichen Titel, Zeit und Veröffentlichen — Social-Chips sind optional.",
     "Private Veranstaltungen sind Kalender-Blocker, keine Tisch-Reservierung.",
-    "Ohne aktive Pakete bleibt das Anfrageformular frei — der Kalkulator erscheint nur, wenn Preise gepflegt sind.",
+    "Ohne aktive Menüs oder Pakete bleibt das Anfrageformular frei — der Kalkulator erscheint nur, wenn Preise gepflegt sind.",
   ],
   related: [
     { label: "Events API", href: "/docs/api/events" },

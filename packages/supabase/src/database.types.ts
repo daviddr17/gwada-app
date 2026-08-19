@@ -723,6 +723,176 @@ export type Database = {
           },
         ]
       }
+      event_menus: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string
+          id: string
+          kids_price_per_person: number | null
+          max_party_size: number | null
+          min_party_size: number
+          name: string
+          price_per_person: number
+          restaurant_id: string
+          sort_order: number
+          tax_rate_percent: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          kids_price_per_person?: number | null
+          max_party_size?: number | null
+          min_party_size?: number
+          name: string
+          price_per_person: number
+          restaurant_id: string
+          sort_order?: number
+          tax_rate_percent?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          kids_price_per_person?: number | null
+          max_party_size?: number | null
+          min_party_size?: number
+          name?: string
+          price_per_person?: number
+          restaurant_id?: string
+          sort_order?: number
+          tax_rate_percent?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_menus_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_menu_addons: {
+        Row: {
+          billing: string
+          description: string
+          exclude_kids: boolean
+          id: string
+          menu_id: string
+          name: string
+          price: number
+          sort_order: number
+        }
+        Insert: {
+          billing?: string
+          description?: string
+          exclude_kids?: boolean
+          id?: string
+          menu_id: string
+          name: string
+          price: number
+          sort_order?: number
+        }
+        Update: {
+          billing?: string
+          description?: string
+          exclude_kids?: boolean
+          id?: string
+          menu_id?: string
+          name?: string
+          price?: number
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_menu_addons_menu_id_fkey"
+            columns: ["menu_id"]
+            isOneToOne: false
+            referencedRelation: "event_menus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_menu_course_options: {
+        Row: {
+          course_id: string
+          description: string
+          diets: string[]
+          extra_price_per_person: number
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          course_id: string
+          description?: string
+          diets?: string[]
+          extra_price_per_person?: number
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          course_id?: string
+          description?: string
+          diets?: string[]
+          extra_price_per_person?: number
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_menu_course_options_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "event_menu_courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_menu_courses: {
+        Row: {
+          id: string
+          menu_id: string
+          name: string
+          required: boolean
+          selection_mode: string
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          menu_id: string
+          name: string
+          required?: boolean
+          selection_mode?: string
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          menu_id?: string
+          name?: string
+          required?: boolean
+          selection_mode?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_menu_courses_menu_id_fkey"
+            columns: ["menu_id"]
+            isOneToOne: false
+            referencedRelation: "event_menus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gwada_review_invitations: {
         Row: {
           completed_at: string | null

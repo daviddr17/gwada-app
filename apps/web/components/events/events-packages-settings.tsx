@@ -158,8 +158,8 @@ export function EventsPackagesSettings({ restaurantId }: { restaurantId: string 
 
           {packages.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Noch keine Pakete. Ohne Pakete bleibt das Anfrageformular frei — ohne
-              Kalkulator.
+              Noch keine Pakete. Ohne Pakete bleiben im Formular nur Menüvorschläge
+              oder die freie Nachricht.
             </p>
           ) : (
             <div className="space-y-4">

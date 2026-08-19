@@ -23,9 +23,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import {
+  isSilentClientSendResult,
   sendContactMessageUserMessage,
   type SendContactMessageApiResult,
 } from "@/lib/contact-messages/trigger-send-contact-message";
+import { shouldSilenceClientSendFailure } from "@/lib/network/client-send-abort";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { cn } from "@/lib/utils";
 
@@ -292,8 +294,10 @@ export function ReviewInvitationSheet({
         if (sendWhatsapp) {
           onWhatsappOutboundFailure?.({ clientSendId });
         }
-        const warn = sendContactMessageUserMessage(data);
-        toast.error(warn ?? "Senden fehlgeschlagen.");
+        if (!isSilentClientSendResult(data)) {
+          const warn = sendContactMessageUserMessage(data);
+          toast.error(warn ?? "Senden fehlgeschlagen.");
+        }
         return;
       }
       if (sendWhatsapp) {
@@ -309,11 +313,13 @@ export function ReviewInvitationSheet({
       if (warn) toast.warning(warn);
       else toast.success("Einladung gesendet.");
       onOpenChange(false);
-    } catch {
+    } catch (e) {
       if (sendWhatsapp) {
         onWhatsappOutboundFailure?.({ clientSendId });
       }
-      toast.error("Senden fehlgeschlagen.");
+      if (!shouldSilenceClientSendFailure(e)) {
+        toast.error("Senden fehlgeschlagen.");
+      }
     } finally {
       setSending(false);
     }

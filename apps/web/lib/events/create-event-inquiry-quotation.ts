@@ -6,12 +6,65 @@ import { ACCOUNTING_DEFAULT_CURRENCY } from "@/lib/accounting/accounting-locale"
 import { formatGermanYmd } from "@/lib/accounting/accounting-voucher-date";
 import { restaurantTodayYmd, restaurantZonedDateKey } from "@/lib/restaurant/restaurant-timezone";
 import type { EventPackage } from "@/lib/events/event-package";
+import {
+  eventMenuQuoteLines,
+  formatEventMenuNotes,
+  type EventMenu,
+  type EventMenuSelection,
+} from "@/lib/events/event-menu";
 import type { AccountingLineItem } from "@/lib/types/accounting";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export function formatEventPackageNotes(packages: EventPackage[]): string | null {
   if (packages.length === 0) return null;
   return `Pakete: ${packages.map((pkg) => pkg.name).join(", ")}`;
+}
+
+export function formatEventInquiryNotes(params: {
+  occasion: string;
+  message: string;
+  packages: EventPackage[];
+  menu: EventMenu | null;
+  menuSelection: EventMenuSelection | null;
+  partySize: number;
+}): string | null {
+  const parts: string[] = [];
+  if (params.occasion) parts.push(`Anlass: ${params.occasion}`);
+  if (params.menu && params.menuSelection) {
+    parts.push(formatEventMenuNotes(params.menu, params.menuSelection, params.partySize));
+  }
+  const packageNotes = formatEventPackageNotes(params.packages);
+  if (packageNotes) parts.push(packageNotes);
+  if (params.message) parts.push(params.message);
+  return parts.length > 0 ? parts.join("\n\n") : null;
+}
+
+function toAccountingLine(
+  line: {
+    name: string;
+    description: string | null;
+    quantity: number;
+    unitName: string;
+    unitPrice: number;
+  },
+  index: number,
+  taxRatePercent: number,
+): AccountingLineItem {
+  const item: AccountingLineItem = {
+    id: crypto.randomUUID(),
+    sortOrder: index,
+    type: "custom",
+    articleId: null,
+    name: line.name,
+    description: line.description,
+    quantity: line.quantity,
+    unitName: line.unitName,
+    unitPrice: line.unitPrice,
+    taxRatePercent,
+    discountPercent: 0,
+    lineAmount: 0,
+  };
+  return { ...item, lineAmount: computeLineAmount(item, "gross") };
 }
 
 export async function createEventInquiryQuotation(params: {
@@ -21,6 +74,8 @@ export async function createEventInquiryQuotation(params: {
   startsAtIso: string;
   partySize: number;
   packages: EventPackage[];
+  menu: EventMenu | null;
+  menuSelection: EventMenuSelection | null;
   guestFirstName: string;
   guestLastName: string;
   guestCompany: string | null;
@@ -29,7 +84,11 @@ export async function createEventInquiryQuotation(params: {
   occasion: string;
   message: string;
 }): Promise<string | null> {
-  if (params.packages.length === 0) return null;
+  const menuLines =
+    params.menu && params.menuSelection
+      ? eventMenuQuoteLines(params.menu, params.menuSelection, params.partySize)
+      : [];
+  if (params.packages.length === 0 && menuLines.length === 0) return null;
 
   const recipientName =
     params.guestCompany?.trim() ||
@@ -44,23 +103,29 @@ export async function createEventInquiryQuotation(params: {
     params.occasion ? `Anlass: ${params.occasion}` : null,
   ].filter((part): part is string => Boolean(part));
 
-  const lineItems: AccountingLineItem[] = params.packages.map((pkg, index) => {
-    const item: AccountingLineItem = {
-      id: crypto.randomUUID(),
-      sortOrder: index,
-      type: "custom",
-      articleId: null,
-      name: pkg.name,
-      description: pkg.description || null,
-      quantity: params.partySize,
-      unitName: "Person",
-      unitPrice: pkg.pricePerPerson,
-      taxRatePercent: pkg.taxRatePercent,
-      discountPercent: 0,
-      lineAmount: 0,
-    };
-    return { ...item, lineAmount: computeLineAmount(item, "gross") };
-  });
+  const lineItems: AccountingLineItem[] = [];
+  if (params.menu) {
+    for (const line of menuLines) {
+      lineItems.push(
+        toAccountingLine(line, lineItems.length, params.menu.taxRatePercent),
+      );
+    }
+  }
+  for (const pkg of params.packages) {
+    lineItems.push(
+      toAccountingLine(
+        {
+          name: pkg.name,
+          description: pkg.description || null,
+          quantity: params.partySize,
+          unitName: "Person",
+          unitPrice: pkg.pricePerPerson,
+        },
+        lineItems.length,
+        pkg.taxRatePercent,
+      ),
+    );
+  }
 
   const result = await createAccountingQuotation(params.sb, {
     restaurantId: params.restaurantId,

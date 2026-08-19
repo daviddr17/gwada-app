@@ -1,3 +1,9 @@
+import {
+  CLIENT_SEND_ABORTED,
+  isAppBackgroundedOrRecentlyResumed,
+  isSilentClientSendResult,
+  shouldSilenceClientSendFailure,
+} from "@/lib/network/client-send-abort";
 import type { DispatchEvent } from "@/lib/reservations/reservation-whatsapp-dispatch";
 
 export type WhatsappDispatchApiResult = {
@@ -34,10 +40,17 @@ const API_ERROR_MESSAGE: Record<string, string> = {
 export function whatsappDispatchUserMessage(
   result: WhatsappDispatchApiResult | null,
 ): string | null {
+  if (isSilentClientSendResult(result)) return null;
   if (!result) {
     return "WhatsApp-Versand konnte nicht gestartet werden (Netzwerkfehler).";
   }
   if (result.error) {
+    if (
+      (result.error === "unauthorized" || result.error === "http_401") &&
+      isAppBackgroundedOrRecentlyResumed()
+    ) {
+      return null;
+    }
     return (
       API_ERROR_MESSAGE[result.error] ??
       `WhatsApp-Versand fehlgeschlagen: ${result.error}`
@@ -74,6 +87,9 @@ export async function triggerReservationWhatsappDispatch(
     }
     return body;
   } catch (e) {
+    if (shouldSilenceClientSendFailure(e)) {
+      return { ok: false, skipped: CLIENT_SEND_ABORTED };
+    }
     console.warn("[gwada] whatsapp dispatch", e);
     return null;
   }

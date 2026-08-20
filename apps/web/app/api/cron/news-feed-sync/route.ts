@@ -1,4 +1,6 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
+import { cancelStripeSubscriptionsPastDueGraceExpired } from "@/lib/billing/cancel-past-due-grace";
+import { isBillingPastDueSweepDue } from "@/lib/billing/past-due-grace";
 import { runNewsFeedSyncCron } from "@/lib/news/news-feed-sync-cron";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -14,6 +16,9 @@ export async function GET(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
+  const billing = isBillingPastDueSweepDue()
+    ? await cancelStripeSubscriptionsPastDueGraceExpired()
+    : undefined;
   const stats = await runNewsFeedSyncCron(admin);
-  return Response.json(stats);
+  return Response.json(billing ? { ...stats, billing } : stats);
 }

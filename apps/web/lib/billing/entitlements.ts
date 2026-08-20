@@ -8,6 +8,7 @@ import {
   type BillingInterval,
   type BillingPlanId,
 } from "@/lib/billing/plan-catalog";
+import { isBillingHealthyStatus } from "@/lib/billing/past-due-grace";
 import type { SidebarModuleId } from "@/lib/constants/sidebar-modules";
 
 export type RestaurantEntitlements = {
@@ -23,6 +24,12 @@ export type RestaurantEntitlements = {
   currentPeriodEnd: string | null;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+  /** First failed/unpaid charge of this cycle. */
+  pastDueSince: string | null;
+  /** pastDueSince + 7 days. */
+  pastDueAccessEndsAt: string | null;
+  /** Paid modules already dropped to Free. */
+  pastDueGraceExpired: boolean;
 };
 
 export function featuresForPlanAndAddons(
@@ -58,16 +65,30 @@ export function hasSidebarModuleBillingAccess(
 /** Paid plans + legacy/complimentary count as “subscribed” for upgrade CTAs. */
 export function isPaidPlanActive(entitlements: RestaurantEntitlements): boolean {
   if (entitlements.planId === "free") return false;
-  return ["active", "trialing", "legacy", "past_due"].includes(
+  if (entitlements.pastDueGraceExpired) return false;
+  return ["active", "trialing", "legacy", "past_due", "unpaid"].includes(
     entitlements.status,
   );
 }
 
-/** Stripe-Abo, das in-app gewechselt oder gekündigt werden kann. */
+/** Stripe-Abo, das in-app gekündigt oder im Portal bearbeitet werden kann. */
 export function hasManagedStripeSubscription(
   entitlements: RestaurantEntitlements,
 ): boolean {
   if (!entitlements.stripeSubscriptionId) return false;
   if (entitlements.source !== "stripe") return false;
-  return ["active", "trialing", "past_due"].includes(entitlements.status);
+  if (entitlements.pastDueGraceExpired) return false;
+  return ["active", "trialing", "past_due", "unpaid"].includes(
+    entitlements.status,
+  );
+}
+
+/** In-App-Planwechsel nur bei zahlendem, nicht im Verzug befindlichem Abo. */
+export function canChangeStripePlan(
+  entitlements: RestaurantEntitlements,
+): boolean {
+  return (
+    hasManagedStripeSubscription(entitlements) &&
+    isBillingHealthyStatus(entitlements.status)
+  );
 }

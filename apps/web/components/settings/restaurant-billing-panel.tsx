@@ -23,7 +23,11 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
 import { formatBillingDate } from "@/lib/billing/billing-status-labels";
-import { hasManagedStripeSubscription } from "@/lib/billing/entitlements";
+import {
+  canChangeStripePlan,
+  hasManagedStripeSubscription,
+} from "@/lib/billing/entitlements";
+import { isBillingDunningStatus } from "@/lib/billing/past-due-grace";
 import {
   BILLING_ADDONS,
   BILLING_PLANS,
@@ -50,6 +54,10 @@ function planStatusLabel(status: string, source: string): string {
       return "Testphase";
     case "past_due":
       return "Zahlung ausstehend";
+    case "unpaid":
+      return "Zahlung ausstehend";
+    case "incomplete":
+      return "Zahlung unvollständig";
     case "canceled":
       return "Beendet";
     case "legacy":
@@ -98,6 +106,17 @@ export function RestaurantBillingPanel() {
   const managedStripe = Boolean(
     entitlements && hasManagedStripeSubscription(entitlements),
   );
+  const dunningOpen = Boolean(
+    entitlements &&
+      entitlements.source === "stripe" &&
+      (isBillingDunningStatus(entitlements.status) ||
+        entitlements.pastDueGraceExpired),
+  );
+  const planChangeBlocked = Boolean(
+    entitlements &&
+      isBillingDunningStatus(entitlements.status) &&
+      !entitlements.pastDueGraceExpired,
+  );
   const lockedManual =
     entitlements?.source === "complimentary" ||
     entitlements?.source === "legacy";
@@ -145,6 +164,8 @@ export function RestaurantBillingPanel() {
               ? "Stripe-Preise fehlen noch in den Integrationen."
               : data.error === "use_plan_change"
                 ? "Bestehendes Abo bitte über Wechseln anpassen."
+                : data.error === "payment_required"
+                  ? "Zuerst die ausstehende Zahlung im Kundenportal klären."
                 : "Checkout konnte nicht gestartet werden.",
         );
         return;
@@ -169,6 +190,8 @@ export function RestaurantBillingPanel() {
         toast.error(
           data.error === "price_not_configured"
             ? "Stripe-Preise fehlen noch in den Integrationen."
+            : data.error === "payment_required"
+              ? "Zuerst die ausstehende Zahlung im Kundenportal klären."
             : "Planwechsel fehlgeschlagen.",
         );
         return;
@@ -211,7 +234,7 @@ export function RestaurantBillingPanel() {
   }
 
   async function choosePaidPlan(planId: Exclude<BillingPlanId, "free">) {
-    if (managedStripe) {
+    if (entitlements && canChangeStripePlan(entitlements)) {
       await changePlan(planId);
       return;
     }
@@ -331,13 +354,14 @@ export function RestaurantBillingPanel() {
         </CardContent>
       </Card>
 
-      {entitlements?.status === "past_due" ? (
+      {dunningOpen ? (
         <div className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm">
-            Zahlung ausstehend — bitte Zahlungsmittel aktualisieren, sonst
-            endet der Zugang.
+            {entitlements?.pastDueGraceExpired
+              ? "Zahlung seit 7 Tagen ausstehend — Paid-Module sind auf Free. Zahlungsmittel aktualisieren (offene Rechnung) oder den Plan erneut wählen."
+              : `Zahlung ausstehend — Paid-Module bleiben bis ${formatBillingDate(entitlements?.pastDueAccessEndsAt)} aktiv (maximal 7 Tage). Danach Free.`}
           </p>
-          {entitlements.stripeCustomerId ? (
+          {entitlements?.stripeCustomerId ? (
             <Button
               type="button"
               variant="outline"
@@ -557,7 +581,7 @@ export function RestaurantBillingPanel() {
                         "w-full",
                         brandActionButtonRoundedClassName,
                       )}
-                      disabled={busy || isCurrent}
+                      disabled={busy || isCurrent || planChangeBlocked}
                       onClick={() =>
                         void choosePaidPlan(
                           planId as Exclude<BillingPlanId, "free">,
@@ -569,9 +593,11 @@ export function RestaurantBillingPanel() {
                       ) : null}
                       {isCurrent
                         ? "Aktueller Plan"
-                        : managedStripe
-                          ? "Wechseln"
-                          : plan.cta}
+                        : planChangeBlocked
+                          ? "Zahlung klären"
+                          : managedStripe
+                            ? "Wechseln"
+                            : plan.cta}
                     </Button>
                   )}
                 </div>

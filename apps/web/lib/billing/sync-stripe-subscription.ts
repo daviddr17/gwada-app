@@ -10,15 +10,28 @@ import {
   clearRestaurantAddonAdmin,
   findRestaurantIdByStripeCustomer,
   findRestaurantIdByStripeSubscription,
+  loadRestaurantPastDueSince,
   upsertRestaurantAddonAdmin,
   upsertRestaurantSubscriptionAdmin,
 } from "@/lib/billing/subscription-db";
+import {
+  isBillingDunningStatus,
+  mapStripeSubscriptionStatus,
+  nextPastDueSince,
+} from "@/lib/billing/past-due-grace";
 import type { PlatformStripeConfig } from "@/lib/integrations/platform-stripe-config";
 import type { BillingInterval, BillingPlanId } from "@/lib/billing/plan-catalog";
 
 function unixToIso(sec: number | null | undefined): string | null {
   if (!sec) return null;
   return new Date(sec * 1000).toISOString();
+}
+
+function isLatestInvoiceOpen(sub: Stripe.Subscription): boolean {
+  const latest = sub.latest_invoice;
+  if (!latest || typeof latest === "string") return false;
+  const status = "status" in latest ? latest.status : null;
+  return status === "open" || status === "uncollectible";
 }
 
 function subscriptionPeriod(sub: Stripe.Subscription): {
@@ -41,6 +54,12 @@ function subscriptionPeriod(sub: Stripe.Subscription): {
   return { start: unixToIso(start), end: unixToIso(end) };
 }
 
+function addonStatusForSubscription(status: string): string {
+  if (status === "canceled" || status === "incomplete") return "canceled";
+  if (isBillingDunningStatus(status)) return "past_due";
+  return "active";
+}
+
 export async function syncStripeSubscriptionToDb(
   config: PlatformStripeConfig,
   sub: Stripe.Subscription,
@@ -50,7 +69,7 @@ export async function syncStripeSubscriptionToDb(
     typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
   if (!customerId) return { ok: false, error: "missing_customer" };
 
-  let restaurantId =
+  const restaurantId =
     restaurantIdHint ??
     (typeof sub.metadata?.restaurant_id === "string"
       ? sub.metadata.restaurant_id
@@ -84,31 +103,21 @@ export async function syncStripeSubscriptionToDb(
   }
 
   const period = subscriptionPeriod(sub);
-  const status =
-    sub.status === "canceled" && planId !== "free"
-      ? "canceled"
-      : sub.status === "active" ||
-          sub.status === "trialing" ||
-          sub.status === "past_due" ||
-          sub.status === "incomplete" ||
-          sub.status === "unpaid"
-        ? sub.status
-        : sub.status === "canceled"
-          ? "canceled"
-          : "active";
+  const status = mapStripeSubscriptionStatus(sub.status);
+  const existingPastDueSince = await loadRestaurantPastDueSince(restaurantId);
+  const pastDueSince = nextPastDueSince({
+    existing: existingPastDueSince,
+    status,
+    latestInvoiceOpen: isLatestInvoiceOpen(sub),
+  });
 
-  const effectivePlan: BillingPlanId =
-    status === "canceled" || status === "unpaid" || status === "incomplete"
-      ? status === "canceled"
-        ? "free"
-        : planId
-      : planId;
+  const storedPlanId: BillingPlanId = status === "canceled" ? "free" : planId;
 
   const upsert = await upsertRestaurantSubscriptionAdmin({
     restaurantId,
-    planId: effectivePlan === "free" && status !== "canceled" ? planId : effectivePlan,
+    planId: storedPlanId,
     interval,
-    status: status === "canceled" ? "canceled" : status,
+    status,
     source: "stripe",
     stripeCustomerId: customerId,
     stripeSubscriptionId: sub.id,
@@ -116,38 +125,18 @@ export async function syncStripeSubscriptionToDb(
     currentPeriodStart: period.start,
     currentPeriodEnd: period.end,
     cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
+    pastDueSince,
   });
 
   if (!upsert.ok) return upsert;
 
-  // If canceled, drop to free explicitly
-  if (status === "canceled") {
-    await upsertRestaurantSubscriptionAdmin({
-      restaurantId,
-      planId: "free",
-      interval,
-      status: "canceled",
-      source: "stripe",
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: sub.id,
-      stripePriceId: planPriceId,
-      currentPeriodStart: period.start,
-      currentPeriodEnd: period.end,
-      cancelAtPeriodEnd: false,
-    });
-  }
-
   if (posItem?.price?.id) {
-    const posInterval = intervalFromPriceId(config, posItem.price.id) ?? interval;
+    const posInterval =
+      intervalFromPriceId(config, posItem.price.id) ?? interval;
     await upsertRestaurantAddonAdmin({
       restaurantId,
       addonId: "pos",
-      status:
-        status === "canceled"
-          ? "canceled"
-          : status === "past_due"
-            ? "past_due"
-            : "active",
+      status: addonStatusForSubscription(status),
       interval: posInterval,
       stripeSubscriptionItemId: posItem.id,
       stripePriceId: posItem.price.id,

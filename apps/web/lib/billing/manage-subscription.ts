@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  canChangeStripePlan,
   hasManagedStripeSubscription,
 } from "@/lib/billing/entitlements";
 import {
@@ -31,8 +32,17 @@ export async function updateRestaurantBillingPlan(input: {
   }
 
   const entitlements = await loadRestaurantEntitlements(input.restaurantId);
-  if (!hasManagedStripeSubscription(entitlements) || !entitlements.stripeSubscriptionId) {
-    return { ok: false, error: "no_managed_subscription", status: 409 };
+  if (!canChangeStripePlan(entitlements) || !entitlements.stripeSubscriptionId) {
+    return {
+      ok: false,
+      error:
+        entitlements.pastDueGraceExpired ||
+        entitlements.status === "past_due" ||
+        entitlements.status === "unpaid"
+          ? "payment_required"
+          : "no_managed_subscription",
+      status: 409,
+    };
   }
 
   const client = await createStripeClient();

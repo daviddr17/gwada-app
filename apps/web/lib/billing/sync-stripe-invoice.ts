@@ -12,6 +12,24 @@ function unixToIso(sec: number | null | undefined): string | null {
   return new Date(sec * 1000).toISOString();
 }
 
+export function stripeInvoiceSubscriptionId(
+  invoice: Stripe.Invoice,
+): string | null {
+  const parentSub = invoice.parent?.subscription_details?.subscription;
+  if (typeof parentSub === "string") return parentSub;
+  if (parentSub && typeof parentSub === "object" && "id" in parentSub) {
+    return parentSub.id;
+  }
+  const legacy = (
+    invoice as Stripe.Invoice & {
+      subscription?: string | { id: string } | null;
+    }
+  ).subscription;
+  if (typeof legacy === "string") return legacy;
+  if (legacy && typeof legacy === "object" && "id" in legacy) return legacy.id;
+  return null;
+}
+
 function mapInvoiceStatus(
   invoice: Stripe.Invoice,
   eventHint?: "payment_failed",
@@ -45,13 +63,7 @@ export async function syncStripeInvoiceToDb(
           "id" in invoice.customer
         ? invoice.customer.id
         : null;
-  const parentSub = invoice.parent?.subscription_details?.subscription;
-  const subscriptionId =
-    typeof parentSub === "string"
-      ? parentSub
-      : parentSub && typeof parentSub === "object" && "id" in parentSub
-        ? parentSub.id
-        : null;
+  const subscriptionId = stripeInvoiceSubscriptionId(invoice);
 
   let restaurantId: string | null =
     (typeof options?.restaurantIdHint === "string"

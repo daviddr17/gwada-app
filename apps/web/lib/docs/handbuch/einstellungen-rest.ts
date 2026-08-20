@@ -87,6 +87,7 @@ export const einstellungenGuide: UserGuidePage = {
       items: [
         "Plan wählen oder wechseln — erstes Abo über Stripe-Checkout, danach Wechsel in der App (mit anteiliger Abrechnung)",
         "Kündigung zum Periodenende — bis dahin bleibt der Plan aktiv, danach Free; Kündigung lässt sich zurücknehmen",
+        "Fehlgeschlagene Erneuerung: 7 Tage Karenz mit vollem Plan, danach Paid-Module auf Free. Offene Rechnung im Portal zahlen oder Plan neu wählen. Erster Checkout ohne Zahlung bleibt Free.",
         "Zahlungsmittel im Stripe-Kundenportal (Button „Zahlungsmittel & Kündigung“)",
         "Rechnungen und PDFs in der Liste — Beleg speichern für die Buchhaltung (nicht die Gast-Rechnungen unter Buchführung)",
       ],

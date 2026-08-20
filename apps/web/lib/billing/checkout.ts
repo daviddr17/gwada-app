@@ -13,6 +13,7 @@ import {
   posPriceSlot,
   resolvePriceId,
 } from "@/lib/billing/stripe-server";
+import { syncStripeSubscriptionToDb } from "@/lib/billing/sync-stripe-subscription";
 import {
   ensureRestaurantSubscriptionRow,
   loadRestaurantEntitlements,
@@ -72,12 +73,37 @@ export async function createBillingCheckoutSession(
 
   await ensureRestaurantSubscriptionRow(input.restaurantId);
   const entitlements = await loadRestaurantEntitlements(input.restaurantId);
+  const blockingStatuses = ["active", "trialing", "past_due", "unpaid"];
   if (
     entitlements.stripeSubscriptionId &&
     entitlements.source === "stripe" &&
-    ["active", "trialing", "past_due"].includes(entitlements.status)
+    blockingStatuses.includes(entitlements.status)
   ) {
-    return { ok: false, error: "use_plan_change", status: 409 };
+    if (!entitlements.pastDueGraceExpired) {
+      return { ok: false, error: "use_plan_change", status: 409 };
+    }
+    try {
+      const current = await stripe.subscriptions.retrieve(
+        entitlements.stripeSubscriptionId,
+      );
+      if (current.status !== "canceled") {
+        const canceled = await stripe.subscriptions.cancel(current.id);
+        const synced = await syncStripeSubscriptionToDb(
+          config,
+          canceled,
+          input.restaurantId,
+        );
+        if (!synced.ok) {
+          console.warn("checkout cancel expired sub", synced.error);
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/already been canceled|No such subscription/i.test(msg)) {
+        console.warn("checkout cancel expired sub", msg);
+        return { ok: false, error: "cancel_failed", status: 500 };
+      }
+    }
   }
 
   let customerId = entitlements.stripeCustomerId;

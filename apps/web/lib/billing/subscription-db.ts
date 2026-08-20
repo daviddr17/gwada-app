@@ -5,6 +5,13 @@ import {
   type RestaurantEntitlements,
 } from "@/lib/billing/entitlements";
 import {
+  isBillingDunningStatus,
+  isPastDueAccessLocked,
+  isPastDueGraceExpired,
+  pastDueAccessEndsAt,
+  shouldGrantPaidPlanFeatures,
+} from "@/lib/billing/past-due-grace";
+import {
   isBillingPlanId,
   type BillingAddonId,
   type BillingInterval,
@@ -26,6 +33,7 @@ type SubRow = {
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   trial_ends_at: string | null;
+  past_due_since: string | null;
 };
 
 type AddonRow = {
@@ -45,7 +53,9 @@ function asInterval(value: string): BillingInterval {
 
 function activeAddonIds(rows: AddonRow[]): BillingAddonId[] {
   return rows
-    .filter((r) => ["active", "legacy", "past_due"].includes(r.status))
+    .filter((r) =>
+      ["active", "legacy", "past_due", "unpaid"].includes(r.status),
+    )
     .map((r) => r.addon_id)
     .filter((id): id is BillingAddonId => id === "pos");
 }
@@ -87,17 +97,23 @@ export async function loadRestaurantEntitlements(
       currentPeriodEnd: null,
       stripeCustomerId: null,
       stripeSubscriptionId: null,
+      pastDueSince: null,
+      pastDueAccessEndsAt: null,
+      pastDueGraceExpired: false,
     };
   }
 
   await ensureRestaurantSubscriptionRow(restaurantId);
 
-  const [{ data: sub }, { data: addons }] = await Promise.all([
+  const subSelectWithGrace =
+    "restaurant_id, plan_id, interval, status, source, stripe_customer_id, stripe_subscription_id, stripe_price_id, current_period_start, current_period_end, cancel_at_period_end, trial_ends_at, past_due_since";
+  const subSelectBase =
+    "restaurant_id, plan_id, interval, status, source, stripe_customer_id, stripe_subscription_id, stripe_price_id, current_period_start, current_period_end, cancel_at_period_end, trial_ends_at";
+
+  const [{ data: sub, error: subError }, { data: addons }] = await Promise.all([
     admin
       .from("restaurant_subscriptions")
-      .select(
-        "restaurant_id, plan_id, interval, status, source, stripe_customer_id, stripe_subscription_id, stripe_price_id, current_period_start, current_period_end, cancel_at_period_end, trial_ends_at",
-      )
+      .select(subSelectWithGrace)
       .eq("restaurant_id", restaurantId)
       .maybeSingle(),
     admin
@@ -106,9 +122,46 @@ export async function loadRestaurantEntitlements(
       .eq("restaurant_id", restaurantId),
   ]);
 
-  const row = sub as SubRow | null;
+  let row = (sub as SubRow | null) ?? null;
+  if (subError) {
+    console.warn("loadRestaurantEntitlements", subError.message);
+    const retry = await admin
+      .from("restaurant_subscriptions")
+      .select(subSelectBase)
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle();
+    row = retry.data
+      ? ({ ...(retry.data as Omit<SubRow, "past_due_since">), past_due_since: null } as SubRow)
+      : null;
+  }
+
   const planId = asPlanId(row?.plan_id ?? "free");
-  const addonIds = activeAddonIds((addons ?? []) as AddonRow[]);
+  let pastDueSince = row?.past_due_since ?? null;
+  if (
+    row?.source === "stripe" &&
+    isBillingDunningStatus(row.status) &&
+    !pastDueSince
+  ) {
+    await stampRestaurantPastDueSince(restaurantId);
+    pastDueSince =
+      (await loadRestaurantPastDueSince(restaurantId)) ??
+      new Date().toISOString();
+  }
+
+  const grantPaid = shouldGrantPaidPlanFeatures({
+    source: row?.source ?? "manual",
+    status: row?.status ?? "active",
+    pastDueSince,
+  });
+  const graceExpired = isPastDueAccessLocked({
+    source: row?.source ?? "manual",
+    status: row?.status ?? "active",
+    pastDueSince,
+  });
+  const addonIds = grantPaid
+    ? activeAddonIds((addons ?? []) as AddonRow[])
+    : [];
+  const featurePlanId = grantPaid ? planId : "free";
 
   // Legacy / complimentary always keep full access even if Stripe is on.
   const effectiveEnforcing =
@@ -124,11 +177,14 @@ export async function loadRestaurantEntitlements(
     source: row?.source ?? "manual",
     enforcing: effectiveEnforcing,
     addons: addonIds,
-    features: featuresForPlanAndAddons(planId, addonIds),
+    features: featuresForPlanAndAddons(featurePlanId, addonIds),
     cancelAtPeriodEnd: Boolean(row?.cancel_at_period_end),
     currentPeriodEnd: row?.current_period_end ?? null,
     stripeCustomerId: row?.stripe_customer_id ?? null,
     stripeSubscriptionId: row?.stripe_subscription_id ?? null,
+    pastDueSince,
+    pastDueAccessEndsAt: pastDueAccessEndsAt(pastDueSince),
+    pastDueGraceExpired: graceExpired,
   };
 }
 
@@ -144,6 +200,8 @@ export async function upsertRestaurantSubscriptionAdmin(input: {
   currentPeriodStart?: string | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
+  /** `undefined` = Spalte nicht anfassen; `null` = leeren. */
+  pastDueSince?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createSupabaseAdminClient();
   if (!admin) return { ok: false, error: "server_misconfigured" };
@@ -162,6 +220,9 @@ export async function upsertRestaurantSubscriptionAdmin(input: {
       current_period_end: input.currentPeriodEnd ?? null,
       cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
       updated_at: new Date().toISOString(),
+      ...(input.pastDueSince !== undefined
+        ? { past_due_since: input.pastDueSince }
+        : {}),
     },
     { onConflict: "restaurant_id" },
   );
@@ -240,4 +301,76 @@ export async function findRestaurantIdByStripeSubscription(
     .eq("stripe_subscription_id", subscriptionId)
     .maybeSingle();
   return (data?.restaurant_id as string | undefined) ?? null;
+}
+
+export async function loadRestaurantPastDueSince(
+  restaurantId: string,
+): Promise<string | null> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+  const { data } = await admin
+    .from("restaurant_subscriptions")
+    .select("past_due_since")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  return (data?.past_due_since as string | null | undefined) ?? null;
+}
+
+/** Keep the first failure timestamp in this unpaid cycle. */
+export async function stampRestaurantPastDueSince(
+  restaurantId: string,
+): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
+  const now = new Date().toISOString();
+  await admin
+    .from("restaurant_subscriptions")
+    .update({ past_due_since: now, updated_at: now })
+    .eq("restaurant_id", restaurantId)
+    .is("past_due_since", null);
+}
+
+export async function clearRestaurantPastDueSince(
+  restaurantId: string,
+): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
+  await admin
+    .from("restaurant_subscriptions")
+    .update({
+      past_due_since: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("restaurant_id", restaurantId)
+    .not("past_due_since", "is", null);
+}
+
+export type PastDueGraceExpiredRow = {
+  restaurantId: string;
+  stripeSubscriptionId: string;
+  pastDueSince: string;
+};
+
+export async function listStripeSubscriptionsPastDueGraceExpired(
+  now: Date = new Date(),
+): Promise<PastDueGraceExpiredRow[]> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return [];
+  const { data, error } = await admin
+    .from("restaurant_subscriptions")
+    .select("restaurant_id, stripe_subscription_id, past_due_since, source, status")
+    .eq("source", "stripe")
+    .not("past_due_since", "is", null)
+    .not("stripe_subscription_id", "is", null)
+    .neq("status", "canceled");
+
+  if (error || !data) return [];
+  return data.flatMap((row) => {
+    const restaurantId = row.restaurant_id as string;
+    const stripeSubscriptionId = row.stripe_subscription_id as string | null;
+    const pastDueSince = row.past_due_since as string | null;
+    if (!restaurantId || !stripeSubscriptionId || !pastDueSince) return [];
+    if (!isPastDueGraceExpired(pastDueSince, now)) return [];
+    return [{ restaurantId, stripeSubscriptionId, pastDueSince }];
+  });
 }

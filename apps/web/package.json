@@ -21,7 +21,8 @@
     "dev:docker": "dotenv -e ../../.env.local -- next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --experimental-strip-types --test lib/billing/past-due-grace.test.ts",
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --test lib/billing/past-due-grace.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

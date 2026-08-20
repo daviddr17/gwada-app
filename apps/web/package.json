@@ -22,7 +22,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test lib/billing/past-due-grace.test.ts"
+    "test": "node --experimental-strip-types --test lib/billing/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

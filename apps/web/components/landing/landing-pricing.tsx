@@ -59,8 +59,8 @@ export function LandingPricing() {
             Zahlt für Power — nicht für Köpfe
           </h2>
           <p className="mt-4 text-pretty text-muted-foreground md:text-lg">
-            Unbegrenzte Mitarbeiter, Reservierungen und Speisen in jedem Plan.
-            Keine Seat-Fees. Upgrade für Module — nicht für Volumen.
+            Unbegrenzte Reservierungen und Speisen in jedem Plan. Registrierte
+            Nutzer: 1 in Free, 3 in Basic, unbegrenzt in Pro — ohne Seat-Fees.
           </p>
 
           <div className="mt-10 inline-flex items-center gap-3 rounded-full border border-border/60 bg-card/80 px-4 py-2 shadow-sm backdrop-blur-sm">
@@ -252,9 +252,9 @@ export function LandingPricing() {
               Alle Funktionen im Überblick
             </h3>
             <p className="mt-3 text-pretty text-muted-foreground">
-              Free startet ohne Seat-Fees und ohne Limits bei Speisen,
-              Reservierungen und Team-Zugängen — Module kommen mit Basic und
-              Pro dazu.
+              Free startet mit Speisen, Reservierungen und 1 Login.
+              Basic erlaubt 3 Nutzer und schaltet Module frei. Pro: unbegrenzt
+              Nutzer, ohne Seat-Fees.
             </p>
           </div>
           <BillingComparisonTable variant="landing" interval={interval} />

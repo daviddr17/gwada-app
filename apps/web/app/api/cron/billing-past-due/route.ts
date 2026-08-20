@@ -1,5 +1,5 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
-import { cancelStripeSubscriptionsPastDueGraceExpired } from "@/lib/billing/cancel-past-due-grace";
+import { runDailyBillingHealthCheck } from "@/lib/billing/daily-billing-health";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   const cronAuth = assertCronAuthorized(req);
   if (cronAuth) return cronAuth;
 
-  const stats = await cancelStripeSubscriptionsPastDueGraceExpired();
+  const stats = await runDailyBillingHealthCheck();
   return Response.json(stats);
 }
 

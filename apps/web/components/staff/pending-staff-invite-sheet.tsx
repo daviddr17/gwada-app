@@ -24,6 +24,7 @@ import {
   type PendingStaffInviteRow,
   usePendingStaffInvites,
 } from "@/lib/hooks/use-pending-staff-invites";
+import { REGISTERED_USER_LIMIT_ACCEPT_MESSAGE } from "@/lib/billing/registered-user-seats";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 
@@ -32,6 +33,7 @@ const ACCEPT_ERROR_COPY: Record<string, string> = {
   staff_already_linked: "Diese Einladung ist bereits mit einem anderen Konto verknüpft.",
   forbidden: "Diese Einladung passt nicht zu deinem Konto.",
   already_member: "Du bist bereits Mitglied dieses Restaurants.",
+  user_limit: REGISTERED_USER_LIMIT_ACCEPT_MESSAGE,
   nothing_to_repair: "Es gibt nichts zu reparieren — bitte Seite neu laden.",
   decline_failed: "Einladung konnte nicht abgelehnt werden.",
 };

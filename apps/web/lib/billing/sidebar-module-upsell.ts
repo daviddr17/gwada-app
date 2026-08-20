@@ -91,7 +91,7 @@ const MODULE_UPSELL_BULLETS: Partial<
   mitarbeiter: [
     "Schichtplan & Zeiterfassung",
     "Verträge und Einladungen",
-    "Team ohne Seat-Fees",
+    "Unbegrenzte Nutzer",
   ],
   buchfuehrung: [
     "Rechnungen & Belege",

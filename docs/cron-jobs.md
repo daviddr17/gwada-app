@@ -56,7 +56,7 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
   https://gwada.app/api/cron/billing-past-due
 ```
 
-Abo-Verzug: Zugriff fällt nach 7 Tagen auf Free (ohne Cron). Stripe-Abo wird einmal täglich gegen 06:00 UTC mit dem News-Feed-Cron aufgeräumt (`/api/cron/billing-past-due` manuell).
+Abo: einmal täglich gegen 06:00 UTC Stripe gegen die DB (verpasste Webhooks, Status, 7-Tage-Cutoff). Manuell: `/api/cron/billing-past-due`.
 
 ### Reservierungen: Erinnerung / Danke & Bewertung
 

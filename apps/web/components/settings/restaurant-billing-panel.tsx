@@ -125,8 +125,8 @@ export function RestaurantBillingPanel() {
     () => [
       {
         icon: InfinityIcon,
-        title: "Keine Seat-Fees",
-        text: "Unbegrenzte Mitarbeiter in jedem Plan.",
+        title: "Keine Seat-Fees in Pro",
+        text: "Unbegrenzte Logins ab Pro. Free: 1 registrierter Nutzer, Basic: maximal 3.",
       },
       {
         icon: InfinityIcon,
@@ -327,8 +327,8 @@ export function RestaurantBillingPanel() {
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             Andere Tools rechnen pro Mitarbeiter und Reservierung. Gwada nicht:
-            unbegrenztes Team, unbegrenzte Reservierungen, unbegrenzte Speisen —
-            in jedem Plan. Ihr upgradet für Module, nicht für Volumen.
+            unbegrenzte Reservierungen und Speisen in jedem Plan; Nutzer unbegrenzt
+            ab Pro (Free: 1 Login, Basic: 3). Ihr upgradet für Module, nicht für Volumen.
             {entitlements?.currentPeriodEnd && managedStripe ? (
               <>
                 {" "}
@@ -647,8 +647,8 @@ export function RestaurantBillingPanel() {
             Was ist wann inklusive?
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Free · Basic · Pro im Vergleich. Unbegrenzte Mitarbeiter,
-            Reservierungen und Speisen gelten in jedem Plan.
+            Free · Basic · Pro im Vergleich. Speisen und Reservierungen ohne Limit.
+            Registrierte Nutzer: 1 in Free, 3 in Basic, unbegrenzt in Pro.
           </p>
         </CardHeader>
         <CardContent>

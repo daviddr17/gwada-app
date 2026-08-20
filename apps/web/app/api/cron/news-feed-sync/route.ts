@@ -1,5 +1,5 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
-import { cancelStripeSubscriptionsPastDueGraceExpired } from "@/lib/billing/cancel-past-due-grace";
+import { runDailyBillingHealthCheck } from "@/lib/billing/daily-billing-health";
 import { isBillingPastDueSweepDue } from "@/lib/billing/past-due-grace";
 import { runNewsFeedSyncCron } from "@/lib/news/news-feed-sync-cron";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   }
 
   const billing = isBillingPastDueSweepDue()
-    ? await cancelStripeSubscriptionsPastDueGraceExpired()
+    ? await runDailyBillingHealthCheck()
     : undefined;
   const stats = await runNewsFeedSyncCron(admin);
   return Response.json(billing ? { ...stats, billing } : stats);

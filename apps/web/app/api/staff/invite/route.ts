@@ -1,3 +1,4 @@
+import { assertCanAddRegisteredUser } from "@/lib/billing/registered-user-limit";
 import { authorizeStaffRestaurant } from "@/lib/staff/route-auth";
 import { insertStaffAuditLogEntryServer } from "@/lib/staff/staff-audit-log-server";
 import {
@@ -105,17 +106,41 @@ export async function POST(req: Request) {
     }
   }
 
-  const invite = await (async () => {
-    const admin = await getStaffInviteAdminClient();
-    if (!admin) return null;
-    return createStaffInviteAdmin(admin, {
+  const admin = await getStaffInviteAdminClient();
+  if (!admin) {
+    return Response.json({ error: "invite_failed" }, { status: 500 });
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data: existingPendingRows } = await admin
+    .from("restaurant_staff_invites")
+    .select("id")
+    .eq("staff_id", staffId)
+    .eq("status", "pending")
+    .gt("expires_at", nowIso)
+    .limit(1);
+  const existingPending = existingPendingRows?.[0];
+
+  if (!existingPending) {
+    const gate = await assertCanAddRegisteredUser({
       restaurantId,
-      staffId,
-      restaurantPositionId,
-      channel,
-      createdBy: auth.userId,
+      existingStaffId: staffId,
     });
-  })();
+    if (!gate.ok) {
+      return Response.json(
+        { error: "user_limit", limit: gate.limit },
+        { status: 403 },
+      );
+    }
+  }
+
+  const invite = await createStaffInviteAdmin(admin, {
+    restaurantId,
+    staffId,
+    restaurantPositionId,
+    channel,
+    createdBy: auth.userId,
+  });
 
   if (!invite) {
     return Response.json({ error: "invite_failed" }, { status: 500 });

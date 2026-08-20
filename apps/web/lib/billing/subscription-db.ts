@@ -345,6 +345,40 @@ export async function clearRestaurantPastDueSince(
     .not("past_due_since", "is", null);
 }
 
+export async function listStripeLinkedSubscriptions(): Promise<
+  {
+    restaurantId: string;
+    stripeSubscriptionId: string;
+    stripeCustomerId: string | null;
+    interval: string;
+  }[]
+> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return [];
+  const { data, error } = await admin
+    .from("restaurant_subscriptions")
+    .select(
+      "restaurant_id, stripe_subscription_id, stripe_customer_id, interval, source",
+    )
+    .eq("source", "stripe")
+    .not("stripe_subscription_id", "is", null);
+
+  if (error || !data) return [];
+  return data.flatMap((row) => {
+    const restaurantId = row.restaurant_id as string;
+    const stripeSubscriptionId = row.stripe_subscription_id as string | null;
+    if (!restaurantId || !stripeSubscriptionId) return [];
+    return [
+      {
+        restaurantId,
+        stripeSubscriptionId,
+        stripeCustomerId: (row.stripe_customer_id as string | null) ?? null,
+        interval: (row.interval as string) ?? "month",
+      },
+    ];
+  });
+}
+
 export type PastDueGraceExpiredRow = {
   restaurantId: string;
   stripeSubscriptionId: string;

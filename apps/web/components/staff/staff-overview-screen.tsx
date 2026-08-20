@@ -45,6 +45,7 @@ import { computeStaffDayWageBreakdown, formatStaffEuroCents } from "@/lib/staff/
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import { cn } from "@/lib/utils";
 import { StaffPendingInvitesChip } from "@/components/staff/staff-pending-invites-chip";
+import { StaffRegisteredUserSeatsChip } from "@/components/staff/staff-registered-user-seats-chip";
 import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
@@ -329,6 +330,7 @@ export function StaffOverviewScreen({ active = true }: { active?: boolean }) {
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <StaffRegisteredUserSeatsChip restaurantId={restaurantId} />
           <StaffPendingInvitesChip restaurantId={restaurantId} />
           <Button
             type="button"

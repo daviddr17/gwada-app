@@ -166,7 +166,7 @@ export const mitarbeiterGuide: UserGuidePage = {
     },
   ],
   tips: [
-    "Mitarbeiter-Einladung erfolgt unter Einstellungen → Team, nicht direkt im Modul.",
+    "App-Einladung (Login) aus der Mitarbeiter-Akte — Free: 1, Basic: 3, Pro unbegrenzt. Display-PIN zählt nicht als Login.",
     "Verfügbarkeit (Profil) fließt in Schichtplanung ein.",
     "Display-PIN jeder Person unter Profil → Display-PIN.",
   ],

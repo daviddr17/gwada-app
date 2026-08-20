@@ -5,6 +5,7 @@ import { useDeferredDrawerMount } from "@/lib/hooks/use-deferred-drawer-mount";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Camera, ChevronRight, Link2, Loader2, LogOut, Mail, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import {
@@ -34,6 +35,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
+import { toastRegisteredUserLimit } from "@/lib/billing/registered-user-limit-ui";
+import {
+  registeredUserLimitToastMessage,
+} from "@/lib/billing/registered-user-seats";
+import { useRegisteredUserSeatUsage } from "@/lib/hooks/use-registered-user-seat-usage";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import {
   fetchStaffDisplayPinSuggestionClient,
   fetchStaffInviteContactCheckClient,
@@ -249,6 +256,11 @@ export function StaffFormDrawer({
 
   const { role: myRole } = useWorkspaceActiveRole();
   const { has } = useRestaurantPermissions();
+  const seats = useRegisteredUserSeatUsage(open ? restaurantId : null);
+  const thisStaffHasPendingInvite = Boolean(
+    staff?.id && seats.pendingStaffIds.has(staff.id),
+  );
+  const inviteBlocked = seats.atLimit && !thisStaffHasPendingInvite;
   const canReadStaffTodos = hasModuleRead(has, "staff_todos");
   const canManageTeam = has("team.manage") || isRestaurantOwnerRole(myRole);
   const canDeleteStaff =
@@ -701,6 +713,13 @@ export function StaffFormDrawer({
 
   const runInvite = async (action: StaffInviteAction) => {
     if (!staff) return;
+    if (inviteBlocked) {
+      toastRegisteredUserLimit({
+        cap: seats.cap,
+        onOpenBilling: () => router.push(APP_ROUTES.settings.billing),
+      });
+      return;
+    }
     if (!positionRoleId) {
       toast.error("Bitte eine Rolle wählen.");
       return;
@@ -728,6 +747,13 @@ export function StaffFormDrawer({
       });
     setInviteBusy(null);
     if (error) {
+      if (error === "user_limit") {
+        toastRegisteredUserLimit({
+          cap: seats.cap,
+          onOpenBilling: () => router.push(APP_ROUTES.settings.billing),
+        });
+        return;
+      }
       const messages: Record<string, string> = {
         whatsapp_not_connected: "WhatsApp ist nicht verbunden.",
         email_not_configured: "E-Mail-Versand ist nicht eingerichtet.",
@@ -900,6 +926,7 @@ export function StaffFormDrawer({
                   profile_id={staff.profile_id}
                   linked_profile={staff.linked_profile}
                   linked_employee={staff.linked_employee}
+                  inviteBlocked={inviteBlocked}
                 />
               ) : null}
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1278,27 +1305,54 @@ export function StaffFormDrawer({
               {mode === "edit" && staff && !staff.profile_id ? (
                 <FormSection title="Einladung">
                   <div className="space-y-3">
-                    <p className="text-xs text-muted-foreground">
-                      {selectedPosition ? (
-                        <>
-                          Einladung mit Rolle{" "}
-                          <span className="font-medium text-foreground">
-                            {formatRestaurantPositionLabel(selectedPosition)}
-                          </span>{" "}
-                          — Link kopieren oder direkt senden, wenn Integrationen
-                          aktiv sind.
-                        </>
-                      ) : (
-                        "Bitte unter Arbeit eine Rolle wählen."
-                      )}
-                    </p>
+                    {inviteBlocked ? (
+                      <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+                        {registeredUserLimitToastMessage(seats.cap)}{" "}
+                        {seats.cap != null ? (
+                          <>
+                            Aktuell {seats.used}/{seats.cap}.{" "}
+                          </>
+                        ) : null}
+                        <Link
+                          href={APP_ROUTES.settings.billing}
+                          className="font-medium underline underline-offset-2"
+                        >
+                          Abo öffnen
+                        </Link>
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {selectedPosition ? (
+                          <>
+                            Einladung mit Rolle{" "}
+                            <span className="font-medium text-foreground">
+                              {formatRestaurantPositionLabel(selectedPosition)}
+                            </span>{" "}
+                            — Link kopieren oder direkt senden, wenn Integrationen
+                            aktiv sind.
+                            {seats.cap != null ? (
+                              <>
+                                {" "}
+                                App-Logins: {seats.used}/{seats.cap}.
+                              </>
+                            ) : null}
+                          </>
+                        ) : (
+                          "Bitte unter Arbeit eine Rolle wählen."
+                        )}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         className="h-10 rounded-xl"
-                        disabled={inviteBusy != null || !positionRoleId}
+                        disabled={
+                          inviteBusy != null ||
+                          !positionRoleId ||
+                          inviteBlocked
+                        }
                         onClick={() => handleInvite("copy")}
                       >
                         {inviteBusy === "copy" ? (
@@ -1314,7 +1368,11 @@ export function StaffFormDrawer({
                           variant="outline"
                           size="sm"
                           className="h-10 rounded-xl"
-                          disabled={inviteBusy != null || !positionRoleId}
+                          disabled={
+                            inviteBusy != null ||
+                            !positionRoleId ||
+                            inviteBlocked
+                          }
                           onClick={() => handleInvite("whatsapp")}
                         >
                           {inviteBusy === "whatsapp" ? (
@@ -1331,7 +1389,11 @@ export function StaffFormDrawer({
                           variant="outline"
                           size="sm"
                           className="h-10 rounded-xl"
-                          disabled={inviteBusy != null || !positionRoleId}
+                          disabled={
+                            inviteBusy != null ||
+                            !positionRoleId ||
+                            inviteBlocked
+                          }
                           onClick={() => handleInvite("email")}
                         >
                           {inviteBusy === "email" ? (

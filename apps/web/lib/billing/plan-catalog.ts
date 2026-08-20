@@ -40,7 +40,6 @@ export const BILLING_FEATURE_KEYS = [
   "feature.news_autopilot",
   "feature.review_auto_reply",
   "feature.compliance",
-  "feature.multi_restaurant",
   "feature.priority_support",
   "limit.unlimited_menu",
   "limit.unlimited_reservations",
@@ -78,7 +77,6 @@ const FREE_FEATURES: readonly BillingFeatureKey[] = [
   "module.reservations",
   "limit.unlimited_menu",
   "limit.unlimited_reservations",
-  "limit.unlimited_staff",
 ];
 
 const BASIC_FEATURES: readonly BillingFeatureKey[] = [
@@ -111,8 +109,8 @@ const PRO_FEATURES: readonly BillingFeatureKey[] = [
   "feature.news_autopilot",
   "feature.review_auto_reply",
   "feature.compliance",
-  "feature.multi_restaurant",
   "feature.priority_support",
+  "limit.unlimited_staff",
 ];
 
 export type BillingPlanDefinition = {
@@ -135,7 +133,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     name: "Free",
     tagline: "Zum Durchstarten",
     pitch:
-      "Digitale Speisekarte, Reservierungen und eure öffentliche Seite — ohne Seat-Fees.",
+      "Digitale Speisekarte, Reservierungen und eure öffentliche Seite — 1 App-Login, ohne Seat-Fees.",
     price: { monthlyEur: 0, yearlyPerMonthEur: 0 },
     highlight: false,
     cta: "Kostenlos starten",
@@ -143,7 +141,7 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     cardBullets: [
       "Unbegrenzte Speisen & Kategorien",
       "Unbegrenzte Reservierungen",
-      "Unbegrenzte Team-Zugänge (keine Seat-Fees)",
+      "1 registrierter Nutzer",
       "Reservierungs-Mails über Gwada",
       "Öffentliche Restaurant-Seite",
     ],
@@ -153,13 +151,14 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     name: "Basic",
     tagline: "Betrieb im Griff",
     pitch:
-      "Bestand, Content und Bewertungen — digitaler Alltag, Mails weiter über Gwada.",
+      "Bestand, Content und Bewertungen — digitaler Alltag, bis 3 App-Logins, Mails weiter über Gwada.",
     price: { monthlyEur: 49, yearlyPerMonthEur: 39 },
     highlight: false,
     cta: "Basic wählen",
     features: BASIC_FEATURES,
     cardBullets: [
       "Alles aus Free",
+      "Bis 3 registrierte Nutzer",
       "Bestand & Bestellungen",
       "News, Events, Galerie & Bewertungen",
       "Kontakte, Dokumente & Checklisten",
@@ -171,13 +170,14 @@ export const BILLING_PLANS: Record<BillingPlanId, BillingPlanDefinition> = {
     name: "Pro",
     tagline: "Das volle Restaurant-OS",
     pitch:
-      "Eigene Absender (E-Mail + WhatsApp), Schichten, Buchhaltung, Autopilot — ohne Limits bei Team & Volumen.",
+      "Eigene Absender (E-Mail + WhatsApp), Schichten, Buchhaltung, Autopilot — unbegrenzte Nutzer, ohne Limits bei Volumen.",
     price: { monthlyEur: 99, yearlyPerMonthEur: 79 },
     highlight: true,
     cta: "Pro wählen",
     features: PRO_FEATURES,
     cardBullets: [
       "Alles aus Basic",
+      "Unbegrenzte registrierte Nutzer",
       "10 GB Workspace-Speicher",
       "Eigener E-Mail-Absender (SMTP/Gmail/Outlook)",
       "WhatsApp, Facebook & Instagram",
@@ -232,12 +232,12 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
   { type: "section", id: "sec_limits", label: "Ohne Limits" },
   {
     id: "unlimited_staff",
-    label: "Unbegrenzte Team-Zugänge",
-    hint: "Keine Seat-Fees — Login/Team ohne Aufpreis pro Person. Das Mitarbeiter-Modul (Schichten …) ist Pro.",
+    label: "Registrierte Nutzer (Login)",
+    hint: "Personen mit App-Zugang. Free: 1 Login. Basic: maximal 3. Pro: unbegrenzt, ohne Seat-Fees. Das Mitarbeiter-Modul (Schichten …) bleibt Pro.",
     highlight: true,
-    free: true,
-    basic: true,
-    pro: true,
+    free: "1",
+    basic: "3",
+    pro: "Unbegrenzt",
   },
   {
     id: "unlimited_reservations",
@@ -258,10 +258,11 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
   },
   {
     id: "multi",
-    label: "Standorte",
+    label: "Standorte pro Abo",
+    hint: "Jedes Restaurant hat ein eigenes Abo. Weitere Betriebe werden separat abgeschlossen — nicht in einem Pro-Plan gebündelt.",
     free: "1",
     basic: "1",
-    pro: "Unbegrenzt",
+    pro: "1",
   },
 
   { type: "section", id: "sec_core", label: "Kern" },
@@ -496,6 +497,17 @@ export function isBillingPlanId(value: string): value is BillingPlanId {
 
 export function isBillingInterval(value: string): value is BillingInterval {
   return (BILLING_INTERVALS as readonly string[]).includes(value);
+}
+
+/** `null` = unbegrenzt (Pro). Free: 1 Login. Basic: 3. */
+export function registeredUserLimit(planId: BillingPlanId): number | null {
+  if (planHasFeature(planId, "limit.unlimited_staff")) return null;
+  return planId === "basic" ? 3 : 1;
+}
+
+export function registeredUserLimitLabel(planId: BillingPlanId): string {
+  const n = registeredUserLimit(planId);
+  return n == null ? "Unbegrenzt" : `${n}`;
 }
 
 /** Sidebar-Modul → benötigtes Billing-Feature (null = kein Plan-Gate). */

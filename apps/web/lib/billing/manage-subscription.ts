@@ -23,7 +23,7 @@ export async function updateRestaurantBillingPlan(input: {
   planId: Exclude<BillingPlanId, "free">;
   interval: BillingInterval;
 }): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
-  if (!isBillingPlanId(input.planId) || input.planId === "free") {
+  if (!isBillingPlanId(input.planId)) {
     return { ok: false, error: "invalid_plan", status: 400 };
   }
   if (!isBillingInterval(input.interval)) {

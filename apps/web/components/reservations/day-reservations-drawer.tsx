@@ -19,7 +19,6 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -128,8 +127,6 @@ type DayReservationsDrawerProps = {
   day: Date | null;
   reservations: ReservationListRow[];
   restaurantId: string | null;
-  privateEventCount?: number;
-  eventsHref?: string;
   onEdit: (r: ReservationListRow) => void;
   onCreateReservation?: (detail?: {
     diningTableId: string;
@@ -418,8 +415,6 @@ export function DayReservationsDrawer({
   day,
   reservations,
   restaurantId,
-  privateEventCount = 0,
-  eventsHref,
   onEdit,
   onCreateReservation,
   onDataChanged,
@@ -834,7 +829,7 @@ export function DayReservationsDrawer({
               {starBtn}
             </div>
           </button>
-          {restaurantId && !isMovedMarker && st?.code === "pending" ? (
+          {restaurantId && !isMovedMarker && !isEvent && st?.code === "pending" ? (
             <div className="flex shrink-0 items-center self-center">
               <ReservationQuickAcceptButton
                 restaurantId={restaurantId}
@@ -953,7 +948,7 @@ export function DayReservationsDrawer({
           ) : null}
         </div>
         </button>
-        {restaurantId && !isMovedMarker && st?.code === "pending" ? (
+        {restaurantId && !isMovedMarker && !isEvent && st?.code === "pending" ? (
           <div className="flex shrink-0 items-center self-center">
             <ReservationQuickAcceptButton
               restaurantId={restaurantId}
@@ -1014,20 +1009,6 @@ export function DayReservationsDrawer({
             <DrawerDescription className="text-base text-foreground/90">
               {formatDayHeadingDe(day)}
             </DrawerDescription>
-            {privateEventCount > 0 && eventsHref ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {privateEventCount === 1
-                  ? "1 Veranstaltung blockiert den Tag — "
-                  : `${privateEventCount} Veranstaltungen blockieren den Tag — `}
-                <AppNavLink
-                  href={eventsHref}
-                  className="font-medium text-foreground underline underline-offset-2"
-                  onClick={() => onOpenChange(false)}
-                >
-                  in Events öffnen
-                </AppNavLink>
-              </p>
-            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap gap-2">

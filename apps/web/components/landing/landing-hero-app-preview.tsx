@@ -27,9 +27,10 @@ const PRIMARY_TAB_IDS: readonly HeroTabId[] = [
   "menu",
   "reservierungen",
   "kontakte",
-  "pos",
   "mitarbeiter",
 ];
+
+const COMING_SOON_HERO_TABS = new Set<HeroTabId>(["pos"]);
 
 function buildHeroTabs(): HeroTab[] {
   const dashboard: HeroTab = {
@@ -281,27 +282,32 @@ function PanelMessages() {
 
 function PanelPos() {
   return (
-    <div className="grid h-full grid-cols-[1.1fr_0.9fr] gap-1.5 p-2.5 sm:gap-2 sm:p-3">
-      <div className="space-y-1.5 rounded-xl border border-border/50 bg-background/80 p-2 text-left dark:bg-background/40">
-        <p className="text-[10px] font-semibold text-muted-foreground">Tisch 5</p>
-        {[
-          { n: "Espresso", p: "2,80" },
-          { n: "Tagliatelle", p: "18,50" },
-          { n: "Wasser 0,75", p: "4,20" },
-        ].map((l) => (
-          <div key={l.n} className="flex justify-between text-[11px]">
-            <span className="truncate">{l.n}</span>
-            <span className="tabular-nums text-muted-foreground">{l.p}</span>
-          </div>
-        ))}
-      </div>
-      <div className="flex flex-col justify-between rounded-xl border border-border/50 bg-primary/10 p-2.5 text-left">
-        <div>
-          <p className="text-[10px] font-medium text-muted-foreground">Summe</p>
-          <p className="text-xl font-semibold tabular-nums tracking-tight">25,50€</p>
+    <div className="flex h-full flex-col gap-1.5 p-2.5 sm:p-3">
+      <span className="w-fit rounded-full bg-muted px-2 py-0.5 text-[9px] font-semibold tracking-wide text-muted-foreground uppercase">
+        Coming soon
+      </span>
+      <div className="grid min-h-0 flex-1 grid-cols-[1.1fr_0.9fr] gap-1.5">
+        <div className="space-y-1.5 rounded-xl border border-border/50 bg-background/80 p-2 text-left dark:bg-background/40">
+          <p className="text-[10px] font-semibold text-muted-foreground">Tisch 5</p>
+          {[
+            { n: "Espresso", p: "2,80" },
+            { n: "Tagliatelle", p: "18,50" },
+            { n: "Wasser 0,75", p: "4,20" },
+          ].map((l) => (
+            <div key={l.n} className="flex justify-between text-[11px]">
+              <span className="truncate">{l.n}</span>
+              <span className="tabular-nums text-muted-foreground">{l.p}</span>
+            </div>
+          ))}
         </div>
-        <div className="rounded-lg bg-primary px-2 py-1.5 text-center text-[11px] font-medium text-primary-foreground">
-          Bezahlen
+        <div className="flex flex-col justify-between rounded-xl border border-border/50 bg-primary/10 p-2.5 text-left">
+          <div>
+            <p className="text-[10px] font-medium text-muted-foreground">Summe</p>
+            <p className="text-xl font-semibold tabular-nums tracking-tight">25,50€</p>
+          </div>
+          <div className="rounded-lg bg-primary px-2 py-1.5 text-center text-[11px] font-medium text-primary-foreground">
+            Bezahlen
+          </div>
         </div>
       </div>
     </div>
@@ -693,7 +699,12 @@ export function LandingHeroAppPreview({ className }: { className?: string }) {
                         )}
                       >
                         <Icon className="size-3.5 opacity-80" aria-hidden />
-                        {tab.label}
+                        <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                        {COMING_SOON_HERO_TABS.has(tab.id) ? (
+                          <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
+                            Soon
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}

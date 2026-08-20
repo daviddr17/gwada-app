@@ -68,6 +68,30 @@ export function billingSourceLabel(source: string | null | undefined): string {
   }
 }
 
+export function billingReasonLabel(reason: string | null | undefined): string {
+  switch (reason) {
+    case "subscription_cycle":
+      return "Abo-Zeitraum";
+    case "subscription_create":
+      return "Abschluss";
+    case "subscription_update":
+      return "Änderung";
+    case "subscription_threshold":
+      return "Schwellenwert";
+    case "manual":
+      return "Manuell";
+    case "upcoming":
+      return "Anstehend";
+    default:
+      return reason?.replaceAll("_", " ") || "—";
+  }
+}
+
+export function formatBillingDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("de-DE", { dateStyle: "medium" });
+}
+
 export function formatEurFromCents(cents: number, currency = "eur"): string {
   return new Intl.NumberFormat("de-DE", {
     style: "currency",

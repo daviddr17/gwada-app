@@ -19,6 +19,7 @@ import {
   reservationNotifyRowTermsIconClassName,
   reservationNotifyRowWhatsAppIconClassName,
 } from "@/components/reservations/reservation-notify-toggle-styles";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
@@ -249,6 +250,8 @@ type ReservationEditDrawerProps = {
   onWhatsappDispatched?: (payload: ReservationWhatsappDispatchedPayload) => void;
   /** Art fest verdrahten (Events-Modul: immer Veranstaltung). */
   lockKind?: ReservationKind;
+  /** Aus Reservierungen: Link ins Events-Modul (Vorgang). */
+  eventsHref?: string;
 };
 
 type BuiltReservationPayload = {
@@ -282,6 +285,7 @@ export function ReservationEditDrawer({
   onSaved,
   onWhatsappDispatched,
   lockKind,
+  eventsHref,
 }: ReservationEditDrawerProps) {
   const isEdit = Boolean(reservation);
   const isCreate = Boolean(createFor) && !reservation;
@@ -1267,6 +1271,17 @@ export function ReservationEditDrawer({
                     ? "Veranstaltung bearbeiten"
                     : "Reservierung bearbeiten"}
               </DrawerTitle>
+              {eventsHref ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  <AppNavLink
+                    href={eventsHref}
+                    className="font-medium text-foreground underline underline-offset-2"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    In Events öffnen
+                  </AppNavLink>
+                </p>
+              ) : null}
               {lockKind ? null : (
               <div
                 className="mt-2 flex flex-wrap gap-1.5"

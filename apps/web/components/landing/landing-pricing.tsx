@@ -212,18 +212,24 @@ export function LandingPricing() {
         >
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-xl">
-              <p className="text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                Optional · Add-on
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                  Optional · Add-on
+                </p>
+                <Badge variant="secondary" className="rounded-full text-[10px] font-semibold tracking-wide uppercase">
+                  Coming soon
+                </Badge>
+              </div>
               <h3 className="mt-2 text-2xl font-semibold tracking-tight">
-                {pos.name} — {posPrice}€
+                {pos.name}
                 <span className="text-base font-normal text-muted-foreground">
-                  /Monat
-                  {yearly ? " · jährlich" : ""}
+                  {" "}
+                  — bald zubuchbar
                 </span>
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {pos.pitch} Zu Free, Basic und Pro zubuchbar.
+                {pos.pitch} Geplanter Preis {posPrice}€/Monat
+                {yearly ? " bei Jahresabo" : ""}.
               </p>
             </div>
             <ul className="grid gap-2 text-sm sm:grid-cols-2 lg:max-w-md">

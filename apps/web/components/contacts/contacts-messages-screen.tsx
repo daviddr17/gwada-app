@@ -31,7 +31,11 @@ import {
   inboxUnreadCountBadgeClassName,
   inboxUnreadDotClassName,
   inboxUnreadHintLabel,
+  inboxUnreadNameClassName,
   inboxUnreadRowBackgroundClassName,
+  inboxUnreadRowStripeClassName,
+  inboxUnreadStatusChipClassName,
+  inboxUnreadStatusChipLabel,
 } from "@/lib/contact-messages/inbox-unread-hint-ui";
 import { ContactThreadHeaderAvatar } from "@/components/contacts/contact-thread-header-avatar";
 import { ContactConversationsReadFilter } from "@/components/contacts/contact-conversations-read-filter";
@@ -2756,6 +2760,8 @@ export function ContactsMessagesScreen({
                   const unread = c.is_unread;
                   const unreadHint = c.unread_hint ?? null;
                   const hintLabel = inboxUnreadHintLabel(unreadHint);
+                  const statusChip = inboxUnreadStatusChipLabel(unread, unreadHint);
+                  const nameClassName = inboxUnreadNameClassName(unread, unreadHint);
                   return (
                   <li
                     key={c.contact_id}
@@ -2764,10 +2770,20 @@ export function ContactsMessagesScreen({
                       inboxUnreadRowBackgroundClassName(unread, unreadHint),
                     )}
                   >
+                    {unread ? (
+                      <span
+                        className={inboxUnreadRowStripeClassName(unread, unreadHint)}
+                        aria-hidden
+                      />
+                    ) : null}
                     <button
                       type="button"
                       className={contactInboxConversationRowOpenButtonClassName}
-                      aria-label={`Chat mit ${listName} öffnen`}
+                      aria-label={
+                        statusChip
+                          ? `Chat mit ${listName} öffnen, ${statusChip}`
+                          : `Chat mit ${listName} öffnen`
+                      }
                       onClick={() => openConversation(c.contact_id)}
                     />
                     <div
@@ -2789,13 +2805,14 @@ export function ContactsMessagesScreen({
                       ) : null}
                     </div>
                     <div className="relative z-10 min-w-0 flex-1 pointer-events-none">
-                      <div className="flex items-baseline justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
                         {canOpenLinkedContact(c.contact_id) ? (
                           <button
                             type="button"
                             className={cn(
                               "pointer-events-auto min-w-0 truncate text-left hover:underline",
-                              unread ? "font-semibold text-foreground" : "font-medium",
+                              nameClassName,
                             )}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -2808,12 +2825,21 @@ export function ContactsMessagesScreen({
                           <span
                             className={cn(
                               "truncate",
-                              unread ? "font-semibold text-foreground" : "font-medium",
+                              nameClassName,
                             )}
                           >
                             {listName}
                           </span>
                         )}
+                        {statusChip ? (
+                          <span
+                            className={inboxUnreadStatusChipClassName(unreadHint)}
+                            title={hintLabel ?? undefined}
+                          >
+                            {statusChip}
+                          </span>
+                        ) : null}
+                        </div>
                         <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
                           <ContactMessagePlatformIcon
                             platform={
@@ -2915,7 +2941,7 @@ export function ContactsMessagesScreen({
                         <p
                           className={cn(
                             "truncate text-sm",
-                            unread
+                            unread && unreadHint !== "gwada_only"
                               ? "font-medium text-foreground"
                               : "text-muted-foreground",
                             !unread &&
@@ -2954,11 +2980,6 @@ export function ContactsMessagesScreen({
                             </span>
                           )}
                         </p>
-                        {hintLabel ? (
-                          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                            {hintLabel}
-                          </p>
-                        ) : null}
                         {c.has_reservation_link && c.last_reservation_id ? (
                           <Badge
                             variant="outline"

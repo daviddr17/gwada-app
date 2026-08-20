@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  isBillingAddonPurchasable,
   isBillingInterval,
   isBillingPlanId,
   type BillingInterval,
@@ -35,6 +36,9 @@ export async function createBillingCheckoutSession(
   | { ok: true; url: string }
   | { ok: false; error: string; status: number }
 > {
+  if (input.includePos && !isBillingAddonPurchasable("pos")) {
+    input = { ...input, includePos: false };
+  }
   if (input.planId === "free") {
     return { ok: false, error: "free_no_checkout", status: 400 };
   }
@@ -68,6 +72,13 @@ export async function createBillingCheckoutSession(
 
   await ensureRestaurantSubscriptionRow(input.restaurantId);
   const entitlements = await loadRestaurantEntitlements(input.restaurantId);
+  if (
+    entitlements.stripeSubscriptionId &&
+    entitlements.source === "stripe" &&
+    ["active", "trialing", "past_due"].includes(entitlements.status)
+  ) {
+    return { ok: false, error: "use_plan_change", status: 409 };
+  }
 
   let customerId = entitlements.stripeCustomerId;
   if (!customerId) {
@@ -154,9 +165,11 @@ export async function createBillingPortalSession(input: {
     return { ok: false, error: "no_customer", status: 400 };
   }
 
+  const configuration = client.config.portal_configuration_id?.trim();
   const session = await client.stripe.billingPortal.sessions.create({
     customer: entitlements.stripeCustomerId,
     return_url: input.returnUrl,
+    ...(configuration ? { configuration } : {}),
   });
   return { ok: true, url: session.url };
 }

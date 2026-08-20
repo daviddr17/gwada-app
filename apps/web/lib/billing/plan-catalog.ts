@@ -196,6 +196,8 @@ export type BillingAddonDefinition = {
   price: PlanPrice;
   feature: BillingFeatureKey;
   cardBullets: readonly string[];
+  /** Nicht im Checkout / Portal zubuchbar — Marketing + Overlay „Coming soon“. */
+  comingSoon?: boolean;
 };
 
 export const BILLING_ADDONS: Record<BillingAddonId, BillingAddonDefinition> = {
@@ -204,9 +206,10 @@ export const BILLING_ADDONS: Record<BillingAddonId, BillingAddonDefinition> = {
     name: "POS",
     tagline: "Kasse mit TSE",
     pitch:
-      "Optionales Add-on zu jedem Plan: Kasse, Fiskalisierung, Quittungen und Zahlungsabwicklung.",
+      "Native Kasse mit TSE, Quittungen und Zahlungen — in Vorbereitung, bald als Add-on.",
     price: { monthlyEur: 59, yearlyPerMonthEur: 47 },
     feature: "module.pos",
+    comingSoon: true,
     cardBullets: [
       "Kasse & Handgeräte",
       "TSE / Fiskaly & DSFinV-K",
@@ -216,6 +219,10 @@ export const BILLING_ADDONS: Record<BillingAddonId, BillingAddonDefinition> = {
     ],
   },
 };
+
+export function isBillingAddonPurchasable(id: BillingAddonId): boolean {
+  return BILLING_ADDONS[id].comingSoon !== true;
+}
 
 /**
  * Große Gegenüberstellung für Landing & Einstellungen → Abo.
@@ -450,10 +457,10 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
   {
     id: "pos",
     label: "POS-Kasse",
-    hint: "Zu jedem Plan zubuchbar — TSE, Quittungen, Gastzahlungen.",
-    free: "Add-on",
-    basic: "Add-on",
-    pro: "Add-on",
+    hint: "Native Kasse — Coming soon, noch nicht zubuchbar.",
+    free: "Coming soon",
+    basic: "Coming soon",
+    pro: "Coming soon",
   },
 ];
 

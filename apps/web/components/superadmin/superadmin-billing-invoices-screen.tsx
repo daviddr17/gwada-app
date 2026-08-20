@@ -180,6 +180,17 @@ export function SuperadminBillingInvoicesScreen() {
               ),
           },
           {
+            id: "number",
+            header: "Nummer",
+            className: superadminCellNowrapClass,
+            sortValue: (r) => r.number ?? r.stripe_invoice_id,
+            cell: (r) => (
+              <span className={`font-medium tabular-nums ${superadminCellNowrapClass}`}>
+                {r.number ?? r.stripe_invoice_id}
+              </span>
+            ),
+          },
+          {
             id: "status",
             header: "Status",
             sortValue: (r) => r.status,

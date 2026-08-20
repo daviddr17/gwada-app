@@ -124,7 +124,7 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
     {
       key: "billing.manage",
       label: "Abo & Abrechnung",
-      description: "Plan wählen, POS-Add-on und Rechnungen verwalten.",
+      description: "Plan wählen, Zahlungsmittel und Rechnungen verwalten.",
       group: "administration",
     },
     ...moduleCrudCatalogEntries(),

@@ -32,7 +32,7 @@ function mapInvoiceStatus(
 
 export async function syncStripeInvoiceToDb(
   invoice: Stripe.Invoice,
-  options?: { eventHint?: "payment_failed" },
+  options?: { eventHint?: "payment_failed"; restaurantIdHint?: string | null },
 ): Promise<{ ok: true; restaurantId: string | null } | { ok: false; error: string }> {
   const admin = createSupabaseAdminClient();
   if (!admin) return { ok: false, error: "admin_unavailable" };
@@ -54,9 +54,12 @@ export async function syncStripeInvoiceToDb(
         : null;
 
   let restaurantId: string | null =
-    typeof invoice.metadata?.restaurant_id === "string"
+    (typeof options?.restaurantIdHint === "string"
+      ? options.restaurantIdHint
+      : null) ??
+    (typeof invoice.metadata?.restaurant_id === "string"
       ? invoice.metadata.restaurant_id
-      : null;
+      : null);
   if (!restaurantId && subscriptionId) {
     restaurantId = await findRestaurantIdByStripeSubscription(subscriptionId);
   }
@@ -74,6 +77,7 @@ export async function syncStripeInvoiceToDb(
   const row = {
     restaurant_id: restaurantId,
     stripe_invoice_id: invoice.id,
+    number: invoice.number ?? null,
     stripe_customer_id: customerId,
     stripe_subscription_id: subscriptionId,
     status: mapInvoiceStatus(invoice, options?.eventHint),
@@ -94,6 +98,15 @@ export async function syncStripeInvoiceToDb(
   const { error } = await admin
     .from("restaurant_billing_invoices")
     .upsert(row, { onConflict: "stripe_invoice_id" });
+
+  if (error && /'?number'?/.test(error.message)) {
+    const { number: _number, ...withoutNumber } = row;
+    const retry = await admin
+      .from("restaurant_billing_invoices")
+      .upsert(withoutNumber, { onConflict: "stripe_invoice_id" });
+    if (retry.error) return { ok: false, error: retry.error.message };
+    return { ok: true, restaurantId };
+  }
 
   if (error) return { ok: false, error: error.message };
   return { ok: true, restaurantId };

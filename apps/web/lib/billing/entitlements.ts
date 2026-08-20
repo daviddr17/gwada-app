@@ -62,3 +62,12 @@ export function isPaidPlanActive(entitlements: RestaurantEntitlements): boolean 
     entitlements.status,
   );
 }
+
+/** Stripe-Abo, das in-app gewechselt oder gekündigt werden kann. */
+export function hasManagedStripeSubscription(
+  entitlements: RestaurantEntitlements,
+): boolean {
+  if (!entitlements.stripeSubscriptionId) return false;
+  if (entitlements.source !== "stripe") return false;
+  return ["active", "trialing", "past_due"].includes(entitlements.status);
+}

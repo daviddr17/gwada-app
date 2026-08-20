@@ -195,7 +195,7 @@ export function SuperadminSubscriptionEditDrawer({
             <div>
               <p className="text-sm font-medium">POS-Add-on</p>
               <p className="text-xs text-muted-foreground">
-                Optional zu jedem Plan
+                Manuell / Pilot — noch nicht im Kunden-Checkout
               </p>
             </div>
             <Switch

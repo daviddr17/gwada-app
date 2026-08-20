@@ -7,7 +7,7 @@ export const revalidate = 86400;
 
 const BODY = `# gwada
 
-> Restaurant-Betriebssystem: Speisekarte, Reservierungen, Team, Nachrichten, POS und mehr — ein System für den ganzen Betrieb. Ohne Seat-Fees starten.
+> Restaurant-Betriebssystem: Speisekarte, Reservierungen, Team, Nachrichten und mehr — ein System für den ganzen Betrieb. Ohne Seat-Fees starten. POS-Kasse: Coming soon.
 
 Gwada (gwada.app) ist die SaaS-Plattform für Restaurants und Gastro-Betriebe in der DACH-Region.
 

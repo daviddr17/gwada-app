@@ -7,7 +7,7 @@ export const reservierungenGuide: UserGuidePage = {
     "Tischreservierungen, Tischplan, Bestätigung, Kanäle und Spracheingabe.",
   intro: [
     "Reservierungen bündelt deinen Tagesplan: Online-Anfragen, manuelle Einträge, Tischplan und Statistiken an einem Ort. Gäste können über dein Profil, ein Website-Widget oder verbundene Kanäle (z. B. WhatsApp) buchen.",
-    "Private Veranstaltungen (Firmenfeier, Hochzeit) gehören ins Events-Modul — in der Tagesliste siehst du sie nicht als Zeile, nur als Hinweis „Veranstaltung blockiert“. Klick führt nach Events.",
+    "Private Veranstaltungen (Firmenfeier, Hochzeit) gehören ins Events-Modul. In der Tagesliste siehst du sie als eigene Zeile mit Badge „Veranstaltung“ — ein Event sperrt nicht den ganzen Tag, andere Reservierungen am selben Tag bleiben möglich. Klick öffnet das Bearbeiten-Sheet; von dort geht’s weiter nach Events.",
     "Neue Online-Anfragen landen zunächst als „unbestätigt“. Du bestätigst sie manuell oder per Schnell-Bestätigen-Haken — optional mit automatischer WhatsApp- oder E-Mail-Bestätigung an den Gast.",
   ],
   sections: [

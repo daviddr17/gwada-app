@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Check, CreditCard, Infinity as InfinityIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { BillingComparisonTable } from "@/components/billing/billing-comparison-table";
+import { RestaurantBillingInvoices } from "@/components/billing/restaurant-billing-invoices";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,8 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
+import { formatBillingDate } from "@/lib/billing/billing-status-labels";
+import { hasManagedStripeSubscription } from "@/lib/billing/entitlements";
 import {
   BILLING_ADDONS,
   BILLING_PLANS,
@@ -65,9 +68,10 @@ export function RestaurantBillingPanel() {
   const searchParams = useSearchParams();
 
   const [yearly, setYearly] = useState(true);
-  const [includePos, setIncludePos] = useState(false);
   const [busyPlan, setBusyPlan] = useState<string | null>(null);
   const [portalBusy, setPortalBusy] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [invoiceReload, setInvoiceReload] = useState(0);
 
   const interval: BillingInterval = yearly ? "year" : "month";
   const showSkeleton = useDeferredSkeleton(
@@ -79,16 +83,24 @@ export function RestaurantBillingPanel() {
     if (checkout === "success") {
       toast.success("Abo aktualisiert — willkommen an Bord.");
       reload();
+      setInvoiceReload((n) => n + 1);
     } else if (checkout === "cancel") {
       toast.message("Checkout abgebrochen.");
     }
   }, [searchParams, reload]);
 
   useEffect(() => {
-    if (entitlements?.addons.includes("pos")) setIncludePos(true);
-  }, [entitlements?.addons]);
+    if (!entitlements) return;
+    setYearly(entitlements.interval !== "month");
+  }, [entitlements?.interval]);
 
   const currentPlan = entitlements?.planId ?? "free";
+  const managedStripe = Boolean(
+    entitlements && hasManagedStripeSubscription(entitlements),
+  );
+  const lockedManual =
+    entitlements?.source === "complimentary" ||
+    entitlements?.source === "legacy";
 
   const heroBits = useMemo(
     () => [
@@ -122,7 +134,6 @@ export function RestaurantBillingPanel() {
           restaurantId,
           planId,
           interval,
-          includePos,
         }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
@@ -132,7 +143,9 @@ export function RestaurantBillingPanel() {
             ? "Stripe ist noch nicht freigeschaltet. Bitte Superadmin."
             : data.error === "price_not_configured"
               ? "Stripe-Preise fehlen noch in den Integrationen."
-              : "Checkout konnte nicht gestartet werden.",
+              : data.error === "use_plan_change"
+                ? "Bestehendes Abo bitte über Wechseln anpassen."
+                : "Checkout konnte nicht gestartet werden.",
         );
         return;
       }
@@ -140,6 +153,69 @@ export function RestaurantBillingPanel() {
     } finally {
       setBusyPlan(null);
     }
+  }
+
+  async function changePlan(planId: Exclude<BillingPlanId, "free">) {
+    if (!restaurantId || !canManage) return;
+    setBusyPlan(planId);
+    try {
+      const res = await fetch("/api/billing/change-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, planId, interval }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(
+          data.error === "price_not_configured"
+            ? "Stripe-Preise fehlen noch in den Integrationen."
+            : "Planwechsel fehlgeschlagen.",
+        );
+        return;
+      }
+      toast.success("Abo aktualisiert.");
+      reload();
+      setInvoiceReload((n) => n + 1);
+    } finally {
+      setBusyPlan(null);
+    }
+  }
+
+  async function setCancelAtPeriodEnd(cancel: boolean) {
+    if (!restaurantId || !canManage) return;
+    setCancelBusy(true);
+    try {
+      const res = await fetch("/api/billing/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, cancel }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(
+          cancel
+            ? "Kündigung konnte nicht gesetzt werden."
+            : "Kündigung konnte nicht zurückgenommen werden.",
+        );
+        return;
+      }
+      toast.success(
+        cancel
+          ? "Abo endet zum Periodenende."
+          : "Kündigung zurückgenommen — Abo läuft weiter.",
+      );
+      reload();
+    } finally {
+      setCancelBusy(false);
+    }
+  }
+
+  async function choosePaidPlan(planId: Exclude<BillingPlanId, "free">) {
+    if (managedStripe) {
+      await changePlan(planId);
+      return;
+    }
+    await startCheckout(planId);
   }
 
   async function openPortal() {
@@ -217,6 +293,11 @@ export function RestaurantBillingPanel() {
             {entitlements?.addons.includes("pos") ? (
               <Badge className="rounded-full">POS aktiv</Badge>
             ) : null}
+            {entitlements?.cancelAtPeriodEnd ? (
+              <Badge variant="outline" className="rounded-full">
+                Kündigung zum Periodenende
+              </Badge>
+            ) : null}
           </div>
           <CardTitle className="text-lg font-semibold tracking-tight">
             Zahlt für Power — nicht für Köpfe
@@ -225,6 +306,13 @@ export function RestaurantBillingPanel() {
             Andere Tools rechnen pro Mitarbeiter und Reservierung. Gwada nicht:
             unbegrenztes Team, unbegrenzte Reservierungen, unbegrenzte Speisen —
             in jedem Plan. Ihr upgradet für Module, nicht für Volumen.
+            {entitlements?.currentPeriodEnd && managedStripe ? (
+              <>
+                {" "}
+                Laufzeit bis {formatBillingDate(entitlements.currentPeriodEnd)}
+                {entitlements.interval === "year" ? " (jährlich)" : " (monatlich)"}.
+              </>
+            ) : null}
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-3">
@@ -242,6 +330,52 @@ export function RestaurantBillingPanel() {
           ))}
         </CardContent>
       </Card>
+
+      {entitlements?.status === "past_due" ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm">
+            Zahlung ausstehend — bitte Zahlungsmittel aktualisieren, sonst
+            endet der Zugang.
+          </p>
+          {entitlements.stripeCustomerId ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0 rounded-full"
+              disabled={portalBusy}
+              onClick={() => void openPortal()}
+            >
+              Zahlungsmittel aktualisieren
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {managedStripe && entitlements?.cancelAtPeriodEnd ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm">
+            Abo endet am {formatBillingDate(entitlements.currentPeriodEnd)} — bis
+            dahin bleibt {BILLING_PLANS[currentPlan].name} aktiv, danach Free.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="shrink-0 rounded-full"
+            disabled={cancelBusy}
+            onClick={() => void setCancelAtPeriodEnd(false)}
+          >
+            {cancelBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+            Kündigung zurücknehmen
+          </Button>
+        </div>
+      ) : null}
+
+      {lockedManual ? (
+        <p className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+          Dieser Betrieb ist {entitlements?.source === "legacy" ? "im Bestandsschutz" : "komplimentär"}{" "}
+          freigeschaltet — Planwechsel läuft nicht über Stripe.
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -288,25 +422,39 @@ export function RestaurantBillingPanel() {
             ) : (
               <CreditCard className="size-4" />
             )}
-            Rechnungen & Zahlungsmittel
+            Zahlungsmittel & Kündigung
           </Button>
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-card/60 px-4 py-3">
-        <div>
-          <p className="text-sm font-medium">POS-Kasse dazu buchen</p>
-          <p className="text-xs text-muted-foreground">
-            Optional: {posPrice}€/Monat
-            {yearly ? " (jährlich)" : ""} — TSE, Quittungen, Gastzahlungen.
-          </p>
+      {entitlements?.addons.includes("pos") ? (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium">POS-Kasse</p>
+              <Badge className="rounded-full">Aktiv</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Native Kasse mit TSE ist für diesen Betrieb freigeschaltet.
+            </p>
+          </div>
         </div>
-        <Switch
-          checked={includePos}
-          onCheckedChange={(v) => setIncludePos(v === true)}
-          aria-label="POS-Add-on"
-        />
-      </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium">POS-Kasse</p>
+              <Badge variant="secondary" className="rounded-full text-[10px] font-semibold tracking-wide uppercase">
+                Coming soon
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Native Kasse mit TSE — noch nicht zubuchbar. Geplanter Preis{" "}
+              {posPrice}€/Monat{yearly ? " (jährlich)" : ""}.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {PLAN_ORDER.map((planId) => {
@@ -364,13 +512,43 @@ export function RestaurantBillingPanel() {
                 </ul>
                 <div className="mt-auto pt-2">
                   {planId === "free" ? (
+                    managedStripe &&
+                    !entitlements?.cancelAtPeriodEnd &&
+                    !isCurrent ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full rounded-full"
+                        disabled={cancelBusy}
+                        onClick={() => void setCancelAtPeriodEnd(true)}
+                      >
+                        {cancelBusy ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : null}
+                        Zum Periodenende kündigen
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full rounded-full"
+                        disabled
+                      >
+                        {isCurrent
+                          ? "Aktueller Plan"
+                          : entitlements?.cancelAtPeriodEnd
+                            ? "Danach Free"
+                            : "Immer inklusive"}
+                      </Button>
+                    )
+                  ) : lockedManual ? (
                     <Button
                       type="button"
                       variant="outline"
                       className="w-full rounded-full"
                       disabled
                     >
-                      {isCurrent ? "Aktueller Plan" : "Immer inklusive"}
+                      {isCurrent ? "Aktueller Plan" : "Nicht über Stripe"}
                     </Button>
                   ) : (
                     <Button
@@ -379,9 +557,9 @@ export function RestaurantBillingPanel() {
                         "w-full",
                         brandActionButtonRoundedClassName,
                       )}
-                      disabled={busy || (isCurrent && !includePos)}
+                      disabled={busy || isCurrent}
                       onClick={() =>
-                        void startCheckout(
+                        void choosePaidPlan(
                           planId as Exclude<BillingPlanId, "free">,
                         )
                       }
@@ -390,10 +568,10 @@ export function RestaurantBillingPanel() {
                         <Loader2 className="size-4 animate-spin" />
                       ) : null}
                       {isCurrent
-                        ? includePos
-                          ? "POS hinzufügen / ändern"
-                          : "Aktueller Plan"
-                        : plan.cta}
+                        ? "Aktueller Plan"
+                        : managedStripe
+                          ? "Wechseln"
+                          : plan.cta}
                     </Button>
                   )}
                 </div>
@@ -431,6 +609,12 @@ export function RestaurantBillingPanel() {
         </CardContent>
       </Card>
 
+      <RestaurantBillingInvoices
+        restaurantId={restaurantId}
+        hasStripeCustomer={Boolean(entitlements?.stripeCustomerId)}
+        reloadToken={invoiceReload}
+      />
+
       <Card className="border-border/50 shadow-card" id="abo-vergleich">
         <CardHeader className="space-y-1 pb-2">
           <CardTitle className="text-base">
@@ -444,10 +628,10 @@ export function RestaurantBillingPanel() {
         <CardContent>
           <BillingComparisonTable interval={interval} />
           <p className="mt-4 text-xs text-muted-foreground">
-            POS-Add-on: {pos.price.monthlyEur}€/Monat bzw.{" "}
-            {pos.price.yearlyPerMonthEur}€/Monat jährlich — zu jedem Plan
-            buchbar. Gastzahlungen laufen über den Kassen-PSP, getrennt vom
-            Gwada-Abo.
+            POS-Kasse: Coming soon, geplanter Preis {pos.price.monthlyEur}€/Monat
+            bzw. {pos.price.yearlyPerMonthEur}€/Monat jährlich — noch nicht
+            zubuchbar. Gastzahlungen laufen später über den Kassen-PSP, getrennt
+            vom Gwada-Abo.
           </p>
         </CardContent>
       </Card>

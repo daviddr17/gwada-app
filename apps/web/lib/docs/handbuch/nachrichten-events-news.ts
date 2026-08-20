@@ -43,7 +43,7 @@ export const nachrichtenGuide: UserGuidePage = {
         headers: ["Chip", "Bedeutung"],
         rows: [
           ["Alle", "Gelesen und ungelesen"],
-          ["Ungelesen", "Nur offene Konversationen — Badge zeigt Anzahl"],
+          ["Ungelesen", "Chip „Neu“ (am Kanal noch offen) und „In Gwada offen“ (am Handy/Mail schon gelesen)"],
           ["Gelesen", "Bereits bearbeitete Chats"],
         ],
       },
@@ -133,7 +133,7 @@ export const eventsGuide: UserGuidePage = {
           ],
           [
             "Private Veranstaltung",
-            "Nur Dashboard (Chip „Privat“) und Kalender-Blocker",
+            "Events-Modul, Reservierungs-Tagesliste und Kalender",
             "Anfrage oder manuell → Angebot/Rechnung → Team",
           ],
         ],
@@ -217,7 +217,7 @@ export const eventsGuide: UserGuidePage = {
         "Gwada-Events lassen sich nachträglich bearbeiten, anpinnen oder löschen",
         "Jetzt synchronisieren — Feed mit verbundenen Plattformen abgleichen",
         "WhatsApp-Kanal wird unter News → Einstellungen konfiguriert (Events verweist dorthin)",
-        "Private Vorgänge bleiben im Kalender als Blocker sichtbar — Klick öffnet Events, nicht die Reservierungs-Liste",
+        "Private Vorgänge erscheinen in der Reservierungs-Tagesliste — Klick öffnet das Bearbeiten-Sheet, mit Link nach Events",
       ],
     },
     {
@@ -228,7 +228,7 @@ export const eventsGuide: UserGuidePage = {
   tips: [
     "Instagram-Ankündigungen brauchen ein Cover-Bild.",
     "Für reine Gwada-Sichtbarkeit reichen Titel, Zeit und Veröffentlichen — Social-Chips sind optional.",
-    "Private Veranstaltungen sind Kalender-Blocker, keine Tisch-Reservierung.",
+    "Private Veranstaltungen sind ein Zeitslot, kein geschlossener Tag — andere Reservierungen am selben Tag bleiben möglich.",
     "Ohne aktive Menüs oder Pakete bleibt das Anfrageformular frei — der Kalkulator erscheint nur, wenn Preise gepflegt sind.",
   ],
   related: [

@@ -32,26 +32,14 @@ export async function listRestaurantBillingInvoices(
   const admin = createSupabaseAdminClient();
   if (!admin) return [];
 
-  const columnsWithNumber =
-    "id, number, status, billing_reason, currency, amount_due, amount_paid, period_start, period_end, paid_at, hosted_invoice_url, invoice_pdf, stripe_created_at";
-  const columnsWithoutNumber =
-    "id, status, billing_reason, currency, amount_due, amount_paid, period_start, period_end, paid_at, hosted_invoice_url, invoice_pdf, stripe_created_at";
-
-  let { data, error } = await admin
+  const { data, error } = await admin
     .from("restaurant_billing_invoices")
-    .select(columnsWithNumber)
+    .select(
+      "id, number, status, billing_reason, currency, amount_due, amount_paid, period_start, period_end, paid_at, hosted_invoice_url, invoice_pdf, stripe_created_at",
+    )
     .eq("restaurant_id", restaurantId)
     .order("stripe_created_at", { ascending: false })
     .limit(100);
-
-  if (error && /'?number'?/.test(error.message)) {
-    ({ data, error } = await admin
-      .from("restaurant_billing_invoices")
-      .select(columnsWithoutNumber)
-      .eq("restaurant_id", restaurantId)
-      .order("stripe_created_at", { ascending: false })
-      .limit(100));
-  }
 
   if (error) {
     console.warn("listRestaurantBillingInvoices", error.message);

@@ -15,6 +15,7 @@ import {
   Contact,
   FileText,
   ImageIcon,
+  MessageCircle,
   MessageSquareQuote,
   Newspaper,
   Package,
@@ -55,6 +56,7 @@ const CATEGORY_ICONS: Record<DashboardGlobalSearchCategory, typeof Search> = {
   menu: UtensilsCrossed,
   reservations: CalendarDays,
   contacts: Contact,
+  messages: MessageCircle,
   reviews: Star,
   staff: Users,
   inventory: Package,
@@ -309,8 +311,8 @@ export function DashboardGlobalSearchOverlay() {
             Alles durchsuchen
           </p>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Speisekarte, Reservierungen, Kontakte, Bewertungen, Bestand und mehr —
-            je nach Berechtigung.
+            Speisekarte, Reservierungen, Nachrichten, Kontakte, Bewertungen, Bestand
+            und mehr — je nach Berechtigung.
           </p>
         </div>
       ) : showSkeleton ? (

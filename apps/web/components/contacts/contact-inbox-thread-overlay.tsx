@@ -41,8 +41,6 @@ type ContactInboxThreadOverlayProps = {
   onClose: () => void;
   header: ReactNode;
   footer?: ReactNode;
-  /** Absolute FAB über dem Footer (z. B. Dashboard-ähnliche Shortcuts). */
-  fab?: ReactNode;
   children: ReactNode;
   className?: string;
   "aria-label"?: string;
@@ -57,7 +55,6 @@ export function ContactInboxThreadOverlay({
   onClose,
   header,
   footer,
-  fab,
   children,
   className,
   "aria-label": ariaLabel = "Chat",
@@ -137,9 +134,6 @@ export function ContactInboxThreadOverlay({
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {children}
-        {fab ? (
-          <div className="pointer-events-none absolute inset-0 z-20">{fab}</div>
-        ) : null}
       </div>
 
       {footer ? (

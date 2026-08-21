@@ -2,6 +2,7 @@ export type DashboardGlobalSearchCategory =
   | "menu"
   | "reservations"
   | "contacts"
+  | "messages"
   | "reviews"
   | "staff"
   | "inventory"

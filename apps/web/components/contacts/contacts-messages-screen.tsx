@@ -16,7 +16,6 @@ import {
   MailOpen,
   Mail,
   MoreVertical,
-  Plus,
   RefreshCw,
   UserPlus,
   UserRound,
@@ -44,14 +43,12 @@ import { toast } from "sonner";
 import { ContactMessageProtocolDrawer } from "@/components/contacts/contact-message-protocol-drawer";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { InboxThreadAssignContactSheet } from "@/components/contacts/inbox-thread-assign-contact-sheet";
+import { InboxThreadAssignStaffSheet } from "@/components/contacts/inbox-thread-assign-staff-sheet";
+import { ContactInboxThreadHeaderMenu } from "@/components/contacts/contact-inbox-thread-header-menu";
 import {
   ContactInboxThreadOverlay,
   CONTACT_INBOX_THREAD_OVERLAY_MS,
 } from "@/components/contacts/contact-inbox-thread-overlay";
-import {
-  ContactInboxThreadShortcutsFab,
-  contactInboxShortcutActions,
-} from "@/components/contacts/contact-inbox-thread-shortcuts-fab";
 import type {
   ContactMessageMetaReactionsConfig,
   ContactMessageWahaReactionsConfig,
@@ -219,7 +216,11 @@ import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-chan
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
-import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import {
+  hasModuleCreate,
+  hasModuleRead,
+  hasModuleUpdate,
+} from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import {
@@ -238,6 +239,8 @@ import {
   type ContactMessageRow,
 } from "@/lib/supabase/contact-messages-db";
 import type { ContactListRow } from "@/lib/supabase/contacts-db";
+import { updateStaff } from "@/lib/supabase/staff-db";
+import { dispatchStaffDataRefresh } from "@/lib/staff/staff-live-events";
 import { startOfLocalDay } from "@/lib/reservations/month-range";
 import {
   fetchReservationById,
@@ -367,6 +370,7 @@ export function ContactsMessagesScreen({
   const canViewMessageProtocol = has("contacts.messages.protocol");
   const canCreateReservation = hasModuleCreate(has, "reservations");
   const canCreateReviewInvite = hasModuleCreate(has, "reviews");
+  const canUpdateStaff = hasModuleUpdate(has, "staff");
   const { profile } = useRestaurantProfile();
   const defaultCountryIso2 = useMemo(
     () => resolveCountryIso2FromLabel(profile.country),
@@ -441,6 +445,9 @@ export function ContactsMessagesScreen({
     displayName: string;
   } | null>(null);
   const [assigningInboxThread, setAssigningInboxThread] = useState(false);
+  const [assignStaffOpen, setAssignStaffOpen] = useState(false);
+  const [assignStaffPhone, setAssignStaffPhone] = useState<string | null>(null);
+  const [assigningStaff, setAssigningStaff] = useState(false);
   const [reservationDrawerOpen, setReservationDrawerOpen] = useState(false);
   const [reservationForDrawer, setReservationForDrawer] =
     useState<ReservationListRow | null>(null);
@@ -1871,20 +1878,46 @@ export function ContactsMessagesScreen({
     })();
   }, [resolveChatGuestPrefill]);
 
-  const chatShortcutActions = useMemo(
-    () =>
-      contactInboxShortcutActions({
-        canCreateReservation,
-        canCreateReviewInvite,
-        onReservation: openReservationFromChat,
-        onReviewInvite: openReviewInviteFromChat,
-      }),
-    [
-      canCreateReservation,
-      canCreateReviewInvite,
-      openReservationFromChat,
-      openReviewInviteFromChat,
-    ],
+  const canCreateContactFromThread =
+    Boolean(overlayThreadId) && isInboxPseudoContactId(overlayThreadId);
+  const canAssignStaffFromThread =
+    canUpdateStaff &&
+    Boolean(overlayThreadId) &&
+    isWahaPseudoContactId(overlayThreadId);
+
+  const openAssignStaffFromChat = useCallback(() => {
+    void (async () => {
+      const guest = await resolveChatGuestPrefill();
+      const phone = guest.phone?.trim();
+      if (!phone) {
+        toast.warning("Keine Telefonnummer in diesem Chat.");
+        return;
+      }
+      setAssignStaffPhone(phone);
+      setAssignStaffOpen(true);
+    })();
+  }, [resolveChatGuestPrefill]);
+
+  const assignPhoneToStaff = useCallback(
+    async (staffId: string, staffLabel: string) => {
+      const phone = assignStaffPhone?.trim();
+      if (!phone) return;
+      setAssigningStaff(true);
+      try {
+        const ok = await updateStaff(staffId, { phone });
+        if (!ok) {
+          toast.error("Nummer konnte nicht zugeordnet werden.");
+          return;
+        }
+        dispatchStaffDataRefresh();
+        toast.success(`${phone} ist ${staffLabel} zugeordnet.`);
+        setAssignStaffOpen(false);
+        setAssignStaffPhone(null);
+      } finally {
+        setAssigningStaff(false);
+      }
+    },
+    [assignStaffPhone],
   );
 
   /** Overlay-WhatsApp sofort im offenen Thread — ohne loadThread-Flackern. */
@@ -2440,11 +2473,6 @@ export function ContactsMessagesScreen({
           open={threadOverlayOpen}
           onClose={backToList}
           aria-label={contactName ? `Chat mit ${contactName}` : "Chat"}
-          fab={
-            chatShortcutActions.length > 0 ? (
-              <ContactInboxThreadShortcutsFab actions={chatShortcutActions} />
-            ) : null
-          }
           header={
             <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
               <Button
@@ -2506,32 +2534,6 @@ export function ContactsMessagesScreen({
                   </p>
                 ) : null}
               </div>
-              {isInboxPseudoContactId(overlayThreadId) ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  className="shrink-0 rounded-full"
-                  aria-label={
-                    isEmailPseudoContactId(overlayThreadId)
-                      ? "Kontakt aus E-Mail-Chat anlegen"
-                      : isMetaPseudoContactId(overlayThreadId)
-                        ? "Kontakt aus Messenger/Instagram-Chat anlegen"
-                        : "Kontakt aus WhatsApp-Chat anlegen"
-                  }
-                  onClick={() =>
-                    openCreateContactFromPseudo(
-                      overlayThreadId,
-                      contactName ||
-                        (isEmailPseudoContactId(overlayThreadId)
-                          ? "E-Mail"
-                          : "WhatsApp"),
-                    )
-                  }
-                >
-                  <Plus className="size-4" />
-                </Button>
-              ) : null}
               {canOpenLinkedContact(overlayThreadId) ? (
                 <Button
                   type="button"
@@ -2544,6 +2546,24 @@ export function ContactsMessagesScreen({
                   <UserRound className="size-4" />
                 </Button>
               ) : null}
+              <ContactInboxThreadHeaderMenu
+                canCreateContact={canCreateContactFromThread}
+                canCreateReservation={canCreateReservation}
+                canSendReviewLink={canCreateReviewInvite}
+                canAssignStaff={canAssignStaffFromThread}
+                onCreateContact={() =>
+                  openCreateContactFromPseudo(
+                    overlayThreadId,
+                    contactName ||
+                      (isEmailPseudoContactId(overlayThreadId)
+                        ? "E-Mail"
+                        : "WhatsApp"),
+                  )
+                }
+                onReservation={openReservationFromChat}
+                onReviewInvite={openReviewInviteFromChat}
+                onAssignStaff={openAssignStaffFromChat}
+              />
             </div>
           }
           footer={
@@ -3176,6 +3196,21 @@ export function ContactsMessagesScreen({
         threadDisplayName={assignInboxThread?.displayName ?? ""}
         assigning={assigningInboxThread}
         onAssign={assignInboxThreadToContact}
+      />
+
+      <InboxThreadAssignStaffSheet
+        open={assignStaffOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignStaffOpen(false);
+            setAssignStaffPhone(null);
+          }
+        }}
+        restaurantId={restaurantId}
+        phoneDisplay={assignStaffPhone ?? ""}
+        assigning={assigningStaff}
+        stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
+        onAssign={assignPhoneToStaff}
       />
     </div>
   );

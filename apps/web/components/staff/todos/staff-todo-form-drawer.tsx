@@ -399,15 +399,15 @@ export function StaffTodoFormDrawer({
       toast.error(error ?? "Speichern fehlgeschlagen.");
       return;
     }
-    await insertStaffTodoLogEntry({
+    toast.success(isEdit ? "ToDo gespeichert." : "ToDo angelegt.");
+    onSaved();
+    onOpenChange(false);
+    void insertStaffTodoLogEntry({
       restaurantId,
       todoId: data.id,
       action: isEdit ? "updated" : "created",
       details: { title: data.title },
     });
-    toast.success(isEdit ? "ToDo gespeichert." : "ToDo angelegt.");
-    onSaved();
-    onOpenChange(false);
   };
 
   const handleArchive = async () => {

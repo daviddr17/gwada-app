@@ -262,6 +262,7 @@ export function ReviewInvitationSheet({
     }
 
     setSending(true);
+    onOpenChange(false);
     try {
       const res = await fetch("/api/reviews/invitations/send", {
         method: "POST",
@@ -312,7 +313,6 @@ export function ReviewInvitationSheet({
       const warn = sendContactMessageUserMessage(data);
       if (warn) toast.warning(warn);
       else toast.success("Einladung gesendet.");
-      onOpenChange(false);
     } catch (e) {
       if (sendWhatsapp) {
         onWhatsappOutboundFailure?.({ clientSendId });

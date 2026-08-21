@@ -19,6 +19,7 @@ import {
   ShareToChannelsSheet,
 } from "@/components/share/share-to-channels-sheet";
 import { buildMenuItemSharePayload } from "@/lib/share/share-payload-builders";
+import { toast } from "sonner";
 import {
   MENU_TAXONOMY_ALLERGENS_KEY,
   MENU_TAXONOMY_TAGS_KEY,
@@ -113,6 +114,12 @@ export function DishDrawer({
 
   const handleSubmit = (item: NewMenuItem) => {
     void (async () => {
+      if (mode === "create") {
+        onOpenChange(false);
+        const ok = await Promise.resolve(onCreate(item));
+        if (!ok) toast.error("Gericht konnte nicht angelegt werden.");
+        return;
+      }
       const raw =
         mode === "edit" && editItem
           ? onUpdate(editItem.id, item)

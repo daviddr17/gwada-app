@@ -21,11 +21,14 @@ import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
 import { staffDisplayName } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
+export type InboxThreadAssignStaffKind = "phone" | "email";
+
 type InboxThreadAssignStaffSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantId: string | null;
-  phoneDisplay: string;
+  kind: InboxThreadAssignStaffKind;
+  valueDisplay: string;
   assigning?: boolean;
   stackAboveInboxOverlay?: boolean;
   onAssign: (staffId: string, staffLabel: string) => void | Promise<void>;
@@ -35,13 +38,14 @@ export function InboxThreadAssignStaffSheet({
   open,
   onOpenChange,
   restaurantId,
-  phoneDisplay,
+  kind,
+  valueDisplay,
   assigning = false,
   stackAboveInboxOverlay = false,
   onAssign,
 }: InboxThreadAssignStaffSheetProps) {
   const [staff, setStaff] = useState<
-    { id: string; label: string; phone: string | null }[]
+    { id: string; label: string; phone: string | null; email: string | null }[]
   >([]);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState("");
@@ -66,6 +70,7 @@ export function InboxThreadAssignStaffSheet({
               id: row.id,
               label: staffDisplayName(row),
               phone: row.phone?.trim() || null,
+              email: row.email?.trim() || null,
             })),
         );
       }
@@ -79,15 +84,20 @@ export function InboxThreadAssignStaffSheet({
 
   const options = useMemo(
     () =>
-      staff.map((row) => ({
-        value: row.id,
-        label: row.phone ? `${row.label} · ${row.phone}` : row.label,
-      })),
-    [staff],
+      staff.map((row) => {
+        const existing = kind === "email" ? row.email : row.phone;
+        return {
+          value: row.id,
+          label: existing ? `${row.label} · ${existing}` : row.label,
+        };
+      }),
+    [kind, staff],
   );
 
   const selected = staff.find((row) => row.id === selectedId) ?? null;
-  const replacesExisting = Boolean(selected?.phone);
+  const replacesExisting = Boolean(
+    kind === "email" ? selected?.email : selected?.phone,
+  );
 
   return (
     <Drawer
@@ -104,10 +114,14 @@ export function InboxThreadAssignStaffSheet({
       >
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Nummer Mitarbeiter zuordnen
+            {kind === "email"
+              ? "E-Mail Mitarbeiter zuordnen"
+              : "Nummer Mitarbeiter zuordnen"}
           </DrawerTitle>
           <DrawerDescription className="text-sm text-muted-foreground">
-            {phoneDisplay} einem Teammitglied als Telefonnummer speichern.
+            {kind === "email"
+              ? `${valueDisplay} einem Teammitglied als E-Mail speichern.`
+              : `${valueDisplay} einem Teammitglied als Telefonnummer speichern.`}
           </DrawerDescription>
         </DrawerHeader>
 
@@ -132,7 +146,9 @@ export function InboxThreadAssignStaffSheet({
 
           {replacesExisting ? (
             <p className="text-sm text-muted-foreground">
-              Die bisherige Nummer von {selected?.label} wird ersetzt.
+              {kind === "email"
+                ? `Die bisherige E-Mail von ${selected?.label} wird ersetzt.`
+                : `Die bisherige Nummer von ${selected?.label} wird ersetzt.`}
             </p>
           ) : null}
 
@@ -142,6 +158,7 @@ export function InboxThreadAssignStaffSheet({
             disabled={!selectedId || assigning || loading}
             onClick={() => {
               if (!selected) return;
+              onOpenChange(false);
               void onAssign(selected.id, selected.label);
             }}
           >

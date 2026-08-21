@@ -835,19 +835,20 @@ export function AccountingSalesDocumentsScreen({
             input.sendOnSave &&
             (input.sendEmail || input.sendWhatsapp)
           ) {
-            try {
-              await sendSalesDocument(restaurantId, documentKind, row.id, {
-                sendEmail: input.sendEmail,
-                sendWhatsapp: input.sendWhatsapp,
+            void sendSalesDocument(restaurantId, documentKind, row.id, {
+              sendEmail: input.sendEmail,
+              sendWhatsapp: input.sendWhatsapp,
+            })
+              .then(() => {
+                toast.success("Versendet.");
+              })
+              .catch((e) => {
+                toast.error(
+                  e instanceof Error
+                    ? e.message
+                    : "Angelegt, Versand fehlgeschlagen.",
+                );
               });
-              toast.success("Versendet.");
-            } catch (e) {
-              toast.error(
-                e instanceof Error
-                  ? e.message
-                  : "Angelegt, Versand fehlgeschlagen.",
-              );
-            }
           }
         }}
         onUpdate={async (id, input) => {

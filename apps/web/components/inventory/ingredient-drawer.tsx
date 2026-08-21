@@ -226,6 +226,7 @@ export function IngredientDrawer({
           return;
         }
         if (!onCreate) return;
+        onOpenChange(false);
         const ok = await Promise.resolve(
           onCreate({
             name: trimmed,
@@ -240,7 +241,7 @@ export function IngredientDrawer({
             active,
           }),
         );
-        if (ok) onOpenChange(false);
+        if (!ok) toast.error("Zutat konnte nicht angelegt werden.");
       } finally {
         setSaving(false);
       }

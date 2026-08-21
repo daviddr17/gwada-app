@@ -43,7 +43,10 @@ import { toast } from "sonner";
 import { ContactMessageProtocolDrawer } from "@/components/contacts/contact-message-protocol-drawer";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { InboxThreadAssignContactSheet } from "@/components/contacts/inbox-thread-assign-contact-sheet";
-import { InboxThreadAssignStaffSheet } from "@/components/contacts/inbox-thread-assign-staff-sheet";
+import {
+  InboxThreadAssignStaffSheet,
+  type InboxThreadAssignStaffKind,
+} from "@/components/contacts/inbox-thread-assign-staff-sheet";
 import { ContactInboxThreadHeaderMenu } from "@/components/contacts/contact-inbox-thread-header-menu";
 import {
   ContactInboxThreadOverlay,
@@ -64,6 +67,10 @@ import {
   type ReviewInvitationGuestPrefill,
 } from "@/components/reviews/review-invitation-sheet";
 import { buildChatGuestPrefill } from "@/lib/contact-messages/chat-guest-prefill";
+import {
+  localDateFromYmd,
+  reservationHintsFromLastGuestMessage,
+} from "@/lib/contact-messages/chat-reservation-prefill";
 import { ContactConversationAttachmentIcon } from "@/components/contacts/contact-conversation-attachment-icon";
 import { ContactMessageComposer } from "@/components/contacts/contact-message-composer";
 import { ContactInboxFilterChips } from "@/components/contacts/contact-inbox-filter-chips";
@@ -446,7 +453,9 @@ export function ContactsMessagesScreen({
   } | null>(null);
   const [assigningInboxThread, setAssigningInboxThread] = useState(false);
   const [assignStaffOpen, setAssignStaffOpen] = useState(false);
-  const [assignStaffPhone, setAssignStaffPhone] = useState<string | null>(null);
+  const [assignStaffKind, setAssignStaffKind] =
+    useState<InboxThreadAssignStaffKind>("phone");
+  const [assignStaffValue, setAssignStaffValue] = useState<string | null>(null);
   const [assigningStaff, setAssigningStaff] = useState(false);
   const [reservationDrawerOpen, setReservationDrawerOpen] = useState(false);
   const [reservationForDrawer, setReservationForDrawer] =
@@ -1851,10 +1860,16 @@ export function ContactsMessagesScreen({
     void (async () => {
       const guest = await resolveChatGuestPrefill();
       const linked = isLinkedContactId(overlayThreadId);
+      const hints = reservationHintsFromLastGuestMessage(messages);
+      const hintDay = hints.dateYmd ? localDateFromYmd(hints.dateYmd) : null;
       setReservationForDrawer(null);
       setReservationCreateFor({
         restaurantId,
-        day: startOfLocalDay(new Date()),
+        day: startOfLocalDay(hintDay ?? new Date()),
+        ...(hints.timeHm ? { initialTimeHm: hints.timeHm } : {}),
+        ...(hints.partySize != null
+          ? { initialPartySize: hints.partySize }
+          : {}),
         initialContactId: linked ? overlayThreadId : undefined,
         initialGuestFirstName: linked ? undefined : guest.firstName || undefined,
         initialGuestLastName: linked ? undefined : guest.lastName || undefined,
@@ -1863,7 +1878,7 @@ export function ContactsMessagesScreen({
       });
       setReservationDrawerOpen(true);
     })();
-  }, [restaurantId, overlayThreadId, resolveChatGuestPrefill]);
+  }, [restaurantId, overlayThreadId, resolveChatGuestPrefill, messages]);
 
   const openReviewInviteFromChat = useCallback(() => {
     void (async () => {
@@ -1883,41 +1898,61 @@ export function ContactsMessagesScreen({
   const canAssignStaffFromThread =
     canUpdateStaff &&
     overlayThreadId != null &&
-    isWahaPseudoContactId(overlayThreadId);
+    (isWahaPseudoContactId(overlayThreadId) ||
+      isEmailPseudoContactId(overlayThreadId));
 
   const openAssignStaffFromChat = useCallback(() => {
     void (async () => {
       const guest = await resolveChatGuestPrefill();
+      if (overlayThreadId && isEmailPseudoContactId(overlayThreadId)) {
+        const email = guest.email?.trim();
+        if (!email) {
+          toast.warning("Keine E-Mail in diesem Chat.");
+          return;
+        }
+        setAssignStaffKind("email");
+        setAssignStaffValue(email);
+        setAssignStaffOpen(true);
+        return;
+      }
       const phone = guest.phone?.trim();
       if (!phone) {
         toast.warning("Keine Telefonnummer in diesem Chat.");
         return;
       }
-      setAssignStaffPhone(phone);
+      setAssignStaffKind("phone");
+      setAssignStaffValue(phone);
       setAssignStaffOpen(true);
     })();
-  }, [resolveChatGuestPrefill]);
+  }, [overlayThreadId, resolveChatGuestPrefill]);
 
-  const assignPhoneToStaff = useCallback(
+  const assignIdentityToStaff = useCallback(
     async (staffId: string, staffLabel: string) => {
-      const phone = assignStaffPhone?.trim();
-      if (!phone) return;
+      const value = assignStaffValue?.trim();
+      if (!value) return;
       setAssigningStaff(true);
       try {
-        const ok = await updateStaff(staffId, { phone });
+        const ok = await updateStaff(
+          staffId,
+          assignStaffKind === "email" ? { email: value } : { phone: value },
+        );
         if (!ok) {
-          toast.error("Nummer konnte nicht zugeordnet werden.");
+          toast.error(
+            assignStaffKind === "email"
+              ? "E-Mail konnte nicht zugeordnet werden."
+              : "Nummer konnte nicht zugeordnet werden.",
+          );
           return;
         }
         dispatchStaffDataRefresh();
-        toast.success(`${phone} ist ${staffLabel} zugeordnet.`);
+        toast.success(`${value} ist ${staffLabel} zugeordnet.`);
         setAssignStaffOpen(false);
-        setAssignStaffPhone(null);
+        setAssignStaffValue(null);
       } finally {
         setAssigningStaff(false);
       }
     },
-    [assignStaffPhone],
+    [assignStaffKind, assignStaffValue],
   );
 
   /** Overlay-WhatsApp sofort im offenen Thread — ohne loadThread-Flackern. */
@@ -2551,6 +2586,12 @@ export function ContactsMessagesScreen({
                 canCreateReservation={canCreateReservation}
                 canSendReviewLink={canCreateReviewInvite}
                 canAssignStaff={canAssignStaffFromThread}
+                assignStaffKind={
+                  overlayThreadId != null &&
+                  isEmailPseudoContactId(overlayThreadId)
+                    ? "email"
+                    : "phone"
+                }
                 onCreateContact={() =>
                   openCreateContactFromPseudo(
                     overlayThreadId,
@@ -3114,71 +3155,64 @@ export function ContactsMessagesScreen({
               restaurantId &&
               detail.contactId
             ) {
-              if (pendingInboxLink.platform === "whatsapp") {
+              const pending = pendingInboxLink;
+              setPendingInboxLink(null);
+              setContactCreateDraft(null);
+              const platformParam =
+                pending.platform === "email" ? "email" : "all";
+              navigateNachrichten(
+                `/dashboard/kontakte/nachrichten?platform=${platformParam}&contact=${detail.contactId}`,
+              );
+
+              if (pending.platform === "whatsapp") {
                 const link = await triggerLinkWahaThreadToContact({
                   restaurantId,
-                  wahaContactId: pendingInboxLink.pseudoContactId,
+                  wahaContactId: pending.pseudoContactId,
                   contactId: detail.contactId,
                 });
                 if (link?.ok) {
                   const n = link.imported ?? 0;
-                  toast.success(
-                    n > 0
-                      ? `${n} WhatsApp-Nachrichten mit dem Kontakt verknüpft.`
-                      : "Kontakt angelegt.",
-                  );
+                  if (n > 0) {
+                    toast.success(
+                      `${n} WhatsApp-Nachrichten mit dem Kontakt verknüpft.`,
+                    );
+                  }
                 } else {
                   toast.warning(
                     "Kontakt angelegt, WhatsApp-Verlauf konnte nicht importiert werden.",
                   );
                 }
-                setPendingInboxLink(null);
-                setContactCreateDraft(null);
-                navigateNachrichten(
-                  `/dashboard/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
-                );
                 return;
               }
 
               if (
-                pendingInboxLink.platform === "facebook" ||
-                pendingInboxLink.platform === "instagram"
+                pending.platform === "facebook" ||
+                pending.platform === "instagram"
               ) {
                 const link = await triggerLinkMetaThreadToContact({
                   restaurantId,
-                  metaContactId: pendingInboxLink.pseudoContactId,
+                  metaContactId: pending.pseudoContactId,
                   contactId: detail.contactId,
                 });
                 const label =
-                  pendingInboxLink.platform === "instagram"
+                  pending.platform === "instagram"
                     ? "Instagram"
                     : "Messenger";
                 if (link?.ok) {
                   const n = link.imported ?? 0;
-                  toast.success(
-                    n > 0
-                      ? `${n} ${label}-Nachrichten mit dem Kontakt verknüpft.`
-                      : "Kontakt angelegt.",
-                  );
+                  if (n > 0) {
+                    toast.success(
+                      `${n} ${label}-Nachrichten mit dem Kontakt verknüpft.`,
+                    );
+                  }
                 } else {
                   toast.warning(
                     `Kontakt angelegt, ${label}-Verlauf konnte nicht importiert werden.`,
                   );
                 }
-                setPendingInboxLink(null);
-                setContactCreateDraft(null);
-                navigateNachrichten(
-                  `/dashboard/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
-                );
                 return;
               }
 
-              toast.success("Kontakt angelegt.");
-              setPendingInboxLink(null);
-              setContactCreateDraft(null);
-              navigateNachrichten(
-                `/dashboard/kontakte/nachrichten?platform=email&contact=${detail.contactId}`,
-              );
               return;
             }
             if (contactParam) void loadThread();
@@ -3203,14 +3237,15 @@ export function ContactsMessagesScreen({
         onOpenChange={(open) => {
           if (!open) {
             setAssignStaffOpen(false);
-            setAssignStaffPhone(null);
+            setAssignStaffValue(null);
           }
         }}
         restaurantId={restaurantId}
-        phoneDisplay={assignStaffPhone ?? ""}
+        kind={assignStaffKind}
+        valueDisplay={assignStaffValue ?? ""}
         assigning={assigningStaff}
         stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
-        onAssign={assignPhoneToStaff}
+        onAssign={assignIdentityToStaff}
       />
     </div>
   );

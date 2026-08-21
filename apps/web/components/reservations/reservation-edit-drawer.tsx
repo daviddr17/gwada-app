@@ -180,8 +180,10 @@ const selectValueNoShrink =
 export type ReservationEditDrawerCreateContext = {
   restaurantId: string;
   day: Date;
-  /** Lokale Uhrzeit HH:mm für neue Reservierung (z. B. aus Tagesübersicht / Tischplan). */
+  /** Lokale Uhrzeit HH:mm für neue Reservierung (z. B. aus Tagesübersicht / Tischplan / Chat). */
   initialTimeHm?: string;
+  /** Personenzahl aus Chat-Gastnachricht. */
+  initialPartySize?: number;
   initialDiningTableId?: string | null;
   /** Kontakt-ID — Gastfelder vorausfüllen. */
   initialContactId?: string;
@@ -604,7 +606,7 @@ export function ReservationEditDrawer({
     const justOpened = !reservationHydrateWasOpenRef.current;
     reservationHydrateWasOpenRef.current = true;
     const seedKey = reservation?.id
-      ?? `create:${createFor?.restaurantId ?? ""}:${createFor?.day ?? ""}:${createFor?.initialTimeHm ?? ""}:${createFor?.initialContactId ?? ""}:${createFor?.initialKind ?? ""}:${lockKind ?? ""}`;
+      ?? `create:${createFor?.restaurantId ?? ""}:${createFor?.day ?? ""}:${createFor?.initialTimeHm ?? ""}:${createFor?.initialPartySize ?? ""}:${createFor?.initialContactId ?? ""}:${createFor?.initialKind ?? ""}:${lockKind ?? ""}`;
     if (!justOpened && reservationHydrateSeededKeyRef.current === seedKey) return;
     reservationHydrateSeededKeyRef.current = seedKey;
 
@@ -671,7 +673,14 @@ export function ReservationEditDrawer({
       setPhoneCountryIso(defaultIso);
       setPhoneLocal("");
       setEmail("");
-      setPartySize(createKind === RESERVATION_KIND_PRIVATE_EVENT ? "20" : "2");
+      setPartySize(
+        createFor.initialPartySize != null &&
+          isValidStaffPartySize(createFor.initialPartySize)
+          ? String(createFor.initialPartySize)
+          : createKind === RESERVATION_KIND_PRIVATE_EVENT
+            ? "20"
+            : "2",
+      );
       setDateYmd(localDayToYmd(createFor.day));
       const hm =
         createFor.initialTimeHm &&
@@ -753,6 +762,7 @@ export function ReservationEditDrawer({
     createFor?.restaurantId,
     createFor?.day,
     createFor?.initialTimeHm,
+    createFor?.initialPartySize,
     createFor?.initialDiningTableId,
     createFor?.initialContactId,
     createFor?.initialGuestFirstName,
@@ -914,14 +924,6 @@ export function ReservationEditDrawer({
 
     const restaurantId =
       reservation?.restaurant_id ?? createFor?.restaurantId ?? null;
-    const existingContactBeforeSave =
-      restaurantId != null
-        ? await resolveExistingContactBeforeReservationLink({
-            restaurantId,
-            guestPhone: payload.guest_phone,
-            guestEmail: payload.guest_email,
-          })
-        : null;
 
     if (isEdit && reservation) {
       setSaving(true);
@@ -962,69 +964,6 @@ export function ReservationEditDrawer({
           ? "Veranstaltung gespeichert."
           : "Reservierung gespeichert.",
       );
-      if (restaurantId) {
-        void maybeShowReservationExistingContactLinkToast(
-          {
-            restaurantId,
-            previousContactId: reservation.contact_id,
-            savedContactId: updated?.contact_id ?? null,
-          },
-          existingContactBeforeSave,
-        );
-      }
-      const dispatchEvent = reservationStatusDispatchEvent(
-        initialStatusCodeRef.current,
-        newStatusCode,
-      );
-      const notifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
-      const dispatchOpts = notifyExtra
-        ? { guestNotifyMessage: notifyExtra }
-        : undefined;
-      if (dispatchEvent && payload.notify_whatsapp) {
-        const wa = await triggerReservationWhatsappDispatch(
-          reservation.id,
-          dispatchEvent,
-          dispatchOpts,
-        );
-        const msg = whatsappDispatchUserMessage(wa);
-        if (msg) toast.warning(msg);
-        if (wa?.ok && wa.messageBody?.trim()) {
-          onWhatsappDispatched?.({
-            messageBody: wa.messageBody,
-            messageId: wa.messageId,
-            wahaMessageId: wa.wahaMessageId,
-            threadContactId: wa.threadContactId,
-          });
-        }
-      }
-      if (dispatchEvent && payload.notify_email) {
-        void triggerReservationEmailDispatch(
-          reservation.id,
-          dispatchEvent,
-          dispatchOpts,
-        ).then((em) => {
-          const msg = emailDispatchUserMessage(em, { isSuperadmin });
-          if (msg) toast.warning(msg);
-        });
-      }
-      if (dispatchEvent && notifyExtra) {
-        setGuestNotifyMessage("");
-      }
-      const datetimeChanged = reservationDateTimeChanged(
-        {
-          starts_at: reservation.starts_at,
-          ends_at: reservation.ends_at,
-        },
-        { starts_at: payload.starts_at, ends_at: payload.ends_at },
-      );
-      if (shouldRescheduleTimedOutbox(newStatusCode, datetimeChanged)) {
-        if (payload.notify_whatsapp) {
-          void triggerReservationWhatsappDispatch(reservation.id, "rescheduled");
-        }
-        if (payload.notify_email) {
-          void triggerReservationEmailDispatch(reservation.id, "rescheduled");
-        }
-      }
       const previousStatusCode = initialStatusCodeRef.current ?? "";
       initialStatusCodeRef.current = newStatusCode;
       allowDrawerCloseRef.current = true;
@@ -1037,6 +976,83 @@ export function ReservationEditDrawer({
       });
       dispatchDashboardReservationUpdateLivePatch(reservation.restaurant_id);
       onSaved();
+
+      void (async () => {
+        const existingContactBeforeSave =
+          restaurantId != null
+            ? await resolveExistingContactBeforeReservationLink({
+                restaurantId,
+                guestPhone: payload.guest_phone,
+                guestEmail: payload.guest_email,
+              })
+            : null;
+        if (restaurantId) {
+          void maybeShowReservationExistingContactLinkToast(
+            {
+              restaurantId,
+              previousContactId: reservation.contact_id,
+              savedContactId: updated?.contact_id ?? null,
+            },
+            existingContactBeforeSave,
+          );
+        }
+        const dispatchEvent = reservationStatusDispatchEvent(
+          previousStatusCode,
+          newStatusCode,
+        );
+        const notifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
+        const dispatchOpts = notifyExtra
+          ? { guestNotifyMessage: notifyExtra }
+          : undefined;
+        if (dispatchEvent && payload.notify_whatsapp) {
+          const wa = await triggerReservationWhatsappDispatch(
+            reservation.id,
+            dispatchEvent,
+            dispatchOpts,
+          );
+          const msg = whatsappDispatchUserMessage(wa);
+          if (msg) toast.warning(msg);
+          if (wa?.ok && wa.messageBody?.trim()) {
+            onWhatsappDispatched?.({
+              messageBody: wa.messageBody,
+              messageId: wa.messageId,
+              wahaMessageId: wa.wahaMessageId,
+              threadContactId: wa.threadContactId,
+            });
+          }
+        }
+        if (dispatchEvent && payload.notify_email) {
+          void triggerReservationEmailDispatch(
+            reservation.id,
+            dispatchEvent,
+            dispatchOpts,
+          ).then((em) => {
+            const msg = emailDispatchUserMessage(em, { isSuperadmin });
+            if (msg) toast.warning(msg);
+          });
+        }
+        if (dispatchEvent && notifyExtra) {
+          setGuestNotifyMessage("");
+        }
+        const datetimeChanged = reservationDateTimeChanged(
+          {
+            starts_at: reservation.starts_at,
+            ends_at: reservation.ends_at,
+          },
+          { starts_at: payload.starts_at, ends_at: payload.ends_at },
+        );
+        if (shouldRescheduleTimedOutbox(newStatusCode, datetimeChanged)) {
+          if (payload.notify_whatsapp) {
+            void triggerReservationWhatsappDispatch(
+              reservation.id,
+              "rescheduled",
+            );
+          }
+          if (payload.notify_email) {
+            void triggerReservationEmailDispatch(reservation.id, "rescheduled");
+          }
+        }
+      })();
       return;
     }
 
@@ -1075,7 +1091,6 @@ export function ReservationEditDrawer({
           statuses,
           tables,
         });
-        // Sofort — sonst schlägt Realtime den WhatsApp-Await und zeigt den Live-Toast.
         const status = statuses.find((s) => s.id === payload.status_id);
         dispatchDashboardReservationCreateLivePatch({
           restaurantId: createFor.restaurantId,
@@ -1107,54 +1122,63 @@ export function ReservationEditDrawer({
           ? `${entityLabel} #${created.reservation_number} angelegt. Gast-PIN: ${created.guest_pin}`
           : `${entityLabel} angelegt.`,
       );
-      if (created && restaurantId) {
-        void maybeShowReservationExistingContactLinkToast(
-          {
-            restaurantId,
-            previousContactId: null,
-            savedContactId: created.contact_id,
-            manualInitialContactId: createFor.initialContactId,
-          },
-          existingContactBeforeSave,
-        );
-      }
-      const createNotifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
-      const createDispatchOpts = createNotifyExtra
-        ? { guestNotifyMessage: createNotifyExtra }
-        : undefined;
-      if (created && payload.notify_whatsapp) {
-        const wa = await triggerReservationWhatsappDispatch(
-          created.id,
-          "created",
-          createDispatchOpts,
-        );
-        const msg = whatsappDispatchUserMessage(wa);
-        if (msg) toast.warning(msg);
-        if (wa?.ok && wa.messageBody?.trim()) {
-          onWhatsappDispatched?.({
-            messageBody: wa.messageBody,
-            messageId: wa.messageId,
-            wahaMessageId: wa.wahaMessageId,
-            threadContactId: wa.threadContactId,
-          });
-        }
-      }
-      if (created && payload.notify_email) {
-        void triggerReservationEmailDispatch(
-          created.id,
-          "created",
-          createDispatchOpts,
-        ).then((em) => {
-          const msg = emailDispatchUserMessage(em, { isSuperadmin });
-          if (msg) toast.warning(msg);
-        });
-      }
-      if (created && createNotifyExtra) {
-        setGuestNotifyMessage("");
-      }
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
       onSaved();
+
+      void (async () => {
+        if (created && restaurantId) {
+          const existingContactBeforeSave =
+            await resolveExistingContactBeforeReservationLink({
+              restaurantId,
+              guestPhone: payload.guest_phone,
+              guestEmail: payload.guest_email,
+            });
+          void maybeShowReservationExistingContactLinkToast(
+            {
+              restaurantId,
+              previousContactId: null,
+              savedContactId: created.contact_id,
+              manualInitialContactId: createFor.initialContactId,
+            },
+            existingContactBeforeSave,
+          );
+        }
+        const createNotifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
+        const createDispatchOpts = createNotifyExtra
+          ? { guestNotifyMessage: createNotifyExtra }
+          : undefined;
+        if (created && payload.notify_whatsapp) {
+          const wa = await triggerReservationWhatsappDispatch(
+            created.id,
+            "created",
+            createDispatchOpts,
+          );
+          const msg = whatsappDispatchUserMessage(wa);
+          if (msg) toast.warning(msg);
+          if (wa?.ok && wa.messageBody?.trim()) {
+            onWhatsappDispatched?.({
+              messageBody: wa.messageBody,
+              messageId: wa.messageId,
+              wahaMessageId: wa.wahaMessageId,
+              threadContactId: wa.threadContactId,
+            });
+          }
+        }
+        if (created && payload.notify_email) {
+          void triggerReservationEmailDispatch(
+            created.id,
+            "created",
+            createDispatchOpts,
+          ).then((em) => {
+            const msg = emailDispatchUserMessage(em, { isSuperadmin });
+            if (msg) toast.warning(msg);
+          });
+        }
+        if (created && createNotifyExtra) {
+          setGuestNotifyMessage("");
+        }
+      })();
     }
   };
 

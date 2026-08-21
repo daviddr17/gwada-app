@@ -498,8 +498,8 @@ export function ContactEditDrawer({
                 "Kontakt gespeichert, Lexware-Sync fehlgeschlagen.",
             );
             savedSnapshotRef.current = currentSnapshot;
-            onSaved?.({ contactId, created: false });
             onOpenChange(false);
+            onSaved?.({ contactId, created: false });
             return;
           }
           toast.success(
@@ -538,8 +538,8 @@ export function ContactEditDrawer({
         dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
           immediate: true,
         });
-        onSaved?.({ contactId, created: false });
         onOpenChange(false);
+        onSaved?.({ contactId, created: false });
         return;
       }
       const useLexofficeApi =
@@ -574,8 +574,8 @@ export function ContactEditDrawer({
           dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
             immediate: true,
           });
-          onSaved?.({ contactId: data.contactId, created: true });
           onOpenChange(false);
+          onSaved?.({ contactId: data.contactId, created: true });
         }
         return;
       }
@@ -588,8 +588,8 @@ export function ContactEditDrawer({
         dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
           immediate: true,
         });
-        onSaved?.({ contactId: created.id, created: true });
         onOpenChange(false);
+        onSaved?.({ contactId: created.id, created: true });
       }
     })();
   };
@@ -604,8 +604,8 @@ export function ContactEditDrawer({
       else {
         toast.success("Kontakt gelöscht.");
         setConfirmDeleteOpen(false);
-        onSaved?.();
         onOpenChange(false);
+        onSaved?.();
       }
     })();
   };

@@ -2,6 +2,7 @@
 
 import {
   CalendarPlus,
+  Mail,
   Plus,
   Star,
   UserPlus,
@@ -20,6 +21,7 @@ export type ContactInboxThreadHeaderMenuProps = {
   canCreateReservation: boolean;
   canSendReviewLink: boolean;
   canAssignStaff: boolean;
+  assignStaffKind?: "phone" | "email";
   onCreateContact: () => void;
   onReservation: () => void;
   onReviewInvite: () => void;
@@ -31,6 +33,7 @@ export function ContactInboxThreadHeaderMenu({
   canCreateReservation,
   canSendReviewLink,
   canAssignStaff,
+  assignStaffKind = "phone",
   onCreateContact,
   onReservation,
   onReviewInvite,
@@ -81,8 +84,14 @@ export function ContactInboxThreadHeaderMenu({
         ) : null}
         {canAssignStaff ? (
           <DropdownMenuItem onClick={onAssignStaff}>
-            <Users className="size-4" aria-hidden />
-            Nummer Mitarbeiter zuordnen
+            {assignStaffKind === "email" ? (
+              <Mail className="size-4" aria-hidden />
+            ) : (
+              <Users className="size-4" aria-hidden />
+            )}
+            {assignStaffKind === "email"
+              ? "E-Mail Mitarbeiter zuordnen"
+              : "Nummer Mitarbeiter zuordnen"}
           </DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>

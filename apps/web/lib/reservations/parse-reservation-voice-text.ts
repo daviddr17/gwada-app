@@ -185,7 +185,7 @@ function dateMatchToYmd(
   return { ymd, rest };
 }
 
-function parseDateYmd(
+export function parseDateYmd(
   text: string,
   ref: Date,
 ): { ymd: string; rest: string } | null {
@@ -263,7 +263,7 @@ function parseDateYmd(
   return null;
 }
 
-function parseTimeHm(text: string): { hm: string; rest: string } | null {
+export function parseTimeHm(text: string): { hm: string; rest: string } | null {
   const wordAlt = Object.keys(WORD_NUM).join("|");
   const umClock = text.match(
     /\b(?:um\s+)?(\d{1,2})[:.](\d{2})\s*(?:uhr)?\b/i,

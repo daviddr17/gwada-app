@@ -617,8 +617,11 @@ export function StaffFormDrawer({
           return;
         }
         savedStaffId = ins.id;
+        toast.success("Mitarbeiter angelegt");
+        onSaved(savedStaffId);
+        onOpenChange(false);
         if (avatarFile) {
-          const { error } = await trackDashboardFileUpload(
+          void trackDashboardFileUpload(
             () =>
               uploadStaffAvatarClient({
                 restaurantId,
@@ -629,27 +632,24 @@ export function StaffFormDrawer({
               errorMessage: () => "Profilbild konnte nicht hochgeladen werden.",
             },
           );
-          if (error) return;
         }
         const changes = buildStaffAuditChanges(null, payload, activePositionTags);
-        await insertStaffAuditLogEntry(
+        void insertStaffAuditLogEntry(
           restaurantId,
           ins.id,
           "created",
           changes,
         );
         if (displayPin.length === 4) {
-          const pinResult = await persistStaffDisplayPin(ins.id, displayPin);
-          if (!pinResult.ok) {
-            toast.error(
-              `Mitarbeiter angelegt — Display-PIN: ${pinResult.message}`,
-            );
-            onSaved(savedStaffId);
-            onOpenChange(false);
-            return;
-          }
+          void persistStaffDisplayPin(ins.id, displayPin).then((pinResult) => {
+            if (!pinResult.ok) {
+              toast.error(
+                `Mitarbeiter angelegt — Display-PIN: ${pinResult.message}`,
+              );
+            }
+          });
         }
-        toast.success("Mitarbeiter angelegt");
+        return;
       } else if (staff) {
         const ok = await updateStaff(staff.id, payload);
         if (!ok) {

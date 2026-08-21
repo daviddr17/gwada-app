@@ -1879,10 +1879,10 @@ export function ContactsMessagesScreen({
   }, [resolveChatGuestPrefill]);
 
   const canCreateContactFromThread =
-    Boolean(overlayThreadId) && isInboxPseudoContactId(overlayThreadId);
+    overlayThreadId != null && isInboxPseudoContactId(overlayThreadId);
   const canAssignStaffFromThread =
     canUpdateStaff &&
-    Boolean(overlayThreadId) &&
+    overlayThreadId != null &&
     isWahaPseudoContactId(overlayThreadId);
 
   const openAssignStaffFromChat = useCallback(() => {

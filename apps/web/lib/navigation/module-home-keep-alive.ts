@@ -50,13 +50,6 @@ export const MODULE_HOME_IDLE_PREWARM_IDS: readonly ModuleHomeId[] = [
 /** Max. zusätzliche warme Homes neben Dashboard + aktuellem Home (LRU). */
 export const MODULE_HOME_MAX_EXTRA_WARM = 4;
 
-/** @deprecated */
-export const MODULE_HOME_PRIORITY_PREWARM_IDS = MODULE_HOME_IDLE_PREWARM_IDS;
-/** @deprecated — Secondary nur noch per Intent. */
-export const MODULE_HOME_SECONDARY_PREWARM_IDS: readonly ModuleHomeId[] = [];
-/** @deprecated */
-export const MODULE_HOME_PREWARM_IDS = MODULE_HOME_IDLE_PREWARM_IDS;
-
 export const MODULE_HOME_IDS = Object.keys(
   MODULE_HOME_PATHS,
 ) as ModuleHomeId[];
@@ -139,15 +132,22 @@ export function shouldAbandonSoftNavPending(
   return true;
 }
 
-/** Failsafe-Retry nur, wenn wir noch auf der Quelle hängen. */
-export function shouldRetrySoftNavFailsafe(
+/**
+ * Soft-Nav erneut pushen: Push wurde geschluckt (noch Quelle) oder ein
+ * älterer RSC hat ein anderes Modul-Home eingesetzt.
+ * Nicht bei Unterrouten (Einstellungen) — dort gibt Pending auf.
+ */
+export function shouldRepushSoftNav(
   pathname: string,
   pendingFrom: string | null,
   pendingTarget: string | null,
 ): boolean {
   if (pendingFrom == null || pendingTarget == null) return false;
   if (isSoftNavPendingArrived(pathname, pendingTarget)) return false;
-  return normalizePath(pathname) === normalizePath(pendingFrom);
+  if (shouldAbandonSoftNavPending(pathname, pendingFrom, pendingTarget)) {
+    return false;
+  }
+  return true;
 }
 
 export type ModuleHomeSlotVisibility = {
@@ -167,17 +167,21 @@ export function moduleHomeSlotVisibility({
   pendingHomeId,
   pendingInFlight,
   warmFlag,
+  suppressHomeId = null,
 }: {
   id: ModuleHomeId;
   activeHomeId: ModuleHomeId | null;
   pendingHomeId: ModuleHomeId | null;
   pendingInFlight: boolean;
   warmFlag: boolean;
+  /** Quelle nach Ankunft noch kurz unterdrücken — späte RSC-Reverts ohne Dashboard-Flash. */
+  suppressHomeId?: ModuleHomeId | null;
 }): ModuleHomeSlotVisibility {
   const onHome = activeHomeId === id;
   const warm = warmFlag || onHome;
   const pendingToThis = warm && pendingHomeId === id && !onHome;
-  const showAsSource = onHome && !pendingInFlight;
+  const showAsSource =
+    onHome && !pendingInFlight && suppressHomeId !== id;
   const arrivedPending = onHome && pendingInFlight && pendingHomeId === id;
   return {
     warm,

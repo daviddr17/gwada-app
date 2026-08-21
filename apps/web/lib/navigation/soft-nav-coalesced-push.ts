@@ -17,7 +17,6 @@ const COALESCE_MS = 120;
 
 let pendingHref: string | null = null;
 let timer: number | null = null;
-let lastPushedHref: string | null = null;
 
 export function coalesceSoftNavPush(
   router: AppRouterInstance,
@@ -48,20 +47,8 @@ export function flushSoftNavPush(router: AppRouterInstance): string | null {
   const target = pendingHref;
   pendingHref = null;
   if (!target) return null;
-  lastPushedHref = target;
   window.setTimeout(() => {
     router.push(target);
   }, 0);
   return target;
-}
-
-export function peekSoftNavCoalescedHref(): string | null {
-  return pendingHref;
-}
-
-export function resetSoftNavCoalescedPushForTests(): void {
-  if (timer != null) window.clearTimeout(timer);
-  timer = null;
-  pendingHref = null;
-  lastPushedHref = null;
 }

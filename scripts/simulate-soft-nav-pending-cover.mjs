@@ -50,7 +50,7 @@ function shouldClearPendingOnPathname({ pendingTarget, pathname }) {
   return a != null && a === b;
 }
 
-function slotVisible({ id, pathname, pendingHref, warm }) {
+function slotVisible({ id, pathname, pendingHref, warm, suppressHomeId = null }) {
   const activeHomeId = matchHome(pathname);
   const pendingHomeId = pendingHref != null ? matchHome(pendingHref) : null;
   const pendingNormalized =
@@ -58,7 +58,8 @@ function slotVisible({ id, pathname, pendingHref, warm }) {
   const onHome = activeHomeId === id;
   const pendingInFlight = pendingNormalized != null;
   const pendingToThis = warm && pendingHomeId === id && !onHome;
-  const showAsSource = onHome && !pendingInFlight;
+  const showAsSource =
+    onHome && !pendingInFlight && suppressHomeId !== id;
   const arrivedPending = onHome && pendingInFlight && pendingHomeId === id;
   return {
     visible: showAsSource || pendingToThis || arrivedPending,
@@ -247,6 +248,17 @@ function shouldRetryFailsafe({ pathname, pendingFrom, pendingTarget }) {
   return normalizeNavHref(pathname) === normalizeNavHref(pendingFrom);
 }
 
+function shouldRepush({ pathname, pendingFrom, pendingTarget }) {
+  if (pendingFrom == null || pendingTarget == null) return false;
+  if (shouldClearPendingOnPathname({ pendingTarget, pathname })) return false;
+  if (shouldAbandon({ pathname, pendingFrom, pendingTarget })) return false;
+  return true;
+}
+
+function shouldClearPendingAfterArrive({ arrivedAt, now, stableMs }) {
+  return now - arrivedAt >= stableMs;
+}
+
 // 9) Chip Einstellungen während Overview-Flight: Pending aufgeben, kein Retry
 {
   assert.equal(
@@ -300,6 +312,83 @@ function shouldRetryFailsafe({ pathname, pendingFrom, pendingTarget }) {
     false,
     "Stale Speisekarte-RSC darf Events-Pending nicht aufgeben",
   );
+}
+
+// 12) Geschluckter Push: noch auf Dashboard → erneut pushen
+{
+  assert.equal(
+    shouldRepush({
+      pathname: "/dashboard",
+      pendingFrom: "/dashboard",
+      pendingTarget: "/dashboard/menu/uebersicht",
+    }),
+    true,
+    "Push geschluckt: Retry von der Quelle",
+  );
+}
+
+// 13) Stale Speisekarte-RSC während Events-Pending: erneut auf Events pushen
+{
+  assert.equal(
+    shouldRepush({
+      pathname: "/dashboard/menu/uebersicht",
+      pendingFrom: "/dashboard",
+      pendingTarget: "/dashboard/events/uebersicht",
+    }),
+    true,
+    "Stale RSC auf anderem Home → Ziel nachpushen",
+  );
+}
+
+// 14) Einstellungen: nicht nachpushen (Pending aufgeben)
+{
+  assert.equal(
+    shouldRepush({
+      pathname: "/dashboard/events/einstellungen",
+      pendingFrom: "/dashboard",
+      pendingTarget: "/dashboard/events/uebersicht",
+    }),
+    false,
+    "Einstellungen darf kein Overview-Retry auslösen",
+  );
+}
+
+// 15) Kurzes Arrive reicht nicht zum Clear — sonst gewinnt der Dashboard-Stream
+{
+  assert.equal(
+    shouldClearPendingAfterArrive({
+      arrivedAt: 0,
+      now: 32,
+      stableMs: 400,
+    }),
+    false,
+    "2 rAF (~32ms) dürfen Pending nicht räumen",
+  );
+  assert.equal(
+    shouldClearPendingAfterArrive({
+      arrivedAt: 0,
+      now: 400,
+      stableMs: 400,
+    }),
+    true,
+  );
+}
+
+// 16) Später RSC-Revert: Dashboard bleibt durch Source-Guard versteckt
+{
+  const dash = slotVisible({
+    id: "dashboard",
+    pathname: "/dashboard",
+    pendingHref: null,
+    warm: true,
+    suppressHomeId: "dashboard",
+  });
+  assert.equal(
+    dash.visible,
+    false,
+    "Recovery-Guard: Dashboard nach Revert nicht einblenden",
+  );
+  assert.equal(dash.active, false);
 }
 
 console.log("OK soft-nav pending cover simulation");

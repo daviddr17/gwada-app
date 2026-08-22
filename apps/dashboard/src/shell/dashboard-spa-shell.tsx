@@ -36,6 +36,7 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { SoftNavLockProvider } from "../shims/soft-nav-lock-provider";
 
 function DashboardSpaInset() {
   const pathname = usePathname();
@@ -198,16 +199,18 @@ function DashboardSpaInset() {
 /** App-Shell ohne Keep-alive / Soft-Nav-Overlay — TanStack Router SPA. */
 export function DashboardSpaShell() {
   return (
-    <SidebarProvider>
-      <AuthLogoutTransitionProvider>
-        <AppModuleChromeProvider>
-          <DashboardGlobalSearchChrome>
-            <AppSidebar />
-            <DashboardSpaInset />
-            <DashboardUploadOverlay />
-          </DashboardGlobalSearchChrome>
-        </AppModuleChromeProvider>
-      </AuthLogoutTransitionProvider>
-    </SidebarProvider>
+    <SoftNavLockProvider>
+      <SidebarProvider>
+        <AuthLogoutTransitionProvider>
+          <AppModuleChromeProvider>
+            <DashboardGlobalSearchChrome>
+              <AppSidebar />
+              <DashboardSpaInset />
+              <DashboardUploadOverlay />
+            </DashboardGlobalSearchChrome>
+          </AppModuleChromeProvider>
+        </AuthLogoutTransitionProvider>
+      </SidebarProvider>
+    </SoftNavLockProvider>
   );
 }

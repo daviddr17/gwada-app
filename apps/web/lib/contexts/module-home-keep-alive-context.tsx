@@ -76,7 +76,7 @@ export function ModuleHomeKeepAliveProvider({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const { pendingHref, sourceGuardHref } = useSoftNavLock();
+  const { pendingHref } = useSoftNavLock();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const activeHomeId = matchModuleHomeId(pathname);
   const activeHomeIdRef = useRef(activeHomeId);
@@ -205,8 +205,6 @@ export function ModuleHomeKeepAliveProvider({
 
   const pendingNormalized =
     pendingHref != null ? normalizeNavHref(pendingHref) : null;
-  const suppressHomeId =
-    sourceGuardHref != null ? matchModuleHomeId(sourceGuardHref) : null;
 
   const value = useMemo<ModuleHomeKeepAliveValue>(() => {
     const warmIds = new Set<ModuleHomeId>();
@@ -220,7 +218,6 @@ export function ModuleHomeKeepAliveProvider({
         pendingHomeId,
         pendingInFlight,
         warmFlag: warmFlags[id],
-        suppressHomeId,
       });
       if (slot.warm) warmIds.add(id);
       slots[id] = slot;
@@ -231,13 +228,7 @@ export function ModuleHomeKeepAliveProvider({
       isPendingWarmHome: (href: string) =>
         isWarmModuleHomePending(href, warmIds),
     };
-  }, [
-    activeHomeId,
-    warmFlags,
-    pendingHomeId,
-    pendingNormalized,
-    suppressHomeId,
-  ]);
+  }, [activeHomeId, warmFlags, pendingHomeId, pendingNormalized]);
 
   return (
     <ModuleHomeKeepAliveContext.Provider value={value}>

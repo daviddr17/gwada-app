@@ -374,21 +374,16 @@ function shouldClearPendingAfterArrive({ arrivedAt, now, stableMs }) {
   );
 }
 
-// 16) Später RSC-Revert: Dashboard bleibt durch Source-Guard versteckt
+// 16) Nach Clear ohne Pending: Dashboard wieder sichtbar (kein Source-Guard)
 {
   const dash = slotVisible({
     id: "dashboard",
     pathname: "/dashboard",
     pendingHref: null,
     warm: true,
-    suppressHomeId: "dashboard",
   });
-  assert.equal(
-    dash.visible,
-    false,
-    "Recovery-Guard: Dashboard nach Revert nicht einblenden",
-  );
-  assert.equal(dash.active, false);
+  assert.equal(dash.visible, true, "Nach Clear: Dashboard normal sichtbar");
+  assert.equal(dash.active, true);
 }
 
 console.log("OK soft-nav pending cover simulation");

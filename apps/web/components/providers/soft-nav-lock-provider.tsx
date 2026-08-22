@@ -11,6 +11,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import {
   SoftNavLockContext,
+  SOFT_NAV_LOCK_FALLBACK,
   normalizeNavHref,
   type SoftNavLockValue,
 } from "@/lib/navigation/soft-nav-lock-context";
@@ -185,6 +186,11 @@ export function useSoftNavLock(): SoftNavLockValue {
     throw new Error("useSoftNavLock requires SoftNavLockProvider");
   }
   return ctx;
+}
+
+/** Layout-level consumers (z. B. Readiness) — kein Throw vor Dashboard-SPA-Shell. */
+export function useSoftNavLockOptional(): SoftNavLockValue {
+  return useContext(SoftNavLockContext) ?? SOFT_NAV_LOCK_FALLBACK;
 }
 
 export { normalizeNavHref };

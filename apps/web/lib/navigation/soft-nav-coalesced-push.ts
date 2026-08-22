@@ -6,8 +6,11 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
  * Schnelle Soft-Nav-Klicks → nur das letzte Ziel wirklich `router.push`en.
  * Pending-UI bleibt synchron; der Flight wird nicht mit Dutzenden RSC-Requests zugeschüttet.
  *
- * Trailing-only: Leading-Edge + sofortiger Push verkeilen den App-Router nach Stress
- * (parallele Flights, Klicks ohne Reaktion, Snap-back zum Dashboard).
+ * - Erster Klick: `setTimeout(0)` (Next-16-sicher, ohne Leading-Edge-Doppel-Push)
+ * - Weitere Klicks im Burst: trailing coalesce (32ms), letzter gewinnt
+ *
+ * Leading-Edge + sofortiger Push verkeilt den Router unter Stress; 32ms auf jeden
+ * einzelnen Klick war spürbar langsam.
  */
 const COALESCE_MS = 32;
 
@@ -19,11 +22,18 @@ export function coalesceSoftNavPush(
   href: string,
 ): void {
   pendingHref = href;
-  if (timer != null) window.clearTimeout(timer);
+  if (timer != null) {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      timer = null;
+      flushSoftNavPush(router);
+    }, COALESCE_MS);
+    return;
+  }
   timer = window.setTimeout(() => {
     timer = null;
     flushSoftNavPush(router);
-  }, COALESCE_MS);
+  }, 0);
 }
 
 /** Sofort pushen (Failsafe-Retry / letzter Stand). */

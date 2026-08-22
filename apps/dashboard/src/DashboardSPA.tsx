@@ -1,14 +1,9 @@
 "use client";
 
 import { RouterProvider } from "@tanstack/react-router";
-import { SoftNavLockProvider } from "./shims/soft-nav-lock-provider";
 import { dashboardRouter } from "./router/route-tree";
 
-/** TanStack Router SPA — Provider aus `(app)/layout`, SoftNav-Shim hier (Router-Kontext). */
+/** TanStack Router SPA — SoftNavLockProvider in {@link DashboardSpaShell} (Router-Kontext). */
 export function DashboardSPA() {
-  return (
-    <SoftNavLockProvider>
-      <RouterProvider router={dashboardRouter} />
-    </SoftNavLockProvider>
-  );
+  return <RouterProvider router={dashboardRouter} />;
 }

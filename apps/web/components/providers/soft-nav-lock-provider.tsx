@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -10,6 +9,11 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  SoftNavLockContext,
+  normalizeNavHref,
+  type SoftNavLockValue,
+} from "@/lib/navigation/soft-nav-lock-context";
 import {
   coalesceSoftNavPush,
   flushSoftNavPush,
@@ -20,27 +24,8 @@ import {
 } from "@/lib/navigation/soft-nav-flight";
 import { isSoftNavPendingArrived } from "@/lib/navigation/module-home-keep-alive";
 
-type SoftNavLockValue = {
-  tryAcquireNavLock: (
-    event: { preventDefault: () => void },
-    targetHref: string,
-  ) => boolean;
-  /** Ziel-Route während Soft-Nav — Sidebar + Overlay. */
-  pendingHref: string | null;
-  /** Coalesced router.push — letzter Klick gewinnt. */
-  scheduleSoftNavPush: (href: string) => void;
-};
-
-const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
-
 const PENDING_CLEAR_FAILSAFE_MS = 6_000;
 const PENDING_RETRY_EXTRA_MS = 3_500;
-
-export function normalizeNavHref(href: string): string {
-  const path = href.split("?")[0]?.split("#")[0] ?? href;
-  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
-  return path || "/dashboard";
-}
 
 /**
  * Soft-Nav Pending — sofortiges UI-Feedback (Sidebar + Overlay).
@@ -201,3 +186,5 @@ export function useSoftNavLock(): SoftNavLockValue {
   }
   return ctx;
 }
+
+export { normalizeNavHref };

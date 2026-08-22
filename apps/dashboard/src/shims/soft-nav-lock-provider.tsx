@@ -1,32 +1,22 @@
 "use client";
 
 import {
-  createContext,
   useCallback,
   useContext,
   useMemo,
   type ReactNode,
 } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  SoftNavLockContext,
+  normalizeNavHref,
+  type SoftNavLockValue,
+} from "@/lib/navigation/soft-nav-lock-context";
 
-type SoftNavLockValue = {
-  tryAcquireNavLock: (
-    event: { preventDefault: () => void },
-    targetHref: string,
-  ) => boolean;
-  pendingHref: string | null;
-  scheduleSoftNavPush: (href: string) => void;
-};
-
-const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
-
-export function normalizeNavHref(href: string): string {
-  const path = href.split("?")[0]?.split("#")[0] ?? href;
-  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
-  return path || "/dashboard";
-}
-
-function splitHref(href: string): { pathname: string; search: Record<string, string> } {
+function splitHref(href: string): {
+  pathname: string;
+  search: Record<string, string>;
+} {
   const [pathPart, searchPart] = href.split("?");
   const pathname = normalizeNavHref(pathPart ?? href);
   const search: Record<string, string> = {};
@@ -39,7 +29,7 @@ function splitHref(href: string): { pathname: string; search: Record<string, str
   return { pathname, search };
 }
 
-/** TanStack Router — kein Pending/Recovery, sofortige Client-Navigation. */
+/** TanStack Router — gleicher Context wie Next SoftNavLockProvider. */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const routerState = useRouterState();
@@ -90,3 +80,5 @@ export function useSoftNavLock(): SoftNavLockValue {
   }
   return ctx;
 }
+
+export { normalizeNavHref };

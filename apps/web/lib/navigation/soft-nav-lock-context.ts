@@ -20,3 +20,10 @@ export function normalizeNavHref(href: string): string {
   if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
   return path || "/dashboard";
 }
+
+/** Safe defaults when SoftNavLockProvider is below (Dashboard SPA layout tree). */
+export const SOFT_NAV_LOCK_FALLBACK: SoftNavLockValue = {
+  tryAcquireNavLock: () => true,
+  pendingHref: null,
+  scheduleSoftNavPush: () => {},
+};

@@ -3032,10 +3032,6 @@ showReplyComposer ? (
                       effectiveThreadContactId === c.contact_id &&
                         "bg-accent/10 hover:bg-accent/15",
                     )}
-                    onPointerDown={(e) => {
-                      if (e.button !== 0) return;
-                      prefetchConversationThread(c.contact_id);
-                    }}
                     onPointerEnter={() =>
                       prefetchConversationThread(c.contact_id)
                     }
@@ -3054,8 +3050,7 @@ showReplyComposer ? (
                           ? `Chat mit ${listName} öffnen, ${statusChip}`
                           : `Chat mit ${listName} öffnen`
                       }
-                      onPointerDown={(e) => {
-                        if (e.button !== 0) return;
+                      onClick={() => {
                         prefetchConversationThread(c.contact_id);
                         openConversation(c.contact_id);
                       }}

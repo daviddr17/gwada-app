@@ -91,6 +91,8 @@ const MANUAL_PAGE_IMPORTS = {
 
 const PROFILE_PREFIX = "/dashboard/profile/";
 const SETTINGS_PREFIX = "/dashboard/settings/";
+const STAFF_PREFIX = "/dashboard/mitarbeiter/";
+const STAFF_HOME = "/dashboard/mitarbeiter/uebersicht";
 
 function chromeWrapperFor(route) {
   if (route === "/dashboard/profile" || route.startsWith(PROFILE_PREFIX)) {
@@ -98,6 +100,14 @@ function chromeWrapperFor(route) {
   }
   if (route === "/dashboard/settings" || route.startsWith(SETTINGS_PREFIX)) {
     return "settings";
+  }
+  // Übersicht = Keep-alive Host mit eigenem Chrome — kein Layout-Wrap.
+  if (
+    route.startsWith(STAFF_PREFIX) &&
+    route !== STAFF_HOME &&
+    route !== "/dashboard/mitarbeiter"
+  ) {
+    return "staff";
   }
   return null;
 }
@@ -107,12 +117,13 @@ lines.push(
   `/** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs`,
 );
 lines.push(
-  ` * Profile/Settings use chrome wrappers (layouts pruned with SPA).`,
+  ` * Profile/Settings/Staff use chrome wrappers (layouts pruned with SPA).`,
 );
 lines.push(` */`);
 lines.push(`import { lazy, type ComponentType } from "react";`);
 lines.push(`import { wrapProfilePage } from "../routes/profile-chrome";`);
 lines.push(`import { wrapSettingsPage } from "../routes/settings-chrome";`);
+lines.push(`import { wrapStaffPage } from "../routes/staff-chrome";`);
 lines.push("");
 lines.push(`function profileLazy(`);
 lines.push(`  importer: () => Promise<{ default: ComponentType }>,`);
@@ -129,6 +140,15 @@ lines.push(`) {`);
 lines.push(`  return lazy(async () => {`);
 lines.push(`    const mod = await importer();`);
 lines.push(`    return { default: wrapSettingsPage(mod.default) };`);
+lines.push(`  });`);
+lines.push(`}`);
+lines.push("");
+lines.push(`function staffLazy(`);
+lines.push(`  importer: () => Promise<{ default: ComponentType }>,`);
+lines.push(`) {`);
+lines.push(`  return lazy(async () => {`);
+lines.push(`    const mod = await importer();`);
+lines.push(`    return { default: wrapStaffPage(mod.default) };`);
 lines.push(`  });`);
 lines.push(`}`);
 lines.push("");
@@ -184,6 +204,10 @@ for (const entry of scan) {
   } else if (chrome === "settings") {
     lazyLines.push(
       `const ${lazyName} = settingsLazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
+    );
+  } else if (chrome === "staff") {
+    lazyLines.push(
+      `const ${lazyName} = staffLazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
     );
   } else {
     lazyLines.push(

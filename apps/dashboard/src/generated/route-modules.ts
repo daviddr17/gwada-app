@@ -1,9 +1,10 @@
 /** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs
- * Manual overrides: profile + settings chrome wrappers (layouts pruned with SPA).
+ * Manual overrides: profile + settings + staff chrome wrappers (layouts pruned with SPA).
  */
 import { lazy, type ComponentType } from "react";
 import { wrapProfilePage } from "../routes/profile-chrome";
 import { wrapSettingsPage } from "../routes/settings-chrome";
+import { wrapStaffPage } from "../routes/staff-chrome";
 
 function profileLazy(
   importer: () => Promise<{ default: ComponentType }>,
@@ -20,6 +21,15 @@ function settingsLazy(
   return lazy(async () => {
     const mod = await importer();
     return { default: wrapSettingsPage(mod.default) };
+  });
+}
+
+function staffLazy(
+  importer: () => Promise<{ default: ComponentType }>,
+) {
+  return lazy(async () => {
+    const mod = await importer();
+    return { default: wrapStaffPage(mod.default) };
   });
 }
 
@@ -61,14 +71,42 @@ const Lazy__dashboard_menu_einstellungen = lazy(() => import("@/components/menu/
 const Lazy__dashboard_menu_export = lazy(() => import("@/components/menu/menu-export-screen").then((m) => ({ default: m.MenuExportScreen as ComponentType })));
 const Lazy__dashboard_menu_statistiken = lazy(() => import("@/components/menu/menu-statistics-screen").then((m) => ({ default: m.MenuStatisticsScreen as ComponentType })));
 const Lazy__dashboard_menu_uebersicht = lazy(() => import("@/components/menu/menu-overview-keep-alive-screen").then((m) => ({ default: m.MenuOverviewKeepAliveScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_arbeitszeiten = lazy(() => import("@/components/staff/staff-work-hours-screen").then((m) => ({ default: m.StaffWorkHoursScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_dokumente = lazy(() => import("@/components/staff/staff-documents-screen").then((m) => ({ default: m.StaffDocumentsScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_einstellungen = lazy(() => import("@/components/staff/staff-settings-form").then((m) => ({ default: m.StaffSettingsForm as ComponentType })));
-const Lazy__dashboard_mitarbeiter_export = lazy(() => import("@/components/staff/staff-export-screen").then((m) => ({ default: m.StaffExportScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_schichtplan = lazy(() => import("@/components/staff/shift-plan/staff-shift-plan-screen").then((m) => ({ default: m.StaffShiftPlanScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_statistiken = lazy(() => import("@/components/staff/staff-statistics-screen").then((m) => ({ default: m.StaffStatisticsScreen as ComponentType })));
+const Lazy__dashboard_mitarbeiter_arbeitszeiten = staffLazy(() =>
+  import("@/components/staff/staff-work-hours-screen").then((m) => ({
+    default: m.StaffWorkHoursScreen as ComponentType,
+  })),
+);
+const Lazy__dashboard_mitarbeiter_dokumente = staffLazy(() =>
+  import("@/components/staff/staff-documents-screen").then((m) => ({
+    default: m.StaffDocumentsScreen as ComponentType,
+  })),
+);
+const Lazy__dashboard_mitarbeiter_einstellungen = staffLazy(() =>
+  import("@/components/staff/staff-settings-form").then((m) => ({
+    default: m.StaffSettingsForm as ComponentType,
+  })),
+);
+const Lazy__dashboard_mitarbeiter_export = staffLazy(() =>
+  import("@/components/staff/staff-export-screen").then((m) => ({
+    default: m.StaffExportScreen as ComponentType,
+  })),
+);
+const Lazy__dashboard_mitarbeiter_schichtplan = staffLazy(() =>
+  import("@/components/staff/shift-plan/staff-shift-plan-screen").then((m) => ({
+    default: m.StaffShiftPlanScreen as ComponentType,
+  })),
+);
+const Lazy__dashboard_mitarbeiter_statistiken = staffLazy(() =>
+  import("@/components/staff/staff-statistics-screen").then((m) => ({
+    default: m.StaffStatisticsScreen as ComponentType,
+  })),
+);
 const Lazy__dashboard_mitarbeiter_uebersicht = lazy(() => import("@/components/staff/staff-overview-keep-alive-screen").then((m) => ({ default: m.StaffOverviewKeepAliveScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_vertraege = lazy(() => import("@/components/staff/staff-contracts-screen").then((m) => ({ default: m.StaffContractsScreen as ComponentType })));
+const Lazy__dashboard_mitarbeiter_vertraege = staffLazy(() =>
+  import("@/components/staff/staff-contracts-screen").then((m) => ({
+    default: m.StaffContractsScreen as ComponentType,
+  })),
+);
 const Lazy__dashboard_news_autopilot = lazy(() => import("@/components/social/social-autopilot-screen").then((m) => ({ default: m.SocialAutopilotScreen as ComponentType })));
 const Lazy__dashboard_news_einbinden = lazy(() => import("@/components/news/news-embed-panel").then((m) => ({ default: m.NewsEmbedPanel as ComponentType })));
 const Lazy__dashboard_news_einstellungen = lazy(() => import("@/components/news/news-settings-panel").then((m) => ({ default: m.NewsSettingsPanel as ComponentType })));

@@ -47,6 +47,13 @@
     "back": "Retour",
     "continue": "Continuer",
     "finish": "Créer le restaurant",
+    "createNew": "Créer un nouveau restaurant",
+    "workspaceIntro": "Le restaurant actif contrôle le menu, le stock et les paramètres. Vous pouvez changer à tout moment ou en créer un nouveau.",
+    "workspaceEmpty": "Vous n’êtes encore associé à aucun restaurant.",
+    "activeSwitched": "Restaurant actif modifié.",
+    "missingRestaurant": "Aucun restaurant d’espace de travail —",
+    "setupRestaurant": "Configurer le restaurant",
+    "selectHere": "sélectionner ici",
     "creating": "Création…",
     "launch": "C’est parti",
     "welcome": {

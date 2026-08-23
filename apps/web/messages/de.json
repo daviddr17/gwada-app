@@ -47,6 +47,13 @@
     "back": "Zurück",
     "continue": "Weiter",
     "finish": "Restaurant anlegen",
+    "createNew": "Neues Restaurant anlegen",
+    "workspaceIntro": "Das aktive Restaurant steuert Speisekarte, Bestand und Einstellungen. Du kannst jederzeit wechseln oder ein neues Restaurant anlegen.",
+    "workspaceEmpty": "Du bist noch keinem Restaurant zugeordnet.",
+    "activeSwitched": "Aktives Restaurant gewechselt.",
+    "missingRestaurant": "Kein Workspace-Restaurant —",
+    "setupRestaurant": "Restaurant einrichten",
+    "selectHere": "hier auswählen",
     "creating": "Wird angelegt…",
     "launch": "Los geht’s",
     "welcome": {

@@ -10,9 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { PersonalOnboardingOverlay } from "@/components/onboarding/personal-onboarding-overlay";
-import { useMyRestaurants } from "@/lib/hooks/use-my-restaurants";
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
-import { useWorkspaceRestaurantContext } from "@/lib/contexts/workspace-restaurant-context";
 import { DEFAULT_APP_LOCALE, normalizeAppLocale } from "@/i18n/config";
 import type { PersonalOnboardingDraft } from "@/lib/onboarding/personal-onboarding-steps";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -20,6 +18,12 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 type PersonalOnboardingContextValue = {
   openWizard: () => void;
   closeWizard: () => void;
+  /** Profile row loaded (or signed out). */
+  profileReady: boolean;
+  /** User still needs the personal wizard. */
+  needsOnboarding: boolean;
+  /** Overlay currently visible. */
+  isOpen: boolean;
 };
 
 const PersonalOnboardingContext =
@@ -35,9 +39,6 @@ export function PersonalOnboardingProvider({
   children: ReactNode;
 }) {
   const { user, ready: authReady } = useWorkspaceAuthSession();
-  const { ready: workspaceReady, restaurantId } =
-    useWorkspaceRestaurantContext();
-  const { rows, loading: restaurantsLoading } = useMyRestaurants();
 
   const [open, setOpen] = useState(false);
   const [required, setRequired] = useState(false);
@@ -97,40 +98,38 @@ export function PersonalOnboardingProvider({
   }, [authReady, user]);
 
   useEffect(() => {
-    if (!authReady || !workspaceReady || restaurantsLoading || !profileChecked) {
-      return;
-    }
+    if (!authReady || !profileChecked) return;
     if (!user) return;
     if (autoPrompted) return;
-
-    // Restaurant-Setup zuerst (neuer Inhaber ohne Mandant).
-    if (rows.length === 0 && !restaurantId) {
-      return;
-    }
 
     if (!needsOnboarding) {
       setAutoPrompted(true);
       return;
     }
 
+    // Language + profile first — restaurant setup waits until this finishes.
     setRequired(true);
     setOpen(true);
     setAutoPrompted(true);
-  }, [
-    authReady,
-    workspaceReady,
-    restaurantsLoading,
-    profileChecked,
-    user,
-    restaurantId,
-    rows.length,
-    needsOnboarding,
-    autoPrompted,
-  ]);
+  }, [authReady, profileChecked, user, needsOnboarding, autoPrompted]);
 
   const value = useMemo(
-    () => ({ openWizard, closeWizard }),
-    [openWizard, closeWizard],
+    () => ({
+      openWizard,
+      closeWizard,
+      profileReady: !authReady ? false : !user ? true : profileChecked,
+      needsOnboarding,
+      isOpen: open,
+    }),
+    [
+      openWizard,
+      closeWizard,
+      authReady,
+      user,
+      profileChecked,
+      needsOnboarding,
+      open,
+    ],
   );
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useRestaurantSetupWizardOptional } from "@/components/onboarding/restaurant-setup-wizard-provider";
 import { cn } from "@/lib/utils";
 
@@ -24,25 +25,26 @@ export function WorkspaceRestaurantMissingMessage({
 }: {
   className?: string;
 }) {
+  const t = useTranslations("SetupWizard");
   const wizard = useRestaurantSetupWizardOptional();
 
   return (
     <p className={cn("text-sm text-muted-foreground", className)}>
-      Kein Workspace-Restaurant —{" "}
+      {t("missingRestaurant")}{" "}
       {wizard ? (
         <button
           type="button"
           className="font-medium text-foreground underline underline-offset-2"
           onClick={() => wizard.openWizard()}
         >
-          Restaurant einrichten
+          {t("setupRestaurant")}
         </button>
       ) : (
         <Link
           href="/workspace/restaurants"
           className="font-medium text-foreground underline underline-offset-2"
         >
-          hier auswählen
+          {t("selectHere")}
         </Link>
       )}
       .

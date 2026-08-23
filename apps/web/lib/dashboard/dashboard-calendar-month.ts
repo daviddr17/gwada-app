@@ -1,3 +1,4 @@
+import type { DashboardCalendarDaySummary } from "@/lib/dashboard/dashboard-calendar-types";
 import {
   DEFAULT_RESTAURANT_TIMEZONE,
   restaurantTodayYmd,
@@ -9,6 +10,42 @@ export function restaurantMonthKey(
   date: Date = new Date(),
 ): string {
   return restaurantTodayYmd(timeZone, date).slice(0, 7);
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** Leere Monats-Tage für sofortiges Grid (Signale kommen nach dem Fetch). */
+export function emptyCalendarMonthDays(
+  month: string,
+): DashboardCalendarDaySummary[] {
+  const m = /^(\d{4})-(\d{2})$/.exec(month.trim());
+  if (!m) return [];
+  const year = Number(m[1]);
+  const monthIndex = Number(m[2]) - 1;
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(monthIndex) ||
+    monthIndex < 0 ||
+    monthIndex > 11
+  ) {
+    return [];
+  }
+  const total = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const days: DashboardCalendarDaySummary[] = [];
+  for (let day = 1; day <= total; day++) {
+    days.push({
+      date: `${year}-${pad2(monthIndex + 1)}-${pad2(day)}`,
+      reservationCount: 0,
+      privateEventCount: 0,
+      plannedStaffCount: 0,
+      scheduledNewsCount: 0,
+      holidayName: null,
+      hoursException: null,
+    });
+  }
+  return days;
 }
 
 export function shiftMonthKey(month: string, delta: number): string {

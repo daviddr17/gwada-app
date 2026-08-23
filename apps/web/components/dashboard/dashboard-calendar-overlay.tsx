@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { DashboardCalendarDaySheet } from "@/components/dashboard/dashboard-calendar-day-sheet";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import {
   DASHBOARD_CALENDAR_WEEKDAY_LABELS,
+  emptyCalendarMonthDays,
   formatMonthTitleDe,
   restaurantMonthKey,
   shiftMonthKey,
@@ -29,6 +30,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { restaurantTodayYmd } from "@/lib/restaurant/restaurant-timezone";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { APP_SIGNAL_COLORS } from "@/lib/ui/app-signal-colors";
 import { cn } from "@/lib/utils";
 
@@ -82,23 +84,32 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 type DashboardCalendarOverlayProps = {
   open: boolean;
   onClose: () => void;
+  /** Hintergrund-Prefetch solange Dashboard aktiv (kein Warten beim Öffnen). */
+  warm?: boolean;
 };
 
 export function DashboardCalendarOverlay({
   open,
   onClose,
+  warm = false,
 }: DashboardCalendarOverlayProps) {
   const { restaurantId, ready: restaurantReady } = useWorkspaceRestaurantUuid();
   const timeZone = useRestaurantIanaTimezone(restaurantId);
   const [month, setMonth] = useState(() => restaurantMonthKey(timeZone));
   const fetchRestaurantId =
-    open && restaurantReady && restaurantId ? restaurantId : null;
+    (open || warm) && restaurantReady && restaurantId ? restaurantId : null;
   const { data, loading, error, reload } = useDashboardCalendarSummary(
     fetchRestaurantId,
     month,
   );
+  const monthMatches = data?.month === month;
   const showSkeleton = useDeferredSkeleton(
-    !restaurantReady || (loading && !data),
+    Boolean(open) &&
+      restaurantReady &&
+      Boolean(restaurantId) &&
+      loading &&
+      !monthMatches &&
+      !error,
   );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -106,34 +117,42 @@ export function DashboardCalendarOverlay({
     if (!open) setSelectedDate(null);
   }, [open]);
 
-  // Monat an aktuelle TZ anbinden, sobald Restaurant ready ist.
+  // TZ-Korrektur nur wenn Nutzer noch auf „aktueller Monat“ der alten TZ ist.
+  const timeZoneRef = useRef(timeZone);
   useEffect(() => {
-    if (!open || !restaurantReady) return;
-    setMonth((prev) => {
-      const next = restaurantMonthKey(timeZone);
-      return prev === next ? prev : next;
-    });
-  }, [open, restaurantReady, timeZone]);
+    if (!restaurantReady) return;
+    const prevTz = timeZoneRef.current;
+    timeZoneRef.current = timeZone;
+    if (prevTz === timeZone) return;
+    setMonth((m) =>
+      m === restaurantMonthKey(prevTz) ? restaurantMonthKey(timeZone) : m,
+    );
+  }, [restaurantReady, timeZone]);
 
   const todayYmd = restaurantTodayYmd(timeZone);
+  const displayDays = useMemo(() => {
+    if (monthMatches && data?.days.length) return data.days;
+    return emptyCalendarMonthDays(month);
+  }, [data, month, monthMatches]);
+
   const daysByDate = useMemo(() => {
     const map = new Map<string, DashboardCalendarDaySummary>();
-    for (const day of data?.days ?? []) map.set(day.date, day);
+    for (const day of displayDays) map.set(day.date, day);
     return map;
-  }, [data]);
+  }, [displayDays]);
 
   const gridCells = useMemo(() => {
-    if (!data?.days.length) return [];
-    const first = data.days[0]!.date;
+    if (!displayDays.length) return [];
+    const first = displayDays[0]!.date;
     const lead = weekdayIndexMondayFirst(first);
     const cells: Array<DashboardCalendarDaySummary | null> = Array.from(
       { length: lead },
       () => null,
     );
-    cells.push(...data.days);
+    cells.push(...displayDays);
     while (cells.length % 7 !== 0) cells.push(null);
     return cells;
-  }, [data]);
+  }, [displayDays]);
 
   const selectedDay = selectedDate
     ? (daysByDate.get(selectedDate) ?? null)
@@ -215,18 +234,32 @@ export function DashboardCalendarOverlay({
               <WorkspaceRestaurantMissingMessage className="py-8" />
             ) : !restaurantReady ? (
               <WorkspaceRestaurantResolvePlaceholder className="py-8" />
-            ) : error ? (
-              <p className="py-8 text-center text-sm text-destructive">
-                {error}
-              </p>
-            ) : showSkeleton ? (
+            ) : error && !monthMatches ? (
+              <div className="flex flex-col items-center gap-3 py-8">
+                <p className="text-center text-sm text-destructive">{error}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  className={brandActionButtonRoundedClassName}
+                  onClick={reload}
+                >
+                  Erneut versuchen
+                </Button>
+              </div>
+            ) : showSkeleton && !displayDays.length ? (
               <div className="space-y-3" aria-busy>
                 <Skeleton className="h-10 w-full rounded-xl" />
                 <Skeleton className="h-64 w-full rounded-xl md:h-[28rem]" />
               </div>
             ) : (
               <>
-                <div className="space-y-1.5 md:space-y-2">
+                <div
+                  className={cn(
+                    "space-y-1.5 md:space-y-2",
+                    loading && !monthMatches && "opacity-70",
+                  )}
+                  aria-busy={loading && !monthMatches}
+                >
                   <div className="grid grid-cols-7 gap-1.5 md:gap-2.5 lg:gap-3">
                     {DASHBOARD_CALENDAR_WEEKDAY_LABELS.map((label) => (
                       <div

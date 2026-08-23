@@ -1,0 +1,70 @@
+---
+description: Schnelle UI — Optimistic Updates vs. Sticky Speichern nach Interaktionstyp; keine unnötigen Warte- oder Reload-Zyklen.
+alwaysApply: true
+---
+
+# Optimistic UI vs. Sticky Speichern (Dashboard)
+
+**Ziel:** Interaktionen fühlen sich **sofort** an. Netzwerk und Persistenz laufen **im Hintergrund** — ohne globales „Speichern“-Gate, wo es nicht nötig ist.
+
+Es gibt **kein** Dashboard-weites Optimistic UI. Das Muster hängt vom **Interaktionstyp** ab.
+
+## Entscheidungsbaum
+
+| Interaktion | Muster | Geschwindigkeit |
+|-------------|--------|-----------------|
+| **Einzel-Toggle / Pill / Kanal** (Benachrichtigungen, Sichtbarkeit, Pin — wenn sinnvoll) | **Optimistic UI** + debounced Auto-Save (~300–400 ms) | UI sofort; kein Sticky-Bar für diese Felder |
+| **Operative Aktion** (Senden, Bestätigen, Statuswechsel) | Optimistic Eintrag/Zähler **oder** sofortiger Cache-Patch nach Erfolg | Button kurz busy ok; **kein** Full-Reload der Liste |
+| **Listen-CRUD** (Gericht, Kategorie, Zutat, Tag …) | Lokaler State zuerst, Persist DB/LS, **Rollback** bei Fehler | Toast nach Erfolg; Liste nicht komplett neu laden wenn Patch reicht |
+| **View-Modi / UI-Only** (kompakt/standard, Sortierung nur lokal) | `mirrorWorkspaceJsonLocal` / synchroner LS | Sofort, kein Server |
+| **Einstellungsformular** (viele Felder, Validierung, Secrets) | **`SettingsStickySaveBar`** — dirty, Verwerfen, Speichern | Draft lokal; Speichern nur auf Klick |
+| **Drawer/Formular** (Vertrag, Schicht, ToDo, komplexe Entity) | Expliziter Submit im Drawer | Kein Auto-Save über das ganze Formular |
+
+## Optimistic UI (Pflicht-Details)
+
+1. **Sofort sichtbar** — `setState` / Patch **synchron** beim Klick, nicht nach `await fetch`.
+2. **Hintergrund-Persist** — debounced bei Burst (Bulk „Alle Kanäle“, schnelle Pill-Klicks); Referenz: `patchPreferences` in `use-notification-preferences.ts` (~350 ms).
+3. **Rollback** bei Fehler auf letzten **bestätigten** Stand (`confirmedRef` / letzter Server-Stand) + `toast.error` — UI darf nicht „hängen“.
+4. **Kein Full-Reload** nach jedem Toggle — `patchInCache`, Event-Patch (`useDashboardSummaryQuery` + `optimisticPatches`), oder gezieltes `setFeedCache` statt `reload()` der ganzen Seite.
+5. **Toggles bleiben klickbar** während Save läuft — kein globaler Disabled-State für die ganze Karte (nur optional Inline am Button).
+6. **Kein Erfolg-Toast pro Pill** — stille Auto-Save; Toast nur bei Fehler oder explizitem Formular-Save.
+
+Referenzen:
+
+- Kanal-Pills + Auto-Save: `use-notification-preferences.ts`, `notification-preferences-panel.tsx`
+- KPI sofort: `use-dashboard-reservation-stats.ts`, `use-dashboard-summary-query.ts`
+- Nachrichten senden: `lib/contact-messages/optimistic-thread-messages.ts`
+- Listen mit Rollback: `use-menu-storage.ts`, `use-categories-storage.ts`
+
+## Sticky Speichern (wann bewusst)
+
+`SettingsStickySaveBar` + `settingsAccentSaveButtonClassName` wenn:
+
+- mehrere zusammengehörige Felder (Text, Select, Checkboxen in einem Formular),
+- Nutzer **Verwerfen** erwarten kann,
+- Validierung vor Persist nötig ist,
+- Secrets / Integrationen (Fehlerkosten hoch).
+
+**Nicht** Sticky Save für einzelne Modul-Kanal-Toggles neben einem bereits auto-save-fähigen Block — dann splitten (wie Benachrichtigungen: Zustellung = Sticky, Kanäle = optimistic).
+
+Referenz-Sticky: `reviews-settings-panel.tsx`, `news-settings-panel.tsx`, `reservation-settings-form.tsx`, `restaurant-settings.tsx`.
+
+## Geschwindigkeit (verbindlich)
+
+- **Cache zuerst** — `peek*Cache`, React Query stale-while-revalidate, Dashboard-Batch: nicht warten wenn Daten schon da (`skeleton-loading.mdc`: kein Skeleton bei sofort verfügbaren Daten).
+- **`useDeferredSkeleton`** für initiales Remote-Laden — kein Shimmer unter ~120 ms.
+- **Soft-Nav** bleibt Standard (`app-module-navigation.mdc`) — kein Full-Load pro Modulwechsel.
+- Nach Save: **gezielter Patch** oder invalidate einer Query — kein `window.location` / kein Remount der ganzen Screen-Hülle.
+- Debounce Auto-Save, aber **kein** künstliches Delay der UI-Reaktion — nur der HTTP-Call wird gebündelt.
+
+## Anti-Pattern
+
+- Toggle → `await save()` → dann UI updaten (fühlt sich langsam an).
+- Sticky „Speichern“ für jede Pill-Reihe in Einstellungen.
+- Nach jedem Klick `reload()` / kompletter Refetch ohne Cache-Patch.
+- Spinner als alleiniger Ladezustand für Screens (`skeleton-loading.mdc`).
+- Optimistic UI ohne Rollback-Pfad bei API-Fehler.
+
+## Neue Features
+
+Vor Implementierung kurz fragen: **„Ein Klick = sofort sichtbar?“** → optimistic. **„Formular mit Verwerfen?“** → sticky. Im Zweifel **schnelle UI** bevorzugen und Persist im Hintergrund nachziehen.

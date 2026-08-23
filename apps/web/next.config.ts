@@ -84,6 +84,21 @@ const nextConfig: NextConfig = {
   turbopack: {
     // pnpm-Monorepo: node_modules am Repo-Root; in dev kein outputFileTracingRoot (s. o.).
     root: monorepoRoot,
+    resolveAlias: {
+      "next/navigation": "./apps/web/lib/navigation/spa-next-shims/next-navigation.tsx",
+      "next/link": "./apps/web/lib/navigation/spa-next-shims/next-link.tsx",
+    },
+  },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "next/navigation": path.join(
+        appRoot,
+        "lib/navigation/spa-next-shims/next-navigation.tsx",
+      ),
+      "next/link": path.join(appRoot, "lib/navigation/spa-next-shims/next-link.tsx"),
+    };
+    return config;
   },
   images: {
     localPatterns: [

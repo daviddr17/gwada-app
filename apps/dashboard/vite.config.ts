@@ -19,10 +19,13 @@ export default defineConfig(({ mode }) => {
       alias: {
         "@": webRoot,
         "next/navigation": path.resolve(
-          dashboardRoot,
-          "src/shims/next-navigation.tsx",
+          webRoot,
+          "lib/navigation/spa-next-shims/next-navigation.tsx",
         ),
-        "next/link": path.resolve(dashboardRoot, "src/shims/next-link.tsx"),
+        "next/link": path.resolve(
+          webRoot,
+          "lib/navigation/spa-next-shims/next-link.tsx",
+        ),
         "next/image": path.resolve(
           dashboardRoot,
           "src/shims/next-image.tsx",

@@ -36,6 +36,7 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { DashboardSpaNavigationBridge } from "@/lib/navigation/dashboard-spa-navigation-bridge";
 import { SoftNavLockProvider } from "../shims/soft-nav-lock-provider";
 
 function DashboardSpaInset() {
@@ -200,17 +201,19 @@ function DashboardSpaInset() {
 export function DashboardSpaShell() {
   return (
     <SoftNavLockProvider>
-      <SidebarProvider>
-        <AuthLogoutTransitionProvider>
-          <AppModuleChromeProvider>
-            <DashboardGlobalSearchChrome>
-              <AppSidebar />
-              <DashboardSpaInset />
-              <DashboardUploadOverlay />
-            </DashboardGlobalSearchChrome>
-          </AppModuleChromeProvider>
-        </AuthLogoutTransitionProvider>
-      </SidebarProvider>
+      <DashboardSpaNavigationBridge>
+        <SidebarProvider>
+          <AuthLogoutTransitionProvider>
+            <AppModuleChromeProvider>
+              <DashboardGlobalSearchChrome>
+                <AppSidebar />
+                <DashboardSpaInset />
+                <DashboardUploadOverlay />
+              </DashboardGlobalSearchChrome>
+            </AppModuleChromeProvider>
+          </AuthLogoutTransitionProvider>
+        </SidebarProvider>
+      </DashboardSpaNavigationBridge>
     </SoftNavLockProvider>
   );
 }

@@ -56,3 +56,15 @@ export function staffWorkEntriesSameShiftCluster(
   const clusterA = staffWorkShiftClusterSegments(a, siblings);
   return clusterA.some((s) => s.id === b.id);
 }
+
+/** Andere Arbeit-Segmente derselben Schicht (Merge beim Bearbeiten der Gesamt-Arbeitszeit). */
+export function listOtherShiftClusterWorkSegments(
+  anchorEntry: RestaurantStaffWorkEntryRow,
+  siblings: readonly RestaurantStaffWorkEntryRow[],
+): RestaurantStaffWorkEntryRow[] {
+  return siblings.filter((s) => {
+    if (s.entry_type !== "work") return false;
+    if (s.id === anchorEntry.id) return false;
+    return staffWorkEntriesSameShiftCluster(anchorEntry, s, siblings);
+  });
+}

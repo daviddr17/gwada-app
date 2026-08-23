@@ -41,8 +41,7 @@ type ReservationDayNotesSectionProps = {
   onNotesChanged?: () => void;
   className?: string;
   /**
-   * Kompakt: eingeklappt als eine Zeile — Platz für Reservierungsliste.
-   * Expandiert nur auf Wunsch.
+   * Kompakt mit Toggle-Zeile — standardmäßig ausgeklappt (Inhalt sichtbar).
    */
   collapsible?: boolean;
 };
@@ -71,14 +70,14 @@ export function ReservationDayNotesSection({
   const [deleteTarget, setDeleteTarget] =
     useState<RestaurantReservationDayNoteEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [expanded, setExpanded] = useState(!collapsible);
+  const [expanded, setExpanded] = useState(true);
 
   useEffect(() => {
     if (!open) return;
     setDraft("");
     setEditingId(null);
     setDeleteTarget(null);
-    if (collapsible) setExpanded(false);
+    if (collapsible) setExpanded(true);
   }, [open, serviceDate, collapsible]);
 
   const reloadEntries = useCallback(async () => {

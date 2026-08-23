@@ -11,6 +11,7 @@ import {
 import { DashboardSpaShell } from "../shell/dashboard-spa-shell";
 import { DASHBOARD_ROUTE_ENTRIES } from "../generated/route-modules";
 import { GenericModulePendingSkeleton } from "../ui/generic-module-pending-skeleton";
+import { dashboardHrefToTanstackTarget } from "@/lib/navigation/dashboard-spa-path";
 
 function isRouteActive(pathname: string, fullPath: string): boolean {
   const basePath = fullPath.split("?")[0];
@@ -53,12 +54,15 @@ const childRoutes = DASHBOARD_ROUTE_ENTRIES.map((entry) => {
   const path = entry.path === "/" ? "/" : entry.path.replace(/^\//, "");
 
   if (entry.redirect) {
-    const redirectTo = toTanstackPath(entry.redirect);
     return createRoute({
       getParentRoute: () => rootRoute,
       path,
       beforeLoad: () => {
-        throw redirect({ to: redirectTo });
+        const { to, search } = dashboardHrefToTanstackTarget(entry.redirect!);
+        throw redirect({
+          to,
+          search: Object.keys(search).length > 0 ? search : undefined,
+        });
       },
     });
   }
@@ -83,6 +87,8 @@ export const dashboardRouter = createRouter({
   routeTree: dashboardRouteTree,
   basepath: "/dashboard",
   defaultPreload: "intent",
+  defaultPreloadStaleTime: 60_000,
+  defaultPendingMinMs: 0,
 });
 
 declare module "@tanstack/react-router" {

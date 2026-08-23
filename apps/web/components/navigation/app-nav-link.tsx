@@ -15,6 +15,8 @@ import {
 import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useDashboardSpaNavigationOptional } from "@/lib/navigation/dashboard-spa-navigation-bridge";
+import { isDashboardSpaHref } from "@/lib/navigation/dashboard-spa-path";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
 
@@ -75,19 +77,16 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
     const { restaurantId } = useWorkspaceRestaurantUuid();
     const { tryAcquireNavLock, scheduleSoftNavPush, pendingHref } =
       useSoftNavLock();
+    const spaNav = useDashboardSpaNavigationOptional();
+    const inDashboardSpa = spaNav != null;
     const hrefStr = hrefToString(href);
     const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
+    const spaDashboardHref = inDashboardSpa && isDashboardSpaHref(hrefStr);
 
     const warmOnIntent = useCallback(() => {
-      if (!crossModuleNav) return;
+      if (!isDashboardSpaHref(hrefStr)) return;
       warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
-    }, [
-      crossModuleNav,
-      restaurantId,
-      router,
-      queryClient,
-      hrefStr,
-    ]);
+    }, [hrefStr, router, queryClient, restaurantId]);
 
     return (
       <Link
@@ -120,10 +119,8 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
             event.preventDefault();
             return;
           }
-          if (!crossModuleNav) {
-            // Gleicher Modul-Stamm: native Link — außer ein Flight läuft schon
-            // (Events-Übersicht pending + Chip Einstellungen). Sonst bleibt
-            // die Home-Vorschau liegen und der Failsafe kickt zurück.
+          if (!spaDashboardHref && !crossModuleNav) {
+            // Gleicher Modul-Stamm (Legacy Next): natives Link — außer Flight läuft.
             if (!pendingHref) return;
           }
           // Cmd/Ctrl-Klick etc. → natives Link-Verhalten (neuer Tab).

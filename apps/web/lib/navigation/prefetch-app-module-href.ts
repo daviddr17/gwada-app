@@ -1,17 +1,21 @@
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types";
+import { prefetchDashboardSpaHref } from "@gwada/dashboard";
+import { isDashboardSpaHref } from "@/lib/navigation/dashboard-spa-path";
 import { shouldSkipBackgroundModulePrefetch } from "@/lib/navigation/soft-nav-flight";
 
 /**
- * Full RSC + Page-Segment prefetch.
- * Default `router.prefetch` ist AUTO/PPR und stoppt an `loading.tsx` —
- * erster Modul-Klick bleibt dann kalt (mehrere Sekunden Skeleton).
- * Während Soft-Nav: keine fremden Background-Prefetches (Flight-Starvation).
+ * Dashboard-SPA: TanStack Route-Chunk preload.
+ * Legacy Next-Zone: Full RSC + Page-Segment prefetch.
  */
 export function prefetchAppModuleHref(
   router: AppRouterInstance,
   href: string,
 ): void {
   if (shouldSkipBackgroundModulePrefetch(href)) return;
+  if (isDashboardSpaHref(href)) {
+    prefetchDashboardSpaHref(href);
+    return;
+  }
   router.prefetch(href, { kind: PrefetchKind.FULL });
 }

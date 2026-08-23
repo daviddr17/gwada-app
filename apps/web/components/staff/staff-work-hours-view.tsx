@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCssVarElementHeight } from "@/lib/hooks/use-css-var-element-height";
 import {
-  STAFF_MODULE_STICKY_BAR_H_VAR,
   STAFF_WORK_HOURS_MONTH_BAR_H_VAR,
+  staffWorkHoursDayScrollMarginTop,
+  staffWorkHoursMonthBarStickyTop,
+  type StaffWorkHoursChromeContext,
 } from "@/lib/staff/staff-sticky-chrome";
 import {
   Select,
@@ -142,6 +144,8 @@ type StaffWorkHoursViewProps = {
   staff?: RestaurantStaffRow | null;
   staffId?: string | null;
   allowEdit?: boolean;
+  /** Profil „Meine Arbeitszeiten“ has no `StaffModuleStickyBar` above the month strip. */
+  chromeContext?: StaffWorkHoursChromeContext;
 };
 
 export function StaffWorkHoursView({
@@ -149,6 +153,7 @@ export function StaffWorkHoursView({
   staff = null,
   staffId = null,
   allowEdit = true,
+  chromeContext = "staff-module",
 }: StaffWorkHoursViewProps) {
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const staffSelection = useStaffModuleSelectionOptional();
@@ -161,6 +166,8 @@ export function StaffWorkHoursView({
   const pendingScrollToTodayRef = useRef(false);
   const monthStickyRef = useRef<HTMLDivElement>(null);
   useCssVarElementHeight(monthStickyRef, STAFF_WORK_HOURS_MONTH_BAR_H_VAR);
+  const monthBarStickyTop = staffWorkHoursMonthBarStickyTop(chromeContext);
+  const dayCardScrollMarginTop = staffWorkHoursDayScrollMarginTop(chromeContext);
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -419,7 +426,7 @@ export function StaffWorkHoursView({
           <div
             ref={monthStickyRef}
             style={{
-              top: `var(${STAFF_MODULE_STICKY_BAR_H_VAR}, 4.75rem)`,
+              top: monthBarStickyTop,
             }}
             className={cn(
               "sticky z-20 -mx-4 mb-4 border-b border-border/50 bg-app-chrome px-4 py-1.5 sm:-mx-6 sm:px-6 sm:py-2.5",
@@ -794,7 +801,7 @@ export function StaffWorkHoursView({
                   key={key}
                   id={workHoursDayDomId(key)}
                   style={{
-                    scrollMarginTop: `calc(var(${STAFF_MODULE_STICKY_BAR_H_VAR}, 4.75rem) + var(${STAFF_WORK_HOURS_MONTH_BAR_H_VAR}, 3rem) + 0.5rem)`,
+                    scrollMarginTop: dayCardScrollMarginTop,
                   }}
                   className={cn(
                     "border-border/50 shadow-card",

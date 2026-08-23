@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DashboardCalendarSummary } from "@/lib/dashboard/dashboard-calendar-types";
 
+const CALENDAR_FETCH_TIMEOUT_MS = 15_000;
+
 export function useDashboardCalendarSummary(
   restaurantId: string | null,
   month: string,
@@ -26,14 +28,25 @@ export function useDashboardCalendarSummary(
       setError(null);
       return;
     }
+
     let cancelled = false;
+    let timedOut = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, CALENDAR_FETCH_TIMEOUT_MS);
+
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({
       restaurantId,
       month,
     });
-    void fetch(`/api/dashboard/calendar/summary?${params}`)
+
+    void fetch(`/api/dashboard/calendar/summary?${params}`, {
+      signal: controller.signal,
+    })
       .then(async (res) => {
         const json = (await res.json().catch(() => ({}))) as {
           data?: DashboardCalendarSummary;
@@ -51,13 +64,21 @@ export function useDashboardCalendarSummary(
       .catch(() => {
         if (cancelled) return;
         setData(null);
-        setError("Kalender konnte nicht geladen werden.");
+        setError(
+          timedOut
+            ? "Kalender braucht zu lange — bitte erneut versuchen."
+            : "Kalender konnte nicht geladen werden.",
+        );
       })
       .finally(() => {
+        window.clearTimeout(timeout);
         if (!cancelled) setLoading(false);
       });
+
     return () => {
       cancelled = true;
+      controller.abort();
+      window.clearTimeout(timeout);
     };
   }, [restaurantId, month, nonce]);
 

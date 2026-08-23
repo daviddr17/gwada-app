@@ -90,12 +90,13 @@ export const ContactMessageChatViewport = memo(function ContactMessageChatViewpo
       prevThreadKeyRef.current = threadKey;
       sawLoadingForThreadRef.current = false;
       contentScrollHeightRef.current = 0;
-      setThreadPending(Boolean(threadKey));
+      // Cache-Hit: Nachrichten schon da → kein Skeleton-Flash.
+      setThreadPending(Boolean(threadKey) && messages.length === 0);
     }
     if (loading) {
       sawLoadingForThreadRef.current = true;
     }
-  }, [threadKey, loading]);
+  }, [threadKey, loading, messages.length]);
 
   useLayoutEffect(() => {
     if (hasMessages) {

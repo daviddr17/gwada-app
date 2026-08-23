@@ -441,7 +441,11 @@ export function ContactsMessagesScreen({
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [threadOverlayOpen, setThreadOverlayOpen] = useState(false);
   const [closingThreadId, setClosingThreadId] = useState<string | null>(null);
-  const overlayThreadId = contactParam ?? closingThreadId;
+  /** Sofort nach Klick, bevor Soft-Nav `?contact=` setzt — Split-Pane ohne Wartezeit. */
+  const [pendingContactId, setPendingContactId] = useState<string | null>(null);
+  const overlayThreadId =
+    contactParam ?? pendingContactId ?? closingThreadId;
+  const effectiveThreadContactId = overlayThreadId;
   const [sending, setSending] = useState(false);
   const [editingWahaMessage, setEditingWahaMessage] = useState<{
     messageId: string;
@@ -586,8 +590,9 @@ export function ContactsMessagesScreen({
     rows = dropOptimisticMatchingAnchors(rows);
     const chatId =
       whatsappThreadChatId ??
-      (contactParam && isWahaPseudoContactId(contactParam)
-        ? wahaChatIdFromPseudoContactId(contactParam)
+      (effectiveThreadContactId &&
+      isWahaPseudoContactId(effectiveThreadContactId)
+        ? wahaChatIdFromPseudoContactId(effectiveThreadContactId)
         : null);
     if (restaurantId && chatId) {
       rows = ensureWhatsappWahaProxyAttachments(rows, {
@@ -595,9 +600,14 @@ export function ContactsMessagesScreen({
         chatId,
       });
     }
-    if (!contactParam) return rows;
-    return rows.filter((m) => m.contact_id === contactParam);
-  }, [messages, contactParam, restaurantId, whatsappThreadChatId]);
+    if (!effectiveThreadContactId) return rows;
+    return rows.filter((m) => m.contact_id === effectiveThreadContactId);
+  }, [
+    messages,
+    effectiveThreadContactId,
+    restaurantId,
+    whatsappThreadChatId,
+  ]);
 
   const inferredReachability = useMemo(
     () => inferContactReachabilityFromMessages(displayMessages),
@@ -860,7 +870,7 @@ export function ContactsMessagesScreen({
         facebookConnected,
         instagramConnected,
       });
-      if (error) toast.error(error.message);
+      if (error && active) toast.error(error.message);
       setConversations(data);
     } else if (
       (inboxFilter === "whatsapp" && !whatsappConnected) ||
@@ -876,7 +886,7 @@ export function ContactsMessagesScreen({
         platform,
       });
       if (error) {
-        toast.error(error.message);
+        if (active) toast.error(error.message);
         setConversations([]);
       } else {
         const enriched = await enrichConversationsWithReadState({
@@ -896,6 +906,7 @@ export function ContactsMessagesScreen({
     emailConnected,
     facebookConnected,
     instagramConnected,
+    active,
   ]);
 
   const refreshInbox = useCallback(async () => {
@@ -1392,6 +1403,13 @@ export function ContactsMessagesScreen({
     loadConversations,
   ]);
 
+  useEffect(() => {
+    if (!pendingContactId) return;
+    if (contactParam === pendingContactId) {
+      setPendingContactId(null);
+    }
+  }, [contactParam, pendingContactId]);
+
   useLayoutEffect(() => {
     if (!restaurantId) return;
     const cached = peekUnifiedInboxCache(restaurantId);
@@ -1782,6 +1800,11 @@ export function ContactsMessagesScreen({
     const preview = conversationsRef.current.find(
       (c) => c.contact_id === contactId,
     );
+    // Sofort Pane + Titel — nicht auf Soft-Nav/`?contact=` warten.
+    setPendingContactId(contactId);
+    setClosingThreadId(null);
+    setThreadOverlayOpen(true);
+
     if (cached && cached.messages.length > 0) {
       setMessages(cached.messages);
       setContactName(cached.contactName);
@@ -1808,20 +1831,46 @@ export function ContactsMessagesScreen({
       setLoadingThread(true);
     }
 
-    setThreadOverlayOpen(true);
-    setClosingThreadId(null);
-
     const params = new URLSearchParams(searchParams.toString());
     params.set("platform", inboxFilter);
     params.set("contact", contactId);
+    // Desktop-Split: replace (weniger Soft-Nav-Latenz); Mobil: push für Zurück.
     navigateNachrichten(
       `/dashboard/kontakte/nachrichten?${params.toString()}`,
-      "push",
+      isLgUp ? "replace" : "push",
     );
   };
 
+  const prefetchConversationThread = useCallback(
+    (contactId: string) => {
+      if (!restaurantId || !contactId) return;
+      if (peekContactThreadCache(restaurantId, contactId)?.messages.length) {
+        return;
+      }
+      void fetchContactThreadPageClient({
+        restaurantId,
+        contactId,
+        limit: CONTACT_THREAD_PAGE_SIZE,
+      }).then(({ data, contact, error }) => {
+        if (error || !data.length) return;
+        setContactThreadCache(restaurantId, contactId, {
+          messages: data,
+          contactName: contact?.name ?? "Kontakt",
+          threadAvatarUrl: contact?.avatarUrl ?? null,
+          hasPhone: contact?.hasPhone ?? false,
+          hasEmail: contact?.hasEmail ?? false,
+          hasFacebookId: contact?.hasFacebookId ?? false,
+          hasInstagramId: contact?.hasInstagramId ?? false,
+          whatsappThreadChatId: contact?.whatsappThreadChatId ?? null,
+        });
+      });
+    },
+    [restaurantId],
+  );
+
   const backToList = useCallback(() => {
     setThreadOverlayOpen(false);
+    setPendingContactId(null);
     if (contactParam) {
       setClosingThreadId(contactParam);
       const params = new URLSearchParams();
@@ -2855,9 +2904,12 @@ showReplyComposer ? (
                     className={cn(
                       contactInboxConversationRowClassName,
                       inboxUnreadRowBackgroundClassName(unread, unreadHint),
-                      contactParam === c.contact_id &&
+                      effectiveThreadContactId === c.contact_id &&
                         "bg-accent/10 hover:bg-accent/15",
                     )}
+                    onPointerEnter={() =>
+                      prefetchConversationThread(c.contact_id)
+                    }
                   >
                     {unread ? (
                       <span

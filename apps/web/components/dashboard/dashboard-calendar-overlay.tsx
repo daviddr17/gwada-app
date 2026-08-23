@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { DashboardCalendarDaySheet } from "@/components/dashboard/dashboard-calendar-day-sheet";
 import {
@@ -9,6 +9,10 @@ import {
 } from "@/components/ui/app-fullscreen-overlay";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  WorkspaceRestaurantMissingMessage,
+  WorkspaceRestaurantResolvePlaceholder,
+} from "@/components/workspace/workspace-restaurant-placeholder";
 import {
   DASHBOARD_CALENDAR_WEEKDAY_LABELS,
   formatMonthTitleDe,
@@ -84,15 +88,32 @@ export function DashboardCalendarOverlay({
   open,
   onClose,
 }: DashboardCalendarOverlayProps) {
-  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const { restaurantId, ready: restaurantReady } = useWorkspaceRestaurantUuid();
   const timeZone = useRestaurantIanaTimezone(restaurantId);
   const [month, setMonth] = useState(() => restaurantMonthKey(timeZone));
+  const fetchRestaurantId =
+    open && restaurantReady && restaurantId ? restaurantId : null;
   const { data, loading, error, reload } = useDashboardCalendarSummary(
-    open ? restaurantId : null,
+    fetchRestaurantId,
     month,
   );
-  const showSkeleton = useDeferredSkeleton(loading && !data);
+  const showSkeleton = useDeferredSkeleton(
+    !restaurantReady || (loading && !data),
+  );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) setSelectedDate(null);
+  }, [open]);
+
+  // Monat an aktuelle TZ anbinden, sobald Restaurant ready ist.
+  useEffect(() => {
+    if (!open || !restaurantReady) return;
+    setMonth((prev) => {
+      const next = restaurantMonthKey(timeZone);
+      return prev === next ? prev : next;
+    });
+  }, [open, restaurantReady, timeZone]);
 
   const todayYmd = restaurantTodayYmd(timeZone);
   const daysByDate = useMemo(() => {
@@ -190,7 +211,11 @@ export function DashboardCalendarOverlay({
               </Button>
             </div>
 
-            {error ? (
+            {restaurantReady && !restaurantId ? (
+              <WorkspaceRestaurantMissingMessage className="py-8" />
+            ) : !restaurantReady ? (
+              <WorkspaceRestaurantResolvePlaceholder className="py-8" />
+            ) : error ? (
               <p className="py-8 text-center text-sm text-destructive">
                 {error}
               </p>

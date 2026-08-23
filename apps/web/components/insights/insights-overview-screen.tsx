@@ -5,6 +5,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -202,6 +203,8 @@ function DayLineChart({
 }
 
 export function InsightsOverviewScreen({ active = true }: { active?: boolean }) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -270,14 +273,18 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         error?: string;
       };
       if (!res.ok) {
-        toast.error(body.error ?? "Insights konnten nicht geladen werden.");
+        if (activeRef.current) {
+          toast.error(body.error ?? "Insights konnten nicht geladen werden.");
+        }
         setLoading(false);
         return;
       }
       setData(body);
       writeInsightsOverviewCache(restaurantId, period, body);
     } catch {
-      toast.error("Netzwerkfehler beim Laden der Insights.");
+      if (activeRef.current) {
+        toast.error("Netzwerkfehler beim Laden der Insights.");
+      }
     }
     setLoading(false);
   }, [restaurantId, period]);

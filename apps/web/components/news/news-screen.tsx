@@ -103,6 +103,8 @@ function initialNewsFeedFromCache(restaurantId: string | null): {
 }
 
 export function NewsScreen({ active = true }: { active?: boolean }) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "news");
@@ -245,7 +247,7 @@ export function NewsScreen({ active = true }: { active?: boolean }) {
         applyFeedResponse(data, restaurantId);
       } catch {
         if (generation !== loadGeneration.current) return;
-        if (!silent && !cached) {
+        if (!silent && !cached && activeRef.current) {
           toast.error("News konnten nicht geladen werden.");
         }
       } finally {
@@ -299,7 +301,9 @@ export function NewsScreen({ active = true }: { active?: boolean }) {
       if (!res.ok) throw new Error(data.error ?? "sync_failed");
       await load({ silent: true });
     } catch {
-      toast.error("Synchronisierung fehlgeschlagen.");
+      if (activeRef.current) {
+        toast.error("Synchronisierung fehlgeschlagen.");
+      }
     } finally {
       setSyncing(false);
     }

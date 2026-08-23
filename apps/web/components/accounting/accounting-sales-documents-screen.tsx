@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -123,6 +123,8 @@ export function AccountingSalesDocumentsScreen({
   const searchParams = useSearchParams();
   const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const {
     page,
     search,
@@ -271,11 +273,13 @@ export function AccountingSalesDocumentsScreen({
         statuses: statusRows,
       });
     } catch {
-      toast.error(
-        isInvoice
-          ? "Rechnungen konnten nicht geladen werden."
-          : "Angebote konnten nicht geladen werden.",
-      );
+      if (activeRef.current) {
+        toast.error(
+          isInvoice
+            ? "Rechnungen konnten nicht geladen werden."
+            : "Angebote konnten nicht geladen werden.",
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -315,14 +319,18 @@ export function AccountingSalesDocumentsScreen({
           force: opts?.force === true,
         });
         if (result.skipped) {
-          if (!opts?.silent && result.rateLimited) {
+          if (
+            activeRef.current &&
+            !opts?.silent &&
+            result.rateLimited
+          ) {
             toast.message(
               `${connector.displayName}: API-Limit — Anzeige aus dem letzten Stand.`,
             );
           }
           return;
         }
-        if (!opts?.silent) {
+        if (activeRef.current && !opts?.silent) {
           const label = connector.displayName;
           if (result.rateLimited) {
             toast.message(
@@ -342,9 +350,11 @@ export function AccountingSalesDocumentsScreen({
         if (opts?.silent && isLexofficeRateLimitError(message)) {
           return;
         }
-        toast.error(
-          message || `${connector.displayName}-Abruf fehlgeschlagen.`,
-        );
+        if (activeRef.current) {
+          toast.error(
+            message || `${connector.displayName}-Abruf fehlgeschlagen.`,
+          );
+        }
       } finally {
         setSyncing(false);
       }

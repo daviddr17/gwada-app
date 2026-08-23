@@ -422,12 +422,13 @@ export async function fetchContactThreadPageServer(
   });
 
   if (!before) {
-    const tSync = performance.now();
-    await ensureEmailAttachmentMetaForThreadOpen(admin, {
+    // Nicht blockieren: IMAP-Meta nachziehen im Hintergrund — Thread kommt sofort aus DB.
+    void ensureEmailAttachmentMetaForThreadOpen(admin, {
       restaurantId,
       contactId,
+    }).catch(() => {
+      /* best-effort */
     });
-    mark("email_attach_sync", Math.round(performance.now() - tSync));
   }
 
   if (isLinkedContactId(contactId)) {

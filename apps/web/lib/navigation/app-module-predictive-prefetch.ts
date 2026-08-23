@@ -126,26 +126,27 @@ export function scheduleWarmLikelyNextModules(
   currentHref: string,
 ): () => void {
   recordRecentModuleHref(currentHref);
+  if (typeof window === "undefined") return () => {};
+
   let cancelled = false;
   let idleId: number | null = null;
   let timeoutId: number | null = null;
+  const w = window;
 
   const run = () => {
     if (cancelled) return;
     warmLikelyNextModules(router, queryClient, restaurantId, currentHref);
   };
 
-  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-    idleId = window.requestIdleCallback(run, { timeout: 1_500 });
+  if (typeof w.requestIdleCallback === "function") {
+    idleId = w.requestIdleCallback(run, { timeout: 1_500 });
   } else {
-    timeoutId = window.setTimeout(run, 120);
+    timeoutId = w.setTimeout(run, 120);
   }
 
   return () => {
     cancelled = true;
-    if (idleId != null && typeof window !== "undefined") {
-      window.cancelIdleCallback?.(idleId);
-    }
-    if (timeoutId != null) window.clearTimeout(timeoutId);
+    if (idleId != null) w.cancelIdleCallback?.(idleId);
+    if (timeoutId != null) w.clearTimeout(timeoutId);
   };
 }

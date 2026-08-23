@@ -237,7 +237,7 @@ export function AppMobileChromeScreen({
       ref={shellRef}
       data-app-mobile-chrome-overlay
       data-open={open ? "true" : "false"}
-      className="fixed inset-0 touch-manipulation md:hidden"
+      className="fixed inset-0 touch-manipulation lg:hidden"
       style={{ zIndex: APP_LAYER_Z_INDEX.mobileChromeOverlay }}
       aria-hidden={!open}
     >

@@ -34,7 +34,7 @@ const MENU_REOPEN_COOLDOWN_MS = 480;
  * Mobile Primary-Nav: Menü · Suche · Meldungen · Profil (Thumb-Zone).
  * z über `mobileChromeOverlay` — Sheet fährt darunter durch; X bleibt klickbar.
  * FABs liegen geometrisch über der Nav (bottom-offset), nicht in derselben Fläche.
- * Desktop: nicht gerendert (`md:hidden`).
+ * Desktop: nicht gerendert (`lg:hidden` — ab 1024px Desktop-Sidebar).
  */
 export function AppMobileBottomNav() {
   const pathname = usePathname();
@@ -69,7 +69,7 @@ export function AppMobileBottomNav() {
       data-app-mobile-bottom-nav
       aria-label="Hauptnavigation"
       className={cn(
-        "fixed inset-x-0 bottom-0 border-t border-border/50 md:hidden",
+        "fixed inset-x-0 bottom-0 border-t border-border/50 lg:hidden",
         appChromeFixedZoneBgClassName,
         appMobileBottomSafePbClassName,
       )}

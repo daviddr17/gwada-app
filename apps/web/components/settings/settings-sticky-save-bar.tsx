@@ -33,7 +33,7 @@ export function SettingsStickySaveBar({
     <>
       {/* Platzhalter: Inhalt nicht unter der fixed Bar verstecken */}
       <div
-        className="pointer-events-none max-md:h-[4.75rem] md:hidden"
+        className="pointer-events-none max-lg:h-[4.75rem] lg:hidden"
         aria-hidden
       />
       <div
@@ -48,10 +48,10 @@ export function SettingsStickySaveBar({
           "border-t border-border/60 bg-background/85 px-4 py-3 backdrop-blur-md supports-backdrop-filter:bg-background/75 sm:px-6",
           "shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.08)] dark:border-border/40 dark:shadow-[0_-12px_48px_-12px_rgba(0,0,0,0.45)]",
           // Mobil: fest über Bottom-Nav (nicht mid-page sticky bei kurzem Formular)
-          "max-md:fixed max-md:inset-x-0",
+          "max-lg:fixed max-lg:inset-x-0",
           appMobileStickyAboveBottomNavClassName,
           // Desktop: sticky am Scroll-Ende (AppMain sm:px-6)
-          "md:sticky md:bottom-0 md:z-30 md:mt-8 md:-mx-6 md:pb-[max(0.75rem,var(--app-mobile-bottom-safe))]",
+          "lg:sticky lg:bottom-0 lg:z-30 lg:mt-8 lg:-mx-6 lg:pb-[max(0.75rem,var(--app-mobile-bottom-safe))]",
           className,
         )}
       >

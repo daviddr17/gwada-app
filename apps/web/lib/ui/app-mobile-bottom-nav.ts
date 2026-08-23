@@ -30,25 +30,25 @@ export const appMobileBottomSafePbMdClassName =
 export const appMobileBottomSafePbLgClassName =
   "pb-[max(1.25rem,var(--app-mobile-bottom-safe))]";
 
-/** Fixed FABs über der Bottom-Nav (mobil) bzw. Safe-Area (Desktop). */
+/** Fixed FABs über der Bottom-Nav (mobil) bzw. Safe-Area (Desktop ab lg). */
 export const appMobileFabBottomClassName =
-  "bottom-[var(--app-mobile-fab-bottom)] md:bottom-[max(1.25rem,var(--app-mobile-bottom-safe))]";
+  "bottom-[var(--app-mobile-fab-bottom)] lg:bottom-[max(1.25rem,var(--app-mobile-bottom-safe))]";
 
 /** Schwebende Sprach-Caption über dem FAB (nicht dieselbe `bottom`-Zeile). */
 export const appMobileFabCaptionBottomClassName =
-  "bottom-[calc(var(--app-mobile-fab-bottom)+var(--app-mobile-fab-size)+0.5rem)] md:bottom-[max(calc(1.25rem+var(--app-mobile-fab-size,3rem)),var(--app-mobile-bottom-safe))]";
+  "bottom-[calc(var(--app-mobile-fab-bottom)+var(--app-mobile-fab-size)+0.5rem)] lg:bottom-[max(calc(1.25rem+var(--app-mobile-fab-size,3rem)),var(--app-mobile-bottom-safe))]";
 
 /** Innen-Padding unten im Scroll-Inhalt (zusätzlich zum Scroll-Root-Offset). */
 export const appMobileContentPbClassName =
-  "max-md:pb-[var(--app-mobile-content-pb,1rem)] md:pb-16";
+  "max-lg:pb-[var(--app-mobile-content-pb,1rem)] lg:pb-16";
 
 /** Plus / Voice-FAB: mobil kompakter (`size-12`), Desktop unverändert `size-14`. */
 export const appMobileFabButtonClassName =
-  "flex size-12 items-center justify-center rounded-full shadow-lg md:size-14";
+  "flex size-12 items-center justify-center rounded-full shadow-lg lg:size-14";
 
-export const appMobileFabIconClassName = "size-5 md:size-6";
-export const appMobileFabStopIconClassName = "size-4 fill-current md:size-5";
+export const appMobileFabIconClassName = "size-5 lg:size-6";
+export const appMobileFabStopIconClassName = "size-4 fill-current lg:size-5";
 
 /** Sticky Bars: über der Bottom-Nav parken (FAB-Ausweichung per CSS `:has`). */
 export const appMobileStickyAboveBottomNavClassName =
-  "max-md:bottom-[var(--app-mobile-bottom-nav-offset)]";
+  "max-lg:bottom-[var(--app-mobile-bottom-nav-offset)]";

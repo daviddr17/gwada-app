@@ -23,7 +23,7 @@ export function AppShellBootstrapOverlay() {
     >
       <aside
         className={cn(
-          "hidden w-[var(--sidebar-width)] shrink-0 border-r border-border/50 md:flex md:flex-col md:gap-3 md:p-3",
+          "hidden w-[var(--sidebar-width)] shrink-0 border-r border-border/50 lg:flex lg:flex-col lg:gap-3 lg:p-3",
           appChromeFixedZoneBgClassName,
         )}
       >
@@ -54,13 +54,13 @@ export function AppShellBootstrapOverlay() {
             appChromeFixedZoneBgClassName,
           )}
         >
-          <Skeleton className="hidden size-8 rounded-lg md:block" />
+          <Skeleton className="hidden size-8 rounded-lg lg:block" />
           <Skeleton className="h-5 w-28 rounded-md" />
           <div className="flex-1" />
-          <Skeleton className="size-8 rounded-full md:hidden" />
-          <Skeleton className="hidden size-8 rounded-full md:block" />
-          <Skeleton className="hidden size-8 rounded-full md:block" />
-          <Skeleton className="hidden size-8 rounded-full md:block" />
+          <Skeleton className="size-8 rounded-full lg:hidden" />
+          <Skeleton className="hidden size-8 rounded-full lg:block" />
+          <Skeleton className="hidden size-8 rounded-full lg:block" />
+          <Skeleton className="hidden size-8 rounded-full lg:block" />
         </header>
 
         <div className="flex-1 space-y-4 overflow-hidden p-4 md:p-6">
@@ -74,7 +74,7 @@ export function AppShellBootstrapOverlay() {
 
         <div
           className={cn(
-            "flex h-14 shrink-0 items-center justify-around border-t border-border/50 px-2 md:hidden",
+            "flex h-14 shrink-0 items-center justify-around border-t border-border/50 px-2 lg:hidden",
             appMobileBottomSafePbClassName,
             appChromeFixedZoneBgClassName,
           )}

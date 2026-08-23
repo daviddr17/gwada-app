@@ -89,7 +89,7 @@ function DashboardSpaInset() {
           appChromeFixedZoneBgClassName,
         )}
       >
-        <div className="hidden shrink-0 items-center gap-4 ps-4 md:flex">
+        <div className="hidden shrink-0 items-center gap-4 ps-4 lg:flex">
           <SidebarTrigger className="-ms-1 shrink-0" />
           <Separator
             orientation="vertical"
@@ -119,7 +119,7 @@ function DashboardSpaInset() {
               {chrome.headerActions}
             </div>
           ) : null}
-          <div className="hidden shrink-0 items-center gap-2 md:flex">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
             <DashboardGlobalSearchTrigger />
             <AppChromeNotificationBell />
             <AppChromeRestaurantProfileLink />
@@ -144,7 +144,7 @@ function DashboardSpaInset() {
             <DashboardPwaInstallButton />
             <ModeToggle size="icon-sm" />
           </div>
-          <div className="flex shrink-0 items-center gap-1.5 md:hidden">
+          <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
             <ModeToggle size="icon-sm" />
           </div>
         </div>

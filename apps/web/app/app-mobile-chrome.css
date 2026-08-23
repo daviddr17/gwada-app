@@ -2,7 +2,7 @@
  * Mobile Bottom-Chrome: Bottom-Nav, FABs, Sticky-Footer — unlayered.
  * PWA (standalone) vs Browser über CSS + html[data-display-mode].
  */
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   :root {
     --app-mobile-bottom-nav-bar: 3.5rem;
     --app-mobile-fab-size: 3rem;

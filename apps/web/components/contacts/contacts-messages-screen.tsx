@@ -111,7 +111,7 @@ import {
   getUnifiedInboxRefreshInflight,
   refreshUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-background-sync";
-import { useIsLgUp } from "@/lib/hooks/use-is-lg-up";
+import { useIsInboxSplitUp } from "@/lib/hooks/use-is-inbox-split-up";
 import { filterInboxConversationsByPlatform } from "@/lib/contact-messages/unified-inbox-merge";
 import {
   fetchUnifiedInboxConversations,
@@ -368,7 +368,7 @@ export function ContactsMessagesScreen({
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
   const searchParams = useSearchParams();
-  const isLgUp = useIsLgUp();
+  const isInboxSplit = useIsInboxSplitUp();
   const activeRef = useRef(active);
   activeRef.current = active;
   const softNav = useSoftNavLockOptional();
@@ -758,10 +758,10 @@ export function ContactsMessagesScreen({
   );
 
   const showConversationList =
-    isInboxFilterAvailable(inboxFilter) && (!contactParam || isLgUp);
+    isInboxFilterAvailable(inboxFilter) && (!contactParam || isInboxSplit);
 
   const showInboxRefresh =
-    (!contactParam || isLgUp) &&
+    (!contactParam || isInboxSplit) &&
     (isUnifiedInboxFilter(inboxFilter) ||
       (inboxFilter === "whatsapp" && whatsappConnected) ||
       (inboxFilter === "email" && emailConnected) ||
@@ -2504,7 +2504,7 @@ export function ContactsMessagesScreen({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="shrink-0 lg:hidden"
+                className="shrink-0 md:hidden"
                 aria-label="Zurück zur Liste"
                 onClick={backToList}
               >
@@ -2724,7 +2724,7 @@ showReplyComposer ? (
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4 pt-2">
-      {(!contactParam || isLgUp) ? (
+      {(!contactParam || isInboxSplit) ? (
         <>
       <ContactInboxFilterChips
         filter={inboxFilter}
@@ -2775,12 +2775,12 @@ showReplyComposer ? (
       <div
         className={cn(
           "flex min-w-0 flex-col gap-4",
-          "lg:min-h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-6rem)] lg:flex-row lg:gap-0 lg:overflow-hidden lg:rounded-xl lg:border lg:border-border/50 lg:bg-card lg:shadow-card",
+          "md:min-h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-6rem)] md:flex-row md:gap-0 md:overflow-hidden md:rounded-xl md:border md:border-border/50 md:bg-card md:shadow-card",
         )}
       >
       {showConversationList ? (
-        <div className="flex min-w-0 flex-col lg:w-[min(100%,24rem)] lg:shrink-0 lg:overflow-hidden lg:border-r lg:border-border/50">
-        <Card className="flex w-full min-w-0 flex-col border-border/50 shadow-card lg:h-full lg:rounded-none lg:border-0 lg:shadow-none">
+        <div className="flex min-w-0 flex-col md:w-[min(100%,24rem)] md:shrink-0 md:overflow-hidden md:border-r md:border-border/50">
+        <Card className="flex w-full min-w-0 flex-col border-border/50 shadow-card md:h-full md:rounded-none md:border-0 md:shadow-none">
           <div className="space-y-3 border-b border-border/50 px-4 py-3 sm:px-6">
             <div className="flex gap-2">
               <ContactConversationsSearchBar
@@ -2818,7 +2818,7 @@ showReplyComposer ? (
               unreadTotal={unreadInList}
             />
           </div>
-          <CardContent className="min-h-0 p-0 lg:flex-1 lg:overflow-y-auto">
+          <CardContent className="min-h-0 p-0 md:flex-1 md:overflow-y-auto">
             {loadingList && !showListSkeleton ? (
               <div className="min-h-[14rem]" aria-busy />
             ) : loadingList && showListSkeleton ? (
@@ -3122,7 +3122,7 @@ showReplyComposer ? (
         </div>
       ) : null}
 
-      <div className="hidden min-h-0 min-w-0 flex-1 flex-col lg:flex">
+      <div className="hidden min-h-0 min-w-0 flex-1 flex-col md:flex">
         {overlayThreadId ? (
           <ContactInboxThreadChrome
             header={threadHeader}
@@ -3145,7 +3145,7 @@ showReplyComposer ? (
       </div>
       </div>
 
-      {overlayThreadId && !isLgUp ? (
+      {overlayThreadId && !isInboxSplit ? (
         <ContactInboxThreadOverlay
           open={threadOverlayOpen}
           onClose={backToList}

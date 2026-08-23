@@ -277,7 +277,7 @@ function Sidebar({
 
   return (
     <div
-      className="group peer hidden text-sidebar-foreground md:block"
+      className="group peer hidden text-sidebar-foreground lg:block"
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
@@ -304,7 +304,7 @@ function Sidebar({
         className={cn(
           "fixed inset-y-0 z-20 hidden h-svh w-(--sidebar-width) transition-[left,right,width]",
           SIDEBAR_MOTION,
-          "data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
+          "data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] lg:flex",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? variant === "inset"
@@ -397,7 +397,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
       className={cn(
         "relative flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-background transition-[margin]",
         SIDEBAR_MOTION,
-        "md:peer-data-[variant=inset]:mb-2 md:peer-data-[variant=inset]:me-2 md:peer-data-[variant=inset]:ms-0 md:peer-data-[variant=inset]:mt-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:rounded-ss-none md:peer-data-[variant=inset]:shadow-none md:peer-data-[variant=inset]:dark:shadow-sm",
+        "lg:peer-data-[variant=inset]:mb-2 lg:peer-data-[variant=inset]:me-2 lg:peer-data-[variant=inset]:ms-0 lg:peer-data-[variant=inset]:mt-0 lg:peer-data-[variant=inset]:rounded-xl lg:peer-data-[variant=inset]:rounded-ss-none lg:peer-data-[variant=inset]:shadow-none lg:peer-data-[variant=inset]:dark:shadow-sm",
         className
       )}
       {...props}

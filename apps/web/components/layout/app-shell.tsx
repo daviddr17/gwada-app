@@ -91,7 +91,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
         )}
       >
         {/* Desktop: Sidebar-Trigger; mobil: Bottom-Nav „Menü“ */}
-        <div className="hidden shrink-0 items-center gap-4 ps-4 md:flex">
+        <div className="hidden shrink-0 items-center gap-4 ps-4 lg:flex">
           <SidebarTrigger className="-ms-1 shrink-0" />
           <Separator
             orientation="vertical"
@@ -123,7 +123,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             </div>
           ) : null}
           {/* Desktop-Chrome: Suche, Glocke, Profil, … — mobil in Bottom-Nav / Menü */}
-          <div className="hidden shrink-0 items-center gap-2 md:flex">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
             <DashboardGlobalSearchTrigger />
             <AppChromeNotificationBell />
             <AppChromeRestaurantProfileLink />
@@ -149,7 +149,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <ModeToggle size="icon-sm" />
           </div>
           {/* Mobil: Theme neben Modul-Aktionen */}
-          <div className="flex shrink-0 items-center gap-1.5 md:hidden">
+          <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
             <ModeToggle size="icon-sm" />
           </div>
         </div>

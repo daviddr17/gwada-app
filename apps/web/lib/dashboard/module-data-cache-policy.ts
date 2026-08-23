@@ -140,12 +140,13 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     appModule: "App-Chrome",
     strategy: "optimistic-local",
     description:
-      "Modulwechsel per Soft-Nav (Link/router.push) — (app)-Layout, Provider und Client-Caches bleiben gemountet. Full-Load nur App ↔ Superadmin über /zone/enter. SoftNavLock steuert Pending-Overlay/Sidebar-Highlight, blockiert keine parallelen Flights.",
+      "Modulwechsel per Soft-Nav (Link/router.push) — (app)-Layout, Provider und Client-Caches bleiben gemountet. Full-Load nur App ↔ Superadmin über /zone/enter. SoftNavLock = Pending-UI + letzter Klick gewinnt (Sidebar bleibt klickbar). Predictive Prefetch: Sidebar-Nachbarn + kürzlich besuchte Module im Idle.",
     loadTriggers: [
       "AppNavLink / Sidebar-Klick (prefetch={false}, Intent-Warm on hover/focus)",
       "Keep-alive Homes: alle Sidebar-Übersichten (+ Dashboard)",
       "Priority-Prewarm nach KPI; Secondary idle/~2.2s; Intent flushSync",
-      "Pending-Overlay übersprungen bei warmem Keep-alive-Home (Preview)",
+      "AppModulePredictivePrefetchMount nach Pathname-Settle",
+      "Pending-Overlay übersprungen bei warmem Keep-alive-Home oder isModuleSoftNavDataReady",
     ],
     invalidateTriggers: [
       "Zonenwechsel App ↔ Superadmin (Full-Load)",
@@ -157,6 +158,8 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "components/navigation/soft-nav-pending-overlay.tsx",
       "components/navigation/app-module-home-keep-alives.tsx",
       "lib/navigation/module-soft-nav-data-ready.ts",
+      "lib/navigation/app-module-predictive-prefetch.ts",
+      "components/providers/app-module-predictive-prefetch-mount.tsx",
       "lib/navigation/workspace-zone-enter.ts",
     ],
     status: "active",

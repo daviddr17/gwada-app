@@ -59,7 +59,7 @@ export const OPS_COMMANDS: readonly OpsCommand[] = [
     id: "nav_messages",
     label: "Nachrichten",
     hint: "Inbox",
-    href: "/dashboard/kontakte/nachrichten",
+    href: "/dashboard/kontakte/nachrichten?platform=all",
     icon: MessageCircle,
   },
   {

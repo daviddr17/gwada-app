@@ -46,6 +46,8 @@ export const APP_ROUTES = {
   kontakte: {
     root: "/dashboard/kontakte",
     messages: "/dashboard/kontakte/nachrichten",
+    /** Standard-Posteingang: Chip „Alle“, nicht letzter Kanal-Filter (Keep-alive). */
+    messagesInbox: "/dashboard/kontakte/nachrichten?platform=all",
     overview: "/dashboard/kontakte/uebersicht",
     statistics: "/dashboard/kontakte/statistiken",
     export: "/dashboard/kontakte/export",

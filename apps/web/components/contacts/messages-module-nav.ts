@@ -3,7 +3,7 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export const MESSAGES_MODULE_NAV: readonly ModuleSubnavItem[] = [
   {
-    href: APP_ROUTES.kontakte.messages,
+    href: APP_ROUTES.kontakte.messagesInbox,
     label: "Nachrichten",
     matchMode: "prefix",
     activeWhen: [APP_ROUTES.kontakte.root],

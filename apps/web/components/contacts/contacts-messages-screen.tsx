@@ -781,6 +781,14 @@ export function ContactsMessagesScreen({
       (inboxFilter === "facebook" && facebookConnected) ||
       (inboxFilter === "instagram" && instagramConnected));
 
+  // Sofort aus URL — nicht auf connectionsLoading warten (Keep-alive behält sonst alten Chip).
+  useLayoutEffect(() => {
+    if (!active) return;
+    if (!isNachrichtenMessagesPath(pathname)) return;
+    const resolved = parseInboxPlatformFilter(platformParam, contactParam);
+    setInboxFilter((prev) => (prev === resolved ? prev : resolved));
+  }, [active, pathname, platformParam, contactParam]);
+
   useEffect(() => {
     // Keep-alive: versteckt bleibt gemountet — URL-Sync darf Soft-Nav nicht zurückreißen.
     if (!active) return;
@@ -1895,7 +1903,9 @@ export function ContactsMessagesScreen({
     }
 
     const params = new URLSearchParams(searchParams.toString());
-    params.set("platform", inboxFilter);
+    if (!params.get("platform")) {
+      params.set("platform", INBOX_FILTER_ALL);
+    }
     params.set("contact", contactId);
     // Desktop-Split: replace (weniger Soft-Nav-Latenz); Mobil: push für Zurück.
     navigateNachrichten(
@@ -1930,6 +1940,28 @@ export function ContactsMessagesScreen({
     },
     [restaurantId],
   );
+
+  const prefetchConversationThreadRef = useRef(prefetchConversationThread);
+  prefetchConversationThreadRef.current = prefetchConversationThread;
+
+  useEffect(() => {
+    if (!active || !restaurantId || contactParam) return;
+    if (!isUnifiedInboxFilter(inboxFilter)) return;
+    if (conversations.length === 0) return;
+
+    const warmTopThreads = () => {
+      for (const row of conversations.slice(0, 6)) {
+        prefetchConversationThreadRef.current(row.contact_id);
+      }
+    };
+
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(warmTopThreads, { timeout: 1_500 });
+      return () => cancelIdleCallback(id);
+    }
+    const timer = window.setTimeout(warmTopThreads, 200);
+    return () => window.clearTimeout(timer);
+  }, [active, restaurantId, contactParam, inboxFilter, conversations]);
 
   const backToList = useCallback(() => {
     setThreadOverlayOpen(false);
@@ -2977,6 +3009,10 @@ showReplyComposer ? (
                       effectiveThreadContactId === c.contact_id &&
                         "bg-accent/10 hover:bg-accent/15",
                     )}
+                    onPointerDown={(e) => {
+                      if (e.button !== 0) return;
+                      prefetchConversationThread(c.contact_id);
+                    }}
                     onPointerEnter={() =>
                       prefetchConversationThread(c.contact_id)
                     }

@@ -26,7 +26,7 @@ export const MODULE_HOME_PATHS: Record<ModuleHomeId, string> = {
   reservierungen: APP_ROUTES.reservierungen.overview,
   pos: APP_ROUTES.pos.overview,
   events: APP_ROUTES.events.overview,
-  nachrichten: APP_ROUTES.kontakte.messages,
+  nachrichten: APP_ROUTES.kontakte.messagesInbox,
   news: APP_ROUTES.news.overview,
   bewertungen: APP_ROUTES.bewertungen.overview,
   insights: APP_ROUTES.insights.overview,

@@ -1,5 +1,6 @@
 import { localDayKey } from "@/lib/staff/shift-schedule-range";
 import { isShiftPlanAbsenceEntry } from "@/lib/staff/shift-plan-absence";
+import { staffWorkEntriesSameShiftCluster } from "@/lib/staff/staff-work-shift-cluster";
 import type {
   RestaurantStaffWorkEntryRow,
   StaffWorkEntryType,
@@ -97,6 +98,33 @@ function isBreakContainedInAnyWork(
   return workRanges.some((work) => rangeContains(work, brk));
 }
 
+function rangeFullyContains(outer: TimeRange, inner: TimeRange): boolean {
+  return outer.startMs <= inner.startMs && inner.endMs <= outer.endMs;
+}
+
+/** Arbeit-Segmente derselben Schicht, die vollständig in der neuen Spanne liegen (Merge beim Speichern). */
+export function listSubsumedShiftWorkSegments(params: {
+  startsAt: string;
+  endsAt: string;
+  isOpen?: boolean;
+  entryId?: string;
+  anchorEntry: RestaurantStaffWorkEntryRow;
+  siblings: readonly RestaurantStaffWorkEntryRow[];
+}): RestaurantStaffWorkEntryRow[] {
+  const candidate = toRange(params.startsAt, params.endsAt, params.isOpen);
+  return params.siblings.filter((s) => {
+    if (s.entry_type !== "work") return false;
+    if (params.entryId && s.id === params.entryId) return false;
+    if (
+      !staffWorkEntriesSameShiftCluster(params.anchorEntry, s, params.siblings)
+    ) {
+      return false;
+    }
+    const inner = toRange(s.starts_at, s.ends_at, s.is_open);
+    return rangeFullyContains(candidate, inner);
+  });
+}
+
 /** Client-Validierung vor Speichern (Toast-Meldung in `message`). */
 export function validateStaffWorkEntryTiming(params: {
   entryType: StaffWorkEntryType;
@@ -140,11 +168,20 @@ export function validateStaffWorkEntryTiming(params: {
         }
       }
     }
+    const anchorEntry = params.entryId
+      ? staffSiblings.find((e) => e.id === params.entryId)
+      : undefined;
     for (const other of sameDay.filter(isTimedWorkEntry)) {
       const otherRange = toRange(other.starts_at, other.ends_at, other.is_open);
-      if (rangesOverlap(candidate, otherRange)) {
-        return { ok: false, message: workOverlapMessage(other) };
+      if (!rangesOverlap(candidate, otherRange)) continue;
+      if (
+        anchorEntry &&
+        staffWorkEntriesSameShiftCluster(anchorEntry, other, staffSiblings)
+      ) {
+        // Display-Schicht: mehrere Arbeit-Segmente (vor/nach Pause) — Erweitern statt Überschneidungsfehler.
+        continue;
       }
+      return { ok: false, message: workOverlapMessage(other) };
     }
 
     const workRanges = collectWorkRanges(sameDay, {

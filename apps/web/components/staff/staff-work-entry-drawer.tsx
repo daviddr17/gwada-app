@@ -28,6 +28,7 @@ import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   fetchStaffWorkEntryLogEntries,
   upsertStaffWorkEntry,
+  deleteStaffWorkEntry,
 } from "@/lib/supabase/staff-db";
 import {
   absenceBlocksWorkTimeMessage,
@@ -42,7 +43,7 @@ import {
   insertStaffWorkEntryLogEntry,
 } from "@/lib/staff/staff-work-entry-log";
 import { isDisplayWorkEntry } from "@/lib/staff/staff-work-hours-display";
-import { validateStaffWorkEntryTiming } from "@/lib/staff/staff-work-entry-validation";
+import { validateStaffWorkEntryTiming, listSubsumedShiftWorkSegments } from "@/lib/staff/staff-work-entry-validation";
 import type {
   RestaurantStaffWorkEntryLogEntry,
   RestaurantStaffWorkEntryRow,
@@ -82,6 +83,8 @@ type StaffWorkEntryDrawerProps = {
   allowEdit?: boolean;
   /** Einträge am selben Tag (für Überschneidungs-Validierung). */
   siblingEntries?: readonly RestaurantStaffWorkEntryRow[];
+  /** Schicht-Gesamtende beim Bearbeiten einer Display-/Pause-Schicht (nicht nur erstes Arbeit-Segment). */
+  shiftBoundsEndsAt?: string | null;
   onSaved: () => void;
   onDelete: (id: string) => Promise<void>;
 };
@@ -110,6 +113,7 @@ export function StaffWorkEntryDrawer({
   absenceByDayKey,
   allowEdit = true,
   siblingEntries = [],
+  shiftBoundsEndsAt = null,
   onSaved,
   onDelete,
 }: StaffWorkEntryDrawerProps) {
@@ -151,7 +155,10 @@ export function StaffWorkEntryDrawer({
     setLogEntries(data);
   }, [entry?.id, restaurantId]);
 
-  useDrawerFormSeed(open, entry?.id ?? "__create__", () => {
+  useDrawerFormSeed(
+    open,
+    `${entry?.id ?? "__create__"}:${shiftBoundsEndsAt ?? ""}`,
+    () => {
     if (entry) {
       const s = new Date(entry.starts_at);
       setEntryType(entry.entry_type);
@@ -159,10 +166,17 @@ export function StaffWorkEntryDrawer({
       setStartTime(toTimeInput(s));
       const openWork = Boolean(entry.is_open && entry.entry_type === "work");
       setStillRunning(openWork);
+      const shiftEnd =
+        !openWork &&
+        entry.entry_type === "work" &&
+        shiftBoundsEndsAt &&
+        entry.ends_at !== shiftBoundsEndsAt
+          ? shiftBoundsEndsAt
+          : entry.ends_at;
       setEndTime(
         openWork
           ? toTimeInput(new Date())
-          : toTimeInput(new Date(entry.ends_at)),
+          : toTimeInput(new Date(shiftEnd)),
       );
       return;
     }
@@ -253,11 +267,31 @@ export function StaffWorkEntryDrawer({
           ? { is_open: false }
           : {}),
     });
-    setPending(false);
     if (!res) {
+      setPending(false);
       toast.error("Speichern fehlgeschlagen.");
       return;
     }
+
+    if (
+      entryType === "work" &&
+      !willStayOpen &&
+      entry &&
+      siblingEntries.length > 0
+    ) {
+      const subsumed = listSubsumedShiftWorkSegments({
+        startsAt: starts_at,
+        endsAt: ends_at,
+        entryId: entry.id,
+        anchorEntry: entry,
+        siblings: siblingEntries,
+      });
+      for (const sub of subsumed) {
+        await deleteStaffWorkEntry(sub.id);
+      }
+    }
+
+    setPending(false);
 
     const changes = buildStaffWorkEntryChanges(entry, after);
     if (changes.length > 0 || !entry) {

@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   ArrowLeft,
   CalendarDays,
@@ -313,6 +313,13 @@ function platformInferredFromContact(
   return metaPlatformFromPseudoContactId(contactId);
 }
 
+function isNachrichtenMessagesPath(pathname: string): boolean {
+  return (
+    pathname === "/dashboard/kontakte/nachrichten" ||
+    pathname.startsWith("/dashboard/kontakte/nachrichten/")
+  );
+}
+
 function contactInboxMarkReadErrorMessage(error: string): string {
   switch (error) {
     case "no_contact_email":
@@ -353,6 +360,9 @@ export function ContactsMessagesScreen({
   active?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   const searchParams = useSearchParams();
   const activeRef = useRef(active);
   activeRef.current = active;
@@ -364,6 +374,7 @@ export function ContactsMessagesScreen({
   const navigateNachrichten = useCallback(
     (href: string, mode: "replace" | "push" = "replace") => {
       if (!activeRef.current) return;
+      if (!isNachrichtenMessagesPath(pathnameRef.current)) return;
       if (mode === "push") router.push(href);
       else router.replace(href);
     },
@@ -739,6 +750,7 @@ export function ContactsMessagesScreen({
   useEffect(() => {
     // Keep-alive: versteckt bleibt gemountet — URL-Sync darf Soft-Nav nicht zurückreißen.
     if (!active) return;
+    if (!isNachrichtenMessagesPath(pathname)) return;
     if (connectionsLoading || !workspaceReady || !restaurantId) return;
 
     const resolved = parseInboxPlatformFilter(platformParam, contactParam);
@@ -764,6 +776,7 @@ export function ContactsMessagesScreen({
     }
   }, [
     active,
+    pathname,
     connectionsLoading,
     workspaceReady,
     restaurantId,
@@ -1399,6 +1412,7 @@ export function ContactsMessagesScreen({
   useEffect(() => {
     // Fremde Modul-URLs nicht als Inbox-Params interpretieren (Keep-alive).
     if (!active) return;
+    if (!isNachrichtenMessagesPath(pathname)) return;
     if (!restaurantId || connectionsLoading) return;
 
     if (!contactParam) {
@@ -1413,6 +1427,7 @@ export function ContactsMessagesScreen({
     });
   }, [
     active,
+    pathname,
     contactParam,
     connectionsLoading,
     restaurantId,

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, type ComponentType, type LazyExoticComponent } from "react";
+import { usePathname } from "next/navigation";
 import {
   createRootRoute,
   createRoute,
@@ -11,6 +12,12 @@ import { DashboardSpaShell } from "../shell/dashboard-spa-shell";
 import { DASHBOARD_ROUTE_ENTRIES } from "../generated/route-modules";
 import { GenericModulePendingSkeleton } from "../ui/generic-module-pending-skeleton";
 
+function isRouteActive(pathname: string, fullPath: string): boolean {
+  const basePath = fullPath.split("?")[0];
+  if (basePath === "/dashboard") return pathname === "/dashboard";
+  return pathname === basePath || pathname.startsWith(`${basePath}/`);
+}
+
 function RoutePage({
   Lazy,
   fullPath,
@@ -18,6 +25,7 @@ function RoutePage({
   Lazy: LazyExoticComponent<ComponentType<Record<string, unknown>>>;
   fullPath: string;
 }) {
+  const pathname = usePathname();
   const isKeepAlive =
     fullPath.includes("uebersicht") ||
     fullPath === "/dashboard" ||
@@ -26,7 +34,8 @@ function RoutePage({
     fullPath === "/dashboard/checklisten";
 
   if (isKeepAlive) {
-    return <Lazy active={true} showChrome={true} />;
+    const isActive = isRouteActive(pathname, fullPath);
+    return <Lazy active={isActive} showChrome={isActive} />;
   }
   return <Lazy />;
 }

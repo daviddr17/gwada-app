@@ -7,36 +7,35 @@ import {
   useParams as useNextParams,
 } from "next/dist/client/components/navigation";
 import type { ReactNode } from "react";
-import { dashboardHrefToTanstackTarget } from "@/lib/navigation/dashboard-spa-path";
-import { useDashboardSpaNavigationOptional } from "@/lib/navigation/dashboard-spa-navigation-bridge";
+import { useSpaZoneNavigationOptional } from "@/lib/navigation/spa-zone-navigation-bridge";
 
 export function useServerInsertedHTML(_callback: () => ReactNode): void {
   /* SPA — kein RSC-HTML-Insert. */
 }
 
 export function usePathname(): string {
-  const spa = useDashboardSpaNavigationOptional();
+  const spa = useSpaZoneNavigationOptional();
   const nextPathname = useNextPathname();
   return spa?.pathname ?? nextPathname;
 }
 
 export function useRouter() {
-  const spa = useDashboardSpaNavigationOptional();
+  const spa = useSpaZoneNavigationOptional();
   const nextRouter = useNextRouter();
 
   if (!spa) {
     return nextRouter;
   }
 
-  const { navigate } = spa;
+  const { navigate, hrefToTarget } = spa;
 
   return {
     push: (href: string) => {
-      const { to, search } = dashboardHrefToTanstackTarget(href);
+      const { to, search } = hrefToTarget(href);
       navigate({ to, search });
     },
     replace: (href: string) => {
-      const { to, search } = dashboardHrefToTanstackTarget(href);
+      const { to, search } = hrefToTarget(href);
       navigate({ to, search, replace: true });
     },
     back: () => window.history.back(),
@@ -47,7 +46,7 @@ export function useRouter() {
 }
 
 export function useSearchParams(): URLSearchParams {
-  const spa = useDashboardSpaNavigationOptional();
+  const spa = useSpaZoneNavigationOptional();
   const nextSearchParams = useNextSearchParams();
   if (!spa) {
     return nextSearchParams;
@@ -58,7 +57,7 @@ export function useSearchParams(): URLSearchParams {
 export function useParams<
   T extends Record<string, string> = Record<string, string>,
 >(): T {
-  const spa = useDashboardSpaNavigationOptional();
+  const spa = useSpaZoneNavigationOptional();
   const nextParams = useNextParams();
   if (!spa) {
     return nextParams as T;

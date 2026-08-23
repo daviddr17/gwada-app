@@ -1,15 +1,10 @@
 "use client";
 
-import {
-  Link as TanStackLink,
-} from "@tanstack/react-router";
+import { Link as TanStackLink } from "@tanstack/react-router";
 import NextLink from "next/dist/client/link";
 import type { ComponentProps, ReactNode } from "react";
-import {
-  dashboardHrefToTanstackTarget,
-  isDashboardSpaHref,
-} from "@/lib/navigation/dashboard-spa-path";
-import { useDashboardSpaNavigationOptional } from "@/lib/navigation/dashboard-spa-navigation-bridge";
+import { isZoneSpaHref } from "@/lib/navigation/spa-zone-path";
+import { useSpaZoneNavigationOptional } from "@/lib/navigation/spa-zone-navigation-bridge";
 
 type NextLinkProps = ComponentProps<typeof NextLink>;
 
@@ -19,10 +14,11 @@ export default function Link({
   className,
   ...rest
 }: NextLinkProps & { children?: ReactNode }) {
-  const spa = useDashboardSpaNavigationOptional();
-  const hrefStr = typeof href === "string" ? href : href.pathname ?? "/dashboard";
+  const spa = useSpaZoneNavigationOptional();
+  const hrefStr =
+    typeof href === "string" ? href : href.pathname ?? spa?.base ?? "/dashboard";
 
-  if (!spa || !isDashboardSpaHref(hrefStr)) {
+  if (!spa || !isZoneSpaHref(spa.base, hrefStr)) {
     return (
       <NextLink href={href} className={className} {...rest}>
         {children}
@@ -30,7 +26,7 @@ export default function Link({
     );
   }
 
-  const { to, search } = dashboardHrefToTanstackTarget(hrefStr);
+  const { to, search } = spa.hrefToTarget(hrefStr);
   const tanstackTo =
     Object.keys(search).length > 0
       ? `${to}?${new URLSearchParams(search).toString()}`

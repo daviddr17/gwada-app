@@ -23,6 +23,7 @@ import {
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import { cn } from "@/lib/utils";
 import { SpaZoneNavigationBridge } from "@/lib/navigation/spa-zone-navigation-bridge";
+import { SuperadminGuard } from "@/components/superadmin/superadmin-guard";
 import { SoftNavLockProvider } from "../shims/soft-nav-lock-provider";
 import { SuperadminSpaPendingChromeSync } from "./superadmin-spa-pending-chrome-sync";
 
@@ -151,21 +152,23 @@ function SuperadminSpaInset() {
   );
 }
 
-/** Superadmin-Shell ohne Keep-alive / Soft-Nav-Overlay — TanStack Router SPA. */
+/** Superadmin-Shell — TanStack Router SPA + Client-Guard. */
 export function SuperadminSpaShell() {
   return (
-    <SoftNavLockProvider>
-      <SpaZoneNavigationBridge base="/superadmin">
-        <SidebarProvider>
-          <AuthLogoutTransitionProvider>
-            <AppModuleChromeProvider>
-              <SuperadminSpaPendingChromeSync />
-              <AppSidebar />
-              <SuperadminSpaInset />
-            </AppModuleChromeProvider>
-          </AuthLogoutTransitionProvider>
-        </SidebarProvider>
-      </SpaZoneNavigationBridge>
-    </SoftNavLockProvider>
+    <SuperadminGuard>
+      <SoftNavLockProvider>
+        <SpaZoneNavigationBridge base="/superadmin">
+          <SidebarProvider>
+            <AuthLogoutTransitionProvider>
+              <AppModuleChromeProvider>
+                <SuperadminSpaPendingChromeSync />
+                <AppSidebar />
+                <SuperadminSpaInset />
+              </AppModuleChromeProvider>
+            </AuthLogoutTransitionProvider>
+          </SidebarProvider>
+        </SpaZoneNavigationBridge>
+      </SoftNavLockProvider>
+    </SuperadminGuard>
   );
 }

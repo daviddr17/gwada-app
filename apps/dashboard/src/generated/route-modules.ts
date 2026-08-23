@@ -1,5 +1,27 @@
-/** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs */
+/** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs
+ * Manual overrides: profile + settings chrome wrappers (layouts pruned with SPA).
+ */
 import { lazy, type ComponentType } from "react";
+import { wrapProfilePage } from "../routes/profile-chrome";
+import { wrapSettingsPage } from "../routes/settings-chrome";
+
+function profileLazy(
+  importer: () => Promise<{ default: ComponentType }>,
+) {
+  return lazy(async () => {
+    const mod = await importer();
+    return { default: wrapProfilePage(mod.default) };
+  });
+}
+
+function settingsLazy(
+  importer: () => Promise<{ default: ComponentType }>,
+) {
+  return lazy(async () => {
+    const mod = await importer();
+    return { default: wrapSettingsPage(mod.default) };
+  });
+}
 
 const Lazy__dashboard_bewertungen_einbinden = lazy(() => import("@/components/reviews/reviews-embed-panel").then((m) => ({ default: m.ReviewsEmbedPanel as ComponentType })));
 const Lazy__dashboard_bewertungen_einstellungen = lazy(() => import("@/components/reviews/reviews-settings-panel").then((m) => ({ default: m.ReviewsSettingsPanel as ComponentType })));
@@ -66,29 +88,97 @@ const Lazy__dashboard_pos_gutscheine = lazy(() => import("@/components/pos/pos-g
 const Lazy__dashboard_pos_quittungen = lazy(() => import("@/components/pos/pos-receipts-screen").then((m) => ({ default: m.PosReceiptsScreen as ComponentType })));
 const Lazy__dashboard_pos_statistiken = lazy(() => import("@/components/pos/pos-statistics-screen").then((m) => ({ default: m.PosStatisticsScreen as ComponentType })));
 const Lazy__dashboard_pos_uebersicht = lazy(() => import("@/components/pos/pos-overview-keep-alive-screen").then((m) => ({ default: m.PosOverviewKeepAliveScreen as ComponentType })));
-const Lazy__dashboard_profile_anmeldung = lazy(() => import("@/components/ui/badge").then((m) => ({ default: m.Badge as ComponentType })));
-const Lazy__dashboard_profile_arbeitszeiten = lazy(() => import("@/components/profile/profile-work-hours-screen").then((m) => ({ default: m.ProfileWorkHoursScreen as ComponentType })));
-const Lazy__dashboard_profile_benachrichtigungen = lazy(() => import("@/components/notifications/notification-preferences-panel").then((m) => ({ default: m.NotificationPreferencesPanel as ComponentType })));
-const Lazy__dashboard_profile_dienstplan = lazy(() => import("@/components/profile/profile-shift-plan-screen").then((m) => ({ default: m.ProfileShiftPlanScreen as ComponentType })));
-const Lazy__dashboard_profile_display_pin = lazy(() => import("@/components/profile/profile-display-pin-screen").then((m) => ({ default: m.ProfileDisplayPinScreen as ComponentType })));
-const Lazy__dashboard_profile_dokumente = lazy(() => import("@/components/profile/profile-documents-screen").then((m) => ({ default: m.ProfileDocumentsScreen as ComponentType })));
-const Lazy__dashboard_profile_persoenliche_daten = lazy(() => import("@/components/ui/button").then((m) => ({ default: m.Button as ComponentType })));
-const Lazy__dashboard_profile_verfuegbarkeit = lazy(() => import("@/components/profile/profile-availability-screen").then((m) => ({ default: m.ProfileAvailabilityScreen as ComponentType })));
+const Lazy__dashboard_profile_anmeldung = profileLazy(() =>
+  import("@/components/profile/profile-anmeldung-screen").then((m) => ({
+    default: m.ProfileAnmeldungScreen as ComponentType,
+  })),
+);
+const Lazy__dashboard_profile_arbeitszeiten = profileLazy(() =>
+  import("@/components/profile/profile-work-hours-screen").then((m) => ({
+    default: m.ProfileWorkHoursScreen as ComponentType,
+  })),
+);
+const Lazy__dashboard_profile_benachrichtigungen = profileLazy(() =>
+  import("@/components/notifications/notification-preferences-panel").then(
+    (m) => ({ default: m.NotificationPreferencesPanel as ComponentType }),
+  ),
+);
+const Lazy__dashboard_profile_dienstplan = profileLazy(() =>
+  import("@/components/profile/profile-shift-plan-screen").then((m) => ({
+    default: m.ProfileShiftPlanScreen as ComponentType,
+  })),
+);
+const Lazy__dashboard_profile_display_pin = profileLazy(() =>
+  import("@/components/profile/profile-display-pin-screen").then((m) => ({
+    default: m.ProfileDisplayPinScreen as ComponentType,
+  })),
+);
+const Lazy__dashboard_profile_dokumente = profileLazy(() =>
+  import("@/components/profile/profile-documents-screen").then((m) => ({
+    default: m.ProfileDocumentsScreen as ComponentType,
+  })),
+);
+const Lazy__dashboard_profile_persoenliche_daten = profileLazy(() =>
+  import("@/components/profile/profile-persoenliche-daten-screen").then(
+    (m) => ({ default: m.ProfilePersoenlicheDatenScreen as ComponentType }),
+  ),
+);
+const Lazy__dashboard_profile_verfuegbarkeit = profileLazy(() =>
+  import("@/components/profile/profile-availability-screen").then((m) => ({
+    default: m.ProfileAvailabilityScreen as ComponentType,
+  })),
+);
 const Lazy__dashboard_reservierungen_einbinden = lazy(() => import("@/components/reservations/reservation-embed-panel").then((m) => ({ default: m.ReservationEmbedPanel as ComponentType })));
 const Lazy__dashboard_reservierungen_einstellungen = lazy(() => import("@/components/reservations/reservation-settings-form").then((m) => ({ default: m.ReservationSettingsForm as ComponentType })));
 const Lazy__dashboard_reservierungen_protokoll = lazy(() => import("@/components/reservations/reservations-protocol-screen").then((m) => ({ default: m.ReservationsProtocolScreen as ComponentType })));
 const Lazy__dashboard_reservierungen_statistiken = lazy(() => import("@/components/reservations/reservations-statistics-screen").then((m) => ({ default: m.ReservationsStatisticsScreen as ComponentType })));
 const Lazy__dashboard_reservierungen_tischplan = lazy(() => import("@/components/reservations/floor-plan-screen").then((m) => ({ default: m.FloorPlanScreen as ComponentType })));
 const Lazy__dashboard_reservierungen_uebersicht = lazy(() => import("@/components/reservations/reservations-overview-keep-alive-screen").then((m) => ({ default: m.ReservationsOverviewKeepAliveScreen as ComponentType })));
-const Lazy__dashboard_settings_abo = lazy(() => import("@/components/settings/restaurant-billing-panel").then((m) => ({ default: m.RestaurantBillingPanel as ComponentType })));
-const Lazy__dashboard_settings_api = lazy(() => import("@/components/settings/restaurant-api-keys-panel").then((m) => ({ default: m.RestaurantApiKeysPanel as ComponentType })));
-const Lazy__dashboard_settings_dashboard = lazy(() => import("@/components/settings/dashboard-shortcuts-panel").then((m) => ({ default: m.DashboardShortcutsPanel as ComponentType })));
-const Lazy__dashboard_settings_integrationen = lazy(() => import("../routes/settings-integrationen-route").then((m) => ({ default: m.SettingsIntegrationenRoute as ComponentType })));
-const Lazy__dashboard_settings_displays = lazy(() => import("@/components/settings/restaurant-displays-panel").then((m) => ({ default: m.RestaurantDisplaysPanel as ComponentType })));
-const Lazy__dashboard_settings_oeffnungszeiten_einbinden = lazy(() => import("@/components/settings/opening-hours-embed-panel").then((m) => ({ default: m.OpeningHoursEmbedPanel as ComponentType })));
-const Lazy__dashboard_settings_oeffnungszeiten = lazy(() => import("@/components/settings/restaurant-settings").then((m) => ({ default: m.RestaurantSettingsPanel as ComponentType })));
-const Lazy__dashboard_settings_restaurant = lazy(() => import("@/components/settings/restaurant-settings").then((m) => ({ default: m.RestaurantSettingsPanel as ComponentType })));
-const Lazy__dashboard_settings_team = lazy(() => import("@/components/settings/restaurant-team-settings-panel").then((m) => ({ default: m.RestaurantTeamSettingsPanel as ComponentType })));
+const Lazy__dashboard_settings_abo = settingsLazy(() =>
+  import("@/components/settings/restaurant-billing-panel").then((m) => ({
+    default: m.RestaurantBillingPanel as ComponentType,
+  })),
+);
+const Lazy__dashboard_settings_api = settingsLazy(() =>
+  import("@/components/settings/restaurant-api-keys-panel").then((m) => ({
+    default: m.RestaurantApiKeysPanel as ComponentType,
+  })),
+);
+const Lazy__dashboard_settings_dashboard = settingsLazy(() =>
+  import("@/components/settings/dashboard-shortcuts-panel").then((m) => ({
+    default: m.DashboardShortcutsPanel as ComponentType,
+  })),
+);
+const Lazy__dashboard_settings_integrationen = settingsLazy(() =>
+  import("../routes/settings-integrationen-route").then((m) => ({
+    default: m.SettingsIntegrationenRoute as ComponentType,
+  })),
+);
+const Lazy__dashboard_settings_displays = settingsLazy(() =>
+  import("@/components/settings/restaurant-displays-panel").then((m) => ({
+    default: m.RestaurantDisplaysPanel as ComponentType,
+  })),
+);
+const Lazy__dashboard_settings_oeffnungszeiten_einbinden = settingsLazy(() =>
+  import("@/components/settings/opening-hours-embed-panel").then((m) => ({
+    default: m.OpeningHoursEmbedPanel as ComponentType,
+  })),
+);
+const Lazy__dashboard_settings_oeffnungszeiten = settingsLazy(() =>
+  import("@/components/settings/restaurant-settings").then((m) => ({
+    default: m.RestaurantSettingsPanel as ComponentType,
+  })),
+);
+const Lazy__dashboard_settings_restaurant = settingsLazy(() =>
+  import("@/components/settings/restaurant-settings").then((m) => ({
+    default: m.RestaurantSettingsPanel as ComponentType,
+  })),
+);
+const Lazy__dashboard_settings_team = settingsLazy(() =>
+  import("@/components/settings/restaurant-team-settings-panel").then((m) => ({
+    default: m.RestaurantTeamSettingsPanel as ComponentType,
+  })),
+);
 
 export type DashboardRouteEntry = {
   path: string;

@@ -73,9 +73,64 @@ const KEEP_ALIVE_IMPORTS = {
   },
 };
 
+/** Page-default exports that the scan mis-resolves (inline pages / UI imports). */
+const MANUAL_PAGE_IMPORTS = {
+  "/dashboard/profile/persoenliche-daten": {
+    component: "ProfilePersoenlicheDatenScreen",
+    from: "@/components/profile/profile-persoenliche-daten-screen",
+  },
+  "/dashboard/profile/anmeldung": {
+    component: "ProfileAnmeldungScreen",
+    from: "@/components/profile/profile-anmeldung-screen",
+  },
+  "/dashboard/settings/integrationen": {
+    component: "SettingsIntegrationenRoute",
+    from: "../routes/settings-integrationen-route",
+  },
+};
+
+const PROFILE_PREFIX = "/dashboard/profile/";
+const SETTINGS_PREFIX = "/dashboard/settings/";
+
+function chromeWrapperFor(route) {
+  if (route === "/dashboard/profile" || route.startsWith(PROFILE_PREFIX)) {
+    return "profile";
+  }
+  if (route === "/dashboard/settings" || route.startsWith(SETTINGS_PREFIX)) {
+    return "settings";
+  }
+  return null;
+}
+
 const lines = [];
-lines.push(`/** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs */`);
+lines.push(
+  `/** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs`,
+);
+lines.push(
+  ` * Profile/Settings use chrome wrappers (layouts pruned with SPA).`,
+);
+lines.push(` */`);
 lines.push(`import { lazy, type ComponentType } from "react";`);
+lines.push(`import { wrapProfilePage } from "../routes/profile-chrome";`);
+lines.push(`import { wrapSettingsPage } from "../routes/settings-chrome";`);
+lines.push("");
+lines.push(`function profileLazy(`);
+lines.push(`  importer: () => Promise<{ default: ComponentType }>,`);
+lines.push(`) {`);
+lines.push(`  return lazy(async () => {`);
+lines.push(`    const mod = await importer();`);
+lines.push(`    return { default: wrapProfilePage(mod.default) };`);
+lines.push(`  });`);
+lines.push(`}`);
+lines.push("");
+lines.push(`function settingsLazy(`);
+lines.push(`  importer: () => Promise<{ default: ComponentType }>,`);
+lines.push(`) {`);
+lines.push(`  return lazy(async () => {`);
+lines.push(`    const mod = await importer();`);
+lines.push(`    return { default: wrapSettingsPage(mod.default) };`);
+lines.push(`  });`);
+lines.push(`}`);
 lines.push("");
 
 const lazyLines = [];
@@ -96,7 +151,11 @@ for (const entry of scan) {
   let importFrom;
   let componentName;
 
-  if (entry.pageBehavior === "null") {
+  const manual = MANUAL_PAGE_IMPORTS[entry.route];
+  if (manual) {
+    importFrom = manual.from;
+    componentName = manual.component;
+  } else if (entry.pageBehavior === "null") {
     const ka = KEEP_ALIVE_IMPORTS[entry.route];
     if (!ka) {
       console.warn("Missing keep-alive mapping for", entry.route);
@@ -117,9 +176,20 @@ for (const entry of scan) {
   }
 
   const lazyName = `Lazy_${entry.route.replace(/[^a-zA-Z0-9]/g, "_")}`;
-  lazyLines.push(
-    `const ${lazyName} = lazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
-  );
+  const chrome = chromeWrapperFor(entry.route);
+  if (chrome === "profile") {
+    lazyLines.push(
+      `const ${lazyName} = profileLazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
+    );
+  } else if (chrome === "settings") {
+    lazyLines.push(
+      `const ${lazyName} = settingsLazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
+    );
+  } else {
+    lazyLines.push(
+      `const ${lazyName} = lazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
+    );
+  }
 
   routeEntries.push({
     path: tanstackPath,

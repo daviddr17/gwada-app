@@ -36,7 +36,7 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { DashboardSpaNavigationBridge } from "@/lib/navigation/dashboard-spa-navigation-bridge";
+import { SpaZoneNavigationBridge } from "@/lib/navigation/spa-zone-navigation-bridge";
 import { SoftNavLockProvider } from "../shims/soft-nav-lock-provider";
 import { DashboardSpaPendingChromeSync } from "./dashboard-spa-pending-chrome-sync";
 
@@ -202,7 +202,7 @@ function DashboardSpaInset() {
 export function DashboardSpaShell() {
   return (
     <SoftNavLockProvider>
-      <DashboardSpaNavigationBridge>
+      <SpaZoneNavigationBridge base="/dashboard">
         <SidebarProvider>
           <AuthLogoutTransitionProvider>
             <AppModuleChromeProvider>
@@ -215,7 +215,7 @@ export function DashboardSpaShell() {
             </AppModuleChromeProvider>
           </AuthLogoutTransitionProvider>
         </SidebarProvider>
-      </DashboardSpaNavigationBridge>
+      </SpaZoneNavigationBridge>
     </SoftNavLockProvider>
   );
 }

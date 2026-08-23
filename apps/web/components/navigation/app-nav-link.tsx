@@ -15,10 +15,11 @@ import {
 import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { useDashboardSpaNavigationOptional } from "@/lib/navigation/dashboard-spa-navigation-bridge";
-import { isDashboardSpaHref } from "@/lib/navigation/dashboard-spa-path";
+import { useSpaZoneNavigationOptional } from "@/lib/navigation/spa-zone-navigation-bridge";
+import { isZoneSpaHref, spaZoneFromHref } from "@/lib/navigation/spa-zone-path";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
+import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -77,16 +78,21 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
     const { restaurantId } = useWorkspaceRestaurantUuid();
     const { tryAcquireNavLock, scheduleSoftNavPush, pendingHref } =
       useSoftNavLock();
-    const spaNav = useDashboardSpaNavigationOptional();
-    const inDashboardSpa = spaNav != null;
+    const spaNav = useSpaZoneNavigationOptional();
     const hrefStr = hrefToString(href);
     const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
-    const spaDashboardHref = inDashboardSpa && isDashboardSpaHref(hrefStr);
+    const hrefZone = spaZoneFromHref(hrefStr);
+    const spaSameZoneHref =
+      spaNav != null && hrefZone === spaNav.base && isZoneSpaHref(spaNav.base, hrefStr);
 
     const warmOnIntent = useCallback(() => {
-      if (!isDashboardSpaHref(hrefStr)) return;
-      warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
-    }, [hrefStr, router, queryClient, restaurantId]);
+      if (!hrefZone) return;
+      if (hrefZone === "/dashboard") {
+        warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
+        return;
+      }
+      prefetchAppModuleHref(router, hrefStr);
+    }, [hrefZone, hrefStr, router, queryClient, restaurantId]);
 
     return (
       <Link
@@ -107,10 +113,7 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
         }}
         onPointerDown={(event) => {
           onPointerDown?.(event);
-          // Touch/schneller Klick: FULL + Daten vor dem Flight (Hover fehlt oft).
           warmOnIntent();
-          // Pending erst im click: pointerdown+Pending vor synthetischem click
-          // kann auf iOS Keep-alive-Slots umbauen und den click killen.
         }}
         onClick={(event) => {
           onClick?.(event);
@@ -119,8 +122,7 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
             event.preventDefault();
             return;
           }
-          if (!spaDashboardHref && !crossModuleNav) {
-            // Gleicher Modul-Stamm (Legacy Next): natives Link — außer Flight läuft.
+          if (!spaSameZoneHref && !crossModuleNav) {
             if (!pendingHref) return;
           }
           // Cmd/Ctrl-Klick etc. → natives Link-Verhalten (neuer Tab).

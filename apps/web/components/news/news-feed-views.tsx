@@ -44,14 +44,19 @@ function NewsFeedBodyActions({
   externalUrl,
   platform,
   onToggleExpanded,
+  showExternalLinkAlways = false,
 }: {
   canExpandBody: boolean;
   expanded: boolean;
   externalUrl: string | null;
   platform: UnifiedNewsItem["platform"];
   onToggleExpanded: (event: MouseEvent) => void;
+  /** Geteilte FB-Posts: Link ohne „Mehr anzeigen“. */
+  showExternalLinkAlways?: boolean;
 }) {
-  if (!canExpandBody && !(expanded && externalUrl)) return null;
+  const showExternal =
+    Boolean(externalUrl) && (expanded || showExternalLinkAlways);
+  if (!canExpandBody && !showExternal) return null;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
@@ -64,9 +69,9 @@ function NewsFeedBodyActions({
           <NewsExpandLabel expanded={expanded} />
         </button>
       ) : null}
-      {expanded && externalUrl ? (
+      {showExternal ? (
         <a
-          href={externalUrl}
+          href={externalUrl!}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(event) => event.stopPropagation()}
@@ -152,6 +157,10 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
   const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
+  const showExternalLinkAlways =
+    Boolean(externalUrl) &&
+    item.platform === "facebook" &&
+    (item.title === "Geteilter Beitrag" || !item.body.trim());
   const dateTime = newsDisplayTimestamp(item);
   const dateLabel = formatNewsCardDate(item);
 
@@ -176,13 +185,14 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
         {/* Voller Text + CSS-Clamp: Embed-MT übersetzt einmal, Expand triggert kein Re-Translate. */}
         {inlineExpandBody ? fullBody : newsCardPreviewBody(item.body)}
       </p>
-      {canExpandBody || (expanded && externalUrl) ? (
+      {canExpandBody || showExternalLinkAlways ? (
         <NewsFeedBodyActions
           canExpandBody={canExpandBody}
           expanded={expanded}
           externalUrl={externalUrl}
           platform={item.platform}
           onToggleExpanded={toggleExpanded}
+          showExternalLinkAlways={showExternalLinkAlways}
         />
       ) : null}
     </div>
@@ -354,6 +364,10 @@ const NewsCard = memo(function NewsCard({
   const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
+  const showExternalLinkAlways =
+    Boolean(externalUrl) &&
+    item.platform === "facebook" &&
+    (item.title === "Geteilter Beitrag" || !item.body.trim());
 
   const toggleExpanded = useCallback((event: MouseEvent) => {
     event.stopPropagation();
@@ -371,13 +385,14 @@ const NewsCard = memo(function NewsCard({
       >
         {inlineExpandBody ? fullBody : newsCardPreviewBody(item.body)}
       </p>
-      {canExpandBody || (expanded && externalUrl) ? (
+      {canExpandBody || showExternalLinkAlways ? (
         <NewsFeedBodyActions
           canExpandBody={canExpandBody}
           expanded={expanded}
           externalUrl={externalUrl}
           platform={item.platform}
           onToggleExpanded={toggleExpanded}
+          showExternalLinkAlways={showExternalLinkAlways}
         />
       ) : null}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -273,6 +273,8 @@ export function AccountingSalesDocumentsScreen({
         statuses: statusRows,
       });
     } catch {
+      // Keep-alive: kein Toast auf fremden Modulen (z. B. Nachrichten).
+      if (!activeRef.current) return;
       toast.error(
         isInvoice
           ? "Rechnungen konnten nicht geladen werden."
@@ -297,8 +299,9 @@ export function AccountingSalesDocumentsScreen({
   ]);
 
   useEffect(() => {
+    if (!active) return;
     void load();
-  }, [load]);
+  }, [active, load]);
 
   const runConnectorSync = useCallback(
     async (opts?: { silent?: boolean; force?: boolean }) => {

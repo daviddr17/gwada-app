@@ -123,6 +123,8 @@ export function AccountingSalesDocumentsScreen({
   const searchParams = useSearchParams();
   const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const {
     page,
     search,

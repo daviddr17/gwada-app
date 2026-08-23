@@ -44,10 +44,13 @@ export function ProfileWorkHoursScreen() {
   }
 
   return (
-    <StaffWorkHoursView
-      restaurantId={restaurantId}
-      staff={staff}
-      staffId={staffId}
-    />
+    <div className="-mt-4 sm:-mt-6">
+      <StaffWorkHoursView
+        restaurantId={restaurantId}
+        staff={staff}
+        staffId={staffId}
+        chromeContext="profile"
+      />
+    </div>
   );
 }

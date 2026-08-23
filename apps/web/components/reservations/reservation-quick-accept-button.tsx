@@ -5,6 +5,7 @@ import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { confirmPendingReservationFromBrowser } from "@/lib/reservations/confirm-reservation-client";
+import { reservationConfirmNotificationToastContent } from "@/lib/reservations/reservation-guest-notify-dispatch-summary";
 import {
   dispatchReservationOpenResolvedLivePatch,
 } from "@/lib/reservations/reservation-open-status";
@@ -94,7 +95,12 @@ export function ReservationQuickAcceptButton({
               toast.error(result.error);
               return;
             }
-            toast.success("Reservierung bestätigt.");
+            const toastContent = reservationConfirmNotificationToastContent(
+              result.notifications,
+            );
+            toast.success(toastContent.title, {
+              description: toastContent.description,
+            });
           } catch {
             setOptimisticConfirmed(false);
             onFailed?.();

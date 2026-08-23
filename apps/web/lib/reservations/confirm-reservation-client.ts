@@ -8,13 +8,12 @@ import {
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/reservation-open-status";
 import {
-  emailDispatchUserMessage,
-  triggerReservationEmailDispatch,
-} from "@/lib/reservations/trigger-email-dispatch";
-import {
-  triggerReservationWhatsappDispatch,
-  whatsappDispatchUserMessage,
-} from "@/lib/reservations/trigger-whatsapp-dispatch";
+  reservationConfirmNotificationToastContent,
+  summarizeGuestNotifyChannel,
+  type GuestNotifyChannelSummary,
+} from "@/lib/reservations/reservation-guest-notify-dispatch-summary";
+import { triggerReservationEmailDispatch } from "@/lib/reservations/trigger-email-dispatch";
+import { triggerReservationWhatsappDispatch } from "@/lib/reservations/trigger-whatsapp-dispatch";
 import {
   fetchReservationById,
   fetchReservationStatuses,
@@ -22,7 +21,7 @@ import {
 } from "@/lib/supabase/reservations-db";
 
 export type ConfirmPendingReservationResult =
-  | { ok: true; warning?: string }
+  | { ok: true; notifications: GuestNotifyChannelSummary[] }
   | { ok: false; error: string };
 
 /**
@@ -109,25 +108,29 @@ export async function confirmPendingReservationFromBrowser(params: {
     previousStatusCode,
     "confirmed",
   );
-  void (async () => {
-    const warnings: string[] = [];
-    if (dispatchEvent && row.notify_whatsapp) {
-      const wa = await triggerReservationWhatsappDispatch(row.id, dispatchEvent);
-      const msg = whatsappDispatchUserMessage(wa);
-      if (msg) warnings.push(msg);
-    }
-    if (dispatchEvent && row.notify_email) {
-      const em = await triggerReservationEmailDispatch(row.id, dispatchEvent);
-      const msg = emailDispatchUserMessage(em, {
-        isSuperadmin: params.isSuperadmin === true,
-      });
-      if (msg) warnings.push(msg);
-    }
-    if (warnings.length > 0) {
-      const { toast } = await import("sonner");
-      toast.warning(warnings.join(" "));
-    }
-  })();
 
-  return { ok: true };
+  let whatsappResult = null;
+  let emailResult = null;
+  if (dispatchEvent && row.notify_whatsapp) {
+    whatsappResult = await triggerReservationWhatsappDispatch(row.id, dispatchEvent);
+  }
+  if (dispatchEvent && row.notify_email) {
+    emailResult = await triggerReservationEmailDispatch(row.id, dispatchEvent);
+  }
+
+  const notifications: GuestNotifyChannelSummary[] = [
+    summarizeGuestNotifyChannel({
+      channel: "whatsapp",
+      enabled: row.notify_whatsapp === true,
+      result: whatsappResult,
+    }),
+    summarizeGuestNotifyChannel({
+      channel: "email",
+      enabled: row.notify_email === true,
+      result: emailResult,
+      isSuperadmin: params.isSuperadmin === true,
+    }),
+  ];
+
+  return { ok: true, notifications };
 }

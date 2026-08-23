@@ -40,6 +40,18 @@ export type ProfileNavLabelKey =
   | "documents"
   | "displayPin";
 
+/** Deutsche Untermenü-Labels (Primär-Oberfläche — nicht von next-intl abhängig). */
+export const PROFILE_NAV_LABELS_DE: Record<ProfileNavLabelKey, string> = {
+  overview: "Übersicht",
+  login: "Anmeldung",
+  notifications: "Benachrichtigungen",
+  workHours: "Meine Arbeitszeiten",
+  schedule: "Dienstplan",
+  availability: "Verfügbarkeit",
+  documents: "Meine Dokumente",
+  displayPin: "Display-PIN",
+};
+
 export type ProfileNavItemDef = {
   href: string;
   matchMode: ModuleSubnavItem["matchMode"];

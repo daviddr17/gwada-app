@@ -282,7 +282,9 @@ export function NotificationPreferencesPanel() {
           <CardTitle className="text-xl">Benachrichtigungen</CardTitle>
           <CardDescription className="text-base leading-relaxed">
             Pro Hinweis Glocke, E-Mail und WhatsApp einzeln oder kombiniert —
-            kompakt in einer Liste.
+            kompakt in einer Liste. Sichtbare Module hängen von deinen
+            Berechtigungen ab (z. B. Reservierungen nur mit Zugriff auf
+            Reservierungen).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">

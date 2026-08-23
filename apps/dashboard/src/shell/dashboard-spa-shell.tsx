@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
 import { AppChromeActivityFeed } from "@/components/layout/app-chrome-activity-feed";
+import { AppChromeCalendar } from "@/components/layout/app-chrome-calendar";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
 import { AppChromeOpsStatus } from "@/components/ops/app-chrome-ops-status";
@@ -116,6 +117,7 @@ function DashboardSpaInset() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 pe-3 ps-1 sm:gap-2 sm:pe-6">
+          <AppChromeCalendar />
           {chrome.headerActions ? (
             <div className="flex shrink-0 items-center gap-1.5">
               {chrome.headerActions}

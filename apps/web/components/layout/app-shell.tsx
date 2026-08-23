@@ -10,6 +10,7 @@ import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-tran
 import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
 import { AppChromeActivityFeed } from "@/components/layout/app-chrome-activity-feed";
+import { AppChromeCalendar } from "@/components/layout/app-chrome-calendar";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
 import { AppChromeOpsStatus } from "@/components/ops/app-chrome-ops-status";
@@ -117,8 +118,9 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
           </div>
         </div>
-        {/* Rechts fest: Modul-Aktionen (Kalender/Anordnen) bleiben mobil sichtbar */}
+        {/* Rechts: Kalender global; Modul-Aktionen nur wenn nötig (z. B. Dashboard anordnen) */}
         <div className="flex shrink-0 items-center gap-1.5 pe-3 ps-1 sm:gap-2 sm:pe-6">
+          <AppChromeCalendar />
           {chrome.headerActions ? (
             <div className="flex shrink-0 items-center gap-1.5">
               {chrome.headerActions}

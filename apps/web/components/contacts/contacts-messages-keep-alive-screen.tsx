@@ -1,10 +1,9 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense } from "react";
 import { AppMain } from "@/components/layout/app-main";
 import { ContactsMessagesScreen } from "@/components/contacts/contacts-messages-screen";
 import { MESSAGES_MODULE_NAV } from "@/components/contacts/messages-module-nav";
-import { MessagesChromeActions } from "@/components/ops/module-chrome-quick-actions";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 
 /** Keep-alive Host für Nachrichten-Inbox (Chrome nur wenn active). */
@@ -15,6 +14,7 @@ export function ContactsMessagesKeepAliveScreen({
   active: boolean;
   showChrome?: boolean;
 }) {
+<<<<<<< HEAD
   const headerActions = useMemo(
     () => (
       <Suspense fallback={null}>
@@ -24,6 +24,8 @@ export function ContactsMessagesKeepAliveScreen({
     [],
   );
 
+=======
+>>>>>>> origin/cursor/chrome-calendar-global-d944
   return (
     <>
       {showChrome ? (
@@ -31,7 +33,6 @@ export function ContactsMessagesKeepAliveScreen({
           title="Nachrichten"
           subnavAriaLabel="Nachrichten-Bereiche"
           subnavItems={MESSAGES_MODULE_NAV}
-          headerActions={headerActions}
         />
       ) : null}
       <AppMain>

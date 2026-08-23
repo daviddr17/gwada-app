@@ -92,7 +92,7 @@ export function useNotificationBellRealtime() {
       onStatus: (status) => {
         if (status === "SUBSCRIBED") {
           disablePolling();
-          void import("@/lib/live-activity/live-activity-backfill").then(
+          void import("@/lib/live-activity/live-activity-fetch-client").then(
             ({ backfillLiveActivityFeed }) =>
               backfillLiveActivityFeed(restaurantId),
           );

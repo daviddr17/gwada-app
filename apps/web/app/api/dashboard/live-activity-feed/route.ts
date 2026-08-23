@@ -2,36 +2,43 @@ import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboar
 import { LIVE_ACTIVITY_FEED_MODULES } from "@/lib/live-activity/live-activity-feed-modules";
 import { liveActivityFromNotificationEvent } from "@/lib/live-activity/live-activity-from-notification-event";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
-import { startOfRestaurantCalendarDay } from "@/lib/restaurant/restaurant-timezone";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 
 export const dynamic = "force-dynamic";
 
-export async function fetchLiveActivityFeedToday(
-  restaurantId: string,
-): Promise<LiveActivityItem[]> {
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 50;
+
+export async function fetchLiveActivityFeed(params: {
+  restaurantId: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: LiveActivityItem[]; hasMore: boolean; total: number }> {
   const admin = createSupabaseAdminClient();
-  if (!admin) return [];
+  if (!admin) {
+    return { items: [], hasMore: false, total: 0 };
+  }
 
-  const timeZone = await fetchRestaurantTimezoneServer(admin, restaurantId);
-  const since = startOfRestaurantCalendarDay(new Date(), timeZone).toISOString();
+  const limit = Math.min(
+    MAX_LIMIT,
+    Math.max(1, params.limit ?? DEFAULT_LIMIT),
+  );
+  const offset = Math.max(0, params.offset ?? 0);
 
-  const { data, error } = await admin
+  const { data, error, count } = await admin
     .from("notification_events")
-    .select("id, module, payload, created_at")
-    .eq("restaurant_id", restaurantId)
+    .select("id, module, payload, created_at", { count: "exact" })
+    .eq("restaurant_id", params.restaurantId)
     .in("module", [...LIVE_ACTIVITY_FEED_MODULES])
-    .gte("created_at", since)
     .order("created_at", { ascending: false })
-    .limit(80);
+    .range(offset, offset + limit - 1);
 
   if (error) {
     console.warn("[live-activity-feed]", error.message);
-    return [];
+    return { items: [], hasMore: false, total: 0 };
   }
 
-  return (data ?? []).map((row) => {
+  const items = (data ?? []).map((row) => {
     const mapped = liveActivityFromNotificationEvent({
       eventId: row.id as string,
       module: row.module as string,
@@ -48,15 +55,45 @@ export async function fetchLiveActivityFeedToday(
       at: mapped.at ?? (row.created_at as string),
     };
   });
+
+  const total = count ?? items.length;
+  const hasMore = offset + items.length < total;
+
+  return { items, hasMore, total };
+}
+
+/** @deprecated Alias für Tests — heute = offset 0, limit 80 */
+export async function fetchLiveActivityFeedToday(
+  restaurantId: string,
+): Promise<LiveActivityItem[]> {
+  const { items } = await fetchLiveActivityFeed({
+    restaurantId,
+    limit: 80,
+    offset: 0,
+  });
+  return items;
 }
 
 export async function GET(req: Request) {
-  const restaurantId = new URL(req.url).searchParams.get("restaurantId");
+  const searchParams = new URL(req.url).searchParams;
+  const restaurantId = searchParams.get("restaurantId");
   const auth = await authorizeDashboardRestaurant(restaurantId);
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const items = await fetchLiveActivityFeedToday(auth.restaurantId);
-  return Response.json({ data: items });
+  const limit = Number(searchParams.get("limit"));
+  const offset = Number(searchParams.get("offset"));
+
+  const page = await fetchLiveActivityFeed({
+    restaurantId: auth.restaurantId,
+    limit: Number.isFinite(limit) ? limit : undefined,
+    offset: Number.isFinite(offset) ? offset : undefined,
+  });
+
+  return Response.json({
+    data: page.items,
+    hasMore: page.hasMore,
+    total: page.total,
+  });
 }

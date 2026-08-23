@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -145,11 +146,19 @@ function pickStammdaten(p: RestaurantProfile) {
 
 export type RestaurantSettingsSection = "restaurant" | "hours";
 
+function sectionFromPathname(pathname: string | null): RestaurantSettingsSection {
+  if (pathname?.includes("/oeffnungszeiten")) return "hours";
+  return "restaurant";
+}
+
 export function RestaurantSettingsPanel({
-  section,
+  section: sectionProp,
 }: {
-  section: RestaurantSettingsSection;
+  /** SPA-Routen ohne Prop: aus Pfad ableiten (sonst leere Übersicht). */
+  section?: RestaurantSettingsSection;
 }) {
+  const pathname = usePathname();
+  const section = sectionProp ?? sectionFromPathname(pathname);
   const { profile, saveProfile, saveOpeningHours, patchProfile, isReady } = useRestaurantProfile();
   const { accentHex, persistAccentHex, isReady: accentReady } = useAccentColor();
   const [draft, setDraft] = useState<RestaurantProfile | null>(null);

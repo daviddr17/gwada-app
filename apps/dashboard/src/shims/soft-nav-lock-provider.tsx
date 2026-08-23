@@ -27,7 +27,8 @@ import {
 } from "@/lib/navigation/soft-nav-flight";
 import { prefetchDashboardSpaHref } from "../navigation/prefetch-dashboard-route";
 
-const PENDING_CLEAR_FAILSAFE_MS = 6_000;
+const PENDING_CLEAR_FAILSAFE_MS = 4_500;
+const PENDING_HARD_CLEAR_MS = 8_000;
 
 /** TanStack Router — gleicher Context wie Next SoftNavLockProvider. */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
@@ -39,6 +40,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
 
   const pendingTargetRef = useRef<string | null>(null);
   const clearTimerRef = useRef<number | null>(null);
+  const hardClearTimerRef = useRef<number | null>(null);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   const clearPending = useCallback(() => {
@@ -48,6 +50,10 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     if (clearTimerRef.current != null) {
       window.clearTimeout(clearTimerRef.current);
       clearTimerRef.current = null;
+    }
+    if (hardClearTimerRef.current != null) {
+      window.clearTimeout(hardClearTimerRef.current);
+      hardClearTimerRef.current = null;
     }
   }, []);
 
@@ -90,16 +96,36 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         clearPending();
       }, PENDING_CLEAR_FAILSAFE_MS);
 
+      if (hardClearTimerRef.current != null) {
+        window.clearTimeout(hardClearTimerRef.current);
+      }
+      hardClearTimerRef.current = window.setTimeout(() => {
+        hardClearTimerRef.current = null;
+        clearPending();
+      }, PENDING_HARD_CLEAR_MS);
+
       return true;
     },
-    [],
+    [clearPending],
   );
+
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) clearPending();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [clearPending]);
 
   useEffect(
     () => () => {
       if (clearTimerRef.current != null) {
         window.clearTimeout(clearTimerRef.current);
       }
+      if (hardClearTimerRef.current != null) {
+        window.clearTimeout(hardClearTimerRef.current);
+      }
+      endSoftNavFlight();
     },
     [],
   );

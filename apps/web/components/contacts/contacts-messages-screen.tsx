@@ -461,6 +461,12 @@ export function ContactsMessagesScreen({
     () => setInboxWorkspaceFullscreen(false),
     [],
   );
+
+  useEffect(() => {
+    if (!isLgUp && inboxWorkspaceFullscreen) {
+      setInboxWorkspaceFullscreen(false);
+    }
+  }, [isLgUp, inboxWorkspaceFullscreen]);
   const [closingThreadId, setClosingThreadId] = useState<string | null>(null);
   /** Sofort nach Klick, bevor Soft-Nav `?contact=` setzt — Split-Pane ohne Wartezeit. */
   const [pendingContactId, setPendingContactId] = useState<string | null>(null);
@@ -790,7 +796,8 @@ export function ContactsMessagesScreen({
     ],
   );
 
-  const inboxSplitLayout = isLgUp || inboxWorkspaceFullscreen;
+  /** Split nur ab Tailwind `lg` — Mobil immer Chat-Overlay, nie Liste+Thread nebeneinander. */
+  const inboxSplitLayout = isLgUp;
 
   const showConversationList =
     isInboxFilterAvailable(inboxFilter) && (!contactParam || inboxSplitLayout);
@@ -3360,7 +3367,7 @@ showReplyComposer ? (
         "lg:h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-2.5rem)] lg:min-h-0 lg:gap-3 lg:overflow-hidden lg:pt-1",
       )}
     >
-      {renderInboxFilterSection(true)}
+      {renderInboxFilterSection(isLgUp)}
 
       {inboxSplitPane}
     </div>
@@ -3372,14 +3379,9 @@ showReplyComposer ? (
         aria-label="Nachrichten"
         header={
           <div className="flex w-full items-center justify-between gap-3 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">
-                Nachrichten
-              </p>
-              <p className="truncate text-sm text-muted-foreground">
-                Chatliste und Verlauf im Vollbild
-              </p>
-            </div>
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+              Nachrichten
+            </p>
             <Tooltip>
               <TooltipTrigger
                 render={

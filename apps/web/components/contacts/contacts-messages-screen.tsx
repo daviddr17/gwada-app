@@ -15,6 +15,8 @@ import {
   Link2,
   MailOpen,
   Mail,
+  Maximize2,
+  Minimize2,
   MoreVertical,
   RefreshCw,
   UserPlus,
@@ -76,6 +78,9 @@ import { ContactConversationAttachmentIcon } from "@/components/contacts/contact
 import { ContactMessageComposer } from "@/components/contacts/contact-message-composer";
 import { ContactInboxFilterChips } from "@/components/contacts/contact-inbox-filter-chips";
 import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
+import {
+  AppFullscreenOverlay,
+} from "@/components/ui/app-fullscreen-overlay";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,6 +91,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   CONTACT_MESSAGE_PLATFORM_LABELS,
   INBOX_FILTER_ALL,
@@ -268,6 +278,7 @@ import {
 import { ProfileRoundAvatar } from "@/components/ui/profile-round-avatar";
 import { pickContactThreadTitle } from "@/lib/contacts/contact-thread-title";
 import { stripHtmlToPlainText } from "@/lib/text/strip-html-to-plain-text";
+import { moduleTableFullscreenToggleButtonClassName } from "@/lib/ui/module-paginated-data-table";
 import { cn } from "@/lib/utils";
 
 const LIST_SILENT_REFRESH_DEBOUNCE_MS = 3_000;
@@ -445,6 +456,11 @@ export function ContactsMessagesScreen({
   );
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [threadOverlayOpen, setThreadOverlayOpen] = useState(false);
+  const [inboxWorkspaceFullscreen, setInboxWorkspaceFullscreen] = useState(false);
+  const closeInboxWorkspaceFullscreen = useCallback(
+    () => setInboxWorkspaceFullscreen(false),
+    [],
+  );
   const [closingThreadId, setClosingThreadId] = useState<string | null>(null);
   /** Sofort nach Klick, bevor Soft-Nav `?contact=` setzt — Split-Pane ohne Wartezeit. */
   const [pendingContactId, setPendingContactId] = useState<string | null>(null);
@@ -774,11 +790,13 @@ export function ContactsMessagesScreen({
     ],
   );
 
+  const inboxSplitLayout = isLgUp || inboxWorkspaceFullscreen;
+
   const showConversationList =
-    isInboxFilterAvailable(inboxFilter) && (!contactParam || isLgUp);
+    isInboxFilterAvailable(inboxFilter) && (!contactParam || inboxSplitLayout);
 
   const showInboxRefresh =
-    (!contactParam || isLgUp) &&
+    (!contactParam || inboxSplitLayout) &&
     (isUnifiedInboxFilter(inboxFilter) ||
       (inboxFilter === "whatsapp" && whatsappConnected) ||
       (inboxFilter === "email" && emailConnected) ||
@@ -2633,7 +2651,7 @@ export function ContactsMessagesScreen({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="shrink-0 lg:hidden"
+                className={cn("shrink-0", inboxSplitLayout ? "hidden" : "lg:hidden")}
                 aria-label="Zurück zur Liste"
                 onClick={backToList}
               >
@@ -2851,71 +2869,32 @@ showReplyComposer ? (
           </div>
   );
 
-  return (
-    <div
-      className={cn(
-        "flex w-full min-w-0 flex-col gap-4 pt-2",
-        // Desktop: Viewport-Höhe — Liste und Chat scrollen getrennt, Chat bleibt sichtbar.
-        "lg:h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-2.5rem)] lg:min-h-0 lg:gap-3 lg:overflow-hidden lg:pt-1",
-      )}
-    >
-      {(!contactParam || isLgUp) ? (
-        <div className="shrink-0 space-y-3">
-      <ContactInboxFilterChips
-        filter={inboxFilter}
-        onFilterChange={selectInboxFilter}
-        isPlatformAvailable={isInboxFilterAvailable}
-        disabled={connectionsLoading}
-      />
-
-      {!connectionsLoading &&
-      inboxFilter === "whatsapp" &&
-      !whatsappConnected ? (
-        <p className="text-sm text-muted-foreground">
-          WhatsApp ist nicht verbunden. Unter Einstellungen → Integrationen
-          verknüpfen, dann erscheinen die Chats hier.
-        </p>
-      ) : null}
-
-      {!connectionsLoading && inboxFilter === "email" && !emailConnected ? (
-        <p className="text-sm text-muted-foreground">
-          Kein eigenes E-Mail-Konto verbunden. Unter Einstellungen →
-          Integrationen einen SMTP/IMAP-Zugang als „Eigene Verbindung“
-          einrichten.
-        </p>
-      ) : null}
-
-      {!connectionsLoading &&
-      inboxFilter === "facebook" &&
-      facebookEnabled &&
-      !facebookConnected ? (
-        <p className="text-sm text-muted-foreground">
-          Facebook ist nicht verbunden. Unter Einstellungen → Integrationen die
-          Facebook-Seite verknüpfen.
-        </p>
-      ) : null}
-
-      {!connectionsLoading &&
-      inboxFilter === "instagram" &&
-      instagramEnabled &&
-      !instagramConnected ? (
-        <p className="text-sm text-muted-foreground">
-          Instagram ist nicht verbunden. Unter Einstellungen → Integrationen das
-          Instagram-Business-Konto verknüpfen.
-        </p>
-      ) : null}
-        </div>
-      ) : null}
-
+  const inboxSplitPane = (
       <div
         className={cn(
           "flex min-w-0 flex-col gap-4",
-          "lg:min-h-0 lg:flex-1 lg:flex-row lg:gap-0 lg:overflow-hidden lg:rounded-xl lg:border lg:border-border/50 lg:bg-card lg:shadow-card",
+          inboxSplitLayout
+            ? "min-h-0 flex-1 flex-row gap-0 overflow-hidden rounded-xl border border-border/50 bg-card shadow-card"
+            : "lg:min-h-0 lg:flex-1 lg:flex-row lg:gap-0 lg:overflow-hidden lg:rounded-xl lg:border lg:border-border/50 lg:bg-card lg:shadow-card",
         )}
       >
       {showConversationList ? (
-        <div className="flex min-h-0 min-w-0 flex-col lg:h-full lg:w-[min(100%,24rem)] lg:shrink-0 lg:overflow-hidden lg:border-r lg:border-border/50">
-        <Card className="flex w-full min-h-0 min-w-0 flex-col border-border/50 shadow-card lg:h-full lg:rounded-none lg:border-0 lg:shadow-none">
+        <div
+          className={cn(
+            "flex min-h-0 min-w-0 flex-col",
+            inboxSplitLayout
+              ? "h-full w-[min(100%,24rem)] shrink-0 overflow-hidden border-r border-border/50"
+              : "lg:h-full lg:w-[min(100%,24rem)] lg:shrink-0 lg:overflow-hidden lg:border-r lg:border-border/50",
+          )}
+        >
+        <Card
+          className={cn(
+            "flex w-full min-h-0 min-w-0 flex-col border-border/50 shadow-card",
+            inboxSplitLayout
+              ? "h-full rounded-none border-0 shadow-none"
+              : "lg:h-full lg:rounded-none lg:border-0 lg:shadow-none",
+          )}
+        >
             <div className="shrink-0 space-y-3 border-b border-border/50 px-4 py-3 sm:px-6">
             <div className="flex gap-2">
               <ContactConversationsSearchBar
@@ -2953,7 +2932,14 @@ showReplyComposer ? (
               unreadTotal={unreadInList}
             />
           </div>
-          <CardContent className="min-h-0 p-0 lg:flex-1 lg:overflow-y-auto">
+          <CardContent
+            className={cn(
+              "min-h-0 p-0",
+              inboxSplitLayout
+                ? "flex-1 overflow-y-auto"
+                : "lg:flex-1 lg:overflow-y-auto",
+            )}
+          >
             {loadingList && !showListSkeleton ? (
               <div className="min-h-[14rem]" aria-busy />
             ) : loadingList && showListSkeleton ? (
@@ -3263,7 +3249,12 @@ showReplyComposer ? (
         </div>
       ) : null}
 
-      <div className="hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex">
+      <div
+        className={cn(
+          "min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+          inboxSplitLayout ? "flex" : "hidden lg:flex",
+        )}
+      >
         {overlayThreadId ? (
           <ContactInboxThreadChrome
             header={threadHeader}
@@ -3285,8 +3276,139 @@ showReplyComposer ? (
         )}
       </div>
       </div>
+  );
 
-      {overlayThreadId && !isLgUp ? (
+  const renderInboxFilterSection = (showFullscreenToggle: boolean) =>
+    (!contactParam || inboxSplitLayout) ? (
+        <div className="shrink-0 space-y-3">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+      <ContactInboxFilterChips
+        filter={inboxFilter}
+        onFilterChange={selectInboxFilter}
+        isPlatformAvailable={isInboxFilterAvailable}
+        disabled={connectionsLoading}
+      />
+        </div>
+        {showFullscreenToggle ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={moduleTableFullscreenToggleButtonClassName}
+                onClick={() => setInboxWorkspaceFullscreen(true)}
+                aria-label="Nachrichten im Vollbild anzeigen"
+              />
+            }
+          >
+            <Maximize2 className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent side="top">Vollbild</TooltipContent>
+        </Tooltip>
+        ) : null}
+      </div>
+
+      {!connectionsLoading &&
+      inboxFilter === "whatsapp" &&
+      !whatsappConnected ? (
+        <p className="text-sm text-muted-foreground">
+          WhatsApp ist nicht verbunden. Unter Einstellungen → Integrationen
+          verknüpfen, dann erscheinen die Chats hier.
+        </p>
+      ) : null}
+
+      {!connectionsLoading && inboxFilter === "email" && !emailConnected ? (
+        <p className="text-sm text-muted-foreground">
+          Kein eigenes E-Mail-Konto verbunden. Unter Einstellungen →
+          Integrationen einen SMTP/IMAP-Zugang als „Eigene Verbindung“
+          einrichten.
+        </p>
+      ) : null}
+
+      {!connectionsLoading &&
+      inboxFilter === "facebook" &&
+      facebookEnabled &&
+      !facebookConnected ? (
+        <p className="text-sm text-muted-foreground">
+          Facebook ist nicht verbunden. Unter Einstellungen → Integrationen die
+          Facebook-Seite verknüpfen.
+        </p>
+      ) : null}
+
+      {!connectionsLoading &&
+      inboxFilter === "instagram" &&
+      instagramEnabled &&
+      !instagramConnected ? (
+        <p className="text-sm text-muted-foreground">
+          Instagram ist nicht verbunden. Unter Einstellungen → Integrationen das
+          Instagram-Business-Konto verknüpfen.
+        </p>
+      ) : null}
+        </div>
+      ) : null;
+
+  return (
+    <>
+      {!inboxWorkspaceFullscreen ? (
+    <div
+      className={cn(
+        "flex w-full min-w-0 flex-col gap-4 pt-2",
+        // Desktop: Viewport-Höhe — Liste und Chat scrollen getrennt, Chat bleibt sichtbar.
+        "lg:h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-2.5rem)] lg:min-h-0 lg:gap-3 lg:overflow-hidden lg:pt-1",
+      )}
+    >
+      {renderInboxFilterSection(true)}
+
+      {inboxSplitPane}
+    </div>
+      ) : null}
+
+      <AppFullscreenOverlay
+        open={inboxWorkspaceFullscreen}
+        onClose={closeInboxWorkspaceFullscreen}
+        aria-label="Nachrichten"
+        header={
+          <div className="flex w-full items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-foreground">
+                Nachrichten
+              </p>
+              <p className="truncate text-sm text-muted-foreground">
+                Chatliste und Verlauf im Vollbild
+              </p>
+            </div>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={moduleTableFullscreenToggleButtonClassName}
+                    onClick={closeInboxWorkspaceFullscreen}
+                    aria-label="Vollbild schließen"
+                  />
+                }
+              >
+                <Minimize2 className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent side="top">Vollbild schließen</TooltipContent>
+            </Tooltip>
+          </div>
+        }
+      >
+        {inboxWorkspaceFullscreen ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 pb-4 pt-1">
+            {renderInboxFilterSection(false)}
+            {inboxSplitPane}
+          </div>
+        ) : null}
+      </AppFullscreenOverlay>
+
+      {overlayThreadId && !inboxSplitLayout ? (
         <ContactInboxThreadOverlay
           open={threadOverlayOpen}
           onClose={backToList}
@@ -3309,7 +3431,10 @@ showReplyComposer ? (
         }}
         reservation={reservationForDrawer}
         createFor={reservationCreateFor}
-        stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
+        stackAboveInboxOverlay={
+          (threadOverlayOpen && Boolean(overlayThreadId)) ||
+          inboxWorkspaceFullscreen
+        }
         onWhatsappDispatched={handleReservationWhatsappDispatched}
         onSaved={() => {
           setReservationDrawerOpen(false);
@@ -3329,7 +3454,10 @@ showReplyComposer ? (
         restaurantName={profile.name.trim() || "Restaurant"}
         defaultCountryIso2={defaultCountryIso2}
         initialGuest={reviewInviteGuest}
-        stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
+        stackAboveInboxOverlay={
+          (threadOverlayOpen && Boolean(overlayThreadId)) ||
+          inboxWorkspaceFullscreen
+        }
         onWhatsappOutboundStart={({ clientSendId, messageBody }) => {
           appendOverlayWhatsappOptimistic({ clientSendId, messageBody });
         }}
@@ -3360,7 +3488,10 @@ showReplyComposer ? (
 
       <ContactEditDrawer
         open={contactDrawerOpen}
-        stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
+        stackAboveInboxOverlay={
+          (threadOverlayOpen && Boolean(overlayThreadId)) ||
+          inboxWorkspaceFullscreen
+        }
         onOpenChange={(open) => {
           setContactDrawerOpen(open);
           if (!open) {
@@ -3469,9 +3600,12 @@ showReplyComposer ? (
         kind={assignStaffKind}
         valueDisplay={assignStaffValue ?? ""}
         assigning={assigningStaff}
-        stackAboveInboxOverlay={threadOverlayOpen && Boolean(overlayThreadId)}
+        stackAboveInboxOverlay={
+          (threadOverlayOpen && Boolean(overlayThreadId)) ||
+          inboxWorkspaceFullscreen
+        }
         onAssign={assignIdentityToStaff}
       />
-    </div>
+    </>
   );
 }

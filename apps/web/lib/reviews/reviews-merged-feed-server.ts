@@ -56,9 +56,15 @@ export async function loadMergedReviewsFeedPage(params: {
     enrichBeforeFilter,
   } = params;
 
+  let gwadaLoadError: string | null = null;
   const [gwadaReviews, gwadaTotal, platformState, cachedFeed] =
     await Promise.all([
-      loadGwadaReviewsForFeed(sb, restaurantId),
+      loadGwadaReviewsForFeed(sb, restaurantId).catch((error) => {
+        gwadaLoadError =
+          error instanceof Error ? error.message : "gwada_load_failed";
+        console.warn("[reviews] gwada feed load failed", error);
+        return [] as UnifiedReview[];
+      }),
       countGwadaReviews(sb, restaurantId),
       loadReviewPlatformConnectionState(restaurantId),
       readReviewsFeedFromCache(restaurantId, sb, [
@@ -151,6 +157,9 @@ export async function loadMergedReviewsFeedPage(params: {
   }
   if (cachedFeed.sync.platformErrors.tripadvisor) {
     loadErrors.tripadvisor = cachedFeed.sync.platformErrors.tripadvisor;
+  }
+  if (gwadaLoadError) {
+    loadErrors.gwada = gwadaLoadError;
   }
 
   return {

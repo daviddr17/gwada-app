@@ -294,7 +294,7 @@ function previewSnippet(
 }
 
 /** Inbox-Pseudo-Chat (noch nicht mit Gwada-Kontakt verknüpft). */
-function isInboxPseudoContactId(contactId: string): boolean {
+function isInboxPseudoContactId(contactId: string | null | undefined): boolean {
   return (
     isWahaPseudoContactId(contactId) ||
     isEmailPseudoContactId(contactId) ||

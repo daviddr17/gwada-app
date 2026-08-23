@@ -1,13 +1,15 @@
 /** Pseudo-Kontakt-ID für WAHA-Chats ohne verknüpften Kontakt: `waha:491701234567@c.us`. */
 
-export function isWahaPseudoContactId(contactId: string): boolean {
-  return contactId.startsWith("waha:");
+export function isWahaPseudoContactId(
+  contactId: string | null | undefined,
+): boolean {
+  return typeof contactId === "string" && contactId.startsWith("waha:");
 }
 
 export function wahaChatIdFromPseudoContactId(
-  contactId: string,
+  contactId: string | null | undefined,
 ): string | null {
-  if (!isWahaPseudoContactId(contactId)) return null;
+  if (!isWahaPseudoContactId(contactId) || !contactId) return null;
   const chatId = contactId.slice(5).trim();
   return chatId.includes("@") ? chatId : null;
 }

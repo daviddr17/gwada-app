@@ -42,7 +42,8 @@ import {
   formatStaffWorkEntryLogDisplaySummary,
   insertStaffWorkEntryLogEntry,
 } from "@/lib/staff/staff-work-entry-log";
-import { isDisplayWorkEntry } from "@/lib/staff/staff-work-hours-display";
+import { isDisplayWorkEntry, displayShiftBounds } from "@/lib/staff/staff-work-hours-display";
+import { listOtherShiftClusterWorkSegments } from "@/lib/staff/staff-work-shift-cluster";
 import { validateStaffWorkEntryTiming, listSubsumedShiftWorkSegments } from "@/lib/staff/staff-work-entry-validation";
 import type {
   RestaurantStaffWorkEntryLogEntry,
@@ -83,8 +84,8 @@ type StaffWorkEntryDrawerProps = {
   allowEdit?: boolean;
   /** Einträge am selben Tag (für Überschneidungs-Validierung). */
   siblingEntries?: readonly RestaurantStaffWorkEntryRow[];
-  /** Schicht-Gesamtende beim Bearbeiten einer Display-/Pause-Schicht (nicht nur erstes Arbeit-Segment). */
-  shiftBoundsEndsAt?: string | null;
+  /** Alle Segmente beim Bearbeiten einer Schicht mit Pause (Display/Legacy). */
+  shiftClusterSegments?: readonly RestaurantStaffWorkEntryRow[];
   onSaved: () => void;
   onDelete: (id: string) => Promise<void>;
 };
@@ -113,7 +114,7 @@ export function StaffWorkEntryDrawer({
   absenceByDayKey,
   allowEdit = true,
   siblingEntries = [],
-  shiftBoundsEndsAt = null,
+  shiftClusterSegments = [],
   onSaved,
   onDelete,
 }: StaffWorkEntryDrawerProps) {
@@ -136,6 +137,13 @@ export function StaffWorkEntryDrawer({
   const readOnly = !allowEdit;
   const isOpenEntry = Boolean(entry?.is_open);
   const isDisplayEntry = entry != null && isDisplayWorkEntry(entry);
+  const editingShiftCluster = shiftClusterSegments.length > 0;
+  const clusterOpen = shiftClusterSegments.some((s) => s.is_open);
+  const clusterStartOnlyEdit =
+    editingShiftCluster &&
+    clusterOpen &&
+    entry?.entry_type === "work" &&
+    !isOpenEntry;
 
   const reloadLog = useCallback(async () => {
     if (!entry?.id) {
@@ -157,26 +165,29 @@ export function StaffWorkEntryDrawer({
 
   useDrawerFormSeed(
     open,
-    `${entry?.id ?? "__create__"}:${shiftBoundsEndsAt ?? ""}`,
+    `${entry?.id ?? "__create__"}:${shiftClusterSegments.map((s) => s.id).join(",")}`,
     () => {
     if (entry) {
-      const s = new Date(entry.starts_at);
+      const bounds = editingShiftCluster
+        ? displayShiftBounds([...shiftClusterSegments])
+        : null;
+      const startDate = bounds
+        ? new Date(bounds.startsAt)
+        : new Date(entry.starts_at);
       setEntryType(entry.entry_type);
-      setDateStr(toDateInput(s));
-      setStartTime(toTimeInput(s));
-      const openWork = Boolean(entry.is_open && entry.entry_type === "work");
+      setDateStr(toDateInput(startDate));
+      setStartTime(toTimeInput(startDate));
+      const openWork = Boolean(
+        (bounds?.isOpen ?? false) ||
+          (entry.is_open && entry.entry_type === "work"),
+      );
       setStillRunning(openWork);
-      const shiftEnd =
-        !openWork &&
-        entry.entry_type === "work" &&
-        shiftBoundsEndsAt &&
-        entry.ends_at !== shiftBoundsEndsAt
-          ? shiftBoundsEndsAt
-          : entry.ends_at;
       setEndTime(
         openWork
           ? toTimeInput(new Date())
-          : toTimeInput(new Date(shiftEnd)),
+          : toTimeInput(
+              new Date(bounds?.endsAt ?? entry.ends_at),
+            ),
       );
       return;
     }
@@ -216,8 +227,54 @@ export function StaffWorkEntryDrawer({
     if (pending || readOnly) return;
     const starts_at = combineLocal(dateStr, startTime);
     const ends_at_input = combineLocal(dateStr, endTime);
-    const willStayOpen = entryType === "work" && stillRunning;
+    const willStayOpen = entryType === "work" && stillRunning && !clusterStartOnlyEdit;
     const ends_at = willStayOpen ? starts_at : ends_at_input;
+
+    if (clusterStartOnlyEdit && entry) {
+      const timing = validateStaffWorkEntryTiming({
+        entryType: entry.entry_type,
+        startsAt: starts_at,
+        endsAt: entry.ends_at,
+        staffId,
+        entryId: entry.id,
+        siblings: siblingEntries,
+      });
+      if (!timing.ok) {
+        toast.error(timing.message);
+        return;
+      }
+
+      const after = {
+        entry_type: entry.entry_type,
+        starts_at,
+        ends_at: entry.ends_at,
+        note: entry.note ?? null,
+      };
+      setPending(true);
+      const res = await upsertStaffWorkEntry(restaurantId, staffId, {
+        id: entry.id,
+        ...after,
+      });
+      if (!res) {
+        setPending(false);
+        toast.error("Speichern fehlgeschlagen.");
+        return;
+      }
+      setPending(false);
+      const changes = buildStaffWorkEntryChanges(entry, after);
+      if (changes.length > 0) {
+        await insertStaffWorkEntryLogEntry(
+          restaurantId,
+          res.id,
+          "updated",
+          changes,
+        );
+      }
+      toast.success("Gespeichert");
+      onSaved();
+      onOpenChange(false);
+      return;
+    }
 
     const timing = validateStaffWorkEntryTiming({
       entryType,
@@ -279,15 +336,22 @@ export function StaffWorkEntryDrawer({
       entry &&
       siblingEntries.length > 0
     ) {
-      const subsumed = listSubsumedShiftWorkSegments({
-        startsAt: starts_at,
-        endsAt: ends_at,
-        entryId: entry.id,
-        anchorEntry: entry,
-        siblings: siblingEntries,
-      });
-      for (const sub of subsumed) {
-        await deleteStaffWorkEntry(sub.id);
+      if (editingShiftCluster) {
+        const others = listOtherShiftClusterWorkSegments(entry, siblingEntries);
+        for (const sub of others) {
+          await deleteStaffWorkEntry(sub.id);
+        }
+      } else {
+        const subsumed = listSubsumedShiftWorkSegments({
+          startsAt: starts_at,
+          endsAt: ends_at,
+          entryId: entry.id,
+          anchorEntry: entry,
+          siblings: siblingEntries,
+        });
+        for (const sub of subsumed) {
+          await deleteStaffWorkEntry(sub.id);
+        }
       }
     }
 
@@ -321,6 +385,8 @@ export function StaffWorkEntryDrawer({
     absenceByDayKey,
     siblingEntries,
     stillRunning,
+    editingShiftCluster,
+    clusterStartOnlyEdit,
   ]);
 
   const drawerTitle = entry
@@ -347,8 +413,15 @@ export function StaffWorkEntryDrawer({
               <DrawerFormSection>
               {stillRunning ? (
                 <p className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
-                  Ende offen — Start und Datum sind bearbeitbar. Zum Beenden
-                  Haken entfernen und „Bis“ setzen (oder am Display ausstempeln).
+                  {clusterStartOnlyEdit
+                    ? "Schicht läuft noch nach der Pause — nur Start und Datum sind bearbeitbar."
+                    : "Ende offen — Start und Datum sind bearbeitbar. Zum Beenden Haken entfernen und „Bis“ setzen (oder am Display ausstempeln)."}
+                </p>
+              ) : null}
+              {editingShiftCluster && !clusterOpen && entryType === "work" ? (
+                <p className="text-sm text-muted-foreground">
+                  Schicht mit Pause — Von/Bis setzt die Gesamt-Arbeitszeit; Pausen
+                  bleiben erhalten.
                 </p>
               ) : null}
               {isDisplayEntry ? (
@@ -435,7 +508,9 @@ export function StaffWorkEntryDrawer({
                   />
                 </div>
               </div>
-              {entryType === "work" && !readOnly && (!entry || isOpenEntry) ? (
+              {entryType === "work" &&
+              !readOnly &&
+              (!entry || isOpenEntry || clusterOpen) ? (
                 <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/50 p-3">
                   <Checkbox
                     checked={stillRunning}
@@ -446,7 +521,7 @@ export function StaffWorkEntryDrawer({
                         setEndTime(toTimeInput(new Date()));
                       }
                     }}
-                    disabled={pending}
+                    disabled={pending || clusterStartOnlyEdit}
                     className="mt-0.5"
                   />
                   <span className="text-sm leading-snug">

@@ -57,7 +57,6 @@ import { StaffDisplayShiftRow } from "@/components/staff/staff-display-shift-row
 import {
   groupWorkHoursDayEntries,
   isDisplayWorkEntry,
-  displayShiftBounds,
 } from "@/lib/staff/staff-work-hours-display";
 import {
   findStaffAbsenceOnDay,
@@ -171,14 +170,15 @@ export function StaffWorkHoursView({
     null,
   );
   const [dayForNew, setDayForNew] = useState<Date | null>(null);
-  const [shiftBoundsEndsAt, setShiftBoundsEndsAt] = useState<string | null>(
-    null,
-  );
+  const [shiftClusterSegments, setShiftClusterSegments] = useState<
+    RestaurantStaffWorkEntryRow[]
+  >([]);
 
   useEffect(() => {
     if (!pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten")) return;
     if (searchParams.get("new") !== "1") return;
     setEditEntry(null);
+    setShiftClusterSegments([]);
     setDayForNew(startOfLocalDay(new Date()));
     setDrawerOpen(true);
     const p = new URLSearchParams(searchParams.toString());
@@ -362,7 +362,7 @@ export function StaffWorkHoursView({
   );
   const openEntry = useCallback((e: RestaurantStaffWorkEntryRow) => {
     setEditEntry(e);
-    setShiftBoundsEndsAt(null);
+    setShiftClusterSegments([]);
     setDayForNew(null);
     setDrawerOpen(true);
   }, []);
@@ -372,8 +372,7 @@ export function StaffWorkHoursView({
       const primary =
         segments.find((s) => s.entry_type === "work") ?? segments[0];
       if (!primary) return;
-      const bounds = displayShiftBounds(segments);
-      setShiftBoundsEndsAt(bounds.isOpen ? null : bounds.endsAt);
+      setShiftClusterSegments(segments);
       setEditEntry(primary);
       setDayForNew(null);
       setDrawerOpen(true);
@@ -821,6 +820,7 @@ export function StaffWorkHoursView({
                         aria-label="Eintrag hinzufügen"
                         onClick={() => {
                           setEditEntry(null);
+                          setShiftClusterSegments([]);
                           setDayForNew(day);
                           setDrawerOpen(true);
                         }}
@@ -924,7 +924,7 @@ export function StaffWorkHoursView({
             absenceByDayKey={absenceByDayKeyForDrawer}
             allowEdit={allowEdit}
             siblingEntries={siblingEntries}
-            shiftBoundsEndsAt={shiftBoundsEndsAt}
+            shiftClusterSegments={shiftClusterSegments}
             onSaved={() => void reload()}
             onDelete={async (id) => {
               const ok = await deleteStaffWorkEntry(id);

@@ -42,7 +42,7 @@ function segmentEndMs(e: RestaurantStaffWorkEntryRow): number {
  * Bubble-/manuelle Arbeit+Pause ohne `shift_id`: zeitlich aneinandergrenzende
  * Segmente desselben Mitarbeiters zu einer Schicht-Zeile clustern.
  */
-function clusterLegacyWorkBreakShifts(
+export function clusterLegacyWorkBreakShifts(
   entries: RestaurantStaffWorkEntryRow[],
 ): WorkHoursListItem[] {
   const items: WorkHoursListItem[] = [];

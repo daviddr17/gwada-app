@@ -25,6 +25,7 @@ import {
   type DashboardReservationsListSheetMode,
 } from "@/components/dashboard/dashboard-reservations-list-sheet";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
+import { DashboardHeuteLiveTimeline } from "@/components/dashboard/dashboard-heute-live-timeline";
 import {
   StaffOverviewLivePresenceSheet,
   type StaffLivePresenceSheetMode,
@@ -249,7 +250,7 @@ export function DashboardHeuteTile() {
       title="Heute"
       description={todayLabel}
       variant="compact"
-      cardClassName="border-accent/35 shadow-md"
+      cardClassName="border-border/40 shadow-sm"
       background={
         <>
           <div
@@ -360,6 +361,8 @@ export function DashboardHeuteTile() {
           />
         ) : null}
       </DashboardCompactInlineMetrics>
+
+      <DashboardHeuteLiveTimeline className="mt-3" />
 
       {reservationSheetMode && can.reservations && reservations.summary ? (
         <DashboardReservationsListSheet

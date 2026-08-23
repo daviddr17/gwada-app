@@ -9,8 +9,10 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
+import { AppChromeActivityFeed } from "@/components/layout/app-chrome-activity-feed";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
+import { AppChromeOpsStatus } from "@/components/ops/app-chrome-ops-status";
 import { DashboardPwaInstallButton } from "@/components/dashboard/dashboard-pwa-install-button";
 import { AuthLogoutTransitionProvider } from "@/components/auth/auth-logout-transition-provider";
 import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-overlay";
@@ -124,7 +126,9 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           ) : null}
           {/* Desktop-Chrome: Suche, Glocke, Profil, … — mobil in Bottom-Nav / Menü */}
           <div className="hidden shrink-0 items-center gap-2 md:flex">
+            <AppChromeOpsStatus />
             <DashboardGlobalSearchTrigger />
+            <AppChromeActivityFeed />
             <AppChromeNotificationBell />
             <AppChromeRestaurantProfileLink />
             <Button
@@ -148,7 +152,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <DashboardPwaInstallButton />
             <ModeToggle size="icon-sm" />
           </div>
-          {/* Mobil: Theme neben Modul-Aktionen */}
+          {/* Mobil: Theme neben Modul-Aktionen — Live-Verlauf im Bottom-Dock */}
           <div className="flex shrink-0 items-center gap-1.5 md:hidden">
             <ModeToggle size="icon-sm" />
           </div>

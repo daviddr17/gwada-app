@@ -98,7 +98,7 @@ export function usePlatformReservationsLive() {
       const own = isOwnCreate(raw, options?.reservationId);
       if (!own && !toastRef.current) {
         toastRef.current = true;
-        showNewReservationToast(row, restaurantTimeZone);
+        showNewReservationToast(row, restaurantTimeZone, { restaurantId });
         setTimeout(() => {
           toastRef.current = false;
         }, 2_000);

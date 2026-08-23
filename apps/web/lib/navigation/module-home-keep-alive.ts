@@ -26,7 +26,7 @@ export const MODULE_HOME_PATHS: Record<ModuleHomeId, string> = {
   reservierungen: APP_ROUTES.reservierungen.overview,
   pos: APP_ROUTES.pos.overview,
   events: APP_ROUTES.events.overview,
-  nachrichten: APP_ROUTES.kontakte.messagesInbox,
+  nachrichten: APP_ROUTES.kontakte.messages,
   news: APP_ROUTES.news.overview,
   bewertungen: APP_ROUTES.bewertungen.overview,
   insights: APP_ROUTES.insights.overview,
@@ -62,7 +62,7 @@ function normalizePath(pathname: string): string {
 
 /** `/dashboard/menu` ≡ Übersicht, `/dashboard/kontakte` ≡ Nachrichten, … */
 export function moduleHomeRootAlias(homePath: string): string | null {
-  const parts = homePath.split("/").filter(Boolean);
+  const parts = normalizePath(homePath).split("/").filter(Boolean);
   if (parts[0] !== "dashboard" || parts.length < 3) return null;
   return `/${parts[0]}/${parts[1]}`;
 }
@@ -73,7 +73,7 @@ export function isModuleHomePath(
 ): boolean {
   if (id === "dashboard") return isDashboardHomePath(pathname);
   const path = normalizePath(pathname);
-  const homePath = MODULE_HOME_PATHS[id];
+  const homePath = normalizePath(MODULE_HOME_PATHS[id]);
   if (path === homePath) return true;
   const alias = moduleHomeRootAlias(homePath);
   return alias != null && path === alias;

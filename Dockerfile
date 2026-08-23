@@ -9,6 +9,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/web/package.json ./apps/web/
 COPY apps/dashboard/package.json ./apps/dashboard/
+COPY apps/superadmin/package.json ./apps/superadmin/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/pos-domain/package.json ./packages/pos-domain/
 COPY packages/supabase/package.json ./packages/supabase/
@@ -22,6 +23,7 @@ COPY --from=deps /app/packages ./packages
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/web ./apps/web
 COPY apps/dashboard ./apps/dashboard
+COPY apps/superadmin ./apps/superadmin
 COPY packages ./packages
 
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY

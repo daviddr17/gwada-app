@@ -273,9 +273,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/allgemein")}
                       tooltip="Allgemein"
-                      render={
-                        <Link href="/superadmin/allgemein" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/allgemein" />}
                     >
                       <Settings2 />
                       <span>Allgemein</span>
@@ -285,7 +283,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/users")}
                       tooltip="User"
-                      render={<Link href="/superadmin/users" prefetch />}
+                      render={<AppNavLink href="/superadmin/users" />}
                     >
                       <Users />
                       <span>User</span>
@@ -297,9 +295,7 @@ export function AppSidebar() {
                         "/superadmin/restaurants",
                       )}
                       tooltip="Restaurants"
-                      render={
-                        <Link href="/superadmin/restaurants" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/restaurants" />}
                     >
                       <Building2 />
                       <span>Restaurants</span>
@@ -311,9 +307,7 @@ export function AppSidebar() {
                         "/superadmin/abonnements",
                       )}
                       tooltip="Abonnements"
-                      render={
-                        <Link href="/superadmin/abonnements" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/abonnements" />}
                     >
                       <CreditCard />
                       <span>Abonnements</span>
@@ -323,7 +317,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/warteliste")}
                       tooltip="Warteliste"
-                      render={<Link href="/superadmin/warteliste" prefetch />}
+                      render={<AppNavLink href="/superadmin/warteliste" />}
                     >
                       <Hourglass />
                       <span>Warteliste</span>
@@ -333,9 +327,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/newsletter")}
                       tooltip="Newsletter"
-                      render={
-                        <Link href="/superadmin/newsletter" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/newsletter" />}
                     >
                       <Mail />
                       <span>Newsletter</span>
@@ -345,9 +337,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/integrationen")}
                       tooltip="Integrationen"
-                      render={
-                        <Link href="/superadmin/integrationen" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/integrationen" />}
                     >
                       <Plug />
                       <span>Integrationen</span>
@@ -357,7 +347,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/waha")}
                       tooltip="WAHA"
-                      render={<Link href="/superadmin/waha" prefetch />}
+                      render={<AppNavLink href="/superadmin/waha" />}
                     >
                       <WhatsAppGlyph className="size-4 [&_path]:fill-current" />
                       <span>WAHA</span>
@@ -367,9 +357,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={isSuperadminSystemPath(pathname)}
                       tooltip="System"
-                      render={
-                        <Link href={SUPERADMIN_SYSTEM_ROUTES.datenbank} prefetch />
-                      }
+                      render={<AppNavLink href={SUPERADMIN_SYSTEM_ROUTES.datenbank} />}
                     >
                       <Server />
                       <span>System</span>
@@ -379,7 +367,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/design")}
                       tooltip="Design"
-                      render={<Link href="/superadmin/design" prefetch />}
+                      render={<AppNavLink href="/superadmin/design" />}
                     >
                       <Palette />
                       <span>Design</span>
@@ -389,9 +377,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith(SUPERADMIN_VORLAGEN_ROUTES.root)}
                       tooltip="Vorlagen"
-                      render={
-                        <Link href={SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen} prefetch />
-                      }
+                      render={<AppNavLink href={SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen} />}
                     >
                       <Files />
                       <span>Vorlagen</span>
@@ -401,9 +387,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/changelog")}
                       tooltip="Changelog"
-                      render={
-                        <Link href="/superadmin/changelog" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/changelog" />}
                     >
                       <ScrollText />
                       <span>
@@ -420,9 +404,7 @@ export function AppSidebar() {
                         "/superadmin/benachrichtigungen",
                       )}
                       tooltip="Benachrichtigungen"
-                      render={
-                        <Link href="/superadmin/benachrichtigungen" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/benachrichtigungen" />}
                     >
                       <Bell />
                       <span>Benachrichtigungen</span>

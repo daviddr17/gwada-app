@@ -14,7 +14,7 @@ import { EventsComposeDrawer } from "@/components/events/events-compose-drawer";
 import { EventsDetailDrawer } from "@/components/events/events-detail-drawer";
 import { EventsFeedSkeleton } from "@/components/events/events-feed-skeleton";
 import { EventsListView } from "@/components/events/events-feed-views";
-import { EVENTS_AUDIENCE_SUBNAV } from "@/components/events/events-audience-subnav";
+import { EventsAudienceChipNav } from "@/components/events/events-audience-chip-nav";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import {
   EVENTS_FILTER_ALL,
@@ -58,7 +58,7 @@ import {
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
 import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persistence";
-import { RegisterModuleSecondarySubnav } from "@/lib/contexts/app-module-chrome-context";
+import { RegisterModuleSecondarySubnavContent } from "@/lib/contexts/app-module-chrome-context";
 
 const EVENTS_SYNC_POLL_MS = 5_000;
 const EVENTS_SYNC_POLL_MAX = 3;
@@ -92,7 +92,14 @@ function initialEventsFeedFromCache(restaurantId: string | null): {
   };
 }
 
-export function EventsScreen({ active = true }: { active?: boolean }) {
+export function EventsScreen({
+  active = true,
+  showChrome = active,
+}: {
+  active?: boolean;
+  /** Keep-alive: Chrome auch während Soft-Nav-Preview. */
+  showChrome?: boolean;
+}) {
   const activeRef = useRef(active);
   activeRef.current = active;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -200,6 +207,21 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
     router.replace(pathname, { scroll: false });
   }, [active, pathname, router]);
 
+  const selectAudienceFilter = useCallback(
+    (filter: EventsDashboardFilter) => {
+      setPlatformFilter(filter);
+      setPage(1);
+      if (!keepAliveOwnsPathname(active, pathname, "events")) return;
+      const p = new URLSearchParams(searchParams.toString());
+      p.set("filter", filter);
+      p.delete(PRIVATE_EVENT_QUERY);
+      p.delete(NEW_PRIVATE_EVENT_QUERY);
+      p.delete("day");
+      router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+    },
+    [active, pathname, router, searchParams],
+  );
+
   const openPrivateEvent = useCallback(
     async (reservationId: string) => {
       if (!restaurantId || !isUuidRestaurantId(reservationId)) return;
@@ -241,7 +263,7 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
     [active, pathname, router],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!active) return;
     if (!keepAliveOwnsPathname(active, pathname, "events")) return;
     const filterRaw = searchParams.get("filter");
@@ -355,6 +377,16 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
 
   const privateDrawerOpen = Boolean(privateReservation) || privateCreateOpen;
 
+  const audienceChipNav = useMemo(
+    () => (
+      <EventsAudienceChipNav
+        value={platformFilter}
+        onChange={selectAudienceFilter}
+      />
+    ),
+    [platformFilter, selectAudienceFilter],
+  );
+
   if (!ready) {
     return <WorkspaceRestaurantResolvePlaceholder />;
   }
@@ -364,11 +396,10 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
 
   return (
     <>
-      {active ? (
-        <RegisterModuleSecondarySubnav
-          ariaLabel="Events-Ansicht"
-          items={EVENTS_AUDIENCE_SUBNAV}
-        />
+      {active || showChrome ? (
+        <RegisterModuleSecondarySubnavContent ariaLabel="Events-Ansicht">
+          {audienceChipNav}
+        </RegisterModuleSecondarySubnavContent>
       ) : null}
       <div className="space-y-4">
         {canManage ? (

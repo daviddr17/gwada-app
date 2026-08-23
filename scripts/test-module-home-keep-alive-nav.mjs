@@ -59,6 +59,10 @@ assert.equal(
   matchHome("/dashboard/kontakte/nachrichten?platform=all"),
   "nachrichten",
 );
+assert.equal(
+  matchHome("/dashboard/kontakte/nachrichten"),
+  "nachrichten",
+);
 assert.equal(matchHome("/dashboard/menu/uebersicht"), null);
 assert.equal(SIDEBAR.length, 15);
 

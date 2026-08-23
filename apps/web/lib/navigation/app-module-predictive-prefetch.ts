@@ -4,10 +4,7 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
 import type { QueryClient } from "@tanstack/react-query";
 import { SIDEBAR_MODULE_DEFINITIONS } from "@/lib/constants/sidebar-modules";
 import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
-import {
-  isSoftNavFlightActive,
-  shouldSkipBackgroundModulePrefetch,
-} from "@/lib/navigation/soft-nav-flight";
+import { isSoftNavFlightActive } from "@/lib/navigation/soft-nav-flight";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
 const RECENT_SESSION_KEY = "gwada:recent-module-hrefs:v1";

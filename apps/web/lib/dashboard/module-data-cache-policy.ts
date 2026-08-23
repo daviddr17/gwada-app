@@ -173,7 +173,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     ],
     status: "active",
     notes:
-      "Realtime nie route-conditional mounten/unmounten. Module-Home-Keep-alive der alten Soft-Nav ist in der SPA durch Lazy-Routen + Query-Cache ersetzt; active=false wenn Route nicht aktuell.",
+      "Realtime nie route-conditional mounten/unmounten — Soft-Nav-Remount-Race (postgres_changes after subscribe). Modul-Homes: Keep-alive Sibling zu Outlet (keepAliveHome).",
   },
   {
     id: "appModuleWarmPrefetch",

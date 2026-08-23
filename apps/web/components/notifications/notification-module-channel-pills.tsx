@@ -65,7 +65,7 @@ export function NotificationModuleChannelPills({
   return (
     <div
       className={cn(
-        "inline-flex max-w-full shrink-0 rounded-lg border border-border/60 bg-muted/40 p-1",
+        "inline-flex max-w-full shrink-0 gap-1 rounded-lg border border-border/60 bg-muted/40 p-1",
         className,
       )}
       role="group"
@@ -87,10 +87,10 @@ export function NotificationModuleChannelPills({
             aria-pressed={active}
             aria-label={`${label}${active ? " aktiv" : ""}`}
             className={cn(
-              "flex min-w-[2.85rem] flex-1 items-center justify-center gap-1 rounded-md text-[11px] font-medium transition-[color,background-color,box-shadow,ring-width] sm:min-w-[3.5rem] sm:text-xs",
+              "flex min-w-[2.85rem] flex-1 items-center justify-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-[color,background-color,border-color,box-shadow] sm:min-w-[3.5rem] sm:text-xs",
               active
-                ? "bg-accent/22 px-2.5 py-2 text-foreground shadow-sm ring-2 ring-accent/55"
-                : "px-2 py-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                ? "border-accent/55 bg-accent/22 text-foreground shadow-sm"
+                : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
               disabled &&
                 "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-muted-foreground",
             )}
@@ -157,6 +157,7 @@ export function NotificationModuleChannelRow({
         emailDisabledHint={emailDisabledHint}
         whatsappDisabledHint={whatsappDisabledHint}
         onChange={onChange}
+        className="w-full sm:w-auto sm:max-w-[15.5rem]"
       />
     </li>
   );

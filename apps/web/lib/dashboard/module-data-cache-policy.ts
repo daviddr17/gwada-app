@@ -343,6 +343,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     loadTriggers: [
       "UnifiedInboxBackgroundSyncMount im App-Layout",
       "Nachrichten Keep-alive Slot (warm nach Soft-Nav/Hover)",
+      "Nachrichten-Widget sichtbar auf Dashboard",
       "Warm nach 400ms (übersprungen wenn Cache frisch < 5 Min oder Batch < 30s)",
       "Poll 5 Min",
       "Meta-Inbox nur wenn OAuth verbunden",

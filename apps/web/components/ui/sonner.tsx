@@ -11,12 +11,14 @@ export function Toaster({ ...props }: ToasterProps) {
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       position="top-center"
-      richColors
+      richColors={false}
       closeButton
+      gap={8}
+      visibleToasts={3}
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:rounded-xl group-[.toaster]:border-border/80 group-[.toaster]:bg-popover group-[.toaster]:text-popover-foreground shadow-none dark:shadow-lg",
+            "group toast group-[.toaster]:rounded-xl group-[.toaster]:border-border/60 group-[.toaster]:bg-popover/95 group-[.toaster]:text-popover-foreground group-[.toaster]:shadow-md group-[.toaster]:backdrop-blur-md dark:shadow-lg",
           title: "group-[.toast]:font-medium",
           description: "group-[.toast]:text-muted-foreground",
           actionButton:

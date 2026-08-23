@@ -1,5 +1,3 @@
-import { toast } from "sonner";
-
 import {
   DEFAULT_RESTAURANT_TIMEZONE,
   formatReservationDateInRestaurantTz,
@@ -51,11 +49,31 @@ export function reservationLiveToastFromRecord(
 export function showNewReservationToast(
   row: ReservationLiveToastFields | null,
   timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+  opts?: { restaurantId?: string | null },
 ) {
-  toast.info("Neue Reservierung", {
-    description: row
-      ? formatReservationLiveToastDescription(row, timeZone)
-      : "Wird aktualisiert …",
-    duration: 4_000,
+  const description = row
+    ? formatReservationLiveToastDescription(row, timeZone)
+    : "Wird aktualisiert …";
+  const restaurantId = opts?.restaurantId?.trim();
+  if (restaurantId) {
+    void import("@/lib/live-activity/live-activity-store").then(
+      ({ recordLiveActivity }) => {
+        recordLiveActivity(restaurantId, {
+          kind: "reservation",
+          module: "reservations_pending",
+          title: "Neue Reservierung",
+          description,
+          href: "/dashboard/reservierungen",
+        });
+      },
+    );
+  }
+  void import("@/lib/ops/ops-live-toast").then(({ showOpsLiveToast }) => {
+    showOpsLiveToast({
+      groupKey: "ops-live:reservation",
+      title: "Neue Reservierung",
+      description,
+      titlePlural: (n) => `${n} neue Reservierungen`,
+    });
   });
 }

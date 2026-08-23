@@ -26,11 +26,47 @@ const subscribeTimers = new Map<
   ReturnType<typeof setTimeout>
 >();
 
+type HealthListener = (health: {
+  live: boolean;
+  channelCount: number;
+  connectedCount: number;
+}) => void;
+
+const healthListeners = new Set<HealthListener>();
+
 let hiddenTeardownTimer: ReturnType<typeof setTimeout> | null = null;
 let resumeIdleCancel: (() => void) | null = null;
 let tornDown = false;
 let listenerRefCount = 0;
 let listenerAttached = false;
+
+function publishHealth() {
+  if (healthListeners.size === 0) return;
+  const channelCount = subscriptions.size;
+  let connectedCount = 0;
+  for (const sub of subscriptions) {
+    if (sub.connected) connectedCount += 1;
+  }
+  const health = {
+    live: connectedCount > 0,
+    channelCount,
+    connectedCount,
+  };
+  for (const listener of healthListeners) listener(health);
+}
+
+/** Ops-Status-Dot: aggregierter Realtime-Zustand. */
+export function subscribeRestaurantRealtimeHealth(
+  listener: HealthListener,
+): () => void {
+  healthListeners.add(listener);
+  listener({
+    live: [...subscriptions].some((s) => s.connected),
+    channelCount: subscriptions.size,
+    connectedCount: [...subscriptions].filter((s) => s.connected).length,
+  });
+  return () => healthListeners.delete(listener);
+}
 
 function staggerDelayMs(channelName: string): number {
   let hash = 0;
@@ -73,6 +109,7 @@ function scheduleSubscribe(
     }
     sub.subscribe();
     sub.connected = true;
+    publishHealth();
   }, delay);
   subscribeTimers.set(sub, timer);
 }
@@ -87,6 +124,7 @@ function teardownAll(): void {
     }
   }
   tornDown = true;
+  publishHealth();
 }
 
 function cancelHiddenTeardown(): void {
@@ -176,6 +214,7 @@ export function registerRestaurantRealtimeSubscription(
   subscriptions.add(sub);
   listenerRefCount += 1;
   attachVisibilityListener();
+  publishHealth();
 
   if (typeof document !== "undefined" && document.visibilityState === "visible") {
     scheduleSubscribe(sub, { floorMs: INITIAL_SUBSCRIBE_FLOOR_MS });
@@ -187,6 +226,7 @@ export function registerRestaurantRealtimeSubscription(
     clearSubscribeTimer(sub);
     sub.unsubscribe();
     sub.connected = false;
+    publishHealth();
     detachVisibilityListener();
   };
 }

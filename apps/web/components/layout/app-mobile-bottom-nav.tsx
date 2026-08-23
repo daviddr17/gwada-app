@@ -1,23 +1,21 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Menu, Search, UserRound, X } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
+import { AppChromeActivityFeed } from "@/components/layout/app-chrome-activity-feed";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
-import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useAppShellReadiness } from "@/components/providers/app-shell-readiness-provider";
 import {
-  normalizeNavHref,
-  useSoftNavLock,
-} from "@/components/providers/soft-nav-lock-provider";
-import {
   isRestaurantDashboardPath,
   useDashboardGlobalSearchOptional,
 } from "@/lib/contexts/dashboard-global-search-context";
-import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
-import { APP_MOBILE_BOTTOM_NAV_BAR_H, appMobileBottomSafePbClassName } from "@/lib/ui/app-mobile-bottom-nav";
+import {
+  APP_MOBILE_BOTTOM_NAV_BAR_H,
+  appMobileBottomSafePbClassName,
+} from "@/lib/ui/app-mobile-bottom-nav";
 import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
@@ -31,14 +29,12 @@ const itemActiveClassName = "text-foreground";
 const MENU_REOPEN_COOLDOWN_MS = 480;
 
 /**
- * Mobile Primary-Nav: Menü · Suche · Meldungen · Profil (Thumb-Zone).
- * z über `mobileChromeOverlay` — Sheet fährt darunter durch; X bleibt klickbar.
- * FABs liegen geometrisch über der Nav (bottom-offset), nicht in derselben Fläche.
+ * Mobile Primary-Nav: Menü · Suche · Live · Meldungen (Thumb-Zone).
+ * Profil bleibt im Menü-Sheet — Dock nicht überladen.
  * Desktop: nicht gerendert (`md:hidden`).
  */
 export function AppMobileBottomNav() {
   const pathname = usePathname();
-  const { pendingHref } = useSoftNavLock();
   const { dismissBootstrap } = useAppShellReadiness();
   const { openMobile, setOpenMobile } = useSidebar();
   const wasOpenRef = useRef(openMobile);
@@ -46,18 +42,11 @@ export function AppMobileBottomNav() {
   const search = useDashboardGlobalSearchOptional();
   const showSearch = isRestaurantDashboardPath(pathname) && Boolean(search);
   const searchOpen = Boolean(search?.open);
-  const profileHref = APP_ROUTES.profile.personal;
-  const profilePending =
-    pendingHref != null &&
-    normalizeNavHref(pendingHref).startsWith(APP_ROUTES.profile.root);
-  const profileActive =
-    pathname.startsWith(APP_ROUTES.profile.root) || profilePending;
 
   useEffect(() => {
     if (wasOpenRef.current && !openMobile) {
       reopenBlockedUntilRef.current = Date.now() + MENU_REOPEN_COOLDOWN_MS;
     }
-    // Menü öffnen = Nutzer interagiert → Bootstrap weg (echte Module sichtbar).
     if (!wasOpenRef.current && openMobile) {
       dismissBootstrap();
     }
@@ -87,12 +76,10 @@ export function AppMobileBottomNav() {
           aria-expanded={openMobile}
           onClick={() => {
             if (searchOpen) search?.closeSearch();
-            // Menü offen → immer schließen (kein Toggle-Miss).
             if (openMobile) {
               setOpenMobile(false);
               return;
             }
-            // Close-Animation / frischer Soft-Nav-Close: nicht sofort wieder öffnen.
             if (Date.now() < reopenBlockedUntilRef.current) {
               return;
             }
@@ -145,7 +132,7 @@ export function AppMobileBottomNav() {
         )}
 
         <div className="flex min-w-0 flex-1 items-stretch justify-center">
-          <AppChromeNotificationBell
+          <AppChromeActivityFeed
             className={cn(itemClassName, "h-full w-full")}
             labelClassName="text-[10px] font-medium"
             variant="mobileNav"
@@ -157,17 +144,18 @@ export function AppMobileBottomNav() {
           />
         </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          className={cn(itemClassName, profileActive && itemActiveClassName)}
-          aria-label="Profil"
-          aria-current={profileActive ? "page" : undefined}
-          render={<AppNavLink href={profileHref} />}
-        >
-          <UserRound className="size-5 shrink-0" aria-hidden />
-          <span>Profil</span>
-        </Button>
+        <div className="flex min-w-0 flex-1 items-stretch justify-center">
+          <AppChromeNotificationBell
+            className={cn(itemClassName, "h-full w-full")}
+            labelClassName="text-[10px] font-medium"
+            variant="mobileNav"
+            showLabel
+            onBeforeOpen={() => {
+              setOpenMobile(false);
+              if (searchOpen) search?.closeSearch();
+            }}
+          />
+        </div>
       </div>
     </nav>
   );

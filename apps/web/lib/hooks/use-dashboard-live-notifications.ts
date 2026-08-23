@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 import { applyInboundMessageToInboxCache } from "@/lib/contact-messages/apply-inbound-to-inbox-cache";
 import { isInboxLiveToastSuppressedByOpenThread } from "@/lib/contact-messages/inbox-live-toast-gate";
 import {
@@ -69,9 +68,24 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
       if (isInboxLiveToastSuppressedByOpenThread()) return;
       if (toastRef.current) return;
       toastRef.current = true;
-      toast.info("Neue Nachricht", {
-        description: "Posteingang wird aktualisiert.",
-        duration: 4_000,
+      void import("@/lib/live-activity/live-activity-store").then(
+        ({ recordLiveActivity }) => {
+          recordLiveActivity(restaurantId, {
+            kind: "message",
+            module: "messages",
+            title: "Neue Nachricht",
+            description: "Posteingang wird aktualisiert.",
+            href: "/dashboard/kontakte/nachrichten?platform=all&read=unread",
+          });
+        },
+      );
+      void import("@/lib/ops/ops-live-toast").then(({ showOpsLiveToast }) => {
+        showOpsLiveToast({
+          groupKey: "ops-live:message",
+          title: "Neue Nachricht",
+          description: "Posteingang wird aktualisiert.",
+          titlePlural: (n) => `${n} neue Nachrichten`,
+        });
       });
       setTimeout(() => {
         toastRef.current = false;

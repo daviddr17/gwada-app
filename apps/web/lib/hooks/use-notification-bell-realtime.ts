@@ -100,10 +100,30 @@ export function useNotificationBellRealtime() {
       },
       onInsert: (payload) => {
         const row = payload.new as {
+          id?: string;
           module?: string;
           reference_id?: string;
           payload?: Record<string, unknown>;
+          created_at?: string;
         };
+        if (row.module && row.payload) {
+          void import("@/lib/live-activity/live-activity-store").then(
+            async ({ recordLiveActivity }) => {
+              const { liveActivityFromNotificationEvent } = await import(
+                "@/lib/live-activity/live-activity-from-notification-event"
+              );
+              recordLiveActivity(
+                restaurantId,
+                liveActivityFromNotificationEvent({
+                  eventId: row.id,
+                  module: row.module!,
+                  payload: row.payload!,
+                  createdAt: row.created_at,
+                }),
+              );
+            },
+          );
+        }
         if (row.module === "messages" && row.payload) {
           window.dispatchEvent(
             new CustomEvent(GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT, {

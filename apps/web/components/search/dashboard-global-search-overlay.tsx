@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { AppMobileChromeScreen } from "@/components/layout/app-mobile-chrome-screen";
 import { DashboardGlobalSearchResultSheet } from "@/components/search/dashboard-global-search-result-sheet";
+import { OpsCommandPaletteList } from "@/components/ops/ops-command-palette-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -305,16 +306,7 @@ export function DashboardGlobalSearchOverlay() {
           </p>
         </div>
       ) : trimmedQuery.length === 0 ? (
-        <div className="flex h-full min-h-40 flex-col items-center justify-center px-6 text-center">
-          <Search className="mb-3 size-8 text-muted-foreground/70" aria-hidden />
-          <p className="text-sm font-medium text-foreground">
-            Alles durchsuchen
-          </p>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Speisekarte, Reservierungen, Nachrichten, Kontakte, Bewertungen, Bestand
-            und mehr — je nach Berechtigung.
-          </p>
-        </div>
+        <OpsCommandPaletteList onClose={closeSearch} />
       ) : showSkeleton ? (
         <DashboardGlobalSearchSkeleton />
       ) : error ? (

@@ -8,8 +8,10 @@ import { AppMobileBottomNav } from "@/components/layout/app-mobile-bottom-nav";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
+import { AppChromeActivityFeed } from "@/components/layout/app-chrome-activity-feed";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
+import { AppChromeOpsStatus } from "@/components/ops/app-chrome-ops-status";
 import { DashboardPwaInstallButton } from "@/components/dashboard/dashboard-pwa-install-button";
 import { AuthLogoutTransitionProvider } from "@/components/auth/auth-logout-transition-provider";
 import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-overlay";
@@ -120,7 +122,9 @@ function DashboardSpaInset() {
             </div>
           ) : null}
           <div className="hidden shrink-0 items-center gap-2 md:flex">
+            <AppChromeOpsStatus />
             <DashboardGlobalSearchTrigger />
+            <AppChromeActivityFeed />
             <AppChromeNotificationBell />
             <AppChromeRestaurantProfileLink />
             <Button

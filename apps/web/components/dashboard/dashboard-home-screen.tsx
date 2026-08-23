@@ -53,8 +53,14 @@ export function DashboardHomeScreen({
       setCalendarOpen((open) => !open);
     };
 
+    const onOpsCalendar = () => setCalendarOpen(true);
+
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("gwada:ops-open-calendar", onOpsCalendar);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("gwada:ops-open-calendar", onOpsCalendar);
+    };
   }, [active]);
 
   const headerActions = useMemo(

@@ -138,6 +138,7 @@ import {
   PlatformFeedListMetaRow,
   platformFeedSyncMetaVisible,
 } from "@/components/platform-feed/platform-feed-sync-status-bar";
+import { humanizeReviewsApiError } from "@/lib/reviews/reviews-api-error-messages";
 
 const REVIEWS_SYNC_POLL_MS = 5_000;
 const REVIEWS_SYNC_POLL_MAX = 3;
@@ -519,7 +520,10 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
           if (!res.ok) {
             if (!silent && activeRef.current) {
               toast.error(
-                json.error ?? "Bewertungen konnten nicht geladen werden.",
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
               );
             }
             return;
@@ -616,7 +620,10 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
               };
               if (!res.ok) {
                 setGoogleStatsError(
-                  json.loadError ?? json.error ?? "Google-Statistik nicht verfügbar.",
+                  humanizeReviewsApiError(
+                    json.loadError ?? json.error,
+                    "Google-Statistik nicht verfügbar.",
+                  ),
                 );
                 return;
               }
@@ -829,7 +836,12 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         const { res, json } = await fetchReviewsJson(params);
         if (!res.ok) {
           if (activeRef.current) {
-              toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+              toast.error(
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
+              );
             }
           return;
         }
@@ -883,7 +895,12 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         const { res, json } = await fetchReviewsJson(params);
         if (!res.ok) {
           if (activeRef.current) {
-              toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+              toast.error(
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
+              );
             }
           return;
         }
@@ -938,7 +955,12 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         const { res, json } = await fetchReviewsJson(params);
         if (!res.ok) {
           if (activeRef.current) {
-              toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+              toast.error(
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
+              );
             }
           return;
         }
@@ -996,7 +1018,12 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         const { res, json } = await fetchReviewsJson(params);
         if (!res.ok) {
           if (activeRef.current) {
-              toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+              toast.error(
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
+              );
             }
           return;
         }
@@ -1187,7 +1214,12 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
-        toast.error(body.error ?? "Antwort konnte nicht gesendet werden.");
+        toast.error(
+          humanizeReviewsApiError(
+            body.error,
+            "Antwort konnte nicht gesendet werden.",
+          ),
+        );
         return;
       }
       toast.success("Antwort gesendet.");
@@ -1228,7 +1260,12 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         });
         const body = (await res.json()) as { error?: string };
         if (!res.ok) {
-          toast.error(body.error ?? "Sichtbarkeit konnte nicht geändert werden.");
+          toast.error(
+            humanizeReviewsApiError(
+              body.error,
+              "Sichtbarkeit konnte nicht geändert werden.",
+            ),
+          );
           return;
         }
         patchReviewInState(review, { hiddenFromPublic: hidden });

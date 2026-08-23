@@ -1,6 +1,7 @@
 import type { ReviewStatsPeriod } from "@/lib/reviews/compute-review-statistics";
 import type { ReviewStatisticsRevisionResponse } from "@/lib/reviews/reviews-statistics-revision";
 import type { ReviewStatisticsBundle } from "@/lib/supabase/reviews-analytics-db";
+import { humanizeReviewsApiError } from "@/lib/reviews/reviews-api-error-messages";
 
 export async function fetchReviewStatisticsRevision(params: {
   restaurantId: string;
@@ -22,7 +23,10 @@ export async function fetchReviewStatisticsRevision(params: {
   if (!res.ok) {
     return {
       data: null,
-      error: body.error ?? "Statistik-Stand konnte nicht geprüft werden.",
+      error: humanizeReviewsApiError(
+        body.error,
+        "Statistik-Stand konnte nicht geprüft werden.",
+      ),
     };
   }
 
@@ -44,7 +48,10 @@ export async function fetchReviewStatisticsBundle(params: {
   if (!res.ok) {
     return {
       data: null,
-      error: body.error ?? "Statistiken konnten nicht geladen werden.",
+      error: humanizeReviewsApiError(
+        body.error,
+        "Statistiken konnten nicht geladen werden.",
+      ),
     };
   }
 

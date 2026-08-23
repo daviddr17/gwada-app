@@ -58,48 +58,55 @@ export async function GET(req: Request) {
   }
 
   if (platformRaw === REVIEW_FILTER_ALL) {
-    const pageToken = searchParams.get("pageToken")?.trim() || null;
-    const listQuery = parseReviewsFeedListQuery(searchParams, {
-      showReplyFilter: platformSupportsReplyFilter("all"),
-    });
+    try {
+      const pageToken = searchParams.get("pageToken")?.trim() || null;
+      const listQuery = parseReviewsFeedListQuery(searchParams, {
+        showReplyFilter: platformSupportsReplyFilter("all"),
+      });
 
-    after(() => {
-      void triggerReviewsFeedSyncIfStale(restaurantId, [
-        "google",
-        "facebook",
-        "tripadvisor",
-      ]);
-    });
+      after(() => {
+        void triggerReviewsFeedSyncIfStale(restaurantId, [
+          "google",
+          "facebook",
+          "tripadvisor",
+        ]);
+      });
 
-    const merged = await loadMergedReviewsFeedPage({
-      restaurantId,
-      sb: auth.sb,
-      pageToken,
-      listQuery,
-      enrichBeforeFilter: (reviews) =>
-        enrichReviewsWithReadState(auth.sb, {
-          restaurantId,
-          userId: auth.userId,
-          reviews,
-        }),
-    });
+      const merged = await loadMergedReviewsFeedPage({
+        restaurantId,
+        sb: auth.sb,
+        pageToken,
+        listQuery,
+        enrichBeforeFilter: (reviews) =>
+          enrichReviewsWithReadState(auth.sb, {
+            restaurantId,
+            userId: auth.userId,
+            reviews,
+          }),
+      });
 
-    const reviews = await enrichPageReviews(auth.sb, {
-      restaurantId,
-      userId: auth.userId,
-      reviews: merged.reviews,
-    });
+      const reviews = await enrichPageReviews(auth.sb, {
+        restaurantId,
+        userId: auth.userId,
+        reviews: merged.reviews,
+      });
 
-    return Response.json({
-      platform: REVIEW_FILTER_ALL,
-      reviews,
-      summary: merged.summary,
-      mergedPagination: merged.pagination,
-      platformTotals: merged.pagination.platformTotals,
-      sync: merged.sync,
-      loadErrors: merged.loadErrors,
-      listQueryApplied: merged.listQueryApplied,
-    });
+      return Response.json({
+        platform: REVIEW_FILTER_ALL,
+        reviews,
+        summary: merged.summary,
+        mergedPagination: merged.pagination,
+        platformTotals: merged.pagination.platformTotals,
+        sync: merged.sync,
+        loadErrors: merged.loadErrors,
+        listQueryApplied: merged.listQueryApplied,
+      });
+    } catch (error) {
+      console.error("[reviews] merged feed failed", error);
+      const message =
+        error instanceof Error ? error.message : "reviews_feed_failed";
+      return Response.json({ error: message }, { status: 503 });
+    }
   }
 
   if (!isReviewPlatform(platformRaw)) {

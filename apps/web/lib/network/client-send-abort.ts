@@ -54,6 +54,8 @@ export function isTransientBrowserNetworkFailure(reason: unknown): boolean {
   if (name === "TypeError" && /load failed|failed to fetch|networkerror|cancelled/i.test(msg)) {
     return true;
   }
+  // String(TypeError) → „TypeError: Load failed“
+  if (/^typeerror:\s*load failed/i.test(msg.trim())) return true;
   return /load failed|failed to fetch|networkerror|network request failed/i.test(msg);
 }
 
@@ -70,14 +72,14 @@ export function isAppBackgroundedOrRecentlyResumed(): boolean {
 }
 
 /**
- * Kein Fehler-Toast: Request abgebrochen (Navigation) oder iOS-PWA-Resume
- * nach eingefrorenem Fetch („Load failed“ / Failed to fetch).
+ * Kein Fehler-Toast: Request abgebrochen (Navigation) oder transienter Browser-Netzwerkfehler
+ * (Safari „Load failed“ / Failed to fetch) — oft Keep-alive / Tab-Resume, nie nutzbar.
  */
 export function shouldSilenceClientSendFailure(reason: unknown): boolean {
   if (isAbortLikeFailure(reason)) return true;
-  return (
-    isTransientBrowserNetworkFailure(reason) && isBackgroundedOrRecentlyResumed()
-  );
+  // Transient network: immer stumm (nicht nur nach Background-Resume).
+  if (isTransientBrowserNetworkFailure(reason)) return true;
+  return false;
 }
 
 export function isSilentClientSendResult(result: {

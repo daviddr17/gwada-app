@@ -266,6 +266,8 @@ function initialDocumentsFromCache(restaurantId: string | null): {
 }
 
 export function DocumentsOverview({ active = true }: { active?: boolean }) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -403,7 +405,7 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
     ]);
     setLoading(false);
     if (docs.error) {
-      toast.error(docs.error);
+      if (activeRef.current) toast.error(docs.error);
     } else {
       setRows(docs.data);
       const ids = docs.data

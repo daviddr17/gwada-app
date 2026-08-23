@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   BarChart3,
   FileText,
@@ -83,7 +83,8 @@ function formatCents(cents: number): string {
 }
 
 export function PosOverviewScreen({ active = true }: { active?: boolean }) {
-  void active;
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const [loading, setLoading] = useState(true);
   const [activeCount, setActiveCount] = useState<number | null>(null);
@@ -132,7 +133,7 @@ export function PosOverviewScreen({ active = true }: { active?: boolean }) {
       const nextRegister = register.ok ? register.data.isOpen : null;
       if (active.ok) setActiveCount(nextActive);
       else {
-        toast.error(active.error);
+        if (activeRef.current) toast.error(active.error);
         setActiveCount(null);
       }
       setPaidTodayCents(nextPaid);

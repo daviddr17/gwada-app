@@ -1,6 +1,5 @@
 import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboard-restaurant";
 import { loadDashboardCalendarSummaryServer } from "@/lib/dashboard/load-dashboard-calendar-summary-server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +17,9 @@ export async function GET(req: Request) {
     return Response.json({ error: "invalid_month" }, { status: 400 });
   }
 
-  const sb = await createSupabaseServerClient();
   try {
     const data = await loadDashboardCalendarSummaryServer(
-      sb,
+      auth.sb,
       auth.restaurantId,
       month,
     );

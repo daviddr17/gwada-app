@@ -115,6 +115,7 @@ export function DashboardHomeScreen({
       <DashboardCalendarOverlay
         open={calendarOpen}
         onClose={() => setCalendarOpen(false)}
+        warm={active}
       />
       <DashboardArrangeSheet
         open={arrangeOpen}

@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect } from "react";
+import { toast } from "sonner";
 import {
   isExpectedSupabaseAuthNetworkFailure,
+  isTransientNetworkToastMessage,
   shouldSuppressExpectedSupabaseConsoleArgs,
 } from "@/lib/supabase/expected-network-failures";
 
+type ToastErrorFn = typeof toast.error;
+
 /**
- * Unterdrückt erwartbare Supabase-Auth-Netzwerkfehler app-weit (Safari: TypeError „Load failed“),
- * damit die Konsole / das Next-Dev-Overlay nicht von harmlosen Offline-/Netzwerk-Fetches überflutet werden.
+ * Unterdrückt erwartbare Netzwerkfehler app-weit:
+ * - unhandledrejection / console (Supabase Auth, Safari „Load failed“)
+ * - Sonner `toast.error(…)` mit denselben Transient-Texten
+ *   (sonst erscheinen sie „random“ aus Keep-alive-Fetches)
  */
 export function SuppressExpectedSupabaseNetworkNoise() {
   useEffect(() => {
@@ -19,15 +25,35 @@ export function SuppressExpectedSupabaseNetworkNoise() {
     };
     window.addEventListener("unhandledrejection", onRejection);
 
-    const orig = console.error.bind(console);
+    const origConsole = console.error.bind(console);
     console.error = (...args: unknown[]) => {
       if (shouldSuppressExpectedSupabaseConsoleArgs(args)) return;
-      orig(...args);
+      origConsole(...args);
     };
+
+    const origToastError = toast.error.bind(toast) as ToastErrorFn;
+    toast.error = ((message: unknown, data?: unknown) => {
+      if (isTransientNetworkToastMessage(message)) return "";
+      if (
+        data &&
+        typeof data === "object" &&
+        "description" in data &&
+        isTransientNetworkToastMessage(
+          (data as { description?: unknown }).description,
+        )
+      ) {
+        return "";
+      }
+      return origToastError(
+        message as Parameters<ToastErrorFn>[0],
+        data as Parameters<ToastErrorFn>[1],
+      );
+    }) as ToastErrorFn;
 
     return () => {
       window.removeEventListener("unhandledrejection", onRejection);
-      console.error = orig;
+      console.error = origConsole;
+      toast.error = origToastError;
     };
   }, []);
 

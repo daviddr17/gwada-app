@@ -92,7 +92,8 @@ function initialGalleryFeedFromCache(restaurantId: string | null): {
 }
 
 export function GalleryScreen({ active = true }: { active?: boolean }) {
-  void active;
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { getProfileForRestaurantId, isReady: profileReady } =
     useRestaurantProfile();
@@ -186,7 +187,12 @@ export function GalleryScreen({ active = true }: { active?: boolean }) {
         };
         if (generation !== loadGeneration.current) return;
         if (!res.ok) {
-          if (!silent && !cached && res.status !== 403) {
+          if (
+            !silent &&
+            !cached &&
+            res.status !== 403 &&
+            activeRef.current
+          ) {
             toast.error("Galerie konnte nicht geladen werden");
           }
           return;
@@ -285,9 +291,11 @@ export function GalleryScreen({ active = true }: { active?: boolean }) {
       });
       if (!res.ok) throw new Error("sync_failed");
       await load({ silent: true });
-      toast.success("Synchronisiert.");
+      if (activeRef.current) toast.success("Synchronisiert.");
     } catch {
-      toast.error("Synchronisierung fehlgeschlagen.");
+      if (activeRef.current) {
+        toast.error("Synchronisierung fehlgeschlagen.");
+      }
     } finally {
       setSyncing(false);
     }

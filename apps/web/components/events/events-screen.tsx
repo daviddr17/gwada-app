@@ -92,6 +92,8 @@ function initialEventsFeedFromCache(restaurantId: string | null): {
 }
 
 export function EventsScreen({ active = true }: { active?: boolean }) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "events");
@@ -172,7 +174,9 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
         setSyncMeta(nextSync);
         writeEventsFeedCache(restaurantId, { items: nextItems, sync: nextSync });
       } catch {
-        if (!silent && !cached) toast.error("Events konnten nicht geladen werden.");
+        if (!silent && !cached && activeRef.current) {
+          toast.error("Events konnten nicht geladen werden.");
+        }
       } finally {
         if (!silent && generation === loadGeneration.current) setLoading(false);
       }
@@ -198,12 +202,15 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   const openPrivateEvent = useCallback(
     async (reservationId: string) => {
       if (!restaurantId || !isUuidRestaurantId(reservationId)) return;
+      if (!keepAliveOwnsPathname(active, pathname, "events")) return;
       const { data, error } = await fetchReservationById({
         restaurantId,
         id: reservationId,
       });
       if (error || !data) {
-        toast.error("Veranstaltung konnte nicht geladen werden.");
+        if (activeRef.current) {
+          toast.error("Veranstaltung konnte nicht geladen werden.");
+        }
         return;
       }
       setPrivateCreateOpen(false);
@@ -233,6 +240,7 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
 
   useEffect(() => {
     if (!restaurantId || !ready) return;
+    if (!keepAliveOwnsPathname(active, pathname, "events")) return;
     const filterRaw = searchParams.get("filter");
     if (filterRaw) setPlatformFilter(parseEventsDashboardFilter(filterRaw));
     const privateId = searchParams.get(PRIVATE_EVENT_QUERY);
@@ -248,7 +256,15 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
     if (newPrivate) {
       openNewPrivateEvent(dayYmd ? ymdToLocalDate(dayYmd) : undefined);
     }
-  }, [restaurantId, ready, searchParams, openPrivateEvent, openNewPrivateEvent]);
+  }, [
+    restaurantId,
+    ready,
+    active,
+    pathname,
+    searchParams,
+    openPrivateEvent,
+    openNewPrivateEvent,
+  ]);
 
   const syncNow = useCallback(async () => {
     if (!restaurantId || syncing) return;
@@ -269,9 +285,11 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
       });
       if (!res.ok) throw new Error("sync_failed");
       await load({ silent: true });
-      toast.success("Synchronisiert.");
+      if (activeRef.current) toast.success("Synchronisiert.");
     } catch {
-      toast.error("Synchronisierung fehlgeschlagen.");
+      if (activeRef.current) {
+        toast.error("Synchronisierung fehlgeschlagen.");
+      }
     } finally {
       setSyncing(false);
     }

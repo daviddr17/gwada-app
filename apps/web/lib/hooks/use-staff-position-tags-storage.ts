@@ -37,7 +37,10 @@ export function useStaffPositionTagsStorage(restaurantId: string | null) {
       return;
     }
     const { data, error } = await loadStaffPositionTags(restaurantId);
-    if (error) toast.error(error);
+    // Kein Toast beim Hintergrund-Reload (Keep-alive) — Mutation behält Feedback.
+    if (error) {
+      console.warn("[staff-position-tags]", error);
+    }
     setItems(data.map(normalizeTag));
     setIsHydrated(true);
   }, [restaurantId]);

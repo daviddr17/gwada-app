@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Filter, Pencil, Plus, Search, Check, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -125,7 +125,8 @@ function formatWhen(iso: string | null, timeZone: string): string {
 }
 
 export function StaffTodosScreen({ active = true }: { active?: boolean }) {
-  void active;
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const searchParams = useSearchParams();
   const staffFilterFromUrl = searchParams.get("staff");
 
@@ -206,13 +207,15 @@ export function StaffTodosScreen({ active = true }: { active?: boolean }) {
       fetchComplianceSettings(restaurantId),
     ]);
     setLoading(false);
-    if (todoRes.error && !isMissingSchemaError(todoRes.error)) toast.error(todoRes.error);
-    else {
+    if (todoRes.error && !isMissingSchemaError(todoRes.error)) {
+      if (activeRef.current) toast.error(todoRes.error);
+    } else {
       setTodos(todoRes.data);
       setRestaurantTimezone(todoRes.restaurantTimezone);
     }
-    if (staffRes.error) toast.error(staffRes.error);
-    else setStaffList(staffRes.data);
+    if (staffRes.error) {
+      if (activeRef.current) toast.error(staffRes.error);
+    } else setStaffList(staffRes.data);
     if (!todoRes.error) {
       writeStaffTodosCache(restaurantId, {
         todos: todoRes.data,

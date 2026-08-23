@@ -143,22 +143,14 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     appModule: "App-Chrome",
     strategy: "optimistic-local",
     description:
-<<<<<<< HEAD
-      "Modulwechsel per Soft-Nav (Link/router.push) — (app)-Layout, Provider und Client-Caches bleiben gemountet. Full-Load nur App ↔ Superadmin über /zone/enter. SoftNavLock = Pending-UI + letzter Klick gewinnt (Sidebar bleibt klickbar). Predictive Prefetch: Sidebar-Nachbarn + kürzlich besuchte Module im Idle.",
+      "Dashboard (`/dashboard/*`): Vite/TanStack SPA + Keep-alive Homes, SoftNavLock = Pending-UI + letzter Klick gewinnt, Predictive Prefetch (Nachbarn + Recent). Superadmin (`/superadmin/*`): Vite/TanStack SPA. Provider (Auth, Restaurant, React Query, Realtime) bleiben im Next-(app)-Layout. Full-Load nur App ↔ Superadmin über /zone/enter.",
     loadTriggers: [
       "AppNavLink / Sidebar-Klick (prefetch={false}, Intent-Warm on hover/focus)",
       "Keep-alive Homes: alle Sidebar-Übersichten (+ Dashboard)",
       "Priority-Prewarm nach KPI; Secondary idle/~2.2s; Intent flushSync",
       "AppModulePredictivePrefetchMount nach Pathname-Settle",
       "Pending-Overlay übersprungen bei warmem Keep-alive-Home oder isModuleSoftNavDataReady",
-=======
-      "Dashboard (`/dashboard/*`): eingebettete Vite/TanStack SPA — Client-Routing ohne Next-Seiten pro Modul, Route-Chunks per preloadRoute (Hover/Klick). SoftNavLock-Shim steuert Pending/Sidebar-Highlight. Provider (Auth, Restaurant, React Query, Realtime) bleiben im Next-(app)-Layout gemountet. Superadmin/Workspace: Next Soft-Nav + AppShell. Full-Load nur App ↔ Superadmin über /zone/enter.",
-    loadTriggers: [
-      "AppNavLink / Sidebar/Chip-Klick → TanStack navigate + SoftNavLock Pending",
       "Hover/Focus: prefetchDashboardSpaHref (Route-Chunk) + Warm-Daten",
-      "Catch-all Next-Route hält Deep Links; UI = DashboardSPA",
-      "Optimistic Header-Titel bei pendingHref",
->>>>>>> origin/cursor/superadmin-spa-docs-inventory-draft-d944
     ],
     invalidateTriggers: [
       "Zonenwechsel App ↔ Superadmin (Full-Load)",
@@ -171,15 +163,12 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "apps/dashboard/src/navigation/prefetch-dashboard-route.ts",
       "lib/navigation/spa-next-shims/next-navigation.tsx",
       "components/navigation/app-nav-link.tsx",
-<<<<<<< HEAD
       "components/providers/soft-nav-lock-provider.tsx",
       "components/navigation/soft-nav-pending-overlay.tsx",
       "components/navigation/app-module-home-keep-alives.tsx",
       "lib/navigation/module-soft-nav-data-ready.ts",
       "lib/navigation/app-module-predictive-prefetch.ts",
       "components/providers/app-module-predictive-prefetch-mount.tsx",
-=======
->>>>>>> origin/cursor/superadmin-spa-docs-inventory-draft-d944
       "lib/navigation/workspace-zone-enter.ts",
     ],
     status: "active",

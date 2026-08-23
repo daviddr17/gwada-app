@@ -14,7 +14,7 @@ import {
   EVENTS_FILTER_ALL,
   type EventsPlatformFilter,
 } from "@/lib/constants/events-platforms";
-import { EVENTS_FILTER_PRIVATE } from "@/lib/events/events-dashboard-filter";
+import { EVENTS_FILTER_PRIVATE, EVENTS_FILTER_PUBLIC } from "@/lib/events/events-dashboard-filter";
 import { paginateListItems } from "@/lib/constants/list-pagination";
 import { defaultEventsPlatformFilterWithoutAll } from "@/lib/events/events-embed-platforms";
 import { EVENTS_FEED_PAGE_SIZE } from "@/lib/events/events-feed-pagination";
@@ -193,7 +193,12 @@ function EmbedEventsWidgetBody({
             <EventsPlatformFilterChips
               value={resolvedFilter}
               onChange={(next) => {
-                if (next === EVENTS_FILTER_PRIVATE) return;
+                if (
+                  next === EVENTS_FILTER_PRIVATE ||
+                  next === EVENTS_FILTER_PUBLIC
+                ) {
+                  return;
+                }
                 setPlatformFilter(next);
               }}
               availablePlatforms={availablePlatforms}

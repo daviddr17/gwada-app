@@ -64,7 +64,13 @@ const supabaseStoragePatterns = [
 const nextConfig: NextConfig = {
   // Dev unter http://127.0.0.1:3000 (statt localhost) — HMR/Dev-Ressourcen erlauben.
   allowedDevOrigins: ["127.0.0.1"],
-  transpilePackages: ["@gwada/dashboard", "@gwada/shared", "@gwada/pos-domain", "@gwada/supabase"],
+  transpilePackages: [
+    "@gwada/dashboard",
+    "@gwada/superadmin",
+    "@gwada/shared",
+    "@gwada/pos-domain",
+    "@gwada/supabase",
+  ],
   // pdfkit is Node/CJS-only — avoid Turbopack wrapping the constructor export.
   serverExternalPackages: ["pdfkit"],
   // Soft-Nav: Client-Cache + optimisticRouting (cachedNavigations braucht cacheComponents).

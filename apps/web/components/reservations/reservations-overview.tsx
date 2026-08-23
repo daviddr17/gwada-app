@@ -1342,7 +1342,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                     Heute
                   </p>
                 ) : null}
-                <div className="flex items-start justify-between gap-3 sm:items-center">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <CardTitle
@@ -1391,33 +1391,31 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                           ? "1 Person"
                           : `${partyTotal} Personen`}
                       </span>
-                      {/* Unabhängig vom Reservierungs-Statusfilter — Schichtplan-Stand. */}
-                      {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
-                        <>
-                          <span aria-hidden>·</span>
-                          <ReservationDayShiftStaffOverviewChip
-                            count={shiftStaffCountsByDate.get(key) ?? 0}
-                            onClick={() => {
-                              setShiftStaffSheetDay(d);
-                              setShiftStaffSheetOpen(true);
-                            }}
-                          />
-                        </>
-                      ) : null}
-                      {(dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
-                        <>
-                          <span aria-hidden>·</span>
-                          <ReservationDayNoteOverviewChip
-                            count={dayNoteCountsByDate.get(key) ?? 0}
-                            onClick={() => {
-                              setDayNotesSheetDay(d);
-                              setDayNotesSheetOpen(true);
-                            }}
-                          />
-                        </>
-                      ) : null}
                     </div>
                   </div>
+                  {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ||
+                  (dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
+                    <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+                      {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
+                        <ReservationDayShiftStaffOverviewChip
+                          count={shiftStaffCountsByDate.get(key) ?? 0}
+                          onClick={() => {
+                            setShiftStaffSheetDay(d);
+                            setShiftStaffSheetOpen(true);
+                          }}
+                        />
+                      ) : null}
+                      {(dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
+                        <ReservationDayNoteOverviewChip
+                          count={dayNoteCountsByDate.get(key) ?? 0}
+                          onClick={() => {
+                            setDayNotesSheetDay(d);
+                            setDayNotesSheetOpen(true);
+                          }}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </CardHeader>
               {list.length > 0 ? (

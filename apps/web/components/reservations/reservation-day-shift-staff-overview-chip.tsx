@@ -2,17 +2,16 @@
 
 import { Users } from "lucide-react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { reservationDayNoteChipClassName } from "@/lib/ui/reservation-day-note-chip";
+  reservationDayNoteChipBadgeClassName,
+  reservationDayNoteChipClassName,
+} from "@/lib/ui/reservation-day-note-chip";
 
 type ReservationDayShiftStaffOverviewChipProps = {
   count: number;
   onClick: () => void;
 };
 
+/** Icon-Button (44×44) — gleiche Trefffläche wie Tagesnotiz. */
 export function ReservationDayShiftStaffOverviewChip({
   count,
   onClick,
@@ -21,23 +20,22 @@ export function ReservationDayShiftStaffOverviewChip({
     count === 1 ? "1 Mitarbeiter geplant" : `${count} Mitarbeiter geplant`;
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            className={reservationDayNoteChipClassName}
-            onClick={onClick}
-            aria-label={`${label} — Übersicht öffnen`}
-          >
-            <Users className="size-3 shrink-0" aria-hidden />
-            <span>{label}</span>
-          </button>
-        }
-      />
-      <TooltipContent side="top">
-        Geplante Schichten (nicht nur Verfügbarkeit) — tippen für Übersicht
-      </TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      className={reservationDayNoteChipClassName}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      aria-label={`${label} — Übersicht öffnen`}
+      title={label}
+    >
+      <Users className="size-5" aria-hidden />
+      {count > 0 ? (
+        <span className={reservationDayNoteChipBadgeClassName} aria-hidden>
+          {count > 9 ? "9+" : count}
+        </span>
+      ) : null}
+    </button>
   );
 }

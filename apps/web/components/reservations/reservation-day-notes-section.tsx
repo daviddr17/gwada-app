@@ -192,8 +192,9 @@ export function ReservationDayNotesSection({
             type="button"
             onClick={() => setExpanded((v) => !v)}
             className={cn(
-              "flex min-h-10 w-full items-center gap-2 px-0 py-1.5 text-left text-sm",
+              "flex min-h-11 w-full items-center gap-2.5 px-0 py-2 text-left text-sm",
               "text-muted-foreground transition-colors hover:text-foreground",
+              "touch-manipulation [-webkit-tap-highlight-color:transparent]",
             )}
             aria-expanded={expanded}
           >

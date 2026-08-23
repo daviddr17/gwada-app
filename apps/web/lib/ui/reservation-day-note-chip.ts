@@ -1,9 +1,17 @@
 import { cn } from "@/lib/utils";
 
-/** Tagesnotiz-Chip in Reservierungs-Tageskarten — mobil treffbar (≥44px Höhe). */
+/**
+ * Tagesnotiz- / Schicht-Aktion in Tageskarten.
+ * Mobil: mind. 44×44 px Trefffläche, nicht in Meta-Textzeile quetschen.
+ */
 export const reservationDayNoteChipClassName = cn(
-  "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium leading-none",
-  "border-accent/35 bg-accent/10 text-accent",
-  "transition-colors hover:bg-accent/15 active:bg-accent/20",
-  "touch-manipulation",
+  "relative inline-flex size-11 shrink-0 items-center justify-center rounded-full",
+  "border border-accent/40 bg-accent/10 text-accent",
+  "transition-colors hover:bg-accent/15 active:bg-accent/25",
+  "touch-manipulation [-webkit-tap-highlight-color:transparent]",
+);
+
+export const reservationDayNoteChipBadgeClassName = cn(
+  "absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center",
+  "rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-accent-foreground",
 );

@@ -87,6 +87,15 @@ const MANUAL_PAGE_IMPORTS = {
     component: "SettingsIntegrationenRoute",
     from: "../routes/settings-integrationen-route",
   },
+  // RestaurantSettingsPanel braucht section — ohne Wrapper bleibt Übersicht/Öffnungszeiten leer.
+  "/dashboard/settings/restaurant": {
+    component: "SettingsRestaurantRoute",
+    from: "../routes/settings-restaurant-route",
+  },
+  "/dashboard/settings/oeffnungszeiten": {
+    component: "SettingsOeffnungszeitenRoute",
+    from: "../routes/settings-oeffnungszeiten-route",
+  },
 };
 
 const PROFILE_PREFIX = "/dashboard/profile/";

@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useSoftNavLockOptional } from "@/components/providers/soft-nav-lock-provider";
 import {
   ArrowLeft,
   CalendarDays,
@@ -370,15 +371,23 @@ export function ContactsMessagesScreen({
   const isLgUp = useIsLgUp();
   const activeRef = useRef(active);
   activeRef.current = active;
+  const softNav = useSoftNavLockOptional();
+  const cancelSoftNavPending = softNav.cancelSoftNavPending;
   const contactParam = searchParams.get("contact");
   const platformParam = searchParams.get("platform");
   const readParam = searchParams.get("read");
 
   /** Keep-alive: nie Soft-Nav zurückreißen — auch nicht nach async await. */
   const navigateNachrichten = useCallback(
-    (href: string, mode: "replace" | "push" = "replace") => {
-      if (!activeRef.current) return;
-      if (!isNachrichtenMessagesPath(pathnameRef.current)) return;
+    (
+      href: string,
+      mode: "replace" | "push" = "replace",
+      opts?: { force?: boolean },
+    ) => {
+      if (!opts?.force) {
+        if (!activeRef.current) return;
+        if (!isNachrichtenMessagesPath(pathnameRef.current)) return;
+      }
       if (mode === "push") router.push(href);
       else router.replace(href);
     },
@@ -1491,20 +1500,25 @@ export function ContactsMessagesScreen({
   const navigateToContactThread = useCallback(
     (contactId: string, opts?: { displayName?: string }) => {
       if (!restaurantId) return;
+      cancelSoftNavPending();
       deleteContactThreadCacheEntry(restaurantId, contactId);
       setMessages([]);
       setLoadingThread(true);
       setWhatsappThreadPhone(null);
       setWhatsappThreadChatId(null);
       if (opts?.displayName) setContactName(opts.displayName);
+      setClosingThreadId(contactId);
+      setThreadOverlayOpen(true);
       const params = new URLSearchParams();
       params.set("platform", INBOX_FILTER_ALL);
       params.set("contact", contactId);
       navigateNachrichten(
         `/dashboard/kontakte/nachrichten?${params.toString()}`,
+        "push",
+        { force: true },
       );
     },
-    [restaurantId, navigateNachrichten],
+    [restaurantId, navigateNachrichten, cancelSoftNavPending],
   );
 
   const linkMetaThreadToExistingContact = useCallback(
@@ -1777,6 +1791,8 @@ export function ContactsMessagesScreen({
   );
 
   const openConversation = (contactId: string) => {
+    cancelSoftNavPending();
+
     const cached =
       restaurantId && peekContactThreadCache(restaurantId, contactId);
     const preview = conversationsRef.current.find(
@@ -1808,15 +1824,19 @@ export function ContactsMessagesScreen({
       setLoadingThread(true);
     }
 
+    // Sofort Overlay-Thread setzen — nicht auf URL-Search warten (sonst
+    // fehlt overlayThreadId und das Mobile-Overlay mountet nicht).
+    setClosingThreadId(contactId);
     setThreadOverlayOpen(true);
-    setClosingThreadId(null);
 
     const params = new URLSearchParams(searchParams.toString());
     params.set("platform", inboxFilter);
     params.set("contact", contactId);
+    applyConversationReadFilterToSearchParams(params, readFilter);
     navigateNachrichten(
       `/dashboard/kontakte/nachrichten?${params.toString()}`,
       "push",
+      { force: true },
     );
   };
 

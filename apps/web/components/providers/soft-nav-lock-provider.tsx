@@ -173,6 +173,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         tryAcquireNavLock,
         pendingHref,
         scheduleSoftNavPush,
+        cancelSoftNavPending: clearPending,
       }}
     >
       {children}

@@ -14,6 +14,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   SoftNavLockContext,
   normalizeNavHref,
+  SOFT_NAV_LOCK_FALLBACK,
   type SoftNavLockValue,
 } from "@/lib/navigation/soft-nav-lock-context";
 import {
@@ -109,8 +110,9 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
       tryAcquireNavLock,
       pendingHref,
       scheduleSoftNavPush,
+      cancelSoftNavPending: clearPending,
     }),
-    [tryAcquireNavLock, pendingHref, scheduleSoftNavPush],
+    [tryAcquireNavLock, pendingHref, scheduleSoftNavPush, clearPending],
   );
 
   return (
@@ -126,6 +128,10 @@ export function useSoftNavLock(): SoftNavLockValue {
     throw new Error("useSoftNavLock requires SoftNavLockProvider");
   }
   return ctx;
+}
+
+export function useSoftNavLockOptional(): SoftNavLockValue {
+  return useContext(SoftNavLockContext) ?? SOFT_NAV_LOCK_FALLBACK;
 }
 
 export { normalizeNavHref };

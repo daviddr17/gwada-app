@@ -11,6 +11,12 @@ export type SoftNavLockValue = {
   pendingHref: string | null;
   /** Coalesced navigation — letzter Klick gewinnt. */
   scheduleSoftNavPush: (href: string) => void;
+  /**
+   * Pending Soft-Nav abbrechen (z. B. Chat öffnen in Nachrichten).
+   * Verhindert, dass ein hängendes Modul-Pending (Reservierungen …)
+   * Keep-alive-Sichtbarkeit / Titel stiehlt.
+   */
+  cancelSoftNavPending: () => void;
 };
 
 export const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
@@ -26,4 +32,5 @@ export const SOFT_NAV_LOCK_FALLBACK: SoftNavLockValue = {
   tryAcquireNavLock: () => true,
   pendingHref: null,
   scheduleSoftNavPush: () => {},
+  cancelSoftNavPending: () => {},
 };

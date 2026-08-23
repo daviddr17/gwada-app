@@ -38,6 +38,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { DashboardSpaNavigationBridge } from "@/lib/navigation/dashboard-spa-navigation-bridge";
 import { SoftNavLockProvider } from "../shims/soft-nav-lock-provider";
+import { DashboardSpaPendingChromeSync } from "./dashboard-spa-pending-chrome-sync";
 
 function DashboardSpaInset() {
   const pathname = usePathname();
@@ -205,6 +206,7 @@ export function DashboardSpaShell() {
         <SidebarProvider>
           <AuthLogoutTransitionProvider>
             <AppModuleChromeProvider>
+              <DashboardSpaPendingChromeSync />
               <DashboardGlobalSearchChrome>
                 <AppSidebar />
                 <DashboardSpaInset />

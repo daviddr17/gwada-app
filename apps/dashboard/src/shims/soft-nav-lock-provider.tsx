@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -24,6 +25,7 @@ import {
   beginSoftNavFlight,
   endSoftNavFlight,
 } from "@/lib/navigation/soft-nav-flight";
+import { prefetchDashboardSpaHref } from "../navigation/prefetch-dashboard-route";
 
 const PENDING_CLEAR_FAILSAFE_MS = 6_000;
 
@@ -49,7 +51,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const target = pendingTargetRef.current;
     if (target == null) return;
     if (!isSoftNavPendingArrived(pathname, target)) return;
@@ -58,6 +60,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
 
   const scheduleSoftNavPush = useCallback(
     (href: string) => {
+      prefetchDashboardSpaHref(href);
       const { to, search } = dashboardHrefToTanstackTarget(href);
       navigate({ to, search });
     },
@@ -74,6 +77,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
+      prefetchDashboardSpaHref(targetHref);
       pendingTargetRef.current = target;
       beginSoftNavFlight(targetHref);
       setPendingHref(target);

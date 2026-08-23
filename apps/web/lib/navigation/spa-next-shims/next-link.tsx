@@ -39,6 +39,7 @@ export default function Link({
   return (
     <TanStackLink
       to={tanstackTo}
+      preload="intent"
       className={className}
       {...(rest as ComponentProps<typeof TanStackLink>)}
     >

@@ -88,8 +88,8 @@ export function RegisterModuleChrome({
         subnavItems && subnavItems.length > 0 && subnavAriaLabel
           ? { items: [...subnavItems], ariaLabel: subnavAriaLabel }
           : null,
-      // Nested layouts may own the secondary strip — don't wipe it here.
-      secondarySubnav: prev.secondarySubnav,
+      // Nested layouts may own the secondary strip — preserve only within the same module title.
+      secondarySubnav: prev.title === title ? prev.secondarySubnav : null,
       headerActions: headerActionsRef.current ?? null,
     }));
     return () => {

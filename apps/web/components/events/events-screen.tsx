@@ -364,10 +364,12 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
 
   return (
     <>
-      <RegisterModuleSecondarySubnav
-        ariaLabel="Events-Ansicht"
-        items={EVENTS_AUDIENCE_SUBNAV}
-      />
+      {active ? (
+        <RegisterModuleSecondarySubnav
+          ariaLabel="Events-Ansicht"
+          items={EVENTS_AUDIENCE_SUBNAV}
+        />
+      ) : null}
       <div className="space-y-4">
         {canManage ? (
           <Button

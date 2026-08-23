@@ -117,8 +117,8 @@ export function DashboardCalendarDaySheet({
       const weekdayHours = loaded.weeklyHours[weekday];
       setHoursDraft(
         newOpenCalendarException(day.date, null, {
-          open: weekdayHours.closed ? "11:30" : weekdayHours.open,
-          close: weekdayHours.closed ? "22:00" : weekdayHours.close,
+          open: weekdayHours.closed ? "11:30" : (weekdayHours.open ?? "11:30"),
+          close: weekdayHours.closed ? "22:00" : (weekdayHours.close ?? "22:00"),
         }),
       );
     });

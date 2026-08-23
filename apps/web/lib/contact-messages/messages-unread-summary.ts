@@ -48,10 +48,11 @@ export function deriveMessagesUnreadSummaryFromConversations(
     (c) => !conversationExcludedFromSeparateMessageNotification(c),
   );
 
-  const total_unread = notifyable.reduce(
-    (acc, c) => acc + (c.is_unread ? c.unread_count : 0),
-    0,
-  );
+  // Sidebar / Glocke / Dashboard: Anzahl ungelesener Chats — nicht Summe der
+  // Nachrichten-Zähler (WAHA-Historie blähte sonst z. B. „Nachrichten (88)“ auf).
+  const total_unread = notifyable.filter(
+    (c) => c.is_unread && c.unread_count > 0,
+  ).length;
 
   const unread = notifyable
     .filter((c) => c.is_unread && c.unread_count > 0)

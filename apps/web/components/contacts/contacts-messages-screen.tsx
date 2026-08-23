@@ -733,7 +733,7 @@ export function ContactsMessagesScreen({
   }, [inboxFilter, linkedThread, loadingThread, whatsappHeaderSubtitle, contactName]);
 
   const unreadInList = useMemo(
-    () => conversations.reduce((n, c) => n + (c.is_unread ? c.unread_count : 0), 0),
+    () => conversations.filter((c) => c.is_unread && c.unread_count > 0).length,
     [conversations],
   );
 

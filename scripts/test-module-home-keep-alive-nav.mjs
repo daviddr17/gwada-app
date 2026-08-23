@@ -110,6 +110,50 @@ assert.equal(
   true,
 );
 
+function moduleHomeSlotVisibility({
+  id,
+  activeHomeId,
+  pendingHomeId,
+  pendingInFlight,
+  warmFlag,
+}) {
+  const onHome = activeHomeId === id;
+  const pendingToThis =
+    pendingInFlight && pendingHomeId === id && !onHome;
+  const warm =
+    warmFlag ||
+    onHome ||
+    (pendingInFlight && pendingHomeId === id);
+  const showAsSource = onHome && !pendingInFlight;
+  const arrivedPending = onHome && pendingInFlight && pendingHomeId === id;
+  return {
+    warm,
+    visible: showAsSource || pendingToThis || arrivedPending,
+    active: showAsSource || arrivedPending,
+  };
+}
+
+const pendingNachrichten = moduleHomeSlotVisibility({
+  id: "nachrichten",
+  activeHomeId: "dashboard",
+  pendingHomeId: "nachrichten",
+  pendingInFlight: true,
+  warmFlag: false,
+});
+assert.equal(pendingNachrichten.warm, true);
+assert.equal(pendingNachrichten.visible, true);
+assert.equal(pendingNachrichten.active, false);
+
+const arrivedNachrichten = moduleHomeSlotVisibility({
+  id: "nachrichten",
+  activeHomeId: "nachrichten",
+  pendingHomeId: "nachrichten",
+  pendingInFlight: true,
+  warmFlag: false,
+});
+assert.equal(arrivedNachrichten.visible, true);
+assert.equal(arrivedNachrichten.active, true);
+
 console.log(
   `OK unit: ${Object.keys(MODULE_HOME_PATHS).length} warm homes × ${SIDEBAR.length} nav targets`,
 );

@@ -4,11 +4,14 @@
  * Bei neuen Modulen: Eintrag ergänzen, Konstanten hierher ziehen, UI zeigt den Stand.
  *
  * Navigationsmodell (Stand 2026):
- * - Dashboard-Zone: Vite/TanStack SPA + Modul-Home Keep-alive (Sibling zu Outlet)
+ * - Dashboard-Zone (`/dashboard/*`): Vite/TanStack SPA + Modul-Home Keep-alive
+ *   (Sibling zu Outlet), Route-Chunk-Preload, SoftNav-Shim
+ * - Superadmin-Zone (`/superadmin/*`): Vite/TanStack SPA (wie Dashboard)
+ * - Provider/Caches (Auth, Restaurant, React Query, Realtime) bleiben im Next
+ *   `(app)`-Layout gemountet (kein Full-Load bei Modulwechsel)
  * - Soft-Nav zwischen App-Modulen (Provider/Caches bleiben gemountet)
  * - Full-Load nur App ↔ Superadmin über `/zone/enter`
  * - Realtime einmal pro App-Zone (`AppModuleLiveProviders`), nicht route-conditional
- * - SoftNavLock = Pending-UI (Sidebar/Overlay), kein paralleler Flight-Kill
  */
 export type ModuleCacheStrategy =
   | "optimistic-local"
@@ -67,7 +70,7 @@ export const MODULE_CACHE_STRATEGY_META: Record<
     shortLabel: "SWR",
     colorClass: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
     whenToUse:
-      "Daten dürfen kurz veraltet sein — React Query und/oder sessionStorage-Feeds; Soft-Nav zeigt Cache sofort, Warm-Prefetch füllt im Idle nach.",
+      "Daten dürfen kurz veraltet sein — React Query und/oder sessionStorage-Feeds; Modulwechsel zeigt Cache sofort, Warm-Prefetch / TanStack-Preload füllt nach.",
   },
   realtime: {
     label: "Realtime + kurzes staleTime",
@@ -135,11 +138,12 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
   },
   {
     id: "softNavChrome",
-    label: "Soft-Nav & Keep-Alive",
+    label: "Dashboard-SPA & App-Navigation",
     scope: "chrome",
     appModule: "App-Chrome",
     strategy: "optimistic-local",
     description:
+<<<<<<< HEAD
       "Modulwechsel per Soft-Nav (Link/router.push) — (app)-Layout, Provider und Client-Caches bleiben gemountet. Full-Load nur App ↔ Superadmin über /zone/enter. SoftNavLock = Pending-UI + letzter Klick gewinnt (Sidebar bleibt klickbar). Predictive Prefetch: Sidebar-Nachbarn + kürzlich besuchte Module im Idle.",
     loadTriggers: [
       "AppNavLink / Sidebar-Klick (prefetch={false}, Intent-Warm on hover/focus)",
@@ -147,24 +151,40 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "Priority-Prewarm nach KPI; Secondary idle/~2.2s; Intent flushSync",
       "AppModulePredictivePrefetchMount nach Pathname-Settle",
       "Pending-Overlay übersprungen bei warmem Keep-alive-Home oder isModuleSoftNavDataReady",
+=======
+      "Dashboard (`/dashboard/*`): eingebettete Vite/TanStack SPA — Client-Routing ohne Next-Seiten pro Modul, Route-Chunks per preloadRoute (Hover/Klick). SoftNavLock-Shim steuert Pending/Sidebar-Highlight. Provider (Auth, Restaurant, React Query, Realtime) bleiben im Next-(app)-Layout gemountet. Superadmin/Workspace: Next Soft-Nav + AppShell. Full-Load nur App ↔ Superadmin über /zone/enter.",
+    loadTriggers: [
+      "AppNavLink / Sidebar/Chip-Klick → TanStack navigate + SoftNavLock Pending",
+      "Hover/Focus: prefetchDashboardSpaHref (Route-Chunk) + Warm-Daten",
+      "Catch-all Next-Route hält Deep Links; UI = DashboardSPA",
+      "Optimistic Header-Titel bei pendingHref",
+>>>>>>> origin/cursor/superadmin-spa-docs-inventory-draft-d944
     ],
     invalidateTriggers: [
       "Zonenwechsel App ↔ Superadmin (Full-Load)",
       "Workspace-Restaurant-Wechsel",
     ],
     implementationFiles: [
+      "components/navigation/app-zone-router.tsx",
+      "apps/dashboard/src/DashboardSPA.tsx",
+      "apps/dashboard/src/router/route-tree.tsx",
+      "apps/dashboard/src/navigation/prefetch-dashboard-route.ts",
+      "lib/navigation/spa-next-shims/next-navigation.tsx",
       "components/navigation/app-nav-link.tsx",
+<<<<<<< HEAD
       "components/providers/soft-nav-lock-provider.tsx",
       "components/navigation/soft-nav-pending-overlay.tsx",
       "components/navigation/app-module-home-keep-alives.tsx",
       "lib/navigation/module-soft-nav-data-ready.ts",
       "lib/navigation/app-module-predictive-prefetch.ts",
       "components/providers/app-module-predictive-prefetch-mount.tsx",
+=======
+>>>>>>> origin/cursor/superadmin-spa-docs-inventory-draft-d944
       "lib/navigation/workspace-zone-enter.ts",
     ],
     status: "active",
     notes:
-      "Realtime nie route-conditional mounten/unmounten — Soft-Nav-Remount-Race (postgres_changes after subscribe).",
+      "Realtime nie route-conditional mounten/unmounten. Module-Home-Keep-alive der alten Soft-Nav ist in der SPA durch Lazy-Routen + Query-Cache ersetzt; active=false wenn Route nicht aktuell.",
   },
   {
     id: "appModuleWarmPrefetch",
@@ -174,14 +194,14 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     strategy: "stale-while-revalidate",
     staleTimeMs: 5 * 60_000,
     description:
-      "Nach Workspace ready: sessionStorage → React Query seed, Sidebar FULL-Routes gestaffelt (Top-5 zuerst, ~40ms). Modul-API-Daten nach erstem Dashboard-KPI (oder sofort wenn Batch-Cache warm / nicht auf /dashboard). Soft-Nav bricht Warm nicht ab. Intent-Prefetch bei Sidebar-Hover/Tap.",
+      "Nach Workspace ready: sessionStorage → React Query seed. Dashboard-SPA: TanStack Route-Preload statt Next FULL-RSC. Modul-API-Daten nach erstem Dashboard-KPI (oder sofort wenn Batch-Cache warm). Intent-Warm bei Sidebar/Chip-Hover/Tap (Chunk + Daten).",
     loadTriggers: [
       "AppModuleWarmPrefetchMount (einmal pro Restaurant, zwei Effects)",
-      "FULL-Prefetch gestaffelt: Top-5 → Priority → Nested",
+      "prefetchDashboardSpaHref / preloadRoute gestaffelt für Priority-Module",
       "notifyDashboardFirstKpiReady → critical + menu/inventory + Priority-Daten",
       "Failsafe 2.5s auf /dashboard ohne KPI-Event",
       "Idle ~5s: Secondary-Warm (News/Reviews/…)",
-      "Sidebar hover/focus → warmModuleRouteIntent",
+      "Sidebar/Chip hover/focus → warmModuleRouteIntent",
     ],
     invalidateTriggers: [
       "Workspace-Restaurant-Wechsel (Warm erneut)",
@@ -971,9 +991,9 @@ export const MODULE_CACHE_DECISION_GUIDE: {
     hint: "Supabase Channel + invalidateQueries / Patch — Provider app-weit in AppModuleLiveProviders, nicht pro Route ein-/ausblenden. Fallback-Poll dokumentieren.",
   },
   {
-    question: "Selten ändernde Listen, Soft-Nav / Zurück wichtig?",
+    question: "Selten ändernde Listen, schneller Modulwechsel / Zurück wichtig?",
     recommendation: "stale-while-revalidate",
-    hint: "React Query oder sessionStorage-Feed, staleTime 30s–5min, Warm über AppModuleWarmPrefetchMount / Intent. Soft-Nav-Skeleton nur wenn !isModuleSoftNavDataReady.",
+    hint: "React Query oder sessionStorage-Feed, staleTime 30s–5min, Warm über AppModuleWarmPrefetchMount / Intent. Dashboard-SPA: TanStack-Preload + Cache — kein Full-Skeleton bei warmem Cache.",
   },
   {
     question: "Kein Realtime, aber aktuell genug?",
@@ -984,6 +1004,6 @@ export const MODULE_CACHE_DECISION_GUIDE: {
     question: "Filter/Picker wechselt — nicht die ganze Seite skeletonisieren?",
     recommendation: "stale-while-revalidate",
     hint:
-      "Erstload: Deferred Skeleton nur für Datenbereich; Refetch silent. Keep-alive Homes (Dashboard/Reservierungen/Nachrichten) bleiben gemountet.",
+      "Erstload: Deferred Skeleton nur für Datenbereich; Refetch silent. Dashboard-SPA hält Provider gemountet; Modul-Screens lazy mit Query-Cache.",
   },
 ];

@@ -277,7 +277,7 @@ export function SuperadminCacheStrategyPanel() {
           Sobald Workspace-Restaurant ready — von links nach rechts. Warm-Prefetch
           und Dashboard-Batch starten parallel im App-Layout (Batch idle ~1,6s);
           Inbox-Warm überspringt, wenn Batch unter 30s alt ist. Wetter nur bei
-          aktivem Dashboard-Home Keep-alive.
+          aktivem Dashboard-Home (SPA-Route /dashboard).
         </p>
         <div className="overflow-x-auto pb-2">
           <div className="flex min-w-max items-stretch gap-2">

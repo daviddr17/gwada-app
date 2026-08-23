@@ -3,6 +3,7 @@
 import { ChevronDown, ClipboardList, Filter } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
 import {
   PurchaseOrderCloseDeliveryDrawer,
@@ -122,11 +123,10 @@ function OrderLineQtyCell({
     user: OrderProtocolActor,
   ) => Promise<boolean>;
 }) {
-  const [draft, setDraft] = useState(() => String(line.quantity));
-
-  useEffect(() => {
-    setDraft(String(line.quantity));
-  }, [line.quantity]);
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
+    line.quantity,
+    line.id,
+  );
 
   const commit = useCallback(async () => {
     if (readOnly) return;
@@ -140,7 +140,7 @@ function OrderLineQtyCell({
     if (!ok) {
       setDraft(String(line.quantity));
     }
-  }, [draft, line.id, line.quantity, onCommit, orderId, readOnly, actor]);
+  }, [draft, line.id, line.quantity, onCommit, orderId, readOnly, actor, setDraft]);
 
   return (
     <input
@@ -149,6 +149,7 @@ function OrderLineQtyCell({
       disabled={readOnly}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
+      {...focusProps}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();

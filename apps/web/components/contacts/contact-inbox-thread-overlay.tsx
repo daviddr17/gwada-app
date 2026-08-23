@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import {
   APP_LAYER_Z_INDEX,
   appLayerFullscreenOverlayZClassName,
-  appLayerStackedSurfaceZClassName,
 } from "@/lib/ui/app-layer-z-index";
 
 /** Öffnen: weicher Landeanflug — nicht zu lang. */
@@ -36,19 +35,71 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-type ContactInboxThreadOverlayProps = {
-  open: boolean;
-  onClose: () => void;
+type ContactInboxThreadChromeProps = {
   header: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
   className?: string;
   "aria-label"?: string;
+  /** Safe-Area oben — nur Vollbild-Overlay. */
+  safeAreaTop?: boolean;
 };
 
 /**
- * Vollbild-Chat wie WhatsApp: sanft von unten, sticky Kopf- und Fußleiste,
- * scrollbarer Verlauf dazwischen. Verdeckt App-Chrome und Listeninhalt.
+ * Chat-Rahmen (Kopf / Verlauf / Composer) — Overlay und Desktop-Split teilen sich das.
+ */
+export function ContactInboxThreadChrome({
+  header,
+  footer,
+  children,
+  className,
+  "aria-label": ariaLabel = "Chat",
+  safeAreaTop = false,
+}: ContactInboxThreadChromeProps) {
+  return (
+    <div
+      role="region"
+      aria-label={ariaLabel}
+      className={cn(
+        "flex h-full min-h-0 flex-col bg-background",
+        className,
+      )}
+    >
+      <header
+        className={cn(
+          "sticky top-0 z-10 shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/85",
+          safeAreaTop && "pt-[env(safe-area-inset-top,0px)]",
+        )}
+      >
+        {header}
+      </header>
+
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </div>
+
+      {footer ? (
+        <footer
+          className={cn(
+            "sticky bottom-0 z-10 shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/85",
+            appMobileBottomSafePbMdClassName,
+          )}
+        >
+          {footer}
+        </footer>
+      ) : null}
+    </div>
+  );
+}
+
+type ContactInboxThreadOverlayProps = ContactInboxThreadChromeProps & {
+  open: boolean;
+  onClose: () => void;
+};
+
+/**
+ * Vollbild-Chat wie WhatsApp (mobil): sanft von unten, sticky Kopf-/Fußleiste.
+ * Desktop nutzt {@link ContactInboxThreadChrome} inline (Split).
  */
 export function ContactInboxThreadOverlay({
   open,
@@ -128,19 +179,15 @@ export function ContactInboxThreadOverlay({
         backfaceVisibility: "hidden",
       }}
     >
-      <header className="sticky top-0 z-10 shrink-0 border-b border-border/50 bg-background/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">
-        {header}
-      </header>
-
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ContactInboxThreadChrome
+        header={header}
+        footer={footer}
+        aria-label={ariaLabel}
+        safeAreaTop
+        className="h-full min-h-0"
+      >
         {children}
-      </div>
-
-      {footer ? (
-        <footer className={cn("sticky bottom-0 z-10 shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/85", appMobileBottomSafePbMdClassName)}>
-          {footer}
-        </footer>
-      ) : null}
+      </ContactInboxThreadChrome>
     </div>,
     document.body,
   );

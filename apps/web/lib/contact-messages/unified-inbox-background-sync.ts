@@ -7,6 +7,7 @@ import { fetchUnifiedInboxConversations } from "@/lib/contact-messages/unified-i
 import {
   peekUnifiedInboxCache,
   peekUnifiedInboxCacheAgeMs,
+  UNIFIED_INBOX_STALE_MS,
 } from "@/lib/contact-messages/unified-inbox-cache";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 
@@ -104,7 +105,7 @@ function shouldWarmOnStart(restaurantId: string): boolean {
   if (shouldSkipInboxWarmAfterBatch(restaurantId)) return false;
   const age = peekUnifiedInboxCacheAgeMs(restaurantId);
   if (age == null) return true;
-  return age >= UNIFIED_INBOX_BACKGROUND_POLL_MS;
+  return age >= UNIFIED_INBOX_STALE_MS;
 }
 
 export function useUnifiedInboxBackgroundSync(options: {

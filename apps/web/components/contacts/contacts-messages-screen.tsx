@@ -49,6 +49,7 @@ import {
 } from "@/components/contacts/inbox-thread-assign-staff-sheet";
 import { ContactInboxThreadHeaderMenu } from "@/components/contacts/contact-inbox-thread-header-menu";
 import {
+  ContactInboxThreadChrome,
   ContactInboxThreadOverlay,
   CONTACT_INBOX_THREAD_OVERLAY_MS,
 } from "@/components/contacts/contact-inbox-thread-overlay";
@@ -100,6 +101,7 @@ import {
 import { contactReplyChannels, inferContactReachabilityFromMessages } from "@/lib/contact-messages/reply-channel-availability";
 import {
   GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+  isUnifiedInboxCacheFresh,
   patchUnifiedInboxCacheConversation,
   peekUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-cache";
@@ -108,6 +110,7 @@ import {
   getUnifiedInboxRefreshInflight,
   refreshUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-background-sync";
+import { useIsLgUp } from "@/lib/hooks/use-is-lg-up";
 import { filterInboxConversationsByPlatform } from "@/lib/contact-messages/unified-inbox-merge";
 import {
   fetchUnifiedInboxConversations,
@@ -364,6 +367,7 @@ export function ContactsMessagesScreen({
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
   const searchParams = useSearchParams();
+  const isLgUp = useIsLgUp();
   const activeRef = useRef(active);
   activeRef.current = active;
   const contactParam = searchParams.get("contact");
@@ -745,7 +749,15 @@ export function ContactsMessagesScreen({
   );
 
   const showConversationList =
-    !contactParam && isInboxFilterAvailable(inboxFilter);
+    isInboxFilterAvailable(inboxFilter) && (!contactParam || isLgUp);
+
+  const showInboxRefresh =
+    (!contactParam || isLgUp) &&
+    (isUnifiedInboxFilter(inboxFilter) ||
+      (inboxFilter === "whatsapp" && whatsappConnected) ||
+      (inboxFilter === "email" && emailConnected) ||
+      (inboxFilter === "facebook" && facebookConnected) ||
+      (inboxFilter === "instagram" && instagramConnected));
 
   useEffect(() => {
     // Keep-alive: versteckt bleibt gemountet — URL-Sync darf Soft-Nav nicht zurückreißen.
@@ -818,7 +830,10 @@ export function ContactsMessagesScreen({
         if (cached) {
           setConversations(cached);
           setLoadingList(false);
-          void loadConversations({ silent: true, force: true });
+          // Frischer Cache: kein Force-Refetch — Background-Poll / Realtime reichen.
+          if (!isUnifiedInboxCacheFresh(restaurantId)) {
+            void loadConversations({ silent: true, force: true });
+          }
           return;
         }
 
@@ -915,14 +930,6 @@ export function ContactsMessagesScreen({
     instagramConnected,
     loadConversations,
   ]);
-
-  const showInboxRefresh =
-    !contactParam &&
-    (isUnifiedInboxFilter(inboxFilter) ||
-      (inboxFilter === "whatsapp" && whatsappConnected) ||
-      (inboxFilter === "email" && emailConnected) ||
-      (inboxFilter === "facebook" && facebookConnected) ||
-      (inboxFilter === "instagram" && instagramConnected));
 
   const patchConversationReadState = useCallback(
     (contactId: string, isUnread: boolean, unreadCount = 0) => {
@@ -2468,9 +2475,236 @@ export function ContactsMessagesScreen({
     return <ModuleAccessDenied label="Nachrichten" />;
   }
 
+
+  const threadId = overlayThreadId;
+  const threadAriaLabel = contactName ? `Chat mit ${contactName}` : "Chat";
+  const threadHeader = (
+<div className="flex items-center gap-2 px-4 py-3 sm:px-5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 lg:hidden"
+                aria-label="Zurück zur Liste"
+                onClick={backToList}
+              >
+                <ArrowLeft className="size-4" />
+              </Button>
+              <ContactThreadHeaderAvatar
+                avatarUrl={threadAvatarUrl}
+                displayName={contactName || "Kontakt"}
+              />
+              <div className="min-w-0 flex-1">
+                {canOpenLinkedContact(threadId!) ? (
+                  <button
+                    type="button"
+                    className="max-w-full truncate text-left text-base font-semibold tracking-tight hover:underline"
+                    onClick={() => openLinkedContact(threadId!)}
+                  >
+                    {contactName || "Kontakt"}
+                  </button>
+                ) : (
+                  <p className="truncate font-semibold">{contactName || "Kontakt"}</p>
+                )}
+                {linkedThread && lastGuestPlatform ? (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>Zuletzt aktiv über</span>
+                    <ContactMessagePlatformIcon
+                      platform={lastGuestPlatform}
+                      variant="meta"
+                    />
+                    <span className="font-medium text-foreground">
+                      {CONTACT_MESSAGE_PLATFORM_LABELS[lastGuestPlatform]}
+                    </span>
+                  </p>
+                ) : isWahaPseudoContactId(threadId!) ? (
+                  whatsappHeaderSubtitle ? (
+                    <p className="text-xs text-muted-foreground">
+                      {whatsappHeaderSubtitle}
+                    </p>
+                  ) : showWhatsAppMissingPhoneHint ? (
+                    <p className="text-xs text-muted-foreground">
+                      Nummer nicht verfügbar
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">WhatsApp</p>
+                  )
+                ) : isEmailPseudoContactId(threadId!) ? (
+                  <p className="text-xs text-muted-foreground">E-Mail</p>
+                ) : isMetaPseudoContactId(threadId!) ? (
+                  <p className="text-xs text-muted-foreground">
+                    {CONTACT_MESSAGE_PLATFORM_LABELS[
+                      metaPlatformFromPseudoContactId(threadId!) ?? "facebook"
+                    ]}
+                  </p>
+                ) : null}
+              </div>
+              {canOpenLinkedContact(threadId!) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="shrink-0 rounded-full"
+                  aria-label="Kontakt öffnen"
+                  onClick={() => openLinkedContact(threadId!)}
+                >
+                  <UserRound className="size-4" />
+                </Button>
+              ) : null}
+              <ContactInboxThreadHeaderMenu
+                canCreateContact={canCreateContactFromThread}
+                canCreateReservation={canCreateReservation}
+                canSendReviewLink={canCreateReviewInvite}
+                canAssignStaff={canAssignStaffFromThread}
+                assignStaffKind={
+                  threadId! != null &&
+                  isEmailPseudoContactId(threadId!)
+                    ? "email"
+                    : "phone"
+                }
+                onCreateContact={() =>
+                  openCreateContactFromPseudo(
+                    threadId!,
+                    contactName ||
+                      (isEmailPseudoContactId(threadId!)
+                        ? "E-Mail"
+                        : "WhatsApp"),
+                  )
+                }
+                onReservation={openReservationFromChat}
+                onReviewInvite={openReviewInviteFromChat}
+                onAssignStaff={openAssignStaffFromChat}
+              />
+            </div>
+  );
+  const threadFooter = (
+showReplyComposer ? (
+              <div className="min-w-0 overflow-visible px-4 py-2 sm:px-5 sm:py-3">
+                <ContactMessageComposer
+                  disabled={loadingThread || (linkedThread && !canReply)}
+                  sending={sending}
+                  hasPhone={
+                    isWahaPseudoContactId(threadId!)
+                      ? true
+                      : effectiveHasPhone
+                  }
+                  hasEmail={
+                    isEmailPseudoContactId(threadId!)
+                      ? true
+                      : effectiveHasEmail
+                  }
+                  hasFacebook={effectiveHasFacebookId}
+                  hasInstagram={effectiveHasInstagramId}
+                  whatsappEnabled={whatsappEnabled && whatsappConnected}
+                  emailEnabled={
+                    emailEnabled &&
+                    (emailConnected || staffInviteEmailAvailable)
+                  }
+                  facebookEnabled={facebookEnabled && facebookConnected}
+                  instagramEnabled={instagramEnabled && instagramConnected}
+                  emailViaPlatformFallback={
+                    linkedReplyChannels.emailViaPlatformFallback
+                  }
+                  defaultSendWhatsapp={defaultReplySend.whatsapp}
+                  defaultSendEmail={defaultReplySend.email}
+                  defaultSendFacebook={defaultReplySend.facebook}
+                  defaultSendInstagram={defaultReplySend.instagram}
+                  variant={
+                    linkedThread
+                      ? "inbox-reply"
+                      : isWahaPseudoContactId(threadId!)
+                        ? "whatsapp-only"
+                      : isEmailPseudoContactId(threadId!)
+                          ? "email-only"
+                          : isMetaPseudoContactId(threadId!)
+                            ? "meta-only"
+                            : "unified"
+                  }
+                  stickyFooter
+                  placeholder={
+                    isWahaPseudoContactId(threadId!)
+                      ? "WhatsApp-Nachricht …"
+                      : isEmailPseudoContactId(threadId!)
+                        ? "E-Mail schreiben …"
+                        : isMetaPseudoContactId(threadId!) && metaThreadPlatform
+                          ? `${CONTACT_MESSAGE_PLATFORM_LABELS[metaThreadPlatform]}-Nachricht …`
+                          : "Antwort schreiben …"
+                  }
+                  whatsappTyping={
+                    restaurantId &&
+                    whatsappThreadChatId &&
+                    !editingWahaMessage &&
+                    (linkedThread
+                      ? defaultReplySend.whatsapp
+                      : isWahaPseudoContactId(threadId!))
+                      ? {
+                          restaurantId,
+                          chatId: whatsappThreadChatId,
+                        }
+                      : null
+                  }
+                  editWhatsappMessage={editingWahaMessage}
+                  onEditWhatsapp={handleEditWhatsapp}
+                  onCancelEditWhatsapp={() => setEditingWahaMessage(null)}
+                  onSend={handleSend}
+                />
+              </div>
+            ) : showReplyBlockedHint ? (
+              <div className="px-4 py-4 sm:px-5">
+                <p className="text-sm text-muted-foreground">
+                  {!emailEnabled &&
+                  !whatsappEnabled &&
+                  !facebookEnabled &&
+                  !instagramEnabled
+                    ? "Nachrichten-Kanäle sind für dieses Restaurant nicht freigeschaltet."
+                    : !staffInviteEmailAvailable &&
+                        !emailConnected &&
+                        !whatsappConnected &&
+                        !facebookConnected &&
+                        !instagramConnected
+                      ? "Antworten erst möglich, wenn WhatsApp, E-Mail, Messenger oder Instagram unter Einstellungen → Integrationen verbunden ist — oder die Plattform-E-Mail (Gwada-Fallback) aktiv ist."
+                      : !effectiveHasEmail &&
+                          !effectiveHasPhone &&
+                          !effectiveHasFacebookId &&
+                          !effectiveHasInstagramId
+                        ? "Kontakt braucht Telefon (WhatsApp), E-Mail oder eine verknüpfte Messenger-/Instagram-ID."
+                        : !effectiveHasEmail &&
+                            !effectiveHasFacebookId &&
+                            !effectiveHasInstagramId &&
+                            !effectiveHasPhone
+                          ? "Für E-Mail-Antworten (auch über Gwada-Fallback) eine E-Mail am Kontakt hinterlegen."
+                          : !effectiveHasPhone &&
+                              !whatsappConnected &&
+                              !effectiveHasFacebookId &&
+                              !effectiveHasInstagramId
+                            ? "Für WhatsApp eine Telefonnummer hinterlegen und WhatsApp verbinden — oder Messenger/Instagram über einen Meta-Chat verknüpfen."
+                            : "Kein Versandweg verfügbar — Kanäle und Kontaktdaten prüfen."}
+                </p>
+              </div>
+            ) : null
+  );
+  const threadViewport = (
+<div className="flex h-full min-h-0 flex-col px-4 pt-4 sm:px-5 sm:pt-5">
+            <ContactMessageChatViewport
+              messages={displayMessages}
+              loading={loadingThread}
+              threadKey={threadId!}
+              className="h-full min-h-0 flex-1"
+              hasMoreOlder={threadHasMore}
+              loadingOlder={loadingOlderMessages}
+              onLoadOlder={() => void loadOlderThreadMessages()}
+              onReservationOpen={(id) => void openReservationFromMessage(id)}
+              wahaReactions={wahaReactionsConfig}
+              metaReactions={metaReactionsConfig}
+              canViewProtocol={canViewMessageProtocol}
+              onOpenProtocol={setMessageProtocolId}
+            />
+          </div>
+  );
+
   return (
     <div className="flex w-full min-w-0 flex-col gap-4 pt-2">
-      {!contactParam ? (
+      {(!contactParam || isLgUp) ? (
         <>
       <ContactInboxFilterChips
         filter={inboxFilter}
@@ -2518,238 +2752,15 @@ export function ContactsMessagesScreen({
         </>
       ) : null}
 
-      {overlayThreadId ? (
-        <ContactInboxThreadOverlay
-          open={threadOverlayOpen}
-          onClose={backToList}
-          aria-label={contactName ? `Chat mit ${contactName}` : "Chat"}
-          header={
-            <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
-                aria-label="Zurück zur Liste"
-                onClick={backToList}
-              >
-                <ArrowLeft className="size-4" />
-              </Button>
-              <ContactThreadHeaderAvatar
-                avatarUrl={threadAvatarUrl}
-                displayName={contactName || "Kontakt"}
-              />
-              <div className="min-w-0 flex-1">
-                {canOpenLinkedContact(overlayThreadId) ? (
-                  <button
-                    type="button"
-                    className="max-w-full truncate text-left text-base font-semibold tracking-tight hover:underline"
-                    onClick={() => openLinkedContact(overlayThreadId)}
-                  >
-                    {contactName || "Kontakt"}
-                  </button>
-                ) : (
-                  <p className="truncate font-semibold">{contactName || "Kontakt"}</p>
-                )}
-                {linkedThread && lastGuestPlatform ? (
-                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>Zuletzt aktiv über</span>
-                    <ContactMessagePlatformIcon
-                      platform={lastGuestPlatform}
-                      variant="meta"
-                    />
-                    <span className="font-medium text-foreground">
-                      {CONTACT_MESSAGE_PLATFORM_LABELS[lastGuestPlatform]}
-                    </span>
-                  </p>
-                ) : isWahaPseudoContactId(overlayThreadId) ? (
-                  whatsappHeaderSubtitle ? (
-                    <p className="text-xs text-muted-foreground">
-                      {whatsappHeaderSubtitle}
-                    </p>
-                  ) : showWhatsAppMissingPhoneHint ? (
-                    <p className="text-xs text-muted-foreground">
-                      Nummer nicht verfügbar
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">WhatsApp</p>
-                  )
-                ) : isEmailPseudoContactId(overlayThreadId) ? (
-                  <p className="text-xs text-muted-foreground">E-Mail</p>
-                ) : isMetaPseudoContactId(overlayThreadId) ? (
-                  <p className="text-xs text-muted-foreground">
-                    {CONTACT_MESSAGE_PLATFORM_LABELS[
-                      metaPlatformFromPseudoContactId(overlayThreadId) ?? "facebook"
-                    ]}
-                  </p>
-                ) : null}
-              </div>
-              {canOpenLinkedContact(overlayThreadId) ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  className="shrink-0 rounded-full"
-                  aria-label="Kontakt öffnen"
-                  onClick={() => openLinkedContact(overlayThreadId)}
-                >
-                  <UserRound className="size-4" />
-                </Button>
-              ) : null}
-              <ContactInboxThreadHeaderMenu
-                canCreateContact={canCreateContactFromThread}
-                canCreateReservation={canCreateReservation}
-                canSendReviewLink={canCreateReviewInvite}
-                canAssignStaff={canAssignStaffFromThread}
-                assignStaffKind={
-                  overlayThreadId != null &&
-                  isEmailPseudoContactId(overlayThreadId)
-                    ? "email"
-                    : "phone"
-                }
-                onCreateContact={() =>
-                  openCreateContactFromPseudo(
-                    overlayThreadId,
-                    contactName ||
-                      (isEmailPseudoContactId(overlayThreadId)
-                        ? "E-Mail"
-                        : "WhatsApp"),
-                  )
-                }
-                onReservation={openReservationFromChat}
-                onReviewInvite={openReviewInviteFromChat}
-                onAssignStaff={openAssignStaffFromChat}
-              />
-            </div>
-          }
-          footer={
-            showReplyComposer ? (
-              <div className="min-w-0 overflow-visible px-4 py-2 sm:px-5 sm:py-3">
-                <ContactMessageComposer
-                  disabled={loadingThread || (linkedThread && !canReply)}
-                  sending={sending}
-                  hasPhone={
-                    isWahaPseudoContactId(overlayThreadId)
-                      ? true
-                      : effectiveHasPhone
-                  }
-                  hasEmail={
-                    isEmailPseudoContactId(overlayThreadId)
-                      ? true
-                      : effectiveHasEmail
-                  }
-                  hasFacebook={effectiveHasFacebookId}
-                  hasInstagram={effectiveHasInstagramId}
-                  whatsappEnabled={whatsappEnabled && whatsappConnected}
-                  emailEnabled={
-                    emailEnabled &&
-                    (emailConnected || staffInviteEmailAvailable)
-                  }
-                  facebookEnabled={facebookEnabled && facebookConnected}
-                  instagramEnabled={instagramEnabled && instagramConnected}
-                  emailViaPlatformFallback={
-                    linkedReplyChannels.emailViaPlatformFallback
-                  }
-                  defaultSendWhatsapp={defaultReplySend.whatsapp}
-                  defaultSendEmail={defaultReplySend.email}
-                  defaultSendFacebook={defaultReplySend.facebook}
-                  defaultSendInstagram={defaultReplySend.instagram}
-                  variant={
-                    linkedThread
-                      ? "inbox-reply"
-                      : isWahaPseudoContactId(overlayThreadId)
-                        ? "whatsapp-only"
-                      : isEmailPseudoContactId(overlayThreadId)
-                          ? "email-only"
-                          : isMetaPseudoContactId(overlayThreadId)
-                            ? "meta-only"
-                            : "unified"
-                  }
-                  stickyFooter
-                  placeholder={
-                    isWahaPseudoContactId(overlayThreadId)
-                      ? "WhatsApp-Nachricht …"
-                      : isEmailPseudoContactId(overlayThreadId)
-                        ? "E-Mail schreiben …"
-                        : isMetaPseudoContactId(overlayThreadId) && metaThreadPlatform
-                          ? `${CONTACT_MESSAGE_PLATFORM_LABELS[metaThreadPlatform]}-Nachricht …`
-                          : "Antwort schreiben …"
-                  }
-                  whatsappTyping={
-                    restaurantId &&
-                    whatsappThreadChatId &&
-                    !editingWahaMessage &&
-                    (linkedThread
-                      ? defaultReplySend.whatsapp
-                      : isWahaPseudoContactId(overlayThreadId))
-                      ? {
-                          restaurantId,
-                          chatId: whatsappThreadChatId,
-                        }
-                      : null
-                  }
-                  editWhatsappMessage={editingWahaMessage}
-                  onEditWhatsapp={handleEditWhatsapp}
-                  onCancelEditWhatsapp={() => setEditingWahaMessage(null)}
-                  onSend={handleSend}
-                />
-              </div>
-            ) : showReplyBlockedHint ? (
-              <div className="px-4 py-4 sm:px-5">
-                <p className="text-sm text-muted-foreground">
-                  {!emailEnabled &&
-                  !whatsappEnabled &&
-                  !facebookEnabled &&
-                  !instagramEnabled
-                    ? "Nachrichten-Kanäle sind für dieses Restaurant nicht freigeschaltet."
-                    : !staffInviteEmailAvailable &&
-                        !emailConnected &&
-                        !whatsappConnected &&
-                        !facebookConnected &&
-                        !instagramConnected
-                      ? "Antworten erst möglich, wenn WhatsApp, E-Mail, Messenger oder Instagram unter Einstellungen → Integrationen verbunden ist — oder die Plattform-E-Mail (Gwada-Fallback) aktiv ist."
-                      : !effectiveHasEmail &&
-                          !effectiveHasPhone &&
-                          !effectiveHasFacebookId &&
-                          !effectiveHasInstagramId
-                        ? "Kontakt braucht Telefon (WhatsApp), E-Mail oder eine verknüpfte Messenger-/Instagram-ID."
-                        : !effectiveHasEmail &&
-                            !effectiveHasFacebookId &&
-                            !effectiveHasInstagramId &&
-                            !effectiveHasPhone
-                          ? "Für E-Mail-Antworten (auch über Gwada-Fallback) eine E-Mail am Kontakt hinterlegen."
-                          : !effectiveHasPhone &&
-                              !whatsappConnected &&
-                              !effectiveHasFacebookId &&
-                              !effectiveHasInstagramId
-                            ? "Für WhatsApp eine Telefonnummer hinterlegen und WhatsApp verbinden — oder Messenger/Instagram über einen Meta-Chat verknüpfen."
-                            : "Kein Versandweg verfügbar — Kanäle und Kontaktdaten prüfen."}
-                </p>
-              </div>
-            ) : null
-          }
-        >
-          <div className="flex h-full min-h-0 flex-col px-4 pt-4 sm:px-5 sm:pt-5">
-            <ContactMessageChatViewport
-              messages={displayMessages}
-              loading={loadingThread}
-              threadKey={overlayThreadId}
-              className="h-full min-h-0 flex-1"
-              hasMoreOlder={threadHasMore}
-              loadingOlder={loadingOlderMessages}
-              onLoadOlder={() => void loadOlderThreadMessages()}
-              onReservationOpen={(id) => void openReservationFromMessage(id)}
-              wahaReactions={wahaReactionsConfig}
-              metaReactions={metaReactionsConfig}
-              canViewProtocol={canViewMessageProtocol}
-              onOpenProtocol={setMessageProtocolId}
-            />
-          </div>
-        </ContactInboxThreadOverlay>
-      ) : null}
-
+      <div
+        className={cn(
+          "flex min-w-0 flex-col gap-4",
+          "lg:min-h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-6rem)] lg:flex-row lg:gap-0 lg:overflow-hidden lg:rounded-xl lg:border lg:border-border/50 lg:bg-card lg:shadow-card",
+        )}
+      >
       {showConversationList ? (
-        <Card className="w-full min-w-0 border-border/50 shadow-card">
+        <div className="flex min-w-0 flex-col lg:w-[min(100%,24rem)] lg:shrink-0 lg:overflow-hidden lg:border-r lg:border-border/50">
+        <Card className="flex w-full min-w-0 flex-col border-border/50 shadow-card lg:h-full lg:rounded-none lg:border-0 lg:shadow-none">
           <div className="space-y-3 border-b border-border/50 px-4 py-3 sm:px-6">
             <div className="flex gap-2">
               <ContactConversationsSearchBar
@@ -2787,7 +2798,7 @@ export function ContactsMessagesScreen({
               unreadTotal={unreadInList}
             />
           </div>
-          <CardContent className="p-0">
+          <CardContent className="min-h-0 p-0 lg:flex-1 lg:overflow-y-auto">
             {loadingList && !showListSkeleton ? (
               <div className="min-h-[14rem]" aria-busy />
             ) : loadingList && showListSkeleton ? (
@@ -2844,6 +2855,8 @@ export function ContactsMessagesScreen({
                     className={cn(
                       contactInboxConversationRowClassName,
                       inboxUnreadRowBackgroundClassName(unread, unreadHint),
+                      contactParam === c.contact_id &&
+                        "bg-accent/10 hover:bg-accent/15",
                     )}
                   >
                     {unread ? (
@@ -3086,6 +3099,42 @@ export function ContactsMessagesScreen({
             )}
           </CardContent>
         </Card>
+        </div>
+      ) : null}
+
+      <div className="hidden min-h-0 min-w-0 flex-1 flex-col lg:flex">
+        {overlayThreadId ? (
+          <ContactInboxThreadChrome
+            header={threadHeader}
+            footer={threadFooter}
+            aria-label={threadAriaLabel}
+            className="min-h-0 flex-1"
+          >
+            {threadViewport}
+          </ContactInboxThreadChrome>
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
+            <p className="text-sm font-medium text-foreground">
+              Chat auswählen
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Konversation links öffnen — Verlauf erscheint hier.
+            </p>
+          </div>
+        )}
+      </div>
+      </div>
+
+      {overlayThreadId && !isLgUp ? (
+        <ContactInboxThreadOverlay
+          open={threadOverlayOpen}
+          onClose={backToList}
+          aria-label={threadAriaLabel}
+          header={threadHeader}
+          footer={threadFooter}
+        >
+          {threadViewport}
+        </ContactInboxThreadOverlay>
       ) : null}
 
       <ReservationEditDrawer

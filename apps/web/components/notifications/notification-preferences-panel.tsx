@@ -45,7 +45,6 @@ import {
 import { NOTIFICATION_SETTINGS_GROUPS } from "@/lib/notifications/notification-module-groups";
 import type { NotificationSettingsGroup } from "@/lib/notifications/notification-module-groups";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { toast } from "sonner";
 
 export function NotificationPreferencesPanel() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
@@ -55,20 +54,17 @@ export function NotificationPreferencesPanel() {
   const {
     ready,
     isLoading,
-    isSaving: isSavingPrefs,
     dirty: prefsDirty,
     draft,
     channels,
-    updateDraft,
-    save: savePrefs,
+    patchPreferences,
     reload: reloadPrefs,
-    resetDraft: resetPrefsDraft,
   } = useNotificationPreferences();
 
   const isLoadingAll =
     isLoading || contact.isLoading || permissionsLoading || staffLoading;
-  const dirty = prefsDirty || contact.dirty;
-  const isSaving = isSavingPrefs || contact.isSaving;
+  const dirty = contact.dirty;
+  const isSaving = contact.isSaving;
   const showSkeleton = useDeferredSkeleton(isLoadingAll);
 
   const notificationAccess = useMemo(
@@ -116,9 +112,10 @@ export function NotificationPreferencesPanel() {
   );
   const whatsappPushAvailable = whatsappConnected && hasPhoneForPush;
 
-  const emailChannelAvailable =
+  const emailChannelAvailable = Boolean(
     channels?.restaurantEmailConfigured ||
-    channels?.platformEmailFallbackAvailable;
+      channels?.platformEmailFallbackAvailable,
+  );
   const hasEmailForPush = Boolean(contact.effectiveEmail.trim());
   const emailPushAvailable = hasEmailForPush && emailChannelAvailable;
 
@@ -135,7 +132,7 @@ export function NotificationPreferencesPanel() {
     moduleId: NotificationModuleId,
     enabled: boolean,
   ) => {
-    updateDraft({
+    patchPreferences({
       [field]: { ...draft[field], [moduleId]: enabled },
     });
   };
@@ -167,7 +164,7 @@ export function NotificationPreferencesPanel() {
     for (const id of moduleIds) {
       next[id] = enabled;
     }
-    updateDraft({ [field]: next });
+    patchPreferences({ [field]: next });
   };
 
   const setAllChannelsForModules = (
@@ -182,7 +179,7 @@ export function NotificationPreferencesPanel() {
       if (emailPushAvailable) pushEmail[id] = enabled;
       if (whatsappPushAvailable) pushWhatsapp[id] = enabled;
     }
-    updateDraft({
+    patchPreferences({
       inAppModules: inApp,
       pushEmailModules: pushEmail,
       pushWhatsappModules: pushWhatsapp,
@@ -198,31 +195,22 @@ export function NotificationPreferencesPanel() {
   };
 
   const handleSave = async () => {
-    const saveBoth = contact.dirty && prefsDirty;
     const phoneCleared =
       contact.dirty &&
       !normalizeNotificationPhoneForStorage(contact.draft.phone);
 
-    if (contact.dirty) {
-      const contactResult = await contact.save({ silent: saveBoth });
-      if (!contactResult.ok) return;
-      // Server löscht WhatsApp-Prefs ohne Nummer — UI nachziehen, wenn nur Kontakt gespeichert wurde.
-      if (phoneCleared && !prefsDirty) {
-        await reloadPrefs();
-      }
-    }
-    if (prefsDirty) {
-      const prefsResult = await savePrefs({ silent: saveBoth });
-      if (!prefsResult.ok) return;
-    }
-    if (saveBoth) {
-      toast.success("Benachrichtigungen gespeichert.");
+    if (!contact.dirty) return;
+
+    const contactResult = await contact.save();
+    if (!contactResult.ok) return;
+    // Server löscht WhatsApp-Prefs ohne Nummer — UI nachziehen.
+    if (phoneCleared) {
+      await reloadPrefs();
     }
   };
 
   const handleReset = () => {
-    if (contact.dirty) contact.resetDraft();
-    if (prefsDirty) resetPrefsDraft();
+    contact.resetDraft();
   };
 
   const emailHelper =

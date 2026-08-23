@@ -304,7 +304,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 3 * 60 * 60_000,
     pollIntervalMs: 60_000,
     description:
-      "Visual Crossing — localStorage + Memory (Anzeige-Cache max. 3h), stiller Refetch über Dashboard-Widget-Coordinator (60s) nur solange Dashboard-Home Keep-alive aktiv; erst nach stabilem Restaurant-Profil (Stadt).",
+      "Visual Crossing — localStorage + Memory (Anzeige-Cache max. 3h), stiller Refetch über Dashboard-Widget-Coordinator (60s) nur solange Dashboard-Home Keep-alive aktiv; erst nach stabilem Restaurant-Profil (Stadt). 7-Tage-Prognose nur beim Antippen der Kachel (eigener Cache-Key from/to, serverseitig weather_timeline_cache).",
     loadTriggers: [
       "Profil ready + Standort stabil",
       "Dashboard-Mount: peek Cache, dann silent fetch",

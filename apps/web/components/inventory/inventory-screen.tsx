@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
 import { IngredientDrawer } from "@/components/inventory/ingredient-drawer";
 import { InventoryMobileStockList, InventoryCompactStockList } from "@/components/inventory/inventory-mobile-stock-list";
 import { InventoryModuleViewToggle } from "@/components/inventory/inventory-module-view-toggle";
@@ -283,11 +284,10 @@ function InventoryStockInputCell({
     actor: OrderProtocolActor,
   ) => void;
 }) {
-  const [draft, setDraft] = useState(() => String(currentStock));
-
-  useEffect(() => {
-    setDraft(String(currentStock));
-  }, [ingredientId, currentStock]);
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
+    currentStock,
+    ingredientId,
+  );
 
   const commit = useCallback(() => {
     const raw = draft.trim();
@@ -299,7 +299,7 @@ function InventoryStockInputCell({
     }
     if (n === currentStock) return;
     onCommitStock(ingredientId, n, unitLabel, actor);
-  }, [actor, currentStock, draft, ingredientId, onCommitStock, unitLabel]);
+  }, [actor, currentStock, draft, ingredientId, onCommitStock, setDraft, unitLabel]);
 
   return (
     <input
@@ -307,6 +307,7 @@ function InventoryStockInputCell({
       inputMode="decimal"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
+      {...focusProps}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -326,11 +327,10 @@ function InventoryThresholdInputCell({
   lowStockThreshold: number;
   onCommitThreshold: (id: string, nextThreshold: number) => void;
 }) {
-  const [draft, setDraft] = useState(() => String(lowStockThreshold));
-
-  useEffect(() => {
-    setDraft(String(lowStockThreshold));
-  }, [ingredientId, lowStockThreshold]);
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
+    lowStockThreshold,
+    ingredientId,
+  );
 
   const commit = useCallback(() => {
     const raw = draft.trim();
@@ -342,7 +342,7 @@ function InventoryThresholdInputCell({
     }
     if (n === lowStockThreshold) return;
     onCommitThreshold(ingredientId, n);
-  }, [draft, ingredientId, lowStockThreshold, onCommitThreshold]);
+  }, [draft, ingredientId, lowStockThreshold, onCommitThreshold, setDraft]);
 
   return (
     <input
@@ -350,6 +350,7 @@ function InventoryThresholdInputCell({
       inputMode="decimal"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
+      {...focusProps}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -372,13 +373,10 @@ function InventoryPurchasePriceInputCell({
   lastPriceChangeAt?: string | null;
   onCommitPrice: (id: string, nextPrice: number | null) => void;
 }) {
-  const [draft, setDraft] = useState(() =>
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
     formatPurchaseUnitPriceDisplay(purchaseUnitPrice),
+    ingredientId,
   );
-
-  useEffect(() => {
-    setDraft(formatPurchaseUnitPriceDisplay(purchaseUnitPrice));
-  }, [ingredientId, purchaseUnitPrice]);
 
   const commit = useCallback(() => {
     const raw = draft.trim();
@@ -396,7 +394,7 @@ function InventoryPurchasePriceInputCell({
     setDraft(formatPurchaseUnitPriceDisplay(n));
     if (purchaseUnitPrice != null && n === purchaseUnitPrice) return;
     onCommitPrice(ingredientId, n);
-  }, [draft, ingredientId, onCommitPrice, purchaseUnitPrice]);
+  }, [draft, ingredientId, onCommitPrice, purchaseUnitPrice, setDraft]);
 
   const lastChangeLabel = lastPriceChangeAt
     ? new Date(lastPriceChangeAt).toLocaleDateString("de-DE", {
@@ -412,6 +410,7 @@ function InventoryPurchasePriceInputCell({
       inputMode="decimal"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
+      {...focusProps}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -459,13 +458,10 @@ function InventoryOrderAddCell({
     user: OrderProtocolActor,
   ) => Promise<boolean>;
 }) {
-  const [draft, setDraft] = useState(() =>
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
     openLineId ? String(openQty) : "",
+    openLineId ?? ingredient.id,
   );
-
-  useEffect(() => {
-    setDraft(openLineId ? String(openQty) : "");
-  }, [openLineId, openQty]);
 
   const displayOrderQty = useMemo(() => {
     const t = draft.trim();
@@ -556,6 +552,7 @@ function InventoryOrderAddCell({
     openLineId,
     openOrderId,
     openQty,
+    setDraft,
     supplierName,
     unitId,
     unitLabel,
@@ -571,6 +568,7 @@ function InventoryOrderAddCell({
         disabled={!canOrder}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        {...focusProps}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();

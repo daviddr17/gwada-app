@@ -94,7 +94,7 @@ export function warmLikelyNextModules(
   restaurantId: string | null | undefined,
   currentHref: string,
 ): void {
-  if (shouldSkipBackgroundModulePrefetch() || isSoftNavFlightActive()) {
+  if (isSoftNavFlightActive()) {
     return;
   }
   if (restaurantId && !isUuidRestaurantId(restaurantId)) return;
@@ -112,7 +112,7 @@ export function warmLikelyNextModules(
     seen.add(key);
     const target = href;
     window.setTimeout(() => {
-      if (shouldSkipBackgroundModulePrefetch() || isSoftNavFlightActive()) {
+      if (isSoftNavFlightActive()) {
         return;
       }
       warmModuleRouteIntent(router, queryClient, restaurantId, target);

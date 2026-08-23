@@ -30,7 +30,7 @@ const MENU_REOPEN_COOLDOWN_MS = 480;
 
 /**
  * Mobile Primary-Nav: Menü · Suche · Live · Meldungen (Thumb-Zone).
- * Profil bleibt im Menü-Sheet — Dock nicht überladen.
+ * Profil in der Menü-Footer-Zeile (Superadmin, Einstellungen, …).
  * Desktop: nicht gerendert (`md:hidden`).
  */
 export function AppMobileBottomNav() {

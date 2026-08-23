@@ -30,6 +30,7 @@ import {
   Settings,
   Settings2,
   Shield,
+  UserRound,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -577,6 +578,17 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ) : null}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname.startsWith(APP_ROUTES.profile.root)}
+              tooltip="Profil"
+              className={mobileFooterButtonClassName}
+              render={<AppNavLink href={APP_ROUTES.profile.personal} />}
+            >
+              <UserRound />
+              <span>Profil</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           {!inSuperadmin ? (
             <SidebarMenuItem>
               <SidebarMenuButton

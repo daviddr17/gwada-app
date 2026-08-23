@@ -17,7 +17,6 @@ import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-ove
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
-import { AppModuleHomeKeepAlives } from "@/components/navigation/app-module-home-keep-alives";
 import { SoftNavPendingOverlay } from "@/components/navigation/soft-nav-pending-overlay";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -30,22 +29,15 @@ import {
   AppModuleChromeProvider,
   useAppModuleChrome,
 } from "@/lib/contexts/app-module-chrome-context";
-import { ModuleHomeKeepAliveProvider } from "@/lib/contexts/module-home-keep-alive-context";
 import {
   DashboardGlobalSearchChrome,
   DashboardGlobalSearchTrigger,
 } from "@/components/search/dashboard-global-search-chrome";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { isRestaurantDashboardPath } from "@/lib/contexts/dashboard-global-search-context";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { cn } from "@/lib/utils";
-
-function isRestaurantDashboardPath(pathname: string): boolean {
-  return (
-    pathname === APP_ROUTES.dashboard ||
-    pathname.startsWith(`${APP_ROUTES.dashboard}/`)
-  );
-}
 
 function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -208,10 +200,8 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           <WorkspaceZoneTransition>
             {children}
           </WorkspaceZoneTransition>
-          {/* Soft-Nav: Modul-Homes warm — Sibling, kein Route-Unmount */}
-          <AppModuleHomeKeepAlives />
         </div>
-        {/* Sibling — deckt alten Content sofort ab, unmountet den Flight nicht */}
+        {/* Soft-Nav Pending — Keep-alive Homes nur in DashboardSpaShell */}
         <SoftNavPendingOverlay />
       </div>
 
@@ -225,13 +215,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AuthLogoutTransitionProvider>
         <AppModuleChromeProvider>
-          <ModuleHomeKeepAliveProvider>
-            <DashboardGlobalSearchChrome>
-              <AppSidebar />
-              <AppInsetWithChrome>{children}</AppInsetWithChrome>
-              <DashboardUploadOverlay />
-            </DashboardGlobalSearchChrome>
-          </ModuleHomeKeepAliveProvider>
+          <DashboardGlobalSearchChrome>
+            <AppSidebar />
+            <AppInsetWithChrome>{children}</AppInsetWithChrome>
+            <DashboardUploadOverlay />
+          </DashboardGlobalSearchChrome>
         </AppModuleChromeProvider>
       </AuthLogoutTransitionProvider>
     </SidebarProvider>

@@ -336,11 +336,11 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 5 * 60 * 1000,
     pollIntervalMs: 5 * 60 * 1000,
     description:
-      "Gwada-DB + WAHA/E-Mail/Facebook/Instagram — sessionStorage-Cache, Warm verzögert wenn Batch kürzlich lief; Realtime + 5-Min-Poll. Mount app-weit im (app)-Layout (nicht nur Kontakte-Route).",
+      "Gwada-DB + WAHA/E-Mail/Facebook/Instagram — sessionStorage-Cache (30 Min Session). Öffnen: Cache sofort, Force-Refetch nur wenn älter als 5 Min (SWR); sonst Background-Poll 5 Min + Realtime. Keep-alive Home in Dashboard-SPA. Mount app-weit im (app)-Layout.",
     loadTriggers: [
       "UnifiedInboxBackgroundSyncMount im App-Layout",
-      "Nachrichten-Widget sichtbar auf Dashboard",
-      "Warm nach 400ms (übersprungen wenn Batch < 30s)",
+      "Nachrichten Keep-alive Slot (warm nach Soft-Nav/Hover)",
+      "Warm nach 400ms (übersprungen wenn Cache frisch < 5 Min oder Batch < 30s)",
       "Poll 5 Min",
       "Meta-Inbox nur wenn OAuth verbunden",
     ],

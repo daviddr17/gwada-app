@@ -4,7 +4,7 @@ import type { ComponentType, ReactNode } from "react";
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { AppMain } from "@/components/layout/app-main";
-import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
+import { STAFF_MODULE_NAV } from "@/components/staff/staff-module-nav";
 import { StaffModuleStickyBar } from "@/components/staff/staff-module-sticky-bar";
 import { StaffModuleSelectionProvider } from "@/lib/contexts/staff-module-selection-context";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
@@ -14,50 +14,6 @@ import {
 } from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { cn } from "@/lib/utils";
-
-const STAFF_NAV: readonly ModuleSubnavItem[] = [
-  {
-    href: "/dashboard/mitarbeiter/uebersicht",
-    label: "Übersicht",
-    matchMode: "exact",
-    activeWhen: ["/dashboard/mitarbeiter"],
-  },
-  {
-    href: "/dashboard/mitarbeiter/arbeitszeiten",
-    label: "Arbeitszeiten",
-    matchMode: "exact",
-  },
-  {
-    href: "/dashboard/mitarbeiter/schichtplan",
-    label: "Schichtplan",
-    matchMode: "exact",
-  },
-  {
-    href: "/dashboard/mitarbeiter/vertraege",
-    label: "Verträge",
-    matchMode: "exact",
-  },
-  {
-    href: "/dashboard/mitarbeiter/dokumente",
-    label: "Dokumente",
-    matchMode: "exact",
-  },
-  {
-    href: "/dashboard/mitarbeiter/statistiken",
-    label: "Statistiken",
-    matchMode: "exact",
-  },
-  {
-    href: "/dashboard/mitarbeiter/export",
-    label: "Export",
-    matchMode: "exact",
-  },
-  {
-    href: "/dashboard/mitarbeiter/einstellungen",
-    label: "Einstellungen",
-    matchMode: "prefix",
-  },
-];
 
 function needsStaffPickerPath(pathname: string): boolean {
   return (
@@ -81,7 +37,7 @@ export function StaffChrome({ children }: { children: ReactNode }) {
         <RegisterModuleChrome
           title="Mitarbeiter"
           subnavAriaLabel="Mitarbeiter-Bereiche"
-          subnavItems={STAFF_NAV}
+          subnavItems={STAFF_MODULE_NAV}
         />
         <AppMain>
           <ModuleAccessDenied label="Mitarbeiter" />
@@ -95,7 +51,7 @@ export function StaffChrome({ children }: { children: ReactNode }) {
       <RegisterModuleChrome
         title="Mitarbeiter"
         subnavAriaLabel="Mitarbeiter-Bereiche"
-        subnavItems={STAFF_NAV}
+        subnavItems={STAFF_MODULE_NAV}
       />
       <AppMain className={cn(needsStaffPicker && "!pt-0")}>
         {needsStaffPicker ? (

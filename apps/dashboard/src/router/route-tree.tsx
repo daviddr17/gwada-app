@@ -11,12 +11,6 @@ import { DashboardSpaShell } from "../shell/dashboard-spa-shell";
 import { DASHBOARD_ROUTE_ENTRIES } from "../generated/route-modules";
 import { GenericModulePendingSkeleton } from "../ui/generic-module-pending-skeleton";
 import { dashboardHrefToTanstackTarget } from "@/lib/navigation/dashboard-spa-path";
-import { MODULE_HOME_PATHS } from "@/lib/navigation/module-home-keep-alive";
-
-const KEEP_ALIVE_HOME_PATHS = new Set<string>([
-  "/dashboard",
-  ...Object.values(MODULE_HOME_PATHS),
-]);
 
 const rootRoute = createRootRoute({
   component: DashboardSpaShell,
@@ -40,7 +34,7 @@ const childRoutes = DASHBOARD_ROUTE_ENTRIES.map((entry) => {
   }
 
   // Modul-Homes: UI nur in AppModuleHomeKeepAlives — Outlet bleibt null (kein Doppel-Mount).
-  if (entry.keepAliveHome || KEEP_ALIVE_HOME_PATHS.has(entry.fullPath)) {
+  if (entry.keepAliveHome) {
     return createRoute({
       getParentRoute: () => rootRoute,
       path,

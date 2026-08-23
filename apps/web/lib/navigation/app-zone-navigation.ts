@@ -1,18 +1,4 @@
-export {
-  appZoneFromPath,
-  type AppWorkspaceZone,
-} from "@/lib/navigation/workspace-zone-meta";
-
-export {
-  assignCrossAppWorkspaceZone,
-  crossAppWorkspaceZone,
-  workspaceZoneEnterHref,
-} from "@/lib/navigation/workspace-zone-enter";
-
-export {
-  appModuleRootFromPath,
-  crossAppModuleNavigation,
-} from "@/lib/navigation/app-module-navigation";
+export { assignCrossAppWorkspaceZone } from "@/lib/navigation/workspace-zone-enter";
 
 import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 

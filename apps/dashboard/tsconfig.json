@@ -14,8 +14,8 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["../web/*"],
-      "next/navigation": ["./src/shims/next-navigation.tsx"],
-      "next/link": ["./src/shims/next-link.tsx"],
+      "next/navigation": ["../web/lib/navigation/spa-next-shims/next-navigation.tsx"],
+      "next/link": ["../web/lib/navigation/spa-next-shims/next-link.tsx"],
       "next/image": ["./src/shims/next-image.tsx"]
     }
   },

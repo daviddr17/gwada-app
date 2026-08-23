@@ -177,7 +177,8 @@ export function AppChromeNotificationBell({
             variant="outline"
             size="icon-sm"
             className={cn(
-              "relative shrink-0 rounded-full border-border/60",
+              "relative shrink-0 rounded-full border-border/60 transition-[border-color,background-color] duration-200",
+              open && "border-accent/50 bg-accent/10",
               className,
             )}
             aria-label={
@@ -189,8 +190,12 @@ export function AppChromeNotificationBell({
         }
       >
         <span className="relative inline-flex">
-          <Bell className="size-4 shrink-0" />
-          {badge ? (
+          {open ? (
+            <X className="size-4 shrink-0" />
+          ) : (
+            <Bell className="size-4 shrink-0" />
+          )}
+          {badge && !open ? (
             <span
               className="pointer-events-none absolute -top-1 -right-1 flex min-w-[1.125rem] items-center justify-center rounded-full bg-accent px-1 py-0.5 text-[10px] font-bold leading-none text-accent-foreground shadow-sm"
               aria-hidden

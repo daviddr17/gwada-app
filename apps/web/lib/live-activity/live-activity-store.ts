@@ -111,6 +111,22 @@ export function clearLiveActivitySeenDot(restaurantId: string) {
   emit();
 }
 
+/** Verlauf leeren (Session) — Glocke bleibt unberührt. */
+export function clearLiveActivityFeed(restaurantId: string) {
+  ensureLiveActivityRestaurant(restaurantId);
+  state = { restaurantId, items: [] };
+  writeSession(restaurantId, []);
+  try {
+    sessionStorage.setItem(
+      `${STORAGE_KEY}:seen:${restaurantId}`,
+      new Date().toISOString(),
+    );
+  } catch {
+    /* ignore */
+  }
+  emit();
+}
+
 export function liveActivityHasUnseen(restaurantId: string): boolean {
   if (typeof window === "undefined") return false;
   const latest = state.items[0]?.at;

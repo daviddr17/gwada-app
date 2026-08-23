@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import {
+  clearLiveActivityFeed,
   clearLiveActivitySeenDot,
   ensureLiveActivityRestaurant,
   getLiveActivityItems,
@@ -15,6 +16,7 @@ export function useLiveActivityFeed(): {
   items: LiveActivityItem[];
   hasUnseen: boolean;
   markSeen: () => void;
+  clear: () => void;
   restaurantId: string | null;
 } {
   const { restaurantId } = useWorkspaceRestaurantUuid();
@@ -49,5 +51,9 @@ export function useLiveActivityFeed(): {
     if (restaurantId) clearLiveActivitySeenDot(restaurantId);
   }, [restaurantId]);
 
-  return { items, hasUnseen, markSeen, restaurantId };
+  const clear = useCallback(() => {
+    if (restaurantId) clearLiveActivityFeed(restaurantId);
+  }, [restaurantId]);
+
+  return { items, hasUnseen, markSeen, clear, restaurantId };
 }

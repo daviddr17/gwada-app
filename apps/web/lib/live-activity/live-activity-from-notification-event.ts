@@ -11,6 +11,44 @@ function pickString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function guestFromPayload(payload: Record<string, unknown>): string | null {
+  return (
+    pickString(payload.guest_name) ??
+    pickString(payload.contact_name) ??
+    pickString(payload.staff_name) ??
+    pickString(payload.staffName) ??
+    pickString(payload.author_name)
+  );
+}
+
+/** Human-readable Titel für den Live-Feed (nicht Settings-Labels der Glocke). */
+function feedTitleForModule(module: string, guest: string | null): string {
+  switch (module) {
+    case "staff_display_clock_in":
+      return guest ? `${guest} · Login` : "Mitarbeiter Login";
+    case "staff_display_clock_out":
+      return guest ? `${guest} · Logout` : "Mitarbeiter Logout";
+    case "staff_shift_start":
+      return guest ? `${guest} · Schichtstart` : "Schichtstart";
+    case "staff_shift_end":
+      return guest ? `${guest} · Schichtende` : "Schichtende";
+    case "inventory_low_stock":
+      return "Bestand niedrig";
+    case "reservations_pending":
+      return "Neue Reservierung";
+    case "reservations_change_request":
+      return "Reservierungsänderung";
+    case "reservations_cancellation":
+      return "Stornierung";
+    case "messages":
+      return "Neue Nachricht";
+    default: {
+      const moduleId = isNotificationModuleId(module) ? module : null;
+      return moduleId ? NOTIFICATION_MODULES[moduleId].label : module;
+    }
+  }
+}
+
 /** notification_events → Live-Feed-Zeile. */
 export function liveActivityFromNotificationEvent(params: {
   eventId?: string | null;
@@ -22,22 +60,31 @@ export function liveActivityFromNotificationEvent(params: {
     ? params.module
     : null;
   const def = moduleId ? NOTIFICATION_MODULES[moduleId] : null;
+  const guest = guestFromPayload(params.payload);
   const summary = formatNotificationPayloadSummary(
     params.module,
     params.payload,
   );
-  const guest =
-    pickString(params.payload.guest_name) ??
-    pickString(params.payload.contact_name) ??
-    pickString(params.payload.staff_name) ??
-    pickString(params.payload.author_name);
-  const title = def?.label ?? params.module;
-  const description =
+  const title = feedTitleForModule(params.module, guest);
+
+  let description: string | null =
     summary.trim() ||
-    guest ||
     pickString(params.payload.title) ||
     pickString(params.payload.body) ||
     null;
+
+  // Bei Login/Logout ist der Name schon im Titel — Summary nur wenn anders.
+  if (
+    (params.module === "staff_display_clock_in" ||
+      params.module === "staff_display_clock_out") &&
+    guest &&
+    description === guest
+  ) {
+    description =
+      params.module === "staff_display_clock_in"
+        ? "Hat sich am Display angemeldet"
+        : "Hat sich am Display abgemeldet";
+  }
 
   return {
     id: params.eventId ? `evt:${params.eventId}` : undefined,

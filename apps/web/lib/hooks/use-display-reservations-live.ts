@@ -81,7 +81,6 @@ export function useDisplayReservationsLive(enabled: boolean) {
                 party_size: snapshot.latest.party_size,
               }),
               restaurantTimeZone,
-              { restaurantId },
             );
             window.setTimeout(() => {
               toastRef.current = false;

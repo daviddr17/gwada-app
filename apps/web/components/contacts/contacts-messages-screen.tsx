@@ -875,7 +875,7 @@ export function ContactsMessagesScreen({
         facebookConnected,
         instagramConnected,
       });
-      if (error && active) toast.error(error.message);
+      if (error && activeRef.current) toast.error(error.message);
       setConversations(data);
     } else if (
       (inboxFilter === "whatsapp" && !whatsappConnected) ||
@@ -891,7 +891,7 @@ export function ContactsMessagesScreen({
         platform,
       });
       if (error) {
-        if (active) toast.error(error.message);
+        if (activeRef.current) toast.error(error.message);
         setConversations([]);
       } else {
         const enriched = await enrichConversationsWithReadState({
@@ -911,7 +911,6 @@ export function ContactsMessagesScreen({
     emailConnected,
     facebookConnected,
     instagramConnected,
-    active,
   ]);
 
   const refreshInbox = useCallback(async () => {

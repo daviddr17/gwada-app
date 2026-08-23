@@ -58,8 +58,7 @@ export function DashboardHeuteLiveTimeline({
           Heute live
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Display-Login, neue Reservierungen und Nachrichten — Einträge vom
-          heutigen Tag, auch wenn das Dashboard kurz geschlossen war.
+          Keine Einträge heute
         </p>
       </div>
     );

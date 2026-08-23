@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
@@ -26,6 +26,26 @@ export type ModuleSubnavItem = {
 function normalizePath(p: string): string {
   if (p.length > 1 && p.endsWith("/")) return p.slice(0, -1);
   return p;
+}
+
+function searchParamsFromHref(href: string): URLSearchParams | null {
+  const q = href.indexOf("?");
+  if (q === -1) return null;
+  return new URLSearchParams(href.slice(q + 1));
+}
+
+export function isActiveModuleSubnavItem(
+  pathname: string,
+  searchParams: URLSearchParams,
+  item: ModuleSubnavItem,
+): boolean {
+  if (!isActiveModulePath(pathname, item)) return false;
+  const expected = searchParamsFromHref(item.href);
+  if (!expected || expected.size === 0) return true;
+  for (const key of expected.keys()) {
+    if (searchParams.get(key) !== expected.get(key)) return false;
+  }
+  return true;
 }
 
 export function isActiveModulePath(
@@ -60,6 +80,7 @@ export function ModuleChipNav({
   className?: string;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { restaurantId } = useWorkspaceRestaurantUuid();
@@ -102,7 +123,11 @@ export function ModuleChipNav({
       <SidebarGroup className="p-0">
         <SidebarMenu className="flex-row flex-nowrap gap-1.5">
           {items.map((item) => {
-            const active = isActiveModulePath(pathname, item);
+            const active = isActiveModuleSubnavItem(
+              pathname,
+              searchParams,
+              item,
+            );
             if (item.disabled) {
               return (
                 <SidebarMenuItem

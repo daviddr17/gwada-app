@@ -14,7 +14,7 @@ import { EventsComposeDrawer } from "@/components/events/events-compose-drawer";
 import { EventsDetailDrawer } from "@/components/events/events-detail-drawer";
 import { EventsFeedSkeleton } from "@/components/events/events-feed-skeleton";
 import { EventsListView } from "@/components/events/events-feed-views";
-import { EventsPlatformFilterChips } from "@/components/events/events-platform-filter-chips";
+import { EVENTS_AUDIENCE_SUBNAV } from "@/components/events/events-audience-subnav";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import {
   EVENTS_FILTER_ALL,
@@ -26,6 +26,7 @@ import {
 } from "@/lib/constants/list-pagination";
 import {
   EVENTS_FILTER_PRIVATE,
+  EVENTS_FILTER_PUBLIC,
   parseEventsDashboardFilter,
   type EventsDashboardFilter,
 } from "@/lib/events/events-dashboard-filter";
@@ -57,7 +58,7 @@ import {
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
 import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persistence";
-import { cn } from "@/lib/utils";
+import { RegisterModuleSecondarySubnav } from "@/lib/contexts/app-module-chrome-context";
 
 const EVENTS_SYNC_POLL_MS = 5_000;
 const EVENTS_SYNC_POLL_MAX = 3;
@@ -114,7 +115,7 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   const initialFeed = initialFeedRef.current;
 
   const [platformFilter, setPlatformFilter] = useState<EventsDashboardFilter>(
-    EVENTS_FILTER_ALL,
+    EVENTS_FILTER_PUBLIC,
   );
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<UnifiedEventItem[]>(() => initialFeed.items);
@@ -131,7 +132,7 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
     useState<ReservationListRow | null>(null);
   const [privateCreateOpen, setPrivateCreateOpen] = useState(false);
   const [privateCreateDay, setPrivateCreateDay] = useState<Date>(() => new Date());
-  const { connectors, availablePlatforms } = useEventsPlatformConnections(restaurantId);
+  const { connectors } = useEventsPlatformConnections(restaurantId);
   const loadGeneration = useRef(0);
   const handledQueryRef = useRef<string>("");
 
@@ -217,6 +218,7 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
       setPrivateReservation(data);
       if (keepAliveOwnsPathname(active, pathname, "events")) {
         const p = new URLSearchParams();
+        p.set("filter", EVENTS_FILTER_PRIVATE);
         p.set(PRIVATE_EVENT_QUERY, reservationId);
         router.replace(`${pathname}?${p.toString()}`, { scroll: false });
       }
@@ -231,6 +233,7 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
       setPrivateCreateOpen(true);
       if (keepAliveOwnsPathname(active, pathname, "events")) {
         const p = new URLSearchParams();
+        p.set("filter", EVENTS_FILTER_PRIVATE);
         p.set(NEW_PRIVATE_EVENT_QUERY, "1");
         router.replace(`${pathname}?${p.toString()}`, { scroll: false });
       }
@@ -239,10 +242,24 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   );
 
   useEffect(() => {
-    if (!restaurantId || !ready) return;
+    if (!active) return;
     if (!keepAliveOwnsPathname(active, pathname, "events")) return;
     const filterRaw = searchParams.get("filter");
-    if (filterRaw) setPlatformFilter(parseEventsDashboardFilter(filterRaw));
+    setPlatformFilter(parseEventsDashboardFilter(filterRaw));
+    if (
+      !filterRaw &&
+      !searchParams.get(PRIVATE_EVENT_QUERY) &&
+      searchParams.get(NEW_PRIVATE_EVENT_QUERY) !== "1"
+    ) {
+      const p = new URLSearchParams(searchParams.toString());
+      p.set("filter", EVENTS_FILTER_PUBLIC);
+      router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+    }
+  }, [active, pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (!restaurantId || !ready) return;
+    if (!keepAliveOwnsPathname(active, pathname, "events")) return;
     const privateId = searchParams.get(PRIVATE_EVENT_QUERY);
     const newPrivate = searchParams.get(NEW_PRIVATE_EVENT_QUERY) === "1";
     const dayYmd = searchParams.get("day");
@@ -278,6 +295,7 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
           platform:
             platformFilter !== EVENTS_FILTER_ALL &&
             platformFilter !== EVENTS_FILTER_PRIVATE &&
+            platformFilter !== EVENTS_FILTER_PUBLIC &&
             isEventsCacheablePlatform(platformFilter)
               ? platformFilter
               : undefined,
@@ -311,10 +329,13 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   }, [syncMeta?.stale, loading, load]);
 
   const filteredItems = useMemo(() => {
-    if (platformFilter === EVENTS_FILTER_ALL) return items;
+    if (platformFilter === EVENTS_FILTER_PUBLIC) {
+      return items.filter((item) => !isPrivateEventFeedItem(item));
+    }
     if (platformFilter === EVENTS_FILTER_PRIVATE) {
       return items.filter(isPrivateEventFeedItem);
     }
+    if (platformFilter === EVENTS_FILTER_ALL) return items;
     return items.filter(
       (item) => !isPrivateEventFeedItem(item) && item.platform === platformFilter,
     );
@@ -342,80 +363,77 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   }
 
   return (
-    <div className="space-y-4">
-      <EventsPlatformFilterChips
-        value={platformFilter}
-        onChange={setPlatformFilter}
-        availablePlatforms={availablePlatforms}
-        showPrivateChip
+    <>
+      <RegisterModuleSecondarySubnav
+        ariaLabel="Events-Ansicht"
+        items={EVENTS_AUDIENCE_SUBNAV}
       />
-
-      {canManage ? (
-        <div className="space-y-2">
+      <div className="space-y-4">
+        {canManage ? (
           <Button
             type="button"
             size="lg"
             className={modulePrimaryAddButtonFullWidthClassName}
-            onClick={() => openNewPrivateEvent()}
+            onClick={() =>
+              platformFilter === EVENTS_FILTER_PRIVATE
+                ? openNewPrivateEvent()
+                : setComposeOpen(true)
+            }
           >
             <Plus className="size-4" />
-            Neue Veranstaltung
+            {platformFilter === EVENTS_FILTER_PRIVATE
+              ? "Neue Veranstaltung"
+              : "Öffentliches Event"}
           </Button>
-          <Button
-            type="button"
-            size="lg"
-            variant="outline"
-            className={cn(
-              "h-12 w-full gap-2 rounded-xl border-border/60",
-            )}
-            onClick={() => setComposeOpen(true)}
-          >
-            <Plus className="size-4" />
-            Öffentliches Event
-          </Button>
-        </div>
-      ) : null}
+        ) : null}
 
-      {showFeedSkeleton ? (
-        <EventsFeedSkeleton />
-      ) : (
-        <ListPaginationSurround
-          classNameAbove="px-0 pt-0"
-          classNameBelow="px-0 pb-0"
-          page={currentPage}
-          totalPages={totalPages}
-          shown={paginatedItems.length}
-          totalCount={totalCount}
-          itemLabel="Events"
-          canPrevious={currentPage > 1}
-          canNext={currentPage < totalPages}
-          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-          feedSync={{
-            syncMeta,
-            syncing,
-            onSyncNow: () => void syncNow(),
-          }}
-        >
-          {paginatedItems.length === 0 && !loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Noch keine Events — lege eine private Veranstaltung oder ein öffentliches Event an.
-            </p>
-          ) : (
-            <EventsListView
-              items={paginatedItems}
-              onItemClick={(item) => {
-                if (isPrivateEventFeedItem(item) && item.eventId) {
-                  void openPrivateEvent(item.eventId);
-                  return;
-                }
-                setDetailItem(item);
-                setDetailOpen(true);
-              }}
-            />
-          )}
-        </ListPaginationSurround>
-      )}
+        {showFeedSkeleton ? (
+          <EventsFeedSkeleton />
+        ) : (
+          <ListPaginationSurround
+            classNameAbove="px-0 pt-0"
+            classNameBelow="px-0 pb-0"
+            page={currentPage}
+            totalPages={totalPages}
+            shown={paginatedItems.length}
+            totalCount={totalCount}
+            itemLabel="Events"
+            canPrevious={currentPage > 1}
+            canNext={currentPage < totalPages}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+            feedSync={
+              platformFilter === EVENTS_FILTER_PRIVATE
+                ? undefined
+                : {
+                    syncMeta,
+                    syncing,
+                    onSyncNow: () => void syncNow(),
+                  }
+            }
+          >
+            {paginatedItems.length === 0 && !loading ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {platformFilter === EVENTS_FILTER_PRIVATE
+                  ? "Noch keine private Veranstaltung — oben anlegen."
+                  : "Noch keine öffentlichen Events — oben anlegen oder Plattformen synchronisieren."}
+              </p>
+            ) : (
+              <EventsListView
+                items={paginatedItems}
+                pastEventLabel="Vergangen"
+                onItemClick={(item) => {
+                  if (isPrivateEventFeedItem(item) && item.eventId) {
+                    void openPrivateEvent(item.eventId);
+                    return;
+                  }
+                  setDetailItem(item);
+                  setDetailOpen(true);
+                }}
+              />
+            )}
+          </ListPaginationSurround>
+        )}
 
       <EventsComposeDrawer
         open={composeOpen}
@@ -466,6 +484,7 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
           void load({ silent: true });
         }}
       />
-    </div>
+      </div>
+    </>
   );
 }

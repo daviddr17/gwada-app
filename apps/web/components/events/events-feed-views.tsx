@@ -84,11 +84,13 @@ const EventTimelineRow = memo(function EventTimelineRow({
   onClick,
   showConnectorBelow,
   density = "comfortable",
+  pastEventLabel,
 }: {
   item: UnifiedEventItem;
   onClick?: () => void;
   showConnectorBelow: boolean;
   density?: "comfortable" | "compact";
+  pastEventLabel?: string;
 }) {
   const t = useTranslations("Embed.eventsUi");
   const fullRange = formatEventDateRange(item);
@@ -157,7 +159,7 @@ const EventTimelineRow = memo(function EventTimelineRow({
               {item.isPinned ? <FeedPinnedBadge /> : null}
               {past ? (
                 <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {t("past")}
+                  {pastEventLabel ?? t("past")}
                 </span>
               ) : null}
             </div>
@@ -235,10 +237,12 @@ export function EventsTimelineView({
   items,
   onItemClick,
   density = "comfortable",
+  pastEventLabel,
 }: {
   items: UnifiedEventItem[];
   onItemClick?: (item: UnifiedEventItem) => void;
   density?: "comfortable" | "compact";
+  pastEventLabel?: string;
 }) {
   const compact = density === "compact";
   return (
@@ -271,6 +275,7 @@ export function EventsTimelineView({
               <EventTimelineRow
                 item={item}
                 density={density}
+                pastEventLabel={pastEventLabel}
                 showConnectorBelow={index < items.length - 1}
                 onClick={onItemClick ? () => onItemClick(item) : undefined}
               />
@@ -287,6 +292,7 @@ export function EventsListView(props: {
   items: UnifiedEventItem[];
   onItemClick?: (item: UnifiedEventItem) => void;
   density?: "comfortable" | "compact";
+  pastEventLabel?: string;
 }) {
   return <EventsTimelineView {...props} />;
 }

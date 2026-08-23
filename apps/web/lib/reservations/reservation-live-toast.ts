@@ -51,11 +51,27 @@ export function reservationLiveToastFromRecord(
 export function showNewReservationToast(
   row: ReservationLiveToastFields | null,
   timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+  opts?: { restaurantId?: string | null },
 ) {
+  const description = row
+    ? formatReservationLiveToastDescription(row, timeZone)
+    : "Wird aktualisiert …";
   toast.info("Neue Reservierung", {
-    description: row
-      ? formatReservationLiveToastDescription(row, timeZone)
-      : "Wird aktualisiert …",
+    description,
     duration: 4_000,
   });
+  const restaurantId = opts?.restaurantId?.trim();
+  if (restaurantId) {
+    void import("@/lib/live-activity/live-activity-store").then(
+      ({ recordLiveActivity }) => {
+        recordLiveActivity(restaurantId, {
+          kind: "reservation",
+          module: "reservations_pending",
+          title: "Neue Reservierung",
+          description,
+          href: "/dashboard/reservierungen",
+        });
+      },
+    );
+  }
 }

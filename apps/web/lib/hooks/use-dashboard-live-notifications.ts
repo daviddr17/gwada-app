@@ -73,6 +73,17 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
         description: "Posteingang wird aktualisiert.",
         duration: 4_000,
       });
+      void import("@/lib/live-activity/live-activity-store").then(
+        ({ recordLiveActivity }) => {
+          recordLiveActivity(restaurantId, {
+            kind: "message",
+            module: "messages",
+            title: "Neue Nachricht",
+            description: "Posteingang wird aktualisiert.",
+            href: "/dashboard/kontakte/nachrichten?platform=all&read=unread",
+          });
+        },
+      );
       setTimeout(() => {
         toastRef.current = false;
       }, RECONCILE_REFRESH_DEBOUNCE_MS);

@@ -8,6 +8,7 @@ import { AppMobileBottomNav } from "@/components/layout/app-mobile-bottom-nav";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
+import { AppChromeActivityFeed } from "@/components/layout/app-chrome-activity-feed";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
 import { DashboardPwaInstallButton } from "@/components/dashboard/dashboard-pwa-install-button";
@@ -121,6 +122,7 @@ function DashboardSpaInset() {
           ) : null}
           <div className="hidden shrink-0 items-center gap-2 md:flex">
             <DashboardGlobalSearchTrigger />
+            <AppChromeActivityFeed />
             <AppChromeNotificationBell />
             <AppChromeRestaurantProfileLink />
             <Button
@@ -145,6 +147,7 @@ function DashboardSpaInset() {
             <ModeToggle size="icon-sm" />
           </div>
           <div className="flex shrink-0 items-center gap-1.5 md:hidden">
+            <AppChromeActivityFeed />
             <ModeToggle size="icon-sm" />
           </div>
         </div>

@@ -79,7 +79,10 @@ export function isModuleHomePath(
   return alias != null && path === alias;
 }
 
-export function matchModuleHomeId(pathname: string): ModuleHomeId | null {
+export function matchModuleHomeId(
+  pathname: string | null | undefined,
+): ModuleHomeId | null {
+  if (!pathname) return null;
   const path = normalizePath(pathname);
   for (const id of MODULE_HOME_IDS) {
     if (isModuleHomePath(path, id)) return id;

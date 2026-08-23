@@ -4,9 +4,9 @@ export type SpaZoneBase = "/dashboard" | "/superadmin";
 
 export function tanstackLocationToZonePath(
   base: SpaZoneBase,
-  pathname: string,
+  pathname: string | null | undefined,
 ): string {
-  if (pathname === "/" || pathname === "") return base;
+  if (pathname == null || pathname === "/" || pathname === "") return base;
   return `${base}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
 }
 

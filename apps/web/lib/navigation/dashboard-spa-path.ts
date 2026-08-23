@@ -5,7 +5,9 @@ import {
   zoneHrefToTanstackTarget,
 } from "@/lib/navigation/spa-zone-path";
 
-export function tanstackLocationToDashboardPath(pathname: string): string {
+export function tanstackLocationToDashboardPath(
+  pathname: string | null | undefined,
+): string {
   return tanstackLocationToZonePath("/dashboard", pathname);
 }
 

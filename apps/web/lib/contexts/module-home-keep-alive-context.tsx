@@ -75,7 +75,7 @@ export function ModuleHomeKeepAliveProvider({
 }: {
   children: ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { pendingHref } = useSoftNavLock();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const activeHomeId = matchModuleHomeId(pathname);

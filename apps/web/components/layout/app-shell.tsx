@@ -40,7 +40,7 @@ import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { cn } from "@/lib/utils";
 
 function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { accentHex } = useAccentColor();
   const { chrome } = useAppModuleChrome();
   const showChipRow = Boolean(chrome.subnav?.items.length);

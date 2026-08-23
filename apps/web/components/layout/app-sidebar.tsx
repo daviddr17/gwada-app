@@ -121,7 +121,7 @@ function restaurantInitials(name: string): string {
 }
 
 export function AppSidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { pendingHref } = useSoftNavLock();
   const { logout, isLoggingOut } = useAuthLogoutTransition();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -142,7 +142,7 @@ export function AppSidebar() {
     null,
   );
   const permissionsPending = permissionsLoading && permissions.size === 0;
-  const inSuperadmin = pathname.startsWith("/superadmin");
+  const inSuperadmin = Boolean(pathname?.startsWith("/superadmin"));
   const { summary: notificationSummary } = useNotificationSummary();
   const { count: pendingChangelogCount } = useSuperadminChangelogPendingCount(
     isSuperadmin && inSuperadmin,

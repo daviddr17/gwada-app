@@ -97,7 +97,7 @@ function titleForHref(href: string): string | null {
 }
 
 export function SoftNavPendingOverlay() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { pendingHref } = useSoftNavLock();
   const { setChrome } = useAppModuleChrome();
   const moduleKeepAlive = useModuleHomeKeepAliveOptional();

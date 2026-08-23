@@ -15,7 +15,8 @@ import {
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { cn } from "@/lib/utils";
 
-function needsStaffPickerPath(pathname: string): boolean {
+function needsStaffPickerPath(pathname: string | null): boolean {
+  if (!pathname) return false;
   return (
     pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
     pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||

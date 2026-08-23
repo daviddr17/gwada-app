@@ -44,7 +44,7 @@ import { SoftNavPendingOverlay } from "@/components/navigation/soft-nav-pending-
 import { ModuleHomeKeepAliveProvider } from "@/lib/contexts/module-home-keep-alive-context";
 
 function DashboardSpaInset() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { accentHex } = useAccentColor();
   const { chrome } = useAppModuleChrome();
   const showChipRow = Boolean(chrome.subnav?.items.length);

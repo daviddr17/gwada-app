@@ -6,17 +6,21 @@ import { SuperadminSPA } from "@gwada/superadmin";
 import { AppShell } from "@/components/layout/app-shell";
 import { SoftNavLockProvider } from "@/components/providers/soft-nav-lock-provider";
 
-function isDashboardZone(pathname: string): boolean {
+function isDashboardZone(pathname: string | null): boolean {
+  if (!pathname) return false;
   return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
 }
 
-function isSuperadminZone(pathname: string): boolean {
+function isSuperadminZone(pathname: string | null): boolean {
+  if (!pathname) return false;
   return pathname === "/superadmin" || pathname.startsWith("/superadmin/");
 }
 
 /**
  * Dashboard + Superadmin = Vite/TanStack SPA.
  * Workspace & Rest = Next AppShell + Soft-Nav.
+ *
+ * `usePathname()` can be null during SSR/static — never call `.startsWith` on it.
  */
 export function AppZoneRouter({
   children,

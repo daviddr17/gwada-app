@@ -16,7 +16,8 @@ export function useServerInsertedHTML(_callback: () => ReactNode): void {
 export function usePathname(): string {
   const spa = useSpaZoneNavigationOptional();
   const nextPathname = useNextPathname();
-  return spa?.pathname ?? nextPathname;
+  // Next kann kurz null liefern (SSR/static) — nie null an Call-Sites weiterreichen.
+  return spa?.pathname ?? nextPathname ?? "/";
 }
 
 export function useRouter() {

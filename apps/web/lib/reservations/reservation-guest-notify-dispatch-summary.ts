@@ -27,6 +27,27 @@ const CHANNEL_LABEL: Record<GuestNotifyChannel, string> = {
   email: "E-Mail",
 };
 
+/** Gast-Daten fehlen — kein Systemfehler, kein Warning-Toast. */
+const SOFT_GUEST_SKIP_LABEL: Record<string, Partial<Record<GuestNotifyChannel, string>>> =
+  {
+    no_phone: { whatsapp: "WhatsApp: keine Nummer" },
+    no_email: { email: "E-Mail: keine Adresse" },
+  };
+
+export function isGuestNotifySoftSkipError(
+  error: string | undefined,
+): boolean {
+  return error != null && error in SOFT_GUEST_SKIP_LABEL;
+}
+
+function softSkipLabel(
+  channel: GuestNotifyChannel,
+  error: string | undefined,
+): string | null {
+  if (!error) return null;
+  return SOFT_GUEST_SKIP_LABEL[error]?.[channel] ?? null;
+}
+
 function dispatchWasSkipped(result: {
   skipped?: string | boolean;
 }): boolean {
@@ -41,7 +62,9 @@ function dispatchDetailMessage(
 ): string | null {
   return channel === "whatsapp"
     ? whatsappDispatchUserMessage(result as WhatsappDispatchApiResult)
-    : emailDispatchUserMessage(result as EmailDispatchApiResult, { isSuperadmin });
+    : emailDispatchUserMessage(result as EmailDispatchApiResult, {
+        isSuperadmin,
+      });
 }
 
 export function summarizeGuestNotifyChannel(params: {
@@ -67,6 +90,10 @@ export function summarizeGuestNotifyChannel(params: {
     };
   }
   if (result.error) {
+    const soft = softSkipLabel(channel, result.error);
+    if (soft) {
+      return { channel, outcome: "skipped", detail: soft };
+    }
     return {
       channel,
       outcome: "failed",
@@ -108,11 +135,35 @@ function formatChannelSummary(summary: GuestNotifyChannelSummary): string {
   }
 }
 
+export function reservationGuestNotifyToastDescription(
+  summaries: GuestNotifyChannelSummary[],
+): string {
+  return summaries.map(formatChannelSummary).join(" · ");
+}
+
 export function reservationConfirmNotificationToastContent(
   summaries: GuestNotifyChannelSummary[],
 ): { title: string; description: string } {
   return {
     title: "Reservierung bestätigt.",
-    description: summaries.map(formatChannelSummary).join(" · "),
+    description: reservationGuestNotifyToastDescription(summaries),
   };
+}
+
+/**
+ * Warning nur bei echten Versandproblemen — nicht bei fehlender Telefonnummer/E-Mail
+ * (die gehören in den Bestätigungs-/Speichern-Toast).
+ */
+export function reservationDispatchWarningMessage(
+  channel: GuestNotifyChannel,
+  result: WhatsappDispatchApiResult | EmailDispatchApiResult | null,
+  options?: { isSuperadmin?: boolean },
+): string | null {
+  if (!result || isSilentClientSendResult(result)) return null;
+  if (isGuestNotifySoftSkipError(result.error)) return null;
+  return channel === "whatsapp"
+    ? whatsappDispatchUserMessage(result as WhatsappDispatchApiResult)
+    : emailDispatchUserMessage(result as EmailDispatchApiResult, {
+        isSuperadmin: options?.isSuperadmin === true,
+      });
 }

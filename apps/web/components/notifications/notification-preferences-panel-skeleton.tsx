@@ -22,7 +22,7 @@ export function NotificationPreferencesPanelSkeleton() {
               <Skeleton className="h-4 w-32 rounded-md" />
               <Skeleton className="h-3 w-full max-w-sm rounded-md" />
             </div>
-            <Skeleton className="h-9 w-[11rem] shrink-0 rounded-lg" />
+            <Skeleton className="h-9 w-[15.5rem] shrink-0 rounded-full" />
           </div>
         ))}
       </SkeletonCardFrame>

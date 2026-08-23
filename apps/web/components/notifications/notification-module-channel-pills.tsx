@@ -15,18 +15,20 @@ export type NotificationDeliveryChannel = "inApp" | "email" | "whatsapp";
 const CHANNEL_OPTIONS: {
   id: NotificationDeliveryChannel;
   label: string;
-  shortLabel: string;
   Icon: ComponentType<{ className?: string }>;
 }[] = [
-  { id: "inApp", label: "Glocke", shortLabel: "Glocke", Icon: Bell },
-  { id: "email", label: "E-Mail", shortLabel: "E-Mail", Icon: Mail },
+  { id: "inApp", label: "Glocke", Icon: Bell },
+  { id: "email", label: "E-Mail", Icon: Mail },
   {
     id: "whatsapp",
     label: "WhatsApp",
-    shortLabel: "WA",
     Icon: WhatsAppGlyph,
   },
 ];
+
+/** Kanal-Chips (Glocke / E-Mail / WhatsApp) — wie Posteingang-Plattform-Chips. */
+export const notificationDeliveryChannelChipClassName =
+  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors";
 
 function moduleDescription(moduleId: NotificationModuleId): string {
   const label = NOTIFICATION_MODULES[moduleId].settingsInAppLabel;
@@ -65,13 +67,13 @@ export function NotificationModuleChannelPills({
   return (
     <div
       className={cn(
-        "inline-flex max-w-full shrink-0 gap-1 rounded-lg border border-border/60 bg-muted/40 p-1",
+        "flex max-w-full flex-wrap gap-2",
         className,
       )}
       role="group"
       aria-label="Kanäle"
     >
-      {CHANNEL_OPTIONS.map(({ id, label, shortLabel, Icon }) => {
+      {CHANNEL_OPTIONS.map(({ id, label, Icon }) => {
         const disabled =
           id === "email" ? emailDisabled : id === "whatsapp" ? whatsappDisabled : false;
         const active = values[id];
@@ -87,12 +89,12 @@ export function NotificationModuleChannelPills({
             aria-pressed={active}
             aria-label={`${label}${active ? " aktiv" : ""}`}
             className={cn(
-              "flex min-w-[2.85rem] flex-1 items-center justify-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-[color,background-color,border-color,box-shadow] sm:min-w-[3.5rem] sm:text-xs",
+              notificationDeliveryChannelChipClassName,
               active
-                ? "border-accent/55 bg-accent/22 text-foreground shadow-sm"
-                : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                ? "border-accent/50 bg-accent/15 text-foreground"
+                : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
               disabled &&
-                "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-muted-foreground",
+                "cursor-not-allowed opacity-45 hover:border-border/60 hover:bg-card hover:text-muted-foreground",
             )}
             onClick={() => {
               if (disabled) return;
@@ -101,13 +103,12 @@ export function NotificationModuleChannelPills({
           >
             <Icon
               className={cn(
-                "size-3.5 shrink-0 sm:size-4",
+                "size-4 shrink-0",
                 id === "whatsapp" && "[&_path]:fill-current",
               )}
               aria-hidden
             />
-            <span className="hidden sm:inline">{label}</span>
-            <span className="sm:hidden">{shortLabel}</span>
+            <span>{label}</span>
           </button>
         );
       })}
@@ -157,7 +158,7 @@ export function NotificationModuleChannelRow({
         emailDisabledHint={emailDisabledHint}
         whatsappDisabledHint={whatsappDisabledHint}
         onChange={onChange}
-        className="w-full sm:w-auto sm:max-w-[15.5rem]"
+        className="w-full sm:w-auto sm:shrink-0"
       />
     </li>
   );

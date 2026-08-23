@@ -970,7 +970,7 @@ export function DayReservationsDrawer({
       type="button"
       onClick={() => setViewMode(id)}
       className={cn(
-        "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-200",
+        "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-200",
         viewMode === id
           ? "border-accent bg-accent text-accent-foreground"
           : "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/50",
@@ -1001,22 +1001,22 @@ export function DayReservationsDrawer({
           "data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:mt-4 data-[vaul-drawer-direction=bottom]:max-h-[min(96dvh,calc(100dvh-0.5rem))]",
         )}
       >
-        <DrawerHeader className={drawerFormHeaderClassName(6, "min-w-0 space-y-3 overflow-x-hidden")}>
-          <div>
-            <DrawerTitle className="text-xl font-semibold tracking-tight">
-              Tagesübersicht
-            </DrawerTitle>
-            <DrawerDescription className="text-base text-foreground/90">
-              {formatDayHeadingDe(day)}
-            </DrawerDescription>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap gap-2">
-              {viewChip("list", "Listenansicht")}
-              {showGridOption ? viewChip("grid", "Gridansicht") : null}
-              {viewChip("floor", "Tischansicht")}
+        <DrawerHeader className={drawerFormHeaderClassName(6, "min-w-0 space-y-2 overflow-x-hidden pb-2")}>
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <DrawerTitle className="text-lg font-semibold tracking-tight sm:text-xl">
+                {formatDayHeadingDe(day)}
+              </DrawerTitle>
+              <DrawerDescription className="sr-only">
+                Tagesübersicht Reservierungen
+              </DrawerDescription>
+              <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                {sorted.length === 1
+                  ? "1 Reservierung"
+                  : `${sorted.length} Reservierungen`}
+              </p>
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5">
               <AutoAssignTablesButton
                 variant="dashboard"
                 size="icon"
@@ -1049,28 +1049,33 @@ export function DayReservationsDrawer({
               ) : null}
             </div>
           </div>
-          {(viewMode === "list" || (viewMode === "grid" && showGridOption)) && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Sortierung</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {viewChip("list", "Liste")}
+              {showGridOption ? viewChip("grid", "Grid") : null}
+              {viewChip("floor", "Tisch")}
+            </div>
+            {(viewMode === "list" || (viewMode === "grid" && showGridOption)) && (
               <Select
                 value={sortBy}
                 onValueChange={(v) => setSortBy(v as DaySortBy)}
               >
                 <SelectTrigger
                   size="sm"
-                  className="h-8 min-h-8 w-[min(100%,220px)] rounded-xl px-2.5 py-0 text-left text-xs font-medium"
+                  aria-label="Sortierung"
+                  className="ms-auto h-7 min-h-7 w-[min(100%,9.5rem)] rounded-full border-border/60 px-2.5 py-0 text-left text-xs font-medium"
                 >
                   <SelectValue>{SORT_LABELS[sortBy]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="time">Zeit</SelectItem>
                   <SelectItem value="lastname">Nachname</SelectItem>
-                  <SelectItem value="party">Personenanzahl</SelectItem>
+                  <SelectItem value="party">Personen</SelectItem>
                   <SelectItem value="table">Tisch</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-          )}
+            )}
+          </div>
         </DrawerHeader>
 
         {mountContent ? (
@@ -1081,6 +1086,7 @@ export function DayReservationsDrawer({
           serviceDate={serviceDateYmd}
           onNotesChanged={onDayNotesChanged}
           className="px-6"
+          collapsible
         />
 
         {viewMode === "floor" && areas.length > 1 ? (
@@ -1109,7 +1115,7 @@ export function DayReservationsDrawer({
           ref={viewMode === "floor" ? floorPlanMeasureRef : undefined}
           data-vaul-no-drag
           className={cn(
-            "min-h-0 min-w-0 flex-1 overflow-x-hidden px-6 pt-3",
+            "min-h-0 min-w-0 flex-1 overflow-x-hidden px-6 pt-2",
             viewMode === "floor"
               ? "overflow-y-auto overscroll-x-none overscroll-y-contain touch-pan-y"
               : "overflow-hidden",

@@ -31,7 +31,7 @@ export function ReservationDayNoteOverviewChip({
             onClick={onClick}
             aria-label={`${label} — ${tooltip}`}
           >
-            <StickyNote className="size-3 shrink-0" aria-hidden />
+            <StickyNote className="size-3.5 shrink-0" aria-hidden />
             <span>{label}</span>
           </button>
         }

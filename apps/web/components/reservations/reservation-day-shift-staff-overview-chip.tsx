@@ -30,7 +30,7 @@ export function ReservationDayShiftStaffOverviewChip({
             onClick={onClick}
             aria-label={`${label} — Übersicht öffnen`}
           >
-            <Users className="size-3 shrink-0" aria-hidden />
+            <Users className="size-3.5 shrink-0" aria-hidden />
             <span>{label}</span>
           </button>
         }

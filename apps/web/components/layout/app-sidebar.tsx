@@ -142,7 +142,7 @@ export function AppSidebar() {
     null,
   );
   const permissionsPending = permissionsLoading && permissions.size === 0;
-  const inSuperadmin = Boolean(pathname?.startsWith("/superadmin"));
+  const inSuperadmin = pathname.startsWith("/superadmin");
   const { summary: notificationSummary } = useNotificationSummary();
   const { count: pendingChangelogCount } = useSuperadminChangelogPendingCount(
     isSuperadmin && inSuperadmin,

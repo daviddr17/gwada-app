@@ -13,19 +13,17 @@ export function NotificationPreferencesPanelSkeleton() {
         <Skeleton className="h-11 rounded-xl" />
         <Skeleton className="h-11 rounded-xl" />
       </SkeletonCardFrame>
-      <SkeletonCardFrame className="space-y-3 p-6">
-        <Skeleton className="h-6 w-32 rounded-md" />
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-14 rounded-xl" />
-        ))}
-      </SkeletonCardFrame>
-      <SkeletonCardFrame className="space-y-3 p-6">
-        <Skeleton className="h-6 w-36 rounded-md" />
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={`wa-${i}`} className="h-14 rounded-xl" />
-        ))}
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={`mail-${i}`} className="h-14 rounded-xl" />
+      <SkeletonCardFrame className="space-y-4 p-6">
+        <Skeleton className="h-6 w-40 rounded-md" />
+        <Skeleton className="h-4 w-full max-w-lg rounded-md" />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between gap-4 py-2">
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-32 rounded-md" />
+              <Skeleton className="h-3 w-full max-w-sm rounded-md" />
+            </div>
+            <Skeleton className="h-9 w-[11rem] shrink-0 rounded-lg" />
+          </div>
         ))}
       </SkeletonCardFrame>
     </div>

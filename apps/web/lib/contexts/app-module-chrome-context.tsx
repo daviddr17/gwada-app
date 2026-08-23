@@ -133,7 +133,7 @@ export function RegisterModuleSecondarySubnav({
     return () => {
       setChrome((prev) => {
         if (prev.secondarySubnav?.ariaLabel !== ariaLabel) return prev;
-        return prev;
+        return { ...prev, secondarySubnav: null };
       });
     };
   }, [ariaLabel, items, setChrome]);

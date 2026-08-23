@@ -49,8 +49,15 @@ export function flushSoftNavPush(router: AppRouterInstance): string | null {
   return target;
 }
 
-export function resetSoftNavCoalescedPushForTests(): void {
-  if (timer != null) window.clearTimeout(timer);
-  timer = null;
+/** Pending-Push verwerfen ohne Navigation (Hard-Clear / Unmount). */
+export function cancelSoftNavCoalescedPush(): void {
+  if (timer != null) {
+    window.clearTimeout(timer);
+    timer = null;
+  }
   pendingHref = null;
+}
+
+export function resetSoftNavCoalescedPushForTests(): void {
+  cancelSoftNavCoalescedPush();
 }

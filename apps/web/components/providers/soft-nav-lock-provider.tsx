@@ -17,6 +17,7 @@ import {
 } from "@/lib/navigation/soft-nav-lock-context";
 import {
   coalesceSoftNavPush,
+  cancelSoftNavCoalescedPush,
   flushSoftNavPush,
 } from "@/lib/navigation/soft-nav-coalesced-push";
 import {
@@ -25,8 +26,11 @@ import {
 } from "@/lib/navigation/soft-nav-flight";
 import { isSoftNavPendingArrived } from "@/lib/navigation/module-home-keep-alive";
 
-const PENDING_CLEAR_FAILSAFE_MS = 6_000;
-const PENDING_RETRY_EXTRA_MS = 3_500;
+/** Erster Failsafe: ein Retry, dann Hard-Clear — Pending darf nie hängen. */
+const PENDING_CLEAR_FAILSAFE_MS = 4_500;
+const PENDING_RETRY_EXTRA_MS = 2_500;
+/** Absolute Obergrenze inkl. Retry — Overlay/Flight immer weg. */
+const PENDING_HARD_CLEAR_MS = 8_000;
 
 /**
  * Soft-Nav Pending — sofortiges UI-Feedback (Sidebar + Overlay).
@@ -42,6 +46,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pendingTargetRef = useRef<string | null>(null);
   const pendingRawHrefRef = useRef<string | null>(null);
   const clearTimerRef = useRef<number | null>(null);
+  const hardClearTimerRef = useRef<number | null>(null);
   const paintClearRafRef = useRef<number | null>(null);
   const failsafeRetriedRef = useRef(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
@@ -50,11 +55,16 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     pendingTargetRef.current = null;
     pendingRawHrefRef.current = null;
     failsafeRetriedRef.current = false;
+    cancelSoftNavCoalescedPush();
     endSoftNavFlight();
     setPendingHref(null);
     if (clearTimerRef.current != null) {
       window.clearTimeout(clearTimerRef.current);
       clearTimerRef.current = null;
+    }
+    if (hardClearTimerRef.current != null) {
+      window.clearTimeout(hardClearTimerRef.current);
+      hardClearTimerRef.current = null;
     }
     if (paintClearRafRef.current != null) {
       window.cancelAnimationFrame(paintClearRafRef.current);
@@ -86,6 +96,16 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     },
     [clearPending, router],
   );
+
+  const armHardClear = useCallback(() => {
+    if (hardClearTimerRef.current != null) {
+      window.clearTimeout(hardClearTimerRef.current);
+    }
+    hardClearTimerRef.current = window.setTimeout(() => {
+      hardClearTimerRef.current = null;
+      clearPending();
+    }, PENDING_HARD_CLEAR_MS);
+  }, [clearPending]);
 
   // Ziel erreicht → Cover erst nach Paint heben (kein Weiß/Dashboard-Flash).
   useEffect(() => {
@@ -150,19 +170,34 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
 
       setPendingHref(target);
       armFailsafe(PENDING_CLEAR_FAILSAFE_MS);
+      armHardClear();
       return true;
     },
-    [armFailsafe],
+    [armFailsafe, armHardClear],
   );
+
+  // bfcache / Tab-Freeze: Pending nie „ewig“ stehen lassen.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) clearPending();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [clearPending]);
 
   useEffect(
     () => () => {
       if (clearTimerRef.current != null) {
         window.clearTimeout(clearTimerRef.current);
       }
+      if (hardClearTimerRef.current != null) {
+        window.clearTimeout(hardClearTimerRef.current);
+      }
       if (paintClearRafRef.current != null) {
         window.cancelAnimationFrame(paintClearRafRef.current);
       }
+      cancelSoftNavCoalescedPush();
+      endSoftNavFlight();
     },
     [],
   );

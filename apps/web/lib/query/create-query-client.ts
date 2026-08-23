@@ -9,7 +9,8 @@ const FOCUS_REFETCH_IDLE_TIMEOUT_MS = 2_500;
 
 /** Standard-SWR: Modulwechsel zeigt Cache sofort, Refetch nur wenn stale. */
 const DEFAULT_QUERY_STALE_MS = 60_000;
-const DEFAULT_QUERY_GC_MS = 30 * 60_000;
+/** Kürzer als früher (30 Min) — Dauerbetrieb: inaktive Module eher freigeben. */
+const DEFAULT_QUERY_GC_MS = 20 * 60_000;
 
 let focusListenerConfigured = false;
 

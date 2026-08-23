@@ -11,23 +11,41 @@ const HEARTBEAT_MS = 60_000;
 export function useProfilePresenceHeartbeat(): void {
   useEffect(() => {
     const sb = createSupabaseBrowserClient();
+    let intervalId: number | null = null;
 
     const ping = () => {
+      if (document.visibilityState !== "visible") return;
       void touchProfileLastSeen(sb);
     };
 
-    ping();
-    const intervalId = window.setInterval(ping, HEARTBEAT_MS);
+    const stopInterval = () => {
+      if (intervalId == null) return;
+      window.clearInterval(intervalId);
+      intervalId = null;
+    };
+
+    const startInterval = () => {
+      if (intervalId != null) return;
+      intervalId = window.setInterval(ping, HEARTBEAT_MS);
+    };
+
+    if (document.visibilityState === "visible") {
+      ping();
+      startInterval();
+    }
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        runWhenIdle(ping, 2500);
+        runWhenIdle(ping, 2_500);
+        startInterval();
+        return;
       }
+      stopInterval();
     };
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      window.clearInterval(intervalId);
+      stopInterval();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);

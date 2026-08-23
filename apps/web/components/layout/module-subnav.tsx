@@ -28,6 +28,12 @@ function normalizePath(p: string): string {
   return p;
 }
 
+function pathOnlyFromHref(href: string): string {
+  const q = href.indexOf("?");
+  const path = q === -1 ? href : href.slice(0, q);
+  return normalizePath(path);
+}
+
 function searchParamsFromHref(href: string): URLSearchParams | null {
   const q = href.indexOf("?");
   if (q === -1) return null;
@@ -54,7 +60,7 @@ export function isActiveModulePath(
 ): boolean {
   if (item.disabled) return false;
   const path = normalizePath(pathname);
-  const h = normalizePath(item.href);
+  const h = pathOnlyFromHref(item.href);
   for (const extra of item.activeWhen ?? []) {
     const e = normalizePath(extra);
     if (path === e) return true;

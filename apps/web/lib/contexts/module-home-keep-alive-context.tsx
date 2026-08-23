@@ -152,6 +152,11 @@ export function ModuleHomeKeepAliveProvider({
     applyWarmFlags(activeHomeId);
   }, [activeHomeId, applyWarmFlags]);
 
+  useLayoutEffect(() => {
+    if (!pendingHomeId) return;
+    applyWarmFlags(pendingHomeId);
+  }, [pendingHomeId, applyWarmFlags]);
+
   // Sidebar Intent: sync nur beim ersten Mount des Ziel-Moduls.
   useEffect(
     () => onModuleHomeWarmIntent((id) => warmModuleHomeSync(id)),

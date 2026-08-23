@@ -181,15 +181,19 @@ export function moduleHomeSlotVisibility({
   suppressHomeId?: ModuleHomeId | null;
 }): ModuleHomeSlotVisibility {
   const onHome = activeHomeId === id;
-  const warm = warmFlag || onHome;
-  const pendingToThis = warm && pendingHomeId === id && !onHome;
+  const pendingToThis =
+    pendingInFlight && pendingHomeId === id && !onHome;
+  const warm =
+    warmFlag ||
+    onHome ||
+    (pendingInFlight && pendingHomeId === id);
   const showAsSource =
     onHome && !pendingInFlight && suppressHomeId !== id;
   const arrivedPending = onHome && pendingInFlight && pendingHomeId === id;
   return {
     warm,
     visible: showAsSource || pendingToThis || arrivedPending,
-    active: showAsSource,
+    active: showAsSource || arrivedPending,
   };
 }
 

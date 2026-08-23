@@ -261,7 +261,11 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
-import { inboxConversationAvatarInitials } from "@/lib/contacts/inbox-conversation-avatar-initials";
+import {
+  inboxConversationAvatarInitials,
+  inboxConversationAvatarUrl,
+} from "@/lib/contacts/inbox-conversation-avatar-initials";
+import { ProfileRoundAvatar } from "@/components/ui/profile-round-avatar";
 import { pickContactThreadTitle } from "@/lib/contacts/contact-thread-title";
 import { stripHtmlToPlainText } from "@/lib/text/strip-html-to-plain-text";
 import { cn } from "@/lib/utils";
@@ -3033,14 +3037,13 @@ showReplyComposer ? (
                       }
                       onClick={() => openConversation(c.contact_id)}
                     />
-                    <div
-                      className={cn(
-                        "relative z-10 flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold pointer-events-none",
-                        inboxUnreadAvatarClassName(unread, unreadHint),
-                      )}
-                      aria-hidden
-                    >
-                      {inboxConversationAvatarInitials(listName)}
+                    <div className="relative z-10 shrink-0 pointer-events-none">
+                      <ProfileRoundAvatar
+                        src={inboxConversationAvatarUrl(c)}
+                        initials={inboxConversationAvatarInitials(listName, c)}
+                        size="md"
+                        className={inboxUnreadAvatarClassName(unread, unreadHint)}
+                      />
                       {unread ? (
                         <span
                           className={cn(

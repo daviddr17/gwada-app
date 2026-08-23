@@ -1,28 +1,48 @@
+import {
+  isBareWhatsAppPlaceholderName,
+  isWhatsAppJidOrRawNumberLabel,
+} from "@/lib/contact-messages/waha-chat-label";
 import { contactThreadAvatarInitials } from "@/lib/contacts/contact-thread-avatar-initials";
+import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 
-/** Listen-Avatar: keine „+“-Platzhalter bei Telefonnummern. */
-export function inboxConversationAvatarInitials(displayName: string): string {
+function isPhoneLikeListLabel(name: string): boolean {
+  const t = name.trim();
+  if (!t) return false;
+  if (t.startsWith("+")) return true;
+  return isWhatsAppJidOrRawNumberLabel(t) || isBareWhatsAppPlaceholderName(t);
+}
+
+/** Listen-Avatar: Initialen aus Kontaktname — keine Telefon-Endziffern im Kreis. */
+export function inboxConversationAvatarInitials(
+  displayName: string,
+  preview?: Pick<
+    ContactConversationPreview,
+    "contact_first_name" | "contact_last_name"
+  >,
+): string {
+  const first = preview?.contact_first_name?.trim() ?? "";
+  const last = preview?.contact_last_name?.trim() ?? "";
+  if (first || last) {
+    return contactThreadAvatarInitials({
+      displayName: displayName.trim() || `${first} ${last}`.trim(),
+      firstName: first,
+      lastName: last,
+    });
+  }
+
   const trimmed = displayName.trim();
   if (!trimmed) return "?";
 
-  if (trimmed.startsWith("+")) {
-    const digits = trimmed.replace(/\D/g, "");
-    if (digits.length >= 2) {
-      return digits.slice(-2);
-    }
+  if (isPhoneLikeListLabel(trimmed)) {
     return "☎";
   }
 
-  const fromPerson = contactThreadAvatarInitials({ displayName: trimmed });
-  if (fromPerson !== "?" && !fromPerson.startsWith("+")) {
-    return fromPerson;
-  }
+  return contactThreadAvatarInitials({ displayName: trimmed });
+}
 
-  for (const ch of trimmed) {
-    if (/[\p{L}]/u.test(ch)) {
-      return ch.toLocaleUpperCase("de-DE");
-    }
-  }
-
-  return trimmed.slice(0, 1).toLocaleUpperCase("de-DE") || "?";
+export function inboxConversationAvatarUrl(
+  preview: Pick<ContactConversationPreview, "avatar_url">,
+): string | null {
+  const url = preview.avatar_url?.trim();
+  return url || null;
 }

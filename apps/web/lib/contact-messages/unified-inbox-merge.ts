@@ -55,6 +55,11 @@ function mergePreviewFields(
       newer.unread_hint,
       older.unread_hint,
     ]),
+    contact_first_name:
+      (newer.contact_first_name?.trim() || older.contact_first_name) ?? null,
+    contact_last_name:
+      (newer.contact_last_name?.trim() || older.contact_last_name) ?? null,
+    avatar_url: newer.avatar_url ?? older.avatar_url ?? null,
   };
 }
 

@@ -5,6 +5,7 @@ import type {
 } from "@/lib/constants/contact-message-platforms";
 import type { ConversationUnreadHint } from "@/lib/contact-messages/conversation-read-state";
 import { buildContactConversationsFromRows } from "@/lib/contact-messages/build-contact-conversations";
+import { enrichConversationPreviewAvatars } from "@/lib/contact-messages/enrich-conversation-preview-avatars";
 import { CONVERSATION_LIST_MESSAGE_ROW_LIMIT } from "@/lib/contact-messages/conversation-list-limits";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { attachmentUrlFromStoragePath } from "@/lib/contact-messages/contact-message-attachment-urls";
@@ -96,6 +97,11 @@ export type ContactConversationPreview = {
   whatsapp_unread_count?: number;
   /** Kanal neu vs. extern gelesen, in Gwada für diesen Nutzer noch offen. */
   unread_hint?: ConversationUnreadHint | null;
+  /** Gwada-Kontakt: für Listen-Avatar-Initialen. */
+  contact_first_name?: string | null;
+  contact_last_name?: string | null;
+  /** Signierte URL (Kontakt- oder WA-Chat-Avatar). */
+  avatar_url?: string | null;
 };
 
 const MESSAGE_SELECT = `
@@ -381,7 +387,7 @@ export async function fetchContactConversations(params: {
     .select(
       `
       ${MESSAGE_SELECT},
-      contacts ( first_name, last_name )
+      contacts ( first_name, last_name, avatar_storage_path )
     `,
     )
     .eq("restaurant_id", params.restaurantId)
@@ -404,11 +410,14 @@ export async function fetchContactConversations(params: {
     : groupAttachmentsByMessageId(attachmentRows);
 
   return {
-    data: buildContactConversationsFromRows({
-      platform: params.platform,
-      rows: rawRows,
-      attachmentsByMessage,
-    }),
+    data: await enrichConversationPreviewAvatars(
+      sb,
+      buildContactConversationsFromRows({
+        platform: params.platform,
+        rows: rawRows,
+        attachmentsByMessage,
+      }),
+    ),
     error: null,
   };
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, type ComponentType, type LazyExoticComponent } from "react";
-import { usePathname } from "next/navigation";
 import {
   createRootRoute,
   createRoute,
@@ -13,42 +12,9 @@ import { DASHBOARD_ROUTE_ENTRIES } from "../generated/route-modules";
 import { GenericModulePendingSkeleton } from "../ui/generic-module-pending-skeleton";
 import { dashboardHrefToTanstackTarget } from "@/lib/navigation/dashboard-spa-path";
 
-function isRouteActive(pathname: string, fullPath: string): boolean {
-  const basePath = fullPath.split("?")[0];
-  if (basePath === "/dashboard") return pathname === "/dashboard";
-  return pathname === basePath || pathname.startsWith(`${basePath}/`);
-}
-
-function RoutePage({
-  Lazy,
-  fullPath,
-}: {
-  Lazy: LazyExoticComponent<ComponentType<Record<string, unknown>>>;
-  fullPath: string;
-}) {
-  const pathname = usePathname();
-  const isKeepAlive =
-    fullPath.includes("uebersicht") ||
-    fullPath === "/dashboard" ||
-    fullPath.endsWith("/nachrichten") ||
-    fullPath.endsWith("/rechnungen") ||
-    fullPath === "/dashboard/checklisten";
-
-  if (isKeepAlive) {
-    const isActive = isRouteActive(pathname, fullPath);
-    return <Lazy active={isActive} showChrome={isActive} />;
-  }
-  return <Lazy />;
-}
-
 const rootRoute = createRootRoute({
   component: DashboardSpaShell,
 });
-
-function toTanstackPath(fullPath: string): string {
-  if (fullPath === "/dashboard") return "/";
-  return fullPath.replace(/^\/dashboard/, "") || "/";
-}
 
 const childRoutes = DASHBOARD_ROUTE_ENTRIES.map((entry) => {
   const path = entry.path === "/" ? "/" : entry.path.replace(/^\//, "");
@@ -67,15 +33,25 @@ const childRoutes = DASHBOARD_ROUTE_ENTRIES.map((entry) => {
     });
   }
 
-  const Lazy = entry.Lazy!;
-  const fullPath = entry.fullPath;
+  // Modul-Homes: UI nur in AppModuleHomeKeepAlives — Outlet bleibt null (kein Doppel-Mount).
+  if (entry.keepAliveHome) {
+    return createRoute({
+      getParentRoute: () => rootRoute,
+      path,
+      component: () => null,
+    });
+  }
+
+  const Lazy = entry.Lazy as LazyExoticComponent<
+    ComponentType<Record<string, unknown>>
+  >;
 
   return createRoute({
     getParentRoute: () => rootRoute,
     path,
     component: () => (
       <Suspense fallback={<GenericModulePendingSkeleton />}>
-        <RoutePage Lazy={Lazy} fullPath={fullPath} />
+        <Lazy />
       </Suspense>
     ),
   });

@@ -12,6 +12,12 @@ const SESSION_KEY_PREFIX = `gwada:unified-inbox:v${UNIFIED_INBOX_CACHE_VERSION}:
 /** Überlebt Soft-Nav und Seiten-Reload in derselben Browser-Session. */
 const SESSION_MAX_AGE_MS = 30 * 60 * 1000;
 
+/**
+ * SWR-Fenster — bei Cache-Hit unter diesem Alter kein Force-Refetch beim Öffnen.
+ * Align mit `module-data-cache-policy` unifiedInbox.staleTimeMs.
+ */
+export const UNIFIED_INBOX_STALE_MS = 5 * 60 * 1000;
+
 type CacheEntry = {
   conversations: ContactConversationPreview[];
   cachedAt: number;
@@ -89,6 +95,12 @@ export function peekUnifiedInboxCacheAgeMs(restaurantId: string): number | null 
     cache.get(restaurantId) ?? hydrateMemoryFromSession(restaurantId);
   if (!entry) return null;
   return Date.now() - entry.cachedAt;
+}
+
+/** Cache vorhanden und jünger als {@link UNIFIED_INBOX_STALE_MS}. */
+export function isUnifiedInboxCacheFresh(restaurantId: string): boolean {
+  const age = peekUnifiedInboxCacheAgeMs(restaurantId);
+  return age != null && age < UNIFIED_INBOX_STALE_MS;
 }
 
 export type UnifiedInboxReadStatePatch = Pick<

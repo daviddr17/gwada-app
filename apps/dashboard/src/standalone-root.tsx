@@ -3,6 +3,7 @@
 import { DashboardPwaSetup } from "@/components/dashboard/dashboard-pwa-setup";
 import { AppDashboardLivePatchMount } from "@/components/providers/app-dashboard-live-patch-mount";
 import { AppModuleLiveProviders } from "@/components/providers/app-module-live-providers";
+import { AppModulePredictivePrefetchMount } from "@/components/providers/app-module-predictive-prefetch-mount";
 import { AppModuleWarmPrefetchMount } from "@/components/providers/app-module-warm-prefetch-mount";
 import { AppShellReadinessProvider } from "@/components/providers/app-shell-readiness-provider";
 import { AuthCookieCleanupMount } from "@/components/providers/auth-cookie-cleanup-mount";
@@ -44,6 +45,7 @@ export function DashboardStandaloneRoot() {
                             <AuthCookieCleanupMount />
                             <DashboardBatchPrefetchMount />
                             <AppModuleWarmPrefetchMount />
+                            <AppModulePredictivePrefetchMount />
                             <UnifiedInboxBackgroundSyncMount />
                             <AppDashboardLivePatchMount />
                             <ProfilePresenceHeartbeat />

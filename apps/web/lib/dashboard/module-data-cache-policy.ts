@@ -4,6 +4,7 @@
  * Bei neuen Modulen: Eintrag ergänzen, Konstanten hierher ziehen, UI zeigt den Stand.
  *
  * Navigationsmodell (Stand 2026):
+ * - Dashboard-Zone: Vite/TanStack SPA + Modul-Home Keep-alive (Sibling zu Outlet)
  * - Soft-Nav zwischen App-Modulen (Provider/Caches bleiben gemountet)
  * - Full-Load nur App ↔ Superadmin über `/zone/enter`
  * - Realtime einmal pro App-Zone (`AppModuleLiveProviders`), nicht route-conditional
@@ -139,12 +140,13 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     appModule: "App-Chrome",
     strategy: "optimistic-local",
     description:
-      "Modulwechsel per Soft-Nav (Link/router.push) — (app)-Layout, Provider und Client-Caches bleiben gemountet. Full-Load nur App ↔ Superadmin über /zone/enter. SoftNavLock steuert Pending-Overlay/Sidebar-Highlight, blockiert keine parallelen Flights.",
+      "Modulwechsel per Soft-Nav (Link/router.push) — (app)-Layout, Provider und Client-Caches bleiben gemountet. Full-Load nur App ↔ Superadmin über /zone/enter. SoftNavLock = Pending-UI + letzter Klick gewinnt (Sidebar bleibt klickbar). Predictive Prefetch: Sidebar-Nachbarn + kürzlich besuchte Module im Idle.",
     loadTriggers: [
       "AppNavLink / Sidebar-Klick (prefetch={false}, Intent-Warm on hover/focus)",
       "Keep-alive Homes: alle Sidebar-Übersichten (+ Dashboard)",
       "Priority-Prewarm nach KPI; Secondary idle/~2.2s; Intent flushSync",
-      "Pending-Overlay übersprungen bei warmem Keep-alive-Home (Preview)",
+      "AppModulePredictivePrefetchMount nach Pathname-Settle",
+      "Pending-Overlay übersprungen bei warmem Keep-alive-Home oder isModuleSoftNavDataReady",
     ],
     invalidateTriggers: [
       "Zonenwechsel App ↔ Superadmin (Full-Load)",
@@ -156,6 +158,8 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "components/navigation/soft-nav-pending-overlay.tsx",
       "components/navigation/app-module-home-keep-alives.tsx",
       "lib/navigation/module-soft-nav-data-ready.ts",
+      "lib/navigation/app-module-predictive-prefetch.ts",
+      "components/providers/app-module-predictive-prefetch-mount.tsx",
       "lib/navigation/workspace-zone-enter.ts",
     ],
     status: "active",
@@ -335,11 +339,11 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 5 * 60 * 1000,
     pollIntervalMs: 5 * 60 * 1000,
     description:
-      "Gwada-DB + WAHA/E-Mail/Facebook/Instagram — sessionStorage-Cache, Warm verzögert wenn Batch kürzlich lief; Realtime + 5-Min-Poll. Mount app-weit im (app)-Layout (nicht nur Kontakte-Route).",
+      "Gwada-DB + WAHA/E-Mail/Facebook/Instagram — sessionStorage-Cache (30 Min Session). Öffnen: Cache sofort, Force-Refetch nur wenn älter als 5 Min (SWR); sonst Background-Poll 5 Min + Realtime. Keep-alive Home in Dashboard-SPA. Mount app-weit im (app)-Layout.",
     loadTriggers: [
       "UnifiedInboxBackgroundSyncMount im App-Layout",
-      "Nachrichten-Widget sichtbar auf Dashboard",
-      "Warm nach 400ms (übersprungen wenn Batch < 30s)",
+      "Nachrichten Keep-alive Slot (warm nach Soft-Nav/Hover)",
+      "Warm nach 400ms (übersprungen wenn Cache frisch < 5 Min oder Batch < 30s)",
       "Poll 5 Min",
       "Meta-Inbox nur wenn OAuth verbunden",
     ],

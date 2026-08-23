@@ -2,14 +2,7 @@
 
 import { ModuleHomeKeepAliveShell } from "@/components/navigation/module-home-keep-alive-shell";
 import { ReviewsScreen } from "@/components/reviews/reviews-screen";
-import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
-
-const BEWERTUNGEN_NAV: readonly ModuleSubnavItem[] = [
-  { href: "/dashboard/bewertungen/uebersicht", label: "Übersicht", matchMode: "exact", activeWhen: ["/dashboard/bewertungen"] },
-  { href: "/dashboard/bewertungen/statistiken", label: "Statistiken", matchMode: "exact" },
-  { href: "/dashboard/bewertungen/einbinden", label: "Einbinden", matchMode: "prefix" },
-  { href: "/dashboard/bewertungen/einstellungen", label: "Einstellungen", matchMode: "prefix" },
-];
+import { REVIEWS_MODULE_NAV } from "@/components/reviews/reviews-module-nav";
 
 export function ReviewsOverviewKeepAliveScreen({
   active,
@@ -24,7 +17,7 @@ export function ReviewsOverviewKeepAliveScreen({
       showChrome={showChrome}
       title="Bewertungen"
       subnavAriaLabel="Bewertungen-Bereiche"
-      subnavItems={BEWERTUNGEN_NAV}
+      subnavItems={REVIEWS_MODULE_NAV}
     >
       <ReviewsScreen active={active} />
     </ModuleHomeKeepAliveShell>

@@ -2,14 +2,7 @@
 
 import { ModuleHomeKeepAliveShell } from "@/components/navigation/module-home-keep-alive-shell";
 import { EventsScreen } from "@/components/events/events-screen";
-import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
-
-const EVENTS_NAV: readonly ModuleSubnavItem[] = [
-  { href: "/dashboard/events/uebersicht", label: "Übersicht", matchMode: "exact", activeWhen: ["/dashboard/events"] },
-  { href: "/dashboard/events/statistiken", label: "Statistiken", matchMode: "prefix" },
-  { href: "/dashboard/events/einbinden", label: "Einbinden", matchMode: "prefix" },
-  { href: "/dashboard/events/einstellungen", label: "Einstellungen", matchMode: "prefix" },
-];
+import { EVENTS_MODULE_NAV } from "@/components/events/events-module-nav";
 
 export function EventsOverviewKeepAliveScreen({
   active,
@@ -24,7 +17,7 @@ export function EventsOverviewKeepAliveScreen({
       showChrome={showChrome}
       title="Events"
       subnavAriaLabel="Events-Bereiche"
-      subnavItems={EVENTS_NAV}
+      subnavItems={EVENTS_MODULE_NAV}
     >
       <EventsScreen active={active} />
     </ModuleHomeKeepAliveShell>

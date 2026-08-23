@@ -100,6 +100,7 @@ import {
 import { contactReplyChannels, inferContactReachabilityFromMessages } from "@/lib/contact-messages/reply-channel-availability";
 import {
   GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+  isUnifiedInboxCacheFresh,
   patchUnifiedInboxCacheConversation,
   peekUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-cache";
@@ -818,7 +819,9 @@ export function ContactsMessagesScreen({
         if (cached) {
           setConversations(cached);
           setLoadingList(false);
-          void loadConversations({ silent: true, force: true });
+          if (!isUnifiedInboxCacheFresh(restaurantId)) {
+            void loadConversations({ silent: true, force: true });
+          }
           return;
         }
 

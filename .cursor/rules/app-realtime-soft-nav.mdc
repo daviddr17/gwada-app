@@ -25,7 +25,7 @@ Console-Signatur: `cannot add postgres_changes callbacks for realtime:… after 
 | Realtime-Provider | **Einmal pro App-Zone**, solange Workspace-Restaurant ready — siehe `AppModuleLiveProviders` |
 | Route ↔ Realtime | **Nicht** an einzelne Module/Pfade koppeln (`if (pathname.startsWith('/dashboard/menu')) …`) |
 | Subscribe | Vor Resubscribe **stale Channels gleichen Namens entfernen** — `removeChannelsByName` in `restaurant-table-realtime.ts` |
-| Schnelle Klicks | **SoftNavLock** auf Cross-Modul-Links (`AppNavLink`, Sidebar, Back) — parallele Flights blockieren |
+| Schnelle Klicks | **SoftNavLock** = Pending-UI + letzter Klick gewinnt (`AppNavLink`, Sidebar, Back) — Sidebar bleibt klickbar (`pointer-events-none` Overlay), kein harter Flight-Kill |
 
 ## Verboten ohne ausdrückliche Nutzer-Anfrage
 

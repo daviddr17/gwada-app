@@ -25,6 +25,7 @@ import { peekMenuItemsCache } from "@/lib/menu/menu-items-query";
 import { peekMenuCategoriesCache } from "@/lib/menu/menu-categories-query";
 import { peekMenuMainCategoriesCache } from "@/lib/menu/menu-main-categories-query";
 import { peekIngredientsCache } from "@/lib/inventory/ingredients-query";
+import { requestUnifiedInboxWarmIntent } from "@/lib/contact-messages/unified-inbox-background-sync";
 import {
   warmAccountingInvoices,
   warmDocumentsList,
@@ -194,8 +195,12 @@ export function warmModuleData(
   }
   if (path.startsWith("/dashboard/pos")) {
     void warmPosOverview(restaurantId);
+    return;
   }
-  // kontakte/nachrichten: UnifiedInboxBackgroundSyncMount wärmt mit Kanal-Flags.
+  if (path.startsWith("/dashboard/kontakte")) {
+    // Channel-Flags kennt nur UnifiedInboxBackgroundSyncMount — Intent-Event.
+    requestUnifiedInboxWarmIntent();
+  }
 }
 
 /**

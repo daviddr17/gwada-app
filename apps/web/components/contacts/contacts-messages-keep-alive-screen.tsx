@@ -14,18 +14,6 @@ export function ContactsMessagesKeepAliveScreen({
   active: boolean;
   showChrome?: boolean;
 }) {
-<<<<<<< HEAD
-  const headerActions = useMemo(
-    () => (
-      <Suspense fallback={null}>
-        <MessagesChromeActions />
-      </Suspense>
-    ),
-    [],
-  );
-
-=======
->>>>>>> origin/cursor/chrome-calendar-global-d944
   return (
     <>
       {showChrome ? (

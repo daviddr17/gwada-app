@@ -20,8 +20,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type { MessagesUnreadSummary } from "@/lib/contact-messages/messages-unread-summary";
 
-function sumUnread(list: ContactConversationPreview[]): number {
-  return list.reduce((acc, c) => acc + (c.is_unread ? c.unread_count : 0), 0);
+/** Anzahl ungelesener Konversationen (nicht Summe der Message-Unread-Zähler). */
+function countUnreadConversations(list: ContactConversationPreview[]): number {
+  return list.filter((c) => c.is_unread && c.unread_count > 0).length;
 }
 
 export async function fetchMessagesUnreadSummary(
@@ -44,7 +45,7 @@ export async function fetchMessagesUnreadSummary(
   const notifyable = conversations.filter(
     (c) => !conversationExcludedFromSeparateMessageNotification(c),
   );
-  const total_unread = sumUnread(notifyable);
+  const total_unread = countUnreadConversations(notifyable);
 
   const unread = notifyable
     .filter((c) => c.is_unread && c.unread_count > 0)

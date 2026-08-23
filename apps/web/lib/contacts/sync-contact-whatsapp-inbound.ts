@@ -38,6 +38,12 @@ async function mirrorWahaThreadToDb(
     maxMessages?: number;
     /** Kein notification_events / Push (Session-Warmup). */
     silent?: boolean;
+    /**
+     * Historien-Import (Connect): Kanal als gelesen behandeln.
+     * Verhindert Sidebar „Nachrichten (88)“ aus Altverlauf ohne WAHA-ack.
+     * Cron-Catch-up setzt das nicht — dort gilt weiter ack/external_seen.
+     */
+    markChannelSeen?: boolean;
     /** Nur Nachrichten ab diesem Zeitpunkt (Cron-Catch-up, kein Altverlauf). */
     minCreatedAtMs?: number;
   },
@@ -106,9 +112,12 @@ async function mirrorWahaThreadToDb(
     const mirrorBody = whatsappMirrorBodyFromContactRow(m);
     if (!mirrorBody) continue;
 
+    const externalSeen = params.markChannelSeen
+      ? true
+      : wahaInboundExternalSeen(m);
+
     if (known.has(m.id)) {
       const currentBody = known.get(m.id) ?? "";
-      const externalSeen = wahaInboundExternalSeen(m);
       if (
         (mirrorBody && mirrorBody !== currentBody) ||
         externalSeen !== undefined
@@ -150,7 +159,7 @@ async function mirrorWahaThreadToDb(
           params.conversationLabel,
         ),
         suppressNotifications: true,
-        externalSeen: wahaInboundExternalSeen(m),
+        externalSeen,
       });
       if (inserted.inserted) imported += 1;
       continue;
@@ -169,7 +178,7 @@ async function mirrorWahaThreadToDb(
       conversationLabel: sanitizeConversationLabelForStorage(
         params.conversationLabel,
       ),
-      externalSeen: wahaInboundExternalSeen(m),
+      externalSeen,
     });
     if (result.imported) imported += 1;
   }
@@ -185,6 +194,7 @@ export async function syncContactWhatsappInbound(
     contactId: string;
     maxMessages?: number;
     silent?: boolean;
+    markChannelSeen?: boolean;
     minCreatedAtMs?: number;
   },
 ): Promise<{ imported: number; error: string | null }> {
@@ -202,6 +212,7 @@ export async function syncContactWhatsappInbound(
     chatIdOverride: chatId,
     maxMessages: params.maxMessages,
     silent: params.silent,
+    markChannelSeen: params.markChannelSeen,
     minCreatedAtMs: params.minCreatedAtMs,
   });
 }
@@ -215,6 +226,7 @@ export async function syncPseudoWhatsappThread(
     maxMessages?: number;
     conversationLabel?: string | null;
     silent?: boolean;
+    markChannelSeen?: boolean;
     minCreatedAtMs?: number;
   },
 ): Promise<{ imported: number; error: string | null }> {
@@ -233,6 +245,7 @@ export async function syncPseudoWhatsappThread(
       params.conversationLabel,
     ),
     silent: params.silent,
+    markChannelSeen: params.markChannelSeen,
     minCreatedAtMs: params.minCreatedAtMs,
   });
 }

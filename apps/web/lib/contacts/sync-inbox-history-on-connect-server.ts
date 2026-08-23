@@ -111,12 +111,14 @@ async function syncWhatsappInboxHistoryOnConnect(
           maxMessages: WHATSAPP_MESSAGES_PER_THREAD_ON_CONNECT,
           conversationLabel: preview.contact_name,
           silent: true,
+          markChannelSeen: true,
         })
       : await syncContactWhatsappInbound(admin, {
           restaurantId,
           contactId: threadKey,
           maxMessages: WHATSAPP_MESSAGES_PER_THREAD_ON_CONNECT,
           silent: true,
+          markChannelSeen: true,
         });
 
     imported += result.imported;

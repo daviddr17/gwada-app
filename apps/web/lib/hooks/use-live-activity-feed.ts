@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { backfillLiveActivityFeed } from "@/lib/live-activity/live-activity-backfill";
 import {
   clearLiveActivityFeed,
   clearLiveActivitySeenDot,
@@ -10,6 +11,8 @@ import {
   subscribeLiveActivity,
 } from "@/lib/live-activity/live-activity-store";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { restaurantTodayYmd } from "@/lib/restaurant/restaurant-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 export function useLiveActivityFeed(): {
@@ -20,10 +23,14 @@ export function useLiveActivityFeed(): {
   restaurantId: string | null;
 } {
   const { restaurantId } = useWorkspaceRestaurantUuid();
+  const timeZone = useRestaurantIanaTimezone(restaurantId);
+  const dayKey = restaurantTodayYmd(timeZone);
 
   useEffect(() => {
-    if (restaurantId) ensureLiveActivityRestaurant(restaurantId);
-  }, [restaurantId]);
+    if (!restaurantId) return;
+    ensureLiveActivityRestaurant(restaurantId, dayKey);
+    void backfillLiveActivityFeed(restaurantId, dayKey);
+  }, [restaurantId, dayKey]);
 
   const subscribe = useCallback(
     (onStoreChange: () => void) => subscribeLiveActivity(onStoreChange),

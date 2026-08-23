@@ -179,8 +179,8 @@ function LiveActivityPanel({
               Noch ruhig hier
             </p>
             <p className="max-w-[16rem] text-xs leading-relaxed text-muted-foreground">
-              Neue Reservierungen, Nachrichten, Logins und Bestandswarnungen
-              erscheinen hier live während der Schicht.
+              Display-Login, neue Reservierungen und Nachrichten vom heutigen
+              Tag — live und beim Öffnen nachgeladen.
             </p>
           </div>
         ) : (

@@ -92,6 +92,10 @@ export function useNotificationBellRealtime() {
       onStatus: (status) => {
         if (status === "SUBSCRIBED") {
           disablePolling();
+          void import("@/lib/live-activity/live-activity-backfill").then(
+            ({ backfillLiveActivityFeed }) =>
+              backfillLiveActivityFeed(restaurantId),
+          );
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           enablePolling();
         } else if (status === "CLOSED") {

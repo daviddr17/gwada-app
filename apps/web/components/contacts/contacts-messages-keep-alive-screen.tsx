@@ -15,7 +15,14 @@ export function ContactsMessagesKeepAliveScreen({
   active: boolean;
   showChrome?: boolean;
 }) {
-  const headerActions = useMemo(() => <MessagesChromeActions />, []);
+  const headerActions = useMemo(
+    () => (
+      <Suspense fallback={null}>
+        <MessagesChromeActions />
+      </Suspense>
+    ),
+    [],
+  );
 
   return (
     <>

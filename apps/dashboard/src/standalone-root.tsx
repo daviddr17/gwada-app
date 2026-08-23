@@ -37,8 +37,8 @@ export function DashboardStandaloneRoot() {
                 <RestaurantProfileProvider>
                   <DashboardWidgetPreferencesProvider>
                     <AccentColorProvider>
-                      <RestaurantSetupWizardProvider>
-                        <PersonalOnboardingProvider>
+                      <PersonalOnboardingProvider>
+                        <RestaurantSetupWizardProvider>
                           <AppShellReadinessProvider>
                             <AppScrollUnlockOnNavigate />
                             <DashboardPwaSetup />
@@ -53,8 +53,8 @@ export function DashboardStandaloneRoot() {
                             <AppModuleLiveProviders />
                             <DashboardSPA />
                           </AppShellReadinessProvider>
-                        </PersonalOnboardingProvider>
-                      </RestaurantSetupWizardProvider>
+                        </RestaurantSetupWizardProvider>
+                      </PersonalOnboardingProvider>
                     </AccentColorProvider>
                   </DashboardWidgetPreferencesProvider>
                 </RestaurantProfileProvider>

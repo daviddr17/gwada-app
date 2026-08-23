@@ -47,6 +47,13 @@
     "back": "Indietro",
     "continue": "Continua",
     "finish": "Crea ristorante",
+    "createNew": "Crea nuovo ristorante",
+    "workspaceIntro": "Il ristorante attivo controlla il menu, magazzino e impostazioni. Puoi cambiare in qualsiasi momento o crearne uno nuovo.",
+    "workspaceEmpty": "Non sei ancora assegnato a un ristorante.",
+    "activeSwitched": "Ristorante attivo cambiato.",
+    "missingRestaurant": "Nessun ristorante workspace —",
+    "setupRestaurant": "Configura ristorante",
+    "selectHere": "seleziona qui",
     "creating": "Creazione…",
     "launch": "Iniziamo",
     "welcome": {

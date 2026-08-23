@@ -47,6 +47,13 @@
     "back": "返回",
     "continue": "继续",
     "finish": "创建餐厅",
+    "createNew": "新建餐厅",
+    "workspaceIntro": "当前餐厅控制菜单、库存和设置。你可以随时切换或新建餐厅。",
+    "workspaceEmpty": "你尚未加入任何餐厅。",
+    "activeSwitched": "已切换当前餐厅。",
+    "missingRestaurant": "没有工作区餐厅 —",
+    "setupRestaurant": "设置餐厅",
+    "selectHere": "在此选择",
     "creating": "正在创建…",
     "launch": "开始使用",
     "welcome": {

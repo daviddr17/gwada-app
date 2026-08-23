@@ -82,8 +82,8 @@ export default function AppLayout({
                 <RestaurantProfileProvider>
                   <DashboardWidgetPreferencesProvider>
                     <AccentColorProvider>
-                      <RestaurantSetupWizardProvider>
-                        <PersonalOnboardingProvider>
+                      <PersonalOnboardingProvider>
+                        <RestaurantSetupWizardProvider>
                           <AppShellReadinessProvider>
                             <AppScrollUnlockOnNavigate />
                             <DashboardPwaSetup />
@@ -98,8 +98,8 @@ export default function AppLayout({
                             <AppModuleLiveProviders />
                             <AppZoneRouter>{children}</AppZoneRouter>
                           </AppShellReadinessProvider>
-                        </PersonalOnboardingProvider>
-                      </RestaurantSetupWizardProvider>
+                        </RestaurantSetupWizardProvider>
+                      </PersonalOnboardingProvider>
                     </AccentColorProvider>
                   </DashboardWidgetPreferencesProvider>
                 </RestaurantProfileProvider>

@@ -47,6 +47,13 @@
     "back": "Back",
     "continue": "Continue",
     "finish": "Create restaurant",
+    "createNew": "Create new restaurant",
+    "workspaceIntro": "The active restaurant controls the menu, inventory, and settings. You can switch anytime or create a new restaurant.",
+    "workspaceEmpty": "You are not assigned to a restaurant yet.",
+    "activeSwitched": "Active restaurant switched.",
+    "missingRestaurant": "No workspace restaurant —",
+    "setupRestaurant": "Set up restaurant",
+    "selectHere": "select here",
     "creating": "Creating…",
     "launch": "Let’s go",
     "welcome": {

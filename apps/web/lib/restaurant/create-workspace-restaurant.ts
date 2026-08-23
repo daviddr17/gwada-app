@@ -26,6 +26,8 @@ export type CreateWorkspaceRestaurantInput = {
   city?: string;
   country?: string;
   phone?: string;
+  /** Guest/content default locale (restaurants.default_locale). */
+  defaultLocale?: string;
   weeklyHours?: Record<Weekday, DayHours>;
   accentHex?: string;
 };
@@ -100,6 +102,8 @@ export async function createWorkspaceRestaurant(
     postalCode,
   });
 
+  const defaultLocale = input.defaultLocale?.trim() || undefined;
+
   const { data: inserted, error: insErr } = await sb
     .from("restaurants")
     .insert({
@@ -114,6 +118,7 @@ export async function createWorkspaceRestaurant(
       phone: phone || null,
       is_published: true,
       brand_accent_hex: normalizeHex(input.accentHex ?? "") || null,
+      ...(defaultLocale ? { default_locale: defaultLocale } : {}),
     })
     .select("id")
     .single();

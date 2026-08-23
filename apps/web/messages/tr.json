@@ -47,6 +47,13 @@
     "back": "Geri",
     "continue": "Devam",
     "finish": "Restoran oluştur",
+    "createNew": "Yeni restoran oluştur",
+    "workspaceIntro": "Aktif restoran menüyü, stoğu ve ayarları kontrol eder. İstediğiniz zaman değiştirebilir veya yeni bir restoran oluşturabilirsiniz.",
+    "workspaceEmpty": "Henüz bir restorana atanmadınız.",
+    "activeSwitched": "Aktif restoran değiştirildi.",
+    "missingRestaurant": "Çalışma alanı restoranı yok —",
+    "setupRestaurant": "Restoranı kur",
+    "selectHere": "buradan seç",
     "creating": "Oluşturuluyor…",
     "launch": "Başlayalım",
     "welcome": {

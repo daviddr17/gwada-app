@@ -51,7 +51,7 @@ export default function WorkspaceRestaurantsPage() {
       invalidateWorkspaceRestaurantCache();
       notifyWorkspaceRestaurantChanged();
       setActiveId(restaurantId);
-      toast.success("Aktives Restaurant gewechselt.");
+      toast.success(t("activeSwitched"));
       refresh();
     } finally {
       setActiveBusy(false);
@@ -62,8 +62,7 @@ export default function WorkspaceRestaurantsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Das aktive Restaurant steuert Speisekarte, Bestand und Einstellungen.
-          Du kannst jederzeit wechseln oder ein neues Restaurant anlegen.
+          {t("workspaceIntro")}
         </p>
         <Button
           type="button"
@@ -75,7 +74,7 @@ export default function WorkspaceRestaurantsPage() {
           onClick={openWizard}
         >
           <Building2 className="size-4" />
-          Neues Restaurant anlegen
+          {t("createNew")}
         </Button>
       </div>
 
@@ -86,7 +85,7 @@ export default function WorkspaceRestaurantsPage() {
       ) : rows.length === 0 ? (
         <div className="space-y-4 rounded-2xl border border-border/50 bg-muted/20 px-5 py-6">
           <p className="text-sm text-muted-foreground">
-            Du bist noch keinem Restaurant zugeordnet.
+            {t("workspaceEmpty")}
           </p>
           <Button
             type="button"

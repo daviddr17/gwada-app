@@ -97,13 +97,17 @@ for (const entry of scan) {
   let componentName;
 
   if (entry.pageBehavior === "null") {
-    const ka = KEEP_ALIVE_IMPORTS[entry.route];
-    if (!ka) {
+    if (!KEEP_ALIVE_IMPORTS[entry.route]) {
       console.warn("Missing keep-alive mapping for", entry.route);
       continue;
     }
-    importFrom = ka.from;
-    componentName = ka.component;
+    // UI lives in AppModuleHomeKeepAlives — route leaf is null.
+    routeEntries.push({
+      path: tanstackPath,
+      fullPath: entry.route,
+      keepAliveHome: true,
+    });
+    continue;
   } else if (entry.pageBehavior === "render") {
     const imp = entry.imports?.[0];
     if (!imp) {
@@ -134,6 +138,7 @@ lines.push("export type DashboardRouteEntry = {");
 lines.push("  path: string;");
 lines.push("  fullPath: string;");
 lines.push("  redirect?: string;");
+lines.push("  keepAliveHome?: boolean;");
 lines.push("  Lazy?: ReturnType<typeof lazy>;");
 lines.push("};");
 lines.push("");
@@ -143,6 +148,10 @@ for (const r of routeEntries) {
   if (r.redirect) {
     lines.push(
       `  { path: "${r.path}", fullPath: "${r.redirect}", redirect: "${r.redirect}" },`,
+    );
+  } else if (r.keepAliveHome) {
+    lines.push(
+      `  { path: "${r.path}", fullPath: "${r.fullPath}", keepAliveHome: true },`,
     );
   } else {
     lines.push(

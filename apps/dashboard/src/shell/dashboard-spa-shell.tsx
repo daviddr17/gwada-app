@@ -39,6 +39,9 @@ import { cn } from "@/lib/utils";
 import { DashboardSpaNavigationBridge } from "@/lib/navigation/dashboard-spa-navigation-bridge";
 import { SoftNavLockProvider } from "../shims/soft-nav-lock-provider";
 import { DashboardSpaPendingChromeSync } from "./dashboard-spa-pending-chrome-sync";
+import { AppModuleHomeKeepAlives } from "@/components/navigation/app-module-home-keep-alives";
+import { SoftNavPendingOverlay } from "@/components/navigation/soft-nav-pending-overlay";
+import { ModuleHomeKeepAliveProvider } from "@/lib/contexts/module-home-keep-alive-context";
 
 function DashboardSpaInset() {
   const pathname = usePathname();
@@ -190,7 +193,10 @@ function DashboardSpaInset() {
         ) : null}
         <div className="relative z-[1] min-h-full">
           <Outlet />
+          {/* Soft-Nav: Modul-Homes warm — Sibling, kein Route-Unmount */}
+          <AppModuleHomeKeepAlives />
         </div>
+        <SoftNavPendingOverlay />
       </div>
 
       <AppMobileBottomNav />
@@ -198,7 +204,7 @@ function DashboardSpaInset() {
   );
 }
 
-/** App-Shell ohne Keep-alive / Soft-Nav-Overlay — TanStack Router SPA. */
+/** Dashboard SPA-Shell — Keep-alive Homes + Soft-Nav wie Next AppShell. */
 export function DashboardSpaShell() {
   return (
     <SoftNavLockProvider>
@@ -206,12 +212,14 @@ export function DashboardSpaShell() {
         <SidebarProvider>
           <AuthLogoutTransitionProvider>
             <AppModuleChromeProvider>
-              <DashboardSpaPendingChromeSync />
-              <DashboardGlobalSearchChrome>
-                <AppSidebar />
-                <DashboardSpaInset />
-                <DashboardUploadOverlay />
-              </DashboardGlobalSearchChrome>
+              <ModuleHomeKeepAliveProvider>
+                <DashboardSpaPendingChromeSync />
+                <DashboardGlobalSearchChrome>
+                  <AppSidebar />
+                  <DashboardSpaInset />
+                  <DashboardUploadOverlay />
+                </DashboardGlobalSearchChrome>
+              </ModuleHomeKeepAliveProvider>
             </AppModuleChromeProvider>
           </AuthLogoutTransitionProvider>
         </SidebarProvider>

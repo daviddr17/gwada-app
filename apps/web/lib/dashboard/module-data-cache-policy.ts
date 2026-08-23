@@ -4,6 +4,7 @@
  * Bei neuen Modulen: Eintrag ergänzen, Konstanten hierher ziehen, UI zeigt den Stand.
  *
  * Navigationsmodell (Stand 2026):
+ * - Dashboard-Zone: Vite/TanStack SPA + Modul-Home Keep-alive (Sibling zu Outlet)
  * - Soft-Nav zwischen App-Modulen (Provider/Caches bleiben gemountet)
  * - Full-Load nur App ↔ Superadmin über `/zone/enter`
  * - Realtime einmal pro App-Zone (`AppModuleLiveProviders`), nicht route-conditional

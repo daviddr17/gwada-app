@@ -177,6 +177,7 @@ import {
   inboxLinkContactErrorMessage,
   inboxLinkContactImportWarning,
 } from "@/lib/contact-messages/inbox-link-contact-errors";
+import { conversationThreadKeyFromRow } from "@/lib/contact-messages/conversation-thread-key";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import {
   isSilentClientSendResult,
@@ -588,6 +589,10 @@ export function ContactsMessagesScreen({
   const threadLoadSeqRef = useRef(0);
   const pendingContactIdRef = useRef(pendingContactId);
   pendingContactIdRef.current = pendingContactId;
+  const contactParamRef = useRef(contactParam);
+  contactParamRef.current = contactParam;
+  /** Aktuell gewünschter Thread — überlebt stale Closures während async Fetch. */
+  const openThreadIdRef = useRef<string | null>(null);
 
   const displayMessages = useMemo(() => {
     let rows = enrichMessagesWithWahaReactionIds(messages);
@@ -606,7 +611,9 @@ export function ContactsMessagesScreen({
       });
     }
     if (!effectiveThreadContactId) return rows;
-    return rows.filter((m) => m.contact_id === effectiveThreadContactId);
+    return rows.filter(
+      (m) => conversationThreadKeyFromRow(m) === effectiveThreadContactId,
+    );
   }, [
     messages,
     effectiveThreadContactId,
@@ -1105,11 +1112,15 @@ export function ContactsMessagesScreen({
       });
 
     if (seq !== threadLoadSeqRef.current) return;
+    // Refs statt Closure: openConversation startet den Fetch oft noch mit altem
+    // contactParam; pending wird beim URL-Sync genullt — sonst verwerfen wir
+    // die Antwort und der Chat bleibt leer / ewig am Laden.
     const stillOpen =
-      contactParam === threadContactId ||
+      openThreadIdRef.current === threadContactId ||
+      contactParamRef.current === threadContactId ||
       pendingContactIdRef.current === threadContactId;
-    if (!stillOpen && opts?.contactId) {
-      // Anderer Chat wurde inzwischen gewählt — Ergebnis verwerfen.
+    if (!stillOpen) {
+      setLoadingThread(false);
       return;
     }
 
@@ -1362,7 +1373,7 @@ export function ContactsMessagesScreen({
     [patchThreadCache],
   );
 
-  useContactThreadRealtime(contactParam, {
+  useContactThreadRealtime(overlayThreadId, {
     onInsert: applyRealtimeThreadInsert,
     onUpdate: applyRealtimeThreadUpdate,
   }, { enabled: active });
@@ -1467,11 +1478,16 @@ export function ContactsMessagesScreen({
     if (!restaurantId) return;
 
     if (!contactParam) {
+      if (!pendingContactId) {
+        openThreadIdRef.current = null;
+      }
       if (connectionsLoading) return;
       const hasInboxCache = Boolean(peekUnifiedInboxCache(restaurantId)?.length);
       void loadConversations(hasInboxCache ? { silent: true } : undefined);
       return;
     }
+
+    openThreadIdRef.current = contactParam;
 
     // Klick-Pfad lädt bereits via openConversation — nur stiller Refresh nach URL-Sync.
     if (pendingContactId === contactParam) {
@@ -1501,6 +1517,8 @@ export function ContactsMessagesScreen({
   const selectInboxFilter = (filter: InboxPlatformFilter) => {
     if (!isInboxFilterAvailable(filter)) return;
     setInboxFilter(filter);
+    openThreadIdRef.current = null;
+    setPendingContactId(null);
     const params = new URLSearchParams(searchParams.toString());
     params.set("platform", filter);
     params.delete("contact");
@@ -1840,6 +1858,7 @@ export function ContactsMessagesScreen({
     );
     const hasCache = Boolean(cached && cached.messages.length > 0);
     // Sofort Pane + Titel — nicht auf Soft-Nav/`?contact=` warten.
+    openThreadIdRef.current = contactId;
     setPendingContactId(contactId);
     setClosingThreadId(null);
     setThreadOverlayOpen(true);
@@ -1915,6 +1934,7 @@ export function ContactsMessagesScreen({
   const backToList = useCallback(() => {
     setThreadOverlayOpen(false);
     setPendingContactId(null);
+    openThreadIdRef.current = null;
     if (contactParam) {
       setClosingThreadId(contactParam);
       const params = new URLSearchParams();
@@ -2796,9 +2816,15 @@ showReplyComposer ? (
   );
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-4 pt-2">
+    <div
+      className={cn(
+        "flex w-full min-w-0 flex-col gap-4 pt-2",
+        // Desktop: Viewport-Höhe — Liste und Chat scrollen getrennt, Chat bleibt sichtbar.
+        "lg:h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-2.5rem)] lg:min-h-0 lg:gap-3 lg:overflow-hidden lg:pt-1",
+      )}
+    >
       {(!contactParam || isLgUp) ? (
-        <>
+        <div className="shrink-0 space-y-3">
       <ContactInboxFilterChips
         filter={inboxFilter}
         onFilterChange={selectInboxFilter}
@@ -2842,19 +2868,19 @@ showReplyComposer ? (
           Instagram-Business-Konto verknüpfen.
         </p>
       ) : null}
-        </>
+        </div>
       ) : null}
 
       <div
         className={cn(
           "flex min-w-0 flex-col gap-4",
-          "lg:min-h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-6rem)] lg:flex-row lg:gap-0 lg:overflow-hidden lg:rounded-xl lg:border lg:border-border/50 lg:bg-card lg:shadow-card",
+          "lg:min-h-0 lg:flex-1 lg:flex-row lg:gap-0 lg:overflow-hidden lg:rounded-xl lg:border lg:border-border/50 lg:bg-card lg:shadow-card",
         )}
       >
       {showConversationList ? (
-        <div className="flex min-w-0 flex-col lg:w-[min(100%,24rem)] lg:shrink-0 lg:overflow-hidden lg:border-r lg:border-border/50">
-        <Card className="flex w-full min-w-0 flex-col border-border/50 shadow-card lg:h-full lg:rounded-none lg:border-0 lg:shadow-none">
-          <div className="space-y-3 border-b border-border/50 px-4 py-3 sm:px-6">
+        <div className="flex min-h-0 min-w-0 flex-col lg:h-full lg:w-[min(100%,24rem)] lg:shrink-0 lg:overflow-hidden lg:border-r lg:border-border/50">
+        <Card className="flex w-full min-h-0 min-w-0 flex-col border-border/50 shadow-card lg:h-full lg:rounded-none lg:border-0 lg:shadow-none">
+            <div className="shrink-0 space-y-3 border-b border-border/50 px-4 py-3 sm:px-6">
             <div className="flex gap-2">
               <ContactConversationsSearchBar
                 className="min-w-0 flex-1"
@@ -3198,7 +3224,7 @@ showReplyComposer ? (
         </div>
       ) : null}
 
-      <div className="hidden min-h-0 min-w-0 flex-1 flex-col lg:flex">
+      <div className="hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex">
         {overlayThreadId ? (
           <ContactInboxThreadChrome
             header={threadHeader}
@@ -3209,7 +3235,7 @@ showReplyComposer ? (
             {threadViewport}
           </ContactInboxThreadChrome>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
             <p className="text-sm font-medium text-foreground">
               Chat auswählen
             </p>

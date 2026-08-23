@@ -280,6 +280,7 @@ import { pickContactThreadTitle } from "@/lib/contacts/contact-thread-title";
 import { stripHtmlToPlainText } from "@/lib/text/strip-html-to-plain-text";
 import { moduleTableFullscreenToggleButtonClassName } from "@/lib/ui/module-paginated-data-table";
 import { cn } from "@/lib/utils";
+import { isSamePathSearchNav } from "@/lib/navigation/same-path-search-nav";
 
 const LIST_SILENT_REFRESH_DEBOUNCE_MS = 3_000;
 
@@ -395,8 +396,12 @@ export function ContactsMessagesScreen({
     (href: string, mode: "replace" | "push" = "replace") => {
       if (!activeRef.current) return;
       if (!isNachrichtenMessagesPath(pathnameRef.current)) return;
-      if (mode === "push") router.push(href);
-      else router.replace(href);
+      if (isSamePathSearchNav(pathnameRef.current, href)) {
+        router.replace(href, { scroll: false });
+        return;
+      }
+      if (mode === "push") router.push(href, { scroll: false });
+      else router.replace(href, { scroll: false });
     },
     [router],
   );
@@ -1881,6 +1886,12 @@ export function ContactsMessagesScreen({
   );
 
   const openConversation = (contactId: string) => {
+    if (
+      openThreadIdRef.current === contactId &&
+      (overlayThreadId === contactId || pendingContactId === contactId)
+    ) {
+      return;
+    }
     const cached =
       restaurantId && peekContactThreadCache(restaurantId, contactId);
     const preview = conversationsRef.current.find(
@@ -1932,9 +1943,11 @@ export function ContactsMessagesScreen({
     // Desktop-Split: replace (weniger Soft-Nav-Latenz); Mobil: push für Zurück.
     navigateNachrichten(
       `/dashboard/kontakte/nachrichten?${params.toString()}`,
-      isLgUp ? "replace" : "push",
+      "replace",
     );
   };
+
+  const threadPrefetchInFlightRef = useRef<Set<string>>(new Set());
 
   const prefetchConversationThread = useCallback(
     (contactId: string) => {
@@ -1942,23 +1955,29 @@ export function ContactsMessagesScreen({
       if (peekContactThreadCache(restaurantId, contactId)?.messages.length) {
         return;
       }
+      if (threadPrefetchInFlightRef.current.has(contactId)) return;
+      threadPrefetchInFlightRef.current.add(contactId);
       void fetchContactThreadPageClient({
         restaurantId,
         contactId,
         limit: CONTACT_THREAD_PAGE_SIZE,
-      }).then(({ data, contact, error }) => {
-        if (error || !data.length) return;
-        setContactThreadCache(restaurantId, contactId, {
-          messages: data,
-          contactName: contact?.name ?? "Kontakt",
-          threadAvatarUrl: contact?.avatarUrl ?? null,
-          hasPhone: contact?.hasPhone ?? false,
-          hasEmail: contact?.hasEmail ?? false,
-          hasFacebookId: contact?.hasFacebookId ?? false,
-          hasInstagramId: contact?.hasInstagramId ?? false,
-          whatsappThreadChatId: contact?.whatsappThreadChatId ?? null,
+      })
+        .then(({ data, contact, error }) => {
+          if (error || !data.length) return;
+          setContactThreadCache(restaurantId, contactId, {
+            messages: data,
+            contactName: contact?.name ?? "Kontakt",
+            threadAvatarUrl: contact?.avatarUrl ?? null,
+            hasPhone: contact?.hasPhone ?? false,
+            hasEmail: contact?.hasEmail ?? false,
+            hasFacebookId: contact?.hasFacebookId ?? false,
+            hasInstagramId: contact?.hasInstagramId ?? false,
+            whatsappThreadChatId: contact?.whatsappThreadChatId ?? null,
+          });
+        })
+        .finally(() => {
+          threadPrefetchInFlightRef.current.delete(contactId);
         });
-      });
     },
     [restaurantId],
   );
@@ -1972,16 +1991,23 @@ export function ContactsMessagesScreen({
     if (conversations.length === 0) return;
 
     const warmTopThreads = () => {
-      for (const row of conversations.slice(0, 6)) {
+      for (const row of conversations.slice(0, 12)) {
         prefetchConversationThreadRef.current(row.contact_id);
       }
     };
 
+    const warmMoreThreads = () => {
+      for (const row of conversations.slice(12, 24)) {
+        prefetchConversationThreadRef.current(row.contact_id);
+      }
+    };
+
+    warmTopThreads();
     if (typeof requestIdleCallback !== "undefined") {
-      const id = requestIdleCallback(warmTopThreads, { timeout: 1_500 });
+      const id = requestIdleCallback(warmMoreThreads, { timeout: 2_000 });
       return () => cancelIdleCallback(id);
     }
-    const timer = window.setTimeout(warmTopThreads, 200);
+    const timer = window.setTimeout(warmMoreThreads, 200);
     return () => window.clearTimeout(timer);
   }, [active, restaurantId, contactParam, inboxFilter, conversations]);
 
@@ -3021,7 +3047,16 @@ showReplyComposer ? (
                           ? `Chat mit ${listName} öffnen, ${statusChip}`
                           : `Chat mit ${listName} öffnen`
                       }
-                      onClick={() => openConversation(c.contact_id)}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return;
+                        prefetchConversationThread(c.contact_id);
+                        openConversation(c.contact_id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter" && e.key !== " ") return;
+                        e.preventDefault();
+                        openConversation(c.contact_id);
+                      }}
                     />
                     <div className="relative z-10 shrink-0 pointer-events-none">
                       <ProfileRoundAvatar

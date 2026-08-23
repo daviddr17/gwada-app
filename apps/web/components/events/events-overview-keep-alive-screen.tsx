@@ -19,7 +19,7 @@ export function EventsOverviewKeepAliveScreen({
       subnavAriaLabel="Events-Bereiche"
       subnavItems={EVENTS_MODULE_NAV}
     >
-      <EventsScreen active={active} />
+      <EventsScreen active={active} showChrome={showChrome} />
     </ModuleHomeKeepAliveShell>
   );
 }

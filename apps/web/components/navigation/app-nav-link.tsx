@@ -20,6 +20,7 @@ import { isZoneSpaHref, spaZoneFromHref } from "@/lib/navigation/spa-zone-path";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
 import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
+import { isSamePathSearchNav } from "@/lib/navigation/same-path-search-nav";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -120,6 +121,14 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
           if (event.defaultPrevented) return;
           if (assignCrossAppWorkspaceZone(pathname, hrefStr)) {
             event.preventDefault();
+            return;
+          }
+          if (
+            spaSameZoneHref &&
+            isSamePathSearchNav(pathname ?? "", hrefStr)
+          ) {
+            event.preventDefault();
+            router.replace(hrefStr, { scroll: false });
             return;
           }
           if (!spaSameZoneHref && !crossModuleNav) {

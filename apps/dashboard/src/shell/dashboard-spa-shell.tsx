@@ -51,7 +51,9 @@ function DashboardSpaInset() {
   const { accentHex } = useAccentColor();
   const { chrome } = useAppModuleChrome();
   const showChipRow = Boolean(chrome.subnav?.items.length);
-  const showSecondaryChipRow = Boolean(chrome.secondarySubnav?.items.length);
+  const showSecondaryChipRow =
+    Boolean(chrome.secondarySubnav?.items.length) ||
+    Boolean(chrome.secondarySubnavContent);
   const showChipStrip = showChipRow || showSecondaryChipRow;
   const showDashboardBrandedBackground =
     pathname === "/dashboard" || pathname.startsWith("/dashboard/");
@@ -81,7 +83,7 @@ function DashboardSpaInset() {
       window.removeEventListener("resize", measure);
       document.documentElement.style.removeProperty("--app-module-chip-sticky-h");
     };
-  }, [showChipStrip, chrome.subnav, chrome.secondarySubnav]);
+  }, [showChipStrip, chrome.subnav, chrome.secondarySubnav, chrome.secondarySubnavContent]);
 
   return (
     <SidebarInset className="min-w-0">
@@ -168,6 +170,13 @@ function DashboardSpaInset() {
                 aria-label={chrome.subnav.ariaLabel}
                 className="min-w-0 flex-1"
               />
+            </div>
+          ) : null}
+          {showSecondaryChipRow && chrome.secondarySubnavContent ? (
+            <div
+              className="flex min-h-12 w-full items-center border-b border-border/50 bg-app-chrome px-1.5 py-2"
+            >
+              {chrome.secondarySubnavContent}
             </div>
           ) : null}
           {showSecondaryChipRow && chrome.secondarySubnav ? (

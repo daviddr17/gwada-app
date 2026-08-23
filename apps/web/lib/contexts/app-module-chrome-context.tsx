@@ -13,6 +13,8 @@ export type AppModuleChromeState = {
   subnav: AppModuleSubnav | null;
   /** Zweite Chip-Leiste unter der Modul-Subnav (z. B. POS → Einstellungen). */
   secondarySubnav: AppModuleSubnav | null;
+  /** Custom secondary strip (z. B. Events Öffentlich/Privat ohne Soft-Nav-Links). */
+  secondarySubnavContent: React.ReactNode | null;
   /** Modul-eigene Aktionen rechts im Header (z. B. Dashboard Kalender / Anordnen). */
   headerActions: React.ReactNode | null;
 };
@@ -21,6 +23,7 @@ const EMPTY: AppModuleChromeState = {
   title: "",
   subnav: null,
   secondarySubnav: null,
+  secondarySubnavContent: null,
   headerActions: null,
 };
 
@@ -90,6 +93,8 @@ export function RegisterModuleChrome({
           : null,
       // Nested layouts may own the secondary strip — preserve only within the same module title.
       secondarySubnav: prev.title === title ? prev.secondarySubnav : null,
+      secondarySubnavContent:
+        prev.title === title ? prev.secondarySubnavContent : null,
       headerActions: headerActionsRef.current ?? null,
     }));
     return () => {
@@ -102,6 +107,7 @@ export function RegisterModuleChrome({
           title,
           subnav: prev.subnav,
           secondarySubnav: prev.secondarySubnav,
+          secondarySubnavContent: prev.secondarySubnavContent,
           headerActions: null,
         };
       });
@@ -129,6 +135,7 @@ export function RegisterModuleSecondarySubnav({
       ...prev,
       secondarySubnav:
         items.length > 0 ? { items: [...items], ariaLabel } : null,
+      secondarySubnavContent: null,
     }));
     return () => {
       setChrome((prev) => {
@@ -137,6 +144,46 @@ export function RegisterModuleSecondarySubnav({
       });
     };
   }, [ariaLabel, items, setChrome]);
+
+  return null;
+}
+
+/** Custom secondary chip row — kein AppNavLink / Soft-Nav (nur Query-Toggles). */
+export function RegisterModuleSecondarySubnavContent({
+  ariaLabel,
+  children,
+}: {
+  ariaLabel: string;
+  children: React.ReactNode;
+}) {
+  const { setChrome } = useAppModuleChrome();
+
+  React.useLayoutEffect(() => {
+    setChrome((prev) => ({
+      ...prev,
+      secondarySubnav: null,
+      secondarySubnavContent: (
+        <nav aria-label={ariaLabel} className="min-w-0 flex-1 overflow-x-auto">
+          {children}
+        </nav>
+      ),
+    }));
+    return () => {
+      setChrome((prev) => {
+        const nav = prev.secondarySubnavContent;
+        if (!nav || typeof nav !== "object" || !("props" in nav)) return prev;
+        const navAria =
+          nav.props &&
+          typeof nav.props === "object" &&
+          "aria-label" in nav.props &&
+          typeof nav.props["aria-label"] === "string"
+            ? nav.props["aria-label"]
+            : null;
+        if (navAria !== ariaLabel) return prev;
+        return { ...prev, secondarySubnavContent: null };
+      });
+    };
+  }, [ariaLabel, children, setChrome]);
 
   return null;
 }

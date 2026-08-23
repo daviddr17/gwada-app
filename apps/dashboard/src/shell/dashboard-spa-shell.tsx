@@ -117,6 +117,7 @@ function DashboardSpaInset() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 pe-3 ps-1 sm:gap-2 sm:pe-6">
+          <AppChromeCalendar />
           {chrome.headerActions ? (
             <div className="flex shrink-0 items-center gap-1.5">
               {chrome.headerActions}

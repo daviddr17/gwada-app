@@ -49,6 +49,8 @@ export function DashboardWidgetShell({
   loadingContent,
   /** Zusätzliche Karten-Klassen (z. B. Heute-Hervorhebung). */
   cardClassName,
+  onPress,
+  pressAriaLabel,
 }: {
   title: string;
   description?: string;
@@ -66,6 +68,8 @@ export function DashboardWidgetShell({
   staticChrome?: boolean;
   loadingContent?: ReactNode;
   cardClassName?: string;
+  onPress?: () => void;
+  pressAriaLabel?: string;
 }) {
   const isCompact = variant === "compact";
   const hasContent = children != null && children !== false;
@@ -76,6 +80,7 @@ export function DashboardWidgetShell({
   }
 
   const layered = Boolean(background);
+  const interactive = Boolean(onPress);
 
   return (
     <Card
@@ -83,7 +88,22 @@ export function DashboardWidgetShell({
         "min-w-0 border-border/50 shadow-card",
         cardClassName,
         layered && "relative overflow-hidden",
+        interactive && "cursor-pointer transition-colors hover:bg-muted/30",
       )}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? pressAriaLabel ?? title : undefined}
+      onClick={interactive ? onPress : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onPress?.();
+              }
+            }
+          : undefined
+      }
     >
       {background}
       <CardHeader
@@ -132,6 +152,21 @@ export function DashboardWidgetShell({
               </>
             )}
           </AppNavLink>
+        ) : interactive ? (
+          <span
+            className={cn(
+              buttonVariants({
+                variant: "ghost",
+                size: isCompact ? "icon-sm" : "sm",
+              }),
+              isCompact
+                ? "size-8 shrink-0 rounded-lg text-muted-foreground pointer-events-none"
+                : "h-9 shrink-0 gap-1 rounded-xl pointer-events-none",
+            )}
+            aria-hidden
+          >
+            <ChevronRight className="size-4" />
+          </span>
         ) : null}
       </CardHeader>
       <CardContent

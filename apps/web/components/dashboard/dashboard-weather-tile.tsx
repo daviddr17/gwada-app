@@ -24,6 +24,7 @@ import {
 } from "@/lib/weather/visual-crossing-location";
 import type { VisualCrossingTimelineResponse } from "@/lib/weather/visual-crossing-types";
 import { DashboardWeatherAmbience } from "@/components/dashboard/dashboard-weather-ambience";
+import { DashboardWeatherForecastSheet } from "@/components/dashboard/dashboard-weather-forecast-sheet";
 
 const nf1 = new Intl.NumberFormat("de-DE", {
   minimumFractionDigits: 0,
@@ -69,6 +70,7 @@ export function DashboardWeatherTile() {
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { profile, isReady: profileReady } = useRestaurantProfile();
   const location = useMemo(() => buildVisualCrossingLocation(profile), [profile]);
+  const [forecastOpen, setForecastOpen] = useState(false);
 
   // Soft-Nav-Remount: Cache synchron lesen — kein Leer-Frame vor useEffect.
   const cachedOnLocation = profileReady
@@ -181,30 +183,33 @@ export function DashboardWeatherTile() {
   }, [profileReady, location, profile.city]);
 
   return (
-    <DashboardWidgetShell
-      title="Wetter"
-      icon={
-        <CloudSun
-          className="size-4 shrink-0 text-muted-foreground"
-          aria-hidden
-        />
-      }
-      ready={profileReady}
-      loading={showSkeleton}
-      error={err}
-      background={
-        cur ? (
-          <DashboardWeatherAmbience kind={ambienceKind} className="rounded-none" />
-        ) : undefined
-      }
-    >
-      {cur ? (
-        <div className="space-y-2">
-          <p className="truncate text-xs text-muted-foreground">
-            {cur.conditions ?? "—"}
-            {locationHint ? ` · ${locationHint}` : null}
-          </p>
-          <DashboardCompactInlineMetrics>
+    <>
+      <DashboardWidgetShell
+        title="Wetter"
+        icon={
+          <CloudSun
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+        }
+        ready={profileReady}
+        loading={showSkeleton}
+        error={err}
+        onPress={() => setForecastOpen(true)}
+        pressAriaLabel="Wetterprognose anzeigen"
+        background={
+          cur ? (
+            <DashboardWeatherAmbience kind={ambienceKind} className="rounded-none" />
+          ) : undefined
+        }
+      >
+        {cur ? (
+          <div className="space-y-2">
+            <p className="truncate text-xs text-muted-foreground">
+              {cur.conditions ?? "—"}
+              {locationHint ? ` · ${locationHint}` : null}
+            </p>
+            <DashboardCompactInlineMetrics>
             <DashboardCompactMetricPill
               label="Jetzt"
               value={formatTemp(cur.temp)}
@@ -241,12 +246,23 @@ export function DashboardWeatherTile() {
               />
             )}
           </DashboardCompactInlineMetrics>
+          <p className="text-[10px] text-muted-foreground/80">
+            Tippen für 7-Tage-Prognose
+          </p>
         </div>
       ) : !err ? (
         <p className="text-xs text-muted-foreground">
           Keine aktuellen Wetterdaten verfügbar.
         </p>
       ) : null}
-    </DashboardWidgetShell>
+      </DashboardWidgetShell>
+      <DashboardWeatherForecastSheet
+        open={forecastOpen}
+        onOpenChange={setForecastOpen}
+        location={location}
+        locationLabel={locationHint || location}
+        timeZone={restaurantTimeZone}
+      />
+    </>
   );
 }

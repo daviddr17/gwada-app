@@ -90,9 +90,15 @@ export function RegisterModuleChrome({
     return () => {
       // Soft-Nav: nicht blind auf EMPTY — SoftNavPendingOverlay / nächstes Modul
       // setzen den Titel oft schon optimistisch. Sonst flackert der Chrome-Titel.
+      // Subnav bei gleichem Modul-Titel erhalten (Chip-Leiste nicht ausblenden).
       setChrome((prev) => {
         if (prev.title !== title) return prev;
-        return EMPTY;
+        return {
+          title,
+          subnav: prev.subnav,
+          secondarySubnav: prev.secondarySubnav,
+          headerActions: null,
+        };
       });
     };
   }, [title, subnavAriaLabel, subnavItems, headerActions, setChrome]);
@@ -120,7 +126,10 @@ export function RegisterModuleSecondarySubnav({
         items.length > 0 ? { items: [...items], ariaLabel } : null,
     }));
     return () => {
-      setChrome((prev) => ({ ...prev, secondarySubnav: null }));
+      setChrome((prev) => {
+        if (prev.secondarySubnav?.ariaLabel !== ariaLabel) return prev;
+        return prev;
+      });
     };
   }, [ariaLabel, items, setChrome]);
 

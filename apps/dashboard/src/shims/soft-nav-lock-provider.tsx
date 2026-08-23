@@ -3,7 +3,10 @@
 import {
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
+  useState,
   type ReactNode,
 } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
@@ -12,48 +15,88 @@ import {
   normalizeNavHref,
   type SoftNavLockValue,
 } from "@/lib/navigation/soft-nav-lock-context";
+import {
+  dashboardHrefToTanstackTarget,
+  tanstackLocationToDashboardPath,
+} from "@/lib/navigation/dashboard-spa-path";
+import { isSoftNavPendingArrived } from "@/lib/navigation/module-home-keep-alive";
+import {
+  beginSoftNavFlight,
+  endSoftNavFlight,
+} from "@/lib/navigation/soft-nav-flight";
 
-function splitHref(href: string): {
-  pathname: string;
-  search: Record<string, string>;
-} {
-  const [pathPart, searchPart] = href.split("?");
-  const pathname = normalizeNavHref(pathPart ?? href);
-  const search: Record<string, string> = {};
-  if (searchPart) {
-    for (const pair of searchPart.split("&")) {
-      const [k, v] = pair.split("=");
-      if (k) search[k] = decodeURIComponent(v ?? "");
-    }
-  }
-  return { pathname, search };
-}
+const PENDING_CLEAR_FAILSAFE_MS = 6_000;
 
 /** TanStack Router — gleicher Context wie Next SoftNavLockProvider. */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const routerState = useRouterState();
-  const pendingHref = routerState.isLoading
-    ? routerState.location.pathname
-    : null;
+  const location = useRouterState({ select: (s) => s.location });
+  const pathname = tanstackLocationToDashboardPath(location.pathname);
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+
+  const pendingTargetRef = useRef<string | null>(null);
+  const clearTimerRef = useRef<number | null>(null);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+  const clearPending = useCallback(() => {
+    pendingTargetRef.current = null;
+    endSoftNavFlight();
+    setPendingHref(null);
+    if (clearTimerRef.current != null) {
+      window.clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const target = pendingTargetRef.current;
+    if (target == null) return;
+    if (!isSoftNavPendingArrived(pathname, target)) return;
+    clearPending();
+  }, [pathname, clearPending]);
 
   const scheduleSoftNavPush = useCallback(
     (href: string) => {
-      const { pathname, search } = splitHref(href);
-      const to =
-        pathname === "/dashboard"
-          ? "/"
-          : pathname.replace(/^\/dashboard/, "") || "/";
+      const { to, search } = dashboardHrefToTanstackTarget(href);
       navigate({ to, search });
     },
     [navigate],
   );
 
   const tryAcquireNavLock = useCallback(
-    (
-      _event: { preventDefault: () => void },
-      _targetHref: string,
-    ) => true,
+    (_event: { preventDefault: () => void }, targetHref: string) => {
+      const target = normalizeNavHref(targetHref);
+      if (
+        pendingTargetRef.current === target &&
+        isSoftNavPendingArrived(pathnameRef.current, target)
+      ) {
+        return false;
+      }
+
+      pendingTargetRef.current = target;
+      beginSoftNavFlight(targetHref);
+      setPendingHref(target);
+
+      if (clearTimerRef.current != null) {
+        window.clearTimeout(clearTimerRef.current);
+      }
+      clearTimerRef.current = window.setTimeout(() => {
+        clearTimerRef.current = null;
+        clearPending();
+      }, PENDING_CLEAR_FAILSAFE_MS);
+
+      return true;
+    },
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      if (clearTimerRef.current != null) {
+        window.clearTimeout(clearTimerRef.current);
+      }
+    },
     [],
   );
 

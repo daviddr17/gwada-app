@@ -41,7 +41,10 @@ export function DashboardHeuteLiveTimeline({
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const timeZone = useRestaurantIanaTimezone(restaurantId);
   const { items } = useLiveActivityFeed();
-  const rows = items.slice(0, MAX_ROWS);
+  const todayItems = items.filter((item) =>
+    isSameRestaurantCalendarDay(item.at, new Date(), timeZone),
+  );
+  const rows = todayItems.slice(0, MAX_ROWS);
 
   if (rows.length === 0) {
     return (
@@ -75,7 +78,7 @@ export function DashboardHeuteLiveTimeline({
         </p>
         <span className="text-[10px] tabular-nums text-muted-foreground">
           {rows.length}
-          {items.length > MAX_ROWS ? `+` : ""} Einträge
+          {todayItems.length > MAX_ROWS ? `+` : ""} Einträge
         </span>
       </div>
       <ul className="divide-y divide-border/30">

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Activity, Trash2, X } from "lucide-react";
+import { Activity, X } from "lucide-react";
 import { AppMobileChromeScreen } from "@/components/layout/app-mobile-chrome-screen";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
@@ -124,15 +124,19 @@ function LiveActivityPanel({
   timeZone,
   nowMs,
   layout,
+  hasMore,
+  loadingMore,
   onNavigate,
-  onClear,
+  onLoadMore,
 }: {
   items: LiveActivityItem[];
   timeZone: string;
   nowMs: number;
   layout: "popover" | "screen";
+  hasMore: boolean;
+  loadingMore: boolean;
   onNavigate: () => void;
-  onClear: () => void;
+  onLoadMore: () => void;
 }) {
   return (
     <div
@@ -144,28 +148,14 @@ function LiveActivityPanel({
       )}
     >
       {layout === "popover" ? (
-        <div className="flex items-start justify-between gap-2 border-b border-border/40 px-3.5 py-3">
-          <div className="min-w-0">
-            <p className="text-[15px] font-semibold tracking-tight text-foreground">
-              Live-Verlauf
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Reservierungen, Nachrichten, Schicht & Bestand
-            </p>
-          </div>
-          {items.length > 0 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="shrink-0 rounded-full text-muted-foreground"
-              aria-label="Verlauf leeren"
-              title="Verlauf leeren"
-              onClick={onClear}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-          ) : null}
+        <div className="border-b border-border/40 px-3.5 py-3">
+          <p className="text-[15px] font-semibold tracking-tight text-foreground">
+            Live-Verlauf
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Reservierungen, Nachrichten, Schicht & Bestand — dauerhaft
+            nachvollziehbar
+          </p>
         </div>
       ) : null}
 
@@ -179,8 +169,8 @@ function LiveActivityPanel({
               Noch ruhig hier
             </p>
             <p className="max-w-[16rem] text-xs leading-relaxed text-muted-foreground">
-              Display-Login, neue Reservierungen und Nachrichten vom heutigen
-              Tag — live und beim Öffnen nachgeladen.
+              Display-Login, Reservierungen und Nachrichten — gespeichert im
+              System, initial die letzten 20 Einträge.
             </p>
           </div>
         ) : (
@@ -198,16 +188,16 @@ function LiveActivityPanel({
         )}
       </div>
 
-      {layout === "screen" && items.length > 0 ? (
+      {hasMore ? (
         <div className="shrink-0 border-t border-border/40 p-3">
           <Button
             type="button"
             variant="outline"
             className="w-full rounded-xl border-border/60"
-            onClick={onClear}
+            disabled={loadingMore}
+            onClick={onLoadMore}
           >
-            <Trash2 className="size-3.5" />
-            Verlauf leeren
+            {loadingMore ? "Wird geladen …" : "Weitere Einträge laden"}
           </Button>
         </div>
       ) : null}
@@ -240,7 +230,8 @@ export function AppChromeActivityFeed({
   const useMobileScreen = variant === "mobileNav" || isMobile;
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const timeZone = useRestaurantIanaTimezone(restaurantId);
-  const { items, hasUnseen, markSeen, clear } = useLiveActivityFeed();
+  const { items, hasUnseen, hasMore, loadingMore, markSeen, loadMore } =
+    useLiveActivityFeed();
 
   React.useEffect(() => {
     setOpen(false);
@@ -263,10 +254,10 @@ export function AppChromeActivityFeed({
       timeZone={timeZone}
       nowMs={nowMs}
       layout={useMobileScreen ? "screen" : "popover"}
+      hasMore={hasMore}
+      loadingMore={loadingMore}
       onNavigate={() => setOpen(false)}
-      onClear={() => {
-        clear();
-      }}
+      onLoadMore={() => void loadMore()}
     />
   );
 
@@ -320,20 +311,6 @@ export function AppChromeActivityFeed({
           onClose={() => setOpen(false)}
           title="Live-Verlauf"
           aria-label="Live-Verlauf"
-          headerAction={
-            items.length > 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="rounded-full"
-                aria-label="Verlauf leeren"
-                onClick={clear}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            ) : null
-          }
         >
           {panel}
         </AppMobileChromeScreen>
@@ -395,20 +372,6 @@ export function AppChromeActivityFeed({
           onClose={() => setOpen(false)}
           title="Live-Verlauf"
           aria-label="Live-Verlauf"
-          headerAction={
-            items.length > 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="rounded-full"
-                aria-label="Verlauf leeren"
-                onClick={clear}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            ) : null
-          }
         >
           {panel}
         </AppMobileChromeScreen>

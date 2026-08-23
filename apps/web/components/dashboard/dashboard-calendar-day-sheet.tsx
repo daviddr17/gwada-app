@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
+import { OpeningHoursExceptionCard } from "@/components/settings/opening-hours-exception-card";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -20,14 +21,20 @@ import {
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import type { DashboardCalendarDaySummary } from "@/lib/dashboard/dashboard-calendar-types";
+import {
+  newClosedCalendarException,
+  newOpenCalendarException,
+  removeCalendarDateException,
+  upsertCalendarDateException,
+} from "@/lib/dashboard/dashboard-calendar-hours-mutation";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { eventsOverviewDayHref } from "@/lib/events/private-event-href";
+import { weekdayFromDateYmd } from "@/lib/opening-hours/embed-display-utils";
 import { APP_SIGNAL_COLORS } from "@/lib/ui/app-signal-colors";
 import {
   loadOpeningHoursForRestaurant,
-  replaceOpeningHoursForRestaurant,
 } from "@/lib/supabase/opening-hours-db";
-import type { DateHoursException } from "@/lib/types/restaurant";
+import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
 import { cn } from "@/lib/utils";
 
 type DashboardCalendarDaySheetProps = {
@@ -75,47 +82,102 @@ export function DashboardCalendarDaySheet({
   dayLabel,
   onHoursChanged,
 }: DashboardCalendarDaySheetProps) {
-  const [savingClosed, setSavingClosed] = useState(false);
+  const [savingHours, setSavingHours] = useState(false);
+  const [hoursEditorOpen, setHoursEditorOpen] = useState(false);
+  const [weeklyHours, setWeeklyHours] = useState<Record<Weekday, DayHours> | null>(
+    null,
+  );
+  const [hoursDraft, setHoursDraft] = useState<DateHoursException | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setHoursEditorOpen(false);
+      setHoursDraft(null);
+      setWeeklyHours(null);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    setHoursEditorOpen(false);
+    setHoursDraft(null);
+  }, [day?.date]);
+
+  useEffect(() => {
+    if (!open || !restaurantId || !hoursEditorOpen) return;
+    let cancelled = false;
+    void loadOpeningHoursForRestaurant(restaurantId).then((loaded) => {
+      if (cancelled || !loaded || !day) return;
+      setWeeklyHours(loaded.weeklyHours);
+      const existing = loaded.dateExceptions.find((ex) => ex.date === day.date);
+      if (existing) {
+        setHoursDraft(existing);
+        return;
+      }
+      const weekday = weekdayFromDateYmd(day.date);
+      const weekdayHours = loaded.weeklyHours[weekday];
+      setHoursDraft(
+        newOpenCalendarException(day.date, null, {
+          open: weekdayHours.closed ? "11:30" : weekdayHours.open,
+          close: weekdayHours.closed ? "22:00" : weekdayHours.close,
+        }),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, restaurantId, hoursEditorOpen, day]);
+
+  const saveException = async (exception: DateHoursException) => {
+    if (!restaurantId) return;
+    setSavingHours(true);
+    try {
+      const result = await upsertCalendarDateException(restaurantId, exception);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(
+        exception.closed
+          ? "Tag als geschlossen markiert."
+          : "Sonderöffnungszeiten gespeichert.",
+      );
+      setHoursEditorOpen(false);
+      setHoursDraft(null);
+      onHoursChanged?.();
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
+  const clearException = async () => {
+    if (!restaurantId || !day) return;
+    setSavingHours(true);
+    try {
+      const result = await removeCalendarDateException(restaurantId, day.date);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Sonderregel entfernt — Wochenplan gilt wieder.");
+      setHoursEditorOpen(false);
+      setHoursDraft(null);
+      onHoursChanged?.();
+    } finally {
+      setSavingHours(false);
+    }
+  };
 
   const markClosed = async () => {
     if (!restaurantId || !day) return;
-    setSavingClosed(true);
-    try {
-      const loaded = await loadOpeningHoursForRestaurant(restaurantId);
-      if (!loaded) {
-        toast.error("Öffnungszeiten konnten nicht geladen werden.");
-        return;
-      }
-      const nextException: DateHoursException = {
-        id:
-          loaded.dateExceptions.find((ex) => ex.date === day.date)?.id ??
-          crypto.randomUUID(),
-        date: day.date,
-        closed: true,
-        note:
-          loaded.dateExceptions.find((ex) => ex.date === day.date)?.note ??
-          "Geschlossen (Dashboard)",
-      };
-      const dateExceptions = [
-        ...loaded.dateExceptions.filter((ex) => ex.date !== day.date),
-        nextException,
-      ].sort((a, b) => a.date.localeCompare(b.date));
-      const result = await replaceOpeningHoursForRestaurant(restaurantId, {
-        weeklyHours: loaded.weeklyHours,
-        dateExceptions,
-        kitchenHoursEnabled: loaded.kitchenHoursEnabled,
-        kitchenWeeklyHours: loaded.kitchenWeeklyHours,
-      });
-      if (!result.ok) {
-        toast.error(result.error || "Speichern fehlgeschlagen.");
-        return;
-      }
-      toast.success("Tag als geschlossen markiert.");
-      onHoursChanged?.();
-    } finally {
-      setSavingClosed(false);
-    }
+    const loaded = await loadOpeningHoursForRestaurant(restaurantId);
+    const existing = loaded?.dateExceptions.find((ex) => ex.date === day.date);
+    await saveException(newClosedCalendarException(day.date, existing));
   };
+
+  const hoursSummary = useMemo(() => {
+    if (!day?.hoursException) return "Regulärer Wochenplan";
+    return day.hoursException.label;
+  }, [day?.hoursException]);
 
   const reservationsHref = day
     ? `${APP_ROUTES.reservierungen.overview}?day=${encodeURIComponent(day.date)}`
@@ -172,24 +234,110 @@ export function DashboardCalendarDaySheet({
                   value={String(day.scheduledNewsCount)}
                   color={APP_SIGNAL_COLORS.news}
                 />
-                {day.hoursException ? (
-                  <SignalRow
-                    label="Sonderöffnungszeiten"
-                    value={day.hoursException.label}
-                    color={
-                      day.hoursException.closed
-                        ? APP_SIGNAL_COLORS.hoursClosed
-                        : APP_SIGNAL_COLORS.hoursOpen
-                    }
-                  />
-                ) : (
-                  <SignalRow
-                    label="Sonderöffnungszeiten"
-                    value="—"
-                    color={APP_SIGNAL_COLORS.hoursOpen}
-                  />
-                )}
+                <SignalRow label="Öffnung" value={hoursSummary} />
               </ul>
+            ) : null}
+          </DrawerFormSection>
+
+          <DrawerFormSection title="Öffnungszeiten">
+            {day && hoursEditorOpen && hoursDraft && weeklyHours ? (
+              <div className="space-y-3">
+                <OpeningHoursExceptionCard
+                  exception={hoursDraft}
+                  weeklyHours={weeklyHours}
+                  onChange={(patch) =>
+                    setHoursDraft((prev) =>
+                      prev ? { ...prev, ...patch, date: day.date } : prev,
+                    )
+                  }
+                  onRemove={() => void clearException()}
+                />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    size="lg"
+                    className={cn(
+                      "flex-1",
+                      brandActionButtonRoundedClassName,
+                    )}
+                    disabled={savingHours || !restaurantId}
+                    onClick={() => void saveException(hoursDraft)}
+                  >
+                    {savingHours ? "Speichern …" : "Speichern"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className={cn("flex-1", drawerFormFullWidthButtonClassName)}
+                    disabled={savingHours}
+                    onClick={() => {
+                      setHoursEditorOpen(false);
+                      setHoursDraft(null);
+                    }}
+                  >
+                    Abbrechen
+                  </Button>
+                </div>
+              </div>
+            ) : day ? (
+              <div className="flex flex-col gap-2">
+                {day.hoursException ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={drawerFormFullWidthButtonClassName}
+                    disabled={savingHours || !restaurantId}
+                    onClick={() => void clearException()}
+                  >
+                    {savingHours
+                      ? "Speichern …"
+                      : day.hoursException.closed
+                        ? "Geschlossen aufheben"
+                        : "Sonderzeiten entfernen"}
+                  </Button>
+                ) : null}
+                {!day.hoursException?.closed ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={drawerFormFullWidthButtonClassName}
+                      disabled={savingHours || !restaurantId}
+                      onClick={() => setHoursEditorOpen(true)}
+                    >
+                      {day.hoursException
+                        ? "Sonderzeiten anpassen"
+                        : "Sonderzeiten für Tag festlegen"}
+                    </Button>
+                    {!day.hoursException ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={drawerFormFullWidthButtonClassName}
+                        disabled={savingHours || !restaurantId}
+                        onClick={() => void markClosed()}
+                      >
+                        {savingHours ? "Speichern …" : "Tag geschlossen markieren"}
+                      </Button>
+                    ) : null}
+                  </>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  render={
+                    <AppNavLink
+                      href={hoursHref}
+                      onClick={() => onOpenChange(false)}
+                    />
+                  }
+                >
+                  Alle Öffnungszeiten in Einstellungen
+                </Button>
+              </div>
             ) : null}
           </DrawerFormSection>
 
@@ -246,35 +394,11 @@ export function DashboardCalendarDaySheet({
               >
                 News
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(drawerFormFullWidthButtonClassName, "h-10")}
-                render={
-                  <AppNavLink
-                    href={hoursHref}
-                    onClick={() => onOpenChange(false)}
-                  />
-                }
-              >
-                Öffnungszeiten
-              </Button>
             </div>
           </DrawerFormSection>
         </div>
 
-        <div className="shrink-0 space-y-2 border-t border-border/50 px-6 pb-6 pt-4">
-          {day && !day.hoursException?.closed ? (
-            <Button
-              type="button"
-              variant="outline"
-              className={drawerFormFullWidthButtonClassName}
-              disabled={savingClosed || !restaurantId}
-              onClick={() => void markClosed()}
-            >
-              {savingClosed ? "Speichern …" : "Tag geschlossen markieren"}
-            </Button>
-          ) : null}
+        <div className="shrink-0 border-t border-border/50 px-6 pb-6 pt-4">
           <Button
             type="button"
             variant="ghost"

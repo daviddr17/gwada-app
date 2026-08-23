@@ -4,6 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { DashboardCalendarDaySheet } from "@/components/dashboard/dashboard-calendar-day-sheet";
 import {
+  DashboardCalendarDayStatusIcons,
+  DashboardCalendarStatusLegend,
+} from "@/components/dashboard/dashboard-calendar-day-status-icons";
+import {
   AppFullscreenOverlay,
   appFullscreenOverlayScrollClassName,
 } from "@/components/ui/app-fullscreen-overlay";
@@ -39,31 +43,29 @@ const DOT = {
   events: APP_SIGNAL_COLORS.events,
   staff: APP_SIGNAL_COLORS.staff,
   news: APP_SIGNAL_COLORS.news,
-  holiday: APP_SIGNAL_COLORS.holiday,
-  hours: APP_SIGNAL_COLORS.hoursOpen,
-  hoursClosed: APP_SIGNAL_COLORS.hoursClosed,
 } as const;
 
-function DayDots({ day }: { day: DashboardCalendarDaySummary }) {
+function DayActivityDots({ day }: { day: DashboardCalendarDaySummary }) {
   const dots: string[] = [];
   if (day.reservationCount > 0) dots.push(DOT.reservations);
   if (day.privateEventCount > 0) dots.push(DOT.events);
   if (day.plannedStaffCount > 0) dots.push(DOT.staff);
   if (day.scheduledNewsCount > 0) dots.push(DOT.news);
-  if (day.holidayName) dots.push(DOT.holiday);
-  if (day.hoursException) {
-    dots.push(day.hoursException.closed ? DOT.hoursClosed : DOT.hours);
+  if (dots.length === 0) {
+    return <DashboardCalendarDayStatusIcons day={day} />;
   }
-  if (dots.length === 0) return <span className="h-1.5 md:h-2" aria-hidden />;
   return (
-    <span className="flex h-1.5 items-center justify-center gap-0.5 md:h-2 md:gap-1">
-      {dots.slice(0, 4).map((color, i) => (
-        <span
-          key={`${color}-${i}`}
-          className="size-1.5 rounded-full md:size-2"
-          style={{ backgroundColor: color }}
-        />
-      ))}
+    <span className="flex flex-col items-center justify-center gap-0.5 md:gap-1">
+      <span className="flex h-1.5 items-center justify-center gap-0.5 md:h-2 md:gap-1">
+        {dots.slice(0, 4).map((color, i) => (
+          <span
+            key={`${color}-${i}`}
+            className="size-1.5 rounded-full md:size-2"
+            style={{ backgroundColor: color }}
+          />
+        ))}
+      </span>
+      <DashboardCalendarDayStatusIcons day={day} />
     </span>
   );
 }
@@ -301,18 +303,13 @@ export function DashboardCalendarOverlay({
                               : hasSignals
                                 ? "border-border/50 bg-card text-foreground"
                                 : "border-transparent text-muted-foreground",
-                            day.hoursException?.closed &&
-                              "bg-red-500/8 dark:bg-red-500/12",
-                            day.holidayName &&
-                              !day.hoursException?.closed &&
-                              "bg-amber-500/8 dark:bg-amber-500/12",
                           )}
-                          aria-label={`${day.date}${hasSignals ? ", mit Einträgen" : ""}`}
+                          aria-label={`${day.date}${hasSignals ? ", mit Einträgen" : ""}${day.hoursException?.closed ? ", geschlossen" : ""}${day.holidayName ? `, Feiertag ${day.holidayName}` : ""}`}
                         >
                           <span className="tabular-nums leading-none md:text-lg lg:text-xl">
                             {Number(day.date.slice(-2))}
                           </span>
-                          <DayDots day={day} />
+                          <DayActivityDots day={day} />
                         </button>
                       );
                     })}
@@ -324,8 +321,7 @@ export function DashboardCalendarOverlay({
                   <LegendItem color={DOT.events} label="Veranstaltungen" />
                   <LegendItem color={DOT.staff} label="Schichtplan" />
                   <LegendItem color={DOT.news} label="Posts" />
-                  <LegendItem color={DOT.holiday} label="Feiertag" />
-                  <LegendItem color={DOT.hours} label="Sonderzeiten" />
+                  <DashboardCalendarStatusLegend />
                 </div>
               </>
             )}

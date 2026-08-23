@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import { AppMain } from "@/components/layout/app-main";
 import { ReservationVoiceFab } from "@/components/reservations/reservation-voice-fab";
 import { ReservationsOverview } from "@/components/reservations/reservations-overview";
@@ -16,6 +16,9 @@ export function ReservationsOverviewKeepAliveScreen({
   active: boolean;
   showChrome?: boolean;
 }) {
+  // Stabil — sonst RegisterModuleChrome-Effect-Loop (headerActions Identity).
+  const headerActions = useMemo(() => <ReservationsChromeActions />, []);
+
   return (
     <>
       {showChrome ? (
@@ -23,7 +26,7 @@ export function ReservationsOverviewKeepAliveScreen({
           title="Reservierungen"
           subnavAriaLabel="Reservierungs-Bereiche"
           subnavItems={RESERVATIONS_MODULE_NAV}
-          headerActions={<ReservationsChromeActions />}
+          headerActions={headerActions}
         />
       ) : null}
       <AppMain>

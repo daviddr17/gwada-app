@@ -75,6 +75,11 @@ export function RegisterModuleChrome({
   headerActions?: React.ReactNode | null;
 }) {
   const { setChrome } = useAppModuleChrome();
+  // Inline JSX (`headerActions={<Foo />}`) hat jedes Render neue Identity —
+  // nie als Effect-Dep, sonst Maximum-update-depth. Parent soll memoizen;
+  // Ref hält den aktuellen Node für den Sync unten.
+  const headerActionsRef = React.useRef(headerActions);
+  headerActionsRef.current = headerActions;
 
   React.useLayoutEffect(() => {
     setChrome((prev) => ({
@@ -85,7 +90,7 @@ export function RegisterModuleChrome({
           : null,
       // Nested layouts may own the secondary strip — don't wipe it here.
       secondarySubnav: prev.secondarySubnav,
-      headerActions: headerActions ?? null,
+      headerActions: headerActionsRef.current ?? null,
     }));
     return () => {
       // Soft-Nav: nicht blind auf EMPTY — SoftNavPendingOverlay / nächstes Modul
@@ -101,7 +106,7 @@ export function RegisterModuleChrome({
         };
       });
     };
-  }, [title, subnavAriaLabel, subnavItems, headerActions, setChrome]);
+  }, [title, subnavAriaLabel, subnavItems, setChrome]);
 
   return null;
 }

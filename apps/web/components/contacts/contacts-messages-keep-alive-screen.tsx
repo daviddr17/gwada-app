@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import { AppMain } from "@/components/layout/app-main";
 import { ContactsMessagesScreen } from "@/components/contacts/contacts-messages-screen";
 import { MESSAGES_MODULE_NAV } from "@/components/contacts/messages-module-nav";
@@ -15,6 +15,8 @@ export function ContactsMessagesKeepAliveScreen({
   active: boolean;
   showChrome?: boolean;
 }) {
+  const headerActions = useMemo(() => <MessagesChromeActions />, []);
+
   return (
     <>
       {showChrome ? (
@@ -22,7 +24,7 @@ export function ContactsMessagesKeepAliveScreen({
           title="Nachrichten"
           subnavAriaLabel="Nachrichten-Bereiche"
           subnavItems={MESSAGES_MODULE_NAV}
-          headerActions={<MessagesChromeActions />}
+          headerActions={headerActions}
         />
       ) : null}
       <AppMain>

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/combobox";
 import {
   DatePickerField,
@@ -24,7 +23,6 @@ import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
   datetimeLocalValueToIso,
@@ -35,7 +33,6 @@ import {
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
 import { staffDisplayName } from "@/lib/types/staff";
 import { CONTACT_INBOX_STACKED_SHEET_Z_INDEX } from "@/components/contacts/contact-inbox-thread-overlay";
-import { cn } from "@/lib/utils";
 
 function ymdHmToIso(ymd: string, hm: string): string | null {
   if (!ymd.trim()) return null;
@@ -216,37 +213,20 @@ export function InboxFollowUpSheet({
           </DrawerFormSection>
         </DrawerFormBody>
 
-        <DrawerFormFooter>
-          {onClear && initial ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              disabled={saving}
-              onClick={() => void onClear()}
-            >
-              Erledigt
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              disabled={saving}
-              onClick={() => onOpenChange(false)}
-            >
-              Abbrechen
-            </Button>
-          )}
-          <Button
-            type="button"
-            className={cn(brandActionButtonRoundedClassName, "min-w-28")}
-            disabled={saving || !restaurantId}
-            onClick={handleSave}
-          >
-            {saving ? "Speichern…" : "Speichern"}
-          </Button>
-        </DrawerFormFooter>
+        <DrawerFormFooter
+          cancelLabel={onClear ? "Erledigt" : "Abbrechen"}
+          onCancel={() => {
+            if (onClear) void onClear();
+            else onOpenChange(false);
+          }}
+          cancelDisabled={saving}
+          submitLabel="Speichern"
+          submitType="button"
+          onSubmit={handleSave}
+          submitPending={saving}
+          submitDisabled={saving || !restaurantId}
+          contentPadding={6}
+        />
       </DrawerContent>
     </Drawer>
   );

@@ -121,21 +121,18 @@ export function recordLiveActivity(
   emit();
 }
 
-/** Server-Seiten: fehlende IDs ergänzen (ohne Duplikate). */
+/** Server-Seiten: ergänzen und vorhandene IDs mit aktuellen Feldern (z. B. href) aktualisieren. */
 export function mergeLiveActivityItems(
   restaurantId: string,
   items: readonly LiveActivityItem[],
 ) {
   if (items.length === 0) return;
   ensureLiveActivityRestaurant(restaurantId);
-  const existingIds = new Set(state.items.map((row) => row.id));
-  const toAdd = items.filter((row) => !existingIds.has(row.id));
-  if (toAdd.length === 0) return;
-
-  const merged = sortByAtDesc([...state.items, ...toAdd]).slice(
-    0,
-    MAX_MEMORY_ITEMS,
-  );
+  const byId = new Map(state.items.map((row) => [row.id, row]));
+  for (const row of items) {
+    byId.set(row.id, row);
+  }
+  const merged = sortByAtDesc([...byId.values()]).slice(0, MAX_MEMORY_ITEMS);
 
   state = { restaurantId, items: merged };
   writePersisted(restaurantId, merged);

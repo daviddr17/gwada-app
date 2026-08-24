@@ -1,4 +1,8 @@
 import {
+  dashboardMessageThreadHref,
+  dashboardMessagesInboxHref,
+} from "@/lib/contact-messages/messages-unread-summary";
+import {
   isNotificationModuleId,
   NOTIFICATION_MODULES,
 } from "@/lib/notifications/notification-modules";
@@ -12,11 +16,30 @@ function pickString(value: unknown): string | null {
 function guestFromPayload(payload: Record<string, unknown>): string | null {
   return (
     pickString(payload.guest_name) ??
+    pickString(payload.contactName) ??
     pickString(payload.contact_name) ??
     pickString(payload.staff_name) ??
     pickString(payload.staffName) ??
     pickString(payload.author_name)
   );
+}
+
+function contactIdFromPayload(payload: Record<string, unknown>): string | null {
+  return pickString(payload.contactId) ?? pickString(payload.contact_id);
+}
+
+/** Heute live: konkreter Thread — nicht Ungelesen-Filter (Event bleibt, Chat kann schon gelesen sein). */
+function hrefForNotificationModule(
+  module: string,
+  payload: Record<string, unknown>,
+  defHref: string | null,
+): string | null {
+  if (module === "messages") {
+    const contactId = contactIdFromPayload(payload);
+    if (contactId) return dashboardMessageThreadHref(contactId);
+    return dashboardMessagesInboxHref();
+  }
+  return defHref ?? null;
 }
 
 /** Human-readable Titel für den Live-Feed (nicht Settings-Labels der Glocke). */
@@ -39,7 +62,7 @@ function feedTitleForModule(module: string, guest: string | null): string {
     case "reservations_cancellation":
       return "Stornierung";
     case "messages":
-      return "Neue Nachricht";
+      return guest ? `Nachricht · ${guest}` : "Neue Nachricht";
     default: {
       const moduleId = isNotificationModuleId(module) ? module : null;
       return moduleId ? NOTIFICATION_MODULES[moduleId].label : module;
@@ -90,7 +113,11 @@ export function liveActivityFromNotificationEvent(params: {
     module: params.module,
     title,
     description,
-    href: def?.href ?? null,
+    href: hrefForNotificationModule(
+      params.module,
+      params.payload,
+      def?.href ?? null,
+    ),
     at: params.createdAt ?? undefined,
   };
 }

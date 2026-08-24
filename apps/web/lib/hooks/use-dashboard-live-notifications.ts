@@ -2,6 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { applyInboundMessageToInboxCache } from "@/lib/contact-messages/apply-inbound-to-inbox-cache";
+import {
+  dashboardMessageThreadHref,
+  dashboardMessagesInboxHref,
+} from "@/lib/contact-messages/messages-unread-summary";
 import { isInboxLiveToastSuppressedByOpenThread } from "@/lib/contact-messages/inbox-live-toast-gate";
 import {
   dispatchDashboardMessagesRefresh,
@@ -64,10 +68,13 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
       }, WAHA_METADATA_REFRESH_DEBOUNCE_MS);
     };
 
-    const maybeShowToast = () => {
+    const maybeShowToast = (contactId?: string | null) => {
       if (isInboxLiveToastSuppressedByOpenThread()) return;
       if (toastRef.current) return;
       toastRef.current = true;
+      const threadHref = contactId
+        ? dashboardMessageThreadHref(contactId)
+        : dashboardMessagesInboxHref();
       void import("@/lib/live-activity/live-activity-store").then(
         ({ recordLiveActivity }) => {
           recordLiveActivity(restaurantId, {
@@ -75,7 +82,7 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
             module: "messages",
             title: "Neue Nachricht",
             description: "Posteingang wird aktualisiert.",
-            href: "/dashboard/kontakte/nachrichten?platform=all&read=unread",
+            href: threadHref,
           });
         },
       );
@@ -92,6 +99,8 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
       }, RECONCILE_REFRESH_DEBOUNCE_MS);
     };
 
+    let lastInboundContactId: string | null = null;
+
     const onInboundInsert = () => {
       burstCountRef.current += 1;
       if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
@@ -104,7 +113,7 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
           return;
         }
         if (count === 1) {
-          maybeShowToast();
+          maybeShowToast(lastInboundContactId);
           scheduleReconcile(SINGLE_MESSAGE_RECONCILE_MS);
           return;
         }
@@ -157,6 +166,7 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
         if (row.direction !== "inbound") return;
 
         const mapped = mapContactMessageRowFromRecord(row);
+        lastInboundContactId = mapped.contact_id;
         applyInboundMessageToInboxCache(restaurantId, mapped);
         onInboundInsert();
       },

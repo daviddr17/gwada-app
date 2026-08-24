@@ -17,6 +17,8 @@ import { averageRating } from "@/lib/reviews/review-stats";
 import { isReviewInNotificationWindow } from "@/lib/reviews/review-notification-window";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
+import { dashboardReviewNotificationHref } from "@/lib/reviews/review-notification-href";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import { fetchRestaurantTripadvisorConfigAdmin } from "@/lib/supabase/restaurant-tripadvisor-integration-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -49,11 +51,11 @@ export type DashboardReviewsSummary = {
   unreadRecentCount: number;
 };
 
-const PLATFORM_HREF: Record<ReviewPlatform, string> = {
-  gwada: "/dashboard/bewertungen/uebersicht?platform=gwada",
-  google: "/dashboard/bewertungen/uebersicht?platform=google",
-  facebook: "/dashboard/bewertungen/uebersicht?platform=facebook",
-  tripadvisor: "/dashboard/bewertungen/uebersicht?platform=tripadvisor",
+const PLATFORM_OVERVIEW_HREF: Record<ReviewPlatform, string> = {
+  gwada: `${APP_ROUTES.bewertungen.overview}?platform=gwada`,
+  google: `${APP_ROUTES.bewertungen.overview}?platform=google`,
+  facebook: `${APP_ROUTES.bewertungen.overview}?platform=facebook`,
+  tripadvisor: `${APP_ROUTES.bewertungen.overview}?platform=tripadvisor`,
 };
 
 function commentPreview(comment: string | null, max = 72): string | null {
@@ -70,7 +72,7 @@ function toRecentItem(review: UnifiedReview): DashboardReviewRecentItem {
     authorName: review.authorName,
     commentPreview: commentPreview(review.comment),
     createdAt: review.createdAt,
-    href: PLATFORM_HREF[review.platform],
+    href: dashboardReviewNotificationHref(review.platform, review.id),
     isUnread: review.isUnread ?? true,
     contactId: review.contactId ?? null,
   };
@@ -251,7 +253,7 @@ export async function loadDashboardReviewsSummary(
       connected: true,
       count: gwadaCount,
       average: gwadaAvg,
-      href: PLATFORM_HREF.gwada,
+      href: PLATFORM_OVERVIEW_HREF.gwada,
     },
     {
       platform: "google",
@@ -259,7 +261,7 @@ export async function loadDashboardReviewsSummary(
       connected: googleConnected,
       count: googleCount,
       average: googleAvg,
-      href: PLATFORM_HREF.google,
+      href: PLATFORM_OVERVIEW_HREF.google,
     },
     {
       platform: "facebook",
@@ -267,7 +269,7 @@ export async function loadDashboardReviewsSummary(
       connected: facebookConnected,
       count: facebookCount,
       average: facebookAvg,
-      href: PLATFORM_HREF.facebook,
+      href: PLATFORM_OVERVIEW_HREF.facebook,
     },
     {
       platform: "tripadvisor",
@@ -275,7 +277,7 @@ export async function loadDashboardReviewsSummary(
       connected: tripadvisorConnected,
       count: tripadvisorCount,
       average: tripadvisorAvg,
-      href: PLATFORM_HREF.tripadvisor,
+      href: PLATFORM_OVERVIEW_HREF.tripadvisor,
     },
   ];
 

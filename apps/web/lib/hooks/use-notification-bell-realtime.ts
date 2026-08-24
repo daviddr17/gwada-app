@@ -120,6 +120,7 @@ export function useNotificationBellRealtime() {
                 restaurantId,
                 liveActivityFromNotificationEvent({
                   eventId: row.id,
+                  referenceId: row.reference_id,
                   module: row.module!,
                   payload: row.payload!,
                   createdAt: row.created_at,

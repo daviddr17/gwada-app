@@ -27,7 +27,7 @@ export async function fetchLiveActivityFeed(params: {
 
   const { data, error, count } = await admin
     .from("notification_events")
-    .select("id, module, payload, created_at", { count: "exact" })
+    .select("id, module, reference_id, payload, created_at", { count: "exact" })
     .eq("restaurant_id", params.restaurantId)
     .in("module", [...LIVE_ACTIVITY_FEED_MODULES])
     .order("created_at", { ascending: false })
@@ -41,6 +41,7 @@ export async function fetchLiveActivityFeed(params: {
   const items = (data ?? []).map((row) => {
     const mapped = liveActivityFromNotificationEvent({
       eventId: row.id as string,
+      referenceId: row.reference_id as string | undefined,
       module: row.module as string,
       payload: (row.payload as Record<string, unknown>) ?? {},
       createdAt: row.created_at as string,

@@ -2,12 +2,14 @@ import {
   dashboardMessageThreadHref,
   dashboardMessagesInboxHref,
 } from "@/lib/contact-messages/messages-unread-summary";
+import { privateEventOverviewHref } from "@/lib/events/private-event-href";
 import {
   isNotificationModuleId,
   NOTIFICATION_MODULES,
 } from "@/lib/notifications/notification-modules";
 import { formatNotificationPayloadSummary } from "@/lib/superadmin/superadmin-notification-log";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
+import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
 
 function pickString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -28,17 +30,101 @@ function contactIdFromPayload(payload: Record<string, unknown>): string | null {
   return pickString(payload.contactId) ?? pickString(payload.contact_id);
 }
 
-/** Heute live: konkreter Thread — nicht Ungelesen-Filter (Event bleibt, Chat kann schon gelesen sein). */
-function hrefForNotificationModule(
+function staffIdFromPayload(payload: Record<string, unknown>): string | null {
+  return pickString(payload.staffId) ?? pickString(payload.staff_id);
+}
+
+/** Reservierungs-ID aus Payload oder reference_id (Status-Events: `<uuid>:<module>`). */
+export function reservationIdFromNotificationEvent(
+  module: string,
+  payload: Record<string, unknown>,
+  referenceId?: string | null,
+): string | null {
+  const fromPayload =
+    pickString(payload.reservationId) ?? pickString(payload.reservation_id);
+  if (fromPayload) return fromPayload;
+
+  const ref = referenceId?.trim();
+  if (!ref) return null;
+
+  if (module === "reservations_pending" || module === "events_inquiry") {
+    return ref;
+  }
+
+  if (
+    module === "reservations_change_request" ||
+    module === "reservations_cancellation"
+  ) {
+    const colon = ref.indexOf(":");
+    return colon > 0 ? ref.slice(0, colon) : ref;
+  }
+
+  return ref;
+}
+
+function appendQueryParam(href: string, key: string, value: string): string {
+  const url = new URL(href, "https://gwada.local");
+  url.searchParams.set(key, value);
+  return `${url.pathname}${url.search}`;
+}
+
+/** Live-Verlauf: event-spezifische Links wie in der Glocke — nicht nur Modul-Default. */
+export function hrefForNotificationModule(
   module: string,
   payload: Record<string, unknown>,
   defHref: string | null,
+  referenceId?: string | null,
 ): string | null {
   if (module === "messages") {
     const contactId = contactIdFromPayload(payload);
     if (contactId) return dashboardMessageThreadHref(contactId);
     return dashboardMessagesInboxHref();
   }
+
+  if (
+    module === "reservations_pending" ||
+    module === "reservations_change_request" ||
+    module === "reservations_cancellation"
+  ) {
+    const reservationId = reservationIdFromNotificationEvent(
+      module,
+      payload,
+      referenceId,
+    );
+    if (reservationId) {
+      return `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(reservationId)}`;
+    }
+  }
+
+  if (module === "events_inquiry") {
+    const reservationId = reservationIdFromNotificationEvent(
+      module,
+      payload,
+      referenceId,
+    );
+    return privateEventOverviewHref(reservationId);
+  }
+
+  if (module === "staff_display_clock_in" || module === "staff_display_clock_out") {
+    const staffId = staffIdFromPayload(payload);
+    if (staffId && defHref) {
+      return appendQueryParam(defHref, "staff", staffId);
+    }
+  }
+
+  if (module === "staff_shift_start" || module === "staff_shift_end") {
+    const base = defHref ?? "/dashboard/mitarbeiter/schichtplan";
+    const iso =
+      module === "staff_shift_start"
+        ? pickString(payload.startsAt)
+        : pickString(payload.endsAt) ?? pickString(payload.startsAt);
+    if (iso) {
+      const { ymd } = restaurantIsoToYmdHm(iso);
+      return appendQueryParam(base, "day", ymd);
+    }
+    return base;
+  }
+
   return defHref ?? null;
 }
 
@@ -73,6 +159,7 @@ function feedTitleForModule(module: string, guest: string | null): string {
 /** notification_events → Live-Feed-Zeile. */
 export function liveActivityFromNotificationEvent(params: {
   eventId?: string | null;
+  referenceId?: string | null;
   module: string;
   payload: Record<string, unknown>;
   createdAt?: string | null;
@@ -117,6 +204,7 @@ export function liveActivityFromNotificationEvent(params: {
       params.module,
       params.payload,
       def?.href ?? null,
+      params.referenceId,
     ),
     at: params.createdAt ?? undefined,
   };

@@ -11,16 +11,14 @@ export function AppMain({
   className?: string;
 }) {
   return (
-    <div>
-      <main
-        className={cn(
-          "w-full px-4 pt-4 sm:px-6",
-          appMobileContentPbClassName,
-          className,
-        )}
-      >
-        {children}
-      </main>
-    </div>
+    <main
+      className={cn(
+        "w-full px-4 pt-4 sm:px-6",
+        appMobileContentPbClassName,
+        className,
+      )}
+    >
+      {children}
+    </main>
   );
 }

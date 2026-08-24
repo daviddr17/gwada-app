@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useCallback, useMemo, useState, type MouseEvent } from "react";
-import { ExternalLink, Newspaper } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import { feedTimelineDateChipClassName } from "@/components/feed/feed-timeline-date-skeleton";
@@ -106,34 +106,23 @@ const NewsTimelineThumb = memo(function NewsTimelineThumb({
   const [coverBroken, setCoverBroken] = useState(false);
   const showCover = Boolean(mediaSrc) && !coverBroken;
 
-  if (showCover) {
-    return (
-      <div className={timelineThumbClassName}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={mediaSrc!}
-          alt=""
-          width={80}
-          height={80}
-          loading="lazy"
-          decoding="async"
-          fetchPriority="low"
-          className="size-full object-cover object-center"
-          onError={() => setCoverBroken(true)}
-        />
-      </div>
-    );
-  }
+  // Ohne Bild kein Platzhalter-Kästchen — Text-Posts nutzen die volle Zeilenbreite.
+  if (!showCover) return null;
 
   return (
-    <div
-      className={cn(
-        timelineThumbClassName,
-        "flex items-center justify-center text-muted-foreground/70",
-      )}
-      aria-hidden
-    >
-      <Newspaper className="size-6 sm:size-7" />
+    <div className={timelineThumbClassName}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={mediaSrc!}
+        alt=""
+        width={80}
+        height={80}
+        loading="lazy"
+        decoding="async"
+        fetchPriority="low"
+        className="size-full object-cover object-center"
+        onError={() => setCoverBroken(true)}
+      />
     </div>
   );
 });

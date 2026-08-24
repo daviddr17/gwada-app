@@ -140,11 +140,14 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
   return (
     <>
       <DashboardPermissionUnlockCelebration />
-      <div className="grid gap-4 pt-2 lg:grid-cols-2">
+      <div className="grid items-stretch gap-4 pt-2 lg:grid-cols-2">
         {orderedVisible.map(({ id, span }) => (
           <div
             key={id}
-            className={cn("min-w-0", span === 2 && "lg:col-span-2")}
+            className={cn(
+              "flex h-full min-w-0 flex-col [&_[data-slot=card]]:h-full",
+              span === 2 && "lg:col-span-2",
+            )}
           >
             <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
               <DashboardWidgetById id={id} />

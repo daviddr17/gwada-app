@@ -26,7 +26,7 @@ export class DashboardWidgetErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.failed) {
       return (
-        <div className="rounded-xl border border-border/50 bg-card/80 p-4 text-xs text-muted-foreground shadow-card">
+        <div className="flex h-full rounded-xl border border-border/50 bg-card/80 p-4 text-xs text-muted-foreground shadow-card">
           Widget konnte nicht geladen werden.
         </div>
       );

@@ -15,13 +15,36 @@ const moduleDataTableHeadBaseClassName = `${appChromeFixedZoneBgClassName} borde
 export const moduleDataTableShellClassName =
   "overflow-hidden rounded-xl bg-card ring-0 shadow-none";
 
-/** Vollbild-Overlay: volle Breite, sticky Spaltenkopf im Scroll-Bereich. */
-export const moduleDataTableFullscreenShellClassName = cn(
-  "w-full overflow-visible rounded-none bg-card ring-0 shadow-none",
+/**
+ * Sticky Spaltenköpfe innerhalb des Tabellen-Scrollports (border-separate nötig für sticky th).
+ * Hintergrund undurchsichtig — sonst scheinen Zeilen beim Scrollen durch.
+ */
+export const moduleDataTableStickyHeadClassName = cn(
   "[&_table]:border-separate [&_table]:border-spacing-0",
   "[&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
   "[&_thead_th]:border-b [&_thead_th]:border-border/60",
   "[&_thead_th]:!bg-[var(--app-chrome-fixed-zone)]",
+);
+
+/**
+ * Vertikaler + horizontaler Scrollport für Modul-Tabellen.
+ * Sticky thead greift nur, wenn dieser Container scrollt (nicht die ganze Seite).
+ */
+export const moduleDataTableScrollClassName = cn(
+  "max-h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-10rem)]",
+  "overflow-auto overscroll-contain touch-pan-x touch-pan-y [-webkit-overflow-scrolling:touch]",
+);
+
+/** Vollbild-Overlay: volle Breite, sticky Spaltenkopf im Scroll-Bereich. */
+export const moduleDataTableFullscreenShellClassName = cn(
+  "w-full overflow-visible rounded-none bg-card ring-0 shadow-none",
+  moduleDataTableStickyHeadClassName,
+);
+
+/** Standard-Hülle inkl. sticky thead (Scrollport: {@link moduleDataTableScrollClassName}). */
+export const moduleDataTableShellWithStickyHeadClassName = cn(
+  moduleDataTableShellClassName,
+  moduleDataTableStickyHeadClassName,
 );
 
 /** Keine Trennlinie zwischen Pagination und Tabellenkopf — bündig mit Tabellenrand (ohne px). */

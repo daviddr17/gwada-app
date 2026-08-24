@@ -229,7 +229,7 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
             </time>
           </div>
           {item.title ? (
-            <p className="font-medium leading-snug" data-embed-mt>
+            <p className="text-sm font-medium leading-snug" data-embed-mt>
               {item.title}
             </p>
           ) : null}
@@ -424,7 +424,7 @@ const NewsCard = memo(function NewsCard({
           </time>
         </div>
         {item.title ? (
-          <p className="font-medium leading-snug" data-embed-mt>
+          <p className="text-sm font-medium leading-snug" data-embed-mt>
             {item.title}
           </p>
         ) : null}

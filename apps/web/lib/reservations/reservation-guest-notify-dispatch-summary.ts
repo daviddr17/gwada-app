@@ -135,10 +135,25 @@ function formatChannelSummary(summary: GuestNotifyChannelSummary): string {
   }
 }
 
+/**
+ * Bestätigungs-Toast: nur tatsächlich Versendetes, solange mindestens ein Kanal
+ * gesendet hat. Wurde gar nichts versendet → Hinweise (fehlende Daten, aus, Fehler).
+ */
 export function reservationGuestNotifyToastDescription(
   summaries: GuestNotifyChannelSummary[],
 ): string {
-  return summaries.map(formatChannelSummary).join(" · ");
+  const sent = summaries.filter((summary) => summary.outcome === "sent");
+  if (sent.length > 0) {
+    return sent.map(formatChannelSummary).join(" · ");
+  }
+
+  const enabledSummaries = summaries.filter(
+    (summary) => summary.outcome !== "not_enabled",
+  );
+  const hintSummaries =
+    enabledSummaries.length > 0 ? enabledSummaries : summaries;
+
+  return hintSummaries.map(formatChannelSummary).join(" · ");
 }
 
 export function reservationConfirmNotificationToastContent(

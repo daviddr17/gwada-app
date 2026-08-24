@@ -3587,8 +3587,8 @@ showReplyComposer ? (
     <div
       className={cn(
         "flex w-full min-w-0 flex-col gap-4 pt-2",
-        // Desktop: Restliche Scrollport-Höhe füllen — Liste/Chat scrollen getrennt.
-        "lg:min-h-0 lg:flex-1 lg:gap-3 lg:overflow-hidden lg:pt-1",
+        // Desktop: feste Viewport-Höhe — Split scrollt intern; flex-1 allein kollabiert im App-Scroll-Root.
+        "lg:h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-2.5rem)] lg:min-h-0 lg:gap-3 lg:overflow-hidden lg:pt-1",
       )}
     >
       {renderInboxFilterSection(isLgUp ? "enter" : null)}

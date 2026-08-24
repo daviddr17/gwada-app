@@ -249,7 +249,17 @@ async function fanOutEvent(
 
     const prefs = prefsForTarget(prefsMap, target);
 
+    const followUpNotifyWhatsapp =
+      moduleId === "messages_follow_up"
+        ? event.payload?.notifyWhatsapp === true
+        : true;
+    const followUpNotifyEmail =
+      moduleId === "messages_follow_up"
+        ? event.payload?.notifyEmail === true
+        : true;
+
     if (
+      followUpNotifyWhatsapp &&
       isPushModuleEnabled(prefs, "whatsapp", moduleId) &&
       profileIdsWithPhone.has(target.profileId)
     ) {
@@ -262,7 +272,10 @@ async function fanOutEvent(
       });
     }
 
-    if (isPushModuleEnabled(prefs, "email", moduleId)) {
+    if (
+      followUpNotifyEmail &&
+      isPushModuleEnabled(prefs, "email", moduleId)
+    ) {
       rows.push({
         event_id: event.id,
         profile_id: target.profileId,

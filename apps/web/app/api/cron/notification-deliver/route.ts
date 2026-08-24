@@ -1,5 +1,6 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
 import { runNotificationDeliverCron } from "@/lib/notifications/notification-deliver-cron";
+import { emitDueFollowUpPushEvents } from "@/lib/notifications/notification-follow-up-due-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +15,9 @@ async function handleCron(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
+  const followUpNotify = await emitDueFollowUpPushEvents(admin);
   const stats = await runNotificationDeliverCron(admin);
-  return Response.json(stats);
+  return Response.json({ ...stats, followUpNotify });
 }
 
 /** Fan-out + Zustellung für Push-Benachrichtigungen (z. B. Coolify-Cron alle 1–2 Min.). */

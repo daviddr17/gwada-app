@@ -221,6 +221,25 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "messages_follow_up": {
+      const contactName = pickString(p.contactName) ?? "Nachricht";
+      const reason = pickString(p.reason);
+      const when = formatPushDateTime(p.remindAt, timeZone);
+      const followHref = pickString(p.href);
+      return buildPushMessage({
+        prefix,
+        headline: "Später-Erinnerung fällig",
+        subject: `${prefix}Später — ${contactName}`,
+        href: followHref
+          ? absoluteAppUrl(followHref)
+          : absoluteAppUrl(moduleDef.href),
+        details: detailLines([
+          `Chat: ${contactName}`,
+          reason ? `Grund: ${reason}` : null,
+          when ? `Fällig: ${when}` : null,
+        ]),
+      });
+    }
     case "reviews": {
       const author = pickString(p.authorName) ?? "Gast";
       const rating = pickNumber(p.rating);

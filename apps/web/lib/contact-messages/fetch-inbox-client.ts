@@ -219,6 +219,8 @@ export async function upsertConversationFollowUpClient(params: {
   reason?: string | null;
   remindAt?: string | null;
   staffId?: string | null;
+  notifyWhatsapp?: boolean;
+  notifyEmail?: boolean;
 }): Promise<{ ok: boolean; error: string | null }> {
   try {
     const res = await fetch("/api/contact-messages/conversations/follow-up", {

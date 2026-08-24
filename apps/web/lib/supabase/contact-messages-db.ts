@@ -108,6 +108,8 @@ export type ContactConversationPreview = {
   follow_up_remind_at?: string | null;
   follow_up_staff_id?: string | null;
   follow_up_staff_name?: string | null;
+  follow_up_notify_whatsapp?: boolean | null;
+  follow_up_notify_email?: boolean | null;
 };
 
 const MESSAGE_SELECT = `

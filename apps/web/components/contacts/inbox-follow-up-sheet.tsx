@@ -22,6 +22,7 @@ import { drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
@@ -48,6 +49,8 @@ export type InboxFollowUpSheetValues = {
   reason: string | null;
   remindAt: string | null;
   staffId: string | null;
+  notifyWhatsapp: boolean;
+  notifyEmail: boolean;
 };
 
 type InboxFollowUpSheetProps = {
@@ -76,6 +79,8 @@ export function InboxFollowUpSheet({
   const [reason, setReason] = useState("");
   const [remindYmd, setRemindYmd] = useState("");
   const [remindHm, setRemindHm] = useState("09:00");
+  const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState(false);
   const [staffId, setStaffId] = useState("");
   const [staff, setStaff] = useState<{ id: string; label: string }[]>([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
@@ -86,6 +91,8 @@ export function InboxFollowUpSheet({
     const remind = isoToYmdHm(initial?.remindAt);
     setRemindYmd(remind.ymd);
     setRemindHm(remind.hm || "09:00");
+    setNotifyWhatsapp(Boolean(initial?.notifyWhatsapp));
+    setNotifyEmail(Boolean(initial?.notifyEmail));
     setStaffId(initial?.staffId?.trim() || "__none__");
   }, [open, initial]);
 
@@ -126,11 +133,14 @@ export function InboxFollowUpSheet({
   );
 
   const handleSave = () => {
+    const remindAt = ymdHmToIso(remindYmd, remindHm);
     void onSave({
       reason: reason.trim() || null,
-      remindAt: ymdHmToIso(remindYmd, remindHm),
+      remindAt,
       staffId:
         !staffId.trim() || staffId === "__none__" ? null : staffId.trim(),
+      notifyWhatsapp: Boolean(remindAt && notifyWhatsapp),
+      notifyEmail: Boolean(remindAt && notifyEmail),
     });
   };
 
@@ -180,7 +190,14 @@ export function InboxFollowUpSheet({
                 <DatePickerField
                   fullWidth
                   value={remindYmd || null}
-                  onChange={(d) => setRemindYmd(d ?? "")}
+                  onChange={(d) => {
+                    const next = d ?? "";
+                    setRemindYmd(next);
+                    if (!next) {
+                      setNotifyWhatsapp(false);
+                      setNotifyEmail(false);
+                    }
+                  }}
                   placeholder="Kein Reminder"
                   className="w-full"
                 />
@@ -196,6 +213,42 @@ export function InboxFollowUpSheet({
                 />
               </div>
             </div>
+            {remindYmd ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Zusätzlich zur Glocke — Empfänger brauchen den Kanal in den
+                  Profil-Benachrichtigungen für „Später“.
+                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <Label
+                    htmlFor="follow-up-notify-whatsapp"
+                    className="text-sm font-normal"
+                  >
+                    WhatsApp-Benachrichtigung
+                  </Label>
+                  <Switch
+                    id="follow-up-notify-whatsapp"
+                    size="sm"
+                    checked={notifyWhatsapp}
+                    onCheckedChange={(v) => setNotifyWhatsapp(v === true)}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label
+                    htmlFor="follow-up-notify-email"
+                    className="text-sm font-normal"
+                  >
+                    E-Mail-Benachrichtigung
+                  </Label>
+                  <Switch
+                    id="follow-up-notify-email"
+                    size="sm"
+                    checked={notifyEmail}
+                    onCheckedChange={(v) => setNotifyEmail(v === true)}
+                  />
+                </div>
+              </div>
+            ) : null}
           </DrawerFormSection>
 
           <DrawerFormSection title="Mitarbeiter zuweisen (optional)">

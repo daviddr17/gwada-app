@@ -8,6 +8,8 @@ type FollowUpLite = {
   conversation_key: string;
   reason: string | null;
   remind_at: string | null;
+  notify_whatsapp: boolean;
+  notify_email: boolean;
   assigned_staff_id: string | null;
   staff_name: string | null;
 };
@@ -34,7 +36,7 @@ export async function enrichConversationsWithFollowUpsClient(params: {
   const { data, error } = await sb
     .from("contact_conversation_follow_ups")
     .select(
-      "id, conversation_key, reason, remind_at, assigned_staff_id, restaurant_staff:assigned_staff_id ( given_name, family_name )",
+      "id, conversation_key, reason, remind_at, notify_whatsapp, notify_email, assigned_staff_id, restaurant_staff:assigned_staff_id ( given_name, family_name )",
     )
     .eq("restaurant_id", params.restaurantId)
     .is("cleared_at", null);
@@ -50,6 +52,8 @@ export async function enrichConversationsWithFollowUpsClient(params: {
       conversation_key: string;
       reason: string | null;
       remind_at: string | null;
+      notify_whatsapp?: boolean | null;
+      notify_email?: boolean | null;
       assigned_staff_id: string | null;
       restaurant_staff?: unknown;
     }>
@@ -58,6 +62,8 @@ export async function enrichConversationsWithFollowUpsClient(params: {
     conversation_key: row.conversation_key,
     reason: row.reason,
     remind_at: row.remind_at,
+    notify_whatsapp: Boolean(row.notify_whatsapp),
+    notify_email: Boolean(row.notify_email),
     assigned_staff_id: row.assigned_staff_id,
     staff_name: staffNameFromJoin(row.restaurant_staff),
   }));
@@ -73,6 +79,8 @@ export async function enrichConversationsWithFollowUpsClient(params: {
         follow_up_remind_at: null,
         follow_up_staff_id: null,
         follow_up_staff_name: null,
+        follow_up_notify_whatsapp: null,
+        follow_up_notify_email: null,
       };
     }
     return {
@@ -82,6 +90,8 @@ export async function enrichConversationsWithFollowUpsClient(params: {
       follow_up_remind_at: follow.remind_at,
       follow_up_staff_id: follow.assigned_staff_id,
       follow_up_staff_name: follow.staff_name,
+      follow_up_notify_whatsapp: follow.notify_whatsapp,
+      follow_up_notify_email: follow.notify_email,
     };
   });
 }

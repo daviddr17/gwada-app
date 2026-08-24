@@ -15,6 +15,8 @@ export async function POST(req: Request) {
     reason?: string | null;
     remindAt?: string | null;
     staffId?: string | null;
+    notifyWhatsapp?: boolean;
+    notifyEmail?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -47,6 +49,8 @@ export async function POST(req: Request) {
     reason: body.reason,
     remindAt: body.remindAt,
     staffId: body.staffId,
+    notifyWhatsapp: body.notifyWhatsapp === true,
+    notifyEmail: body.notifyEmail === true,
   });
 
   if (result.error) {

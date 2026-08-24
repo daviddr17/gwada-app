@@ -11,6 +11,8 @@ export type ContactConversationFollowUpRow = {
   reason: string | null;
   remind_at: string | null;
   reminded_at: string | null;
+  notify_whatsapp: boolean;
+  notify_email: boolean;
   assigned_staff_id: string | null;
   staff_todo_id: string | null;
   contact_display_name: string | null;
@@ -44,7 +46,7 @@ export async function listActiveFollowUpsForRestaurant(
   const { data, error } = await admin
     .from("contact_conversation_follow_ups")
     .select(
-      "id, restaurant_id, conversation_key, reason, remind_at, reminded_at, assigned_staff_id, staff_todo_id, contact_display_name, created_by, cleared_at, created_at, updated_at, restaurant_staff:assigned_staff_id ( given_name, family_name )",
+      "id, restaurant_id, conversation_key, reason, remind_at, reminded_at, notify_whatsapp, notify_email, assigned_staff_id, staff_todo_id, contact_display_name, created_by, cleared_at, created_at, updated_at, restaurant_staff:assigned_staff_id ( given_name, family_name )",
     )
     .eq("restaurant_id", restaurantId)
     .is("cleared_at", null);
@@ -92,6 +94,8 @@ export async function enrichConversationsWithFollowUps(
       follow_up_remind_at: follow.remind_at,
       follow_up_staff_id: follow.assigned_staff_id,
       follow_up_staff_name: follow.staff_name,
+      follow_up_notify_whatsapp: follow.notify_whatsapp,
+      follow_up_notify_email: follow.notify_email,
     };
   });
 }
@@ -106,6 +110,8 @@ export async function upsertConversationFollowUp(
     reason?: string | null;
     remindAt?: string | null;
     staffId?: string | null;
+    notifyWhatsapp?: boolean;
+    notifyEmail?: boolean;
   },
 ): Promise<{ data: ContactConversationFollowUpRow | null; error: string | null }> {
   const conversationKey = params.conversationKey.trim();
@@ -126,6 +132,9 @@ export async function upsertConversationFollowUp(
     }
     remindAt = parsed.toISOString();
   }
+
+  const notifyWhatsapp = Boolean(remindAt && params.notifyWhatsapp);
+  const notifyEmail = Boolean(remindAt && params.notifyEmail);
 
   const staffId = params.staffId?.trim() || null;
   if (staffId) {
@@ -182,6 +191,8 @@ export async function upsertConversationFollowUp(
     reason,
     remind_at: remindAt,
     reminded_at: null,
+    notify_whatsapp: notifyWhatsapp,
+    notify_email: notifyEmail,
     assigned_staff_id: staffId,
     staff_todo_id: staffTodoId,
     contact_display_name: params.contactDisplayName?.trim() || null,

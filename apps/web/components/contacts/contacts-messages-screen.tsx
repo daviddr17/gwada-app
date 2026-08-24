@@ -519,6 +519,8 @@ export function ContactsMessagesScreen({
     reason: string | null;
     remindAt: string | null;
     staffId: string | null;
+    notifyWhatsapp: boolean;
+    notifyEmail: boolean;
   } | null>(null);
   const [savingFollowUp, setSavingFollowUp] = useState(false);
   const [reservationDrawerOpen, setReservationDrawerOpen] = useState(false);
@@ -1107,6 +1109,8 @@ export function ContactsMessagesScreen({
         reason: conversation.follow_up_reason ?? null,
         remindAt: conversation.follow_up_remind_at ?? null,
         staffId: conversation.follow_up_staff_id ?? null,
+        notifyWhatsapp: Boolean(conversation.follow_up_notify_whatsapp),
+        notifyEmail: Boolean(conversation.follow_up_notify_email),
       });
     },
     [],
@@ -1117,6 +1121,8 @@ export function ContactsMessagesScreen({
       reason: string | null;
       remindAt: string | null;
       staffId: string | null;
+      notifyWhatsapp: boolean;
+      notifyEmail: boolean;
     }) => {
       if (!restaurantId || !followUpTarget) return;
       setSavingFollowUp(true);
@@ -1127,6 +1133,8 @@ export function ContactsMessagesScreen({
         reason: values.reason,
         remindAt: values.remindAt,
         staffId: values.staffId,
+        notifyWhatsapp: values.notifyWhatsapp,
+        notifyEmail: values.notifyEmail,
       });
       setSavingFollowUp(false);
       if (!ok) {
@@ -3818,6 +3826,8 @@ showReplyComposer ? (
                 reason: followUpTarget.reason,
                 remindAt: followUpTarget.remindAt,
                 staffId: followUpTarget.staffId,
+                notifyWhatsapp: followUpTarget.notifyWhatsapp,
+                notifyEmail: followUpTarget.notifyEmail,
               }
             : null
         }

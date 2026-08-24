@@ -8,6 +8,7 @@ import {
 } from "next/dist/client/components/navigation";
 import type { ReactNode } from "react";
 import { useSpaZoneNavigationOptional } from "@/lib/navigation/spa-zone-navigation-bridge";
+import { isZoneSpaHref } from "@/lib/navigation/spa-zone-path";
 
 export function useServerInsertedHTML(_callback: () => ReactNode): void {
   /* SPA — kein RSC-HTML-Insert. */
@@ -28,14 +29,22 @@ export function useRouter() {
     return nextRouter;
   }
 
-  const { navigate, hrefToTarget } = spa;
+  const { navigate, hrefToTarget, base } = spa;
 
   return {
     push: (href: string) => {
+      if (!isZoneSpaHref(base, href)) {
+        window.location.assign(href);
+        return;
+      }
       const { to, search } = hrefToTarget(href);
       navigate({ to, search });
     },
     replace: (href: string) => {
+      if (!isZoneSpaHref(base, href)) {
+        window.location.assign(href);
+        return;
+      }
       const { to, search } = hrefToTarget(href);
       navigate({ to, search, replace: true });
     },

@@ -18,6 +18,7 @@ import {
 } from "@/lib/navigation/soft-nav-lock-context";
 import {
   dashboardHrefToTanstackTarget,
+  isDashboardSpaHref,
   tanstackLocationToDashboardPath,
 } from "@/lib/navigation/dashboard-spa-path";
 import { isSoftNavPendingArrived } from "@/lib/navigation/module-home-keep-alive";
@@ -66,6 +67,11 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
 
   const scheduleSoftNavPush = useCallback(
     (href: string) => {
+      // /changelog u. a. liegen außerhalb der Dashboard-SPA (Next AppShell).
+      if (!isDashboardSpaHref(href)) {
+        window.location.assign(href);
+        return;
+      }
       prefetchDashboardSpaHref(href);
       const { to, search } = dashboardHrefToTanstackTarget(href);
       navigate({ to, search });

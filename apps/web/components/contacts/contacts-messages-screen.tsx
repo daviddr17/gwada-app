@@ -2974,8 +2974,8 @@ showReplyComposer ? (
           className={cn(
             "flex w-full min-h-0 min-w-0 flex-col border-border/50 shadow-card",
             inboxSplitLayout
-              ? "h-full rounded-none border-0 shadow-none"
-              : "lg:h-full lg:rounded-none lg:border-0 lg:shadow-none",
+              ? "h-full gap-0 rounded-none border-0 py-0 shadow-none"
+              : "lg:h-full lg:gap-0 lg:rounded-none lg:border-0 lg:py-0 lg:shadow-none",
           )}
         >
             <div className="shrink-0 space-y-3 border-b border-border/50 px-4 py-3 sm:px-6">
@@ -3443,8 +3443,8 @@ showReplyComposer ? (
     <div
       className={cn(
         "flex w-full min-w-0 flex-col gap-4 pt-2",
-        // Desktop: Viewport-Höhe — Liste und Chat scrollen getrennt, Chat bleibt sichtbar.
-        "lg:h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-2.5rem)] lg:min-h-0 lg:gap-3 lg:overflow-hidden lg:pt-1",
+        // Desktop: Restliche Scrollport-Höhe füllen — Liste/Chat scrollen getrennt.
+        "lg:min-h-0 lg:flex-1 lg:gap-3 lg:overflow-hidden lg:pt-1",
       )}
     >
       {renderInboxFilterSection(isLgUp)}

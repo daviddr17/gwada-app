@@ -104,7 +104,7 @@ export const NOTIFICATION_MODULES: Record<
     id: "changelog",
     label: "Changelog",
     labelPlural: "Changelog",
-    href: "/changelog",
+    href: APP_ROUTES.changelog,
     icon: ScrollText,
     settingsInAppLabel: "Neue Changelog-Einträge in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei Changelog-Updates",

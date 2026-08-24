@@ -102,6 +102,21 @@ const PROFILE_PREFIX = "/dashboard/profile/";
 const SETTINGS_PREFIX = "/dashboard/settings/";
 const STAFF_PREFIX = "/dashboard/mitarbeiter/";
 const STAFF_HOME = "/dashboard/mitarbeiter/uebersicht";
+const CHANGELOG_ROUTE = "/dashboard/changelog";
+
+/** Routes not (yet) in the Next filesystem scan — still part of the SPA tab stack. */
+const EXTRA_ROUTE_ENTRIES = [
+  {
+    route: CHANGELOG_ROUTE,
+    pageBehavior: "render",
+    imports: [
+      {
+        component: "ChangelogOverview",
+        from: "@/components/changelog/changelog-overview",
+      },
+    ],
+  },
+];
 
 function chromeWrapperFor(route) {
   if (route === "/dashboard/profile" || route.startsWith(PROFILE_PREFIX)) {
@@ -109,6 +124,9 @@ function chromeWrapperFor(route) {
   }
   if (route === "/dashboard/settings" || route.startsWith(SETTINGS_PREFIX)) {
     return "settings";
+  }
+  if (route === CHANGELOG_ROUTE) {
+    return "changelog";
   }
   // Übersicht = Keep-alive Host mit eigenem Chrome — kein Layout-Wrap.
   if (
@@ -126,10 +144,11 @@ lines.push(
   `/** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs`,
 );
 lines.push(
-  ` * Profile/Settings/Staff use chrome wrappers (layouts pruned with SPA).`,
+  ` * Profile/Settings/Staff/Changelog use chrome wrappers (layouts pruned with SPA).`,
 );
 lines.push(` */`);
 lines.push(`import { lazy, type ComponentType } from "react";`);
+lines.push(`import { wrapChangelogPage } from "../routes/changelog-chrome";`);
 lines.push(`import { wrapProfilePage } from "../routes/profile-chrome";`);
 lines.push(`import { wrapSettingsPage } from "../routes/settings-chrome";`);
 lines.push(`import { wrapStaffPage } from "../routes/staff-chrome";`);
@@ -161,11 +180,26 @@ lines.push(`    return { default: wrapStaffPage(mod.default) };`);
 lines.push(`  });`);
 lines.push(`}`);
 lines.push("");
+lines.push(`function changelogLazy(`);
+lines.push(`  importer: () => Promise<{ default: ComponentType }>,`);
+lines.push(`) {`);
+lines.push(`  return lazy(async () => {`);
+lines.push(`    const mod = await importer();`);
+lines.push(`    return { default: wrapChangelogPage(mod.default) };`);
+lines.push(`  });`);
+lines.push(`}`);
+lines.push("");
 
 const lazyLines = [];
 const routeEntries = [];
 
-for (const entry of scan) {
+const scanRoutes = new Set(scan.map((entry) => entry.route));
+const allEntries = [
+  ...scan,
+  ...EXTRA_ROUTE_ENTRIES.filter((entry) => !scanRoutes.has(entry.route)),
+];
+
+for (const entry of allEntries) {
   const routePath = entry.route.replace(/^\/dashboard/, "") || "/";
   const tanstackPath = routePath === "/" ? "/" : routePath;
 
@@ -221,6 +255,10 @@ for (const entry of scan) {
   } else if (chrome === "staff") {
     lazyLines.push(
       `const ${lazyName} = staffLazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
+    );
+  } else if (chrome === "changelog") {
+    lazyLines.push(
+      `const ${lazyName} = changelogLazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
     );
   } else {
     lazyLines.push(

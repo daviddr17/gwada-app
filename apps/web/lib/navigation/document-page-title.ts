@@ -135,6 +135,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/workspace/restaurants": "Restaurants",
   "/workspace/team": "Team",
   "/changelog": "Changelog",
+  "/dashboard/changelog": "Changelog",
   "/superadmin": "Superadmin",
   "/superadmin/allgemein": "Allgemein",
   "/superadmin/users": "User",

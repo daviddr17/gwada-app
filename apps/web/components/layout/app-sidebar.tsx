@@ -605,10 +605,10 @@ export function AppSidebar() {
           {!inSuperadmin ? (
             <SidebarMenuItem>
               <SidebarMenuButton
-                isActive={pathname.startsWith("/changelog")}
+                isActive={pathname.startsWith(APP_ROUTES.changelog)}
                 tooltip="Changelog"
                 className={mobileFooterButtonClassName}
-                render={<AppNavLink href="/changelog" />}
+                render={<AppNavLink href={APP_ROUTES.changelog} />}
               >
                 <ScrollText />
                 <span>

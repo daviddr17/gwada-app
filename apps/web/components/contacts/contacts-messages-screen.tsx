@@ -289,6 +289,7 @@ import { cn } from "@/lib/utils";
 import { messagesInboxDesktopScreenClassName } from "@/lib/ui/messages-inbox-desktop-layout";
 import {
   acquireAppScrollLock,
+  getAppScrollRoot,
   scrollAppRootToTop,
 } from "@/lib/layout/app-scroll-root";
 import { isSamePathSearchNav } from "@/lib/navigation/same-path-search-nav";
@@ -654,6 +655,8 @@ export function ContactsMessagesScreen({
   const openThreadIdRef = useRef<string | null>(null);
   /** Einmal skip: openConversation lädt/refresht — kein zweiter Fetch nach URL-Sync. */
   const skipContactParamLoadRef = useRef<string | null>(null);
+  /** Mobil: Listen-Scroll vor Overlay merken — nach Zurück wiederherstellen. */
+  const mobileInboxListScrollTopRef = useRef(0);
 
   const displayMessages = useMemo(() => {
     let rows = enrichMessagesWithWahaReactionIds(messages);
@@ -838,11 +841,17 @@ export function ContactsMessagesScreen({
   /** Split nur ab Tailwind `lg` — Mobil immer Chat-Overlay, nie Liste+Thread nebeneinander. */
   const inboxSplitLayout = isLgUp;
 
-  const showConversationList =
-    isInboxFilterAvailable(inboxFilter) && (!contactParam || inboxSplitLayout);
+  /**
+   * Mobil: Liste unter dem Overlay gemountet lassen — sonst kollabiert die
+   * Scrollhöhe und Zurück springt immer nach oben.
+   */
+  const showConversationList = isInboxFilterAvailable(inboxFilter);
+
+  /** Filter/Chrome unter Overlay ebenfalls behalten (gleiche Scroll-Stabilität). */
+  const showInboxListChrome = !contactParam || inboxSplitLayout || !isLgUp;
 
   const showInboxRefresh =
-    (!contactParam || inboxSplitLayout) &&
+    showInboxListChrome &&
     (isUnifiedInboxFilter(inboxFilter) ||
       (inboxFilter === "whatsapp" && whatsappConnected) ||
       (inboxFilter === "email" && emailConnected) ||
@@ -2035,6 +2044,8 @@ export function ContactsMessagesScreen({
     setPendingContactId(contactId);
     setClosingThreadId(null);
     if (!isLgUp) {
+      const root = getAppScrollRoot();
+      if (root) mobileInboxListScrollTopRef.current = root.scrollTop;
       setThreadOverlayOpen(true);
     }
 
@@ -2162,6 +2173,20 @@ export function ContactsMessagesScreen({
     return () => window.clearTimeout(timer);
   }, [active, restaurantId, contactParam, inboxFilter, conversations]);
 
+  const restoreMobileInboxListScroll = useCallback(() => {
+    if (isLgUp) return;
+    const top = mobileInboxListScrollTopRef.current;
+    const apply = () => {
+      const root = getAppScrollRoot();
+      if (root && root.scrollTop !== top) root.scrollTop = top;
+    };
+    apply();
+    requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+  }, [isLgUp]);
+
   const backToList = useCallback(() => {
     setThreadOverlayOpen(false);
     setPendingContactId(null);
@@ -2175,10 +2200,18 @@ export function ContactsMessagesScreen({
         `/dashboard/kontakte/nachrichten?${params.toString()}`,
       );
     }
+    restoreMobileInboxListScroll();
     window.setTimeout(() => {
       setClosingThreadId(null);
+      restoreMobileInboxListScroll();
     }, CONTACT_INBOX_THREAD_OVERLAY_MS);
-  }, [contactParam, inboxFilter, readFilter, navigateNachrichten]);
+  }, [
+    contactParam,
+    inboxFilter,
+    readFilter,
+    navigateNachrichten,
+    restoreMobileInboxListScroll,
+  ]);
 
   const resolveChatGuestPrefill = useCallback(async () => {
     const threadId = overlayThreadId;
@@ -3519,7 +3552,7 @@ showReplyComposer ? (
   const renderInboxFilterSection = (
     fullscreenAction: "enter" | "exit" | null,
   ) =>
-    (!contactParam || inboxSplitLayout) ? (
+    showInboxListChrome ? (
         <div className="shrink-0 space-y-3">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">

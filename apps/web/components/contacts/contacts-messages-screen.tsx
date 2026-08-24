@@ -1892,6 +1892,24 @@ export function ContactsMessagesScreen({
     ],
   );
 
+  const threadPrefetchInFlightRef = useRef<Set<string>>(new Set());
+  const threadPrefetchPromisesRef = useRef<Map<string, Promise<void>>>(new Map());
+
+  const applyThreadFromCache = useCallback(
+    (entry: NonNullable<ReturnType<typeof peekContactThreadCache>>) => {
+      setMessages(entry.messages);
+      setContactName(entry.contactName);
+      setThreadAvatarUrl(entry.threadAvatarUrl ?? null);
+      setHasPhone(entry.hasPhone);
+      setHasEmail(entry.hasEmail);
+      setHasFacebookId(entry.hasFacebookId ?? false);
+      setHasInstagramId(entry.hasInstagramId ?? false);
+      setWhatsappThreadChatId(entry.whatsappThreadChatId);
+      setLoadingThread(false);
+    },
+    [],
+  );
+
   const openConversation = (contactId: string) => {
     if (
       openThreadIdRef.current === contactId &&
@@ -1912,15 +1930,7 @@ export function ContactsMessagesScreen({
     setThreadOverlayOpen(true);
 
     if (hasCache && cached) {
-      setMessages(cached.messages);
-      setContactName(cached.contactName);
-      setThreadAvatarUrl(cached.threadAvatarUrl ?? null);
-      setHasPhone(cached.hasPhone);
-      setHasEmail(cached.hasEmail);
-      setHasFacebookId(cached.hasFacebookId ?? false);
-      setHasInstagramId(cached.hasInstagramId ?? false);
-      setWhatsappThreadChatId(cached.whatsappThreadChatId);
-      setLoadingThread(false);
+      applyThreadFromCache(cached);
     } else {
       setHasPhone(false);
       setHasEmail(false);
@@ -1931,15 +1941,38 @@ export function ContactsMessagesScreen({
         wahaThreadTitleFromPreview(preview),
       );
       if (previewTitle !== "Kontakt") setContactName(previewTitle);
+      if (preview) {
+        setThreadAvatarUrl(inboxConversationAvatarUrl(preview));
+      }
       setMessages([]);
       setWhatsappThreadPhone(null);
       setWhatsappThreadChatId(null);
       setLoadingThread(true);
     }
 
-    // Fetch sofort (parallel zur URL) — kein Warten auf connectionsLoading/Soft-Nav.
-    if (restaurantId) {
-      void loadThread({ contactId, silent: hasCache });
+    const runThreadLoad = (silent: boolean) => {
+      if (!restaurantId) return;
+      void loadThread({ contactId, silent });
+    };
+
+    if (hasCache) {
+      runThreadLoad(true);
+    } else if (restaurantId) {
+      const inflight = threadPrefetchPromisesRef.current.get(contactId);
+      if (inflight) {
+        void inflight.then(() => {
+          if (openThreadIdRef.current !== contactId) return;
+          const afterPrefetch = peekContactThreadCache(restaurantId, contactId);
+          if (afterPrefetch?.messages.length) {
+            applyThreadFromCache(afterPrefetch);
+            runThreadLoad(true);
+          } else {
+            runThreadLoad(false);
+          }
+        });
+      } else {
+        runThreadLoad(false);
+      }
     }
 
     const params = new URLSearchParams(searchParams.toString());
@@ -1954,8 +1987,6 @@ export function ContactsMessagesScreen({
     );
   };
 
-  const threadPrefetchInFlightRef = useRef<Set<string>>(new Set());
-
   const prefetchConversationThread = useCallback(
     (contactId: string) => {
       if (!restaurantId || !contactId) return;
@@ -1964,7 +1995,7 @@ export function ContactsMessagesScreen({
       }
       if (threadPrefetchInFlightRef.current.has(contactId)) return;
       threadPrefetchInFlightRef.current.add(contactId);
-      void fetchContactThreadPageClient({
+      const promise = fetchContactThreadPageClient({
         restaurantId,
         contactId,
         limit: CONTACT_THREAD_PAGE_SIZE,
@@ -1984,7 +2015,9 @@ export function ContactsMessagesScreen({
         })
         .finally(() => {
           threadPrefetchInFlightRef.current.delete(contactId);
+          threadPrefetchPromisesRef.current.delete(contactId);
         });
+      threadPrefetchPromisesRef.current.set(contactId, promise);
     },
     [restaurantId],
   );
@@ -2678,6 +2711,12 @@ export function ContactsMessagesScreen({
 
   const threadId = overlayThreadId;
   const threadAriaLabel = contactName ? `Chat mit ${contactName}` : "Chat";
+  const threadListPreview = threadId
+    ? conversations.find((c) => c.contact_id === threadId)
+    : undefined;
+  const threadHeaderListLabel = threadListPreview
+    ? wahaConversationDisplayName(threadListPreview)
+    : contactName || "Kontakt";
   const threadHeader = (
 <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
               <Button
@@ -2691,8 +2730,19 @@ export function ContactsMessagesScreen({
                 <ArrowLeft className="size-4" />
               </Button>
               <ContactThreadHeaderAvatar
-                avatarUrl={threadAvatarUrl}
+                avatarUrl={
+                  threadAvatarUrl ??
+                  (threadListPreview
+                    ? inboxConversationAvatarUrl(threadListPreview)
+                    : null)
+                }
                 displayName={contactName || "Kontakt"}
+                firstName={threadListPreview?.contact_first_name}
+                lastName={threadListPreview?.contact_last_name}
+                initialsOverride={inboxConversationAvatarInitials(
+                  threadHeaderListLabel,
+                  threadListPreview,
+                )}
               />
               <div className="min-w-0 flex-1">
                 {canOpenLinkedContact(threadId!) ? (

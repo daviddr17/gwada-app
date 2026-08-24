@@ -6,12 +6,15 @@ import { cn } from "@/lib/utils";
 export function AppMain({
   children,
   className,
+  wrapperClassName,
 }: {
   children: ReactNode;
   className?: string;
+  /** Optional — z. B. `h-full` für Desktop-Split-Module (Nachrichten). */
+  wrapperClassName?: string;
 }) {
   return (
-    <div>
+    <div className={wrapperClassName}>
       <main
         className={cn(
           "w-full px-4 pt-4 sm:px-6",

@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  startTransition,
 } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
@@ -285,6 +286,11 @@ import { pickContactThreadTitle } from "@/lib/contacts/contact-thread-title";
 import { stripHtmlToPlainText } from "@/lib/text/strip-html-to-plain-text";
 import { moduleTableFullscreenToggleButtonClassName } from "@/lib/ui/module-paginated-data-table";
 import { cn } from "@/lib/utils";
+import { messagesInboxDesktopScreenClassName } from "@/lib/ui/messages-inbox-desktop-layout";
+import {
+  acquireAppScrollLock,
+  scrollAppRootToTop,
+} from "@/lib/layout/app-scroll-root";
 import { isSamePathSearchNav } from "@/lib/navigation/same-path-search-nav";
 
 const LIST_SILENT_REFRESH_DEBOUNCE_MS = 3_000;
@@ -477,6 +483,13 @@ export function ContactsMessagesScreen({
       setInboxWorkspaceFullscreen(false);
     }
   }, [isLgUp, inboxWorkspaceFullscreen]);
+
+  /** Desktop-Split: Seiten-Scroll sperren — Liste/Chat scrollen intern. */
+  useEffect(() => {
+    if (!active || !isLgUp) return;
+    scrollAppRootToTop();
+    return acquireAppScrollLock();
+  }, [active, isLgUp]);
   const [closingThreadId, setClosingThreadId] = useState<string | null>(null);
   /** Sofort nach Klick, bevor Soft-Nav `?contact=` setzt — Split-Pane ohne Wartezeit. */
   const [pendingContactId, setPendingContactId] = useState<string | null>(null);
@@ -639,6 +652,8 @@ export function ContactsMessagesScreen({
   contactParamRef.current = contactParam;
   /** Aktuell gewünschter Thread — überlebt stale Closures während async Fetch. */
   const openThreadIdRef = useRef<string | null>(null);
+  /** Einmal skip: openConversation lädt/refresht — kein zweiter Fetch nach URL-Sync. */
+  const skipContactParamLoadRef = useRef<string | null>(null);
 
   const displayMessages = useMemo(() => {
     let rows = enrichMessagesWithWahaReactionIds(messages);
@@ -1588,6 +1603,10 @@ export function ContactsMessagesScreen({
       if (!contactParam) setLoadingThread(false);
       return;
     }
+    // URL hinkt hinter openConversation — stale contactParam nicht anwenden.
+    if (pendingContactId && pendingContactId !== contactParam) {
+      return;
+    }
     if (applyContactThreadCache(restaurantId, contactParam)) return;
     // openConversation hat den Thread schon vorbereitet — nicht nochmal leeren.
     if (pendingContactId === contactParam) return;
@@ -1618,12 +1637,12 @@ export function ContactsMessagesScreen({
 
     openThreadIdRef.current = contactParam;
 
-    // Klick-Pfad lädt bereits via openConversation — nur stiller Refresh nach URL-Sync.
+    // Klick-Pfad: openConversation lädt/refresht bereits — kein zweiter Fetch nach URL-Sync.
     if (pendingContactId === contactParam) {
-      const cached = peekContactThreadCache(restaurantId, contactParam);
-      if (cached?.messages.length) {
-        void loadThread({ silent: true });
-      }
+      return;
+    }
+    if (skipContactParamLoadRef.current === contactParam) {
+      skipContactParamLoadRef.current = null;
       return;
     }
 
@@ -2012,9 +2031,12 @@ export function ContactsMessagesScreen({
     const hasCache = Boolean(cached && cached.messages.length > 0);
     // Sofort Pane + Titel — nicht auf Soft-Nav/`?contact=` warten.
     openThreadIdRef.current = contactId;
+    skipContactParamLoadRef.current = contactId;
     setPendingContactId(contactId);
     setClosingThreadId(null);
-    setThreadOverlayOpen(true);
+    if (!isLgUp) {
+      setThreadOverlayOpen(true);
+    }
 
     if (hasCache && cached) {
       applyThreadFromCache(cached);
@@ -2043,7 +2065,7 @@ export function ContactsMessagesScreen({
     };
 
     if (hasCache) {
-      runThreadLoad(true);
+      queueMicrotask(() => runThreadLoad(true));
     } else if (restaurantId) {
       const inflight = threadPrefetchPromisesRef.current.get(contactId);
       if (inflight) {
@@ -2068,10 +2090,12 @@ export function ContactsMessagesScreen({
     }
     params.set("contact", contactId);
     // Desktop-Split: replace (weniger Soft-Nav-Latenz); Mobil: push für Zurück.
-    navigateNachrichten(
-      `/dashboard/kontakte/nachrichten?${params.toString()}`,
-      "replace",
-    );
+    startTransition(() => {
+      navigateNachrichten(
+        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+        "replace",
+      );
+    });
   };
 
   const prefetchConversationThread = useCallback(
@@ -3175,6 +3199,9 @@ showReplyComposer ? (
                     onPointerEnter={() =>
                       prefetchConversationThread(c.contact_id)
                     }
+                    onPointerDown={() =>
+                      prefetchConversationThread(c.contact_id)
+                    }
                   >
                     {unread ? (
                       <span
@@ -3587,8 +3614,7 @@ showReplyComposer ? (
     <div
       className={cn(
         "flex w-full min-w-0 flex-col gap-4 pt-2",
-        // Desktop: feste Viewport-Höhe — Split scrollt intern; flex-1 allein kollabiert im App-Scroll-Root.
-        "lg:h-[calc(100dvh-var(--app-chrome-header-h)-var(--app-module-chip-sticky-h,3rem)-2.5rem)] lg:min-h-0 lg:gap-3 lg:overflow-hidden lg:pt-1",
+        messagesInboxDesktopScreenClassName,
       )}
     >
       {renderInboxFilterSection(isLgUp ? "enter" : null)}

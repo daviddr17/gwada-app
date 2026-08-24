@@ -28,7 +28,10 @@ import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
-import { cn } from "@/lib/utils";
+import {
+  dashboardWidgetMasonryClassName,
+  dashboardWidgetMasonryItemClassName,
+} from "@/lib/ui/dashboard-widget-masonry";
 
 function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   switch (id) {
@@ -140,15 +143,9 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
   return (
     <>
       <DashboardPermissionUnlockCelebration />
-      <div className="grid items-stretch gap-4 pt-2 lg:grid-cols-2">
+      <div className={dashboardWidgetMasonryClassName}>
         {orderedVisible.map(({ id, span }) => (
-          <div
-            key={id}
-            className={cn(
-              "flex h-full min-w-0 flex-col [&_[data-slot=card]]:h-full",
-              span === 2 && "lg:col-span-2",
-            )}
-          >
+          <div key={id} className={dashboardWidgetMasonryItemClassName(span)}>
             <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
               <DashboardWidgetById id={id} />
             </DashboardWidgetErrorBoundaryWithReset>

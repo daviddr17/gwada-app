@@ -139,6 +139,10 @@ import {
   platformFeedSyncMetaVisible,
 } from "@/components/platform-feed/platform-feed-sync-status-bar";
 import { humanizeReviewsApiError } from "@/lib/reviews/reviews-api-error-messages";
+import {
+  REVIEW_FOCUS_QUERY,
+  reviewNotificationDomId,
+} from "@/lib/reviews/review-notification-href";
 
 const REVIEWS_SYNC_POLL_MS = 5_000;
 const REVIEWS_SYNC_POLL_MAX = 3;
@@ -384,6 +388,7 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
     isPlatformAvailable(platformFilter);
 
   const reviewProtocolParam = searchParams.get("reviewProtocol")?.trim() ?? "";
+  const reviewFocusParam = searchParams.get(REVIEW_FOCUS_QUERY)?.trim() ?? "";
 
   const allReviews = useMemo(() => {
     if (platformFilter === "google") {
@@ -417,6 +422,43 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
       setProtocolReview(match);
     }
   }, [reviewProtocolParam, platformFilter, ready, allReviews]);
+
+  /** Glocke / Deep-Link: Google, Facebook, TripAdvisor — zur Karte scrollen. */
+  useEffect(() => {
+    if (!reviewFocusParam || !ready || platformFilter === REVIEW_FILTER_ALL) return;
+    const match = allReviews.find(
+      (r) => r.platform === platformFilter && r.id === reviewFocusParam,
+    );
+    if (!match) return;
+
+    const domId = reviewNotificationDomId(match.platform, match.id);
+    const scrollToReview = () => {
+      document.getElementById(domId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    };
+    const frame = window.requestAnimationFrame(scrollToReview);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(REVIEW_FOCUS_QUERY);
+    const q = params.toString();
+    router.replace(
+      q
+        ? `/dashboard/bewertungen/uebersicht?${q}`
+        : "/dashboard/bewertungen/uebersicht",
+      { scroll: false },
+    );
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    reviewFocusParam,
+    platformFilter,
+    ready,
+    allReviews,
+    router,
+    searchParams,
+  ]);
 
   useEffect(() => {
     if (connectionsLoading || !ready || !restaurantId) return;

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { ReviewCommentExpandable } from "@/components/reviews/review-comment-expandable";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
+import { reviewNotificationDomId } from "@/lib/reviews/review-notification-href";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { feedTimelineDateChipClassName } from "@/components/feed/feed-timeline-date-skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -236,7 +237,10 @@ function ReviewTimelineRow({
   const timeLabel = formatReviewTimelineTimeLabel(review.createdAt);
 
   return (
-    <article className="flex w-full gap-3 sm:gap-4">
+    <article
+      id={reviewNotificationDomId(review.platform, review.id)}
+      className="flex w-full gap-3 sm:gap-4"
+    >
       <div className="relative flex w-14 shrink-0 flex-col items-center self-stretch sm:w-16">
         <div className={feedTimelineDateChipClassName}>
           <span className="text-xl font-semibold tabular-nums leading-none sm:text-2xl">
@@ -349,6 +353,7 @@ export function ReviewCard({
 
   return (
     <Card
+      id={reviewNotificationDomId(review.platform, review.id)}
       className={cn(
         "border-border/50 shadow-card",
         isUnread && "border-accent/35 bg-accent/[0.03]",

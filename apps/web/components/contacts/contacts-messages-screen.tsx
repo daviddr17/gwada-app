@@ -3365,7 +3365,9 @@ showReplyComposer ? (
       </div>
   );
 
-  const renderInboxFilterSection = (showFullscreenToggle: boolean) =>
+  const renderInboxFilterSection = (
+    fullscreenAction: "enter" | "exit" | null,
+  ) =>
     (!contactParam || inboxSplitLayout) ? (
         <div className="shrink-0 space-y-3">
       <div className="flex items-start gap-2">
@@ -3377,7 +3379,7 @@ showReplyComposer ? (
         disabled={connectionsLoading}
       />
         </div>
-        {showFullscreenToggle ? (
+        {fullscreenAction === "enter" ? (
         <Tooltip>
           <TooltipTrigger
             render={
@@ -3394,6 +3396,24 @@ showReplyComposer ? (
             <Maximize2 className="size-4" />
           </TooltipTrigger>
           <TooltipContent side="top">Vollbild</TooltipContent>
+        </Tooltip>
+        ) : fullscreenAction === "exit" ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={moduleTableFullscreenToggleButtonClassName}
+                onClick={closeInboxWorkspaceFullscreen}
+                aria-label="Vollbild schließen"
+              />
+            }
+          >
+            <Minimize2 className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent side="top">Vollbild schließen</TooltipContent>
         </Tooltip>
         ) : null}
       </div>
@@ -3447,7 +3467,7 @@ showReplyComposer ? (
         "lg:min-h-0 lg:flex-1 lg:gap-3 lg:overflow-hidden lg:pt-1",
       )}
     >
-      {renderInboxFilterSection(isLgUp)}
+      {renderInboxFilterSection(isLgUp ? "enter" : null)}
 
       {inboxSplitPane}
     </div>
@@ -3457,34 +3477,11 @@ showReplyComposer ? (
         open={inboxWorkspaceFullscreen}
         onClose={closeInboxWorkspaceFullscreen}
         aria-label="Nachrichten"
-        header={
-          <div className="flex w-full items-center justify-between gap-3 px-4 py-3">
-            <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-              Nachrichten
-            </p>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className={moduleTableFullscreenToggleButtonClassName}
-                    onClick={closeInboxWorkspaceFullscreen}
-                    aria-label="Vollbild schließen"
-                  />
-                }
-              >
-                <Minimize2 className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent side="top">Vollbild schließen</TooltipContent>
-            </Tooltip>
-          </div>
-        }
+        header={null}
       >
         {inboxWorkspaceFullscreen ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 pb-4 pt-1">
-            {renderInboxFilterSection(false)}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 pb-4 pt-3">
+            {renderInboxFilterSection("exit")}
             {inboxSplitPane}
           </div>
         ) : null}

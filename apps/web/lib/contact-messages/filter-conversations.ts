@@ -1,11 +1,11 @@
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 
-export type ConversationReadFilter = "all" | "unread" | "read";
+export type ConversationReadFilter = "all" | "unread" | "read" | "later";
 
 export function parseConversationReadFilter(
   value: string | null | undefined,
 ): ConversationReadFilter {
-  if (value === "unread" || value === "read") return value;
+  if (value === "unread" || value === "read" || value === "later") return value;
   return "all";
 }
 
@@ -35,7 +35,15 @@ export function filterContactConversations(
       .replace(/@.*/, "")
       .replace(/\D/g, " ");
 
-    const hay = [c.contact_name, c.last_body, idHint].join(" ").toLowerCase();
+    const hay = [
+      c.contact_name,
+      c.last_body,
+      idHint,
+      c.follow_up_reason ?? "",
+      c.follow_up_staff_name ?? "",
+    ]
+      .join(" ")
+      .toLowerCase();
     return hay.includes(q);
   });
 }
@@ -48,5 +56,14 @@ export function filterConversationsByRead(
   if (readFilter === "unread") {
     return conversations.filter((c) => c.is_unread);
   }
+  if (readFilter === "later") {
+    return conversations.filter((c) => Boolean(c.follow_up_id));
+  }
   return conversations.filter((c) => !c.is_unread);
+}
+
+export function conversationHasFollowUp(
+  conversation: Pick<ContactConversationPreview, "follow_up_id">,
+): boolean {
+  return Boolean(conversation.follow_up_id);
 }

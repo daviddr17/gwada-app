@@ -7,6 +7,7 @@ import { markConversationReadClient } from "@/lib/contact-messages/fetch-inbox-c
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { setUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
 import { enrichOneConversationWithReads } from "@/lib/contact-messages/unified-inbox-read-state";
+import { enrichConversationsWithFollowUpsClient } from "@/lib/contact-messages/conversation-follow-ups-client";
 import {
   fetchCommunalConversationReadsBrowser,
   fetchConversationReadsBrowser,
@@ -84,9 +85,13 @@ export async function fetchUnifiedInboxConversations(params: {
   }
 
   const merged = mergeInboxConversationPreviews(results.map((r) => r.data));
-  const enriched = await enrichUnifiedInboxReadState({
+  const withReads = await enrichUnifiedInboxReadState({
     restaurantId: params.restaurantId,
     conversations: merged,
+  });
+  const enriched = await enrichConversationsWithFollowUpsClient({
+    restaurantId: params.restaurantId,
+    conversations: withReads,
   });
 
   setUnifiedInboxCache(params.restaurantId, enriched);

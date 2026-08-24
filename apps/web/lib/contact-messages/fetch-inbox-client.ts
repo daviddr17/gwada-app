@@ -212,6 +212,52 @@ export async function markConversationUnreadClient(params: {
   }
 }
 
+export async function upsertConversationFollowUpClient(params: {
+  restaurantId: string;
+  conversationKey: string;
+  contactDisplayName?: string | null;
+  reason?: string | null;
+  remindAt?: string | null;
+  staffId?: string | null;
+  notifyWhatsapp?: boolean;
+  notifyEmail?: boolean;
+}): Promise<{ ok: boolean; error: string | null }> {
+  try {
+    const res = await fetch("/api/contact-messages/conversations/follow-up", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const body = (await res.json()) as { error?: string };
+    if (!res.ok) return { ok: false, error: body.error ?? `http_${res.status}` };
+    dispatchDashboardMessagesRefresh();
+    dispatchNotificationsRefresh();
+    return { ok: true, error: null };
+  } catch {
+    return { ok: false, error: "network_error" };
+  }
+}
+
+export async function clearConversationFollowUpClient(params: {
+  restaurantId: string;
+  conversationKey: string;
+}): Promise<{ ok: boolean; error: string | null }> {
+  try {
+    const res = await fetch("/api/contact-messages/conversations/follow-up", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const body = (await res.json()) as { error?: string };
+    if (!res.ok) return { ok: false, error: body.error ?? `http_${res.status}` };
+    dispatchDashboardMessagesRefresh();
+    dispatchNotificationsRefresh();
+    return { ok: true, error: null };
+  } catch {
+    return { ok: false, error: "network_error" };
+  }
+}
+
 export async function fetchMessagesUnreadSummaryClient(
   restaurantId: string,
   options?: { scope?: "dashboard" | "full" },

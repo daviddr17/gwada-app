@@ -7,6 +7,7 @@ const OPTIONS: { id: ConversationReadFilter; label: string }[] = [
   { id: "all", label: "Alle" },
   { id: "unread", label: "Ungelesen" },
   { id: "read", label: "Gelesen" },
+  { id: "later", label: "Später" },
 ];
 
 export function ContactConversationsReadFilter({
@@ -14,11 +15,13 @@ export function ContactConversationsReadFilter({
   onChange,
   disabled,
   unreadTotal,
+  laterTotal,
 }: {
   value: ConversationReadFilter;
   onChange: (value: ConversationReadFilter) => void;
   disabled?: boolean;
   unreadTotal?: number;
+  laterTotal?: number;
 }) {
   return (
     <div
@@ -28,10 +31,14 @@ export function ContactConversationsReadFilter({
     >
       {OPTIONS.map((opt) => {
         const selected = value === opt.id;
+        const badgeCount =
+          opt.id === "unread"
+            ? unreadTotal
+            : opt.id === "later"
+              ? laterTotal
+              : undefined;
         const showBadge =
-          opt.id === "unread" &&
-          typeof unreadTotal === "number" &&
-          unreadTotal > 0;
+          typeof badgeCount === "number" && badgeCount > 0;
         return (
           <button
             key={opt.id}
@@ -55,7 +62,7 @@ export function ContactConversationsReadFilter({
                   selected ? "bg-accent text-accent-foreground" : "bg-accent/20 text-accent",
                 )}
               >
-                {unreadTotal > 99 ? "99+" : unreadTotal}
+                {badgeCount! > 99 ? "99+" : badgeCount}
               </span>
             ) : null}
           </button>

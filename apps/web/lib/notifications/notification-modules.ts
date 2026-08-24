@@ -5,6 +5,7 @@ import {
   CalendarX2,
   CirclePlay,
   CircleStop,
+  Clock3,
   FileSpreadsheet,
   FileText,
   FileSignature,
@@ -28,6 +29,7 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 /** Erweiterbare Modul-IDs — neue Module hier registrieren. */
 export const NOTIFICATION_MODULE_IDS = [
   "messages",
+  "messages_follow_up",
   "reviews",
   "changelog",
   "reservations_pending",
@@ -77,6 +79,16 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Ungelesene Konversationen in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei neuen Nachrichten",
     settingsPushEmailLabel: "E-Mail bei neuen Nachrichten",
+  },
+  messages_follow_up: {
+    id: "messages_follow_up",
+    label: "Nachricht später",
+    labelPlural: "Später",
+    href: "/dashboard/kontakte/nachrichten?platform=all&read=later",
+    icon: Clock3,
+    settingsInAppLabel: "Fällige Später-Erinnerungen in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei fälligen Später-Erinnerungen",
+    settingsPushEmailLabel: "E-Mail bei fälligen Später-Erinnerungen",
   },
   reviews: {
     id: "reviews",

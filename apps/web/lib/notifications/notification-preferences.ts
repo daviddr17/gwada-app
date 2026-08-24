@@ -20,6 +20,7 @@ export const NOTIFICATION_BELL_POLL_MS = 45_000;
 export const DEFAULT_IN_APP_ENABLED_MODULE_IDS: readonly NotificationModuleId[] =
   [
     "messages",
+    "messages_follow_up",
     "reviews",
     "reservations_pending",
     "reservations_change_request",

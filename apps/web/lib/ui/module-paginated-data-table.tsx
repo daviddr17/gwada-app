@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/list-pagination";
 import {
   moduleDataTableFullscreenShellClassName,
-  moduleDataTableShellClassName,
+  moduleDataTableScrollClassName,
+  moduleDataTableShellWithStickyHeadClassName,
   moduleListPaginationAboveClassName,
   moduleListPaginationBelowClassName,
   moduleTableFullscreenChromeInsetClassName,
@@ -75,7 +76,9 @@ function ModuleTableShell({
 }) {
   return (
     <div className={shellClassName}>
-      <ModuleTableHorizontalScrollRegion className={scrollClassName}>
+      <ModuleTableHorizontalScrollRegion
+        className={cn(moduleDataTableScrollClassName, scrollClassName)}
+      >
         {children}
       </ModuleTableHorizontalScrollRegion>
     </div>
@@ -91,7 +94,7 @@ export function ModulePaginatedDataTable({
   classNameAbove,
   classNameBelow,
   scrollClassName,
-  shellClassName = moduleDataTableShellClassName,
+  shellClassName = moduleDataTableShellWithStickyHeadClassName,
   tableFullscreen = true,
   fullscreenTitle,
   fullscreenChromeInsetClassName = moduleTableFullscreenChromeInsetClassName,
@@ -298,7 +301,7 @@ export function ModuleDataTableFrame({
   children,
   className,
   scrollClassName,
-  shellClassName = moduleDataTableShellClassName,
+  shellClassName = moduleDataTableShellWithStickyHeadClassName,
   tableFullscreen = false,
   fullscreenTitle,
   summaryText,
@@ -337,7 +340,9 @@ export function ModuleDataTableFrame({
 
   const tableShell = (
     <div className={cn(shellClassName, className)}>
-      <ModuleTableHorizontalScrollRegion className={scrollClassName}>
+      <ModuleTableHorizontalScrollRegion
+        className={cn(moduleDataTableScrollClassName, scrollClassName)}
+      >
         {children}
       </ModuleTableHorizontalScrollRegion>
     </div>

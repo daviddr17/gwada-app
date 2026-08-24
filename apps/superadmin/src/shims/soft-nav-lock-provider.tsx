@@ -17,6 +17,7 @@ import {
   type SoftNavLockValue,
 } from "@/lib/navigation/soft-nav-lock-context";
 import {
+  isZoneSpaHref,
   tanstackLocationToZonePath,
   zoneHrefToTanstackTarget,
 } from "@/lib/navigation/spa-zone-path";
@@ -60,6 +61,10 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
 
   const scheduleSoftNavPush = useCallback(
     (href: string) => {
+      if (!isZoneSpaHref("/superadmin", href)) {
+        window.location.assign(href);
+        return;
+      }
       prefetchSuperadminSpaHref(href);
       const { to, search } = zoneHrefToTanstackTarget("/superadmin", href);
       navigate({ to, search });

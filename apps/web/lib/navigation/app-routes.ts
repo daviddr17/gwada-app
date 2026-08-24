@@ -144,6 +144,8 @@ export const APP_ROUTES = {
     documents: "/dashboard/profile/dokumente",
     displayPin: "/dashboard/profile/display-pin",
   },
+  /** Kunden-Changelog (Dashboard-SPA-Tab-Stack, Soft-Nav). */
+  changelog: "/dashboard/changelog",
 } as const;
 
 /** Legacy-Pfade → neue Dashboard-Pfade (Permanent Redirect). */
@@ -210,6 +212,7 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
   { source: "/settings/:path*", destination: "/dashboard/settings/:path*" },
   { source: "/profile", destination: APP_ROUTES.profile.personal },
   { source: "/profile/:path*", destination: "/dashboard/profile/:path*" },
+  { source: "/changelog", destination: APP_ROUTES.changelog },
   {
     source: "/dashboard/mitarbeiter/todos",
     destination: "/dashboard/checklisten",

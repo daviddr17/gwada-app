@@ -1,7 +1,8 @@
 /** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs
- * Profile/Settings/Staff use chrome wrappers (layouts pruned with SPA).
+ * Profile/Settings/Staff/Changelog use chrome wrappers (layouts pruned with SPA).
  */
 import { lazy, type ComponentType } from "react";
+import { wrapChangelogPage } from "../routes/changelog-chrome";
 import { wrapProfilePage } from "../routes/profile-chrome";
 import { wrapSettingsPage } from "../routes/settings-chrome";
 import { wrapStaffPage } from "../routes/staff-chrome";
@@ -30,6 +31,15 @@ function staffLazy(
   return lazy(async () => {
     const mod = await importer();
     return { default: wrapStaffPage(mod.default) };
+  });
+}
+
+function changelogLazy(
+  importer: () => Promise<{ default: ComponentType }>,
+) {
+  return lazy(async () => {
+    const mod = await importer();
+    return { default: wrapChangelogPage(mod.default) };
   });
 }
 
@@ -106,6 +116,7 @@ const Lazy__dashboard_settings_oeffnungszeiten_einbinden = settingsLazy(() => im
 const Lazy__dashboard_settings_oeffnungszeiten = settingsLazy(() => import("../routes/settings-oeffnungszeiten-route").then((m) => ({ default: m.SettingsOeffnungszeitenRoute as ComponentType })));
 const Lazy__dashboard_settings_restaurant = settingsLazy(() => import("../routes/settings-restaurant-route").then((m) => ({ default: m.SettingsRestaurantRoute as ComponentType })));
 const Lazy__dashboard_settings_team = settingsLazy(() => import("@/components/settings/restaurant-team-settings-panel").then((m) => ({ default: m.RestaurantTeamSettingsPanel as ComponentType })));
+const Lazy__dashboard_changelog = changelogLazy(() => import("@/components/changelog/changelog-overview").then((m) => ({ default: m.ChangelogOverview as ComponentType })));
 
 export type DashboardRouteEntry = {
   path: string;
@@ -239,4 +250,5 @@ export const DASHBOARD_ROUTE_ENTRIES: DashboardRouteEntry[] = [
   { path: "/settings/restaurant", fullPath: "/dashboard/settings/restaurant", Lazy: Lazy__dashboard_settings_restaurant },
   { path: "/settings/rollen", fullPath: "/dashboard/settings/team", redirect: "/dashboard/settings/team" },
   { path: "/settings/team", fullPath: "/dashboard/settings/team", Lazy: Lazy__dashboard_settings_team },
+  { path: "/changelog", fullPath: "/dashboard/changelog", Lazy: Lazy__dashboard_changelog },
 ];

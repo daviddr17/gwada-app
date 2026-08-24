@@ -15,7 +15,7 @@ function collectRouteStrings(value: unknown, out: Set<string>): void {
 const ROUTE_SET = new Set<string>([
   "/dashboard",
   APP_ROUTES.settings.root,
-  "/changelog",
+  APP_ROUTES.changelog,
   ...SIDEBAR_MODULE_DEFINITIONS.map((mod) => mod.href),
 ]);
 

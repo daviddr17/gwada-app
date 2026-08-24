@@ -2,6 +2,7 @@ import "server-only";
 
 import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summary-server";
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
@@ -85,7 +86,7 @@ async function fetchUnreadChangelogItems(
         id: row.id,
         title: row.title,
         subtitle: row.version ? `Version ${row.version}` : null,
-        href: "/changelog",
+        href: APP_ROUTES.changelog,
         at: row.published_at,
       };
     }),

@@ -1,19 +1,6 @@
-"use client";
-
-import { AppMain } from "@/components/layout/app-main";
-import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
-
-export default function ChangelogLayout({
+/** Legacy-Route: Redirect in `page.tsx` / `LEGACY_MODULE_REDIRECTS`. */
+export default function ChangelogLegacyLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <>
-      <RegisterModuleChrome
-        title="Changelog"
-        subnavAriaLabel={null}
-        subnavItems={null}
-      />
-      <AppMain>{children}</AppMain>
-    </>
-  );
+  return children;
 }

@@ -6,7 +6,7 @@ import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-wi
 export function DashboardHomePendingSkeleton() {
   return (
     <div
-      className="grid gap-4 pt-2 lg:grid-cols-2"
+      className="grid items-stretch gap-4 pt-2 lg:grid-cols-2"
       aria-busy="true"
       aria-label="Dashboard wird geladen"
     >

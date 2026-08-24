@@ -5,7 +5,7 @@ import { DashboardCompactMetricsSkeleton } from "@/components/dashboard/dashboar
 
 export function DashboardWidgetTileSkeleton() {
   return (
-    <SkeletonCardFrame className="min-w-0 border-border/50 shadow-card">
+    <SkeletonCardFrame className="h-full min-w-0 border-border/50 shadow-card">
       <div className="flex items-center justify-between gap-2 px-4 py-3">
         <Skeleton className="h-5 w-32 rounded-md" />
         <Skeleton className="size-8 rounded-lg" />

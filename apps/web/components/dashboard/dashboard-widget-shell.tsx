@@ -21,7 +21,7 @@ function DashboardWidgetSkeletonFrame({
   isCompact: boolean;
 }) {
   return (
-    <SkeletonCardFrame className="min-w-0 border-border/50 shadow-card">
+    <SkeletonCardFrame className="h-full min-w-0 border-border/50 shadow-card">
       <div className="flex items-center justify-between gap-2 pb-3">
         <Skeleton className="h-5 w-32 rounded-md" />
         <Skeleton className="size-8 rounded-lg" />
@@ -85,7 +85,7 @@ export function DashboardWidgetShell({
   return (
     <Card
       className={cn(
-        "min-w-0 border-border/50 shadow-card",
+        "h-full min-w-0 border-border/50 shadow-card",
         cardClassName,
         layered && "relative overflow-hidden",
         interactive && "cursor-pointer transition-colors hover:bg-muted/30",
@@ -108,6 +108,7 @@ export function DashboardWidgetShell({
       {background}
       <CardHeader
         className={cn(
+          "shrink-0",
           isCompact
             ? "flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3"
             : "flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0",
@@ -170,7 +171,11 @@ export function DashboardWidgetShell({
         ) : null}
       </CardHeader>
       <CardContent
-        className={cn(isCompact ? "px-4 pb-4 pt-0" : "pt-0", layered && "relative z-10")}
+        className={cn(
+          "flex-1",
+          isCompact ? "px-4 pb-4 pt-0" : "pt-0",
+          layered && "relative z-10",
+        )}
       >
         {error ? (
           <p className="text-sm text-muted-foreground">

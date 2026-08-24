@@ -102,6 +102,12 @@ export type ContactConversationPreview = {
   contact_last_name?: string | null;
   /** Signierte URL (Kontakt- oder WA-Chat-Avatar). */
   avatar_url?: string | null;
+  /** Später-Follow-up (team-sichtbar). */
+  follow_up_id?: string | null;
+  follow_up_reason?: string | null;
+  follow_up_remind_at?: string | null;
+  follow_up_staff_id?: string | null;
+  follow_up_staff_name?: string | null;
 };
 
 const MESSAGE_SELECT = `

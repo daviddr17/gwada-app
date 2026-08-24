@@ -14,7 +14,7 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
   {
     id: "general",
     title: "Allgemein",
-    moduleIds: ["messages", "reviews", "changelog"],
+    moduleIds: ["messages", "messages_follow_up", "reviews", "changelog"],
   },
   {
     id: "reservations",

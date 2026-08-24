@@ -23,6 +23,7 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   NotificationModuleAccessRule
 > = {
   messages: { kind: "module", prefix: "contacts" },
+  messages_follow_up: { kind: "module", prefix: "contacts" },
   reviews: { kind: "module", prefix: "reviews" },
   changelog: { kind: "always" },
   reservations_pending: { kind: "module", prefix: "reservations" },

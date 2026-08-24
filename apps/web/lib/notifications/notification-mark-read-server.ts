@@ -17,6 +17,9 @@ import {
 } from "@/lib/contact-messages/mark-unified-conversation-read-server";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import { conversationChannelForRead } from "@/lib/contact-messages/unified-inbox-merge";
+import {
+  markFollowUpReminderSeen,
+} from "@/lib/contact-messages/conversation-follow-ups-server";
 import { markReviewReadServer } from "@/lib/reviews/mark-review-read-server";
 import { markAllReviewsReadForUserServer } from "@/lib/reviews/mark-all-reviews-read-server";
 import {
@@ -157,6 +160,31 @@ export async function markNotificationReadServer(
       if (result.error) return { ok: false, error: result.error };
       after(() => syncConversationReadExternalServer(admin, markParams));
       return { ok: true };
+    }
+
+    case "messages_follow_up": {
+      if (!itemId) {
+        const rows = await admin
+          .from("contact_conversation_follow_ups")
+          .select("id")
+          .eq("restaurant_id", restaurantId)
+          .is("cleared_at", null)
+          .not("remind_at", "is", null)
+          .lte("remind_at", new Date().toISOString());
+        for (const row of (rows.data ?? []) as { id: string }[]) {
+          await markFollowUpReminderSeen(admin, {
+            restaurantId,
+            followUpId: row.id,
+          });
+        }
+        return { ok: true };
+      }
+      const followUpId = meta?.followUpId ?? itemId;
+      const result = await markFollowUpReminderSeen(admin, {
+        restaurantId,
+        followUpId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
     }
 
     case "reviews": {

@@ -4,6 +4,7 @@ import type { ContactMessagePlatform } from "@/lib/constants/contact-message-pla
 import { fetchContactConversationsAdmin } from "@/lib/contact-messages/fetch-contact-conversations-admin";
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { enrichUnifiedInboxReadStateServer } from "@/lib/contact-messages/unified-inbox-read-state";
+import { enrichConversationsWithFollowUps } from "@/lib/contact-messages/conversation-follow-ups-server";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -38,10 +39,14 @@ async function fetchUnifiedInboxFromDbAdmin(
   );
 
   const merged = mergeInboxConversationPreviews(sources);
-  return enrichUnifiedInboxReadStateServer(admin, {
+  const withReads = await enrichUnifiedInboxReadStateServer(admin, {
     restaurantId: params.restaurantId,
     userId: params.userId,
     conversations: merged,
+  });
+  return enrichConversationsWithFollowUps(admin, {
+    restaurantId: params.restaurantId,
+    conversations: withReads,
   });
 }
 

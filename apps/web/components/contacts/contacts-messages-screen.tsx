@@ -11,7 +11,9 @@ import {
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   ArrowLeft,
+  Bookmark,
   CalendarDays,
+  Clock,
   Link2,
   MailOpen,
   Mail,
@@ -23,6 +25,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { ContactConversationsListSkeleton } from "@/components/contacts/contact-conversations-list-skeleton";
+import { InboxFollowUpSheet } from "@/components/contacts/inbox-follow-up-sheet";
 import {
   contactInboxConversationRowClassName,
   contactInboxConversationRowOpenButtonClassName,
@@ -132,6 +135,8 @@ import {
   fetchWahaResolvedPhoneClient,
   markConversationReadClient,
   markConversationUnreadClient,
+  upsertConversationFollowUpClient,
+  clearConversationFollowUpClient,
 } from "@/lib/contact-messages/fetch-inbox-client";
 import { enrichConversationsWithReadState } from "@/lib/contact-messages/enrich-gwada-conversations-client";
 import {
@@ -508,6 +513,14 @@ export function ContactsMessagesScreen({
     useState<InboxThreadAssignStaffKind>("phone");
   const [assignStaffValue, setAssignStaffValue] = useState<string | null>(null);
   const [assigningStaff, setAssigningStaff] = useState(false);
+  const [followUpTarget, setFollowUpTarget] = useState<{
+    conversationKey: string;
+    displayName: string;
+    reason: string | null;
+    remindAt: string | null;
+    staffId: string | null;
+  } | null>(null);
+  const [savingFollowUp, setSavingFollowUp] = useState(false);
   const [reservationDrawerOpen, setReservationDrawerOpen] = useState(false);
   const [reservationForDrawer, setReservationForDrawer] =
     useState<ReservationListRow | null>(null);
@@ -772,6 +785,10 @@ export function ContactsMessagesScreen({
 
   const unreadInList = useMemo(
     () => conversations.filter((c) => c.is_unread && c.unread_count > 0).length,
+    [conversations],
+  );
+  const laterInList = useMemo(
+    () => conversations.filter((c) => Boolean(c.follow_up_id)).length,
     [conversations],
   );
 
@@ -1081,6 +1098,68 @@ export function ContactsMessagesScreen({
     },
     [restaurantId, patchConversationReadState],
   );
+
+  const openFollowUpSheet = useCallback(
+    (conversation: ContactConversationPreview, displayName: string) => {
+      setFollowUpTarget({
+        conversationKey: conversation.contact_id,
+        displayName,
+        reason: conversation.follow_up_reason ?? null,
+        remindAt: conversation.follow_up_remind_at ?? null,
+        staffId: conversation.follow_up_staff_id ?? null,
+      });
+    },
+    [],
+  );
+
+  const saveFollowUp = useCallback(
+    async (values: {
+      reason: string | null;
+      remindAt: string | null;
+      staffId: string | null;
+    }) => {
+      if (!restaurantId || !followUpTarget) return;
+      setSavingFollowUp(true);
+      const { ok, error } = await upsertConversationFollowUpClient({
+        restaurantId,
+        conversationKey: followUpTarget.conversationKey,
+        contactDisplayName: followUpTarget.displayName,
+        reason: values.reason,
+        remindAt: values.remindAt,
+        staffId: values.staffId,
+      });
+      setSavingFollowUp(false);
+      if (!ok) {
+        toast.error(error ?? "Später konnte nicht gespeichert werden.");
+        return;
+      }
+      toast.success(
+        values.staffId
+          ? "Als Später markiert — Todo für Mitarbeiter angelegt."
+          : "Als Später markiert.",
+      );
+      setFollowUpTarget(null);
+      void loadConversations({ silent: true, force: true });
+    },
+    [restaurantId, followUpTarget, loadConversations],
+  );
+
+  const clearFollowUp = useCallback(async () => {
+    if (!restaurantId || !followUpTarget) return;
+    setSavingFollowUp(true);
+    const { ok, error } = await clearConversationFollowUpClient({
+      restaurantId,
+      conversationKey: followUpTarget.conversationKey,
+    });
+    setSavingFollowUp(false);
+    if (!ok) {
+      toast.error(error ?? "Konnte nicht erledigt werden.");
+      return;
+    }
+    toast.success("Später erledigt.");
+    setFollowUpTarget(null);
+    void loadConversations({ silent: true, force: true });
+  }, [restaurantId, followUpTarget, loadConversations]);
 
   const threadErrorToast = useCallback((error: string) => {
     if (error === "no_contact_email") {
@@ -3013,6 +3092,7 @@ showReplyComposer ? (
               onChange={selectReadFilter}
               disabled={loadingList}
               unreadTotal={unreadInList}
+              laterTotal={laterInList}
             />
           </div>
           <CardContent
@@ -3043,9 +3123,11 @@ showReplyComposer ? (
                   ? "Keine ungelesenen Chats."
                   : readFilter === "read"
                     ? "Keine gelesenen Chats."
-                    : chatSearch.trim()
-                      ? `Keine Chats für „${chatSearch.trim()}“ gefunden.`
-                      : "Keine Chats gefunden."}
+                    : readFilter === "later"
+                      ? "Keine Chats für später markiert."
+                      : chatSearch.trim()
+                        ? `Keine Chats für „${chatSearch.trim()}“ gefunden.`
+                        : "Keine Chats gefunden."}
               </p>
             ) : (
               <ListPaginationSurround
@@ -3256,6 +3338,14 @@ showReplyComposer ? (
                                   Als ungelesen markieren
                                 </DropdownMenuItem>
                               )}
+                              <DropdownMenuItem
+                                onClick={() => openFollowUpSheet(c, listName)}
+                              >
+                                <Bookmark className="size-4" aria-hidden />
+                                {c.follow_up_id
+                                  ? "Später bearbeiten"
+                                  : "Später erledigen"}
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -3303,6 +3393,32 @@ showReplyComposer ? (
                             </span>
                           )}
                         </p>
+                        {c.follow_up_id ? (
+                          <Badge
+                            variant="outline"
+                            className="pointer-events-auto mt-1.5 mr-1.5 h-5 cursor-pointer gap-0.5 px-1.5 text-[10px] font-normal hover:bg-muted/60"
+                            render={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openFollowUpSheet(c, listName);
+                                }}
+                              />
+                            }
+                          >
+                            <Bookmark className="size-3" aria-hidden />
+                            Später
+                            {c.follow_up_staff_name ? (
+                              <span className="max-w-[6rem] truncate">
+                                · {c.follow_up_staff_name}
+                              </span>
+                            ) : null}
+                            {c.follow_up_remind_at ? (
+                              <Clock className="size-3 opacity-70" aria-hidden />
+                            ) : null}
+                          </Badge>
+                        ) : null}
                         {c.has_reservation_link && c.last_reservation_id ? (
                           <Badge
                             variant="outline"
@@ -3687,6 +3803,39 @@ showReplyComposer ? (
           inboxWorkspaceFullscreen
         }
         onAssign={assignIdentityToStaff}
+      />
+
+      <InboxFollowUpSheet
+        open={followUpTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setFollowUpTarget(null);
+        }}
+        restaurantId={restaurantId}
+        contactDisplayName={followUpTarget?.displayName ?? ""}
+        initial={
+          followUpTarget
+            ? {
+                reason: followUpTarget.reason,
+                remindAt: followUpTarget.remindAt,
+                staffId: followUpTarget.staffId,
+              }
+            : null
+        }
+        saving={savingFollowUp}
+        stackAboveInboxOverlay={
+          (threadOverlayOpen && Boolean(overlayThreadId)) ||
+          inboxWorkspaceFullscreen
+        }
+        onSave={saveFollowUp}
+        onClear={
+          conversations.some(
+            (c) =>
+              c.contact_id === followUpTarget?.conversationKey &&
+              Boolean(c.follow_up_id),
+          )
+            ? clearFollowUp
+            : undefined
+        }
       />
     </>
   );

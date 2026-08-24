@@ -1,6 +1,8 @@
 import "server-only";
 
 import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summary-server";
+import { listActiveFollowUpsForRestaurant } from "@/lib/contact-messages/conversation-follow-ups-server";
+import { dashboardMessageThreadHref } from "@/lib/contact-messages/messages-unread-summary";
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
@@ -131,6 +133,45 @@ async function buildMessagesModule(
   return {
     id: def.id,
     count: summary.total_unread,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
+async function buildMessagesFollowUpModule(
+  admin: SupabaseClient,
+  params: { restaurantId: string },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES.messages_follow_up;
+  const now = Date.now();
+  const rows = await listActiveFollowUpsForRestaurant(admin, params.restaurantId);
+  const due = rows
+    .filter((row) => {
+      if (!row.remind_at) return false;
+      const remindMs = new Date(row.remind_at).getTime();
+      if (Number.isNaN(remindMs) || remindMs > now) return false;
+      if (!row.reminded_at) return true;
+      const remindedMs = new Date(row.reminded_at).getTime();
+      return Number.isNaN(remindedMs) || remindedMs < remindMs;
+    })
+    .sort((a, b) => (a.remind_at ?? "").localeCompare(b.remind_at ?? ""));
+
+  const items: NotificationItem[] = due.slice(0, BELL_ITEMS_PER_MODULE).map((row) => ({
+    id: row.id,
+    title: row.contact_display_name?.trim() || "Nachricht später",
+    subtitle: row.reason?.trim() || row.staff_name || "Erinnerung fällig",
+    href: dashboardMessageThreadHref(row.conversation_key),
+    at: row.remind_at ?? row.updated_at,
+    meta: {
+      contactId: row.conversation_key,
+      followUpId: row.id,
+    },
+  }));
+
+  return {
+    id: def.id,
+    count: due.length,
     label: def.labelPlural,
     href: def.href,
     items,
@@ -333,6 +374,7 @@ const MODULE_BUILDERS: Record<
   ) => Promise<NotificationModuleSummary>
 > = {
   messages: (ctx) => buildMessagesModule(ctx.admin, ctx),
+  messages_follow_up: (ctx) => buildMessagesFollowUpModule(ctx.admin, ctx),
   reviews: (ctx) => buildReviewsModule(ctx.sb, ctx),
   changelog: (ctx) => buildChangelogModule(ctx.sb, ctx.userId),
   reservations_pending: (ctx) =>

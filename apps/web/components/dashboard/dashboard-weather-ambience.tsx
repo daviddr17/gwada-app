@@ -169,7 +169,7 @@ export function DashboardWeatherAmbience({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-0 overflow-hidden",
+        "pointer-events-none absolute inset-0 overflow-hidden rounded-xl",
         className,
       )}
       aria-hidden
@@ -183,7 +183,7 @@ export function DashboardWeatherAmbience({
       <DriftingOrb
         animate={animate}
         className={cn(
-          "-left-[12%] top-[-18%] size-[58%]",
+          "-left-[6%] -top-[8%] size-[52%]",
           palette.orbA,
         )}
       />

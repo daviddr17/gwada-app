@@ -199,7 +199,7 @@ export function DashboardWeatherTile() {
         pressAriaLabel="Wetterprognose anzeigen"
         background={
           cur ? (
-            <DashboardWeatherAmbience kind={ambienceKind} className="rounded-none" />
+            <DashboardWeatherAmbience kind={ambienceKind} />
           ) : undefined
         }
       >

@@ -87,7 +87,7 @@ export function DashboardWidgetShell({
       className={cn(
         "min-w-0 border-border/50 shadow-card",
         cardClassName,
-        layered && "relative overflow-hidden",
+        layered && "relative isolate overflow-hidden",
         interactive && "cursor-pointer transition-colors hover:bg-muted/30",
       )}
       role={interactive ? "button" : undefined}

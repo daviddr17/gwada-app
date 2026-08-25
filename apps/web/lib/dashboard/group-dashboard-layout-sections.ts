@@ -23,8 +23,8 @@ export function groupDashboardLayoutSections(
 }
 
 /**
- * Volle Breite (Heute) nicht in CSS-Columns packen: `column-span: all`
- * lässt die rechte Spalte in Chrome/Safari oft tiefer starten als die linke.
+ * Volle Breite (Heute) nicht ins Zweispalter-Grid packen — eigene Zeile darüber,
+ * damit Reservierungen/Wetter in Zeile 1 links/rechts auf einer Linie starten.
  */
 export function groupDashboardMasonryRuns(
   sections: DashboardLayoutSection[],

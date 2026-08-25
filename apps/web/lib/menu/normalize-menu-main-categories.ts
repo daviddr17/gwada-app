@@ -62,10 +62,12 @@ export function remapCategoryMainCategoryIds(
   );
 
   return categories.map((cat) => {
-    const nameKey = idToName.get(cat.mainCategoryId);
+    const mainCategoryId = cat.mainCategoryId;
+    if (!mainCategoryId) return cat;
+    const nameKey = idToName.get(mainCategoryId);
     if (!nameKey) return cat;
     const canonicalId = canonicalByName.get(nameKey);
-    if (!canonicalId || canonicalId === cat.mainCategoryId) return cat;
+    if (!canonicalId || canonicalId === mainCategoryId) return cat;
     return { ...cat, mainCategoryId: canonicalId };
   });
 }

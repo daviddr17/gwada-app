@@ -7,6 +7,9 @@ import {
 import { loadRelationalOrLegacyMigrate, migrateMenuMainCategoriesIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import { loadMenuMainCategoriesRelational } from "@/lib/supabase/menu-db";
 import {
+  dedupeMenuMainCategories,
+} from "@/lib/menu/normalize-menu-main-categories";
+import {
   getWorkspaceRestaurantId,
   loadWorkspaceJsonLocal,
   mirrorWorkspaceJsonLocal,
@@ -70,7 +73,7 @@ export async function fetchMenuMainCategoriesForRestaurant(): Promise<
       )
     : await loadMenuMainCategoriesRelational(rid);
   if (rows && rows.length > 0) {
-    const next = rows.map(normalizeMainCategory);
+    const next = dedupeMenuMainCategories(rows.map(normalizeMainCategory));
     mirrorWorkspaceJsonLocal(MAIN_CATEGORY_STORAGE_KEY, next);
     return next;
   }

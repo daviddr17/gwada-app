@@ -154,7 +154,6 @@ export function hasDashboardWidgetAccess(
   options?: DashboardWidgetAccessOptions,
 ): boolean {
   if (widgetId === "weather") {
-    if (options?.weatherLoading) return false;
     return options?.weatherAvailable === true;
   }
   if (widgetId === "heute") {

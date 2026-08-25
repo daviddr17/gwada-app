@@ -15,7 +15,7 @@ import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timez
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
 
-const MAX_ROWS = 6;
+const MAX_ROWS = 5;
 
 function formatWhen(iso: string, timeZone: string): string {
   if (isSameRestaurantCalendarDay(iso, new Date(), timeZone)) {

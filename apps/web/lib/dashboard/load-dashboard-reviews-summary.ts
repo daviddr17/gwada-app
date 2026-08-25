@@ -5,9 +5,7 @@ import {
   type ReviewPlatform,
 } from "@/lib/constants/review-platforms";
 import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
-import { enrichGwadaReviewsWithContactIds } from "@/lib/reviews/contact-gwada-review-server";
 import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { readPlatformSyncMeta, readReviewsFeedFromCache } from "@/lib/reviews/reviews-feed-read-server";
 import {
   fetchReviewPlatformMessagingFlags,
@@ -86,7 +84,8 @@ export async function loadDashboardReviewsSummary(
   // Recent (voll) + Ratings-Sample (schlank) parallel — kein 500er Full-Row-Payload.
   const [
     gwadaRecentResult,
-    gwadaRatingsResult,
+    gwadaCountResult,
+    gwadaAvgResult,
     googleIntegration,
     facebookIntegration,
     tripadvisorIntegration,
@@ -103,10 +102,13 @@ export async function loadDashboardReviewsSummary(
       .limit(8),
     sb
       .from("gwada_reviews")
-      .select("rating", { count: "exact" })
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId),
+    sb
+      .from("gwada_reviews")
+      .select("avg(rating)")
       .eq("restaurant_id", restaurantId)
-      .order("created_at", { ascending: false })
-      .limit(500),
+      .maybeSingle(),
     fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
       oauthConfigFromJson(raw),
     ),
@@ -114,30 +116,20 @@ export async function loadDashboardReviewsSummary(
       oauthConfigFromJson(raw),
     ),
     fetchRestaurantTripadvisorConfigAdmin(restaurantId),
-    readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook", "tripadvisor"]),
+    readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook", "tripadvisor"], {
+      recentPerPlatform: 8,
+    }),
     fetchReviewPlatformMessagingFlags(sb),
   ]);
 
   const gwadaRecentRows = gwadaRecentResult.data ?? [];
-  const gwadaRatingRows = gwadaRatingsResult.data ?? [];
-  const gwadaCount = gwadaRatingsResult.count ?? gwadaRatingRows.length;
-  const gwadaAvg = averageRating(
-    gwadaRatingRows.map((r) => ({ rating: Number(r.rating) })),
-  );
-
-  const admin = createSupabaseAdminClient();
-  const contactByReviewId =
-    admin && gwadaRecentRows.length > 0
-      ? await enrichGwadaReviewsWithContactIds(
-          admin,
-          restaurantId,
-          gwadaRecentRows.map((r) => ({
-            id: r.id as string,
-            reservation_id: (r.reservation_id as string | null) ?? null,
-            invitation_id: r.invitation_id as string,
-          })),
-        )
-      : new Map<string, string>();
+  const gwadaCount = gwadaCountResult.count ?? 0;
+  const gwadaAvgRaw = (gwadaAvgResult.data as { avg?: number | string | null } | null)
+    ?.avg;
+  const gwadaAvg =
+    gwadaAvgRaw != null && String(gwadaAvgRaw).length > 0
+      ? Number(gwadaAvgRaw)
+      : null;
 
   const gwadaReviews: UnifiedReview[] = gwadaRecentRows.map((r) => ({
     id: r.id as string,
@@ -149,7 +141,7 @@ export async function loadDashboardReviewsSummary(
     reply: null,
     canReply: false,
     externalUrl: null,
-    contactId: contactByReviewId.get(r.id as string) ?? null,
+    contactId: null,
   }));
 
 
@@ -177,14 +169,23 @@ export async function loadDashboardReviewsSummary(
       ? googleMeta.averageRating
       : averageRating(googleCached);
 
+  const facebookMeta = readPlatformSyncMeta(cachedFeed.syncRows, "facebook");
   const facebookCached = cachedFeed.reviews.filter((r) => r.platform === "facebook");
   const facebookConnected =
     facebookIntegrationOk &&
     (facebookCached.length > 0 || !cachedFeed.sync.platformErrors.facebook);
 
   const facebookRecent = facebookCached.slice(0, 8);
-  const facebookCount = facebookCached.length;
-  const facebookAvg = facebookConnected ? averageRating(facebookCached) : null;
+  const facebookCount =
+    typeof facebookMeta.totalReviewCount === "number"
+      ? facebookMeta.totalReviewCount
+      : facebookCached.length;
+  const facebookAvg =
+    typeof facebookMeta.averageRating === "number"
+      ? facebookMeta.averageRating
+      : facebookConnected
+        ? averageRating(facebookCached)
+        : null;
 
   const tripadvisorMeta = readPlatformSyncMeta(cachedFeed.syncRows, "tripadvisor");
   const tripadvisorCached = cachedFeed.reviews.filter(

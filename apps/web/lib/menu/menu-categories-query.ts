@@ -5,7 +5,7 @@ import {
   DEFAULT_CATEGORIES,
 } from "@/lib/constants/categories";
 import { migrateMenuCategoriesFromLegacyAppStateIfEmpty, migrateMenuMainCategoriesIfEmpty, loadRelationalOrLegacyMigrate } from "@/lib/supabase/app-state-relational-migration";
-import { loadMenuCategoriesRelational } from "@/lib/supabase/menu-db";
+import { loadMenuCategoriesRelational, loadMenuMainCategoriesRelational } from "@/lib/supabase/menu-db";
 import {
   getWorkspaceRestaurantId,
   loadWorkspaceJsonLocal,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/supabase/workspace-persistence";
 import type { MenuCategoryDefinition } from "@/lib/types/menu";
 import { defaultMenuMainCategories } from "@/lib/menu/menu-main-categories-query";
+import { remapCategoryMainCategoryIds } from "@/lib/menu/normalize-menu-main-categories";
 
 function normalizeCategory(c: MenuCategoryDefinition): MenuCategoryDefinition {
   return {
@@ -77,7 +78,11 @@ export async function fetchMenuCategoriesForRestaurant(): Promise<
       )
     : await loadMenuCategoriesRelational(rid);
   if (rows && rows.length > 0) {
-    const next = rows.map(normalizeCategory);
+    const mainRows = (await loadMenuMainCategoriesRelational(rid)) ?? [];
+    const next = remapCategoryMainCategoryIds(
+      rows.map(normalizeCategory),
+      mainRows,
+    ).map(normalizeCategory);
     mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next);
     return next;
   }

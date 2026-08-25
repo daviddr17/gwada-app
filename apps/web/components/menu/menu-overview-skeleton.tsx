@@ -49,14 +49,22 @@ export function MenuOverviewSkeleton({
         <Skeleton className="size-8 shrink-0 rounded-full" />
       </div>
 
+      <div className="-mx-4 mb-3 px-4 sm:-mx-6 sm:px-6">
+        <Skeleton className="h-10 w-full max-w-xl rounded-xl" />
+      </div>
+
       <div className="sticky z-[15] -mx-4 border-b border-border/40 bg-background/90 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6">
         <div className="space-y-3">
-          <Skeleton className="h-10 w-full max-w-xl rounded-xl" />
           <div className="flex flex-wrap gap-2">
             <Skeleton className="h-9 w-24 rounded-full" />
             <Skeleton className="h-9 w-28 rounded-full" />
             <Skeleton className="h-9 w-20 rounded-full" />
             <Skeleton className="h-9 w-32 rounded-full" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Skeleton className="h-9 w-24 rounded-full" />
+            <Skeleton className="h-9 w-28 rounded-full" />
+            <Skeleton className="h-9 w-20 rounded-full" />
           </div>
         </div>
       </div>

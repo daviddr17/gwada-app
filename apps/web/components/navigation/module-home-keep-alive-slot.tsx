@@ -24,9 +24,12 @@ export type ModuleHomeKeepAliveRenderProps = {
  */
 export function ModuleHomeKeepAliveSlot({
   id,
+  className,
   children,
 }: {
   id: ModuleHomeId;
+  /** z. B. Nachrichten: `lg:h-full lg:overflow-hidden` — Scrollport füllen. */
+  className?: string;
   children: (slot: ModuleHomeKeepAliveRenderProps) => ReactNode;
 }) {
   const pathname = usePathname();
@@ -81,6 +84,7 @@ export function ModuleHomeKeepAliveSlot({
             : "absolute inset-0 z-10 min-h-full bg-background"
           : "hidden",
         !interactive && "pointer-events-none",
+        className,
       )}
       aria-hidden={!interactive}
       {...(!interactive ? ({ inert: "" } as Record<string, string>) : {})}

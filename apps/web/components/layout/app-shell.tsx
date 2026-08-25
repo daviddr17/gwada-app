@@ -211,7 +211,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <AppBrandedBackground accentHex={accentHex} intensity="hint" />
           </div>
         ) : null}
-        <div className="relative z-[1] min-h-full">
+        <div className="relative z-[1] h-full min-h-full">
           <WorkspaceZoneTransition>
             {children}
           </WorkspaceZoneTransition>

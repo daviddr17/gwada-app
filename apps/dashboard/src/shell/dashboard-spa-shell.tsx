@@ -206,7 +206,7 @@ function DashboardSpaInset() {
             <AppBrandedBackground accentHex={accentHex} intensity="hint" />
           </div>
         ) : null}
-        <div className="relative z-[1] min-h-full">
+        <div className="relative z-[1] h-full min-h-full">
           <Outlet />
           {/* Soft-Nav: Modul-Homes warm — Sibling, kein Route-Unmount */}
           <AppModuleHomeKeepAlives />

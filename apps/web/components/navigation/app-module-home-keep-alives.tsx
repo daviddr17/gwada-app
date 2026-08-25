@@ -16,6 +16,7 @@ import { PosOverviewKeepAliveScreen } from "@/components/pos/pos-overview-keep-a
 import { ReservationsOverviewKeepAliveScreen } from "@/components/reservations/reservations-overview-keep-alive-screen";
 import { ReviewsOverviewKeepAliveScreen } from "@/components/reviews/reviews-overview-keep-alive-screen";
 import { StaffOverviewKeepAliveScreen } from "@/components/staff/staff-overview-keep-alive-screen";
+import { messagesInboxDesktopKeepAliveSlotClassName } from "@/lib/ui/messages-inbox-desktop-layout";
 
 /** Alle warmen Modul-Homes — Sibling zu Route-Children in der App-Shell. */
 export function AppModuleHomeKeepAlives() {
@@ -60,7 +61,10 @@ export function AppModuleHomeKeepAlives() {
           />
         )}
       </ModuleHomeKeepAliveSlot>
-      <ModuleHomeKeepAliveSlot id="nachrichten">
+      <ModuleHomeKeepAliveSlot
+        id="nachrichten"
+        className={messagesInboxDesktopKeepAliveSlotClassName}
+      >
         {({ active, showChrome }) => (
           <ContactsMessagesKeepAliveScreen
             active={active}

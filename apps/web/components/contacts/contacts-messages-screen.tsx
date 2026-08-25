@@ -9,6 +9,7 @@ import {
   useState,
   startTransition,
 } from "react";
+import { flushSync } from "react-dom";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   ArrowLeft,
@@ -149,6 +150,10 @@ import {
   peekContactThreadCache,
   setContactThreadCache,
 } from "@/lib/contact-messages/contact-thread-cache";
+import {
+  inboxNeighborContactIds,
+  resolveInboxOverlayThreadId,
+} from "@/lib/contact-messages/inbox-overlay-thread-id";
 import { setInboxLiveToastSuppressedByOpenThread } from "@/lib/contact-messages/inbox-live-toast-gate";
 import { fetchContactThreadPageClient } from "@/lib/contact-messages/fetch-contact-thread-client";
 import {
@@ -494,8 +499,11 @@ export function ContactsMessagesScreen({
   const [closingThreadId, setClosingThreadId] = useState<string | null>(null);
   /** Sofort nach Klick, bevor Soft-Nav `?contact=` setzt — Split-Pane ohne Wartezeit. */
   const [pendingContactId, setPendingContactId] = useState<string | null>(null);
-  const overlayThreadId =
-    contactParam ?? pendingContactId ?? closingThreadId;
+  const overlayThreadId = resolveInboxOverlayThreadId({
+    pendingContactId,
+    contactParam,
+    closingThreadId,
+  });
   const effectiveThreadContactId = overlayThreadId;
   const [sending, setSending] = useState(false);
   const [editingWahaMessage, setEditingWahaMessage] = useState<{
@@ -581,13 +589,13 @@ export function ContactsMessagesScreen({
       setInboxLiveToastSuppressedByOpenThread(false);
       return;
     }
-    setInboxLiveToastSuppressedByOpenThread(Boolean(contactParam));
+    setInboxLiveToastSuppressedByOpenThread(Boolean(overlayThreadId));
     return () => setInboxLiveToastSuppressedByOpenThread(false);
-  }, [active, contactParam]);
+  }, [active, overlayThreadId]);
 
   useEffect(() => {
     setEditingWahaMessage(null);
-  }, [contactParam]);
+  }, [overlayThreadId]);
 
   const applyContactThreadCache = useCallback(
     (restaurantUuid: string, threadContactId: string) => {
@@ -647,10 +655,6 @@ export function ContactsMessagesScreen({
     isLinkedContactId(effectiveThreadContactId!);
 
   const threadLoadSeqRef = useRef(0);
-  const pendingContactIdRef = useRef(pendingContactId);
-  pendingContactIdRef.current = pendingContactId;
-  const contactParamRef = useRef(contactParam);
-  contactParamRef.current = contactParam;
   /** Aktuell gewünschter Thread — überlebt stale Closures während async Fetch. */
   const openThreadIdRef = useRef<string | null>(null);
   /** Einmal skip: openConversation lädt/refresht — kein zweiter Fetch nach URL-Sync. */
@@ -698,7 +702,7 @@ export function ContactsMessagesScreen({
     hasInstagramId || inferredReachability.hasInstagramId;
 
   const linkedReplyChannels = useMemo(() => {
-    if (!linkedThread || !contactParam) {
+    if (!linkedThread || !effectiveThreadContactId) {
       return {
         canWhatsapp: false,
         canEmail: false,
@@ -717,16 +721,18 @@ export function ContactsMessagesScreen({
       facebookConnected,
       instagramEnabled,
       instagramConnected,
-      hasPhone: isWahaPseudoContactId(contactParam)
+      hasPhone: isWahaPseudoContactId(effectiveThreadContactId)
         ? true
         : effectiveHasPhone,
-      hasEmail: isEmailPseudoContactId(contactParam) ? true : effectiveHasEmail,
+      hasEmail: isEmailPseudoContactId(effectiveThreadContactId)
+        ? true
+        : effectiveHasEmail,
       hasFacebookId: effectiveHasFacebookId,
       hasInstagramId: effectiveHasInstagramId,
     });
   }, [
     linkedThread,
-    contactParam,
+    effectiveThreadContactId,
     whatsappEnabled,
     whatsappConnected,
     emailEnabled,
@@ -759,15 +765,21 @@ export function ContactsMessagesScreen({
   );
 
   const whatsappHeaderSubtitle = useMemo(() => {
-    if (!contactParam || linkedThread) return null;
-    if (inboxFilter !== "whatsapp" && !isWahaPseudoContactId(contactParam)) {
+    if (!effectiveThreadContactId || linkedThread) return null;
+    if (
+      inboxFilter !== "whatsapp" &&
+      !isWahaPseudoContactId(effectiveThreadContactId)
+    ) {
       return null;
     }
     const loaded = whatsappThreadPhone?.trim();
     if (loaded) return loaded;
 
-    if (contactParam && isWahaPseudoContactId(contactParam)) {
-      const chatId = wahaChatIdFromPseudoContactId(contactParam);
+    if (
+      effectiveThreadContactId &&
+      isWahaPseudoContactId(effectiveThreadContactId)
+    ) {
+      const chatId = wahaChatIdFromPseudoContactId(effectiveThreadContactId);
       if (chatId) {
         const fromChat = phoneSubtitleFromChatId(chatId, defaultCountryIso2);
         if (fromChat) return fromChat;
@@ -780,7 +792,7 @@ export function ContactsMessagesScreen({
     return null;
   }, [
     inboxFilter,
-    contactParam,
+    effectiveThreadContactId,
     linkedThread,
     whatsappThreadPhone,
     contactName,
@@ -1216,11 +1228,13 @@ export function ContactsMessagesScreen({
   }) => {
     const threadContactId = opts?.contactId ?? contactParam;
     if (!restaurantId || !threadContactId) {
-      setMessages([]);
-      setWhatsappThreadPhone(null);
-      setLoadingThread(false);
-      setThreadHasMore(false);
-      setThreadOldestCursor(null);
+      if (!openThreadIdRef.current) {
+        setMessages([]);
+        setWhatsappThreadPhone(null);
+        setLoadingThread(false);
+        setThreadHasMore(false);
+        setThreadOldestCursor(null);
+      }
       return;
     }
 
@@ -1265,13 +1279,10 @@ export function ContactsMessagesScreen({
       });
 
     if (seq !== threadLoadSeqRef.current) return;
-    // Refs statt Closure: openConversation startet den Fetch oft noch mit altem
-    // contactParam; pending wird beim URL-Sync genullt — sonst verwerfen wir
-    // die Antwort und der Chat bleibt leer / ewig am Laden.
-    const stillOpen =
-      openThreadIdRef.current === threadContactId ||
-      contactParamRef.current === threadContactId ||
-      pendingContactIdRef.current === threadContactId;
+    // Nur der zuletzt angeklickte Thread. contactParam/pending dürfen nicht
+    // "noch offen" sagen — sonst überschreibt der langsame Fetch von A den
+    // schon sichtbaren Chat B.
+    const stillOpen = openThreadIdRef.current === threadContactId;
     if (!stillOpen) {
       setLoadingThread(false);
       return;
@@ -1397,9 +1408,10 @@ export function ContactsMessagesScreen({
   ]);
 
   const loadOlderThreadMessages = useCallback(async () => {
+    const olderContactId = overlayThreadId;
     if (
       !restaurantId ||
-      !contactParam ||
+      !olderContactId ||
       !threadOldestCursor ||
       loadingOlderMessages ||
       !threadHasMore
@@ -1410,11 +1422,12 @@ export function ContactsMessagesScreen({
     const { data, hasMore, oldestCursor, error } =
       await fetchContactThreadPageClient({
         restaurantId,
-        contactId: contactParam,
+        contactId: olderContactId,
         before: threadOldestCursor,
         limit: CONTACT_THREAD_PAGE_SIZE,
       });
     setLoadingOlderMessages(false);
+    if (openThreadIdRef.current !== olderContactId) return;
     if (error) {
       toast.error(threadErrorToast(error));
       return;
@@ -1426,7 +1439,7 @@ export function ContactsMessagesScreen({
     setThreadOldestCursor(oldestCursor);
   }, [
     restaurantId,
-    contactParam,
+    overlayThreadId,
     threadOldestCursor,
     loadingOlderMessages,
     threadHasMore,
@@ -1435,8 +1448,8 @@ export function ContactsMessagesScreen({
 
   const patchThreadCache = useCallback(
     (next: ContactMessageRow[]) => {
-      if (!restaurantId || !contactParam) return;
-      setContactThreadCache(restaurantId, contactParam, {
+      if (!restaurantId || !overlayThreadId) return;
+      setContactThreadCache(restaurantId, overlayThreadId, {
         messages: next,
         contactName: contactNameRef.current,
         threadAvatarUrl,
@@ -1449,7 +1462,7 @@ export function ContactsMessagesScreen({
     },
     [
       restaurantId,
-      contactParam,
+      overlayThreadId,
       threadAvatarUrl,
       hasPhone,
       hasEmail,
@@ -1608,8 +1621,10 @@ export function ContactsMessagesScreen({
   }, [restaurantId]);
 
   useLayoutEffect(() => {
-    if (!restaurantId || !contactParam) {
-      if (!contactParam) setLoadingThread(false);
+    if (!restaurantId) return;
+    if (!contactParam) {
+      // Klick ohne URL-Sync: Loading nicht killen — sonst leerer Chat statt Skeleton.
+      if (!pendingContactId) setLoadingThread(false);
       return;
     }
     // URL hinkt hinter openConversation — stale contactParam nicht anwenden.
@@ -1641,6 +1656,12 @@ export function ContactsMessagesScreen({
       if (connectionsLoading) return;
       const hasInboxCache = Boolean(peekUnifiedInboxCache(restaurantId)?.length);
       void loadConversations(hasInboxCache ? { silent: true } : undefined);
+      return;
+    }
+
+    // URL hinkt hinter dem Klick — openThreadIdRef nicht auf Chat A zurücksetzen
+    // und keinen stale loadThread(A) starten, während B schon sichtbar ist.
+    if (pendingContactId && pendingContactId !== contactParam) {
       return;
     }
 
@@ -2025,6 +2046,44 @@ export function ContactsMessagesScreen({
     [],
   );
 
+  const prefetchConversationThread = useCallback(
+    (contactId: string) => {
+      if (!restaurantId || !contactId) return;
+      if (peekContactThreadCache(restaurantId, contactId)?.messages.length) {
+        return;
+      }
+      if (threadPrefetchInFlightRef.current.has(contactId)) return;
+      threadPrefetchInFlightRef.current.add(contactId);
+      const promise = fetchContactThreadPageClient({
+        restaurantId,
+        contactId,
+        limit: CONTACT_THREAD_PAGE_SIZE,
+      })
+        .then(({ data, contact, error }) => {
+          if (error || !data.length) return;
+          setContactThreadCache(restaurantId, contactId, {
+            messages: data,
+            contactName: contact?.name ?? "Kontakt",
+            threadAvatarUrl: contact?.avatarUrl ?? null,
+            hasPhone: contact?.hasPhone ?? false,
+            hasEmail: contact?.hasEmail ?? false,
+            hasFacebookId: contact?.hasFacebookId ?? false,
+            hasInstagramId: contact?.hasInstagramId ?? false,
+            whatsappThreadChatId: contact?.whatsappThreadChatId ?? null,
+          });
+        })
+        .finally(() => {
+          threadPrefetchInFlightRef.current.delete(contactId);
+          threadPrefetchPromisesRef.current.delete(contactId);
+        });
+      threadPrefetchPromisesRef.current.set(contactId, promise);
+    },
+    [restaurantId],
+  );
+
+  const prefetchConversationThreadRef = useRef(prefetchConversationThread);
+  prefetchConversationThreadRef.current = prefetchConversationThread;
+
   const openConversation = (contactId: string) => {
     if (
       openThreadIdRef.current === contactId &&
@@ -2041,33 +2100,46 @@ export function ContactsMessagesScreen({
     // Sofort Pane + Titel — nicht auf Soft-Nav/`?contact=` warten.
     openThreadIdRef.current = contactId;
     skipContactParamLoadRef.current = contactId;
-    setPendingContactId(contactId);
-    setClosingThreadId(null);
-    if (!isLgUp) {
-      const root = getAppScrollRoot();
-      if (root) mobileInboxListScrollTopRef.current = root.scrollTop;
-      setThreadOverlayOpen(true);
-    }
 
-    if (hasCache && cached) {
-      applyThreadFromCache(cached);
-    } else {
-      setHasPhone(false);
-      setHasEmail(false);
-      setHasFacebookId(false);
-      setHasInstagramId(false);
-      const previewTitle = pickContactThreadTitle(
-        preview?.contact_name,
-        wahaThreadTitleFromPreview(preview),
-      );
-      if (previewTitle !== "Kontakt") setContactName(previewTitle);
-      if (preview) {
-        setThreadAvatarUrl(inboxConversationAvatarUrl(preview));
+    flushSync(() => {
+      setPendingContactId(contactId);
+      setClosingThreadId(null);
+      setEditingWahaMessage(null);
+      setThreadHasMore(false);
+      setThreadOldestCursor(null);
+      if (!isLgUp) {
+        const root = getAppScrollRoot();
+        if (root) mobileInboxListScrollTopRef.current = root.scrollTop;
+        setThreadOverlayOpen(true);
       }
-      setMessages([]);
-      setWhatsappThreadPhone(null);
-      setWhatsappThreadChatId(null);
-      setLoadingThread(true);
+
+      if (hasCache && cached) {
+        applyThreadFromCache(cached);
+      } else {
+        setHasPhone(false);
+        setHasEmail(false);
+        setHasFacebookId(false);
+        setHasInstagramId(false);
+        const previewTitle = pickContactThreadTitle(
+          preview?.contact_name,
+          wahaThreadTitleFromPreview(preview),
+        );
+        if (previewTitle !== "Kontakt") setContactName(previewTitle);
+        if (preview) {
+          setThreadAvatarUrl(inboxConversationAvatarUrl(preview));
+        }
+        setMessages([]);
+        setWhatsappThreadPhone(null);
+        setWhatsappThreadChatId(null);
+        setLoadingThread(true);
+      }
+    });
+
+    for (const neighborId of inboxNeighborContactIds(
+      conversationsRef.current,
+      contactId,
+    )) {
+      prefetchConversationThread(neighborId);
     }
 
     const runThreadLoad = (silent: boolean) => {
@@ -2109,52 +2181,19 @@ export function ContactsMessagesScreen({
     });
   };
 
-  const prefetchConversationThread = useCallback(
-    (contactId: string) => {
-      if (!restaurantId || !contactId) return;
-      if (peekContactThreadCache(restaurantId, contactId)?.messages.length) {
-        return;
-      }
-      if (threadPrefetchInFlightRef.current.has(contactId)) return;
-      threadPrefetchInFlightRef.current.add(contactId);
-      const promise = fetchContactThreadPageClient({
-        restaurantId,
-        contactId,
-        limit: CONTACT_THREAD_PAGE_SIZE,
-      })
-        .then(({ data, contact, error }) => {
-          if (error || !data.length) return;
-          setContactThreadCache(restaurantId, contactId, {
-            messages: data,
-            contactName: contact?.name ?? "Kontakt",
-            threadAvatarUrl: contact?.avatarUrl ?? null,
-            hasPhone: contact?.hasPhone ?? false,
-            hasEmail: contact?.hasEmail ?? false,
-            hasFacebookId: contact?.hasFacebookId ?? false,
-            hasInstagramId: contact?.hasInstagramId ?? false,
-            whatsappThreadChatId: contact?.whatsappThreadChatId ?? null,
-          });
-        })
-        .finally(() => {
-          threadPrefetchInFlightRef.current.delete(contactId);
-          threadPrefetchPromisesRef.current.delete(contactId);
-        });
-      threadPrefetchPromisesRef.current.set(contactId, promise);
-    },
-    [restaurantId],
-  );
-
-  const prefetchConversationThreadRef = useRef(prefetchConversationThread);
-  prefetchConversationThreadRef.current = prefetchConversationThread;
-
   useEffect(() => {
-    if (!active || !restaurantId || contactParam) return;
-    if (!isUnifiedInboxFilter(inboxFilter)) return;
+    if (!active || !restaurantId) return;
     if (conversations.length === 0) return;
 
     const warmTopThreads = () => {
       for (const row of conversations.slice(0, 12)) {
         prefetchConversationThreadRef.current(row.contact_id);
+      }
+      for (const neighborId of inboxNeighborContactIds(
+        conversations,
+        overlayThreadId,
+      )) {
+        prefetchConversationThreadRef.current(neighborId);
       }
     };
 
@@ -2171,7 +2210,7 @@ export function ContactsMessagesScreen({
     }
     const timer = window.setTimeout(warmMoreThreads, 200);
     return () => window.clearTimeout(timer);
-  }, [active, restaurantId, contactParam, inboxFilter, conversations]);
+  }, [active, restaurantId, overlayThreadId, conversations]);
 
   const restoreMobileInboxListScroll = useCallback(() => {
     if (isLgUp) return;
@@ -2435,7 +2474,7 @@ export function ContactsMessagesScreen({
 
   const restaurantName = profile.name.trim() || undefined;
   const canSendViaExternal =
-    Boolean(contactParam) &&
+    Boolean(overlayThreadId) &&
     linkedThread &&
     (linkedReplyChannels.canWhatsapp ||
       linkedReplyChannels.canEmail ||
@@ -2443,20 +2482,20 @@ export function ContactsMessagesScreen({
       linkedReplyChannels.canInstagram);
 
   const metaThreadPlatform = useMemo((): "facebook" | "instagram" | null => {
-    if (!contactParam) return null;
-    const p = metaPlatformFromPseudoContactId(contactParam);
+    if (!overlayThreadId) return null;
+    const p = metaPlatformFromPseudoContactId(overlayThreadId);
     return p === "facebook" || p === "instagram" ? p : null;
-  }, [contactParam]);
+  }, [overlayThreadId]);
 
   const canReply =
-    contactParam != null &&
+    overlayThreadId != null &&
     (linkedThread
       ? canSendViaExternal
-      : isWahaPseudoContactId(contactParam)
+      : isWahaPseudoContactId(overlayThreadId)
         ? whatsappConnected
-        : isEmailPseudoContactId(contactParam)
+        : isEmailPseudoContactId(overlayThreadId)
           ? emailConnected
-          : isMetaPseudoContactId(contactParam)
+          : isMetaPseudoContactId(overlayThreadId)
             ? metaThreadPlatform === "facebook"
               ? facebookConnected
               : metaThreadPlatform === "instagram"
@@ -2485,7 +2524,7 @@ export function ContactsMessagesScreen({
     messageId: string;
     body: string;
   }) => {
-    if (!restaurantId || !whatsappThreadChatId || !contactParam) return;
+    if (!restaurantId || !whatsappThreadChatId || !overlayThreadId) return;
     const trimmed = body.trim();
     if (!trimmed) return;
     const previousBody = editingWahaMessage?.initialBody;
@@ -2500,7 +2539,7 @@ export function ContactsMessagesScreen({
         chatId: whatsappThreadChatId,
         messageId,
         text: trimmed,
-        contactId: contactParam,
+        contactId: overlayThreadId,
         previousText: previousBody,
       });
       if (!result.ok) {
@@ -2534,17 +2573,20 @@ export function ContactsMessagesScreen({
   );
 
   const handleWahaReactionChange = useCallback(() => {
-    void loadThread({ silent: true });
-  }, [loadThread]);
+    if (!overlayThreadId) return;
+    void loadThread({ silent: true, contactId: overlayThreadId });
+  }, [loadThread, overlayThreadId]);
 
   const handleWahaMessageDeleted = useCallback(() => {
     void loadConversations({ silent: true });
   }, [loadConversations]);
 
   const handleMetaReactionChange = useCallback(() => {
-    void loadThread({ silent: true });
+    if (overlayThreadId) {
+      void loadThread({ silent: true, contactId: overlayThreadId });
+    }
     void loadConversations({ silent: true });
-  }, [loadThread, loadConversations]);
+  }, [loadThread, loadConversations, overlayThreadId]);
 
   const threadHasWhatsappMessages = useMemo(
     () => displayMessages.some((m) => messageDisplayPlatform(m) === "whatsapp"),
@@ -2634,7 +2676,8 @@ export function ContactsMessagesScreen({
     files?: File[];
     voiceNote?: File;
   }) => {
-    if (!restaurantId || !contactParam || !canReply) return;
+    if (!restaurantId || !overlayThreadId || !canReply) return;
+    const sendContactId = overlayThreadId;
 
     setSending(true);
 
@@ -2683,11 +2726,11 @@ export function ContactsMessagesScreen({
 
       let optimisticWhatsapp: ContactMessageRow | null = null;
       let whatsappClientSendId: string | undefined;
-      if ((sendWhatsapp || voiceNote) && contactParam) {
+      if ((sendWhatsapp || voiceNote) && sendContactId) {
         whatsappClientSendId = crypto.randomUUID();
         optimisticWhatsapp = createOptimisticOutboundWhatsappMessage({
           restaurantId,
-          contactId: contactParam,
+          contactId: sendContactId,
           body,
           files,
           voiceNote,
@@ -2703,7 +2746,7 @@ export function ContactsMessagesScreen({
 
       const result = await triggerSendContactMessage({
         restaurantId,
-        contactId: contactParam,
+        contactId: sendContactId,
         messageBody: body,
         direction: "outbound",
         channels,
@@ -2723,18 +2766,18 @@ export function ContactsMessagesScreen({
         if (sendWhatsapp || (voiceNote && channels.includes("whatsapp"))) {
           applyWhatsappSendSuccess(optimisticWhatsapp, result);
         } else {
-          void loadThread({ silent: true });
+          void loadThread({ silent: true, contactId: sendContactId });
         }
         void loadConversations({ silent: true });
       }
       return;
     }
 
-    if (isWahaPseudoContactId(contactParam)) {
+    if (isWahaPseudoContactId(sendContactId)) {
       const whatsappClientSendId = crypto.randomUUID();
       const optimisticWhatsapp = createOptimisticOutboundWhatsappMessage({
         restaurantId,
-        contactId: contactParam,
+        contactId: sendContactId,
         body,
         files,
         voiceNote,
@@ -2745,7 +2788,7 @@ export function ContactsMessagesScreen({
 
       const result = await triggerWahaSendMessage({
         restaurantId,
-        wahaContactId: contactParam,
+        wahaContactId: sendContactId,
         messageBody: body,
         clientSendId: whatsappClientSendId,
         files,
@@ -2765,18 +2808,18 @@ export function ContactsMessagesScreen({
       return;
     }
 
-    if (isEmailPseudoContactId(contactParam)) {
-      const result = isEmailPseudoContactId(contactParam)
+    if (isEmailPseudoContactId(sendContactId)) {
+      const result = isEmailPseudoContactId(sendContactId)
         ? await triggerEmailInboxSend({
             restaurantId,
-            emailContactId: contactParam,
+            emailContactId: sendContactId,
             messageBody: body,
             restaurantName,
             files,
           })
         : await triggerEmailInboxSend({
             restaurantId,
-            contactId: contactParam,
+            contactId: sendContactId,
             messageBody: body,
             restaurantName,
             storeUnderContact: true,
@@ -2784,16 +2827,16 @@ export function ContactsMessagesScreen({
           });
       setSending(false);
       toastContactSendResult(result, "E-Mail gesendet.");
-      void loadThread();
+      void loadThread({ contactId: sendContactId });
       void loadConversations();
       return;
     }
 
-    if (isMetaPseudoContactId(contactParam) && metaThreadPlatform) {
+    if (isMetaPseudoContactId(sendContactId) && metaThreadPlatform) {
       let optimisticMeta: ContactMessageRow | null = null;
       optimisticMeta = createOptimisticOutboundMetaMessage({
         restaurantId,
-        contactId: contactParam,
+        contactId: sendContactId,
         platform: metaThreadPlatform,
         body,
         files,
@@ -2804,7 +2847,7 @@ export function ContactsMessagesScreen({
 
       const result = await triggerMetaSendMessage({
         restaurantId,
-        metaContactId: contactParam,
+        metaContactId: sendContactId,
         messageBody: body,
         files,
         voiceNote,
@@ -2822,7 +2865,7 @@ export function ContactsMessagesScreen({
           : "Messenger-Nachricht gesendet.",
       );
       if (result?.ok) {
-        void loadThread({ silent: true });
+        void loadThread({ silent: true, contactId: sendContactId });
         void loadConversations({ silent: true });
       }
       return;
@@ -3702,7 +3745,7 @@ showReplyComposer ? (
           setReservationDrawerOpen(false);
           setReservationForDrawer(null);
           setReservationCreateFor(null);
-          if (contactParam) void loadThread({ silent: true });
+          if (overlayThreadId) void loadThread({ silent: true, contactId: overlayThreadId });
         }}
       />
 

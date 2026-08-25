@@ -77,6 +77,7 @@ export function ModuleHomeKeepAliveSlot({
   return (
     <div
       data-module-home-keep-alive={id}
+      hidden={!visible}
       className={cn(
         visible
           ? active
@@ -86,6 +87,7 @@ export function ModuleHomeKeepAliveSlot({
         !interactive && "pointer-events-none",
         className,
       )}
+      style={visible ? undefined : { display: "none" }}
       aria-hidden={!interactive}
       {...(!interactive ? ({ inert: "" } as Record<string, string>) : {})}
     >

@@ -1,24 +1,38 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTheme } from "@/components/providers/theme-provider";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { APP_LAYER_Z_INDEX, appLayerToastZClassName } from "@/lib/ui/app-layer-z-index";
+import { cn } from "@/lib/utils";
 
-export function Toaster({ ...props }: ToasterProps) {
+/** Unter dem App-Header, über Safe-Area / PWA-Titlebar — nicht hinter dem Chrome. */
+const TOAST_OFFSET =
+  "calc(var(--app-chrome-header-h, 3.25rem) + env(safe-area-inset-top, 0px) + 0.5rem)";
+
+export function Toaster({ className, style, ...props }: ToasterProps) {
   const { theme = "system" } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const toaster = (
     <Sonner
       theme={theme as ToasterProps["theme"]}
-      className="toaster group"
       position="top-center"
-      richColors={false}
+      richColors
       closeButton
       gap={8}
       visibleToasts={3}
+      offset={TOAST_OFFSET}
+      mobileOffset={TOAST_OFFSET}
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:rounded-xl group-[.toaster]:border-border/60 group-[.toaster]:bg-popover/95 group-[.toaster]:text-popover-foreground group-[.toaster]:shadow-md group-[.toaster]:backdrop-blur-md dark:shadow-lg",
+            "group toast group-[.toaster]:rounded-xl group-[.toaster]:border-border/80 group-[.toaster]:bg-popover group-[.toaster]:text-popover-foreground shadow-none dark:shadow-lg",
           title: "group-[.toast]:font-medium",
           description: "group-[.toast]:text-muted-foreground",
           actionButton:
@@ -28,6 +42,11 @@ export function Toaster({ ...props }: ToasterProps) {
         },
       }}
       {...props}
+      className={cn("toaster group", appLayerToastZClassName, className)}
+      style={{ ...style, zIndex: APP_LAYER_Z_INDEX.toast }}
     />
   );
+
+  if (!mounted) return null;
+  return createPortal(toaster, document.body);
 }

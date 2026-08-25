@@ -53,7 +53,7 @@ export const DEFAULT_DASHBOARD_WIDGET_VISIBILITY: Record<
   heute: true,
   reservations: true,
   staff: true,
-  messages: true,
+  messages: false,
   weather: true,
   menu: false,
   reviews: false,

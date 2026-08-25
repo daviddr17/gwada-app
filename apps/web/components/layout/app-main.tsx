@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
-import { appMobileContentPbClassName } from "@/lib/ui/app-mobile-bottom-nav";
+import {
+  appContentPxClassName,
+  appMobileContentPbClassName,
+} from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 /** Einheitliches Content-Padding für Dashboard, Einstellungen, Bestand, Speisekarte — volle Breite im Main-Bereich. */
@@ -17,7 +20,8 @@ export function AppMain({
     <div className={wrapperClassName}>
       <main
         className={cn(
-          "w-full px-4 pt-4 sm:px-6",
+          "w-full pt-4",
+          appContentPxClassName,
           appMobileContentPbClassName,
           className,
         )}

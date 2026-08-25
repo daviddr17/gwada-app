@@ -42,6 +42,13 @@ export const appMobileFabCaptionBottomClassName =
 export const appMobileContentPbClassName =
   "max-md:pb-[var(--app-mobile-content-pb,1rem)] md:pb-16";
 
+/**
+ * Horizontaler Inhalt: 1rem / 1.5rem, nie unter die Safe-Area
+ * (`viewport-fit: cover` — Notch/Landschaft).
+ */
+export const appContentPxClassName =
+  "pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.5rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.5rem,env(safe-area-inset-right,0px))]";
+
 /** Plus / Voice-FAB: mobil kompakter (`size-12`), Desktop unverändert `size-14`. */
 export const appMobileFabButtonClassName =
   "flex size-12 items-center justify-center rounded-full shadow-lg md:size-14";

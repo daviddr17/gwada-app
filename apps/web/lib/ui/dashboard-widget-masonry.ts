@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils";
-
 /**
  * Dashboard-Home: Mobil eine Spalte, ab lg zwei unabhängige Flex-Spalten
  * (Oberkanten bündig, Kacheln pro Spalte ohne Grid-Zeilenhöhe dicht gestapelt).
@@ -16,5 +14,5 @@ export const dashboardWidgetMasonryLaneClassName =
   "flex min-w-0 flex-col gap-4";
 
 export function dashboardWidgetMasonryItemClassName(_span: 1 | 2): string {
-  return cn("min-w-0");
+  return "min-w-0";
 }

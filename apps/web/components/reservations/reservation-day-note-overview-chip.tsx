@@ -11,7 +11,7 @@ type ReservationDayNoteOverviewChipProps = {
   onClick: () => void;
 };
 
-/** Icon-Button (44×44) — kein Tooltip, damit Mobil den ersten Tap trifft. */
+/** Kompakter Icon-Button in der Tageskarten-Kopfzeile. */
 export function ReservationDayNoteOverviewChip({
   count,
   onClick,
@@ -29,7 +29,7 @@ export function ReservationDayNoteOverviewChip({
       aria-label={`${label} anzeigen`}
       title={label}
     >
-      <StickyNote className="size-5" aria-hidden />
+      <StickyNote className="size-4" aria-hidden />
       {count > 0 ? (
         <span className={reservationDayNoteChipBadgeClassName} aria-hidden>
           {count > 9 ? "9+" : count}

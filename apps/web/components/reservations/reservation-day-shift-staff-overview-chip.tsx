@@ -11,7 +11,7 @@ type ReservationDayShiftStaffOverviewChipProps = {
   onClick: () => void;
 };
 
-/** Icon-Button (44×44) — gleiche Trefffläche wie Tagesnotiz. */
+/** Kompakter Icon-Button — gleiche Größe wie Tagesnotiz. */
 export function ReservationDayShiftStaffOverviewChip({
   count,
   onClick,
@@ -30,7 +30,7 @@ export function ReservationDayShiftStaffOverviewChip({
       aria-label={`${label} — Übersicht öffnen`}
       title={label}
     >
-      <Users className="size-5" aria-hidden />
+      <Users className="size-4" aria-hidden />
       {count > 0 ? (
         <span className={reservationDayNoteChipBadgeClassName} aria-hidden>
           {count > 9 ? "9+" : count}

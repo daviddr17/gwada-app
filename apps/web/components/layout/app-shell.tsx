@@ -36,7 +36,11 @@ import {
   DashboardGlobalSearchChrome,
   DashboardGlobalSearchTrigger,
 } from "@/components/search/dashboard-global-search-chrome";
-import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
+import {
+  appChromeFixedZoneBgClassName,
+  appChromeSafeEndClassName,
+  appChromeSafeStartClassName,
+} from "@/lib/ui/app-chrome-fixed-zone";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { isRestaurantDashboardPath } from "@/lib/contexts/dashboard-global-search-context";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
@@ -104,7 +108,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           />
         </div>
         <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex h-full w-max min-w-full items-center gap-2 ps-4 sm:gap-3">
+          <div className={cn("flex h-full w-max min-w-full items-center gap-2 sm:gap-3", appChromeSafeStartClassName)}>
             <div className="flex shrink-0 items-center gap-2">
               {chrome.title ? (
                 <h1 className="whitespace-nowrap text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
@@ -121,7 +125,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         {/* Rechts: Kalender global; Modul-Aktionen nur wenn nötig (z. B. Dashboard anordnen) */}
-        <div className="flex shrink-0 items-center gap-1.5 pe-3 ps-1 sm:gap-2 sm:pe-6">
+        <div className={cn("flex shrink-0 items-center gap-1.5 ps-1 sm:gap-2", appChromeSafeEndClassName)}>
           <AppChromeCalendar />
           {chrome.headerActions ? (
             <div className="flex shrink-0 items-center gap-1.5">

@@ -59,6 +59,7 @@ export function AppMobileBottomNav() {
       aria-label="Hauptnavigation"
       className={cn(
         "fixed inset-x-0 bottom-0 border-t border-border/50 md:hidden",
+        "ps-[env(safe-area-inset-left,0px)] pe-[env(safe-area-inset-right,0px)]",
         appChromeFixedZoneBgClassName,
         appMobileBottomSafePbClassName,
       )}

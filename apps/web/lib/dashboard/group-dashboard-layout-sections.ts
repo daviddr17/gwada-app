@@ -6,6 +6,10 @@ export type DashboardLayoutSection = {
   span: 1 | 2;
 };
 
+export type DashboardMasonryRun =
+  | { type: "full"; items: DashboardLayoutSection[] }
+  | { type: "columns"; items: DashboardLayoutSection[] };
+
 const FULL_WIDTH_WIDGETS = new Set<DashboardWidgetId>(["heute"]);
 
 /** Sichtbare Widgets in Nutzerreihenfolge inkl. Layout-Span. */
@@ -16,4 +20,24 @@ export function groupDashboardLayoutSections(
     id,
     span: FULL_WIDTH_WIDGETS.has(id) ? 2 : 1,
   }));
+}
+
+/**
+ * Volle Breite (Heute) nicht in CSS-Columns packen: `column-span: all`
+ * lässt die rechte Spalte in Chrome/Safari oft tiefer starten als die linke.
+ */
+export function groupDashboardMasonryRuns(
+  sections: DashboardLayoutSection[],
+): DashboardMasonryRun[] {
+  const runs: DashboardMasonryRun[] = [];
+  for (const section of sections) {
+    const type = section.span === 2 ? "full" : "columns";
+    const last = runs[runs.length - 1];
+    if (last && last.type === type) {
+      last.items.push(section);
+    } else {
+      runs.push({ type, items: [section] });
+    }
+  }
+  return runs;
 }

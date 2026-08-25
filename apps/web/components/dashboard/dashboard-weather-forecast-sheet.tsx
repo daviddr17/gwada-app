@@ -277,10 +277,6 @@ export function DashboardWeatherForecastSheet({
               })}
             </ul>
           )}
-          <p className="mt-4 px-0.5 text-[11px] leading-relaxed text-muted-foreground">
-            Prognose wird nur beim Öffnen geladen und 3 Stunden zwischengespeichert
-            — kein Dauerabruf im Hintergrund, auch bei vielen Restaurants.
-          </p>
         </div>
       </DrawerContent>
     </Drawer>

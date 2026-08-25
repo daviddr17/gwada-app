@@ -705,6 +705,20 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
           </div>
         </div>
 
+        <div className="-mx-4 mb-3 space-y-3 px-4 sm:-mx-6 sm:px-6">
+          <MenuSearchFilters
+            search={search}
+            onSearchChange={setSearch}
+          />
+          {search.trim() ? (
+            <p className="text-xs text-muted-foreground">
+              Suche in Gericht, Beschreibung und{" "}
+              <span className="font-medium text-foreground">Rezept-Zutaten</span>{" "}
+              (ca. 80% Übereinstimmung).
+            </p>
+          ) : null}
+        </div>
+
         <div
           ref={stickyRef}
           style={{
@@ -715,17 +729,6 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
           )}
         >
           <div className="space-y-3">
-            <MenuSearchFilters
-              search={search}
-              onSearchChange={setSearch}
-            />
-            {search.trim() ? (
-              <p className="text-xs text-muted-foreground">
-                Suche in Gericht, Beschreibung und{" "}
-                <span className="font-medium text-foreground">Rezept-Zutaten</span>{" "}
-                (ca. 80% Übereinstimmung).
-              </p>
-            ) : null}
             <MenuMainCategoryTabs
               mainCategories={mainCategories}
               activeMainCategoryId={activeMainCategoryId}

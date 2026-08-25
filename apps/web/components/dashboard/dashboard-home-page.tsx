@@ -25,12 +25,13 @@ import { DashboardWidgetErrorBoundaryWithReset } from "@/components/dashboard/da
 import { DashboardPermissionUnlockCelebration } from "@/components/dashboard/dashboard-permission-unlock-celebration";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
-import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
+import { groupDashboardLayoutSections, groupDashboardMasonryRuns } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import {
   dashboardWidgetMasonryClassName,
   dashboardWidgetMasonryItemClassName,
+  dashboardWidgetStackClassName,
 } from "@/lib/ui/dashboard-widget-masonry";
 
 function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
@@ -98,6 +99,7 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
   const orderedVisible = groupDashboardLayoutSections(
     order.filter((id) => visibility[id]),
   );
+  const masonryRuns = groupDashboardMasonryRuns(orderedVisible);
 
   const anyWidget = orderedVisible.length > 0;
 
@@ -143,14 +145,31 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
   return (
     <>
       <DashboardPermissionUnlockCelebration />
-      <div className={dashboardWidgetMasonryClassName}>
-        {orderedVisible.map(({ id, span }) => (
-          <div key={id} className={dashboardWidgetMasonryItemClassName(span)}>
-            <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
-              <DashboardWidgetById id={id} />
-            </DashboardWidgetErrorBoundaryWithReset>
-          </div>
-        ))}
+      <div className={dashboardWidgetStackClassName}>
+        {masonryRuns.map((run, runIndex) => {
+          const cells = run.items.map(({ id, span }) => (
+            <div key={id} className={dashboardWidgetMasonryItemClassName(span)}>
+              <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
+                <DashboardWidgetById id={id} />
+              </DashboardWidgetErrorBoundaryWithReset>
+            </div>
+          ));
+          if (run.type === "full") {
+            return (
+              <div key={`full-${runIndex}`} className="flex min-w-0 flex-col gap-4">
+                {cells}
+              </div>
+            );
+          }
+          return (
+            <div
+              key={`columns-${runIndex}`}
+              className={dashboardWidgetMasonryClassName}
+            >
+              {cells}
+            </div>
+          );
+        })}
       </div>
     </>
   );

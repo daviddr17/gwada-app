@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   groupDashboardLayoutSections,
   groupDashboardMasonryRuns,
+  splitDashboardColumnLanes,
 } from "./group-dashboard-layout-sections.ts";
 
 test("Heute spannt volle Breite, Rest eine Spalte", () => {
@@ -57,5 +58,24 @@ test("Masonry-Runs behalten Heute in der Mitte als eigenen Block", () => {
       ["full", ["heute"]],
       ["columns", ["weather"]],
     ],
+  );
+});
+
+test("Column-Lanes: abwechselnd links/rechts ohne Grid-Zeilenhöhe", () => {
+  const lanes = splitDashboardColumnLanes(
+    groupDashboardLayoutSections([
+      "reservations",
+      "messages",
+      "staff",
+      "reviews",
+    ]),
+  );
+  assert.deepEqual(
+    lanes.left.map((s) => s.id),
+    ["reservations", "staff"],
+  );
+  assert.deepEqual(
+    lanes.right.map((s) => s.id),
+    ["messages", "reviews"],
   );
 });

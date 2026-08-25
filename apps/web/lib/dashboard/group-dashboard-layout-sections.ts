@@ -41,3 +41,15 @@ export function groupDashboardMasonryRuns(
   }
   return runs;
 }
+
+/** Zweispalter-Pinnwand: gerade Indizes links, ungerade rechts — pro Spalte ohne Grid-Zeilenhöhe. */
+export function splitDashboardColumnLanes(
+  items: DashboardLayoutSection[],
+): { left: DashboardLayoutSection[]; right: DashboardLayoutSection[] } {
+  const left: DashboardLayoutSection[] = [];
+  const right: DashboardLayoutSection[] = [];
+  for (let i = 0; i < items.length; i++) {
+    (i % 2 === 0 ? left : right).push(items[i]!);
+  }
+  return { left, right };
+}

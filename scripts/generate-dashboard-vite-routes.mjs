@@ -102,6 +102,8 @@ const PROFILE_PREFIX = "/dashboard/profile/";
 const SETTINGS_PREFIX = "/dashboard/settings/";
 const STAFF_PREFIX = "/dashboard/mitarbeiter/";
 const STAFF_HOME = "/dashboard/mitarbeiter/uebersicht";
+const POS_PREFIX = "/dashboard/pos/";
+const POS_HOME = "/dashboard/pos/uebersicht";
 const CHANGELOG_ROUTE = "/dashboard/changelog";
 
 /** Routes not (yet) in the Next filesystem scan — still part of the SPA tab stack. */
@@ -136,6 +138,13 @@ function chromeWrapperFor(route) {
   ) {
     return "staff";
   }
+  if (
+    route.startsWith(POS_PREFIX) &&
+    route !== POS_HOME &&
+    route !== "/dashboard/pos"
+  ) {
+    return "pos";
+  }
   return null;
 }
 
@@ -144,7 +153,7 @@ lines.push(
   `/** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs`,
 );
 lines.push(
-  ` * Profile/Settings/Staff/Changelog use chrome wrappers (layouts pruned with SPA).`,
+  ` * Profile/Settings/Staff/Changelog/POS use chrome wrappers (layouts pruned with SPA).`,
 );
 lines.push(` */`);
 lines.push(`import { lazy, type ComponentType } from "react";`);
@@ -152,6 +161,9 @@ lines.push(`import { wrapChangelogPage } from "../routes/changelog-chrome";`);
 lines.push(`import { wrapProfilePage } from "../routes/profile-chrome";`);
 lines.push(`import { wrapSettingsPage } from "../routes/settings-chrome";`);
 lines.push(`import { wrapStaffPage } from "../routes/staff-chrome";`);
+lines.push(
+  `import { wrapPosComingSoonPage } from "@/components/pos/pos-coming-soon-gate";`,
+);
 lines.push("");
 lines.push(`function profileLazy(`);
 lines.push(`  importer: () => Promise<{ default: ComponentType }>,`);
@@ -186,6 +198,15 @@ lines.push(`) {`);
 lines.push(`  return lazy(async () => {`);
 lines.push(`    const mod = await importer();`);
 lines.push(`    return { default: wrapChangelogPage(mod.default) };`);
+lines.push(`  });`);
+lines.push(`}`);
+lines.push("");
+lines.push(`function posLazy(`);
+lines.push(`  importer: () => Promise<{ default: ComponentType }>,`);
+lines.push(`) {`);
+lines.push(`  return lazy(async () => {`);
+lines.push(`    const mod = await importer();`);
+lines.push(`    return { default: wrapPosComingSoonPage(mod.default) };`);
 lines.push(`  });`);
 lines.push(`}`);
 lines.push("");
@@ -259,6 +280,10 @@ for (const entry of allEntries) {
   } else if (chrome === "changelog") {
     lazyLines.push(
       `const ${lazyName} = changelogLazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
+    );
+  } else if (chrome === "pos") {
+    lazyLines.push(
+      `const ${lazyName} = posLazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
     );
   } else {
     lazyLines.push(

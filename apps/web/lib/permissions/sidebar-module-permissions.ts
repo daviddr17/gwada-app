@@ -8,6 +8,7 @@ import {
   type ModuleCrudPrefix,
 } from "@/lib/permissions/module-crud-permissions";
 import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
+import { isPosComingSoonForViewer } from "@/lib/pos/pos-coming-soon";
 
 const SIDEBAR_MODULE_CRUD_PREFIX: Record<SidebarModuleId, ModuleCrudPrefix | null> =
   {
@@ -69,11 +70,16 @@ export function hasSidebarModulePermissionAccess(
   return true;
 }
 
-/** Modul sichtbar, aber Plan sperrt Zugriff → Upsell in der Sidebar. */
+/** Modul sichtbar, aber Plan sperrt Zugriff → Upsell in der Sidebar.
+ * POS ist Coming soon für alle außer Superadmin (auch wenn Stripe nicht enforced). */
 export function isSidebarModuleBillingLocked(
   entitlements: RestaurantEntitlements | null | undefined,
   moduleId: SidebarModuleId,
+  options?: { isSuperadmin?: boolean },
 ): boolean {
+  if (moduleId === "pos") {
+    return isPosComingSoonForViewer(options?.isSuperadmin === true);
+  }
   return !hasSidebarModuleBillingAccess(entitlements, moduleId);
 }
 
@@ -82,8 +88,11 @@ export function hasSidebarModuleAccess(
   has: (key: RestaurantPermissionKey) => boolean,
   moduleId: SidebarModuleId,
   entitlements?: RestaurantEntitlements | null,
+  options?: { isSuperadmin?: boolean },
 ): boolean {
   if (!hasSidebarModulePermissionAccess(has, moduleId)) return false;
-  if (isSidebarModuleBillingLocked(entitlements, moduleId)) return false;
+  if (isSidebarModuleBillingLocked(entitlements, moduleId, options)) {
+    return false;
+  }
   return true;
 }

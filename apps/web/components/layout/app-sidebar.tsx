@@ -163,9 +163,17 @@ export function AppSidebar() {
       .filter((mod) => hasSidebarModulePermissionAccess(has, mod.id))
       .map((mod) => ({
         mod,
-        billingLocked: isSidebarModuleBillingLocked(entitlements, mod.id),
+        billingLocked: isSidebarModuleBillingLocked(entitlements, mod.id, {
+          isSuperadmin,
+        }),
       }));
-  }, [sidebarModuleOrder, has, permissionsPending, entitlements]);
+  }, [
+    sidebarModuleOrder,
+    has,
+    permissionsPending,
+    entitlements,
+    isSuperadmin,
+  ]);
 
   const displayName = profile.name.trim() || (profileReady ? "Restaurant" : "");
   const userFullName = formatOrderProtocolUserName({ firstName, lastName });
@@ -470,7 +478,9 @@ export function AppSidebar() {
                             }
                             tooltip={
                               billingLocked
-                                ? `${mod.tooltip} — Abo erforderlich`
+                                ? mod.id === "pos"
+                                  ? `${mod.tooltip} — Coming soon`
+                                  : `${mod.tooltip} — Abo erforderlich`
                                 : mod.tooltip
                             }
                             className={

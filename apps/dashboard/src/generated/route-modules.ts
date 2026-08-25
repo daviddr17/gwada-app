@@ -1,11 +1,12 @@
 /** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs
- * Profile/Settings/Staff/Changelog use chrome wrappers (layouts pruned with SPA).
+ * Profile/Settings/Staff/Changelog/POS use chrome wrappers (layouts pruned with SPA).
  */
 import { lazy, type ComponentType } from "react";
 import { wrapChangelogPage } from "../routes/changelog-chrome";
 import { wrapProfilePage } from "../routes/profile-chrome";
 import { wrapSettingsPage } from "../routes/settings-chrome";
 import { wrapStaffPage } from "../routes/staff-chrome";
+import { wrapPosComingSoonPage } from "@/components/pos/pos-coming-soon-gate";
 
 function profileLazy(
   importer: () => Promise<{ default: ComponentType }>,
@@ -40,6 +41,15 @@ function changelogLazy(
   return lazy(async () => {
     const mod = await importer();
     return { default: wrapChangelogPage(mod.default) };
+  });
+}
+
+function posLazy(
+  importer: () => Promise<{ default: ComponentType }>,
+) {
+  return lazy(async () => {
+    const mod = await importer();
+    return { default: wrapPosComingSoonPage(mod.default) };
   });
 }
 
@@ -82,18 +92,18 @@ const Lazy__dashboard_news_autopilot = lazy(() => import("@/components/social/so
 const Lazy__dashboard_news_einbinden = lazy(() => import("@/components/news/news-embed-panel").then((m) => ({ default: m.NewsEmbedPanel as ComponentType })));
 const Lazy__dashboard_news_einstellungen = lazy(() => import("@/components/news/news-settings-panel").then((m) => ({ default: m.NewsSettingsPanel as ComponentType })));
 const Lazy__dashboard_news_statistiken = lazy(() => import("@/components/news/news-statistics-screen").then((m) => ({ default: m.NewsStatisticsScreen as ComponentType })));
-const Lazy__dashboard_pos_berichte = lazy(() => import("@/components/pos/pos-reports-screen").then((m) => ({ default: m.PosReportsScreen as ComponentType })));
-const Lazy__dashboard_pos_bestellungen = lazy(() => import("@/components/pos/pos-orders-screen").then((m) => ({ default: m.PosOrdersScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_bestand_storno = lazy(() => import("@/components/pos/pos-settings-inventory-void-screen").then((m) => ({ default: m.PosSettingsInventoryVoidScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_drucker_routing = lazy(() => import("@/components/pos/pos-settings-printers-routing-screen").then((m) => ({ default: m.PosSettingsPrintersRoutingScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_fiskal_zahlung = lazy(() => import("@/components/pos/pos-settings-fiscal-payment-screen").then((m) => ({ default: m.PosSettingsFiscalPaymentScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_geraete_rechte = lazy(() => import("@/components/pos/pos-settings-devices-rights-screen").then((m) => ({ default: m.PosSettingsDevicesRightsScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_geraete = lazy(() => import("@/components/pos/restaurant-pos-devices-panel").then((m) => ({ default: m.RestaurantPosDevicesPanel as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_gutscheine = lazy(() => import("@/components/pos/pos-settings-gift-vouchers-screen").then((m) => ({ default: m.PosSettingsGiftVouchersScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_kueche = lazy(() => import("@/components/pos/pos-settings-kitchen-screen").then((m) => ({ default: m.PosSettingsKitchenScreen as ComponentType })));
-const Lazy__dashboard_pos_gutscheine = lazy(() => import("@/components/pos/pos-gift-vouchers-screen").then((m) => ({ default: m.PosGiftVouchersScreen as ComponentType })));
-const Lazy__dashboard_pos_quittungen = lazy(() => import("@/components/pos/pos-receipts-screen").then((m) => ({ default: m.PosReceiptsScreen as ComponentType })));
-const Lazy__dashboard_pos_statistiken = lazy(() => import("@/components/pos/pos-statistics-screen").then((m) => ({ default: m.PosStatisticsScreen as ComponentType })));
+const Lazy__dashboard_pos_berichte = posLazy(() => import("@/components/pos/pos-reports-screen").then((m) => ({ default: m.PosReportsScreen as ComponentType })));
+const Lazy__dashboard_pos_bestellungen = posLazy(() => import("@/components/pos/pos-orders-screen").then((m) => ({ default: m.PosOrdersScreen as ComponentType })));
+const Lazy__dashboard_pos_einstellungen_bestand_storno = posLazy(() => import("@/components/pos/pos-settings-inventory-void-screen").then((m) => ({ default: m.PosSettingsInventoryVoidScreen as ComponentType })));
+const Lazy__dashboard_pos_einstellungen_drucker_routing = posLazy(() => import("@/components/pos/pos-settings-printers-routing-screen").then((m) => ({ default: m.PosSettingsPrintersRoutingScreen as ComponentType })));
+const Lazy__dashboard_pos_einstellungen_fiskal_zahlung = posLazy(() => import("@/components/pos/pos-settings-fiscal-payment-screen").then((m) => ({ default: m.PosSettingsFiscalPaymentScreen as ComponentType })));
+const Lazy__dashboard_pos_einstellungen_geraete_rechte = posLazy(() => import("@/components/pos/pos-settings-devices-rights-screen").then((m) => ({ default: m.PosSettingsDevicesRightsScreen as ComponentType })));
+const Lazy__dashboard_pos_einstellungen_geraete = posLazy(() => import("@/components/pos/restaurant-pos-devices-panel").then((m) => ({ default: m.RestaurantPosDevicesPanel as ComponentType })));
+const Lazy__dashboard_pos_einstellungen_gutscheine = posLazy(() => import("@/components/pos/pos-settings-gift-vouchers-screen").then((m) => ({ default: m.PosSettingsGiftVouchersScreen as ComponentType })));
+const Lazy__dashboard_pos_einstellungen_kueche = posLazy(() => import("@/components/pos/pos-settings-kitchen-screen").then((m) => ({ default: m.PosSettingsKitchenScreen as ComponentType })));
+const Lazy__dashboard_pos_gutscheine = posLazy(() => import("@/components/pos/pos-gift-vouchers-screen").then((m) => ({ default: m.PosGiftVouchersScreen as ComponentType })));
+const Lazy__dashboard_pos_quittungen = posLazy(() => import("@/components/pos/pos-receipts-screen").then((m) => ({ default: m.PosReceiptsScreen as ComponentType })));
+const Lazy__dashboard_pos_statistiken = posLazy(() => import("@/components/pos/pos-statistics-screen").then((m) => ({ default: m.PosStatisticsScreen as ComponentType })));
 const Lazy__dashboard_profile_anmeldung = profileLazy(() => import("@/components/profile/profile-anmeldung-screen").then((m) => ({ default: m.ProfileAnmeldungScreen as ComponentType })));
 const Lazy__dashboard_profile_arbeitszeiten = profileLazy(() => import("@/components/profile/profile-work-hours-screen").then((m) => ({ default: m.ProfileWorkHoursScreen as ComponentType })));
 const Lazy__dashboard_profile_benachrichtigungen = profileLazy(() => import("@/components/notifications/notification-preferences-panel").then((m) => ({ default: m.NotificationPreferencesPanel as ComponentType })));

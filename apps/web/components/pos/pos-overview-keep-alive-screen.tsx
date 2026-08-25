@@ -1,6 +1,7 @@
 "use client";
 
 import { ModuleHomeKeepAliveShell } from "@/components/navigation/module-home-keep-alive-shell";
+import { PosComingSoonGate } from "@/components/pos/pos-coming-soon-gate";
 import { PosOverviewScreen } from "@/components/pos/pos-overview-screen";
 import { POS_MODULE_NAV } from "@/components/pos/pos-module-nav";
 
@@ -20,7 +21,9 @@ export function PosOverviewKeepAliveScreen({
       subnavItems={POS_MODULE_NAV}
       mainClassName="px-4 pb-8 sm:px-6"
     >
-      <PosOverviewScreen active={active} />
+      <PosComingSoonGate>
+        <PosOverviewScreen active={active} />
+      </PosComingSoonGate>
     </ModuleHomeKeepAliveShell>
   );
 }

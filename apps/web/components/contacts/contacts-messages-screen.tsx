@@ -1228,11 +1228,13 @@ export function ContactsMessagesScreen({
   }) => {
     const threadContactId = opts?.contactId ?? contactParam;
     if (!restaurantId || !threadContactId) {
-      setMessages([]);
-      setWhatsappThreadPhone(null);
-      setLoadingThread(false);
-      setThreadHasMore(false);
-      setThreadOldestCursor(null);
+      if (!openThreadIdRef.current) {
+        setMessages([]);
+        setWhatsappThreadPhone(null);
+        setLoadingThread(false);
+        setThreadHasMore(false);
+        setThreadOldestCursor(null);
+      }
       return;
     }
 
@@ -1619,8 +1621,10 @@ export function ContactsMessagesScreen({
   }, [restaurantId]);
 
   useLayoutEffect(() => {
-    if (!restaurantId || !contactParam) {
-      if (!contactParam) setLoadingThread(false);
+    if (!restaurantId) return;
+    if (!contactParam) {
+      // Klick ohne URL-Sync: Loading nicht killen — sonst leerer Chat statt Skeleton.
+      if (!pendingContactId) setLoadingThread(false);
       return;
     }
     // URL hinkt hinter openConversation — stale contactParam nicht anwenden.

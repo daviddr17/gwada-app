@@ -25,6 +25,7 @@
     "test:keep-alive-nav:e2e:mobile-menu-close": "dotenv -e .env.development -- node scripts/e2e-mobile-menu-keepalive-close.mjs",
     "test:soft-nav-scroll-top:e2e": "dotenv -e .env.development -- node scripts/e2e-soft-nav-scroll-top.mjs",
     "test:nachrichten-laptop-scroll:e2e": "dotenv -e .env.development -- node scripts/e2e-nachrichten-laptop-scroll.mjs",
+    "test:nachrichten-instant-chat-switch:e2e": "dotenv -e .env.development -- node scripts/e2e-nachrichten-instant-chat-switch.mjs",
     "dev:staff": "pnpm --filter staff start",
     "dev:dashboard": "pnpm --filter @gwada/dashboard dev",
     "dev:staff:ios": "bash scripts/staff-ios-simulator.sh",

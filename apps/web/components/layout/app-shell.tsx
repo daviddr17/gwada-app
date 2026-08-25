@@ -199,22 +199,24 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <div
-        data-app-scroll-root
-        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
-      >
+      <div className="relative min-h-0 flex-1">
         {showDashboardBrandedBackground ? (
           <div
-            className="pointer-events-none sticky top-0 z-0 -mb-[100dvh] h-dvh w-full overflow-hidden"
+            className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
             aria-hidden
           >
             <AppBrandedBackground accentHex={accentHex} intensity="hint" />
           </div>
         ) : null}
-        <div className="relative z-[1] min-h-full">
-          <WorkspaceZoneTransition>
-            {children}
-          </WorkspaceZoneTransition>
+        <div
+          data-app-scroll-root
+          className="relative z-[1] h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain"
+        >
+          <div className="relative h-full min-h-full">
+            <WorkspaceZoneTransition>
+              {children}
+            </WorkspaceZoneTransition>
+          </div>
         </div>
         {/* Soft-Nav Pending — Keep-alive Homes nur in DashboardSpaShell */}
         <SoftNavPendingOverlay />

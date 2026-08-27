@@ -1,22 +1,27 @@
 import "server-only";
 
 import type { DashboardInventorySummary } from "@/lib/inventory/compute-dashboard-inventory-summary";
+import { countPurchaseOrdersDeliveryDue } from "@/lib/inventory/purchase-order-delivery-due";
+import { restaurantTodayYmd } from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export async function loadDashboardInventorySummaryServer(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<DashboardInventorySummary> {
-  const [{ data: ingredientRows }, { data: orderRows }] = await Promise.all([
-    sb
-      .from("inventory_ingredients")
-      .select("current_stock, is_active")
-      .eq("restaurant_id", restaurantId),
-    sb
-      .from("inventory_purchase_orders")
-      .select("id, status")
-      .eq("restaurant_id", restaurantId),
-  ]);
+  const [{ data: ingredientRows }, { data: orderRows }, timeZone] =
+    await Promise.all([
+      sb
+        .from("inventory_ingredients")
+        .select("current_stock, is_active")
+        .eq("restaurant_id", restaurantId),
+      sb
+        .from("inventory_purchase_orders")
+        .select("id, status, delivery_date")
+        .eq("restaurant_id", restaurantId),
+      fetchRestaurantTimezoneServer(sb, restaurantId),
+    ]);
 
   const activeRows = (ingredientRows ?? []).filter(
     (r) => (r.is_active as boolean) !== false,
@@ -47,6 +52,18 @@ export async function loadDashboardInventorySummaryServer(
     }
   }
 
+  const todayYmd = restaurantTodayYmd(timeZone);
+  const due = countPurchaseOrdersDeliveryDue(
+    allOrders.map((o) => ({
+      status: o.status as "open" | "ordered" | "closed",
+      deliveryDate:
+        typeof o.delivery_date === "string" && o.delivery_date.length > 0
+          ? o.delivery_date
+          : null,
+    })),
+    todayYmd,
+  );
+
   return {
     ingredientsActive: activeRows.length,
     emptyStock,
@@ -54,5 +71,7 @@ export async function loadDashboardInventorySummaryServer(
     openOrderLines,
     allOrders: allOrders.length,
     allOrderLines,
+    deliveriesDueToday: due.deliveriesDueToday,
+    deliveriesOverdue: due.deliveriesOverdue,
   };
 }

@@ -201,6 +201,10 @@ export function formatNotificationPayloadSummary(
     return name;
   }
 
+  if (module === "inventory_po_delivery_due") {
+    return typeof p.supplierName === "string" ? p.supplierName : "Lieferung";
+  }
+
   if (module === "changelog") {
     return typeof p.title === "string" ? p.title : "Changelog";
   }

@@ -4,6 +4,10 @@ import { dispatchDashboardWidgetLivePatch } from "@/lib/dashboard/dashboard-widg
 import { computeDashboardInventorySummary } from "@/lib/inventory/compute-dashboard-inventory-summary";
 import { peekIngredientsCache } from "@/lib/inventory/ingredients-query";
 import { peekPurchaseOrdersCache } from "@/lib/inventory/purchase-orders-query";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  restaurantTodayYmd,
+} from "@/lib/restaurant/restaurant-timezone";
 
 /** KPI-Kachel sofort aus Zutaten-/Bestell-LS-Cache — z. B. nach manuellem Bestand. */
 export function dispatchDashboardInventoryLivePatchFromCache(
@@ -15,6 +19,7 @@ export function dispatchDashboardInventoryLivePatchFromCache(
     summary: computeDashboardInventorySummary(
       peekIngredientsCache() ?? [],
       peekPurchaseOrdersCache(),
+      restaurantTodayYmd(DEFAULT_RESTAURANT_TIMEZONE),
     ),
   });
 }

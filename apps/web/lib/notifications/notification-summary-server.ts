@@ -6,6 +6,7 @@ import { dashboardMessageThreadHref } from "@/lib/contact-messages/messages-unre
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
+import { loadInventoryPoDeliveryDueBellSummary } from "@/lib/notifications/notification-inventory-po-delivery-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
@@ -299,6 +300,26 @@ async function buildInventoryLowStockModule(
   };
 }
 
+async function buildInventoryPoDeliveryDueModule(
+  sb: SupabaseClient,
+  params: { restaurantId: string; userId: string },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES.inventory_po_delivery_due;
+  const { items, totalCount } = await loadInventoryPoDeliveryDueBellSummary(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
 async function buildAccountingModule(
   sb: SupabaseClient,
   params: {
@@ -407,6 +428,8 @@ const MODULE_BUILDERS: Record<
       shiftScope: ctx.shiftScope,
     }),
   inventory_low_stock: (ctx) => buildInventoryLowStockModule(ctx.sb, ctx),
+  inventory_po_delivery_due: (ctx) =>
+    buildInventoryPoDeliveryDueModule(ctx.sb, ctx),
   accounting_quotation: (ctx) =>
     buildAccountingModule(ctx.sb, {
       ...ctx,

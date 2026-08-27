@@ -222,7 +222,9 @@ export function DashboardHeuteTile() {
 
   const inventoryAlerts =
     (inventory.summary?.emptyStock ?? 0) > 0 ||
-    (inventory.summary?.openOrders ?? 0) > 0;
+    (inventory.summary?.openOrders ?? 0) > 0 ||
+    (inventory.summary?.deliveriesDueToday ?? 0) > 0 ||
+    (inventory.summary?.deliveriesOverdue ?? 0) > 0;
 
   const canShowAufmerksamkeit = can.reservations || can.messages;
   const unconfirmedCount = can.reservations
@@ -354,7 +356,25 @@ export function DashboardHeuteTile() {
         {can.inventory && inventory.summary && inventoryAlerts ? (
           <HeuteMetricPill
             label="Bestand"
-            value={`${inventory.summary.emptyStock} · ${inventory.summary.openOrders}`}
+            value={
+              (inventory.summary.deliveriesOverdue ?? 0) > 0 ||
+              (inventory.summary.deliveriesDueToday ?? 0) > 0
+                ? [
+                    (inventory.summary.deliveriesOverdue ?? 0) > 0
+                      ? `${inventory.summary.deliveriesOverdue} überfällig`
+                      : null,
+                    (inventory.summary.deliveriesDueToday ?? 0) > 0
+                      ? `${inventory.summary.deliveriesDueToday} Lieferung`
+                      : null,
+                    inventory.summary.emptyStock > 0 ||
+                    inventory.summary.openOrders > 0
+                      ? `${inventory.summary.emptyStock} · ${inventory.summary.openOrders}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : `${inventory.summary.emptyStock} · ${inventory.summary.openOrders}`
+            }
             onClick={() => setInventorySheetOpen(true)}
             tone="warning"
             icon={<Package aria-hidden />}
@@ -461,6 +481,9 @@ export function DashboardHeuteTile() {
           emptyStockCount={inventory.summary.emptyStock}
           openOrdersCount={inventory.summary.openOrders}
           openOrderLinesCount={inventory.summary.openOrderLines}
+          deliveriesDueTodayCount={inventory.summary.deliveriesDueToday ?? 0}
+          deliveriesOverdueCount={inventory.summary.deliveriesOverdue ?? 0}
+          todayYmd={staffTodayYmd}
         />
       ) : null}
     </DashboardWidgetShell>

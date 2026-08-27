@@ -141,6 +141,8 @@ function feedTitleForModule(module: string, guest: string | null): string {
       return guest ? `${guest} · Schichtende` : "Schichtende";
     case "inventory_low_stock":
       return "Bestand niedrig";
+    case "inventory_po_delivery_due":
+      return "Lieferung fällig";
     case "reservations_pending":
       return "Neue Reservierung";
     case "reservations_change_request":

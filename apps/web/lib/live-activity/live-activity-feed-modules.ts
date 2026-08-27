@@ -9,4 +9,5 @@ export const LIVE_ACTIVITY_FEED_MODULES = [
   "reservations_cancellation",
   "messages",
   "inventory_low_stock",
+  "inventory_po_delivery_due",
 ] as const;

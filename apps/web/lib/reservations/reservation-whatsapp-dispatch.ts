@@ -560,8 +560,9 @@ const TERMINAL_STATUS = new Set(["cancelled", "declined", "no_show"]);
 
 export async function processDueWhatsappOutbox(
   sb: SupabaseClient,
-  limit = 50,
-): Promise<{ processed: number; sent: number; failed: number }> {
+  limit = 20,
+  budgetMs = 100_000,
+): Promise<{ processed: number; sent: number; failed: number; timedOut?: boolean }> {
   const { data: due, error } = await sb
     .from("reservation_whatsapp_outbox")
     .select("id, reservation_id, message_kind")
@@ -577,10 +578,16 @@ export async function processDueWhatsappOutbox(
 
   let sent = 0;
   let failed = 0;
+  let timedOut = false;
+  const deadline = Date.now() + budgetMs;
   const settingsByRestaurant = new Map<string, ReservationWhatsappSettings | null>();
   const timezoneByRestaurant = new Map<string, string>();
 
   for (const item of due) {
+    if (Date.now() >= deadline) {
+      timedOut = true;
+      break;
+    }
     const row = await fetchReservationForWhatsapp(sb, item.reservation_id as string);
     if (!row || !row.notify_whatsapp) {
       await sb
@@ -676,5 +683,5 @@ export async function processDueWhatsappOutbox(
     }
   }
 
-  return { processed: due.length, sent, failed };
+  return { processed: due.length, sent, failed, timedOut: timedOut || undefined };
 }

@@ -1,4 +1,5 @@
 import { parseWahaSendResponseMessageId } from "@/lib/contact-messages/outbound-whatsapp-db-server";
+import { WAHA_FETCH_TIMEOUT_MS } from "@/lib/waha/waha-client";
 import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
@@ -36,6 +37,7 @@ export async function wahaSendText(params: {
         linkPreview: params.linkPreview ?? false,
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(WAHA_FETCH_TIMEOUT_MS),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "fetch_failed";

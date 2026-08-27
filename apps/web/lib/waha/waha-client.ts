@@ -2,6 +2,8 @@ import { wahaSessionWebhookConfig } from "@/lib/integrations/waha-webhook-url";
 import type { WahaServerConfig } from "@/lib/waha/waha-config";
 import type { WahaSessionStatus } from "@/lib/types/restaurant-integration";
 
+/** Hard cap so cron / inbox never hang on a stuck WAHA host. */
+export const WAHA_FETCH_TIMEOUT_MS = 15_000;
 export type WahaSessionPayload = {
   name?: string;
   status?: WahaSessionStatus;
@@ -38,7 +40,12 @@ async function wahaFetch<T>(
 
   let res: Response;
   try {
-    res = await fetch(url, { ...init, headers, cache: "no-store" });
+    res = await fetch(url, {
+      ...init,
+      headers,
+      cache: "no-store",
+      signal: init?.signal ?? AbortSignal.timeout(WAHA_FETCH_TIMEOUT_MS),
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "fetch_failed";
     return { ok: false, error: sanitizeWahaError(msg, config), status: 502 };

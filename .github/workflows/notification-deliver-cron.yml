@@ -20,7 +20,7 @@ jobs:
             echo "CRON_SECRET not set — skipped."
             exit 1
           fi
-          curl -sfS --max-time 130 \
+          curl -sfS --max-time 130 --retry 3 --retry-all-errors --retry-delay 8 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/notification-deliver"
 
@@ -32,6 +32,6 @@ jobs:
             echo "CRON_SECRET not set — skipped."
             exit 1
           fi
-          curl -sfS --max-time 130 \
+          curl -sfS --max-time 130 --retry 3 --retry-all-errors --retry-delay 8 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/newsletter-send"

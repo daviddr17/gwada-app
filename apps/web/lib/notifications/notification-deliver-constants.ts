@@ -9,7 +9,7 @@ export const NOTIFICATION_DELIVER_EVENTS_BATCH = 50;
 export const NOTIFICATION_DELIVER_SEND_BATCH = 30;
 
 /** Max. Laufzeit pro Cron-Aufruf — Queue leeren bis Budget oder leer. */
-export const NOTIFICATION_DELIVER_RUN_BUDGET_MS = 110_000;
+export const NOTIFICATION_DELIVER_RUN_BUDGET_MS = 90_000;
 
 /** Sicherheits-Obergrenze gegen Endlosschleifen bei Bugs. */
 export const NOTIFICATION_DELIVER_MAX_LOOP_ITERATIONS = 200;

@@ -3,6 +3,7 @@ import { processDueWhatsappOutbox } from "@/lib/reservations/reservation-whatsap
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 /** Geplante Erinnerungen / Danke — GitHub Actions production-cron.yml alle 5 Min. */
 export async function GET(req: Request) {

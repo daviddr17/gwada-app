@@ -166,14 +166,19 @@ export function StaffWorkHoursView({
     useMonthCursor();
   const pendingScrollToTodayRef = useRef(false);
   const monthStickyRef = useRef<HTMLDivElement>(null);
-  useCssVarElementHeight(monthStickyRef, STAFF_WORK_HOURS_MONTH_BAR_H_VAR);
-  const monthBarStickyTop = staffWorkHoursMonthBarStickyTop(chromeContext);
-  const dayHeaderStickyTop = staffWorkHoursDayHeaderStickyTop(chromeContext);
-  const dayCardScrollMarginTop = staffWorkHoursDayScrollMarginTop(chromeContext);
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
+  // Re-bind height observer when the month strip mounts after skeleton/loading.
+  useCssVarElementHeight(
+    monthStickyRef,
+    STAFF_WORK_HOURS_MONTH_BAR_H_VAR,
+    !loading && !showSkeleton,
+  );
+  const monthBarStickyTop = staffWorkHoursMonthBarStickyTop(chromeContext);
+  const dayHeaderStickyTop = staffWorkHoursDayHeaderStickyTop(chromeContext);
+  const dayCardScrollMarginTop = staffWorkHoursDayScrollMarginTop(chromeContext);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<RestaurantStaffWorkEntryRow | null>(
     null,

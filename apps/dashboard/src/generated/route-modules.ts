@@ -1,11 +1,12 @@
 /** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs
- * Profile/Settings/Staff/Changelog/POS use chrome wrappers (layouts pruned with SPA).
+ * Profile/Settings/Staff/Changelog/POS/module subpages use chrome wrappers (layouts pruned with SPA).
  */
 import { lazy, type ComponentType } from "react";
 import { wrapChangelogPage } from "../routes/changelog-chrome";
 import { wrapProfilePage } from "../routes/profile-chrome";
 import { wrapSettingsPage } from "../routes/settings-chrome";
 import { wrapStaffPage } from "../routes/staff-chrome";
+import { moduleSubpageLazy } from "../routes/module-subpage-chrome";
 import { wrapPosComingSoonPage } from "@/components/pos/pos-coming-soon-gate";
 
 function profileLazy(
@@ -53,34 +54,34 @@ function posLazy(
   });
 }
 
-const Lazy__dashboard_bewertungen_einbinden = lazy(() => import("@/components/reviews/reviews-embed-panel").then((m) => ({ default: m.ReviewsEmbedPanel as ComponentType })));
-const Lazy__dashboard_bewertungen_einstellungen = lazy(() => import("@/components/reviews/reviews-settings-panel").then((m) => ({ default: m.ReviewsSettingsPanel as ComponentType })));
-const Lazy__dashboard_bewertungen_statistiken = lazy(() => import("@/components/reviews/reviews-statistics-screen").then((m) => ({ default: m.ReviewsStatisticsScreen as ComponentType })));
-const Lazy__dashboard_buchfuehrung_angebote = lazy(() => import("@/components/accounting/accounting-quotations-screen").then((m) => ({ default: m.AccountingQuotationsScreen as ComponentType })));
-const Lazy__dashboard_buchfuehrung_belege = lazy(() => import("@/components/accounting/accounting-vouchers-screen").then((m) => ({ default: m.AccountingVouchersScreen as ComponentType })));
-const Lazy__dashboard_buchfuehrung_einstellungen = lazy(() => import("@/components/accounting/accounting-settings-form").then((m) => ({ default: m.AccountingSettingsForm as ComponentType })));
-const Lazy__dashboard_buchfuehrung_kasse = lazy(() => import("@/components/accounting/accounting-cash-book-screen").then((m) => ({ default: m.AccountingCashBookScreen as ComponentType })));
-const Lazy__dashboard_buchfuehrung_statistiken = lazy(() => import("@/components/accounting/accounting-statistics-screen").then((m) => ({ default: m.AccountingStatisticsScreen as ComponentType })));
-const Lazy__dashboard_checklisten_einstellungen = lazy(() => import("@/components/checklisten/checklisten-settings-screen").then((m) => ({ default: m.ChecklistenSettingsScreen as ComponentType })));
-const Lazy__dashboard_checklisten_protokoll = lazy(() => import("@/components/checklisten/checklist-protocol-screen").then((m) => ({ default: m.ChecklistProtocolScreen as ComponentType })));
-const Lazy__dashboard_dokumente_protokoll = lazy(() => import("@/components/documents/documents-protocol-screen").then((m) => ({ default: m.DocumentsProtocolScreen as ComponentType })));
-const Lazy__dashboard_dokumente_statistiken = lazy(() => import("@/components/documents/documents-statistics-screen").then((m) => ({ default: m.DocumentsStatisticsScreen as ComponentType })));
-const Lazy__dashboard_events_einbinden = lazy(() => import("@/components/events/events-embed-panel").then((m) => ({ default: m.EventsEmbedPanel as ComponentType })));
-const Lazy__dashboard_events_einstellungen = lazy(() => import("@/components/events/events-settings-panel").then((m) => ({ default: m.EventsSettingsPanel as ComponentType })));
-const Lazy__dashboard_events_statistiken = lazy(() => import("@/components/events/events-statistics-screen").then((m) => ({ default: m.EventsStatisticsScreen as ComponentType })));
-const Lazy__dashboard_galerie_einbinden = lazy(() => import("@/components/gallery/gallery-embed-panel").then((m) => ({ default: m.GalleryEmbedPanel as ComponentType })));
-const Lazy__dashboard_galerie_einstellungen = lazy(() => import("@/components/gallery/gallery-settings-panel").then((m) => ({ default: m.GallerySettingsPanel as ComponentType })));
-const Lazy__dashboard_galerie_statistiken = lazy(() => import("@/components/gallery/gallery-statistics-screen").then((m) => ({ default: m.GalleryStatisticsScreen as ComponentType })));
-const Lazy__dashboard_inventory_bestellung = lazy(() => import("@/components/inventory/purchase-orders-screen").then((m) => ({ default: m.PurchaseOrdersScreen as ComponentType })));
-const Lazy__dashboard_inventory_statistiken = lazy(() => import("@/components/inventory/inventory-statistics-screen").then((m) => ({ default: m.InventoryStatisticsScreen as ComponentType })));
-const Lazy__dashboard_kontakte_einstellungen = lazy(() => import("@/components/contacts/contact-settings-form").then((m) => ({ default: m.ContactSettingsForm as ComponentType })));
-const Lazy__dashboard_kontakte_export = lazy(() => import("@/components/contacts/contacts-export-screen").then((m) => ({ default: m.ContactsExportScreen as ComponentType })));
-const Lazy__dashboard_kontakte_statistiken = lazy(() => import("@/components/contacts/contacts-statistics-screen").then((m) => ({ default: m.ContactsStatisticsScreen as ComponentType })));
-const Lazy__dashboard_kontakte_uebersicht = lazy(() => import("@/components/contacts/contacts-overview").then((m) => ({ default: m.ContactsOverview as ComponentType })));
-const Lazy__dashboard_menu_einbinden = lazy(() => import("@/components/menu/menu-embed-panel").then((m) => ({ default: m.MenuEmbedPanel as ComponentType })));
-const Lazy__dashboard_menu_einstellungen = lazy(() => import("@/components/menu/menu-settings-form").then((m) => ({ default: m.MenuSettingsForm as ComponentType })));
-const Lazy__dashboard_menu_export = lazy(() => import("@/components/menu/menu-export-screen").then((m) => ({ default: m.MenuExportScreen as ComponentType })));
-const Lazy__dashboard_menu_statistiken = lazy(() => import("@/components/menu/menu-statistics-screen").then((m) => ({ default: m.MenuStatisticsScreen as ComponentType })));
+const Lazy__dashboard_bewertungen_einbinden = lazy(moduleSubpageLazy("bewertungen", () => import("@/components/reviews/reviews-embed-panel").then((m) => ({ default: m.ReviewsEmbedPanel as ComponentType }))));
+const Lazy__dashboard_bewertungen_einstellungen = lazy(moduleSubpageLazy("bewertungen", () => import("@/components/reviews/reviews-settings-panel").then((m) => ({ default: m.ReviewsSettingsPanel as ComponentType }))));
+const Lazy__dashboard_bewertungen_statistiken = lazy(moduleSubpageLazy("bewertungen", () => import("@/components/reviews/reviews-statistics-screen").then((m) => ({ default: m.ReviewsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_buchfuehrung_angebote = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-quotations-screen").then((m) => ({ default: m.AccountingQuotationsScreen as ComponentType }))));
+const Lazy__dashboard_buchfuehrung_belege = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-vouchers-screen").then((m) => ({ default: m.AccountingVouchersScreen as ComponentType }))));
+const Lazy__dashboard_buchfuehrung_einstellungen = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-settings-form").then((m) => ({ default: m.AccountingSettingsForm as ComponentType }))));
+const Lazy__dashboard_buchfuehrung_kasse = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-cash-book-screen").then((m) => ({ default: m.AccountingCashBookScreen as ComponentType }))));
+const Lazy__dashboard_buchfuehrung_statistiken = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-statistics-screen").then((m) => ({ default: m.AccountingStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_checklisten_einstellungen = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/checklisten-settings-screen").then((m) => ({ default: m.ChecklistenSettingsScreen as ComponentType }))));
+const Lazy__dashboard_checklisten_protokoll = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/checklist-protocol-screen").then((m) => ({ default: m.ChecklistProtocolScreen as ComponentType }))));
+const Lazy__dashboard_dokumente_protokoll = lazy(moduleSubpageLazy("dokumente", () => import("@/components/documents/documents-protocol-screen").then((m) => ({ default: m.DocumentsProtocolScreen as ComponentType }))));
+const Lazy__dashboard_dokumente_statistiken = lazy(moduleSubpageLazy("dokumente", () => import("@/components/documents/documents-statistics-screen").then((m) => ({ default: m.DocumentsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_events_einbinden = lazy(moduleSubpageLazy("events", () => import("@/components/events/events-embed-panel").then((m) => ({ default: m.EventsEmbedPanel as ComponentType }))));
+const Lazy__dashboard_events_einstellungen = lazy(moduleSubpageLazy("events", () => import("@/components/events/events-settings-panel").then((m) => ({ default: m.EventsSettingsPanel as ComponentType }))));
+const Lazy__dashboard_events_statistiken = lazy(moduleSubpageLazy("events", () => import("@/components/events/events-statistics-screen").then((m) => ({ default: m.EventsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_galerie_einbinden = lazy(moduleSubpageLazy("galerie", () => import("@/components/gallery/gallery-embed-panel").then((m) => ({ default: m.GalleryEmbedPanel as ComponentType }))));
+const Lazy__dashboard_galerie_einstellungen = lazy(moduleSubpageLazy("galerie", () => import("@/components/gallery/gallery-settings-panel").then((m) => ({ default: m.GallerySettingsPanel as ComponentType }))));
+const Lazy__dashboard_galerie_statistiken = lazy(moduleSubpageLazy("galerie", () => import("@/components/gallery/gallery-statistics-screen").then((m) => ({ default: m.GalleryStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_inventory_bestellung = lazy(moduleSubpageLazy("inventory", () => import("@/components/inventory/purchase-orders-screen").then((m) => ({ default: m.PurchaseOrdersScreen as ComponentType }))));
+const Lazy__dashboard_inventory_statistiken = lazy(moduleSubpageLazy("inventory", () => import("@/components/inventory/inventory-statistics-screen").then((m) => ({ default: m.InventoryStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_kontakte_einstellungen = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contact-settings-form").then((m) => ({ default: m.ContactSettingsForm as ComponentType }))));
+const Lazy__dashboard_kontakte_export = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contacts-export-screen").then((m) => ({ default: m.ContactsExportScreen as ComponentType }))));
+const Lazy__dashboard_kontakte_statistiken = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contacts-statistics-screen").then((m) => ({ default: m.ContactsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_kontakte_uebersicht = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contacts-overview").then((m) => ({ default: m.ContactsOverview as ComponentType }))));
+const Lazy__dashboard_menu_einbinden = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-embed-panel").then((m) => ({ default: m.MenuEmbedPanel as ComponentType }))));
+const Lazy__dashboard_menu_einstellungen = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-settings-form").then((m) => ({ default: m.MenuSettingsForm as ComponentType }))));
+const Lazy__dashboard_menu_export = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-export-screen").then((m) => ({ default: m.MenuExportScreen as ComponentType }))));
+const Lazy__dashboard_menu_statistiken = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-statistics-screen").then((m) => ({ default: m.MenuStatisticsScreen as ComponentType }))));
 const Lazy__dashboard_mitarbeiter_arbeitszeiten = staffLazy(() => import("@/components/staff/staff-work-hours-screen").then((m) => ({ default: m.StaffWorkHoursScreen as ComponentType })));
 const Lazy__dashboard_mitarbeiter_dokumente = staffLazy(() => import("@/components/staff/staff-documents-screen").then((m) => ({ default: m.StaffDocumentsScreen as ComponentType })));
 const Lazy__dashboard_mitarbeiter_einstellungen = staffLazy(() => import("@/components/staff/staff-settings-form").then((m) => ({ default: m.StaffSettingsForm as ComponentType })));
@@ -88,10 +89,10 @@ const Lazy__dashboard_mitarbeiter_export = staffLazy(() => import("@/components/
 const Lazy__dashboard_mitarbeiter_schichtplan = staffLazy(() => import("@/components/staff/shift-plan/staff-shift-plan-screen").then((m) => ({ default: m.StaffShiftPlanScreen as ComponentType })));
 const Lazy__dashboard_mitarbeiter_statistiken = staffLazy(() => import("@/components/staff/staff-statistics-screen").then((m) => ({ default: m.StaffStatisticsScreen as ComponentType })));
 const Lazy__dashboard_mitarbeiter_vertraege = staffLazy(() => import("@/components/staff/staff-contracts-screen").then((m) => ({ default: m.StaffContractsScreen as ComponentType })));
-const Lazy__dashboard_news_autopilot = lazy(() => import("@/components/social/social-autopilot-screen").then((m) => ({ default: m.SocialAutopilotScreen as ComponentType })));
-const Lazy__dashboard_news_einbinden = lazy(() => import("@/components/news/news-embed-panel").then((m) => ({ default: m.NewsEmbedPanel as ComponentType })));
-const Lazy__dashboard_news_einstellungen = lazy(() => import("@/components/news/news-settings-panel").then((m) => ({ default: m.NewsSettingsPanel as ComponentType })));
-const Lazy__dashboard_news_statistiken = lazy(() => import("@/components/news/news-statistics-screen").then((m) => ({ default: m.NewsStatisticsScreen as ComponentType })));
+const Lazy__dashboard_news_autopilot = lazy(moduleSubpageLazy("news", () => import("@/components/social/social-autopilot-screen").then((m) => ({ default: m.SocialAutopilotScreen as ComponentType }))));
+const Lazy__dashboard_news_einbinden = lazy(moduleSubpageLazy("news", () => import("@/components/news/news-embed-panel").then((m) => ({ default: m.NewsEmbedPanel as ComponentType }))));
+const Lazy__dashboard_news_einstellungen = lazy(moduleSubpageLazy("news", () => import("@/components/news/news-settings-panel").then((m) => ({ default: m.NewsSettingsPanel as ComponentType }))));
+const Lazy__dashboard_news_statistiken = lazy(moduleSubpageLazy("news", () => import("@/components/news/news-statistics-screen").then((m) => ({ default: m.NewsStatisticsScreen as ComponentType }))));
 const Lazy__dashboard_pos_berichte = posLazy(() => import("@/components/pos/pos-reports-screen").then((m) => ({ default: m.PosReportsScreen as ComponentType })));
 const Lazy__dashboard_pos_bestellungen = posLazy(() => import("@/components/pos/pos-orders-screen").then((m) => ({ default: m.PosOrdersScreen as ComponentType })));
 const Lazy__dashboard_pos_einstellungen_bestand_storno = posLazy(() => import("@/components/pos/pos-settings-inventory-void-screen").then((m) => ({ default: m.PosSettingsInventoryVoidScreen as ComponentType })));
@@ -112,11 +113,11 @@ const Lazy__dashboard_profile_display_pin = profileLazy(() => import("@/componen
 const Lazy__dashboard_profile_dokumente = profileLazy(() => import("@/components/profile/profile-documents-screen").then((m) => ({ default: m.ProfileDocumentsScreen as ComponentType })));
 const Lazy__dashboard_profile_persoenliche_daten = profileLazy(() => import("@/components/profile/profile-persoenliche-daten-screen").then((m) => ({ default: m.ProfilePersoenlicheDatenScreen as ComponentType })));
 const Lazy__dashboard_profile_verfuegbarkeit = profileLazy(() => import("@/components/profile/profile-availability-screen").then((m) => ({ default: m.ProfileAvailabilityScreen as ComponentType })));
-const Lazy__dashboard_reservierungen_einbinden = lazy(() => import("@/components/reservations/reservation-embed-panel").then((m) => ({ default: m.ReservationEmbedPanel as ComponentType })));
-const Lazy__dashboard_reservierungen_einstellungen = lazy(() => import("@/components/reservations/reservation-settings-form").then((m) => ({ default: m.ReservationSettingsForm as ComponentType })));
-const Lazy__dashboard_reservierungen_protokoll = lazy(() => import("@/components/reservations/reservations-protocol-screen").then((m) => ({ default: m.ReservationsProtocolScreen as ComponentType })));
-const Lazy__dashboard_reservierungen_statistiken = lazy(() => import("@/components/reservations/reservations-statistics-screen").then((m) => ({ default: m.ReservationsStatisticsScreen as ComponentType })));
-const Lazy__dashboard_reservierungen_tischplan = lazy(() => import("@/components/reservations/floor-plan-screen").then((m) => ({ default: m.FloorPlanScreen as ComponentType })));
+const Lazy__dashboard_reservierungen_einbinden = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservation-embed-panel").then((m) => ({ default: m.ReservationEmbedPanel as ComponentType }))));
+const Lazy__dashboard_reservierungen_einstellungen = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservation-settings-form").then((m) => ({ default: m.ReservationSettingsForm as ComponentType }))));
+const Lazy__dashboard_reservierungen_protokoll = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservations-protocol-screen").then((m) => ({ default: m.ReservationsProtocolScreen as ComponentType }))));
+const Lazy__dashboard_reservierungen_statistiken = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservations-statistics-screen").then((m) => ({ default: m.ReservationsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_reservierungen_tischplan = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/floor-plan-screen").then((m) => ({ default: m.FloorPlanScreen as ComponentType }))));
 const Lazy__dashboard_settings_abo = settingsLazy(() => import("@/components/settings/restaurant-billing-panel").then((m) => ({ default: m.RestaurantBillingPanel as ComponentType })));
 const Lazy__dashboard_settings_api = settingsLazy(() => import("@/components/settings/restaurant-api-keys-panel").then((m) => ({ default: m.RestaurantApiKeysPanel as ComponentType })));
 const Lazy__dashboard_settings_dashboard = settingsLazy(() => import("@/components/settings/dashboard-shortcuts-panel").then((m) => ({ default: m.DashboardShortcutsPanel as ComponentType })));

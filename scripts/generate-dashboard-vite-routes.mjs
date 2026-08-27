@@ -106,6 +106,68 @@ const POS_PREFIX = "/dashboard/pos/";
 const POS_HOME = "/dashboard/pos/uebersicht";
 const CHANGELOG_ROUTE = "/dashboard/changelog";
 
+/**
+ * Module subpages that need RegisterModuleChrome + AppMain in the SPA
+ * (Next layouts were pruned). Keep-alive homes wrap themselves.
+ */
+const MODULE_SUBPAGE_CHROME = [
+  {
+    key: "inventory",
+    prefix: "/dashboard/inventory/",
+    homes: new Set(["/dashboard/inventory/uebersicht"]),
+  },
+  {
+    key: "menu",
+    prefix: "/dashboard/menu/",
+    homes: new Set(["/dashboard/menu/uebersicht"]),
+  },
+  {
+    key: "reservierungen",
+    prefix: "/dashboard/reservierungen/",
+    homes: new Set(["/dashboard/reservierungen/uebersicht"]),
+  },
+  {
+    key: "events",
+    prefix: "/dashboard/events/",
+    homes: new Set(["/dashboard/events/uebersicht"]),
+  },
+  {
+    key: "kontakte",
+    prefix: "/dashboard/kontakte/",
+    homes: new Set(["/dashboard/kontakte/nachrichten"]),
+  },
+  {
+    key: "news",
+    prefix: "/dashboard/news/",
+    homes: new Set(["/dashboard/news/uebersicht"]),
+  },
+  {
+    key: "bewertungen",
+    prefix: "/dashboard/bewertungen/",
+    homes: new Set(["/dashboard/bewertungen/uebersicht"]),
+  },
+  {
+    key: "galerie",
+    prefix: "/dashboard/galerie/",
+    homes: new Set(["/dashboard/galerie/uebersicht"]),
+  },
+  {
+    key: "buchfuehrung",
+    prefix: "/dashboard/buchfuehrung/",
+    homes: new Set(["/dashboard/buchfuehrung/rechnungen"]),
+  },
+  {
+    key: "dokumente",
+    prefix: "/dashboard/dokumente/",
+    homes: new Set(["/dashboard/dokumente/uebersicht"]),
+  },
+  {
+    key: "checklisten",
+    prefix: "/dashboard/checklisten/",
+    homes: new Set(["/dashboard/checklisten"]),
+  },
+];
+
 /** Routes not (yet) in the Next filesystem scan — still part of the SPA tab stack. */
 const EXTRA_ROUTE_ENTRIES = [
   {
@@ -145,6 +207,11 @@ function chromeWrapperFor(route) {
   ) {
     return "pos";
   }
+  for (const mod of MODULE_SUBPAGE_CHROME) {
+    if (route.startsWith(mod.prefix) && !mod.homes.has(route)) {
+      return { type: "module", key: mod.key };
+    }
+  }
   return null;
 }
 
@@ -153,7 +220,7 @@ lines.push(
   `/** Auto-generated — run: node scripts/generate-dashboard-vite-routes.mjs`,
 );
 lines.push(
-  ` * Profile/Settings/Staff/Changelog/POS use chrome wrappers (layouts pruned with SPA).`,
+  ` * Profile/Settings/Staff/Changelog/POS/module subpages use chrome wrappers (layouts pruned with SPA).`,
 );
 lines.push(` */`);
 lines.push(`import { lazy, type ComponentType } from "react";`);
@@ -161,6 +228,9 @@ lines.push(`import { wrapChangelogPage } from "../routes/changelog-chrome";`);
 lines.push(`import { wrapProfilePage } from "../routes/profile-chrome";`);
 lines.push(`import { wrapSettingsPage } from "../routes/settings-chrome";`);
 lines.push(`import { wrapStaffPage } from "../routes/staff-chrome";`);
+lines.push(
+  `import { moduleSubpageLazy } from "../routes/module-subpage-chrome";`,
+);
 lines.push(
   `import { wrapPosComingSoonPage } from "@/components/pos/pos-coming-soon-gate";`,
 );
@@ -284,6 +354,10 @@ for (const entry of allEntries) {
   } else if (chrome === "pos") {
     lazyLines.push(
       `const ${lazyName} = posLazy(() => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType })));`,
+    );
+  } else if (chrome && typeof chrome === "object" && chrome.type === "module") {
+    lazyLines.push(
+      `const ${lazyName} = lazy(moduleSubpageLazy("${chrome.key}", () => import("${importFrom}").then((m) => ({ default: m.${componentName} as ComponentType }))));`,
     );
   } else {
     lazyLines.push(

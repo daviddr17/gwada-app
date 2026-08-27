@@ -17,6 +17,18 @@ export function staffWorkHoursMonthBarStickyTop(
   return `var(${STAFF_MODULE_STICKY_BAR_H_VAR}, ${STAFF_MODULE_STICKY_BAR_FALLBACK})`;
 }
 
+/**
+ * Sticky `top` for day date headers — below staff picker + month strip (or month only in Profil).
+ * Lets the current day heading stay visible while scrolling until the next day pushes it up.
+ */
+export function staffWorkHoursDayHeaderStickyTop(
+  context: StaffWorkHoursChromeContext,
+): string {
+  const monthBar = `var(${STAFF_WORK_HOURS_MONTH_BAR_H_VAR}, ${STAFF_WORK_HOURS_MONTH_BAR_FALLBACK})`;
+  if (context === "profile") return monthBar;
+  return `calc(var(${STAFF_MODULE_STICKY_BAR_H_VAR}, ${STAFF_MODULE_STICKY_BAR_FALLBACK}) + ${monthBar})`;
+}
+
 /** `scroll-margin-top` for day cards so „Heute“ scroll does not sit under sticky chrome. */
 export function staffWorkHoursDayScrollMarginTop(
   context: StaffWorkHoursChromeContext,

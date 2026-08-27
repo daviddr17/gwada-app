@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCssVarElementHeight } from "@/lib/hooks/use-css-var-element-height";
 import {
   STAFF_WORK_HOURS_MONTH_BAR_H_VAR,
+  staffWorkHoursDayHeaderStickyTop,
   staffWorkHoursDayScrollMarginTop,
   staffWorkHoursMonthBarStickyTop,
   type StaffWorkHoursChromeContext,
@@ -167,6 +168,7 @@ export function StaffWorkHoursView({
   const monthStickyRef = useRef<HTMLDivElement>(null);
   useCssVarElementHeight(monthStickyRef, STAFF_WORK_HOURS_MONTH_BAR_H_VAR);
   const monthBarStickyTop = staffWorkHoursMonthBarStickyTop(chromeContext);
+  const dayHeaderStickyTop = staffWorkHoursDayHeaderStickyTop(chromeContext);
   const dayCardScrollMarginTop = staffWorkHoursDayScrollMarginTop(chromeContext);
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
@@ -804,11 +806,18 @@ export function StaffWorkHoursView({
                     scrollMarginTop: dayCardScrollMarginTop,
                   }}
                   className={cn(
-                    "border-border/50 shadow-card",
+                    /* overflow-visible: sticky day headers need a non-clipping ancestor */
+                    "overflow-visible border-border/50 shadow-card",
                     isToday && "ring-1 ring-green-500/25 dark:ring-green-400/20",
                   )}
                 >
-                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                  <CardHeader
+                    style={{ top: dayHeaderStickyTop }}
+                    className={cn(
+                      "sticky z-10 -mx-px flex flex-row items-center justify-between gap-2 border-b border-border/40 bg-card pb-2 pt-1",
+                      "supports-[backdrop-filter]:bg-card/95 supports-[backdrop-filter]:backdrop-blur",
+                    )}
+                  >
                     <div className="min-w-0 space-y-0.5">
                       {isToday ? (
                         <p className="text-sm font-semibold text-green-600 dark:text-green-400">

@@ -214,7 +214,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
         ) : null}
         <div
           data-app-scroll-root
-          className="relative z-[1] h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain"
+          className="relative z-[1] h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]"
         >
           <div className="relative h-full min-h-full">
             <WorkspaceZoneTransition>

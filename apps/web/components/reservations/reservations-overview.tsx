@@ -1339,7 +1339,8 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
             >
               <CardHeader
                 className={cn(
-                  "sticky top-0 z-10 gap-1.5 border-b border-border/40 bg-card pb-1 pt-2",
+                  /* self-start w-full: Safari/iOS sticky inside flex column cards */
+                  "sticky top-0 z-10 w-full self-start gap-1.5 border-b border-border/40 bg-card pb-1 pt-2",
                   "supports-[backdrop-filter]:bg-card/95 supports-[backdrop-filter]:backdrop-blur",
                 )}
               >

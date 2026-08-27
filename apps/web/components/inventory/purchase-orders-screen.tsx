@@ -758,7 +758,7 @@ export function PurchaseOrdersScreen() {
                 <div className="flex min-h-[3.25rem] items-stretch gap-0">
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 px-3 py-3 text-left transition-colors hover:bg-muted/30 sm:gap-3 sm:px-4"
+                    className="flex min-w-0 flex-1 items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/30 sm:gap-3"
                     onClick={() => toggleExpanded(order.id)}
                     aria-expanded={isExpanded}
                   >
@@ -800,7 +800,7 @@ export function PurchaseOrdersScreen() {
                       </p>
                     </div>
                   </button>
-                  <div className="flex shrink-0 flex-col justify-center gap-2 border-l border-border/50 px-2 py-2 sm:flex-row sm:items-center sm:px-3">
+                  <div className="flex shrink-0 flex-col justify-center gap-2 border-l border-border/50 px-3 py-2.5 sm:flex-row sm:items-center sm:px-3">
                     <Button
                       type="button"
                       variant="outline"

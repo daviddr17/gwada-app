@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ClipboardList, Filter } from "lucide-react";
+import { ClipboardList, Filter } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
@@ -10,6 +10,7 @@ import {
   type PurchaseOrderCloseDeliveryException,
 } from "@/components/inventory/purchase-order-close-delivery-drawer";
 import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
+import { PurchaseOrderCardStickyHeader } from "@/components/inventory/purchase-order-card-sticky-header";
 import type { LineDeliveryCommit } from "@/components/inventory/purchase-order-line-delivery-controls";
 import { PurchaseOrderLineDeliveryControls } from "@/components/inventory/purchase-order-line-delivery-controls";
 import { PurchaseOrderStatusChips } from "@/components/inventory/purchase-order-status-chips";
@@ -24,13 +25,10 @@ import {
 } from "@/lib/inventory/purchase-order-line-delivery";
 import {
   purchaseOrderAllowsDeliveryActions,
-  purchaseOrderStatusLabel,
   type PurchaseOrderStatusFilter,
 } from "@/lib/inventory/purchase-order-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { DatePickerField } from "@/components/ui/date-picker";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import { INVENTORY_BRANDS_KEY, INVENTORY_INGREDIENT_CATEGORIES_KEY, INVENTORY_PRODUCTION_SITES_KEY, INVENTORY_SUPPLIERS_KEY, INVENTORY_UNITS_KEY } from "@/lib/constants/inventory-storage";
 import { SEED_BRANDS, SEED_INGREDIENT_CATEGORIES, SEED_PRODUCTION_SITES, SEED_SUPPLIERS, SEED_UNITS } from "@/lib/data/inventory-seeds";
@@ -733,138 +731,89 @@ export function PurchaseOrdersScreen() {
         <div className="space-y-3">
           {filtered.map((order) => {
             const isExpanded = Boolean(expanded[order.id]);
-            const deliveryLabel = formatDeliveryYmd(order.deliveryDate);
             return (
               <section
                 key={order.id}
-                className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm"
+                className="overflow-visible rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm"
               >
-                <div className="flex min-h-[3.25rem] items-stretch gap-0">
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/30 sm:gap-3"
-                    onClick={() => toggleExpanded(order.id)}
-                    aria-expanded={isExpanded}
-                  >
-                    <ChevronDown
-                      className={cn(
-                        "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                        isExpanded && "rotate-180",
-                      )}
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-base font-semibold tracking-tight">
-                          {supplierNameForOrder(order)}
-                        </span>
-                        <span
+                <PurchaseOrderCardStickyHeader
+                  order={order}
+                  supplierName={supplierNameForOrder(order)}
+                  creatorLabel={creatorLabelForOrder(order)}
+                  isExpanded={isExpanded}
+                  onToggleExpanded={() => toggleExpanded(order.id)}
+                  onDeliveryDateChange={(ymd) =>
+                    void setOrderDeliveryDate(order.id, ymd)
+                  }
+                  formatWhen={formatWhen}
+                  formatDeliveryYmd={formatDeliveryYmd}
+                  actions={
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full border-border/60"
+                        onClick={() => openProtocol(order)}
+                      >
+                        Protokoll
+                      </Button>
+                      {order.status === "open" ? (
+                        <Button
+                          type="button"
+                          size="sm"
                           className={cn(
-                            "rounded-full px-2 py-0.5 text-[11px] font-medium",
-                            order.status === "open"
-                              ? "bg-accent/15 text-foreground"
-                              : order.status === "ordered"
-                                ? "bg-amber-500/15 text-amber-950 dark:text-amber-100"
-                                : "bg-muted text-muted-foreground",
+                            "rounded-full px-3 sm:px-4",
+                            brandActionButtonRoundedClassName,
                           )}
+                          onClick={() =>
+                            void markOrderOrdered(order.id, actor).then((ok) => {
+                              if (ok) setStatusFilter("ordered");
+                            })
+                          }
                         >
-                          {purchaseOrderStatusLabel(order.status)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground sm:text-sm">
-                        {order.lines.length} Position{order.lines.length === 1 ? "" : "en"}
-                        {deliveryLabel ? ` · Lieferung ${deliveryLabel}` : ""}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        Erstellt {formatWhen(order.createdAt)}
-                        {(() => {
-                          const creator = creatorLabelForOrder(order);
-                          return creator ? ` · ${creator}` : "";
-                        })()}
-                      </p>
-                    </div>
-                  </button>
-                  <div className="flex shrink-0 flex-col justify-center gap-2 border-l border-border/50 px-3 py-2.5 sm:flex-row sm:items-center sm:px-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full border-border/60"
-                      onClick={() => openProtocol(order)}
-                    >
-                      Protokoll
-                    </Button>
-                    {order.status === "open" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className={cn(
-                          "rounded-full px-3 sm:px-4",
-                          brandActionButtonRoundedClassName,
-                        )}
-                        onClick={() =>
-                          void markOrderOrdered(order.id, actor).then((ok) => {
-                            if (ok) setStatusFilter("ordered");
-                          })
-                        }
-                      >
-                        Bestellt
-                      </Button>
-                    ) : null}
-                    {order.status === "ordered" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className={cn(
-                          "rounded-full px-3 sm:px-4",
-                          brandActionButtonRoundedClassName,
-                        )}
-                        onClick={() => requestCloseOrder(order)}
-                      >
-                        Abschließen
-                      </Button>
-                    ) : null}
-                    {order.status !== "open" ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="rounded-full px-3 sm:px-4"
-                        onClick={() => {
-                          void reopenOrder(order.id, actor).then((ok) => {
-                            if (!ok) return;
-                            if (order.status === "closed") setStatusFilter("ordered");
-                            else setStatusFilter("open");
-                          });
-                        }}
-                      >
-                        Zurück
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
+                          Bestellt
+                        </Button>
+                      ) : null}
+                      {order.status === "ordered" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className={cn(
+                            "rounded-full px-3 sm:px-4",
+                            brandActionButtonRoundedClassName,
+                          )}
+                          onClick={() => requestCloseOrder(order)}
+                        >
+                          Abschließen
+                        </Button>
+                      ) : null}
+                      {order.status !== "open" ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="rounded-full px-3 sm:px-4"
+                          onClick={() => {
+                            void reopenOrder(order.id, actor).then((ok) => {
+                              if (!ok) return;
+                              if (order.status === "closed") {
+                                setStatusFilter("ordered");
+                              } else {
+                                setStatusFilter("open");
+                              }
+                            });
+                          }}
+                        >
+                          Zurück
+                        </Button>
+                      ) : null}
+                    </>
+                  }
+                />
 
                 {isExpanded ? (
                   <div className="border-t border-border/50">
-                    <div className="flex flex-col gap-2 border-b border-border/40 bg-muted/20 px-4 py-3 sm:flex-row sm:items-end sm:gap-6 sm:px-5">
-                      <div className="space-y-1.5">
-                        <Label
-                          htmlFor={`delivery-${order.id}`}
-                          className="text-xs text-muted-foreground"
-                        >
-                          Lieferdatum
-                        </Label>
-                        <DatePickerField
-                          id={`delivery-${order.id}`}
-                          size="compact"
-                          value={order.deliveryDate}
-                          onChange={(ymd) => void setOrderDeliveryDate(order.id, ymd)}
-                          placeholder="Lieferdatum wählen"
-                          className="max-w-[min(100%,12rem)]"
-                        />
-                      </div>
-                    </div>
-
                     <div className="md:hidden">
                       <PurchaseOrderMobileLinesList
                         order={order}

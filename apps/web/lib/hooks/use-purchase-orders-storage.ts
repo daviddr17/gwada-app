@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PURCHASE_ORDERS_STORAGE_KEY } from "@/lib/constants/inventory-storage";
 import { createId } from "@/lib/create-id";
@@ -17,12 +17,14 @@ import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/di
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
 import {
+  toastPurchaseOrderDeletedEmpty,
   toastPurchaseOrderLineAdded,
   toastPurchaseOrderLineRemoved,
   toastPurchaseOrderOpened,
   toastPurchaseOrderQuantityChanged,
   toastPurchaseOrderQuantityIncreased,
 } from "@/lib/inventory/purchase-order-notifications";
+import { withoutEmptyOpenPurchaseOrders } from "@/lib/inventory/prune-empty-open-purchase-orders";
 import { applyTaxonomySupplierNamesToOrders } from "@/lib/inventory/resolve-purchase-order-supplier-name";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
@@ -508,6 +510,18 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     [afterOrdersMutation, failSave, queryClient, restaurantId, useDbInventory],
   );
 
+  /** Bestehende offene Bestellungen ohne Positionen entfernen (Legacy-Schalen). */
+  const emptyOpenPruneInFlightRef = useRef(false);
+  useEffect(() => {
+    if (!isHydrated || emptyOpenPruneInFlightRef.current) return;
+    const pruned = withoutEmptyOpenPurchaseOrders(orders);
+    if (pruned.length === orders.length) return;
+    emptyOpenPruneInFlightRef.current = true;
+    void persist(pruned).finally(() => {
+      emptyOpenPruneInFlightRef.current = false;
+    });
+  }, [isHydrated, orders, persist]);
+
   /** Sofort in UI/Cache schreiben (vor await Persist) — bei Fehler zurückrollen. */
   const applyOrdersOptimistic = useCallback(
     (next: PurchaseOrder[]) => {
@@ -826,8 +840,17 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         l.quantity = nextQty;
       }
 
-      if (!(await persist(next))) return false;
-      if (nextQty === 0) {
+      const deletedEmptyOpen =
+        nextQty === 0 && o.status === "open" && o.lines.length === 0;
+      const supplierNameForToast = o.supplierName;
+      const toPersist = deletedEmptyOpen
+        ? next.filter((x) => x.id !== orderId)
+        : next;
+
+      if (!(await persist(toPersist))) return false;
+      if (deletedEmptyOpen) {
+        toastPurchaseOrderDeletedEmpty(supplierNameForToast);
+      } else if (nextQty === 0) {
         toastPurchaseOrderLineRemoved(l.ingredientName);
       } else {
         toastPurchaseOrderQuantityChanged(

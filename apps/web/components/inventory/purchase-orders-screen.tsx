@@ -10,11 +10,9 @@ import {
   type PurchaseOrderCloseDeliveryException,
 } from "@/components/inventory/purchase-order-close-delivery-drawer";
 import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
-import { PurchaseOrderCompactLinesList } from "@/components/inventory/purchase-order-compact-lines-list";
 import type { LineDeliveryCommit } from "@/components/inventory/purchase-order-line-delivery-controls";
 import { PurchaseOrderLineDeliveryControls } from "@/components/inventory/purchase-order-line-delivery-controls";
 import { PurchaseOrderStatusChips } from "@/components/inventory/purchase-order-status-chips";
-import { InventoryModuleViewToggle } from "@/components/inventory/inventory-module-view-toggle";
 import {
   countPurchaseOrderActiveFilters,
   PurchaseOrdersFilterDrawer,
@@ -42,10 +40,6 @@ import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { resolvePurchaseOrderSupplierName } from "@/lib/inventory/resolve-purchase-order-supplier-name";
 import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
-import {
-  INVENTORY_PURCHASE_ORDER_VIEW_MODE_KEY,
-  useInventoryModuleViewMode,
-} from "@/lib/hooks/use-inventory-module-view-mode";
 import {
   type OrderProtocolActor,
   type PurchaseOrder,
@@ -204,11 +198,6 @@ export function PurchaseOrdersScreen() {
     SEED_INGREDIENT_CATEGORIES,
   );
   const units = useInventoryTaxonomyStorage(INVENTORY_UNITS_KEY, SEED_UNITS);
-  const {
-    mode: orderViewMode,
-    setMode: setOrderViewMode,
-    ready: orderViewReady,
-  } = useInventoryModuleViewMode(INVENTORY_PURCHASE_ORDER_VIEW_MODE_KEY);
   const [statusFilter, setStatusFilter] =
     useState<PurchaseOrderStatusFilter>("open");
   const [supplierFilterId, setSupplierFilterId] = useState<string>("all");
@@ -688,11 +677,6 @@ export function PurchaseOrdersScreen() {
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <InventoryModuleViewToggle
-              value={orderViewMode}
-              onChange={setOrderViewMode}
-              disabled={!orderViewReady}
-            />
             <div className={moduleSearchFilterButtonWrapClassName}>
               <Button
                 type="button"
@@ -881,25 +865,6 @@ export function PurchaseOrdersScreen() {
                       </div>
                     </div>
 
-                    {orderViewMode === "compact" ? (
-                      <PurchaseOrderCompactLinesList
-                        order={order}
-                        lines={sortPurchaseOrderLines(
-                          order.lines,
-                          ingredients,
-                          ingredientCategories.items,
-                          lineSortKey,
-                          lineSortDir,
-                          units.items,
-                        )}
-                        actor={actor}
-                        onCommitQty={commitLineQty}
-                        unitLabelForLine={unitLabelForLine}
-                        onSetDelivery={handleSetLineDelivery}
-                        onClearDelivery={handleClearLineDelivery}
-                      />
-                    ) : (
-                      <>
                     <div className="md:hidden">
                       <PurchaseOrderMobileLinesList
                         order={order}
@@ -1092,8 +1057,6 @@ export function PurchaseOrdersScreen() {
                       </table>
                     </ModuleDataTableFrame>
                     </div>
-                      </>
-                    )}
                   </div>
                 ) : null}
               </section>

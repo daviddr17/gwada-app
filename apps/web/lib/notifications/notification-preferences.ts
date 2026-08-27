@@ -27,6 +27,7 @@ export const DEFAULT_IN_APP_ENABLED_MODULE_IDS: readonly NotificationModuleId[] 
     "reservations_cancellation",
     "events_inquiry",
     "staff_permissions_granted",
+    "inventory_po_delivery_due",
   ];
 
 export function defaultModuleToggles(

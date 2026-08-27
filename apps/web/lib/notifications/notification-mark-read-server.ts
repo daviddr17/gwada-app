@@ -31,6 +31,10 @@ import {
   dismissInventoryLowStockNotification,
 } from "@/lib/notifications/notification-inventory-server";
 import {
+  dismissAllInventoryPoDeliveryDueNotifications,
+  dismissInventoryPoDeliveryDueNotification,
+} from "@/lib/notifications/notification-inventory-po-delivery-server";
+import {
   dismissAllReservationNotifications,
   dismissReservationNotification,
 } from "@/lib/notifications/notification-reservations-server";
@@ -276,6 +280,26 @@ export async function markNotificationReadServer(
         restaurantId,
         userId,
         ingredientId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "inventory_po_delivery_due": {
+      if (!itemId) {
+        const all = await dismissAllInventoryPoDeliveryDueNotifications(admin, {
+          restaurantId,
+          userId,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const orderId = itemId ?? meta?.orderId;
+      if (!orderId || typeof orderId !== "string") {
+        return { ok: false, error: "invalid_request" };
+      }
+      const result = await dismissInventoryPoDeliveryDueNotification(sb, {
+        restaurantId,
+        userId,
+        orderId,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }

@@ -599,6 +599,10 @@ export async function updateDisplayOrderQuantity(params: {
 
     if (nextQty === 0) {
       o.lines = o.lines.filter((x) => x.id !== open.lineId);
+      if (o.status === "open" && o.lines.length === 0) {
+        const idx = next.findIndex((x) => x.id === o.id);
+        if (idx >= 0) next.splice(idx, 1);
+      }
     } else {
       l.quantity = nextQty;
     }
@@ -607,9 +611,10 @@ export async function updateDisplayOrderQuantity(params: {
     if (!saved.ok) return saved;
 
     if (nextQty === 0) {
+      const orderStillExists = next.some((x) => x.id === open.orderId);
       return {
         ok: true,
-        orderId: open.orderId,
+        orderId: orderStillExists ? open.orderId : null,
         orderLineId: null,
         orderQuantity: 0,
       };

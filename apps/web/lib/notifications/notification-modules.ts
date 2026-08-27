@@ -23,6 +23,7 @@ import {
   UserCheck,
   UserX,
   Unlock,
+  Truck,
 } from "lucide-react";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
@@ -39,6 +40,7 @@ export const NOTIFICATION_MODULE_IDS = [
   "staff_shift_start",
   "staff_shift_end",
   "inventory_low_stock",
+  "inventory_po_delivery_due",
   "accounting_quotation",
   "accounting_invoice",
   "accounting_voucher",
@@ -179,6 +181,16 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Niedrigbestand in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei Niedrigbestand",
     settingsPushEmailLabel: "E-Mail bei Niedrigbestand",
+  },
+  inventory_po_delivery_due: {
+    id: "inventory_po_delivery_due",
+    label: "Lieferung fällig",
+    labelPlural: "Lieferungen fällig",
+    href: APP_ROUTES.inventory.order,
+    icon: Truck,
+    settingsInAppLabel: "Fällige Lieferungen in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei fälliger Lieferung",
+    settingsPushEmailLabel: "E-Mail bei fälliger Lieferung",
   },
   accounting_quotation: {
     id: "accounting_quotation",

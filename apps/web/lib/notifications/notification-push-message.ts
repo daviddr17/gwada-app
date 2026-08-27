@@ -368,6 +368,24 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "inventory_po_delivery_due": {
+      const supplier = pickString(p.supplierName) ?? "Lieferant";
+      const deliveryDate = pickString(p.deliveryDate);
+      const kind = pickString(p.kind);
+      const kindLabel =
+        kind === "overdue" ? "Überfällig" : "Lieferung heute";
+      return buildPushMessage({
+        prefix,
+        headline: kindLabel,
+        subject: `${prefix}${kindLabel} — ${supplier}`,
+        href,
+        details: detailLines([
+          `Lieferant: ${supplier}`,
+          deliveryDate ? `Lieferdatum: ${deliveryDate}` : null,
+          "Bitte Lieferung prüfen und Bestellung abschließen.",
+        ]),
+      });
+    }
     case "accounting_quotation": {
       const title = pickString(p.title) ?? "Neues Angebot";
       const number = pickString(p.voucherNumber);

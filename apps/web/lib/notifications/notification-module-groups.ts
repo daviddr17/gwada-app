@@ -53,7 +53,7 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
   {
     id: "inventory",
     title: "Bestand",
-    moduleIds: ["inventory_low_stock"],
+    moduleIds: ["inventory_low_stock", "inventory_po_delivery_due"],
   },
   {
     id: "accounting",

@@ -111,7 +111,7 @@ export const dashboardGuide: UserGuidePage = {
           ],
           [
             "Bestand",
-            "Leerer Bestand · offene Bestellungen (nur bei Auffälligkeiten)",
+            "Leerer Bestand · fällige Lieferungen · offene Bestellungen (nur bei Auffälligkeiten)",
             "Betroffene Zutaten und offene Bestellungen",
           ],
         ],

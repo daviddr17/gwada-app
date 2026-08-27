@@ -68,3 +68,11 @@ export function toastPurchaseOrderLineRemoved(ingredientName: string): void {
     id: `po-line-removed-${ingredientName}`,
   });
 }
+
+/** Offene Bestellung gelöscht, weil keine Positionen mehr übrig waren. */
+export function toastPurchaseOrderDeletedEmpty(supplierName: string): void {
+  toast.success("Bestellung gelöscht.", {
+    description: `Keine Positionen mehr — Bestellung für „${supplierName}“ entfernt.`,
+    id: `po-deleted-empty-${supplierName}`,
+  });
+}

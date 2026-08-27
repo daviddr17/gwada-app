@@ -16,6 +16,9 @@ export function DashboardInventoryTile() {
   const emptyStock = summary?.emptyStock ?? 0;
   const openOrders = summary?.openOrders ?? 0;
   const openLines = summary?.openOrderLines ?? 0;
+  const deliveriesDueToday = summary?.deliveriesDueToday ?? 0;
+  const deliveriesOverdue = summary?.deliveriesOverdue ?? 0;
+  const deliveryDueTotal = deliveriesDueToday + deliveriesOverdue;
 
   return (
     <DashboardWidgetShell
@@ -39,6 +42,21 @@ export function DashboardInventoryTile() {
           value={String(emptyStock)}
           href="/dashboard/inventory/uebersicht"
           highlight={emptyStock > 0}
+        />
+        <DashboardCompactMetricPill
+          label="Lieferung fällig"
+          value={
+            deliveryDueTotal > 0
+              ? [
+                  deliveriesOverdue > 0 ? `${deliveriesOverdue} überfällig` : null,
+                  deliveriesDueToday > 0 ? `${deliveriesDueToday} heute` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "0"
+          }
+          href="/dashboard/inventory/bestellung"
+          highlight={deliveryDueTotal > 0}
         />
         <DashboardCompactMetricPill
           label="Bestellungen"

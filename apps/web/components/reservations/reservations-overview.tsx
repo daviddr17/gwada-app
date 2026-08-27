@@ -1332,11 +1332,17 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
               key={key}
               size="sm"
               className={cn(
-                "gap-2 border-border/50 py-2 shadow-card transition-colors",
+                /* overflow-visible: sticky day headers need a non-clipping ancestor */
+                "overflow-visible gap-2 border-border/50 py-2 shadow-card transition-colors",
                 isToday && "ring-1 ring-green-500/25 dark:ring-green-400/20",
               )}
             >
-              <CardHeader className="gap-1.5 pb-1 pt-2">
+              <CardHeader
+                className={cn(
+                  "sticky top-0 z-10 gap-1.5 border-b border-border/40 bg-card pb-1 pt-2",
+                  "supports-[backdrop-filter]:bg-card/95 supports-[backdrop-filter]:backdrop-blur",
+                )}
+              >
                 {isToday ? (
                   <p className="text-sm font-semibold text-green-600 dark:text-green-400">
                     Heute

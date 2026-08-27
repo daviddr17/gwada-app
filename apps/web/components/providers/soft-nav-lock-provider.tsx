@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import {
   SoftNavLockContext,
@@ -107,34 +108,26 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     }, PENDING_HARD_CLEAR_MS);
   }, [clearPending]);
 
-  // Ziel erreicht → Cover erst nach Paint heben (kein Weiß/Dashboard-Flash).
+  // Ziel erreicht → Cover nach einem Paint heben (kein Weiß/Dashboard-Flash).
   useEffect(() => {
     const target = pendingTargetRef.current;
     if (target == null) return;
     if (!isSoftNavPendingArrived(pathname, target)) return;
 
-    let raf2: number | null = null;
-    const raf1 = window.requestAnimationFrame(() => {
-      raf2 = window.requestAnimationFrame(() => {
-        paintClearRafRef.current = null;
-        if (
-          pendingTargetRef.current === target &&
-          isSoftNavPendingArrived(pathnameRef.current, target)
-        ) {
-          clearPending();
-        }
-      });
-      paintClearRafRef.current = raf2;
+    const raf = window.requestAnimationFrame(() => {
+      paintClearRafRef.current = null;
+      if (
+        pendingTargetRef.current === target &&
+        isSoftNavPendingArrived(pathnameRef.current, target)
+      ) {
+        clearPending();
+      }
     });
-    paintClearRafRef.current = raf1;
+    paintClearRafRef.current = raf;
 
     return () => {
-      window.cancelAnimationFrame(raf1);
-      if (raf2 != null) window.cancelAnimationFrame(raf2);
-      if (
-        paintClearRafRef.current === raf1 ||
-        paintClearRafRef.current === raf2
-      ) {
+      window.cancelAnimationFrame(raf);
+      if (paintClearRafRef.current === raf) {
         paintClearRafRef.current = null;
       }
     };
@@ -168,7 +161,11 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         paintClearRafRef.current = null;
       }
 
-      setPendingHref(target);
+      // Pending-Chrome sofort painten, bevor der Microtask-Push läuft —
+      // fühlt sich auf Mobile spürbar direkter an.
+      flushSync(() => {
+        setPendingHref(target);
+      });
       armFailsafe(PENDING_CLEAR_FAILSAFE_MS);
       armHardClear();
       return true;

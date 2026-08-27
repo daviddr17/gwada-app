@@ -6,34 +6,43 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
  * Schnelle Soft-Nav-Klicks → nur das letzte Ziel wirklich `router.push`en.
  * Pending-UI bleibt synchron; der Flight wird nicht mit Dutzenden RSC-Requests zugeschüttet.
  *
- * - Erster Klick: `setTimeout(0)` (Next-16-sicher, ohne Leading-Edge-Doppel-Push)
+ * - Erster Klick: `queueMicrotask` (früher als `setTimeout(0)`, trotzdem nicht sync
+ *   Leading-Edge — der verkeilt Next/Router unter Stress)
  * - Weitere Klicks im Burst: trailing coalesce (32ms), letzter gewinnt
- *
- * Leading-Edge + sofortiger Push verkeilt den Router unter Stress; 32ms auf jeden
- * einzelnen Klick war spürbar langsam.
  */
 const COALESCE_MS = 32;
 
 let pendingHref: string | null = null;
 let timer: number | null = null;
+/** Marker: Microtask für den ersten Push steht aus (kein window-Timer). */
+let firstPushMicrotaskPending = false;
 
 export function coalesceSoftNavPush(
   router: AppRouterInstance,
   href: string,
 ): void {
   pendingHref = href;
-  if (timer != null) {
-    window.clearTimeout(timer);
+
+  if (timer != null || firstPushMicrotaskPending) {
+    if (timer != null) {
+      window.clearTimeout(timer);
+    }
+    firstPushMicrotaskPending = false;
     timer = window.setTimeout(() => {
       timer = null;
       flushSoftNavPush(router);
     }, COALESCE_MS);
     return;
   }
-  timer = window.setTimeout(() => {
-    timer = null;
+
+  firstPushMicrotaskPending = true;
+  queueMicrotask(() => {
+    if (!firstPushMicrotaskPending) return;
+    firstPushMicrotaskPending = false;
+    // Zwischen Microtask-Schedule und Lauf schon ein Burst-Timer? Dann trailing.
+    if (timer != null) return;
     flushSoftNavPush(router);
-  }, 0);
+  });
 }
 
 /** Sofort pushen (Failsafe-Retry / letzter Stand). */
@@ -42,6 +51,7 @@ export function flushSoftNavPush(router: AppRouterInstance): string | null {
     window.clearTimeout(timer);
     timer = null;
   }
+  firstPushMicrotaskPending = false;
   const target = pendingHref;
   pendingHref = null;
   if (!target) return null;
@@ -55,6 +65,7 @@ export function cancelSoftNavCoalescedPush(): void {
     window.clearTimeout(timer);
     timer = null;
   }
+  firstPushMicrotaskPending = false;
   pendingHref = null;
 }
 

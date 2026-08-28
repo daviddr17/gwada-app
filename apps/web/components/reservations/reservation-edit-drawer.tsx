@@ -136,6 +136,13 @@ import {
   dispatchDashboardReservationUpdateLivePatch,
 } from "@/lib/dashboard/dispatch-dashboard-reservation-save-live-client";
 import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/reservation-open-status";
+import {
+  guestContactRequirementSettingsFromRow,
+  guestContactRequirementToastMessage,
+  validateGuestContactRequirements,
+  type GuestContactRequirementSettings,
+  DEFAULT_GUEST_CONTACT_REQUIREMENT_SETTINGS,
+} from "@/lib/reservations/guest-contact-requirements";
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
 import {
   deleteReservation,
@@ -333,6 +340,10 @@ export function ReservationEditDrawer({
   const [staffList, setStaffList] = useState<RestaurantStaffRow[]>([]);
   const [assignedStaffIds, setAssignedStaffIds] = useState<string[]>([]);
   const [defaultDwellMinutes, setDefaultDwellMinutes] = useState(120);
+  const [guestContactRequirements, setGuestContactRequirements] =
+    useState<GuestContactRequirementSettings>(
+      DEFAULT_GUEST_CONTACT_REQUIREMENT_SETTINGS,
+    );
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
   const [quotationId, setQuotationId] = useState<string | null>(null);
@@ -475,6 +486,9 @@ export function ReservationEditDrawer({
       setTables(tData);
       setStaffList(staffData);
       setDefaultDwellMinutes(sData?.default_dwell_minutes ?? 120);
+      setGuestContactRequirements(
+        guestContactRequirementSettingsFromRow(sData ?? undefined),
+      );
       setRestaurantTimeZone(timeZone);
     })();
   }, [open, restaurantIdForFetch]);
@@ -887,17 +901,35 @@ export function ReservationEditDrawer({
       ).toISOString();
     }
 
+    const formattedPhone = formatGuestPhone(
+      phoneCountryIso,
+      phoneLocal,
+      countriesForPhone,
+    );
+    const formattedEmail = email.trim() || null;
+    const contactCheck = validateGuestContactRequirements(
+      guestContactRequirements,
+      ps,
+      formattedPhone,
+      formattedEmail,
+    );
+    if (!contactCheck.ok) {
+      toast.error(
+        guestContactRequirementToastMessage(
+          contactCheck.error,
+          guestContactRequirements,
+        ),
+      );
+      return null;
+    }
+
     return {
       kind,
       guest_first_name: normalizeReservationGuestFirstName(firstName),
       guest_last_name: normalizeReservationGuestLastName(lastName),
       guest_company: normalizeReservationGuestCompany(company),
-      guest_phone: formatGuestPhone(
-        phoneCountryIso,
-        phoneLocal,
-        countriesForPhone,
-      ),
-      guest_email: email.trim() || null,
+      guest_phone: formattedPhone,
+      guest_email: formattedEmail,
       party_size: ps,
       starts_at: startsIso,
       ends_at: endsIso,

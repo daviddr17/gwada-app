@@ -60,6 +60,12 @@ import {
   type PublicGuestReservation,
 } from "@/lib/reservations/public-embed-shared";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
+import { toast } from "sonner";
+import {
+  guestContactRequirementSettingsFromPublicConfig,
+  guestContactRequirementToastMessage,
+  validatePublicGuestContact,
+} from "@/lib/reservations/guest-contact-requirements";
 import {
   normalizeReservationGuestCompany,
   normalizeReservationGuestFirstName,
@@ -89,6 +95,8 @@ type EmbedFieldErrors = {
   party?: boolean;
   lastName?: boolean;
   contact?: boolean;
+  email?: boolean;
+  phone?: boolean;
   notifyChannel?: boolean;
   terms?: boolean;
   manageNumber?: boolean;
@@ -102,6 +110,8 @@ const FIELD_HINT_KEYS: Record<
   | "hintParty"
   | "hintLastName"
   | "hintContact"
+  | "hintEmail"
+  | "hintPhone"
   | "hintNotifyChannel"
   | "hintTerms"
   | "hintManageNumber"
@@ -112,6 +122,8 @@ const FIELD_HINT_KEYS: Record<
   party: "hintParty",
   lastName: "hintLastName",
   contact: "hintContact",
+  email: "hintEmail",
+  phone: "hintPhone",
   notifyChannel: "hintNotifyChannel",
   terms: "hintTerms",
   manageNumber: "hintManageNumber",
@@ -122,6 +134,8 @@ const API_ERROR_KEYS: Record<string, string> = {
   invalid_request: "errorInvalidRequest",
   terms_required: "errorTermsRequired",
   contact_required: "errorContactRequired",
+  email_required: "errorEmailRequired",
+  phone_required: "errorPhoneRequired",
   notify_channel_required: "errorNotifyChannel",
   outside_opening_hours: "errorOutsideHours",
   booking_lead_time: "errorLeadTime",
@@ -132,6 +146,21 @@ const API_ERROR_KEYS: Record<string, string> = {
   create_failed: "errorCreateFailed",
   update_failed: "errorUpdateFailed",
 };
+
+function showGuestContactRequirementToast(
+  errors: Pick<EmbedFieldErrors, "email" | "phone" | "contact">,
+  settings: ReturnType<typeof guestContactRequirementSettingsFromPublicConfig>,
+) {
+  if (errors.email) {
+    toast.error(guestContactRequirementToastMessage("email_required", settings));
+  } else if (errors.phone) {
+    toast.error(guestContactRequirementToastMessage("phone_required", settings));
+  } else if (errors.contact) {
+    toast.error(
+      guestContactRequirementToastMessage("contact_required", settings),
+    );
+  }
+}
 
 function EmbedFieldErrorHint({
   field,
@@ -225,13 +254,28 @@ function EmbedReservationWidgetBody({
     [tr],
   );
 
+  const contactSettings = useMemo(
+    () => guestContactRequirementSettingsFromPublicConfig(config),
+    [config],
+  );
+
   const errorMessage = useCallback(
     (code: string | undefined) => {
       if (!code) return tr("genericError");
+      if (
+        code === "email_required" ||
+        code === "phone_required" ||
+        code === "contact_required"
+      ) {
+        return guestContactRequirementToastMessage(
+          code,
+          contactSettings,
+        );
+      }
       const key = API_ERROR_KEYS[code];
       return key ? tr(key as Parameters<typeof tr>[0]) : tr("errorInvalidRequest");
     },
-    [tr],
+    [tr, contactSettings],
   );
 
   const termsSheetOpen = profileTermsSheet?.open ?? internalTermsSheetOpen;
@@ -427,8 +471,17 @@ function EmbedReservationWidgetBody({
     const ps = Number(partySize);
     if (!Number.isFinite(ps) || ps < 1) errors.party = true;
     if (!payload.guest_last_name.trim()) errors.lastName = true;
-    if (!hasGuestContactFilled(phoneCountryIso, phoneLocal, email, countries)) {
-      errors.contact = true;
+    const contactSettings = guestContactRequirementSettingsFromPublicConfig(config);
+    const contactCheck = validatePublicGuestContact(
+      contactSettings,
+      payload.party_size,
+      payload.guest_phone,
+      payload.guest_email,
+    );
+    if (!contactCheck.ok) {
+      if (contactCheck.error === "email_required") errors.email = true;
+      else if (contactCheck.error === "phone_required") errors.phone = true;
+      else errors.contact = true;
     }
     if (!termsAccepted) errors.terms = true;
     if (!payload.notify_email && !payload.notify_whatsapp) {
@@ -498,6 +551,7 @@ function EmbedReservationWidgetBody({
     const errors = collectFieldErrors(payload);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
+      showGuestContactRequirementToast(errors, contactSettings);
       setError(tr("checkFields"));
       return;
     }
@@ -516,7 +570,15 @@ function EmbedReservationWidgetBody({
       };
       if (!res.ok || !body.reservation_number || !body.guest_pin) {
         setBookPhase("idle");
-        setError(errorMessage(body.error));
+        const msg = errorMessage(body.error);
+        setError(msg);
+        if (
+          body.error === "email_required" ||
+          body.error === "phone_required" ||
+          body.error === "contact_required"
+        ) {
+          toast.error(msg);
+        }
         return;
       }
       setBookPhase("success");
@@ -590,6 +652,7 @@ function EmbedReservationWidgetBody({
     const errors = collectFieldErrors(payload);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
+      showGuestContactRequirementToast(errors, contactSettings);
       setError(tr("checkFields"));
       return;
     }
@@ -612,7 +675,15 @@ function EmbedReservationWidgetBody({
       };
       if (!res.ok) {
         setManagePhase("idle");
-        setError(errorMessage(body.error));
+        const msg = errorMessage(body.error);
+        setError(msg);
+        if (
+          body.error === "email_required" ||
+          body.error === "phone_required" ||
+          body.error === "contact_required"
+        ) {
+          toast.error(msg);
+        }
         return;
       }
       setManagePhase("success");
@@ -768,10 +839,11 @@ function EmbedReservationWidgetBody({
           <div className="flex gap-2">
             <GuestPhoneCountrySelect
               value={phoneCountryIso}
-              invalid={fieldErrors.contact}
+              invalid={fieldErrors.contact || fieldErrors.phone}
               onValueChange={(iso2) => {
                 setPhoneCountryIso(iso2);
                 clearFieldError("contact");
+                clearFieldError("phone");
               }}
               countries={countries}
             />
@@ -780,13 +852,21 @@ function EmbedReservationWidgetBody({
               onChange={(e) => {
                 setPhoneLocal(e.target.value);
                 clearFieldError("contact");
+                clearFieldError("phone");
               }}
               inputMode="tel"
               autoComplete="tel-national"
-              aria-invalid={fieldErrors.contact || undefined}
+              aria-invalid={
+                fieldErrors.contact || fieldErrors.phone || undefined
+              }
               className="h-10 min-w-0 flex-1 rounded-xl"
             />
           </div>
+          <EmbedFieldErrorHint
+            field="phone"
+            errors={fieldErrors}
+            message={fieldHint("phone")}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="embed-email">{tr("email")}</Label>
@@ -797,10 +877,16 @@ function EmbedReservationWidgetBody({
             onChange={(e) => {
               setEmail(e.target.value);
               clearFieldError("contact");
+              clearFieldError("email");
             }}
             autoComplete="email"
-            aria-invalid={fieldErrors.contact || undefined}
+            aria-invalid={fieldErrors.contact || fieldErrors.email || undefined}
             className="h-10 rounded-xl"
+          />
+          <EmbedFieldErrorHint
+            field="email"
+            errors={fieldErrors}
+            message={fieldHint("email")}
           />
         </div>
         <EmbedFieldErrorHint field="contact" errors={fieldErrors} message={fieldHint("contact")} />

@@ -31,6 +31,10 @@ import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-what
 import {
   fetchPublicEmbedRestaurant,
 } from "@/lib/reservations/public-reservation-server";
+import {
+  guestContactRequirementSettingsFromPublicConfig,
+  validatePublicGuestContact,
+} from "@/lib/reservations/guest-contact-requirements";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formatReservationGuestLabel } from "@/lib/types/reservation-log";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -60,10 +64,6 @@ export type PublicEventInquiryCreateBody = {
 
 function honeypotFilled(website: string | undefined): boolean {
   return Boolean(website?.trim());
-}
-
-function hasGuestContact(phone: string | null, email: string | null): boolean {
-  return Boolean(phone?.trim()) || Boolean(email?.trim());
 }
 
 function hasNotifyChannel(notifyEmail: boolean, notifyWhatsapp: boolean): boolean {
@@ -114,9 +114,6 @@ export async function createPublicEventInquiry(
   if (!normalizeReservationGuestLastName(body.guest_last_name)) {
     return { data: null, error: "last_name_required", status: 400 };
   }
-  if (!hasGuestContact(body.guest_phone, body.guest_email)) {
-    return { data: null, error: "contact_required", status: 400 };
-  }
   if (!hasNotifyChannel(body.notify_email, body.notify_whatsapp)) {
     return { data: null, error: "notify_channel_required", status: 400 };
   }
@@ -130,6 +127,16 @@ export async function createPublicEventInquiry(
     };
   }
   const restaurant = restaurantRes.data;
+
+  const contactCheck = validatePublicGuestContact(
+    guestContactRequirementSettingsFromPublicConfig(restaurant),
+    body.party_size,
+    body.guest_phone,
+    body.guest_email,
+  );
+  if (!contactCheck.ok) {
+    return { data: null, error: contactCheck.error, status: 400 };
+  }
 
   const admin = createSupabaseAdminClient();
   if (!admin) {

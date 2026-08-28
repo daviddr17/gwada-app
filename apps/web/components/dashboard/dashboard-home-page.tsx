@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardAccountingTile } from "@/components/dashboard/dashboard-accounting-tile";
@@ -159,9 +160,9 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
         {masonryRuns.map((run, runIndex) => {
           if (run.type === "full") {
             return (
-              <div key={`full-${runIndex}`} className="flex min-w-0 flex-col gap-4">
+              <Fragment key={`full-${runIndex}`}>
                 {run.items.map(({ id }) => renderWidgetCell(id))}
-              </div>
+              </Fragment>
             );
           }
           const { left, right } = splitDashboardColumnLanes(run.items);

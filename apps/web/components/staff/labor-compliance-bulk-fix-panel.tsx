@@ -1,17 +1,21 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
-import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
+
+const FIX_MODES = [
+  {
+    value: "normal" as const,
+    title: "Pause verbuchen",
+    hint: "Netto-Arbeitszeit wird kürzer",
+  },
+  {
+    value: "extend_end" as const,
+    title: "Pause + Ende verlängern",
+    hint: "Nur Dokumentation, Netto bleibt",
+  },
+];
 
 export function LaborComplianceBulkFixPanel({
   fixableCount,
@@ -20,6 +24,7 @@ export function LaborComplianceBulkFixPanel({
   onFixClick,
   disabled,
   className,
+  compact,
 }: {
   fixableCount: number;
   fixMode: "normal" | "extend_end";
@@ -27,45 +32,75 @@ export function LaborComplianceBulkFixPanel({
   onFixClick: () => void;
   disabled?: boolean;
   className?: string;
+  /** Kompakter Footer: Modus-Toggles + Button, ohne große Karte. */
+  compact?: boolean;
 }) {
   if (fixableCount <= 0) return null;
+
+  const modePicker = (
+    <div
+      className="grid min-w-0 gap-2"
+      role="radiogroup"
+      aria-label="Korrektur-Modus"
+    >
+      {FIX_MODES.map((mode) => {
+        const selected = fixMode === mode.value;
+        return (
+          <button
+            key={mode.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            disabled={disabled}
+            onClick={() => onFixModeChange(mode.value)}
+            className={cn(
+              "min-w-0 rounded-xl border px-3 py-2.5 text-left transition-colors",
+              selected
+                ? "border-accent/50 bg-accent/10 ring-1 ring-accent/30"
+                : "border-border/50 bg-background hover:bg-muted/40",
+              disabled && "opacity-50",
+            )}
+          >
+            <span className="block text-sm font-medium">{mode.title}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              {mode.hint}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div className={cn("min-w-0 space-y-3", className)}>
+        {modePicker}
+        <Button
+          type="button"
+          className={cn(brandActionButtonRoundedClassName, "w-full")}
+          disabled={disabled}
+          onClick={onFixClick}
+        >
+          {fixableCount} Pause{fixableCount === 1 ? "" : "n"} beheben
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div
       className={cn(
-        "space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4",
+        "min-w-0 space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4",
         className,
       )}
     >
       <p className="text-sm font-medium">
         Pausen beheben ({fixableCount} behebbar)
       </p>
-      <div className="space-y-1.5">
-        <Label>Korrektur-Modus</Label>
-        <Select
-          value={fixMode}
-          onValueChange={(v) => {
-            if (v === "normal" || v === "extend_end") onFixModeChange(v);
-          }}
-        >
-          <SelectTrigger
-            className={appSelectTriggerAccentCn("h-10 w-full rounded-xl")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="normal">
-              Pause verbuchen (Netto-Arbeitszeit kürzer)
-            </SelectItem>
-            <SelectItem value="extend_end">
-              Pause verbuchen + Ende verlängern (Dokumentation)
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {modePicker}
       <Button
         type="button"
-        className={brandActionButtonRoundedClassName}
+        className={cn(brandActionButtonRoundedClassName, "w-full")}
         disabled={disabled}
         onClick={onFixClick}
       >

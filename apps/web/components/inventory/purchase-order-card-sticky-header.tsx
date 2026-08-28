@@ -80,9 +80,16 @@ export function PurchaseOrderCardStickyHeader({
       <div ref={sentinelRef} className="h-px w-full" aria-hidden />
       <div
         className={cn(
-          "sticky top-0 z-10 border-b border-border/40 bg-card",
+          "sticky top-0 z-10 bg-card",
           "supports-[backdrop-filter]:bg-card/95 supports-[backdrop-filter]:backdrop-blur-md",
-          "transition-[box-shadow] duration-200",
+          "transition-[box-shadow,border-radius] duration-200",
+          // Zugeklappt: Ecken + Overflow clippen (Aktionsstreifen sonst eckig).
+          // Compact-Sticky am Viewport: ohne Radius.
+          !isExpanded
+            ? "overflow-hidden rounded-xl"
+            : showCompact
+              ? "border-b border-border/40"
+              : "overflow-hidden rounded-t-xl border-b border-border/40",
           showCompact && "shadow-sm",
         )}
       >
@@ -161,7 +168,10 @@ export function PurchaseOrderCardStickyHeader({
               "flex shrink-0 items-center gap-2 border-l border-border/50 transition-[max-width,opacity,padding] duration-200 ease-out",
               showCompact
                 ? "pointer-events-none max-w-0 overflow-hidden border-l-0 px-0 opacity-0"
-                : "max-w-[min(100vw,28rem)] px-3 py-2.5 opacity-100",
+                : cn(
+                    "max-w-[min(100vw,28rem)] px-3 py-2.5 opacity-100",
+                    !isExpanded && "rounded-r-xl",
+                  ),
             )}
             aria-hidden={showCompact}
           >

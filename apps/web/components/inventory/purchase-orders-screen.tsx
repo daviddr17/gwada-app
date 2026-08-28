@@ -734,7 +734,12 @@ export function PurchaseOrdersScreen() {
             return (
               <section
                 key={order.id}
-                className="overflow-visible rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm"
+                className={cn(
+                  "rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm",
+                  // Zugeklappt: Ecken clippen. Aufgeklappt: overflow sichtbar,
+                  // damit der Sticky-Kopf am Scroll-Root haften kann.
+                  isExpanded ? "overflow-visible" : "overflow-hidden",
+                )}
               >
                 <PurchaseOrderCardStickyHeader
                   order={order}
@@ -813,7 +818,7 @@ export function PurchaseOrdersScreen() {
                 />
 
                 {isExpanded ? (
-                  <div className="border-t border-border/50">
+                  <div className="overflow-hidden rounded-b-xl border-t border-border/50">
                     <div className="md:hidden">
                       <PurchaseOrderMobileLinesList
                         order={order}

@@ -1,4 +1,4 @@
-import type { LaborComplianceViolation, LaborViolationCode } from "./de-arbzg-rules.ts";
+import type { LaborComplianceViolation, LaborViolationCode } from "./de-arbzg-rules";
 
 const META: Record<
   LaborViolationCode,

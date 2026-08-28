@@ -6,11 +6,11 @@ import {
   requiredBreakMinutes,
   sixMonthWindowStartYmd,
   addDaysToYmd,
-} from "./de-arbzg-rules.ts";
+} from "./de-arbzg-rules";
 import {
   buildLaborViolation,
   formatMinutesDe,
-} from "./labor-violation-format.ts";
+} from "./labor-violation-format";
 
 function parseMs(iso: string): number {
   return new Date(iso).getTime();

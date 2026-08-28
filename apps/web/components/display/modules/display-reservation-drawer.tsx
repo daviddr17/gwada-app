@@ -83,11 +83,17 @@ import {
 } from "@/lib/supabase/dining-floor-db";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
-import { displayReservationSaveErrorMessage } from "@/lib/display/display-reservation-save-errors";
+import {
+  guestContactRequirementToastMessage,
+  validateGuestContactRequirements,
+  type GuestContactRequirementSettings,
+  DEFAULT_GUEST_CONTACT_REQUIREMENT_SETTINGS,
+} from "@/lib/reservations/guest-contact-requirements";
 import {
   buildDisplayReservationSlotIso,
   resolveDisplayReservationDwellMinutes,
 } from "@/lib/display/display-reservation-save-times";
+import { displayReservationSaveErrorMessage } from "@/lib/display/display-reservation-save-errors";
 
 type Status = { id: string; code: string; name: string; color_hex: string };
 
@@ -119,6 +125,7 @@ export function DisplayReservationDrawer({
   tables,
   defaultDwellMinutes,
   bookingTimeStepMinutes,
+  guestContactRequirements = DEFAULT_GUEST_CONTACT_REQUIREMENT_SETTINGS,
   nextReservationNumber,
   initialDayYmd,
   initialTimeHm,
@@ -130,6 +137,7 @@ export function DisplayReservationDrawer({
   tables: DiningTableRow[];
   defaultDwellMinutes: number;
   bookingTimeStepMinutes: number;
+  guestContactRequirements?: GuestContactRequirementSettings;
   nextReservationNumber: number | null;
   initialDayYmd: string;
   initialTimeHm?: string;
@@ -250,6 +258,23 @@ export function DisplayReservationDrawer({
       toast.error("Bitte einen Nachnamen eingeben.");
       return;
     }
+    const formattedPhone = formatGuestPhone(phoneCountryIso, phoneLocal, countries);
+    const formattedEmail = email.trim() || null;
+    const contactCheck = validateGuestContactRequirements(
+      guestContactRequirements,
+      ps,
+      formattedPhone,
+      formattedEmail,
+    );
+    if (!contactCheck.ok) {
+      toast.error(
+        guestContactRequirementToastMessage(
+          contactCheck.error,
+          guestContactRequirements,
+        ),
+      );
+      return;
+    }
     const minutesForEnd = resolveDisplayReservationDwellMinutes(
       dwellDraft,
       defaultDwellMinutes,
@@ -282,8 +307,8 @@ export function DisplayReservationDrawer({
           guest_first_name: normalizeReservationGuestFirstName(firstName),
           guest_last_name: normalizeReservationGuestLastName(lastName),
           guest_company: normalizeReservationGuestCompany(company),
-          guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
-          guest_email: email.trim() || null,
+          guest_phone: formattedPhone,
+          guest_email: formattedEmail,
           party_size: ps,
           starts_at: startsIso,
           ends_at: endsIso,
@@ -304,7 +329,7 @@ export function DisplayReservationDrawer({
         reservation?: DisplayReservationRow;
       };
       if (!res.ok) {
-        toast.error(displayReservationSaveErrorMessage(data.error));
+        toast.error(displayReservationSaveErrorMessage(data.error, undefined, guestContactRequirements));
         return;
       }
       toast.success(

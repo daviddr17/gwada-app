@@ -10,7 +10,7 @@ import {
   buildReservationLogDetails,
   reservationSnapshotFromPayload,
 } from "@/lib/reservations/reservation-log-build";
-import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
+import { assertStaffGuestContactRequirements } from "@/lib/reservations/guest-contact-requirements-server";
 import { resolveReservationLogActorNames } from "@/lib/reservations/reservation-log-actor-resolve";
 import {
   normalizeReservationGuestCompany,
@@ -194,6 +194,16 @@ export async function createPosReservation(params: {
   }
   if (!isValidReservationTimeRange(params.startsAt, params.endsAt)) {
     return { ok: false, error: "invalid_time_range", status: 400 };
+  }
+
+  const contactCheck = await assertStaffGuestContactRequirements(admin, {
+    restaurantId: params.restaurantId,
+    partySize: params.partySize,
+    phone: params.guestPhone ?? null,
+    email: params.guestEmail ?? null,
+  });
+  if (!contactCheck.ok) {
+    return { ok: false, error: contactCheck.error, status: 400 };
   }
 
   const { data: settings } = await admin

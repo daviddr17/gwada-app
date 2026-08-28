@@ -9,7 +9,7 @@ import {
   buildReservationLogDetails,
   reservationSnapshotFromPayload,
 } from "@/lib/reservations/reservation-log-build";
-import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
+import { assertStaffGuestContactRequirements } from "@/lib/reservations/guest-contact-requirements-server";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import {
@@ -52,6 +52,18 @@ export async function createDisplayReservation(
   | { ok: true; id: string; reservation_number: number; guest_pin: string }
   | { ok: false; error: string }
 > {
+  if (!input.is_walk_in) {
+    const contactCheck = await assertStaffGuestContactRequirements(admin, {
+      restaurantId,
+      partySize: input.party_size,
+      phone: input.guest_phone,
+      email: input.guest_email,
+    });
+    if (!contactCheck.ok) {
+      return { ok: false, error: contactCheck.error };
+    }
+  }
+
   const actor = await resolveDisplayReservationActor(admin, staffId);
   const { data, error } = await admin
     .from("reservations")
@@ -303,6 +315,16 @@ export async function updateDisplayReservation(
 
   if (!reservation || reservation.restaurant_id !== restaurantId) {
     return { ok: false, error: "not_found" };
+  }
+
+  const contactCheck = await assertStaffGuestContactRequirements(admin, {
+    restaurantId,
+    partySize: input.party_size,
+    phone: input.guest_phone,
+    email: input.guest_email,
+  });
+  if (!contactCheck.ok) {
+    return { ok: false, error: contactCheck.error };
   }
 
   const statusRaw = (reservation as Record<string, unknown>).reservation_statuses;

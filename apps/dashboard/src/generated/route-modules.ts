@@ -128,6 +128,7 @@ const Lazy__dashboard_settings_oeffnungszeiten = settingsLazy(() => import("../r
 const Lazy__dashboard_settings_restaurant = settingsLazy(() => import("../routes/settings-restaurant-route").then((m) => ({ default: m.SettingsRestaurantRoute as ComponentType })));
 const Lazy__dashboard_settings_team = settingsLazy(() => import("@/components/settings/restaurant-team-settings-panel").then((m) => ({ default: m.RestaurantTeamSettingsPanel as ComponentType })));
 const Lazy__dashboard_changelog = changelogLazy(() => import("@/components/changelog/changelog-overview").then((m) => ({ default: m.ChangelogOverview as ComponentType })));
+const Lazy__dashboard_mitarbeiter_arbeitszeiten_beheben = staffLazy(() => import("@/components/staff/staff-labor-compliance-screen").then((m) => ({ default: m.StaffLaborComplianceScreen as ComponentType })));
 
 export type DashboardRouteEntry = {
   path: string;
@@ -262,4 +263,5 @@ export const DASHBOARD_ROUTE_ENTRIES: DashboardRouteEntry[] = [
   { path: "/settings/rollen", fullPath: "/dashboard/settings/team", redirect: "/dashboard/settings/team" },
   { path: "/settings/team", fullPath: "/dashboard/settings/team", Lazy: Lazy__dashboard_settings_team },
   { path: "/changelog", fullPath: "/dashboard/changelog", Lazy: Lazy__dashboard_changelog },
+  { path: "/mitarbeiter/arbeitszeiten/beheben", fullPath: "/dashboard/mitarbeiter/arbeitszeiten/beheben", Lazy: Lazy__dashboard_mitarbeiter_arbeitszeiten_beheben },
 ];

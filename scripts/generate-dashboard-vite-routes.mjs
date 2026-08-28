@@ -180,6 +180,16 @@ const EXTRA_ROUTE_ENTRIES = [
       },
     ],
   },
+  {
+    route: "/dashboard/mitarbeiter/arbeitszeiten/beheben",
+    pageBehavior: "render",
+    imports: [
+      {
+        component: "StaffLaborComplianceScreen",
+        from: "@/components/staff/staff-labor-compliance-screen",
+      },
+    ],
+  },
 ];
 
 function chromeWrapperFor(route) {

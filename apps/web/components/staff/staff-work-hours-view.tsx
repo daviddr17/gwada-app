@@ -91,7 +91,6 @@ import {
   StaffWorkHoursDayLaborHints,
   StaffWorkHoursLaborBanner,
 } from "@/components/staff/staff-work-hours-labor-hints";
-import { StaffWorkHoursLaborFixSection } from "@/components/staff/staff-work-hours-labor-fix-section";
 
 const timeDe = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
@@ -453,11 +452,6 @@ export function StaffWorkHoursView({
     monthStartYmd,
     monthEndYmd,
   ]);
-
-  const monthFixableViolations = useMemo(
-    () => monthLaborViolations.filter((v) => v.fixable),
-    [monthLaborViolations],
-  );
 
   const payrollWageTotalCents = useMemo(
     () => payrollLines.reduce((sum, line) => sum + line.wageCents, 0),
@@ -932,22 +926,10 @@ export function StaffWorkHoursView({
           </StaffCollapsibleCard>
 
           {showLaborComplianceHints ? (
-            <div className="min-w-0 space-y-3">
-              <StaffWorkHoursLaborBanner
-                violations={monthLaborViolations}
-                staffLabelById={staffId ? undefined : staffNameById}
-              />
-              {monthFixableViolations.length > 0 ? (
-                <StaffWorkHoursLaborFixSection
-                  violations={monthFixableViolations}
-                  restaurantId={restaurantId}
-                  onFixed={() => {
-                    void reload();
-                    void reloadComplianceEntries();
-                  }}
-                />
-              ) : null}
-            </div>
+            <StaffWorkHoursLaborBanner
+              violations={monthLaborViolations}
+              staffLabelById={staffId ? undefined : staffNameById}
+            />
           ) : null}
 
           <div className="space-y-3">

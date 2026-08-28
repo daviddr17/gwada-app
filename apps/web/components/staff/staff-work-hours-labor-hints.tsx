@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import type { LaborComplianceViolation } from "@/lib/staff/labor-law/de-arbzg-rules";
 import { LaborComplianceViolationList } from "@/components/staff/labor-compliance-violation-list";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
 export function StaffWorkHoursLaborBanner({
@@ -50,7 +52,12 @@ export function StaffWorkHoursLaborBanner({
               : "Keine kritischen Verstöße"}
             {warningCount > 0 ? ` · ${warningCount} Hinweis${warningCount === 1 ? "" : "e"}` : ""}
             {" · "}
-            Unverbindliche ArbZG-Prüfung — keine Rechtsberatung.
+            <AppNavLink
+              href={APP_ROUTES.mitarbeiter.hoursFix}
+              className="font-medium text-accent underline-offset-4 hover:underline"
+            >
+              Beheben
+            </AppNavLink>
           </span>
         </span>
         <ChevronDown

@@ -108,13 +108,21 @@ export function DashboardLaborComplianceSheet({
             </DrawerDescription>
             <p className="pt-1 text-left text-sm">
               <AppNavLink
+                href={APP_ROUTES.mitarbeiter.hoursFix}
+                className="font-medium text-accent underline-offset-4 hover:underline"
+                onClick={() => onOpenChange(false)}
+              >
+                ArbZG beheben
+              </AppNavLink>
+              {" — sortierte Übersicht und Bulk-Korrektur für Pausen. Tageskontext im "}
+              <AppNavLink
                 href={APP_ROUTES.mitarbeiter.hours}
                 className="font-medium text-accent underline-offset-4 hover:underline"
                 onClick={() => onOpenChange(false)}
               >
-                In Arbeitszeiten prüfen und korrigieren
+                Kalender
               </AppNavLink>
-              {" — dort alle Hinweise pro Tag und Bulk-Korrektur für Pausen."}
+              .
             </p>
           </DrawerHeader>
 

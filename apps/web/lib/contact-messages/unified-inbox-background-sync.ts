@@ -163,8 +163,18 @@ export function useUnifiedInboxBackgroundSync(options: {
       void refreshUnifiedInboxCache(paramsRef.current);
     }, UNIFIED_INBOX_WARM_DELAY_MS);
 
-    const onLive = () => {
+    const onLive = (event: Event) => {
       if (!enabledRef.current || !paramsRef.current) return;
+      const detail = (
+        event as CustomEvent<{
+          restaurantId?: string;
+          contactId?: string;
+          all?: boolean;
+        }>
+      ).detail;
+      // Optimistisches Gelesen (contactId/all): kein Force-Refetch — sonst
+      // überschreibt ein verzögerter Cache-Reload den UI-Patch mit Stale-Daten.
+      if (detail?.contactId || detail?.all) return;
       scheduleLiveRefresh(paramsRef.current);
     };
 

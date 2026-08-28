@@ -183,7 +183,12 @@ export async function markConversationReadClient(params: {
     });
     const body = (await res.json()) as { error?: string };
     if (!res.ok) return { ok: false, error: body.error ?? `http_${res.status}` };
-    dispatchDashboardMessagesRefresh();
+    // Mit contactId: Dashboard/Inbox patchen — kein Force-Refetch, der den
+    // optimistischen Gelesen-Stand mit Stale-Daten überschreibt.
+    dispatchDashboardMessagesRefresh({
+      restaurantId: params.restaurantId,
+      contactId: params.conversationKey,
+    });
     dispatchNotificationsRefresh();
     return { ok: true, error: null };
   } catch {

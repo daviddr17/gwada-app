@@ -2,12 +2,15 @@
 
 export const DE_ARBZG = {
   maxDailyWorkMinutes: 10 * 60,
+  targetDailyWorkMinutes: 8 * 60,
   maxWeeklyWorkMinutes: 48 * 60,
   maxContinuousWorkMinutes: 6 * 60,
   minRestMinutesDefault: 11 * 60,
   /** Gastronomie §5 Abs. 2 — verkürzte Ruhezeit */
   minRestMinutesGastroShort: 10 * 60,
   restCompensationMinutes: 12 * 60,
+  restCompensationWindowDays: 28,
+  rollingAverageMonths: 6,
   breakAfter6hMinutes: 30,
   breakAfter9hMinutes: 45,
   minBreakChunkMinutes: 15,
@@ -20,15 +23,22 @@ export type LaborViolationCode =
   | "break_too_short"
   | "continuous_work_exceeded"
   | "daily_hours_exceeded"
+  | "daily_average_exceeded"
   | "weekly_hours_exceeded"
-  | "rest_period_short";
+  | "rest_period_short"
+  | "rest_compensation_missing";
 
 export type LaborComplianceViolation = {
   code: LaborViolationCode;
+  severity: "error" | "warning";
+  title: string;
   message: string;
+  hint: string;
+  legalRef: string;
+  fixable: boolean;
   staffId: string;
   dayYmd: string;
-  /** ISO range for fix UI */
+  weekLabel?: string;
   workStartIso?: string;
   workEndIso?: string;
   requiredBreakMinutes?: number;
@@ -40,7 +50,6 @@ export type SuggestedBreakFix = {
   mode: "normal" | "extend_end";
   breakStartIso: string;
   breakEndIso: string;
-  /** Nur Modus extend_end: neues Ausstempeln */
   extendedWorkEndIso?: string;
 };
 
@@ -65,7 +74,7 @@ function parseMs(iso: string): number {
   return new Date(iso).getTime();
 }
 
-function requiredBreakMinutes(netWorkMinutes: number): number {
+export function requiredBreakMinutes(netWorkMinutes: number): number {
   if (netWorkMinutes > 9 * 60) return DE_ARBZG.breakAfter9hMinutes;
   if (netWorkMinutes > 6 * 60) return DE_ARBZG.breakAfter6hMinutes;
   return 0;
@@ -88,9 +97,7 @@ export function analyzeStaffDayWork(params: {
     ends_at: string;
     is_open?: boolean;
   }>;
-  nowMs?: number;
 }): DayWorkAnalysis | null {
-  const nowMs = params.nowMs ?? Date.now();
   const closedWork = params.workEntries
     .filter((e) => !e.is_open && parseMs(e.ends_at) > parseMs(e.starts_at))
     .sort((a, b) => parseMs(a.starts_at) - parseMs(b.starts_at));
@@ -167,85 +174,36 @@ export function analyzeStaffDayWork(params: {
   };
 }
 
-export function evaluateDeArbzgDay(
-  analysis: DayWorkAnalysis,
-): LaborComplianceViolation[] {
-  const violations: LaborComplianceViolation[] = [];
-  const required = requiredBreakMinutes(analysis.netWorkMinutes);
-  const firstStart = analysis.workPeriods[0]!.startMs;
-  const lastEnd = analysis.workPeriods.at(-1)!.endMs;
-
-  if (
-    required > 0 &&
-    analysis.totalBreakMinutes + 0.001 < required
-  ) {
-    violations.push({
-      code: "missing_break",
-      staffId: analysis.staffId,
-      dayYmd: analysis.dayYmd,
-      message: `Mindestpause fehlt oder zu kurz: ${Math.round(analysis.totalBreakMinutes)} von ${required} Min. (netto ${formatMin(analysis.netWorkMinutes)} Arbeit).`,
-      workStartIso: new Date(firstStart).toISOString(),
-      workEndIso: new Date(lastEnd).toISOString(),
-      requiredBreakMinutes: required,
-      actualBreakMinutes: Math.round(analysis.totalBreakMinutes),
-      netWorkMinutes: Math.round(analysis.netWorkMinutes),
-    });
-  }
-
-  if (
-    analysis.longestContinuousWorkMinutes >
-    DE_ARBZG.maxContinuousWorkMinutes + 0.001
-  ) {
-    violations.push({
-      code: "continuous_work_exceeded",
-      staffId: analysis.staffId,
-      dayYmd: analysis.dayYmd,
-      message: `Mehr als ${DE_ARBZG.maxContinuousWorkMinutes / 60} h am Stück ohne Pause (${formatMin(analysis.longestContinuousWorkMinutes)}).`,
-      workStartIso: new Date(firstStart).toISOString(),
-      workEndIso: new Date(lastEnd).toISOString(),
-      netWorkMinutes: Math.round(analysis.netWorkMinutes),
-    });
-  }
-
-  if (analysis.netWorkMinutes > DE_ARBZG.maxDailyWorkMinutes + 0.001) {
-    violations.push({
-      code: "daily_hours_exceeded",
-      staffId: analysis.staffId,
-      dayYmd: analysis.dayYmd,
-      message: `Tageshöchstarbeitszeit überschritten: ${formatMin(analysis.netWorkMinutes)} (max. ${DE_ARBZG.maxDailyWorkMinutes / 60} h).`,
-      workStartIso: new Date(firstStart).toISOString(),
-      workEndIso: new Date(lastEnd).toISOString(),
-      netWorkMinutes: Math.round(analysis.netWorkMinutes),
-    });
-  }
-
-  return violations;
+export function mondayOfWeekYmd(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const date = new Date(y!, m! - 1, d!);
+  const dow = date.getDay();
+  const diff = dow === 0 ? -6 : 1 - dow;
+  date.setDate(date.getDate() + diff);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }
 
-export function evaluateDeArbzgRestPeriod(params: {
-  staffId: string;
-  previousDayEndIso: string;
-  nextDayStartIso: string;
-  dayYmd: string;
-  gastroShortRestAllowed?: boolean;
-}): LaborComplianceViolation | null {
-  const restMin =
-    (parseMs(params.nextDayStartIso) - parseMs(params.previousDayEndIso)) /
-    60_000;
-  const minRequired = params.gastroShortRestAllowed
-    ? DE_ARBZG.minRestMinutesGastroShort
-    : DE_ARBZG.minRestMinutesDefault;
+export function addDaysToYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const date = new Date(y!, m! - 1, d!);
+  date.setDate(date.getDate() + days);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
 
-  if (restMin + 0.001 >= minRequired) return null;
-
-  return {
-    code: "rest_period_short",
-    staffId: params.staffId,
-    dayYmd: params.dayYmd,
-    message: `Ruhezeit zu kurz: ${Math.round(restMin)} min (min. ${minRequired / 60} h${params.gastroShortRestAllowed ? ", Gastro-Ausnahme" : ""}).`,
-    workStartIso: params.previousDayEndIso,
-    workEndIso: params.nextDayStartIso,
-  };
+export function sixMonthWindowStartYmd(endYmd: string): string {
+  const [y, m, d] = endYmd.split("-").map(Number);
+  const date = new Date(y!, m! - 1, d!);
+  date.setMonth(date.getMonth() - DE_ARBZG.rollingAverageMonths);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }
 
 /** Pause ungefähr mittig im ersten Work-Block; Modus B verlängert Ende um Pausendauer. */
@@ -274,11 +232,4 @@ export function suggestBreakFixForDay(
   }
 
   return fix;
-}
-
-function formatMin(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
-  if (h <= 0) return `${m} min`;
-  return m > 0 ? `${h} h ${m} min` : `${h} h`;
 }

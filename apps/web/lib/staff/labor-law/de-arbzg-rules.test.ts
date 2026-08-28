@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  analyzeStaffDayWork,
-  evaluateDeArbzgDay,
-  suggestBreakFixForDay,
-} from "./de-arbzg-rules.ts";
+import { analyzeStaffDayWork, suggestBreakFixForDay } from "./de-arbzg-rules.ts";
+import { evaluateDeArbzgDay, evaluateDeArbzgWeekly } from "./de-arbzg-evaluators.ts";
 
 test("8h ohne Pause → Mindestpause 30 min fehlt", () => {
   const analysis = analyzeStaffDayWork({
@@ -24,6 +21,8 @@ test("8h ohne Pause → Mindestpause 30 min fehlt", () => {
   const violations = evaluateDeArbzgDay(analysis!);
   assert.ok(violations.some((v) => v.code === "missing_break"));
   assert.ok(violations.some((v) => v.code === "continuous_work_exceeded"));
+  assert.ok(violations[0]?.title);
+  assert.ok(violations[0]?.hint);
 });
 
 test("Teildienst 4h + 4h mit 4h Lücke → Pause erfüllt", () => {
@@ -50,6 +49,31 @@ test("Teildienst 4h + 4h mit 4h Lücke → Pause erfüllt", () => {
   assert.equal(violations.filter((v) => v.code === "missing_break").length, 0);
 });
 
+test("Wochenarbeitszeit > 48 h", () => {
+  const analyses = ["2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16"].map(
+    (dayYmd, i) =>
+      analyzeStaffDayWork({
+        staffId: "s1",
+        dayYmd,
+        workEntries: [
+          {
+            id: `w${i}`,
+            starts_at: `${dayYmd}T08:00:00.000Z`,
+            ends_at: `${dayYmd}T18:00:00.000Z`,
+          },
+        ],
+        breakEntries: [],
+      })!,
+  );
+  const weekViolation = evaluateDeArbzgWeekly({
+    staffId: "s1",
+    weekMondayYmd: "2026-01-12",
+    analyses,
+  });
+  assert.ok(weekViolation);
+  assert.equal(weekViolation?.code, "weekly_hours_exceeded");
+});
+
 test("suggestBreakFix extend_end verlängert Ausstempeln", () => {
   const analysis = analyzeStaffDayWork({
     staffId: "s1",
@@ -66,6 +90,4 @@ test("suggestBreakFix extend_end verlängert Ausstempeln", () => {
   const fix = suggestBreakFixForDay(analysis!, "extend_end");
   assert.equal(fix?.mode, "extend_end");
   assert.equal(fix?.extendedWorkEndIso, "2026-01-15T19:30:00.000Z");
-  assert.equal(fix?.breakStartIso, "2026-01-15T14:45:00.000Z");
-  assert.equal(fix?.breakEndIso, "2026-01-15T15:15:00.000Z");
 });

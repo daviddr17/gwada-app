@@ -25,6 +25,7 @@ import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import type { LaborComplianceViolation } from "@/lib/staff/labor-law/de-arbzg-rules";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 import { applyLaborComplianceBulkFix } from "@/lib/staff/labor-law/apply-labor-compliance-fix";
+import { LaborComplianceViolationList } from "@/components/staff/labor-compliance-violation-list";
 import { toast } from "sonner";
 
 export function DashboardLaborComplianceSheet({
@@ -48,27 +49,34 @@ export function DashboardLaborComplianceSheet({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const staffLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [id, row] of staffById) {
+      map.set(id, `${row.given_name} ${row.family_name}`.trim());
+    }
+    return map;
+  }, [staffById]);
+
   const filtered = useMemo(() => {
     return violations.filter((v) => {
       if (fromYmd && v.dayYmd < fromYmd) return false;
       if (toYmd && v.dayYmd > toYmd) return false;
-      return v.code === "missing_break" || v.code === "break_too_short";
+      return true;
     });
   }, [violations, fromYmd, toYmd]);
 
-  const staffLabel = (staffId: string) => {
-    const row = staffById.get(staffId);
-    if (!row) return "Mitarbeiter";
-    return `${row.given_name} ${row.family_name}`.trim();
-  };
+  const fixable = useMemo(
+    () => filtered.filter((v) => v.fixable),
+    [filtered],
+  );
 
   const runFix = async () => {
-    if (!restaurantId || filtered.length === 0) return;
+    if (!restaurantId || fixable.length === 0) return;
     setBusy(true);
     try {
       const result = await applyLaborComplianceBulkFix({
         restaurantId,
-        violations: filtered,
+        violations: fixable,
         mode: fixMode,
       });
       if (result.error) {
@@ -96,12 +104,12 @@ export function DashboardLaborComplianceSheet({
               Arbeitszeit-Hinweise (ArbZG)
             </DrawerTitle>
             <DrawerDescription>
-              Unverbindliche Prüfung auf Basis des ArbZG. Keine Rechtsberatung.
-              Tarifverträge können abweichen. Display-Mitarbeiter sehen diese
-              Hinweise nicht.
+              Unverbindliche Prüfung auf Basis des ArbZG (letzte 6 Monate).
+              Keine Rechtsberatung — Tarifverträge können abweichen.
+              Display-Mitarbeiter sehen diese Hinweise nicht.
             </DrawerDescription>
           </DrawerHeader>
-          <div className="space-y-4 overflow-y-auto px-4 pb-6">
+          <div className="space-y-5 overflow-y-auto px-4 pb-6">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="labor-from">Von (optional)</Label>
@@ -124,57 +132,58 @@ export function DashboardLaborComplianceSheet({
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Korrektur-Modus</Label>
-              <Select
-                value={fixMode}
-                onValueChange={(v) => {
-                  if (v === "normal" || v === "extend_end") setFixMode(v);
-                }}
-              >
-                <SelectTrigger
-                  className={appSelectTriggerAccentCn("h-10 w-full rounded-xl")}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">
-                    Pause verbuchen (Netto-Arbeitszeit kürzer)
-                  </SelectItem>
-                  <SelectItem value="extend_end">
-                    Pause verbuchen + Ende verlängern (Dokumentation)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Keine behebbaren Pausen-Verstöße im gewählten Zeitraum.
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">
+                Alle Hinweise ({filtered.length})
               </p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {filtered.map((v, i) => (
-                  <li
-                    key={`${v.staffId}-${v.dayYmd}-${v.code}-${i}`}
-                    className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2"
+              <LaborComplianceViolationList
+                violations={filtered}
+                staffLabelById={staffLabelById}
+              />
+            </div>
+
+            {fixable.length > 0 ? (
+              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4">
+                <p className="text-sm font-medium">
+                  Pausen beheben ({fixable.length} behebbar)
+                </p>
+                <div className="space-y-1.5">
+                  <Label>Korrektur-Modus</Label>
+                  <Select
+                    value={fixMode}
+                    onValueChange={(v) => {
+                      if (v === "normal" || v === "extend_end") setFixMode(v);
+                    }}
                   >
-                    <p className="font-medium">
-                      {staffLabel(v.staffId)} · {v.dayYmd}
-                    </p>
-                    <p className="text-muted-foreground">{v.message}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <Button
-              type="button"
-              className={brandActionButtonRoundedClassName}
-              disabled={filtered.length === 0 || !restaurantId}
-              onClick={() => setConfirmOpen(true)}
-            >
-              {filtered.length} Verstoß
-              {filtered.length === 1 ? "" : "e"} beheben
-            </Button>
+                    <SelectTrigger
+                      className={appSelectTriggerAccentCn(
+                        "h-10 w-full rounded-xl",
+                      )}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">
+                        Pause verbuchen (Netto-Arbeitszeit kürzer)
+                      </SelectItem>
+                      <SelectItem value="extend_end">
+                        Pause verbuchen + Ende verlängern (Dokumentation)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  className={brandActionButtonRoundedClassName}
+                  disabled={!restaurantId}
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  {fixable.length} Verstoß
+                  {fixable.length === 1 ? "" : "e"} beheben
+                </Button>
+              </div>
+            ) : null}
           </div>
         </DrawerContent>
       </Drawer>
@@ -182,7 +191,7 @@ export function DashboardLaborComplianceSheet({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Zeiteinträge wirklich ändern?"
-        description={`Es werden ${filtered.length} Pausen-Einträge angelegt${fixMode === "extend_end" ? " und betroffene Arbeitsblöcke am Ende verlängert" : ""}. Bestehende Verträge und andere Daten bleiben unberührt.`}
+        description={`Es werden ${fixable.length} Pausen-Einträge angelegt${fixMode === "extend_end" ? " und betroffene Arbeitsblöcke am Ende verlängert" : ""}. Bestehende Verträge und andere Daten bleiben unberührt.`}
         confirmLabel={busy ? "Wird geändert…" : "Ja, jetzt ändern"}
         destructive={false}
         confirmDisabled={busy}

@@ -80,6 +80,17 @@ import {
 import { cn } from "@/lib/utils";
 import { STAFF_CONTRACTS_UPDATED_EVENT } from "@/lib/staff/staff-contract-events";
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import {
+  evaluateLaborCompliance,
+  laborViolationsForStaffDay,
+} from "@/lib/staff/labor-law/evaluate-work-compliance";
+import { sixMonthWindowStartYmd } from "@/lib/staff/labor-law/de-arbzg-rules";
+import type { LaborComplianceViolation } from "@/lib/staff/labor-law/de-arbzg-rules";
+import {
+  StaffWorkHoursDayLaborHints,
+  StaffWorkHoursLaborBanner,
+} from "@/components/staff/staff-work-hours-labor-hints";
 
 const timeDe = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
@@ -136,6 +147,48 @@ function localDayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function ymdToLocalDate(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return startOfLocalDay(new Date(y!, m! - 1, d!));
+}
+
+function violationInMonthRange(
+  v: LaborComplianceViolation,
+  monthStartYmd: string,
+  monthEndYmd: string,
+): boolean {
+  if (v.dayYmd >= monthStartYmd && v.dayYmd <= monthEndYmd) return true;
+  if (v.code === "weekly_hours_exceeded" && v.weekLabel) {
+    const monday = v.weekLabel.split(" – ")[0]?.trim();
+    const sunday = v.weekLabel.split(" – ")[1]?.trim();
+    if (monday && sunday) {
+      return sunday >= monthStartYmd && monday <= monthEndYmd;
+    }
+  }
+  return false;
+}
+
+function dayLaborViolations(
+  violations: LaborComplianceViolation[],
+  dayYmd: string,
+  filterStaffId: string | null,
+): LaborComplianceViolation[] {
+  const staffIds = filterStaffId
+    ? [filterStaffId]
+    : [...new Set(violations.map((v) => v.staffId))];
+  const result: LaborComplianceViolation[] = [];
+  const seen = new Set<string>();
+  for (const sid of staffIds) {
+    for (const v of laborViolationsForStaffDay(violations, sid, dayYmd)) {
+      const key = `${v.staffId}:${v.code}:${v.dayYmd}:${v.weekLabel ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(v);
+    }
+  }
+  return result;
+}
+
 function dayKeyFromIso(iso: string): string {
   return localDayKey(new Date(iso));
 }
@@ -157,6 +210,9 @@ export function StaffWorkHoursView({
   chromeContext = "staff-module",
 }: StaffWorkHoursViewProps) {
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
+  const { profile } = useRestaurantProfile();
+  const showLaborComplianceHints =
+    allowEdit && chromeContext === "staff-module";
   const staffSelection = useStaffModuleSelectionOptional();
   const staffList = staffSelection?.staffList ?? [];
   const router = useRouter();
@@ -167,6 +223,9 @@ export function StaffWorkHoursView({
   const pendingScrollToTodayRef = useRef(false);
   const monthStickyRef = useRef<HTMLDivElement>(null);
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
+  const [complianceEntries, setComplianceEntries] = useState<
+    RestaurantStaffWorkEntryRow[]
+  >([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
@@ -240,6 +299,40 @@ export function StaffWorkHoursView({
     else setEntries(data);
   }, [restaurantId, staffId, rangeStart, rangeEnd]);
 
+  const monthStartYmd = useMemo(() => localDayKey(monthStart), [monthStart]);
+  const monthEndYmd = useMemo(() => localDayKey(monthEnd), [monthEnd]);
+  const today = useMemo(() => startOfLocalDay(new Date()), []);
+  const todayKey = useMemo(() => localDayKey(today), [today]);
+
+  const reloadComplianceEntries = useCallback(async () => {
+    if (!showLaborComplianceHints) {
+      setComplianceEntries([]);
+      return;
+    }
+    const lookbackEndYmd =
+      monthEndYmd > todayKey ? monthEndYmd : todayKey;
+    const lookbackStartYmd = sixMonthWindowStartYmd(lookbackEndYmd);
+    const complianceStart = localDayStartToUtcIso(
+      ymdToLocalDate(lookbackStartYmd),
+    );
+    const complianceEnd = exclusiveUtcIsoAfterLocalVisibleEnd(monthEnd);
+    const { data, error } = await fetchStaffWorkEntriesInRange(
+      restaurantId,
+      staffId,
+      complianceStart,
+      complianceEnd,
+    );
+    if (error) toast.error(error);
+    else setComplianceEntries(data);
+  }, [
+    showLaborComplianceHints,
+    monthEndYmd,
+    todayKey,
+    restaurantId,
+    staffId,
+    monthEnd,
+  ]);
+
   const reloadContracts = useCallback(async () => {
     const { data, error } = await fetchStaffContractsForRestaurant(restaurantId);
     if (error) toast.error(error);
@@ -249,6 +342,10 @@ export function StaffWorkHoursView({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    void reloadComplianceEntries();
+  }, [reloadComplianceEntries]);
 
   useEffect(() => {
     void reloadContracts();
@@ -320,6 +417,42 @@ export function StaffWorkHoursView({
     return map;
   }, [staffList]);
 
+  const laborViolations = useMemo(() => {
+    if (!showLaborComplianceHints || complianceEntries.length === 0) return [];
+    return evaluateLaborCompliance({
+      entries: complianceEntries,
+      countryIso2: profile.countryIso2,
+      countryLabel: profile.country,
+      timeZone: restaurantTimeZone,
+      closedOnly: true,
+    });
+  }, [
+    showLaborComplianceHints,
+    complianceEntries,
+    profile.countryIso2,
+    profile.country,
+    restaurantTimeZone,
+  ]);
+
+  const monthLaborViolations = useMemo(() => {
+    if (!showLaborComplianceHints) return [];
+    const seen = new Set<string>();
+    const list: LaborComplianceViolation[] = [];
+    for (const v of laborViolations) {
+      if (!violationInMonthRange(v, monthStartYmd, monthEndYmd)) continue;
+      const key = `${v.staffId}:${v.code}:${v.dayYmd}:${v.weekLabel ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push(v);
+    }
+    return list;
+  }, [
+    showLaborComplianceHints,
+    laborViolations,
+    monthStartYmd,
+    monthEndYmd,
+  ]);
+
   const payrollWageTotalCents = useMemo(
     () => payrollLines.reduce((sum, line) => sum + line.wageCents, 0),
     [payrollLines],
@@ -338,8 +471,6 @@ export function StaffWorkHoursView({
     return map;
   }, [entries, drawerStaffId]);
 
-  const today = useMemo(() => startOfLocalDay(new Date()), []);
-  const todayKey = useMemo(() => localDayKey(today), [today]);
   const viewingCurrentMonth =
     cursor.year === today.getFullYear() && cursor.month === today.getMonth();
 
@@ -794,6 +925,13 @@ export function StaffWorkHoursView({
             ) : null}
           </StaffCollapsibleCard>
 
+          {showLaborComplianceHints ? (
+            <StaffWorkHoursLaborBanner
+              violations={monthLaborViolations}
+              staffLabelById={staffId ? undefined : staffNameById}
+            />
+          ) : null}
+
           <div className="space-y-3">
             {monthDays.map((day) => {
               const key = localDayKey(day);
@@ -803,6 +941,9 @@ export function StaffWorkHoursView({
               const blockNewTimeEntry = staffId
                 ? findStaffAbsenceOnDay(entries, staffId, key) != null
                 : false;
+              const dayLaborIssues = showLaborComplianceHints
+                ? dayLaborViolations(laborViolations, key, staffId)
+                : [];
               return (
                 <Card
                   key={key}
@@ -831,6 +972,12 @@ export function StaffWorkHoursView({
                       ) : null}
                       <CardTitle className="text-base">
                         {formatDayHeadingDe(day)}
+                        {dayLaborIssues.length > 0 ? (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                            {dayLaborIssues.length} Hinweis
+                            {dayLaborIssues.length === 1 ? "" : "e"}
+                          </span>
+                        ) : null}
                       </CardTitle>
                     </div>
                     {allowEdit && canAddEntry && !blockNewTimeEntry ? (
@@ -851,6 +998,12 @@ export function StaffWorkHoursView({
                     ) : null}
                   </CardHeader>
                   <CardContent className="space-y-2">
+                    {dayLaborIssues.length > 0 ? (
+                      <StaffWorkHoursDayLaborHints
+                        violations={dayLaborIssues}
+                        staffLabelById={staffId ? undefined : staffNameById}
+                      />
+                    ) : null}
                     {dayEntries.length === 0 ? (
                       <p className="text-xs text-muted-foreground">—</p>
                     ) : (
@@ -946,7 +1099,10 @@ export function StaffWorkHoursView({
             allowEdit={allowEdit}
             siblingEntries={siblingEntries}
             shiftClusterSegments={shiftClusterSegments}
-            onSaved={() => void reload()}
+            onSaved={() => {
+              void reload();
+              void reloadComplianceEntries();
+            }}
             onDelete={async (id) => {
               const ok = await deleteStaffWorkEntry(id);
               if (!ok) toast.error("Löschen fehlgeschlagen.");

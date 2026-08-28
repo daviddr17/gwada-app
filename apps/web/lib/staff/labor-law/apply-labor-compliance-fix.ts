@@ -122,3 +122,90 @@ export async function applyLaborComplianceBulkFix(params: {
 
   return { fixedCount, skippedCount, error: null };
 }
+
+/** Einzelner Tag nach Abschluss eines Arbeitseintrags (Auto-Fix-Einstellung). */
+export async function applyLaborComplianceAutoFixForStaffDay(params: {
+  restaurantId: string;
+  staffId: string;
+  dayYmd: string;
+  mode?: "normal" | "extend_end";
+}): Promise<{ fixed: boolean; error: string | null }> {
+  const mode = params.mode ?? "normal";
+  const rangeStart = new Date(`${params.dayYmd}T00:00:00`);
+  const rangeEnd = new Date(`${params.dayYmd}T23:59:59.999`);
+
+  const { data: entries, error: fetchErr } = await fetchStaffWorkEntriesInRange(
+    params.restaurantId,
+    params.staffId,
+    rangeStart.toISOString(),
+    rangeEnd.toISOString(),
+  );
+  if (fetchErr) {
+    return { fixed: false, error: fetchErr };
+  }
+
+  const workEntries = entries.filter((e) => e.entry_type === "work");
+  const breakEntries = entries.filter((e) => e.entry_type === "break");
+  const analysis = analyzeStaffDayWork({
+    staffId: params.staffId,
+    dayYmd: params.dayYmd,
+    workEntries,
+    breakEntries,
+  });
+  if (!analysis) {
+    return { fixed: false, error: null };
+  }
+
+  const suggestion = suggestBreakFixForDay(analysis, mode);
+  if (!suggestion) {
+    return { fixed: false, error: null };
+  }
+
+  const primaryWork = workEntries.sort(
+    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+  )[0];
+  if (!primaryWork) {
+    return { fixed: false, error: null };
+  }
+
+  if (
+    mode === "extend_end" &&
+    suggestion.extendedWorkEndIso &&
+    !primaryWork.is_open
+  ) {
+    const updated = await upsertStaffWorkEntry(
+      params.restaurantId,
+      params.staffId,
+      {
+        id: primaryWork.id,
+        entry_type: "work",
+        starts_at: primaryWork.starts_at,
+        ends_at: suggestion.extendedWorkEndIso,
+        note: primaryWork.note,
+        is_open: false,
+        shift_id: primaryWork.shift_id,
+      },
+    );
+    if (!updated) {
+      return { fixed: false, error: "Arbeitsblock konnte nicht verlängert werden." };
+    }
+  }
+
+  const inserted = await upsertStaffWorkEntry(
+    params.restaurantId,
+    params.staffId,
+    {
+      entry_type: "break",
+      starts_at: suggestion.breakStartIso,
+      ends_at: suggestion.breakEndIso,
+      note: "ArbZG-Korrektur (Auto)",
+      is_open: false,
+      shift_id: primaryWork.shift_id,
+    },
+  );
+  if (!inserted) {
+    return { fixed: false, error: "Pause konnte nicht eingetragen werden." };
+  }
+
+  return { fixed: true, error: null };
+}

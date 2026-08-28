@@ -348,7 +348,7 @@ export async function loadDashboardStaffSummaryServer(
 
   const dayYmd = restaurantTodayYmd(timeZone);
   const complianceLookbackStart = new Date(
-    Date.now() - 14 * 24 * 3_600_000,
+    Date.now() - 183 * 24 * 3_600_000,
   ).toISOString();
   const complianceEntries = await fetchStaffWorkEntriesClosedSinceServer(
     sb,

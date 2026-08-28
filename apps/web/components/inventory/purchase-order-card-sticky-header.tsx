@@ -80,9 +80,17 @@ export function PurchaseOrderCardStickyHeader({
       <div ref={sentinelRef} className="h-px w-full" aria-hidden />
       <div
         className={cn(
-          "sticky top-0 z-10 border-b border-border/40 bg-card",
+          "sticky top-0 z-10 bg-card",
           "supports-[backdrop-filter]:bg-card/95 supports-[backdrop-filter]:backdrop-blur-md",
-          "transition-[box-shadow] duration-200",
+          "transition-[box-shadow,border-radius] duration-200",
+          // Zugeklappt / nicht sticky: Kartenecken mitzeichnen (Parent oft
+          // overflow-visible wegen Sticky). Im Compact-Zustand oben am Viewport
+          // ohne Radius, damit nichts „schwebt“.
+          !isExpanded
+            ? "rounded-xl"
+            : showCompact
+              ? "border-b border-border/40"
+              : "rounded-t-xl border-b border-border/40",
           showCompact && "shadow-sm",
         )}
       >

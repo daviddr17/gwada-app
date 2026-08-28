@@ -20,17 +20,21 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { restaurantTodayYmd } from "@/lib/restaurant/restaurant-timezone";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
+import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
+import { DashboardLaborComplianceSheet } from "@/components/dashboard/dashboard-labor-compliance-sheet";
 
 export function DashboardStaffTile() {
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
-  const { summary, staff, presence, completedShifts, loading, error, ready } =
+  const { summary, staff, presence, completedShifts, laborViolations, loading, error, ready } =
     useDashboardStaffStats();
   const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
   const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
+  const [laborSheetOpen, setLaborSheetOpen] = useState(false);
   const active = summary?.activeStaff ?? 0;
+  const laborIssueCount = laborViolations.length;
   const onBreak = summary?.onBreakStaff ?? 0;
   const completed = summary?.completedShiftsToday ?? 0;
   const todayHours = summary?.todayWorkHours ?? 0;
@@ -91,6 +95,15 @@ export function DashboardStaffTile() {
               href={APP_ROUTES.mitarbeiter.overview}
             />
           ) : null}
+          {laborIssueCount > 0 ? (
+            <DashboardCompactMetricPill
+              label="ArbZG"
+              value={String(laborIssueCount)}
+              highlight
+              stripeVariant="attention"
+              onClick={() => setLaborSheetOpen(true)}
+            />
+          ) : null}
         </DashboardCompactInlineMetrics>
 
         {hasLiveChips ? (
@@ -136,6 +149,17 @@ export function DashboardStaffTile() {
           timeZone={restaurantTimeZone}
         />
       ) : null}
+
+      <DashboardLaborComplianceSheet
+        open={laborSheetOpen}
+        onOpenChange={setLaborSheetOpen}
+        violations={laborViolations}
+        staffById={staffById}
+        restaurantId={restaurantId}
+        onFixed={() => {
+          window.dispatchEvent(new Event(GWADA_STAFF_DATA_REFRESH_EVENT));
+        }}
+      />
     </DashboardWidgetShell>
   );
 }

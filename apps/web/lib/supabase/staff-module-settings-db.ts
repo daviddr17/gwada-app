@@ -18,6 +18,7 @@ export type RestaurantStaffModuleSettingsRow = {
   contract_two_step_signing: boolean;
   display_auto_clock_out_enabled: boolean;
   display_auto_clock_out_hours: number;
+  labor_auto_fix_missing_breaks: boolean;
 };
 
 export {
@@ -38,7 +39,7 @@ export async function fetchStaffModuleSettings(
   const { data, error } = await sb
     .from("restaurant_staff_module_settings")
     .select(
-      "restaurant_id, contract_document_tag_id, profile_show_work_hours, profile_show_shift_plan, profile_show_documents, profile_show_availability, profile_allow_display_pin_self_service, contract_two_step_signing, display_auto_clock_out_enabled, display_auto_clock_out_hours",
+      "restaurant_id, contract_document_tag_id, profile_show_work_hours, profile_show_shift_plan, profile_show_documents, profile_show_availability, profile_allow_display_pin_self_service, contract_two_step_signing, display_auto_clock_out_enabled, display_auto_clock_out_hours, labor_auto_fix_missing_breaks",
     )
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
@@ -56,6 +57,7 @@ export async function fetchStaffModuleSettings(
         contract_two_step_signing: false,
         display_auto_clock_out_enabled: true,
         display_auto_clock_out_hours: DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
+        labor_auto_fix_missing_breaks: false,
       },
       error: null,
     };
@@ -75,6 +77,10 @@ export async function fetchStaffModuleSettings(
         (data as { display_auto_clock_out_hours?: number })
           .display_auto_clock_out_hours,
       ),
+      labor_auto_fix_missing_breaks: Boolean(
+        (data as { labor_auto_fix_missing_breaks?: boolean })
+          .labor_auto_fix_missing_breaks,
+      ),
     },
     error: null,
   };
@@ -91,6 +97,7 @@ export async function upsertStaffModuleSettings(params: {
   contractTwoStepSigning?: boolean;
   displayAutoClockOutEnabled?: boolean;
   displayAutoClockOutHours?: number;
+  laborAutoFixMissingBreaks?: boolean;
 }): Promise<{ error: Error | null }> {
   if (!isUuidRestaurantId(params.restaurantId)) {
     return { error: new Error("Ungültige Restaurant-ID.") };
@@ -125,6 +132,9 @@ export async function upsertStaffModuleSettings(params: {
   }
   if (params.displayAutoClockOutHours !== undefined) {
     patch.display_auto_clock_out_hours = params.displayAutoClockOutHours;
+  }
+  if (params.laborAutoFixMissingBreaks !== undefined) {
+    patch.labor_auto_fix_missing_breaks = params.laborAutoFixMissingBreaks;
   }
 
   const { error } = await sb

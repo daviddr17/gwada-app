@@ -63,6 +63,8 @@ import {
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import { cn } from "@/lib/utils";
+import { fetchStaffModuleSettings } from "@/lib/supabase/staff-module-settings-db";
+import { applyLaborComplianceAutoFixForStaffDay } from "@/lib/staff/labor-law/apply-labor-compliance-fix";
 
 const logWhenFmt = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
@@ -367,7 +369,28 @@ export function StaffWorkEntryDrawer({
       );
     }
 
-    toast.success("Gespeichert");
+    let autoFixApplied = false;
+    if (entryType === "work" && !willStayOpen) {
+      const { data: settings } = await fetchStaffModuleSettings(restaurantId);
+      if (settings?.labor_auto_fix_missing_breaks) {
+        const fixResult = await applyLaborComplianceAutoFixForStaffDay({
+          restaurantId,
+          staffId,
+          dayYmd: dateStr,
+        });
+        if (fixResult.error) {
+          toast.error(fixResult.error);
+        } else if (fixResult.fixed) {
+          autoFixApplied = true;
+        }
+      }
+    }
+
+    toast.success(
+      autoFixApplied
+        ? "Gespeichert · fehlende Mindestpause automatisch eingetragen"
+        : "Gespeichert",
+    );
     onSaved();
     onOpenChange(false);
   }, [

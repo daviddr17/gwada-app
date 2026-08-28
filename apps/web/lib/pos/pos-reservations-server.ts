@@ -10,6 +10,7 @@ import {
   buildReservationLogDetails,
   reservationSnapshotFromPayload,
 } from "@/lib/reservations/reservation-log-build";
+import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { assertStaffGuestContactRequirements } from "@/lib/reservations/guest-contact-requirements-server";
 import { resolveReservationLogActorNames } from "@/lib/reservations/reservation-log-actor-resolve";
 import {

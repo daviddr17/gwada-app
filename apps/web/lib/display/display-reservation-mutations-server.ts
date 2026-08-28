@@ -9,6 +9,7 @@ import {
   buildReservationLogDetails,
   reservationSnapshotFromPayload,
 } from "@/lib/reservations/reservation-log-build";
+import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { assertStaffGuestContactRequirements } from "@/lib/reservations/guest-contact-requirements-server";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";

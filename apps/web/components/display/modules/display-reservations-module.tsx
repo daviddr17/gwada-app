@@ -74,6 +74,7 @@ import {
   reservationsAtTableForRange,
 } from "@/lib/reservations/reservations-table-occupancy";
 import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import type { DiningAreaRow, DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import { formatDiningTableSelectLabel } from "@/lib/supabase/dining-floor-db";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";

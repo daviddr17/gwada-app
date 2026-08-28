@@ -5,6 +5,7 @@ import {
   GUEST_CONTACT_REQUIREMENTS_SELECT,
   guestContactRequirementSettingsFromRow,
 } from "@/lib/reservations/guest-contact-requirements";
+import { normalizeBookingTimeStepMinutes } from "@/lib/reservations/booking-time-step";
 import {
   parseReservationPendingChange,
   type ReservationPendingChange,

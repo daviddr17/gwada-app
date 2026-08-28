@@ -75,6 +75,7 @@ export function createDefaultRestaurant(id: string): RestaurantProfile {
     street: "",
     postalCode: "",
     city: "",
+    countryIso2: "DE",
     country: "Deutschland",
     website: "",
     phone: "",

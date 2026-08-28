@@ -1,6 +1,7 @@
 import { RESTAURANT_STORAGE_KEY } from "@/lib/constants/restaurant-profile";
 import { parseRestaurantDefaultLocale } from "@/lib/embed/embed-locale";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
+import { countryLabelFromIso2, normalizeCountryIso2 } from "@/lib/restaurant/country-profile";
 import { resolveRestaurantTimezone } from "@/lib/restaurant/restaurant-timezone";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { RestaurantProfile } from "@/lib/types/restaurant";
@@ -19,7 +20,10 @@ export function restaurantRowFromProfile(
     address_line1: profile.street.trim() || null,
     postal_code: profile.postalCode.trim() || null,
     city: profile.city.trim() || null,
-    country: profile.country.trim() || null,
+    country_iso2: normalizeCountryIso2(profile.countryIso2),
+    country:
+      profile.country.trim() ||
+      countryLabelFromIso2(normalizeCountryIso2(profile.countryIso2)),
     phone: profile.phone.trim() || null,
     website: profile.website.trim() || null,
     vat_number: profile.vatNumber.trim() || null,
@@ -30,6 +34,7 @@ export function restaurantRowFromProfile(
     receipt_footer: profile.receiptFooter.trim() || null,
     social_handle: profile.socialHandle.trim() || null,
     timezone: resolveRestaurantTimezone({
+      countryIso2: profile.countryIso2,
       country: profile.country,
       street: profile.street,
       city: profile.city,
@@ -52,7 +57,7 @@ export async function fetchRestaurantStammdatenFromDb(
   const { data, error } = await sb
     .from("restaurants")
     .select(
-      "name, slug, default_locale, address_line1, postal_code, city, country, phone, website, vat_number, legal_name, legal_representative, legal_form, commercial_register, receipt_footer, social_handle, avatar_storage_path, cover_storage_path",
+      "name, slug, default_locale, address_line1, postal_code, city, country, country_iso2, phone, website, vat_number, legal_name, legal_representative, legal_form, commercial_register, receipt_footer, social_handle, avatar_storage_path, cover_storage_path",
     )
     .eq("id", restaurantId)
     .maybeSingle();
@@ -70,6 +75,9 @@ export async function fetchRestaurantStammdatenFromDb(
     street: typeof data.address_line1 === "string" ? data.address_line1 : "",
     postalCode: typeof data.postal_code === "string" ? data.postal_code : "",
     city: typeof data.city === "string" ? data.city : "",
+    countryIso2: normalizeCountryIso2(
+      typeof data.country_iso2 === "string" ? data.country_iso2 : undefined,
+    ),
     country: typeof data.country === "string" ? data.country : "",
     phone: typeof data.phone === "string" ? data.phone : "",
     website: typeof data.website === "string" ? data.website : "",

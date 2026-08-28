@@ -38,6 +38,9 @@ export function useDashboardStaffStats() {
   >([]);
   const [wageBreakdown, setWageBreakdown] =
     useState<StaffDayWageBreakdown>(EMPTY_WAGE_BREAKDOWN);
+  const [laborViolations, setLaborViolations] = useState<
+    DashboardStaffSummaryPayload["laborViolations"]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +65,7 @@ export function useDashboardStaffStats() {
           setPresence([]);
           setCompletedShifts([]);
           setWageBreakdown(EMPTY_WAGE_BREAKDOWN);
+          setLaborViolations([]);
           setError(err);
         }
         if (!silent && initial) setLoading(false);
@@ -73,6 +77,7 @@ export function useDashboardStaffStats() {
       setPresence(data?.presence ?? []);
       setCompletedShifts(data?.completedShifts ?? []);
       setWageBreakdown(data?.wageBreakdown ?? EMPTY_WAGE_BREAKDOWN);
+      setLaborViolations(data?.laborViolations ?? []);
       hasDataRef.current = Boolean(data?.summary);
       if (!silent && initial) setLoading(false);
     },
@@ -89,6 +94,7 @@ export function useDashboardStaffStats() {
       setPresence([]);
       setCompletedShifts([]);
       setWageBreakdown(EMPTY_WAGE_BREAKDOWN);
+      setLaborViolations([]);
       setError(null);
       setLoading(false);
       return;
@@ -128,6 +134,7 @@ export function useDashboardStaffStats() {
       presence: payload?.presence ?? [],
       completedShifts: payload?.completedShifts ?? [],
       wageBreakdown: payload?.wageBreakdown ?? EMPTY_WAGE_BREAKDOWN,
+      laborViolations: payload?.laborViolations ?? [],
       loading: batchSlice.loading,
       error: batchSlice.error,
       ready: batchSlice.ready,
@@ -140,6 +147,7 @@ export function useDashboardStaffStats() {
     presence,
     completedShifts,
     wageBreakdown,
+    laborViolations,
     loading,
     error,
     ready: workspaceReady && Boolean(restaurantId && isUuidRestaurantId(restaurantId)),

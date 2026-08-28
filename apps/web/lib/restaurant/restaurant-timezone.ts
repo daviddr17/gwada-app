@@ -1,3 +1,5 @@
+import { getCountryProfile } from "@/lib/restaurant/country-profile";
+
 /** Standard, wenn keine Adresse hinterlegt ist. */
 export const DEFAULT_RESTAURANT_TIMEZONE = "Europe/Berlin";
 
@@ -83,13 +85,18 @@ export function timezoneFromCountry(country: string | null | undefined): string 
   return COUNTRY_TIMEZONE[key] ?? DEFAULT_RESTAURANT_TIMEZONE;
 }
 
-/** Adresse aus Einstellungen → IANA-Zeitzone; ohne Adresse → `Europe/Berlin`. */
+
+/** Adresse aus Einstellungen → IANA-Zeitzone; ohne Adresse → Land aus Profil. */
 export function resolveRestaurantTimezone(parts: {
+  countryIso2?: string | null;
   country?: string | null;
   street?: string | null;
   city?: string | null;
   postalCode?: string | null;
 }): string {
+  if (parts.countryIso2?.trim()) {
+    return getCountryProfile(parts.countryIso2).timezone;
+  }
   if (!hasRestaurantAddress(parts)) {
     return DEFAULT_RESTAURANT_TIMEZONE;
   }

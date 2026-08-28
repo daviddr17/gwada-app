@@ -86,11 +86,27 @@ import {
   defaultExceptionDateString,
   todayDateString,
 } from "@/lib/restaurant/date-exception-utils";
+import { SearchableSelect } from "@/components/ui/combobox";
+import { RestaurantCountryChangeDialog } from "@/components/settings/restaurant-country-change-dialog";
+import { fetchCountries, type CountryRow } from "@/lib/supabase/countries-db";
+import {
+  applyCountryProfileToDraft,
+  buildCountryChangePreviewRows,
+} from "@/lib/restaurant/country-change-preview";
+import {
+  countryLabelFromIso2,
+  getCountryProfile,
+  listSupportedCountryProfiles,
+  normalizeCountryIso2,
+} from "@/lib/restaurant/country-profile";
+import { resolveCountryIso2FromLabel } from "@/lib/constants/countries";
 import type {
   DateHoursException,
   RestaurantProfile,
   Weekday,
 } from "@/lib/types/restaurant";
+
+const SUPPORTED_COUNTRY_OPTIONS = listSupportedCountryProfiles();
 
 function cloneProfile(p: RestaurantProfile): RestaurantProfile {
   const weeklyHours = { ...p.weeklyHours };
@@ -133,6 +149,7 @@ function pickStammdaten(p: RestaurantProfile) {
     street: p.street,
     postalCode: p.postalCode,
     city: p.city,
+    countryIso2: p.countryIso2,
     country: p.country,
     website: p.website,
     phone: p.phone,
@@ -170,6 +187,11 @@ export function RestaurantSettingsPanel({
   const [showPastExceptions, setShowPastExceptions] = useState(false);
   const [exceptionDeleteId, setExceptionDeleteId] = useState<string | null>(null);
   const [businessCardOpen, setBusinessCardOpen] = useState(false);
+  const [countries, setCountries] = useState<CountryRow[]>([]);
+  const [pendingCountryIso2, setPendingCountryIso2] = useState<string | null>(
+    null,
+  );
+  const [countryChangeOpen, setCountryChangeOpen] = useState(false);
   const [platformStatusRefresh, setPlatformStatusRefresh] = useState(0);
   const [openingHoursSettings, setOpeningHoursSettings] =
     useState<OpeningHoursSettingsRow>(defaultOpeningHoursSettingsRow);
@@ -192,7 +214,11 @@ export function RestaurantSettingsPanel({
   useEffect(() => {
     if (!isReady) return;
     const frame = requestAnimationFrame(() => {
-      setDraft(cloneProfile(profile));
+      const next = cloneProfile(profile);
+      if (!next.countryIso2?.trim()) {
+        next.countryIso2 = resolveCountryIso2FromLabel(next.country);
+      }
+      setDraft(next);
       setError(null);
     });
     return () => cancelAnimationFrame(frame);
@@ -396,6 +422,66 @@ export function RestaurantSettingsPanel({
     if (!draft) return new Set<string>();
     return new Set(draft.dateExceptions.map((ex) => ex.date));
   }, [draft?.dateExceptions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCountries().then(({ data }) => {
+      if (!cancelled) setCountries(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const countryProfile = useMemo(
+    () => getCountryProfile(draft?.countryIso2),
+    [draft?.countryIso2],
+  );
+
+  const countrySelectOptions = useMemo(() => {
+    const supported = new Set(SUPPORTED_COUNTRY_OPTIONS.map((p) => p.iso2));
+    return countries
+      .filter((c) => supported.has(c.iso2 as "DE" | "AT" | "CH" | "FR"))
+      .map((c) => ({
+        value: c.iso2,
+        label: `${c.flag_emoji} ${c.name_de}`,
+      }));
+  }, [countries]);
+
+  const countryChangePreviewRows = useMemo(() => {
+    if (!draft || !pendingCountryIso2) return [];
+    return buildCountryChangePreviewRows({
+      currentIso2: draft.countryIso2,
+      nextIso2: pendingCountryIso2,
+      profile: draft,
+      countries,
+    });
+  }, [draft, pendingCountryIso2, countries]);
+
+  const handleCountrySelect = useCallback(
+    (nextIso2: string) => {
+      if (!draft) return;
+      const normalized = normalizeCountryIso2(nextIso2);
+      if (normalized === normalizeCountryIso2(draft.countryIso2)) return;
+      setPendingCountryIso2(normalized);
+      setCountryChangeOpen(true);
+    },
+    [draft],
+  );
+
+  const confirmCountryChange = useCallback(() => {
+    if (!draft || !pendingCountryIso2) return;
+    setDraft((prev) =>
+      prev ? applyCountryProfileToDraft(prev, pendingCountryIso2, countries) : prev,
+    );
+    setCountryChangeOpen(false);
+    setPendingCountryIso2(null);
+  }, [draft, pendingCountryIso2, countries]);
+
+  const cancelCountryChange = useCallback(() => {
+    setCountryChangeOpen(false);
+    setPendingCountryIso2(null);
+  }, []);
 
   const hasFutureExceptions = useMemo(() => {
     if (!draft) return false;
@@ -702,16 +788,33 @@ export function RestaurantSettingsPanel({
           </div>
           <div className="space-y-2">
             <Label htmlFor="rs-country">Land</Label>
-            <Input
+            <SearchableSelect
               id="rs-country"
-              value={draft.country}
-              onChange={(e) =>
-                setDraft((p) => (p ? { ...p, country: e.target.value } : p))
-              }
-              placeholder="Deutschland"
-              className="h-11 rounded-xl"
+              value={draft.countryIso2 || "DE"}
+              onValueChange={handleCountrySelect}
+              options={countrySelectOptions}
+              placeholder="Land wählen"
+              className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}
             />
+            <p className="text-xs text-muted-foreground">
+              Steuert Zeitzone, Feiertage, Buchhaltungs-Locale, Vertrags- und
+              Compliance-Vorlagen sowie Arbeitszeit-Prüfung (DE).
+            </p>
           </div>
+          <RestaurantCountryChangeDialog
+            open={countryChangeOpen}
+            onOpenChange={(open) => {
+              if (!open) cancelCountryChange();
+            }}
+            rows={countryChangePreviewRows}
+            nextCountryLabel={
+              pendingCountryIso2
+                ? countryLabelFromIso2(pendingCountryIso2, countries)
+                : ""
+            }
+            onConfirm={confirmCountryChange}
+            onCancel={cancelCountryChange}
+          />
           <Separator />
           <div className="space-y-2">
             <Label htmlFor="rs-web">Website</Label>
@@ -743,7 +846,7 @@ export function RestaurantSettingsPanel({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="rs-vat">USt-IdNr.</Label>
+            <Label htmlFor="rs-vat">{countryProfile.legalFieldHints.vatNumberLabel}</Label>
             <Input
               id="rs-vat"
               value={draft.vatNumber}

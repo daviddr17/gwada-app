@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import {
   Drawer,
@@ -11,10 +11,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { drawerFormHeaderClassName, drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
+import {
+  drawerFormHeaderClassName,
+  drawerScrollAreaClassName,
+} from "@/lib/ui/drawer-form-section";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import type { LaborComplianceViolation } from "@/lib/staff/labor-law/de-arbzg-rules";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
@@ -23,6 +25,8 @@ import { LaborComplianceViolationList } from "@/components/staff/labor-complianc
 import { LaborComplianceBulkFixPanel } from "@/components/staff/labor-compliance-bulk-fix-panel";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const PREVIEW_LIMIT = 8;
 
 export function DashboardLaborComplianceSheet({
   open,
@@ -39,8 +43,6 @@ export function DashboardLaborComplianceSheet({
   restaurantId: string | null;
   onFixed?: () => void;
 }) {
-  const [fromYmd, setFromYmd] = useState("");
-  const [toYmd, setToYmd] = useState("");
   const [fixMode, setFixMode] = useState<"normal" | "extend_end">("normal");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,18 +55,22 @@ export function DashboardLaborComplianceSheet({
     return map;
   }, [staffById]);
 
-  const filtered = useMemo(() => {
-    return violations.filter((v) => {
-      if (fromYmd && v.dayYmd < fromYmd) return false;
-      if (toYmd && v.dayYmd > toYmd) return false;
-      return true;
-    });
-  }, [violations, fromYmd, toYmd]);
-
   const fixable = useMemo(
-    () => filtered.filter((v) => v.fixable),
-    [filtered],
+    () => violations.filter((v) => v.fixable),
+    [violations],
   );
+
+  const errorCount = useMemo(
+    () => violations.filter((v) => v.severity === "error").length,
+    [violations],
+  );
+
+  const preview = useMemo(
+    () => violations.slice(0, PREVIEW_LIMIT),
+    [violations],
+  );
+
+  const hasMore = violations.length > PREVIEW_LIMIT;
 
   const runFix = async () => {
     if (!restaurantId || fixable.length === 0) return;
@@ -95,35 +101,55 @@ export function DashboardLaborComplianceSheet({
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
         <DrawerContent className="max-h-[min(90vh,720px)]">
           <DrawerHeader
-            className={cn(drawerFormHeaderClassName(4), "min-w-0 shrink-0 text-left")}
+            className={cn(
+              drawerFormHeaderClassName(4),
+              "min-w-0 shrink-0 space-y-3 text-left",
+            )}
           >
-            <DrawerTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 shrink-0 text-amber-600" aria-hidden />
-              <span className="min-w-0">Arbeitszeit-Hinweise (ArbZG)</span>
-            </DrawerTitle>
-            <DrawerDescription className="text-left break-words">
-              Unverbindliche Prüfung auf Basis des ArbZG (letzte 6 Monate).
-              Keine Rechtsberatung — Tarifverträge können abweichen.
-              Display-Mitarbeiter sehen diese Hinweise nicht.
-            </DrawerDescription>
-            <p className="pt-1 text-left text-sm">
-              <AppNavLink
-                href={APP_ROUTES.mitarbeiter.hoursFix}
-                className="font-medium text-accent underline-offset-4 hover:underline"
-                onClick={() => onOpenChange(false)}
-              >
-                ArbZG beheben
-              </AppNavLink>
-              {" — sortierte Übersicht und Bulk-Korrektur für Pausen. Tageskontext im "}
-              <AppNavLink
-                href={APP_ROUTES.mitarbeiter.hours}
-                className="font-medium text-accent underline-offset-4 hover:underline"
-                onClick={() => onOpenChange(false)}
-              >
-                Kalender
-              </AppNavLink>
-              .
-            </p>
+            <div className="space-y-1">
+              <DrawerTitle className="flex items-center gap-2">
+                <AlertTriangle
+                  className="size-5 shrink-0 text-amber-600"
+                  aria-hidden
+                />
+                <span className="min-w-0">Arbeitszeit-Hinweise</span>
+              </DrawerTitle>
+              <DrawerDescription className="text-left break-words">
+                Unverbindliche ArbZG-Prüfung (letzte 6 Monate) — keine
+                Rechtsberatung.
+              </DrawerDescription>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-xs tabular-nums">
+              <span className="rounded-full border border-border/50 bg-muted/30 px-2.5 py-1 font-medium">
+                {violations.length} Hinweise
+              </span>
+              {errorCount > 0 ? (
+                <span className="rounded-full border border-destructive/30 bg-destructive/5 px-2.5 py-1 font-medium text-destructive">
+                  {errorCount} kritisch
+                </span>
+              ) : null}
+              {fixable.length > 0 ? (
+                <span className="rounded-full border border-accent/30 bg-accent/5 px-2.5 py-1 font-medium text-accent">
+                  {fixable.length} behebbar
+                </span>
+              ) : null}
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full justify-between rounded-xl border-border/60"
+              render={
+                <AppNavLink
+                  href={APP_ROUTES.mitarbeiter.hoursFix}
+                  onClick={() => onOpenChange(false)}
+                />
+              }
+            >
+              <span>Zur Beheben-Übersicht</span>
+              <ChevronRight className="size-4 shrink-0 opacity-60" aria-hidden />
+            </Button>
           </DrawerHeader>
 
           <div
@@ -132,48 +158,38 @@ export function DashboardLaborComplianceSheet({
               "min-w-0 overflow-x-hidden overscroll-x-none",
             )}
           >
-            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-              <div className="min-w-0 space-y-1.5">
-                <Label htmlFor="labor-from">Von (optional)</Label>
-                <Input
-                  id="labor-from"
-                  type="date"
-                  value={fromYmd}
-                  onChange={(e) => setFromYmd(e.target.value)}
-                  className="h-10 w-full min-w-0 rounded-xl"
-                />
-              </div>
-              <div className="min-w-0 space-y-1.5">
-                <Label htmlFor="labor-to">Bis (optional)</Label>
-                <Input
-                  id="labor-to"
-                  type="date"
-                  value={toYmd}
-                  onChange={(e) => setToYmd(e.target.value)}
-                  className="h-10 w-full min-w-0 rounded-xl"
-                />
-              </div>
-            </div>
-
-            <div className="mt-5 min-w-0 space-y-2">
-              <p className="text-sm font-medium">
-                Alle Hinweise ({filtered.length})
+            <p className="mb-2 text-sm font-medium">
+              Neueste Hinweise
+              {hasMore ? ` (Top ${PREVIEW_LIMIT})` : ""}
+            </p>
+            <LaborComplianceViolationList
+              violations={preview}
+              staffLabelById={staffLabelById}
+              emptyText="Keine Arbeitszeit-Hinweise."
+            />
+            {hasMore ? (
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                +{violations.length - PREVIEW_LIMIT} weitere unter{" "}
+                <AppNavLink
+                  href={APP_ROUTES.mitarbeiter.hoursFix}
+                  className="font-medium text-accent underline-offset-4 hover:underline"
+                  onClick={() => onOpenChange(false)}
+                >
+                  Beheben
+                </AppNavLink>
               </p>
-              <LaborComplianceViolationList
-                violations={filtered}
-                staffLabelById={staffLabelById}
-              />
-            </div>
+            ) : null}
           </div>
 
           {fixable.length > 0 ? (
-            <DrawerFooter className="min-w-0 shrink-0 gap-3 border-t border-border/50 bg-card px-4 pb-[max(1rem,var(--app-mobile-bottom-safe))] pt-4">
+            <DrawerFooter className="min-w-0 shrink-0 gap-0 border-t border-border/50 bg-card px-4 pb-[max(1rem,var(--app-mobile-bottom-safe))] pt-3">
               <LaborComplianceBulkFixPanel
                 fixableCount={fixable.length}
                 fixMode={fixMode}
                 onFixModeChange={setFixMode}
                 onFixClick={() => setConfirmOpen(true)}
                 disabled={!restaurantId || busy}
+                compact
                 className="w-full min-w-0"
               />
             </DrawerFooter>
@@ -184,7 +200,7 @@ export function DashboardLaborComplianceSheet({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Zeiteinträge wirklich ändern?"
-        description={`Es werden ${fixable.length} Pausen-Einträge angelegt${fixMode === "extend_end" ? " und betroffene Arbeitsblöcke am Ende verlängert" : ""}. Bestehende Verträge und andere Daten bleiben unberührt.`}
+        description={`Es werden ${fixable.length} Pausen-Einträge angelegt${fixMode === "extend_end" ? " und betroffene Arbeitsblöcke am Ende verlängert" : ""}. Für gezielte Korrekturen besser die Beheben-Übersicht mit Datumsfilter nutzen.`}
         confirmLabel={busy ? "Wird geändert…" : "Ja, jetzt ändern"}
         destructive={false}
         confirmDisabled={busy}

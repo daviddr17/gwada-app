@@ -1,105 +1,80 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, ChevronDown } from "lucide-react";
+import { AlertCircle, AlertTriangle } from "lucide-react";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import type { LaborComplianceViolation } from "@/lib/staff/labor-law/de-arbzg-rules";
-import { LaborComplianceViolationList } from "@/components/staff/labor-compliance-violation-list";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
+/** Kompakter Monats-Hinweis — Details nur unter „Beheben“. */
 export function StaffWorkHoursLaborBanner({
   violations,
-  staffLabelById,
   className,
 }: {
   violations: LaborComplianceViolation[];
   staffLabelById?: ReadonlyMap<string, string>;
   className?: string;
 }) {
-  const [open, setOpen] = useState(true);
-
   if (violations.length === 0) return null;
 
   const errorCount = violations.filter((v) => v.severity === "error").length;
-  const warningCount = violations.length - errorCount;
 
   return (
     <div
       className={cn(
-        "min-w-0 overflow-hidden rounded-xl border border-amber-500/30 bg-amber-500/5 shadow-card",
+        "flex min-w-0 items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 shadow-card",
         className,
       )}
     >
-      <button
-        type="button"
-        className="flex w-full items-start gap-2 px-4 py-3 text-left"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <AlertTriangle
-          className="mt-0.5 size-4 shrink-0 text-amber-600"
-          aria-hidden
-        />
-        <span className="min-w-0 flex-1 break-words">
-          <span className="block text-sm font-medium">
-            {violations.length} Arbeitszeit-Hinweis
-            {violations.length === 1 ? "" : "e"} in diesem Monat
-          </span>
-          <span className="mt-0.5 block text-xs text-muted-foreground">
-            {errorCount > 0
-              ? `${errorCount} kritisch`
-              : "Keine kritischen Verstöße"}
-            {warningCount > 0 ? ` · ${warningCount} Hinweis${warningCount === 1 ? "" : "e"}` : ""}
-            {" · "}
-            <AppNavLink
-              href={APP_ROUTES.mitarbeiter.hoursFix}
-              className="font-medium text-accent underline-offset-4 hover:underline"
-            >
-              Beheben
-            </AppNavLink>
-          </span>
+      <AlertTriangle
+        className="size-4 shrink-0 text-amber-600"
+        aria-hidden
+      />
+      <p className="min-w-0 flex-1 text-sm break-words">
+        <span className="font-medium">
+          {violations.length} Hinweis{violations.length === 1 ? "" : "e"}
         </span>
-        <ChevronDown
-          className={cn(
-            "mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform",
-            open && "rotate-180",
-          )}
-          aria-hidden
-        />
-      </button>
-      {open ? (
-        <div className="min-w-0 border-t border-amber-500/20 px-4 py-3">
-          <LaborComplianceViolationList
-            violations={violations}
-            staffLabelById={staffLabelById}
-            compact
-          />
-        </div>
-      ) : null}
+        {errorCount > 0 ? (
+          <span className="text-muted-foreground">
+            {" "}
+            · {errorCount} kritisch
+          </span>
+        ) : null}
+        <span className="text-muted-foreground">
+          {" · "}
+          <AppNavLink
+            href={APP_ROUTES.mitarbeiter.hoursFix}
+            className="font-medium text-accent underline-offset-4 hover:underline"
+          >
+            Beheben
+          </AppNavLink>
+        </span>
+      </p>
     </div>
   );
 }
 
-export function StaffWorkHoursDayLaborHints({
-  violations,
-  staffLabelById,
+/** Nur rotes Ausrufezeichen am Tag — keine ausführliche Meldung im Kalender. */
+export function StaffWorkHoursDayLaborAlert({
+  count,
+  className,
 }: {
-  violations: LaborComplianceViolation[];
-  staffLabelById?: ReadonlyMap<string, string>;
+  count: number;
+  className?: string;
 }) {
-  if (violations.length === 0) return null;
+  if (count <= 0) return null;
 
   return (
-    <div className="min-w-0 space-y-2 overflow-hidden rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5">
-      <p className="text-xs font-medium text-destructive">
-        {violations.length} ArbZG-Hinweis{violations.length === 1 ? "" : "e"}
-      </p>
-      <LaborComplianceViolationList
-        violations={violations}
-        staffLabelById={staffLabelById}
-        compact
-      />
-    </div>
+    <AppNavLink
+      href={APP_ROUTES.mitarbeiter.hoursFix}
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center text-destructive",
+        className,
+      )}
+      title={`${count} ArbZG-Hinweis${count === 1 ? "" : "e"} — Details unter Beheben`}
+      aria-label={`${count} ArbZG-Hinweis${count === 1 ? "" : "e"}, Beheben öffnen`}
+    >
+      <AlertCircle className="size-4" aria-hidden />
+    </AppNavLink>
   );
 }

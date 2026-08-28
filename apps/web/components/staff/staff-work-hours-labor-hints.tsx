@@ -25,7 +25,7 @@ export function StaffWorkHoursLaborBanner({
   return (
     <div
       className={cn(
-        "rounded-xl border border-amber-500/30 bg-amber-500/5 shadow-card",
+        "min-w-0 overflow-hidden rounded-xl border border-amber-500/30 bg-amber-500/5 shadow-card",
         className,
       )}
     >
@@ -39,7 +39,7 @@ export function StaffWorkHoursLaborBanner({
           className="mt-0.5 size-4 shrink-0 text-amber-600"
           aria-hidden
         />
-        <span className="min-w-0 flex-1">
+        <span className="min-w-0 flex-1 break-words">
           <span className="block text-sm font-medium">
             {violations.length} Arbeitszeit-Hinweis
             {violations.length === 1 ? "" : "e"} in diesem Monat
@@ -62,7 +62,7 @@ export function StaffWorkHoursLaborBanner({
         />
       </button>
       {open ? (
-        <div className="border-t border-amber-500/20 px-4 py-3">
+        <div className="min-w-0 border-t border-amber-500/20 px-4 py-3">
           <LaborComplianceViolationList
             violations={violations}
             staffLabelById={staffLabelById}
@@ -84,7 +84,7 @@ export function StaffWorkHoursDayLaborHints({
   if (violations.length === 0) return null;
 
   return (
-    <div className="space-y-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5">
+    <div className="min-w-0 space-y-2 overflow-hidden rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5">
       <p className="text-xs font-medium text-destructive">
         {violations.length} ArbZG-Hinweis{violations.length === 1 ? "" : "e"}
       </p>

@@ -2,31 +2,27 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import {
   Drawer,
   DrawerContent,
   DrawerDescription,
+  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
-import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { drawerFormHeaderClassName, drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import type { LaborComplianceViolation } from "@/lib/staff/labor-law/de-arbzg-rules";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 import { applyLaborComplianceBulkFix } from "@/lib/staff/labor-law/apply-labor-compliance-fix";
 import { LaborComplianceViolationList } from "@/components/staff/labor-compliance-violation-list";
+import { LaborComplianceBulkFixPanel } from "@/components/staff/labor-compliance-bulk-fix-panel";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export function DashboardLaborComplianceSheet({
   open,
@@ -98,42 +94,60 @@ export function DashboardLaborComplianceSheet({
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
         <DrawerContent className="max-h-[min(90vh,720px)]">
-          <DrawerHeader>
+          <DrawerHeader
+            className={cn(drawerFormHeaderClassName(4), "min-w-0 shrink-0 text-left")}
+          >
             <DrawerTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-amber-600" aria-hidden />
-              Arbeitszeit-Hinweise (ArbZG)
+              <AlertTriangle className="size-5 shrink-0 text-amber-600" aria-hidden />
+              <span className="min-w-0">Arbeitszeit-Hinweise (ArbZG)</span>
             </DrawerTitle>
-            <DrawerDescription>
+            <DrawerDescription className="text-left break-words">
               Unverbindliche Prüfung auf Basis des ArbZG (letzte 6 Monate).
               Keine Rechtsberatung — Tarifverträge können abweichen.
               Display-Mitarbeiter sehen diese Hinweise nicht.
             </DrawerDescription>
+            <p className="pt-1 text-left text-sm">
+              <AppNavLink
+                href={APP_ROUTES.mitarbeiter.hours}
+                className="font-medium text-accent underline-offset-4 hover:underline"
+                onClick={() => onOpenChange(false)}
+              >
+                In Arbeitszeiten prüfen und korrigieren
+              </AppNavLink>
+              {" — dort alle Hinweise pro Tag und Bulk-Korrektur für Pausen."}
+            </p>
           </DrawerHeader>
-          <div className="space-y-5 overflow-y-auto px-4 pb-6">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
+
+          <div
+            className={drawerScrollAreaClassName(
+              4,
+              "min-w-0 overflow-x-hidden overscroll-x-none",
+            )}
+          >
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="labor-from">Von (optional)</Label>
                 <Input
                   id="labor-from"
                   type="date"
                   value={fromYmd}
                   onChange={(e) => setFromYmd(e.target.value)}
-                  className="h-10 rounded-xl"
+                  className="h-10 w-full min-w-0 rounded-xl"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="labor-to">Bis (optional)</Label>
                 <Input
                   id="labor-to"
                   type="date"
                   value={toYmd}
                   onChange={(e) => setToYmd(e.target.value)}
-                  className="h-10 rounded-xl"
+                  className="h-10 w-full min-w-0 rounded-xl"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="mt-5 min-w-0 space-y-2">
               <p className="text-sm font-medium">
                 Alle Hinweise ({filtered.length})
               </p>
@@ -142,49 +156,20 @@ export function DashboardLaborComplianceSheet({
                 staffLabelById={staffLabelById}
               />
             </div>
-
-            {fixable.length > 0 ? (
-              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4">
-                <p className="text-sm font-medium">
-                  Pausen beheben ({fixable.length} behebbar)
-                </p>
-                <div className="space-y-1.5">
-                  <Label>Korrektur-Modus</Label>
-                  <Select
-                    value={fixMode}
-                    onValueChange={(v) => {
-                      if (v === "normal" || v === "extend_end") setFixMode(v);
-                    }}
-                  >
-                    <SelectTrigger
-                      className={appSelectTriggerAccentCn(
-                        "h-10 w-full rounded-xl",
-                      )}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="normal">
-                        Pause verbuchen (Netto-Arbeitszeit kürzer)
-                      </SelectItem>
-                      <SelectItem value="extend_end">
-                        Pause verbuchen + Ende verlängern (Dokumentation)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  type="button"
-                  className={brandActionButtonRoundedClassName}
-                  disabled={!restaurantId}
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  {fixable.length} Verstoß
-                  {fixable.length === 1 ? "" : "e"} beheben
-                </Button>
-              </div>
-            ) : null}
           </div>
+
+          {fixable.length > 0 ? (
+            <DrawerFooter className="min-w-0 shrink-0 gap-3 border-t border-border/50 bg-card px-4 pb-[max(1rem,var(--app-mobile-bottom-safe))] pt-4">
+              <LaborComplianceBulkFixPanel
+                fixableCount={fixable.length}
+                fixMode={fixMode}
+                onFixModeChange={setFixMode}
+                onFixClick={() => setConfirmOpen(true)}
+                disabled={!restaurantId || busy}
+                className="w-full min-w-0"
+              />
+            </DrawerFooter>
+          ) : null}
         </DrawerContent>
       </Drawer>
       <ConfirmDialog

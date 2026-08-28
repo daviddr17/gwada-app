@@ -16,7 +16,7 @@ export function LaborComplianceViolationCard({
   return (
     <li
       className={cn(
-        "rounded-xl border px-3 py-2.5",
+        "min-w-0 overflow-hidden rounded-xl border px-3 py-2.5",
         violation.severity === "warning"
           ? "border-amber-500/30 bg-amber-500/5"
           : "border-destructive/30 bg-destructive/5",
@@ -32,8 +32,8 @@ export function LaborComplianceViolationCard({
           )}
           aria-hidden
         />
-        <div className="min-w-0 space-y-1">
-          <p className="text-sm font-medium leading-snug">
+        <div className="min-w-0 flex-1 space-y-1 break-words">
+          <p className="text-sm font-medium leading-snug break-words">
             {violation.title}
             {staffLabel ? (
               <span className="font-normal text-muted-foreground">
@@ -48,8 +48,8 @@ export function LaborComplianceViolationCard({
               </span>
             ) : null}
           </p>
-          <p className="text-sm text-foreground/90">{violation.message}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-foreground/90 break-words">{violation.message}</p>
+          <p className="text-xs text-muted-foreground break-words">
             <span className="font-medium">{violation.legalRef}</span>
             {" · "}
             {violation.hint}
@@ -80,7 +80,7 @@ export function LaborComplianceViolationList({
     );
   }
   return (
-    <ul className="space-y-2">
+    <ul className="min-w-0 space-y-2">
       {violations.map((v, i) => (
         <LaborComplianceViolationCard
           key={`${v.staffId}-${v.dayYmd}-${v.code}-${i}`}

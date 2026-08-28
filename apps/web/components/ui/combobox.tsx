@@ -20,6 +20,14 @@ const collisionDefaults = {
   fallbackAxisSide: "none" as const,
 }
 
+/** In Bottom-Sheets Platz für Sticky-Footer lassen, damit Flip nach oben greift. */
+const drawerCollisionPadding = {
+  top: 16,
+  left: 16,
+  right: 16,
+  bottom: 112,
+} as const
+
 export type SearchableSelectOption = {
   value: string
   label: string
@@ -272,7 +280,9 @@ export function SearchableSelect({
           side="bottom"
           align="start"
           sideOffset={8}
-          collisionPadding={16}
+          collisionPadding={
+            drawerFloatingHost ? drawerCollisionPadding : 16
+          }
           collisionAvoidance={collisionDefaults}
           sticky
           positionMethod="fixed"
@@ -457,7 +467,9 @@ export function TagMultiCombobox({
           side="bottom"
           align="start"
           sideOffset={8}
-          collisionPadding={16}
+          collisionPadding={
+            drawerFloatingHost ? drawerCollisionPadding : 16
+          }
           collisionAvoidance={collisionDefaults}
           sticky
           positionMethod="fixed"
@@ -635,7 +647,9 @@ export function SearchableMultiSelect({
           side="bottom"
           align="start"
           sideOffset={8}
-          collisionPadding={16}
+          collisionPadding={
+            drawerFloatingHost ? drawerCollisionPadding : 16
+          }
           collisionAvoidance={collisionDefaults}
           sticky
           positionMethod="fixed"

@@ -88,7 +88,7 @@ import {
 import { sixMonthWindowStartYmd } from "@/lib/staff/labor-law/de-arbzg-rules";
 import type { LaborComplianceViolation } from "@/lib/staff/labor-law/de-arbzg-rules";
 import {
-  StaffWorkHoursDayLaborHints,
+  StaffWorkHoursDayLaborAlert,
   StaffWorkHoursLaborBanner,
 } from "@/components/staff/staff-work-hours-labor-hints";
 
@@ -926,10 +926,7 @@ export function StaffWorkHoursView({
           </StaffCollapsibleCard>
 
           {showLaborComplianceHints ? (
-            <StaffWorkHoursLaborBanner
-              violations={monthLaborViolations}
-              staffLabelById={staffId ? undefined : staffNameById}
-            />
+            <StaffWorkHoursLaborBanner violations={monthLaborViolations} />
           ) : null}
 
           <div className="space-y-3">
@@ -970,14 +967,13 @@ export function StaffWorkHoursView({
                           Heute
                         </p>
                       ) : null}
-                      <CardTitle className="text-base">
-                        {formatDayHeadingDe(day)}
-                        {dayLaborIssues.length > 0 ? (
-                          <span className="ml-2 inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                            {dayLaborIssues.length} Hinweis
-                            {dayLaborIssues.length === 1 ? "" : "e"}
-                          </span>
-                        ) : null}
+                      <CardTitle className="flex min-w-0 items-center gap-1.5 text-base">
+                        <span className="min-w-0 truncate">
+                          {formatDayHeadingDe(day)}
+                        </span>
+                        <StaffWorkHoursDayLaborAlert
+                          count={dayLaborIssues.length}
+                        />
                       </CardTitle>
                     </div>
                     {allowEdit && canAddEntry && !blockNewTimeEntry ? (
@@ -998,12 +994,6 @@ export function StaffWorkHoursView({
                     ) : null}
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {dayLaborIssues.length > 0 ? (
-                      <StaffWorkHoursDayLaborHints
-                        violations={dayLaborIssues}
-                        staffLabelById={staffId ? undefined : staffNameById}
-                      />
-                    ) : null}
                     {dayEntries.length === 0 ? (
                       <p className="text-xs text-muted-foreground">—</p>
                     ) : (

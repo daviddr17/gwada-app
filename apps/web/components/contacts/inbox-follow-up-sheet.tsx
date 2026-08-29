@@ -174,13 +174,13 @@ export function InboxFollowUpSheet({
         </DrawerHeader>
 
         <DrawerFormBody>
-          <DrawerFormScrollArea contentPadding={6}>
+          <DrawerFormScrollArea contentPadding={6} className="pb-10">
             <DrawerFormSection title="Grund (optional)">
               <Textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value.slice(0, 500))}
                 placeholder="z. B. Rückruf, Tisch klären, Angebot schicken …"
-                className="min-h-24 rounded-xl"
+                className="min-h-20 rounded-xl"
                 maxLength={500}
               />
             </DrawerFormSection>
@@ -264,6 +264,7 @@ export function InboxFollowUpSheet({
                 disabled={loadingStaff || !restaurantId}
                 placeholder={loadingStaff ? "Laden …" : "Mitarbeiter wählen"}
                 className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}
+                side="top"
               />
             </DrawerFormSection>
           </DrawerFormScrollArea>

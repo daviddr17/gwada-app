@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/drawer";
 import {
   DrawerFormBody,
+  DrawerFormScrollArea,
   DrawerFormSection,
 } from "@/components/ui/drawer-form-section";
 import { drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
@@ -173,113 +174,116 @@ export function InboxFollowUpSheet({
         </DrawerHeader>
 
         <DrawerFormBody>
-          <DrawerFormSection title="Grund (optional)">
-            <Textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value.slice(0, 500))}
-              placeholder="z. B. Rückruf, Tisch klären, Angebot schicken …"
-              className="min-h-24 rounded-xl"
-              maxLength={500}
-            />
-          </DrawerFormSection>
+          <DrawerFormScrollArea contentPadding={6} className="pb-10">
+            <DrawerFormSection title="Grund (optional)">
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value.slice(0, 500))}
+                placeholder="z. B. Rückruf, Tisch klären, Angebot schicken …"
+                className="min-h-20 rounded-xl"
+                maxLength={500}
+              />
+            </DrawerFormSection>
 
-          <DrawerFormSection title="Erinnerung (optional)">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Datum</Label>
-                <DatePickerField
-                  fullWidth
-                  value={remindYmd || null}
-                  onChange={(d) => {
-                    const next = d ?? "";
-                    setRemindYmd(next);
-                    if (!next) {
-                      setNotifyWhatsapp(false);
-                      setNotifyEmail(false);
-                    }
-                  }}
-                  placeholder="Kein Reminder"
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Uhrzeit</Label>
-                <Input
-                  type="time"
-                  value={remindHm}
-                  onChange={(e) => setRemindHm(e.target.value)}
-                  disabled={!remindYmd}
-                  className={formScheduleTimeInputFullWidthClassName}
-                />
-              </div>
-            </div>
-            {remindYmd ? (
-              <div className="mt-3 space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Zusätzlich zur Glocke — Empfänger brauchen den Kanal in den
-                  Profil-Benachrichtigungen für „Später“.
-                </p>
-                <div className="flex items-center justify-between gap-3">
-                  <Label
-                    htmlFor="follow-up-notify-whatsapp"
-                    className="text-sm font-normal"
-                  >
-                    WhatsApp-Benachrichtigung
-                  </Label>
-                  <Switch
-                    id="follow-up-notify-whatsapp"
-                    size="sm"
-                    checked={notifyWhatsapp}
-                    onCheckedChange={(v) => setNotifyWhatsapp(v === true)}
+            <DrawerFormSection title="Erinnerung (optional)">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Datum</Label>
+                  <DatePickerField
+                    fullWidth
+                    value={remindYmd || null}
+                    onChange={(d) => {
+                      const next = d ?? "";
+                      setRemindYmd(next);
+                      if (!next) {
+                        setNotifyWhatsapp(false);
+                        setNotifyEmail(false);
+                      }
+                    }}
+                    placeholder="Kein Reminder"
+                    className="w-full"
                   />
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <Label
-                    htmlFor="follow-up-notify-email"
-                    className="text-sm font-normal"
-                  >
-                    E-Mail-Benachrichtigung
-                  </Label>
-                  <Switch
-                    id="follow-up-notify-email"
-                    size="sm"
-                    checked={notifyEmail}
-                    onCheckedChange={(v) => setNotifyEmail(v === true)}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Uhrzeit</Label>
+                  <Input
+                    type="time"
+                    value={remindHm}
+                    onChange={(e) => setRemindHm(e.target.value)}
+                    disabled={!remindYmd}
+                    className={formScheduleTimeInputFullWidthClassName}
                   />
                 </div>
               </div>
-            ) : null}
-          </DrawerFormSection>
+              {remindYmd ? (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Zusätzlich zur Glocke — Empfänger brauchen den Kanal in den
+                    Profil-Benachrichtigungen für „Später“.
+                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label
+                      htmlFor="follow-up-notify-whatsapp"
+                      className="text-sm font-normal"
+                    >
+                      WhatsApp-Benachrichtigung
+                    </Label>
+                    <Switch
+                      id="follow-up-notify-whatsapp"
+                      size="sm"
+                      checked={notifyWhatsapp}
+                      onCheckedChange={(v) => setNotifyWhatsapp(v === true)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label
+                      htmlFor="follow-up-notify-email"
+                      className="text-sm font-normal"
+                    >
+                      E-Mail-Benachrichtigung
+                    </Label>
+                    <Switch
+                      id="follow-up-notify-email"
+                      size="sm"
+                      checked={notifyEmail}
+                      onCheckedChange={(v) => setNotifyEmail(v === true)}
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </DrawerFormSection>
 
-          <DrawerFormSection title="Mitarbeiter zuweisen (optional)">
-            <p className="mb-2 text-xs text-muted-foreground">
-              Erstellt ein Todo unter Checklisten für die Bearbeitung.
-            </p>
-            <SearchableSelect
-              value={staffId}
-              onValueChange={setStaffId}
-              options={staffOptions}
-              disabled={loadingStaff || !restaurantId}
-              placeholder={loadingStaff ? "Laden …" : "Mitarbeiter wählen"}
-              className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}
-            />
-          </DrawerFormSection>
+            <DrawerFormSection title="Mitarbeiter zuweisen (optional)">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Erstellt ein Todo unter Checklisten für die Bearbeitung.
+              </p>
+              <SearchableSelect
+                value={staffId}
+                onValueChange={setStaffId}
+                options={staffOptions}
+                disabled={loadingStaff || !restaurantId}
+                placeholder={loadingStaff ? "Laden …" : "Mitarbeiter wählen"}
+                className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}
+                side="top"
+              />
+            </DrawerFormSection>
+          </DrawerFormScrollArea>
+
+          <DrawerFormFooter
+            cancelLabel={onClear ? "Erledigt" : "Abbrechen"}
+            onCancel={() => {
+              if (onClear) void onClear();
+              else onOpenChange(false);
+            }}
+            cancelDisabled={saving}
+            submitLabel="Speichern"
+            submitType="button"
+            onSubmit={handleSave}
+            submitPending={saving}
+            submitDisabled={saving || !restaurantId}
+            contentPadding={6}
+          />
         </DrawerFormBody>
-
-        <DrawerFormFooter
-          cancelLabel={onClear ? "Erledigt" : "Abbrechen"}
-          onCancel={() => {
-            if (onClear) void onClear();
-            else onOpenChange(false);
-          }}
-          cancelDisabled={saving}
-          submitLabel="Speichern"
-          submitType="button"
-          onSubmit={handleSave}
-          submitPending={saving}
-          submitDisabled={saving || !restaurantId}
-          contentPadding={6}
-        />
       </DrawerContent>
     </Drawer>
   );

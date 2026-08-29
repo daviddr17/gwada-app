@@ -20,6 +20,14 @@ const collisionDefaults = {
   fallbackAxisSide: "none" as const,
 }
 
+/** In Bottom-Sheets Platz für Sticky-Footer lassen, damit Flip nach oben greift. */
+const drawerCollisionPadding = {
+  top: 16,
+  left: 16,
+  right: 16,
+  bottom: 112,
+} as const
+
 export type SearchableSelectOption = {
   value: string
   label: string
@@ -102,6 +110,8 @@ export type SearchableSelectProps = {
   footerAction?: SearchableSelectFooterAction
   /** X-Button zum Leeren der Auswahl (z. B. Mitarbeiter-Filter). */
   clearable?: boolean
+  /** Popup-Seite; in Bottom-Sheets oft `top`, damit Sticky-Footer frei bleibt. */
+  side?: "top" | "bottom"
   "aria-invalid"?: boolean
   "aria-label"?: string
 }
@@ -122,6 +132,7 @@ export function SearchableSelect({
   id,
   footerAction,
   clearable,
+  side = "bottom",
   "aria-invalid": ariaInvalid,
   "aria-label": ariaLabel,
 }: SearchableSelectProps) {
@@ -269,10 +280,12 @@ export function SearchableSelect({
       >
         <Combobox.Positioner
           className="pointer-events-auto isolate z-[320] outline-none"
-          side="bottom"
+          side={side}
           align="start"
           sideOffset={8}
-          collisionPadding={16}
+          collisionPadding={
+            drawerFloatingHost ? drawerCollisionPadding : 16
+          }
           collisionAvoidance={collisionDefaults}
           sticky
           positionMethod="fixed"
@@ -280,7 +293,7 @@ export function SearchableSelect({
           <Combobox.Popup
             className={cn(
               "pointer-events-auto max-h-[min(var(--available-height),22rem)] w-(--anchor-width) max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-border/60 bg-popover text-popover-foreground shadow-none ring-1 ring-black/5 dark:shadow-xl dark:ring-white/10",
-              "data-[side=bottom]:slide-in-from-top-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-[0.98] data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-[0.98]",
+              "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-[0.98] data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-[0.98]",
             )}
           >
             <Combobox.List className="max-h-[min(var(--available-height),20rem)] scroll-py-2 overflow-y-auto overscroll-contain px-1.5 py-2 outline-none">
@@ -457,7 +470,9 @@ export function TagMultiCombobox({
           side="bottom"
           align="start"
           sideOffset={8}
-          collisionPadding={16}
+          collisionPadding={
+            drawerFloatingHost ? drawerCollisionPadding : 16
+          }
           collisionAvoidance={collisionDefaults}
           sticky
           positionMethod="fixed"
@@ -635,7 +650,9 @@ export function SearchableMultiSelect({
           side="bottom"
           align="start"
           sideOffset={8}
-          collisionPadding={16}
+          collisionPadding={
+            drawerFloatingHost ? drawerCollisionPadding : 16
+          }
           collisionAvoidance={collisionDefaults}
           sticky
           positionMethod="fixed"

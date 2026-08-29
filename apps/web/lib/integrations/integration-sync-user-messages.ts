@@ -12,6 +12,8 @@ export function integrationSyncErrorMessage(code: string): string {
       return "Facebook-Zugang fehlt — unter Integrationen erneut verbinden.";
     case "restaurant_not_published":
       return "Restaurant ist noch nicht veröffentlicht — zuerst unter Einstellungen veröffentlichen.";
+    case "enabled_required":
+      return "Bitte Toggle erneut setzen.";
     case "restaurant_slug_missing":
       return "Restaurant-Slug fehlt — unter Einstellungen → Restaurant pflegen.";
     case "google_location_missing":

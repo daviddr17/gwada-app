@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import {
   drawerFormHeaderClassName,
   drawerScrollAreaClassName,
@@ -99,7 +100,7 @@ export function DashboardLaborComplianceSheet({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
-        <DrawerContent className="max-h-[min(90vh,720px)]">
+        <DrawerContent className={drawerContentClassName("form")}>
           <DrawerHeader
             className={cn(
               drawerFormHeaderClassName(4),

@@ -100,7 +100,12 @@ export function DashboardLaborComplianceSheet({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
-        <DrawerContent className={drawerContentClassName("form")}>
+        <DrawerContent
+          className={drawerContentClassName(
+            "form",
+            "h-[min(92dvh,960px)] max-h-[min(92dvh,960px)]",
+          )}
+        >
           <DrawerHeader
             className={cn(
               drawerFormHeaderClassName(4),

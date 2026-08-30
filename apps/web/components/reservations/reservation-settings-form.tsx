@@ -507,6 +507,7 @@ export function ReservationSettingsForm() {
   const [guestPhoneRequiredEnabled, setGuestPhoneRequiredEnabled] = useState(false);
   const [guestPhoneRequiredMinPartySize, setGuestPhoneRequiredMinPartySize] =
     useState("6");
+  const [googleBookingLinkEnabled, setGoogleBookingLinkEnabled] = useState(false);
   const [testWhatsappPhone, setTestWhatsappPhone] = useState("");
   const [testEmailAddress, setTestEmailAddress] = useState("");
   const [sendingTestKind, setSendingTestKind] = useState<{
@@ -626,6 +627,7 @@ export function ReservationSettingsForm() {
       setGuestEmailRequiredMinPartySize(next.guestEmailRequiredMinPartySize);
       setGuestPhoneRequiredEnabled(next.guestPhoneRequiredEnabled);
       setGuestPhoneRequiredMinPartySize(next.guestPhoneRequiredMinPartySize);
+      setGoogleBookingLinkEnabled(data?.google_booking_link_enabled === true);
       savedSnapshotRef.current = JSON.stringify(next);
     })();
     return () => {
@@ -1209,6 +1211,8 @@ export function ReservationSettingsForm() {
                 googleConnected={googleConnected}
                 facebookConnected={facebookConnected}
                 instagramConnected={instagramConnected}
+                googleBookingLinkEnabled={googleBookingLinkEnabled}
+                onGoogleBookingLinkEnabledChange={setGoogleBookingLinkEnabled}
                 connectionsLoading={
                   reviewConnectionsLoading || channelConnectionsLoading
                 }

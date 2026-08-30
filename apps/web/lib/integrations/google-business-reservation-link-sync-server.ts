@@ -130,3 +130,105 @@ export async function syncGoogleBusinessReservationLink(
 
   return { ok: true };
 }
+
+/** Entfernt die DINING_RESERVATION Place Action (falls vorhanden). */
+export async function removeGoogleBusinessReservationLink(
+  restaurantId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const auth = await getGoogleBusinessAccessTokenForRestaurant(restaurantId);
+  if ("error" in auth) {
+    return { ok: false, error: auth.error };
+  }
+
+  const locationRaw = auth.config.location_name?.trim();
+  if (!locationRaw) {
+    return { ok: false, error: "google_location_missing" };
+  }
+
+  const locationId = googleLocationId(locationRaw);
+  if (!locationId) {
+    return { ok: false, error: "google_location_missing" };
+  }
+
+  const headers = { Authorization: `Bearer ${auth.accessToken}` };
+  const listUrl = `https://mybusinessplaceactions.googleapis.com/v1/locations/${locationId}/placeActionLinks`;
+  const listRes = await fetch(listUrl, { headers, cache: "no-store" });
+  const listPayload = (await listRes.json().catch(() => ({}))) as {
+    placeActionLinks?: PlaceActionLink[];
+    error?: { message?: string };
+  };
+
+  if (!listRes.ok) {
+    return {
+      ok: false,
+      error: listPayload.error?.message ?? `google_place_actions_${listRes.status}`,
+    };
+  }
+
+  const existing = (listPayload.placeActionLinks ?? []).find(
+    (link) => link.placeActionType === "DINING_RESERVATION",
+  );
+
+  if (!existing?.name) {
+    return { ok: true };
+  }
+
+  const deleteRes = await fetch(
+    `https://mybusinessplaceactions.googleapis.com/v1/${existing.name}`,
+    { method: "DELETE", headers, cache: "no-store" },
+  );
+
+  if (!deleteRes.ok && deleteRes.status !== 404) {
+    const deletePayload = (await deleteRes.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    return {
+      ok: false,
+      error:
+        deletePayload.error?.message ?? `google_place_actions_${deleteRes.status}`,
+    };
+  }
+
+  return { ok: true };
+}
+
+export async function setGoogleBusinessReservationBookingLink(params: {
+  restaurantId: string;
+  enabled: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { ok: false, error: "server_misconfigured" };
+
+  const { error: updateError } = await admin
+    .from("restaurant_reservation_settings")
+    .upsert(
+      {
+        restaurant_id: params.restaurantId,
+        google_booking_link_enabled: params.enabled,
+      },
+      { onConflict: "restaurant_id" },
+    );
+
+  if (updateError) {
+    return { ok: false, error: updateError.message };
+  }
+
+  const result = params.enabled
+    ? await syncGoogleBusinessReservationLink(params.restaurantId)
+    : await removeGoogleBusinessReservationLink(params.restaurantId);
+
+  if (!result.ok) {
+    await admin
+      .from("restaurant_reservation_settings")
+      .upsert(
+        {
+          restaurant_id: params.restaurantId,
+          google_booking_link_enabled: !params.enabled,
+        },
+        { onConflict: "restaurant_id" },
+      );
+    return result;
+  }
+
+  return { ok: true };
+}

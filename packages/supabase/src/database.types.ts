@@ -3789,6 +3789,7 @@ export type Database = {
           whatsapp_thanks_hours_after: number
           whatsapp_thanks_template: string | null
           walk_in_enabled: boolean
+          google_booking_link_enabled: boolean
         }
         Insert: {
           booking_lead_time_hours?: number
@@ -3852,6 +3853,7 @@ export type Database = {
           whatsapp_thanks_hours_after?: number
           whatsapp_thanks_template?: string | null
           walk_in_enabled?: boolean
+          google_booking_link_enabled?: boolean
         }
         Update: {
           booking_lead_time_hours?: number
@@ -3915,6 +3917,7 @@ export type Database = {
           whatsapp_thanks_hours_after?: number
           whatsapp_thanks_template?: string | null
           walk_in_enabled?: boolean
+          google_booking_link_enabled?: boolean
         }
         Relationships: [
           {

@@ -2,11 +2,9 @@ import "server-only";
 
 import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/google-business-access";
 import {
-  GOOGLE_INSIGHTS_QUOTA_NO_CACHE_MESSAGE,
   GOOGLE_INSIGHTS_RATE_LIMIT_MESSAGE,
   clearGoogleInsightsQuotaCooldown,
   isGoogleInsightsQuotaCooldown,
-  isGoogleQuotaErrorMessage,
   markGoogleInsightsQuotaExceeded,
   readPlatformInsightsCache,
   readStalePlatformInsightsCacheForRestaurant,
@@ -293,12 +291,6 @@ function humanizeGooglePerformanceError(
   ) {
     return "Fehlende Google-Berechtigung für Insights — bitte Google unter Integrationen neu verbinden.";
   }
-  if (lower.includes("permission") || lower.includes("forbidden") || lower.includes("403") || httpStatus === 403) {
-    return "Keine Berechtigung für Google Business Performance — Konto neu verbinden.";
-  }
-  if (lower.includes("not found") || lower.includes("404") || httpStatus === 404) {
-    return "Google-Standort nicht gefunden — Standort in Integrationen prüfen.";
-  }
   // Nur echte „API disabled“-Signale — nicht jeder String mit dem API-Namen.
   if (
     lower.includes("has not been used") ||
@@ -310,12 +302,27 @@ function humanizeGooglePerformanceError(
   ) {
     return "Business Profile Performance API im Google Cloud Projekt aktivieren (Superadmin / Google Cloud Console).";
   }
+  /** Echtes Rate-Limit — nicht mit API-Quota 0 / 403 verwechseln. */
   if (httpStatus === 429) {
     return GOOGLE_INSIGHTS_RATE_LIMIT_MESSAGE;
   }
-  if (isGoogleQuotaErrorMessage(raw)) {
-    return GOOGLE_INSIGHTS_QUOTA_NO_CACHE_MESSAGE;
+  /**
+   * Google antwortet bei Quota 0 / nicht freigeschaltet oft mit 403 + „Quota exceeded“.
+   * Das ist kein Tageslimit und kein Rate-Limit.
+   */
+  if (
+    httpStatus === 403 &&
+    (lower.includes("quota") || lower.includes("resource_exhausted"))
+  ) {
+    return "Google Insights: Performance-API im Cloud-Projekt nicht freigeschaltet oder Kontingent 0 — unter Google Cloud Console prüfen (API aktivieren / Basiszugang).";
   }
+  if (lower.includes("permission") || lower.includes("forbidden") || httpStatus === 403) {
+    return "Keine Berechtigung für Google Business Performance — Konto neu verbinden.";
+  }
+  if (lower.includes("not found") || lower.includes("404") || httpStatus === 404) {
+    return "Google-Standort nicht gefunden — Standort in Integrationen prüfen.";
+  }
+  // Rohe Google-Meldung behalten — kein Keyword-Remapping auf „Limit erreicht“.
   return raw;
 }
 
@@ -542,6 +549,14 @@ async function fetchGoogleBusinessPlatformInsightsLive(params: {
     end,
     params.restaurantId,
   );
+  if (multi.error) {
+    console.warn("[gwada] google performance insights", {
+      restaurantId: params.restaurantId,
+      location,
+      httpStatus: multi.httpStatus,
+      error: multi.error,
+    });
+  }
   let byMetric = multi.error
     ? new Map<string, GoogleDatedValue[]>()
     : collectMetricSeries(multi.body);

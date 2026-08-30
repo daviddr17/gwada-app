@@ -63,6 +63,7 @@ export type RestaurantReservationSettingsRow = {
   guest_email_required_min_party_size: number;
   guest_phone_required_enabled: boolean;
   guest_phone_required_min_party_size: number;
+  google_booking_link_enabled: boolean;
 };
 
 const SETTINGS_SELECT = [
@@ -126,6 +127,7 @@ const SETTINGS_SELECT = [
   "guest_email_required_min_party_size",
   "guest_phone_required_enabled",
   "guest_phone_required_min_party_size",
+  "google_booking_link_enabled",
 ].join(", ");
 
 const WHATSAPP_TEMPLATE_KEY: Record<

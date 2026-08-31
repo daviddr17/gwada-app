@@ -261,6 +261,27 @@
     @apply transition-transform duration-200 active:scale-[0.98];
   }
 
+  /** Sidebar: dezenter Hinweis, dass die Modulliste weiter scrollt. */
+  @keyframes sidebar-scroll-hint-nudge {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(2px);
+    }
+  }
+
+  .sidebar-scroll-hint-nudge {
+    animation: sidebar-scroll-hint-nudge 1.8s ease-in-out 0.4s 3;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar-scroll-hint-nudge {
+      animation: none;
+    }
+  }
+
   /** Tenant-Primäraktionen — weiches Akzent-Tint, kontraststabil auf `--foreground`. */
   .brand-action-button {
     border: 1px solid var(--brand-action-border);

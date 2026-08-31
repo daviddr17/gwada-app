@@ -88,7 +88,7 @@ type StaffWorkEntryDrawerProps = {
   siblingEntries?: readonly RestaurantStaffWorkEntryRow[];
   /** Alle Segmente beim Bearbeiten einer Schicht mit Pause (Display/Legacy). */
   shiftClusterSegments?: readonly RestaurantStaffWorkEntryRow[];
-  onSaved: () => void;
+  onSaved: (dayYmd?: string) => void;
   onDelete: (id: string) => Promise<void>;
 };
 
@@ -232,6 +232,51 @@ export function StaffWorkEntryDrawer({
     const willStayOpen = entryType === "work" && stillRunning && !clusterStartOnlyEdit;
     const ends_at = willStayOpen ? starts_at : ends_at_input;
 
+    const finishUi = (entryId: string, after: {
+      entry_type: StaffWorkEntryType;
+      starts_at: string;
+      ends_at: string;
+      note: string | null;
+    }, opts?: { runAutoFix?: boolean }) => {
+      setPending(false);
+      toast.success("Gespeichert");
+      onOpenChange(false);
+      onSaved(dateStr);
+
+      const runAutoFix = opts?.runAutoFix === true;
+      void (async () => {
+        try {
+          const changes = buildStaffWorkEntryChanges(entry, after);
+          if (changes.length > 0 || !entry) {
+            await insertStaffWorkEntryLogEntry(
+              restaurantId,
+              entryId,
+              entry ? "updated" : "created",
+              changes,
+            );
+          }
+          if (!runAutoFix) return;
+          const { data: settings } = await fetchStaffModuleSettings(restaurantId);
+          if (!settings?.labor_auto_fix_missing_breaks) return;
+          const fixResult = await applyLaborComplianceAutoFixForStaffDay({
+            restaurantId,
+            staffId,
+            dayYmd: dateStr,
+          });
+          if (fixResult.error) {
+            toast.error(fixResult.error);
+            return;
+          }
+          if (fixResult.fixed) {
+            toast.success("Fehlende Mindestpause automatisch eingetragen");
+            onSaved(dateStr);
+          }
+        } catch {
+          // UI already closed — log/autofix failures must not reopen the sheet.
+        }
+      })();
+    };
+
     if (clusterStartOnlyEdit && entry) {
       const timing = validateStaffWorkEntryTiming({
         entryType: entry.entry_type,
@@ -262,19 +307,7 @@ export function StaffWorkEntryDrawer({
         toast.error("Speichern fehlgeschlagen.");
         return;
       }
-      setPending(false);
-      const changes = buildStaffWorkEntryChanges(entry, after);
-      if (changes.length > 0) {
-        await insertStaffWorkEntryLogEntry(
-          restaurantId,
-          res.id,
-          "updated",
-          changes,
-        );
-      }
-      toast.success("Gespeichert");
-      onSaved();
-      onOpenChange(false);
+      finishUi(res.id, after);
       return;
     }
 
@@ -357,42 +390,9 @@ export function StaffWorkEntryDrawer({
       }
     }
 
-    setPending(false);
-
-    const changes = buildStaffWorkEntryChanges(entry, after);
-    if (changes.length > 0 || !entry) {
-      await insertStaffWorkEntryLogEntry(
-        restaurantId,
-        res.id,
-        entry ? "updated" : "created",
-        changes,
-      );
-    }
-
-    let autoFixApplied = false;
-    if (entryType === "work" && !willStayOpen) {
-      const { data: settings } = await fetchStaffModuleSettings(restaurantId);
-      if (settings?.labor_auto_fix_missing_breaks) {
-        const fixResult = await applyLaborComplianceAutoFixForStaffDay({
-          restaurantId,
-          staffId,
-          dayYmd: dateStr,
-        });
-        if (fixResult.error) {
-          toast.error(fixResult.error);
-        } else if (fixResult.fixed) {
-          autoFixApplied = true;
-        }
-      }
-    }
-
-    toast.success(
-      autoFixApplied
-        ? "Gespeichert · fehlende Mindestpause automatisch eingetragen"
-        : "Gespeichert",
-    );
-    onSaved();
-    onOpenChange(false);
+    finishUi(res.id, after, {
+      runAutoFix: entryType === "work" && !willStayOpen,
+    });
   }, [
     pending,
     readOnly,

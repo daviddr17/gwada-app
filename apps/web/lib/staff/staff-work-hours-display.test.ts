@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  clusterLegacyWorkBreakShifts,
   displayShiftHoursBreakdown,
   displayShiftNetWorkHours,
+  groupWorkHoursDayEntries,
 } from "./staff-work-hours-display.ts";
 
 type TestEntry = {
@@ -123,4 +125,80 @@ test("Gemischt: nur überlappende Pause von Work abziehen", () => {
   assert.equal(b.breakMs / 3_600_000, 1);
   assert.equal(b.netMs / 3_600_000, 7);
   assert.equal(b.presenceMs / 3_600_000, 8);
+});
+
+test("Legacy: alleinige Pause bleibt flacher Eintrag (kein Schicht 0,00)", () => {
+  const items = clusterLegacyWorkBreakShifts([
+    entry({
+      id: "b1",
+      entry_type: "break",
+      starts_at: "2026-08-01T12:00:00.000Z",
+      ends_at: "2026-08-01T12:30:00.000Z",
+      shift_id: null,
+      note: null,
+    }),
+  ]);
+  assert.equal(items.length, 1);
+  assert.equal(items[0]!.kind, "entry");
+  if (items[0]!.kind === "entry") {
+    assert.equal(items[0]!.entry.id, "b1");
+  }
+});
+
+test("Legacy: Arbeit+Pause wird als Schicht-Block gruppiert", () => {
+  const items = clusterLegacyWorkBreakShifts([
+    entry({
+      id: "w1",
+      entry_type: "work",
+      starts_at: "2026-08-01T10:00:00.000Z",
+      ends_at: "2026-08-01T14:00:00.000Z",
+      shift_id: null,
+    }),
+    entry({
+      id: "b1",
+      entry_type: "break",
+      starts_at: "2026-08-01T14:00:00.000Z",
+      ends_at: "2026-08-01T14:30:00.000Z",
+      shift_id: null,
+    }),
+    entry({
+      id: "w2",
+      entry_type: "work",
+      starts_at: "2026-08-01T14:30:00.000Z",
+      ends_at: "2026-08-01T18:00:00.000Z",
+      shift_id: null,
+    }),
+  ]);
+  assert.equal(items.length, 1);
+  assert.equal(items[0]!.kind, "display_shift");
+  if (items[0]!.kind === "display_shift") {
+    assert.equal(items[0]!.segments.length, 3);
+  }
+});
+
+test("Orphan-Pause überlappt Display-Schicht: anhängen statt Schicht 0,00", () => {
+  const items = groupWorkHoursDayEntries([
+    entry({
+      id: "w1",
+      entry_type: "work",
+      starts_at: "2026-08-01T10:00:00.000Z",
+      ends_at: "2026-08-01T18:00:00.000Z",
+      shift_id: "shift-1",
+      note: "Display",
+    }),
+    entry({
+      id: "b-orphan",
+      entry_type: "break",
+      starts_at: "2026-08-01T13:00:00.000Z",
+      ends_at: "2026-08-01T13:30:00.000Z",
+      shift_id: null,
+      note: null,
+    }),
+  ]);
+  assert.equal(items.length, 1);
+  assert.equal(items[0]!.kind, "display_shift");
+  if (items[0]!.kind === "display_shift") {
+    assert.equal(items[0]!.segments.length, 2);
+    assert.ok(items[0]!.segments.some((s) => s.id === "b-orphan"));
+  }
 });

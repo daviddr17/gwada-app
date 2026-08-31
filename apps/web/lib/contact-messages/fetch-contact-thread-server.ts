@@ -241,14 +241,30 @@ async function loadLinkedThreadSlice(
   });
 
   const tContact = performance.now();
-  const contactPromise = loadContactRow(admin, restaurantId, contactId).then(
-    (contact) => {
+  // Kontakt + Avatar parallel zu Messages — nicht erst nach dem DB-Slice.
+  const contactMetaPromise = loadContactRow(admin, restaurantId, contactId).then(
+    async (contact) => {
       mark("contact", Math.round(performance.now() - tContact));
-      return contact;
+      const tAvatar = performance.now();
+      const meta = await enrichContactThreadMetaWithAvatar(admin, {
+        restaurantId,
+        meta: contactMetaFromRow(contact, "Kontakt"),
+        linkedContactId: contactId,
+        firstName: contact?.first_name,
+        lastName: contact?.last_name,
+        includeAvatar: !before,
+      });
+      if (!before) {
+        mark("avatar", Math.round(performance.now() - tAvatar));
+      }
+      return meta;
     },
   );
 
-  const [dbResult, contact] = await Promise.all([dbPromise, contactPromise]);
+  const [dbResult, contactMeta] = await Promise.all([
+    dbPromise,
+    contactMetaPromise,
+  ]);
 
   if (dbResult.error) {
     return {
@@ -265,14 +281,7 @@ async function loadLinkedThreadSlice(
     hasMore: dbResult.hasMore,
     oldestCursor:
       dbResult.data.length > 0 ? dbResult.data[0]!.created_at : null,
-    contact: await enrichContactThreadMetaWithAvatar(admin, {
-      restaurantId,
-      meta: contactMetaFromRow(contact, "Kontakt"),
-      linkedContactId: contactId,
-      firstName: contact?.first_name,
-      lastName: contact?.last_name,
-      includeAvatar: !before,
-    }),
+    contact: contactMeta,
     error: null,
   };
 }
@@ -454,16 +463,22 @@ export async function fetchContactThreadPageServer(
     };
   }
 
-  const slice = await loadConversationThreadSlice(
-    admin,
-    {
-      restaurantId,
-      threadKey: contactId,
-      pageLimit,
-      before,
-    },
-    mark,
-  );
+  // Pseudo-Threads: Messages + Kontakt-Meta (inkl. Avatar) parallel.
+  const [slice, contact] = await Promise.all([
+    loadConversationThreadSlice(
+      admin,
+      {
+        restaurantId,
+        threadKey: contactId,
+        pageLimit,
+        before,
+      },
+      mark,
+    ),
+    contactMetaForThread(admin, restaurantId, contactId, null, {
+      includeAvatar: !before,
+    }),
+  ]);
 
   const timing = finish();
   logContactThreadTiming(timing);
@@ -472,13 +487,7 @@ export async function fetchContactThreadPageServer(
     messages: slice.messages,
     hasMore: slice.hasMore,
     oldestCursor: slice.oldestCursor,
-    contact: await contactMetaForThread(
-      admin,
-      restaurantId,
-      contactId,
-      null,
-      { includeAvatar: !before },
-    ),
+    contact,
     error: slice.error,
     timing,
   };

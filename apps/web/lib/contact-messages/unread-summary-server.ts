@@ -7,7 +7,10 @@ import {
   dashboardMessageThreadHref,
   type MessagesUnreadSummary,
 } from "@/lib/contact-messages/messages-unread-summary";
-import { fetchUnifiedInboxConversationsServer } from "@/lib/contact-messages/unified-inbox-server";
+import {
+  fetchUnifiedInboxConversationsForDashboard,
+  fetchUnifiedInboxConversationsServer,
+} from "@/lib/contact-messages/unified-inbox-server";
 import {
   conversationExcludedFromSeparateMessageNotification,
 } from "@/lib/notifications/reservation-guest-message-notification";
@@ -31,13 +34,18 @@ export async function fetchMessagesUnreadSummary(
     emailConnected: boolean;
     facebookConnected?: boolean;
     instagramConnected?: boolean;
-    /** Dashboard-Widget: keine volle Inbox-Liste (schlanker). */
+    /** Dashboard-Widget / Glocke: Light-Pfad (ohne Attachment-Join). */
     includeInboxConversations?: boolean;
   },
 ): Promise<MessagesUnreadSummary> {
   const includeInbox = params.includeInboxConversations !== false;
-  // Immer volle Konversationsliste — Light-Pfad (400 Zeilen) unterzählt Unread in der Glocke.
-  const conversations = await fetchUnifiedInboxConversationsServer(admin, params);
+  // Glocke/Dashboard: Light (kein Attachment-Join). Volle Liste nur wenn Inbox
+  // mitgeliefert werden soll — sonst blockiert jeder Summary-Poll Thread-Loads
+  // (Regression nach PR #425). Client-Overlay via peekCompleteUnifiedInboxCache
+  // hält den Zähler stabil, sobald die volle Inbox geladen ist.
+  const conversations = includeInbox
+    ? await fetchUnifiedInboxConversationsServer(admin, params)
+    : await fetchUnifiedInboxConversationsForDashboard(admin, params);
   const notifyable = conversations.filter(
     (c) => !conversationExcludedFromSeparateMessageNotification(c),
   );

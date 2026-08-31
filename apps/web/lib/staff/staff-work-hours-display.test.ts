@@ -5,6 +5,7 @@ import {
   clusterLegacyWorkBreakShifts,
   displayShiftHoursBreakdown,
   displayShiftNetWorkHours,
+  displayShiftTitle,
   groupWorkHoursDayEntries,
 } from "./staff-work-hours-display.ts";
 
@@ -201,4 +202,48 @@ test("Orphan-Pause überlappt Display-Schicht: anhängen statt Schicht 0,00", ()
     assert.equal(items[0]!.segments.length, 2);
     assert.ok(items[0]!.segments.some((s) => s.id === "b-orphan"));
   }
+});
+
+test("Pause mit eigener shift_id überlappt Display: anhängen statt Schicht 0,00", () => {
+  const items = groupWorkHoursDayEntries([
+    entry({
+      id: "w1",
+      entry_type: "work",
+      starts_at: "2026-08-25T07:30:00.000Z",
+      ends_at: "2026-08-25T19:16:00.000Z",
+      shift_id: null,
+      note: "Display",
+    }),
+    entry({
+      id: "b1",
+      entry_type: "break",
+      starts_at: "2026-08-25T13:00:00.000Z",
+      ends_at: "2026-08-25T14:00:00.000Z",
+      shift_id: "break-only-shift",
+      note: null,
+    }),
+  ]);
+  assert.equal(items.length, 1);
+  assert.equal(items[0]!.kind, "display_shift");
+  if (items[0]!.kind === "display_shift") {
+    assert.equal(items[0]!.segments.length, 2);
+    assert.equal(displayShiftTitle(items[0]!.segments), "Display-Schicht");
+    const b = displayShiftHoursBreakdown(items[0]!.segments);
+    assert.equal(b.overlapBreakMs / 3_600_000, 1);
+  }
+});
+
+test("Pause-only shift_id ohne Work wird flacher Eintrag", () => {
+  const items = groupWorkHoursDayEntries([
+    entry({
+      id: "b1",
+      entry_type: "break",
+      starts_at: "2026-08-25T13:00:00.000Z",
+      ends_at: "2026-08-25T14:00:00.000Z",
+      shift_id: "break-only-shift",
+      note: null,
+    }),
+  ]);
+  assert.equal(items.length, 1);
+  assert.equal(items[0]!.kind, "entry");
 });

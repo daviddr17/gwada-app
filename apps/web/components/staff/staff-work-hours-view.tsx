@@ -25,6 +25,16 @@ import { StaffCollapsibleCard } from "@/components/staff/staff-collapsible-card"
 import { StaffWorkHoursSkeleton } from "@/components/staff/staff-work-hours-skeleton";
 import { StaffWorkEntryDrawer } from "@/components/staff/staff-work-entry-drawer";
 import { StaffWageAdvancesSection } from "@/components/staff/staff-wage-advances-section";
+import { StaffPayrollSettlementControls } from "@/components/staff/staff-payroll-settlement-controls";
+import {
+  effectiveSettlementStatus,
+  openWageCentsFromSnapshot,
+  targetHoursForCalendarMonth,
+} from "@/lib/staff/staff-payroll-settlement";
+import { fetchStaffPayrollSettlementsForMonth } from "@/lib/supabase/staff-payroll-settlements-db";
+import { fetchRestaurantWageAdvancesInRange } from "@/lib/supabase/staff-wage-advances-db";
+import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
+import type { RestaurantStaffPayrollSettlementRow } from "@/lib/types/staff";
 import {
   daysInclusive,
   exclusiveUtcIsoAfterLocalVisibleEnd,
@@ -228,6 +238,12 @@ export function StaffWorkHoursView({
     RestaurantStaffWorkEntryRow[]
   >([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
+  const [settlementsByStaffId, setSettlementsByStaffId] = useState(
+    () => new Map<string, RestaurantStaffPayrollSettlementRow>(),
+  );
+  const [advanceCentsByStaffId, setAdvanceCentsByStaffId] = useState(
+    () => new Map<string, number>(),
+  );
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
   // Re-bind height observer when the month strip mounts after skeleton/loading.
@@ -361,6 +377,56 @@ export function StaffWorkHoursView({
     if (error) toast.error(error);
     else setContracts(data);
   }, [restaurantId]);
+
+  const periodYear = cursor.year;
+  const periodMonth = cursor.month + 1;
+
+  const reloadSettlementsAndAdvances = useCallback(async () => {
+    const [settlementsRes, advancesRes] = await Promise.all([
+      fetchStaffPayrollSettlementsForMonth(
+        restaurantId,
+        periodYear,
+        periodMonth,
+        staffId,
+      ),
+      fetchRestaurantWageAdvancesInRange(
+        restaurantId,
+        monthStartYmd,
+        monthEndYmd,
+      ),
+    ]);
+    if (settlementsRes.error) toast.error(settlementsRes.error);
+    else {
+      const map = new Map<string, RestaurantStaffPayrollSettlementRow>();
+      for (const row of settlementsRes.data) {
+        map.set(row.staff_id, row);
+      }
+      setSettlementsByStaffId(map);
+    }
+    if (advancesRes.error) toast.error(advancesRes.error);
+    else {
+      const map = new Map<string, number>();
+      for (const row of advancesRes.data) {
+        if (staffId && row.staff_id !== staffId) continue;
+        map.set(
+          row.staff_id,
+          (map.get(row.staff_id) ?? 0) + row.amount_cents,
+        );
+      }
+      setAdvanceCentsByStaffId(map);
+    }
+  }, [
+    restaurantId,
+    periodYear,
+    periodMonth,
+    staffId,
+    monthStartYmd,
+    monthEndYmd,
+  ]);
+
+  useEffect(() => {
+    void reloadSettlementsAndAdvances();
+  }, [reloadSettlementsAndAdvances]);
 
   useEffect(() => {
     void reload();
@@ -838,7 +904,7 @@ export function StaffWorkHoursView({
             ) : (
               <div className={cn(moduleDataTableShellClassName, "ring-1 ring-border/40")}>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[36rem] text-sm">
+                  <table className="w-full min-w-[44rem] text-sm">
                     <thead>
                       <tr className={moduleDataTableHeadRowClassName}>
                         <th className={moduleDataTableHeadCellClassName}>
@@ -876,6 +942,9 @@ export function StaffWorkHoursView({
                         >
                           Lohn
                         </th>
+                        <th className={moduleDataTableHeadCellClassName}>
+                          Status
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -884,6 +953,33 @@ export function StaffWorkHoursView({
                           staffNameById.get(line.staffId) ?? "Mitarbeiter";
                         const canSelect =
                           Boolean(staffSelection) && !staffId;
+                        const settlement =
+                          settlementsByStaffId.get(line.staffId) ?? null;
+                        const advanceCents =
+                          advanceCentsByStaffId.get(line.staffId) ?? 0;
+                        const dueCents = line.wageCents - advanceCents;
+                        const openCents = openWageCentsFromSnapshot({
+                          dueCents,
+                          settlement,
+                        });
+                        const status = effectiveSettlementStatus({
+                          settlement,
+                        });
+                        const midMonthYmd = `${periodYear}-${String(periodMonth).padStart(2, "0")}-15`;
+                        const contract = findStaffContractForDay(
+                          contracts,
+                          line.staffId,
+                          midMonthYmd,
+                        );
+                        const targetH = targetHoursForCalendarMonth(
+                          contract?.target_weekly_minutes,
+                          periodYear,
+                          periodMonth,
+                        );
+                        const hoursBalanceH =
+                          targetH != null
+                            ? Math.round((line.netWorkH - targetH) * 10) / 10
+                            : null;
                         return (
                           <tr
                             key={line.staffId}
@@ -906,6 +1002,14 @@ export function StaffWorkHoursView({
                               {line.note ? (
                                 <span className="mt-0.5 block text-xs text-muted-foreground">
                                   {line.note}
+                                </span>
+                              ) : null}
+                              {hoursBalanceH != null ? (
+                                <span className="mt-0.5 block text-xs tabular-nums text-muted-foreground">
+                                  Stundenkonto{" "}
+                                  {hoursBalanceH > 0 ? "+" : ""}
+                                  {hoursBalanceH.toFixed(1).replace(".", ",")}{" "}
+                                  h
                                 </span>
                               ) : null}
                             </td>
@@ -937,10 +1041,34 @@ export function StaffWorkHoursView({
                                       /h
                                     </span>
                                   ) : null}
+                                  {openCents > 0 ? (
+                                    <span className="text-xs font-normal text-muted-foreground">
+                                      Offen {formatStaffEuroCents(openCents)}
+                                    </span>
+                                  ) : null}
                                 </span>
                               ) : (
                                 "—"
                               )}
+                            </td>
+                            <td
+                              className="px-4 py-2.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <StaffPayrollSettlementControls
+                                restaurantId={restaurantId}
+                                staffId={line.staffId}
+                                periodYear={periodYear}
+                                periodMonth={periodMonth}
+                                status={status}
+                                dueCents={dueCents}
+                                openCents={openCents}
+                                allowEdit={allowEdit}
+                                compact
+                                onChanged={() => {
+                                  void reloadSettlementsAndAdvances();
+                                }}
+                              />
                             </td>
                           </tr>
                         );
@@ -951,14 +1079,47 @@ export function StaffWorkHoursView({
               </div>
             )}
             {staffId ? (
-              <StaffWageAdvancesSection
-                restaurantId={restaurantId}
-                staffId={staffId}
-                paidOnFromYmd={localDayKey(monthStart)}
-                paidOnToYmd={localDayKey(monthEnd)}
-                wageCents={payrollWageTotalCents}
-                allowEdit={allowEdit}
-              />
+              <>
+                <div className="mt-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-3">
+                  <p className="mb-2 text-sm font-semibold">Monatsstatus</p>
+                  <StaffPayrollSettlementControls
+                    restaurantId={restaurantId}
+                    staffId={staffId}
+                    periodYear={periodYear}
+                    periodMonth={periodMonth}
+                    status={effectiveSettlementStatus({
+                      settlement:
+                        settlementsByStaffId.get(staffId) ?? null,
+                    })}
+                    dueCents={
+                      payrollWageTotalCents -
+                      (advanceCentsByStaffId.get(staffId) ?? 0)
+                    }
+                    openCents={openWageCentsFromSnapshot({
+                      dueCents:
+                        payrollWageTotalCents -
+                        (advanceCentsByStaffId.get(staffId) ?? 0),
+                      settlement:
+                        settlementsByStaffId.get(staffId) ?? null,
+                    })}
+                    allowEdit={allowEdit}
+                    onChanged={() => {
+                      void reloadSettlementsAndAdvances();
+                    }}
+                  />
+                </div>
+                <StaffWageAdvancesSection
+                  restaurantId={restaurantId}
+                  staffId={staffId}
+                  paidOnFromYmd={monthStartYmd}
+                  paidOnToYmd={monthEndYmd}
+                  wageCents={payrollWageTotalCents}
+                  allowEdit={allowEdit}
+                  onChanged={() => {
+                    void reloadSettlementsAndAdvances();
+                  }}
+                />
+              </>
             ) : null}
           </StaffCollapsibleCard>
 

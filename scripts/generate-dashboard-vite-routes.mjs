@@ -191,6 +191,16 @@ const EXTRA_ROUTE_ENTRIES = [
     ],
   },
   {
+    route: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung",
+    pageBehavior: "render",
+    imports: [
+      {
+        component: "StaffPayrollSettlementScreen",
+        from: "@/components/staff/staff-payroll-settlement-screen",
+      },
+    ],
+  },
+  {
     route: "/dashboard/checklisten/meine",
     pageBehavior: "render",
     imports: [

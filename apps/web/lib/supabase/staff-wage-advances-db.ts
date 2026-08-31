@@ -45,6 +45,30 @@ export async function fetchStaffWageAdvancesInRange(
   };
 }
 
+/** Alle Vorschüsse des Restaurants in einem paid_on-Zeitraum. */
+export async function fetchRestaurantWageAdvancesInRange(
+  restaurantId: string,
+  paidOnFromYmd: string,
+  paidOnToYmd: string,
+): Promise<{ data: RestaurantStaffWageAdvanceRow[]; error: string | null }> {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("restaurant_staff_wage_advances")
+    .select(WAGE_ADVANCE_SELECT)
+    .eq("restaurant_id", restaurantId)
+    .gte("paid_on", paidOnFromYmd)
+    .lte("paid_on", paidOnToYmd)
+    .order("paid_on", { ascending: false });
+
+  if (error) return { data: [], error: error.message };
+  return {
+    data: (data ?? []).map((r) =>
+      mapWageAdvanceRow(r as Record<string, unknown>),
+    ),
+    error: null,
+  };
+}
+
 export async function upsertStaffWageAdvance(params: {
   restaurantId: string;
   staffId: string;

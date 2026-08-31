@@ -169,43 +169,97 @@ export function displayShiftBounds(
 
 /**
  * Netto-Arbeitszeit einer Schicht (Pausen abgezogen) — nicht die Brutto-Spanne Start–Ende.
- * Bei überlappender Arbeitszeit (Pause liegt in einem Work-Segment) wird Pause von Work abgezogen;
- * bei sequentiellen Display-Segmenten ist die Summe der Work-Segmente bereits netto.
+ * Nur Pausenanteile, die mit Work-Intervallen überlappen, werden abgezogen
+ * (Display: sequentielle Pause außerhalb Work → kein Abzug; Bubble/ArbZG: Pause in Work → Abzug).
  */
 export function displayShiftNetWorkHours(
   segments: RestaurantStaffWorkEntryRow[],
   now: Date = new Date(),
 ): number {
+  return displayShiftHoursBreakdown(segments, now).netMs / 3_600_000;
+}
+
+export type DisplayShiftHoursBreakdown = {
+  workMs: number;
+  breakMs: number;
+  /** Pause, die in Work-Intervallen liegt (nur dieser Anteil geht vom Netto ab). */
+  overlapBreakMs: number;
+  netMs: number;
+  /** Union aus Arbeit + Pause (= Anwesenheit / „Eingeloggt“). */
+  presenceMs: number;
+};
+
+function mergeIntervalMs(
+  intervals: readonly { start: number; end: number }[],
+): number {
+  if (intervals.length === 0) return 0;
+  const sorted = [...intervals].sort((a, b) => a.start - b.start);
+  let total = 0;
+  let curStart = sorted[0]!.start;
+  let curEnd = sorted[0]!.end;
+  for (let i = 1; i < sorted.length; i += 1) {
+    const next = sorted[i]!;
+    if (next.start <= curEnd) {
+      curEnd = Math.max(curEnd, next.end);
+      continue;
+    }
+    total += Math.max(0, curEnd - curStart);
+    curStart = next.start;
+    curEnd = next.end;
+  }
+  total += Math.max(0, curEnd - curStart);
+  return total;
+}
+
+function intervalOverlapMs(
+  a: { start: number; end: number },
+  b: { start: number; end: number },
+): number {
+  return Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
+}
+
+export function displayShiftHoursBreakdown(
+  segments: RestaurantStaffWorkEntryRow[],
+  now: Date = new Date(),
+): DisplayShiftHoursBreakdown {
   const nowMs = now.getTime();
   let workMs = 0;
   let breakMs = 0;
   const workIntervals: { start: number; end: number }[] = [];
+  const allIntervals: { start: number; end: number }[] = [];
 
   for (const s of segments) {
     const start = new Date(s.starts_at).getTime();
     const end = s.is_open ? nowMs : new Date(s.ends_at).getTime();
     const ms = Math.max(0, end - start);
+    if (ms <= 0) continue;
     if (s.entry_type === "work") {
       workMs += ms;
       workIntervals.push({ start, end });
+      allIntervals.push({ start, end });
     } else if (s.entry_type === "break") {
       breakMs += ms;
+      allIntervals.push({ start, end });
     }
   }
 
-  const breakInsideWork = segments.some((s) => {
-    if (s.entry_type !== "break") return false;
-    const bStart = new Date(s.starts_at).getTime();
-    const bEnd = s.is_open ? nowMs : new Date(s.ends_at).getTime();
-    return workIntervals.some(
-      (w) => bStart >= w.start && bEnd <= w.end + 1,
-    );
-  });
+  let overlapBreakMs = 0;
+  for (const s of segments) {
+    if (s.entry_type !== "break") continue;
+    const start = new Date(s.starts_at).getTime();
+    const end = s.is_open ? nowMs : new Date(s.ends_at).getTime();
+    for (const w of workIntervals) {
+      overlapBreakMs += intervalOverlapMs({ start, end }, w);
+    }
+  }
 
-  const netMs = breakInsideWork
-    ? Math.max(0, workMs - breakMs)
-    : workMs;
-  return netMs / 3_600_000;
+  return {
+    workMs,
+    breakMs,
+    overlapBreakMs,
+    netMs: Math.max(0, workMs - overlapBreakMs),
+    presenceMs: mergeIntervalMs(allIntervals),
+  };
 }
 
 export function displayShiftTitle(

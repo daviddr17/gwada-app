@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { invalidateMessagesInboxAfterMarkRead } from "@/lib/contact-messages/invalidate-messages-inbox-cache-client";
 import {
   GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
-  peekUnifiedInboxCache,
+  peekCompleteUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-cache";
 import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
 import {
@@ -62,7 +62,7 @@ export function useNotificationSummary() {
         restaurantId!,
       );
       if (!data) throw new Error(error ?? "notification_summary_failed");
-      const conversations = peekUnifiedInboxCache(restaurantId!);
+      const conversations = peekCompleteUnifiedInboxCache(restaurantId!);
       if (!conversations) return data;
       return notificationSummaryWithMessagesFromConversations(
         data,
@@ -124,7 +124,7 @@ export function useNotificationSummary() {
     };
 
     const patchMessagesFromInboxCache = () => {
-      const conversations = peekUnifiedInboxCache(restaurantId);
+      const conversations = peekCompleteUnifiedInboxCache(restaurantId);
       if (!conversations) return;
       livePatchAtRef.current = Date.now();
       const summaryKey = queryKeys.notifications.summary(restaurantId);
@@ -160,6 +160,7 @@ export function useNotificationSummary() {
         return patchNotificationSummaryFromNotificationPayload(
           prev,
           detail.notificationPayload!,
+          { restaurantId },
         );
       });
     };

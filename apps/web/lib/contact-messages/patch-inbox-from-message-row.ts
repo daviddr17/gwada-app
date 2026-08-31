@@ -11,6 +11,9 @@ import type {
   ContactMessageRow,
 } from "@/lib/supabase/contact-messages-db";
 import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
+import { peekCompleteUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
+import { notificationSummaryWithMessagesFromConversations } from "@/lib/notifications/patch-notification-messages-from-inbox-cache";
+import type { NotificationSummary } from "@/lib/notifications/notification-types";
 
 function previewFromMessage(message: ContactMessageRow): {
   body: string;
@@ -103,11 +106,66 @@ export function patchInboxConversationsFromInboundMessage(
   );
 }
 
+function patchNotificationSummaryMessagesLive(
+  summary: NotificationSummary,
+  params: {
+    restaurantId?: string;
+    threadKey: string;
+    newItem: NotificationSummary["modules"][number]["items"][number];
+  },
+): NotificationSummary {
+  if (params.restaurantId) {
+    const conversations = peekCompleteUnifiedInboxCache(params.restaurantId);
+    if (conversations) {
+      return notificationSummaryWithMessagesFromConversations(
+        summary,
+        conversations,
+      );
+    }
+  }
+
+  const messagesModule = summary.modules.find((m) => m.id === "messages");
+  const otherModules = summary.modules.filter((m) => m.id !== "messages");
+
+  let items = messagesModule?.items ?? [];
+  items = items.filter((i) => i.id !== params.threadKey);
+  items = [params.newItem, ...items].slice(0, 5);
+
+  // Ohne Inbox-Cache: Vorschau aktualisieren, Zähler unverändert lassen —
+  // kein +1 pro Nachricht (Glocke zählt ungelesene Chats, nicht einzelne Messages).
+  const count = messagesModule?.count ?? 0;
+
+  if (count <= 0) {
+    return {
+      ...summary,
+      modules: otherModules,
+      totalCount: otherModules.reduce((sum, m) => sum + m.count, 0),
+    };
+  }
+
+  const messagesMod = {
+    id: "messages" as const,
+    count,
+    label: messagesModule?.label ?? "Nachrichten",
+    href:
+      messagesModule?.href ??
+      "/dashboard/kontakte/nachrichten?platform=all&read=unread",
+    items,
+  };
+
+  const modules = [...otherModules, messagesMod];
+  return {
+    ...summary,
+    modules,
+    totalCount: modules.reduce((sum, m) => sum + m.count, 0),
+  };
+}
+
 export function patchNotificationSummaryFromInboundMessage(
-  summary: import("@/lib/notifications/notification-types").NotificationSummary,
+  summary: NotificationSummary,
   message: ContactMessageRow,
-  opts?: { contactName?: string },
-): import("@/lib/notifications/notification-types").NotificationSummary {
+  opts?: { contactName?: string; restaurantId?: string },
+): NotificationSummary {
   const threadKey = message.contact_id;
   if (!threadKey || message.direction !== "inbound") return summary;
 
@@ -117,49 +175,26 @@ export function patchNotificationSummaryFromInboundMessage(
   const mirrored = previewFromMessage(message);
   const msgPlatform = messageDisplayPlatform(message);
 
-  const messagesModule = summary.modules.find((m) => m.id === "messages");
-  const otherModules = summary.modules.filter((m) => m.id !== "messages");
-
-  const existingItem = messagesModule?.items.find((i) => i.id === threadKey);
-  const newItem = {
-    id: threadKey,
-    title: name,
-    subtitle: inboxPreviewSnippet(mirrored.body, mirrored.attachmentKind),
-    href: `/dashboard/kontakte/nachrichten?platform=all&contact=${encodeURIComponent(threadKey)}`,
-    at: message.created_at,
-    meta: { contactId: threadKey, platform: msgPlatform },
-  };
-
-  let items = messagesModule?.items ?? [];
-  if (existingItem) {
-    items = items.filter((i) => i.id !== threadKey);
-  }
-  items = [newItem, ...items].slice(0, 5);
-
-  const prevCount = messagesModule?.count ?? 0;
-  const count = prevCount + 1;
-
-  const messagesMod = {
-    id: "messages" as const,
-    count,
-    label: messagesModule?.label ?? "Nachrichten",
-    href: messagesModule?.href ?? "/dashboard/kontakte/nachrichten?platform=all&read=unread",
-    items,
-  };
-
-  const modules = count > 0 ? [...otherModules, messagesMod] : otherModules;
-  return {
-    ...summary,
-    modules,
-    totalCount: modules.reduce((sum, m) => sum + m.count, 0),
-  };
+  return patchNotificationSummaryMessagesLive(summary, {
+    restaurantId: opts?.restaurantId,
+    threadKey,
+    newItem: {
+      id: threadKey,
+      title: name,
+      subtitle: inboxPreviewSnippet(mirrored.body, mirrored.attachmentKind),
+      href: `/dashboard/kontakte/nachrichten?platform=all&contact=${encodeURIComponent(threadKey)}`,
+      at: message.created_at,
+      meta: { contactId: threadKey, platform: msgPlatform },
+    },
+  });
 }
 
 /** Glocke: notification_events-Payload (contact_messages-Trigger) ohne API. */
 export function patchNotificationSummaryFromNotificationPayload(
-  summary: import("@/lib/notifications/notification-types").NotificationSummary,
+  summary: NotificationSummary,
   payload: Record<string, unknown>,
-): import("@/lib/notifications/notification-types").NotificationSummary {
+  opts?: { restaurantId?: string },
+): NotificationSummary {
   const threadKey =
     typeof payload.contactId === "string" ? payload.contactId.trim() : "";
   if (!threadKey) return summary;
@@ -178,42 +213,16 @@ export function patchNotificationSummaryFromNotificationPayload(
   const platform =
     typeof payload.platform === "string" ? payload.platform : "gwada";
 
-  const messagesModule = summary.modules.find((m) => m.id === "messages");
-  const otherModules = summary.modules.filter((m) => m.id !== "messages");
-
-  const existingItem = messagesModule?.items.find((i) => i.id === threadKey);
-  const newItem = {
-    id: threadKey,
-    title: name,
-    subtitle: preview,
-    href: `/dashboard/kontakte/nachrichten?platform=all&contact=${encodeURIComponent(threadKey)}`,
-    at,
-    meta: { contactId: threadKey, platform },
-  };
-
-  let items = messagesModule?.items ?? [];
-  if (existingItem) {
-    items = items.filter((i) => i.id !== threadKey);
-  }
-  items = [newItem, ...items].slice(0, 5);
-
-  const prevCount = messagesModule?.count ?? 0;
-  const count = prevCount + 1;
-
-  const messagesMod = {
-    id: "messages" as const,
-    count,
-    label: messagesModule?.label ?? "Nachrichten",
-    href:
-      messagesModule?.href ??
-      "/dashboard/kontakte/nachrichten?platform=all&read=unread",
-    items,
-  };
-
-  const modules = count > 0 ? [...otherModules, messagesMod] : otherModules;
-  return {
-    ...summary,
-    modules,
-    totalCount: modules.reduce((sum, m) => sum + m.count, 0),
-  };
+  return patchNotificationSummaryMessagesLive(summary, {
+    restaurantId: opts?.restaurantId,
+    threadKey,
+    newItem: {
+      id: threadKey,
+      title: name,
+      subtitle: preview,
+      href: `/dashboard/kontakte/nachrichten?platform=all&contact=${encodeURIComponent(threadKey)}`,
+      at,
+      meta: { contactId: threadKey, platform },
+    },
+  });
 }

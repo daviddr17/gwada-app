@@ -6,7 +6,7 @@ export const GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT =
   "gwada:unified-inbox-cache-updated";
 
 /** Erhöhen, wenn Listen-Format wechselt (z. B. DB-only statt Live-Merge). */
-export const UNIFIED_INBOX_CACHE_VERSION = 4;
+export const UNIFIED_INBOX_CACHE_VERSION = 5;
 
 const SESSION_KEY_PREFIX = `gwada:unified-inbox:v${UNIFIED_INBOX_CACHE_VERSION}:`;
 /** Überlebt Soft-Nav und Seiten-Reload in derselben Browser-Session. */
@@ -21,6 +21,8 @@ export const UNIFIED_INBOX_STALE_MS = 5 * 60 * 1000;
 type CacheEntry = {
   conversations: ContactConversationPreview[];
   cachedAt: number;
+  /** true nach vollem fetchUnifiedInboxConversations — nicht nach reinem Realtime-Seed. */
+  complete: boolean;
 };
 
 const cache = new Map<string, CacheEntry>();
@@ -40,7 +42,11 @@ function readInboxFromSession(restaurantId: string): CacheEntry | null {
       sessionStorage.removeItem(sessionKey(restaurantId));
       return null;
     }
-    return parsed;
+    return {
+      conversations: parsed.conversations,
+      cachedAt: parsed.cachedAt,
+      complete: parsed.complete === true,
+    };
   } catch {
     return null;
   }
@@ -65,10 +71,13 @@ function hydrateMemoryFromSession(restaurantId: string): CacheEntry | null {
 export function setUnifiedInboxCache(
   restaurantId: string,
   conversations: ContactConversationPreview[],
+  options?: { complete?: boolean },
 ): void {
+  const prev = cache.get(restaurantId) ?? hydrateMemoryFromSession(restaurantId);
   const entry: CacheEntry = {
     conversations,
     cachedAt: Date.now(),
+    complete: options?.complete ?? prev?.complete ?? false,
   };
   cache.set(restaurantId, entry);
   writeInboxToSession(restaurantId, entry);
@@ -88,6 +97,15 @@ export function peekUnifiedInboxCache(
   if (mem) return mem.conversations;
   const hydrated = hydrateMemoryFromSession(restaurantId);
   return hydrated?.conversations ?? null;
+}
+
+/** Nur nach vollem Inbox-Fetch — sonst unterzählt Realtime-Seed die Glocke. */
+export function peekCompleteUnifiedInboxCache(
+  restaurantId: string,
+): ContactConversationPreview[] | null {
+  const entry = cache.get(restaurantId) ?? hydrateMemoryFromSession(restaurantId);
+  if (!entry?.complete) return null;
+  return entry.conversations;
 }
 
 export function peekUnifiedInboxCacheAgeMs(restaurantId: string): number | null {

@@ -78,6 +78,7 @@ import {
   isSidebarModuleBillingLocked,
 } from "@/lib/permissions/sidebar-module-permissions";
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
+import { useVerticalScrollOverflow } from "@/lib/hooks/use-vertical-scroll-overflow";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import {
   appMobileSidebarFooterClassName,
@@ -87,6 +88,7 @@ import {
   appMobileSidebarHeaderButtonClassName,
   appMobileSidebarModuleGroupContentClassName,
 } from "@/lib/ui/app-mobile-sidebar-menu";
+import { SidebarScrollOverflowHints } from "@/components/layout/sidebar-scroll-overflow-hints";
 import { cn } from "@/lib/utils";
 
 function profileInitials(firstName: string, lastName: string): string {
@@ -207,6 +209,13 @@ export function AppSidebar() {
     ? appMobileSidebarFooterMenuButtonClassName
     : undefined;
 
+  const {
+    ref: moduleListScrollRef,
+    canScrollUp: moduleListCanScrollUp,
+    canScrollDown: moduleListCanScrollDown,
+    scrollByPage: scrollModuleListByPage,
+  } = useVerticalScrollOverflow();
+
   return (
     <Sidebar collapsible="icon" variant="inset">
       <div className="flex h-full w-full flex-col">
@@ -270,7 +279,11 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <SidebarContent
+        ref={moduleListScrollRef}
+        className="flex min-h-0 flex-1 flex-col gap-2"
+      >
         <SidebarGroup className={cn("pb-1.5", isMobile && appMobileSidebarGroupClassName)}>
           <SidebarGroupContent
             className={isMobile ? appMobileSidebarModuleGroupContentClassName : undefined}
@@ -528,6 +541,13 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarScrollOverflowHints
+        canScrollUp={moduleListCanScrollUp}
+        canScrollDown={moduleListCanScrollDown}
+        onScrollUp={() => scrollModuleListByPage("up")}
+        onScrollDown={() => scrollModuleListByPage("down")}
+      />
+      </div>
       {isMobile ? null : <SidebarSeparator className="mx-0 w-full" />}
       <SidebarFooter
         className={cn(

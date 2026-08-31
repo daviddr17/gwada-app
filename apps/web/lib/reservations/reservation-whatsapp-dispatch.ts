@@ -13,6 +13,11 @@ import type { ReservationMessageContext } from "@/lib/whatsapp/reservation-messa
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
 import {
+  computeReservationReminderSendAt,
+  resolveReservationThanksSendAt,
+  shouldScheduleReservationReminder,
+} from "@/lib/reservations/reservation-timed-notification-schedule";
+import {
   finalizeOutboundWhatsappMessage,
   insertPendingOutboundWhatsappMessage,
 } from "@/lib/contact-messages/outbound-whatsapp-db-server";
@@ -418,14 +423,14 @@ export async function scheduleTimedMessages(
     return;
   }
 
-  const starts = new Date(row.starts_at);
-  const ends = new Date(row.ends_at);
+  const starts = row.starts_at;
 
   if (settings.whatsapp_reminder_enabled && settings.whatsapp_reminder_hours_before > 0) {
-    const sendAt = new Date(
-      starts.getTime() - settings.whatsapp_reminder_hours_before * 60 * 60 * 1000,
+    const sendAt = computeReservationReminderSendAt(
+      starts,
+      settings.whatsapp_reminder_hours_before,
     );
-    if (sendAt.getTime() > Date.now()) {
+    if (shouldScheduleReservationReminder(sendAt)) {
       await upsertOutbox(sb, row, "reminder", sendAt);
     } else {
       await cancelOutboxKinds(sb, row.id, ["reminder"]);
@@ -435,14 +440,11 @@ export async function scheduleTimedMessages(
   }
 
   if (settings.whatsapp_thanks_enabled && settings.whatsapp_thanks_hours_after > 0) {
-    const sendAt = new Date(
-      ends.getTime() + settings.whatsapp_thanks_hours_after * 60 * 60 * 1000,
+    const sendAt = resolveReservationThanksSendAt(
+      starts,
+      settings.whatsapp_thanks_hours_after,
     );
-    if (sendAt.getTime() > Date.now()) {
-      await upsertOutbox(sb, row, "thanks", sendAt);
-    } else {
-      await cancelOutboxKinds(sb, row.id, ["thanks"]);
-    }
+    await upsertOutbox(sb, row, "thanks", sendAt);
   } else {
     await cancelOutboxKinds(sb, row.id, ["thanks"]);
   }

@@ -191,6 +191,16 @@ const EXTRA_ROUTE_ENTRIES = [
     ],
   },
   {
+    route: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung",
+    pageBehavior: "render",
+    imports: [
+      {
+        component: "StaffPayrollSettlementScreen",
+        from: "@/components/staff/staff-payroll-settlement-screen",
+      },
+    ],
+  },
+  {
     route: "/dashboard/checklisten/meine",
     pageBehavior: "render",
     imports: [
@@ -212,15 +222,11 @@ const EXTRA_ROUTE_ENTRIES = [
   },
   {
     route: "/dashboard/checklisten/eigenkontrolle",
-    pageBehavior: "render",
-    imports: [
-      {
-        component: "AufgabenEigenkontrolleScreen",
-        from: "@/components/checklisten/aufgaben-eigenkontrolle-screen",
-      },
-    ],
+    pageBehavior: "redirect",
+    redirectTarget: "/dashboard/checklisten",
   },
 ];
+
 
 function chromeWrapperFor(route) {
   if (route === "/dashboard/profile" || route.startsWith(PROFILE_PREFIX)) {

@@ -18,6 +18,10 @@ import {
 import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import {
+  drawerFormHeaderClassName,
+  drawerScrollAreaClassName,
+} from "@/lib/ui/drawer-form-section";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -326,26 +330,36 @@ export function AufgabenNachrichtenScreen() {
         </div>
       )}
 
-      <Drawer open={newOpen} onOpenChange={setNewOpen}>
-        <DrawerContent className={drawerContentClassName("form")}>
-          <DrawerHeader>
-            <DrawerTitle>Kollege anschreiben</DrawerTitle>
-            <DrawerDescription>
+      <Drawer
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        direction="bottom"
+        repositionInputs={false}
+      >
+        <DrawerContent className={drawerContentClassName("assign")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
+            <DrawerTitle className="text-xl font-semibold tracking-tight">
+              Kollege anschreiben
+            </DrawerTitle>
+            <DrawerDescription className="text-base">
               Interner 1:1-Chat — nicht im Gäste-Postfach.
             </DrawerDescription>
           </DrawerHeader>
           <DrawerFormBody>
-            <DrawerFormSection>
-              <SearchableSelect
-                value={peerStaffId}
-                onValueChange={setPeerStaffId}
-                options={peerOptions}
-                placeholder="Mitarbeiter wählen"
-                className={appSelectTriggerAccentCn("h-10 w-full")}
-              />
-            </DrawerFormSection>
+            <div className={drawerScrollAreaClassName(6)}>
+              <DrawerFormSection>
+                <SearchableSelect
+                  value={peerStaffId}
+                  onValueChange={setPeerStaffId}
+                  options={peerOptions}
+                  placeholder="Mitarbeiter wählen"
+                  className={appSelectTriggerAccentCn("h-10 w-full")}
+                />
+              </DrawerFormSection>
+            </div>
           </DrawerFormBody>
           <DrawerFormFooter
+            submitType="button"
             onCancel={() => setNewOpen(false)}
             submitLabel="Chat öffnen"
             submitDisabled={!peerStaffId || !profileId}

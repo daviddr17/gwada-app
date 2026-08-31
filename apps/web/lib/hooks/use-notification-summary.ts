@@ -2,7 +2,10 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
-import { invalidateMessagesInboxAfterMarkRead } from "@/lib/contact-messages/invalidate-messages-inbox-cache-client";
+import {
+  invalidateMessagesInboxAfterMarkRead,
+  refreshMessagesInboxAfterMarkAllSuccess,
+} from "@/lib/contact-messages/invalidate-messages-inbox-cache-client";
 import {
   GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
   peekCompleteUnifiedInboxCache,
@@ -351,6 +354,10 @@ export function useNotificationSummary() {
       if (!result.ok) {
         void refresh({ silent: true });
         return { ok: false as const, error: "mark_module_read_failed" };
+      }
+
+      if (params.module === "messages") {
+        refreshMessagesInboxAfterMarkAllSuccess(restaurantId);
       }
 
       dispatchNotificationsRefresh();

@@ -37,6 +37,16 @@ export function invalidateMessagesInboxAfterMarkRead(params: {
   });
 }
 
+/**
+ * Nach erfolgreichem Mark-all: Inbox neu laden (ohne `all`), damit Cache = DB.
+ * Background-Sync skippt Force-Refetch bei optimistischem `all` — hier nachziehen.
+ */
+export function refreshMessagesInboxAfterMarkAllSuccess(
+  restaurantId: string,
+): void {
+  dispatchDashboardMessagesRefresh({ restaurantId });
+}
+
 /** Explizit Thread-Cache droppen (z. B. nach Senden/Löschen mit Content-Änderung). */
 export function invalidateContactThreadCacheAfterContentChange(params: {
   restaurantId: string;

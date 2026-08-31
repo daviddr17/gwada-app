@@ -5,6 +5,7 @@ import { Download, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ContactMessageVideoPlayer } from "@/components/contacts/contact-message-video-player";
 import { ContactMessageVoicePlayer } from "@/components/contacts/contact-message-voice-player";
+import { Skeleton } from "@/components/ui/skeleton";
 import { downloadContactAttachmentClient } from "@/lib/contact-messages/download-attachment-client";
 import {
   isGenericAttachmentDisplayName,
@@ -21,6 +22,75 @@ export const contactMessageAttachmentImageDefaultClassName =
 /** E-Mail: Logos/Signaturen klein halten, Seitenverhältnis erhalten. */
 export const contactMessageAttachmentImageEmailClassName =
   "mx-auto h-auto max-h-36 w-auto max-w-[min(100%,12rem)] object-contain";
+
+
+/** Reservierte Höhe für Chat-Bildvorschau (vermeidet leere Bubble bis onLoad). */
+const CONTACT_MESSAGE_IMAGE_SKELETON_DEFAULT_CLASS =
+  "h-44 w-full max-h-56 rounded-lg";
+const CONTACT_MESSAGE_IMAGE_SKELETON_EMAIL_CLASS =
+  "mx-auto h-28 w-44 max-w-[min(100%,12rem)] rounded-lg";
+
+function ContactMessageAttachmentImage({
+  attachment,
+  imageClassName,
+  imageLinkClassName,
+  variant,
+}: {
+  attachment: ContactMessageAttachment;
+  imageClassName: string;
+  imageLinkClassName: string;
+  variant: "default" | "email";
+}) {
+  const url = attachment.url.trim();
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [url]);
+
+  const finish = () => {
+    setLoaded(true);
+    window.dispatchEvent(
+      new CustomEvent("gwada:contact-chat-content-layout"),
+    );
+  };
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(imageLinkClassName, "relative")}
+    >
+      {!loaded ? (
+        <Skeleton
+          aria-hidden
+          className={
+            variant === "email"
+              ? CONTACT_MESSAGE_IMAGE_SKELETON_EMAIL_CLASS
+              : CONTACT_MESSAGE_IMAGE_SKELETON_DEFAULT_CLASS
+          }
+        />
+      ) : null}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt={attachment.fileName}
+        className={cn(
+          imageClassName,
+          "transition-opacity duration-200 ease-out",
+          loaded
+            ? "relative opacity-100"
+            : "absolute inset-0 size-full opacity-0",
+        )}
+        loading="lazy"
+        decoding="async"
+        onLoad={finish}
+        onError={finish}
+      />
+    </a>
+  );
+}
 
 function formatByteSize(bytes: number | null | undefined): string | null {
   if (bytes == null || !Number.isFinite(bytes) || bytes <= 0) return null;
@@ -168,26 +238,13 @@ export function ContactMessageAttachments({
           }
 
           return (
-            <a
+            <ContactMessageAttachmentImage
               key={a.id}
-              href={a.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={imageLinkClassName}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={a.url}
-                alt={a.fileName}
-                className={imageClassName}
-                loading="lazy"
-                onLoad={() => {
-                  window.dispatchEvent(
-                    new CustomEvent("gwada:contact-chat-content-layout"),
-                  );
-                }}
-              />
-            </a>
+              attachment={a}
+              imageClassName={imageClassName}
+              imageLinkClassName={imageLinkClassName}
+              variant={variant}
+            />
           );
         }
 

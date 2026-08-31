@@ -22,6 +22,10 @@ import {
 import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import {
+  drawerFormHeaderClassName,
+  drawerScrollAreaClassName,
+} from "@/lib/ui/drawer-form-section";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -230,19 +234,25 @@ export function AufgabenMeineScreen() {
         </div>
       )}
 
-      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <DrawerContent className={drawerContentClassName("form")}>
-          <DrawerHeader>
-            <DrawerTitle>
+      <Drawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        direction="bottom"
+        repositionInputs={false}
+      >
+        <DrawerContent className={drawerContentClassName("formMd")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
+            <DrawerTitle className="text-xl font-semibold tracking-tight">
               {editing ? "Notiz bearbeiten" : "Neue Notiz"}
             </DrawerTitle>
-            <DrawerDescription>
+            <DrawerDescription className="text-base">
               Nur für dich sichtbar — optional mit Erinnerung.
             </DrawerDescription>
           </DrawerHeader>
           <DrawerFormBody>
-            <DrawerFormSection>
-              <div className="space-y-3">
+            <div className={drawerScrollAreaClassName(6)}>
+              <DrawerFormSection>
+                <div className="space-y-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="personal-note-title">Titel</Label>
                   <Input
@@ -284,10 +294,12 @@ export function AufgabenMeineScreen() {
                     />
                   </div>
                 </div>
-              </div>
-            </DrawerFormSection>
+                </div>
+              </DrawerFormSection>
+            </div>
           </DrawerFormBody>
           <DrawerFormFooter
+            submitType="button"
             onCancel={() => setDrawerOpen(false)}
             onSubmit={async () => {
               if (!restaurantId || !profileId) return;

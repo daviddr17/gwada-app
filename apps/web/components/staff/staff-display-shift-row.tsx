@@ -44,7 +44,10 @@ export function StaffDisplayShiftRow({
   const presenceHours = breakdown.presenceMs / 3_600_000;
   const netWorkHours = breakdown.netMs / 3_600_000;
   const breakHours = breakdown.breakMs / 3_600_000;
+  const hasWork = segments.some((s) => s.entry_type === "work");
   const hasBreak = breakHours > 0.0005;
+  // Pause-only Karte: Anwesenheit = Pause, kein „Netto 0,00“.
+  const headerHours = hasWork ? presenceHours : breakHours;
 
   return (
     <div
@@ -63,10 +66,10 @@ export function StaffDisplayShiftRow({
         {formatWorkTimeRangeWithHoursDe(
           `${timeDe.format(new Date(bounds.startsAt))} – ${endLabel}`,
           // Spanne = Anwesenheit; Netto separat, sonst wirkt Pause „nicht abgezogen“.
-          presenceHours,
+          headerHours,
         )}
       </p>
-      {hasBreak ? (
+      {hasWork && hasBreak ? (
         <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
           Pause {formatHoursDe(breakHours)} · Netto {formatHoursDe(netWorkHours)}
         </p>

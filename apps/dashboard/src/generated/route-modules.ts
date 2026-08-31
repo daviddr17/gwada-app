@@ -129,9 +129,9 @@ const Lazy__dashboard_settings_restaurant = settingsLazy(() => import("../routes
 const Lazy__dashboard_settings_team = settingsLazy(() => import("@/components/settings/restaurant-team-settings-panel").then((m) => ({ default: m.RestaurantTeamSettingsPanel as ComponentType })));
 const Lazy__dashboard_changelog = changelogLazy(() => import("@/components/changelog/changelog-overview").then((m) => ({ default: m.ChangelogOverview as ComponentType })));
 const Lazy__dashboard_mitarbeiter_arbeitszeiten_beheben = staffLazy(() => import("@/components/staff/staff-labor-compliance-screen").then((m) => ({ default: m.StaffLaborComplianceScreen as ComponentType })));
+const Lazy__dashboard_mitarbeiter_arbeitszeiten_abrechnung = staffLazy(() => import("@/components/staff/staff-payroll-settlement-screen").then((m) => ({ default: m.StaffPayrollSettlementScreen as ComponentType })));
 const Lazy__dashboard_checklisten_meine = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-meine-screen").then((m) => ({ default: m.AufgabenMeineScreen as ComponentType }))));
 const Lazy__dashboard_checklisten_nachrichten = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-nachrichten-screen").then((m) => ({ default: m.AufgabenNachrichtenScreen as ComponentType }))));
-const Lazy__dashboard_checklisten_eigenkontrolle = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-eigenkontrolle-screen").then((m) => ({ default: m.AufgabenEigenkontrolleScreen as ComponentType }))));
 
 export type DashboardRouteEntry = {
   path: string;
@@ -267,7 +267,8 @@ export const DASHBOARD_ROUTE_ENTRIES: DashboardRouteEntry[] = [
   { path: "/settings/team", fullPath: "/dashboard/settings/team", Lazy: Lazy__dashboard_settings_team },
   { path: "/changelog", fullPath: "/dashboard/changelog", Lazy: Lazy__dashboard_changelog },
   { path: "/mitarbeiter/arbeitszeiten/beheben", fullPath: "/dashboard/mitarbeiter/arbeitszeiten/beheben", Lazy: Lazy__dashboard_mitarbeiter_arbeitszeiten_beheben },
+  { path: "/mitarbeiter/arbeitszeiten/abrechnung", fullPath: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung", Lazy: Lazy__dashboard_mitarbeiter_arbeitszeiten_abrechnung },
   { path: "/checklisten/meine", fullPath: "/dashboard/checklisten/meine", Lazy: Lazy__dashboard_checklisten_meine },
   { path: "/checklisten/nachrichten", fullPath: "/dashboard/checklisten/nachrichten", Lazy: Lazy__dashboard_checklisten_nachrichten },
-  { path: "/checklisten/eigenkontrolle", fullPath: "/dashboard/checklisten/eigenkontrolle", Lazy: Lazy__dashboard_checklisten_eigenkontrolle },
+  { path: "/checklisten/eigenkontrolle", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
 ];

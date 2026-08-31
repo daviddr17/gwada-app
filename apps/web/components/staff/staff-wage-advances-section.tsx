@@ -38,6 +38,8 @@ type StaffWageAdvancesSectionProps = {
   /** Lohn aus Arbeitszeiten (für Restbetrag). */
   wageCents: number;
   allowEdit?: boolean;
+  /** Nach Speichern/Löschen — z. B. Monatsstatus neu laden. */
+  onChanged?: () => void;
 };
 
 export function StaffWageAdvancesSection({
@@ -47,6 +49,7 @@ export function StaffWageAdvancesSection({
   paidOnToYmd,
   wageCents,
   allowEdit = true,
+  onChanged,
 }: StaffWageAdvancesSectionProps) {
   const [advances, setAdvances] = useState<RestaurantStaffWageAdvanceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,7 +193,10 @@ export function StaffWageAdvancesSection({
         advance={editAdvance}
         defaultPaidOn={defaultPaidOn}
         allowEdit={allowEdit}
-        onSaved={() => void reload()}
+        onSaved={() => {
+          void reload();
+          onChanged?.();
+        }}
       />
     </div>
   );

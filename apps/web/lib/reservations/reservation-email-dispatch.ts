@@ -14,6 +14,11 @@ import {
   type ReservationDispatchOptions,
 } from "@/lib/reservations/append-guest-notify-message";
 import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
+import {
+  computeReservationReminderSendAt,
+  resolveReservationThanksSendAt,
+  shouldScheduleReservationReminder,
+} from "@/lib/reservations/reservation-timed-notification-schedule";
 import { isEmailSendConfigured } from "@/lib/email/is-email-send-configured";
 import { smtpCredentialsFromConfig } from "@/lib/integrations/smtp-integration-config";
 import {
@@ -453,14 +458,14 @@ export async function scheduleTimedMessages(
     return;
   }
 
-  const starts = new Date(row.starts_at);
-  const ends = new Date(row.ends_at);
+  const starts = row.starts_at;
 
   if (settings.email_reminder_enabled && settings.email_reminder_hours_before > 0) {
-    const sendAt = new Date(
-      starts.getTime() - settings.email_reminder_hours_before * 60 * 60 * 1000,
+    const sendAt = computeReservationReminderSendAt(
+      starts,
+      settings.email_reminder_hours_before,
     );
-    if (sendAt.getTime() > Date.now()) {
+    if (shouldScheduleReservationReminder(sendAt)) {
       await upsertOutbox(sb, row, "reminder", sendAt);
     } else {
       await cancelOutboxKinds(sb, row.id, ["reminder"]);
@@ -470,14 +475,11 @@ export async function scheduleTimedMessages(
   }
 
   if (settings.email_thanks_enabled && settings.email_thanks_hours_after > 0) {
-    const sendAt = new Date(
-      ends.getTime() + settings.email_thanks_hours_after * 60 * 60 * 1000,
+    const sendAt = resolveReservationThanksSendAt(
+      starts,
+      settings.email_thanks_hours_after,
     );
-    if (sendAt.getTime() > Date.now()) {
-      await upsertOutbox(sb, row, "thanks", sendAt);
-    } else {
-      await cancelOutboxKinds(sb, row.id, ["thanks"]);
-    }
+    await upsertOutbox(sb, row, "thanks", sendAt);
   } else {
     await cancelOutboxKinds(sb, row.id, ["thanks"]);
   }

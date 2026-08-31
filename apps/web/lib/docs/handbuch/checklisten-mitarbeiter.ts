@@ -2,12 +2,12 @@ import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const checklistenGuide: UserGuidePage = {
   slug: "checklisten",
-  title: "Checklisten",
+  title: "Aufgaben",
   description:
-    "Team-ToDos, HACCP-Eigenkontrolle, Bereiche, Geräte und Protokoll.",
+    "Persönliche Notizen, Team-ToDos, Team-Chat, HACCP-Eigenkontrolle und Protokoll.",
   intro: [
-    "Checklisten vereint zwei Bereiche: ToDo-Listen für das Team (Opening, Closing, Aufgaben) und HACCP/Eigenkontrolle (Temperaturen, Reinigung, Geräte-Checks). Was du siehst, hängt von deinen Berechtigungen ab.",
-    "Erfassungen können am Display-Terminal in der Küche erfolgen — das Dashboard dient der Übersicht und des Abhakens durch Teamleiter.",
+    "Aufgaben vereint persönliche Erinnerungen, Team-ToDos (Opening, Closing), internen Team-Chat und HACCP/Eigenkontrolle. Was du siehst, hängt von deinen Berechtigungen ab.",
+    "Erfassungen können am Display-Terminal in der Küche erfolgen — das Dashboard dient der Übersicht, dem Chat und dem Abhaken durch Teamleiter.",
   ],
   sections: [
     {
@@ -15,7 +15,10 @@ export const checklistenGuide: UserGuidePage = {
       table: {
         headers: ["Tab", "Zweck"],
         rows: [
-          ["Übersicht", "Offene ToDos und fällige Compliance-Einträge"],
+          ["Meine", "Private Notizen und Erinnerungen (nur du)"],
+          ["Team", "Offene Team-ToDos und operative Aufgaben"],
+          ["Nachrichten", "1:1-Chat unter Kollegen"],
+          ["Eigenkontrolle", "HACCP / Compliance-Übersicht"],
           ["Protokoll", "Abgeschlossene Einträge und Änderungshistorie"],
           ["Einstellungen", "Erinnerungen, Korrekturmaßnahmen, Compliance-Optionen"],
         ],

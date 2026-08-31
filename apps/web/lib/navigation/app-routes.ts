@@ -72,6 +72,9 @@ export const APP_ROUTES = {
   },
   checklisten: {
     root: "/dashboard/checklisten",
+    meine: "/dashboard/checklisten/meine",
+    nachrichten: "/dashboard/checklisten/nachrichten",
+    eigenkontrolle: "/dashboard/checklisten/eigenkontrolle",
     todos: "/dashboard/checklisten/todos",
     vorlagen: "/dashboard/checklisten/vorlagen",
     geraete: "/dashboard/checklisten/geraete",

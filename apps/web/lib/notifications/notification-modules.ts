@@ -24,6 +24,8 @@ import {
   UserX,
   Unlock,
   Truck,
+  StickyNote,
+  Users,
 } from "lucide-react";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
@@ -46,6 +48,8 @@ export const NOTIFICATION_MODULE_IDS = [
   "accounting_voucher",
   "staff_todo_completed",
   "staff_todo_deferred",
+  "personal_reminder",
+  "staff_messages",
   "staff_contract_signed",
   "staff_display_time_request",
   "staff_invite_accepted",
@@ -241,6 +245,26 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Verschobene ToDos in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei verschobenen ToDos",
     settingsPushEmailLabel: "E-Mail bei verschobenen ToDos",
+  },
+  personal_reminder: {
+    id: "personal_reminder",
+    label: "Persönliche Erinnerung",
+    labelPlural: "Erinnerungen",
+    href: "/dashboard/checklisten/meine",
+    icon: StickyNote,
+    settingsInAppLabel: "Fällige persönliche Erinnerungen in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei persönlichen Erinnerungen",
+    settingsPushEmailLabel: "E-Mail bei persönlichen Erinnerungen",
+  },
+  staff_messages: {
+    id: "staff_messages",
+    label: "Team-Nachricht",
+    labelPlural: "Team-Nachrichten",
+    href: "/dashboard/checklisten/nachrichten",
+    icon: Users,
+    settingsInAppLabel: "Ungelesene Team-Nachrichten in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei Team-Nachrichten",
+    settingsPushEmailLabel: "E-Mail bei Team-Nachrichten",
   },
   staff_contract_signed: {
     id: "staff_contract_signed",

@@ -553,7 +553,7 @@ export function StaffTodosScreen({ active = true }: { active?: boolean }) {
   };
 
   if (!permissionsLoading && !canRead) {
-    return <ModuleAccessDenied label="Checklisten" />;
+    return <ModuleAccessDenied label="Aufgaben" />;
   }
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;

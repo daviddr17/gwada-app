@@ -78,7 +78,7 @@ export const OPS_COMMANDS: readonly OpsCommand[] = [
   },
   {
     id: "nav_checklists",
-    label: "Checklisten",
+    label: "Aufgaben",
     hint: "To-dos",
     href: "/dashboard/checklisten",
     icon: ClipboardList,

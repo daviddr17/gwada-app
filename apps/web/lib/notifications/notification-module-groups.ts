@@ -35,12 +35,14 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
   {
     id: "staff",
     title: "Mitarbeiter",
-    description: "Schichten und ToDo-Listen als eigene Hinweise.",
+    description: "Schichten, Aufgaben und Team-Chat.",
     moduleIds: [
       "staff_shift_start",
       "staff_shift_end",
       "staff_todo_completed",
       "staff_todo_deferred",
+      "personal_reminder",
+      "staff_messages",
       "staff_contract_signed",
       "staff_display_time_request",
       "staff_invite_accepted",

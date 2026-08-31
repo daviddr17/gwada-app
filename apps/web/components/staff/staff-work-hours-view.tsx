@@ -287,15 +287,18 @@ export function StaffWorkHoursView({
       : new Date().toISOString();
   }, [monthDays]);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
+  const pendingScrollDayRef = useRef<string | null>(null);
+
+  const reload = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) setLoading(true);
     const { data, error } = await fetchStaffWorkEntriesInRange(
       restaurantId,
       staffId,
       rangeStart,
       rangeEnd,
     );
-    setLoading(false);
+    if (!silent) setLoading(false);
     if (error) toast.error(error);
     else setEntries(data);
   }, [restaurantId, staffId, rangeStart, rangeEnd]);
@@ -333,6 +336,25 @@ export function StaffWorkHoursView({
     staffId,
     monthEnd,
   ]);
+
+  const reloadAfterMutation = useCallback(
+    async (dayYmd?: string) => {
+      if (dayYmd) pendingScrollDayRef.current = dayYmd;
+      await reload({ silent: true });
+      void reloadComplianceEntries();
+      const key = pendingScrollDayRef.current;
+      pendingScrollDayRef.current = null;
+      if (key) {
+        // Double rAF: wait until React commits the silent entry update.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            scrollToWorkHoursDay(key);
+          });
+        });
+      }
+    },
+    [reload, reloadComplianceEntries],
+  );
 
   const reloadContracts = useCallback(async () => {
     const { data, error } = await fetchStaffContractsForRestaurant(restaurantId);
@@ -1104,16 +1126,21 @@ export function StaffWorkHoursView({
             allowEdit={allowEdit}
             siblingEntries={siblingEntries}
             shiftClusterSegments={shiftClusterSegments}
-            onSaved={() => {
-              void reload();
-              void reloadComplianceEntries();
+            onSaved={(dayYmd) => {
+              void reloadAfterMutation(dayYmd);
             }}
             onDelete={async (id) => {
+              // Capture before close/reload — editEntry may clear when drawer closes.
+              const dayYmd = editEntry
+                ? localDayKey(new Date(editEntry.starts_at))
+                : dayForNew
+                  ? localDayKey(dayForNew)
+                  : undefined;
               const ok = await deleteStaffWorkEntry(id);
               if (!ok) toast.error("Löschen fehlgeschlagen.");
               else {
                 toast.success("Gelöscht");
-                void reload();
+                void reloadAfterMutation(dayYmd);
               }
             }}
           />

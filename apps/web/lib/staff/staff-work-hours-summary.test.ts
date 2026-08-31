@@ -88,3 +88,61 @@ test("Sequentiell Work|Pause|Work: Eingeloggt = Spanne, Netto = Arbeit", () => {
   assert.equal(h.breakH, 1);
   assert.equal(h.netWorkH, 8);
 });
+
+test("Pause außerhalb Work: Eingeloggt steigt, Netto unverändert", () => {
+  const h = netWorkHoursFromWorkBreakEntries([
+    entry({
+      id: "w1",
+      entry_type: "work",
+      starts_at: "2026-08-01T10:00:00.000Z",
+      ends_at: "2026-08-01T18:00:00.000Z",
+    }),
+    entry({
+      id: "b1",
+      entry_type: "break",
+      starts_at: "2026-08-01T19:00:00.000Z",
+      ends_at: "2026-08-01T19:30:00.000Z",
+    }),
+  ]);
+  assert.equal(h.loggedH, 8.5);
+  assert.equal(h.breakH, 0.5);
+  assert.equal(h.netWorkH, 8);
+});
+
+test("Überlappende Work-Segmente: Union ohne Doppelzählung", () => {
+  const h = netWorkHoursFromWorkBreakEntries([
+    entry({
+      id: "w1",
+      entry_type: "work",
+      starts_at: "2026-08-01T10:00:00.000Z",
+      ends_at: "2026-08-01T14:00:00.000Z",
+    }),
+    entry({
+      id: "w2",
+      entry_type: "work",
+      starts_at: "2026-08-01T12:00:00.000Z",
+      ends_at: "2026-08-01T16:00:00.000Z",
+    }),
+  ]);
+  assert.equal(h.loggedH, 6);
+  assert.equal(h.netWorkH, 6);
+  assert.equal(h.breakH, 0);
+});
+
+test("Offener Work-Eintrag: Dauer bis now", () => {
+  const now = new Date("2026-08-01T15:00:00.000Z");
+  const h = netWorkHoursFromWorkBreakEntries(
+    [
+      entry({
+        id: "w1",
+        entry_type: "work",
+        starts_at: "2026-08-01T10:00:00.000Z",
+        ends_at: "2026-08-01T10:00:00.000Z",
+        is_open: true,
+      }),
+    ],
+    now,
+  );
+  assert.equal(h.loggedH, 5);
+  assert.equal(h.netWorkH, 5);
+});

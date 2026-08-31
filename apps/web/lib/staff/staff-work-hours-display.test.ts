@@ -247,3 +247,55 @@ test("Pause-only shift_id ohne Work wird flacher Eintrag", () => {
   assert.equal(items.length, 1);
   assert.equal(items[0]!.kind, "entry");
 });
+
+test("Überlappende Work-Segmente: UI-Netto = Union (wie Abrechnung)", () => {
+  const segments = [
+    entry({
+      id: "w1",
+      entry_type: "work",
+      starts_at: "2026-08-01T10:00:00.000Z",
+      ends_at: "2026-08-01T14:00:00.000Z",
+    }),
+    entry({
+      id: "w2",
+      entry_type: "work",
+      starts_at: "2026-08-01T12:00:00.000Z",
+      ends_at: "2026-08-01T16:00:00.000Z",
+    }),
+    entry({
+      id: "b1",
+      entry_type: "break",
+      starts_at: "2026-08-01T12:00:00.000Z",
+      ends_at: "2026-08-01T13:00:00.000Z",
+    }),
+  ];
+  const b = displayShiftHoursBreakdown(segments);
+  // Union Arbeit 10–16 = 6h, Überlappung Pause 1h → Netto 5h (nicht additiv 8−2).
+  assert.equal(b.workMs / 3_600_000, 6);
+  assert.equal(b.presenceMs / 3_600_000, 6);
+  assert.equal(b.overlapBreakMs / 3_600_000, 1);
+  assert.equal(b.netMs / 3_600_000, 5);
+  assert.equal(displayShiftNetWorkHours(segments), 5);
+});
+
+test("Pause komplett außerhalb Work: Netto unverändert, Eingeloggt + Pause", () => {
+  const segments = [
+    entry({
+      id: "w1",
+      entry_type: "work",
+      starts_at: "2026-08-01T10:00:00.000Z",
+      ends_at: "2026-08-01T18:00:00.000Z",
+    }),
+    entry({
+      id: "b1",
+      entry_type: "break",
+      starts_at: "2026-08-01T19:00:00.000Z",
+      ends_at: "2026-08-01T19:30:00.000Z",
+    }),
+  ];
+  const b = displayShiftHoursBreakdown(segments);
+  assert.equal(b.presenceMs / 3_600_000, 8.5);
+  assert.equal(b.breakMs / 3_600_000, 0.5);
+  assert.equal(b.overlapBreakMs, 0);
+  assert.equal(b.netMs / 3_600_000, 8);
+});

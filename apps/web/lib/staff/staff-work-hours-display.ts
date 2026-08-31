@@ -291,28 +291,6 @@ export type DisplayShiftHoursBreakdown = {
   presenceMs: number;
 };
 
-function mergeIntervalMs(
-  intervals: readonly { start: number; end: number }[],
-): number {
-  if (intervals.length === 0) return 0;
-  const sorted = [...intervals].sort((a, b) => a.start - b.start);
-  let total = 0;
-  let curStart = sorted[0]!.start;
-  let curEnd = sorted[0]!.end;
-  for (let i = 1; i < sorted.length; i += 1) {
-    const next = sorted[i]!;
-    if (next.start <= curEnd) {
-      curEnd = Math.max(curEnd, next.end);
-      continue;
-    }
-    total += Math.max(0, curEnd - curStart);
-    curStart = next.start;
-    curEnd = next.end;
-  }
-  total += Math.max(0, curEnd - curStart);
-  return total;
-}
-
 function intervalOverlapMs(
   a: { start: number; end: number },
   b: { start: number; end: number },
@@ -404,42 +382,30 @@ export function displayShiftHoursBreakdown(
   now: Date = new Date(),
 ): DisplayShiftHoursBreakdown {
   const nowMs = now.getTime();
-  let workMs = 0;
-  let breakMs = 0;
   const workIntervals: { start: number; end: number }[] = [];
-  const allIntervals: { start: number; end: number }[] = [];
+  const breakIntervals: { start: number; end: number }[] = [];
 
   for (const s of segments) {
     const start = new Date(s.starts_at).getTime();
     const end = s.is_open ? nowMs : new Date(s.ends_at).getTime();
-    const ms = Math.max(0, end - start);
-    if (ms <= 0) continue;
-    if (s.entry_type === "work") {
-      workMs += ms;
-      workIntervals.push({ start, end });
-      allIntervals.push({ start, end });
-    } else if (s.entry_type === "break") {
-      breakMs += ms;
-      allIntervals.push({ start, end });
-    }
+    if (!(end > start)) continue;
+    if (s.entry_type === "work") workIntervals.push({ start, end });
+    else if (s.entry_type === "break") breakIntervals.push({ start, end });
   }
 
-  let overlapBreakMs = 0;
-  for (const s of segments) {
-    if (s.entry_type !== "break") continue;
-    const start = new Date(s.starts_at).getTime();
-    const end = s.is_open ? nowMs : new Date(s.ends_at).getTime();
-    for (const w of workIntervals) {
-      overlapBreakMs += intervalOverlapMs({ start, end }, w);
-    }
-  }
+  // Gleiche Union-/Überlappungslogik wie Abrechnung (workBreakHoursFromIntervals),
+  // sonst können überlappende Work-Segmente Netto in der Schicht-Zeile aufblasen.
+  const workMs = measureIntervalsMs(workIntervals);
+  const breakMs = measureIntervalsMs(breakIntervals);
+  const overlapBreakMs = measureIntervalOverlapMs(workIntervals, breakIntervals);
+  const presenceMs = measureIntervalsMs([...workIntervals, ...breakIntervals]);
 
   return {
     workMs,
     breakMs,
     overlapBreakMs,
     netMs: Math.max(0, workMs - overlapBreakMs),
-    presenceMs: mergeIntervalMs(allIntervals),
+    presenceMs,
   };
 }
 

@@ -163,7 +163,8 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
   {
     id: "checklists",
     label: "Aufgaben",
-    description: "Persönlich, Team und Eigenkontrolle",
+    description: "Persönlich, Team und Protokoll",
+
   },
 ] as const;
 

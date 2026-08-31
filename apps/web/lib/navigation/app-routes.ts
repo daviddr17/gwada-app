@@ -74,7 +74,6 @@ export const APP_ROUTES = {
     root: "/dashboard/checklisten",
     meine: "/dashboard/checklisten/meine",
     nachrichten: "/dashboard/checklisten/nachrichten",
-    eigenkontrolle: "/dashboard/checklisten/eigenkontrolle",
     todos: "/dashboard/checklisten/todos",
     vorlagen: "/dashboard/checklisten/vorlagen",
     geraete: "/dashboard/checklisten/geraete",
@@ -82,6 +81,7 @@ export const APP_ROUTES = {
     protokoll: "/dashboard/checklisten/protokoll",
     settings: "/dashboard/checklisten/einstellungen",
   },
+
   mitarbeiter: {
     root: "/dashboard/mitarbeiter",
     overview: "/dashboard/mitarbeiter/uebersicht",
@@ -215,6 +215,11 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
     source: "/settings/eigenkontrolle/:path*",
     destination: "/dashboard/checklisten/:path*",
   },
+  {
+    source: "/dashboard/checklisten/eigenkontrolle",
+    destination: "/dashboard/checklisten",
+  },
+
   { source: "/settings", destination: APP_ROUTES.settings.restaurant },
   { source: "/settings/:path*", destination: "/dashboard/settings/:path*" },
   { source: "/profile", destination: APP_ROUTES.profile.personal },

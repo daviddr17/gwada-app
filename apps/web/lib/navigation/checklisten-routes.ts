@@ -1,9 +1,10 @@
-/** Sidebar-Modul „Aufgaben“ (persönlich, Team-ToDos, Team-Chat, Eigenkontrolle). */
+/** Sidebar-Modul „Aufgaben“ (persönlich, Team-ToDos, Team-Chat, Protokoll). */
 export const CHECKLISTEN_ROUTES = {
   root: "/dashboard/checklisten",
   meine: "/dashboard/checklisten/meine",
   team: "/dashboard/checklisten",
   nachrichten: "/dashboard/checklisten/nachrichten",
+  /** Legacy bookmark — redirects to Team root. */
   eigenkontrolle: "/dashboard/checklisten/eigenkontrolle",
   todos: "/dashboard/checklisten/todos",
   vorlagen: "/dashboard/checklisten/vorlagen",
@@ -28,11 +29,6 @@ export const CHECKLISTEN_NAV = [
   {
     href: CHECKLISTEN_ROUTES.nachrichten,
     label: "Nachrichten",
-    matchMode: "prefix" as const,
-  },
-  {
-    href: CHECKLISTEN_ROUTES.eigenkontrolle,
-    label: "Eigenkontrolle",
     matchMode: "prefix" as const,
   },
   {

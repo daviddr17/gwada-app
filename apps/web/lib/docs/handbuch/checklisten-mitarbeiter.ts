@@ -4,9 +4,9 @@ export const checklistenGuide: UserGuidePage = {
   slug: "checklisten",
   title: "Aufgaben",
   description:
-    "Persönliche Notizen, Team-ToDos, Team-Chat, HACCP-Eigenkontrolle und Protokoll.",
+    "Persönliche Notizen, Team-ToDos, Team-Chat, HACCP und Protokoll.",
   intro: [
-    "Aufgaben vereint persönliche Erinnerungen, Team-ToDos (Opening, Closing), internen Team-Chat und HACCP/Eigenkontrolle. Was du siehst, hängt von deinen Berechtigungen ab.",
+    "Aufgaben vereint persönliche Erinnerungen, Team-ToDos (Opening, Closing), internen Team-Chat und HACCP-Erfassungen. Was du siehst, hängt von deinen Berechtigungen ab.",
     "Erfassungen können am Display-Terminal in der Küche erfolgen — das Dashboard dient der Übersicht, dem Chat und dem Abhaken durch Teamleiter.",
   ],
   sections: [
@@ -16,14 +16,14 @@ export const checklistenGuide: UserGuidePage = {
         headers: ["Tab", "Zweck"],
         rows: [
           ["Meine", "Private Notizen und Erinnerungen (nur du)"],
-          ["Team", "Offene Team-ToDos und operative Aufgaben"],
+          ["Team", "Offene Team-ToDos, KPI-Übersicht und operative Aufgaben"],
           ["Nachrichten", "1:1-Chat unter Kollegen"],
-          ["Eigenkontrolle", "HACCP / Compliance-Übersicht"],
           ["Protokoll", "Abgeschlossene Einträge und Änderungshistorie"],
           ["Einstellungen", "Erinnerungen, Korrekturmaßnahmen, Compliance-Optionen"],
         ],
       },
     },
+
     {
       heading: "KPI-Pills (Übersicht)",
       table: {
@@ -78,7 +78,7 @@ export const checklistenGuide: UserGuidePage = {
       ],
     },
     {
-      heading: "ToDos vs. Eigenkontrolle",
+      heading: "ToDos vs. HACCP-Erfassung",
       table: {
         headers: ["Typ", "Beispiel", "Erfassung"],
         rows: [
@@ -88,6 +88,7 @@ export const checklistenGuide: UserGuidePage = {
         ],
       },
     },
+
   ],
   tips: [
     "Temperatur-ToDos entstehen automatisch bei Grenzwert-Überschreitung.",

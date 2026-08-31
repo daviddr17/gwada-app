@@ -149,7 +149,7 @@ function DashboardSpaInset() {
               size="icon-sm"
               className="shrink-0 rounded-full border-border/60"
               aria-label="Einstellungen"
-              render={<AppNavLink href={APP_ROUTES.settings.root} />}
+              render={<AppNavLink href={APP_ROUTES.settings.entry} />}
             >
               <Settings className="size-4" />
             </Button>

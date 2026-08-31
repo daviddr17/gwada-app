@@ -126,7 +126,10 @@ export const APP_ROUTES = {
     settings: "/dashboard/news/einstellungen",
   },
   settings: {
+    /** Prefix for `startsWith` (sidebar active) — not a SPA leaf route. */
     root: "/dashboard/settings",
+    /** Chrome gear / sidebar — always a registered SPA page (not redirect-only `/settings`). */
+    entry: "/dashboard/settings/restaurant",
     restaurant: "/dashboard/settings/restaurant",
     dashboard: "/dashboard/settings/dashboard",
     team: "/dashboard/settings/team",

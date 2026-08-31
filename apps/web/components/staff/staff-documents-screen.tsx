@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { StaffDocumentsAllTable } from "@/components/staff/staff-documents-all-table";
 import { StaffDocumentsList } from "@/components/staff/staff-documents-list";
@@ -24,8 +24,13 @@ import {
 
 export function StaffDocumentsScreen() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const { selectedStaff, selectedStaffId, staffList, setSelectedStaffId } =
-    useStaffModuleSelection();
+  const {
+    selectedStaff,
+    selectedStaffId,
+    selectedStaffIds,
+    staffList,
+    setSelectedStaffId,
+  } = useStaffModuleSelection();
   const [documents, setDocuments] = useState<StaffDocumentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
@@ -56,6 +61,14 @@ export function StaffDocumentsScreen() {
     void reload();
   }, [reload]);
 
+  const overviewDocuments = useMemo(() => {
+    if (selectedStaffIds.length <= 1) return documents;
+    const allowed = new Set(selectedStaffIds);
+    return documents.filter(
+      (d) => d.staff_id != null && allowed.has(d.staff_id),
+    );
+  }, [documents, selectedStaffIds]);
+
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
@@ -67,7 +80,7 @@ export function StaffDocumentsScreen() {
         ) : (
           <StaffDocumentsAllTable
             restaurantId={restaurantId}
-            documents={documents}
+            documents={overviewDocuments}
             staffList={staffList}
             onSelectStaff={setSelectedStaffId}
           />

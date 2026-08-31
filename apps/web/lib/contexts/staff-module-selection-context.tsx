@@ -10,11 +10,52 @@ import {
 
 const STORAGE_KEY = "gwada-staff-module-selected";
 
+function parseStaffSearchParam(raw: string | null): string[] {
+  if (!raw?.trim()) return [];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function serializeStaffSearchParam(ids: readonly string[]): string | null {
+  const cleaned = [
+    ...new Set(ids.map((id) => id.trim()).filter(Boolean)),
+  ];
+  return cleaned.length > 0 ? cleaned.join(",") : null;
+}
+
+function writeStaffStorage(ids: readonly string[]) {
+  try {
+    const serialized = serializeStaffSearchParam(ids);
+    if (serialized) sessionStorage.setItem(STORAGE_KEY, serialized);
+    else sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function readStaffStorage(): string[] {
+  try {
+    return parseStaffSearchParam(sessionStorage.getItem(STORAGE_KEY));
+  } catch {
+    return [];
+  }
+}
+
 type StaffModuleSelectionContextValue = {
   staffList: RestaurantStaffRow[];
   setStaffList: React.Dispatch<React.SetStateAction<RestaurantStaffRow[]>>;
+  /** 0 = alle; 1 = Detailansicht; 2+ = gefilterte Übersicht. */
+  selectedStaffIds: string[];
+  /** Kompatibilität: nur gesetzt wenn genau ein Mitarbeiter gewählt. */
   selectedStaffId: string | null;
   selectedStaff: RestaurantStaffRow | null;
+  setSelectedStaffIds: (ids: string[]) => void;
   setSelectedStaffId: (id: string | null) => void;
   needsStaffPicker: boolean;
 };
@@ -34,35 +75,65 @@ export function StaffModuleSelectionProvider({
   const searchParams = useSearchParams();
   const [staffList, setStaffList] = React.useState<RestaurantStaffRow[]>([]);
 
-  const selectedStaffId = searchParams.get("staff");
+  const urlStaffIds = React.useMemo(
+    () => parseStaffSearchParam(searchParams.get("staff")),
+    [searchParams],
+  );
+
+  /** Optimistic lokal — URL nachziehen, damit das Dropdown sofort reagiert. */
+  const [selectedStaffIds, setSelectedStaffIdsState] = React.useState<string[]>(
+    () => urlStaffIds,
+  );
+
+  React.useEffect(() => {
+    setSelectedStaffIdsState((prev) => {
+      if (
+        prev.length === urlStaffIds.length &&
+        prev.every((id, i) => id === urlStaffIds[i])
+      ) {
+        return prev;
+      }
+      return urlStaffIds;
+    });
+  }, [urlStaffIds]);
+
+  const selectedStaffId =
+    selectedStaffIds.length === 1 ? (selectedStaffIds[0] ?? null) : null;
 
   const selectedStaff = React.useMemo(
     () => staffList.find((s) => s.id === selectedStaffId) ?? null,
     [staffList, selectedStaffId],
   );
 
-  const setSelectedStaffId = React.useCallback(
-    (id: string | null) => {
+  const syncUrl = React.useCallback(
+    (ids: string[]) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (id) {
-        params.set("staff", id);
-        try {
-          sessionStorage.setItem(STORAGE_KEY, id);
-        } catch {
-          /* ignore */
-        }
-      } else {
-        params.delete("staff");
-        try {
-          sessionStorage.removeItem(STORAGE_KEY);
-        } catch {
-          /* ignore */
-        }
-      }
+      const serialized = serializeStaffSearchParam(ids);
+      if (serialized) params.set("staff", serialized);
+      else params.delete("staff");
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
     [pathname, router, searchParams],
+  );
+
+  const setSelectedStaffIds = React.useCallback(
+    (ids: string[]) => {
+      const next = [
+        ...new Set(ids.map((id) => id.trim()).filter(Boolean)),
+      ];
+      setSelectedStaffIdsState(next);
+      writeStaffStorage(next);
+      syncUrl(next);
+    },
+    [syncUrl],
+  );
+
+  const setSelectedStaffId = React.useCallback(
+    (id: string | null) => {
+      setSelectedStaffIds(id ? [id] : []);
+    },
+    [setSelectedStaffIds],
   );
 
   React.useEffect(() => {
@@ -72,48 +143,71 @@ export function StaffModuleSelectionProvider({
       pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten");
     if (
       !needsStaffPicker ||
-      selectedStaffId ||
+      selectedStaffIds.length > 0 ||
       staffList.length === 0 ||
       skipAutoSelect
     ) {
       return;
     }
-    let stored: string | null = null;
-    try {
-      stored = sessionStorage.getItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
+    const stored = readStaffStorage();
+    if (stored.length > 1) {
+      const activeStored = stored.filter((id) =>
+        staffList.some((s) => s.id === id && s.is_active),
+      );
+      if (activeStored.length > 0) {
+        setSelectedStaffIds(activeStored);
+        return;
+      }
     }
-    const fallback = pickStoredActiveStaffId(staffList, stored);
-    if (fallback) setSelectedStaffId(fallback);
-  }, [needsStaffPicker, pathname, selectedStaffId, staffList, setSelectedStaffId]);
-
-  React.useEffect(() => {
-    if (!needsStaffPicker || !selectedStaffId || staffList.length === 0) return;
-    const selected = staffList.find((s) => s.id === selectedStaffId);
-    if (selected && !selected.is_active) {
-      setSelectedStaffId(null);
-    }
+    const storedSingle = stored.length === 1 ? stored[0]! : null;
+    const fallback = pickStoredActiveStaffId(staffList, storedSingle);
+    if (fallback) setSelectedStaffIds([fallback]);
   }, [
     needsStaffPicker,
-    selectedStaffId,
+    pathname,
+    selectedStaffIds.length,
     staffList,
-    setSelectedStaffId,
+    setSelectedStaffIds,
+  ]);
+
+  const selectedStaffIdsKey = selectedStaffIds.join(",");
+
+  React.useEffect(() => {
+    if (!needsStaffPicker || selectedStaffIds.length === 0 || staffList.length === 0) {
+      return;
+    }
+    const activeIds = selectedStaffIds.filter((id) => {
+      const row = staffList.find((s) => s.id === id);
+      return row?.is_active !== false;
+    });
+    if (activeIds.length === selectedStaffIds.length) return;
+    setSelectedStaffIds(activeIds);
+    // selectedStaffIdsKey keeps this stable when contents unchanged after filter
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key encodes ids
+  }, [
+    needsStaffPicker,
+    selectedStaffIdsKey,
+    staffList,
+    setSelectedStaffIds,
   ]);
 
   const value = React.useMemo(
     () => ({
       staffList,
       setStaffList,
+      selectedStaffIds,
       selectedStaffId,
       selectedStaff,
+      setSelectedStaffIds,
       setSelectedStaffId,
       needsStaffPicker,
     }),
     [
       staffList,
+      selectedStaffIds,
       selectedStaffId,
       selectedStaff,
+      setSelectedStaffIds,
       setSelectedStaffId,
       needsStaffPicker,
     ],

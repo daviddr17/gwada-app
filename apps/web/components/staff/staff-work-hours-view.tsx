@@ -215,6 +215,7 @@ export function StaffWorkHoursView({
     allowEdit && chromeContext === "staff-module";
   const staffSelection = useStaffModuleSelectionOptional();
   const staffList = staffSelection?.staffList ?? [];
+  const multiStaffFilterIds = staffSelection?.selectedStaffIds ?? [];
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -369,44 +370,56 @@ export function StaffWorkHoursView({
     };
   }, [reloadContracts]);
 
+  const visibleEntries = useMemo(() => {
+    if (staffId || multiStaffFilterIds.length <= 1) return entries;
+    const allowed = new Set(multiStaffFilterIds);
+    return entries.filter((e) => allowed.has(e.staff_id));
+  }, [entries, staffId, multiStaffFilterIds]);
+
+  const visibleComplianceEntries = useMemo(() => {
+    if (staffId || multiStaffFilterIds.length <= 1) return complianceEntries;
+    const allowed = new Set(multiStaffFilterIds);
+    return complianceEntries.filter((e) => allowed.has(e.staff_id));
+  }, [complianceEntries, staffId, multiStaffFilterIds]);
+
   const byDay = useMemo(() => {
     const map = new Map<string, RestaurantStaffWorkEntryRow[]>();
-    for (const e of entries) {
+    for (const e of visibleEntries) {
       const k = dayKeyFromIso(e.starts_at);
       const list = map.get(k) ?? [];
       list.push(e);
       map.set(k, list);
     }
     return map;
-  }, [entries]);
+  }, [visibleEntries]);
 
   const summary = useMemo(
-    () => summarizeStaffWorkEntries(entries, new Date()),
-    [entries],
+    () => summarizeStaffWorkEntries(visibleEntries, new Date()),
+    [visibleEntries],
   );
 
   const wageSummary = useMemo(
     () =>
       computeStaffPeriodWageSummary({
-        entries,
+        entries: visibleEntries,
         contracts,
         periodStart: monthStart,
         periodEnd: monthEnd,
         now: new Date(),
       }),
-    [entries, contracts, monthStart, monthEnd],
+    [visibleEntries, contracts, monthStart, monthEnd],
   );
 
   const payrollLines = useMemo(
     () =>
       computeStaffPeriodPayrollLines({
-        entries,
+        entries: visibleEntries,
         contracts,
         periodStart: monthStart,
         periodEnd: monthEnd,
         now: new Date(),
       }),
-    [entries, contracts, monthStart, monthEnd],
+    [visibleEntries, contracts, monthStart, monthEnd],
   );
 
   const staffNameById = useMemo(() => {
@@ -418,9 +431,11 @@ export function StaffWorkHoursView({
   }, [staffList]);
 
   const laborViolations = useMemo(() => {
-    if (!showLaborComplianceHints || complianceEntries.length === 0) return [];
+    if (!showLaborComplianceHints || visibleComplianceEntries.length === 0) {
+      return [];
+    }
     return evaluateLaborCompliance({
-      entries: complianceEntries,
+      entries: visibleComplianceEntries,
       countryIso2: profile.countryIso2,
       countryLabel: profile.country,
       timeZone: restaurantTimeZone,
@@ -428,7 +443,7 @@ export function StaffWorkHoursView({
     });
   }, [
     showLaborComplianceHints,
-    complianceEntries,
+    visibleComplianceEntries,
     profile.countryIso2,
     profile.country,
     restaurantTimeZone,
@@ -936,7 +951,7 @@ export function StaffWorkHoursView({
               const dayEntries = byDay.get(key) ?? [];
               const canAddEntry = Boolean(staffId);
               const blockNewTimeEntry = staffId
-                ? findStaffAbsenceOnDay(entries, staffId, key) != null
+                ? findStaffAbsenceOnDay(visibleEntries, staffId, key) != null
                 : false;
               const dayLaborIssues = showLaborComplianceHints
                 ? dayLaborViolations(laborViolations, key, staffId)

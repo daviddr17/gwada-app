@@ -3,11 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { StaffFormDrawer } from "@/components/staff/staff-form-drawer";
-import { SearchableSelect } from "@/components/ui/combobox";
+import {
+  SearchableMultiSelect,
+  SearchableSelect,
+} from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStaffModuleSelection } from "@/lib/contexts/staff-module-selection-context";
-import { buildStaffModulePickerOptions, staffModulePickerIdFromSelectValue, staffModulePickerSelectValue } from "@/lib/staff/staff-select-options";
+import {
+  buildStaffModulePickerOptions,
+  buildStaffSearchableSelectOptions,
+  staffModulePickerIdFromSelectValue,
+  staffModulePickerSelectValue,
+} from "@/lib/staff/staff-select-options";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
 import { useCssVarElementHeight } from "@/lib/hooks/use-css-var-element-height";
@@ -23,7 +31,9 @@ export function StaffModuleStickyBar() {
     staffList,
     setStaffList,
     selectedStaffId,
+    selectedStaffIds,
     setSelectedStaffId,
+    setSelectedStaffIds,
   } = useStaffModuleSelection();
   const positionTags = useStaffPositionTagsStorage(restaurantId);
   const [loading, setLoading] = useState(true);
@@ -59,7 +69,7 @@ export function StaffModuleStickyBar() {
     [positionTags.items],
   );
 
-  const allowsAllStaff = useMemo(
+  const allowsMultiStaff = useMemo(
     () =>
       pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
       pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
@@ -67,14 +77,23 @@ export function StaffModuleStickyBar() {
     [pathname],
   );
 
-  const options = useMemo(
+  const singleOptions = useMemo(
     () =>
       buildStaffModulePickerOptions(staffList, {
-        allowAll: allowsAllStaff,
+        allowAll: false,
         activeOnly: true,
         includeStaffIds: [selectedStaffId],
       }),
-    [staffList, selectedStaffId, allowsAllStaff],
+    [staffList, selectedStaffId],
+  );
+
+  const multiOptions = useMemo(
+    () =>
+      buildStaffSearchableSelectOptions(staffList, {
+        activeOnly: true,
+        includeStaffIds: selectedStaffIds,
+      }),
+    [staffList, selectedStaffIds],
   );
 
   const handleStaffSaved = useCallback(
@@ -88,13 +107,6 @@ export function StaffModuleStickyBar() {
     },
     [reloadStaffList, setSelectedStaffId],
   );
-
-  const staffPickerPlaceholder = useMemo(() => {
-    if (allowsAllStaff) {
-      return "Alle Mitarbeiter";
-    }
-    return "Bitte Mitarbeiter auswählen";
-  }, [allowsAllStaff]);
 
   return (
     <>
@@ -122,20 +134,44 @@ export function StaffModuleStickyBar() {
               aria-label="Mitarbeiterliste wird geladen"
               className="h-9 w-full rounded-xl sm:h-11"
             />
+          ) : allowsMultiStaff ? (
+            <div className="flex min-w-0 items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <SearchableMultiSelect
+                  id="staff-module-select"
+                  options={multiOptions}
+                  value={selectedStaffIds}
+                  onChange={setSelectedStaffIds}
+                  placeholder="Alle Mitarbeiter"
+                  searchPlaceholder="Suchen …"
+                  emptyMessage="Keine Mitarbeiter"
+                  aria-label="Mitarbeiter filtern"
+                  className="!min-h-9 rounded-xl border-input transition-[min-height] duration-200 ease-out sm:!min-h-11"
+                />
+              </div>
+              {restaurantId ? (
+                <button
+                  type="button"
+                  className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-card px-2.5 text-xs font-medium text-accent hover:bg-muted/50 sm:h-11 sm:px-3 sm:text-sm"
+                  onClick={() => setFormOpen(true)}
+                >
+                  Neu
+                </button>
+              ) : null}
+            </div>
           ) : (
             <SearchableSelect
               id="staff-module-select"
-              options={options}
-              value={staffModulePickerSelectValue(selectedStaffId, allowsAllStaff)}
+              options={singleOptions}
+              value={staffModulePickerSelectValue(selectedStaffId, false)}
               onValueChange={(v) =>
                 setSelectedStaffId(
-                  staffModulePickerIdFromSelectValue(v, allowsAllStaff),
+                  staffModulePickerIdFromSelectValue(v, false),
                 )
               }
-              placeholder={staffPickerPlaceholder}
+              placeholder="Bitte Mitarbeiter auswählen"
               searchPlaceholder="Suchen …"
               emptyText="Keine Mitarbeiter"
-              clearable={allowsAllStaff && Boolean(selectedStaffId)}
               className="!h-9 !min-h-9 rounded-xl border-input transition-[height,min-height] duration-200 ease-out sm:!h-11 sm:!min-h-11"
               footerAction={
                 restaurantId

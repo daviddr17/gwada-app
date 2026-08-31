@@ -605,7 +605,7 @@ export function AppSidebar() {
                 isActive={pathname.startsWith(APP_ROUTES.settings.root)}
                 tooltip="Einstellungen"
                 className={mobileFooterButtonClassName}
-                render={<AppNavLink href={APP_ROUTES.settings.root} />}
+                render={<AppNavLink href={APP_ROUTES.settings.entry} />}
               >
                 <Settings />
                 <span>Einstellungen</span>

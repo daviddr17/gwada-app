@@ -1,17 +1,17 @@
 import { localDayKey } from "@/lib/staff/shift-schedule-range";
 import {
-  displayShiftNetWorkHours,
+  displayShiftHoursBreakdown,
   groupWorkHoursDayEntries,
 } from "@/lib/staff/staff-work-hours-display";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 
 export type StaffWorkHoursSummary = {
-  /** Summe Arbeitszeit-Einträge (Bubble: „eingeloggt“). */
+  /** Anwesenheit (Union Arbeit+Pause) — „Eingeloggt“ in UI/Abrechnung. */
   loggedH: number;
   breakH: number;
-  /** Zahlbare Netto-Arbeitszeit — gleiche Logik wie Schicht-Zeilen (Display). */
+  /** Zahlbare Netto-Arbeitszeit — Pause nur abziehen, wenn sie in Work liegt. */
   netWorkH: number;
-  /** Anwesenheit brutto (Arbeit + Pause), nur zur Einordnung. */
+  /** Alias zu loggedH (Anwesenheit). */
   presenceH: number;
   vacationDays: number;
   /** Eindeutige Kranktage (Mitarbeiter × Kalendertag). */
@@ -28,42 +28,43 @@ function entryDurationMs(
 }
 
 /**
- * Netto über Schicht-Gruppen: bei sequentiellen Display-Segmenten sind Work-Segmente
- * bereits netto (Pause nicht noch einmal abziehen); bei Pause *in* Work wird abgezogen.
+ * Netto + Eingeloggt über Schicht-Gruppen.
+ * Display (Work|Pause|Work): Eingeloggt = Union, Netto = Summe Work.
+ * Bubble/ArbZG (Pause in Work): Eingeloggt = Work-Spanne, Netto = Work − Pause.
  */
 export function netWorkHoursFromWorkBreakEntries(
   workBreakEntries: readonly RestaurantStaffWorkEntryRow[],
   now: Date = new Date(),
 ): { loggedH: number; breakH: number; netWorkH: number; presenceH: number } {
-  let workMs = 0;
   let breakMs = 0;
   let netMs = 0;
+  let presenceMs = 0;
 
   for (const item of groupWorkHoursDayEntries([...workBreakEntries])) {
     if (item.kind === "entry") {
       const ms = entryDurationMs(item.entry, now);
       if (item.entry.entry_type === "work") {
-        workMs += ms;
         netMs += ms;
+        presenceMs += ms;
       } else if (item.entry.entry_type === "break") {
         breakMs += ms;
+        presenceMs += ms;
       }
       continue;
     }
 
-    for (const s of item.segments) {
-      const ms = entryDurationMs(s, now);
-      if (s.entry_type === "work") workMs += ms;
-      else if (s.entry_type === "break") breakMs += ms;
-    }
-    netMs += displayShiftNetWorkHours(item.segments, now) * 3_600_000;
+    const breakdown = displayShiftHoursBreakdown(item.segments, now);
+    breakMs += breakdown.breakMs;
+    netMs += breakdown.netMs;
+    presenceMs += breakdown.presenceMs;
   }
 
+  const presenceH = Math.max(0, presenceMs) / 3_600_000;
   return {
-    loggedH: workMs / 3_600_000,
+    loggedH: presenceH,
     breakH: breakMs / 3_600_000,
     netWorkH: Math.max(0, netMs) / 3_600_000,
-    presenceH: (workMs + breakMs) / 3_600_000,
+    presenceH,
   };
 }
 

@@ -906,7 +906,7 @@ export function StaffWorkHoursView({
                                   line.wageHours > 0 ? (
                                     <span className="text-xs font-normal text-muted-foreground">
                                       {line.wageHours
-                                        .toFixed(1)
+                                        .toFixed(2)
                                         .replace(".", ",")}{" "}
                                       h ×{" "}
                                       {formatStaffEuroCents(

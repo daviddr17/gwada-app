@@ -1,7 +1,7 @@
 "use client";
 
 import { deriveMessagesUnreadSummaryFromConversations } from "@/lib/contact-messages/messages-unread-summary";
-import { peekUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
+import { peekCompleteUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
 import type { DashboardBatchWidgetId } from "@/lib/dashboard/dashboard-batch-widgets";
 import {
   peekDashboardBatchSummaryCache,
@@ -53,7 +53,7 @@ function batchSummaryWithMessagesFromInboxCache(
   payload: DashboardBatchQueryData,
   restaurantId: string,
 ): DashboardBatchQueryData {
-  const conversations = peekUnifiedInboxCache(restaurantId);
+  const conversations = peekCompleteUnifiedInboxCache(restaurantId);
   if (!conversations || !payload.data.messages) return payload;
   return {
     ...payload,

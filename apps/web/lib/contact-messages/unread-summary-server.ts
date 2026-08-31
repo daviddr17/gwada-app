@@ -7,10 +7,7 @@ import {
   dashboardMessageThreadHref,
   type MessagesUnreadSummary,
 } from "@/lib/contact-messages/messages-unread-summary";
-import {
-  fetchUnifiedInboxConversationsForDashboard,
-  fetchUnifiedInboxConversationsServer,
-} from "@/lib/contact-messages/unified-inbox-server";
+import { fetchUnifiedInboxConversationsServer } from "@/lib/contact-messages/unified-inbox-server";
 import {
   conversationExcludedFromSeparateMessageNotification,
 } from "@/lib/notifications/reservation-guest-message-notification";
@@ -39,9 +36,8 @@ export async function fetchMessagesUnreadSummary(
   },
 ): Promise<MessagesUnreadSummary> {
   const includeInbox = params.includeInboxConversations !== false;
-  const conversations = includeInbox
-    ? await fetchUnifiedInboxConversationsServer(admin, params)
-    : await fetchUnifiedInboxConversationsForDashboard(admin, params);
+  // Immer volle Konversationsliste — Light-Pfad (400 Zeilen) unterzählt Unread in der Glocke.
+  const conversations = await fetchUnifiedInboxConversationsServer(admin, params);
   const notifyable = conversations.filter(
     (c) => !conversationExcludedFromSeparateMessageNotification(c),
   );

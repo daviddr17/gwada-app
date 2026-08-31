@@ -2,10 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import {
-  GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
-  dispatchNotificationsRefresh,
-} from "@/lib/notifications/notification-events";
+import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import {
   isReservationNotificationModule,
@@ -129,15 +126,9 @@ export function useNotificationBellRealtime() {
             },
           );
         }
-        if (row.module === "messages" && row.payload) {
-          window.dispatchEvent(
-            new CustomEvent(GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT, {
-              detail: {
-                restaurantId,
-                notificationPayload: row.payload,
-              },
-            }),
-          );
+        if (row.module === "messages") {
+          // Zähler kommt aus Unified-Inbox-Cache (contact_messages Realtime).
+          // notification_events nur für Live-Activity — kein optimistisches +1 in der Glocke.
           return;
         }
         if (

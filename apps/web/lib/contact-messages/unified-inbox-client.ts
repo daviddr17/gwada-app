@@ -94,7 +94,7 @@ export async function fetchUnifiedInboxConversations(params: {
     conversations: withReads,
   });
 
-  setUnifiedInboxCache(params.restaurantId, enriched);
+  setUnifiedInboxCache(params.restaurantId, enriched, { complete: true });
   return { data: enriched, error: null };
 }
 

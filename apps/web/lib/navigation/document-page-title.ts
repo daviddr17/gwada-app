@@ -116,8 +116,8 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/checklisten": "Aufgaben",
   "/dashboard/checklisten/meine": "Meine",
   "/dashboard/checklisten/nachrichten": "Nachrichten",
-  "/dashboard/checklisten/eigenkontrolle": "Eigenkontrolle",
   "/dashboard/checklisten/todos": "Aufgaben",
+
   "/dashboard/checklisten/vorlagen": "Aufgaben",
   "/settings/eigenkontrolle/vorlagen": "Aufgaben",
   "/dashboard/checklisten/geraete": "Aufgaben",

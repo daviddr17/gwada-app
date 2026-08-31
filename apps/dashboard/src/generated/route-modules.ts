@@ -131,7 +131,6 @@ const Lazy__dashboard_changelog = changelogLazy(() => import("@/components/chang
 const Lazy__dashboard_mitarbeiter_arbeitszeiten_beheben = staffLazy(() => import("@/components/staff/staff-labor-compliance-screen").then((m) => ({ default: m.StaffLaborComplianceScreen as ComponentType })));
 const Lazy__dashboard_checklisten_meine = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-meine-screen").then((m) => ({ default: m.AufgabenMeineScreen as ComponentType }))));
 const Lazy__dashboard_checklisten_nachrichten = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-nachrichten-screen").then((m) => ({ default: m.AufgabenNachrichtenScreen as ComponentType }))));
-const Lazy__dashboard_checklisten_eigenkontrolle = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-eigenkontrolle-screen").then((m) => ({ default: m.AufgabenEigenkontrolleScreen as ComponentType }))));
 
 export type DashboardRouteEntry = {
   path: string;
@@ -269,5 +268,5 @@ export const DASHBOARD_ROUTE_ENTRIES: DashboardRouteEntry[] = [
   { path: "/mitarbeiter/arbeitszeiten/beheben", fullPath: "/dashboard/mitarbeiter/arbeitszeiten/beheben", Lazy: Lazy__dashboard_mitarbeiter_arbeitszeiten_beheben },
   { path: "/checklisten/meine", fullPath: "/dashboard/checklisten/meine", Lazy: Lazy__dashboard_checklisten_meine },
   { path: "/checklisten/nachrichten", fullPath: "/dashboard/checklisten/nachrichten", Lazy: Lazy__dashboard_checklisten_nachrichten },
-  { path: "/checklisten/eigenkontrolle", fullPath: "/dashboard/checklisten/eigenkontrolle", Lazy: Lazy__dashboard_checklisten_eigenkontrolle },
+  { path: "/checklisten/eigenkontrolle", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
 ];

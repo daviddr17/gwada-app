@@ -212,15 +212,11 @@ const EXTRA_ROUTE_ENTRIES = [
   },
   {
     route: "/dashboard/checklisten/eigenkontrolle",
-    pageBehavior: "render",
-    imports: [
-      {
-        component: "AufgabenEigenkontrolleScreen",
-        from: "@/components/checklisten/aufgaben-eigenkontrolle-screen",
-      },
-    ],
+    pageBehavior: "redirect",
+    redirectTarget: "/dashboard/checklisten",
   },
 ];
+
 
 function chromeWrapperFor(route) {
   if (route === "/dashboard/profile" || route.startsWith(PROFILE_PREFIX)) {

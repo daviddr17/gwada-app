@@ -466,6 +466,27 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "personal_reminder": {
+      const title = pickString(p.title) ?? "Erinnerung";
+      return buildPushMessage({
+        prefix,
+        headline: "Persönliche Erinnerung",
+        subject: `${prefix}Erinnerung — ${title}`,
+        href: "/dashboard/checklisten/meine",
+        details: detailLines([title, pickString(p.body)]),
+      });
+    }
+    case "staff_messages": {
+      const peer = pickString(p.peerName) ?? "Kollege";
+      const preview = pickString(p.preview) ?? "Neue Nachricht";
+      return buildPushMessage({
+        prefix,
+        headline: "Team-Nachricht",
+        subject: `${prefix}Nachricht von ${peer}`,
+        href: "/dashboard/checklisten/nachrichten",
+        details: detailLines([`${peer}: ${preview}`]),
+      });
+    }
     case "staff_contract_signed": {
       const title = pickString(p.contractTitle) ?? "Arbeitsvertrag";
       const revised = p.revised === true;

@@ -34,6 +34,8 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   staff_shift_end: { kind: "staffModuleOrProfile", prefix: "staff" },
   staff_todo_completed: { kind: "staffModuleOrProfile", prefix: "staff_todos" },
   staff_todo_deferred: { kind: "staffModuleOrProfile", prefix: "staff_todos" },
+  personal_reminder: { kind: "always" },
+  staff_messages: { kind: "always" },
   staff_contract_signed: { kind: "staffProfile" },
   staff_display_time_request: { kind: "module", prefix: "staff" },
   staff_invite_accepted: { kind: "module", prefix: "staff" },

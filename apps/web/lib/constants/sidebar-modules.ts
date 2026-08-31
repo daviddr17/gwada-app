@@ -150,8 +150,8 @@ export const SIDEBAR_MODULE_DEFINITIONS: readonly SidebarModuleDefinition[] = [
   },
   {
     id: "checklisten",
-    label: "Checklisten",
-    tooltip: "Checklisten",
+    label: "Aufgaben",
+    tooltip: "Aufgaben",
     href: "/dashboard/checklisten",
     pathPrefix: "/dashboard/checklisten",
     icon: ClipboardCheck,

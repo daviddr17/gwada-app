@@ -162,8 +162,8 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
   },
   {
     id: "checklists",
-    label: "Checklisten",
-    description: "Offene Aufgaben",
+    label: "Aufgaben",
+    description: "Persönlich, Team und Eigenkontrolle",
   },
 ] as const;
 

@@ -33,7 +33,7 @@ export const DOCS_NAV: DocsNavItem[] = [
       { title: "Galerie", href: "/docs/handbuch/galerie" },
       { title: "Buchführung", href: "/docs/handbuch/buchfuehrung" },
       { title: "Dokumente", href: "/docs/handbuch/dokumente" },
-      { title: "Checklisten", href: "/docs/handbuch/checklisten" },
+      { title: "Aufgaben", href: "/docs/handbuch/checklisten" },
       { title: "Mitarbeiter", href: "/docs/handbuch/mitarbeiter" },
       { title: "Einstellungen", href: "/docs/handbuch/einstellungen" },
       { title: "Integrationen", href: "/docs/handbuch/integrationen" },

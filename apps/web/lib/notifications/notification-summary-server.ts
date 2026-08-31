@@ -9,6 +9,8 @@ import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notificati
 import { loadInventoryPoDeliveryDueBellSummary } from "@/lib/notifications/notification-inventory-po-delivery-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
+import { loadPersonalReminderNotificationItems } from "@/lib/notifications/notification-personal-reminder-server";
+import { loadStaffMessagesNotificationItems } from "@/lib/notifications/notification-staff-messages-server";
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
 import { loadStaffDisplayTimeRequestNotificationItems } from "@/lib/notifications/notification-staff-display-time-request-server";
 import { loadStaffDisplayClockNotificationItems } from "@/lib/notifications/notification-staff-display-clock-server";
@@ -457,6 +459,34 @@ const MODULE_BUILDERS: Record<
       userId: ctx.userId,
       module: "staff_todo_deferred",
     }),
+  personal_reminder: async (ctx) => {
+    const def = NOTIFICATION_MODULES.personal_reminder;
+    const { items, totalCount } = await loadPersonalReminderNotificationItems(
+      ctx.admin,
+      { restaurantId: ctx.restaurantId, userId: ctx.userId },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_messages: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_messages;
+    const { items, totalCount } = await loadStaffMessagesNotificationItems(
+      ctx.admin,
+      { restaurantId: ctx.restaurantId, userId: ctx.userId },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
   staff_contract_signed: async (ctx) => {
     const def = NOTIFICATION_MODULES.staff_contract_signed;
     const items = await loadStaffContractSignedNotificationItems(ctx.sb, {

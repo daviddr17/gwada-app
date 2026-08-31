@@ -782,7 +782,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
   },
   {
     id: "staffTodos",
-    label: "Checklisten",
+    label: "Aufgaben",
     scope: "module",
     appModule: "Mitarbeiter",
     strategy: "stale-while-revalidate",

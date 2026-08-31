@@ -320,6 +320,85 @@ function intervalOverlapMs(
   return Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
 }
 
+
+/** Zusammenhängende Intervalle mergen (Überlappung/Berührung). */
+export function mergeIntervals(
+  intervals: readonly { start: number; end: number }[],
+): { start: number; end: number }[] {
+  if (intervals.length === 0) return [];
+  const sorted = [...intervals].sort((a, b) => a.start - b.start);
+  const out: { start: number; end: number }[] = [
+    { start: sorted[0]!.start, end: sorted[0]!.end },
+  ];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const next = sorted[i]!;
+    const cur = out[out.length - 1]!;
+    if (next.start <= cur.end) {
+      cur.end = Math.max(cur.end, next.end);
+      continue;
+    }
+    out.push({ start: next.start, end: next.end });
+  }
+  return out;
+}
+
+export function measureIntervalsMs(
+  intervals: readonly { start: number; end: number }[],
+): number {
+  let total = 0;
+  for (const iv of mergeIntervals(intervals)) {
+    total += Math.max(0, iv.end - iv.start);
+  }
+  return total;
+}
+
+/** Dauer der Schnittmenge zweier Intervallmengen. */
+export function measureIntervalOverlapMs(
+  a: readonly { start: number; end: number }[],
+  b: readonly { start: number; end: number }[],
+): number {
+  const aa = mergeIntervals(a);
+  const bb = mergeIntervals(b);
+  let total = 0;
+  let i = 0;
+  let j = 0;
+  while (i < aa.length && j < bb.length) {
+    const x = aa[i]!;
+    const y = bb[j]!;
+    total += intervalOverlapMs(x, y);
+    if (x.end < y.end) i += 1;
+    else j += 1;
+  }
+  return total;
+}
+
+/**
+ * Globale Stunden aus Work/Break-Intervallen (ohne Doppelzählung).
+ * Eingeloggt = Union(Arbeit∪Pause), Netto = Union(Arbeit) − Überlappung mit Pause.
+ * Überlappende manuelle Pause auf durchgehender Arbeit erhöht Eingeloggt nicht.
+ */
+export function workBreakHoursFromIntervals(
+  workIntervals: readonly { start: number; end: number }[],
+  breakIntervals: readonly { start: number; end: number }[],
+): {
+  loggedH: number;
+  breakH: number;
+  netWorkH: number;
+  presenceH: number;
+} {
+  const workMs = measureIntervalsMs(workIntervals);
+  const breakMs = measureIntervalsMs(breakIntervals);
+  const presenceMs = measureIntervalsMs([...workIntervals, ...breakIntervals]);
+  const overlapMs = measureIntervalOverlapMs(workIntervals, breakIntervals);
+  const netMs = Math.max(0, workMs - overlapMs);
+  return {
+    loggedH: presenceMs / 3_600_000,
+    breakH: breakMs / 3_600_000,
+    netWorkH: netMs / 3_600_000,
+    presenceH: presenceMs / 3_600_000,
+  };
+}
+
 export function displayShiftHoursBreakdown(
   segments: RestaurantStaffWorkEntryRow[],
   now: Date = new Date(),

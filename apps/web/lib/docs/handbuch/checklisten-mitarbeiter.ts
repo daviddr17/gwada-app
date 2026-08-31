@@ -175,7 +175,7 @@ export const mitarbeiterGuide: UserGuidePage = {
   ],
   related: [
     { label: "Display → Zeiterfassung", href: "/docs/handbuch/display" },
-    { label: "Checklisten (Team-ToDos)", href: "/docs/handbuch/checklisten" },
+    { label: "Aufgaben", href: "/docs/handbuch/checklisten" },
     { label: "Profil", href: "/docs/handbuch/profil" },
   ],
 };

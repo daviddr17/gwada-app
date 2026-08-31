@@ -17,7 +17,7 @@ export function DashboardChecklistsTile() {
 
   return (
     <DashboardWidgetShell
-      title="Checklisten"
+      title="Aufgaben"
       icon={
         <ListChecks
           className="size-4 shrink-0 text-muted-foreground"
@@ -25,7 +25,7 @@ export function DashboardChecklistsTile() {
         />
       }
       href="/dashboard/checklisten"
-      linkLabel="Zu Checklisten"
+      linkLabel="Zu Aufgaben"
       ready={ready}
       loading={showSkeleton}
       error={error}

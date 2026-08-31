@@ -222,7 +222,7 @@ export const displayGuide: UserGuidePage = {
           ["Reservierungen", "Tagesliste, Check-in, Status ändern"],
           ["Rezepte", "Gerichte mit Zutaten für die Küche"],
           ["Bestand & Bestellung", "Lagerbestände und Bestellmengen"],
-          ["Checklisten", "HACCP und ToDos am Terminal"],
+          ["Aufgaben", "HACCP und ToDos am Terminal"],
         ],
       },
     },
@@ -245,7 +245,7 @@ export const displayGuide: UserGuidePage = {
   ],
   related: [
     { label: "Mitarbeiter", href: "/docs/handbuch/mitarbeiter" },
-    { label: "Checklisten", href: "/docs/handbuch/checklisten" },
+    { label: "Aufgaben", href: "/docs/handbuch/checklisten" },
     { label: "Bestand", href: "/docs/handbuch/bestand" },
     { label: "Einstellungen → Displays", href: "/docs/handbuch/einstellungen" },
   ],

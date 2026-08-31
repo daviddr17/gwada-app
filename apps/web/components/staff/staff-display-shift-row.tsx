@@ -8,10 +8,13 @@ import {
 } from "@/lib/restaurant/restaurant-timezone";
 import {
   displayShiftBounds,
-  displayShiftNetWorkHours,
+  displayShiftHoursBreakdown,
   displayShiftTitle,
 } from "@/lib/staff/staff-work-hours-display";
-import { formatWorkTimeRangeWithHoursDe } from "@/lib/staff/staff-work-hours-summary";
+import {
+  formatHoursDe,
+  formatWorkTimeRangeWithHoursDe,
+} from "@/lib/staff/staff-work-hours-summary";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +40,11 @@ export function StaffDisplayShiftRow({
   const endLabel = bounds.isOpen
     ? "läuft"
     : timeDe.format(new Date(bounds.endsAt!));
-  const netWorkHours = displayShiftNetWorkHours(segments);
+  const breakdown = displayShiftHoursBreakdown(segments);
+  const presenceHours = breakdown.presenceMs / 3_600_000;
+  const netWorkHours = breakdown.netMs / 3_600_000;
+  const breakHours = breakdown.breakMs / 3_600_000;
+  const hasBreak = breakHours > 0.0005;
 
   return (
     <div
@@ -55,9 +62,15 @@ export function StaffDisplayShiftRow({
       <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
         {formatWorkTimeRangeWithHoursDe(
           `${timeDe.format(new Date(bounds.startsAt))} – ${endLabel}`,
-          netWorkHours,
+          // Spanne = Anwesenheit; Netto separat, sonst wirkt Pause „nicht abgezogen“.
+          presenceHours,
         )}
       </p>
+      {hasBreak ? (
+        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+          Pause {formatHoursDe(breakHours)} · Netto {formatHoursDe(netWorkHours)}
+        </p>
+      ) : null}
       <StaffDisplayShiftSegmentsList
         segments={segments}
         timeZone={timeZone}

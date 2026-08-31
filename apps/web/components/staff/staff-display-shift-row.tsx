@@ -65,6 +65,7 @@ export function StaffDisplayShiftRow({
       <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
         {formatWorkTimeRangeWithHoursDe(
           `${timeDe.format(new Date(bounds.startsAt))} – ${endLabel}`,
+          // Spanne = Anwesenheit; Netto separat, sonst wirkt Pause „nicht abgezogen“.
           headerHours,
         )}
       </p>

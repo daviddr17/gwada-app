@@ -14,6 +14,11 @@ export const STAFF_WORK_HOURS_NAV: readonly ModuleSubnavItem[] = [
     label: "Beheben",
     matchMode: "exact",
   },
+  {
+    href: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung",
+    label: "Abrechnung",
+    matchMode: "exact",
+  },
 ];
 
 export function isStaffWorkHoursModulePath(pathname: string | null): boolean {

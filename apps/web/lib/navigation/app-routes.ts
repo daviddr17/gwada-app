@@ -90,6 +90,7 @@ export const APP_ROUTES = {
     documents: "/dashboard/mitarbeiter/dokumente",
     hours: "/dashboard/mitarbeiter/arbeitszeiten",
     hoursFix: "/dashboard/mitarbeiter/arbeitszeiten/beheben",
+    hoursPayroll: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung",
     statistics: "/dashboard/mitarbeiter/statistiken",
     export: "/dashboard/mitarbeiter/export",
     todos: "/dashboard/checklisten/todos",

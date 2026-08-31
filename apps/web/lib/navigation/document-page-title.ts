@@ -50,6 +50,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/mitarbeiter/vertraege": "Verträge",
   "/dashboard/mitarbeiter/arbeitszeiten": "Arbeitszeiten",
   "/dashboard/mitarbeiter/arbeitszeiten/beheben": "Arbeitszeiten · Beheben",
+  "/dashboard/mitarbeiter/arbeitszeiten/abrechnung": "Arbeitszeiten · Abrechnung",
   "/dashboard/mitarbeiter/statistiken": "Statistiken",
   "/dashboard/mitarbeiter/export": "Export",
   "/dashboard/buchfuehrung": "Buchführung",

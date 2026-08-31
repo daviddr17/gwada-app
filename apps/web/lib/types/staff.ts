@@ -250,6 +250,27 @@ export type RestaurantStaffWageAdvanceRow = {
   updated_at: string;
 };
 
+/** Monatsstatus der Lohnabrechnung (bezahlt / über / unter / offen). */
+export type StaffPayrollSettlementStatus =
+  | "open"
+  | "paid"
+  | "overpaid"
+  | "underpaid";
+
+export type RestaurantStaffPayrollSettlementRow = {
+  id: string;
+  restaurant_id: string;
+  staff_id: string;
+  period_year: number;
+  period_month: number;
+  status: StaffPayrollSettlementStatus;
+  amount_cents: number;
+  note: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type StaffLivePresenceRow = {
   staff_id: string;
   status: Exclude<StaffPresenceStatus, "off">;

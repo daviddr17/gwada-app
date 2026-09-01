@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
+import { CONVERSATION_LIST_MESSAGE_ROW_LIMIT } from "@/lib/contact-messages/conversation-list-limits";
 import { fetchContactConversationsAdmin } from "@/lib/contact-messages/fetch-contact-conversations-admin";
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { enrichUnifiedInboxReadStateServer } from "@/lib/contact-messages/unified-inbox-read-state";
@@ -20,7 +21,7 @@ type UnifiedInboxParams = {
 async function fetchUnifiedInboxFromDbAdmin(
   admin: SupabaseClient,
   params: UnifiedInboxParams,
-  options?: { light?: boolean },
+  options?: { light?: boolean; rowLimit?: number },
 ): Promise<ContactConversationPreview[]> {
   const platforms: ContactMessagePlatform[] = ["gwada"];
   if (params.whatsappConnected) platforms.push("whatsapp");
@@ -34,6 +35,7 @@ async function fetchUnifiedInboxFromDbAdmin(
         restaurantId: params.restaurantId,
         platform,
         light: options?.light,
+        rowLimit: options?.rowLimit,
       }),
     ),
   );
@@ -55,6 +57,20 @@ export async function fetchUnifiedInboxConversationsForDashboard(
   params: UnifiedInboxParams,
 ): Promise<ContactConversationPreview[]> {
   return fetchUnifiedInboxFromDbAdmin(admin, params, { light: true });
+}
+
+/**
+ * Glocke / Unread-Summary: volle Zeilen-Tiefe wie Server-Inbox, aber ohne
+ * Attachment-Join — korrekter Zähler nach Deploy, ohne Thread-Load zu blockieren.
+ */
+export async function fetchUnifiedInboxConversationsForUnreadSummary(
+  admin: SupabaseClient,
+  params: UnifiedInboxParams,
+): Promise<ContactConversationPreview[]> {
+  return fetchUnifiedInboxFromDbAdmin(admin, params, {
+    light: true,
+    rowLimit: CONVERSATION_LIST_MESSAGE_ROW_LIMIT,
+  });
 }
 
 export async function fetchUnifiedInboxConversationsServer(

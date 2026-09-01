@@ -19,9 +19,9 @@ test("mark-all uses full unified inbox fetch, not light dashboard path", () => {
   assert.doesNotMatch(src, /fetchUnifiedInboxConversationsForDashboard/);
 });
 
-test("unread summary keeps full inbox fetch (PR #425)", () => {
+test("unread summary uses full-row path, not 400-row dashboard light fetch (PR #425)", () => {
   const dir = dirname(fileURLToPath(import.meta.url));
   const src = readFileSync(join(dir, "unread-summary-server.ts"), "utf8");
-  assert.match(src, /fetchUnifiedInboxConversationsServer/);
+  assert.match(src, /fetchUnifiedInboxConversationsForUnreadSummary/);
   assert.doesNotMatch(src, /fetchUnifiedInboxConversationsForDashboard/);
 });

@@ -62,7 +62,7 @@ jobs:
       - name: Run recovery script (live Supabase env from app container)
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
-          APPLY: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.apply == true) || (github.event_name == 'repository_dispatch' && github.event.client_payload.apply == true) && '1' || '0' }}
+          APPLY: ${{ ((github.event_name == 'workflow_dispatch' && github.event.inputs.apply == true) || (github.event_name == 'repository_dispatch' && github.event.client_payload.apply == true)) && '1' || '0' }}
         run: |
           set -euo pipefail
           cid="$(ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \

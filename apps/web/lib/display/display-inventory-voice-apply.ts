@@ -56,16 +56,22 @@ export async function applyDisplayInventoryStockVoiceLines(
 
 export async function applyDisplayInventoryOrderVoiceLines(
   lines: Array<{ ingredientId: string; quantity: number }>,
+  options?: {
+    enqueue?: <T>(task: () => Promise<T>) => Promise<T>;
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const run = options?.enqueue ?? ((task) => task());
   for (const line of lines) {
-    const res = await fetch("/api/display/inventory/order-line", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ingredient_id: line.ingredientId,
-        quantity: line.quantity,
+    const res = await run(() =>
+      fetch("/api/display/inventory/order-line", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredient_id: line.ingredientId,
+          quantity: line.quantity,
+        }),
       }),
-    });
+    );
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as { error?: string };
       if (err.error === "no_supplier") {

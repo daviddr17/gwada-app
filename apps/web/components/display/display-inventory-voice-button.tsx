@@ -46,12 +46,14 @@ type DisplayInventoryVoiceButtonProps = {
   mode: InventoryVoiceMode;
   rows: DisplayInventoryIngredientRow[];
   disabled?: boolean;
+  enqueueOrderSave?: <T>(task: () => Promise<T>) => Promise<T>;
 };
 
 export function DisplayInventoryVoiceButton({
   mode,
   rows,
   disabled = false,
+  enqueueOrderSave,
 }: DisplayInventoryVoiceButtonProps) {
   const copy = COPY[mode];
   const [mounted, setMounted] = useState(false);
@@ -244,7 +246,9 @@ export function DisplayInventoryVoiceButton({
       const result =
         mode === "stock"
           ? await applyDisplayInventoryStockVoiceLines(payload)
-          : await applyDisplayInventoryOrderVoiceLines(payload);
+          : await applyDisplayInventoryOrderVoiceLines(payload, {
+              enqueue: enqueueOrderSave,
+            });
 
       if (!result.ok) {
         toast.error(result.error);
@@ -258,7 +262,7 @@ export function DisplayInventoryVoiceButton({
       pendingItemsRef.current = [];
       resolvedLinesRef.current = [];
     },
-    [copy.successOne, mode],
+    [copy.successOne, enqueueOrderSave, mode],
   );
 
   if (!mounted || !supported || rows.length === 0) return null;

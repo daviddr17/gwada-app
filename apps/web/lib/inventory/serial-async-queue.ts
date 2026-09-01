@@ -1,12 +1,11 @@
-<<<<<<< HEAD
-/** Serialisiert Display-Bestell-PATCHes — verhindert Last-write-wins beim Server-Replace. */
-export type DisplayInventoryOrderSaveQueue = {
+/** Serialisiert async Tasks (z. B. Bestell-Persist) — verhindert Last-write-wins. */
+export type SerialAsyncQueue = {
   readonly pendingCount: number;
   subscribe: (listener: () => void) => () => void;
   enqueue: <T>(task: () => Promise<T>) => Promise<T>;
 };
 
-export function createDisplayInventoryOrderSaveQueue(): DisplayInventoryOrderSaveQueue {
+export function createSerialAsyncQueue(): SerialAsyncQueue {
   let chain = Promise.resolve();
   let pending = 0;
   const listeners = new Set<() => void>();
@@ -40,14 +39,3 @@ export function createDisplayInventoryOrderSaveQueue(): DisplayInventoryOrderSav
     },
   };
 }
-=======
-import {
-  createSerialAsyncQueue,
-  type SerialAsyncQueue,
-} from "@/lib/inventory/serial-async-queue";
-
-/** Serialisiert Display-Bestell-PATCHes — verhindert Last-write-wins beim Server-Replace. */
-export type DisplayInventoryOrderSaveQueue = SerialAsyncQueue;
-
-export const createDisplayInventoryOrderSaveQueue = createSerialAsyncQueue;
->>>>>>> origin/cursor/dashboard-order-optimistic-ui-dd85

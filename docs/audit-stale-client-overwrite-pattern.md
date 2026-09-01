@@ -102,6 +102,7 @@ These are **read-state / aggregation** bugs, not DELETE+INSERT data loss. Same *
 1. **Merge-before-save** for PO: load DB rows, merge client snapshot, then replace — `merge-purchase-orders-for-replace.ts`, `savePurchaseOrdersRelational`, Display `savePurchaseOrdersAdmin`.
 2. **Merge-before-save** for ingredients: `merge-ingredients-for-replace.ts`, `saveIngredientsRelational`, Display `saveIngredientsAdmin`, POS/accounting `replaceIngredientsWithMerge`.
 3. **Gate auto-persist and all saves** until `ordersQuery.isSuccess` / `ingredientsQuery.isSuccess` when using DB mode — `use-purchase-orders-storage.ts`, `use-ingredients-storage.ts`.
+4. **PO line merge + reconcile** — union line items per order; restore missing lines from `add_to_order` log entries — `merge-purchase-orders-for-replace.ts`, `reconcile-purchase-order-lines-from-log.ts`; auto-heal persist in `use-purchase-orders-storage.ts`.
 4. **After save:** refetch/patch cache with DB truth (not raw client `next`).
 5. Workspace rule: `.cursor/rules/no-stale-client-overwrite.mdc`.
 

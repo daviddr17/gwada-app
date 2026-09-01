@@ -25,6 +25,7 @@ import {
   toastPurchaseOrderQuantityIncreased,
 } from "@/lib/inventory/purchase-order-notifications";
 import { withoutEmptyOpenPurchaseOrders } from "@/lib/inventory/prune-empty-open-purchase-orders";
+import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import { createSerialAsyncQueue } from "@/lib/inventory/serial-async-queue";
 import { applyTaxonomySupplierNamesToOrders } from "@/lib/inventory/resolve-purchase-order-supplier-name";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
@@ -604,6 +605,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
 
   /** Bestehende offene Bestellungen ohne Positionen entfernen (Legacy-Schalen). */
   const emptyOpenPruneInFlightRef = useRef(false);
+  const lineHealInFlightRef = useRef(false);
   useEffect(() => {
     if (!isHydrated || emptyOpenPruneInFlightRef.current) return;
     /** Kein Full-Replace aus stale localStorage vor frischem DB-Fetch (Deploy/Reload). */
@@ -613,6 +615,27 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     emptyOpenPruneInFlightRef.current = true;
     void persist(pruned).finally(() => {
       emptyOpenPruneInFlightRef.current = false;
+    });
+  }, [dbFetchReady, isHydrated, orders, persist, useDbInventory]);
+
+  /** Protokoll/Positions-Desync einmalig reparieren und in DB zurückschreiben. */
+  useEffect(() => {
+    if (!isHydrated || lineHealInFlightRef.current) return;
+    if (useDbInventory && !dbFetchReady) return;
+    const healed = orders.map(reconcilePurchaseOrderLinesFromLog);
+    const needsHeal = healed.some((order, index) => {
+      const prev = orders[index];
+      if (!prev || order.id !== prev.id) return true;
+      if (order.lines.length !== prev.lines.length) return true;
+      return order.lines.some((line) => {
+        const before = prev.lines.find((l) => l.ingredientId === line.ingredientId);
+        return !before || before.quantity !== line.quantity;
+      });
+    });
+    if (!needsHeal) return;
+    lineHealInFlightRef.current = true;
+    void persist(healed).finally(() => {
+      lineHealInFlightRef.current = false;
     });
   }, [dbFetchReady, isHydrated, orders, persist, useDbInventory]);
 

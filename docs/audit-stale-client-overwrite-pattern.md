@@ -102,7 +102,7 @@ These are **read-state / aggregation** bugs, not DELETE+INSERT data loss. Same *
 1. **Merge-before-save** for PO: load DB rows, merge client snapshot, then replace — `merge-purchase-orders-for-replace.ts`, `savePurchaseOrdersRelational`, Display `savePurchaseOrdersAdmin`.
 2. **Gate auto-persist and all saves** until `ordersQuery.isSuccess` when using DB mode — `use-purchase-orders-storage.ts`.
 3. **After save:** refetch/patch cache with DB truth (not raw client `next`).
-4. Workspace rule: `.cursor/rules/no-stale-client-overwrite.mdc`; recovery: `docs/inventory-po-data-recovery.md`.
+4. Workspace rule: `.cursor/rules/no-stale-client-overwrite.mdc`.
 5. Same merge pattern for **ingredients** saves from Display/POS if races continue (follow-up).
 
 ### Medium term

@@ -85,8 +85,6 @@
     "db:seed:reservations-today:local": "supabase db query --local -f scripts/insert-reservations-today-demo.sql",
     "gen:menu-seed": "node scripts/gen-menu-seed-sql.mjs",
     "gen:types": "dotenv -e .env.development -- bash -c 'supabase gen types typescript --db-url \"$SUPABASE_DB_URL\" > packages/supabase/src/database.types.ts'",
-    "recover:po:zurschlag": "dotenv -e .env.development -- pnpm exec tsx scripts/recover-zurschlag-purchase-orders.ts",
-    "recover:po:zurschlag:live": "dotenv -e .env.production -- pnpm exec tsx scripts/recover-zurschlag-purchase-orders.ts",
     "typecheck:packages": "pnpm -r --filter '@gwada/*' typecheck",
     "dev:pos-api": "pnpm --filter @gwada/pos-api start:dev",
     "smoke:pos-api": "pnpm --filter @gwada/pos-api smoke",

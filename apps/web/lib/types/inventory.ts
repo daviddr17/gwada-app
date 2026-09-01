@@ -27,6 +27,7 @@ export type Ingredient = {
   categoryId: string;
   productionSiteId: string;
   brandId: string;
+  /** `false` = inaktiv (gedämpft in Listen, nicht in Heute-Leerbestand). Default aktiv. */
   active?: boolean;
   /** Bestandsprotokoll (lokal), gleiche Idee wie Bestellprotokoll */
   stockLog: IngredientStockLogEntry[];

@@ -1,5 +1,11 @@
 import type { Ingredient } from "@/lib/types/inventory";
 
+export function isIngredientActive(
+  ingredient: Pick<Ingredient, "active">,
+): boolean {
+  return ingredient.active !== false;
+}
+
 export function ingredientLowStockThreshold(
   ingredient: Pick<Ingredient, "lowStockThreshold">,
 ): number {
@@ -10,6 +16,6 @@ export function ingredientLowStockThreshold(
 export function isIngredientLowStock(
   ingredient: Pick<Ingredient, "currentStock" | "lowStockThreshold" | "active">,
 ): boolean {
-  if (ingredient.active === false) return false;
+  if (!isIngredientActive(ingredient)) return false;
   return ingredient.currentStock <= ingredientLowStockThreshold(ingredient);
 }

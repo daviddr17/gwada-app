@@ -1,6 +1,7 @@
 import type { Ingredient } from "@/lib/types/inventory";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { countPurchaseOrdersDeliveryDue } from "@/lib/inventory/purchase-order-delivery-due";
+import { isIngredientActive } from "@/lib/inventory/low-stock";
 
 export type DashboardInventorySummary = {
   ingredientsActive: number;
@@ -22,7 +23,7 @@ export function computeDashboardInventorySummary(
   orders: PurchaseOrder[],
   todayYmd?: string,
 ): DashboardInventorySummary {
-  const active = ingredients.filter((i) => i.active !== false);
+  const active = ingredients.filter(isIngredientActive);
   const emptyStock = active.filter((i) => i.currentStock <= 0).length;
   const actionable = orders.filter(
     (o) => o.status === "open" || o.status === "ordered",

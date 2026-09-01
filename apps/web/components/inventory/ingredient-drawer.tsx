@@ -362,6 +362,25 @@ export function IngredientDrawer({
               </div>
             </DrawerFormSection>
 
+            <DrawerFormSection title="Status">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="ing-active" className="text-sm font-medium">
+                    Aktiv
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Inaktive Zutaten erscheinen gedämpft in der Liste und zählen
+                    nicht als leerer Bestand unter Heute.
+                  </p>
+                </div>
+                <Switch
+                  id="ing-active"
+                  checked={active}
+                  onCheckedChange={(v) => setActive(v === true)}
+                />
+              </div>
+            </DrawerFormSection>
+
             <DrawerFormSection title="Zuordnung">
               <div className="space-y-2">
                 <Label htmlFor="ing-supplier">Lieferant</Label>
@@ -409,24 +428,6 @@ export function IngredientDrawer({
                   placeholder="Marke wählen"
                   searchPlaceholder="Marke suchen…"
                   aria-label="Marke"
-                />
-              </div>
-            </DrawerFormSection>
-
-            <DrawerFormSection title="Status">
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label htmlFor="ing-active" className="text-sm font-medium">
-                    Aktiv
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Inaktive Zutaten können in Listen ausgeblendet werden.
-                  </p>
-                </div>
-                <Switch
-                  id="ing-active"
-                  checked={active}
-                  onCheckedChange={(v) => setActive(v === true)}
                 />
               </div>
             </DrawerFormSection>

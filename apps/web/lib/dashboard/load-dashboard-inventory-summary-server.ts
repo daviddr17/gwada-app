@@ -23,6 +23,7 @@ export async function loadDashboardInventorySummaryServer(
       fetchRestaurantTimezoneServer(sb, restaurantId),
     ]);
 
+  // Heute empty-stock: inactive (`is_active = false`) must not count.
   const activeRows = (ingredientRows ?? []).filter(
     (r) => (r.is_active as boolean) !== false,
   );

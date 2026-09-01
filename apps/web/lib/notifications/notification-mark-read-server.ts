@@ -68,6 +68,7 @@ import {
   dismissAllStaffContractSignedNotifications,
   dismissStaffContractSignedNotification,
 } from "@/lib/notifications/notification-staff-contract-server";
+import { markStaffDocumentAssignedRead } from "@/lib/notifications/notification-staff-document-server";
 import {
   dismissAllStaffDisplayTimeRequestNotifications,
   dismissStaffDisplayTimeRequestNotification,
@@ -408,6 +409,25 @@ export async function markNotificationReadServer(
         contractId,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "staff_document_assigned": {
+      if (!itemId) {
+        await markStaffDocumentAssignedRead(sb, {
+          restaurantId,
+          userId,
+          all: true,
+        });
+        return { ok: true };
+      }
+      const documentId = itemId ?? meta?.documentId;
+      if (!documentId) return { ok: false, error: "invalid_request" };
+      await markStaffDocumentAssignedRead(sb, {
+        restaurantId,
+        userId,
+        documentId,
+      });
+      return { ok: true };
     }
 
     case "staff_display_time_request": {

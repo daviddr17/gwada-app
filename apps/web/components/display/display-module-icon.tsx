@@ -6,6 +6,7 @@ import {
   ChefHat,
   ClipboardCheck,
   Clock,
+  FileText,
   MonitorPlay,
   Package,
 } from "lucide-react";
@@ -18,6 +19,7 @@ const MODULE_ICONS: Record<DisplayModule, LucideIcon> = {
   recipes: ChefHat,
   inventory: Package,
   compliance: ClipboardCheck,
+  documents: FileText,
   kds: MonitorPlay,
 };
 

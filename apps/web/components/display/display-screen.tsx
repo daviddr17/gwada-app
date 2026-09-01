@@ -37,6 +37,7 @@ import {
 import { DisplayReservationsModule } from "@/components/display/modules/display-reservations-module";
 import { DisplayInventoryModule } from "@/components/display/modules/display-inventory-module";
 import { DisplayComplianceModule } from "@/components/display/modules/display-compliance-module";
+import { DisplayDocumentsModule } from "@/components/display/modules/display-documents-module";
 import { DisplayRecipesModule } from "@/components/display/modules/display-recipes-module";
 import { DisplayScreenSkeleton } from "@/components/display/display-screen-skeleton";
 import { Button } from "@/components/ui/button";
@@ -990,6 +991,9 @@ export function DisplayScreen({ slug }: { slug: string }) {
               />
             ) : null}
             {currentModule === "compliance" ? <DisplayComplianceModule /> : null}
+            {currentModule === "documents" && context?.restaurant?.id ? (
+              <DisplayDocumentsModule restaurantId={context.restaurant.id} />
+            ) : null}
           </DisplayModuleShell>
       );
       }

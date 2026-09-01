@@ -102,6 +102,7 @@ export async function POST(req: Request) {
     tag_id: null,
     employee_id: employeeId,
     staff_id: staffId,
+    visible_to_staff: true,
     title,
     file_name: file.name,
     storage_path: storagePath,

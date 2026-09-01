@@ -514,6 +514,19 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "staff_document_assigned": {
+      const title = pickString(p.documentTitle) ?? "Dokument";
+      return buildPushMessage({
+        prefix,
+        headline: "Neues Dokument",
+        subject: `${prefix}Neues Dokument — ${title}`,
+        href: APP_ROUTES.profile.documents,
+        details: detailLines([
+          title,
+          "Im Profil unter „Meine Dokumente“ einsehbar und herunterladbar.",
+        ]),
+      });
+    }
     case "staff_display_time_request": {
       const time = pickString(p.requestedStartsAt);
       const end = pickString(p.requestedEndsAt);

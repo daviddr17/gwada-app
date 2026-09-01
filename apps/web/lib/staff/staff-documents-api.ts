@@ -5,6 +5,7 @@ export type StaffDocumentListItem = {
   restaurant_id: string;
   tag_id: string | null;
   staff_id: string | null;
+  visible_to_staff: boolean;
   title: string;
   file_name: string;
   mime_type: string;

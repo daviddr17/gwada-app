@@ -18,6 +18,7 @@ import type { NotificationModuleId } from "@/lib/notifications/notification-modu
 import { isNotificationModuleId } from "@/lib/notifications/notification-modules";
 import { filterStaffTodoPushTargets } from "@/lib/notifications/notification-staff-todos-server";
 import { filterStaffContractSignedPushTargets } from "@/lib/notifications/notification-staff-contract-server";
+import { filterStaffDocumentAssignedPushTargets } from "@/lib/notifications/notification-staff-document-server";
 import { filterStaffInviteResponsePushTargets } from "@/lib/notifications/notification-staff-invite-server";
 import { filterStaffPermissionsGrantedPushTargets } from "@/lib/notifications/notification-staff-permissions-server";
 import { filterStaffShiftPushTargets } from "@/lib/notifications/notification-staff-shift-server";
@@ -191,6 +192,9 @@ async function fanOutEvent(
   }
   if (moduleId === "staff_contract_signed") {
     targets = await filterStaffContractSignedPushTargets(admin, event, targets);
+  }
+  if (moduleId === "staff_document_assigned") {
+    targets = await filterStaffDocumentAssignedPushTargets(admin, event, targets);
   }
   if (
     moduleId === "staff_invite_accepted" ||

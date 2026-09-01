@@ -16,6 +16,8 @@ export type RestaurantDocumentRow = {
   tag_id: string | null;
   employee_id: string | null;
   staff_id: string | null;
+  /** Für den zugeordneten Mitarbeiter in Profil/Display sichtbar (HR sieht immer). */
+  visible_to_staff: boolean;
   uploaded_by: string | null;
   title: string;
   file_name: string;

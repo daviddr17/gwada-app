@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Download, Eye, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { StaffDocumentPdfPreviewDialog } from "@/components/staff/staff-document-pdf-preview-dialog";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
@@ -163,11 +164,11 @@ export function StaffDocumentsAllTable({
     () => ({
       documentTitle: "Mitarbeiter-Dokumente",
       filenamePrefix: "mitarbeiter-dokumente",
-      headers: ["Mitarbeiter", "Titel", "Dateiname", "Hochgeladen"],
+      headers: ["Mitarbeiter", "Titel", "Sichtbarkeit", "Hochgeladen"],
       rows: filtered.map((doc) => [
         staffNameForDocument(staffList, doc.staff_id),
         doc.title,
-        doc.file_name,
+        doc.visible_to_staff ? "Für MA sichtbar" : "Nur HR",
         formatStaffDocumentMeta(doc),
       ]),
       summaryLine: `${filtered.length} Dokument${filtered.length === 1 ? "" : "e"}`,
@@ -233,6 +234,11 @@ export function StaffDocumentsAllTable({
                 <th
                   className={cn(moduleDataTableHeadCellClassName, "min-w-[8rem]")}
                 >
+                  Sichtbarkeit
+                </th>
+                <th
+                  className={cn(moduleDataTableHeadCellClassName, "min-w-[8rem]")}
+                >
                   <SortHeader
                     label="Hochgeladen"
                     sortKey="created_at"
@@ -248,7 +254,7 @@ export function StaffDocumentsAllTable({
               {paginated.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-4 py-10 text-center text-muted-foreground"
                   >
                     {search.trim()
@@ -277,6 +283,18 @@ export function StaffDocumentsAllTable({
                           {doc.file_name}
                         </p>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant="outline"
+                        className={
+                          doc.visible_to_staff
+                            ? "border-accent/40 bg-accent/10 text-foreground"
+                            : "border-border/60 bg-muted/30 text-muted-foreground"
+                        }
+                      >
+                        {doc.visible_to_staff ? "Für MA" : "Nur HR"}
+                      </Badge>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground tabular-nums">
                       {formatStaffDocumentMeta(doc)}

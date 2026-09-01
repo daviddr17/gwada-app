@@ -6,13 +6,14 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
 const DOCUMENT_ACCESS_SELECT =
-  "id, restaurant_id, tag_id, staff_id, title, file_name, storage_path, mime_type, size_bytes, created_at";
+  "id, restaurant_id, tag_id, staff_id, visible_to_staff, title, file_name, storage_path, mime_type, size_bytes, created_at";
 
 export type StaffDocumentAccessRow = {
   id: string;
   restaurant_id: string;
   tag_id: string | null;
   staff_id: string | null;
+  visible_to_staff: boolean;
   title: string;
   file_name: string;
   storage_path: string;
@@ -108,7 +109,11 @@ export async function assertCanAccessStaffDocument(params: {
       params.restaurantId,
       params.userId,
     );
-    if (linkedStaffId && linkedStaffId === doc.staff_id) {
+    if (
+      linkedStaffId &&
+      linkedStaffId === doc.staff_id &&
+      doc.visible_to_staff
+    ) {
       return { ok: true, row: doc };
     }
   }
@@ -235,6 +240,7 @@ export async function listMyStaffDocuments(params: {
     .select(DOCUMENT_ACCESS_SELECT)
     .eq("restaurant_id", params.restaurantId)
     .eq("staff_id", staffId)
+    .eq("visible_to_staff", true)
     .order("created_at", { ascending: false });
 
   if (error) {

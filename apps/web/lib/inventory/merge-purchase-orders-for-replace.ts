@@ -61,11 +61,29 @@ function mergePurchaseOrderRow(
   clientOrder: PurchaseOrder,
 ): PurchaseOrder {
   const base = pickOrderBase(dbOrder, clientOrder);
+  const log = mergePurchaseOrderLogs(dbOrder.log, clientOrder.log);
   const lines = mergePurchaseOrderLines(dbOrder.lines, clientOrder.lines);
   return reconcilePurchaseOrderLinesFromLog({
     ...base,
+    log,
     lines,
   });
+}
+
+function mergePurchaseOrderLogs(
+  dbLog: readonly PurchaseOrderLogEntry[],
+  clientLog: readonly PurchaseOrderLogEntry[],
+): PurchaseOrderLogEntry[] {
+  const byId = new Map<string, PurchaseOrderLogEntry>();
+  for (const entry of dbLog) {
+    byId.set(entry.id, entry);
+  }
+  for (const entry of clientLog) {
+    if (!byId.has(entry.id)) {
+      byId.set(entry.id, entry);
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.at.localeCompare(b.at));
 }
 
 function pickOrderBase(

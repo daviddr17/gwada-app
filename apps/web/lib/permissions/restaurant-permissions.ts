@@ -53,7 +53,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.recipes",
   "display.inventory",
   "display.compliance",
-  "display.documents",
+  "display.profile",
   "display.kds",
   "display.module_switch",
   "pos.kasse.use",
@@ -292,10 +292,10 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       group: "display",
     },
     {
-      key: "display.documents",
-      label: "Display: Dokumente",
+      key: "display.profile",
+      label: "Display: Profil",
       description:
-        "Eigene Dokumente und Lohnabrechnungen (PDF) am Tablet einsehen.",
+        "Eigene Stammdaten und freigegebene Dokumente am Tablet einsehen.",
       group: "display",
     },
     {

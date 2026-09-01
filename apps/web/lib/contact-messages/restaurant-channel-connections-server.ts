@@ -20,7 +20,9 @@ import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type { RestaurantChannelConnectionsPayload } from "@/lib/contact-messages/restaurant-channel-connections-types";
+import type { RestaurantChannelConnectionsPayload } from "@/lib/contact-messages/restaurant-channel-connections-types";
+
+export type { RestaurantChannelConnectionsPayload };
 
 export async function resolveRestaurantChannelConnectionsServer(params: {
   restaurantId: string;

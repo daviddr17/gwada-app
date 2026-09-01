@@ -168,8 +168,14 @@ export function DisplayTimeModule({
     (reduceMotion ? DISPLAY_CELEBRATION_EXIT_REDUCED_MS : DISPLAY_CELEBRATION_EXIT_MS) /
     1000;
   const inFlightRef = useRef(false);
-  const pendingClockOutLogoutRef = useRef(false);
   const pendingCelebrationSyncRef = useRef(false);
+  /** Auto-Abmeldung erst nach API-Erfolg und Celebration-Exit (Race bei langsamer Persist). */
+  const logoutFlowRef = useRef({
+    intent: false,
+    apiOk: false,
+    celebrationExited: false,
+    triggered: false,
+  });
   const onClockOutSuccessRef = useRef(onClockOutSuccess);
   onClockOutSuccessRef.current = onClockOutSuccess;
   const stateRef = useRef(state);
@@ -243,6 +249,25 @@ export function DisplayTimeModule({
       });
   }, []);
 
+  const resetLogoutFlow = useCallback(() => {
+    logoutFlowRef.current = {
+      intent: false,
+      apiOk: false,
+      celebrationExited: false,
+      triggered: false,
+    };
+  }, []);
+
+  const tryTriggerLogout = useCallback(() => {
+    const flow = logoutFlowRef.current;
+    if (flow.triggered || !flow.intent || !flow.apiOk || !flow.celebrationExited) {
+      return;
+    }
+    flow.triggered = true;
+    pendingCelebrationSyncRef.current = false;
+    onClockOutSuccessRef.current?.();
+  }, []);
+
   const runTimeAction = useCallback(
     async (action: TimeAction): Promise<boolean> => {
       const res = await fetch("/api/display/time", {
@@ -272,44 +297,70 @@ export function DisplayTimeModule({
     [],
   );
 
+  const rollbackAction = useCallback(
+    (snapshot: TimeState) => {
+      resetLogoutFlow();
+      pendingCelebrationSyncRef.current = false;
+      setCelebrationAction(null);
+      setContentHidden(false);
+      setState(snapshot);
+      void refresh();
+    },
+    [refresh, resetLogoutFlow],
+  );
+
+  const runAction = useCallback(
+    async (action: TimeAction, snapshot: TimeState) => {
+      try {
+        const gate = await prepareAndGate(action);
+        if (gate === "blocked") {
+          return;
+        }
+
+        setCelebrationAction(action);
+        setContentHidden(true);
+        setState(optimisticStateForAction(action, snapshot));
+
+        const wantsLogout = action === "clock_out" || action === "start_break";
+        if (wantsLogout) {
+          logoutFlowRef.current = {
+            intent: true,
+            apiOk: false,
+            celebrationExited: false,
+            triggered: false,
+          };
+        }
+
+        const ok = await runTimeAction(action);
+        if (!ok) {
+          rollbackAction(snapshot);
+          return;
+        }
+
+        void refresh();
+        pendingCelebrationSyncRef.current = true;
+        if (wantsLogout) {
+          logoutFlowRef.current.apiOk = true;
+          tryTriggerLogout();
+        }
+      } finally {
+        inFlightRef.current = false;
+        setActionBusy(false);
+      }
+    },
+    [prepareAndGate, rollbackAction, runTimeAction, refresh, tryTriggerLogout],
+  );
+
   const beginAction = useCallback(
     (action: TimeAction) => {
       if (actionBusy || celebrationAction || inFlightRef.current) return;
       const snapshot = stateRef.current;
+      resetLogoutFlow();
       inFlightRef.current = true;
       setActionBusy(true);
-
-      void (async () => {
-        try {
-          const gate = await prepareAndGate(action);
-          if (gate === "blocked") return;
-
-          setCelebrationAction(action);
-          setContentHidden(true);
-          setState(optimisticStateForAction(action, snapshot));
-
-          const ok = await runTimeAction(action);
-          if (!ok) {
-            pendingCelebrationSyncRef.current = false;
-            pendingClockOutLogoutRef.current = false;
-            setCelebrationAction(null);
-            setContentHidden(false);
-            setState(snapshot);
-            void refresh();
-          } else {
-            void refresh();
-            pendingCelebrationSyncRef.current = true;
-            if (action === "clock_out" || action === "start_break") {
-              pendingClockOutLogoutRef.current = true;
-            }
-          }
-        } finally {
-          inFlightRef.current = false;
-          setActionBusy(false);
-        }
-      })();
+      void runAction(action, snapshot);
     },
-    [actionBusy, celebrationAction, prepareAndGate, runTimeAction, refresh],
+    [actionBusy, celebrationAction, resetLogoutFlow, runAction],
   );
 
   const actionsBlocked = actionBusy || Boolean(celebrationAction);
@@ -345,15 +396,15 @@ export function DisplayTimeModule({
       <DisplayTimeActionCelebration
         action={celebrationAction}
         onExitStart={() => {
-          if (pendingClockOutLogoutRef.current) {
-            pendingCelebrationSyncRef.current = false;
-            onClockOutSuccessRef.current?.();
+          if (logoutFlowRef.current.intent) {
+            logoutFlowRef.current.celebrationExited = true;
+            tryTriggerLogout();
           }
           setContentHidden(false);
         }}
         onDone={() => {
-          if (pendingClockOutLogoutRef.current) {
-            pendingClockOutLogoutRef.current = false;
+          if (logoutFlowRef.current.intent) {
+            resetLogoutFlow();
             setCelebrationAction(null);
             setContentHidden(false);
             return;

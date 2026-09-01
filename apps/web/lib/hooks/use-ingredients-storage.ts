@@ -19,9 +19,13 @@ import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/di
 import { toastStorageError } from "@/lib/persist-notify";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
-import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
+import {
+  toastDatabaseSaveError,
+  toastDatabaseUnavailable,
+} from "@/lib/supabase/db-toast";
 import {
   inventoryRelationalPersistenceEnabled,
+  loadIngredientsRelational,
   saveIngredientsRelational,
 } from "@/lib/supabase/inventory-db";
 import {
@@ -370,11 +374,10 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
     ? (ingredientsQuery.data ?? peekIngredientsCache() ?? [])
     : localIngredients;
   const isHydrated = useDbInventory
-    ? workspaceReady &&
-      (ingredientsQuery.isSuccess ||
-        ingredientsQuery.isError ||
-        Boolean(peekIngredientsCache()?.length))
+    ? workspaceReady && (ingredientsQuery.isSuccess || ingredientsQuery.isError)
     : isLocalHydrated;
+  /** Kein Full-Replace solange der erste DB-Fetch noch läuft (stale LS/Placeholder). */
+  const dbFetchReady = !useDbInventory || ingredientsQuery.isSuccess;
 
   useEffect(
     () => () => {
@@ -392,18 +395,25 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
       options?: { stockChanged?: boolean },
     ): Promise<boolean> => {
       if (useDbInventory) {
+        if (!dbFetchReady) {
+          toast.error(
+            "Zutaten werden noch geladen — bitte kurz warten und erneut versuchen.",
+          );
+          return false;
+        }
         const rid = restaurantId ?? (await getWorkspaceRestaurantId());
         if (!rid) {
           failSave();
           return false;
         }
-        const ok = await saveIngredientsRelational(rid, next);
-        if (!ok) {
-          failSave();
+        const result = await saveIngredientsRelational(rid, next);
+        if (!result.ok) {
+          toastDatabaseSaveError(result.message);
           return false;
         }
-        queryClient.setQueryData(queryKeys.inventory.ingredients(rid), next);
-        mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, next);
+        const fromDb = (await loadIngredientsRelational(rid)) ?? result.ingredients;
+        queryClient.setQueryData(queryKeys.inventory.ingredients(rid), fromDb);
+        mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, fromDb);
         afterInventoryMutation({
           stockChanged: options?.stockChanged ?? toastKind === "update",
         });
@@ -455,7 +465,7 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
         });
       });
     },
-    [afterInventoryMutation, failSave, queryClient, restaurantId, useDbInventory],
+    [afterInventoryMutation, dbFetchReady, failSave, queryClient, restaurantId, useDbInventory],
   );
 
   const addIngredient = useCallback(

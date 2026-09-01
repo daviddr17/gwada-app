@@ -1,5 +1,6 @@
 import "server-only";
 
+import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
 import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
 import { createId } from "@/lib/create-id";
 import { parseStockLogEntryFromJson } from "@/lib/supabase/inventory-db";
@@ -190,9 +191,12 @@ async function saveIngredientsAdmin(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createSupabaseAdminClient();
   if (!admin) return { ok: false, error: "server_misconfigured" };
+  const fresh = await loadIngredientsAdmin(restaurantId);
+  if (!fresh) return { ok: false, error: "load_failed" };
+  const merged = mergeIngredientsForReplace(fresh, ingredients);
   const { error } = await admin.rpc("inventory_replace_ingredients", {
     p_restaurant_id: restaurantId,
-    p_ingredients: ingredients,
+    p_ingredients: merged,
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };

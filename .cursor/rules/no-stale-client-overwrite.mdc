@@ -21,17 +21,17 @@ Vollständiges Audit: `docs/audit-stale-client-overwrite-pattern.md`
 ## Pflicht bei Full-Replace-RPCs
 
 1. **Vor dem Save:** aktuelle DB-Zeilen laden (`load*Relational`, Admin-Load o. Ä.).
-2. **Merge:** Client-Snapshot mit DB zusammenführen — Referenz PO: `mergePurchaseOrdersForReplace` in `apps/web/lib/inventory/merge-purchase-orders-for-replace.ts`.
+2. **Merge:** Client-Snapshot mit DB zusammenführen — Referenz PO: `mergePurchaseOrdersForReplace`; Zutaten: `mergeIngredientsForReplace` in `apps/web/lib/inventory/merge-ingredients-for-replace.ts`.
 3. **Erst dann** RPC aufrufen (merged Payload, nicht roher Client-State).
 4. **Nach erfolgreichem Save:** Cache + LS mit **DB-Wahrheit** patchen (Refetch oder zurückgegebenes merged Ergebnis) — nicht blind den Client-`next`-Stand behalten.
-5. **Gate:** Kein Persist/Auto-Save, bis der initiale React-Query-Fetch **`isSuccess`** ist (DB-Modus). Siehe `use-purchase-orders-storage.ts`.
+5. **Gate:** Kein Persist/Auto-Save, bis der initiale React-Query-Fetch **`isSuccess`** ist (DB-Modus). Siehe `use-purchase-orders-storage.ts`, `use-ingredients-storage.ts`.
 
 ## Module mit Full-Replace (hohes Risiko)
 
 | Modul | RPC | Merge-Stand |
 |-------|-----|-------------|
 | **Bestellungen (PO)** | `inventory_replace_purchase_orders` | **Pflicht** — `savePurchaseOrdersRelational`, `savePurchaseOrdersAdmin` (Display) |
-| **Zutaten / Bestand** | `inventory_replace_ingredients` | **Follow-up** — Display, POS, Rechnungsbuchung; gleiches Merge-Muster anstreben oder inkrementelle RPCs |
+| **Zutaten / Bestand** | `inventory_replace_ingredients` | **Pflicht** — `saveIngredientsRelational`, `saveIngredientsAdmin` (Display), POS/accounting via `replaceIngredientsWithMerge` |
 
 Inkrementelle CRUD (Speisekarte, Kategorien, Kontakte, Reservierungen) ist das Zielbild — Full-Replace dort nicht einführen.
 
@@ -55,5 +55,6 @@ Vor jedem Persist-Pfad kurz prüfen:
 - Audit: `docs/audit-stale-client-overwrite-pattern.md`
 - PO-Hook: `apps/web/lib/hooks/use-purchase-orders-storage.ts`
 - PO-Merge: `apps/web/lib/inventory/merge-purchase-orders-for-replace.ts`
+- Zutaten-Merge: `apps/web/lib/inventory/merge-ingredients-for-replace.ts`
 - Display-Server: `apps/web/lib/display/display-inventory-server.ts`
 - LS-Mirror: `apps/web/lib/supabase/workspace-persistence.ts`

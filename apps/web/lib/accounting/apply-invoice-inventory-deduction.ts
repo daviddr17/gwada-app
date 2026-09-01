@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getAccountingSettings } from "@/lib/accounting/accounting-settings-server";
+import { replaceIngredientsWithMerge } from "@/lib/inventory/replace-ingredients-with-merge";
 import { parseStockLogEntryFromJson } from "@/lib/supabase/inventory-db";
 import type { AccountingLineItem } from "@/lib/types/accounting";
 import type {
@@ -214,11 +215,13 @@ export async function applyInvoiceInventoryDeduction(
     };
   });
 
-  const { error: saveErr } = await sb.rpc("inventory_replace_ingredients", {
-    p_restaurant_id: params.restaurantId,
-    p_ingredients: updated,
-  });
-  if (saveErr) return { error: saveErr.message };
+  const { error: saveErr } = await replaceIngredientsWithMerge(
+    sb,
+    params.restaurantId,
+    updated,
+    loadIngredientsForServer,
+  );
+  if (saveErr) return { error: saveErr };
 
   const { error: markErr } = await sb
     .from("accounting_invoices")
@@ -319,11 +322,13 @@ export async function applyInvoiceInventoryCorrectionReversal(
     };
   });
 
-  const { error: saveErr } = await sb.rpc("inventory_replace_ingredients", {
-    p_restaurant_id: params.restaurantId,
-    p_ingredients: updated,
-  });
-  if (saveErr) return { error: saveErr.message };
+  const { error: saveErr } = await replaceIngredientsWithMerge(
+    sb,
+    params.restaurantId,
+    updated,
+    loadIngredientsForServer,
+  );
+  if (saveErr) return { error: saveErr };
 
   const { error: markErr } = await sb
     .from("accounting_invoices")

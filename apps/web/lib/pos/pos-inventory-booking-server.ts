@@ -1,6 +1,7 @@
 import "server-only";
 
 import { after } from "next/server";
+import { replaceIngredientsWithMerge } from "@/lib/inventory/replace-ingredients-with-merge";
 import { parseStockLogEntryFromJson } from "@/lib/supabase/inventory-db";
 import type {
   IngredientStockLogFromPosOrder,
@@ -293,14 +294,13 @@ export async function maybeDeductInventoryForPosOrder(params: {
     };
   });
 
-  const { error: saveErr } = await params.supabase.rpc(
-    "inventory_replace_ingredients",
-    {
-      p_restaurant_id: params.restaurantId,
-      p_ingredients: updated,
-    },
+  const { error: saveErr } = await replaceIngredientsWithMerge(
+    params.supabase,
+    params.restaurantId,
+    updated,
+    loadIngredientsForServer,
   );
-  if (saveErr) return { error: saveErr.message, deducted: false };
+  if (saveErr) return { error: saveErr, deducted: false };
 
   const { error: markErr } = await params.supabase
     .from("pos_orders")
@@ -407,14 +407,13 @@ export async function maybeRestoreInventoryForPosVoid(params: {
     };
   });
 
-  const { error: saveErr } = await params.supabase.rpc(
-    "inventory_replace_ingredients",
-    {
-      p_restaurant_id: params.restaurantId,
-      p_ingredients: updated,
-    },
+  const { error: saveErr } = await replaceIngredientsWithMerge(
+    params.supabase,
+    params.restaurantId,
+    updated,
+    loadIngredientsForServer,
   );
-  if (saveErr) return { error: saveErr.message, restored: false };
+  if (saveErr) return { error: saveErr, restored: false };
 
   const { error: markErr } = await params.supabase
     .from("pos_orders")

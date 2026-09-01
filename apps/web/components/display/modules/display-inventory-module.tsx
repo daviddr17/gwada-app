@@ -98,6 +98,8 @@ function DisplayInventoryCard({
   registerInput: (id: string, el: HTMLInputElement | null) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const skipNextBlurCommitRef = useRef(false);
+  const editingRef = useRef(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [savedStock, setSavedStock] = useState(row.currentStock);
@@ -108,10 +110,15 @@ function DisplayInventoryCard({
   });
 
   useEffect(() => {
+    if (editingRef.current) return;
     setSavedStock(row.currentStock);
     setSavedOrderQty(row.orderQuantity);
     setOrderMeta({ orderId: row.orderId, orderLineId: row.orderLineId });
   }, [row.currentStock, row.orderId, row.orderLineId, row.orderQuantity]);
+
+  useEffect(() => {
+    editingRef.current = focused;
+  }, [focused]);
 
   const prevFocusedRef = useRef(false);
 
@@ -183,6 +190,10 @@ function DisplayInventoryCard({
       }
 
       const raw = draft.trim();
+      if (raw === "" && orderMeta.orderLineId) {
+        onCommitted(null);
+        return;
+      }
       const q = raw === "" ? 0 : parseQty(raw);
       if (q === null) {
         toast.error("Bitte eine gültige Menge (≥ 0) eingeben.");
@@ -226,7 +237,7 @@ function DisplayInventoryCard({
       const orderId = data.order_id ?? orderMeta.orderId;
       setSavedOrderQty(orderQuantity);
       setOrderMeta({ orderId, orderLineId });
-      setDraft("");
+      setDraft(String(orderQuantity));
       toast.success(
         `${row.name}: Bestellmenge ${orderQuantity} ${row.unitLabel}`,
       );
@@ -259,11 +270,13 @@ function DisplayInventoryCard({
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") {
         e.preventDefault();
+        skipNextBlurCommitRef.current = true;
         void commit({ advanceOnSuccess: true });
         return;
       }
       if (e.key === "Tab" && !e.shiftKey) {
         e.preventDefault();
+        skipNextBlurCommitRef.current = true;
         void (async () => {
           await commit({ advanceOnSuccess: false });
           onAdvance(row.id);
@@ -275,6 +288,10 @@ function DisplayInventoryCard({
 
   const handleInputBlur = useCallback(
     (e: React.FocusEvent<HTMLInputElement>) => {
+      if (skipNextBlurCommitRef.current) {
+        skipNextBlurCommitRef.current = false;
+        return;
+      }
       if (!focused) return;
       const rel = e.relatedTarget as HTMLElement | null;
       if (rel?.closest("[data-inventory-toolbar]")) {
@@ -425,13 +442,14 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
 
   useEffect(() => {
     const onRefresh = () => {
+      if (focusedId !== null) return;
       void load({ silent: true });
     };
     window.addEventListener(GWADA_DISPLAY_INVENTORY_REFRESH_EVENT, onRefresh);
     return () => {
       window.removeEventListener(GWADA_DISPLAY_INVENTORY_REFRESH_EVENT, onRefresh);
     };
-  }, [load]);
+  }, [focusedId, load]);
 
   const filtered = useMemo(() => {
     if (!data) return [];

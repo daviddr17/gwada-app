@@ -26,6 +26,7 @@ import { StaffWorkHoursSkeleton } from "@/components/staff/staff-work-hours-skel
 import { StaffWorkEntryDrawer } from "@/components/staff/staff-work-entry-drawer";
 import { StaffWageAdvancesSection } from "@/components/staff/staff-wage-advances-section";
 import { StaffPayrollSettlementStatusBadge } from "@/components/staff/staff-payroll-settlement-controls";
+import { StaffPayrollQuickSettleButton } from "@/components/staff/staff-payroll-quick-settle-button";
 import {
   derivePayrollSettlement,
   targetHoursForCalendarMonth,
@@ -1021,14 +1022,38 @@ export function StaffWorkHoursView({
                               className="px-4 py-2.5"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <StaffPayrollSettlementStatusBadge
-                                status={derived.status}
-                                openCents={derived.openCents}
-                                overpaidCreditCents={
-                                  derived.overpaidCreditCents
-                                }
-                                compact
-                              />
+                              <div className="flex items-center justify-end gap-1">
+                                <StaffPayrollQuickSettleButton
+                                  restaurantId={restaurantId}
+                                  staffId={line.staffId}
+                                  staffName={name}
+                                  wageCents={line.wageCents}
+                                  payoutCents={payoutCents}
+                                  periodYear={periodYear}
+                                  periodMonth={periodMonth}
+                                  allowEdit={allowEdit}
+                                  onOptimisticSettle={(amountCents) => {
+                                    setAdvanceCentsByStaffId((prev) => {
+                                      const next = new Map(prev);
+                                      next.set(
+                                        line.staffId,
+                                        (next.get(line.staffId) ?? 0) +
+                                          amountCents,
+                                      );
+                                      return next;
+                                    });
+                                  }}
+                                  onSettled={() => void reloadPayouts()}
+                                />
+                                <StaffPayrollSettlementStatusBadge
+                                  status={derived.status}
+                                  openCents={derived.openCents}
+                                  overpaidCreditCents={
+                                    derived.overpaidCreditCents
+                                  }
+                                  compact
+                                />
+                              </div>
                             </td>
                           </tr>
                         );

@@ -37,27 +37,38 @@ type CelebrationMeta = {
   Icon: typeof LogIn;
 };
 
+/** Erfolgs-Overlay nach Display-Zeiterfassung — spiegelt die geklickte Aktion. */
+export const DISPLAY_TIME_ACTION_SUCCESS_LABEL: Record<
+  DisplayTimeCelebrationAction,
+  string
+> = {
+  clock_in: "Schichtstart erfolgreich",
+  start_break: "Pause gestartet erfolgreich",
+  end_break: "Pause beendet erfolgreich",
+  clock_out: "Schicht beendet erfolgreich",
+};
+
 const CELEBRATION_META: Record<DisplayCelebrationVariant, CelebrationMeta> = {
   clock_in: {
-    label: "Schicht gestartet",
+    label: DISPLAY_TIME_ACTION_SUCCESS_LABEL.clock_in,
     sublabel: "Guten Start!",
     color: "#22c55e",
     Icon: LogIn,
   },
   start_break: {
-    label: "Bis gleich",
+    label: DISPLAY_TIME_ACTION_SUCCESS_LABEL.start_break,
     sublabel: "Schöne Pause",
     color: "#3b82f6",
     Icon: Coffee,
   },
   end_break: {
-    label: "Willkommen zurück",
+    label: DISPLAY_TIME_ACTION_SUCCESS_LABEL.end_break,
     sublabel: "Weiter geht's",
     color: "#22c55e",
     Icon: Coffee,
   },
   clock_out: {
-    label: "Schicht beendet",
+    label: DISPLAY_TIME_ACTION_SUCCESS_LABEL.clock_out,
     sublabel: "Auf Wiedersehen",
     color: "#64748b",
     Icon: LogOut,

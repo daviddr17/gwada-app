@@ -76,7 +76,7 @@ These are **read-state / aggregation** bugs, not DELETE+INSERT data loss. Same *
 
 | Module | Risk | Mechanism |
 |--------|------|-----------|
-| **Purchase orders** | **Critical** | Full replace; stale LS hydrate; Display race; PO #462 merge fix pending |
+| **Purchase orders** | **Critical** | Full replace; stale LS hydrate; Display race; merge + fetch-gate in `fix-po-overwrite-hardening` |
 | **Ingredients / stock** | **High** | Full replace; POS + Display + Dashboard; stock log rewritten each save |
 | **Unread / bell** | Medium (UX) | Stale inbox cache + WAHA sync; fixed in main for deploy spike |
 | Menu / categories / tags | Low | Incremental CRUD |
@@ -99,9 +99,11 @@ These are **read-state / aggregation** bugs, not DELETE+INSERT data loss. Same *
 
 ### Short term (inventory)
 
-1. **Merge-before-save** for PO (PR `fix-po-status-regression`): load DB rows, merge client snapshot, then replace — already implemented on branch, not merged.
-2. **Gate auto-persist** until `ordersQuery.isSuccess` when using DB mode (implemented on audit branch).
-3. Same merge pattern for **ingredients** saves from Display/POS if races continue.
+1. **Merge-before-save** for PO: load DB rows, merge client snapshot, then replace — `merge-purchase-orders-for-replace.ts`, `savePurchaseOrdersRelational`, Display `savePurchaseOrdersAdmin`.
+2. **Gate auto-persist and all saves** until `ordersQuery.isSuccess` when using DB mode — `use-purchase-orders-storage.ts`.
+3. **After save:** refetch/patch cache with DB truth (not raw client `next`).
+4. Workspace rule: `.cursor/rules/no-stale-client-overwrite.mdc`; recovery: `docs/inventory-po-data-recovery.md`.
+5. Same merge pattern for **ingredients** saves from Display/POS if races continue (follow-up).
 
 ### Medium term
 
@@ -135,5 +137,5 @@ These are **read-state / aggregation** bugs, not DELETE+INSERT data loss. Same *
 - LS mirror: `apps/web/lib/supabase/workspace-persistence.ts` (`mirrorWorkspaceJsonLocal`)
 - Display server save: `apps/web/lib/display/display-inventory-server.ts`
 - Unread deploy fix: commit `2e07536f` — `unread-summary-server.ts`, `sync-contact-whatsapp-inbound.ts`
-- Pending PO merge: branch `cursor/fix-po-status-regression-dd85` — `merge-purchase-orders-for-replace.ts`
+- Pending PO merge: `merge-purchase-orders-for-replace.ts` (merged in `cursor/fix-po-overwrite-hardening-dd85`)
 - Cache policy: `apps/web/lib/dashboard/module-data-cache-policy.ts`

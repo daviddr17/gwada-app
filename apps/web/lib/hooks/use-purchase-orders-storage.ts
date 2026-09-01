@@ -35,6 +35,7 @@ import {
 } from "@/lib/supabase/db-toast";
 import {
   inventoryRelationalPersistenceEnabled,
+  loadPurchaseOrdersRelational,
   savePurchaseOrdersRelational,
 } from "@/lib/supabase/inventory-db";
 import {
@@ -466,11 +467,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     ? (ordersQuery.data ?? peekPurchaseOrdersCache() ?? [])
     : localOrders;
   const isHydrated = useDbInventory
-    ? workspaceReady &&
-      (ordersQuery.isSuccess ||
-        ordersQuery.isError ||
-        peekPurchaseOrdersCache().length > 0)
+    ? workspaceReady && (ordersQuery.isSuccess || ordersQuery.isError)
     : isLocalHydrated;
+  /** Kein Full-Replace solange der erste DB-Fetch noch läuft (stale LS/Placeholder). */
+  const dbFetchReady = !useDbInventory || ordersQuery.isSuccess;
 
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
@@ -516,6 +516,12 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   const saveOrdersToBackend = useCallback(
     async (next: PurchaseOrder[]): Promise<boolean> => {
       if (useDbInventory) {
+        if (!dbFetchReady) {
+          toast.error(
+            "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+          );
+          return false;
+        }
         const rid = restaurantId ?? (await getWorkspaceRestaurantId());
         if (!rid) {
           failSave();
@@ -526,9 +532,16 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           toastDatabaseSaveError(result.message);
           return false;
         }
+        const fromDb = (await loadPurchaseOrdersRelational(rid)) ?? result.orders;
+        if (restaurantId) {
+          queryClient.setQueryData(
+            queryKeys.inventory.purchaseOrders(restaurantId),
+            fromDb,
+          );
+        }
         mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
           version: 1 as const,
-          orders: next,
+          orders: fromDb,
         });
         return true;
       }
@@ -540,7 +553,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       }
       return true;
     },
-    [failSave, restaurantId, useDbInventory],
+    [dbFetchReady, failSave, queryClient, restaurantId, useDbInventory],
   );
 
   const afterOrdersPersistSuccess = useCallback(() => {
@@ -557,11 +570,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     async (next: PurchaseOrder[]): Promise<boolean> => {
       const ok = await saveOrdersToBackend(next);
       if (!ok) return false;
-      applyOrdersOptimistic(next);
       afterOrdersPersistSuccess();
       return true;
     },
-    [afterOrdersPersistSuccess, applyOrdersOptimistic, saveOrdersToBackend],
+    [afterOrdersPersistSuccess, saveOrdersToBackend],
   );
 
   const persistOptimisticQueued = useCallback(
@@ -595,14 +607,14 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   useEffect(() => {
     if (!isHydrated || emptyOpenPruneInFlightRef.current) return;
     /** Kein Full-Replace aus stale localStorage vor frischem DB-Fetch (Deploy/Reload). */
-    if (useDbInventory && !ordersQuery.isSuccess) return;
+    if (useDbInventory && !dbFetchReady) return;
     const pruned = withoutEmptyOpenPurchaseOrders(orders);
     if (pruned.length === orders.length) return;
     emptyOpenPruneInFlightRef.current = true;
     void persist(pruned).finally(() => {
       emptyOpenPruneInFlightRef.current = false;
     });
-  }, [isHydrated, orders, persist, useDbInventory, ordersQuery.isSuccess]);
+  }, [dbFetchReady, isHydrated, orders, persist, useDbInventory]);
 
   const getOpenLineContext = useCallback(
     (supplierId: string, ingredientId: string): OpenLineContext => {

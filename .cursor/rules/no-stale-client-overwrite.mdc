@@ -1,0 +1,60 @@
+---
+description: Verhindert, dass veraltete Client-Snapshots (localStorage, React-Query-Placeholder) Live-Daten per Full-Replace überschreiben.
+alwaysApply: true
+---
+
+# Kein Stale-Client-Overwrite auf den Server
+
+**Grundsatz:** Der Server (Supabase) ist die **Quelle der Wahrheit**. localStorage, `peek*Cache()` und React-Query-`placeholderData` sind **nur Anzeige-Hilfen** — niemals die Basis für Schreibvorgänge ohne frischen DB-Stand.
+
+Vollständiges Audit: `docs/audit-stale-client-overwrite-pattern.md`
+
+## Verboten
+
+| Anti-Pattern | Warum |
+|--------------|-------|
+| **Full-Replace ohne Merge** (`inventory_replace_purchase_orders`, `inventory_replace_ingredients`) mit Client-Snapshot | Fehlende Zeilen im Payload werden auf dem Server **gelöscht**; stale Cache = Datenverlust oder Status-Regression |
+| **Persist vor erfolgreichem Fetch** (`isHydrated` nur wegen LS, Auto-Prune/Migration on mount) | Deploy/Reload: LS überlebt, React Query leer → erster Save überschreibt Live-Daten |
+| **localStorage als Write-Quelle** | `mirrorWorkspaceJsonLocal` spiegelt nur; nie „aus LS laden und speichern“, ohne vorher DB zu lesen |
+| **Last-write-wins über ganze Restaurant-Snapshots** bei parallelen Tabs (Dashboard + Display + POS) | Letzter Full-Replace gewinnt — ohne Merge verlieren andere Sessions Änderungen |
+
+## Pflicht bei Full-Replace-RPCs
+
+1. **Vor dem Save:** aktuelle DB-Zeilen laden (`load*Relational`, Admin-Load o. Ä.).
+2. **Merge:** Client-Snapshot mit DB zusammenführen — Referenz PO: `mergePurchaseOrdersForReplace` in `apps/web/lib/inventory/merge-purchase-orders-for-replace.ts`.
+3. **Erst dann** RPC aufrufen (merged Payload, nicht roher Client-State).
+4. **Nach erfolgreichem Save:** Cache + LS mit **DB-Wahrheit** patchen (Refetch oder zurückgegebenes merged Ergebnis) — nicht blind den Client-`next`-Stand behalten.
+5. **Gate:** Kein Persist/Auto-Save, bis der initiale React-Query-Fetch **`isSuccess`** ist (DB-Modus). Siehe `use-purchase-orders-storage.ts`.
+
+## Module mit Full-Replace (hohes Risiko)
+
+| Modul | RPC | Merge-Stand |
+|-------|-----|-------------|
+| **Bestellungen (PO)** | `inventory_replace_purchase_orders` | **Pflicht** — `savePurchaseOrdersRelational`, `savePurchaseOrdersAdmin` (Display) |
+| **Zutaten / Bestand** | `inventory_replace_ingredients` | **Follow-up** — Display, POS, Rechnungsbuchung; gleiches Merge-Muster anstreben oder inkrementelle RPCs |
+
+Inkrementelle CRUD (Speisekarte, Kategorien, Kontakte, Reservierungen) ist das Zielbild — Full-Replace dort nicht einführen.
+
+## Hydration & Cache
+
+- `isHydrated` / „bereit zum Bearbeiten“ darf im DB-Modus **nicht** allein durch `peek*Cache().length > 0` true werden.
+- `placeholderData` aus LS ist ok für **Anzeige**, solange **Schreibpfade** bis `isSuccess` blockiert sind.
+- Side-Effects on mount (Prune, Sync, Migration): nur nach frischem Fetch oder explizitem Empty-DB-Gate (`app-state-relational-migration`).
+
+## Neue Features / AI-Implementierung
+
+Vor jedem Persist-Pfad kurz prüfen:
+
+1. Wird ein **ganzer Snapshot** ersetzt? → Merge + Fetch-Gate.
+2. Kann der State **vor dem ersten Fetch** schon mutiert werden? → Gate oder Skeleton bis `isSuccess`.
+3. Schreibt mehr als eine Oberfläche dieselbe Tabelle? → Merge oder row-level API.
+4. Nach Save: Cache = Server, nicht optimistischer Entwurf.
+
+## Referenzen
+
+- Audit: `docs/audit-stale-client-overwrite-pattern.md`
+- PO-Recovery: `docs/inventory-po-data-recovery.md`
+- PO-Hook: `apps/web/lib/hooks/use-purchase-orders-storage.ts`
+- PO-Merge: `apps/web/lib/inventory/merge-purchase-orders-for-replace.ts`
+- Display-Server: `apps/web/lib/display/display-inventory-server.ts`
+- LS-Mirror: `apps/web/lib/supabase/workspace-persistence.ts`

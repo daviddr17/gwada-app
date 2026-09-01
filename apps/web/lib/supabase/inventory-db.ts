@@ -883,7 +883,9 @@ export async function loadPurchaseOrdersRelational(
   return out;
 }
 
-export type InventorySaveResult = { ok: true } | { ok: false; message: string };
+export type InventorySaveResult =
+  | { ok: true; orders: PurchaseOrder[] }
+  | { ok: false; message: string };
 
 export async function savePurchaseOrdersRelational(
   restaurantId: string,
@@ -901,5 +903,5 @@ export async function savePurchaseOrdersRelational(
     console.warn("[gwada] inventory_replace_purchase_orders", error.message);
     return { ok: false, message: error.message };
   }
-  return { ok: true };
+  return { ok: true, orders: merged };
 }

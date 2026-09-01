@@ -741,6 +741,7 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
             mode={mode}
             rows={data?.ingredients ?? []}
             disabled={showDataSkeleton || !data || data.ingredients.length === 0}
+            enqueueOrderSave={enqueueOrderSave}
           />
         </div>
       </div>

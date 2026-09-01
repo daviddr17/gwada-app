@@ -25,6 +25,7 @@ import {
   toastPurchaseOrderQuantityIncreased,
 } from "@/lib/inventory/purchase-order-notifications";
 import { withoutEmptyOpenPurchaseOrders } from "@/lib/inventory/prune-empty-open-purchase-orders";
+import { createSerialAsyncQueue } from "@/lib/inventory/serial-async-queue";
 import { applyTaxonomySupplierNamesToOrders } from "@/lib/inventory/resolve-purchase-order-supplier-name";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
@@ -471,56 +472,21 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         peekPurchaseOrdersCache().length > 0)
     : isLocalHydrated;
 
-  const persist = useCallback(
-    async (next: PurchaseOrder[]): Promise<boolean> => {
-      if (useDbInventory) {
-        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
-        if (!rid) {
-          failSave();
-          return false;
-        }
-        const result = await savePurchaseOrdersRelational(rid, next);
-        if (!result.ok) {
-          toastDatabaseSaveError(result.message);
-          return false;
-        }
-        queryClient.setQueryData(
-          queryKeys.inventory.purchaseOrders(rid),
-          next,
-        );
-        mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
-          version: 1 as const,
-          orders: next,
-        });
-        afterOrdersMutation();
-        return true;
-      }
-      const payload: PurchaseOrdersPersistenceV1 = { version: 1, orders: next };
-      const ok = mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, payload);
-      if (!ok) {
-        failSave();
-        return false;
-      }
-      setLocalOrders(next);
-      if (restaurantId) {
-        dispatchDashboardInventoryLivePatchFromCache(restaurantId);
-      }
-      return true;
-    },
-    [afterOrdersMutation, failSave, queryClient, restaurantId, useDbInventory],
-  );
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
+  const persistQueueRef = useRef(createSerialAsyncQueue());
+  const ordersMutationGenerationRef = useRef(0);
 
-  /** Bestehende offene Bestellungen ohne Positionen entfernen (Legacy-Schalen). */
-  const emptyOpenPruneInFlightRef = useRef(false);
-  useEffect(() => {
-    if (!isHydrated || emptyOpenPruneInFlightRef.current) return;
-    const pruned = withoutEmptyOpenPurchaseOrders(orders);
-    if (pruned.length === orders.length) return;
-    emptyOpenPruneInFlightRef.current = true;
-    void persist(pruned).finally(() => {
-      emptyOpenPruneInFlightRef.current = false;
-    });
-  }, [isHydrated, orders, persist]);
+  const readOrdersSnapshot = useCallback((): PurchaseOrder[] => {
+    if (useDbInventory && restaurantId) {
+      return (
+        queryClient.getQueryData<PurchaseOrder[]>(
+          queryKeys.inventory.purchaseOrders(restaurantId),
+        ) ?? ordersRef.current
+      );
+    }
+    return ordersRef.current;
+  }, [queryClient, restaurantId, useDbInventory]);
 
   /** Sofort in UI/Cache schreiben (vor await Persist) — bei Fehler zurückrollen. */
   const applyOrdersOptimistic = useCallback(
@@ -546,6 +512,95 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     },
     [queryClient, restaurantId, useDbInventory],
   );
+
+  const saveOrdersToBackend = useCallback(
+    async (next: PurchaseOrder[]): Promise<boolean> => {
+      if (useDbInventory) {
+        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+        if (!rid) {
+          failSave();
+          return false;
+        }
+        const result = await savePurchaseOrdersRelational(rid, next);
+        if (!result.ok) {
+          toastDatabaseSaveError(result.message);
+          return false;
+        }
+        mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+          version: 1 as const,
+          orders: next,
+        });
+        return true;
+      }
+      const payload: PurchaseOrdersPersistenceV1 = { version: 1, orders: next };
+      const ok = mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, payload);
+      if (!ok) {
+        failSave();
+        return false;
+      }
+      return true;
+    },
+    [failSave, restaurantId, useDbInventory],
+  );
+
+  const afterOrdersPersistSuccess = useCallback(() => {
+    if (useDbInventory) {
+      afterOrdersMutation();
+      return;
+    }
+    if (restaurantId) {
+      dispatchDashboardInventoryLivePatchFromCache(restaurantId);
+    }
+  }, [afterOrdersMutation, restaurantId, useDbInventory]);
+
+  const persist = useCallback(
+    async (next: PurchaseOrder[]): Promise<boolean> => {
+      const ok = await saveOrdersToBackend(next);
+      if (!ok) return false;
+      applyOrdersOptimistic(next);
+      afterOrdersPersistSuccess();
+      return true;
+    },
+    [afterOrdersPersistSuccess, applyOrdersOptimistic, saveOrdersToBackend],
+  );
+
+  const persistOptimisticQueued = useCallback(
+    async (
+      next: PurchaseOrder[],
+      rollbackSnapshot: PurchaseOrder[],
+    ): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(next);
+      return persistQueueRef.current.enqueue(async () => {
+        const ok = await saveOrdersToBackend(next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      saveOrdersToBackend,
+    ],
+  );
+
+  /** Bestehende offene Bestellungen ohne Positionen entfernen (Legacy-Schalen). */
+  const emptyOpenPruneInFlightRef = useRef(false);
+  useEffect(() => {
+    if (!isHydrated || emptyOpenPruneInFlightRef.current) return;
+    const pruned = withoutEmptyOpenPurchaseOrders(orders);
+    if (pruned.length === orders.length) return;
+    emptyOpenPruneInFlightRef.current = true;
+    void persist(pruned).finally(() => {
+      emptyOpenPruneInFlightRef.current = false;
+    });
+  }, [isHydrated, orders, persist]);
 
   const getOpenLineContext = useCallback(
     (supplierId: string, ingredientId: string): OpenLineContext => {
@@ -576,7 +631,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         return false;
       }
 
-      const prev = orders;
+      const prev = readOrdersSnapshot();
       const next: PurchaseOrder[] = structuredClone(prev);
       let order = next.find(
         (o) => o.supplierId === params.supplierId && o.status === "open",
@@ -635,7 +690,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         });
       }
 
-      const ok = await persist(next);
+      const ok = await persistOptimisticQueued(next, prev);
       if (!ok) return false;
 
       if (createdNewOrder) {
@@ -661,7 +716,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       }
       return true;
     },
-    [orders, persist],
+    [persistOptimisticQueued, readOrdersSnapshot],
   );
 
   /** Offen → Bestellt */
@@ -772,22 +827,19 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const normalized =
         ymd && /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
       if (target.deliveryDate === normalized) return true;
-      const previous = orders;
-      const next = orders.map((o) =>
+      const previous = readOrdersSnapshot();
+      const next = previous.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      applyOrdersOptimistic(next);
-      if (!(await persist(next))) {
-        applyOrdersOptimistic(previous);
-        return false;
-      }
+      const ok = await persistOptimisticQueued(next, previous);
+      if (!ok) return false;
       toast.success(
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
         { id: `order-delivery-${orderId}` },
       );
       return true;
     },
-    [applyOrdersOptimistic, orders, persist],
+    [orders, persistOptimisticQueued, readOrdersSnapshot],
   );
 
   const updateLineQuantity = useCallback(
@@ -797,7 +849,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       nextQty: number,
       actor: OrderProtocolActor,
     ): Promise<boolean> => {
-      const order = orders.find((o) => o.id === orderId);
+      const snapshot = readOrdersSnapshot();
+      const order = snapshot.find((o) => o.id === orderId);
       if (!order) {
         toast.error("Bestellung nicht gefunden.");
         return false;
@@ -814,7 +867,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const oldQty = line.quantity;
       if (oldQty === nextQty) return true;
 
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const prev = snapshot;
+      const next: PurchaseOrder[] = structuredClone(snapshot);
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       const l = o.lines.find((x) => x.id === lineId);
@@ -847,7 +901,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         ? next.filter((x) => x.id !== orderId)
         : next;
 
-      if (!(await persist(toPersist))) return false;
+      if (!(await persistOptimisticQueued(toPersist, prev))) return false;
       if (deletedEmptyOpen) {
         toastPurchaseOrderDeletedEmpty(supplierNameForToast);
       } else if (nextQty === 0) {
@@ -861,7 +915,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       }
       return true;
     },
-    [orders, persist],
+    [persistOptimisticQueued, readOrdersSnapshot],
   );
 
   /**

@@ -489,6 +489,9 @@ function InventoryOrderAddCell({
       return;
     }
     const raw = draft.trim();
+    if (raw === "" && openLineId) {
+      return;
+    }
     let q: number;
     if (raw === "") {
       q = 0;

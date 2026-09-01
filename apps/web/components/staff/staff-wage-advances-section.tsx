@@ -95,7 +95,7 @@ export function StaffWageAdvancesSection({
   return (
     <div className="mt-4 space-y-3 border-t border-border/40 pt-4">
       <div className="flex items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold">Lohnvorschüsse</h3>
+        <h3 className="text-sm font-semibold">Auszahlungen</h3>
         {totalAdvanceCents > 0 ? (
           <span className="text-sm tabular-nums text-muted-foreground">
             Summe {formatStaffEuroCents(totalAdvanceCents)}
@@ -114,7 +114,7 @@ export function StaffWageAdvancesSection({
           }}
         >
           <Plus className="size-4" />
-          Lohnvorschuss erfassen
+          Auszahlung erfassen
         </Button>
       ) : null}
 
@@ -125,7 +125,7 @@ export function StaffWageAdvancesSection({
         </div>
       ) : advances.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Im gewählten Monat sind keine Lohnvorschüsse erfasst.
+          Im gewählten Monat sind keine Auszahlungen erfasst.
         </p>
       ) : (
         <ul className="divide-y divide-border/40 overflow-hidden rounded-xl border border-border/50">
@@ -171,7 +171,7 @@ export function StaffWageAdvancesSection({
             </span>
           </p>
           <p className="flex justify-between gap-3">
-            <span className="text-muted-foreground">Vorschüsse</span>
+            <span className="text-muted-foreground">Auszahlungen</span>
             <span className="tabular-nums font-medium">
               −{formatStaffEuroCents(totalAdvanceCents)}
             </span>

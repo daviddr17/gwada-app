@@ -105,13 +105,13 @@ export function StaffWageAdvanceDrawer({
     });
     setPending(false);
     if (!res) {
-      toast.error("Lohnvorschuss konnte nicht gespeichert werden.");
+      toast.error("Auszahlung konnte nicht gespeichert werden.");
       return;
     }
     toast.success(
       advance
-        ? "Lohnvorschuss aktualisiert."
-        : `Lohnvorschuss ${formatStaffEuroCents(amountCents)} erfasst.`,
+        ? "Auszahlung aktualisiert."
+        : `Auszahlung ${formatStaffEuroCents(amountCents)} erfasst.`,
     );
     onOpenChange(false);
     onSaved();
@@ -134,10 +134,10 @@ export function StaffWageAdvanceDrawer({
     const ok = await deleteStaffWageAdvance(restaurantId, advance.id);
     setPending(false);
     if (!ok) {
-      toast.error("Lohnvorschuss konnte nicht gelöscht werden.");
+      toast.error("Auszahlung konnte nicht gelöscht werden.");
       throw new Error("delete failed");
     }
-    toast.success("Lohnvorschuss gelöscht.");
+    toast.success("Auszahlung gelöscht.");
     onOpenChange(false);
     onSaved();
   }, [advance?.id, pending, readOnly, restaurantId, onOpenChange, onSaved]);
@@ -152,7 +152,7 @@ export function StaffWageAdvanceDrawer({
         <DrawerContent className={drawerContentClassName("formMd")}>
           <DrawerHeader className="shrink-0 border-b border-border/40 px-5 pb-3 pt-4 text-left">
             <DrawerTitle>
-              {advance ? "Lohnvorschuss bearbeiten" : "Lohnvorschuss erfassen"}
+              {advance ? "Auszahlung bearbeiten" : "Auszahlung erfassen"}
             </DrawerTitle>
           </DrawerHeader>
           <div ref={scrollRef} className={staffDrawerScrollClassName}>
@@ -218,7 +218,7 @@ export function StaffWageAdvanceDrawer({
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
-        title="Lohnvorschuss löschen?"
+        title="Auszahlung löschen?"
         description="Der Eintrag wird dauerhaft entfernt und erscheint nicht mehr in der Abrechnung."
         confirmLabel="Löschen"
         destructive

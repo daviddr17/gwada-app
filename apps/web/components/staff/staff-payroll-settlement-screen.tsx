@@ -8,24 +8,20 @@ import { KpiCard } from "@/components/ui/kpi-card";
 import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { StaffWorkHoursSubnav } from "@/components/staff/staff-work-hours-subnav";
-import { StaffPayrollSettlementControls } from "@/components/staff/staff-payroll-settlement-controls";
+import { StaffPayrollSettlementStatusBadge } from "@/components/staff/staff-payroll-settlement-controls";
 import {
   clampListPage,
   LIST_PAGE_SIZE_DEFAULT,
   totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useStaffModuleSelection } from "@/lib/contexts/staff-module-selection-context";
-import { hasModuleUpdate } from "@/lib/permissions/module-crud-permissions";
 import { currentCalendarMonthYmdRange } from "@/lib/staff/export-staff-work-hours";
 import {
-  effectiveSettlementStatus,
+  derivePayrollSettlement,
   monthsInclusive,
-  openWageCentsFromSnapshot,
   payrollPeriodKey,
-  STAFF_PAYROLL_SETTLEMENT_STATUS_LABELS,
   targetHoursForCalendarMonth,
 } from "@/lib/staff/staff-payroll-settlement";
 import {
@@ -45,11 +41,9 @@ import {
   fetchStaffForRestaurant,
   fetchStaffWorkEntriesInRange,
 } from "@/lib/supabase/staff-db";
-import { fetchStaffPayrollSettlementsOverlappingRange } from "@/lib/supabase/staff-payroll-settlements-db";
 import { fetchRestaurantWageAdvancesInRange } from "@/lib/supabase/staff-wage-advances-db";
 import type {
   RestaurantStaffContractRow,
-  RestaurantStaffPayrollSettlementRow,
   RestaurantStaffRow,
   RestaurantStaffWageAdvanceRow,
   RestaurantStaffWorkEntryRow,
@@ -124,14 +118,14 @@ type PayrollOverviewRow = {
   periodYear: number;
   periodMonth: number;
   wageCents: number;
-  advanceCents: number;
+  payoutCents: number;
   dueCents: number;
   openCents: number;
   paidCents: number;
+  overpaidCreditCents: number;
   status: StaffPayrollSettlementStatus;
   netWorkH: number;
   hoursBalanceH: number | null;
-  settlement: RestaurantStaffPayrollSettlementRow | null;
 };
 
 function buildPayrollOverviewRows(params: {
@@ -140,7 +134,6 @@ function buildPayrollOverviewRows(params: {
   staffList: readonly RestaurantStaffRow[];
   entries: readonly RestaurantStaffWorkEntryRow[];
   contracts: readonly RestaurantStaffContractRow[];
-  settlements: readonly RestaurantStaffPayrollSettlementRow[];
   advances: readonly RestaurantStaffWageAdvanceRow[];
   staffIdFilter: string | null;
 }): PayrollOverviewRow[] {
@@ -152,12 +145,6 @@ function buildPayrollOverviewRows(params: {
 
   const nameById = new Map(
     params.staffList.map((s) => [s.id, staffFamilyFirstDisplayName(s)]),
-  );
-  const settlementByKey = new Map(
-    params.settlements.map((s) => [
-      payrollPeriodKey(s.period_year, s.period_month, s.staff_id),
-      s,
-    ]),
   );
 
   const rows: PayrollOverviewRow[] = [];
@@ -176,38 +163,25 @@ function buildPayrollOverviewRows(params: {
     });
     const payrollByStaff = new Map(payrollLines.map((l) => [l.staffId, l]));
 
-    const advanceByStaff = new Map<string, number>();
+    const payoutByStaff = new Map<string, number>();
     for (const a of params.advances) {
       if (a.paid_on < bounds.startYmd || a.paid_on > bounds.endYmd) continue;
-      advanceByStaff.set(
+      payoutByStaff.set(
         a.staff_id,
-        (advanceByStaff.get(a.staff_id) ?? 0) + a.amount_cents,
+        (payoutByStaff.get(a.staff_id) ?? 0) + a.amount_cents,
       );
     }
 
     const staffIds = new Set<string>();
     for (const id of payrollByStaff.keys()) staffIds.add(id);
-    for (const id of advanceByStaff.keys()) staffIds.add(id);
-    for (const s of params.settlements) {
-      if (s.period_year === year && s.period_month === month) {
-        staffIds.add(s.staff_id);
-      }
-    }
+    for (const id of payoutByStaff.keys()) staffIds.add(id);
 
     for (const staffId of staffIds) {
       if (params.staffIdFilter && staffId !== params.staffIdFilter) continue;
       const line = payrollByStaff.get(staffId);
-      const settlement =
-        settlementByKey.get(payrollPeriodKey(year, month, staffId)) ?? null;
       const wageCents = line?.wageCents ?? 0;
-      const advanceCents = advanceByStaff.get(staffId) ?? 0;
-      const dueCents = wageCents - advanceCents;
-      const status = effectiveSettlementStatus({ settlement });
-      const openCents = openWageCentsFromSnapshot({ dueCents, settlement });
-      const paidCents =
-        status === "paid"
-          ? settlement?.amount_cents ?? Math.max(0, dueCents)
-          : 0;
+      const payoutCents = payoutByStaff.get(staffId) ?? 0;
+      const derived = derivePayrollSettlement({ wageCents, payoutCents });
 
       let netWorkH = line?.netWorkH ?? 0;
       if (!line) {
@@ -235,12 +209,7 @@ function buildPayrollOverviewRows(params: {
           ? Math.round((netWorkH - targetH) * 10) / 10
           : null;
 
-      if (
-        wageCents === 0 &&
-        advanceCents === 0 &&
-        !settlement &&
-        netWorkH === 0
-      ) {
+      if (wageCents === 0 && payoutCents === 0 && netWorkH === 0) {
         continue;
       }
 
@@ -251,14 +220,14 @@ function buildPayrollOverviewRows(params: {
         periodYear: year,
         periodMonth: month,
         wageCents,
-        advanceCents,
-        dueCents,
-        openCents,
-        paidCents,
-        status,
+        payoutCents,
+        dueCents: derived.dueCents,
+        openCents: derived.openCents,
+        paidCents: derived.paidCents,
+        overpaidCreditCents: derived.overpaidCreditCents,
+        status: derived.status,
         netWorkH,
         hoursBalanceH,
-        settlement,
       });
     }
   }
@@ -273,8 +242,6 @@ function buildPayrollOverviewRows(params: {
 
 export function StaffPayrollSettlementScreen() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const { has } = useRestaurantPermissions();
-  const allowEdit = hasModuleUpdate(has, "staff");
   const { selectedStaffId } = useStaffModuleSelection();
 
   const initialRange = useMemo(() => currentCalendarMonthYmdRange(), []);
@@ -285,9 +252,6 @@ export function StaffPayrollSettlementScreen() {
   const [staffList, setStaffList] = useState<RestaurantStaffRow[]>([]);
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
-  const [settlements, setSettlements] = useState<
-    RestaurantStaffPayrollSettlementRow[]
-  >([]);
   const [advances, setAdvances] = useState<RestaurantStaffWageAdvanceRow[]>(
     [],
   );
@@ -300,7 +264,6 @@ export function StaffPayrollSettlementScreen() {
     if (!restaurantId || rangeInvalid) {
       setLoading(false);
       setEntries([]);
-      setSettlements([]);
       setAdvances([]);
       return;
     }
@@ -308,7 +271,7 @@ export function StaffPayrollSettlementScreen() {
     const rangeStart = localDayStartToUtcIso(ymdToLocalDate(fromYmd));
     const rangeEnd = exclusiveUtcIsoAfterLocalVisibleEnd(ymdToLocalDate(toYmd));
 
-    const [staffRes, entriesRes, contractsRes, settlementsRes, advancesRes] =
+    const [staffRes, entriesRes, contractsRes, advancesRes] =
       await Promise.all([
         fetchStaffForRestaurant(restaurantId),
         fetchStaffWorkEntriesInRange(
@@ -318,11 +281,6 @@ export function StaffPayrollSettlementScreen() {
           rangeEnd,
         ),
         fetchStaffContractsForRestaurant(restaurantId),
-        fetchStaffPayrollSettlementsOverlappingRange(
-          restaurantId,
-          fromYmd,
-          toYmd,
-        ),
         fetchRestaurantWageAdvancesInRange(restaurantId, fromYmd, toYmd),
       ]);
 
@@ -333,8 +291,6 @@ export function StaffPayrollSettlementScreen() {
     else setEntries(entriesRes.data);
     if (contractsRes.error) toast.error(contractsRes.error);
     else setContracts(contractsRes.data);
-    if (settlementsRes.error) toast.error(settlementsRes.error);
-    else setSettlements(settlementsRes.data);
     if (advancesRes.error) toast.error(advancesRes.error);
     else setAdvances(advancesRes.data);
   }, [restaurantId, fromYmd, toYmd, rangeInvalid]);
@@ -355,7 +311,6 @@ export function StaffPayrollSettlementScreen() {
         staffList,
         entries,
         contracts,
-        settlements,
         advances,
         staffIdFilter: selectedStaffId,
       }),
@@ -365,7 +320,6 @@ export function StaffPayrollSettlementScreen() {
       staffList,
       entries,
       contracts,
-      settlements,
       advances,
       selectedStaffId,
     ],
@@ -434,9 +388,9 @@ export function StaffPayrollSettlementScreen() {
                 icon={CircleDollarSign}
               />
               <KpiCard
-                label="Summe bezahlt"
+                label="Summe ausgezahlt"
                 value={formatStaffEuroCents(paidTotalCents)}
-                hint={`${rows.filter((r) => r.status === "paid").length} als bezahlt`}
+                hint={`${rows.filter((r) => r.paidCents > 0).length} Monate mit Auszahlung`}
                 icon={Banknote}
               />
             </div>
@@ -476,7 +430,7 @@ export function StaffPayrollSettlementScreen() {
                           "text-right",
                         )}
                       >
-                        Vorschüsse
+                        Auszahlungen
                       </th>
                       <th
                         className={cn(
@@ -517,8 +471,8 @@ export function StaffPayrollSettlementScreen() {
                             : "—"}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums">
-                          {row.advanceCents > 0
-                            ? formatStaffEuroCents(row.advanceCents)
+                          {row.payoutCents > 0
+                            ? formatStaffEuroCents(row.payoutCents)
                             : "—"}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums font-medium">
@@ -530,29 +484,12 @@ export function StaffPayrollSettlementScreen() {
                             : "—"}
                         </td>
                         <td className="px-4 py-2.5">
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground sm:hidden">
-                              {
-                                STAFF_PAYROLL_SETTLEMENT_STATUS_LABELS[
-                                  row.status
-                                ]
-                              }
-                            </p>
-                            <StaffPayrollSettlementControls
-                              restaurantId={restaurantId}
-                              staffId={row.staffId}
-                              periodYear={row.periodYear}
-                              periodMonth={row.periodMonth}
-                              status={row.status}
-                              dueCents={row.dueCents}
-                              openCents={row.openCents}
-                              allowEdit={allowEdit}
-                              compact
-                              onChanged={() => {
-                                void reload();
-                              }}
-                            />
-                          </div>
+                          <StaffPayrollSettlementStatusBadge
+                            status={row.status}
+                            openCents={row.openCents}
+                            overpaidCreditCents={row.overpaidCreditCents}
+                            compact
+                          />
                         </td>
                       </tr>
                     ))}

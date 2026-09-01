@@ -25,16 +25,13 @@ import { StaffCollapsibleCard } from "@/components/staff/staff-collapsible-card"
 import { StaffWorkHoursSkeleton } from "@/components/staff/staff-work-hours-skeleton";
 import { StaffWorkEntryDrawer } from "@/components/staff/staff-work-entry-drawer";
 import { StaffWageAdvancesSection } from "@/components/staff/staff-wage-advances-section";
-import { StaffPayrollSettlementControls } from "@/components/staff/staff-payroll-settlement-controls";
+import { StaffPayrollSettlementStatusBadge } from "@/components/staff/staff-payroll-settlement-controls";
 import {
-  effectiveSettlementStatus,
-  openWageCentsFromSnapshot,
+  derivePayrollSettlement,
   targetHoursForCalendarMonth,
 } from "@/lib/staff/staff-payroll-settlement";
-import { fetchStaffPayrollSettlementsForMonth } from "@/lib/supabase/staff-payroll-settlements-db";
 import { fetchRestaurantWageAdvancesInRange } from "@/lib/supabase/staff-wage-advances-db";
 import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
-import type { RestaurantStaffPayrollSettlementRow } from "@/lib/types/staff";
 import {
   daysInclusive,
   exclusiveUtcIsoAfterLocalVisibleEnd,
@@ -238,9 +235,6 @@ export function StaffWorkHoursView({
     RestaurantStaffWorkEntryRow[]
   >([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
-  const [settlementsByStaffId, setSettlementsByStaffId] = useState(
-    () => new Map<string, RestaurantStaffPayrollSettlementRow>(),
-  );
   const [advanceCentsByStaffId, setAdvanceCentsByStaffId] = useState(
     () => new Map<string, number>(),
   );
@@ -381,28 +375,12 @@ export function StaffWorkHoursView({
   const periodYear = cursor.year;
   const periodMonth = cursor.month + 1;
 
-  const reloadSettlementsAndAdvances = useCallback(async () => {
-    const [settlementsRes, advancesRes] = await Promise.all([
-      fetchStaffPayrollSettlementsForMonth(
-        restaurantId,
-        periodYear,
-        periodMonth,
-        staffId,
-      ),
-      fetchRestaurantWageAdvancesInRange(
-        restaurantId,
-        monthStartYmd,
-        monthEndYmd,
-      ),
-    ]);
-    if (settlementsRes.error) toast.error(settlementsRes.error);
-    else {
-      const map = new Map<string, RestaurantStaffPayrollSettlementRow>();
-      for (const row of settlementsRes.data) {
-        map.set(row.staff_id, row);
-      }
-      setSettlementsByStaffId(map);
-    }
+  const reloadPayouts = useCallback(async () => {
+    const advancesRes = await fetchRestaurantWageAdvancesInRange(
+      restaurantId,
+      monthStartYmd,
+      monthEndYmd,
+    );
     if (advancesRes.error) toast.error(advancesRes.error);
     else {
       const map = new Map<string, number>();
@@ -415,18 +393,11 @@ export function StaffWorkHoursView({
       }
       setAdvanceCentsByStaffId(map);
     }
-  }, [
-    restaurantId,
-    periodYear,
-    periodMonth,
-    staffId,
-    monthStartYmd,
-    monthEndYmd,
-  ]);
+  }, [restaurantId, staffId, monthStartYmd, monthEndYmd]);
 
   useEffect(() => {
-    void reloadSettlementsAndAdvances();
-  }, [reloadSettlementsAndAdvances]);
+    void reloadPayouts();
+  }, [reloadPayouts]);
 
   useEffect(() => {
     void reload();
@@ -953,17 +924,11 @@ export function StaffWorkHoursView({
                           staffNameById.get(line.staffId) ?? "Mitarbeiter";
                         const canSelect =
                           Boolean(staffSelection) && !staffId;
-                        const settlement =
-                          settlementsByStaffId.get(line.staffId) ?? null;
-                        const advanceCents =
+                        const payoutCents =
                           advanceCentsByStaffId.get(line.staffId) ?? 0;
-                        const dueCents = line.wageCents - advanceCents;
-                        const openCents = openWageCentsFromSnapshot({
-                          dueCents,
-                          settlement,
-                        });
-                        const status = effectiveSettlementStatus({
-                          settlement,
+                        const derived = derivePayrollSettlement({
+                          wageCents: line.wageCents,
+                          payoutCents,
                         });
                         const midMonthYmd = `${periodYear}-${String(periodMonth).padStart(2, "0")}-15`;
                         const contract = findStaffContractForDay(
@@ -1041,9 +1006,10 @@ export function StaffWorkHoursView({
                                       /h
                                     </span>
                                   ) : null}
-                                  {openCents > 0 ? (
+                                  {derived.openCents > 0 ? (
                                     <span className="text-xs font-normal text-muted-foreground">
-                                      Offen {formatStaffEuroCents(openCents)}
+                                      Offen{" "}
+                                      {formatStaffEuroCents(derived.openCents)}
                                     </span>
                                   ) : null}
                                 </span>
@@ -1055,19 +1021,13 @@ export function StaffWorkHoursView({
                               className="px-4 py-2.5"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <StaffPayrollSettlementControls
-                                restaurantId={restaurantId}
-                                staffId={line.staffId}
-                                periodYear={periodYear}
-                                periodMonth={periodMonth}
-                                status={status}
-                                dueCents={dueCents}
-                                openCents={openCents}
-                                allowEdit={allowEdit}
+                              <StaffPayrollSettlementStatusBadge
+                                status={derived.status}
+                                openCents={derived.openCents}
+                                overpaidCreditCents={
+                                  derived.overpaidCreditCents
+                                }
                                 compact
-                                onChanged={() => {
-                                  void reloadSettlementsAndAdvances();
-                                }}
                               />
                             </td>
                           </tr>
@@ -1082,31 +1042,19 @@ export function StaffWorkHoursView({
               <>
                 <div className="mt-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-3">
                   <p className="mb-2 text-sm font-semibold">Monatsstatus</p>
-                  <StaffPayrollSettlementControls
-                    restaurantId={restaurantId}
-                    staffId={staffId}
-                    periodYear={periodYear}
-                    periodMonth={periodMonth}
-                    status={effectiveSettlementStatus({
-                      settlement:
-                        settlementsByStaffId.get(staffId) ?? null,
-                    })}
-                    dueCents={
-                      payrollWageTotalCents -
-                      (advanceCentsByStaffId.get(staffId) ?? 0)
-                    }
-                    openCents={openWageCentsFromSnapshot({
-                      dueCents:
-                        payrollWageTotalCents -
-                        (advanceCentsByStaffId.get(staffId) ?? 0),
-                      settlement:
-                        settlementsByStaffId.get(staffId) ?? null,
-                    })}
-                    allowEdit={allowEdit}
-                    onChanged={() => {
-                      void reloadSettlementsAndAdvances();
-                    }}
-                  />
+                  {(() => {
+                    const derived = derivePayrollSettlement({
+                      wageCents: payrollWageTotalCents,
+                      payoutCents: advanceCentsByStaffId.get(staffId) ?? 0,
+                    });
+                    return (
+                      <StaffPayrollSettlementStatusBadge
+                        status={derived.status}
+                        openCents={derived.openCents}
+                        overpaidCreditCents={derived.overpaidCreditCents}
+                      />
+                    );
+                  })()}
                 </div>
                 <StaffWageAdvancesSection
                   restaurantId={restaurantId}
@@ -1116,7 +1064,7 @@ export function StaffWorkHoursView({
                   wageCents={payrollWageTotalCents}
                   allowEdit={allowEdit}
                   onChanged={() => {
-                    void reloadSettlementsAndAdvances();
+                    void reloadPayouts();
                   }}
                 />
               </>

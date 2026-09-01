@@ -129,6 +129,7 @@ export function ModuleChipNav({
       <SidebarGroup className="p-0">
         <SidebarMenu className="flex-row flex-nowrap gap-1.5">
           {items.map((item) => {
+            const navHref = mergeSubnavHref(item.href, searchParams);
             const active = isActiveModuleSubnavItem(
               pathname,
               searchParams,
@@ -155,9 +156,9 @@ export function ModuleChipNav({
                 <SidebarMenuButton
                   isActive={active}
                   layout="text"
-                  onPointerEnter={() => warmOnIntent(item.href)}
-                  onFocus={() => warmOnIntent(item.href)}
-                  render={<AppNavLink href={item.href} />}
+                  onPointerEnter={() => warmOnIntent(navHref)}
+                  onFocus={() => warmOnIntent(navHref)}
+                  render={<AppNavLink href={navHref} />}
                 >
                   <span>{item.label}</span>
                 </SidebarMenuButton>

@@ -3,9 +3,14 @@ import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { countPurchaseOrdersDeliveryDue } from "@/lib/inventory/purchase-order-delivery-due";
 import { isIngredientActive } from "@/lib/inventory/low-stock";
 
+export { isEmptyStockVisibleInHeute } from "@/lib/inventory/low-stock";
+
 export type DashboardInventorySummary = {
   ingredientsActive: number;
   emptyStock: number;
+  /** Aus Heute ausgeblendet (noch leer, bis nach Auffüllung erneut 0). */
+  emptyStockSnoozed: number;
+  emptyStockSnoozedIngredientIds: string[];
   /** Offen + Bestellt (handlungsrelevant) */
   openOrders: number;
   openOrderLines: number;
@@ -22,9 +27,16 @@ export function computeDashboardInventorySummary(
   ingredients: Ingredient[],
   orders: PurchaseOrder[],
   todayYmd?: string,
+  snoozedEmptyStockIngredientIds?: ReadonlySet<string>,
 ): DashboardInventorySummary {
   const active = ingredients.filter(isIngredientActive);
-  const emptyStock = active.filter((i) => i.currentStock <= 0).length;
+  const emptyActive = active.filter((i) => i.currentStock <= 0);
+  const snoozed = snoozedEmptyStockIngredientIds ?? new Set<string>();
+  const emptyStockSnoozed = emptyActive.filter((i) => snoozed.has(i.id)).length;
+  const emptyStock = emptyActive.filter((i) => !snoozed.has(i.id)).length;
+  const emptyStockSnoozedIngredientIds = emptyActive
+    .filter((i) => snoozed.has(i.id))
+    .map((i) => i.id);
   const actionable = orders.filter(
     (o) => o.status === "open" || o.status === "ordered",
   );
@@ -38,6 +50,8 @@ export function computeDashboardInventorySummary(
   return {
     ingredientsActive: active.length,
     emptyStock,
+    emptyStockSnoozed,
+    emptyStockSnoozedIngredientIds,
     openOrders: actionable.length,
     openOrderLines,
     allOrders: orders.length,

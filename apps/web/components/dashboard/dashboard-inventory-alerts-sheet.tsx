@@ -5,6 +5,7 @@ import {
   DashboardCompactList,
   DashboardCompactListItem,
 } from "@/components/dashboard/dashboard-compact-list";
+import { DashboardEmptyStockHeuteSnoozeButton } from "@/components/dashboard/dashboard-empty-stock-heute-snooze-button";
 import {
   Drawer,
   DrawerContent,
@@ -19,9 +20,11 @@ import {
 } from "@/lib/ui/drawer-form-section";
 import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
 import { listPurchaseOrdersDeliveryDue } from "@/lib/inventory/purchase-order-delivery-due";
-import { isIngredientActive } from "@/lib/inventory/low-stock";
+import { isEmptyStockVisibleInHeute } from "@/lib/inventory/low-stock";
+import { useEmptyStockHeuteSnoozedIds } from "@/lib/inventory/empty-stock-heute-snooze-client";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 function formatDeliveryYmd(ymd: string | null | undefined): string {
@@ -52,15 +55,17 @@ export function DashboardInventoryAlertsSheet({
   deliveriesOverdueCount: number;
   todayYmd: string;
 }) {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const snoozedIds = useEmptyStockHeuteSnoozedIds(restaurantId);
   const { ingredients } = useIngredientsStorage();
   const { orders } = usePurchaseOrdersStorage();
 
   const emptyStockIngredients = useMemo(
     () =>
       ingredients
-        .filter((i) => isIngredientActive(i) && i.currentStock <= 0)
+        .filter((i) => isEmptyStockVisibleInHeute(i, snoozedIds))
         .sort((a, b) => a.name.localeCompare(b.name, "de")),
-    [ingredients],
+    [ingredients, snoozedIds],
   );
 
   const deliveryDue = useMemo(
@@ -174,6 +179,14 @@ export function DashboardInventoryAlertsSheet({
                         meta={`0 ${row.unit}`}
                         stripeVariant="attention"
                         className="py-2.5"
+                        trailingAction={
+                          restaurantId ? (
+                            <DashboardEmptyStockHeuteSnoozeButton
+                              restaurantId={restaurantId}
+                              ingredientId={row.id}
+                            />
+                          ) : null
+                        }
                       />
                     ))}
                   </DashboardCompactList>

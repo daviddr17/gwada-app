@@ -19,3 +19,14 @@ export function isIngredientLowStock(
   if (!isIngredientActive(ingredient)) return false;
   return ingredient.currentStock <= ingredientLowStockThreshold(ingredient);
 }
+
+/** Dashboard Heute: leerer Bestand, optional per Snooze ausgeblendet. */
+export function isEmptyStockVisibleInHeute(
+  ingredient: Pick<Ingredient, "id" | "currentStock" | "active">,
+  snoozedIngredientIds?: ReadonlySet<string>,
+): boolean {
+  if (!isIngredientActive(ingredient)) return false;
+  if (ingredient.currentStock > 0) return false;
+  if (snoozedIngredientIds?.has(ingredient.id)) return false;
+  return true;
+}

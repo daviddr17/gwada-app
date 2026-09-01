@@ -1,7 +1,8 @@
-# Bestellungen (PO): Daten prüfen & manuell wiederherstellen
+# Bestellungen (PO): Daten prüfen & wiederherstellen
 
 **Kontext:** Vollständiger technischer Audit in `docs/audit-stale-client-overwrite-pattern.md`.  
-**Fix ab:** Branch/PR `cursor/fix-po-overwrite-hardening-dd85` (Merge-before-save, Fetch-Gate, Cache-Patch nach Save).
+**Fix ab:** PR `#462` / `#464` bzw. Branch `cursor/fix-po-overwrite-hardening-dd85` (Merge-before-save, Fetch-Gate, Cache-Patch nach Save).  
+**Daten-Recovery:** `scripts/recover-zurschlag-purchase-orders.ts` — **erst nach Live-Deploy des Fixes** ausführen.
 
 ---
 
@@ -10,7 +11,7 @@
 - Abgeschlossene Bestellungen erscheinen wieder als **Offen** oder **Bestellt**
 - Positionen oder ganze Bestellungen **fehlen**
 - Mengen stimmen nicht mit dem überein, was das Team zuletzt eingegeben hat
-- Betroffenes Restaurant (Beispiel): **Zurschlag**
+- Betroffenes Restaurant (Beispiel): **Zur Schlagd** — Slug `zurschlagd`, UUID typisch `fcc50bb3-130d-476b-94dc-3c7392b773a8`
 
 ---
 
@@ -49,9 +50,44 @@ LIMIT 50;
 
 ---
 
-## 2. Manuelle Korrektur in der App
+## 2. Automatische Recovery (Zurschlag / wenn Protokoll noch `closed` + `marked_delivered` enthält)
 
-Nach dem **Live-Deploy des Fixes**:
+**Reihenfolge:** App-Fix live deployen → **danach** Recovery (sonst kann ein alter Tab erneut überschreiben).
+
+### Dev prüfen (Dry-Run)
+
+```bash
+pnpm recover:po:zurschlag
+# oder explizit:
+dotenv -e .env.development -- pnpm exec tsx scripts/recover-zurschlag-purchase-orders.ts
+```
+
+### Live anwenden
+
+GitHub Action (empfohlen): **Recover zurschlagd purchase orders live** — erst ohne Häkchen (Diagnose + Dry-Run), dann mit **Apply recovery**.
+
+Oder lokal mit Production-Env:
+
+```bash
+GWADA_CONFIRM_LIVE_PO_RECOVERY=1 dotenv -e .env.production -- \
+  pnpm exec tsx scripts/recover-zurschlag-purchase-orders.ts --apply
+```
+
+Das Skript ist **idempotent**: es setzt nur Zeilen zurück, bei denen `status` oder Lieferfelder **unter** dem Protokoll-Stand liegen (z. B. DB `open`, Log enthält `status_change → closed`).
+
+**Wenn das Protokoll mit überschrieben wurde** (kein `closed` / `marked_delivered` mehr im Log): automatische Recovery greift nicht → Abschnitt 3 (manuell).
+
+Read-only Diagnose auf Live:
+
+```bash
+bash scripts/run-live-sql-ci.sh scripts/diagnose-zurschlagd-purchase-orders-live.sql
+```
+
+---
+
+## 3. Manuelle Korrektur in der App
+
+Falls Recovery nichts findet oder Positionen fehlen:
 
 1. **Alle Tabs schließen** — nur **ein** Browser-Tab pro Gerät für Bestand/Bestellungen
 2. Seite **hart neu laden** (Strg/Cmd+Shift+R), kurz warten bis die Liste vollständig geladen ist
@@ -60,11 +96,9 @@ Nach dem **Live-Deploy des Fixes**:
    - Fehlende **Positionen** → Mengen neu eintragen (Offene Bestellung des Lieferanten nutzen oder neu anlegen)
    - Falsche **Mengen** → in der Zeile korrigieren und speichern
 
-Es gibt **keinen** automatischen „Repair“-Button in der App.
-
 ---
 
-## 3. Backup / Point-in-Time Recovery (VPS Supabase)
+## 4. Backup / Point-in-Time Recovery (VPS Supabase)
 
 Wenn viele Bestellungen betroffen sind:
 
@@ -78,7 +112,7 @@ Vor jeder Wiederherstellung: **Dev-Kopie** testen oder SQL in einer Transaktion 
 
 ---
 
-## 4. Bis der Fix live ist (Zurschlag / Team)
+## 5. Bis der Fix live ist (Zurschlag / Team)
 
 | Do | Don't |
 |----|-------|
@@ -89,7 +123,25 @@ Vor jeder Wiederherstellung: **Dev-Kopie** testen oder SQL in einer Transaktion 
 
 ---
 
-## 5. Verwandte Module
+### Kurztext fürs Team / Gäste (temporär falsche Bestellliste)
+
+> „Bei uns sind zwei Lieferanten-Bestellungen nach dem heutigen Update kurz wieder als ‚offen‘ sichtbar — die Lieferungen waren erledigt. Wir stellen das gerade in der Verwaltung zurück; in Kürze stimmt die Liste wieder. Bestellungen beim Gast sind davon nicht betroffen.“
+
+---
+
+## 6. Nach Live-Deploy + Recovery prüfen
+
+| Schritt | Befehl / Aktion |
+|--------|------------------|
+| App-Version | `curl -s https://gwada.app/api/build-info` — `sha` = Commit mit PO-Hardening |
+| DB-Diagnose | Workflow **Recover zurschlagd purchase orders live** (Dry-Run) oder `diagnose-zurschlagd-purchase-orders-live.sql` |
+| Recovery | Gleicher Workflow mit **Apply**, oder Skript mit `--apply` |
+| UI | Bestand → Bestellungen: **2** betroffene Bestellungen = **Abgeschlossen**, Positionen mit Liefer-Antwort |
+| Kein Re-Overwrite | Nur **ein Tab**, Seite nach Deploy **neu laden** |
+
+---
+
+## 7. Verwandte Module
 
 - **Zutaten-Bestand** (`inventory_replace_ingredients`): gleiches Risiko bei Display/POS/Rechnung — Bestand physisch zählen und im Modul korrigieren
 - **Unread-Glocke nach Deploy:** separates Problem (Read-State), kein PO-Datenverlust — siehe Audit-Dokument

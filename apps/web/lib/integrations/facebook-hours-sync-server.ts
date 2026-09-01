@@ -38,14 +38,17 @@ export async function syncOpeningHoursToFacebook(
     return { ok: false, error: "no_open_days" };
   }
 
-  const params = new URLSearchParams({
-    access_token: token,
-    hours: JSON.stringify(hours),
-  });
-
   const res = await fetch(
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}?${params}`,
-    { method: "POST", cache: "no-store" },
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        access_token: token,
+        hours,
+      }),
+      cache: "no-store",
+    },
   );
 
   const body = (await res.json().catch(() => ({}))) as {

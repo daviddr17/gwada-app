@@ -133,10 +133,11 @@ export function toGoogleSpecialHours(
   return { specialHourPeriods };
 }
 
+/** Meta Page `hours`: flache Keys `{day}_{1|2}_{open|close}` → `"HH:MM"`. */
 export function toFacebookHours(
   weeklyHours: Record<Weekday, DayHours>,
-): Record<string, Array<{ open: string; close: string }>> {
-  const hours: Record<string, Array<{ open: string; close: string }>> = {};
+): Record<string, string> {
+  const hours: Record<string, string> = {};
 
   for (const day of WEEKDAY_ORDER) {
     const h = weeklyHours[day];
@@ -144,7 +145,10 @@ export function toFacebookHours(
     const open = toFacebookHm(h.open);
     const close = toFacebookHm(h.close);
     if (!open || !close) continue;
-    hours[FB_DAY[day]] = [{ open, close }];
+
+    const fbDay = FB_DAY[day];
+    hours[`${fbDay}_1_open`] = open;
+    hours[`${fbDay}_1_close`] = close;
   }
 
   return hours;
@@ -227,15 +231,28 @@ export function fromGoogleKitchenMoreHours(
 }
 
 export function fromFacebookPageHours(
-  hours?: Record<string, Array<{ open?: string; close?: string }>> | null,
+  hours?: Record<string, unknown> | null,
 ): Record<Weekday, DayHours> {
   const weekly = closedWeeklyHours();
   if (!hours || typeof hours !== "object") return weekly;
 
+  const hasFlatKeys = Object.keys(hours).some((k) => /^(mon|tue|wed|thu|fri|sat|sun)_\d_(open|close)$/.test(k));
+  if (hasFlatKeys) {
+    for (const day of WEEKDAY_ORDER) {
+      const fbDay = FB_DAY[day];
+      const open = toFacebookHm(String(hours[`${fbDay}_1_open`] ?? ""));
+      const close = toFacebookHm(String(hours[`${fbDay}_1_close`] ?? ""));
+      if (open && close) {
+        weekly[day] = { closed: false, open, close };
+      }
+    }
+    return weekly;
+  }
+
   for (const [key, slots] of Object.entries(hours)) {
     const day = FB_TO_WEEKDAY[key.toLowerCase()];
     if (!day || !Array.isArray(slots) || slots.length === 0) continue;
-    const slot = slots[0];
+    const slot = slots[0] as { open?: string; close?: string };
     const open = toFacebookHm(slot?.open);
     const close = toFacebookHm(slot?.close);
     if (!open || !close) continue;

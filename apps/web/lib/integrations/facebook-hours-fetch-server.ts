@@ -38,7 +38,7 @@ export async function fetchFacebookPageHours(
   );
 
   const body = (await res.json().catch(() => ({}))) as {
-    hours?: Record<string, Array<{ open?: string; close?: string }>>;
+    hours?: Record<string, unknown>;
     error?: { message?: string };
   };
 

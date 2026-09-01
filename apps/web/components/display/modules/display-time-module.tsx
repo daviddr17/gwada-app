@@ -11,10 +11,7 @@ import {
   useDisplayTimeRequestPending,
 } from "@/components/display/modules/display-time-request-sheet";
 import { DisplayAvailabilitySheet } from "@/components/display/modules/display-availability-sheet";
-import {
-  DisplayTimeActionCelebration,
-  type DisplayTimeCelebrationAction,
-} from "@/components/display/display-celebration-overlay";
+import type { DisplayTimeCelebrationAction } from "@/components/display/display-celebration-overlay";
 import type { DisplayPrepareAndGate } from "@/components/display/modules/display-shift-gates";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import { GWADA_DISPLAY_TIME_REFRESH_EVENT } from "@/lib/display/display-time-live-events";
@@ -124,8 +121,11 @@ export function DisplayTimeModule({
   staffId,
   onChanged,
   onSessionChange,
-  onClockOutSuccess,
   prepareAndGate,
+  celebrationActive,
+  onTimeActionCelebrationStart,
+  onTimeActionCelebrationCancel,
+  onTimeActionPersisted,
 }: {
   initial: TimeState | null;
   restaurantId: string;
@@ -133,9 +133,12 @@ export function DisplayTimeModule({
   onChanged: () => void;
   /** Live-Sync für Kopfzeile o. Ä. */
   onSessionChange?: (state: TimeState) => void;
-  /** Nach Ausstempeln, Pausen oder Schichtstart (nach Celebration) Display-Session beenden. */
-  onClockOutSuccess?: () => void;
   prepareAndGate: DisplayPrepareAndGate;
+  /** Screen-Level-Erfolgs-Overlay (bleibt während Abmeldung sichtbar). */
+  celebrationActive: boolean;
+  onTimeActionCelebrationStart: (action: DisplayTimeCelebrationAction) => void;
+  onTimeActionCelebrationCancel: () => void;
+  onTimeActionPersisted: () => void;
 }) {
   const timeZone = useDisplayRestaurantTimezone();
   const timeFmt = useMemo(
@@ -154,8 +157,6 @@ export function DisplayTimeModule({
   const [teamPresence, setTeamPresence] = useState<DisplayTeamPresenceMember[]>(
     [],
   );
-  const [celebrationAction, setCelebrationAction] =
-    useState<DisplayTimeCelebrationAction | null>(null);
   const [contentHidden, setContentHidden] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [requestSheetOpen, setRequestSheetOpen] = useState(false);
@@ -168,16 +169,6 @@ export function DisplayTimeModule({
     (reduceMotion ? DISPLAY_CELEBRATION_EXIT_REDUCED_MS : DISPLAY_CELEBRATION_EXIT_MS) /
     1000;
   const inFlightRef = useRef(false);
-  const pendingCelebrationSyncRef = useRef(false);
-  /** Nach jeder Schicht-Aktion: Auto-Abmeldung erst nach API-Erfolg und Celebration-Exit. */
-  const logoutFlowRef = useRef({
-    intent: false,
-    apiOk: false,
-    celebrationExited: false,
-    triggered: false,
-  });
-  const onClockOutSuccessRef = useRef(onClockOutSuccess);
-  onClockOutSuccessRef.current = onClockOutSuccess;
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -250,23 +241,8 @@ export function DisplayTimeModule({
   }, []);
 
   const resetLogoutFlow = useCallback(() => {
-    logoutFlowRef.current = {
-      intent: false,
-      apiOk: false,
-      celebrationExited: false,
-      triggered: false,
-    };
-  }, []);
-
-  const tryTriggerLogout = useCallback(() => {
-    const flow = logoutFlowRef.current;
-    if (flow.triggered || !flow.intent || !flow.apiOk || !flow.celebrationExited) {
-      return;
-    }
-    flow.triggered = true;
-    pendingCelebrationSyncRef.current = false;
-    onClockOutSuccessRef.current?.();
-  }, []);
+    onTimeActionCelebrationCancel();
+  }, [onTimeActionCelebrationCancel]);
 
   const runTimeAction = useCallback(
     async (action: TimeAction): Promise<boolean> => {
@@ -300,8 +276,6 @@ export function DisplayTimeModule({
   const rollbackAction = useCallback(
     (snapshot: TimeState) => {
       resetLogoutFlow();
-      pendingCelebrationSyncRef.current = false;
-      setCelebrationAction(null);
       setContentHidden(false);
       setState(snapshot);
       void refresh();
@@ -317,16 +291,9 @@ export function DisplayTimeModule({
           return;
         }
 
-        setCelebrationAction(action);
         setContentHidden(true);
         setState(optimisticStateForAction(action, snapshot));
-
-        logoutFlowRef.current = {
-          intent: true,
-          apiOk: false,
-          celebrationExited: false,
-          triggered: false,
-        };
+        onTimeActionCelebrationStart(action);
 
         const ok = await runTimeAction(action);
         if (!ok) {
@@ -335,30 +302,34 @@ export function DisplayTimeModule({
         }
 
         void refresh();
-        pendingCelebrationSyncRef.current = true;
-        logoutFlowRef.current.apiOk = true;
-        tryTriggerLogout();
+        onTimeActionPersisted();
       } finally {
         inFlightRef.current = false;
         setActionBusy(false);
       }
     },
-    [prepareAndGate, rollbackAction, runTimeAction, refresh, tryTriggerLogout],
+    [
+      prepareAndGate,
+      rollbackAction,
+      runTimeAction,
+      refresh,
+      onTimeActionCelebrationStart,
+      onTimeActionPersisted,
+    ],
   );
 
   const beginAction = useCallback(
     (action: TimeAction) => {
-      if (actionBusy || celebrationAction || inFlightRef.current) return;
+      if (actionBusy || celebrationActive || inFlightRef.current) return;
       const snapshot = stateRef.current;
-      resetLogoutFlow();
       inFlightRef.current = true;
       setActionBusy(true);
       void runAction(action, snapshot);
     },
-    [actionBusy, celebrationAction, resetLogoutFlow, runAction],
+    [actionBusy, celebrationActive, runAction],
   );
 
-  const actionsBlocked = actionBusy || Boolean(celebrationAction);
+  const actionsBlocked = actionBusy || celebrationActive;
 
   const since =
     state.clocked_in_at && state.status !== "off"
@@ -366,7 +337,7 @@ export function DisplayTimeModule({
       : null;
 
   const statusTransition = {
-    duration: celebrationAction || reduceMotion ? 0 : 0.42,
+    duration: celebrationActive || reduceMotion ? 0 : 0.42,
     ease: MOTION_EASE_OUT,
   } as const;
 
@@ -388,31 +359,6 @@ export function DisplayTimeModule({
         staffId={staffId}
         disabled={actionsBlocked}
       />
-      <DisplayTimeActionCelebration
-        action={celebrationAction}
-        onExitStart={() => {
-          if (logoutFlowRef.current.intent) {
-            logoutFlowRef.current.celebrationExited = true;
-            tryTriggerLogout();
-          }
-          setContentHidden(false);
-        }}
-        onDone={() => {
-          if (logoutFlowRef.current.intent) {
-            resetLogoutFlow();
-            setCelebrationAction(null);
-            setContentHidden(false);
-            return;
-          }
-          setCelebrationAction(null);
-          if (pendingCelebrationSyncRef.current) {
-            pendingCelebrationSyncRef.current = false;
-            void refresh();
-            onChanged();
-          }
-        }}
-      />
-
       <motion.div
         className="flex w-full flex-col gap-8"
         aria-hidden={contentHidden ? true : undefined}

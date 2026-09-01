@@ -28,6 +28,22 @@ export type DisplayCelebrationVariant =
   | "time_request_accepted"
   | "time_request_declined";
 
+const DISPLAY_TIME_CELEBRATION_ACTIONS = new Set<DisplayTimeCelebrationAction>([
+  "clock_in",
+  "start_break",
+  "end_break",
+  "clock_out",
+]);
+
+export function isDisplayTimeCelebrationAction(
+  variant: DisplayCelebrationVariant | null | undefined,
+): variant is DisplayTimeCelebrationAction {
+  return (
+    variant != null &&
+    DISPLAY_TIME_CELEBRATION_ACTIONS.has(variant as DisplayTimeCelebrationAction)
+  );
+}
+
 export type DisplayTodoGateCelebrationVariant = "todo_complete" | "todo_defer";
 
 type CelebrationMeta = {

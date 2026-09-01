@@ -40,6 +40,26 @@ function searchParamsFromHref(href: string): URLSearchParams | null {
   return new URLSearchParams(href.slice(q + 1));
 }
 
+/** Query-Keys, die beim Chip-Wechsel erhalten bleiben (z. B. Mitarbeiter-Filter). */
+const MODULE_SUBNAV_PRESERVE_SEARCH_KEYS = ["staff"] as const;
+
+function mergeSubnavHref(
+  itemHref: string,
+  currentSearchParams: URLSearchParams,
+  preserveKeys: readonly string[] = MODULE_SUBNAV_PRESERVE_SEARCH_KEYS,
+): string {
+  const path = pathOnlyFromHref(itemHref);
+  const params = searchParamsFromHref(itemHref) ?? new URLSearchParams();
+  for (const key of preserveKeys) {
+    const value = currentSearchParams.get(key);
+    if (value != null && value !== "") {
+      params.set(key, value);
+    }
+  }
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
 export function isActiveModuleSubnavItem(
   pathname: string,
   searchParams: URLSearchParams,

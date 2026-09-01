@@ -106,6 +106,16 @@ function combineLocal(dateStr: string, timeStr: string): string {
   return new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
 }
 
+function lastWorkSegmentInCluster(
+  segments: readonly RestaurantStaffWorkEntryRow[],
+): RestaurantStaffWorkEntryRow | null {
+  const workSegs = segments.filter((s) => s.entry_type === "work");
+  if (workSegs.length === 0) return null;
+  return [...workSegs].sort(
+    (a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime(),
+  )[0]!;
+}
+
 export function StaffWorkEntryDrawer({
   open,
   onOpenChange,
@@ -146,6 +156,11 @@ export function StaffWorkEntryDrawer({
     clusterOpen &&
     entry?.entry_type === "work" &&
     !isOpenEntry;
+  const canReopenClosedShift =
+    entryType === "work" &&
+    Boolean(entry) &&
+    !isOpenEntry &&
+    !clusterOpen;
 
   const reloadLog = useCallback(async () => {
     if (!entry?.id) {
@@ -311,6 +326,47 @@ export function StaffWorkEntryDrawer({
       return;
     }
 
+    if (willStayOpen && editingShiftCluster && !clusterOpen) {
+      const lastWork = lastWorkSegmentInCluster(shiftClusterSegments);
+      if (!lastWork) {
+        toast.error("Kein Arbeitssegment zum Wiedereröffnen gefunden.");
+        return;
+      }
+      const timing = validateStaffWorkEntryTiming({
+        entryType: "work",
+        startsAt: lastWork.starts_at,
+        endsAt: lastWork.starts_at,
+        staffId,
+        entryId: lastWork.id,
+        isOpen: true,
+        siblings: siblingEntries,
+      });
+      if (!timing.ok) {
+        toast.error(timing.message);
+        return;
+      }
+      const after = {
+        entry_type: "work" as const,
+        starts_at: lastWork.starts_at,
+        ends_at: lastWork.starts_at,
+        note: lastWork.note ?? null,
+      };
+      setPending(true);
+      const res = await upsertStaffWorkEntry(restaurantId, staffId, {
+        id: lastWork.id,
+        ...after,
+        is_open: true,
+        shift_id: lastWork.shift_id ?? entry?.shift_id ?? null,
+      });
+      if (!res) {
+        setPending(false);
+        toast.error("Speichern fehlgeschlagen.");
+        return;
+      }
+      finishUi(res.id, after);
+      return;
+    }
+
     const timing = validateStaffWorkEntryTiming({
       entryType,
       startsAt: starts_at,
@@ -410,6 +466,7 @@ export function StaffWorkEntryDrawer({
     stillRunning,
     editingShiftCluster,
     clusterStartOnlyEdit,
+    shiftClusterSegments,
   ]);
 
   const drawerTitle = entry
@@ -438,7 +495,9 @@ export function StaffWorkEntryDrawer({
                 <p className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
                   {clusterStartOnlyEdit
                     ? "Schicht läuft noch nach der Pause — nur Start und Datum sind bearbeitbar."
-                    : "Ende offen — Start und Datum sind bearbeitbar. Zum Beenden Haken entfernen und „Bis“ setzen (oder am Display ausstempeln)."}
+                    : canReopenClosedShift
+                      ? "Schicht wird wieder als laufend markiert — das Ende wird zurückgesetzt (Display kann erneut ausstempeln)."
+                      : "Ende offen — Start und Datum sind bearbeitbar. Zum Beenden Haken entfernen und „Bis“ setzen (oder am Display ausstempeln)."}
                 </p>
               ) : null}
               {editingShiftCluster && !clusterOpen && entryType === "work" ? (
@@ -531,9 +590,7 @@ export function StaffWorkEntryDrawer({
                   />
                 </div>
               </div>
-              {entryType === "work" &&
-              !readOnly &&
-              (!entry || isOpenEntry || clusterOpen) ? (
+              {entryType === "work" && !readOnly ? (
                 <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/50 p-3">
                   <Checkbox
                     checked={stillRunning}
@@ -548,8 +605,9 @@ export function StaffWorkEntryDrawer({
                     className="mt-0.5"
                   />
                   <span className="text-sm leading-snug">
-                    Läuft noch — Ende offen lassen (Mitarbeiter stempelt später
-                    am Display aus)
+                    {canReopenClosedShift && !stillRunning
+                      ? "Schicht läuft wieder — Ende zurücksetzen (versehentliches Schichtende rückgängig)"
+                      : "Läuft noch — Ende offen lassen (Mitarbeiter stempelt später am Display aus)"}
                   </span>
                 </label>
               ) : null}

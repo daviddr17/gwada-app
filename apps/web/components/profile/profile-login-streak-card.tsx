@@ -18,6 +18,10 @@ import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
 
+/** Feste Kachelgröße (GitHub-Contribution-Stil) — nicht mit Kartenbreite skalieren. */
+const streakCellClassName =
+  "size-2.5 shrink-0 rounded-[2px] sm:size-3 sm:rounded-[3px]";
+
 export function ProfileLoginStreakCard() {
   const [summary, setSummary] = useState<LoginStreakSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +73,7 @@ export function ProfileLoginStreakCard() {
         {loading ? (
           <div className="space-y-3" aria-busy="true">
             <Skeleton className="h-10 w-40 rounded-lg" />
-            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-[82px] w-full max-w-xs rounded-xl" />
           </div>
         ) : error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
@@ -77,7 +81,7 @@ export function ProfileLoginStreakCard() {
           <>
             <div className="flex flex-wrap items-end gap-4">
               <div>
-                <p className="text-3xl font-semibold tabular-nums tracking-tight">
+                <p className="text-2xl font-semibold tabular-nums tracking-tight">
                   {summary.currentStreak}
                   <span className="ml-1 text-sm font-medium text-muted-foreground">
                     {summary.currentStreak === 1 ? "Tag" : "Tage"}
@@ -101,54 +105,55 @@ export function ProfileLoginStreakCard() {
               </div>
             </div>
 
-            <div className="flex w-full gap-2 sm:gap-3">
-              <div className="flex shrink-0 flex-col justify-between py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-                {WEEKDAY_LABELS.map((label, index) =>
-                  index % 2 === 1 ? (
-                    <span key={label} className="leading-none">
+            <div className="overflow-x-auto pb-1">
+              <div className="flex w-max min-w-0 gap-2 sm:gap-3">
+                <div className="flex shrink-0 flex-col gap-[3px] py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {WEEKDAY_LABELS.map((label, index) => (
+                    <span
+                      key={label}
+                      className={cn(
+                        streakCellClassName,
+                        "flex items-center justify-end pr-0.5 leading-none",
+                        index % 2 === 0 && "invisible",
+                      )}
+                    >
                       {label}
                     </span>
-                  ) : (
-                    <span key={label} className="invisible leading-none">
-                      {label}
-                    </span>
-                  ),
-                )}
-              </div>
-              <div
-                className="grid min-w-0 flex-1 gap-[3px]"
-                style={{
-                  gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
-                }}
-              >
-                {columns.map((week, weekIndex) => (
-                  <div key={weekIndex} className="flex min-w-0 flex-col gap-[3px]">
-                    {week.map((cell, dayIndex) => {
-                      const empty = !cell.day;
-                      return (
-                        <span
-                          key={`${weekIndex}-${dayIndex}`}
-                          title={
-                            empty
-                              ? undefined
-                              : cell.active
-                                ? `${cell.day} · aktiv`
-                                : cell.day
-                          }
-                          className={cn(
-                            "aspect-square w-full rounded-[2px] sm:rounded-[3px]",
-                            empty
-                              ? "bg-transparent"
-                              : cell.active
-                                ? "bg-orange-500 shadow-[0_0_0_1px_color-mix(in_oklch,var(--color-orange-500)_35%,transparent)]"
-                                : "bg-muted/70 ring-1 ring-border/40",
-                          )}
-                          aria-hidden={empty}
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <div className="flex gap-[3px]">
+                  {columns.map((week, weekIndex) => (
+                    <div
+                      key={weekIndex}
+                      className="flex shrink-0 flex-col gap-[3px]"
+                    >
+                      {week.map((cell, dayIndex) => {
+                        const empty = !cell.day;
+                        return (
+                          <span
+                            key={`${weekIndex}-${dayIndex}`}
+                            title={
+                              empty
+                                ? undefined
+                                : cell.active
+                                  ? `${cell.day} · aktiv`
+                                  : cell.day
+                            }
+                            className={cn(
+                              streakCellClassName,
+                              empty
+                                ? "bg-transparent"
+                                : cell.active
+                                  ? "bg-orange-500 shadow-[0_0_0_1px_color-mix(in_oklch,var(--color-orange-500)_35%,transparent)]"
+                                  : "bg-muted/70 ring-1 ring-border/40",
+                            )}
+                            aria-hidden={empty}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground">

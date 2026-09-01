@@ -1,6 +1,15 @@
 /** Haupt-Scrollbereich unter Header/Chips in `AppShell`. */
 export const APP_SCROLL_ROOT_SELECTOR = "[data-app-scroll-root]";
 
+/** Feste Footer-Leisten (Speichern) — sibling von Scroll-Root, scrollt nicht mit. */
+export const APP_CHROME_FOOTER_HOST_SELECTOR = "[data-app-chrome-footer-host]";
+
+export function getAppChromeFooterHost(): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  const el = document.querySelector(APP_CHROME_FOOTER_HOST_SELECTOR);
+  return el instanceof HTMLElement ? el : null;
+}
+
 export function getAppScrollRoot(): HTMLElement | null {
   if (typeof document === "undefined") return null;
   const el = document.querySelector(APP_SCROLL_ROOT_SELECTOR);

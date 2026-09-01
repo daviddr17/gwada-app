@@ -1,7 +1,4 @@
-import type {
-  RestaurantStaffPayrollSettlementRow,
-  StaffPayrollSettlementStatus,
-} from "@/lib/types/staff";
+import type { StaffPayrollSettlementStatus } from "@/lib/types/staff";
 
 export const STAFF_PAYROLL_SETTLEMENT_STATUS_LABELS: Record<
   StaffPayrollSettlementStatus,
@@ -13,44 +10,67 @@ export const STAFF_PAYROLL_SETTLEMENT_STATUS_LABELS: Record<
   underpaid: "Unterzahlt",
 };
 
-export type StaffMonthPayrollSnapshot = {
-  staffId: string;
-  periodYear: number;
-  periodMonth: number;
-  wageCents: number;
-  advanceCents: number;
-  /** Lohn − Vorschüsse. */
+/** Status und Beträge aus Lohn − Auszahlungen (kein manueller Snapshot). */
+export type DerivedPayrollSettlement = {
+  status: StaffPayrollSettlementStatus;
+  /** Lohn − Auszahlungen. */
   dueCents: number;
-  netWorkH: number;
-  targetH: number | null;
-  /** Ist − Soll. */
-  hoursBalanceH: number | null;
-  settlement: RestaurantStaffPayrollSettlementRow | null;
+  /** Noch zu zahlen: max(0, due). */
+  openCents: number;
+  /** Bereits auf den Lohn angerechnet: min(Lohn, Auszahlungen). */
+  paidCents: number;
+  /** Überzahlung: max(0, −due). */
+  overpaidCreditCents: number;
 };
 
+export function derivePayrollSettlement(snap: {
+  wageCents: number;
+  payoutCents: number;
+}): DerivedPayrollSettlement {
+  const wageCents = Math.max(0, Math.round(snap.wageCents));
+  const payoutCents = Math.max(0, Math.round(snap.payoutCents));
+  const dueCents = wageCents - payoutCents;
+  const openCents = Math.max(0, dueCents);
+  const paidCents = Math.min(wageCents, payoutCents);
+  const overpaidCreditCents = Math.max(0, -dueCents);
+
+  let status: StaffPayrollSettlementStatus;
+  if (dueCents < 0) status = "overpaid";
+  else if (dueCents === 0) status = "paid";
+  else if (payoutCents > 0) status = "underpaid";
+  else status = "open";
+
+  return {
+    status,
+    dueCents,
+    openCents,
+    paidCents,
+    overpaidCreditCents,
+  };
+}
+
+/** @deprecated Use derivePayrollSettlement — kept for call-site migration. */
 export function openWageCentsFromSnapshot(snap: {
-  dueCents: number;
-  settlement: RestaurantStaffPayrollSettlementRow | null;
+  wageCents: number;
+  payoutCents: number;
 }): number {
-  const s = snap.settlement;
-  if (!s || s.status === "open") return Math.max(0, snap.dueCents);
-  if (s.status === "paid") return 0;
-  if (s.status === "underpaid") return Math.max(0, s.amount_cents);
-  return 0;
+  return derivePayrollSettlement(snap).openCents;
 }
 
+/** @deprecated Use derivePayrollSettlement. */
 export function overpaidCreditCentsFromSnapshot(snap: {
-  settlement: RestaurantStaffPayrollSettlementRow | null;
+  wageCents: number;
+  payoutCents: number;
 }): number {
-  const s = snap.settlement;
-  if (s?.status === "overpaid") return Math.max(0, s.amount_cents);
-  return 0;
+  return derivePayrollSettlement(snap).overpaidCreditCents;
 }
 
+/** @deprecated Use derivePayrollSettlement. */
 export function effectiveSettlementStatus(snap: {
-  settlement: RestaurantStaffPayrollSettlementRow | null;
+  wageCents: number;
+  payoutCents: number;
 }): StaffPayrollSettlementStatus {
-  return snap.settlement?.status ?? "open";
+  return derivePayrollSettlement(snap).status;
 }
 
 /** Soll-Stunden für Kalendermonat aus Wochen-Soll-Minuten. */

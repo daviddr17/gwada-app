@@ -238,7 +238,7 @@ export type RestaurantStaffWorkEntryRow = {
   shift_id?: string | null;
 };
 
-/** Lohnvorschuss — Abzug in der Monatsabrechnung (paid_on). */
+/** Auszahlung — Abzug in der Monatsabrechnung (paid_on). */
 export type RestaurantStaffWageAdvanceRow = {
   id: string;
   restaurant_id: string;

@@ -2,81 +2,44 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  openWageCentsFromSnapshot,
-  overpaidCreditCentsFromSnapshot,
+  derivePayrollSettlement,
   targetHoursForCalendarMonth,
 } from "./staff-payroll-settlement.ts";
 
-test("open wage: open status uses due", () => {
-  assert.equal(
-    openWageCentsFromSnapshot({ dueCents: 12000, settlement: null }),
-    12000,
-  );
+test("keine Auszahlung → offen, voller Rest", () => {
+  const d = derivePayrollSettlement({ wageCents: 12000, payoutCents: 0 });
+  assert.equal(d.status, "open");
+  assert.equal(d.openCents, 12000);
+  assert.equal(d.paidCents, 0);
+  assert.equal(d.overpaidCreditCents, 0);
 });
 
-test("open wage: paid clears", () => {
-  assert.equal(
-    openWageCentsFromSnapshot({
-      dueCents: 12000,
-      settlement: {
-        id: "1",
-        restaurant_id: "r",
-        staff_id: "s",
-        period_year: 2026,
-        period_month: 8,
-        status: "paid",
-        amount_cents: 12000,
-        note: null,
-        paid_at: null,
-        created_at: "",
-        updated_at: "",
-      },
-    }),
-    0,
-  );
+test("teilweise ausgezahlt → unterzahlt", () => {
+  const d = derivePayrollSettlement({ wageCents: 12000, payoutCents: 4000 });
+  assert.equal(d.status, "underpaid");
+  assert.equal(d.openCents, 8000);
+  assert.equal(d.paidCents, 4000);
 });
 
-test("open wage: underpaid uses residual", () => {
-  assert.equal(
-    openWageCentsFromSnapshot({
-      dueCents: 12000,
-      settlement: {
-        id: "1",
-        restaurant_id: "r",
-        staff_id: "s",
-        period_year: 2026,
-        period_month: 8,
-        status: "underpaid",
-        amount_cents: 4000,
-        note: null,
-        paid_at: null,
-        created_at: "",
-        updated_at: "",
-      },
-    }),
-    4000,
-  );
+test("genau ausgezahlt → bezahlt", () => {
+  const d = derivePayrollSettlement({ wageCents: 12000, payoutCents: 12000 });
+  assert.equal(d.status, "paid");
+  assert.equal(d.openCents, 0);
+  assert.equal(d.paidCents, 12000);
 });
 
-test("overpaid credit", () => {
-  assert.equal(
-    overpaidCreditCentsFromSnapshot({
-      settlement: {
-        id: "1",
-        restaurant_id: "r",
-        staff_id: "s",
-        period_year: 2026,
-        period_month: 8,
-        status: "overpaid",
-        amount_cents: 1500,
-        note: null,
-        paid_at: null,
-        created_at: "",
-        updated_at: "",
-      },
-    }),
-    1500,
-  );
+test("mehr ausgezahlt als Lohn → überzahlt", () => {
+  const d = derivePayrollSettlement({ wageCents: 10000, payoutCents: 11500 });
+  assert.equal(d.status, "overpaid");
+  assert.equal(d.openCents, 0);
+  assert.equal(d.paidCents, 10000);
+  assert.equal(d.overpaidCreditCents, 1500);
+});
+
+test("Lohn 0 und Auszahlung 0 → bezahlt (ausgeglichen)", () => {
+  const d = derivePayrollSettlement({ wageCents: 0, payoutCents: 0 });
+  assert.equal(d.status, "paid");
+  assert.equal(d.openCents, 0);
 });
 
 test("target hours for month from weekly soll", () => {

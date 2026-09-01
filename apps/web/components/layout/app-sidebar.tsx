@@ -8,9 +8,10 @@ import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { usePathname } from "next/navigation";
 import { useAuthLogoutTransition } from "@/components/auth/auth-logout-transition-provider";
 import {
-  normalizeNavHref,
-  useSoftNavLock,
-} from "@/components/providers/soft-nav-lock-provider";
+  isSidebarDashboardActive,
+  isSidebarModuleActive,
+} from "@/lib/navigation/sidebar-active";
+import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import {
   Bell,
   Building2,
@@ -437,10 +438,7 @@ export function AppSidebar() {
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={
-                        pathname === "/dashboard" ||
-                        pendingHref === "/dashboard"
-                      }
+                      isActive={isSidebarDashboardActive(pathname, pendingHref)}
                       tooltip="Dashboard"
                       render={<AppNavLink href="/dashboard" />}
                     >
@@ -477,17 +475,12 @@ export function AppSidebar() {
                             notificationSummary,
                             mod.id,
                           );
-                      const modulePending =
-                        !billingLocked &&
-                        pendingHref != null &&
-                        normalizeNavHref(mod.href) === pendingHref;
                       return (
                         <SidebarMenuItem key={mod.id}>
                           <SidebarMenuButton
                             isActive={
                               !billingLocked &&
-                              (pathname.startsWith(mod.pathPrefix) ||
-                                modulePending)
+                              isSidebarModuleActive(pathname, pendingHref, mod)
                             }
                             tooltip={
                               billingLocked
@@ -588,7 +581,7 @@ export function AppSidebar() {
           {inSuperadmin ? (
             <SidebarMenuItem>
               <SidebarMenuButton
-                isActive={pathname === "/dashboard"}
+                isActive={isSidebarDashboardActive(pathname, pendingHref)}
                 tooltip="Dashboard"
                 className={mobileFooterButtonClassName}
                 render={

@@ -62,7 +62,7 @@ jobs:
       - name: Run recovery script (live Supabase env from app container)
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
-          APPLY: ${{ github.event.inputs.apply == 'true' && '1' || '0' }}
+          APPLY: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.apply == true) || (github.event_name == 'repository_dispatch' && github.event.client_payload.apply == true) && '1' || '0' }}
         run: |
           set -euo pipefail
           cid="$(ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
@@ -70,12 +70,12 @@ jobs:
           cid="${cid//$'\r'/}"
           echo "container=${cid}"
           LIVE_URL="$(ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
-            "docker exec ${cid} printenv SUPABASE_UPSTREAM_URL || docker exec ${cid} printenv NEXT_PUBLIC_SUPABASE_URL")"
+            "docker exec ${cid} printenv NEXT_PUBLIC_SUPABASE_URL")"
           LIVE_KEY="$(ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
             "docker exec ${cid} printenv SUPABASE_SERVICE_ROLE_KEY")"
           LIVE_URL="${LIVE_URL//$'\r'/}"
           LIVE_KEY="${LIVE_KEY//$'\r'/}"
-          export SUPABASE_UPSTREAM_URL="${LIVE_URL}"
+          export NEXT_PUBLIC_SUPABASE_URL="${LIVE_URL}"
           export SUPABASE_SERVICE_ROLE_KEY="${LIVE_KEY}"
           export GWADA_RESTAURANT_SLUG=zurschlagd
           ARGS=()

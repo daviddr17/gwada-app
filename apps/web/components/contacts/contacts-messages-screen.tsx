@@ -43,6 +43,10 @@ import {
   inboxUnreadStatusChipClassName,
   inboxUnreadStatusChipLabel,
 } from "@/lib/contact-messages/inbox-unread-hint-ui";
+import {
+  buildInboxStaffIdentityIndex,
+  resolveInboxThreadStaffMatch,
+} from "@/lib/contact-messages/inbox-thread-staff-match";
 import { ContactThreadHeaderAvatar } from "@/components/contacts/contact-thread-header-avatar";
 import { ContactConversationsReadFilter } from "@/components/contacts/contact-conversations-read-filter";
 import { ContactConversationsSearchBar } from "@/components/contacts/contact-conversations-search-bar";
@@ -55,6 +59,7 @@ import {
   type InboxThreadAssignStaffKind,
 } from "@/components/contacts/inbox-thread-assign-staff-sheet";
 import { ContactInboxThreadHeaderMenu } from "@/components/contacts/contact-inbox-thread-header-menu";
+import { InboxThreadStaffBadge } from "@/components/contacts/inbox-thread-staff-badge";
 import {
   ContactInboxThreadChrome,
   ContactInboxThreadOverlay,
@@ -248,6 +253,7 @@ import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-chan
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { useStaffListQuery } from "@/lib/hooks/use-staff-list-query";
 import {
   hasModuleCreate,
   hasModuleRead,
@@ -431,6 +437,11 @@ export function ContactsMessagesScreen({
   const canCreateReservation = hasModuleCreate(has, "reservations");
   const canCreateReviewInvite = hasModuleCreate(has, "reviews");
   const canUpdateStaff = hasModuleUpdate(has, "staff");
+  const { rows: staffRows } = useStaffListQuery(restaurantId, workspaceReady);
+  const inboxStaffIndex = useMemo(
+    () => buildInboxStaffIdentityIndex(staffRows),
+    [staffRows],
+  );
   const { profile } = useRestaurantProfile();
   const defaultCountryIso2 = useMemo(
     () => resolveCountryIso2FromLabel(profile.country),
@@ -2875,6 +2886,16 @@ export function ContactsMessagesScreen({
   const threadHeaderListLabel = threadListPreview
     ? wahaConversationDisplayName(threadListPreview)
     : contactName || "Kontakt";
+  const openThreadStaffMatch = threadId
+    ? resolveInboxThreadStaffMatch({
+        contactId: threadId,
+        staffIndex: inboxStaffIndex,
+        phone: whatsappHeaderSubtitle ?? whatsappThreadPhone,
+        email: isEmailPseudoContactId(threadId)
+          ? emailAddressFromPseudoContactId(threadId)
+          : null,
+      })
+    : null;
   const threadHeader = (
 <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
               <Button
@@ -2914,6 +2935,13 @@ export function ContactsMessagesScreen({
                 ) : (
                   <p className="truncate font-semibold">{contactName || "Kontakt"}</p>
                 )}
+                {openThreadStaffMatch ? (
+                  <div className="mt-0.5">
+                    <InboxThreadStaffBadge
+                      staffName={openThreadStaffMatch.staffName}
+                    />
+                  </div>
+                ) : null}
                 {linkedThread && lastGuestPlatform ? (
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span>Zuletzt aktiv über</span>
@@ -3229,6 +3257,10 @@ showReplyComposer ? (
               <ul className="divide-y divide-border/50">
                 {paginatedConversations.map((c) => {
                   const listName = wahaConversationDisplayName(c);
+                  const staffMatch = resolveInboxThreadStaffMatch({
+                    contactId: c.contact_id,
+                    staffIndex: inboxStaffIndex,
+                  });
                   const unread = c.is_unread;
                   const unreadHint = c.unread_hint ?? null;
                   const hintLabel = inboxUnreadHintLabel(unreadHint);
@@ -3500,6 +3532,13 @@ showReplyComposer ? (
                               <Clock className="size-3 opacity-70" aria-hidden />
                             ) : null}
                           </Badge>
+                        ) : null}
+                        {staffMatch ? (
+                          <InboxThreadStaffBadge
+                            staffName={staffMatch.staffName}
+                            compact
+                            className="pointer-events-none mt-1.5 mr-1.5"
+                          />
                         ) : null}
                         {c.has_reservation_link && c.last_reservation_id ? (
                           <Badge

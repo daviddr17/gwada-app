@@ -8,7 +8,7 @@ import {
   type MessagesUnreadSummary,
 } from "@/lib/contact-messages/messages-unread-summary";
 import {
-  fetchUnifiedInboxConversationsForDashboard,
+  fetchUnifiedInboxConversationsForUnreadSummary,
   fetchUnifiedInboxConversationsServer,
 } from "@/lib/contact-messages/unified-inbox-server";
 import {
@@ -39,13 +39,11 @@ export async function fetchMessagesUnreadSummary(
   },
 ): Promise<MessagesUnreadSummary> {
   const includeInbox = params.includeInboxConversations !== false;
-  // Glocke/Dashboard: Light (kein Attachment-Join). Volle Liste nur wenn Inbox
-  // mitgeliefert werden soll — sonst blockiert jeder Summary-Poll Thread-Loads
-  // (Regression nach PR #425). Client-Overlay via peekCompleteUnifiedInboxCache
-  // hält den Zähler stabil, sobald die volle Inbox geladen ist.
+  // Glocke/Dashboard: volle Zeilen-Tiefe ohne Attachment-Join (nicht 400-Zeilen-Light).
+  // Nach Live-Deploy ist der Client-Inbox-Cache leer — Light unter-/überzählt Unreads.
   const conversations = includeInbox
     ? await fetchUnifiedInboxConversationsServer(admin, params)
-    : await fetchUnifiedInboxConversationsForDashboard(admin, params);
+    : await fetchUnifiedInboxConversationsForUnreadSummary(admin, params);
   const notifyable = conversations.filter(
     (c) => !conversationExcludedFromSeparateMessageNotification(c),
   );

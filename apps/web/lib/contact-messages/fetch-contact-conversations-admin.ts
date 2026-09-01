@@ -41,13 +41,17 @@ export async function fetchContactConversationsAdmin(
     platform: ContactMessagePlatform;
     /** Glocken-/Dashboard-Pfad: ohne Attachment-Join. */
     light?: boolean;
+    /** Optional: Zeilenlimit überschreiben (z. B. volle Inbox ohne Attachments). */
+    rowLimit?: number;
   },
 ): Promise<ContactConversationPreview[]> {
   if (!isUuidRestaurantId(params.restaurantId)) return [];
 
-  const rowLimit = params.light
-    ? DASHBOARD_CONVERSATION_LIST_MESSAGE_ROW_LIMIT
-    : CONVERSATION_LIST_MESSAGE_ROW_LIMIT;
+  const rowLimit =
+    params.rowLimit ??
+    (params.light
+      ? DASHBOARD_CONVERSATION_LIST_MESSAGE_ROW_LIMIT
+      : CONVERSATION_LIST_MESSAGE_ROW_LIMIT);
 
   const { data: messages, error } = await admin
     .from("contact_messages")

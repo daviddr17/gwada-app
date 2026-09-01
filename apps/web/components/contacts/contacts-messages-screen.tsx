@@ -1092,22 +1092,14 @@ export function ContactsMessagesScreen({
         toast.error(contactInboxMarkReadErrorMessage(result.error));
         return;
       }
-      if (
-        isEmailPseudoContactId(conversationKey) ||
-        inboxFilter === "email" ||
-        inboxFilter === "whatsapp" ||
-        isUnifiedInboxFilter(inboxFilter)
-      ) {
-        void loadConversations({ silent: true, force: true });
-      }
+      // Kein Force-Refetch: patchConversationReadState + mark-read-API dispatchen
+      // bereits GWADA_DASHBOARD_MESSAGES_REFRESH mit contactId (Background überspringt).
     },
     [
       restaurantId,
-      inboxFilter,
       whatsappConnected,
       emailConnected,
       patchConversationReadState,
-      loadConversations,
     ],
   );
 
@@ -1653,8 +1645,8 @@ export function ContactsMessagesScreen({
       if (!pendingContactId) {
         openThreadIdRef.current = null;
       }
-      if (connectionsLoading) return;
       const hasInboxCache = Boolean(peekUnifiedInboxCache(restaurantId)?.length);
+      if (connectionsLoading && !hasInboxCache) return;
       void loadConversations(hasInboxCache ? { silent: true } : undefined);
       return;
     }
@@ -1676,10 +1668,11 @@ export function ContactsMessagesScreen({
       return;
     }
 
-    if (connectionsLoading) return;
     const cached = peekContactThreadCache(restaurantId, contactParam);
+    const hasThreadCache = Boolean(cached && cached.messages.length > 0);
+    if (connectionsLoading && !hasThreadCache) return;
     void loadThread({
-      silent: Boolean(cached && cached.messages.length > 0),
+      silent: hasThreadCache,
     });
   }, [
     active,

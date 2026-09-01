@@ -12,6 +12,10 @@ import { StaffWorkHoursSubnav } from "@/components/staff/staff-work-hours-subnav
 import { StaffPayrollSettlementStatusBadge } from "@/components/staff/staff-payroll-settlement-controls";
 import { StaffWageAdvanceDrawer } from "@/components/staff/staff-wage-advance-drawer";
 import {
+  defaultPaidOnYmdForCalendarMonth,
+  StaffPayrollQuickSettleButton,
+} from "@/components/staff/staff-payroll-quick-settle-button";
+import {
   clampListPage,
   LIST_PAGE_SIZE_DEFAULT,
   totalPagesFromCount,
@@ -111,17 +115,6 @@ function formatMonthLabel(year: number, month1to12: number): string {
 function formatHoursBalance(h: number): string {
   const sign = h > 0 ? "+" : "";
   return `${sign}${h.toFixed(1).replace(".", ",")} h`;
-}
-
-function localTodayYmd(): string {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
-}
-
-function defaultPaidOnForMonth(startYmd: string, endYmd: string): string {
-  const today = localTodayYmd();
-  if (today >= startYmd && today <= endYmd) return today;
-  return startYmd;
 }
 
 type PayoutDrawerTarget = {
@@ -364,14 +357,42 @@ export function StaffPayrollSettlementScreen() {
   }, [rows, currentPage]);
 
   const openPayoutDrawer = useCallback((row: PayrollOverviewRow) => {
-    const bounds = monthBoundsYmd(row.periodYear, row.periodMonth);
     setPayoutDrawerTarget({
       staffId: row.staffId,
       staffName: row.staffName,
-      defaultPaidOn: defaultPaidOnForMonth(bounds.startYmd, bounds.endYmd),
+      defaultPaidOn: defaultPaidOnYmdForCalendarMonth(
+        row.periodYear,
+        row.periodMonth,
+      ),
     });
     setPayoutDrawerOpen(true);
   }, []);
+
+  const applyOptimisticPayout = useCallback(
+    (
+      row: PayrollOverviewRow,
+      amountCents: number,
+    ) => {
+      if (!restaurantId) return;
+      setAdvances((prev) => [
+        ...prev,
+        {
+          id: `optimistic-${row.key}-${Date.now()}`,
+          restaurant_id: restaurantId,
+          staff_id: row.staffId,
+          amount_cents: amountCents,
+          paid_on: defaultPaidOnYmdForCalendarMonth(
+            row.periodYear,
+            row.periodMonth,
+          ),
+          note: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ]);
+    },
+    [restaurantId],
+  );
 
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
@@ -530,12 +551,27 @@ export function StaffPayrollSettlementScreen() {
                             : "—"}
                         </td>
                         <td className="px-4 py-2.5">
-                          <StaffPayrollSettlementStatusBadge
-                            status={row.status}
-                            openCents={row.openCents}
-                            overpaidCreditCents={row.overpaidCreditCents}
-                            compact
-                          />
+                          <div className="flex items-center justify-end gap-1">
+                            <StaffPayrollQuickSettleButton
+                              restaurantId={restaurantId}
+                              staffId={row.staffId}
+                              staffName={row.staffName}
+                              wageCents={row.wageCents}
+                              payoutCents={row.payoutCents}
+                              periodYear={row.periodYear}
+                              periodMonth={row.periodMonth}
+                              onOptimisticSettle={(amountCents) =>
+                                applyOptimisticPayout(row, amountCents)
+                              }
+                              onSettled={() => void reload()}
+                            />
+                            <StaffPayrollSettlementStatusBadge
+                              status={row.status}
+                              openCents={row.openCents}
+                              overpaidCreditCents={row.overpaidCreditCents}
+                              compact
+                            />
+                          </div>
                         </td>
                       </tr>
                     ))}

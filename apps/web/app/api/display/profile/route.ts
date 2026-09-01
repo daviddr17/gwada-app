@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
+import { loadDisplayStaffProfile } from "@/lib/display/display-profile-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function GET() {
@@ -15,17 +16,14 @@ export async function GET() {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
-  const { data, error } = await admin
-    .from("restaurant_documents")
-    .select("id, title, file_name, mime_type, size_bytes, created_at")
-    .eq("restaurant_id", access.restaurantId)
-    .eq("staff_id", access.staffId)
-    .eq("visible_to_staff", true)
-    .order("created_at", { ascending: false });
+  const profile = await loadDisplayStaffProfile(admin, {
+    restaurantId: access.restaurantId,
+    staffId: access.staffId,
+  });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!profile) {
+    return NextResponse.json({ error: "staff_not_found" }, { status: 404 });
   }
 
-  return NextResponse.json({ documents: data ?? [] });
+  return NextResponse.json({ profile });
 }

@@ -4,7 +4,9 @@ import { test } from "node:test";
 import {
   computeStaffDayWageBreakdown,
   sumStaffWorkHoursForDay,
+  sumTeamWorkHoursForDay,
 } from "./staff-day-wage.ts";
+import { computeDashboardStaffSummary } from "./compute-dashboard-staff-summary.ts";
 import { displayShiftHoursBreakdown } from "./staff-work-hours-display.ts";
 import { netWorkHoursFromWorkBreakEntries } from "./staff-work-hours-summary.ts";
 import type {
@@ -91,4 +93,90 @@ test("Lohn nutzt netWorkH (nicht aufgeblasenes Eingeloggt) bei überlappender Pa
   assert.equal(wage.lines[0]!.wageCents, Math.round(hours.netWorkH * 1500));
   // Nicht Eingeloggt × Satz
   assert.notEqual(wage.lines[0]!.wageCents, Math.round(hours.loggedH * 1500));
+});
+
+test("Team-Stunden summieren pro Mitarbeiter (keine Union überlappender Schichten)", () => {
+  const dayYmd = "2026-08-25";
+  const now = new Date("2026-08-26T12:00:00.000Z");
+  const tz = "UTC";
+  const entries = [
+    workEntry({
+      id: "w-a",
+      staff_id: "s-a",
+      entry_type: "work",
+      starts_at: "2026-08-25T08:00:00.000Z",
+      ends_at: "2026-08-25T17:00:00.000Z",
+    }),
+    workEntry({
+      id: "w-b",
+      staff_id: "s-b",
+      entry_type: "work",
+      starts_at: "2026-08-25T08:00:00.000Z",
+      ends_at: "2026-08-25T17:00:00.000Z",
+    }),
+    workEntry({
+      id: "b-b",
+      staff_id: "s-b",
+      entry_type: "break",
+      starts_at: "2026-08-25T12:00:00.000Z",
+      ends_at: "2026-08-25T13:00:00.000Z",
+    }),
+  ];
+
+  const perA = sumStaffWorkHoursForDay(entries, "s-a", dayYmd, now, tz);
+  const perB = sumStaffWorkHoursForDay(entries, "s-b", dayYmd, now, tz);
+  const team = sumTeamWorkHoursForDay(entries, dayYmd, now, tz);
+
+  assert.ok(Math.abs(perA - 9) < 1e-9);
+  assert.ok(Math.abs(perB - 8) < 1e-9);
+  assert.ok(Math.abs(team - 17) < 1e-9);
+  assert.notEqual(team, netWorkHoursFromWorkBreakEntries(entries, now).netWorkH);
+});
+
+test("Heute-Widget-Stunden = Summe der Tageslohn-Zeilen", () => {
+  const dayYmd = "2026-08-25";
+  const now = new Date("2026-08-26T12:00:00.000Z");
+  const tz = "UTC";
+  const entries = [
+    workEntry({
+      id: "w1",
+      staff_id: "s1",
+      entry_type: "work",
+      starts_at: "2026-08-25T07:30:00.000Z",
+      ends_at: "2026-08-25T19:16:00.000Z",
+      note: "Display",
+    }),
+    workEntry({
+      id: "b1",
+      staff_id: "s1",
+      entry_type: "break",
+      starts_at: "2026-08-25T13:00:00.000Z",
+      ends_at: "2026-08-25T14:00:00.000Z",
+    }),
+    workEntry({
+      id: "w2",
+      staff_id: "s2",
+      entry_type: "work",
+      starts_at: "2026-08-25T10:00:00.000Z",
+      ends_at: "2026-08-25T18:00:00.000Z",
+    }),
+  ];
+  const wage = computeStaffDayWageBreakdown({
+    entries,
+    contracts: [hourlyContract],
+    dayYmd,
+    now,
+    timeZone: tz,
+  });
+  const wageHours = wage.lines.reduce((sum, line) => sum + line.workHours, 0);
+  const summary = computeDashboardStaffSummary({
+    staff: [],
+    presence: [],
+    todayEntries: entries,
+    dayYmd,
+    timeZone: tz,
+    now,
+  });
+
+  assert.ok(Math.abs(summary.todayWorkHours - wageHours) < 1e-9);
 });

@@ -30,6 +30,16 @@ export function integrationSyncErrorMessage(code: string): string {
     case "kitchen_hours_empty":
       return "Keine Küchenzeiten zum Übertragen.";
     default:
+      if (
+        code.includes("pages_manage_metadata") ||
+        code.includes("(#200)") ||
+        /permission/i.test(code)
+      ) {
+        return "Facebook-Berechtigung fehlt — unter Integrationen Facebook erneut verbinden.";
+      }
+      if (code.includes("must be an object") || code.includes("hours")) {
+        return "Facebook hat das Öffnungszeiten-Format abgelehnt — bitte Zeiten prüfen (kein ungültiges Format).";
+      }
       if (code.startsWith("google_") || code.includes("Google")) {
         return `Google: ${code.replace(/^google_/, "")}`;
       }

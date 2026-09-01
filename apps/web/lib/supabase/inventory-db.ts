@@ -11,6 +11,7 @@ import type {
   PurchaseOrderLogEntry,
   PurchaseOrderStatus,
 } from "@/lib/types/purchase-order";
+import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
 import { isPurchaseOrderStatus } from "@/lib/inventory/purchase-order-status";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { IngredientStockLogEntry } from "@/lib/types/ingredient-stock-log";
@@ -889,10 +890,12 @@ export async function savePurchaseOrdersRelational(
   orders: PurchaseOrder[],
 ): Promise<InventorySaveResult> {
   await ensurePurchaseOrderSuppliers(restaurantId, orders);
+  const fresh = (await loadPurchaseOrdersRelational(restaurantId)) ?? [];
+  const merged = mergePurchaseOrdersForReplace(fresh, orders);
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.rpc("inventory_replace_purchase_orders", {
     p_restaurant_id: restaurantId,
-    p_orders: orders,
+    p_orders: merged,
   });
   if (error) {
     console.warn("[gwada] inventory_replace_purchase_orders", error.message);

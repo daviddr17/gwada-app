@@ -32,6 +32,16 @@ const WEEKDAY_AFTER: Record<Weekday, Weekday> = {
   sunday: "monday",
 };
 
+const WEEKDAY_BEFORE: Record<Weekday, Weekday> = {
+  monday: "sunday",
+  tuesday: "monday",
+  wednesday: "tuesday",
+  thursday: "wednesday",
+  friday: "thursday",
+  saturday: "friday",
+  sunday: "saturday",
+};
+
 function parseHm(value: string | undefined): { hours: number; minutes: number } | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(value?.trim() ?? "");
   if (!m) return null;
@@ -182,9 +192,65 @@ const FB_TO_WEEKDAY: Record<string, Weekday> = {
   sun: "sunday",
 };
 
-function googleTimeToHm(t?: { hours?: number; minutes?: number }): string | undefined {
+function googleTimeToHm(
+  t?: { hours?: number; minutes?: number } | string,
+): string | undefined {
+  if (typeof t === "string") {
+    const trimmed = t.trim();
+    if (trimmed === "24:00") return "24:00";
+    return toFacebookHm(trimmed) ?? undefined;
+  }
   if (t?.hours === undefined || t.minutes === undefined) return undefined;
+  if (t.hours === 24 && t.minutes === 0) return "24:00";
+  if (t.hours < 0 || t.hours > 23 || t.minutes < 0 || t.minutes > 59) return undefined;
   return `${String(t.hours).padStart(2, "0")}:${String(t.minutes).padStart(2, "0")}`;
+}
+
+function hmToMinutes(value: string | undefined): number | null {
+  const p = parseHm(value);
+  if (!p) return null;
+  return p.hours * 60 + p.minutes;
+}
+
+/** Google closeTime 24:00 / closeDay → Gwada open/close (overnight = close <= open). */
+function googleCloseToLocalClose(
+  openHm: string,
+  openDayGoogle: string,
+  closeDayGoogle: string,
+  closeHm: string,
+): string {
+  if (closeHm === "24:00") return "00:00";
+  if (openDayGoogle !== closeDayGoogle && closeHm === "00:00") return "00:00";
+  return closeHm;
+}
+
+function isOvernightLocalOpenClose(openHm: string, closeHm: string): boolean {
+  const openM = hmToMinutes(openHm);
+  const closeM = hmToMinutes(closeHm);
+  if (openM == null || closeM == null) return false;
+  return closeM <= openM;
+}
+
+/** Google split overnight: Sa 00:00–02:00 gehört zu Fr 18:00–02:00. */
+function isEarlyMorningOvernightTail(openHm: string, closeHm: string): boolean {
+  const openM = hmToMinutes(openHm);
+  const closeM = hmToMinutes(closeHm);
+  if (openM == null || closeM == null) return false;
+  return openM === 0 && closeM > 0 && closeM <= 12 * 60;
+}
+
+function canonicalHmForCompare(value: string | undefined): string {
+  const trimmed = value?.trim() ?? "";
+  if (trimmed === "24:00") return "00:00";
+  return toFacebookHm(trimmed) ?? "";
+}
+
+function canonicalDayHoursForCompare(h: DayHours): DayHours {
+  if (h.closed) return { closed: true };
+  const open = canonicalHmForCompare(h.open);
+  const close = canonicalHmForCompare(h.close);
+  if (!open || !close) return { closed: true };
+  return { closed: false, open, close };
 }
 
 function closedWeeklyHours(): Record<Weekday, DayHours> {
@@ -197,18 +263,59 @@ export function fromGoogleRegularHours(regularHours?: {
   periods?: Array<{
     openDay?: string;
     closeDay?: string;
-    openTime?: { hours?: number; minutes?: number };
-    closeTime?: { hours?: number; minutes?: number };
+    openTime?: { hours?: number; minutes?: number } | string;
+    closeTime?: { hours?: number; minutes?: number } | string;
   }>;
 }): Record<Weekday, DayHours> {
   const weekly = closedWeeklyHours();
+  type Slot = { weekday: Weekday; open: string; close: string };
+  const slots: Slot[] = [];
+
   for (const p of regularHours?.periods ?? []) {
-    const day = p.openDay ? GOOGLE_TO_WEEKDAY[p.openDay] : undefined;
-    if (!day) continue;
+    const openDayGoogle = p.openDay?.toUpperCase();
+    if (!openDayGoogle) continue;
+    const weekday = GOOGLE_TO_WEEKDAY[openDayGoogle];
+    if (!weekday) continue;
     const open = googleTimeToHm(p.openTime);
-    const close = googleTimeToHm(p.closeTime);
-    if (!open || !close) continue;
-    weekly[day] = { closed: false, open, close };
+    const closeRaw = googleTimeToHm(p.closeTime);
+    if (!open || !closeRaw) continue;
+    const closeDayGoogle = (p.closeDay ?? p.openDay)?.toUpperCase() ?? openDayGoogle;
+    const close = googleCloseToLocalClose(
+      open,
+      openDayGoogle,
+      closeDayGoogle,
+      closeRaw,
+    );
+    slots.push({ weekday, open, close });
+  }
+
+  const merged = new Map<Weekday, Slot>();
+  for (const slot of slots) {
+    const prevDay = WEEKDAY_BEFORE[slot.weekday];
+    const prev = merged.get(prevDay);
+    if (
+      isEarlyMorningOvernightTail(slot.open, slot.close) &&
+      prev &&
+      isOvernightLocalOpenClose(prev.open, prev.close)
+    ) {
+      merged.set(prevDay, { ...prev, close: slot.close });
+      continue;
+    }
+
+    const existing = merged.get(slot.weekday);
+    if (!existing) {
+      merged.set(slot.weekday, slot);
+      continue;
+    }
+    merged.set(slot.weekday, {
+      weekday: slot.weekday,
+      open: existing.open,
+      close: slot.close,
+    });
+  }
+
+  for (const [day, slot] of merged) {
+    weekly[day] = { closed: false, open: slot.open, close: slot.close };
   }
   return weekly;
 }
@@ -340,11 +447,9 @@ export function weeklyHoursFingerprint(
   weekly: Record<Weekday, DayHours>,
 ): string {
   return WEEKDAY_ORDER.map((day) => {
-    const h = weekly[day];
+    const h = canonicalDayHoursForCompare(weekly[day]);
     if (h.closed) return `${day}:closed`;
-    const open = toFacebookHm(h.open) ?? "";
-    const close = toFacebookHm(h.close) ?? "";
-    return `${day}:${open}-${close}`;
+    return `${day}:${h.open}-${h.close}`;
   }).join("|");
 }
 

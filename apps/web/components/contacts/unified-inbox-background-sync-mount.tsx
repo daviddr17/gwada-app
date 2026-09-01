@@ -3,7 +3,6 @@
 import { peekUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
 import { useUnifiedInboxBackgroundSync } from "@/lib/contact-messages/unified-inbox-background-sync";
 import { useInboxLiveNotifications } from "@/lib/hooks/use-dashboard-live-notifications";
-import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -14,13 +13,6 @@ export function UnifiedInboxBackgroundSyncMount({
   enabled?: boolean;
 }) {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const {
-    loading: connectionsLoading,
-    whatsappConnected,
-    emailConnected,
-    facebookConnected,
-    instagramConnected,
-  } = useRestaurantChannelConnections(restaurantId);
 
   const active =
     enabled &&
@@ -32,11 +24,6 @@ export function UnifiedInboxBackgroundSyncMount({
   useUnifiedInboxBackgroundSync({
     enabled: active,
     restaurantId: active ? restaurantId : null,
-    whatsappConnected,
-    emailConnected,
-    facebookConnected,
-    instagramConnected,
-    connectionsReady: active && !connectionsLoading,
   });
 
   return null;

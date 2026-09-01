@@ -129,6 +129,7 @@ import { useIsLgUp } from "@/lib/hooks/use-is-lg-up";
 import { filterInboxConversationsByPlatform } from "@/lib/contact-messages/unified-inbox-merge";
 import {
   fetchUnifiedInboxConversations,
+  fetchInboxConversationsForPlatform,
   isUnifiedInboxFilter,
   markUnifiedInboxConversationReadClient,
 } from "@/lib/contact-messages/unified-inbox-client";
@@ -140,7 +141,6 @@ import {
   upsertConversationFollowUpClient,
   clearConversationFollowUpClient,
 } from "@/lib/contact-messages/fetch-inbox-client";
-import { enrichConversationsWithReadState } from "@/lib/contact-messages/enrich-gwada-conversations-client";
 import {
   CONTACT_THREAD_PAGE_SIZE,
   dedupeContactMessagesById,
@@ -266,7 +266,6 @@ import {
 } from "@/lib/supabase/contacts-db";
 import {
   fetchContactMessages,
-  fetchContactConversations,
   type ContactConversationPreview,
   type ContactMessageRow,
 } from "@/lib/supabase/contact-messages-db";
@@ -970,10 +969,6 @@ export function ContactsMessagesScreen({
     if (isUnifiedInboxFilter(inboxFilter)) {
       const { data, error } = await fetchUnifiedInboxConversations({
         restaurantId,
-        whatsappConnected,
-        emailConnected,
-        facebookConnected,
-        instagramConnected,
       });
       if (error && activeRef.current) toast.error(error.message);
       setConversations(data);
@@ -986,7 +981,7 @@ export function ContactsMessagesScreen({
       setConversations([]);
     } else {
       const platform = inboxFilter as ContactMessagePlatform;
-      const { data, error } = await fetchContactConversations({
+      const { data, error } = await fetchInboxConversationsForPlatform({
         restaurantId,
         platform,
       });
@@ -994,12 +989,7 @@ export function ContactsMessagesScreen({
         if (activeRef.current) toast.error(error.message);
         setConversations([]);
       } else {
-        const enriched = await enrichConversationsWithReadState({
-          restaurantId,
-          platform,
-          conversations: data,
-        });
-        setConversations(enriched);
+        setConversations(data);
       }
     }
 
@@ -1018,16 +1008,7 @@ export function ContactsMessagesScreen({
     setRefreshingInbox(true);
     try {
       if (isUnifiedInboxFilter(inboxFilter)) {
-        await refreshUnifiedInboxCache(
-          {
-            restaurantId,
-            whatsappConnected,
-            emailConnected,
-            facebookConnected,
-            instagramConnected,
-          },
-          { force: true },
-        );
+        await refreshUnifiedInboxCache({ restaurantId }, { force: true });
         const cached = peekUnifiedInboxCache(restaurantId);
         if (cached) setConversations(cached);
       } else {

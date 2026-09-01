@@ -348,7 +348,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 5 * 60 * 1000,
     pollIntervalMs: 5 * 60 * 1000,
     description:
-      "Gwada-DB + WAHA/E-Mail/Facebook/Instagram — sessionStorage-Cache (30 Min Session). Öffnen: Cache sofort, Force-Refetch nur wenn älter als 5 Min (SWR); sonst Background-Poll 5 Min + Realtime. Keep-alive Home in Dashboard-SPA. Mount app-weit im (app)-Layout.",
+      "Gwada-DB — ein GET /api/contact-messages/inbox (Server bündelt Kanäle + Reads + Follow-ups). sessionStorage-Cache (30 Min Session). Öffnen: Cache sofort, Force-Refetch nur wenn älter als 5 Min (SWR); sonst Background-Poll 5 Min + Realtime. Keep-alive Home in Dashboard-SPA. Mount app-weit im (app)-Layout.",
     loadTriggers: [
       "UnifiedInboxBackgroundSyncMount im App-Layout",
       "Nachrichten Keep-alive Slot (warm nach Soft-Nav/Hover)",
@@ -361,12 +361,11 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "GWADA_DASHBOARD_MESSAGES_REFRESH",
       "Supabase Realtime contact_messages",
     ],
-    apiEndpoints: [
-      "/api/contact-messages/waha/conversations",
-      "/api/contact-messages/email/conversations",
-      "/api/contact-messages/meta/conversations",
-    ],
+    apiEndpoints: ["/api/contact-messages/inbox"],
     implementationFiles: [
+      "app/api/contact-messages/inbox/route.ts",
+      "lib/contact-messages/load-inbox-conversations-server.ts",
+      "lib/contact-messages/unified-inbox-client.ts",
       "components/contacts/unified-inbox-background-sync-mount.tsx",
       "lib/contact-messages/unified-inbox-background-sync.ts",
       "lib/hooks/use-dashboard-live-notifications.ts",

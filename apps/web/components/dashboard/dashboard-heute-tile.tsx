@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
   Cake,
@@ -14,6 +15,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { DashboardHeuteBirthdaysSheet } from "@/components/dashboard/dashboard-heute-birthdays-sheet";
+import { DashboardHeuteAllClear } from "@/components/dashboard/dashboard-heute-all-clear";
 import { DashboardHeuteWorkHoursSheet } from "@/components/dashboard/dashboard-heute-work-hours-sheet";
 import { DashboardInventoryAlertsSheet } from "@/components/dashboard/dashboard-inventory-alerts-sheet";
 import { DashboardMessagesListSheet } from "@/components/dashboard/dashboard-messages-list-sheet";
@@ -45,6 +47,7 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { listStaffBirthdaysToday } from "@/lib/staff/staff-birthdays-today";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
+import { DASHBOARD_HOME } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
 type HeuteActionTone = "attention" | "warning" | "birthday";
@@ -182,6 +185,7 @@ function pluralDe(count: number, one: string, many: string): string {
 }
 
 export function DashboardHeuteTile() {
+  const pathname = usePathname();
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
@@ -461,6 +465,30 @@ export function DashboardHeuteTile() {
 
   const hasActions = actionItems.length > 0;
   const hasLage = lageItems.length > 0;
+  const canHaveActions =
+    can.reservations || can.messages || can.inventory || can.staff;
+  const showAllClear =
+    ready && !loading && canHaveActions && !hasActions;
+
+  const [allClearAnimKey, setAllClearAnimKey] = useState(0);
+  const prevShowAllClearRef = useRef(false);
+  const prevPathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    const enteredDashboard =
+      pathname === DASHBOARD_HOME && prevPathnameRef.current !== DASHBOARD_HOME;
+    const becameAllClear = showAllClear && !prevShowAllClearRef.current;
+
+    if (showAllClear && (becameAllClear || enteredDashboard)) {
+      setAllClearAnimKey((key) => key + 1);
+    }
+
+    prevShowAllClearRef.current = showAllClear;
+    prevPathnameRef.current = pathname;
+  }, [pathname, showAllClear]);
+
+  const showJetztHandeln = hasActions || showAllClear;
+  const splitJetztHandelnAndLage = hasActions && hasLage;
 
   return (
     <DashboardWidgetShell
@@ -493,20 +521,28 @@ export function DashboardHeuteTile() {
       <div
         className={cn(
           "flex flex-col gap-4 sm:gap-5",
-          hasActions && hasLage && "xl:grid xl:grid-cols-12 xl:items-start xl:gap-5",
+          splitJetztHandelnAndLage &&
+            "xl:grid xl:grid-cols-12 xl:items-start xl:gap-5",
         )}
       >
-        {hasActions ? (
+        {showJetztHandeln ? (
           <section
-            className={cn("min-w-0 space-y-2", hasLage && "xl:col-span-7")}
+            className={cn(
+              "min-w-0 space-y-2",
+              splitJetztHandelnAndLage && "xl:col-span-7",
+            )}
             aria-label="Jetzt handeln"
           >
             <HeuteSectionLabel>Jetzt handeln</HeuteSectionLabel>
-            <div className="flex flex-col gap-2">
-              {actionItems.map((item) => (
-                <HeuteActionRow key={item.id} item={item} />
-              ))}
-            </div>
+            {hasActions ? (
+              <div className="flex flex-col gap-2">
+                {actionItems.map((item) => (
+                  <HeuteActionRow key={item.id} item={item} />
+                ))}
+              </div>
+            ) : (
+              <DashboardHeuteAllClear replayKey={allClearAnimKey} />
+            )}
           </section>
         ) : null}
 
@@ -514,7 +550,7 @@ export function DashboardHeuteTile() {
           <section
             className={cn(
               "min-w-0 space-y-2",
-              hasActions && "xl:col-span-5",
+              splitJetztHandelnAndLage && "xl:col-span-5",
             )}
             aria-label="Heute läuft"
           >
@@ -522,11 +558,10 @@ export function DashboardHeuteTile() {
             <div
               className={cn(
                 "grid gap-2",
-                // Phone: 1 Spalte; Tablet+: bis 3; neben Aktionen auf XL: wieder 1 Spalte
                 lageItems.length === 1 && "grid-cols-1",
                 lageItems.length === 2 && "grid-cols-1 sm:grid-cols-2",
                 lageItems.length >= 3 &&
-                  (hasActions
+                  (splitJetztHandelnAndLage
                     ? "grid-cols-1 sm:grid-cols-3 xl:grid-cols-1"
                     : "grid-cols-1 sm:grid-cols-3"),
               )}
@@ -538,7 +573,7 @@ export function DashboardHeuteTile() {
           </section>
         ) : null}
 
-        {!hasActions && !hasLage ? (
+        {!showJetztHandeln && !hasLage ? (
           <p className="py-2 text-sm text-muted-foreground">
             Keine Module freigeschaltet — sobald Reservierungen, Team oder
             Nachrichten verfügbar sind, erscheint hier dein Tagesüberblick.

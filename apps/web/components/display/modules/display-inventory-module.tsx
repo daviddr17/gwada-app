@@ -23,6 +23,7 @@ import type {
   DisplayInventoryPayload,
 } from "@/lib/display/display-inventory-server";
 import { GWADA_DISPLAY_INVENTORY_REFRESH_EVENT } from "@/lib/display/display-inventory-live-events";
+import { createDisplayInventoryOrderSaveQueue } from "@/lib/display/display-inventory-order-save-queue";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
@@ -75,6 +76,10 @@ function parseQty(raw: string): number | null {
   return n;
 }
 
+function pendingDisplayOrderLineId(ingredientId: string): string {
+  return `pending:${ingredientId}`;
+}
+
 function DisplayInventoryCard({
   row,
   mode,
@@ -84,6 +89,7 @@ function DisplayInventoryCard({
   onAdvance,
   onReleaseFocus,
   registerInput,
+  enqueueOrderSave,
 }: {
   row: DisplayInventoryIngredientRow;
   mode: ViewMode;
@@ -96,8 +102,11 @@ function DisplayInventoryCard({
   onAdvance: (id: string) => void;
   onReleaseFocus: () => void;
   registerInput: (id: string, el: HTMLInputElement | null) => void;
+  enqueueOrderSave: <T>(task: () => Promise<T>) => Promise<T>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const skipNextBlurCommitRef = useRef(false);
+  const editingRef = useRef(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [savedStock, setSavedStock] = useState(row.currentStock);
@@ -106,12 +115,28 @@ function DisplayInventoryCard({
     orderId: row.orderId,
     orderLineId: row.orderLineId,
   });
+  const confirmedOrderRef = useRef({
+    orderQuantity: row.orderQuantity,
+    orderLineId: row.orderLineId,
+    orderId: row.orderId,
+  });
+  const orderSaveGenerationRef = useRef(0);
 
   useEffect(() => {
+    if (editingRef.current) return;
     setSavedStock(row.currentStock);
     setSavedOrderQty(row.orderQuantity);
     setOrderMeta({ orderId: row.orderId, orderLineId: row.orderLineId });
+    confirmedOrderRef.current = {
+      orderQuantity: row.orderQuantity,
+      orderLineId: row.orderLineId,
+      orderId: row.orderId,
+    };
   }, [row.currentStock, row.orderId, row.orderLineId, row.orderQuantity]);
+
+  useEffect(() => {
+    editingRef.current = focused;
+  }, [focused]);
 
   const prevFocusedRef = useRef(false);
 
@@ -135,7 +160,6 @@ function DisplayInventoryCard({
   }, [registerInput, row.id]);
 
   const commit = useCallback(async (options?: { advanceOnSuccess?: boolean }) => {
-    if (busy) return;
     if (mode === "order" && !row.canOrder) {
       toast.error(
         "Diese Zutat hat keinen Lieferanten und kann nicht bestellt werden.",
@@ -143,9 +167,10 @@ function DisplayInventoryCard({
       return;
     }
 
-    setBusy(true);
-    try {
-      if (mode === "stock") {
+    if (mode === "stock") {
+      if (busy) return;
+      setBusy(true);
+      try {
         const raw = draft.trim();
         if (raw === "") {
           onCommitted(null);
@@ -179,24 +204,50 @@ function DisplayInventoryCard({
         toast.success(`${row.name}: Bestand ${savedStock} → ${next} ${row.unitLabel}`);
         onCommitted(row.id, { currentStock: next });
         if (options?.advanceOnSuccess) onAdvance(row.id);
-        return;
+      } finally {
+        setBusy(false);
       }
+      return;
+    }
 
-      const raw = draft.trim();
-      const q = raw === "" ? 0 : parseQty(raw);
-      if (q === null) {
-        toast.error("Bitte eine gültige Menge (≥ 0) eingeben.");
-        return;
-      }
-      if (q === savedOrderQty && orderMeta.orderLineId) {
-        onCommitted(null);
-        return;
-      }
-      if (!orderMeta.orderLineId && q === 0) {
-        onCommitted(null);
-        return;
-      }
+    const raw = draft.trim();
+    if (raw === "" && orderMeta.orderLineId) {
+      onCommitted(null);
+      return;
+    }
+    const q = raw === "" ? 0 : parseQty(raw);
+    if (q === null) {
+      toast.error("Bitte eine gültige Menge (≥ 0) eingeben.");
+      return;
+    }
+    if (q === savedOrderQty && orderMeta.orderLineId) {
+      onCommitted(null);
+      return;
+    }
+    if (!orderMeta.orderLineId && q === 0) {
+      onCommitted(null);
+      return;
+    }
 
+    const saveGeneration = ++orderSaveGenerationRef.current;
+    const optimisticLineId =
+      q > 0 ? (orderMeta.orderLineId ?? pendingDisplayOrderLineId(row.id)) : null;
+    const optimisticPatch = {
+      orderQuantity: q,
+      orderLineId: optimisticLineId,
+      orderId: orderMeta.orderId,
+    };
+
+    setSavedOrderQty(q);
+    setOrderMeta({
+      orderId: orderMeta.orderId,
+      orderLineId: optimisticLineId,
+    });
+    setDraft(String(q));
+    onCommitted(row.id, optimisticPatch);
+    if (options?.advanceOnSuccess) onAdvance(row.id);
+
+    void enqueueOrderSave(async () => {
       const res = await fetch("/api/display/inventory/order-line", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -207,6 +258,26 @@ function DisplayInventoryCard({
       });
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string };
+        if (orderSaveGenerationRef.current === saveGeneration) {
+          const confirmed = confirmedOrderRef.current;
+          setSavedOrderQty(confirmed.orderQuantity);
+          setOrderMeta({
+            orderId: confirmed.orderId,
+            orderLineId: confirmed.orderLineId,
+          });
+          setDraft(
+            focused
+              ? confirmed.orderLineId || confirmed.orderQuantity > 0
+                ? String(confirmed.orderQuantity)
+                : ""
+              : "",
+          );
+          onCommitted(row.id, {
+            orderQuantity: confirmed.orderQuantity,
+            orderLineId: confirmed.orderLineId,
+            orderId: confirmed.orderId,
+          });
+        }
         if (err.error === "no_supplier") {
           toast.error(
             "Diese Zutat hat keinen Lieferanten und kann nicht bestellt werden.",
@@ -216,6 +287,7 @@ function DisplayInventoryCard({
         }
         return;
       }
+
       const data = (await res.json()) as {
         order_id?: string | null;
         order_line_id?: string | null;
@@ -224,24 +296,28 @@ function DisplayInventoryCard({
       const orderQuantity = data.order_quantity ?? q;
       const orderLineId = data.order_line_id ?? null;
       const orderId = data.order_id ?? orderMeta.orderId;
-      setSavedOrderQty(orderQuantity);
-      setOrderMeta({ orderId, orderLineId });
-      setDraft("");
-      toast.success(
-        `${row.name}: Bestellmenge ${orderQuantity} ${row.unitLabel}`,
-      );
+      confirmedOrderRef.current = {
+        orderQuantity,
+        orderLineId,
+        orderId,
+      };
+
+      if (orderSaveGenerationRef.current === saveGeneration) {
+        setSavedOrderQty(orderQuantity);
+        setOrderMeta({ orderId, orderLineId });
+        setDraft(String(orderQuantity));
+      }
       onCommitted(row.id, {
         orderQuantity,
         orderLineId,
         orderId,
       });
-      if (options?.advanceOnSuccess) onAdvance(row.id);
-    } finally {
-      setBusy(false);
-    }
+    });
   }, [
     busy,
     draft,
+    enqueueOrderSave,
+    focused,
     mode,
     onAdvance,
     onCommitted,
@@ -259,11 +335,13 @@ function DisplayInventoryCard({
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") {
         e.preventDefault();
+        skipNextBlurCommitRef.current = true;
         void commit({ advanceOnSuccess: true });
         return;
       }
       if (e.key === "Tab" && !e.shiftKey) {
         e.preventDefault();
+        skipNextBlurCommitRef.current = true;
         void (async () => {
           await commit({ advanceOnSuccess: false });
           onAdvance(row.id);
@@ -275,6 +353,10 @@ function DisplayInventoryCard({
 
   const handleInputBlur = useCallback(
     (e: React.FocusEvent<HTMLInputElement>) => {
+      if (skipNextBlurCommitRef.current) {
+        skipNextBlurCommitRef.current = false;
+        return;
+      }
       if (!focused) return;
       const rel = e.relatedTarget as HTMLElement | null;
       if (rel?.closest("[data-inventory-toolbar]")) {
@@ -355,7 +437,7 @@ function DisplayInventoryCard({
               ref={inputRef}
               type="text"
               inputMode="decimal"
-              disabled={busy || disabledOrder}
+              disabled={disabledOrder}
               placeholder={
                 orderMeta.orderLineId || savedOrderQty > 0
                   ? String(savedOrderQty)
@@ -396,6 +478,19 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
   const [sortMode, setSortMode] = useState<SortMode>("category");
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const inputRefs = useRef(new Map<string, HTMLInputElement>());
+  const orderSaveQueueRef = useRef(createDisplayInventoryOrderSaveQueue());
+  const [pendingOrderSaves, setPendingOrderSaves] = useState(0);
+
+  const enqueueOrderSave = useCallback(
+    <T,>(task: () => Promise<T>) => orderSaveQueueRef.current.enqueue(task),
+    [],
+  );
+
+  useEffect(() => {
+    return orderSaveQueueRef.current.subscribe(() => {
+      setPendingOrderSaves(orderSaveQueueRef.current.pendingCount);
+    });
+  }, []);
 
   const registerInput = useCallback((id: string, el: HTMLInputElement | null) => {
     if (el) inputRefs.current.set(id, el);
@@ -425,13 +520,14 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
 
   useEffect(() => {
     const onRefresh = () => {
+      if (focusedId !== null || pendingOrderSaves > 0) return;
       void load({ silent: true });
     };
     window.addEventListener(GWADA_DISPLAY_INVENTORY_REFRESH_EVENT, onRefresh);
     return () => {
       window.removeEventListener(GWADA_DISPLAY_INVENTORY_REFRESH_EVENT, onRefresh);
     };
-  }, [load]);
+  }, [focusedId, load, pendingOrderSaves]);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -747,6 +843,7 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
                   });
                 }
               }}
+              enqueueOrderSave={enqueueOrderSave}
               registerInput={registerInput}
             />
           ))}

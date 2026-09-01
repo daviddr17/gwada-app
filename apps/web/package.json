@@ -22,7 +22,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test lib/billing/*.test.ts lib/pos/*.test.ts lib/contact-messages/*.test.ts lib/dashboard/*.test.ts lib/inventory/*.test.ts lib/staff/staff-work-hours-display.test.ts lib/reservations/reservation-timed-notification-schedule.test.ts && node --import tsx --test lib/navigation/*.test.ts lib/staff/labor-law/*.test.ts lib/staff/staff-day-wage.test.ts lib/integrations/*.test.ts"
+    "test": "node --experimental-strip-types --test lib/billing/*.test.ts lib/pos/*.test.ts lib/contact-messages/*.test.ts lib/dashboard/*.test.ts lib/staff/staff-work-hours-display.test.ts lib/reservations/reservation-timed-notification-schedule.test.ts && node --import tsx --test lib/inventory/*.test.ts lib/navigation/*.test.ts lib/staff/labor-law/*.test.ts lib/staff/staff-day-wage.test.ts lib/integrations/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

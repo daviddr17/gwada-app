@@ -13,6 +13,7 @@ import type {
 } from "@/lib/types/purchase-order";
 import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
 import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
+import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import { isPurchaseOrderStatus } from "@/lib/inventory/purchase-order-status";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { IngredientStockLogEntry } from "@/lib/types/ingredient-stock-log";
@@ -872,20 +873,22 @@ export async function loadPurchaseOrdersRelational(
     if (typeof o.delivery_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.delivery_date)) {
       deliveryDate = o.delivery_date;
     }
-    out.push({
-      id,
-      supplierId: o.supplier_id as string,
-      supplierName: o.supplier_name as string,
-      status: (isPurchaseOrderStatus(String(o.status))
-        ? o.status
-        : "open") as PurchaseOrderStatus,
-      createdAt: o.created_at as string,
-      createdBy: (o.created_by as string) ?? "",
-      ...(createdByUserSource ? { createdByUserSource } : {}),
-      deliveryDate,
-      lines: linesByOrder.get(id) ?? [],
-      log: logByOrder.get(id) ?? [],
-    });
+    out.push(
+      reconcilePurchaseOrderLinesFromLog({
+        id,
+        supplierId: o.supplier_id as string,
+        supplierName: o.supplier_name as string,
+        status: (isPurchaseOrderStatus(String(o.status))
+          ? o.status
+          : "open") as PurchaseOrderStatus,
+        createdAt: o.created_at as string,
+        createdBy: (o.created_by as string) ?? "",
+        ...(createdByUserSource ? { createdByUserSource } : {}),
+        deliveryDate,
+        lines: linesByOrder.get(id) ?? [],
+        log: logByOrder.get(id) ?? [],
+      }),
+    );
   }
   return out;
 }

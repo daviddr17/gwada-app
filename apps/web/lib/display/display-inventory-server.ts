@@ -2,6 +2,7 @@ import "server-only";
 
 import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
 import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
+import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import { createId } from "@/lib/create-id";
 import { parseStockLogEntryFromJson } from "@/lib/supabase/inventory-db";
 import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
@@ -267,18 +268,20 @@ async function loadPurchaseOrdersAdmin(
     if (typeof o.delivery_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.delivery_date)) {
       deliveryDate = o.delivery_date;
     }
-    out.push({
-      id,
-      supplierId: o.supplier_id as string,
-      supplierName: o.supplier_name as string,
-      status: o.status as PurchaseOrder["status"],
-      createdAt: o.created_at as string,
-      createdBy: (o.created_by as string) ?? "",
-      ...(createdByUserSource ? { createdByUserSource } : {}),
-      deliveryDate,
-      lines: linesByOrder.get(id) ?? [],
-      log: logByOrder.get(id) ?? [],
-    });
+    out.push(
+      reconcilePurchaseOrderLinesFromLog({
+        id,
+        supplierId: o.supplier_id as string,
+        supplierName: o.supplier_name as string,
+        status: o.status as PurchaseOrder["status"],
+        createdAt: o.created_at as string,
+        createdBy: (o.created_by as string) ?? "",
+        ...(createdByUserSource ? { createdByUserSource } : {}),
+        deliveryDate,
+        lines: linesByOrder.get(id) ?? [],
+        log: logByOrder.get(id) ?? [],
+      }),
+    );
   }
   return out;
 }

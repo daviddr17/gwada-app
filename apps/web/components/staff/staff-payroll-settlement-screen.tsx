@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Banknote, CircleDollarSign } from "lucide-react";
+import { Banknote, CircleDollarSign, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { StaffWorkHoursSubnav } from "@/components/staff/staff-work-hours-subnav";
 import { StaffPayrollSettlementStatusBadge } from "@/components/staff/staff-payroll-settlement-controls";
+import { StaffWageAdvanceDrawer } from "@/components/staff/staff-wage-advance-drawer";
 import {
   clampListPage,
   LIST_PAGE_SIZE_DEFAULT,
@@ -110,6 +112,23 @@ function formatHoursBalance(h: number): string {
   const sign = h > 0 ? "+" : "";
   return `${sign}${h.toFixed(1).replace(".", ",")} h`;
 }
+
+function localTodayYmd(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
+
+function defaultPaidOnForMonth(startYmd: string, endYmd: string): string {
+  const today = localTodayYmd();
+  if (today >= startYmd && today <= endYmd) return today;
+  return startYmd;
+}
+
+type PayoutDrawerTarget = {
+  staffId: string;
+  staffName: string;
+  defaultPaidOn: string;
+};
 
 type PayrollOverviewRow = {
   key: string;
@@ -256,6 +275,9 @@ export function StaffPayrollSettlementScreen() {
     [],
   );
   const [loading, setLoading] = useState(true);
+  const [payoutDrawerOpen, setPayoutDrawerOpen] = useState(false);
+  const [payoutDrawerTarget, setPayoutDrawerTarget] =
+    useState<PayoutDrawerTarget | null>(null);
   const showSkeleton = useDeferredSkeleton(loading);
 
   const rangeInvalid = fromYmd > toYmd;
@@ -340,6 +362,16 @@ export function StaffPayrollSettlementScreen() {
     const start = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
     return rows.slice(start, start + LIST_PAGE_SIZE_DEFAULT);
   }, [rows, currentPage]);
+
+  const openPayoutDrawer = useCallback((row: PayrollOverviewRow) => {
+    const bounds = monthBoundsYmd(row.periodYear, row.periodMonth);
+    setPayoutDrawerTarget({
+      staffId: row.staffId,
+      staffName: row.staffName,
+      defaultPaidOn: defaultPaidOnForMonth(bounds.startYmd, bounds.endYmd),
+    });
+    setPayoutDrawerOpen(true);
+  }, []);
 
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
@@ -470,10 +502,24 @@ export function StaffPayrollSettlementScreen() {
                             ? formatStaffEuroCents(row.wageCents)
                             : "—"}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums">
-                          {row.payoutCents > 0
-                            ? formatStaffEuroCents(row.payoutCents)
-                            : "—"}
+                        <td className="px-4 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-0.5">
+                            <span className="tabular-nums">
+                              {row.payoutCents > 0
+                                ? formatStaffEuroCents(row.payoutCents)
+                                : "—"}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="size-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                              aria-label={`Auszahlung für ${row.staffName} erfassen`}
+                              onClick={() => openPayoutDrawer(row)}
+                            >
+                              <Plus className="size-4" />
+                            </Button>
+                          </div>
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums font-medium">
                           {formatStaffEuroCents(row.openCents)}
@@ -500,6 +546,23 @@ export function StaffPayrollSettlementScreen() {
           </>
         )}
       </div>
+
+      {restaurantId && payoutDrawerTarget ? (
+        <StaffWageAdvanceDrawer
+          open={payoutDrawerOpen}
+          onOpenChange={(open) => {
+            setPayoutDrawerOpen(open);
+            if (!open) setPayoutDrawerTarget(null);
+          }}
+          restaurantId={restaurantId}
+          staffId={payoutDrawerTarget.staffId}
+          advance={null}
+          defaultPaidOn={payoutDrawerTarget.defaultPaidOn}
+          onSaved={() => {
+            void reload();
+          }}
+        />
+      ) : null}
     </>
   );
 }

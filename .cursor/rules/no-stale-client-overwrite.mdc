@@ -53,7 +53,6 @@ Vor jedem Persist-Pfad kurz prüfen:
 ## Referenzen
 
 - Audit: `docs/audit-stale-client-overwrite-pattern.md`
-- PO-Recovery: `docs/inventory-po-data-recovery.md`
 - PO-Hook: `apps/web/lib/hooks/use-purchase-orders-storage.ts`
 - PO-Merge: `apps/web/lib/inventory/merge-purchase-orders-for-replace.ts`
 - Display-Server: `apps/web/lib/display/display-inventory-server.ts`

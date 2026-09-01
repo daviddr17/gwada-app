@@ -24,7 +24,7 @@ import {
 import { type AppLocale, normalizeAppLocale } from "@/i18n/config";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
-import { applyAppLocale } from "@/lib/i18n/apply-app-locale";
+import { applyAppLocale, fetchProfileAppLocale } from "@/lib/i18n/apply-app-locale";
 import { cn } from "@/lib/utils";
 
 type ProfileBaseline = {
@@ -79,11 +79,58 @@ export function ProfilePersoenlicheDatenScreen() {
   const [draftLocale, setDraftLocale] = useState<AppLocale>(activeLocale);
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [profileLocaleReady, setProfileLocaleReady] = useState(false);
   const savedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setDraftLocale(activeLocale);
-  }, [activeLocale]);
+    setProfileLocaleReady(false);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!isHydrated || !isRemoteLoaded || profileLocaleReady) return;
+
+    let cancelled = false;
+    void (async () => {
+      const fromProfile = await fetchProfileAppLocale();
+      if (cancelled) return;
+
+      const resolvedLocale = fromProfile ?? activeLocale;
+      setDraftLocale(resolvedLocale);
+
+      if (savedRef.current === null) {
+        savedRef.current = snapshotFromFields({
+          firstName,
+          lastName,
+          nickname,
+          birthDate,
+          street,
+          postalCode,
+          city,
+          country,
+          locale: resolvedLocale,
+        });
+      }
+      setProfileLocaleReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isHydrated,
+    isRemoteLoaded,
+    profileLocaleReady,
+    userId,
+    activeLocale,
+    firstName,
+    lastName,
+    nickname,
+    birthDate,
+    street,
+    postalCode,
+    city,
+    country,
+  ]);
 
   const profileSnapshot = useMemo(
     () =>
@@ -114,53 +161,26 @@ export function ProfilePersoenlicheDatenScreen() {
   useEffect(() => {
     if (!isHydrated || !isRemoteLoaded) {
       savedRef.current = null;
-      return;
+      setProfileLocaleReady(false);
     }
-    if (savedRef.current === null) {
-      savedRef.current = snapshotFromFields({
-        firstName,
-        lastName,
-        nickname,
-        birthDate,
-        street,
-        postalCode,
-        city,
-        country,
-        locale: activeLocale,
-      });
-      setDraftLocale(activeLocale);
-    }
-  }, [
-    isHydrated,
-    isRemoteLoaded,
-    firstName,
-    lastName,
-    nickname,
-    birthDate,
-    street,
-    postalCode,
-    city,
-    country,
-    activeLocale,
-  ]);
+  }, [isHydrated, isRemoteLoaded]);
 
   const profileDirty =
-    savedRef.current !== null && profileSnapshot !== savedRef.current;
+    profileLocaleReady &&
+    savedRef.current !== null &&
+    profileSnapshot !== savedRef.current;
 
   const handleSave = useCallback(async () => {
     if (saving) return;
     setSaving(true);
     try {
-      const localeChanged = draftLocale !== activeLocale;
       const ok = await save();
       if (!ok) return;
 
-      if (localeChanged) {
-        const localeResult = await applyAppLocale(draftLocale);
-        if (!localeResult.ok) {
-          toast.error(tLang("updateFailed"));
-          return;
-        }
+      const localeResult = await applyAppLocale(draftLocale);
+      if (!localeResult.ok) {
+        toast.error(tLang("updateFailed"));
+        return;
       }
 
       savedRef.current = snapshotFromFields({
@@ -177,7 +197,7 @@ export function ProfilePersoenlicheDatenScreen() {
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 2000);
 
-      if (localeChanged) {
+      if (localeResult.locale !== activeLocale) {
         router.refresh();
       }
     } finally {

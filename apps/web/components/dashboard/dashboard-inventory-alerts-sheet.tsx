@@ -19,6 +19,7 @@ import {
 } from "@/lib/ui/drawer-form-section";
 import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
 import { listPurchaseOrdersDeliveryDue } from "@/lib/inventory/purchase-order-delivery-due";
+import { isIngredientActive } from "@/lib/inventory/low-stock";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
@@ -57,7 +58,7 @@ export function DashboardInventoryAlertsSheet({
   const emptyStockIngredients = useMemo(
     () =>
       ingredients
-        .filter((i) => i.active !== false && i.currentStock <= 0)
+        .filter((i) => isIngredientActive(i) && i.currentStock <= 0)
         .sort((a, b) => a.name.localeCompare(b.name, "de")),
     [ingredients],
   );

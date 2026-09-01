@@ -6,6 +6,7 @@ import {
   Filter,
   Layers,
   Package,
+  Pencil,
   Plus,
   Ruler,
   ScrollText,
@@ -19,6 +20,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
+import {
+  IngredientInactiveBadge,
+  ingredientInactiveRowClassName,
+} from "@/components/inventory/ingredient-inactive-badge";
 import { IngredientDrawer } from "@/components/inventory/ingredient-drawer";
 import { InventoryMobileStockList, InventoryCompactStockList } from "@/components/inventory/inventory-mobile-stock-list";
 import { InventoryModuleViewToggle } from "@/components/inventory/inventory-module-view-toggle";
@@ -26,7 +31,9 @@ import { IngredientStockProtocolDrawer } from "@/components/inventory/ingredient
 import { IngredientUsageDrawer } from "@/components/inventory/ingredient-usage-drawer";
 import {
   countInventoryActiveFilters,
+  INVENTORY_STATUS_FILTER_DEFAULT,
   InventoryFilterDrawer,
+  type InventoryStatusFilter,
 } from "@/components/inventory/inventory-filter-drawer";
 import { InventoryScreenSkeleton } from "@/components/inventory/inventory-screen-skeleton";
 import { InventoryTableExportSheet } from "@/components/inventory/inventory-table-export-sheet";
@@ -69,6 +76,7 @@ import {
   parsePurchaseUnitPriceInput,
 } from "@/lib/inventory/format-purchase-unit-price";
 import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
+import { isIngredientActive } from "@/lib/inventory/low-stock";
 import {
   INVENTORY_STOCK_VIEW_MODE_KEY,
   useInventoryModuleViewMode,
@@ -750,6 +758,9 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
   } | null>(null);
 
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<InventoryStatusFilter>(
+    INVENTORY_STATUS_FILTER_DEFAULT,
+  );
   const [filterSupplier, setFilterSupplier] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterProduction, setFilterProduction] = useState<string>("all");
@@ -829,6 +840,11 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
         ingredientRowMatchesDishSearch(r.id, r.name, q, menuItems),
       );
     }
+    if (filterStatus === "active") {
+      rows = rows.filter(isIngredientActive);
+    } else if (filterStatus === "inactive") {
+      rows = rows.filter((r) => !isIngredientActive(r));
+    }
     if (filterSupplier !== "all") {
       rows = rows.filter((r) => r.supplierId === filterSupplier);
     }
@@ -905,6 +921,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
   }, [
     ingredients,
     search,
+    filterStatus,
     filterSupplier,
     filterCategory,
     filterProduction,
@@ -933,6 +950,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
     setPage(1);
   }, [
     search,
+    filterStatus,
     filterSupplier,
     filterCategory,
     filterProduction,
@@ -988,12 +1006,13 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
   const filterActiveCount = useMemo(
     () =>
       countInventoryActiveFilters({
+        filterStatus,
         filterSupplier,
         filterCategory,
         filterProduction,
         filterBrand,
       }),
-    [filterBrand, filterCategory, filterProduction, filterSupplier],
+    [filterBrand, filterCategory, filterProduction, filterStatus, filterSupplier],
   );
 
   const restaurantName = profile.name.trim() || undefined;
@@ -1103,6 +1122,8 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
       <InventoryFilterDrawer
         open={filterOpen}
         onOpenChange={setFilterOpen}
+        filterStatus={filterStatus}
+        onFilterStatusChange={setFilterStatus}
         filterSupplier={filterSupplier}
         onFilterSupplierChange={setFilterSupplier}
         suppliers={suppliers.items}
@@ -1358,7 +1379,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
               />
               <ModuleTableIconActionsColumnHeader
                 dense
-                className="min-w-[7.5rem] w-[7.5rem]"
+                className="min-w-[9.5rem] w-[9.5rem]"
               />
             </tr>
           </thead>
@@ -1380,23 +1401,30 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
                 );
                 const canOrderRow = Boolean(row.supplierId?.trim());
                 const orderCtx = getOpenLineContext(row.supplierId, row.id);
+                const inactive = !isIngredientActive(row);
 
                 return (
                 <tr
                   key={row.id}
-                  className="group/tr border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60"
+                  className={cn(
+                    "group/tr border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60",
+                    inactive && ingredientInactiveRowClassName,
+                  )}
                 >
                   <ModuleTableStickyBodyCell
                     tone="muted-hover-60"
                     className="px-2 py-1.5 align-middle"
                   >
-                    <input
-                      value={row.name}
-                      onChange={(e) =>
-                        void updateIngredient(row.id, { name: e.target.value })
-                      }
-                      className={inputCellClass}
-                    />
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <input
+                        value={row.name}
+                        onChange={(e) =>
+                          void updateIngredient(row.id, { name: e.target.value })
+                        }
+                        className={cn(inputCellClass, "min-w-0 flex-1")}
+                      />
+                      {inactive ? <IngredientInactiveBadge /> : null}
+                    </div>
                   </ModuleTableStickyBodyCell>
                   <td className="px-2 py-1.5 align-middle">
                     <InventoryStockInputCell
@@ -1484,6 +1512,13 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
                     />
                   </td>
                   <ModuleTableActionsCell dense>
+                    <ModuleTableIconActionButton
+                      label="Zutat bearbeiten"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => setEditingIngredientId(row.id)}
+                    >
+                      <Pencil className="size-4" />
+                    </ModuleTableIconActionButton>
                     <ModuleTableIconActionButton
                       label="Speisen mit dieser Zutat"
                       className="text-muted-foreground hover:text-foreground"

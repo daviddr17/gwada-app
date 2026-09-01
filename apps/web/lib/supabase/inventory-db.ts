@@ -11,6 +11,7 @@ import type {
   PurchaseOrderLogEntry,
   PurchaseOrderStatus,
 } from "@/lib/types/purchase-order";
+import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
 import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
 import { isPurchaseOrderStatus } from "@/lib/inventory/purchase-order-status";
 import type { Ingredient } from "@/lib/types/inventory";
@@ -734,20 +735,26 @@ export async function loadIngredientsRelational(
   return out;
 }
 
+export type IngredientsSaveResult =
+  | { ok: true; ingredients: Ingredient[] }
+  | { ok: false; message: string };
+
 export async function saveIngredientsRelational(
   restaurantId: string,
   ingredients: Ingredient[],
-): Promise<boolean> {
+): Promise<IngredientsSaveResult> {
+  const fresh = (await loadIngredientsRelational(restaurantId)) ?? [];
+  const merged = mergeIngredientsForReplace(fresh, ingredients);
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.rpc("inventory_replace_ingredients", {
     p_restaurant_id: restaurantId,
-    p_ingredients: ingredients,
+    p_ingredients: merged,
   });
   if (error) {
     console.warn("[gwada] inventory_replace_ingredients", error.message);
-    return false;
+    return { ok: false, message: error.message };
   }
-  return true;
+  return { ok: true, ingredients: merged };
 }
 
 export async function updateIngredientPurchasePrice(

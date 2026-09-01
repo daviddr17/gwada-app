@@ -58,7 +58,7 @@ export async function fetchContactConversationsAdmin(
     .select(
       `
       ${MESSAGE_SELECT},
-      contacts ( first_name, last_name )
+      contacts ( first_name, last_name, avatar_storage_path )
     `,
     )
     .eq("restaurant_id", params.restaurantId)

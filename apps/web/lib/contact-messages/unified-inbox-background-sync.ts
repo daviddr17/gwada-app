@@ -32,10 +32,6 @@ export function requestUnifiedInboxWarmIntent(): void {
 
 export type UnifiedInboxSyncParams = {
   restaurantId: string;
-  whatsappConnected: boolean;
-  emailConnected: boolean;
-  facebookConnected: boolean;
-  instagramConnected: boolean;
 };
 
 let inflightRefresh: Promise<ContactConversationPreview[] | null> | null =
@@ -48,10 +44,6 @@ let currentPollParams: UnifiedInboxSyncParams | null = null;
 
 let liveDebounceTimer: number | null = null;
 
-function paramsKey(params: UnifiedInboxSyncParams): string {
-  return `${params.restaurantId}:${params.whatsappConnected}:${params.emailConnected}:${params.facebookConnected}:${params.instagramConnected}`;
-}
-
 export function getUnifiedInboxRefreshInflight():
   | Promise<ContactConversationPreview[] | null>
   | null {
@@ -62,7 +54,7 @@ export async function refreshUnifiedInboxCache(
   params: UnifiedInboxSyncParams,
   options?: { force?: boolean },
 ): Promise<ContactConversationPreview[] | null> {
-  const key = paramsKey(params);
+  const key = params.restaurantId;
   if (inflightRefresh && inflightKey === key && !options?.force) {
     return inflightRefresh;
   }
@@ -111,7 +103,6 @@ function scheduleLiveRefresh(params: UnifiedInboxSyncParams) {
 
 function shouldWarmOnStart(restaurantId: string): boolean {
   const cached = peekUnifiedInboxCache(restaurantId);
-  // Leerer Cache immer wärmen — Batch-Skip gilt nur gegen Doppel-Fetch, nicht gegen Kälte.
   if (!cached) return true;
   if (shouldSkipInboxWarmAfterBatch(restaurantId)) return false;
   const age = peekUnifiedInboxCacheAgeMs(restaurantId);
@@ -122,32 +113,10 @@ function shouldWarmOnStart(restaurantId: string): boolean {
 export function useUnifiedInboxBackgroundSync(options: {
   enabled: boolean;
   restaurantId: string | null;
-  whatsappConnected: boolean;
-  emailConnected: boolean;
-  facebookConnected: boolean;
-  instagramConnected: boolean;
-  connectionsReady: boolean;
 }): void {
-  const {
-    enabled,
-    restaurantId,
-    whatsappConnected,
-    emailConnected,
-    facebookConnected,
-    instagramConnected,
-    connectionsReady,
-  } = options;
+  const { enabled, restaurantId } = options;
 
-  const params =
-    restaurantId && connectionsReady
-      ? {
-          restaurantId,
-          whatsappConnected,
-          emailConnected,
-          facebookConnected,
-          instagramConnected,
-        }
-      : null;
+  const params = restaurantId ? { restaurantId } : null;
 
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
@@ -172,8 +141,6 @@ export function useUnifiedInboxBackgroundSync(options: {
           all?: boolean;
         }>
       ).detail;
-      // Optimistisches Gelesen (contactId/all): kein Force-Refetch — sonst
-      // überschreibt ein verzögerter Cache-Reload den UI-Patch mit Stale-Daten.
       if (detail?.contactId || detail?.all) return;
       scheduleLiveRefresh(paramsRef.current);
     };
@@ -201,14 +168,5 @@ export function useUnifiedInboxBackgroundSync(options: {
       );
       unregisterPoller();
     };
-  }, [
-    enabled,
-    restaurantId,
-    whatsappConnected,
-    emailConnected,
-    facebookConnected,
-    instagramConnected,
-    connectionsReady,
-    params,
-  ]);
+  }, [enabled, restaurantId, params]);
 }

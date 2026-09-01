@@ -1,101 +1,85 @@
 "use client";
 
+import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
+import type { RestaurantChannelConnectionsPayload } from "@/lib/contact-messages/restaurant-channel-connections-types";
+import { writeChannelConnectionsCache } from "@/lib/contact-messages/channel-connections-cache";
+import { setUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
+import { markConversationReadClient } from "@/lib/contact-messages/fetch-inbox-client";
 import type { InboxPlatformFilter } from "@/lib/constants/contact-message-platforms";
 import { INBOX_FILTER_ALL } from "@/lib/constants/contact-message-platforms";
-import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
-import { markConversationReadClient } from "@/lib/contact-messages/fetch-inbox-client";
-import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
-import { setUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
-import { enrichOneConversationWithReads } from "@/lib/contact-messages/unified-inbox-read-state";
-import { enrichConversationsWithFollowUpsClient } from "@/lib/contact-messages/conversation-follow-ups-client";
-import {
-  fetchCommunalConversationReadsBrowser,
-  fetchConversationReadsBrowser,
-} from "@/lib/supabase/contact-conversation-reads-db";
-import {
-  fetchContactConversations,
-  type ContactConversationPreview,
-} from "@/lib/supabase/contact-messages-db";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 
-async function readsMapForPlatform(
-  restaurantId: string,
-  userId: string,
-  platform: ContactMessagePlatform,
-) {
-  return fetchConversationReadsBrowser({ restaurantId, userId, platform });
-}
+type InboxApiResponse = {
+  data?: {
+    conversations: ContactConversationPreview[];
+    channels: RestaurantChannelConnectionsPayload;
+  };
+  error?: string;
+};
 
-export async function enrichUnifiedInboxReadState(params: {
+async function fetchInboxFromServer(params: {
   restaurantId: string;
-  conversations: ContactConversationPreview[];
-}): Promise<ContactConversationPreview[]> {
-  const sb = createSupabaseBrowserClient();
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-  if (!user) return params.conversations;
+  platform?: ContactMessagePlatform;
+}): Promise<{
+  data: ContactConversationPreview[];
+  channels: RestaurantChannelConnectionsPayload | null;
+  error: Error | null;
+}> {
+  const search = new URLSearchParams({ restaurantId: params.restaurantId });
+  if (params.platform) search.set("platform", params.platform);
 
-  const [gwada, whatsapp, email, facebook, instagram, communalReads] =
-    await Promise.all([
-    readsMapForPlatform(params.restaurantId, user.id, "gwada"),
-    readsMapForPlatform(params.restaurantId, user.id, "whatsapp"),
-    readsMapForPlatform(params.restaurantId, user.id, "email"),
-    readsMapForPlatform(params.restaurantId, user.id, "facebook"),
-    readsMapForPlatform(params.restaurantId, user.id, "instagram"),
-    fetchCommunalConversationReadsBrowser({ restaurantId: params.restaurantId }),
-  ]);
+  const res = await fetch(`/api/contact-messages/inbox?${search.toString()}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
 
-  return params.conversations.map((c) =>
-    enrichOneConversationWithReads(c, {
-      gwada,
-      whatsapp,
-      email,
-      facebook,
-      instagram,
-    }, communalReads),
-  );
-}
-
-/** Posteingang aus Supabase — keine Live-WAHA/IMAP/Meta-Calls beim Listen-Laden. */
-export async function fetchUnifiedInboxConversations(params: {
-  restaurantId: string;
-  whatsappConnected: boolean;
-  emailConnected: boolean;
-  facebookConnected?: boolean;
-  instagramConnected?: boolean;
-}): Promise<{ data: ContactConversationPreview[]; error: Error | null }> {
-  const platforms: ContactMessagePlatform[] = ["gwada"];
-  if (params.whatsappConnected) platforms.push("whatsapp");
-  if (params.emailConnected) platforms.push("email");
-  if (params.facebookConnected) platforms.push("facebook");
-  if (params.instagramConnected) platforms.push("instagram");
-
-  const results = await Promise.all(
-    platforms.map((platform) =>
-      fetchContactConversations({
-        restaurantId: params.restaurantId,
-        platform,
-      }),
-    ),
-  );
-
-  for (const result of results) {
-    if (result.error) return { data: [], error: result.error };
+  const body = (await res.json().catch(() => ({}))) as InboxApiResponse;
+  if (!res.ok) {
+    const message =
+      body.error === "forbidden"
+        ? "Keine Berechtigung für Nachrichten."
+        : body.error ?? "Posteingang konnte nicht geladen werden.";
+    return { data: [], channels: null, error: new Error(message) };
   }
 
-  const merged = mergeInboxConversationPreviews(results.map((r) => r.data));
-  const withReads = await enrichUnifiedInboxReadState({
-    restaurantId: params.restaurantId,
-    conversations: merged,
-  });
-  const enriched = await enrichConversationsWithFollowUpsClient({
-    restaurantId: params.restaurantId,
-    conversations: withReads,
-  });
+  const conversations = body.data?.conversations ?? [];
+  const channels = body.data?.channels ?? null;
+  return { data: conversations, channels, error: null };
+}
 
-  setUnifiedInboxCache(params.restaurantId, enriched, { complete: true });
-  return { data: enriched, error: null };
+/** Posteingang — ein HTTP-Call statt vieler Browser-Supabase-Queries. */
+export async function fetchUnifiedInboxConversations(params: {
+  restaurantId: string;
+  /** @deprecated Server löst Kanäle selbst auf — nur noch für Call-Site-Kompatibilität. */
+  whatsappConnected?: boolean;
+  emailConnected?: boolean;
+  facebookConnected?: boolean;
+  instagramConnected?: boolean;
+}): Promise<{
+  data: ContactConversationPreview[];
+  channels: RestaurantChannelConnectionsPayload | null;
+  error: Error | null;
+}> {
+  const { data, channels, error } = await fetchInboxFromServer({
+    restaurantId: params.restaurantId,
+  });
+  if (error) return { data: [], channels: null, error };
+  if (channels) {
+    writeChannelConnectionsCache(params.restaurantId, channels);
+  }
+  setUnifiedInboxCache(params.restaurantId, data, { complete: true });
+  return { data, channels, error: null };
+}
+
+export async function fetchInboxConversationsForPlatform(params: {
+  restaurantId: string;
+  platform: ContactMessagePlatform;
+}): Promise<{ data: ContactConversationPreview[]; error: Error | null }> {
+  const { data, error } = await fetchInboxFromServer({
+    restaurantId: params.restaurantId,
+    platform: params.platform,
+  });
+  return { data, error };
 }
 
 export async function markUnifiedInboxConversationReadClient(params: {

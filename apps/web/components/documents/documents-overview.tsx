@@ -1065,7 +1065,7 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
         staffMembers={staffMembers}
         canEditNotes={canEditDocumentNotes}
         onNotesChanged={() => void reload()}
-        onUpload={async ({ file, title, tagId, staffId }) => {
+        onUpload={async ({ file, title, tagId, staffId, visibleToStaff }) => {
           const { documentId, error } = await trackDashboardFileUpload(
             () =>
               uploadRestaurantDocumentClient({
@@ -1074,6 +1074,7 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
                 title,
                 tagId,
                 staffId,
+                visibleToStaff,
               }),
             {
               successMessage: "Dokument hochgeladen.",
@@ -1089,12 +1090,20 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
           }
           return false;
         }}
-        onSaveEdit={async ({ documentId, title, tagId }) => {
+        onSaveEdit={async ({
+          documentId,
+          title,
+          tagId,
+          staffId,
+          visibleToStaff,
+        }) => {
           const { error } = await updateRestaurantDocumentClient({
             restaurantId,
             documentId,
             title,
             tagId,
+            staffId,
+            visibleToStaff,
           });
           if (error) {
             toast.error("Speichern fehlgeschlagen.");

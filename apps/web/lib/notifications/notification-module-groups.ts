@@ -44,6 +44,7 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
       "personal_reminder",
       "staff_messages",
       "staff_contract_signed",
+      "staff_document_assigned",
       "staff_display_time_request",
       "staff_invite_accepted",
       "staff_invite_declined",

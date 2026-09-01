@@ -4,6 +4,7 @@ export type DisplayModule =
   | "recipes"
   | "inventory"
   | "compliance"
+  | "documents"
   | "kds";
 
 export type DisplayModuleMeta = {
@@ -37,6 +38,11 @@ export const DISPLAY_MODULES: readonly DisplayModuleMeta[] = [
     id: "compliance",
     label: "Checklisten",
     description: "Temperatur, Reinigung und wiederkehrende Erfassungen",
+  },
+  {
+    id: "documents",
+    label: "Dokumente",
+    description: "Eigene Dokumente und Lohnabrechnungen (PDF)",
   },
   {
     id: "kds",

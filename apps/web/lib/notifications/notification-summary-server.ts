@@ -12,6 +12,7 @@ import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification
 import { loadPersonalReminderNotificationItems } from "@/lib/notifications/notification-personal-reminder-server";
 import { loadStaffMessagesNotificationItems } from "@/lib/notifications/notification-staff-messages-server";
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
+import { loadStaffDocumentAssignedNotificationItems } from "@/lib/notifications/notification-staff-document-server";
 import { loadStaffDisplayTimeRequestNotificationItems } from "@/lib/notifications/notification-staff-display-time-request-server";
 import { loadStaffDisplayClockNotificationItems } from "@/lib/notifications/notification-staff-display-clock-server";
 import {
@@ -490,6 +491,20 @@ const MODULE_BUILDERS: Record<
   staff_contract_signed: async (ctx) => {
     const def = NOTIFICATION_MODULES.staff_contract_signed;
     const items = await loadStaffContractSignedNotificationItems(ctx.sb, {
+      restaurantId: ctx.restaurantId,
+      userId: ctx.userId,
+    });
+    return {
+      id: def.id,
+      count: items.length,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_document_assigned: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_document_assigned;
+    const items = await loadStaffDocumentAssignedNotificationItems(ctx.sb, {
       restaurantId: ctx.restaurantId,
       userId: ctx.userId,
     });

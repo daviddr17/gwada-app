@@ -594,13 +594,15 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   const emptyOpenPruneInFlightRef = useRef(false);
   useEffect(() => {
     if (!isHydrated || emptyOpenPruneInFlightRef.current) return;
+    /** Kein Full-Replace aus stale localStorage vor frischem DB-Fetch (Deploy/Reload). */
+    if (useDbInventory && !ordersQuery.isSuccess) return;
     const pruned = withoutEmptyOpenPurchaseOrders(orders);
     if (pruned.length === orders.length) return;
     emptyOpenPruneInFlightRef.current = true;
     void persist(pruned).finally(() => {
       emptyOpenPruneInFlightRef.current = false;
     });
-  }, [isHydrated, orders, persist]);
+  }, [isHydrated, orders, persist, useDbInventory, ordersQuery.isSuccess]);
 
   const getOpenLineContext = useCallback(
     (supplierId: string, ingredientId: string): OpenLineContext => {

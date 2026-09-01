@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { mergePurchaseOrdersForReplace } from "./merge-purchase-orders-for-replace.ts";
 import { reconcilePurchaseOrderLinesFromLog } from "./reconcile-purchase-order-lines-from-log.ts";
+import { reconcilePurchaseOrderLinesFromLog } from "./reconcile-purchase-order-lines-from-log.ts";
 import type { PurchaseOrder } from "../types/purchase-order";
 
 function order(
@@ -169,6 +170,111 @@ test("keeps DB lines when client has equal log length but fewer lines", () => {
     merged[0]?.lines.find((l) => l.ingredientId === "ing-b")?.quantity,
     4,
   );
+});
+
+test("reconcile rebuilds all open-order lines from protocol", () => {
+  const broken = order({
+    id: "o-1",
+    status: "open",
+    lines: [
+      {
+        id: "line-1",
+        ingredientId: "ing-1",
+        ingredientName: "Milch",
+        quantity: 2,
+        unitId: "l",
+        unitLabel: "l",
+      },
+    ],
+    log: [
+      {
+        id: "log-1",
+        at: "2026-09-01T08:00:00.000Z",
+        kind: "add_to_order",
+        ingredientId: "ing-1",
+        ingredientName: "Milch",
+        quantity: 2,
+        unitId: "l",
+        unitLabel: "l",
+        userFirstName: "",
+        userLastName: "",
+      },
+      {
+        id: "log-2",
+        at: "2026-09-01T09:00:00.000Z",
+        kind: "add_to_order",
+        ingredientId: "ing-1",
+        ingredientName: "Milch",
+        quantity: 4,
+        unitId: "l",
+        unitLabel: "l",
+        userFirstName: "",
+        userLastName: "",
+      },
+      {
+        id: "log-3",
+        at: "2026-09-01T10:00:00.000Z",
+        kind: "add_to_order",
+        ingredientId: "ing-2",
+        ingredientName: "Butter",
+        quantity: 3,
+        unitId: "kg",
+        unitLabel: "kg",
+        userFirstName: "",
+        userLastName: "",
+      },
+    ],
+  });
+
+  const healed = reconcilePurchaseOrderLinesFromLog(broken);
+  assert.equal(healed.lines.length, 2);
+  assert.equal(healed.lines.find((l) => l.ingredientId === "ing-1")?.quantity, 6);
+  assert.equal(healed.lines.find((l) => l.ingredientId === "ing-2")?.quantity, 3);
+});
+
+test("merge unions protocol entries from db and client", () => {
+  const dbOrder = order({
+    id: "o-1",
+    status: "open",
+    lines: [],
+    log: [
+      {
+        id: "log-a",
+        at: "2026-09-01T08:00:00.000Z",
+        kind: "add_to_order",
+        ingredientId: "ing-a",
+        ingredientName: "A",
+        quantity: 1,
+        unitId: "x",
+        unitLabel: "x",
+        userFirstName: "",
+        userLastName: "",
+      },
+    ],
+  });
+  const clientOrder = order({
+    id: "o-1",
+    status: "open",
+    lines: [],
+    log: [
+      {
+        id: "log-b",
+        at: "2026-09-01T09:00:00.000Z",
+        kind: "add_to_order",
+        ingredientId: "ing-b",
+        ingredientName: "B",
+        quantity: 2,
+        unitId: "x",
+        unitLabel: "x",
+        userFirstName: "",
+        userLastName: "",
+      },
+    ],
+  });
+
+  const merged = mergePurchaseOrdersForReplace([dbOrder], [clientOrder]);
+  assert.equal(merged[0]?.log.length, 2);
+  assert.equal(merged[0]?.lines.length, 2);
 });
 
 test("reconcile adds missing lines from add_to_order protocol entries", () => {

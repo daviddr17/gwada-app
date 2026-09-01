@@ -133,7 +133,7 @@ export function DisplayTimeModule({
   onChanged: () => void;
   /** Live-Sync für Kopfzeile o. Ä. */
   onSessionChange?: (state: TimeState) => void;
-  /** Nach Ausstempeln oder Pausenstart (nach Celebration) Display-Session beenden. */
+  /** Nach Ausstempeln, Pausen oder Schichtstart (nach Celebration) Display-Session beenden. */
   onClockOutSuccess?: () => void;
   prepareAndGate: DisplayPrepareAndGate;
 }) {
@@ -169,7 +169,7 @@ export function DisplayTimeModule({
     1000;
   const inFlightRef = useRef(false);
   const pendingCelebrationSyncRef = useRef(false);
-  /** Auto-Abmeldung erst nach API-Erfolg und Celebration-Exit (Race bei langsamer Persist). */
+  /** Nach jeder Schicht-Aktion: Auto-Abmeldung erst nach API-Erfolg und Celebration-Exit. */
   const logoutFlowRef = useRef({
     intent: false,
     apiOk: false,
@@ -321,15 +321,12 @@ export function DisplayTimeModule({
         setContentHidden(true);
         setState(optimisticStateForAction(action, snapshot));
 
-        const wantsLogout = action === "clock_out" || action === "start_break";
-        if (wantsLogout) {
-          logoutFlowRef.current = {
-            intent: true,
-            apiOk: false,
-            celebrationExited: false,
-            triggered: false,
-          };
-        }
+        logoutFlowRef.current = {
+          intent: true,
+          apiOk: false,
+          celebrationExited: false,
+          triggered: false,
+        };
 
         const ok = await runTimeAction(action);
         if (!ok) {
@@ -339,10 +336,8 @@ export function DisplayTimeModule({
 
         void refresh();
         pendingCelebrationSyncRef.current = true;
-        if (wantsLogout) {
-          logoutFlowRef.current.apiOk = true;
-          tryTriggerLogout();
-        }
+        logoutFlowRef.current.apiOk = true;
+        tryTriggerLogout();
       } finally {
         inFlightRef.current = false;
         setActionBusy(false);

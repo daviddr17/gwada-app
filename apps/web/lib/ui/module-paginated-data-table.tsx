@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/list-pagination";
 import {
   moduleDataTableFullscreenShellClassName,
+  moduleDataTablePageScrollClassName,
   moduleDataTableScrollClassName,
   moduleDataTableShellWithStickyHeadClassName,
   moduleListPaginationAboveClassName,
@@ -280,6 +281,8 @@ export type ModuleDataTableFrameProps = {
   children: ReactNode;
   className?: string;
   scrollClassName?: string;
+  /** `contained` = eigener Scrollport (Standard); `page` = nur App scrollt vertikal. */
+  scrollPort?: "contained" | "page";
   shellClassName?: string;
   /** Tabellen-Vollbild (Protokoll-Listen). */
   tableFullscreen?: boolean;
@@ -301,6 +304,7 @@ export function ModuleDataTableFrame({
   children,
   className,
   scrollClassName,
+  scrollPort = "contained",
   shellClassName = moduleDataTableShellWithStickyHeadClassName,
   tableFullscreen = false,
   fullscreenTitle,
@@ -341,7 +345,12 @@ export function ModuleDataTableFrame({
   const tableShell = (
     <div className={cn(shellClassName, className)}>
       <ModuleTableHorizontalScrollRegion
-        className={cn(moduleDataTableScrollClassName, scrollClassName)}
+        className={cn(
+          scrollPort === "page"
+            ? moduleDataTablePageScrollClassName
+            : moduleDataTableScrollClassName,
+          scrollClassName,
+        )}
       >
         {children}
       </ModuleTableHorizontalScrollRegion>

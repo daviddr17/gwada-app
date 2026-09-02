@@ -191,12 +191,14 @@ type DashboardStatSlice = {
   ready: boolean;
   loading: boolean;
   summary: unknown;
+  error?: string | null;
 };
 
 function isDashboardStatSettled(slice: DashboardStatSlice): boolean {
   if (!slice.ready) return false;
   if (slice.summary != null) return true;
-  return !slice.loading;
+  // Fehler = Slice abgeschlossen (kein endloses Skeleton / kein falsches All-Clear).
+  return Boolean(slice.error);
 }
 
 export function DashboardHeuteTile() {
@@ -254,11 +256,6 @@ export function DashboardHeuteTile() {
   const ready =
     heuteStatSlices.length === 0 ||
     heuteStatSlices.some((slice) => slice.ready);
-  // Partial paint: Skeleton nur bis das erste Slice ready ist — NDJSON-Widgets
-  // sollen sofort sichtbar sein, nicht erst wenn staff/messages/… alle da sind.
-  const loading = heuteStatSlices.length > 0 && !ready;
-
-  const showSkeleton = useDeferredSkeleton(loading);
 
   const todayLabel = useMemo(
     () =>
@@ -535,6 +532,14 @@ export function DashboardHeuteTile() {
     can.checklists;
   const showAllClear =
     allHeuteStatsSettled && canHaveActions && !hasActions;
+
+  // Partial paint: Aktionen sofort zeigen, sobald vorhanden.
+  // Ohne Aktionen kein „Alles erledigt“, solange Batch-Slices noch nachkommen.
+  const awaitingCompleteEmpty =
+    canHaveActions && !hasActions && !allHeuteStatsSettled;
+  const loading =
+    (heuteStatSlices.length > 0 && !ready) || awaitingCompleteEmpty;
+  const showSkeleton = useDeferredSkeleton(loading);
 
   const [allClearAnimKey, setAllClearAnimKey] = useState(0);
   const prevShowAllClearRef = useRef(false);

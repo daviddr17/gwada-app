@@ -56,12 +56,11 @@ async function buildFeedOnlyEmptyModule(
 ): Promise<NotificationModuleSummary> {
   const def = NOTIFICATION_MODULES[moduleId];
   return {
-    module: moduleId,
-    label: def.label,
-    labelPlural: def.labelPlural,
+    id: moduleId,
+    count: 0,
+    label: def.labelPlural,
     href: def.href,
     items: [],
-    totalCount: 0,
   };
 }
 

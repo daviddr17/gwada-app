@@ -173,6 +173,15 @@ export function StaffModuleSelectionProvider({
   const selectedStaffIdsKey = selectedStaffIds.join(",");
 
   React.useEffect(() => {
+    const singleStaffSubRoute =
+      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten/abrechnung") ||
+      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten/beheben");
+    if (singleStaffSubRoute && selectedStaffIds.length > 1) {
+      setSelectedStaffIds([selectedStaffIds[0]!]);
+    }
+  }, [pathname, selectedStaffIdsKey, setSelectedStaffIds]);
+
+  React.useEffect(() => {
     if (!needsStaffPicker || selectedStaffIds.length === 0 || staffList.length === 0) {
       return;
     }

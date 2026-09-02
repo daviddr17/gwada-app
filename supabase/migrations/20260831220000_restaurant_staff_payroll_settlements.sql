@@ -1,13 +1,18 @@
 -- Monats-Abrechnungsstatus je Mitarbeiter (bezahlt / über / unter / offen).
+-- Idempotent: Dev hatte Schema ohne Eintrag in schema_migrations (Drift).
 
-create type public.staff_payroll_settlement_status as enum (
-  'open',
-  'paid',
-  'overpaid',
-  'underpaid'
-);
+do $$ begin
+  create type public.staff_payroll_settlement_status as enum (
+    'open',
+    'paid',
+    'overpaid',
+    'underpaid'
+  );
+exception
+  when duplicate_object then null;
+end $$;
 
-create table public.restaurant_staff_payroll_settlements (
+create table if not exists public.restaurant_staff_payroll_settlements (
   id uuid primary key default gen_random_uuid(),
   restaurant_id uuid not null references public.restaurants (id) on delete cascade,
   staff_id uuid not null references public.restaurant_staff (id) on delete cascade,
@@ -33,14 +38,14 @@ create table public.restaurant_staff_payroll_settlements (
   )
 );
 
-create index restaurant_staff_payroll_settlements_restaurant_period_idx
+create index if not exists restaurant_staff_payroll_settlements_restaurant_period_idx
   on public.restaurant_staff_payroll_settlements (
     restaurant_id,
     period_year desc,
     period_month desc
   );
 
-create index restaurant_staff_payroll_settlements_staff_period_idx
+create index if not exists restaurant_staff_payroll_settlements_staff_period_idx
   on public.restaurant_staff_payroll_settlements (
     staff_id,
     period_year desc,
@@ -49,11 +54,15 @@ create index restaurant_staff_payroll_settlements_staff_period_idx
 
 alter table public.restaurant_staff_payroll_settlements enable row level security;
 
+drop policy if exists restaurant_staff_payroll_settlements_staff_all
+  on public.restaurant_staff_payroll_settlements;
 create policy restaurant_staff_payroll_settlements_staff_all
   on public.restaurant_staff_payroll_settlements for all
   using (public.auth_is_restaurant_staff(restaurant_id))
   with check (public.auth_is_restaurant_staff(restaurant_id));
 
+drop trigger if exists restaurant_staff_payroll_settlements_set_updated_at
+  on public.restaurant_staff_payroll_settlements;
 create trigger restaurant_staff_payroll_settlements_set_updated_at
   before update on public.restaurant_staff_payroll_settlements
   for each row execute function public.set_updated_at();

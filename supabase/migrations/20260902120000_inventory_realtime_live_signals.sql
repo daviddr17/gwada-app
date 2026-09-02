@@ -13,6 +13,8 @@ comment on table public.restaurant_inventory_live_signals is
 
 alter table public.restaurant_inventory_live_signals enable row level security;
 
+drop policy if exists restaurant_inventory_live_signals_read_staff
+  on public.restaurant_inventory_live_signals;
 create policy restaurant_inventory_live_signals_read_staff
   on public.restaurant_inventory_live_signals for select
   using (public.auth_is_restaurant_staff (restaurant_id));

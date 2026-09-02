@@ -35,6 +35,15 @@ export const moduleDataTableScrollClassName = cn(
   "overflow-auto overscroll-contain touch-pan-x touch-pan-y [-webkit-overflow-scrolling:touch]",
 );
 
+/**
+ * Tabellen in aufgeklappten Karten (z. B. Bestellpositionen) — nur horizontal scrollen,
+ * vertikal scrollt der App-Scroll-Root (kein verschachtelter Scrollport).
+ */
+export const moduleDataTablePageScrollClassName = cn(
+  "max-h-none overflow-x-auto overflow-y-visible overscroll-x-contain",
+  "touch-pan-x touch-pan-y [-webkit-overflow-scrolling:touch]",
+);
+
 /** Vollbild-Overlay: volle Breite, sticky Spaltenkopf im Scroll-Bereich. */
 export const moduleDataTableFullscreenShellClassName = cn(
   "w-full overflow-visible rounded-none bg-card ring-0 shadow-none",

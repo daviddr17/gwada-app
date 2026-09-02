@@ -1,6 +1,7 @@
 import "server-only";
 
 import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
+import { fetchInventoryPurchaseOrdersLiveRevision } from "@/lib/inventory/inventory-purchase-orders-live-revision";
 import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
 import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import { createId } from "@/lib/create-id";
@@ -651,12 +652,12 @@ export async function loadDisplayInventoryLiveRevision(
     "@/lib/display/display-module-live-revision"
   );
 
-  const [ingredients, orders] = await Promise.all([
+  const [ingredients, ordersRevision] = await Promise.all([
     fetchTableLatestUpdatedAt(admin, "inventory_ingredients", restaurantId),
-    fetchTableLatestUpdatedAt(admin, "inventory_purchase_orders", restaurantId),
+    fetchInventoryPurchaseOrdersLiveRevision(admin, restaurantId),
   ]);
 
   return {
-    revision: composeDisplayLiveRevision([ingredients, orders]),
+    revision: composeDisplayLiveRevision([ingredients, ordersRevision]),
   };
 }

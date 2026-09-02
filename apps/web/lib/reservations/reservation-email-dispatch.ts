@@ -343,24 +343,54 @@ async function upsertOutbox(
 ): Promise<void> {
   const { data: existing } = await sb
     .from("reservation_email_outbox")
-    .select("sent_at")
+    .select("id, sent_at")
     .eq("reservation_id", row.id)
     .eq("message_kind", kind)
     .maybeSingle();
+
+  // Bereits gesendet: nie zurücksetzen (sonst Doppelversand beim nächsten Cron).
   if (existing?.sent_at) return;
 
-  await sb.from("reservation_email_outbox").upsert(
-    {
-      restaurant_id: row.restaurant_id,
-      reservation_id: row.id,
-      message_kind: kind,
+  if (existing?.id) {
+    await sb
+      .from("reservation_email_outbox")
+      .update({
+        send_at: sendAt.toISOString(),
+        last_error: null,
+        cancelled_at: null,
+      })
+      .eq("id", existing.id)
+      .is("sent_at", null);
+    return;
+  }
+
+  const { error: insertError } = await sb.from("reservation_email_outbox").insert({
+    restaurant_id: row.restaurant_id,
+    reservation_id: row.id,
+    message_kind: kind,
+    send_at: sendAt.toISOString(),
+    sent_at: null,
+    last_error: null,
+    cancelled_at: null,
+  });
+  if (!insertError) return;
+  if (
+    insertError.code !== "23505" &&
+    !String(insertError.message ?? "").toLowerCase().includes("duplicate")
+  ) {
+    console.warn("[reservation-email-outbox] insert", insertError.message);
+    return;
+  }
+  await sb
+    .from("reservation_email_outbox")
+    .update({
       send_at: sendAt.toISOString(),
-      sent_at: null,
       last_error: null,
       cancelled_at: null,
-    },
-    { onConflict: "reservation_id,message_kind" },
-  );
+    })
+    .eq("reservation_id", row.id)
+    .eq("message_kind", kind)
+    .is("sent_at", null);
 }
 
 async function cancelOutboxKinds(
@@ -581,27 +611,34 @@ export async function processDueEmailOutbox(
   sb: SupabaseClient,
   limit = 50,
 ): Promise<{ processed: number; sent: number; failed: number }> {
-  const { data: due, error } = await sb
-    .from("reservation_email_outbox")
-    .select("id, reservation_id, message_kind")
-    .is("sent_at", null)
-    .is("cancelled_at", null)
-    .lte("send_at", new Date().toISOString())
-    .order("send_at", { ascending: true })
-    .limit(limit);
+  const { data: due, error } = await sb.rpc("claim_reservation_email_outbox", {
+    p_limit: limit,
+  });
 
   if (error || !due?.length) {
+    if (error) {
+      console.warn("[reservation-email-outbox] claim failed", error.message);
+    }
     return { processed: 0, sent: 0, failed: 0 };
   }
 
+  const claimed = due as Array<{
+    id: string;
+    reservation_id: string;
+    message_kind: string;
+  }>;
+
   if (!isEmailSendConfigured()) {
-    for (const item of due) {
+    for (const item of claimed) {
       await sb
         .from("reservation_email_outbox")
-        .update({ last_error: "email_send_not_configured" })
+        .update({
+          last_error: "email_send_not_configured",
+          claimed_at: null,
+        })
         .eq("id", item.id);
     }
-    return { processed: due.length, sent: 0, failed: due.length };
+    return { processed: claimed.length, sent: 0, failed: claimed.length };
   }
 
   let sent = 0;
@@ -610,14 +647,15 @@ export async function processDueEmailOutbox(
   const deliveryByRestaurant = new Map<string, EmailDelivery>();
   const timezoneByRestaurant = new Map<string, string>();
 
-  for (const item of due) {
-    const row = await fetchReservationForEmail(sb, item.reservation_id as string);
+  for (const item of claimed) {
+    const row = await fetchReservationForEmail(sb, item.reservation_id);
     if (!row || !row.notify_email) {
       await sb
         .from("reservation_email_outbox")
         .update({
           cancelled_at: new Date().toISOString(),
           last_error: "reservation_ineligible",
+          claimed_at: null,
         })
         .eq("id", item.id);
       continue;
@@ -625,13 +663,20 @@ export async function processDueEmailOutbox(
 
     const kind = item.message_kind as OutboxKind;
     if (kind !== "reminder" && kind !== "thanks") {
+      await sb
+        .from("reservation_email_outbox")
+        .update({ claimed_at: null })
+        .eq("id", item.id);
       continue;
     }
 
     if (TERMINAL_STATUS.has(row.status_code)) {
       await sb
         .from("reservation_email_outbox")
-        .update({ cancelled_at: new Date().toISOString() })
+        .update({
+          cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
         .eq("id", item.id);
       continue;
     }
@@ -640,7 +685,11 @@ export async function processDueEmailOutbox(
     if (!isValidGuestEmail(to ?? null)) {
       await sb
         .from("reservation_email_outbox")
-        .update({ last_error: "no_email", cancelled_at: new Date().toISOString() })
+        .update({
+          last_error: "no_email",
+          cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
         .eq("id", item.id);
       failed++;
       continue;
@@ -655,7 +704,10 @@ export async function processDueEmailOutbox(
     if (!settings || !isEmailKindEnabled(settings, kind)) {
       await sb
         .from("reservation_email_outbox")
-        .update({ cancelled_at: new Date().toISOString() })
+        .update({
+          cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
         .eq("id", item.id);
       continue;
     }
@@ -668,7 +720,7 @@ export async function processDueEmailOutbox(
     if (!delivery) {
       await sb
         .from("reservation_email_outbox")
-        .update({ last_error: "smtp_not_configured" })
+        .update({ last_error: "smtp_not_configured", claimed_at: null })
         .eq("id", item.id);
       failed++;
       continue;
@@ -718,11 +770,11 @@ export async function processDueEmailOutbox(
     } else {
       await sb
         .from("reservation_email_outbox")
-        .update({ last_error: result.error })
+        .update({ last_error: result.error, claimed_at: null })
         .eq("id", item.id);
       failed++;
     }
   }
 
-  return { processed: due.length, sent, failed };
+  return { processed: claimed.length, sent, failed };
 }

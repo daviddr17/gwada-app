@@ -279,14 +279,31 @@ async function upsertOutbox(
 ): Promise<void> {
   const { data: existing } = await sb
     .from("reservation_whatsapp_outbox")
-    .select("sent_at")
+    .select("id, sent_at")
     .eq("reservation_id", row.id)
     .eq("message_kind", kind)
     .maybeSingle();
+
+  // Bereits gesendet: nie zurücksetzen (sonst Doppelversand beim nächsten Cron).
   if (existing?.sent_at) return;
 
-  await sb.from("reservation_whatsapp_outbox").upsert(
-    {
+  if (existing?.id) {
+    // Nur Planung aktualisieren — sent_at/claimed_at nicht anfassen.
+    await sb
+      .from("reservation_whatsapp_outbox")
+      .update({
+        send_at: sendAt.toISOString(),
+        last_error: null,
+        cancelled_at: null,
+      })
+      .eq("id", existing.id)
+      .is("sent_at", null);
+    return;
+  }
+
+  const { error: insertError } = await sb
+    .from("reservation_whatsapp_outbox")
+    .insert({
       restaurant_id: row.restaurant_id,
       reservation_id: row.id,
       message_kind: kind,
@@ -294,9 +311,26 @@ async function upsertOutbox(
       sent_at: null,
       last_error: null,
       cancelled_at: null,
-    },
-    { onConflict: "reservation_id,message_kind" },
-  );
+    });
+  if (!insertError) return;
+  // Unique-Race: zweiter Insert → Update ohne sent_at zu löschen
+  if (
+    insertError.code !== "23505" &&
+    !String(insertError.message ?? "").toLowerCase().includes("duplicate")
+  ) {
+    console.warn("[reservation-whatsapp-outbox] insert", insertError.message);
+    return;
+  }
+  await sb
+    .from("reservation_whatsapp_outbox")
+    .update({
+      send_at: sendAt.toISOString(),
+      last_error: null,
+      cancelled_at: null,
+    })
+    .eq("reservation_id", row.id)
+    .eq("message_kind", kind)
+    .is("sent_at", null);
 }
 
 async function cancelOutboxKinds(
@@ -565,16 +599,18 @@ export async function processDueWhatsappOutbox(
   limit = 20,
   budgetMs = 100_000,
 ): Promise<{ processed: number; sent: number; failed: number; timedOut?: boolean }> {
-  const { data: due, error } = await sb
-    .from("reservation_whatsapp_outbox")
-    .select("id, reservation_id, message_kind")
-    .is("sent_at", null)
-    .is("cancelled_at", null)
-    .lte("send_at", new Date().toISOString())
-    .order("send_at", { ascending: true })
-    .limit(limit);
+  // Atomarer Claim (SKIP LOCKED) — parallele Cron/Retries sehen dieselben Zeilen nicht.
+  const { data: due, error } = await sb.rpc("claim_reservation_whatsapp_outbox", {
+    p_limit: limit,
+  });
 
   if (error || !due?.length) {
+    if (error) {
+      console.warn(
+        "[reservation-whatsapp-outbox] claim failed",
+        error.message,
+      );
+    }
     return { processed: 0, sent: 0, failed: 0 };
   }
 
@@ -585,18 +621,29 @@ export async function processDueWhatsappOutbox(
   const settingsByRestaurant = new Map<string, ReservationWhatsappSettings | null>();
   const timezoneByRestaurant = new Map<string, string>();
 
-  for (const item of due) {
+  for (const item of due as Array<{
+    id: string;
+    reservation_id: string;
+    message_kind: string;
+  }>) {
     if (Date.now() >= deadline) {
       timedOut = true;
-      break;
+      // Unprocessed claims freigeben, damit der nächste Cron sie neu claimen kann.
+      await sb
+        .from("reservation_whatsapp_outbox")
+        .update({ claimed_at: null })
+        .eq("id", item.id)
+        .is("sent_at", null);
+      continue;
     }
-    const row = await fetchReservationForWhatsapp(sb, item.reservation_id as string);
+    const row = await fetchReservationForWhatsapp(sb, item.reservation_id);
     if (!row || !row.notify_whatsapp) {
       await sb
         .from("reservation_whatsapp_outbox")
         .update({
           cancelled_at: new Date().toISOString(),
           last_error: "reservation_ineligible",
+          claimed_at: null,
         })
         .eq("id", item.id);
       continue;
@@ -604,13 +651,20 @@ export async function processDueWhatsappOutbox(
 
     const kind = item.message_kind as OutboxKind;
     if (kind !== "reminder" && kind !== "thanks") {
+      await sb
+        .from("reservation_whatsapp_outbox")
+        .update({ claimed_at: null })
+        .eq("id", item.id);
       continue;
     }
 
     if (TERMINAL_STATUS.has(row.status_code)) {
       await sb
         .from("reservation_whatsapp_outbox")
-        .update({ cancelled_at: new Date().toISOString() })
+        .update({
+          cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
         .eq("id", item.id);
       continue;
     }
@@ -619,7 +673,7 @@ export async function processDueWhatsappOutbox(
     if (ready !== "ok") {
       await sb
         .from("reservation_whatsapp_outbox")
-        .update({ last_error: ready })
+        .update({ last_error: ready, claimed_at: null })
         .eq("id", item.id);
       failed++;
       continue;
@@ -629,7 +683,11 @@ export async function processDueWhatsappOutbox(
     if (!chatId) {
       await sb
         .from("reservation_whatsapp_outbox")
-        .update({ last_error: "no_phone", cancelled_at: new Date().toISOString() })
+        .update({
+          last_error: "no_phone",
+          cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
         .eq("id", item.id);
       failed++;
       continue;
@@ -644,7 +702,10 @@ export async function processDueWhatsappOutbox(
     if (!settings || !isWhatsappKindEnabled(settings, kind)) {
       await sb
         .from("reservation_whatsapp_outbox")
-        .update({ cancelled_at: new Date().toISOString() })
+        .update({
+          cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
         .eq("id", item.id);
       continue;
     }
@@ -673,13 +734,17 @@ export async function processDueWhatsappOutbox(
     if (result.ok) {
       await sb
         .from("reservation_whatsapp_outbox")
-        .update({ sent_at: new Date().toISOString(), last_error: null })
+        .update({
+          sent_at: new Date().toISOString(),
+          last_error: null,
+          // claimed_at bleibt gesetzt — Audit, dass Claim → Send gelaufen ist
+        })
         .eq("id", item.id);
       sent++;
     } else {
       await sb
         .from("reservation_whatsapp_outbox")
-        .update({ last_error: result.error })
+        .update({ last_error: result.error, claimed_at: null })
         .eq("id", item.id);
       failed++;
     }

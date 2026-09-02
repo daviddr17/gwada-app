@@ -17,6 +17,8 @@ create index if not exists restaurant_inventory_empty_stock_heute_snoozes_restau
 
 alter table public.restaurant_inventory_empty_stock_heute_snoozes enable row level security;
 
+drop policy if exists restaurant_inventory_empty_stock_heute_snoozes_rw_staff
+  on public.restaurant_inventory_empty_stock_heute_snoozes;
 create policy restaurant_inventory_empty_stock_heute_snoozes_rw_staff
   on public.restaurant_inventory_empty_stock_heute_snoozes for all
   using (public.auth_is_restaurant_staff(restaurant_id))

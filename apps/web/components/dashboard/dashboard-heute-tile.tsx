@@ -9,11 +9,13 @@ import {
   CalendarDays,
   ChevronRight,
   Clock,
+  ListChecks,
   MessageCircle,
   Package,
   Sun,
   UserCheck,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { DashboardHeuteBirthdaysSheet } from "@/components/dashboard/dashboard-heute-birthdays-sheet";
 import { DashboardHeuteAllClear } from "@/components/dashboard/dashboard-heute-all-clear";
 import { DashboardHeuteWorkHoursSheet } from "@/components/dashboard/dashboard-heute-work-hours-sheet";
@@ -32,6 +34,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
+import { useDashboardModuleBatchStats } from "@/lib/hooks/use-dashboard-module-batch-stats";
 import { useDashboardReservationStats } from "@/lib/hooks/use-dashboard-reservation-stats";
 import { useDashboardStaffStats } from "@/lib/hooks/use-dashboard-staff-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -47,7 +50,7 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { listStaffBirthdaysToday } from "@/lib/staff/staff-birthdays-today";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
-import { DASHBOARD_HOME } from "@/lib/navigation/app-routes";
+import { APP_ROUTES, DASHBOARD_HOME } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
 type HeuteActionTone = "attention" | "warning" | "birthday";
@@ -184,8 +187,21 @@ function pluralDe(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
 }
 
+type DashboardStatSlice = {
+  ready: boolean;
+  loading: boolean;
+  summary: unknown;
+};
+
+function isDashboardStatSettled(slice: DashboardStatSlice): boolean {
+  if (!slice.ready) return false;
+  if (slice.summary != null) return true;
+  return !slice.loading;
+}
+
 export function DashboardHeuteTile() {
   const pathname = usePathname();
+  const router = useRouter();
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
@@ -195,6 +211,7 @@ export function DashboardHeuteTile() {
   const staff = useDashboardStaffStats();
   const messages = useDashboardMessagesStats();
   const inventory = useDashboardInventoryStats();
+  const checklists = useDashboardModuleBatchStats("checklists");
 
   const [reservationSheetMode, setReservationSheetMode] =
     useState<DashboardReservationsListSheetMode | null>(null);
@@ -217,21 +234,29 @@ export function DashboardHeuteTile() {
     staff: hasDashboardWidgetAccess(has, "staff", accessOptions),
     messages: hasDashboardWidgetAccess(has, "messages", accessOptions),
     inventory: hasDashboardWidgetAccess(has, "inventory", accessOptions),
+    checklists: hasDashboardWidgetAccess(has, "checklists", accessOptions),
   };
 
+  const heuteStatSlices = useMemo((): DashboardStatSlice[] => {
+    const slices: DashboardStatSlice[] = [];
+    if (can.reservations) slices.push(reservations);
+    if (can.staff) slices.push(staff);
+    if (can.messages) slices.push(messages);
+    if (can.inventory) slices.push(inventory);
+    if (can.checklists) slices.push(checklists);
+    return slices;
+  }, [can, checklists, inventory, messages, reservations, staff]);
+
+  const allHeuteStatsSettled =
+    heuteStatSlices.length === 0 ||
+    heuteStatSlices.every(isDashboardStatSettled);
+
   const ready =
-    reservations.ready ||
-    staff.ready ||
-    messages.ready ||
-    inventory.ready;
+    heuteStatSlices.length === 0 ||
+    heuteStatSlices.some((slice) => slice.ready);
+  const loading = heuteStatSlices.length > 0 && !allHeuteStatsSettled;
 
-  const loading =
-    (reservations.loading && !reservations.summary) ||
-    (staff.loading && !staff.summary) ||
-    (messages.loading && !messages.summary) ||
-    (inventory.loading && !inventory.summary);
-
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const showSkeleton = useDeferredSkeleton(loading);
 
   const todayLabel = useMemo(
     () =>
@@ -314,6 +339,38 @@ export function DashboardHeuteTile() {
       });
     }
 
+    if (can.checklists && checklists.summary) {
+      const overdueTodos = checklists.summary.overdueTodos ?? 0;
+      const openTodos = checklists.summary.openTodos ?? 0;
+      if (overdueTodos > 0) {
+        items.push({
+          id: "checklists-overdue",
+          title: `${overdueTodos} ${pluralDe(
+            overdueTodos,
+            "überfällige Aufgabe",
+            "überfällige Aufgaben",
+          )}`,
+          meta: "Sofort erledigen",
+          tone: "warning",
+          icon: <ListChecks aria-hidden />,
+          onClick: () => router.push(APP_ROUTES.checklisten.root),
+        });
+      } else if (openTodos > 0) {
+        items.push({
+          id: "checklists-open",
+          title: `${openTodos} ${pluralDe(
+            openTodos,
+            "offene Aufgabe",
+            "offene Aufgaben",
+          )}`,
+          meta: "Aufgaben prüfen",
+          tone: "attention",
+          icon: <ListChecks aria-hidden />,
+          onClick: () => router.push(APP_ROUTES.checklisten.root),
+        });
+      }
+    }
+
     if (can.inventory && deliveryDueTotal > 0) {
       const parts: string[] = [];
       if (deliveriesOverdue > 0) {
@@ -389,9 +446,12 @@ export function DashboardHeuteTile() {
     return items;
   }, [
     birthdaysToday,
+    can.checklists,
     can.inventory,
     can.messages,
     can.reservations,
+    checklists.summary,
+    router,
     deliveriesDueToday,
     deliveriesOverdue,
     deliveryDueTotal,
@@ -466,9 +526,13 @@ export function DashboardHeuteTile() {
   const hasActions = actionItems.length > 0;
   const hasLage = lageItems.length > 0;
   const canHaveActions =
-    can.reservations || can.messages || can.inventory || can.staff;
+    can.reservations ||
+    can.messages ||
+    can.inventory ||
+    can.staff ||
+    can.checklists;
   const showAllClear =
-    ready && !loading && canHaveActions && !hasActions;
+    allHeuteStatsSettled && canHaveActions && !hasActions;
 
   const [allClearAnimKey, setAllClearAnimKey] = useState(0);
   const prevShowAllClearRef = useRef(false);

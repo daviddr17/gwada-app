@@ -241,30 +241,32 @@ export function useCategoriesStorage() {
       },
     ) => {
       if (useDbMenu) {
-        void (async () => {
-          const ok = await updateMenuCategoryRow(id, {
-            name: updates.name,
-            active: updates.active,
-            mainCategoryId: updates.mainCategoryId,
-          });
-          if (!ok) {
+        const before = categories.find((c) => c.id === id);
+        patchCategoriesCache((prev) =>
+          prev.map((c) => {
+            if (c.id !== id) return c;
+            return normalizeCategory({
+              ...c,
+              ...updates,
+              name:
+                updates.name !== undefined ? updates.name.trim() : c.name,
+            });
+          }),
+        );
+        afterCategoryMutation();
+        toast.success("Kategorie gespeichert");
+        void updateMenuCategoryRow(id, {
+          name: updates.name,
+          active: updates.active,
+          mainCategoryId: updates.mainCategoryId,
+        }).then((ok) => {
+          if (!ok && before) {
+            patchCategoriesCache((prev) =>
+              prev.map((c) => (c.id === id ? before : c)),
+            );
             failSave();
-            return;
           }
-          patchCategoriesCache((prev) =>
-            prev.map((c) => {
-              if (c.id !== id) return c;
-              return normalizeCategory({
-                ...c,
-                ...updates,
-                name:
-                  updates.name !== undefined ? updates.name.trim() : c.name,
-              });
-            }),
-          );
-          afterCategoryMutation();
-          toast.success("Kategorie gespeichert");
-        })();
+        });
         return;
       }
       setLocalCategories((prev) => {
@@ -288,23 +290,23 @@ export function useCategoriesStorage() {
         return cleaned;
       });
     },
-    [afterCategoryMutation, failSave, patchCategoriesCache, useDbMenu],
+    [afterCategoryMutation, categories, failSave, patchCategoriesCache, useDbMenu],
   );
 
   const reorderCategories = useCallback(
     (next: MenuCategoryDefinition[]) => {
       const cleaned = next.map(normalizeCategory);
       if (useDbMenu) {
-        void (async () => {
-          const ok = await reorderMenuCategoryRows(cleaned.map((c) => c.id));
+        const snapshot = categories;
+        patchCategoriesCache(() => cleaned);
+        afterCategoryMutation();
+        toast.success("Kategorien sortiert");
+        void reorderMenuCategoryRows(cleaned.map((c) => c.id)).then((ok) => {
           if (!ok) {
+            patchCategoriesCache(() => snapshot);
             failSave();
-            return;
           }
-          patchCategoriesCache(() => cleaned);
-          afterCategoryMutation();
-          toast.success("Kategorien sortiert");
-        })();
+        });
         return;
       }
       setLocalCategories((prev) => {
@@ -318,7 +320,7 @@ export function useCategoriesStorage() {
         return cleaned;
       });
     },
-    [afterCategoryMutation, failSave, patchCategoriesCache, useDbMenu],
+    [afterCategoryMutation, categories, failSave, patchCategoriesCache, useDbMenu],
   );
 
   const getCategoryById = useCallback(
@@ -329,18 +331,22 @@ export function useCategoriesStorage() {
   const deleteCategory = useCallback(
     async (id: string): Promise<boolean> => {
       if (useDbMenu) {
-        const result = await deleteMenuCategory(id);
-        if (result === "in_use") {
-          toast.error("Kategorie wird noch von Gerichten verwendet.");
-          return false;
-        }
-        if (result === "error") {
-          failSave();
-          return false;
-        }
+        const before = categories.find((c) => c.id === id);
+        if (!before) return false;
         patchCategoriesCache((prev) => prev.filter((c) => c.id !== id));
         afterCategoryMutation();
         toast.success("Kategorie gelöscht");
+        void deleteMenuCategory(id).then((result) => {
+          if (result === "in_use") {
+            patchCategoriesCache((prev) => [...prev, before]);
+            toast.error("Kategorie wird noch von Gerichten verwendet.");
+            return;
+          }
+          if (result === "error") {
+            patchCategoriesCache((prev) => [...prev, before]);
+            failSave();
+          }
+        });
         return true;
       }
       let ok = false;
@@ -356,7 +362,7 @@ export function useCategoriesStorage() {
       });
       return ok;
     },
-    [afterCategoryMutation, failSave, patchCategoriesCache, useDbMenu],
+    [afterCategoryMutation, categories, failSave, patchCategoriesCache, useDbMenu],
   );
 
   return {

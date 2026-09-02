@@ -145,14 +145,15 @@ export function useMenuStorage() {
             : null,
       };
       if (useDbMenu) {
-        const ok = await insertMenuItemRelational(newItem);
-        if (!ok) {
-          failSave();
-          return null;
-        }
         patchItemsCache((prev) => [newItem, ...prev]);
         afterMenuMutation();
         toast.success("Gericht hinzugefügt");
+        void insertMenuItemRelational(newItem).then((ok) => {
+          if (!ok) {
+            patchItemsCache((prev) => prev.filter((i) => i.id !== newItem.id));
+            failSave();
+          }
+        });
         return newItem;
       }
       return new Promise((resolve) => {
@@ -186,16 +187,22 @@ export function useMenuStorage() {
             : null,
       };
       if (useDbMenu) {
-        const ok = await updateMenuItemRelational(built);
-        if (!ok) {
-          failSave();
-          return false;
-        }
+        const before = items.find((i) => i.id === id);
         patchItemsCache((prev) =>
           prev.map((existing) => (existing.id === id ? built : existing)),
         );
         afterMenuMutation();
         toast.success("Gericht gespeichert");
+        void updateMenuItemRelational(built).then((ok) => {
+          if (!ok && before) {
+            patchItemsCache((prev) =>
+              prev.map((existing) =>
+                existing.id === id ? before : existing,
+              ),
+            );
+            failSave();
+          }
+        });
         return true;
       }
       return new Promise((resolve) => {
@@ -217,7 +224,7 @@ export function useMenuStorage() {
         });
       });
     },
-    [afterMenuMutation, failSave, patchItemsCache, useDbMenu],
+    [afterMenuMutation, failSave, items, patchItemsCache, useDbMenu],
   );
 
   const getItemById = useCallback(
@@ -228,26 +235,25 @@ export function useMenuStorage() {
   const reorderItemsInCategory = useCallback(
     (categoryId: string, orderedIds: string[]) => {
       if (useDbMenu) {
-        void (async () => {
-          const ok = await reorderMenuItemsInCategoryRelational(
-            categoryId,
-            orderedIds,
-          );
-          if (!ok) {
-            failSave();
-            return;
-          }
-          patchItemsCache((prev) =>
-            prev.map((item) => {
-              if (item.category !== categoryId) return item;
-              const pos = orderedIds.indexOf(item.id);
-              if (pos === -1) return item;
-              return { ...item, listNumber: pos + 1 };
-            }),
-          );
-          afterMenuMutation();
-          toast.success("Reihenfolge der Gerichte aktualisiert");
-        })();
+        const snapshot = items;
+        patchItemsCache((prev) =>
+          prev.map((item) => {
+            if (item.category !== categoryId) return item;
+            const pos = orderedIds.indexOf(item.id);
+            if (pos === -1) return item;
+            return { ...item, listNumber: pos + 1 };
+          }),
+        );
+        afterMenuMutation();
+        toast.success("Reihenfolge der Gerichte aktualisiert");
+        void reorderMenuItemsInCategoryRelational(categoryId, orderedIds).then(
+          (ok) => {
+            if (!ok) {
+              patchItemsCache(() => snapshot);
+              failSave();
+            }
+          },
+        );
         return;
       }
       setLocalItems((prev) => {
@@ -268,20 +274,24 @@ export function useMenuStorage() {
         return next;
       });
     },
-    [afterMenuMutation, failSave, patchItemsCache, useDbMenu],
+    [afterMenuMutation, failSave, items, patchItemsCache, useDbMenu],
   );
 
   const deleteItem = useCallback(
     async (id: string): Promise<boolean> => {
       if (useDbMenu) {
-        const ok = await deleteMenuItemRelational(id);
-        if (!ok) {
-          failSave();
-          return false;
-        }
         patchItemsCache((prev) => prev.filter((i) => i.id !== id));
         afterMenuMutation();
         toast.success("Gericht gelöscht");
+        void deleteMenuItemRelational(id).then((ok) => {
+          if (!ok) {
+            const rollback = items.find((i) => i.id === id);
+            if (rollback) {
+              patchItemsCache((prev) => [...prev, rollback]);
+            }
+            failSave();
+          }
+        });
         return true;
       }
       return new Promise((resolve) => {
@@ -301,7 +311,7 @@ export function useMenuStorage() {
         });
       });
     },
-    [afterMenuMutation, failSave, patchItemsCache, useDbMenu],
+    [afterMenuMutation, failSave, items, patchItemsCache, useDbMenu],
   );
 
   return {

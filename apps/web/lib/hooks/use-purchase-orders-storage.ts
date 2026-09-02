@@ -591,10 +591,13 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   );
 
   const persistOptimisticQueued = useCallback(
-    (next: PurchaseOrder[], rollbackSnapshot: PurchaseOrder[]): void => {
+    (
+      next: PurchaseOrder[],
+      rollbackSnapshot: PurchaseOrder[],
+    ): Promise<boolean> => {
       const generation = ++ordersMutationGenerationRef.current;
       applyOrdersOptimistic(next);
-      void persistQueueRef.current.enqueue(async () => {
+      return persistQueueRef.current.enqueue(async () => {
         const ok = await saveOrdersToBackend(next);
         if (!ok) {
           if (ordersMutationGenerationRef.current === generation) {
@@ -800,9 +803,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       if (!o) return false;
       o.status = "ordered";
       appendStatusChangeLog(o, "open", "ordered", actor);
-      toast.success("Als bestellt markiert");
-      persistOptimisticQueued(next, prev);
-      return true;
+      // Toast erst nach DB-OK — sonst wirkt Timeout wie „gespeichert, dann wieder offen“.
+      const ok = await persistOptimisticQueued(next, prev);
+      if (ok) toast.success("Als bestellt markiert");
+      return ok;
     },
     [persistOptimisticQueued, readOrdersSnapshot],
   );
@@ -833,11 +837,11 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       if (!o) return false;
       o.status = "closed";
       appendStatusChangeLog(o, "ordered", "closed", actor);
-      if (!options?.silent) {
+      const ok = await persistOptimisticQueued(next, prev);
+      if (ok && !options?.silent) {
         toast.success("Bestellung abgeschlossen");
       }
-      persistOptimisticQueued(next, prev);
-      return true;
+      return ok;
     },
     [persistOptimisticQueued, readOrdersSnapshot],
   );
@@ -876,9 +880,11 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const from = o.status;
       o.status = prevStatus;
       appendStatusChangeLog(o, from, prevStatus, actor);
-      toast.success(`Zurück auf „${purchaseOrderStatusLabel(prevStatus)}“`);
-      persistOptimisticQueued(next, snapshot);
-      return true;
+      const ok = await persistOptimisticQueued(next, snapshot);
+      if (ok) {
+        toast.success(`Zurück auf „${purchaseOrderStatusLabel(prevStatus)}“`);
+      }
+      return ok;
     },
     [persistOptimisticQueued, readOrdersSnapshot],
   );
@@ -897,12 +903,14 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const next = previous.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      persistOptimisticQueued(next, previous);
-      toast.success(
-        normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
-        { id: `order-delivery-${orderId}` },
-      );
-      return true;
+      const ok = await persistOptimisticQueued(next, previous);
+      if (ok) {
+        toast.success(
+          normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
+          { id: `order-delivery-${orderId}` },
+        );
+      }
+      return ok;
     },
     [orders, persistOptimisticQueued, readOrdersSnapshot],
   );

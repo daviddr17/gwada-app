@@ -10,6 +10,11 @@ export async function loadDashboardChecklistsSummaryServer(
   restaurantId: string,
 ): Promise<DashboardChecklistsSummary> {
   const nowIso = new Date().toISOString();
+  // Completions nur ~48h Lookback — KPI braucht nur „heute“, nicht die volle History.
+  const completionsSinceIso = new Date(
+    Date.now() - 48 * 3_600_000,
+  ).toISOString();
+
   const [{ data: tzRow }, { count: openTodos }, { count: overdueTodos }, { data: completionRows }] =
     await Promise.all([
       sb
@@ -32,7 +37,8 @@ export async function loadDashboardChecklistsSummaryServer(
         .from("restaurant_staff_todo_completions")
         .select("completed_at")
         .eq("restaurant_id", restaurantId)
-        .not("completed_at", "is", null),
+        .not("completed_at", "is", null)
+        .gte("completed_at", completionsSinceIso),
     ]);
 
   const timeZone =

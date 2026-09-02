@@ -49,16 +49,24 @@ export async function loadDashboardInventorySummaryServer(
   let openOrderLines = 0;
   let allOrderLines = 0;
   if (allIds.length > 0) {
-    const { data: lineRows } = await sb
-      .from("inventory_purchase_order_lines")
-      .select("order_id")
-      .eq("restaurant_id", restaurantId)
-      .in("order_id", allIds);
-    const actionableSet = new Set(actionableIds);
-    for (const row of lineRows ?? []) {
-      allOrderLines += 1;
-      if (actionableSet.has(row.order_id as string)) openOrderLines += 1;
-    }
+    const counts = await Promise.all([
+      sb
+        .from("inventory_purchase_order_lines")
+        .select("id", { count: "exact", head: true })
+        .eq("restaurant_id", restaurantId)
+        .in("order_id", allIds),
+      actionableIds.length > 0
+        ? sb
+            .from("inventory_purchase_order_lines")
+            .select("id", { count: "exact", head: true })
+            .eq("restaurant_id", restaurantId)
+            .in("order_id", actionableIds)
+        : Promise.resolve({ count: 0, error: null }),
+    ]);
+    if (counts[0].error) throw new Error(counts[0].error.message);
+    if (counts[1].error) throw new Error(counts[1].error.message);
+    allOrderLines = counts[0].count ?? 0;
+    openOrderLines = counts[1].count ?? 0;
   }
 
   const todayYmd = restaurantTodayYmd(timeZone);

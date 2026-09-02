@@ -168,8 +168,13 @@ jobs:
             "$CRON_BASE_URL/api/cron/social-suggestions"
 
   # Erinnerung + Danke/Bewertung (WhatsApp-Outbox)
+  # Kein --retry-all-errors: Outbox-Send ist ohne Claim-Schutz nicht idempotent;
+  # Claim (DB) + concurrency verhindern Doppelversand bei Overlap.
   reservation-whatsapp:
     runs-on: ubuntu-latest
+    concurrency:
+      group: production-cron-reservation-whatsapp
+      cancel-in-progress: false
     if: |
       (github.event_name == 'repository_dispatch' && (github.event.action == 'production-cron' || github.event.action == 'production-cron-reservation-outbox')) ||
       (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'reservation-whatsapp')) ||
@@ -183,13 +188,17 @@ jobs:
             echo "CRON_SECRET not set — skipped."
             exit 0
           fi
-          curl -sfS --max-time 120 --retry 3 --retry-all-errors --retry-delay 8 \
+          # Nur Connect-Retries — kein Full-Replay nach Timeout (würde sonst erneut senden).
+          curl -sfS --max-time 120 --retry 2 --retry-connrefused --retry-delay 5 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/reservation-whatsapp"
 
   # Erinnerung + Danke/Bewertung (E-Mail-Outbox)
   reservation-email:
     runs-on: ubuntu-latest
+    concurrency:
+      group: production-cron-reservation-email
+      cancel-in-progress: false
     if: |
       (github.event_name == 'repository_dispatch' && (github.event.action == 'production-cron' || github.event.action == 'production-cron-reservation-outbox')) ||
       (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'reservation-email')) ||
@@ -203,6 +212,6 @@ jobs:
             echo "CRON_SECRET not set — skipped."
             exit 0
           fi
-          curl -sfS --max-time 120 --retry 3 --retry-all-errors --retry-delay 8 \
+          curl -sfS --max-time 120 --retry 2 --retry-connrefused --retry-delay 5 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/reservation-email"

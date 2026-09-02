@@ -32,6 +32,15 @@ const WIDGET_SUBSCRIPTIONS: WidgetSubscription[] = [
   { widget: "contacts", table: "contacts" },
   { widget: "inventory", table: "inventory_ingredients" },
   { widget: "inventory", table: "inventory_purchase_orders" },
+  {
+    widget: "inventory",
+    table: "inventory_purchase_order_lines",
+  },
+  {
+    widget: "inventory",
+    table: "inventory_purchase_order_log_entries",
+  },
+  { widget: "inventory", table: "restaurant_inventory_live_signals", events: ["INSERT", "UPDATE"] },
   { widget: "reviews", table: "restaurant_reviews_platform_sync", events: ["UPDATE"] },
   { widget: "integrations", table: "restaurant_integrations" },
 ];

@@ -13,5 +13,6 @@ export function useDisplayInventoryLive(enabled: boolean) {
     enabled,
     "/api/display/inventory/live-signal",
     onRefresh,
+    { pollMs: 1_500, reconcileMs: 400 },
   );
 }

@@ -9,6 +9,7 @@ import {
 } from "@/lib/contact-messages/restaurant-channel-connections-server";
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { enrichUnifiedInboxReadStateServer } from "@/lib/contact-messages/unified-inbox-read-state";
+import { inboxQueryPlatformsForChannels } from "@/lib/contact-messages/inbox-query-platforms";
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -17,20 +18,6 @@ export type LoadInboxConversationsServerResult = {
   conversations: ContactConversationPreview[];
   channels: RestaurantChannelConnectionsPayload;
 };
-
-function platformsForChannels(
-  channels: RestaurantChannelConnectionsPayload,
-  platform?: ContactMessagePlatform,
-): ContactMessagePlatform[] {
-  if (platform) return [platform];
-
-  const platforms: ContactMessagePlatform[] = ["gwada"];
-  if (channels.whatsappConnected) platforms.push("whatsapp");
-  if (channels.emailConnected) platforms.push("email");
-  if (channels.facebookConnected) platforms.push("facebook");
-  if (channels.instagramConnected) platforms.push("instagram");
-  return platforms;
-}
 
 async function fetchPlatformConversationsAdmin(
   admin: SupabaseClient,
@@ -58,7 +45,7 @@ export async function loadInboxConversationsServer(
     supabase: params.supabase,
   });
 
-  const platforms = platformsForChannels(channels, params.platform);
+  const platforms = inboxQueryPlatformsForChannels(channels, params.platform);
   const sources = await Promise.all(
     platforms.map((platform) =>
       fetchPlatformConversationsAdmin(admin, {

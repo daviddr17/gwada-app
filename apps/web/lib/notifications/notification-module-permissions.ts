@@ -46,6 +46,8 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   staff_permissions_granted: { kind: "always" },
   inventory_low_stock: { kind: "module", prefix: "inventory" },
   inventory_po_delivery_due: { kind: "module", prefix: "inventory" },
+  inventory_po_activity: { kind: "module", prefix: "inventory" },
+  inventory_stock_activity: { kind: "module", prefix: "inventory" },
   accounting_quotation: { kind: "module", prefix: "accounting" },
   accounting_invoice: { kind: "module", prefix: "accounting" },
   accounting_voucher: { kind: "module", prefix: "accounting" },

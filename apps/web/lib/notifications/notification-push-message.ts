@@ -386,6 +386,15 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "inventory_po_activity":
+    case "inventory_stock_activity":
+      return buildPushMessage({
+        prefix,
+        headline: moduleDef.label,
+        subject: `${prefix}${moduleDef.label}`,
+        href,
+        details: [],
+      });
     case "accounting_quotation": {
       const title = pickString(p.title) ?? "Neues Angebot";
       const number = pickString(p.voucherNumber);

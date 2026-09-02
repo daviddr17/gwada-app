@@ -544,7 +544,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           toastDatabaseSaveError(result.message);
           return false;
         }
-        const fromDb = (await loadPurchaseOrdersRelational(rid)) ?? result.orders;
+        const fromDb = result.orders;
         if (restaurantId) {
           queryClient.setQueryData(
             queryKeys.inventory.purchaseOrders(restaurantId),
@@ -591,13 +591,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   );
 
   const persistOptimisticQueued = useCallback(
-    async (
-      next: PurchaseOrder[],
-      rollbackSnapshot: PurchaseOrder[],
-    ): Promise<boolean> => {
+    (next: PurchaseOrder[], rollbackSnapshot: PurchaseOrder[]): void => {
       const generation = ++ordersMutationGenerationRef.current;
       applyOrdersOptimistic(next);
-      return persistQueueRef.current.enqueue(async () => {
+      void persistQueueRef.current.enqueue(async () => {
         const ok = await saveOrdersToBackend(next);
         if (!ok) {
           if (ordersMutationGenerationRef.current === generation) {
@@ -757,9 +754,6 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         });
       }
 
-      const ok = await persistOptimisticQueued(next, prev);
-      if (!ok) return false;
-
       if (createdNewOrder) {
         toastPurchaseOrderOpened(
           params.supplierName,
@@ -781,6 +775,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           params.unitLabel,
         );
       }
+
+      persistOptimisticQueued(next, prev);
       return true;
     },
     [persistOptimisticQueued, readOrdersSnapshot],
@@ -898,8 +894,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const next = previous.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      const ok = await persistOptimisticQueued(next, previous);
-      if (!ok) return false;
+      persistOptimisticQueued(next, previous);
       toast.success(
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
         { id: `order-delivery-${orderId}` },
@@ -968,7 +963,6 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         ? next.filter((x) => x.id !== orderId)
         : next;
 
-      if (!(await persistOptimisticQueued(toPersist, prev))) return false;
       if (deletedEmptyOpen) {
         toastPurchaseOrderDeletedEmpty(supplierNameForToast);
       } else if (nextQty === 0) {
@@ -980,6 +974,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           l.unitLabel,
         );
       }
+
+      persistOptimisticQueued(toPersist, prev);
       return true;
     },
     [persistOptimisticQueued, readOrdersSnapshot],

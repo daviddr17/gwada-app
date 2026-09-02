@@ -7,9 +7,119 @@ import {
   isNotificationModuleId,
   NOTIFICATION_MODULES,
 } from "@/lib/notifications/notification-modules";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
 import { formatNotificationPayloadSummary } from "@/lib/superadmin/superadmin-notification-log";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
+
+function pickNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function staffNameFromPayload(payload: Record<string, unknown>): string | null {
+  return pickString(payload.staffName) ?? guestFromPayload(payload);
+}
+
+function qtyUnitLabel(qty: number, unitLabel: string): string {
+  const u = unitLabel.trim();
+  const q = Number.isInteger(qty) ? String(qty) : String(qty).replace(".", ",");
+  return u ? `${q} ${u}` : q;
+}
+
+function poActivityDescription(payload: Record<string, unknown>): string | null {
+  const kind = pickString(payload.kind);
+  const name = pickString(payload.ingredientName);
+  const unit = pickString(payload.unitLabel) ?? "";
+  const supplier = pickString(payload.supplierName);
+
+  switch (kind) {
+    case "add_to_order": {
+      const qty = pickNumber(payload.quantity);
+      if (name && qty != null) {
+        return supplier
+          ? `„${name}“ · ${qtyUnitLabel(qty, unit)} · ${supplier}`
+          : `„${name}“ · ${qtyUnitLabel(qty, unit)}`;
+      }
+      return name ? `„${name}“` : null;
+    }
+    case "quantity_change": {
+      const from = pickNumber(payload.fromQuantity);
+      const to = pickNumber(payload.toQuantity);
+      if (name && from != null && to != null) {
+        if (to === 0) return `„${name}“ entfernt`;
+        return `„${name}“ · ${qtyUnitLabel(from, unit)} → ${qtyUnitLabel(to, unit)}`;
+      }
+      return name ? `„${name}“` : null;
+    }
+    case "status_change": {
+      const from = pickString(payload.fromStatus);
+      const to = pickString(payload.toStatus);
+      if (from && to) {
+        const label = (s: string) =>
+          s === "open" || s === "ordered" || s === "closed"
+            ? purchaseOrderStatusLabel(s)
+            : s;
+        return supplier
+          ? `„${supplier}“ · ${label(from)} → ${label(to)}`
+          : `${label(from)} → ${label(to)}`;
+      }
+      return supplier ? `„${supplier}“` : null;
+    }
+    case "marked_delivered":
+    case "delivery_reverted": {
+      const qty = pickNumber(payload.quantity);
+      if (name && qty != null) {
+        return `„${name}“ · ${qtyUnitLabel(qty, unit)}`;
+      }
+      return name ? `„${name}“` : null;
+    }
+    default:
+      return name ? `„${name}“` : supplier ? `„${supplier}“` : null;
+  }
+}
+
+function stockKindLabel(kind: string): string {
+  switch (kind) {
+    case "manual_stock":
+      return "Menge geändert";
+    case "stock_from_delivery":
+      return "Geliefert markiert";
+    case "stock_delivery_reverted":
+      return "Geliefert rückgängig";
+    case "stock_from_invoice":
+      return "Rechnung";
+    case "stock_from_invoice_correction":
+      return "Rechnungskorrektur";
+    case "stock_from_pos_order":
+      return "POS-Bestellung";
+    case "stock_from_pos_void":
+      return "POS-Storno";
+    default:
+      return "Bestand";
+  }
+}
+
+function stockActivityDescription(payload: Record<string, unknown>): string | null {
+  const kind = pickString(payload.kind);
+  const name = pickString(payload.ingredientName);
+  const unit = pickString(payload.unitLabel) ?? "";
+  const from = pickNumber(payload.fromQuantity);
+  const to = pickNumber(payload.toQuantity);
+
+  if (name && from != null && to != null) {
+    return `„${name}“ · ${qtyUnitLabel(from, unit)} → ${qtyUnitLabel(to, unit)}`;
+  }
+  if (kind && name) {
+    return `„${name}“ · ${stockKindLabel(kind)}`;
+  }
+  return name ? `„${name}“` : null;
+}
 
 function pickString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -125,12 +235,84 @@ export function hrefForNotificationModule(
     return base;
   }
 
+  if (module === "inventory_po_activity") {
+    const orderId = pickString(payload.orderId);
+    if (orderId) {
+      return appendQueryParam(
+        APP_ROUTES.inventory.order,
+        "order",
+        orderId,
+      );
+    }
+    return APP_ROUTES.inventory.order;
+  }
+
+  if (module === "inventory_stock_activity") {
+    return APP_ROUTES.inventory.overview;
+  }
+
   return defHref ?? null;
 }
 
+function poActivityTitle(
+  payload: Record<string, unknown>,
+  staff: string | null,
+): string {
+  const kind = pickString(payload.kind);
+  const prefix = staff ? `${staff} · ` : "";
+  switch (kind) {
+    case "add_to_order":
+      return `${prefix}Zur Bestellung`;
+    case "quantity_change":
+      return `${prefix}Bestellmenge`;
+    case "status_change":
+      return `${prefix}Bestellstatus`;
+    case "marked_delivered":
+      return `${prefix}Lieferung erfasst`;
+    case "delivery_reverted":
+      return `${prefix}Lieferung zurück`;
+    default:
+      return staff ? `${staff} · Bestellung` : "Bestellung";
+  }
+}
+
+function stockActivityTitle(
+  payload: Record<string, unknown>,
+  staff: string | null,
+): string {
+  const kind = pickString(payload.kind);
+  const prefix = staff ? `${staff} · ` : "";
+  switch (kind) {
+    case "manual_stock":
+      return `${prefix}Bestand geändert`;
+    case "stock_from_delivery":
+      return `${prefix}Bestand · Lieferung`;
+    case "stock_delivery_reverted":
+      return `${prefix}Bestand · Lieferung zurück`;
+    case "stock_from_invoice":
+      return `${prefix}Bestand · Rechnung`;
+    case "stock_from_invoice_correction":
+      return `${prefix}Bestand · Korrektur`;
+    case "stock_from_pos_order":
+      return `${prefix}Bestand · POS`;
+    case "stock_from_pos_void":
+      return `${prefix}Bestand · Storno`;
+    default:
+      return staff ? `${staff} · Bestand` : "Bestand";
+  }
+}
+
 /** Human-readable Titel für den Live-Feed (nicht Settings-Labels der Glocke). */
-function feedTitleForModule(module: string, guest: string | null): string {
+function feedTitleForModule(
+  module: string,
+  guest: string | null,
+  payload?: Record<string, unknown>,
+): string {
   switch (module) {
+    case "inventory_po_activity":
+      return poActivityTitle(payload ?? {}, guest);
+    case "inventory_stock_activity":
+      return stockActivityTitle(payload ?? {}, guest);
     case "staff_display_clock_in":
       return guest ? `${guest} · Login` : "Mitarbeiter Login";
     case "staff_display_clock_out":
@@ -170,18 +352,27 @@ export function liveActivityFromNotificationEvent(params: {
     ? params.module
     : null;
   const def = moduleId ? NOTIFICATION_MODULES[moduleId] : null;
-  const guest = guestFromPayload(params.payload);
+  const guest =
+    params.module === "inventory_po_activity" ||
+    params.module === "inventory_stock_activity"
+      ? staffNameFromPayload(params.payload)
+      : guestFromPayload(params.payload);
   const summary = formatNotificationPayloadSummary(
     params.module,
     params.payload,
   );
-  const title = feedTitleForModule(params.module, guest);
+  const title = feedTitleForModule(params.module, guest, params.payload);
 
   let description: string | null =
-    summary.trim() ||
-    pickString(params.payload.title) ||
-    pickString(params.payload.body) ||
-    null;
+    (params.module === "inventory_po_activity"
+      ? poActivityDescription(params.payload)
+      : params.module === "inventory_stock_activity"
+        ? stockActivityDescription(params.payload)
+        : null) ??
+    (summary.trim() ||
+      pickString(params.payload.title) ||
+      pickString(params.payload.body) ||
+      null);
 
   // Bei Login/Logout ist der Name schon im Titel — Summary nur wenn anders.
   if (

@@ -14,6 +14,7 @@ import {
 } from "@/lib/inventory/purchase-orders-query";
 import { useInventoryDataRefreshListener } from "@/lib/hooks/use-inventory-data-refresh-listener";
 import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-inventory-live-patch-from-cache";
+import { dispatchInventoryDataRefresh } from "@/lib/inventory/inventory-live-events";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
 import {
@@ -99,6 +100,7 @@ function appendStatusChangeLog(
     unitLabel: "",
   };
   order.log.push(logEntry);
+  order.statusUpdatedAt = logEntry.at;
   return logEntry;
 }
 
@@ -341,11 +343,16 @@ function parseOrder(raw: unknown): PurchaseOrder | null {
   if (typeof raw.deliveryDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.deliveryDate)) {
     deliveryDate = raw.deliveryDate;
   }
+  const statusUpdatedAt =
+    typeof raw.statusUpdatedAt === "string" && raw.statusUpdatedAt
+      ? raw.statusUpdatedAt
+      : undefined;
   return {
     id: raw.id,
     supplierId: raw.supplierId,
     supplierName: raw.supplierName,
     status: raw.status as PurchaseOrderStatus,
+    ...(statusUpdatedAt ? { statusUpdatedAt } : {}),
     createdAt: raw.createdAt,
     createdBy: raw.createdBy,
     ...(createdByUserSource ? { createdByUserSource } : {}),
@@ -666,6 +673,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
             return false;
           }
           afterOrdersPersistSuccess();
+          // Andere Module/Tabs im selben Browser sofort; andere Mitarbeiter via Realtime-Signal.
+          dispatchInventoryDataRefresh();
           return true;
         }
         const ok = await saveOrdersToBackend(params.next);
@@ -785,6 +794,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           supplierName: params.supplierName,
           status: "open",
           createdAt: new Date().toISOString(),
+          statusUpdatedAt: new Date().toISOString(),
           createdBy: protocolCreatedByLabel(params.actor),
           deliveryDate: null,
           lines: [],

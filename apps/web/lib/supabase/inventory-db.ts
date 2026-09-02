@@ -811,7 +811,7 @@ export async function loadPurchaseOrdersRelational(
   const { data: orders, error: e1 } = await supabase
     .from("inventory_purchase_orders")
     .select(
-      "id,supplier_id,supplier_name,status,created_at,created_by,created_by_user_source,delivery_date",
+      "id,supplier_id,supplier_name,status,status_updated_at,created_at,created_by,created_by_user_source,delivery_date",
     )
     .eq("restaurant_id", rid)
     .order("created_at", { ascending: false });
@@ -874,6 +874,10 @@ export async function loadPurchaseOrdersRelational(
     if (typeof o.delivery_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.delivery_date)) {
       deliveryDate = o.delivery_date;
     }
+    const statusUpdatedAt =
+      typeof o.status_updated_at === "string" && o.status_updated_at
+        ? o.status_updated_at
+        : undefined;
     out.push(
       reconcilePurchaseOrderLinesFromLog({
         id,
@@ -882,6 +886,7 @@ export async function loadPurchaseOrdersRelational(
         status: (isPurchaseOrderStatus(String(o.status))
           ? o.status
           : "open") as PurchaseOrderStatus,
+        ...(statusUpdatedAt ? { statusUpdatedAt } : {}),
         createdAt: o.created_at as string,
         createdBy: (o.created_by as string) ?? "",
         ...(createdByUserSource ? { createdByUserSource } : {}),

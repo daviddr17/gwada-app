@@ -1315,6 +1315,7 @@ export type Database = {
           id: string
           restaurant_id: string
           status: string
+          status_updated_at: string
           supplier_id: string
           supplier_name: string
         }
@@ -1326,6 +1327,7 @@ export type Database = {
           id: string
           restaurant_id: string
           status: string
+          status_updated_at?: string
           supplier_id: string
           supplier_name: string
         }
@@ -1337,6 +1339,7 @@ export type Database = {
           id?: string
           restaurant_id?: string
           status?: string
+          status_updated_at?: string
           supplier_id?: string
           supplier_name?: string
         }

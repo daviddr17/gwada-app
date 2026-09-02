@@ -3,7 +3,6 @@ import { test } from "node:test";
 
 import { mergePurchaseOrdersForReplace } from "./merge-purchase-orders-for-replace.ts";
 import { reconcilePurchaseOrderLinesFromLog } from "./reconcile-purchase-order-lines-from-log.ts";
-import { reconcilePurchaseOrderLinesFromLog } from "./reconcile-purchase-order-lines-from-log.ts";
 import type { PurchaseOrder } from "../types/purchase-order";
 
 function order(
@@ -101,6 +100,65 @@ test("prevents status regression when client log is stale", () => {
   const merged = mergePurchaseOrdersForReplace([dbOrder], [staleClient]);
   assert.equal(merged.length, 1);
   assert.equal(merged[0]?.status, "closed");
+});
+
+test("newer statusUpdatedAt wins over longer stale client log", () => {
+  const dbOrder = order({
+    id: "o-1",
+    status: "ordered",
+    statusUpdatedAt: "2026-09-02T21:00:00.000Z",
+    log: [
+      {
+        id: "log-status",
+        at: "2026-09-02T21:00:00.000Z",
+        kind: "status_change",
+        fromStatus: "open",
+        toStatus: "ordered",
+        ingredientId: "",
+        ingredientName: "",
+        unitId: "",
+        unitLabel: "",
+        userFirstName: "A",
+        userLastName: "B",
+      },
+    ],
+  });
+  const staleClient = order({
+    id: "o-1",
+    status: "open",
+    statusUpdatedAt: "2026-09-02T20:00:00.000Z",
+    log: [
+      {
+        id: "log-add-1",
+        at: "2026-09-02T20:00:00.000Z",
+        kind: "add_to_order",
+        ingredientId: "ing-1",
+        ingredientName: "X",
+        quantity: 1,
+        unitId: "stk",
+        unitLabel: "Stk",
+        userFirstName: "C",
+        userLastName: "D",
+      },
+      {
+        id: "log-add-2",
+        at: "2026-09-02T20:01:00.000Z",
+        kind: "add_to_order",
+        ingredientId: "ing-2",
+        ingredientName: "Y",
+        quantity: 2,
+        unitId: "stk",
+        unitLabel: "Stk",
+        userFirstName: "C",
+        userLastName: "D",
+      },
+    ],
+  });
+
+  const merged = mergePurchaseOrdersForReplace([dbOrder], [staleClient]);
+  assert.equal(merged[0]?.status, "ordered");
+  assert.equal(merged[0]?.statusUpdatedAt, "2026-09-02T21:00:00.000Z");
+  assert.equal(merged[0]?.log.length, 3);
 });
 
 test("keeps DB lines when client has equal log length but fewer lines", () => {

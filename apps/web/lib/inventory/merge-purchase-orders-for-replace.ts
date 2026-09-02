@@ -66,11 +66,54 @@ function mergePurchaseOrderRow(
   const base = pickOrderBase(dbOrder, clientOrder);
   const log = mergePurchaseOrderLogs(dbOrder.log, clientOrder.log);
   const lines = mergePurchaseOrderLines(dbOrder.lines, clientOrder.lines);
+  const statusFields = pickStatusByUpdatedAt(dbOrder, clientOrder);
   return reconcilePurchaseOrderLinesFromLog({
     ...base,
+    ...statusFields,
     log,
     lines,
   });
+}
+
+/** Neuerer statusUpdatedAt gewinnt — erlaubt reopen und verhindert stale Regression. */
+export function pickStatusByUpdatedAt(
+  dbOrder: PurchaseOrder,
+  clientOrder: PurchaseOrder,
+): Pick<PurchaseOrder, "status" | "statusUpdatedAt"> {
+  const dbAt = dbOrder.statusUpdatedAt ?? "";
+  const clientAt = clientOrder.statusUpdatedAt ?? "";
+  if (clientAt && dbAt && clientAt > dbAt) {
+    return {
+      status: clientOrder.status,
+      statusUpdatedAt: clientAt,
+    };
+  }
+  if (dbAt && (!clientAt || dbAt > clientAt)) {
+    return {
+      status: dbOrder.status,
+      statusUpdatedAt: dbAt,
+    };
+  }
+  if (clientAt && !dbAt) {
+    return {
+      status: clientOrder.status,
+      statusUpdatedAt: clientAt,
+    };
+  }
+  if (STATUS_RANK[dbOrder.status] >= STATUS_RANK[clientOrder.status]) {
+    return {
+      status: dbOrder.status,
+      ...(dbAt || clientAt
+        ? { statusUpdatedAt: dbAt || clientAt }
+        : {}),
+    };
+  }
+  return {
+    status: clientOrder.status,
+    ...(clientAt || dbAt
+      ? { statusUpdatedAt: clientAt || dbAt }
+      : {}),
+  };
 }
 
 function mergePurchaseOrderLogs(

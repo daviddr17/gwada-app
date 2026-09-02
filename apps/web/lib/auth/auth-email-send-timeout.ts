@@ -15,6 +15,3 @@ export async function withAuthEmailPrepareTimeout<T>(
     "E-Mail-Vorbereitung",
   );
 }
-
-/** @deprecated Prefer withAuthEmailPrepareTimeout — SMTP läuft nicht mehr im Request. */
-export const withAuthEmailSendTimeout = withAuthEmailPrepareTimeout;

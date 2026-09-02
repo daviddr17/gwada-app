@@ -49,30 +49,6 @@ export function derivePayrollSettlement(snap: {
   };
 }
 
-/** @deprecated Use derivePayrollSettlement — kept for call-site migration. */
-export function openWageCentsFromSnapshot(snap: {
-  wageCents: number;
-  payoutCents: number;
-}): number {
-  return derivePayrollSettlement(snap).openCents;
-}
-
-/** @deprecated Use derivePayrollSettlement. */
-export function overpaidCreditCentsFromSnapshot(snap: {
-  wageCents: number;
-  payoutCents: number;
-}): number {
-  return derivePayrollSettlement(snap).overpaidCreditCents;
-}
-
-/** @deprecated Use derivePayrollSettlement. */
-export function effectiveSettlementStatus(snap: {
-  wageCents: number;
-  payoutCents: number;
-}): StaffPayrollSettlementStatus {
-  return derivePayrollSettlement(snap).status;
-}
-
 /** Soll-Stunden für Kalendermonat aus Wochen-Soll-Minuten. */
 export function targetHoursForCalendarMonth(
   targetWeeklyMinutes: number | null | undefined,

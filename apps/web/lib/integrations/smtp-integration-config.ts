@@ -106,9 +106,6 @@ export function smtpCredentialsFromConfig(
   };
 }
 
-/** @deprecated Alias — use smtpCredentialsFromConfig */
-export const smtpConfigForN8n = smtpCredentialsFromConfig;
-
 export function validateSmtpConfigForSave(
   config: SmtpIntegrationConfig,
   options: { requirePassword: boolean },

@@ -5,9 +5,6 @@ import {
   utcInstantForRestaurantLocal,
 } from "@/lib/restaurant/restaurant-timezone";
 
-/** @deprecated Alias — bitte `utcInstantForRestaurantLocal` nutzen. */
-export const utcInstantForZonedLocal = utcInstantForRestaurantLocal;
-
 /** DB-Schlüssel für ad_hoc / einmalige ToDos (keine echte Periode). */
 export const STAFF_TODO_AD_HOC_PERIOD_START = "1970-01-01T00:00:00.000Z";
 

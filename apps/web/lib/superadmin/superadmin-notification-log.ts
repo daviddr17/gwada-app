@@ -205,6 +205,18 @@ export function formatNotificationPayloadSummary(
     return typeof p.supplierName === "string" ? p.supplierName : "Lieferung";
   }
 
+  if (module === "inventory_po_activity") {
+    const name =
+      typeof p.ingredientName === "string" ? p.ingredientName : "Bestellung";
+    return name;
+  }
+
+  if (module === "inventory_stock_activity") {
+    const name =
+      typeof p.ingredientName === "string" ? p.ingredientName : "Bestand";
+    return name;
+  }
+
   if (module === "changelog") {
     return typeof p.title === "string" ? p.title : "Changelog";
   }

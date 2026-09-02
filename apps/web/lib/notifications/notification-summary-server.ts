@@ -50,6 +50,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BELL_ITEMS_PER_MODULE = 5;
 
+/** Nur Live-Feed — keine Glocke/Push. */
+async function buildFeedOnlyEmptyModule(
+  moduleId: NotificationModuleId,
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[moduleId];
+  return {
+    module: moduleId,
+    label: def.label,
+    labelPlural: def.labelPlural,
+    href: def.href,
+    items: [],
+    totalCount: 0,
+  };
+}
+
 async function fetchUnreadChangelogItems(
   sb: SupabaseClient,
   userId: string,
@@ -433,6 +448,9 @@ const MODULE_BUILDERS: Record<
   inventory_low_stock: (ctx) => buildInventoryLowStockModule(ctx.sb, ctx),
   inventory_po_delivery_due: (ctx) =>
     buildInventoryPoDeliveryDueModule(ctx.sb, ctx),
+  inventory_po_activity: () => buildFeedOnlyEmptyModule("inventory_po_activity"),
+  inventory_stock_activity: () =>
+    buildFeedOnlyEmptyModule("inventory_stock_activity"),
   accounting_quotation: (ctx) =>
     buildAccountingModule(ctx.sb, {
       ...ctx,

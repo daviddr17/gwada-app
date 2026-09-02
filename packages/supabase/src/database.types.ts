@@ -4971,6 +4971,16 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
+      inventory_purchase_order_set_status: {
+        Args: {
+          p_from_status: string
+          p_log_entry: Json
+          p_order_id: string
+          p_restaurant_id: string
+          p_to_status: string
+        }
+        Returns: undefined
+      }
       inventory_replace_ingredients: {
         Args: { p_ingredients: Json; p_restaurant_id: string }
         Returns: undefined

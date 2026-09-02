@@ -38,6 +38,7 @@ import {
   inventoryRelationalPersistenceEnabled,
   loadPurchaseOrdersRelational,
   savePurchaseOrdersRelational,
+  setPurchaseOrderStatusRelational,
 } from "@/lib/supabase/inventory-db";
 import {
   getWorkspaceRestaurantId,
@@ -84,7 +85,7 @@ function appendStatusChangeLog(
   fromStatus: PurchaseOrderStatus,
   toStatus: PurchaseOrderStatus,
   actor: OrderProtocolActor,
-) {
+): PurchaseOrderLogStatusChange {
   const logEntry: PurchaseOrderLogStatusChange = {
     id: createId(),
     at: new Date().toISOString(),
@@ -98,6 +99,7 @@ function appendStatusChangeLog(
     unitLabel: "",
   };
   order.log.push(logEntry);
+  return logEntry;
 }
 
 function parseLogEntry(raw: unknown): PurchaseOrderLogEntry | null {
@@ -616,6 +618,78 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     ],
   );
 
+  /**
+   * Statuswechsel: UI + Toast sofort; DB per O(1)-RPC (kein Full-Replace).
+   * Bei Fehler Rollback + Error-Toast.
+   */
+  const persistStatusChangeOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      fromStatus: PurchaseOrderStatus;
+      toStatus: PurchaseOrderStatus;
+      logEntry: PurchaseOrderLogStatusChange;
+    }): void => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      void persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await setPurchaseOrderStatusRelational(rid, {
+            orderId: params.orderId,
+            fromStatus: params.fromStatus,
+            toStatus: params.toStatus,
+            logEntry: params.logEntry,
+          });
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          afterOrdersPersistSuccess();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
   /** Bestehende offene Bestellungen ohne Positionen entfernen (Legacy-Schalen). */
   const emptyOpenPruneInFlightRef = useRef(false);
   const lineHealInFlightRef = useRef(false);
@@ -802,13 +876,19 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       o.status = "ordered";
-      appendStatusChangeLog(o, "open", "ordered", actor);
-      // Toast erst nach DB-OK — sonst wirkt Timeout wie „gespeichert, dann wieder offen“.
-      const ok = await persistOptimisticQueued(next, prev);
-      if (ok) toast.success("Als bestellt markiert");
-      return ok;
+      const logEntry = appendStatusChangeLog(o, "open", "ordered", actor);
+      toast.success("Als bestellt markiert");
+      persistStatusChangeOptimistic({
+        next,
+        rollbackSnapshot: prev,
+        orderId,
+        fromStatus: "open",
+        toStatus: "ordered",
+        logEntry,
+      });
+      return true;
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   /**
@@ -836,14 +916,21 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       o.status = "closed";
-      appendStatusChangeLog(o, "ordered", "closed", actor);
-      const ok = await persistOptimisticQueued(next, prev);
-      if (ok && !options?.silent) {
+      const logEntry = appendStatusChangeLog(o, "ordered", "closed", actor);
+      if (!options?.silent) {
         toast.success("Bestellung abgeschlossen");
       }
-      return ok;
+      persistStatusChangeOptimistic({
+        next,
+        rollbackSnapshot: prev,
+        orderId,
+        fromStatus: "ordered",
+        toStatus: "closed",
+        logEntry,
+      });
+      return true;
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   /** Immer einen Status zurück: Abgeschlossen → Bestellt → Offen */
@@ -879,14 +966,19 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       if (!o) return false;
       const from = o.status;
       o.status = prevStatus;
-      appendStatusChangeLog(o, from, prevStatus, actor);
-      const ok = await persistOptimisticQueued(next, snapshot);
-      if (ok) {
-        toast.success(`Zurück auf „${purchaseOrderStatusLabel(prevStatus)}“`);
-      }
-      return ok;
+      const logEntry = appendStatusChangeLog(o, from, prevStatus, actor);
+      toast.success(`Zurück auf „${purchaseOrderStatusLabel(prevStatus)}“`);
+      persistStatusChangeOptimistic({
+        next,
+        rollbackSnapshot: snapshot,
+        orderId,
+        fromStatus: from,
+        toStatus: prevStatus,
+        logEntry,
+      });
+      return true;
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   const setOrderDeliveryDate = useCallback(
@@ -903,14 +995,12 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const next = previous.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      const ok = await persistOptimisticQueued(next, previous);
-      if (ok) {
-        toast.success(
-          normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
-          { id: `order-delivery-${orderId}` },
-        );
-      }
-      return ok;
+      persistOptimisticQueued(next, previous);
+      toast.success(
+        normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
+        { id: `order-delivery-${orderId}` },
+      );
+      return true;
     },
     [orders, persistOptimisticQueued, readOrdersSnapshot],
   );

@@ -928,3 +928,28 @@ export async function savePurchaseOrdersRelational(
 
   return { ok: false, message: "inventory_replace_purchase_orders failed" };
 }
+
+/** O(1) Statuswechsel — kein Full-Replace der gesamten Bestellhistorie. */
+export async function setPurchaseOrderStatusRelational(
+  restaurantId: string,
+  params: {
+    orderId: string;
+    fromStatus: PurchaseOrderStatus;
+    toStatus: PurchaseOrderStatus;
+    logEntry: PurchaseOrderLogEntry;
+  },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.rpc("inventory_purchase_order_set_status", {
+    p_restaurant_id: restaurantId,
+    p_order_id: params.orderId,
+    p_from_status: params.fromStatus,
+    p_to_status: params.toStatus,
+    p_log_entry: params.logEntry,
+  });
+  if (error) {
+    console.warn("[gwada] inventory_purchase_order_set_status", error.message);
+    return { ok: false, message: error.message };
+  }
+  return { ok: true };
+}

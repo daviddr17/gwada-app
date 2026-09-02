@@ -281,17 +281,6 @@ export const DEFAULT_EMAIL_SUBJECT_BY_KIND: Record<WhatsappMessageKind, string> 
   no_show: "Zu deinem Reservierungstermin (#{nummer})",
 };
 
-/** @deprecated — nutze DEFAULT_EMAIL_SUBJECT_BY_KIND / buildEmailSubject */
-export const EMAIL_SUBJECT_BY_KIND: Record<WhatsappMessageKind, string> = {
-  received: "Deine Reservierung ist eingegangen",
-  confirmed: "Deine Reservierung wurde bestätigt",
-  reminder: "Erinnerung an deine Reservierung",
-  thanks: "Danke für deinen Besuch",
-  cancelled: "Deine Reservierung wurde storniert",
-  declined: "Zu deiner Reservierungsanfrage",
-  no_show: "Zu deinem Reservierungstermin",
-};
-
 export function resolveEmailTemplate(
   settings: EmailTemplateSettings | null | undefined,
   kind: WhatsappMessageKind,
@@ -369,14 +358,6 @@ export function validateEmailSenderName(value: string): string | null {
     return "Absendername ist zu lang (max. 120 Zeichen).";
   }
   return null;
-}
-
-/** @deprecated — nutze buildEmailSubject */
-export function emailSubjectForKind(
-  kind: WhatsappMessageKind,
-  reservationNumber: number,
-): string {
-  return `${EMAIL_SUBJECT_BY_KIND[kind]} (#${reservationNumber})`;
 }
 
 export function validateWhatsappMessageTemplate(

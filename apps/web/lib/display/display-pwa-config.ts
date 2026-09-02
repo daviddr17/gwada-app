@@ -3,8 +3,6 @@
 export const DISPLAY_PWA_SCOPE = "/display/";
 /** Fallback, wenn kein Restaurant-Slug bekannt ist (Kopplungsseite). */
 export const DISPLAY_PWA_PAIR_START_URL = "/display/pair";
-/** @deprecated Nutze {@link displayPwaStartUrl} — bleibt für Pair-Fallback. */
-export const DISPLAY_PWA_START_URL = DISPLAY_PWA_PAIR_START_URL;
 export const DISPLAY_PWA_MANIFEST_PATH = "/display/manifest.webmanifest";
 export const DISPLAY_PWA_SW_PATH = "/display/sw.js";
 

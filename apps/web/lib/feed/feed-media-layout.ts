@@ -47,22 +47,3 @@ export const feedGalleryMasonryClassName =
 export const feedGalleryMasonryItemClassName =
   "mb-1.5 w-full break-inside-avoid";
 
-/** @deprecated Nur noch für Skeleton-Fallback — Layout per Tailwind-Klassen. */
-export function feedMasonryColumnCount(viewportWidth: number): number {
-  if (viewportWidth >= 1280) return 3;
-  if (viewportWidth >= 768) return 2;
-  return 1;
-}
-
-/** @deprecated Nur noch für Skeleton-Fallback — Layout per Tailwind-Klassen. */
-export function feedGalleryColumnCount(viewportWidth: number): number {
-  if (viewportWidth >= 1280) return 4;
-  if (viewportWidth >= 1024) return 3;
-  if (viewportWidth >= 640) return 2;
-  return 1;
-}
-
-/** @deprecated Layout per `feedNewsGridClassName`. */
-export function feedGridTemplateColumns(columnCount: number): string {
-  return `repeat(${Math.max(1, columnCount)}, minmax(0, 1fr))`;
-}

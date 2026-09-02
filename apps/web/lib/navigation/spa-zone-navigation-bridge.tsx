@@ -68,19 +68,3 @@ export function SpaZoneNavigationBridge({
 export function useSpaZoneNavigationOptional(): SpaZoneNavigationValue | null {
   return useContext(SpaZoneNavigationContext);
 }
-
-/** @deprecated use useSpaZoneNavigationOptional */
-export function useDashboardSpaNavigationOptional(): SpaZoneNavigationValue | null {
-  return useSpaZoneNavigationOptional();
-}
-
-/** @deprecated use SpaZoneNavigationBridge */
-export function DashboardSpaNavigationBridge({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  return (
-    <SpaZoneNavigationBridge base="/dashboard">{children}</SpaZoneNavigationBridge>
-  );
-}

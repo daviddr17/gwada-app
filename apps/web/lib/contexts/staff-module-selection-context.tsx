@@ -3,10 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
-import {
-  pickStoredActiveStaffId,
-  staffSelectOptionLabel,
-} from "@/lib/staff/staff-select-options";
+import { pickStoredActiveStaffId } from "@/lib/staff/staff-select-options";
 
 const STORAGE_KEY = "gwada-staff-module-selected";
 
@@ -241,9 +238,4 @@ export function useStaffModuleSelection() {
 
 export function useStaffModuleSelectionOptional() {
   return React.useContext(StaffModuleSelectionContext);
-}
-
-/** @deprecated Import from `@/lib/staff/staff-select-options` instead. */
-export function staffOptionLabel(row: RestaurantStaffRow): string {
-  return staffSelectOptionLabel(row);
 }

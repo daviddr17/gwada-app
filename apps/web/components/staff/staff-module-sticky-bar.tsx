@@ -69,13 +69,12 @@ export function StaffModuleStickyBar() {
     [positionTags.items],
   );
 
-  const allowsMultiStaff = useMemo(
-    () =>
-      pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
-      pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
-      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten"),
-    [pathname],
-  );
+  const allowsMultiStaff = useMemo(() => {
+    if (pathname.startsWith("/dashboard/mitarbeiter/vertraege")) return true;
+    if (pathname.startsWith("/dashboard/mitarbeiter/dokumente")) return true;
+    // Nur Kalender — Abrechnung/Beheben brauchen Einzelauswahl.
+    return pathname === "/dashboard/mitarbeiter/arbeitszeiten";
+  }, [pathname]);
 
   const singleOptions = useMemo(
     () =>

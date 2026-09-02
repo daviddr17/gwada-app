@@ -148,6 +148,7 @@ function buildPayrollOverviewRows(params: {
   contracts: readonly RestaurantStaffContractRow[];
   advances: readonly RestaurantStaffWageAdvanceRow[];
   staffIdFilter: string | null;
+  staffIdsFilter: readonly string[] | null;
 }): PayrollOverviewRow[] {
   const fromYear = Number(params.fromYmd.slice(0, 4));
   const fromMonth = Number(params.fromYmd.slice(5, 7));
@@ -189,6 +190,13 @@ function buildPayrollOverviewRows(params: {
     for (const id of payoutByStaff.keys()) staffIds.add(id);
 
     for (const staffId of staffIds) {
+      if (
+        params.staffIdsFilter &&
+        params.staffIdsFilter.length > 0 &&
+        !params.staffIdsFilter.includes(staffId)
+      ) {
+        continue;
+      }
       if (params.staffIdFilter && staffId !== params.staffIdFilter) continue;
       const line = payrollByStaff.get(staffId);
       const wageCents = line?.wageCents ?? 0;
@@ -254,7 +262,7 @@ function buildPayrollOverviewRows(params: {
 
 export function StaffPayrollSettlementScreen() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const { selectedStaffId } = useStaffModuleSelection();
+  const { selectedStaffId, selectedStaffIds } = useStaffModuleSelection();
 
   const initialRange = useMemo(() => currentCalendarMonthYmdRange(), []);
   const [fromYmd, setFromYmd] = useState(initialRange.startYmd);
@@ -314,9 +322,14 @@ export function StaffPayrollSettlementScreen() {
     void reload();
   }, [reload]);
 
+  const staffIdsFilter = useMemo(
+    () => (selectedStaffIds.length > 0 ? selectedStaffIds : null),
+    [selectedStaffIds],
+  );
+
   useEffect(() => {
     setPage(1);
-  }, [fromYmd, toYmd, selectedStaffId]);
+  }, [fromYmd, toYmd, selectedStaffId, staffIdsFilter]);
 
   const rows = useMemo(
     () =>
@@ -328,6 +341,7 @@ export function StaffPayrollSettlementScreen() {
         contracts,
         advances,
         staffIdFilter: selectedStaffId,
+        staffIdsFilter,
       }),
     [
       fromYmd,
@@ -337,6 +351,7 @@ export function StaffPayrollSettlementScreen() {
       contracts,
       advances,
       selectedStaffId,
+      staffIdsFilter,
     ],
   );
 

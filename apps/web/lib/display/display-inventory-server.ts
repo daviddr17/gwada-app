@@ -2,6 +2,7 @@ import "server-only";
 
 import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
 import { fetchInventoryPurchaseOrdersLiveRevision } from "@/lib/inventory/inventory-purchase-orders-live-revision";
+import { dedupePurchaseOrdersById } from "@/lib/inventory/dedupe-purchase-orders-by-id";
 import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
 import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import { createId } from "@/lib/create-id";
@@ -295,7 +296,9 @@ async function savePurchaseOrdersAdmin(
   if (!admin) return { ok: false, error: "server_misconfigured" };
   const fresh = await loadPurchaseOrdersAdmin(restaurantId);
   if (!fresh) return { ok: false, error: "load_failed" };
-  const merged = mergePurchaseOrdersForReplace(fresh, orders);
+  const merged = dedupePurchaseOrdersById(
+    mergePurchaseOrdersForReplace(fresh, orders),
+  );
   const { error } = await admin.rpc("inventory_replace_purchase_orders", {
     p_restaurant_id: restaurantId,
     p_orders: merged,

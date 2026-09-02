@@ -581,10 +581,12 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
 
   const persist = useCallback(
     async (next: PurchaseOrder[]): Promise<boolean> => {
-      const ok = await saveOrdersToBackend(next);
-      if (!ok) return false;
-      afterOrdersPersistSuccess();
-      return true;
+      return persistQueueRef.current.enqueue(async () => {
+        const ok = await saveOrdersToBackend(next);
+        if (!ok) return false;
+        afterOrdersPersistSuccess();
+        return true;
+      });
     },
     [afterOrdersPersistSuccess, saveOrdersToBackend],
   );
@@ -630,7 +632,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     });
   }, [dbFetchReady, isHydrated, orders, persist, useDbInventory]);
 
-  /** Protokoll/Positions-Desync einmalig reparieren und in DB zurückschreiben. */
+  /** Protokoll/Positions-Desync in der UI ausgleichen — ohne Hintergrund-Save (Race mit Display). */
   useEffect(() => {
     if (!isHydrated || lineHealInFlightRef.current) return;
     if (useDbInventory && !dbFetchReady) return;
@@ -646,10 +648,27 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     });
     if (!needsHeal) return;
     lineHealInFlightRef.current = true;
-    void persist(healed).finally(() => {
-      lineHealInFlightRef.current = false;
+    applyOrdersOptimistic(healed);
+    if (restaurantId) {
+      queryClient.setQueryData(
+        queryKeys.inventory.purchaseOrders(restaurantId),
+        healed,
+      );
+    }
+    mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+      version: 1 as const,
+      orders: healed,
     });
-  }, [dbFetchReady, isHydrated, orders, persist, useDbInventory]);
+    lineHealInFlightRef.current = false;
+  }, [
+    applyOrdersOptimistic,
+    dbFetchReady,
+    isHydrated,
+    orders,
+    queryClient,
+    restaurantId,
+    useDbInventory,
+  ]);
 
   const getOpenLineContext = useCallback(
     (supplierId: string, ingredientId: string): OpenLineContext => {

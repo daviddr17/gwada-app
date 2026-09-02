@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
+import { inboxQueryPlatformsFromConnectionFlags } from "@/lib/contact-messages/inbox-query-platforms";
 import { CONVERSATION_LIST_MESSAGE_ROW_LIMIT } from "@/lib/contact-messages/conversation-list-limits";
 import { fetchContactConversationsAdmin } from "@/lib/contact-messages/fetch-contact-conversations-admin";
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
@@ -16,6 +16,10 @@ type UnifiedInboxParams = {
   emailConnected: boolean;
   facebookConnected?: boolean;
   instagramConnected?: boolean;
+  whatsappEnabled?: boolean;
+  emailEnabled?: boolean;
+  facebookEnabled?: boolean;
+  instagramEnabled?: boolean;
 };
 
 async function fetchUnifiedInboxFromDbAdmin(
@@ -23,11 +27,7 @@ async function fetchUnifiedInboxFromDbAdmin(
   params: UnifiedInboxParams,
   options?: { light?: boolean; rowLimit?: number },
 ): Promise<ContactConversationPreview[]> {
-  const platforms: ContactMessagePlatform[] = ["gwada"];
-  if (params.whatsappConnected) platforms.push("whatsapp");
-  if (params.emailConnected) platforms.push("email");
-  if (params.facebookConnected) platforms.push("facebook");
-  if (params.instagramConnected) platforms.push("instagram");
+  const platforms = inboxQueryPlatformsFromConnectionFlags(params);
 
   const sources = await Promise.all(
     platforms.map((platform) =>

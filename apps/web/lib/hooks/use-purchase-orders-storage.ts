@@ -14,6 +14,7 @@ import {
 } from "@/lib/inventory/purchase-orders-query";
 import { useInventoryDataRefreshListener } from "@/lib/hooks/use-inventory-data-refresh-listener";
 import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-inventory-live-patch-from-cache";
+import { dispatchInventoryDataRefresh } from "@/lib/inventory/inventory-live-events";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
 import {
@@ -38,6 +39,7 @@ import {
   inventoryRelationalPersistenceEnabled,
   loadPurchaseOrdersRelational,
   savePurchaseOrdersRelational,
+  setPurchaseOrderStatusRelational,
 } from "@/lib/supabase/inventory-db";
 import {
   getWorkspaceRestaurantId,
@@ -84,7 +86,7 @@ function appendStatusChangeLog(
   fromStatus: PurchaseOrderStatus,
   toStatus: PurchaseOrderStatus,
   actor: OrderProtocolActor,
-) {
+): PurchaseOrderLogStatusChange {
   const logEntry: PurchaseOrderLogStatusChange = {
     id: createId(),
     at: new Date().toISOString(),
@@ -98,6 +100,8 @@ function appendStatusChangeLog(
     unitLabel: "",
   };
   order.log.push(logEntry);
+  order.statusUpdatedAt = logEntry.at;
+  return logEntry;
 }
 
 function parseLogEntry(raw: unknown): PurchaseOrderLogEntry | null {
@@ -339,11 +343,16 @@ function parseOrder(raw: unknown): PurchaseOrder | null {
   if (typeof raw.deliveryDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.deliveryDate)) {
     deliveryDate = raw.deliveryDate;
   }
+  const statusUpdatedAt =
+    typeof raw.statusUpdatedAt === "string" && raw.statusUpdatedAt
+      ? raw.statusUpdatedAt
+      : undefined;
   return {
     id: raw.id,
     supplierId: raw.supplierId,
     supplierName: raw.supplierName,
     status: raw.status as PurchaseOrderStatus,
+    ...(statusUpdatedAt ? { statusUpdatedAt } : {}),
     createdAt: raw.createdAt,
     createdBy: raw.createdBy,
     ...(createdByUserSource ? { createdByUserSource } : {}),
@@ -591,10 +600,13 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   );
 
   const persistOptimisticQueued = useCallback(
-    (next: PurchaseOrder[], rollbackSnapshot: PurchaseOrder[]): void => {
+    (
+      next: PurchaseOrder[],
+      rollbackSnapshot: PurchaseOrder[],
+    ): Promise<boolean> => {
       const generation = ++ordersMutationGenerationRef.current;
       applyOrdersOptimistic(next);
-      void persistQueueRef.current.enqueue(async () => {
+      return persistQueueRef.current.enqueue(async () => {
         const ok = await saveOrdersToBackend(next);
         if (!ok) {
           if (ordersMutationGenerationRef.current === generation) {
@@ -610,6 +622,80 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       afterOrdersPersistSuccess,
       applyOrdersOptimistic,
       saveOrdersToBackend,
+    ],
+  );
+
+  /**
+   * Statuswechsel: UI + Toast sofort; DB per O(1)-RPC (kein Full-Replace).
+   * Bei Fehler Rollback + Error-Toast.
+   */
+  const persistStatusChangeOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      fromStatus: PurchaseOrderStatus;
+      toStatus: PurchaseOrderStatus;
+      logEntry: PurchaseOrderLogStatusChange;
+    }): void => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      void persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await setPurchaseOrderStatusRelational(rid, {
+            orderId: params.orderId,
+            fromStatus: params.fromStatus,
+            toStatus: params.toStatus,
+            logEntry: params.logEntry,
+          });
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          afterOrdersPersistSuccess();
+          // Andere Module/Tabs im selben Browser sofort; andere Mitarbeiter via Realtime-Signal.
+          dispatchInventoryDataRefresh();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
     ],
   );
 
@@ -708,6 +794,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           supplierName: params.supplierName,
           status: "open",
           createdAt: new Date().toISOString(),
+          statusUpdatedAt: new Date().toISOString(),
           createdBy: protocolCreatedByLabel(params.actor),
           deliveryDate: null,
           lines: [],
@@ -799,12 +886,19 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       o.status = "ordered";
-      appendStatusChangeLog(o, "open", "ordered", actor);
+      const logEntry = appendStatusChangeLog(o, "open", "ordered", actor);
       toast.success("Als bestellt markiert");
-      persistOptimisticQueued(next, prev);
+      persistStatusChangeOptimistic({
+        next,
+        rollbackSnapshot: prev,
+        orderId,
+        fromStatus: "open",
+        toStatus: "ordered",
+        logEntry,
+      });
       return true;
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   /**
@@ -832,14 +926,21 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       o.status = "closed";
-      appendStatusChangeLog(o, "ordered", "closed", actor);
+      const logEntry = appendStatusChangeLog(o, "ordered", "closed", actor);
       if (!options?.silent) {
         toast.success("Bestellung abgeschlossen");
       }
-      persistOptimisticQueued(next, prev);
+      persistStatusChangeOptimistic({
+        next,
+        rollbackSnapshot: prev,
+        orderId,
+        fromStatus: "ordered",
+        toStatus: "closed",
+        logEntry,
+      });
       return true;
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   /** Immer einen Status zurück: Abgeschlossen → Bestellt → Offen */
@@ -875,12 +976,19 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       if (!o) return false;
       const from = o.status;
       o.status = prevStatus;
-      appendStatusChangeLog(o, from, prevStatus, actor);
+      const logEntry = appendStatusChangeLog(o, from, prevStatus, actor);
       toast.success(`Zurück auf „${purchaseOrderStatusLabel(prevStatus)}“`);
-      persistOptimisticQueued(next, snapshot);
+      persistStatusChangeOptimistic({
+        next,
+        rollbackSnapshot: snapshot,
+        orderId,
+        fromStatus: from,
+        toStatus: prevStatus,
+        logEntry,
+      });
       return true;
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   const setOrderDeliveryDate = useCallback(

@@ -1315,6 +1315,7 @@ export type Database = {
           id: string
           restaurant_id: string
           status: string
+          status_updated_at: string
           supplier_id: string
           supplier_name: string
         }
@@ -1326,6 +1327,7 @@ export type Database = {
           id: string
           restaurant_id: string
           status: string
+          status_updated_at?: string
           supplier_id: string
           supplier_name: string
         }
@@ -1337,6 +1339,7 @@ export type Database = {
           id?: string
           restaurant_id?: string
           status?: string
+          status_updated_at?: string
           supplier_id?: string
           supplier_name?: string
         }
@@ -4970,6 +4973,16 @@ export type Database = {
       explain_staff_invite_by_token: {
         Args: { p_token: string }
         Returns: Json
+      }
+      inventory_purchase_order_set_status: {
+        Args: {
+          p_from_status: string
+          p_log_entry: Json
+          p_order_id: string
+          p_restaurant_id: string
+          p_to_status: string
+        }
+        Returns: undefined
       }
       inventory_replace_ingredients: {
         Args: { p_ingredients: Json; p_restaurant_id: string }

@@ -214,7 +214,7 @@ async function loadPurchaseOrdersAdmin(
   const { data: orders, error: e1 } = await admin
     .from("inventory_purchase_orders")
     .select(
-      "id,supplier_id,supplier_name,status,created_at,created_by,created_by_user_source,delivery_date",
+      "id,supplier_id,supplier_name,status,status_updated_at,created_at,created_by,created_by_user_source,delivery_date",
     )
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false });
@@ -270,12 +270,17 @@ async function loadPurchaseOrdersAdmin(
     if (typeof o.delivery_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.delivery_date)) {
       deliveryDate = o.delivery_date;
     }
+    const statusUpdatedAt =
+      typeof o.status_updated_at === "string" && o.status_updated_at
+        ? o.status_updated_at
+        : undefined;
     out.push(
       reconcilePurchaseOrderLinesFromLog({
         id,
         supplierId: o.supplier_id as string,
         supplierName: o.supplier_name as string,
         status: o.status as PurchaseOrder["status"],
+        ...(statusUpdatedAt ? { statusUpdatedAt } : {}),
         createdAt: o.created_at as string,
         createdBy: (o.created_by as string) ?? "",
         ...(createdByUserSource ? { createdByUserSource } : {}),
@@ -537,6 +542,7 @@ export async function updateDisplayOrderQuantity(params: {
         supplierName,
         status: "open",
         createdAt: new Date().toISOString(),
+        statusUpdatedAt: new Date().toISOString(),
         createdBy: `${params.actor.firstName} ${params.actor.lastName}`.trim(),
         deliveryDate: null,
         lines: [],

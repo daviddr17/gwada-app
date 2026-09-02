@@ -393,7 +393,7 @@ export function buildNotificationPushText(
         headline: moduleDef.label,
         subject: `${prefix}${moduleDef.label}`,
         href,
-        details: [],
+        details: detailLines([]),
       });
     case "accounting_quotation": {
       const title = pickString(p.title) ?? "Neues Angebot";

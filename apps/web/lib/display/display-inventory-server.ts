@@ -651,16 +651,28 @@ export async function loadDisplayInventoryLiveRevision(
   const admin = createSupabaseAdminClient();
   if (!admin) return { revision: "" };
 
-  const { fetchTableLatestUpdatedAt, composeDisplayLiveRevision } = await import(
-    "@/lib/display/display-module-live-revision"
-  );
+  const { data, error } = await admin
+    .from("restaurant_inventory_live_signals")
+    .select("revision, updated_at")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
 
-  const [ingredients, ordersRevision] = await Promise.all([
-    fetchTableLatestUpdatedAt(admin, "inventory_ingredients", restaurantId),
-    fetchInventoryPurchaseOrdersLiveRevision(admin, restaurantId),
-  ]);
+  if (error || !data) {
+    const { fetchTableLatestUpdatedAt, composeDisplayLiveRevision } = await import(
+      "@/lib/display/display-module-live-revision"
+    );
+    const [ingredients, ordersRevision] = await Promise.all([
+      fetchTableLatestUpdatedAt(admin, "inventory_ingredients", restaurantId),
+      fetchInventoryPurchaseOrdersLiveRevision(admin, restaurantId),
+    ]);
+    return {
+      revision: composeDisplayLiveRevision([ingredients, ordersRevision]),
+    };
+  }
 
+  const updatedAt =
+    typeof data.updated_at === "string" ? data.updated_at : "";
   return {
-    revision: composeDisplayLiveRevision([ingredients, ordersRevision]),
+    revision: `${data.revision ?? 0}|${updatedAt}`,
   };
 }

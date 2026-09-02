@@ -12,7 +12,7 @@ import {
   fetchPurchaseOrdersForRestaurant,
   peekPurchaseOrdersCache,
 } from "@/lib/inventory/purchase-orders-query";
-import { useInventoryPurchaseOrdersLivePoll } from "@/lib/hooks/use-inventory-purchase-orders-live-poll";
+import { useInventoryDataRefreshListener } from "@/lib/hooks/use-inventory-data-refresh-listener";
 import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-inventory-live-patch-from-cache";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
@@ -426,9 +426,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     void ordersQuery.refetch();
   }, [ordersQuery, restaurantId]);
 
-  useInventoryPurchaseOrdersLivePoll(
+  useInventoryDataRefreshListener(
     queryEnabled && useDbInventory && workspaceReady && Boolean(restaurantId),
-    restaurantId,
     refetchPurchaseOrders,
   );
 

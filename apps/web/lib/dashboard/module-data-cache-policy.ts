@@ -584,21 +584,48 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     status: "active",
   },
   {
+    id: "inventoryLive",
+    label: "Bestand Live",
+    scope: "module",
+    appModule: "Bestand",
+    strategy: "realtime",
+    pollIntervalMs: 15_000,
+    description:
+      "Zutaten + Bestellungen per Supabase Realtime (Live-Signal + Ingredients-Fallback). Zone-Level AppInventoryLive; Fallback-Polling 15s bei Realtime-Ausfall oder /sb-Proxy.",
+    loadTriggers: [
+      "App-Zone platform/(app) + Workspace-Restaurant ready",
+      "Fallback: sichtbares Intervall-Polling 15s",
+    ],
+    invalidateTriggers: [
+      "Supabase Realtime restaurant_inventory_live_signals / inventory_*",
+      "GWADA_INVENTORY_DATA_REFRESH (debounced 300ms)",
+    ],
+    implementationFiles: [
+      "components/providers/app-inventory-live.tsx",
+      "lib/hooks/use-restaurant-inventory-realtime.ts",
+      "lib/inventory/inventory-live-events.ts",
+      "supabase/migrations/20260902120000_inventory_realtime_live_signals.sql",
+    ],
+    status: "active",
+  },
+  {
     id: "inventoryModule",
     label: "Bestand",
     scope: "module",
     appModule: "Bestand",
-    strategy: "stale-while-revalidate",
-    staleTimeMs: 3 * 60_000,
+    strategy: "realtime",
+    staleTimeMs: 0,
     gcTimeMs: 30 * 60_000,
     description:
-      "Zutaten + Bestellungen per React Query; Bestandsänderung invalidiert auch notifications.summary (Low-Stock-Push).",
+      "Zutaten + Bestellungen per React Query; Live-Invalidierung über AppInventoryLive. Bestandsänderung invalidiert auch notifications.summary (Low-Stock-Push).",
     loadTriggers: [
       "AppModuleWarmPrefetchMount / Intent",
       "Route /dashboard/inventory/**",
       "placeholderData aus LS",
+      "GWADA_INVENTORY_DATA_REFRESH → refetch",
     ],
     invalidateTriggers: [
+      "Realtime / GWADA_INVENTORY_DATA_REFRESH",
       "Zutat/Bestellung speichern",
       "Bestandsänderung → notifications.summary + dashboard.summary",
       "DB-Trigger inventory_low_stock → Push (separater Pfad)",
@@ -748,7 +775,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     strategy: "poll",
     pollIntervalMs: 2_000,
     description:
-      "Eigene Session-Zone (/display/[slug], kein Supabase-User-JWT). Module per fetch; Reservierungen mit Live-Signal-Poll (2s) und stillen Tag-Reloads ohne Full-Skeleton.",
+      "Eigene Session-Zone (/display/[slug], kein Supabase-User-JWT). Module per fetch; Bestand mit O(1) Live-Signal-Poll (1,5s) und debounced Refresh (400ms).",
     loadTriggers: [
       "PIN-Login → GET /api/display/context",
       "Modul-Mount: reservations / inventory / recipes / time",

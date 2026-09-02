@@ -9,12 +9,12 @@ import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { SEED_INGREDIENTS } from "@/lib/data/inventory-seeds";
 import {
   getModuleCacheGcTime,
-  getModuleCacheStaleTime,
 } from "@/lib/dashboard/module-data-cache-policy";
 import {
   fetchIngredientsForRestaurant,
   peekIngredientsCache,
 } from "@/lib/inventory/ingredients-query";
+import { useInventoryDataRefreshListener } from "@/lib/hooks/use-inventory-data-refresh-listener";
 import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-inventory-live-patch-from-cache";
 import { toastStorageError } from "@/lib/persist-notify";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
@@ -319,11 +319,22 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
       useDbInventory &&
       workspaceReady &&
       Boolean(restaurantId),
-    staleTime: getModuleCacheStaleTime("inventoryModule") ?? 60_000,
+    staleTime: 0,
     gcTime: getModuleCacheGcTime("inventoryModule") ?? 5 * 60_000,
+    refetchOnMount: "always",
     placeholderData: (previous) =>
       previous ?? peekIngredientsCache() ?? undefined,
   });
+
+  const refetchIngredients = useCallback(() => {
+    if (!restaurantId) return;
+    void ingredientsQuery.refetch();
+  }, [ingredientsQuery, restaurantId]);
+
+  useInventoryDataRefreshListener(
+    queryEnabled && useDbInventory && workspaceReady && Boolean(restaurantId),
+    refetchIngredients,
+  );
 
   const afterInventoryMutation = useCallback(
     (options?: { stockChanged?: boolean }) => {

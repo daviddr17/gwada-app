@@ -7,32 +7,34 @@ export async function loadDashboardDocumentsSummaryServer(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<DashboardDocumentsSummary> {
-  const [{ data: rows }, usageRes] = await Promise.all([
+  const [totalRes, withoutTagRes, usageRes] = await Promise.all([
     sb
       .from("restaurant_documents")
-      .select("id, tag_id, size_bytes")
+      .select("id", { count: "exact", head: true })
       .eq("restaurant_id", restaurantId),
+    sb
+      .from("restaurant_documents")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId)
+      .is("tag_id", null),
     sb.rpc("restaurant_documents_used_bytes", {
       p_restaurant_id: restaurantId,
     }),
   ]);
 
-  const docs = rows ?? [];
-  const withoutTag = docs.filter((d) => !d.tag_id).length;
-  const fromRows = docs.reduce(
-    (sum, d) => sum + (Number(d.size_bytes) || 0),
-    0,
-  );
+  if (totalRes.error) throw new Error(totalRes.error.message);
+  if (withoutTagRes.error) throw new Error(withoutTagRes.error.message);
+
   const usageBytes =
     typeof usageRes.data === "number"
       ? usageRes.data
       : Array.isArray(usageRes.data) && typeof usageRes.data[0] === "number"
         ? usageRes.data[0]
-        : fromRows;
+        : 0;
 
   return {
-    total: docs.length,
-    withoutTag,
+    total: totalRes.count ?? 0,
+    withoutTag: withoutTagRes.count ?? 0,
     storageBytes: usageBytes,
   };
 }

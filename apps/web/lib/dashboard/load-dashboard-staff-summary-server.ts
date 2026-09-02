@@ -176,36 +176,37 @@ async function fetchStaffWorkEntriesTodayServer(
     timeZone,
   );
 
-  // Überlappung mit dem Restaurant-Tag — nicht nur starts_at im Tag.
-  // Sonst fehlen Übernacht-Anteile von gestern (Morgenstunden) im Heute-Widget.
-  const { data: closed, error: closedErr } = await sb
-    .from("restaurant_staff_work_entries")
-    .select(
-      "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
-    )
-    .eq("restaurant_id", restaurantId)
-    .eq("is_open", false)
-    .lt("starts_at", rangeEnd)
-    .gt("ends_at", rangeStart);
-
-  if (closedErr) throw new Error(closedErr.message);
-
   // Offene Segmente: Übernacht von gestern + heute. Lookback begrenzt Geister-Stempel.
   const openLookbackStart = new Date(
     Date.parse(rangeStart) - 36 * 3_600_000,
   ).toISOString();
 
-  const { data: open, error: openErr } = await sb
-    .from("restaurant_staff_work_entries")
-    .select(
-      "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
-    )
-    .eq("restaurant_id", restaurantId)
-    .eq("is_open", true)
-    .gte("starts_at", openLookbackStart)
-    .lt("starts_at", rangeEnd);
+  // Closed + open parallel — unabhängige Filter, wall-time = langsamere Query.
+  const [closedRes, openRes] = await Promise.all([
+    sb
+      .from("restaurant_staff_work_entries")
+      .select(
+        "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .eq("is_open", false)
+      .lt("starts_at", rangeEnd)
+      .gt("ends_at", rangeStart),
+    sb
+      .from("restaurant_staff_work_entries")
+      .select(
+        "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .eq("is_open", true)
+      .gte("starts_at", openLookbackStart)
+      .lt("starts_at", rangeEnd),
+  ]);
 
-  if (openErr) throw new Error(openErr.message);
+  if (closedRes.error) throw new Error(closedRes.error.message);
+  if (openRes.error) throw new Error(openRes.error.message);
+  const closed = closedRes.data;
+  const open = openRes.data;
 
   const mapRow = (r: Record<string, unknown>) => ({
     id: r.id as string,
@@ -340,21 +341,20 @@ export async function loadDashboardStaffSummaryServer(
     mapStaffRow(r as Record<string, unknown>),
   );
 
-  const todayEntries = await fetchStaffWorkEntriesTodayServer(
-    sb,
-    restaurantId,
-    timeZone,
-  );
-
   const dayYmd = restaurantTodayYmd(timeZone);
   const complianceLookbackStart = new Date(
     Date.now() - 183 * 24 * 3_600_000,
   ).toISOString();
-  const complianceEntries = await fetchStaffWorkEntriesClosedSinceServer(
-    sb,
-    restaurantId,
-    complianceLookbackStart,
-  );
+
+  // Heute-Entries und ArbZG-Lookback parallel — Lookback braucht keinen today-Result.
+  const [todayEntries, complianceEntries] = await Promise.all([
+    fetchStaffWorkEntriesTodayServer(sb, restaurantId, timeZone),
+    fetchStaffWorkEntriesClosedSinceServer(
+      sb,
+      restaurantId,
+      complianceLookbackStart,
+    ),
+  ]);
   const laborViolations = evaluateLaborCompliance({
     entries: complianceEntries,
     countryIso2,

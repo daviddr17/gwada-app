@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { Flame } from "lucide-react";
 import {
   Card,
@@ -14,6 +15,7 @@ import {
   loginStreakCellsToWeekColumns,
   type LoginStreakSummary,
 } from "@/lib/profile/login-streak";
+import { queryKeys } from "@/lib/query/query-keys";
 import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
@@ -22,34 +24,28 @@ const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
 const streakCellClassName =
   "size-2.5 shrink-0 rounded-[2px] sm:size-3 sm:rounded-[3px]";
 
-export function ProfileLoginStreakCard() {
-  const [summary, setSummary] = useState<LoginStreakSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const STREAK_STALE_MS = 5 * 60_000;
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/profile/login-streak");
-        if (!res.ok) {
-          if (!cancelled) setError("Streak konnte nicht geladen werden.");
-          return;
-        }
-        const json = (await res.json()) as { data?: LoginStreakSummary };
-        if (!cancelled) setSummary(json.data ?? null);
-      } catch {
-        if (!cancelled) setError("Streak konnte nicht geladen werden.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+async function fetchLoginStreakSummary(): Promise<LoginStreakSummary> {
+  const res = await fetch("/api/profile/login-streak");
+  if (!res.ok) throw new Error("streak_load_failed");
+  const json = (await res.json()) as { data?: LoginStreakSummary };
+  if (!json.data) throw new Error("streak_empty");
+  return json.data;
+}
+
+export function ProfileLoginStreakCard() {
+  const query = useQuery({
+    queryKey: queryKeys.profile.loginStreak(),
+    queryFn: fetchLoginStreakSummary,
+    staleTime: STREAK_STALE_MS,
+    gcTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const summary = query.data ?? null;
+  const loading = query.isLoading && !summary;
+  const error = query.isError ? "Streak konnte nicht geladen werden." : null;
 
   const columns = useMemo(
     () => (summary ? loginStreakCellsToWeekColumns(summary.cells) : []),

@@ -254,7 +254,9 @@ export function DashboardHeuteTile() {
   const ready =
     heuteStatSlices.length === 0 ||
     heuteStatSlices.some((slice) => slice.ready);
-  const loading = heuteStatSlices.length > 0 && !allHeuteStatsSettled;
+  // Partial paint: Skeleton nur bis das erste Slice ready ist — NDJSON-Widgets
+  // sollen sofort sichtbar sein, nicht erst wenn staff/messages/… alle da sind.
+  const loading = heuteStatSlices.length > 0 && !ready;
 
   const showSkeleton = useDeferredSkeleton(loading);
 

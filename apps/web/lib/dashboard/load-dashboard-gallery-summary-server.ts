@@ -7,7 +7,7 @@ export async function loadDashboardGallerySummaryServer(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<DashboardGallerySummary> {
-  const [{ data: mediaRows }, { count: highlights }] = await Promise.all([
+  const [mediaRes, highlightsRes] = await Promise.all([
     sb
       .from("gwada_gallery_items")
       .select("size_bytes")
@@ -18,7 +18,10 @@ export async function loadDashboardGallerySummaryServer(
       .eq("restaurant_id", restaurantId),
   ]);
 
-  const rows = mediaRows ?? [];
+  if (mediaRes.error) throw new Error(mediaRes.error.message);
+  if (highlightsRes.error) throw new Error(highlightsRes.error.message);
+
+  const rows = mediaRes.data ?? [];
   const storageBytes = rows.reduce(
     (sum, row) => sum + (Number((row as { size_bytes?: number }).size_bytes) || 0),
     0,
@@ -26,7 +29,7 @@ export async function loadDashboardGallerySummaryServer(
 
   return {
     mediaTotal: rows.length,
-    highlights: highlights ?? 0,
+    highlights: highlightsRes.count ?? 0,
     storageBytes,
   };
 }

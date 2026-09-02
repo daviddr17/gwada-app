@@ -24,7 +24,7 @@ import {
 import { type AppLocale, normalizeAppLocale } from "@/i18n/config";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
-import { applyAppLocale, fetchProfileAppLocale } from "@/lib/i18n/apply-app-locale";
+import { applyAppLocale } from "@/lib/i18n/apply-app-locale";
 import { cn } from "@/lib/utils";
 
 type ProfileBaseline = {
@@ -62,6 +62,7 @@ export function ProfilePersoenlicheDatenScreen() {
     country,
     avatarStoragePath,
     coverStoragePath,
+    profileLocale,
     setFirstName,
     setLastName,
     setNickname,
@@ -86,40 +87,32 @@ export function ProfilePersoenlicheDatenScreen() {
     setProfileLocaleReady(false);
   }, [userId]);
 
+  // Locale kommt mit demselben profiles-Select — kein zweiter Roundtrip.
   useEffect(() => {
     if (!isHydrated || !isRemoteLoaded || profileLocaleReady) return;
 
-    let cancelled = false;
-    void (async () => {
-      const fromProfile = await fetchProfileAppLocale();
-      if (cancelled) return;
+    const resolvedLocale = profileLocale ?? activeLocale;
+    setDraftLocale(resolvedLocale);
 
-      const resolvedLocale = fromProfile ?? activeLocale;
-      setDraftLocale(resolvedLocale);
-
-      if (savedRef.current === null) {
-        savedRef.current = snapshotFromFields({
-          firstName,
-          lastName,
-          nickname,
-          birthDate,
-          street,
-          postalCode,
-          city,
-          country,
-          locale: resolvedLocale,
-        });
-      }
-      setProfileLocaleReady(true);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    if (savedRef.current === null) {
+      savedRef.current = snapshotFromFields({
+        firstName,
+        lastName,
+        nickname,
+        birthDate,
+        street,
+        postalCode,
+        city,
+        country,
+        locale: resolvedLocale,
+      });
+    }
+    setProfileLocaleReady(true);
   }, [
     isHydrated,
     isRemoteLoaded,
     profileLocaleReady,
+    profileLocale,
     userId,
     activeLocale,
     firstName,

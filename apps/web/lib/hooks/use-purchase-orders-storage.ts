@@ -7,12 +7,12 @@ import { PURCHASE_ORDERS_STORAGE_KEY } from "@/lib/constants/inventory-storage";
 import { createId } from "@/lib/create-id";
 import {
   getModuleCacheGcTime,
-  getModuleCacheStaleTime,
 } from "@/lib/dashboard/module-data-cache-policy";
 import {
   fetchPurchaseOrdersForRestaurant,
   peekPurchaseOrdersCache,
 } from "@/lib/inventory/purchase-orders-query";
+import { useInventoryPurchaseOrdersLivePoll } from "@/lib/hooks/use-inventory-purchase-orders-live-poll";
 import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-inventory-live-patch-from-cache";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
@@ -414,11 +414,23 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       useDbInventory &&
       workspaceReady &&
       Boolean(restaurantId),
-    staleTime: getModuleCacheStaleTime("inventoryModule") ?? 60_000,
+    staleTime: 0,
     gcTime: getModuleCacheGcTime("inventoryModule") ?? 5 * 60_000,
+    refetchOnMount: "always",
     placeholderData: (previous) =>
       previous ?? peekPurchaseOrdersCache() ?? undefined,
   });
+
+  const refetchPurchaseOrders = useCallback(() => {
+    if (!restaurantId) return;
+    void ordersQuery.refetch();
+  }, [ordersQuery, restaurantId]);
+
+  useInventoryPurchaseOrdersLivePoll(
+    queryEnabled && useDbInventory && workspaceReady && Boolean(restaurantId),
+    restaurantId,
+    refetchPurchaseOrders,
+  );
 
   const afterOrdersMutation = useCallback(() => {
     if (restaurantId) {

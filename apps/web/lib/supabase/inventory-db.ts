@@ -13,6 +13,7 @@ import type {
 } from "@/lib/types/purchase-order";
 import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
 import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
+import { dedupePurchaseOrdersById } from "@/lib/inventory/dedupe-purchase-orders-by-id";
 import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import { isPurchaseOrderStatus } from "@/lib/inventory/purchase-order-status";
 import type { Ingredient } from "@/lib/types/inventory";
@@ -902,16 +903,28 @@ export async function savePurchaseOrdersRelational(
   orders: PurchaseOrder[],
 ): Promise<InventorySaveResult> {
   await ensurePurchaseOrderSuppliers(restaurantId, orders);
-  const fresh = (await loadPurchaseOrdersRelational(restaurantId)) ?? [];
-  const merged = mergePurchaseOrdersForReplace(fresh, orders);
   const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase.rpc("inventory_replace_purchase_orders", {
-    p_restaurant_id: restaurantId,
-    p_orders: merged,
-  });
-  if (error) {
-    console.warn("[gwada] inventory_replace_purchase_orders", error.message);
-    return { ok: false, message: error.message };
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const fresh = (await loadPurchaseOrdersRelational(restaurantId)) ?? [];
+    const merged = dedupePurchaseOrdersById(
+      mergePurchaseOrdersForReplace(fresh, orders),
+    );
+    const { error } = await supabase.rpc("inventory_replace_purchase_orders", {
+      p_restaurant_id: restaurantId,
+      p_orders: merged,
+    });
+    if (!error) {
+      return { ok: true, orders: merged };
+    }
+    const retryable =
+      attempt === 0 && error.message.includes("duplicate key");
+    if (!retryable) {
+      console.warn("[gwada] inventory_replace_purchase_orders", error.message);
+      return { ok: false, message: error.message };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  return { ok: true, orders: merged };
+
+  return { ok: false, message: "inventory_replace_purchase_orders failed" };
 }

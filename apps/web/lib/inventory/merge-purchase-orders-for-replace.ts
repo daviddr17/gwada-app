@@ -1,4 +1,5 @@
 import { isEmptyOpenPurchaseOrder } from "@/lib/inventory/prune-empty-open-purchase-orders";
+import { dedupePurchaseOrdersById } from "@/lib/inventory/dedupe-purchase-orders-by-id";
 import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import type {
   PurchaseOrder,
@@ -29,7 +30,9 @@ export function mergePurchaseOrdersForReplace(
   dbOrders: readonly PurchaseOrder[],
   clientOrders: readonly PurchaseOrder[],
 ): PurchaseOrder[] {
-  const clientById = new Map(clientOrders.map((order) => [order.id, order]));
+  const clientById = new Map(
+    dedupePurchaseOrdersById(clientOrders).map((order) => [order.id, order]),
+  );
   const merged: PurchaseOrder[] = [];
   const included = new Set<string>();
 

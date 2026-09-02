@@ -116,16 +116,14 @@ import {
   type DiningTableRow,
 } from "@/lib/supabase/dining-floor-db";
 import {
+  dispatchReservationGuestNotificationsInBackground,
+} from "@/lib/reservations/reservation-guest-notify-dispatch-client";
+import {
   triggerReservationEmailDispatch,
 } from "@/lib/reservations/trigger-email-dispatch";
 import {
   triggerReservationWhatsappDispatch,
 } from "@/lib/reservations/trigger-whatsapp-dispatch";
-import {
-  reservationDispatchWarningMessage,
-  reservationGuestNotifyToastDescription,
-  summarizeGuestNotifyChannel,
-} from "@/lib/reservations/reservation-guest-notify-dispatch-summary";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import {
   reservationDateTimeChanged,
@@ -962,6 +960,20 @@ export function ReservationEditDrawer({
 
     if (isEdit && reservation) {
       setSaving(true);
+      const previousStatusCode = initialStatusCodeRef.current ?? "";
+      const dispatchEvent = reservationStatusDispatchEvent(
+        previousStatusCode,
+        newStatusCode,
+      );
+      const isConfirmNotify = dispatchEvent === "confirmed";
+      const saveTitle =
+        payload.kind === RESERVATION_KIND_PRIVATE_EVENT
+          ? "Veranstaltung gespeichert."
+          : isConfirmNotify
+            ? "Reservierung bestätigt."
+            : "Reservierung gespeichert.";
+      toast.success(saveTitle);
+
       const { data: updated, error } = await updateReservation(
         reservation.id,
         payload,
@@ -994,22 +1006,7 @@ export function ReservationEditDrawer({
         tables,
       });
       setProtocolRefreshKey((k) => k + 1);
-      const previousStatusCode = initialStatusCodeRef.current ?? "";
       initialStatusCodeRef.current = newStatusCode;
-      const dispatchEvent = reservationStatusDispatchEvent(
-        previousStatusCode,
-        newStatusCode,
-      );
-      const isConfirmNotify = dispatchEvent === "confirmed";
-      const saveTitle =
-        payload.kind === RESERVATION_KIND_PRIVATE_EVENT
-          ? "Veranstaltung gespeichert."
-          : isConfirmNotify
-            ? "Reservierung bestätigt."
-            : "Reservierung gespeichert.";
-      if (!isConfirmNotify) {
-        toast.success(saveTitle);
-      }
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
       dispatchReservationOpenResolvedLivePatch({
@@ -1041,62 +1038,25 @@ export function ReservationEditDrawer({
           );
         }
         const notifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
-        const dispatchOpts = notifyExtra
-          ? { guestNotifyMessage: notifyExtra }
-          : undefined;
-        let whatsappResult = null;
-        let emailResult = null;
-        if (dispatchEvent && payload.notify_whatsapp) {
-          whatsappResult = await triggerReservationWhatsappDispatch(
-            reservation.id,
+        if (dispatchEvent) {
+          dispatchReservationGuestNotificationsInBackground({
+            reservationId: reservation.id,
             dispatchEvent,
-            dispatchOpts,
-          );
-          if (whatsappResult?.ok && whatsappResult.messageBody?.trim()) {
-            onWhatsappDispatched?.({
-              messageBody: whatsappResult.messageBody,
-              messageId: whatsappResult.messageId,
-              wahaMessageId: whatsappResult.wahaMessageId,
-              threadContactId: whatsappResult.threadContactId,
-            });
-          }
-        }
-        if (dispatchEvent && payload.notify_email) {
-          emailResult = await triggerReservationEmailDispatch(
-            reservation.id,
-            dispatchEvent,
-            dispatchOpts,
-          );
-        }
-        if (isConfirmNotify) {
-          const notifications = [
-            summarizeGuestNotifyChannel({
-              channel: "whatsapp",
-              enabled: payload.notify_whatsapp === true,
-              result: whatsappResult,
-            }),
-            summarizeGuestNotifyChannel({
-              channel: "email",
-              enabled: payload.notify_email === true,
-              result: emailResult,
-              isSuperadmin,
-            }),
-          ];
-          toast.success(saveTitle, {
-            description: reservationGuestNotifyToastDescription(notifications),
+            notifyWhatsapp: payload.notify_whatsapp === true,
+            notifyEmail: payload.notify_email === true,
+            isSuperadmin,
+            guestNotifyMessage: notifyExtra || null,
+            onWhatsappDispatched: (wa) => {
+              if (wa.messageBody?.trim()) {
+                onWhatsappDispatched?.({
+                  messageBody: wa.messageBody,
+                  messageId: wa.messageId,
+                  wahaMessageId: wa.wahaMessageId,
+                  threadContactId: wa.threadContactId,
+                });
+              }
+            },
           });
-        } else {
-          const waWarn = reservationDispatchWarningMessage(
-            "whatsapp",
-            whatsappResult,
-          );
-          if (waWarn) toast.warning(waWarn);
-          const emWarn = reservationDispatchWarningMessage(
-            "email",
-            emailResult,
-            { isSuperadmin },
-          );
-          if (emWarn) toast.warning(emWarn);
         }
         if (dispatchEvent && notifyExtra) {
           setGuestNotifyMessage("");
@@ -1212,36 +1172,27 @@ export function ReservationEditDrawer({
           );
         }
         const createNotifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
-        const createDispatchOpts = createNotifyExtra
-          ? { guestNotifyMessage: createNotifyExtra }
-          : undefined;
-        if (created && payload.notify_whatsapp) {
-          const wa = await triggerReservationWhatsappDispatch(
-            created.id,
-            "created",
-            createDispatchOpts,
-          );
-          const msg = reservationDispatchWarningMessage("whatsapp", wa);
-          if (msg) toast.warning(msg);
-          if (wa?.ok && wa.messageBody?.trim()) {
-            onWhatsappDispatched?.({
-              messageBody: wa.messageBody,
-              messageId: wa.messageId,
-              wahaMessageId: wa.wahaMessageId,
-              threadContactId: wa.threadContactId,
-            });
-          }
-        }
-        if (created && payload.notify_email) {
-          void triggerReservationEmailDispatch(
-            created.id,
-            "created",
-            createDispatchOpts,
-          ).then((em) => {
-            const msg = reservationDispatchWarningMessage("email", em, {
-              isSuperadmin,
-            });
-            if (msg) toast.warning(msg);
+        if (
+          created &&
+          (payload.notify_whatsapp || payload.notify_email)
+        ) {
+          dispatchReservationGuestNotificationsInBackground({
+            reservationId: created.id,
+            dispatchEvent: "created",
+            notifyWhatsapp: payload.notify_whatsapp === true,
+            notifyEmail: payload.notify_email === true,
+            isSuperadmin,
+            guestNotifyMessage: createNotifyExtra || null,
+            onWhatsappDispatched: (wa) => {
+              if (wa.messageBody?.trim()) {
+                onWhatsappDispatched?.({
+                  messageBody: wa.messageBody,
+                  messageId: wa.messageId,
+                  wahaMessageId: wa.wahaMessageId,
+                  threadContactId: wa.threadContactId,
+                });
+              }
+            },
           });
         }
         if (created && createNotifyExtra) {

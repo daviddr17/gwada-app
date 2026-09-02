@@ -454,28 +454,13 @@ export function PurchaseOrdersScreen() {
         }
       }
 
-      // Zuerst Liefer-Antwort (optimistic), danach Bestand — Chip reagiert sofort
+      // Liefer-Antwort (optimistic) — Toast sofort, Bestand im Hintergrund
       const result = await setLineDelivery(orderId, lineId, input, actor);
       if (!result.ok) {
         toast.error("Liefer-Antwort konnte nicht gespeichert werden.");
         return;
       }
 
-      if (
-        !(await applyStockDelta(
-          order,
-          line,
-          previewDelta,
-          previewDelta >= 0 ? "delivery" : "revert",
-        ))
-      ) {
-        await clearLineDelivery(orderId, lineId, actor);
-        return;
-      }
-
-      if (result.stockDelta !== previewDelta && result.stockDelta !== 0) {
-        // rare drift — ignore; persist already done
-      }
       const label =
         input.status === "delivered"
           ? "geliefert"
@@ -487,17 +472,28 @@ export function PurchaseOrdersScreen() {
           `„${line.ingredientName}“ ${label} – Bestellung abgeschlossen.`,
         );
         setStatusFilter("closed");
-      } else if (result.stockDelta > 0) {
+      } else if (previewDelta > 0) {
         toast.success(
-          `„${line.ingredientName}“ ${label} – Bestand +${result.stockDelta} ${unitLabelForLine(line)}.`,
+          `„${line.ingredientName}“ ${label} – Bestand +${previewDelta} ${unitLabelForLine(line)}.`,
         );
-      } else if (result.stockDelta < 0) {
+      } else if (previewDelta < 0) {
         toast.success(
-          `„${line.ingredientName}“ ${label} – Bestand ${result.stockDelta} ${unitLabelForLine(line)}.`,
+          `„${line.ingredientName}“ ${label} – Bestand ${previewDelta} ${unitLabelForLine(line)}.`,
         );
       } else {
         toast.success(`„${line.ingredientName}“ als ${label} markiert.`);
       }
+
+      void applyStockDelta(
+        order,
+        line,
+        previewDelta,
+        previewDelta >= 0 ? "delivery" : "revert",
+      ).then((stockOk) => {
+        if (!stockOk) {
+          void clearLineDelivery(orderId, lineId, actor);
+        }
+      });
     },
     [
       actor,
@@ -517,24 +513,10 @@ export function PurchaseOrdersScreen() {
       if (!order || !line) return;
       const prevStock = lineDeliveryStockQuantity(line);
 
-      // Optimistic zurücksetzen zuerst — Chip reagiert sofort
+      // Optimistic zurücksetzen zuerst — Toast sofort, Bestand im Hintergrund
       const result = await clearLineDelivery(orderId, lineId, actor);
       if (!result.ok) {
         toast.error("Liefer-Antwort konnte nicht zurückgesetzt werden.");
-        return;
-      }
-
-      if (!(await applyStockDelta(order, line, -prevStock, "revert"))) {
-        await setLineDelivery(
-          orderId,
-          lineId,
-          {
-            status: line.deliveryStatus ?? "delivered",
-            deliveredQuantity: line.deliveredQuantity,
-            note: line.deliveryNote,
-          },
-          actor,
-        );
         return;
       }
 
@@ -543,6 +525,21 @@ export function PurchaseOrdersScreen() {
           ? `Lieferung von „${line.ingredientName}“ zurückgesetzt – Bestand −${prevStock} ${unitLabelForLine(line)}.`
           : `Liefer-Antwort zu „${line.ingredientName}“ zurückgesetzt.`,
       );
+
+      void applyStockDelta(order, line, -prevStock, "revert").then((stockOk) => {
+        if (!stockOk) {
+          void setLineDelivery(
+            orderId,
+            lineId,
+            {
+              status: line.deliveryStatus ?? "delivered",
+              deliveredQuantity: line.deliveredQuantity,
+              note: line.deliveryNote,
+            },
+            actor,
+          );
+        }
+      });
     },
     [
       actor,
@@ -592,54 +589,56 @@ export function PurchaseOrdersScreen() {
       }
 
       const skipStock = options.skipStock === true;
-      const stockOk = skipStock
-        ? true
-        : await applyDeliveryStockDeltas(
-            result.stockDeltas.map((d) => ({
-              ingredientId: d.ingredientId,
-              delta: d.delta,
-              unitId: d.unitId,
-              unitLabel: d.unitLabel,
-              orderId: order.id,
-              supplierName: supplierNameForOrder(order),
-            })),
-            actor,
-          );
-      if (!stockOk) {
-        toast.error(
-          "Lieferung gespeichert, aber Bestand konnte nicht vollständig angepasst werden.",
+      const openCount = order.lines.filter(
+        (l) => !isLineDeliveryResolved(l),
+      ).length;
+      const deliveredCount = openCount - exceptions.length;
+      const stockSum = skipStock
+        ? 0
+        : result.stockDeltas.reduce((s, d) => s + d.delta, 0);
+
+      if (skipStock) {
+        toast.success(
+          exceptions.length === 0
+            ? "Alles geliefert – Bestand unverändert."
+            : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand unverändert.`,
+        );
+      } else if (exceptions.length === 0) {
+        toast.success(
+          stockSum > 0
+            ? `Alles geliefert – Bestand +${stockSum}.`
+            : "Alles geliefert – Bestellung abgeschlossen.",
         );
       } else {
-        const openCount = order.lines.filter(
-          (l) => !isLineDeliveryResolved(l),
-        ).length;
-        const deliveredCount = openCount - exceptions.length;
-        const stockSum = skipStock
-          ? 0
-          : result.stockDeltas.reduce((s, d) => s + d.delta, 0);
-        if (skipStock) {
-          toast.success(
-            exceptions.length === 0
-              ? "Alles geliefert – Bestand unverändert."
-              : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand unverändert.`,
-          );
-        } else if (exceptions.length === 0) {
-          toast.success(
-            stockSum > 0
-              ? `Alles geliefert – Bestand +${stockSum}.`
-              : "Alles geliefert – Bestellung abgeschlossen.",
-          );
-        } else {
-          toast.success(
-            stockSum > 0
-              ? `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand +${stockSum}.`
-              : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"}.`,
-          );
-        }
+        toast.success(
+          stockSum > 0
+            ? `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand +${stockSum}.`
+            : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"}.`,
+        );
       }
 
       setCloseConfirmOrderId(null);
       setStatusFilter("closed");
+
+      if (skipStock) return;
+
+      void applyDeliveryStockDeltas(
+        result.stockDeltas.map((d) => ({
+          ingredientId: d.ingredientId,
+          delta: d.delta,
+          unitId: d.unitId,
+          unitLabel: d.unitLabel,
+          orderId: order.id,
+          supplierName: supplierNameForOrder(order),
+        })),
+        actor,
+      ).then((stockOk) => {
+        if (!stockOk) {
+          toast.error(
+            "Bestellung abgeschlossen, aber Bestand konnte nicht vollständig angepasst werden.",
+          );
+        }
+      });
     },
     [
       actor,

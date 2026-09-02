@@ -5,15 +5,11 @@ import {
   logReservationMutationFromBrowser,
   reservationSnapshotFromListRow,
 } from "@/lib/reservations/reservation-log-client";
+import {
+  dispatchReservationGuestNotificationsInBackground,
+} from "@/lib/reservations/reservation-guest-notify-dispatch-client";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/reservation-open-status";
-import {
-  reservationConfirmNotificationToastContent,
-  summarizeGuestNotifyChannel,
-  type GuestNotifyChannelSummary,
-} from "@/lib/reservations/reservation-guest-notify-dispatch-summary";
-import { triggerReservationEmailDispatch } from "@/lib/reservations/trigger-email-dispatch";
-import { triggerReservationWhatsappDispatch } from "@/lib/reservations/trigger-whatsapp-dispatch";
 import {
   fetchReservationById,
   fetchReservationStatuses,
@@ -21,7 +17,7 @@ import {
 } from "@/lib/supabase/reservations-db";
 
 export type ConfirmPendingReservationResult =
-  | { ok: true; notifications: GuestNotifyChannelSummary[] }
+  | { ok: true }
   | { ok: false; error: string };
 
 /**
@@ -109,28 +105,15 @@ export async function confirmPendingReservationFromBrowser(params: {
     "confirmed",
   );
 
-  let whatsappResult = null;
-  let emailResult = null;
-  if (dispatchEvent && row.notify_whatsapp) {
-    whatsappResult = await triggerReservationWhatsappDispatch(row.id, dispatchEvent);
-  }
-  if (dispatchEvent && row.notify_email) {
-    emailResult = await triggerReservationEmailDispatch(row.id, dispatchEvent);
+  if (dispatchEvent) {
+    dispatchReservationGuestNotificationsInBackground({
+      reservationId: row.id,
+      dispatchEvent,
+      notifyWhatsapp: row.notify_whatsapp === true,
+      notifyEmail: row.notify_email === true,
+      isSuperadmin: params.isSuperadmin,
+    });
   }
 
-  const notifications: GuestNotifyChannelSummary[] = [
-    summarizeGuestNotifyChannel({
-      channel: "whatsapp",
-      enabled: row.notify_whatsapp === true,
-      result: whatsappResult,
-    }),
-    summarizeGuestNotifyChannel({
-      channel: "email",
-      enabled: row.notify_email === true,
-      result: emailResult,
-      isSuperadmin: params.isSuperadmin === true,
-    }),
-  ];
-
-  return { ok: true, notifications };
+  return { ok: true };
 }

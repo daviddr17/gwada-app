@@ -785,7 +785,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   /** Offen → Bestellt */
   const markOrderOrdered = useCallback(
     async (orderId: string, actor: OrderProtocolActor): Promise<boolean> => {
-      const target = orders.find((o) => o.id === orderId);
+      const prev = readOrdersSnapshot();
+      const target = prev.find((o) => o.id === orderId);
       if (!target || target.status !== "open") {
         toast.error("Bestellung nicht gefunden oder nicht offen.");
         return false;
@@ -794,16 +795,16 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         toast.error("Bestellung hat keine Positionen.");
         return false;
       }
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const next: PurchaseOrder[] = structuredClone(prev);
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       o.status = "ordered";
       appendStatusChangeLog(o, "open", "ordered", actor);
-      if (!(await persist(next))) return false;
       toast.success("Als bestellt markiert");
+      persistOptimisticQueued(next, prev);
       return true;
     },
-    [orders, persist],
+    [persistOptimisticQueued, readOrdersSnapshot],
   );
 
   /**
@@ -816,7 +817,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       actor: OrderProtocolActor,
       options?: { force?: boolean; silent?: boolean },
     ): Promise<boolean> => {
-      const target = orders.find((o) => o.id === orderId);
+      const prev = readOrdersSnapshot();
+      const target = prev.find((o) => o.id === orderId);
       if (!target || target.status !== "ordered") {
         toast.error("Bestellung nicht gefunden oder nicht im Status Bestellt.");
         return false;
@@ -826,35 +828,36 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         toast.error("Noch nicht alle Positionen bearbeitet.");
         return false;
       }
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const next: PurchaseOrder[] = structuredClone(prev);
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       o.status = "closed";
       appendStatusChangeLog(o, "ordered", "closed", actor);
-      if (!(await persist(next))) return false;
       if (!options?.silent) {
         toast.success("Bestellung abgeschlossen");
       }
+      persistOptimisticQueued(next, prev);
       return true;
     },
-    [orders, persist],
+    [persistOptimisticQueued, readOrdersSnapshot],
   );
 
   /** Immer einen Status zurück: Abgeschlossen → Bestellt → Offen */
   const reopenOrder = useCallback(
     async (orderId: string, actor: OrderProtocolActor): Promise<boolean> => {
-      const target = orders.find((o) => o.id === orderId);
+      const snapshot = readOrdersSnapshot();
+      const target = snapshot.find((o) => o.id === orderId);
       if (!target) {
         toast.error("Bestellung nicht gefunden.");
         return false;
       }
-      const prev = previousPurchaseOrderStatus(target.status);
-      if (!prev) {
+      const prevStatus = previousPurchaseOrderStatus(target.status);
+      if (!prevStatus) {
         toast.error("Bestellung ist bereits offen.");
         return false;
       }
-      if (prev === "open") {
-        const hasOpenForSupplier = orders.some(
+      if (prevStatus === "open") {
+        const hasOpenForSupplier = snapshot.some(
           (o) =>
             o.id !== target.id &&
             o.supplierId === target.supplierId &&
@@ -867,17 +870,17 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           return false;
         }
       }
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const next: PurchaseOrder[] = structuredClone(snapshot);
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       const from = o.status;
-      o.status = prev;
-      appendStatusChangeLog(o, from, prev, actor);
-      if (!(await persist(next))) return false;
-      toast.success(`Zurück auf „${purchaseOrderStatusLabel(prev)}“`);
+      o.status = prevStatus;
+      appendStatusChangeLog(o, from, prevStatus, actor);
+      toast.success(`Zurück auf „${purchaseOrderStatusLabel(prevStatus)}“`);
+      persistOptimisticQueued(next, snapshot);
       return true;
     },
-    [orders, persist],
+    [persistOptimisticQueued, readOrdersSnapshot],
   );
 
   const setOrderDeliveryDate = useCallback(
@@ -1049,8 +1052,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const nextStock = lineDeliveryStockQuantity(nextLinePreview);
       const stockDelta = nextStock - prevStock;
 
-      const previous = orders;
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const previous = readOrdersSnapshot();
+      const next: PurchaseOrder[] = structuredClone(previous);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
       const l = o.lines.find((x) => x.id === lineId);
@@ -1088,14 +1091,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         autoClosed = true;
       }
 
-      applyOrdersOptimistic(next);
-      if (!(await persist(next))) {
-        applyOrdersOptimistic(previous);
-        return { ok: false };
-      }
+      persistOptimisticQueued(next, previous);
       return { ok: true, stockDelta, autoClosed };
     },
-    [applyOrdersOptimistic, orders, persist],
+    [persistOptimisticQueued, readOrdersSnapshot],
   );
 
   const clearLineDelivery = useCallback(
@@ -1120,8 +1119,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         return { ok: false };
       }
 
-      const previous = orders;
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const previous = readOrdersSnapshot();
+      const next: PurchaseOrder[] = structuredClone(previous);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
       const l = o.lines.find((x) => x.id === lineId);
@@ -1145,14 +1144,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       };
       o.log.push(logEntry);
 
-      applyOrdersOptimistic(next);
-      if (!(await persist(next))) {
-        applyOrdersOptimistic(previous);
-        return { ok: false };
-      }
+      persistOptimisticQueued(next, previous);
       return { ok: true, stockDelta: -prevStock };
     },
-    [applyOrdersOptimistic, orders, persist],
+    [persistOptimisticQueued, readOrdersSnapshot],
   );
 
   /**
@@ -1293,14 +1288,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       o.status = "closed";
       appendStatusChangeLog(o, "ordered", "closed", actor);
 
-      applyOrdersOptimistic(next);
-      if (!(await persist(next))) {
-        applyOrdersOptimistic(previous);
-        return { ok: false };
-      }
+      persistOptimisticQueued(next, previous);
       return { ok: true, stockDeltas };
     },
-    [applyOrdersOptimistic, orders, persist],
+    [orders, persistOptimisticQueued],
   );
 
   /** @deprecated Kompatibilität — nutzt setLineDelivery(delivered) */

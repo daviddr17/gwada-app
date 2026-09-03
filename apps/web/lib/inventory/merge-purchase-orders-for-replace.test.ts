@@ -374,6 +374,120 @@ test("reconcile adds missing lines from add_to_order protocol entries", () => {
   assert.equal(healed.lines.find((l) => l.ingredientId === "ing-2")?.quantity, 2);
 });
 
+test("drops open order when client emptied last line via quantity_change log", () => {
+  const dbOrder = order({
+    id: "o-zander",
+    status: "open",
+    supplierName: "Aqua Handelsfisch",
+    lines: [
+      {
+        id: "line-1",
+        ingredientId: "ing-zander",
+        ingredientName: "Zander",
+        quantity: 1,
+        unitId: "kiste",
+        unitLabel: "Kiste",
+      },
+    ],
+    log: [
+      {
+        id: "log-add",
+        at: "2026-09-03T10:00:00.000Z",
+        kind: "add_to_order",
+        ingredientId: "ing-zander",
+        ingredientName: "Zander",
+        quantity: 1,
+        unitId: "kiste",
+        unitLabel: "Kiste",
+        userFirstName: "A",
+        userLastName: "B",
+      },
+    ],
+  });
+  const clientEmptied = order({
+    id: "o-zander",
+    status: "open",
+    supplierName: "Aqua Handelsfisch",
+    lines: [],
+    log: [
+      ...dbOrder.log,
+      {
+        id: "log-qty-0",
+        at: "2026-09-03T12:00:00.000Z",
+        kind: "quantity_change",
+        ingredientId: "ing-zander",
+        ingredientName: "Zander",
+        fromQuantity: 1,
+        toQuantity: 0,
+        unitId: "kiste",
+        unitLabel: "Kiste",
+        userFirstName: "A",
+        userLastName: "B",
+      },
+    ],
+  });
+
+  const merged = mergePurchaseOrdersForReplace([dbOrder], [clientEmptied]);
+  assert.equal(merged.length, 0);
+});
+
+test("tombstone blocks stale client from resurrecting deleted open order", () => {
+  const staleClient = order({
+    id: "o-deleted",
+    status: "open",
+    supplierName: "Aqua Handelsfisch",
+    lines: [
+      {
+        id: "line-1",
+        ingredientId: "ing-zander",
+        ingredientName: "Zander",
+        quantity: 1,
+        unitId: "kiste",
+        unitLabel: "Kiste",
+      },
+    ],
+    log: [
+      {
+        id: "log-add",
+        at: "2026-09-03T10:00:00.000Z",
+        kind: "add_to_order",
+        ingredientId: "ing-zander",
+        ingredientName: "Zander",
+        quantity: 1,
+        unitId: "kiste",
+        unitLabel: "Kiste",
+        userFirstName: "A",
+        userLastName: "B",
+      },
+    ],
+  });
+
+  const merged = mergePurchaseOrdersForReplace([], [staleClient], {
+    deletedOrderIds: ["o-deleted"],
+  });
+  assert.equal(merged.length, 0);
+});
+
+test("omitting non-empty open order from client still preserves DB row without tombstone", () => {
+  const dbOrder = order({
+    id: "o-keep",
+    status: "open",
+    lines: [
+      {
+        id: "line-1",
+        ingredientId: "ing-1",
+        ingredientName: "X",
+        quantity: 2,
+        unitId: "kg",
+        unitLabel: "kg",
+      },
+    ],
+  });
+  const merged = mergePurchaseOrdersForReplace([dbOrder], []);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0]?.id, "o-keep");
+});
+
 test("adds brand-new client orders not yet in DB", () => {
   const fresh = order({
     id: "new-open",

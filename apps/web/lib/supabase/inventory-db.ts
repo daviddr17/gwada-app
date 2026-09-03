@@ -903,6 +903,28 @@ export type InventorySaveResult =
   | { ok: true; orders: PurchaseOrder[] }
   | { ok: false; message: string };
 
+/** Tombstones absichtlich gelöschter offener Bestellungen (gegen stale Re-Add). */
+export async function loadPurchaseOrderDeletionIds(
+  restaurantId: string,
+): Promise<Set<string>> {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("inventory_purchase_order_deletions")
+    .select("order_id")
+    .eq("restaurant_id", restaurantId);
+  if (error) {
+    console.warn("[gwada] inventory_purchase_order_deletions", error.message);
+    return new Set();
+  }
+  const ids = new Set<string>();
+  for (const row of data ?? []) {
+    if (typeof row.order_id === "string" && row.order_id) {
+      ids.add(row.order_id);
+    }
+  }
+  return ids;
+}
+
 export async function savePurchaseOrdersRelational(
   restaurantId: string,
   orders: PurchaseOrder[],
@@ -911,9 +933,12 @@ export async function savePurchaseOrdersRelational(
   const supabase = createSupabaseBrowserClient();
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const fresh = (await loadPurchaseOrdersRelational(restaurantId)) ?? [];
+    const [fresh, deletedOrderIds] = await Promise.all([
+      loadPurchaseOrdersRelational(restaurantId),
+      loadPurchaseOrderDeletionIds(restaurantId),
+    ]);
     const merged = dedupePurchaseOrdersById(
-      mergePurchaseOrdersForReplace(fresh, orders),
+      mergePurchaseOrdersForReplace(fresh ?? [], orders, { deletedOrderIds }),
     );
     const { error } = await supabase.rpc("inventory_replace_purchase_orders", {
       p_restaurant_id: restaurantId,
@@ -932,6 +957,32 @@ export async function savePurchaseOrdersRelational(
   }
 
   return { ok: false, message: "inventory_replace_purchase_orders failed" };
+}
+
+/**
+ * O(1) Löschen einer offenen Bestellung (letzte Position → 0) + Tombstone.
+ * Kein Full-Replace — verhindert Merge-Resurrection und stale Client Re-Add.
+ */
+export async function deleteEmptyOpenPurchaseOrderRelational(
+  restaurantId: string,
+  orderId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.rpc(
+    "inventory_purchase_order_delete_empty_open",
+    {
+      p_restaurant_id: restaurantId,
+      p_order_id: orderId,
+    },
+  );
+  if (error) {
+    console.warn(
+      "[gwada] inventory_purchase_order_delete_empty_open",
+      error.message,
+    );
+    return { ok: false, message: error.message };
+  }
+  return { ok: true };
 }
 
 /** O(1) Statuswechsel — kein Full-Replace der gesamten Bestellhistorie. */

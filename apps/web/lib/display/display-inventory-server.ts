@@ -293,21 +293,66 @@ async function loadPurchaseOrdersAdmin(
   return out;
 }
 
+async function loadPurchaseOrderDeletionIdsAdmin(
+  restaurantId: string,
+): Promise<Set<string>> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return new Set();
+  const { data, error } = await admin
+    .from("inventory_purchase_order_deletions")
+    .select("order_id")
+    .eq("restaurant_id", restaurantId);
+  if (error) {
+    console.warn(
+      "[gwada] display inventory_purchase_order_deletions",
+      error.message,
+    );
+    return new Set();
+  }
+  const ids = new Set<string>();
+  for (const row of data ?? []) {
+    if (typeof row.order_id === "string" && row.order_id) {
+      ids.add(row.order_id);
+    }
+  }
+  return ids;
+}
+
 async function savePurchaseOrdersAdmin(
   restaurantId: string,
   orders: PurchaseOrder[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createSupabaseAdminClient();
   if (!admin) return { ok: false, error: "server_misconfigured" };
-  const fresh = await loadPurchaseOrdersAdmin(restaurantId);
+  const [fresh, deletedOrderIds] = await Promise.all([
+    loadPurchaseOrdersAdmin(restaurantId),
+    loadPurchaseOrderDeletionIdsAdmin(restaurantId),
+  ]);
   if (!fresh) return { ok: false, error: "load_failed" };
   const merged = dedupePurchaseOrdersById(
-    mergePurchaseOrdersForReplace(fresh, orders),
+    mergePurchaseOrdersForReplace(fresh, orders, { deletedOrderIds }),
   );
   const { error } = await admin.rpc("inventory_replace_purchase_orders", {
     p_restaurant_id: restaurantId,
     p_orders: merged,
   });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+async function deleteEmptyOpenPurchaseOrderAdmin(
+  restaurantId: string,
+  orderId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { ok: false, error: "server_misconfigured" };
+  const { error } = await admin.rpc(
+    "inventory_purchase_order_delete_empty_open",
+    {
+      p_restaurant_id: restaurantId,
+      p_order_id: orderId,
+    },
+  );
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
@@ -621,8 +666,17 @@ export async function updateDisplayOrderQuantity(params: {
     if (nextQty === 0) {
       o.lines = o.lines.filter((x) => x.id !== open.lineId);
       if (o.status === "open" && o.lines.length === 0) {
-        const idx = next.findIndex((x) => x.id === o.id);
-        if (idx >= 0) next.splice(idx, 1);
+        const deleted = await deleteEmptyOpenPurchaseOrderAdmin(
+          params.restaurantId,
+          o.id,
+        );
+        if (!deleted.ok) return deleted;
+        return {
+          ok: true,
+          orderId: null,
+          orderLineId: null,
+          orderQuantity: 0,
+        };
       }
     } else {
       l.quantity = nextQty;
@@ -632,10 +686,9 @@ export async function updateDisplayOrderQuantity(params: {
     if (!saved.ok) return saved;
 
     if (nextQty === 0) {
-      const orderStillExists = next.some((x) => x.id === open.orderId);
       return {
         ok: true,
-        orderId: orderStillExists ? open.orderId : null,
+        orderId: open.orderId,
         orderLineId: null,
         orderQuantity: 0,
       };

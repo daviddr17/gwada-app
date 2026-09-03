@@ -19,17 +19,35 @@ function lastLogAt(log: readonly PurchaseOrderLogEntry[]): string | null {
   return log[log.length - 1]?.at ?? null;
 }
 
+export type MergePurchaseOrdersOptions = {
+  /** Order IDs intentionally deleted (tombstones) — never keep or re-add. */
+  deletedOrderIds?: ReadonlySet<string> | readonly string[];
+};
+
+function toDeletedSet(
+  deleted?: ReadonlySet<string> | readonly string[],
+): Set<string> {
+  if (!deleted) return new Set();
+  if (deleted instanceof Set) return deleted;
+  return new Set(deleted);
+}
+
 /**
  * Merges a client-side purchase-order snapshot with the current DB rows before
  * `inventory_replace_purchase_orders` (full delete + insert).
  *
  * Prevents stale client caches from dropping closed/ordered orders, regressing
  * status, or losing line items when protocol entries already exist in DB.
+ *
+ * Empty open orders are dropped after reconcile (qty→0 / letzte Position weg).
+ * Tombstoned IDs are never kept or re-added (absichtliche Löschung).
  */
 export function mergePurchaseOrdersForReplace(
   dbOrders: readonly PurchaseOrder[],
   clientOrders: readonly PurchaseOrder[],
+  options?: MergePurchaseOrdersOptions,
 ): PurchaseOrder[] {
+  const deleted = toDeletedSet(options?.deletedOrderIds);
   const clientById = new Map(
     dedupePurchaseOrdersById(clientOrders).map((order) => [order.id, order]),
   );
@@ -37,22 +55,35 @@ export function mergePurchaseOrdersForReplace(
   const included = new Set<string>();
 
   for (const dbOrder of dbOrders) {
+    if (deleted.has(dbOrder.id)) {
+      continue;
+    }
     const clientOrder = clientById.get(dbOrder.id);
     if (!clientOrder) {
       if (!isEmptyOpenPurchaseOrder(dbOrder)) {
-        merged.push(reconcilePurchaseOrderLinesFromLog(dbOrder));
-        included.add(dbOrder.id);
+        const reconciled = reconcilePurchaseOrderLinesFromLog(dbOrder);
+        if (!isEmptyOpenPurchaseOrder(reconciled)) {
+          merged.push(reconciled);
+          included.add(dbOrder.id);
+        }
       }
       continue;
     }
 
-    merged.push(mergePurchaseOrderRow(dbOrder, clientOrder));
-    included.add(dbOrder.id);
+    const row = mergePurchaseOrderRow(dbOrder, clientOrder);
+    if (!isEmptyOpenPurchaseOrder(row)) {
+      merged.push(row);
+      included.add(dbOrder.id);
+    }
   }
 
   for (const clientOrder of clientOrders) {
-    if (!included.has(clientOrder.id)) {
-      merged.push(reconcilePurchaseOrderLinesFromLog(clientOrder));
+    if (included.has(clientOrder.id) || deleted.has(clientOrder.id)) {
+      continue;
+    }
+    const reconciled = reconcilePurchaseOrderLinesFromLog(clientOrder);
+    if (!isEmptyOpenPurchaseOrder(reconciled)) {
+      merged.push(reconciled);
     }
   }
 

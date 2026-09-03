@@ -1213,6 +1213,32 @@ export type Database = {
           },
         ]
       }
+      inventory_purchase_order_deletions: {
+        Row: {
+          deleted_at: string
+          order_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          order_id: string
+          restaurant_id: string
+        }
+        Update: {
+          deleted_at?: string
+          order_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_purchase_order_deletions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_purchase_order_lines: {
         Row: {
           brand_label: string | null
@@ -4981,6 +5007,13 @@ export type Database = {
           p_order_id: string
           p_restaurant_id: string
           p_to_status: string
+        }
+        Returns: undefined
+      }
+      inventory_purchase_order_delete_empty_open: {
+        Args: {
+          p_order_id: string
+          p_restaurant_id: string
         }
         Returns: undefined
       }

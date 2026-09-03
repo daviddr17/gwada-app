@@ -40,6 +40,7 @@ import {
   loadPurchaseOrdersRelational,
   savePurchaseOrdersRelational,
   setPurchaseOrderStatusRelational,
+  deleteEmptyOpenPurchaseOrderRelational,
 } from "@/lib/supabase/inventory-db";
 import {
   getWorkspaceRestaurantId,
@@ -699,6 +700,74 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     ],
   );
 
+  /**
+   * Offene Bestellung ohne Positionen löschen (letzte Menge → 0):
+   * UI sofort; DB per O(1)-RPC + Tombstone (kein Merge-Resurrection).
+   */
+  const persistEmptyOpenDeleteOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+    }): void => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      void persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await deleteEmptyOpenPurchaseOrderRelational(
+            rid,
+            params.orderId,
+          );
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          afterOrdersPersistSuccess();
+          dispatchInventoryDataRefresh();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
   /** Bestehende offene Bestellungen ohne Positionen entfernen (Legacy-Schalen). */
   const emptyOpenPruneInFlightRef = useRef(false);
   const lineHealInFlightRef = useRef(false);
@@ -1086,10 +1155,22 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         );
       }
 
-      persistOptimisticQueued(toPersist, prev);
+      if (deletedEmptyOpen) {
+        persistEmptyOpenDeleteOptimistic({
+          next: toPersist,
+          rollbackSnapshot: prev,
+          orderId,
+        });
+      } else {
+        persistOptimisticQueued(toPersist, prev);
+      }
       return true;
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [
+      persistEmptyOpenDeleteOptimistic,
+      persistOptimisticQueued,
+      readOrdersSnapshot,
+    ],
   );
 
   /**

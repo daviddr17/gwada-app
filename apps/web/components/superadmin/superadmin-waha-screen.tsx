@@ -48,6 +48,7 @@ import type {
   WahaServerPublic,
   WahaSessionListItem,
 } from "@/lib/waha/waha-server-types";
+import type { ReservationWhatsappOutboxHealth } from "@/lib/whatsapp/reservation-whatsapp-outbox-health";
 import {
   normalizeWahaUiStatus,
   wahaSessionStatusBadgeClassName,
@@ -184,6 +185,8 @@ export function SuperadminWahaScreen() {
   const [sessionDrawerRow, setSessionDrawerRow] =
     useState<WahaSessionListItem | null>(null);
   const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
+  const [outboxHealth, setOutboxHealth] =
+    useState<ReservationWhatsappOutboxHealth | null>(null);
 
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -203,15 +206,23 @@ export function SuperadminWahaScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [serversRes, sessionsRes] = await Promise.all([
+    const [serversRes, sessionsRes, outboxRes] = await Promise.all([
       fetchSuperadminWahaServers(),
       fetchSuperadminWahaSessions(),
+      fetch("/api/superadmin/whatsapp-outbox-health", { cache: "no-store" })
+        .then(async (res) =>
+          res.ok
+            ? ((await res.json()) as ReservationWhatsappOutboxHealth)
+            : null,
+        )
+        .catch(() => null),
     ]);
     if (serversRes.error) toast.error(serversRes.error);
     if (sessionsRes.error) toast.error(sessionsRes.error);
     setServers(serversRes.servers);
     setAlerts(serversRes.capacityAlerts);
     setSessions(sessionsRes.sessions);
+    setOutboxHealth(outboxRes);
     setLoading(false);
     void loadVersions(serversRes.servers);
   }, [loadVersions]);
@@ -542,6 +553,30 @@ export function SuperadminWahaScreen() {
               </p>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {outboxHealth ? (
+        <div className="rounded-xl border border-border/50 bg-background px-4 py-3 text-sm">
+          <p className="font-medium">Reservierungs-WhatsApp (alle Restaurants)</p>
+          <p className="mt-1 text-muted-foreground">
+            Zuletzt rausgegangen:{" "}
+            {outboxHealth.lastSentAt
+              ? formatDt(outboxHealth.lastSentAt)
+              : "—"}{" "}
+            · {outboxHealth.sent24h} in 24 h · fällig {outboxHealth.dueScheduled}
+            {outboxHealth.retrying
+              ? ` · Prüfung/Retry ${outboxHealth.retrying}`
+              : ""}
+            {outboxHealth.failedOpen
+              ? ` · fehlgeschlagen ${outboxHealth.failedOpen}`
+              : ""}
+          </p>
+          {outboxHealth.lastError ? (
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              Letzter Fehler: {outboxHealth.lastError}
+            </p>
+          ) : null}
         </div>
       ) : null}
 

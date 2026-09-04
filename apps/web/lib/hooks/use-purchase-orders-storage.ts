@@ -709,10 +709,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       next: PurchaseOrder[];
       rollbackSnapshot: PurchaseOrder[];
       orderId: string;
-    }): void => {
+    }): Promise<boolean> => {
       const generation = ++ordersMutationGenerationRef.current;
       applyOrdersOptimistic(params.next);
-      void persistQueueRef.current.enqueue(async () => {
+      return persistQueueRef.current.enqueue(async () => {
         if (useDbInventory) {
           if (!dbFetchReady) {
             if (ordersMutationGenerationRef.current === generation) {
@@ -910,6 +910,9 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         });
       }
 
+      const persistOk = await persistOptimisticQueued(next, prev);
+      if (!persistOk) return false;
+
       if (createdNewOrder) {
         toastPurchaseOrderOpened(
           params.supplierName,
@@ -932,7 +935,6 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         );
       }
 
-      persistOptimisticQueued(next, prev);
       return true;
     },
     [persistOptimisticQueued, readOrdersSnapshot],
@@ -1076,7 +1078,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const next = previous.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      persistOptimisticQueued(next, previous);
+      const persistOk = await persistOptimisticQueued(next, previous);
+      if (!persistOk) return false;
       toast.success(
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
         { id: `order-delivery-${orderId}` },
@@ -1150,8 +1153,19 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         : next;
 
       if (deletedEmptyOpen) {
+        const persistOk = await persistEmptyOpenDeleteOptimistic({
+          next: toPersist,
+          rollbackSnapshot: prev,
+          orderId,
+        });
+        if (!persistOk) return false;
         toastPurchaseOrderDeletedEmpty(supplierNameForToast);
-      } else if (nextQty === 0) {
+        return true;
+      }
+
+      const persistOk = await persistOptimisticQueued(toPersist, prev);
+      if (!persistOk) return false;
+      if (nextQty === 0) {
         toastPurchaseOrderLineRemoved(l.ingredientName);
       } else {
         toastPurchaseOrderQuantityChanged(
@@ -1159,16 +1173,6 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           nextQty,
           l.unitLabel,
         );
-      }
-
-      if (deletedEmptyOpen) {
-        persistEmptyOpenDeleteOptimistic({
-          next: toPersist,
-          rollbackSnapshot: prev,
-          orderId,
-        });
-      } else {
-        persistOptimisticQueued(toPersist, prev);
       }
       return true;
     },
@@ -1302,8 +1306,9 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
             toStatus: "closed",
             logEntry: statusLog,
           });
-          return { ok: true, stockDelta, autoClosed: closedOk };
+          return { ok: closedOk, stockDelta, autoClosed: closedOk };
         }
+        return { ok: false };
       }
 
       return { ok: true, stockDelta, autoClosed: false };

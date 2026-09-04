@@ -507,3 +507,128 @@ test("adds brand-new client orders not yet in DB", () => {
   const merged = mergePurchaseOrdersForReplace([], [fresh]);
   assert.deepEqual(merged, [fresh]);
 });
+
+test("client delivery revert wins when log has delivery_reverted", () => {
+  const dbOrder = order({
+    id: "o-1",
+    status: "ordered",
+    lines: [
+      {
+        id: "line-1",
+        ingredientId: "ing-1",
+        ingredientName: "Mehl",
+        quantity: 4,
+        unitId: "kg",
+        unitLabel: "kg",
+        deliveredAt: "2026-09-04T10:00:00.000Z",
+        deliveryStatus: "delivered",
+        deliveredQuantity: 4,
+      },
+    ],
+    log: [
+      {
+        id: "log-del",
+        at: "2026-09-04T10:00:00.000Z",
+        kind: "marked_delivered",
+        ingredientId: "ing-1",
+        ingredientName: "Mehl",
+        quantity: 4,
+        unitId: "kg",
+        unitLabel: "kg",
+        lineId: "line-1",
+        deliveryStatus: "delivered",
+        userFirstName: "A",
+        userLastName: "B",
+      },
+    ],
+  });
+  const clientOrder = order({
+    id: "o-1",
+    status: "ordered",
+    lines: [
+      {
+        id: "line-1",
+        ingredientId: "ing-1",
+        ingredientName: "Mehl",
+        quantity: 4,
+        unitId: "kg",
+        unitLabel: "kg",
+      },
+    ],
+    log: [
+      ...dbOrder.log,
+      {
+        id: "log-rev",
+        at: "2026-09-04T10:05:00.000Z",
+        kind: "delivery_reverted",
+        ingredientId: "ing-1",
+        ingredientName: "Mehl",
+        quantity: 4,
+        unitId: "kg",
+        unitLabel: "kg",
+        lineId: "line-1",
+        userFirstName: "A",
+        userLastName: "B",
+      },
+    ],
+  });
+
+  const merged = mergePurchaseOrdersForReplace([dbOrder], [clientOrder]);
+  const line = merged[0]?.lines[0];
+  assert.equal(line?.deliveryStatus, undefined);
+  assert.equal(line?.deliveredAt, undefined);
+});
+
+test("stale client without revert log keeps DB delivery", () => {
+  const dbOrder = order({
+    id: "o-1",
+    status: "ordered",
+    lines: [
+      {
+        id: "line-1",
+        ingredientId: "ing-1",
+        ingredientName: "Mehl",
+        quantity: 4,
+        unitId: "kg",
+        unitLabel: "kg",
+        deliveredAt: "2026-09-04T10:00:00.000Z",
+        deliveryStatus: "delivered",
+        deliveredQuantity: 4,
+      },
+    ],
+    log: [
+      {
+        id: "log-del",
+        at: "2026-09-04T10:00:00.000Z",
+        kind: "marked_delivered",
+        ingredientId: "ing-1",
+        ingredientName: "Mehl",
+        quantity: 4,
+        unitId: "kg",
+        unitLabel: "kg",
+        lineId: "line-1",
+        deliveryStatus: "delivered",
+        userFirstName: "A",
+        userLastName: "B",
+      },
+    ],
+  });
+  const staleClient = order({
+    id: "o-1",
+    status: "ordered",
+    lines: [
+      {
+        id: "line-1",
+        ingredientId: "ing-1",
+        ingredientName: "Mehl",
+        quantity: 4,
+        unitId: "kg",
+        unitLabel: "kg",
+      },
+    ],
+    log: [],
+  });
+
+  const merged = mergePurchaseOrdersForReplace([dbOrder], [staleClient]);
+  assert.equal(merged[0]?.lines[0]?.deliveryStatus, "delivered");
+});

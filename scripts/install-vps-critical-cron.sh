@@ -83,7 +83,7 @@ existing="$(crontab -l 2>/dev/null || true)"
 cleaned="$(printf '%s\n' "${existing}" | sed "/${marker_begin}/,/${marker_end}/d")"
 printf '%s\n%s\n' "${cleaned}" "${block}" | crontab -
 echo "✓ VPS crontab installiert (reservation-whatsapp/email, notification-deliver, staff-shift, waha-session-recover)"
-crontab -l | sed -n "/${marker_begin}/,/${marker_end}/p"
+crontab -l | sed -n "/${marker_begin}/,/${marker_end}/p" | sed 's/CRON_SECRET=[^ ]*/CRON_SECRET=***/g'
 REMOTE
 
 echo "✓ Host-Cron auf VPS aktiv"

@@ -23,6 +23,8 @@ const SKIP_USER_MESSAGE: Record<string, string> = {
   waha_session_not_working:
     "WhatsApp-Session ist nicht aktiv — Integrationen prüfen oder neu verbinden.",
   no_settings: "Reservierungs-Einstellungen fehlen für dieses Restaurant.",
+  whatsapp_verifying:
+    "WhatsApp-Versand wird geprüft — falls nichts rausgegangen ist, versuchen wir es automatisch erneut.",
 };
 
 const API_ERROR_MESSAGE: Record<string, string> = {
@@ -51,8 +53,8 @@ export function whatsappDispatchUserMessage(
     ) {
       return null;
     }
-    if (/aborted due to timeout|TimeoutError|signal timed out/i.test(result.error)) {
-      return "WhatsApp-Server antwortet nicht rechtzeitig — bitte kurz warten und erneut versuchen (Session unter Integrationen prüfen).";
+    if (/aborted due to timeout|TimeoutError|signal timed out|timeout_absent|unverified/i.test(result.error)) {
+      return "WhatsApp-Server antwortet nicht rechtzeitig. Wir prüfen, ob die Nachricht rausgegangen ist, und versuchen es sonst automatisch erneut.";
     }
     return (
       API_ERROR_MESSAGE[result.error] ??

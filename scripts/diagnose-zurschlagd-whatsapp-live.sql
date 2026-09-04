@@ -36,6 +36,8 @@ select
   o.sent_at,
   o.cancelled_at,
   o.claimed_at,
+  o.attempt_count,
+  left(coalesce(o.waha_message_id, ''), 24) as waha_id,
   left(coalesce(o.last_error, ''), 80) as last_error,
   o.reservation_id
 from public.reservation_whatsapp_outbox o

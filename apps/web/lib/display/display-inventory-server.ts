@@ -295,9 +295,9 @@ async function loadPurchaseOrdersAdmin(
 
 async function loadPurchaseOrderDeletionIdsAdmin(
   restaurantId: string,
-): Promise<Set<string>> {
+): Promise<Set<string> | null> {
   const admin = createSupabaseAdminClient();
-  if (!admin) return new Set();
+  if (!admin) return null;
   const { data, error } = await admin
     .from("inventory_purchase_order_deletions")
     .select("order_id")
@@ -307,7 +307,7 @@ async function loadPurchaseOrderDeletionIdsAdmin(
       "[gwada] display inventory_purchase_order_deletions",
       error.message,
     );
-    return new Set();
+    return null;
   }
   const ids = new Set<string>();
   for (const row of data ?? []) {
@@ -328,7 +328,7 @@ async function savePurchaseOrdersAdmin(
     loadPurchaseOrdersAdmin(restaurantId),
     loadPurchaseOrderDeletionIdsAdmin(restaurantId),
   ]);
-  if (!fresh) return { ok: false, error: "load_failed" };
+  if (!fresh || !deletedOrderIds) return { ok: false, error: "load_failed" };
   const merged = dedupePurchaseOrdersById(
     mergePurchaseOrdersForReplace(fresh, orders, { deletedOrderIds }),
   );

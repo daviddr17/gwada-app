@@ -745,7 +745,10 @@ export async function saveIngredientsRelational(
   restaurantId: string,
   ingredients: Ingredient[],
 ): Promise<IngredientsSaveResult> {
-  const fresh = (await loadIngredientsRelational(restaurantId)) ?? [];
+  const fresh = await loadIngredientsRelational(restaurantId);
+  if (fresh === null) {
+    return { ok: false, message: "ingredients_load_failed" };
+  }
   const merged = mergeIngredientsForReplace(fresh, ingredients);
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.rpc("inventory_replace_ingredients", {
@@ -906,7 +909,7 @@ export type InventorySaveResult =
 /** Tombstones absichtlich gelöschter offener Bestellungen (gegen stale Re-Add). */
 export async function loadPurchaseOrderDeletionIds(
   restaurantId: string,
-): Promise<Set<string>> {
+): Promise<Set<string> | null> {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("inventory_purchase_order_deletions")
@@ -914,7 +917,7 @@ export async function loadPurchaseOrderDeletionIds(
     .eq("restaurant_id", restaurantId);
   if (error) {
     console.warn("[gwada] inventory_purchase_order_deletions", error.message);
-    return new Set();
+    return null;
   }
   const ids = new Set<string>();
   for (const row of data ?? []) {
@@ -937,8 +940,11 @@ export async function savePurchaseOrdersRelational(
       loadPurchaseOrdersRelational(restaurantId),
       loadPurchaseOrderDeletionIds(restaurantId),
     ]);
+    if (fresh === null || deletedOrderIds === null) {
+      return { ok: false, message: "purchase_orders_load_failed" };
+    }
     const merged = dedupePurchaseOrdersById(
-      mergePurchaseOrdersForReplace(fresh ?? [], orders, { deletedOrderIds }),
+      mergePurchaseOrdersForReplace(fresh, orders, { deletedOrderIds }),
     );
     const { error } = await supabase.rpc("inventory_replace_purchase_orders", {
       p_restaurant_id: restaurantId,

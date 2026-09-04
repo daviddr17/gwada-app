@@ -90,13 +90,56 @@ export function mergePurchaseOrdersForReplace(
   return merged;
 }
 
+function applyDeliveryFromMergedLog(
+  lines: readonly PurchaseOrderLine[],
+  log: readonly PurchaseOrderLogEntry[],
+): PurchaseOrderLine[] {
+  const latest = new Map<string, PurchaseOrderLogEntry>();
+  for (const entry of [...log].sort((a, b) => a.at.localeCompare(b.at))) {
+    if (
+      entry.kind !== "marked_delivered" &&
+      entry.kind !== "delivery_reverted"
+    ) {
+      continue;
+    }
+    if (entry.ingredientId) latest.set(entry.ingredientId, entry);
+  }
+
+  return lines.map((line) => {
+    const event = latest.get(line.ingredientId);
+    if (!event) return line;
+    if (event.kind === "delivery_reverted") {
+      return {
+        ...line,
+        deliveredAt: undefined,
+        deliveryStatus: undefined,
+        deliveredQuantity: undefined,
+        deliveryNote: undefined,
+      };
+    }
+    if (event.kind === "marked_delivered") {
+      return {
+        ...line,
+        deliveredAt: event.at,
+        deliveryStatus: event.deliveryStatus,
+        deliveredQuantity: event.quantity,
+        deliveryNote: event.note,
+      };
+    }
+    return line;
+  });
+}
+
 function mergePurchaseOrderRow(
   dbOrder: PurchaseOrder,
   clientOrder: PurchaseOrder,
 ): PurchaseOrder {
   const base = pickOrderBase(dbOrder, clientOrder);
   const log = mergePurchaseOrderLogs(dbOrder.log, clientOrder.log);
-  const lines = mergePurchaseOrderLines(dbOrder.lines, clientOrder.lines);
+  const lines = applyDeliveryFromMergedLog(
+    mergePurchaseOrderLines(dbOrder.lines, clientOrder.lines),
+    log,
+  );
   const statusFields = pickStatusByUpdatedAt(dbOrder, clientOrder);
   return reconcilePurchaseOrderLinesFromLog({
     ...base,

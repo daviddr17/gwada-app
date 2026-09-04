@@ -5,11 +5,37 @@ export const CRON_LAG_MS: Record<string, number> = {
   "reservation-email": 12 * 60 * 1000,
   "reservation-whatsapp-slo": 20 * 60 * 1000,
   "notification-deliver": 6 * 60 * 1000,
+  "newsletter-send": 8 * 60 * 1000,
   "staff-shift-notifications": 12 * 60 * 1000,
   "waha-session-recover": 12 * 60 * 1000,
+  "contact-inbox-sync": 12 * 60 * 1000,
+  "reviews-feed-sync": 25 * 60 * 1000,
+  "news-feed-sync": 25 * 60 * 1000,
+  "accounting-lexoffice-sync": 25 * 60 * 1000,
+  "social-suggestions": 25 * 60 * 1000,
 };
 
+export const CRON_JOB_LABELS: Record<string, string> = {
+  "reservation-whatsapp": "Reservierung WhatsApp",
+  "reservation-email": "Reservierung E-Mail",
+  "reservation-whatsapp-slo": "WhatsApp-SLO",
+  "notification-deliver": "Push-Zustellung",
+  "newsletter-send": "Newsletter",
+  "staff-shift-notifications": "Schicht-Push",
+  "waha-session-recover": "WAHA-Recover",
+  "contact-inbox-sync": "Kontakt-Inbox",
+  "reviews-feed-sync": "Bewertungen-Sync",
+  "news-feed-sync": "News-Feed-Sync",
+  "accounting-lexoffice-sync": "Lexoffice",
+  "social-suggestions": "Social-Vorschläge",
+};
+
+export function cronJobLabel(jobName: string): string {
+  return CRON_JOB_LABELS[jobName] ?? jobName;
+}
+
 export const WAHA_HANG_CLAIM_MS = 90_000;
+export const NOTIFICATION_STUCK_MS = 15 * 60 * 1000;
 
 export type CronHeartbeatRow = {
   job_name: string;
@@ -41,8 +67,42 @@ export type RestaurantOpsRow = {
   failedOpen: number;
   retrying: number;
   hungSending: number;
+  emailFailedOpen: number;
+  emailRetrying: number;
+  emailHungSending: number;
+  notificationsFailed: number;
+  notificationsStuck: number;
   lastError: string | null;
   wahaStatus: string | null;
+};
+
+export type NotificationHealthRow = {
+  restaurant_id: string;
+  status: string;
+  scheduled_at: string | null;
+  last_error: string | null;
+};
+
+export type IntegrationOpsRow = {
+  restaurantId: string;
+  restaurantName: string;
+  key: string;
+  status: string | null;
+  lastError: string | null;
+};
+
+export type NewsletterOpsSummary = {
+  pending: number;
+  overdue: number;
+  failed: number;
+  lastError: string | null;
+};
+
+export type BillingOpsRow = {
+  restaurantId: string;
+  restaurantName: string;
+  status: string;
+  pastDueSince: string | null;
 };
 
 export type CronLagRow = {
@@ -63,6 +123,9 @@ export type DeliveryHealthSnapshot = {
     status: string | null;
     lastError: string | null;
   }>;
+  integrations: IntegrationOpsRow[];
+  newsletter: NewsletterOpsSummary;
+  billing: BillingOpsRow[];
   generatedAt: string;
 };
 
@@ -87,8 +150,61 @@ export function cronLagRows(
   });
 }
 
+function emptyRestaurantOpsRow(
+  restaurantId: string,
+  name: string,
+): RestaurantOpsRow {
+  return {
+    restaurantId,
+    restaurantName: name,
+    failedOpen: 0,
+    retrying: 0,
+    hungSending: 0,
+    emailFailedOpen: 0,
+    emailRetrying: 0,
+    emailHungSending: 0,
+    notificationsFailed: 0,
+    notificationsStuck: 0,
+    lastError: null,
+    wahaStatus: null,
+  };
+}
+
+function applyOutboxCounts(
+  dest: RestaurantOpsRow,
+  row: OutboxHealthRow,
+  nowMs: number,
+  channel: "whatsapp" | "email",
+): void {
+  if (row.sent_at || row.cancelled_at) return;
+  const claimedMs = row.claimed_at ? Date.parse(row.claimed_at) : NaN;
+  const hung =
+    row.last_error === "sending" &&
+    Number.isFinite(claimedMs) &&
+    nowMs - claimedMs > WAHA_HANG_CLAIM_MS;
+  if (hung) {
+    if (channel === "email") dest.emailHungSending += 1;
+    else dest.hungSending += 1;
+  } else if (
+    row.last_error &&
+    (row.last_error === "sending" ||
+      /timeout|absent|unverified|not_configured/i.test(row.last_error))
+  ) {
+    if (channel === "email") dest.emailRetrying += 1;
+    else dest.retrying += 1;
+  } else if (row.last_error) {
+    if (channel === "email") dest.emailFailedOpen += 1;
+    else dest.failedOpen += 1;
+  }
+  if (row.last_error && row.last_error !== "sending") {
+    dest.lastError = row.last_error;
+  }
+}
+
 export function restaurantOpsRows(params: {
   outbox: readonly OutboxHealthRow[];
+  emailOutbox?: readonly OutboxHealthRow[];
+  notifications?: readonly NotificationHealthRow[];
   sessions: readonly WahaSessionHealthRow[];
   names: ReadonlyMap<string, string>;
   nowMs?: number;
@@ -99,40 +215,33 @@ export function restaurantOpsRows(params: {
   const ensure = (restaurantId: string): RestaurantOpsRow => {
     let row = byRestaurant.get(restaurantId);
     if (!row) {
-      row = {
+      row = emptyRestaurantOpsRow(
         restaurantId,
-        restaurantName: params.names.get(restaurantId) ?? restaurantId,
-        failedOpen: 0,
-        retrying: 0,
-        hungSending: 0,
-        lastError: null,
-        wahaStatus: null,
-      };
+        params.names.get(restaurantId) ?? restaurantId,
+      );
       byRestaurant.set(restaurantId, row);
     }
     return row;
   };
 
   for (const row of params.outbox) {
-    if (row.sent_at || row.cancelled_at) continue;
+    applyOutboxCounts(ensure(row.restaurant_id), row, nowMs, "whatsapp");
+  }
+  for (const row of params.emailOutbox ?? []) {
+    applyOutboxCounts(ensure(row.restaurant_id), row, nowMs, "email");
+  }
+  for (const row of params.notifications ?? []) {
     const dest = ensure(row.restaurant_id);
-    const claimedMs = row.claimed_at ? Date.parse(row.claimed_at) : NaN;
-    const hung =
-      row.last_error === "sending" &&
-      Number.isFinite(claimedMs) &&
-      nowMs - claimedMs > WAHA_HANG_CLAIM_MS;
-    if (hung) dest.hungSending += 1;
-    else if (
-      row.last_error &&
-      (row.last_error === "sending" ||
-        /timeout|absent|unverified/i.test(row.last_error))
-    ) {
-      dest.retrying += 1;
-    } else if (row.last_error) {
-      dest.failedOpen += 1;
+    if (row.status === "failed") {
+      dest.notificationsFailed += 1;
+      if (row.last_error) dest.lastError = row.last_error;
+      continue;
     }
-    if (row.last_error && row.last_error !== "sending") {
-      dest.lastError = row.last_error;
+    if (row.status !== "pending") continue;
+    const scheduledMs = row.scheduled_at ? Date.parse(row.scheduled_at) : NaN;
+    if (Number.isFinite(scheduledMs) && nowMs - scheduledMs > NOTIFICATION_STUCK_MS) {
+      dest.notificationsStuck += 1;
+      if (row.last_error) dest.lastError = row.last_error;
     }
   }
 
@@ -150,14 +259,97 @@ export function restaurantOpsRows(params: {
         row.failedOpen > 0 ||
         row.retrying > 0 ||
         row.hungSending > 0 ||
+        row.emailFailedOpen > 0 ||
+        row.emailRetrying > 0 ||
+        row.emailHungSending > 0 ||
+        row.notificationsFailed > 0 ||
+        row.notificationsStuck > 0 ||
         (row.wahaStatus != null &&
           row.wahaStatus.toLowerCase() !== "working"),
     )
     .sort(
       (a, b) =>
-        b.hungSending + b.failedOpen + b.retrying -
-        (a.hungSending + a.failedOpen + a.retrying),
+        b.hungSending +
+          b.failedOpen +
+          b.retrying +
+          b.emailHungSending +
+          b.emailFailedOpen +
+          b.notificationsStuck -
+          (a.hungSending +
+            a.failedOpen +
+            a.retrying +
+            a.emailHungSending +
+            a.emailFailedOpen +
+            a.notificationsStuck),
     );
+}
+
+export function integrationOpsRows(params: {
+  rows: readonly {
+    restaurant_id: string;
+    integration_key: string;
+    status: string | null;
+    last_error: string | null;
+  }[];
+  names: ReadonlyMap<string, string>;
+}): IntegrationOpsRow[] {
+  return params.rows
+    .filter((row) => {
+      const status = (row.status ?? "").toLowerCase();
+      return status !== "working" && status !== "disconnected" && status !== "";
+    })
+    .map((row) => ({
+      restaurantId: row.restaurant_id,
+      restaurantName: params.names.get(row.restaurant_id) ?? row.restaurant_id,
+      key: row.integration_key,
+      status: row.status,
+      lastError: row.last_error,
+    }));
+}
+
+export function newsletterOpsSummary(
+  rows: readonly {
+    status: string;
+    send_at: string | null;
+    last_error: string | null;
+  }[],
+  nowMs = Date.now(),
+): NewsletterOpsSummary {
+  let pending = 0;
+  let overdue = 0;
+  let failed = 0;
+  let lastError: string | null = null;
+  for (const row of rows) {
+    if (row.status === "failed") {
+      failed += 1;
+      if (row.last_error) lastError = row.last_error;
+      continue;
+    }
+    if (row.status !== "pending") continue;
+    pending += 1;
+    const sendMs = row.send_at ? Date.parse(row.send_at) : NaN;
+    if (Number.isFinite(sendMs) && nowMs - sendMs > NOTIFICATION_STUCK_MS) {
+      overdue += 1;
+    }
+    if (row.last_error) lastError = row.last_error;
+  }
+  return { pending, overdue, failed, lastError };
+}
+
+export function billingOpsRows(params: {
+  rows: readonly {
+    restaurant_id: string;
+    status: string;
+    past_due_since: string | null;
+  }[];
+  names: ReadonlyMap<string, string>;
+}): BillingOpsRow[] {
+  return params.rows.map((row) => ({
+    restaurantId: row.restaurant_id,
+    restaurantName: params.names.get(row.restaurant_id) ?? row.restaurant_id,
+    status: row.status,
+    pastDueSince: row.past_due_since,
+  }));
 }
 
 export function wahaHangRows(params: {

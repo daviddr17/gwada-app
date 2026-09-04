@@ -10,7 +10,14 @@ const ALERT_COOLDOWN_MS = 30 * 60 * 1000;
 function alertFingerprint(snapshot: Awaited<ReturnType<typeof loadDeliveryHealthSnapshot>>): string {
   const staleJobs = snapshot.cron.filter((c) => c.stale).map((c) => c.jobName).sort();
   const hung = snapshot.restaurants
-    .filter((r) => r.hungSending > 0 || r.failedOpen > 0)
+    .filter(
+      (r) =>
+        r.hungSending > 0 ||
+        r.emailHungSending > 0 ||
+        r.failedOpen > 0 ||
+        r.emailFailedOpen > 0 ||
+        r.notificationsStuck > 0,
+    )
     .map((r) => r.restaurantId)
     .sort();
   return [
@@ -33,7 +40,9 @@ export async function evaluateWhatsappSloAlerts(
   const needsAlert =
     snapshot.slo.breached ||
     snapshot.cron.some((c) => c.stale) ||
-    snapshot.restaurants.some((r) => r.hungSending > 0);
+    snapshot.restaurants.some(
+      (r) => r.hungSending > 0 || r.emailHungSending > 0 || r.notificationsStuck > 0,
+    );
 
   if (!needsAlert) {
     return { alerted: false, fingerprint, skipped: "healthy" };
@@ -66,8 +75,11 @@ export async function evaluateWhatsappSloAlerts(
   const problemRestaurants = snapshot.restaurants.slice(0, 8).map((r) => {
     const bits = [
       r.restaurantName,
-      r.hungSending ? `${r.hungSending} hängend` : null,
-      r.failedOpen ? `${r.failedOpen} Fehler` : null,
+      r.hungSending ? `${r.hungSending} WA hängend` : null,
+      r.emailHungSending ? `${r.emailHungSending} E-Mail hängend` : null,
+      r.failedOpen ? `${r.failedOpen} WA-Fehler` : null,
+      r.emailFailedOpen ? `${r.emailFailedOpen} E-Mail-Fehler` : null,
+      r.notificationsStuck ? `${r.notificationsStuck} Push hängend` : null,
       r.wahaStatus && r.wahaStatus.toLowerCase() !== "working"
         ? `WAHA ${r.wahaStatus}`
         : null,
@@ -89,10 +101,10 @@ export async function evaluateWhatsappSloAlerts(
   const mailed = await sendOpsAlertEmail({
     subject: snapshot.slo.breached
       ? "Gwada On-Call: WhatsApp-Bestätigungen unter SLO"
-      : "Gwada On-Call: WhatsApp/Cron auffällig",
+      : "Gwada On-Call: Zustellung/Cron auffällig",
     headline: snapshot.slo.breached
       ? "Bestätigungen unter SLO"
-      : "Zustellung oder Cron auffällig",
+      : "Zustellung, Sync oder Cron auffällig",
     text,
   });
 

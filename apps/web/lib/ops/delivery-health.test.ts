@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  cronJobLabel,
   cronLagRows,
+  integrationOpsRows,
+  newsletterOpsSummary,
   restaurantOpsRows,
   wahaHangRows,
 } from "./delivery-health.ts";
@@ -47,6 +50,75 @@ test("groups restaurants that are not sending or hanging", () => {
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.restaurantName, "Zur Schlagd");
   assert.equal(rows[0]?.hungSending, 1);
+});
+
+test("includes email outbox and stuck notifications on the restaurant row", () => {
+  const rows = restaurantOpsRows({
+    nowMs: now,
+    names: new Map([["r1", "Zur Schlagd"]]),
+    sessions: [],
+    outbox: [],
+    emailOutbox: [
+      {
+        restaurant_id: "r1",
+        message_kind: "reminder",
+        send_at: "2026-09-04T11:50:00.000Z",
+        sent_at: null,
+        cancelled_at: null,
+        claimed_at: "2026-09-04T11:50:00.000Z",
+        last_error: "sending",
+      },
+    ],
+    notifications: [
+      {
+        restaurant_id: "r1",
+        status: "pending",
+        scheduled_at: "2026-09-04T11:30:00.000Z",
+        last_error: null,
+      },
+    ],
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.emailHungSending, 1);
+  assert.equal(rows[0]?.notificationsStuck, 1);
+});
+
+test("lists broken OAuth integrations and overdue newsletter rows", () => {
+  const integrations = integrationOpsRows({
+    names: new Map([["r1", "Zur Schlagd"]]),
+    rows: [
+      {
+        restaurant_id: "r1",
+        integration_key: "google_business",
+        status: "error",
+        last_error: "token_expired",
+      },
+      {
+        restaurant_id: "r1",
+        integration_key: "facebook",
+        status: "working",
+        last_error: null,
+      },
+    ],
+  });
+  assert.equal(integrations.length, 1);
+  assert.equal(integrations[0]?.key, "google_business");
+
+  const newsletter = newsletterOpsSummary(
+    [
+      {
+        status: "pending",
+        send_at: "2026-09-04T11:30:00.000Z",
+        last_error: null,
+      },
+      { status: "failed", send_at: null, last_error: "smtp_timeout" },
+    ],
+    now,
+  );
+  assert.equal(newsletter.pending, 1);
+  assert.equal(newsletter.overdue, 1);
+  assert.equal(newsletter.failed, 1);
+  assert.equal(cronJobLabel("contact-inbox-sync"), "Kontakt-Inbox");
 });
 
 test("lists WAHA sessions that are not working", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { ClipboardList, Filter } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
@@ -9,6 +9,7 @@ import {
   PurchaseOrderCloseDeliveryDrawer,
   type PurchaseOrderCloseDeliveryException,
 } from "@/components/inventory/purchase-order-close-delivery-drawer";
+import { PurchaseOrderCloseProgressOverlay } from "@/components/inventory/purchase-order-close-progress-overlay";
 import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
 import { PurchaseOrderCardStickyHeader } from "@/components/inventory/purchase-order-card-sticky-header";
 import type { LineDeliveryCommit } from "@/components/inventory/purchase-order-line-delivery-controls";
@@ -206,6 +207,11 @@ export function PurchaseOrdersScreen() {
   const [closeConfirmOrderId, setCloseConfirmOrderId] = useState<string | null>(
     null,
   );
+  const [closeProgress, setCloseProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const closeInFlightUiRef = useRef(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [lineSortKey, setLineSortKey] =
     useState<PurchaseOrderLineSortKey>("categoryId");
@@ -558,10 +564,23 @@ export function PurchaseOrdersScreen() {
   const requestCloseOrder = useCallback(
     (order: PurchaseOrder) => {
       if (order.status !== "ordered") return;
+      if (closeInFlightUiRef.current) return;
       if (allPurchaseOrderLinesResolved(order.lines)) {
-        void closeOrder(order.id, actor).then((ok) => {
-          if (ok) setStatusFilter("closed");
-        });
+        void (async () => {
+          closeInFlightUiRef.current = true;
+          setCloseProgress({ done: 0, total: 1 });
+          try {
+            const ok = await closeOrder(order.id, actor);
+            if (ok) {
+              setCloseProgress({ done: 1, total: 1 });
+              await new Promise((resolve) => window.setTimeout(resolve, 280));
+              setStatusFilter("closed");
+            }
+          } finally {
+            setCloseProgress(null);
+            closeInFlightUiRef.current = false;
+          }
+        })();
         return;
       }
       setCloseConfirmOrderId(order.id);
@@ -580,70 +599,83 @@ export function PurchaseOrdersScreen() {
       options: { skipStock: boolean },
     ) => {
       const order = closeDeliveryOrder;
-      if (!order) return;
+      if (!order || closeInFlightUiRef.current) return;
 
-      const result = await resolveOpenDeliveriesAndClose(
-        order.id,
-        exceptions,
-        actor,
-        { applyStock: options.skipStock !== true },
-      );
-      if (!result.ok) {
-        toast.error("Bestellung konnte nicht abgeschlossen werden.");
-        return;
-      }
-
-      const skipStock = options.skipStock === true;
       const openCount = order.lines.filter(
         (l) => !isLineDeliveryResolved(l),
       ).length;
-      const deliveredCount = openCount - exceptions.length;
-      const stockSum = skipStock
-        ? 0
-        : result.stockDeltas.reduce((s, d) => s + d.delta, 0);
-
-      if (skipStock) {
-        toast.success(
-          exceptions.length === 0
-            ? "Alles geliefert – Bestand unverändert."
-            : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand unverändert.`,
-        );
-      } else if (exceptions.length === 0) {
-        toast.success(
-          stockSum > 0
-            ? `Alles geliefert – Bestand +${stockSum}.`
-            : "Alles geliefert – Bestellung abgeschlossen.",
-        );
-      } else {
-        toast.success(
-          stockSum > 0
-            ? `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand +${stockSum}.`
-            : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"}.`,
-        );
-      }
-
+      closeInFlightUiRef.current = true;
+      setCloseProgress({ done: 0, total: Math.max(1, openCount) });
       setCloseConfirmOrderId(null);
-      setStatusFilter("closed");
 
-      if (skipStock || result.stockApplied) return;
+      try {
+        const result = await resolveOpenDeliveriesAndClose(
+          order.id,
+          exceptions,
+          actor,
+          {
+            applyStock: options.skipStock !== true,
+            onProgress: (progress) => setCloseProgress(progress),
+          },
+        );
+        if (!result.ok) {
+          toast.error("Bestellung konnte nicht abgeschlossen werden.");
+          return;
+        }
 
-      void applyDeliveryStockDeltas(
-        result.stockDeltas.map((d) => ({
-          ingredientId: d.ingredientId,
-          delta: d.delta,
-          unitId: d.unitId,
-          unitLabel: d.unitLabel,
-          orderId: order.id,
-          supplierName: supplierNameForOrder(order),
-        })),
-        actor,
-      ).then((stockOk) => {
-        if (!stockOk) {
-          toast.error(
-            "Bestellung abgeschlossen, aber Bestand konnte nicht vollständig angepasst werden.",
+        const skipStock = options.skipStock === true;
+        const deliveredCount = openCount - exceptions.length;
+        const stockSum = skipStock
+          ? 0
+          : result.stockDeltas.reduce((s, d) => s + d.delta, 0);
+
+        if (skipStock) {
+          toast.success(
+            exceptions.length === 0
+              ? "Alles geliefert – Bestand unverändert."
+              : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand unverändert.`,
+          );
+        } else if (exceptions.length === 0) {
+          toast.success(
+            stockSum > 0
+              ? `Alles geliefert – Bestand +${stockSum}.`
+              : "Alles geliefert – Bestellung abgeschlossen.",
+          );
+        } else {
+          toast.success(
+            stockSum > 0
+              ? `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand +${stockSum}.`
+              : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"}.`,
           );
         }
-      });
+
+        setCloseProgress({ done: openCount, total: Math.max(1, openCount) });
+        await new Promise((resolve) => window.setTimeout(resolve, 280));
+        setStatusFilter("closed");
+
+        if (skipStock || result.stockApplied) return;
+
+        void applyDeliveryStockDeltas(
+          result.stockDeltas.map((d) => ({
+            ingredientId: d.ingredientId,
+            delta: d.delta,
+            unitId: d.unitId,
+            unitLabel: d.unitLabel,
+            orderId: order.id,
+            supplierName: supplierNameForOrder(order),
+          })),
+          actor,
+        ).then((stockOk) => {
+          if (!stockOk) {
+            toast.error(
+              "Bestellung abgeschlossen, aber Bestand konnte nicht vollständig angepasst werden.",
+            );
+          }
+        });
+      } finally {
+        setCloseProgress(null);
+        closeInFlightUiRef.current = false;
+      }
     },
     [
       actor,
@@ -792,6 +824,7 @@ export function PurchaseOrdersScreen() {
                             "rounded-full px-3 sm:px-4",
                             brandActionButtonRoundedClassName,
                           )}
+                          disabled={closeProgress != null}
                           onClick={() => requestCloseOrder(order)}
                         >
                           Abschließen
@@ -1041,6 +1074,11 @@ export function PurchaseOrdersScreen() {
         }}
         unitLabelForLine={unitLabelForLine}
         onConfirm={handleCloseWithDeliveries}
+      />
+
+      <PurchaseOrderCloseProgressOverlay
+        open={closeProgress != null}
+        progress={closeProgress}
       />
     </div>
   );

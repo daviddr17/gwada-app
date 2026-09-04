@@ -440,6 +440,11 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     void ordersQuery.refetch();
   }, [ordersQuery, restaurantId]);
 
+  const refetchPurchaseOrdersNow = useCallback(async () => {
+    if (!restaurantId) return;
+    await ordersQuery.refetch();
+  }, [ordersQuery, restaurantId]);
+
   useInventoryDataRefreshListener(
     queryEnabled && useDbInventory && workspaceReady && Boolean(restaurantId),
     refetchPurchaseOrders,
@@ -502,6 +507,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   ordersRef.current = orders;
   const persistQueueRef = useRef(createSerialAsyncQueue());
   const ordersMutationGenerationRef = useRef(0);
+  const closeInFlightRef = useRef(false);
 
   const readOrdersSnapshot = useCallback((): PurchaseOrder[] => {
     if (useDbInventory && restaurantId) {
@@ -1310,23 +1316,32 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         toast.error("Noch nicht alle Positionen bearbeitet.");
         return false;
       }
-      const next: PurchaseOrder[] = structuredClone(prev);
-      const o = next.find((x) => x.id === orderId);
-      if (!o) return false;
-      o.status = "closed";
-      const logEntry = appendStatusChangeLog(o, "ordered", "closed", actor);
-      const ok = await persistStatusChangeOptimistic({
-        next,
-        rollbackSnapshot: prev,
-        orderId,
-        fromStatus: "ordered",
-        toStatus: "closed",
-        logEntry,
-      });
-      if (ok && !options?.silent) {
-        toast.success("Bestellung abgeschlossen");
+      if (closeInFlightRef.current) {
+        toast.error("Abschluss läuft bereits — bitte warten.");
+        return false;
       }
-      return ok;
+      closeInFlightRef.current = true;
+      try {
+        const next: PurchaseOrder[] = structuredClone(prev);
+        const o = next.find((x) => x.id === orderId);
+        if (!o) return false;
+        o.status = "closed";
+        const logEntry = appendStatusChangeLog(o, "ordered", "closed", actor);
+        const ok = await persistStatusChangeOptimistic({
+          next,
+          rollbackSnapshot: prev,
+          orderId,
+          fromStatus: "ordered",
+          toStatus: "closed",
+          logEntry,
+        });
+        if (ok && !options?.silent) {
+          toast.success("Bestellung abgeschlossen");
+        }
+        return ok;
+      } finally {
+        closeInFlightRef.current = false;
+      }
     },
     [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
@@ -1771,7 +1786,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         note?: string;
       }>,
       actor: OrderProtocolActor,
-      options?: { applyStock?: boolean },
+      options?: {
+        applyStock?: boolean;
+        onProgress?: (progress: { done: number; total: number }) => void;
+      },
     ): Promise<
       | {
           ok: true;
@@ -1897,85 +1915,124 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       appendStatusChangeLog(o, "ordered", "closed", actor);
 
       const applyStock = options?.applyStock !== false;
+      const unresolved = target.lines.filter((l) => !isLineDeliveryResolved(l));
+      const reportProgress = (done: number) => {
+        options?.onProgress?.({ done, total: unresolved.length });
+      };
 
-      if (useDbInventory) {
-        applyOrdersOptimistic(next);
-        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
-        if (!rid || !dbFetchReady) {
-          applyOrdersOptimistic(previous);
-          toast.error(
-            "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
-          );
-          return { ok: false };
-        }
+      if (closeInFlightRef.current) {
+        toast.error("Abschluss läuft bereits — bitte warten.");
+        return { ok: false };
+      }
+      closeInFlightRef.current = true;
 
-        const unresolved = target.lines.filter((l) => !isLineDeliveryResolved(l));
-        for (const line of unresolved) {
-          const nextLine = o.lines.find((x) => x.id === line.id);
-          if (!nextLine) continue;
-          const poLog = [...o.log].reverse().find(
-            (entry) =>
-              entry.kind === "marked_delivered" &&
-              "lineId" in entry &&
-              entry.lineId === line.id,
-          );
-          const currentStock = readIngredientStock(line.ingredientId);
-          const delta =
-            stockDeltas.find((d) => d.lineId === line.id)?.delta ?? 0;
-          const result = await applyPurchaseOrderLineDeliveryStockRelational(
-            rid,
-            {
-              orderId,
-              lineId: line.id,
-              mode: "set",
-              deliveryStatus: nextLine.deliveryStatus,
-              deliveredQuantity: nextLine.deliveredQuantity,
-              deliveryNote: nextLine.deliveryNote ?? null,
-              poLog: poLog ?? {
-                id: createId(),
-                at: now,
-                ...protocolActorNameFields(actor),
-                kind: "marked_delivered",
-                ingredientId: line.ingredientId,
-                ingredientName: line.ingredientName,
-                quantity: lineDeliveryStockQuantity(nextLine),
-                unitId: line.unitId,
-                unitLabel: line.unitLabel,
-                lineId: line.id,
-                deliveryStatus: nextLine.deliveryStatus ?? "delivered",
-              },
-              stockLog: {
-                id: createId(),
-                at: now,
-                ...protocolActorNameFields(actor),
-                kind: delta < 0 ? "stock_delivery_reverted" : "stock_from_delivery",
-                fromQuantity: currentStock ?? 0,
-                toQuantity: (currentStock ?? 0) + delta,
-                unitId: line.unitId,
-                unitLabel: line.unitLabel,
-                orderId,
-                supplierName: o.supplierName,
-              },
-              applyStock,
-            },
-          );
-          if (!result.ok) {
-            applyOrdersOptimistic(previous);
-            toastDatabaseSaveError(result.message);
+      try {
+        reportProgress(0);
+
+        if (useDbInventory) {
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid || !dbFetchReady) {
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
             return { ok: false };
           }
-          if (result.stockAfter != null) {
-            applyIngredientStockOptimistic(line.ingredientId, result.stockAfter);
-          }
-        }
-        afterOrdersPersistSuccess();
-        dispatchInventoryDataRefresh();
-        return { ok: true, stockDeltas, stockApplied: applyStock };
-      }
 
-      const persistOk = await persistOptimisticQueued(next, previous);
-      if (!persistOk) return { ok: false };
-      return { ok: true, stockDeltas, stockApplied: false };
+          applyOrdersOptimistic(next);
+
+          let persistResult: { ok: true } | { ok: false };
+          try {
+            persistResult = await persistQueueRef.current.enqueue(async () => {
+              let persisted = 0;
+              for (const line of unresolved) {
+              const nextLine = o.lines.find((x) => x.id === line.id);
+              if (!nextLine) {
+                toastDatabaseSaveError(
+                  "Position fehlt — der aktuelle Stand wird neu geladen.",
+                );
+                await refetchPurchaseOrdersNow();
+                return { ok: false as const };
+              }
+              const poLog = [...o.log].reverse().find(
+                (entry) =>
+                  entry.kind === "marked_delivered" &&
+                  "lineId" in entry &&
+                  entry.lineId === line.id,
+              );
+              const currentStock = readIngredientStock(line.ingredientId);
+              const delta =
+                stockDeltas.find((d) => d.lineId === line.id)?.delta ?? 0;
+              const result = await applyPurchaseOrderLineDeliveryStockRelational(
+                rid,
+                {
+                  orderId,
+                  lineId: line.id,
+                  mode: "set",
+                  deliveryStatus: nextLine.deliveryStatus,
+                  deliveredQuantity: nextLine.deliveredQuantity,
+                  deliveryNote: nextLine.deliveryNote ?? null,
+                  poLog: poLog ?? {
+                    id: createId(),
+                    at: now,
+                    ...protocolActorNameFields(actor),
+                    kind: "marked_delivered",
+                    ingredientId: line.ingredientId,
+                    ingredientName: line.ingredientName,
+                    quantity: lineDeliveryStockQuantity(nextLine),
+                    unitId: line.unitId,
+                    unitLabel: line.unitLabel,
+                    lineId: line.id,
+                    deliveryStatus: nextLine.deliveryStatus ?? "delivered",
+                  },
+                  stockLog: {
+                    id: createId(),
+                    at: now,
+                    ...protocolActorNameFields(actor),
+                    kind: delta < 0 ? "stock_delivery_reverted" : "stock_from_delivery",
+                    fromQuantity: currentStock ?? 0,
+                    toQuantity: (currentStock ?? 0) + delta,
+                    unitId: line.unitId,
+                    unitLabel: line.unitLabel,
+                    orderId,
+                    supplierName: o.supplierName,
+                  },
+                  applyStock,
+                },
+              );
+              if (!result.ok) {
+                toastDatabaseSaveError(result.message);
+                await refetchPurchaseOrdersNow();
+                return { ok: false as const };
+              }
+              persisted += 1;
+              reportProgress(persisted);
+              if (result.stockAfter != null) {
+                applyIngredientStockOptimistic(line.ingredientId, result.stockAfter);
+              }
+            }
+            afterOrdersPersistSuccess();
+            dispatchInventoryDataRefresh();
+            return { ok: true as const };
+            });
+          } catch {
+            toastDatabaseSaveError(
+              "Abschluss unterbrochen — der aktuelle Stand wird neu geladen.",
+            );
+            await refetchPurchaseOrdersNow();
+            return { ok: false };
+          }
+
+          if (!persistResult.ok) return { ok: false };
+          return { ok: true, stockDeltas, stockApplied: applyStock };
+        }
+
+        const persistOk = await persistOptimisticQueued(next, previous);
+        if (!persistOk) return { ok: false };
+        reportProgress(unresolved.length);
+        return { ok: true, stockDeltas, stockApplied: false };
+      } finally {
+        closeInFlightRef.current = false;
+      }
     },
     [
       afterOrdersPersistSuccess,
@@ -1986,6 +2043,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       persistOptimisticQueued,
       readIngredientStock,
       readOrdersSnapshot,
+      refetchPurchaseOrdersNow,
       restaurantId,
       useDbInventory,
     ],

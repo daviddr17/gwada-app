@@ -11,6 +11,7 @@ import {
   superadminDateCellClass,
 } from "@/components/superadmin/superadmin-table-cells";
 import { SuperadminWahaSessionDrawer } from "@/components/superadmin/superadmin-waha-session-drawer";
+import { SuperadminWahaSessionRowMenu } from "@/components/superadmin/superadmin-waha-session-row-menu";
 import { WahaSessionStatusBadge } from "@/components/superadmin/waha-session-status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -40,6 +41,7 @@ import {
   recoverSuperadminWahaServer,
   restartSuperadminWahaContainer,
   triggerSuperadminWahaHostReboot,
+  runSuperadminWahaSessionAction,
   triggerSuperadminWahaImageUpdate,
   updateSuperadminWahaServer,
   type WahaServerVersionStatus,
@@ -47,6 +49,7 @@ import {
 import type {
   WahaServerCapacityAlert,
   WahaServerPublic,
+  WahaSessionAdminAction,
   WahaSessionListItem,
 } from "@/lib/waha/waha-server-types";
 import type { ReservationWhatsappOutboxHealth } from "@/lib/whatsapp/reservation-whatsapp-outbox-health";
@@ -186,6 +189,7 @@ export function SuperadminWahaScreen() {
   const [sessionDrawerRow, setSessionDrawerRow] =
     useState<WahaSessionListItem | null>(null);
   const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
+  const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
   const [outboxHealth, setOutboxHealth] =
     useState<ReservationWhatsappOutboxHealth | null>(null);
 
@@ -473,6 +477,38 @@ export function SuperadminWahaScreen() {
     window.setTimeout(() => {
       void loadVersions([s]);
     }, 45_000);
+  };
+
+  const runSessionRowAction = async (
+    row: WahaSessionListItem,
+    action: WahaSessionAdminAction,
+  ) => {
+    setSessionBusyId(row.restaurant_id);
+    const res = await runSuperadminWahaSessionAction(row.restaurant_id, action);
+    setSessionBusyId(null);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(res.message ?? "OK");
+    if (action === "delete") {
+      setSessions((prev) =>
+        prev.filter((s) => s.restaurant_id !== row.restaurant_id),
+      );
+      if (sessionDrawerRow?.restaurant_id === row.restaurant_id) {
+        setSessionDrawerOpen(false);
+        setSessionDrawerRow(null);
+      }
+    }
+    const [serversRes, sessionsRes] = await Promise.all([
+      fetchSuperadminWahaServers(),
+      fetchSuperadminWahaSessions(),
+    ]);
+    if (serversRes.error) toast.error(serversRes.error);
+    if (sessionsRes.error) toast.error(sessionsRes.error);
+    setServers(serversRes.servers);
+    setAlerts(serversRes.capacityAlerts);
+    setSessions(sessionsRes.sessions);
   };
 
   const onDelete = async (s: WahaServerPublic) => {
@@ -977,6 +1013,23 @@ export function SuperadminWahaScreen() {
               className: superadminDateCellClass,
               sortValue: (r) => r.updated_at,
               cell: (r) => formatDt(r.updated_at),
+            },
+            {
+              id: "actions",
+              header: "",
+              className: superadminCellNowrapClass,
+              sortValue: () => "",
+              cell: (r) => (
+                <SuperadminWahaSessionRowMenu
+                  session={r}
+                  busy={sessionBusyId === r.restaurant_id}
+                  onOpenDetails={() => {
+                    setSessionDrawerRow(r);
+                    setSessionDrawerOpen(true);
+                  }}
+                  onAction={(action) => void runSessionRowAction(r, action)}
+                />
+              ),
             },
           ]}
           rows={filteredSessions}

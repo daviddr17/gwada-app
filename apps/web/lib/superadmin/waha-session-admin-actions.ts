@@ -9,10 +9,12 @@ import {
 import {
   getRestaurantWahaServerIdAdmin,
   getWahaServerByIdAdmin,
+  refreshWahaServerCapacityWarningAdmin,
   wahaServerRowToConfig,
 } from "@/lib/supabase/waha-servers-db";
 import {
   mapWahaStatusToIntegration,
+  wahaDeleteSession,
   wahaGetSession,
   wahaLogoutSession,
   wahaRestartSession,
@@ -28,6 +30,7 @@ import {
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import {
+  isWahaSessionAlreadyGone,
   WAHA_SESSION_ADMIN_ACTIONS,
   type WahaSessionAdminAction,
   type WahaSessionAdminDetail,
@@ -291,6 +294,59 @@ export async function runWahaSessionAdminAction(
       }
       message = "Session geheilt (Restart + Sync).";
       break;
+    }
+    case "delete": {
+      const serverId = await getRestaurantWahaServerIdAdmin(restaurantId);
+      const res = await wahaDeleteSession(config, sessionName);
+      if (!res.ok && !isWahaSessionAlreadyGone(res.status)) {
+        return { ok: false, error: res.error, status: 502 };
+      }
+      const { error: delErr } = await admin
+        .from("restaurant_integrations")
+        .delete()
+        .eq("restaurant_id", restaurantId)
+        .eq("integration_key", "whatsapp");
+      if (delErr) {
+        await upsertRestaurantWhatsappIntegration(admin, restaurantId, {
+          status: "disconnected",
+          phone_number: null,
+          display_name: null,
+          connected_at: null,
+          last_error: null,
+        });
+        await admin
+          .from("restaurant_integrations")
+          .update({ waha_server_id: null })
+          .eq("restaurant_id", restaurantId)
+          .eq("integration_key", "whatsapp");
+      }
+      if (serverId) {
+        await refreshWahaServerCapacityWarningAdmin(serverId, admin);
+      }
+      return {
+        ok: true,
+        detail: {
+          restaurantId,
+          sessionName,
+          dbStatus: "disconnected",
+          phoneNumber: null,
+          displayName: null,
+          lastError: null,
+          connectedAt: null,
+          updatedAt: new Date().toISOString(),
+          wahaServerId: null,
+          live: {
+            ok: false,
+            status: null,
+            phoneNumber: null,
+            displayName: null,
+            error: "deleted",
+          },
+        },
+        message: isWahaSessionAlreadyGone(res.status)
+          ? "Session war auf WAHA schon weg — Zuordnung entfernt."
+          : "Session auf WAHA gelöscht.",
+      };
     }
     default:
       return { ok: false, error: "invalid_action", status: 400 };

@@ -74,6 +74,7 @@ ${marker_begin}
 */2 * * * * ${env_snippet} ${wrapper} /api/cron/notification-deliver 130 >> ${log_dir}/notification-deliver.log 2>&1
 */5 * * * * ${env_snippet} ${wrapper} /api/cron/staff-shift-notifications 120 >> ${log_dir}/staff-shift-notifications.log 2>&1
 */5 * * * * ${env_snippet} ${wrapper} /api/cron/waha-session-recover 180 >> ${log_dir}/waha-session-recover.log 2>&1
+*/5 * * * * ${env_snippet} ${wrapper} /api/cron/reservation-whatsapp-slo 60 >> ${log_dir}/reservation-whatsapp-slo.log 2>&1
 ${marker_end}
 EOF
 )
@@ -82,7 +83,7 @@ existing="$(crontab -l 2>/dev/null || true)"
 # Alten Block entfernen
 cleaned="$(printf '%s\n' "${existing}" | sed "/${marker_begin}/,/${marker_end}/d")"
 printf '%s\n%s\n' "${cleaned}" "${block}" | crontab -
-echo "✓ VPS crontab installiert (reservation-whatsapp/email, notification-deliver, staff-shift, waha-session-recover)"
+echo "✓ VPS crontab installiert (reservation-whatsapp/email/slo, notification-deliver, staff-shift, waha-session-recover)"
 crontab -l | sed -n "/${marker_begin}/,/${marker_end}/p" | sed 's/CRON_SECRET=[^ ]*/CRON_SECRET=***/g'
 REMOTE
 

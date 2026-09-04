@@ -484,6 +484,8 @@ export function PurchaseOrdersScreen() {
         toast.success(`„${line.ingredientName}“ als ${label} markiert.`);
       }
 
+      if (result.stockApplied) return;
+
       void applyStockDelta(
         order,
         line,
@@ -525,6 +527,8 @@ export function PurchaseOrdersScreen() {
           ? `Lieferung von „${line.ingredientName}“ zurückgesetzt – Bestand −${prevStock} ${unitLabelForLine(line)}.`
           : `Liefer-Antwort zu „${line.ingredientName}“ zurückgesetzt.`,
       );
+
+      if (result.stockApplied) return;
 
       void applyStockDelta(order, line, -prevStock, "revert").then((stockOk) => {
         if (!stockOk) {
@@ -582,6 +586,7 @@ export function PurchaseOrdersScreen() {
         order.id,
         exceptions,
         actor,
+        { applyStock: options.skipStock !== true },
       );
       if (!result.ok) {
         toast.error("Bestellung konnte nicht abgeschlossen werden.");
@@ -620,7 +625,7 @@ export function PurchaseOrdersScreen() {
       setCloseConfirmOrderId(null);
       setStatusFilter("closed");
 
-      if (skipStock) return;
+      if (skipStock || result.stockApplied) return;
 
       void applyDeliveryStockDeltas(
         result.stockDeltas.map((d) => ({

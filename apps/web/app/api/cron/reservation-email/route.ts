@@ -1,4 +1,5 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
+import { withCronHeartbeat } from "@/lib/ops/record-cron-heartbeat";
 import { processDueEmailOutbox } from "@/lib/reservations/reservation-email-dispatch";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -13,6 +14,8 @@ export async function GET(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const stats = await processDueEmailOutbox(sb);
+  const stats = await withCronHeartbeat("reservation-email", () =>
+    processDueEmailOutbox(sb),
+  );
   return Response.json(stats);
 }

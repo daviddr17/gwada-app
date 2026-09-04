@@ -154,6 +154,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/superadmin/abonnements/statistiken": "Statistiken",
   "/superadmin/integrationen": "Integrationen",
   "/superadmin/waha": "WAHA",
+  "/superadmin/ops": "Ops",
   "/superadmin/datenbank": "Live & VPS",
   "/superadmin/lade-strategie": "Lade-Strategie",
   "/superadmin/newsletter": "Newsletter",

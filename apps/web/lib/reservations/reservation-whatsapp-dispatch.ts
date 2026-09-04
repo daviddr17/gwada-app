@@ -40,6 +40,7 @@ import {
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { wahaGetSession } from "@/lib/waha/waha-client";
+import { sanitizeOpsText } from "@/lib/ops/sanitize-ops-text";
 import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -566,7 +567,7 @@ export async function sendImmediateKind(
         last_error:
           timeout && after.status === "absent"
             ? "timeout_absent"
-            : result.error,
+            : sanitizeOpsText(result.error),
         // Absent = sicher nicht raus → Claim frei für Cron-Retry.
         // Unknown = Claim behalten, kein Blind-Retry.
         claimed_at:
@@ -1096,7 +1097,7 @@ export async function processDueWhatsappOutbox(
         last_error:
           timeout && after.status === "absent"
             ? "timeout_absent"
-            : result.error,
+            : sanitizeOpsText(result.error),
         claimed_at:
           timeout && after.status !== "absent" ? new Date().toISOString() : null,
       })

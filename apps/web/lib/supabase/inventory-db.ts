@@ -1015,3 +1015,117 @@ export async function setPurchaseOrderStatusRelational(
   }
   return { ok: true };
 }
+
+function rpcFailureMessage(error: { message?: string } | null): string {
+  return error?.message?.trim() || "Speichern fehlgeschlagen.";
+}
+
+export async function applyPurchaseOrderLineDeliveryStockRelational(
+  restaurantId: string,
+  params: {
+    orderId: string;
+    lineId: string;
+    mode: "set" | "clear";
+    deliveryStatus?: PurchaseOrderLineDeliveryStatus | null;
+    deliveredQuantity?: number | null;
+    deliveryNote?: string | null;
+    poLog: PurchaseOrderLogEntry;
+    stockLog: Record<string, unknown>;
+    applyStock?: boolean;
+  },
+): Promise<
+  | { ok: true; stockDelta: number; stockAfter: number | null; autoClosed: boolean }
+  | { ok: false; message: string }
+> {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc(
+    "inventory_purchase_order_apply_line_delivery_stock",
+    {
+      p_restaurant_id: restaurantId,
+      p_order_id: params.orderId,
+      p_line_id: params.lineId,
+      p_mode: params.mode,
+      p_delivery_status: params.deliveryStatus ?? null,
+      p_delivered_quantity: params.deliveredQuantity ?? null,
+      p_delivery_note: params.deliveryNote ?? null,
+      p_po_log: params.poLog,
+      p_stock_log: params.stockLog,
+      p_apply_stock: params.applyStock !== false,
+    },
+  );
+  if (error) {
+    console.warn(
+      "[gwada] inventory_purchase_order_apply_line_delivery_stock",
+      error.message,
+    );
+    return { ok: false, message: rpcFailureMessage(error) };
+  }
+  const row = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  return {
+    ok: true,
+    stockDelta: typeof row.stock_delta === "number" ? row.stock_delta : 0,
+    stockAfter: typeof row.stock_after === "number" ? row.stock_after : null,
+    autoClosed: row.auto_closed === true,
+  };
+}
+
+export async function setPurchaseOrderLineQuantityRelational(
+  restaurantId: string,
+  params: {
+    orderId: string;
+    lineId: string;
+    quantity: number;
+    logEntry: PurchaseOrderLogEntry;
+  },
+): Promise<
+  | { ok: true; deleted: boolean; quantity: number | null }
+  | { ok: false; message: string }
+> {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc(
+    "inventory_purchase_order_line_set_quantity",
+    {
+      p_restaurant_id: restaurantId,
+      p_order_id: params.orderId,
+      p_line_id: params.lineId,
+      p_quantity: params.quantity,
+      p_log_entry: params.logEntry,
+    },
+  );
+  if (error) {
+    console.warn(
+      "[gwada] inventory_purchase_order_line_set_quantity",
+      error.message,
+    );
+    return { ok: false, message: rpcFailureMessage(error) };
+  }
+  const row = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  return {
+    ok: true,
+    deleted: row.deleted === true,
+    quantity: typeof row.quantity === "number" ? row.quantity : null,
+  };
+}
+
+export async function setPurchaseOrderDeliveryDateRelational(
+  restaurantId: string,
+  params: { orderId: string; deliveryDate: string | null },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.rpc(
+    "inventory_purchase_order_set_delivery_date",
+    {
+      p_restaurant_id: restaurantId,
+      p_order_id: params.orderId,
+      p_delivery_date: params.deliveryDate,
+    },
+  );
+  if (error) {
+    console.warn(
+      "[gwada] inventory_purchase_order_set_delivery_date",
+      error.message,
+    );
+    return { ok: false, message: rpcFailureMessage(error) };
+  }
+  return { ok: true };
+}

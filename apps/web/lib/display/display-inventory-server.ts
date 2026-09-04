@@ -663,32 +663,25 @@ export async function updateDisplayOrderQuantity(params: {
     };
     o.log.push(logEntry);
 
-    if (nextQty === 0) {
-      o.lines = o.lines.filter((x) => x.id !== open.lineId);
-      if (o.status === "open" && o.lines.length === 0) {
-        const deleted = await deleteEmptyOpenPurchaseOrderAdmin(
-          params.restaurantId,
-          o.id,
-        );
-        if (!deleted.ok) return deleted;
-        return {
-          ok: true,
-          orderId: null,
-          orderLineId: null,
-          orderQuantity: 0,
-        };
-      }
-    } else {
-      l.quantity = nextQty;
-    }
-
-    const saved = await savePurchaseOrdersAdmin(params.restaurantId, next);
-    if (!saved.ok) return saved;
+    const admin = createSupabaseAdminClient();
+    if (!admin) return { ok: false, error: "server_misconfigured" };
+    const { error } = await admin.rpc(
+      "inventory_purchase_order_line_set_quantity",
+      {
+        p_restaurant_id: params.restaurantId,
+        p_order_id: open.orderId,
+        p_line_id: open.lineId,
+        p_quantity: nextQty,
+        p_log_entry: logEntry,
+      },
+    );
+    if (error) return { ok: false, error: error.message };
 
     if (nextQty === 0) {
       return {
         ok: true,
-        orderId: open.orderId,
+        orderId:
+          o.status === "open" && o.lines.length <= 1 ? null : open.orderId,
         orderLineId: null,
         orderQuantity: 0,
       };

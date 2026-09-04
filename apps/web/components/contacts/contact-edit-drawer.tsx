@@ -458,6 +458,7 @@ export function ContactEditDrawer({
         label: p.label,
         isPrimary: i === 0,
       })),
+      expectedUpdatedAt: detail?.updated_at ?? null,
     };
   };
 

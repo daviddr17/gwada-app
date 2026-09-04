@@ -40,8 +40,11 @@ import {
   loadPurchaseOrdersRelational,
   savePurchaseOrdersRelational,
   setPurchaseOrderStatusRelational,
-  deleteEmptyOpenPurchaseOrderRelational,
+  applyPurchaseOrderLineDeliveryStockRelational,
+  setPurchaseOrderLineQuantityRelational,
+  setPurchaseOrderDeliveryDateRelational,
 } from "@/lib/supabase/inventory-db";
+import type { Ingredient } from "@/lib/types/inventory";
 import {
   getWorkspaceRestaurantId,
   loadWorkspaceJsonLocal,
@@ -511,6 +514,34 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   }, [queryClient, restaurantId, useDbInventory]);
 
   /** Sofort in UI/Cache schreiben (vor await Persist) — bei Fehler zurückrollen. */
+  const applyIngredientStockOptimistic = useCallback(
+    (ingredientId: string, currentStock: number) => {
+      if (!restaurantId) return;
+      queryClient.setQueryData<Ingredient[]>(
+        queryKeys.inventory.ingredients(restaurantId),
+        (prev) => {
+          if (!prev) return prev;
+          return prev.map((item) =>
+            item.id === ingredientId ? { ...item, currentStock } : item,
+          );
+        },
+      );
+    },
+    [queryClient, restaurantId],
+  );
+
+  const readIngredientStock = useCallback(
+    (ingredientId: string): number | null => {
+      if (!restaurantId) return null;
+      const list = queryClient.getQueryData<Ingredient[]>(
+        queryKeys.inventory.ingredients(restaurantId),
+      );
+      const match = list?.find((item) => item.id === ingredientId);
+      return match ? match.currentStock : null;
+    },
+    [queryClient, restaurantId],
+  );
+
   const applyOrdersOptimistic = useCallback(
     (next: PurchaseOrder[]) => {
       if (useDbInventory) {
@@ -700,15 +731,14 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     ],
   );
 
-  /**
-   * Offene Bestellung ohne Positionen löschen (letzte Menge → 0):
-   * UI sofort; DB per O(1)-RPC + Tombstone (kein Merge-Resurrection).
-   */
-  const persistEmptyOpenDeleteOptimistic = useCallback(
+  const persistLineQuantityAtomicOptimistic = useCallback(
     (params: {
       next: PurchaseOrder[];
       rollbackSnapshot: PurchaseOrder[];
       orderId: string;
+      lineId: string;
+      quantity: number;
+      logEntry: PurchaseOrderLogEntry;
     }): Promise<boolean> => {
       const generation = ++ordersMutationGenerationRef.current;
       applyOrdersOptimistic(params.next);
@@ -731,10 +761,12 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
             failSave();
             return false;
           }
-          const result = await deleteEmptyOpenPurchaseOrderRelational(
-            rid,
-            params.orderId,
-          );
+          const result = await setPurchaseOrderLineQuantityRelational(rid, {
+            orderId: params.orderId,
+            lineId: params.lineId,
+            quantity: params.quantity,
+            logEntry: params.logEntry,
+          });
           if (!result.ok) {
             if (ordersMutationGenerationRef.current === generation) {
               applyOrdersOptimistic(params.rollbackSnapshot);
@@ -759,6 +791,190 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     },
     [
       afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
+  const persistDeliveryDateAtomicOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      deliveryDate: string | null;
+    }): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      return persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await setPurchaseOrderDeliveryDateRelational(rid, {
+            orderId: params.orderId,
+            deliveryDate: params.deliveryDate,
+          });
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          afterOrdersPersistSuccess();
+          dispatchInventoryDataRefresh();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
+  const persistLineDeliveryAtomicOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      lineId: string;
+      mode: "set" | "clear";
+      deliveryStatus?: PurchaseOrderLineDeliveryStatus | null;
+      deliveredQuantity?: number | null;
+      deliveryNote?: string | null;
+      poLog: PurchaseOrderLogEntry;
+      stockLog: Record<string, unknown>;
+      applyStock: boolean;
+      ingredientId: string;
+      optimisticStockAfter: number | null;
+      rollbackStock: number | null;
+    }): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      if (params.optimisticStockAfter != null) {
+        applyIngredientStockOptimistic(
+          params.ingredientId,
+          params.optimisticStockAfter,
+        );
+      }
+      return persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+              if (params.rollbackStock != null) {
+                applyIngredientStockOptimistic(
+                  params.ingredientId,
+                  params.rollbackStock,
+                );
+              }
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+              if (params.rollbackStock != null) {
+                applyIngredientStockOptimistic(
+                  params.ingredientId,
+                  params.rollbackStock,
+                );
+              }
+            }
+            failSave();
+            return false;
+          }
+          const result = await applyPurchaseOrderLineDeliveryStockRelational(
+            rid,
+            {
+              orderId: params.orderId,
+              lineId: params.lineId,
+              mode: params.mode,
+              deliveryStatus: params.deliveryStatus,
+              deliveredQuantity: params.deliveredQuantity,
+              deliveryNote: params.deliveryNote,
+              poLog: params.poLog,
+              stockLog: params.stockLog,
+              applyStock: params.applyStock,
+            },
+          );
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+              if (params.rollbackStock != null) {
+                applyIngredientStockOptimistic(
+                  params.ingredientId,
+                  params.rollbackStock,
+                );
+              }
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          if (result.stockAfter != null) {
+            applyIngredientStockOptimistic(params.ingredientId, result.stockAfter);
+          }
+          afterOrdersPersistSuccess();
+          dispatchInventoryDataRefresh();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+            if (params.rollbackStock != null) {
+              applyIngredientStockOptimistic(
+                params.ingredientId,
+                params.rollbackStock,
+              );
+            }
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyIngredientStockOptimistic,
       applyOrdersOptimistic,
       dbFetchReady,
       failSave,
@@ -1080,10 +1296,15 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
         { id: `order-delivery-${orderId}` },
       );
-      void persistOptimisticQueued(next, previous);
+      void persistDeliveryDateAtomicOptimistic({
+        next,
+        rollbackSnapshot: previous,
+        orderId,
+        deliveryDate: normalized,
+      });
       return true;
     },
-    [orders, persistOptimisticQueued, readOrdersSnapshot],
+    [orders, persistDeliveryDateAtomicOptimistic, readOrdersSnapshot],
   );
 
   const updateLineQuantity = useCallback(
@@ -1151,15 +1372,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
 
       if (deletedEmptyOpen) {
         toastPurchaseOrderDeletedEmpty(supplierNameForToast);
-        void persistEmptyOpenDeleteOptimistic({
-          next: toPersist,
-          rollbackSnapshot: prev,
-          orderId,
-        });
-        return true;
-      }
-
-      if (nextQty === 0) {
+      } else if (nextQty === 0) {
         toastPurchaseOrderLineRemoved(l.ingredientName);
       } else {
         toastPurchaseOrderQuantityChanged(
@@ -1168,19 +1381,22 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           l.unitLabel,
         );
       }
-      void persistOptimisticQueued(toPersist, prev);
+      void persistLineQuantityAtomicOptimistic({
+        next: toPersist,
+        rollbackSnapshot: prev,
+        orderId,
+        lineId,
+        quantity: nextQty,
+        logEntry,
+      });
       return true;
     },
-    [
-      persistEmptyOpenDeleteOptimistic,
-      persistOptimisticQueued,
-      readOrdersSnapshot,
-    ],
+    [persistLineQuantityAtomicOptimistic, readOrdersSnapshot],
   );
 
   /**
-   * Setzt Liefer-Antwort. Gibt `stockDelta` für Bestand und ggf. `autoClosed` zurück.
-   * Persistiert die Bestellung; Bestand bleibt Aufgabe des Callers.
+   * Setzt Liefer-Antwort. In der DB eine Transaktion (Lieferung + Lager).
+   * `stockApplied` = Caller soll keinen zweiten Bestand-Write machen.
    */
   const setLineDelivery = useCallback(
     async (
@@ -1193,7 +1409,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       },
       actor: OrderProtocolActor,
     ): Promise<
-      | { ok: true; stockDelta: number; autoClosed: boolean }
+      | { ok: true; stockDelta: number; autoClosed: boolean; stockApplied: boolean }
       | { ok: false }
     > => {
       const target = orders.find((o) => o.id === orderId);
@@ -1277,38 +1493,68 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
 
       const shouldAutoClose =
         o.status === "ordered" && allPurchaseOrderLinesResolved(o.lines);
+      if (shouldAutoClose) {
+        o.status = "closed";
+        appendStatusChangeLog(o, "ordered", "closed", actor);
+      }
+
+      const currentStock = readIngredientStock(l.ingredientId);
+      const optimisticStockAfter =
+        currentStock == null ? null : currentStock + stockDelta;
+      const stockLog = {
+        id: createId(),
+        at: new Date().toISOString(),
+        ...protocolActorNameFields(actor),
+        kind: stockDelta < 0 ? "stock_delivery_reverted" : "stock_from_delivery",
+        fromQuantity: currentStock ?? 0,
+        toQuantity: optimisticStockAfter ?? stockDelta,
+        unitId: l.unitId,
+        unitLabel: l.unitLabel,
+        orderId,
+        supplierName: o.supplierName,
+      };
+
+      if (useDbInventory) {
+        void persistLineDeliveryAtomicOptimistic({
+          next,
+          rollbackSnapshot: previous,
+          orderId,
+          lineId,
+          mode: "set",
+          deliveryStatus: input.status,
+          deliveredQuantity,
+          deliveryNote: note ?? null,
+          poLog: logEntry,
+          stockLog,
+          applyStock: true,
+          ingredientId: l.ingredientId,
+          optimisticStockAfter,
+          rollbackStock: currentStock,
+        });
+        return {
+          ok: true,
+          stockDelta,
+          autoClosed: shouldAutoClose,
+          stockApplied: true,
+        };
+      }
 
       const persistOk = await persistOptimisticQueued(next, previous);
       if (!persistOk) return { ok: false };
-
-      if (shouldAutoClose) {
-        const afterPersist = readOrdersSnapshot();
-        const nextClosed: PurchaseOrder[] = structuredClone(afterPersist);
-        const closing = nextClosed.find((x) => x.id === orderId);
-        if (closing && closing.status === "ordered") {
-          closing.status = "closed";
-          const statusLog = appendStatusChangeLog(
-            closing,
-            "ordered",
-            "closed",
-            actor,
-          );
-          const closedOk = await persistStatusChangeOptimistic({
-            next: nextClosed,
-            rollbackSnapshot: afterPersist,
-            orderId,
-            fromStatus: "ordered",
-            toStatus: "closed",
-            logEntry: statusLog,
-          });
-          return { ok: closedOk, stockDelta, autoClosed: closedOk };
-        }
-        return { ok: false };
-      }
-
-      return { ok: true, stockDelta, autoClosed: false };
+      return {
+        ok: true,
+        stockDelta,
+        autoClosed: shouldAutoClose,
+        stockApplied: false,
+      };
     },
-    [persistOptimisticQueued, persistStatusChangeOptimistic, readOrdersSnapshot],
+    [
+      persistLineDeliveryAtomicOptimistic,
+      persistOptimisticQueued,
+      readIngredientStock,
+      readOrdersSnapshot,
+      useDbInventory,
+    ],
   );
 
   const clearLineDelivery = useCallback(
@@ -1316,7 +1562,9 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       orderId: string,
       lineId: string,
       actor: OrderProtocolActor,
-    ): Promise<{ ok: true; stockDelta: number } | { ok: false }> => {
+    ): Promise<
+      { ok: true; stockDelta: number; stockApplied: boolean } | { ok: false }
+    > => {
       const target = orders.find((o) => o.id === orderId);
       if (!target || (target.status !== "ordered" && target.status !== "closed")) {
         toast.error("Nur bei bestellten oder abgeschlossenen Bestellungen möglich.");
@@ -1358,11 +1606,51 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       };
       o.log.push(logEntry);
 
+      const currentStock = readIngredientStock(l.ingredientId);
+      const stockDelta = -prevStock;
+      const optimisticStockAfter =
+        currentStock == null ? null : currentStock + stockDelta;
+      const stockLog = {
+        id: createId(),
+        at: new Date().toISOString(),
+        ...protocolActorNameFields(actor),
+        kind: "stock_delivery_reverted" as const,
+        fromQuantity: currentStock ?? 0,
+        toQuantity: optimisticStockAfter ?? 0,
+        unitId: l.unitId,
+        unitLabel: l.unitLabel,
+        orderId,
+        supplierName: o.supplierName,
+      };
+
+      if (useDbInventory) {
+        void persistLineDeliveryAtomicOptimistic({
+          next,
+          rollbackSnapshot: previous,
+          orderId,
+          lineId,
+          mode: "clear",
+          poLog: logEntry,
+          stockLog,
+          applyStock: true,
+          ingredientId: l.ingredientId,
+          optimisticStockAfter,
+          rollbackStock: currentStock,
+        });
+        return { ok: true, stockDelta, stockApplied: true };
+      }
+
       const persistOk = await persistOptimisticQueued(next, previous);
       if (!persistOk) return { ok: false };
-      return { ok: true, stockDelta: -prevStock };
+      return { ok: true, stockDelta, stockApplied: false };
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [
+      persistLineDeliveryAtomicOptimistic,
+      persistOptimisticQueued,
+      readIngredientStock,
+      readOrdersSnapshot,
+      useDbInventory,
+    ],
   );
 
   /**
@@ -1380,6 +1668,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         note?: string;
       }>,
       actor: OrderProtocolActor,
+      options?: { applyStock?: boolean },
     ): Promise<
       | {
           ok: true;
@@ -1390,6 +1679,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
             unitId: string;
             unitLabel: string;
           }>;
+          stockApplied: boolean;
         }
       | { ok: false }
     > => {
@@ -1500,38 +1790,101 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         return { ok: false };
       }
 
-      const persistOk = await persistOptimisticQueued(next, previous);
-      if (!persistOk) return { ok: false };
+      o.status = "closed";
+      appendStatusChangeLog(o, "ordered", "closed", actor);
 
-      const afterPersist = readOrdersSnapshot();
-      const nextClosed: PurchaseOrder[] = structuredClone(afterPersist);
-      const closing = nextClosed.find((x) => x.id === orderId);
-      if (closing && closing.status === "ordered") {
-        closing.status = "closed";
-        const statusLog = appendStatusChangeLog(
-          closing,
-          "ordered",
-          "closed",
-          actor,
-        );
-        const closedOk = await persistStatusChangeOptimistic({
-          next: nextClosed,
-          rollbackSnapshot: afterPersist,
-          orderId,
-          fromStatus: "ordered",
-          toStatus: "closed",
-          logEntry: statusLog,
-        });
-        if (!closedOk) return { ok: false };
+      const applyStock = options?.applyStock !== false;
+
+      if (useDbInventory) {
+        applyOrdersOptimistic(next);
+        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+        if (!rid || !dbFetchReady) {
+          applyOrdersOptimistic(previous);
+          toast.error(
+            "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+          );
+          return { ok: false };
+        }
+
+        const unresolved = target.lines.filter((l) => !isLineDeliveryResolved(l));
+        for (const line of unresolved) {
+          const nextLine = o.lines.find((x) => x.id === line.id);
+          if (!nextLine) continue;
+          const poLog = [...o.log].reverse().find(
+            (entry) =>
+              entry.kind === "marked_delivered" &&
+              "lineId" in entry &&
+              entry.lineId === line.id,
+          );
+          const currentStock = readIngredientStock(line.ingredientId);
+          const delta =
+            stockDeltas.find((d) => d.lineId === line.id)?.delta ?? 0;
+          const result = await applyPurchaseOrderLineDeliveryStockRelational(
+            rid,
+            {
+              orderId,
+              lineId: line.id,
+              mode: "set",
+              deliveryStatus: nextLine.deliveryStatus,
+              deliveredQuantity: nextLine.deliveredQuantity,
+              deliveryNote: nextLine.deliveryNote ?? null,
+              poLog: poLog ?? {
+                id: createId(),
+                at: now,
+                ...protocolActorNameFields(actor),
+                kind: "marked_delivered",
+                ingredientId: line.ingredientId,
+                ingredientName: line.ingredientName,
+                quantity: lineDeliveryStockQuantity(nextLine),
+                unitId: line.unitId,
+                unitLabel: line.unitLabel,
+                lineId: line.id,
+                deliveryStatus: nextLine.deliveryStatus ?? "delivered",
+              },
+              stockLog: {
+                id: createId(),
+                at: now,
+                ...protocolActorNameFields(actor),
+                kind: delta < 0 ? "stock_delivery_reverted" : "stock_from_delivery",
+                fromQuantity: currentStock ?? 0,
+                toQuantity: (currentStock ?? 0) + delta,
+                unitId: line.unitId,
+                unitLabel: line.unitLabel,
+                orderId,
+                supplierName: o.supplierName,
+              },
+              applyStock,
+            },
+          );
+          if (!result.ok) {
+            applyOrdersOptimistic(previous);
+            toastDatabaseSaveError(result.message);
+            return { ok: false };
+          }
+          if (result.stockAfter != null) {
+            applyIngredientStockOptimistic(line.ingredientId, result.stockAfter);
+          }
+        }
+        afterOrdersPersistSuccess();
+        dispatchInventoryDataRefresh();
+        return { ok: true, stockDeltas, stockApplied: applyStock };
       }
 
-      return { ok: true, stockDeltas };
+      const persistOk = await persistOptimisticQueued(next, previous);
+      if (!persistOk) return { ok: false };
+      return { ok: true, stockDeltas, stockApplied: false };
     },
     [
+      afterOrdersPersistSuccess,
+      applyIngredientStockOptimistic,
+      applyOrdersOptimistic,
+      dbFetchReady,
       orders,
       persistOptimisticQueued,
-      persistStatusChangeOptimistic,
+      readIngredientStock,
       readOrdersSnapshot,
+      restaurantId,
+      useDbInventory,
     ],
   );
 

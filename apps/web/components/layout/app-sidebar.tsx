@@ -13,6 +13,7 @@ import {
 } from "@/lib/navigation/sidebar-active";
 import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import {
+  Activity,
   Bell,
   Building2,
   CreditCard,
@@ -374,6 +375,16 @@ export function AppSidebar() {
                     >
                       <WhatsAppGlyph className="size-4 [&_path]:fill-current" />
                       <span>WAHA</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/ops")}
+                      tooltip="Ops"
+                      render={<AppNavLink href="/superadmin/ops" />}
+                    >
+                      <Activity />
+                      <span>Ops</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

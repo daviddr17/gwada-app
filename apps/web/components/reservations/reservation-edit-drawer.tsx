@@ -977,6 +977,7 @@ export function ReservationEditDrawer({
       const { data: updated, error } = await updateReservation(
         reservation.id,
         payload,
+        reservation.updated_at,
       );
       if (error) {
         setSaving(false);

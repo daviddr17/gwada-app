@@ -24,6 +24,34 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   formatReservationGuestLabel,
 } from "@/lib/types/reservation-log";
+import { STALE_WRITE_CONFLICT_MESSAGE } from "@/lib/data/stale-write-conflict";
+
+async function updateReservationIfFresh(
+  admin: SupabaseClient,
+  reservationId: string,
+  patch: Record<string, unknown>,
+  expectedUpdatedAt: string | null | undefined,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  let query = admin.from("reservations").update(patch).eq("id", reservationId);
+  if (expectedUpdatedAt) {
+    query = query.eq("updated_at", expectedUpdatedAt);
+  }
+  const { data, error } = await query.select("id").maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!data) {
+    if (!expectedUpdatedAt) return { ok: false, error: "not_found" };
+    const { data: exists } = await admin
+      .from("reservations")
+      .select("id")
+      .eq("id", reservationId)
+      .maybeSingle();
+    return {
+      ok: false,
+      error: exists ? STALE_WRITE_CONFLICT_MESSAGE : "not_found",
+    };
+  }
+  return { ok: true };
+}
 
 export type DisplayCreateReservationInput = {
   guest_first_name: string;
@@ -186,6 +214,7 @@ export async function updateDisplayReservationStatus(
       guest_company,
       notify_email,
       notify_whatsapp,
+      updated_at,
       ${RESERVATION_STATUS_EMBED} ( code, name )
     `,
     )
@@ -218,14 +247,13 @@ export async function updateDisplayReservationStatus(
     newCode,
   );
 
-  const { error } = await admin
-    .from("reservations")
-    .update({ status_id: statusId })
-    .eq("id", reservationId);
-
-  if (error) {
-    return { ok: false, error: error.message };
-  }
+  const updated = await updateReservationIfFresh(
+    admin,
+    reservationId,
+    { status_id: statusId },
+    typeof reservation.updated_at === "string" ? reservation.updated_at : null,
+  );
+  if (!updated.ok) return updated;
 
   if (previousName !== newName) {
     await insertReservationLogEntry(admin, {
@@ -308,6 +336,7 @@ export async function updateDisplayReservation(
       notify_whatsapp,
       terms_accepted,
       notes,
+      updated_at,
       ${RESERVATION_STATUS_EMBED} ( code, name )
     `,
     )
@@ -388,9 +417,10 @@ export async function updateDisplayReservation(
 
   const dispatchEvent = reservationStatusDispatchEvent(previousCode, newCode);
 
-  const { error } = await admin
-    .from("reservations")
-    .update({
+  const updated = await updateReservationIfFresh(
+    admin,
+    reservationId,
+    {
       guest_first_name: input.guest_first_name,
       guest_last_name: input.guest_last_name,
       guest_company: input.guest_company,
@@ -406,12 +436,10 @@ export async function updateDisplayReservation(
       notify_whatsapp: input.notify_whatsapp,
       terms_accepted: input.terms_accepted,
       notes: input.notes?.trim() || null,
-    })
-    .eq("id", reservationId);
-
-  if (error) {
-    return { ok: false, error: error.message };
-  }
+    },
+    typeof reservation.updated_at === "string" ? reservation.updated_at : null,
+  );
+  if (!updated.ok) return updated;
 
   const changes = buildReservationLogChanges(before, after);
   if (changes.length > 0) {
@@ -481,7 +509,7 @@ export async function updateDisplayReservationTable(
   const { data: reservation } = await admin
     .from("reservations")
     .select(
-      "id, restaurant_id, reservation_number, guest_first_name, guest_last_name, guest_company, dining_table_id, status_id",
+      "id, restaurant_id, reservation_number, guest_first_name, guest_last_name, guest_company, dining_table_id, status_id, updated_at",
     )
     .eq("id", reservationId)
     .maybeSingle();
@@ -510,14 +538,13 @@ export async function updateDisplayReservationTable(
     return { ok: false, error: "table_requires_confirmed" };
   }
 
-  const { error } = await admin
-    .from("reservations")
-    .update({ dining_table_id: diningTableId })
-    .eq("id", reservationId);
-
-  if (error) {
-    return { ok: false, error: error.message };
-  }
+  const updated = await updateReservationIfFresh(
+    admin,
+    reservationId,
+    { dining_table_id: diningTableId },
+    typeof reservation.updated_at === "string" ? reservation.updated_at : null,
+  );
+  if (!updated.ok) return updated;
 
   if (beforeTableLabel !== afterTableLabel) {
     await insertReservationLogEntry(admin, {

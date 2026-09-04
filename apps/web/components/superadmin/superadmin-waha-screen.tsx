@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, MoreVertical, Plus, RefreshCw, Server } from "lucide-react";
 import { toast } from "sonner";
 import { SuperadminPaginatedDataTable } from "@/components/superadmin/superadmin-paginated-data-table";
@@ -577,6 +578,11 @@ export function SuperadminWahaScreen() {
               Letzter Fehler: {outboxHealth.lastError}
             </p>
           ) : null}
+          <p className="mt-2">
+            <Link href="/superadmin/ops" className="text-foreground underline-offset-4 hover:underline">
+              Ops-Ansicht: SLO, Cron-Lag, Restaurants
+            </Link>
+          </p>
         </div>
       ) : null}
 

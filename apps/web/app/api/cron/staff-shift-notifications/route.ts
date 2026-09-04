@@ -1,4 +1,5 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
+import { withCronHeartbeat } from "@/lib/ops/record-cron-heartbeat";
 import { scheduleDeliverForNotificationReferences } from "@/lib/notifications/schedule-notification-deliver";
 import { runStaffShiftNotificationsCron } from "@/lib/notifications/notification-staff-shift-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -14,7 +15,9 @@ async function handleCron(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const stats = await runStaffShiftNotificationsCron(admin);
+  const stats = await withCronHeartbeat("staff-shift-notifications", async () => {
+    return runStaffShiftNotificationsCron(admin);
+  });
 
   const { data: events } = await admin
     .from("notification_events")

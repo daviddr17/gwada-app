@@ -64,6 +64,7 @@ export async function confirmPendingReservationFromBrowser(params: {
   const { error: updateError } = await updateReservationStatus(
     row.id,
     confirmed.id,
+    row.updated_at,
   );
   if (updateError) {
     return { ok: false, error: updateError.message };

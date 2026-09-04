@@ -25,6 +25,7 @@ on:
           - social-suggestions
           - reservation-whatsapp
           - reservation-email
+          - reservation-whatsapp-slo
           - waha-session-recover
   # Agent / one-shot (workflow_dispatch oft 403)
   repository_dispatch:
@@ -215,3 +216,25 @@ jobs:
           curl -sfS --max-time 120 --retry 2 --retry-connrefused --retry-delay 5 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/reservation-email"
+
+  reservation-whatsapp-slo:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: production-cron-reservation-whatsapp-slo
+      cancel-in-progress: false
+    if: |
+      (github.event_name == 'repository_dispatch' && (github.event.action == 'production-cron' || github.event.action == 'production-cron-reservation-outbox')) ||
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'reservation-whatsapp-slo')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *')
+    steps:
+      - name: Call reservation-whatsapp-slo
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set — skipped."
+            exit 0
+          fi
+          curl -sfS --max-time 60 --retry 2 --retry-connrefused --retry-delay 5 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_BASE_URL/api/cron/reservation-whatsapp-slo"

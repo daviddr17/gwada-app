@@ -19,6 +19,7 @@ import {
   type ReservationStaffAssigneeJoin,
 } from "@/lib/supabase/reservation-staff-assignees-db";
 import { workspacePersistenceConfigured } from "@/lib/supabase/workspace-persistence";
+import { resolveMissingUpdateConflict } from "@/lib/data/stale-write-conflict";
 
 export function reservationsDbEnabled(): boolean {
   return workspacePersistenceConfigured();
@@ -515,14 +516,32 @@ export async function insertReservation(
 export async function updateReservationDiningTable(
   id: string,
   dining_table_id: string | null,
+  expectedUpdatedAt?: string | null,
 ): Promise<{ error: Error | null }> {
   const sb = createSupabaseBrowserClient();
-  const { error } = await sb
+  let query = sb
     .from("reservations")
     .update({ dining_table_id })
     .eq("id", id);
+  if (expectedUpdatedAt) query = query.eq("updated_at", expectedUpdatedAt);
+  const { data, error } = await query.select("id").maybeSingle();
   if (error) {
     return { error: new Error(error.message) };
+  }
+  if (!data) {
+    return {
+      error: await resolveMissingUpdateConflict({
+        expectedUpdatedAt,
+        exists: async () => {
+          const { data: row } = await sb
+            .from("reservations")
+            .select("id")
+            .eq("id", id)
+            .maybeSingle();
+          return Boolean(row);
+        },
+      }),
+    };
   }
   return { error: null };
 }
@@ -534,16 +553,30 @@ export type ReservationUpdateResult = {
 export async function updateReservation(
   id: string,
   patch: ReservationUpdatePayload,
+  expectedUpdatedAt?: string | null,
 ): Promise<{ data: ReservationUpdateResult | null; error: Error | null }> {
   const sb = createSupabaseBrowserClient();
-  const { data, error } = await sb
-    .from("reservations")
-    .update(patch)
-    .eq("id", id)
-    .select("contact_id")
-    .single();
+  let query = sb.from("reservations").update(patch).eq("id", id);
+  if (expectedUpdatedAt) query = query.eq("updated_at", expectedUpdatedAt);
+  const { data, error } = await query.select("contact_id").maybeSingle();
   if (error) {
     return { data: null, error: new Error(error.message) };
+  }
+  if (!data) {
+    return {
+      data: null,
+      error: await resolveMissingUpdateConflict({
+        expectedUpdatedAt,
+        exists: async () => {
+          const { data: row } = await sb
+            .from("reservations")
+            .select("id")
+            .eq("id", id)
+            .maybeSingle();
+          return Boolean(row);
+        },
+      }),
+    };
   }
   return {
     data: { contact_id: (data?.contact_id as string | null) ?? null },
@@ -555,14 +588,32 @@ export async function updateReservation(
 export async function updateReservationStatus(
   id: string,
   statusId: string,
+  expectedUpdatedAt?: string | null,
 ): Promise<{ error: Error | null }> {
   const sb = createSupabaseBrowserClient();
-  const { error } = await sb
+  let query = sb
     .from("reservations")
     .update({ status_id: statusId })
     .eq("id", id);
+  if (expectedUpdatedAt) query = query.eq("updated_at", expectedUpdatedAt);
+  const { data, error } = await query.select("id").maybeSingle();
   if (error) {
     return { error: new Error(error.message) };
+  }
+  if (!data) {
+    return {
+      error: await resolveMissingUpdateConflict({
+        expectedUpdatedAt,
+        exists: async () => {
+          const { data: row } = await sb
+            .from("reservations")
+            .select("id")
+            .eq("id", id)
+            .maybeSingle();
+          return Boolean(row);
+        },
+      }),
+    };
   }
   return { error: null };
 }

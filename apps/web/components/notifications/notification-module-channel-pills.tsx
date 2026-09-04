@@ -41,6 +41,8 @@ type NotificationModuleChannelPillsProps = {
   whatsapp: boolean;
   emailDisabled?: boolean;
   whatsappDisabled?: boolean;
+  /** WhatsApp-Chip gar nicht rendern (Meta Review Demo). */
+  hideWhatsapp?: boolean;
   emailDisabledHint?: string;
   whatsappDisabledHint?: string;
   onChange: (channel: NotificationDeliveryChannel, enabled: boolean) => void;
@@ -53,6 +55,7 @@ export function NotificationModuleChannelPills({
   whatsapp,
   emailDisabled = false,
   whatsappDisabled = false,
+  hideWhatsapp = false,
   emailDisabledHint,
   whatsappDisabledHint,
   onChange,
@@ -64,6 +67,10 @@ export function NotificationModuleChannelPills({
     whatsapp,
   };
 
+  const options = hideWhatsapp
+    ? CHANNEL_OPTIONS.filter((o) => o.id !== "whatsapp")
+    : CHANNEL_OPTIONS;
+
   return (
     <div
       className={cn(
@@ -73,7 +80,7 @@ export function NotificationModuleChannelPills({
       role="group"
       aria-label="Kanäle"
     >
-      {CHANNEL_OPTIONS.map(({ id, label, Icon }) => {
+      {options.map(({ id, label, Icon }) => {
         const disabled =
           id === "email" ? emailDisabled : id === "whatsapp" ? whatsappDisabled : false;
         const active = values[id];
@@ -123,6 +130,7 @@ type NotificationModuleChannelRowProps = {
   whatsapp: boolean;
   emailDisabled?: boolean;
   whatsappDisabled?: boolean;
+  hideWhatsapp?: boolean;
   emailDisabledHint?: string;
   whatsappDisabledHint?: string;
   onChange: (channel: NotificationDeliveryChannel, enabled: boolean) => void;
@@ -135,6 +143,7 @@ export function NotificationModuleChannelRow({
   whatsapp,
   emailDisabled,
   whatsappDisabled,
+  hideWhatsapp,
   emailDisabledHint,
   whatsappDisabledHint,
   onChange,
@@ -155,6 +164,7 @@ export function NotificationModuleChannelRow({
         whatsapp={whatsapp}
         emailDisabled={emailDisabled}
         whatsappDisabled={whatsappDisabled}
+        hideWhatsapp={hideWhatsapp}
         emailDisabledHint={emailDisabledHint}
         whatsappDisabledHint={whatsappDisabledHint}
         onChange={onChange}

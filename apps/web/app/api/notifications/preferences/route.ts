@@ -110,6 +110,7 @@ export async function PUT(req: Request) {
     ? await loadNotificationChannelsInfo(admin, auth.restaurantId)
     : {
         whatsappConnected: false,
+        whatsappChannelVisible: false,
         restaurantEmailConfigured: false,
         platformEmailFallbackAvailable: true,
       };

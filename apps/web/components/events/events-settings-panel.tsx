@@ -218,6 +218,7 @@ export function EventsSettingsPanel() {
         </SkeletonCardFrame>
       ) : (
         <>
+          {connectors.some((c) => c.key === "whatsapp_channel") ? (
           <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
             <div>
               <h2 className="text-base font-semibold">WhatsApp Kanal</h2>
@@ -248,6 +249,7 @@ export function EventsSettingsPanel() {
               </Button>
             </div>
           </section>
+          ) : null}
 
           <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
             <div>

@@ -300,7 +300,6 @@ Notes:
 - Sign in with email/password (not Facebook Login).
 - Open the demo restaurant workspace “Gwada Meta Review Demo”.
 - Facebook Page and Instagram Business should be connected under Settings → Integrations.
-- Do not look for WhatsApp; this demo does not use WhatsApp.
 ```
 
 ### 5.2 Testaccount anlegen — Checkliste (intern)
@@ -436,7 +435,6 @@ Recommended path:
 
 Important:
 - Facebook Login is only used to connect Page/IG assets, not as Gwada account login.
-- This demo does not include WhatsApp.
 - Privacy: https://gwada.app/datenschutz
 - Data deletion: https://gwada.app/datenloeschung
 

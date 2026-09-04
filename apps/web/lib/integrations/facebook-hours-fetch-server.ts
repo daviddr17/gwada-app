@@ -3,6 +3,7 @@ import "server-only";
 import { META_GRAPH_VERSION } from "@/lib/constants/integration-oauth-scopes";
 import { fromFacebookPageHours } from "@/lib/integrations/opening-hours-platform-format";
 import { facebookIntegrationConfigFromJson } from "@/lib/integrations/facebook-oauth";
+import { platformApiFetchSignal } from "@/lib/integrations/platform-api-timeout";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import type { DayHours, Weekday } from "@/lib/types/restaurant";
 
@@ -32,10 +33,18 @@ export async function fetchFacebookPageHours(
     fields: "hours",
   });
 
-  const res = await fetch(
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}?${params}`,
-    { cache: "no-store" },
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}?${params}`,
+      { cache: "no-store", signal: platformApiFetchSignal() },
+    );
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return { ok: false, error: "facebook_timeout" };
+    }
+    return { ok: false, error: "facebook_fetch_failed" };
+  }
 
   const body = (await res.json().catch(() => ({}))) as {
     hours?: Record<string, unknown>;

@@ -630,7 +630,6 @@ export function RestaurantSettingsPanel({
 
     setDraft(cloneProfile({ ...normalized, id: draft.id }));
     setSavedHoursFlash(true);
-    setPlatformStatusRefresh((n) => n + 1);
     window.setTimeout(() => setSavedHoursFlash(false), 2000);
 
     if (workspaceRestaurantId) {

@@ -176,3 +176,56 @@ test("weeklyHoursEqual treats 24:00 close as 00:00 for comparison", () => {
   });
   assert.equal(weeklyHoursEqual(local, remote), true);
 });
+
+test("fromGoogleRegularHours treats omitted proto3 zero minutes as :00", () => {
+  const parsed = fromGoogleRegularHours({
+    periods: [
+      {
+        openDay: "MONDAY",
+        closeDay: "MONDAY",
+        openTime: { hours: 11, minutes: 30 },
+        closeTime: { hours: 22 },
+      },
+      {
+        openDay: "TUESDAY",
+        closeDay: "TUESDAY",
+        openTime: { hours: 12 },
+        closeTime: { hours: 21, minutes: 30 },
+      },
+    ],
+  });
+  assert.deepEqual(parsed.monday, {
+    closed: false,
+    open: "11:30",
+    close: "22:00",
+  });
+  assert.deepEqual(parsed.tuesday, {
+    closed: false,
+    open: "12:00",
+    close: "21:30",
+  });
+
+  const local = weeklyWith({
+    monday: { closed: false, open: "11:30", close: "22:00" },
+    tuesday: { closed: false, open: "12:00", close: "21:30" },
+  });
+  assert.equal(weeklyHoursEqual(local, parsed), true);
+});
+
+test("fromGoogleRegularHours treats omitted proto3 midnight defaults as 00:00", () => {
+  const parsed = fromGoogleRegularHours({
+    periods: [
+      {
+        openDay: "FRIDAY",
+        closeDay: "SATURDAY",
+        openTime: { hours: 18 },
+        closeTime: {},
+      },
+    ],
+  });
+  assert.deepEqual(parsed.friday, {
+    closed: false,
+    open: "18:00",
+    close: "00:00",
+  });
+});

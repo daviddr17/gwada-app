@@ -29,6 +29,10 @@ export function integrationSyncErrorMessage(code: string): string {
       return "Zuerst eigene Küchenzeiten aktivieren und speichern.";
     case "kitchen_hours_empty":
       return "Keine Küchenzeiten zum Übertragen.";
+    case "google_timeout":
+      return "Google hat zu lange nicht geantwortet — bitte erneut versuchen.";
+    case "facebook_timeout":
+      return "Facebook hat zu lange nicht geantwortet — bitte erneut versuchen.";
     default:
       if (
         code.includes("pages_manage_metadata") ||

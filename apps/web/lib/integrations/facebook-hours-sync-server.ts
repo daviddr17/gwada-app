@@ -4,6 +4,7 @@ import { META_GRAPH_VERSION } from "@/lib/constants/integration-oauth-scopes";
 import { toFacebookHours } from "@/lib/integrations/opening-hours-platform-format";
 import { loadOpeningHoursPayloadAdmin } from "@/lib/integrations/opening-hours-load-server";
 import { facebookIntegrationConfigFromJson } from "@/lib/integrations/facebook-oauth";
+import { platformApiFetchSignal } from "@/lib/integrations/platform-api-timeout";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -38,18 +39,27 @@ export async function syncOpeningHoursToFacebook(
     return { ok: false, error: "no_open_days" };
   }
 
-  const res = await fetch(
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        access_token: token,
-        hours,
-      }),
-      cache: "no-store",
-    },
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token: token,
+          hours,
+        }),
+        cache: "no-store",
+        signal: platformApiFetchSignal(),
+      },
+    );
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return { ok: false, error: "facebook_timeout" };
+    }
+    return { ok: false, error: "facebook_fetch_failed" };
+  }
 
   const body = (await res.json().catch(() => ({}))) as {
     error?: { message?: string };

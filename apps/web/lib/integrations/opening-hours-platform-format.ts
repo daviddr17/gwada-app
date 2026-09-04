@@ -200,10 +200,13 @@ function googleTimeToHm(
     if (trimmed === "24:00") return "24:00";
     return toFacebookHm(trimmed) ?? undefined;
   }
-  if (t?.hours === undefined || t.minutes === undefined) return undefined;
-  if (t.hours === 24 && t.minutes === 0) return "24:00";
-  if (t.hours < 0 || t.hours > 23 || t.minutes < 0 || t.minutes > 59) return undefined;
-  return `${String(t.hours).padStart(2, "0")}:${String(t.minutes).padStart(2, "0")}`;
+  if (!t || typeof t !== "object") return undefined;
+  // Google proto3 JSON lässt 0-Felder weg: `{ hours: 22 }` ist 22:00, `{}` ist 00:00.
+  const hours = typeof t.hours === "number" ? t.hours : 0;
+  const minutes = typeof t.minutes === "number" ? t.minutes : 0;
+  if (hours === 24 && minutes === 0) return "24:00";
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return undefined;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 function hmToMinutes(value: string | undefined): number | null {

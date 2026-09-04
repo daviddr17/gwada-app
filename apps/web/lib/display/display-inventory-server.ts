@@ -2,8 +2,6 @@ import "server-only";
 
 import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
 import { fetchInventoryPurchaseOrdersLiveRevision } from "@/lib/inventory/inventory-purchase-orders-live-revision";
-import { dedupePurchaseOrdersById } from "@/lib/inventory/dedupe-purchase-orders-by-id";
-import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
 import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import { createId } from "@/lib/create-id";
 import { parseStockLogEntryFromJson } from "@/lib/supabase/inventory-db";
@@ -293,53 +291,6 @@ async function loadPurchaseOrdersAdmin(
   return out;
 }
 
-async function loadPurchaseOrderDeletionIdsAdmin(
-  restaurantId: string,
-): Promise<Set<string> | null> {
-  const admin = createSupabaseAdminClient();
-  if (!admin) return null;
-  const { data, error } = await admin
-    .from("inventory_purchase_order_deletions")
-    .select("order_id")
-    .eq("restaurant_id", restaurantId);
-  if (error) {
-    console.warn(
-      "[gwada] display inventory_purchase_order_deletions",
-      error.message,
-    );
-    return null;
-  }
-  const ids = new Set<string>();
-  for (const row of data ?? []) {
-    if (typeof row.order_id === "string" && row.order_id) {
-      ids.add(row.order_id);
-    }
-  }
-  return ids;
-}
-
-async function savePurchaseOrdersAdmin(
-  restaurantId: string,
-  orders: PurchaseOrder[],
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const admin = createSupabaseAdminClient();
-  if (!admin) return { ok: false, error: "server_misconfigured" };
-  const [fresh, deletedOrderIds] = await Promise.all([
-    loadPurchaseOrdersAdmin(restaurantId),
-    loadPurchaseOrderDeletionIdsAdmin(restaurantId),
-  ]);
-  if (!fresh || !deletedOrderIds) return { ok: false, error: "load_failed" };
-  const merged = dedupePurchaseOrdersById(
-    mergePurchaseOrdersForReplace(fresh, orders, { deletedOrderIds }),
-  );
-  const { error } = await admin.rpc("inventory_replace_purchase_orders", {
-    p_restaurant_id: restaurantId,
-    p_orders: merged,
-  });
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
-}
-
 async function deleteEmptyOpenPurchaseOrderAdmin(
   restaurantId: string,
   orderId: string,
@@ -620,13 +571,31 @@ export async function updateDisplayOrderQuantity(params: {
       unitLabel,
     });
 
-    const saved = await savePurchaseOrdersAdmin(params.restaurantId, next);
-    if (!saved.ok) return saved;
+    const admin = createSupabaseAdminClient();
+    if (!admin) return { ok: false, error: "server_misconfigured" };
+    const { data, error } = await admin.rpc("inventory_purchase_order_add_line", {
+      p_restaurant_id: params.restaurantId,
+      p_supplier_id: ing.supplierId,
+      p_supplier_name: supplierName,
+      p_created_by: `${params.actor.firstName} ${params.actor.lastName}`.trim(),
+      p_line_id: lineId,
+      p_ingredient_id: ing.id,
+      p_ingredient_name: ing.name,
+      p_brand_label: brandLabel,
+      p_quantity: nextQty,
+      p_unit_id: ing.unit,
+      p_unit_label: unitLabel,
+      p_log_entry: logEntry,
+      p_order_id: order.id,
+    });
+    if (error) return { ok: false, error: error.message };
+    const row = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
     return {
       ok: true,
-      orderId: order.id,
-      orderLineId: lineId,
-      orderQuantity: nextQty,
+      orderId: typeof row.order_id === "string" ? row.order_id : order.id,
+      orderLineId: typeof row.line_id === "string" ? row.line_id : lineId,
+      orderQuantity:
+        typeof row.quantity === "number" ? row.quantity : nextQty,
     };
   }
 

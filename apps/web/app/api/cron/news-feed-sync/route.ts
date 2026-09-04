@@ -40,6 +40,7 @@ export async function GET(req: Request) {
     return {
       restaurants: result.restaurants,
       syncedItems: result.syncedItems,
+      skipped: result.skipped,
       errorCount: result.errors.length,
       billing,
     };

@@ -3,48 +3,54 @@ import "server-only";
 import { syncLexofficeContactsIfStale } from "@/lib/contacts/lexoffice-contacts-sync-server";
 import { syncRestaurantEmailInbox } from "@/lib/contacts/sync-restaurant-email-inbox";
 import { syncRestaurantWhatsappInbox } from "@/lib/contacts/sync-restaurant-whatsapp-inbox";
-import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
-import { wahaGetSession } from "@/lib/waha/waha-client";
-import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
-import { fetchRestaurantEmailSmtpConfig } from "@/lib/supabase/restaurant-email-integration-db";
+import { shouldSyncRestaurantInCronSlot } from "@/lib/ops/cron-restaurant-stagger";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ContactInboxCronStats = {
   restaurants: number;
+  skipped: number;
   emailImported: number;
   whatsappImported: number;
   lexofficeContactsSynced: number;
   errors: string[];
 };
 
+/** Cron läuft */5 — jedes Restaurant etwa alle 25 Min. */
+const INBOX_STAGGER_BUCKETS = 5;
+
+const EMAIL_INBOX_STATUSES = ["custom", "gmail", "outlook"] as const;
+
 async function restaurantIdsWithInbox(
   admin: SupabaseClient,
 ): Promise<string[]> {
-  const { data: restaurants } = await admin.from("restaurants").select("id");
-  const ids: string[] = [];
+  const [{ data: emailRows, error: emailErr }, { data: waRows, error: waErr }] =
+    await Promise.all([
+      admin
+        .from("restaurant_integrations")
+        .select("restaurant_id")
+        .eq("integration_key", "email")
+        .in("status", [...EMAIL_INBOX_STATUSES]),
+      admin
+        .from("restaurant_integrations")
+        .select("restaurant_id")
+        .eq("integration_key", "whatsapp")
+        .eq("status", "working"),
+    ]);
 
-  for (const r of restaurants ?? []) {
-    const id = (r as { id: string }).id;
-    const email = await fetchRestaurantEmailSmtpConfig(admin, id);
-    if (
-      email?.status === "custom" ||
-      email?.status === "gmail" ||
-      email?.status === "outlook"
-    ) {
-      ids.push(id);
-      continue;
-    }
-    const wahaConfig = await getWahaServerConfigForRestaurantAdmin(id);
-    if (wahaConfig) {
-      const session = wahaSessionNameForRestaurant(id);
-      const res = await wahaGetSession(wahaConfig, session);
-      if (res.ok && res.data?.status === "WORKING") {
-        ids.push(id);
-      }
-    }
+  if (emailErr) {
+    console.warn("[inbox-cron] email integrations", emailErr.message);
+  }
+  if (waErr) {
+    console.warn("[inbox-cron] whatsapp integrations", waErr.message);
   }
 
-  return [...new Set(ids)];
+  return [
+    ...new Set(
+      [...(emailRows ?? []), ...(waRows ?? [])]
+        .map((r) => (r as { restaurant_id: string }).restaurant_id)
+        .filter(Boolean),
+    ),
+  ];
 }
 
 async function restaurantIdsWithLexoffice(
@@ -61,9 +67,11 @@ async function restaurantIdsWithLexoffice(
 
 export async function runContactInboxSyncCron(
   admin: SupabaseClient,
+  options?: { forceAll?: boolean },
 ): Promise<ContactInboxCronStats> {
   const stats: ContactInboxCronStats = {
     restaurants: 0,
+    skipped: 0,
     emailImported: 0,
     whatsappImported: 0,
     lexofficeContactsSynced: 0,
@@ -74,6 +82,14 @@ export async function runContactInboxSyncCron(
   stats.restaurants = restaurantIds.length;
 
   for (const restaurantId of restaurantIds) {
+    if (
+      !options?.forceAll &&
+      !shouldSyncRestaurantInCronSlot(restaurantId, INBOX_STAGGER_BUCKETS)
+    ) {
+      stats.skipped += 1;
+      continue;
+    }
+
     const email = await syncRestaurantEmailInbox(admin, restaurantId);
     if (email.error) stats.errors.push(`${restaurantId}:email:${email.error}`);
     stats.emailImported += email.imported;

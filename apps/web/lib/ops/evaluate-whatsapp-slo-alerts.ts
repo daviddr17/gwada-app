@@ -2,10 +2,15 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadDeliveryHealthSnapshot } from "@/lib/ops/load-delivery-health";
+import {
+  ALERT_COOLDOWN_MS,
+  encodeAlertFingerprint,
+  opsAlertSubject,
+  parseAlertFingerprintState,
+} from "@/lib/ops/ops-alert-escalation";
 import { sendOpsAlertEmail } from "@/lib/ops/send-ops-alert-email";
 
 const ALERT_KEY = "whatsapp_confirm_slo";
-const ALERT_COOLDOWN_MS = 30 * 60 * 1000;
 
 function alertFingerprint(snapshot: Awaited<ReturnType<typeof loadDeliveryHealthSnapshot>>): string {
   const staleJobs = snapshot.cron.filter((c) => c.stale).map((c) => c.jobName).sort();
@@ -63,8 +68,9 @@ export async function evaluateWhatsappSloAlerts(
       ? (prior as { last_fingerprint: string }).last_fingerprint
       : null;
 
+  const escalation = parseAlertFingerprintState(lastFingerprint, fingerprint);
   if (
-    lastFingerprint === fingerprint &&
+    escalation.sameIssue &&
     Number.isFinite(lastSentAt) &&
     Date.now() - lastSentAt < ALERT_COOLDOWN_MS
   ) {
@@ -99,12 +105,20 @@ export async function evaluateWhatsappSloAlerts(
   ].join("\n");
 
   const mailed = await sendOpsAlertEmail({
-    subject: snapshot.slo.breached
-      ? "Gwada On-Call: WhatsApp-Bestätigungen unter SLO"
-      : "Gwada On-Call: Zustellung/Cron auffällig",
-    headline: snapshot.slo.breached
-      ? "Bestätigungen unter SLO"
-      : "Zustellung, Sync oder Cron auffällig",
+    subject: opsAlertSubject({
+      sloBreached: snapshot.slo.breached,
+      escalationCount: escalation.nextCount,
+    }),
+    headline:
+      escalation.nextCount >= 2
+        ? `ESKALATION ${escalation.nextCount}x — ${
+            snapshot.slo.breached
+              ? "Bestätigungen unter SLO"
+              : "Zustellung, Sync oder Cron auffällig"
+          }`
+        : snapshot.slo.breached
+          ? "Bestätigungen unter SLO"
+          : "Zustellung, Sync oder Cron auffällig",
     text,
   });
 
@@ -115,7 +129,7 @@ export async function evaluateWhatsappSloAlerts(
   await admin.from("platform_alert_state").upsert({
     alert_key: ALERT_KEY,
     last_sent_at: new Date().toISOString(),
-    last_fingerprint: fingerprint,
+    last_fingerprint: encodeAlertFingerprint(fingerprint, escalation.nextCount),
     updated_at: new Date().toISOString(),
   });
 

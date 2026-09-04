@@ -1,67 +1,33 @@
 import "server-only";
 
 import { after } from "next/server";
-import { replaceIngredientsWithMerge } from "@/lib/inventory/replace-ingredients-with-merge";
-import { parseStockLogEntryFromJson } from "@/lib/supabase/inventory-db";
+import { applyIngredientStockDeltas } from "@/lib/inventory/apply-ingredient-stock-deltas";
 import type {
   IngredientStockLogFromPosOrder,
   IngredientStockLogFromPosVoid,
 } from "@/lib/types/ingredient-stock-log";
-import type { Ingredient } from "@/lib/types/inventory";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getRestaurantPosSettings } from "@/lib/pos/pos-restaurant-settings-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-async function loadIngredientsForServer(
+async function loadIngredientStockSnapshot(
   sb: SupabaseClient,
   restaurantId: string,
-): Promise<Ingredient[] | null> {
-  const { data: ings, error: e1 } = await sb
+  ingredientIds: string[],
+): Promise<Map<string, { unit: string; currentStock: number }> | null> {
+  if (ingredientIds.length === 0) return new Map();
+  const { data, error } = await sb
     .from("inventory_ingredients")
-    .select(
-      "id,name,unit,current_stock,low_stock_threshold,supplier_id,category_id,production_site_id,brand_id,is_active,purchase_unit_price",
-    )
+    .select("id,unit,current_stock")
     .eq("restaurant_id", restaurantId)
-    .order("name", { ascending: true });
-  if (e1) return null;
-
-  const { data: logs, error: e2 } = await sb
-    .from("inventory_stock_log_entries")
-    .select("ingredient_id,seq,entry")
-    .eq("restaurant_id", restaurantId)
-    .order("ingredient_id", { ascending: true })
-    .order("seq", { ascending: true });
-  if (e2) return null;
-
-  const byIng = new Map<string, Ingredient["stockLog"]>();
-  for (const row of logs ?? []) {
-    const ingId = row.ingredient_id as string;
-    const ent = parseStockLogEntryFromJson(row.entry);
-    if (!ent) continue;
-    const arr = byIng.get(ingId) ?? [];
-    arr.push(ent);
-    byIng.set(ingId, arr);
+    .in("id", ingredientIds);
+  if (error) return null;
+  const map = new Map<string, { unit: string; currentStock: number }>();
+  for (const row of data ?? []) {
+    const o = row as { id: string; unit: string; current_stock: number };
+    map.set(o.id, { unit: o.unit, currentStock: Number(o.current_stock) });
   }
-
-  return (ings ?? []).map((r) => {
-    const o = r as Record<string, unknown>;
-    const id = o.id as string;
-    return {
-      id,
-      name: o.name as string,
-      unit: o.unit as string,
-      currentStock: Number(o.current_stock),
-      lowStockThreshold: Number(o.low_stock_threshold ?? 0),
-      purchaseUnitPrice:
-        o.purchase_unit_price == null ? null : Number(o.purchase_unit_price),
-      supplierId: o.supplier_id as string,
-      categoryId: o.category_id as string,
-      productionSiteId: o.production_site_id as string,
-      brandId: o.brand_id as string,
-      active: (o.is_active as boolean) !== false,
-      stockLog: byIng.get(id) ?? [],
-    };
-  });
+  return map;
 }
 
 async function loadStockActorProfile(
@@ -252,11 +218,12 @@ export async function maybeDeductInventoryForPosOrder(params: {
     return { error: null, deducted: false };
   }
 
-  const ingredients = await loadIngredientsForServer(
+  const snapshot = await loadIngredientStockSnapshot(
     params.supabase,
     params.restaurantId,
+    [...byIngredient.keys()],
   );
-  if (!ingredients) {
+  if (!snapshot) {
     return { error: "Bestand konnte nicht geladen werden.", deducted: false };
   }
 
@@ -266,10 +233,9 @@ export async function maybeDeductInventoryForPosOrder(params: {
   );
   const at = new Date().toISOString();
 
-  const updated = ingredients.map((ing) => {
-    const deduct = byIngredient.get(ing.id);
-    if (!deduct) return ing;
-
+  const items = [...byIngredient.entries()].flatMap(([ingredientId, deduct]) => {
+    const ing = snapshot.get(ingredientId);
+    if (!ing) return [];
     const fromQuantity = ing.currentStock;
     const toQuantity = fromQuantity - deduct.total;
     const logEntry: IngredientStockLogFromPosOrder = {
@@ -286,21 +252,21 @@ export async function maybeDeductInventoryForPosOrder(params: {
       orderNumber,
       dishName: [...deduct.dishNames].join(", "),
     };
-
-    return {
-      ...ing,
-      currentStock: toQuantity,
-      stockLog: [...(ing.stockLog ?? []), logEntry],
-    };
+    return [
+      {
+        ingredientId,
+        delta: -deduct.total,
+        stockLog: logEntry,
+      },
+    ];
   });
 
-  const { error: saveErr } = await replaceIngredientsWithMerge(
+  const saved = await applyIngredientStockDeltas(
     params.supabase,
     params.restaurantId,
-    updated,
-    loadIngredientsForServer,
+    items,
   );
-  if (saveErr) return { error: saveErr, deducted: false };
+  if (!saved.ok) return { error: saved.message, deducted: false };
 
   const { error: markErr } = await params.supabase
     .from("pos_orders")
@@ -362,11 +328,12 @@ export async function maybeRestoreInventoryForPosVoid(params: {
     return { error: null, restored: false };
   }
 
-  const ingredients = await loadIngredientsForServer(
+  const snapshot = await loadIngredientStockSnapshot(
     params.supabase,
     params.restaurantId,
+    [...byIngredient.keys()],
   );
-  if (!ingredients) {
+  if (!snapshot) {
     return { error: "Bestand konnte nicht geladen werden.", restored: false };
   }
 
@@ -377,10 +344,9 @@ export async function maybeRestoreInventoryForPosVoid(params: {
   const at = new Date().toISOString();
   const reasonName = String(reason.name ?? "Storno");
 
-  const updated = ingredients.map((ing) => {
-    const addBack = byIngredient.get(ing.id);
-    if (!addBack) return ing;
-
+  const items = [...byIngredient.entries()].flatMap(([ingredientId, addBack]) => {
+    const ing = snapshot.get(ingredientId);
+    if (!ing) return [];
     const fromQuantity = ing.currentStock;
     const toQuantity = fromQuantity + addBack.total;
     const logEntry: IngredientStockLogFromPosVoid = {
@@ -399,21 +365,21 @@ export async function maybeRestoreInventoryForPosVoid(params: {
       voidReasonName: reasonName,
       dishName: [...addBack.dishNames].join(", "),
     };
-
-    return {
-      ...ing,
-      currentStock: toQuantity,
-      stockLog: [...(ing.stockLog ?? []), logEntry],
-    };
+    return [
+      {
+        ingredientId,
+        delta: addBack.total,
+        stockLog: logEntry,
+      },
+    ];
   });
 
-  const { error: saveErr } = await replaceIngredientsWithMerge(
+  const saved = await applyIngredientStockDeltas(
     params.supabase,
     params.restaurantId,
-    updated,
-    loadIngredientsForServer,
+    items,
   );
-  if (saveErr) return { error: saveErr, restored: false };
+  if (!saved.ok) return { error: saved.message, restored: false };
 
   const { error: markErr } = await params.supabase
     .from("pos_orders")

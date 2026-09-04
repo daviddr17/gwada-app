@@ -1,6 +1,6 @@
 # CRON_SECRET rotieren (Live)
 
-GitHub Actions und die VPS-Crontab müssen **denselben** Secret haben. Nur auf einer Seite drehen legt die Crons tot.
+Der Live-Scheduler ist die **VPS-Crontab**. `CRON_SECRET` muss in der Coolify-`.env` stehen. GitHub `CRON_SECRET` braucht ihr nur noch für manuellen Notfall-Dispatch — nicht für den Takt.
 
 **Nicht** den Secret in Logs, Issues oder Chat schreiben.
 
@@ -36,4 +36,4 @@ Erwartet: `200`. Alter Secret → `401`.
 
 ## Slack / Telegram (nächster Schritt)
 
-On-Call ist E-Mail an Superadmins, alle 10 Minuten mit Betreff `ESKALATION` ab der 2. Mail. Ein Slack-/Telegram-Webhook kommt als eigene Platform-Integration — nicht über `.env`.
+On-Call ist E-Mail an Superadmins, alle 10 Minuten mit Betreff `ESKALATION` ab der 2. Mail — nur bei SLO-Bruch (24h, WAHA WORKING), hängendem Versand oder Lag der Zustell-Crons. GitHub-Sync-Lag (Inbox/News/Reviews/…) löst keine Mail aus. Ein Slack-/Telegram-Webhook kommt als eigene Platform-Integration — nicht über `.env`.

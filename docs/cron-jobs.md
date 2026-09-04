@@ -1,6 +1,6 @@
 # Cron-Jobs (Live)
 
-Ersetze `https://gwada.app` durch deine Live-Domain, falls abweichend.
+Der **VPS** plant und führt alle Produktions-Crons aus. GitHub Actions hat **kein** `schedule` mehr.
 
 Alle Cron-Routen erwarten Header:
 
@@ -8,30 +8,34 @@ Alle Cron-Routen erwarten Header:
 Authorization: Bearer <CRON_SECRET>
 ```
 
-`CRON_SECRET` in Coolify / `.env.production` und in GitHub Actions (`production-cron.yml`, `notification-deliver-cron.yml`).
+`CRON_SECRET` steht in der Coolify-`.env` (liest die Host-Crontab). In GitHub Actions nur noch für manuellen Notfall-Dispatch.
 
-## Zuverlässigkeit (wichtig)
+## Scheduler
 
-GitHub Actions **`schedule` ist unzuverlässig** — oft nur alle paar Stunden statt alle 5 Minuten.
-Zeitkritische Jobs (Reservierungs-WhatsApp/E-Mail, Notification-Deliver, Schicht-Push, WAHA-Recover) laufen deshalb **zusätzlich als Host-Crontab auf dem VPS**:
+Host-Crontab auf dem Live-VPS, installiert mit:
 
 ```bash
-# Einmalig / nach Secret-Sync:
-gh workflow run install-vps-critical-cron.yml
-# oder:
-gh api repos/<org>/<repo>/dispatches -f event_type=install-vps-critical-cron
+gh api repos/daviddr17/gwada-app/dispatches -f event_type=install-vps-critical-cron
 ```
 
 Skript: `scripts/install-vps-critical-cron.sh` (liest `CRON_SECRET` aus Coolify `.env`).
 Logs: `/var/log/gwada-cron/*.log` auf dem VPS.
 
-GitHub Actions bleibt als Backup / manuelles Triggern (`workflow_dispatch` / `repository_dispatch`).
+| Takt (UTC) | Endpoint |
+|---|---|
+| `*/5` | `reservation-whatsapp`, `reservation-email`, `staff-shift-notifications`, `waha-session-recover`, `reservation-whatsapp-slo`, `contact-inbox-sync`, `newsletter-send`, `news-publish` |
+| `*/2` | `notification-deliver` |
+| `*/10` | `news-feed-sync`, `reviews-feed-sync`, `accounting-lexoffice-sync` |
+| `0 6 * * *` | `billing-past-due` |
+| `0 7 * * 1` | `social-suggestions` |
 
-## GitHub Actions
+On-Call-Mails nur bei Lag der **Zustell-Crons** (WhatsApp/E-Mail/Push/SLO/WAHA-Recover), nicht bei Sync-Jobs.
 
-- `production-cron.yml` — Feed-Syncs, Staff-Shift, Kontakte, Lexoffice, **Reservierungs-Erinnerung/Danke** (WhatsApp + E-Mail Outbox)
-- `notification-deliver-cron.yml` — Push/WhatsApp/E-Mail-Zustellung (Staff/In-App-Notifications)
-- `install-vps-critical-cron.yml` — Host-Crontab für die zeitkritischen Endpoints
+## GitHub Actions (nur manuell)
+
+- `production-cron.yml` — `workflow_dispatch` / `repository_dispatch`, kein Timer
+- `notification-deliver-cron.yml` — `workflow_dispatch`, kein Timer
+- `install-vps-critical-cron.yml` — schreibt die Host-Crontab
 
 `CRON_BASE_URL: https://gwada.app` in den Workflows.
 
@@ -72,13 +76,16 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
 
 curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
   https://gwada.app/api/cron/billing-past-due
+
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+  https://gwada.app/api/cron/news-publish
 ```
 
-Abo: einmal täglich gegen 06:00 UTC Stripe gegen die DB (verpasste Webhooks, Status, 7-Tage-Cutoff). Manuell: `/api/cron/billing-past-due`.
+Abo: täglich 06:00 UTC Stripe gegen die DB (verpasste Webhooks, Status, 7-Tage-Cutoff). `news-feed-sync` kann denselben Sweep zusätzlich auslösen, wenn er fällig ist.
 
 ### Reservierungen: Erinnerung / Danke & Bewertung
 
 Geplante Nachrichten liegen in `reservation_whatsapp_outbox` / `reservation_email_outbox`.
-Die Settings-Toggles allein versenden nicht — der Cron muss fällige Zeilen drainen (alle 5 Min. über VPS-Crontab + `production-cron.yml`).
+Die Settings-Toggles allein versenden nicht — der VPS-Cron draint fällige Zeilen alle 5 Minuten.
 
 Zeilen, die **>36 Stunden** nach `send_at` noch ungesendet sind, werden als `too_late` abgebrochen (kein Nachholen Tage später). Erinnerungen nach Terminbeginn ebenfalls.

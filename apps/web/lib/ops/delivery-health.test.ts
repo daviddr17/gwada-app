@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   cronJobLabel,
   cronLagRows,
+  deliveryHealthNeedsPage,
   integrationOpsRows,
   newsletterOpsSummary,
   restaurantOpsRows,
@@ -27,7 +28,87 @@ test("marks cron jobs stale when heartbeat is old or missing", () => {
   const wa = rows.find((r) => r.jobName === "reservation-whatsapp");
   const email = rows.find((r) => r.jobName === "reservation-email");
   assert.equal(wa?.stale, false);
+  assert.equal(wa?.pageable, true);
   assert.equal(email?.stale, true);
+  const social = rows.find((r) => r.jobName === "social-suggestions");
+  assert.equal(social?.stale, true);
+  assert.equal(social?.pageable, false);
+});
+
+test("weekly social-suggestions is not stale after two days", () => {
+  const rows = cronLagRows(
+    [
+      {
+        job_name: "social-suggestions",
+        last_ok_at: "2026-09-02T07:00:00.000Z",
+        last_error: null,
+        updated_at: "2026-09-02T07:00:00.000Z",
+      },
+    ],
+    now,
+  );
+  assert.equal(rows.find((r) => r.jobName === "social-suggestions")?.stale, false);
+});
+
+test("GitHub sync lag does not page when delivery crons and SLO are fine", () => {
+  const cron = cronLagRows(
+    [
+      {
+        job_name: "reservation-whatsapp",
+        last_ok_at: "2026-09-04T11:59:00.000Z",
+        last_error: null,
+        updated_at: "2026-09-04T11:59:00.000Z",
+      },
+      {
+        job_name: "reservation-email",
+        last_ok_at: "2026-09-04T11:59:00.000Z",
+        last_error: null,
+        updated_at: "2026-09-04T11:59:00.000Z",
+      },
+      {
+        job_name: "reservation-whatsapp-slo",
+        last_ok_at: "2026-09-04T11:59:00.000Z",
+        last_error: null,
+        updated_at: "2026-09-04T11:59:00.000Z",
+      },
+      {
+        job_name: "notification-deliver",
+        last_ok_at: "2026-09-04T11:59:00.000Z",
+        last_error: null,
+        updated_at: "2026-09-04T11:59:00.000Z",
+      },
+      {
+        job_name: "staff-shift-notifications",
+        last_ok_at: "2026-09-04T11:59:00.000Z",
+        last_error: null,
+        updated_at: "2026-09-04T11:59:00.000Z",
+      },
+      {
+        job_name: "waha-session-recover",
+        last_ok_at: "2026-09-04T11:59:00.000Z",
+        last_error: null,
+        updated_at: "2026-09-04T11:59:00.000Z",
+      },
+    ],
+    now,
+  );
+  assert.equal(cron.find((r) => r.jobName === "contact-inbox-sync")?.stale, true);
+  assert.equal(
+    deliveryHealthNeedsPage({
+      slo: { breached: false },
+      cron,
+      restaurants: [],
+    }),
+    false,
+  );
+  assert.equal(
+    deliveryHealthNeedsPage({
+      slo: { breached: true },
+      cron,
+      restaurants: [],
+    }),
+    true,
+  );
 });
 
 test("groups restaurants that are not sending or hanging", () => {

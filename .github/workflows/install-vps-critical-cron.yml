@@ -1,7 +1,6 @@
 name: Install VPS critical cron
 
-# Host-Crontab für zeitkritische Endpoints (WhatsApp/E-Mail-Outbox, Notification-Deliver).
-# GitHub Actions schedule allein reicht nicht (oft Stunden Verzug).
+# Schreibt die Host-Crontab (einziger Live-Scheduler). GitHub cron-Workflows haben kein schedule.
 
 on:
   workflow_dispatch:

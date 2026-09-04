@@ -62,3 +62,5 @@ Verifikation: `curl -s https://gwada.app/api/build-info` (`sha` = kurzer Commit-
 - Kein „Coolify deployt“ — siehe `live-app-deploy.mdc`
 
 **Nie** ohne ausdrückliche Live-Anfrage deployen.
+
+VPS-Skalierung (zweites Replica / DB-Host) ist **nicht** Teil eines normalen Live-Deploys — erst bei ~30 Häusern, siehe `vps-scale-at-30.mdc` und `docs/runbook-vps-scale-at-30.md`.

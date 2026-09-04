@@ -1,0 +1,28 @@
+---
+description: Vormerkung — VPS-Skalierung erst bei ~30 aktiven Restaurants, nicht von allein.
+alwaysApply: true
+---
+
+# VPS-Skalierung ab ~30 Restaurants (vorgemerkt)
+
+**Nicht von allein ausführen.** Ein Contabo-VPS (`95.111.229.250`) betreibt App + Postgres + Crons. Das bleibt so, bis der Nutzer **ausdrücklich** die Skalierung will.
+
+## Auslöser (dann Runbook befolgen)
+
+Nutzer sagt sinngemäß:
+
+- „wir sind bei 30“ / „jetzt 30 durchführen“
+- „VPS skalieren“ / „zweites Replica“ / „DB vom App-Host trennen“
+- „scale at 30“
+
+Dann **sofort** lesen und ausführen:
+
+1. `docs/runbook-vps-scale-at-30.md` — Stufen A (DB trennen) und B (App-Replica)
+2. `bash scripts/vps-scale-at-30-preflight.sh` — nur lesen, nichts provisionieren
+3. Erst nach grünem Preflight und Bestätigung des Nutzers: Stufe A und/oder B
+
+## Nicht tun, solange der Auslöser fehlt
+
+- Keinen zweiten VPS anlegen, kein Live-DNS, keine zweite Crontab
+- Kein `GWADA_CONFIRM_SCALE_AT_30=1` als Freibrief zum Provisionieren (Flag = nur extra Preflight-Log)
+- Crons niemals auf zwei App-Replicas parallel legen

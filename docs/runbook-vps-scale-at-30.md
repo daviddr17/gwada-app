@@ -1,8 +1,19 @@
 # VPS-Skalierung ab ~30 aktiven Restaurants
 
-**Nicht jetzt ausführen.** Wenn wir bei ~30 dauerhaft aktiven Häusern sind: „jetzt durchführen“.
+**Status: vorgemerkt, nicht ausgeführt.** Cursor-Regel: `.cursor/rules/vps-scale-at-30.mdc` (always-on).  
+Wenn der Chat weg ist: Nutzer sagt „wir sind bei 30, bitte durchführen“ — Agent liest **diese Datei** und startet mit dem Preflight.
 
-Heute: ein Contabo-VPS (`95.111.229.250`) — Next.js (Coolify) + Supabase/Postgres + Host-Crons. Das ist der Deckel, nicht die Feature-Liste.
+Heute: ein Contabo-VPS (`95.111.229.250`) — Next.js (Coolify) + Supabase/Postgres + Host-Crons.
+
+## Für den nächsten Agenten (ohne Chat-Kontext)
+
+| | |
+|---|---|
+| **Auslöser** | „wir sind bei 30“ / „jetzt durchführen“ / „VPS skalieren“ |
+| **Erster Befehl** | `bash scripts/vps-scale-at-30-preflight.sh` (read-only) |
+| **Danach** | Stufe A und/oder B unten, nur nach Nutzer-OK |
+| **Verboten** | zweiter VPS von allein, DNS, `db reset`, Crons auf zwei Replicas |
+| **Live-Deploy danach** | wie immer `live-deploy-on-request.mdc` (DB + App) |
 
 ## Zielbild (zwei Stufen)
 

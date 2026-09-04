@@ -1,6 +1,7 @@
 import "server-only";
 
 import { GOOGLE_BUSINESS_OAUTH_SCOPE_IDS } from "@/lib/constants/integration-oauth-scopes";
+import { clearGoogleInsightsQuotaCooldown } from "@/lib/insights/platform-insights-response-cache";
 import type { GoogleBusinessLocationOption } from "@/lib/integrations/google-oauth-pending";
 import { googleBusinessConfigFromJson } from "@/lib/integrations/google-business-oauth";
 import type { GoogleBusinessIntegrationConfig } from "@/lib/integrations/oauth-integration-types";
@@ -29,6 +30,7 @@ export async function finalizeGoogleBusinessIntegration(
     location.accountTitle?.trim() ||
     "Google Business";
   const now = new Date().toISOString();
+  clearGoogleInsightsQuotaCooldown(restaurantId);
 
   return upsertRestaurantOAuthIntegration(
     admin,

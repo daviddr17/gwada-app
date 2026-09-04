@@ -255,7 +255,8 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
       return;
     }
     const cached = peekInsightsOverviewCache(restaurantId, period);
-    if (cached) {
+    const cacheHasGoogleError = Boolean(cached?.data.platforms.google.error);
+    if (cached && !cacheHasGoogleError) {
       setData(cached.data);
       setLoading(false);
     } else {
@@ -280,7 +281,9 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
         return;
       }
       setData(body);
-      writeInsightsOverviewCache(restaurantId, period, body);
+      if (!body.platforms.google.error) {
+        writeInsightsOverviewCache(restaurantId, period, body);
+      }
     } catch {
       if (activeRef.current) {
         toast.error("Netzwerkfehler beim Laden der Insights.");
@@ -290,8 +293,9 @@ export function InsightsOverviewScreen({ active = true }: { active?: boolean }) 
   }, [restaurantId, period]);
 
   useEffect(() => {
+    if (!active) return;
     void load();
-  }, [load]);
+  }, [active, load]);
 
   const periodOptions = useMemo(
     () => periodOptionsForPlatform(platform),

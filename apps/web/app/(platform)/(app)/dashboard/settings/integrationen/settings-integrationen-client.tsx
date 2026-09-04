@@ -8,7 +8,6 @@ import { GoogleBusinessIntegrationCard } from "@/components/settings/google-busi
 import { LexofficeIntegrationCard } from "@/components/settings/lexoffice-integration-card";
 import { InstagramIntegrationCard } from "@/components/settings/instagram-integration-card";
 import { TripadvisorIntegrationCard } from "@/components/settings/tripadvisor-integration-card";
-import { IntegrationenInsightsLinkCard } from "@/components/settings/integrationen-insights-link-card";
 import { WhatsappIntegrationCard } from "@/components/settings/whatsapp-integration-card";
 import {
   SettingsIntegrationSaveProvider,
@@ -79,7 +78,6 @@ function IntegrationenContent({
   return (
     <>
       <div className="space-y-6">
-        <IntegrationenInsightsLinkCard />
         {whatsappEnabled && !hideWhatsappForMetaReview ? (
           <WhatsappIntegrationCard />
         ) : null}

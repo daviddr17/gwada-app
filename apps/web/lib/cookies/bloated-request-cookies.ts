@@ -18,10 +18,13 @@ export const OAUTH_PENDING_ID_COOKIE = "gwada_oauth_pending_id";
 
 export const GOOGLE_AUTH_NONCE_COOKIE = "gwada_google_oauth_nonce";
 
-/** Legacy-OAuth-Cookies — sicher per Client-API zu löschen (nicht während laufendem Google-OAuth). */
+/**
+ * Nur die alten, dicken Pending-JSONs.
+ * `gwada_oauth_pending_id` bleibt — sonst stirbt die Standort-/Seitenauswahl
+ * direkt nach dem OAuth-Redirect (Proxy räumt das Cookie wieder weg).
+ */
 export const LEGACY_AUTH_COOKIES_TO_CLEAR = [
   ...LEGACY_OAUTH_PENDING_COOKIE_NAMES,
-  OAUTH_PENDING_ID_COOKIE,
 ] as const;
 
 /**
@@ -44,6 +47,7 @@ function isSupabaseSessionCookie(name: string): boolean {
 export function shouldStripCookieFromSupabaseProxy(name: string): boolean {
   if (name === DISPLAY_DEVICE_COOKIE || name === DISPLAY_SESSION_COOKIE) return false;
   if (name === GOOGLE_AUTH_NONCE_COOKIE) return false;
+  if (name === OAUTH_PENDING_ID_COOKIE) return false;
   // UI-Locale muss die App-Zone erreichen (proxy slimmt sonst alle gwada_*).
   if (name === APP_LOCALE_COOKIE || name === EMBED_LOCALE_COOKIE) return false;
   if (isSupabaseSessionCookie(name)) return false;

@@ -28,3 +28,37 @@ select
   sort_order
 from public.waha_servers
 order by sort_order, name;
+
+\echo === due / failed whatsapp outbox (last 14d) ===
+select
+  o.message_kind,
+  o.send_at,
+  o.sent_at,
+  o.cancelled_at,
+  o.claimed_at,
+  left(coalesce(o.last_error, ''), 80) as last_error,
+  o.reservation_id
+from public.reservation_whatsapp_outbox o
+join public.restaurants r on r.id = o.restaurant_id
+where r.slug = 'zurschlagd'
+  and o.send_at > now() - interval '14 days'
+  and (
+    o.sent_at is null
+    or o.last_error is not null
+    or o.cancelled_at is not null
+  )
+order by o.send_at desc
+limit 40;
+
+\echo === outbox error counts (14d) ===
+select
+  o.message_kind,
+  coalesce(nullif(left(o.last_error, 60), ''), '(none)') as err,
+  count(*) as n
+from public.reservation_whatsapp_outbox o
+join public.restaurants r on r.id = o.restaurant_id
+where r.slug = 'zurschlagd'
+  and o.send_at > now() - interval '14 days'
+group by 1, 2
+order by n desc
+limit 30;

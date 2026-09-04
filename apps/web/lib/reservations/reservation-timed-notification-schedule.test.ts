@@ -4,6 +4,8 @@ import { test } from "node:test";
 import {
   computeReservationReminderSendAt,
   computeReservationThanksSendAt,
+  isReservationOutboxSendAtTooStale,
+  isReservationReminderTooLate,
   resolveReservationThanksSendAt,
   shouldScheduleReservationReminder,
 } from "./reservation-timed-notification-schedule.ts";
@@ -43,4 +45,28 @@ test("shouldScheduleReservationReminder: Vergangenheit → false", () => {
   const now = new Date("2026-08-31T12:00:00.000Z");
   const past = new Date("2026-08-30T12:00:00.000Z");
   assert.equal(shouldScheduleReservationReminder(past, now), false);
+});
+
+test("isReservationReminderTooLate: Termin begonnen → true", () => {
+  const now = new Date("2026-09-04T12:00:00.000Z");
+  assert.equal(
+    isReservationReminderTooLate("2026-09-04T11:00:00.000Z", now),
+    true,
+  );
+  assert.equal(
+    isReservationReminderTooLate("2026-09-04T13:00:00.000Z", now),
+    false,
+  );
+});
+
+test("isReservationOutboxSendAtTooStale: >36h nach send_at → true", () => {
+  const now = new Date("2026-09-04T12:00:00.000Z");
+  assert.equal(
+    isReservationOutboxSendAtTooStale("2026-09-02T12:00:00.000Z", now),
+    true,
+  );
+  assert.equal(
+    isReservationOutboxSendAtTooStale("2026-09-03T12:00:00.000Z", now),
+    false,
+  );
 });

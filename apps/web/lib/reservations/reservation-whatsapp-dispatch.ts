@@ -14,6 +14,8 @@ import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
 import {
   computeReservationReminderSendAt,
+  isReservationOutboxSendAtTooStale,
+  isReservationReminderTooLate,
   resolveReservationThanksSendAt,
   shouldScheduleReservationReminder,
 } from "@/lib/reservations/reservation-timed-notification-schedule";
@@ -363,6 +365,17 @@ export async function sendImmediateKind(
   wahaMessageId?: string | null;
   threadContactId?: string;
 }> {
+  // Idempotenz: zweiter Dispatch (Retry/Deploy) darf nicht erneut an WAHA.
+  const { data: prior } = await sb
+    .from("reservation_whatsapp_outbox")
+    .select("sent_at")
+    .eq("reservation_id", row.id)
+    .eq("message_kind", kind)
+    .maybeSingle();
+  if (prior?.sent_at) {
+    return { sent: true };
+  }
+
   const chatId = guestPhoneToWhatsAppChatId(row.guest_phone);
   if (!chatId) return { sent: false, error: "no_phone" };
 
@@ -625,6 +638,7 @@ export async function processDueWhatsappOutbox(
     id: string;
     reservation_id: string;
     message_kind: string;
+    send_at?: string;
   }>) {
     if (Date.now() >= deadline) {
       timedOut = true;
@@ -663,6 +677,21 @@ export async function processDueWhatsappOutbox(
         .from("reservation_whatsapp_outbox")
         .update({
           cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
+        .eq("id", item.id);
+      continue;
+    }
+
+    if (
+      (kind === "reminder" && isReservationReminderTooLate(row.starts_at)) ||
+      (item.send_at && isReservationOutboxSendAtTooStale(item.send_at))
+    ) {
+      await sb
+        .from("reservation_whatsapp_outbox")
+        .update({
+          cancelled_at: new Date().toISOString(),
+          last_error: "too_late",
           claimed_at: null,
         })
         .eq("id", item.id);

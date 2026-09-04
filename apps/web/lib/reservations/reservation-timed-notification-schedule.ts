@@ -47,3 +47,34 @@ export function resolveReservationThanksSendAt(
   if (target.getTime() > now.getTime()) return target;
   return now;
 }
+
+/**
+ * Max. Alter einer geplanten Outbox-Zeile ab `send_at`, bevor Cron sie als zu spät
+ * verwirft (statt Gäste Tage später mit Erinnerung/Danke zu überraschen).
+ * Deckelt auch Cron-Ausfälle + WAHA-Timeouts, die die Queue mit Altlasten verstopfen.
+ */
+export const RESERVATION_OUTBOX_STALE_AFTER_MS = 36 * 60 * 60 * 1000;
+
+/** Erinnerung: sinnlos, sobald der Termin begonnen hat. */
+export function isReservationReminderTooLate(
+  startsAtIso: string,
+  now: Date = new Date(),
+): boolean {
+  const startsMs = Date.parse(startsAtIso);
+  if (!Number.isFinite(startsMs)) return true;
+  return startsMs <= now.getTime();
+}
+
+/**
+ * Geplante Nachricht zu spät für den Versand (Cron/WAHA-Ausfall länger als Grace).
+ * `sendAtIso` = Outbox-`send_at`.
+ */
+export function isReservationOutboxSendAtTooStale(
+  sendAtIso: string,
+  now: Date = new Date(),
+  staleAfterMs: number = RESERVATION_OUTBOX_STALE_AFTER_MS,
+): boolean {
+  const sendMs = Date.parse(sendAtIso);
+  if (!Number.isFinite(sendMs)) return true;
+  return now.getTime() - sendMs > staleAfterMs;
+}

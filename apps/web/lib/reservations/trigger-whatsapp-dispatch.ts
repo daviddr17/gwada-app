@@ -51,6 +51,9 @@ export function whatsappDispatchUserMessage(
     ) {
       return null;
     }
+    if (/aborted due to timeout|TimeoutError|signal timed out/i.test(result.error)) {
+      return "WhatsApp-Server antwortet nicht rechtzeitig — bitte kurz warten und erneut versuchen (Session unter Integrationen prüfen).";
+    }
     return (
       API_ERROR_MESSAGE[result.error] ??
       `WhatsApp-Versand fehlgeschlagen: ${result.error}`

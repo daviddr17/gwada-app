@@ -16,6 +16,8 @@ import {
 import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
 import {
   computeReservationReminderSendAt,
+  isReservationOutboxSendAtTooStale,
+  isReservationReminderTooLate,
   resolveReservationThanksSendAt,
   shouldScheduleReservationReminder,
 } from "@/lib/reservations/reservation-timed-notification-schedule";
@@ -414,6 +416,16 @@ export async function sendImmediateKind(
   settings: ReservationEmailSettings | null,
   options?: ReservationDispatchOptions,
 ): Promise<{ sent: boolean; error?: string }> {
+  const { data: prior } = await sb
+    .from("reservation_email_outbox")
+    .select("sent_at")
+    .eq("reservation_id", row.id)
+    .eq("message_kind", kind)
+    .maybeSingle();
+  if (prior?.sent_at) {
+    return { sent: true };
+  }
+
   const to = row.guest_email?.trim();
   if (!isValidGuestEmail(to ?? null)) return { sent: false, error: "no_email" };
 
@@ -626,6 +638,7 @@ export async function processDueEmailOutbox(
     id: string;
     reservation_id: string;
     message_kind: string;
+    send_at?: string;
   }>;
 
   if (!isEmailSendConfigured()) {
@@ -675,6 +688,21 @@ export async function processDueEmailOutbox(
         .from("reservation_email_outbox")
         .update({
           cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
+        .eq("id", item.id);
+      continue;
+    }
+
+    if (
+      (kind === "reminder" && isReservationReminderTooLate(row.starts_at)) ||
+      (item.send_at && isReservationOutboxSendAtTooStale(item.send_at))
+    ) {
+      await sb
+        .from("reservation_email_outbox")
+        .update({
+          cancelled_at: new Date().toISOString(),
+          last_error: "too_late",
           claimed_at: null,
         })
         .eq("id", item.id);

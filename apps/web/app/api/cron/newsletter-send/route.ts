@@ -1,5 +1,6 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
 import { processNewsletterOutbox } from "@/lib/newsletter/newsletter-send-server";
+import { withCronHeartbeat } from "@/lib/ops/record-cron-heartbeat";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getPublicSupabaseUrl } from "@/lib/public-env";
 
@@ -20,9 +21,11 @@ export async function GET(req: Request) {
     return Response.json({ error: "supabase_url_missing" }, { status: 503 });
   }
 
-  const stats = await processNewsletterOutbox({
-    admin: sb,
-    supabaseUrl,
-  });
+  const stats = await withCronHeartbeat("newsletter-send", () =>
+    processNewsletterOutbox({
+      admin: sb,
+      supabaseUrl,
+    }),
+  );
   return Response.json(stats);
 }

@@ -5,8 +5,17 @@ import { Activity, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import type { DeliveryHealthSnapshot } from "@/lib/ops/delivery-health";
+import {
+  cronJobLabel,
+  type DeliveryHealthSnapshot,
+} from "@/lib/ops/delivery-health";
 import { cn } from "@/lib/utils";
+
+const INTEGRATION_LABELS: Record<string, string> = {
+  google_business: "Google Business",
+  facebook: "Facebook",
+  instagram: "Instagram",
+};
 
 function formatWhen(iso: string | null): string {
   if (!iso) return "nie";
@@ -71,7 +80,7 @@ export function SuperadminOpsScreen() {
     <div className="space-y-4 px-4 py-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Zustellung, Cron-Lag und WAHA — ohne Secrets.
+          Zustellung, Sync, Integrationen und Billing — ohne Secrets.
         </p>
         <Button
           type="button"
@@ -128,7 +137,7 @@ export function SuperadminOpsScreen() {
               className="flex flex-wrap items-baseline justify-between gap-2"
             >
               <span className={job.stale ? "text-destructive" : undefined}>
-                {job.jobName}
+                {cronJobLabel(job.jobName)}
               </span>
               <span className="text-muted-foreground">
                 zuletzt ok {formatWhen(job.lastOkAt)} · Lag {formatLag(job.lagMs)}
@@ -150,7 +159,15 @@ export function SuperadminOpsScreen() {
               <li key={row.restaurantId}>
                 <p className="font-medium">{row.restaurantName}</p>
                 <p className="text-muted-foreground">
-                  hängend {row.hungSending} · Retry {row.retrying} · Fehler {row.failedOpen}
+                  WA hängend {row.hungSending} · Retry {row.retrying} · Fehler{" "}
+                  {row.failedOpen}
+                  {row.emailHungSending + row.emailRetrying + row.emailFailedOpen >
+                  0
+                    ? ` · E-Mail hängend ${row.emailHungSending} · Retry ${row.emailRetrying} · Fehler ${row.emailFailedOpen}`
+                    : ""}
+                  {row.notificationsStuck + row.notificationsFailed > 0
+                    ? ` · Push hängend ${row.notificationsStuck} · Fehler ${row.notificationsFailed}`
+                    : ""}
                   {row.wahaStatus ? ` · WAHA ${row.wahaStatus}` : ""}
                 </p>
                 {row.lastError ? (
@@ -158,6 +175,64 @@ export function SuperadminOpsScreen() {
                     {row.lastError}
                   </p>
                 ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-border/50 bg-card px-4 py-4">
+        <h2 className="font-medium">Integrationen auffällig</h2>
+        {(health?.integrations.length ?? 0) === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Google, Facebook und Instagram ohne Fehlerstatus.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-sm">
+            {health?.integrations.map((row) => (
+              <li key={`${row.restaurantId}-${row.key}`}>
+                <span className="font-medium">{row.restaurantName}</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {INTEGRATION_LABELS[row.key] ?? row.key}
+                  {row.status ? ` · ${row.status}` : ""}
+                  {row.lastError ? ` · ${row.lastError}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-border/50 bg-card px-4 py-4">
+        <h2 className="font-medium">Newsletter-Outbox</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          offen {health?.newsletter.pending ?? 0} · überfällig{" "}
+          {health?.newsletter.overdue ?? 0} · Fehler {health?.newsletter.failed ?? 0}
+        </p>
+        {health?.newsletter.lastError ? (
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            {health.newsletter.lastError}
+          </p>
+        ) : null}
+      </section>
+
+      <section className="rounded-xl border border-border/50 bg-card px-4 py-4">
+        <h2 className="font-medium">Abos im Zahlungsverzug</h2>
+        {(health?.billing.length ?? 0) === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">Keine past_due/unpaid Abos.</p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-sm">
+            {health?.billing.map((row) => (
+              <li key={row.restaurantId}>
+                <span className="font-medium">{row.restaurantName}</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {row.status}
+                  {row.pastDueSince
+                    ? ` seit ${formatWhen(row.pastDueSince)}`
+                    : ""}
+                </span>
               </li>
             ))}
           </ul>

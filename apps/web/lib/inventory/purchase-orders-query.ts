@@ -43,11 +43,9 @@ export async function fetchPurchaseOrdersForRestaurant(): Promise<PurchaseOrder[
     : await loadPurchaseOrdersRelational(rid);
   /** DB is source of truth on read — no merge with stale localStorage (Display ↔ Dashboard). */
   const orders = (rows ?? []).map(reconcilePurchaseOrderLinesFromLog);
-  if (orders.length) {
-    mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
-      version: 1 as const,
-      orders,
-    });
-  }
+  mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+    version: 1 as const,
+    orders,
+  });
   return orders;
 }

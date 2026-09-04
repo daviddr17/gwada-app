@@ -971,7 +971,7 @@ export function PurchaseOrdersScreen() {
                                   <OrderLineQtyCell
                                     orderId={order.id}
                                     line={line}
-                                    readOnly={false}
+                                    readOnly={order.status !== "open"}
                                     actor={actor}
                                     onCommit={commitLineQty}
                                   />

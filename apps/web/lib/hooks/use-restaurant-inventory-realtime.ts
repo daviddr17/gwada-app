@@ -28,7 +28,7 @@ export function useRestaurantInventoryRealtime() {
     if (!ready || !restaurantId || !isUuidRestaurantId(restaurantId)) return;
 
     subscribedChannelsRef.current = 0;
-    const expectedChannels = 2;
+    const expectedChannels = 3;
 
     const scheduleRefresh = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -95,12 +95,22 @@ export function useRestaurantInventoryRealtime() {
       onStatus: onChannelStatus,
     });
 
+    const teardownPurchaseOrders = subscribeRestaurantTableChanges(sbRef.current, {
+      channelName: `inventory-purchase-orders-live:${restaurantId}`,
+      table: "inventory_purchase_orders",
+      restaurantId,
+      events: ["INSERT", "UPDATE", "DELETE"],
+      onChange: scheduleRefresh,
+      onStatus: onChannelStatus,
+    });
+
     return () => {
       window.clearTimeout(readyTimeout);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       disablePolling();
       teardownSignal();
       teardownIngredients();
+      teardownPurchaseOrders();
     };
   }, [ready, restaurantId, polling.start, polling.stop]);
 }

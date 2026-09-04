@@ -627,8 +627,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
   );
 
   /**
-   * Statuswechsel: UI + Toast sofort; DB per O(1)-RPC (kein Full-Replace).
-   * Bei Fehler Rollback + Error-Toast.
+   * Statuswechsel: UI sofort; DB per O(1)-RPC (kein Full-Replace).
+   * Erfolg-Toast erst nach RPC — verhindert „Erfolg, dann wieder offen“.
    */
   const persistStatusChangeOptimistic = useCallback(
     (params: {
@@ -638,10 +638,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       fromStatus: PurchaseOrderStatus;
       toStatus: PurchaseOrderStatus;
       logEntry: PurchaseOrderLogStatusChange;
-    }): void => {
+    }): Promise<boolean> => {
       const generation = ++ordersMutationGenerationRef.current;
       applyOrdersOptimistic(params.next);
-      void persistQueueRef.current.enqueue(async () => {
+      return persistQueueRef.current.enqueue(async () => {
         if (useDbInventory) {
           if (!dbFetchReady) {
             if (ordersMutationGenerationRef.current === generation) {
@@ -956,8 +956,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       if (!o) return false;
       o.status = "ordered";
       const logEntry = appendStatusChangeLog(o, "open", "ordered", actor);
-      toast.success("Als bestellt markiert");
-      persistStatusChangeOptimistic({
+      const ok = await persistStatusChangeOptimistic({
         next,
         rollbackSnapshot: prev,
         orderId,
@@ -965,7 +964,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         toStatus: "ordered",
         logEntry,
       });
-      return true;
+      if (ok) toast.success("Als bestellt markiert");
+      return ok;
     },
     [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
@@ -996,10 +996,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       if (!o) return false;
       o.status = "closed";
       const logEntry = appendStatusChangeLog(o, "ordered", "closed", actor);
-      if (!options?.silent) {
-        toast.success("Bestellung abgeschlossen");
-      }
-      persistStatusChangeOptimistic({
+      const ok = await persistStatusChangeOptimistic({
         next,
         rollbackSnapshot: prev,
         orderId,
@@ -1007,7 +1004,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         toStatus: "closed",
         logEntry,
       });
-      return true;
+      if (ok && !options?.silent) {
+        toast.success("Bestellung abgeschlossen");
+      }
+      return ok;
     },
     [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
@@ -1046,8 +1046,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const from = o.status;
       o.status = prevStatus;
       const logEntry = appendStatusChangeLog(o, from, prevStatus, actor);
-      toast.success(`Zurück auf „${purchaseOrderStatusLabel(prevStatus)}“`);
-      persistStatusChangeOptimistic({
+      const ok = await persistStatusChangeOptimistic({
         next,
         rollbackSnapshot: snapshot,
         orderId,
@@ -1055,7 +1054,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         toStatus: prevStatus,
         logEntry,
       });
-      return true;
+      if (ok) {
+        toast.success(`Zurück auf „${purchaseOrderStatusLabel(prevStatus)}“`);
+      }
+      return ok;
     },
     [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
@@ -1095,6 +1097,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const order = snapshot.find((o) => o.id === orderId);
       if (!order) {
         toast.error("Bestellung nicht gefunden.");
+        return false;
+      }
+      if (order.status !== "open") {
+        toast.error("Menge nur in offenen Bestellungen ändern.");
         return false;
       }
       if (!Number.isFinite(nextQty) || nextQty < 0) {
@@ -1270,20 +1276,39 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       };
       o.log.push(logEntry);
 
-      let autoClosed = false;
-      if (
-        o.status === "ordered" &&
-        allPurchaseOrderLinesResolved(o.lines)
-      ) {
-        o.status = "closed";
-        appendStatusChangeLog(o, "ordered", "closed", actor);
-        autoClosed = true;
+      const shouldAutoClose =
+        o.status === "ordered" && allPurchaseOrderLinesResolved(o.lines);
+
+      const persistOk = await persistOptimisticQueued(next, previous);
+      if (!persistOk) return { ok: false };
+
+      if (shouldAutoClose) {
+        const afterPersist = readOrdersSnapshot();
+        const nextClosed: PurchaseOrder[] = structuredClone(afterPersist);
+        const closing = nextClosed.find((x) => x.id === orderId);
+        if (closing && closing.status === "ordered") {
+          closing.status = "closed";
+          const statusLog = appendStatusChangeLog(
+            closing,
+            "ordered",
+            "closed",
+            actor,
+          );
+          const closedOk = await persistStatusChangeOptimistic({
+            next: nextClosed,
+            rollbackSnapshot: afterPersist,
+            orderId,
+            fromStatus: "ordered",
+            toStatus: "closed",
+            logEntry: statusLog,
+          });
+          return { ok: true, stockDelta, autoClosed: closedOk };
+        }
       }
 
-      persistOptimisticQueued(next, previous);
-      return { ok: true, stockDelta, autoClosed };
+      return { ok: true, stockDelta, autoClosed: false };
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [persistOptimisticQueued, persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   const clearLineDelivery = useCallback(
@@ -1333,7 +1358,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       };
       o.log.push(logEntry);
 
-      persistOptimisticQueued(next, previous);
+      const persistOk = await persistOptimisticQueued(next, previous);
+      if (!persistOk) return { ok: false };
       return { ok: true, stockDelta: -prevStock };
     },
     [persistOptimisticQueued, readOrdersSnapshot],
@@ -1397,8 +1423,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         }
       }
 
-      const previous = orders;
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const previous = readOrdersSnapshot();
+      const next: PurchaseOrder[] = structuredClone(previous);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
 
@@ -1474,13 +1500,39 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         return { ok: false };
       }
 
-      o.status = "closed";
-      appendStatusChangeLog(o, "ordered", "closed", actor);
+      const persistOk = await persistOptimisticQueued(next, previous);
+      if (!persistOk) return { ok: false };
 
-      persistOptimisticQueued(next, previous);
+      const afterPersist = readOrdersSnapshot();
+      const nextClosed: PurchaseOrder[] = structuredClone(afterPersist);
+      const closing = nextClosed.find((x) => x.id === orderId);
+      if (closing && closing.status === "ordered") {
+        closing.status = "closed";
+        const statusLog = appendStatusChangeLog(
+          closing,
+          "ordered",
+          "closed",
+          actor,
+        );
+        const closedOk = await persistStatusChangeOptimistic({
+          next: nextClosed,
+          rollbackSnapshot: afterPersist,
+          orderId,
+          fromStatus: "ordered",
+          toStatus: "closed",
+          logEntry: statusLog,
+        });
+        if (!closedOk) return { ok: false };
+      }
+
       return { ok: true, stockDeltas };
     },
-    [orders, persistOptimisticQueued],
+    [
+      orders,
+      persistOptimisticQueued,
+      persistStatusChangeOptimistic,
+      readOrdersSnapshot,
+    ],
   );
 
   /** @deprecated Kompatibilität — nutzt setLineDelivery(delivered) */

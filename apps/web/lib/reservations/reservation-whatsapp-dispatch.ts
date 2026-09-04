@@ -365,14 +365,19 @@ export async function sendImmediateKind(
   wahaMessageId?: string | null;
   threadContactId?: string;
 }> {
-  // Idempotenz: zweiter Dispatch (Retry/Deploy) darf nicht erneut an WAHA.
+  // Idempotenz: zweiter Dispatch (Retry/Deploy/Timeout) darf nicht erneut an WAHA.
   const { data: prior } = await sb
     .from("reservation_whatsapp_outbox")
-    .select("sent_at")
+    .select("id, sent_at, claimed_at")
     .eq("reservation_id", row.id)
     .eq("message_kind", kind)
     .maybeSingle();
   if (prior?.sent_at) {
+    return { sent: true };
+  }
+  const claimedAtMs = prior?.claimed_at ? Date.parse(String(prior.claimed_at)) : NaN;
+  if (Number.isFinite(claimedAtMs) && Date.now() - claimedAtMs < 10 * 60 * 1000) {
+    // Timeout nach erfolgreichem WAHA-Send: nicht nochmal schicken.
     return { sent: true };
   }
 
@@ -402,6 +407,33 @@ export async function sendImmediateKind(
     deliveryStatus: "pending",
   });
 
+  const claimNow = new Date().toISOString();
+  if (prior?.id) {
+    await sb
+      .from("reservation_whatsapp_outbox")
+      .update({
+        claimed_at: claimNow,
+        last_error: "sending",
+        send_at: claimNow,
+      })
+      .eq("id", prior.id)
+      .is("sent_at", null);
+  } else {
+    await sb.from("reservation_whatsapp_outbox").upsert(
+      {
+        restaurant_id: row.restaurant_id,
+        reservation_id: row.id,
+        message_kind: kind,
+        send_at: claimNow,
+        sent_at: null,
+        claimed_at: claimNow,
+        last_error: "sending",
+        cancelled_at: null,
+      },
+      { onConflict: "reservation_id,message_kind" },
+    );
+  }
+
   const result = await wahaSendText({
     restaurantId: row.restaurant_id,
     chatId,
@@ -416,16 +448,19 @@ export async function sendImmediateKind(
         deliveryStatus: "failed",
       });
     }
-    await sb.from("reservation_whatsapp_outbox").upsert(
-      {
-        restaurant_id: row.restaurant_id,
-        reservation_id: row.id,
-        message_kind: kind,
-        send_at: new Date().toISOString(),
-        last_error: result.error,
-      },
-      { onConflict: "reservation_id,message_kind" },
+    const timeout = /aborted due to timeout|TimeoutError|signal timed out/i.test(
+      result.error,
     );
+    await sb
+      .from("reservation_whatsapp_outbox")
+      .update({
+        last_error: result.error,
+        // Timeout: Claim behalten — Retry würde sonst nach WAHA-Erfolg doppelt senden.
+        claimed_at: timeout ? claimNow : null,
+      })
+      .eq("reservation_id", row.id)
+      .eq("message_kind", kind)
+      .is("sent_at", null);
     return { sent: false, error: result.error };
   }
 

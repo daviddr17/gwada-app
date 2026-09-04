@@ -418,11 +418,15 @@ export async function sendImmediateKind(
 ): Promise<{ sent: boolean; error?: string }> {
   const { data: prior } = await sb
     .from("reservation_email_outbox")
-    .select("sent_at")
+    .select("id, sent_at, claimed_at")
     .eq("reservation_id", row.id)
     .eq("message_kind", kind)
     .maybeSingle();
   if (prior?.sent_at) {
+    return { sent: true };
+  }
+  const claimedAtMs = prior?.claimed_at ? Date.parse(String(prior.claimed_at)) : NaN;
+  if (Number.isFinite(claimedAtMs) && Date.now() - claimedAtMs < 10 * 60 * 1000) {
     return { sent: true };
   }
 
@@ -443,22 +447,51 @@ export async function sendImmediateKind(
   if (!delivery) return { sent: false, error: "smtp_not_configured" };
 
   const fromName = resolveEmailSenderDisplayName(settings, delivery.sender.name);
+  const claimNow = new Date().toISOString();
+  if (prior?.id) {
+    await sb
+      .from("reservation_email_outbox")
+      .update({
+        claimed_at: claimNow,
+        last_error: "sending",
+        send_at: claimNow,
+      })
+      .eq("id", prior.id)
+      .is("sent_at", null);
+  } else {
+    await sb.from("reservation_email_outbox").upsert(
+      {
+        restaurant_id: row.restaurant_id,
+        reservation_id: row.id,
+        message_kind: kind,
+        send_at: claimNow,
+        sent_at: null,
+        claimed_at: claimNow,
+        last_error: "sending",
+        cancelled_at: null,
+      },
+      { onConflict: "reservation_id,message_kind" },
+    );
+  }
+
   const result = await sendReservationEmail(
     { ...delivery, sender: { ...delivery.sender, name: fromName } },
     { to: to!, subject, text },
   );
 
   if (!result.ok) {
-    await sb.from("reservation_email_outbox").upsert(
-      {
-        restaurant_id: row.restaurant_id,
-        reservation_id: row.id,
-        message_kind: kind,
-        send_at: new Date().toISOString(),
-        last_error: result.error,
-      },
-      { onConflict: "reservation_id,message_kind" },
+    const timeout = /aborted due to timeout|TimeoutError|signal timed out/i.test(
+      result.error,
     );
+    await sb
+      .from("reservation_email_outbox")
+      .update({
+        last_error: result.error,
+        claimed_at: timeout ? claimNow : null,
+      })
+      .eq("reservation_id", row.id)
+      .eq("message_kind", kind)
+      .is("sent_at", null);
     return { sent: false, error: result.error };
   }
 

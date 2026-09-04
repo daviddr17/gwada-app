@@ -15,12 +15,31 @@ import {
   isFeedConnectorEnabledBySuperadmin,
   resolveFeedConnectorConnected,
 } from "@/lib/platform-feed/feed-platform-superadmin";
+import {
+  isMetaReviewDemoRestaurantSlug,
+  isWhatsappPlatformKey,
+} from "@/lib/restaurants/meta-review-demo";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   fetchPlatformMessagingFlags,
   type PlatformMessagingFlags,
 } from "@/lib/supabase/platform-messaging-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function isMetaReviewDemoRestaurantId(
+  restaurantId: string,
+): Promise<boolean> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return false;
+  const { data } = await admin
+    .from("restaurants")
+    .select("slug")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  return isMetaReviewDemoRestaurantSlug(
+    typeof data?.slug === "string" ? data.slug : null,
+  );
+}
 
 const CONNECTORS: Record<EventsPlatform, EventsPlatformConnector> = {
   gwada: gwadaEventsConnector,
@@ -51,7 +70,10 @@ export async function getEventsConnectorPublicInfo(
         appleBusinessConnectEnabled: false,
       };
 
-  const platforms = Object.keys(CONNECTORS) as EventsPlatform[];
+  const hideWhatsapp = await isMetaReviewDemoRestaurantId(restaurantId);
+  const platforms = (Object.keys(CONNECTORS) as EventsPlatform[]).filter(
+    (key) => !(hideWhatsapp && isWhatsappPlatformKey(key)),
+  );
   return Promise.all(
     platforms.map(async (key) => {
       const connector = CONNECTORS[key];

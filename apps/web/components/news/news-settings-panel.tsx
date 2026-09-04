@@ -237,9 +237,23 @@ export function NewsSettingsPanel() {
     });
   };
 
+  const visibleNewsPlatforms = useMemo(
+    () =>
+      connectors.length > 0
+        ? NEWS_PLATFORM_ORDER.filter((platform) =>
+            connectors.some((c) => c.key === platform),
+          )
+        : NEWS_PLATFORM_ORDER,
+    [connectors],
+  );
+
+  const showWhatsappChannelSettings = connectors.some(
+    (c) => c.key === "whatsapp_channel",
+  );
+
   const embedPlatformToggleItems = useMemo(
     () =>
-      NEWS_PLATFORM_ORDER.map((platform) => {
+      visibleNewsPlatforms.map((platform) => {
         const connector = connectors.find((c) => c.key === platform);
         const connected = connector?.connected ?? platform === "gwada";
         return {
@@ -253,7 +267,7 @@ export function NewsSettingsPanel() {
           icon: <NewsPlatformIcon platform={platform} className="size-4" />,
         };
       }),
-    [connectors],
+    [connectors, visibleNewsPlatforms],
   );
 
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
@@ -298,7 +312,7 @@ export function NewsSettingsPanel() {
               {connectorsLoading ? (
                 <li className="text-sm text-muted-foreground">Status wird geladen …</li>
               ) : (
-                NEWS_PLATFORM_ORDER.map((platform) => {
+                visibleNewsPlatforms.map((platform) => {
                   const connector = connectors.find((c) => c.key === platform);
                   const connected = connector?.connected ?? platform === "gwada";
                   return (
@@ -331,6 +345,7 @@ export function NewsSettingsPanel() {
             </p>
           </div>
 
+          {showWhatsappChannelSettings ? (
           <div className="space-y-2">
             <Label>WhatsApp Kanäle</Label>
             <Popover open={channelsOpen} onOpenChange={setChannelsOpen}>
@@ -414,9 +429,11 @@ export function NewsSettingsPanel() {
               />
             ) : null}
           </div>
+          ) : null}
         </CardContent>
       </Card>
 
+      {showWhatsappChannelSettings ? (
       <CreateWhatsappNewsChannelDialog
         restaurantId={restaurantId}
         open={createChannelOpen}
@@ -432,7 +449,7 @@ export function NewsSettingsPanel() {
           void load();
         }}
       />
-
+      ) : null}
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">
           <CardTitle className="text-xl">{publicSurfaceProfileAndEmbedTitle}</CardTitle>

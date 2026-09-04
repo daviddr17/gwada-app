@@ -99,10 +99,16 @@ export const WAHA_SESSION_ADMIN_ACTIONS = [
   "logout",
   "sync_webhooks",
   "heal",
+  "delete",
 ] as const;
 
 export type WahaSessionAdminAction =
   (typeof WAHA_SESSION_ADMIN_ACTIONS)[number];
+
+/** 404 = Session ist auf WAHA schon weg — Superadmin-Löschen gilt als Erfolg. */
+export function isWahaSessionAlreadyGone(status: number): boolean {
+  return status === 404;
+}
 
 export type WahaServerCapacityAlert = {
   server_id: string;

@@ -191,6 +191,18 @@ export async function wahaLogoutSession(
   });
 }
 
+/** Entfernt Session inkl. Auth-Daten auf dem WAHA-Host. */
+export async function wahaDeleteSession(
+  config: WahaServerConfig,
+  sessionName: string,
+): Promise<WahaFetchResult<unknown>> {
+  return wahaFetch(
+    config,
+    `/api/sessions/${encodeURIComponent(sessionName)}`,
+    { method: "DELETE" },
+  );
+}
+
 export async function wahaGetQrBase64(
   config: WahaServerConfig,
   sessionName: string,

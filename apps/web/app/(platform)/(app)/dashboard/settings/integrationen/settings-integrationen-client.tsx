@@ -8,6 +8,7 @@ import { GoogleBusinessIntegrationCard } from "@/components/settings/google-busi
 import { LexofficeIntegrationCard } from "@/components/settings/lexoffice-integration-card";
 import { InstagramIntegrationCard } from "@/components/settings/instagram-integration-card";
 import { TripadvisorIntegrationCard } from "@/components/settings/tripadvisor-integration-card";
+import { IntegrationenSettingsSkeleton } from "@/components/settings/integrationen-settings-skeleton";
 import { WhatsappIntegrationCard } from "@/components/settings/whatsapp-integration-card";
 import {
   SettingsIntegrationSaveProvider,
@@ -19,16 +20,12 @@ import {
 } from "@/components/settings/settings-sticky-save-bar";
 import { Button } from "@/components/ui/button";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { usePlatformMessagingFlags } from "@/lib/hooks/use-platform-messaging-flags";
 import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
-import type { PlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
 import { cn } from "@/lib/utils";
 
-function IntegrationenContent({
-  initialPlatformFlags,
-}: {
-  initialPlatformFlags: PlatformMessagingFlags;
-}) {
+function IntegrationenContent() {
   const { profile } = useRestaurantProfile();
   const hideWhatsappForMetaReview = isMetaReviewDemoRestaurantSlug(profile.slug);
   const {
@@ -41,7 +38,8 @@ function IntegrationenContent({
     tripadvisorEnabled,
     appleBusinessConnectEnabled,
     loading,
-  } = usePlatformMessagingFlags(initialPlatformFlags);
+  } = usePlatformMessagingFlags();
+  const showSkeleton = useDeferredSkeleton(loading);
   const { dirty, saving, saveAll } = useSettingsIntegrationSave();
   const [emailReload, setEmailReload] = useState(0);
 
@@ -51,9 +49,9 @@ function IntegrationenContent({
 
   if (loading) {
     return (
-      <p className="text-sm text-muted-foreground" aria-busy>
-        Integrationen werden geladen…
-      </p>
+      <div className="min-h-48" aria-busy>
+        {showSkeleton ? <IntegrationenSettingsSkeleton /> : null}
+      </div>
     );
   }
 
@@ -123,14 +121,10 @@ function IntegrationenContent({
   );
 }
 
-export function SettingsIntegrationenClient({
-  initialPlatformFlags,
-}: {
-  initialPlatformFlags: PlatformMessagingFlags;
-}) {
+export function SettingsIntegrationenClient() {
   return (
     <SettingsIntegrationSaveProvider>
-      <IntegrationenContent initialPlatformFlags={initialPlatformFlags} />
+      <IntegrationenContent />
     </SettingsIntegrationSaveProvider>
   );
 }

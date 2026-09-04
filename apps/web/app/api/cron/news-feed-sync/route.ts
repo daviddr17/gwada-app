@@ -10,7 +10,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-/** Hintergrund-Sync externer News-Feeds — Coolify-Cron alle 10 Min. (siehe docs/cron-jobs.md). */
+/** Hintergrund-Sync externer News-Feeds — VPS-Crontab alle 10 Min. (siehe docs/cron-jobs.md). */
 export async function GET(req: Request) {
   const cronAuth = assertCronAuthorized(req);
   if (cronAuth) return cronAuth;

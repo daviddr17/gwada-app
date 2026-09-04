@@ -12,11 +12,13 @@ export const CRON_LAG_MS: Record<string, number> = {
   "reviews-feed-sync": 25 * 60 * 1000,
   "news-feed-sync": 25 * 60 * 1000,
   "accounting-lexoffice-sync": 25 * 60 * 1000,
+  "news-publish": 12 * 60 * 1000,
+  "billing-past-due": 26 * 60 * 60 * 1000,
   /** Wöchentlich Mo 07:00 UTC — nicht wie ein 5-Minuten-Job behandeln. */
   "social-suggestions": 8 * 24 * 60 * 60 * 1000,
 };
 
-/** Nur diese Jobs lösen On-Call-Mails aus. GitHub-Sync-Lag bleibt auf dem Ops-Board. */
+/** Nur diese Jobs lösen On-Call-Mails aus. Sync-Lag bleibt auf dem Ops-Board. */
 export const PAGEABLE_CRON_JOBS = new Set([
   "reservation-whatsapp",
   "reservation-email",
@@ -42,6 +44,8 @@ export const CRON_JOB_LABELS: Record<string, string> = {
   "reviews-feed-sync": "Bewertungen-Sync",
   "news-feed-sync": "News-Feed-Sync",
   "accounting-lexoffice-sync": "Lexoffice",
+  "news-publish": "News-Publish",
+  "billing-past-due": "Abo-Abgleich",
   "social-suggestions": "Social-Vorschläge",
 };
 

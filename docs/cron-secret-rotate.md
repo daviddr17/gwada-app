@@ -1,6 +1,6 @@
 # CRON_SECRET rotieren (Live)
 
-GitHub Actions und die VPS-Crontab müssen **denselben** Secret haben. Nur auf einer Seite drehen legt die Crons tot.
+Der Live-Scheduler ist die **VPS-Crontab**. `CRON_SECRET` muss in der Coolify-`.env` stehen. GitHub `CRON_SECRET` braucht ihr nur noch für manuellen Notfall-Dispatch — nicht für den Takt.
 
 **Nicht** den Secret in Logs, Issues oder Chat schreiben.
 

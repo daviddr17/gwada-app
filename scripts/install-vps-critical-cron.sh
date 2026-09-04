@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installiert Host-Crontab auf dem Live-VPS für zeitkritische Gwada-Crons.
-# GitHub Actions schedule ist unzuverlässig (oft Stunden Verzug) — der VPS pollt lokal.
+# Installiert Host-Crontab auf dem Live-VPS — der Server ist der einzige Scheduler.
+# GitHub Actions hat kein schedule mehr, nur manuellen Notfall-Dispatch.
 #
 # Erwartet: SSH wie sync-cron-secret-live (LIVE_VPS_HOST, GWADA_SSH_*).
 # CRON_SECRET wird aus Coolify-App-.env gelesen (bereits synchronisiert).
@@ -68,7 +68,7 @@ env_snippet="CRON_BASE_URL=${base_url} CRON_SECRET=${secret}"
 
 block=$(cat <<EOF
 ${marker_begin}
-# Gwada: Host-Crons (GitHub Actions schedule ist unzuverlässig)
+# Gwada: einzig gültiger Produktions-Scheduler (UTC)
 */5 * * * * ${env_snippet} ${wrapper} /api/cron/reservation-whatsapp 120 >> ${log_dir}/reservation-whatsapp.log 2>&1
 */5 * * * * ${env_snippet} ${wrapper} /api/cron/reservation-email 120 >> ${log_dir}/reservation-email.log 2>&1
 */2 * * * * ${env_snippet} ${wrapper} /api/cron/notification-deliver 130 >> ${log_dir}/notification-deliver.log 2>&1
@@ -77,9 +77,11 @@ ${marker_begin}
 */5 * * * * ${env_snippet} ${wrapper} /api/cron/reservation-whatsapp-slo 60 >> ${log_dir}/reservation-whatsapp-slo.log 2>&1
 */5 * * * * ${env_snippet} ${wrapper} /api/cron/contact-inbox-sync 180 >> ${log_dir}/contact-inbox-sync.log 2>&1
 */5 * * * * ${env_snippet} ${wrapper} /api/cron/newsletter-send 130 >> ${log_dir}/newsletter-send.log 2>&1
+*/5 * * * * ${env_snippet} ${wrapper} /api/cron/news-publish 60 >> ${log_dir}/news-publish.log 2>&1
 */10 * * * * ${env_snippet} ${wrapper} /api/cron/news-feed-sync 180 >> ${log_dir}/news-feed-sync.log 2>&1
 */10 * * * * ${env_snippet} ${wrapper} /api/cron/reviews-feed-sync 180 >> ${log_dir}/reviews-feed-sync.log 2>&1
 */10 * * * * ${env_snippet} ${wrapper} /api/cron/accounting-lexoffice-sync 300 >> ${log_dir}/accounting-lexoffice-sync.log 2>&1
+0 6 * * * ${env_snippet} ${wrapper} /api/cron/billing-past-due 180 >> ${log_dir}/billing-past-due.log 2>&1
 0 7 * * 1 ${env_snippet} ${wrapper} /api/cron/social-suggestions 300 >> ${log_dir}/social-suggestions.log 2>&1
 ${marker_end}
 EOF
@@ -89,7 +91,7 @@ existing="$(crontab -l 2>/dev/null || true)"
 # Alten Block entfernen
 cleaned="$(printf '%s\n' "${existing}" | sed "/${marker_begin}/,/${marker_end}/d")"
 printf '%s\n%s\n' "${cleaned}" "${block}" | crontab -
-echo "✓ VPS crontab installiert (Zustellung + Inbox/News/Reviews/Lexoffice/Newsletter/Social)"
+echo "✓ VPS crontab installiert (alle Live-Crons, inkl. News-Publish und Billing)"
 crontab -l | sed -n "/${marker_begin}/,/${marker_end}/p" | sed 's/CRON_SECRET=[^ ]*/CRON_SECRET=***/g'
 REMOTE
 

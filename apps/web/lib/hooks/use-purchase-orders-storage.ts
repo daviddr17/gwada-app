@@ -910,9 +910,6 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         });
       }
 
-      const persistOk = await persistOptimisticQueued(next, prev);
-      if (!persistOk) return false;
-
       if (createdNewOrder) {
         toastPurchaseOrderOpened(
           params.supplierName,
@@ -935,6 +932,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         );
       }
 
+      void persistOptimisticQueued(next, prev);
       return true;
     },
     [persistOptimisticQueued, readOrdersSnapshot],
@@ -1078,12 +1076,11 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const next = previous.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      const persistOk = await persistOptimisticQueued(next, previous);
-      if (!persistOk) return false;
       toast.success(
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
         { id: `order-delivery-${orderId}` },
       );
+      void persistOptimisticQueued(next, previous);
       return true;
     },
     [orders, persistOptimisticQueued, readOrdersSnapshot],
@@ -1153,18 +1150,15 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         : next;
 
       if (deletedEmptyOpen) {
-        const persistOk = await persistEmptyOpenDeleteOptimistic({
+        toastPurchaseOrderDeletedEmpty(supplierNameForToast);
+        void persistEmptyOpenDeleteOptimistic({
           next: toPersist,
           rollbackSnapshot: prev,
           orderId,
         });
-        if (!persistOk) return false;
-        toastPurchaseOrderDeletedEmpty(supplierNameForToast);
         return true;
       }
 
-      const persistOk = await persistOptimisticQueued(toPersist, prev);
-      if (!persistOk) return false;
       if (nextQty === 0) {
         toastPurchaseOrderLineRemoved(l.ingredientName);
       } else {
@@ -1174,6 +1168,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           l.unitLabel,
         );
       }
+      void persistOptimisticQueued(toPersist, prev);
       return true;
     },
     [

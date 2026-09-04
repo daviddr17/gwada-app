@@ -439,6 +439,7 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
       afterInventoryMutation({
         stockChanged: options?.stockChanged ?? toastKind === "update",
       });
+      showIngredientPersistToast(toastKind, options?.silentToast);
 
       void persistQueueRef.current.enqueue(async () => {
         const rid = restaurantId ?? (await getWorkspaceRestaurantId());
@@ -462,7 +463,6 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
         if (ingredientsMutationGenerationRef.current === generation) {
           applyIngredientsOptimistic(fromDb);
         }
-        showIngredientPersistToast(toastKind, options?.silentToast);
         return true;
       });
     },

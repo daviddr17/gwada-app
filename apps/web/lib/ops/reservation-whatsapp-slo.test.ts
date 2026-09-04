@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  CONFIRM_SLO_LOOKBACK_MS,
   CONFIRM_SLO_MS,
   computeConfirmSlo,
 } from "./reservation-whatsapp-slo.ts";
@@ -70,4 +71,35 @@ test("ignores reminders and cancelled rows", () => {
   assert.equal(slo.sample, 0);
   assert.equal(slo.breached, false);
   assert.ok(CONFIRM_SLO_MS === 30_000);
+  assert.ok(CONFIRM_SLO_LOOKBACK_MS === 24 * 60 * 60 * 1000);
+});
+
+test("ignores confirms older than the lookback window", () => {
+  const rows = [
+    row("confirmed", "2026-09-01T11:50:00.000Z", null),
+    row("confirmed", "2026-09-01T11:50:00.000Z", "2026-09-01T11:51:00.000Z"),
+  ];
+  const slo = computeConfirmSlo(rows, now);
+  assert.equal(slo.sample, 0);
+  assert.equal(slo.breached, false);
+});
+
+test("counts only restaurants in the include set", () => {
+  const rows = [
+    {
+      ...row("confirmed", "2026-09-04T11:50:00.000Z", null),
+      restaurant_id: "demo",
+    },
+    {
+      ...row("confirmed", "2026-09-04T11:50:00.000Z", "2026-09-04T11:50:05.000Z"),
+      restaurant_id: "live",
+    },
+  ];
+  const slo = computeConfirmSlo(rows, now, {
+    includeRestaurantIds: new Set(["live"]),
+  });
+  assert.equal(slo.sample, 1);
+  assert.equal(slo.onTime, 1);
+  assert.equal(slo.pending, 0);
+  assert.equal(slo.breached, false);
 });

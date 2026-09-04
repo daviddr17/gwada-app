@@ -1,6 +1,12 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  deliveryHealthAlertFingerprint,
+  deliveryHealthNeedsPage,
+  pageableStaleCronJobs,
+  restaurantNeedsPage,
+} from "@/lib/ops/delivery-health";
 import { loadDeliveryHealthSnapshot } from "@/lib/ops/load-delivery-health";
 import {
   ALERT_COOLDOWN_MS,
@@ -12,27 +18,6 @@ import { sendOpsAlertEmail } from "@/lib/ops/send-ops-alert-email";
 
 const ALERT_KEY = "whatsapp_confirm_slo";
 
-function alertFingerprint(snapshot: Awaited<ReturnType<typeof loadDeliveryHealthSnapshot>>): string {
-  const staleJobs = snapshot.cron.filter((c) => c.stale).map((c) => c.jobName).sort();
-  const hung = snapshot.restaurants
-    .filter(
-      (r) =>
-        r.hungSending > 0 ||
-        r.emailHungSending > 0 ||
-        r.failedOpen > 0 ||
-        r.emailFailedOpen > 0 ||
-        r.notificationsStuck > 0,
-    )
-    .map((r) => r.restaurantId)
-    .sort();
-  return [
-    snapshot.slo.breached ? "slo" : "ok",
-    `late:${snapshot.slo.late}`,
-    `stale:${staleJobs.join(",")}`,
-    `hung:${hung.join(",")}`,
-  ].join("|");
-}
-
 export async function evaluateWhatsappSloAlerts(
   admin: SupabaseClient,
 ): Promise<{
@@ -41,13 +26,8 @@ export async function evaluateWhatsappSloAlerts(
   skipped: string | null;
 }> {
   const snapshot = await loadDeliveryHealthSnapshot(admin);
-  const fingerprint = alertFingerprint(snapshot);
-  const needsAlert =
-    snapshot.slo.breached ||
-    snapshot.cron.some((c) => c.stale) ||
-    snapshot.restaurants.some(
-      (r) => r.hungSending > 0 || r.emailHungSending > 0 || r.notificationsStuck > 0,
-    );
+  const fingerprint = deliveryHealthAlertFingerprint(snapshot);
+  const needsAlert = deliveryHealthNeedsPage(snapshot);
 
   if (!needsAlert) {
     return { alerted: false, fingerprint, skipped: "healthy" };
@@ -77,21 +57,29 @@ export async function evaluateWhatsappSloAlerts(
     return { alerted: false, fingerprint, skipped: "cooldown" };
   }
 
-  const stale = snapshot.cron.filter((c) => c.stale).map((c) => c.jobName);
-  const problemRestaurants = snapshot.restaurants.slice(0, 8).map((r) => {
-    const bits = [
-      r.restaurantName,
-      r.hungSending ? `${r.hungSending} WA hängend` : null,
-      r.emailHungSending ? `${r.emailHungSending} E-Mail hängend` : null,
-      r.failedOpen ? `${r.failedOpen} WA-Fehler` : null,
-      r.emailFailedOpen ? `${r.emailFailedOpen} E-Mail-Fehler` : null,
-      r.notificationsStuck ? `${r.notificationsStuck} Push hängend` : null,
-      r.wahaStatus && r.wahaStatus.toLowerCase() !== "working"
-        ? `WAHA ${r.wahaStatus}`
-        : null,
-    ].filter(Boolean);
-    return `- ${bits.join(" · ")}`;
-  });
+  const stale = pageableStaleCronJobs(snapshot.cron);
+  const problemRestaurants = snapshot.restaurants
+    .filter(
+      (r) =>
+        restaurantNeedsPage(r) ||
+        r.failedOpen > 0 ||
+        r.emailFailedOpen > 0,
+    )
+    .slice(0, 8)
+    .map((r) => {
+      const bits = [
+        r.restaurantName,
+        r.hungSending ? `${r.hungSending} WA hängend` : null,
+        r.emailHungSending ? `${r.emailHungSending} E-Mail hängend` : null,
+        r.failedOpen ? `${r.failedOpen} WA-Fehler` : null,
+        r.emailFailedOpen ? `${r.emailFailedOpen} E-Mail-Fehler` : null,
+        r.notificationsStuck ? `${r.notificationsStuck} Push hängend` : null,
+        r.wahaStatus && r.wahaStatus.toLowerCase() !== "working"
+          ? `WAHA ${r.wahaStatus}`
+          : null,
+      ].filter(Boolean);
+      return `- ${bits.join(" · ")}`;
+    });
 
   const text = [
     `SLO: ${(snapshot.slo.ratio * 100).toFixed(1)}% der Bestätigungen in ${snapshot.slo.targetMs / 1000}s (Ziel ${snapshot.slo.targetRatio * 100}%).`,
@@ -114,11 +102,11 @@ export async function evaluateWhatsappSloAlerts(
         ? `ESKALATION ${escalation.nextCount}x — ${
             snapshot.slo.breached
               ? "Bestätigungen unter SLO"
-              : "Zustellung, Sync oder Cron auffällig"
+              : "Zustellung oder Zustell-Cron auffällig"
           }`
         : snapshot.slo.breached
           ? "Bestätigungen unter SLO"
-          : "Zustellung, Sync oder Cron auffällig",
+          : "Zustellung oder Zustell-Cron auffällig",
     text,
   });
 

@@ -13,7 +13,7 @@ Authorization: Bearer <CRON_SECRET>
 ## Zuverlässigkeit (wichtig)
 
 GitHub Actions **`schedule` ist unzuverlässig** — oft nur alle paar Stunden statt alle 5 Minuten.
-Zeitkritische Jobs (Reservierungs-WhatsApp/E-Mail, Notification-Deliver, Schicht-Push, WAHA-Recover) laufen deshalb **zusätzlich als Host-Crontab auf dem VPS**:
+Zeitkritische Jobs (Reservierungs-WhatsApp/E-Mail, Notification-Deliver, Schicht-Push, WAHA-Recover) und die Sync-Jobs (Inbox, News, Reviews, Lexoffice, Newsletter, Social wöchentlich) laufen deshalb **zusätzlich als Host-Crontab auf dem VPS**:
 
 ```bash
 # Einmalig / nach Secret-Sync:

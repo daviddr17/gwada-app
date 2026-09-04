@@ -8,12 +8,14 @@ import {
   newsletterOpsSummary,
   restaurantOpsRows,
   wahaHangRows,
+  workingWahaRestaurantIds,
   type CronHeartbeatRow,
   type DeliveryHealthSnapshot,
   type NotificationHealthRow,
   type OutboxHealthRow,
   type WahaSessionHealthRow,
 } from "@/lib/ops/delivery-health";
+import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
 import { computeConfirmSlo } from "@/lib/ops/reservation-whatsapp-slo";
 import { sanitizeOpsText } from "@/lib/ops/sanitize-ops-text";
 
@@ -94,14 +96,18 @@ export async function loadDeliveryHealthSnapshot(
       .from("restaurant_subscriptions")
       .select("restaurant_id, status, past_due_since")
       .in("status", ["past_due", "unpaid"]),
-    admin.from("restaurants").select("id, name"),
+    admin.from("restaurants").select("id, name, slug"),
   ]);
 
   const names = new Map<string, string>();
+  const demoRestaurantIds = new Set<string>();
   for (const raw of restaurantRes.data ?? []) {
     const row = asRecord(raw);
     if (!row || typeof row.id !== "string") continue;
     names.set(row.id, typeof row.name === "string" ? row.name : row.id);
+    if (isMetaReviewDemoRestaurantSlug(typeof row.slug === "string" ? row.slug : null)) {
+      demoRestaurantIds.add(row.id);
+    }
   }
 
   const outbox = mapOutbox(outboxRes.data ?? []);
@@ -153,6 +159,7 @@ export async function loadDeliveryHealthSnapshot(
   const sloRows = (outboxRes.data ?? []).map((raw) => {
     const row = asRecord(raw) ?? {};
     return {
+      restaurant_id: String(row.restaurant_id ?? ""),
       message_kind: String(row.message_kind ?? ""),
       send_at: typeof row.send_at === "string" ? row.send_at : null,
       sent_at: typeof row.sent_at === "string" ? row.sent_at : null,
@@ -161,8 +168,13 @@ export async function loadDeliveryHealthSnapshot(
     };
   });
 
+  const sloRestaurantIds = workingWahaRestaurantIds(sessions);
+  for (const id of demoRestaurantIds) sloRestaurantIds.delete(id);
+
   return {
-    slo: computeConfirmSlo(sloRows),
+    slo: computeConfirmSlo(sloRows, Date.now(), {
+      includeRestaurantIds: sloRestaurantIds,
+    }),
     cron: cronLagRows(heartbeats),
     restaurants: restaurantOpsRows({
       outbox,

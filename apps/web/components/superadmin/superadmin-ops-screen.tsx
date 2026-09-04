@@ -110,7 +110,8 @@ export function SuperadminOpsScreen() {
         </p>
         {slo ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            Pünktlich {slo.onTime} · spät {slo.late} · offen nach 30s {slo.pending}
+            Letzte 24h, nur Restaurants mit WAHA WORKING · pünktlich {slo.onTime} ·
+            spät {slo.late} · offen nach 30s {slo.pending}
           </p>
         ) : null}
         {sloBad ? (
@@ -126,6 +127,9 @@ export function SuperadminOpsScreen() {
         {staleCrons.length > 0 ? (
           <p className="mt-1 text-sm text-destructive">
             {staleCrons.length} Job{staleCrons.length === 1 ? "" : "s"} ohne frischen OK-Beat.
+            {staleCrons.some((job) => job.pageable)
+              ? " Zustell-Jobs lösen On-Call aus."
+              : " Nur Sync-Jobs — keine On-Call-Mail."}
           </p>
         ) : (
           <p className="mt-1 text-sm text-muted-foreground">Alle überwachten Jobs frisch.</p>
@@ -138,6 +142,7 @@ export function SuperadminOpsScreen() {
             >
               <span className={job.stale ? "text-destructive" : undefined}>
                 {cronJobLabel(job.jobName)}
+                {job.stale && !job.pageable ? " · kein On-Call" : ""}
               </span>
               <span className="text-muted-foreground">
                 zuletzt ok {formatWhen(job.lastOkAt)} · Lag {formatLag(job.lagMs)}

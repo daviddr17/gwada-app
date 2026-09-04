@@ -12,8 +12,23 @@ export const CRON_LAG_MS: Record<string, number> = {
   "reviews-feed-sync": 25 * 60 * 1000,
   "news-feed-sync": 25 * 60 * 1000,
   "accounting-lexoffice-sync": 25 * 60 * 1000,
-  "social-suggestions": 25 * 60 * 1000,
+  /** Wöchentlich Mo 07:00 UTC — nicht wie ein 5-Minuten-Job behandeln. */
+  "social-suggestions": 8 * 24 * 60 * 60 * 1000,
 };
+
+/** Nur diese Jobs lösen On-Call-Mails aus. GitHub-Sync-Lag bleibt auf dem Ops-Board. */
+export const PAGEABLE_CRON_JOBS = new Set([
+  "reservation-whatsapp",
+  "reservation-email",
+  "reservation-whatsapp-slo",
+  "notification-deliver",
+  "staff-shift-notifications",
+  "waha-session-recover",
+]);
+
+export function isPageableCronJob(jobName: string): boolean {
+  return PAGEABLE_CRON_JOBS.has(jobName);
+}
 
 export const CRON_JOB_LABELS: Record<string, string> = {
   "reservation-whatsapp": "Reservierung WhatsApp",
@@ -111,6 +126,7 @@ export type CronLagRow = {
   lastError: string | null;
   lagMs: number | null;
   stale: boolean;
+  pageable: boolean;
 };
 
 export type DeliveryHealthSnapshot = {
@@ -146,6 +162,7 @@ export function cronLagRows(
       lastError: row?.last_error ?? null,
       lagMs,
       stale: lagMs == null || lagMs > threshold,
+      pageable: isPageableCronJob(jobName),
     };
   });
 }
@@ -368,4 +385,63 @@ export function wahaHangRows(params: {
       status: session.status,
       lastError: session.last_error,
     }));
+}
+
+export function isWahaWorkingStatus(status: string | null | undefined): boolean {
+  return (status ?? "").toLowerCase() === "working";
+}
+
+export function workingWahaRestaurantIds(
+  sessions: readonly WahaSessionHealthRow[],
+): Set<string> {
+  return new Set(
+    sessions
+      .filter((session) => isWahaWorkingStatus(session.status))
+      .map((session) => session.restaurant_id)
+      .filter(Boolean),
+  );
+}
+
+export function restaurantNeedsPage(row: RestaurantOpsRow): boolean {
+  return (
+    row.hungSending > 0 ||
+    row.emailHungSending > 0 ||
+    row.notificationsStuck > 0
+  );
+}
+
+export function pageableStaleCronJobs(cron: readonly CronLagRow[]): string[] {
+  return cron
+    .filter((row) => row.stale && row.pageable)
+    .map((row) => row.jobName)
+    .sort();
+}
+
+export function deliveryHealthNeedsPage(snapshot: {
+  slo: { breached: boolean };
+  cron: readonly CronLagRow[];
+  restaurants: readonly RestaurantOpsRow[];
+}): boolean {
+  return (
+    snapshot.slo.breached ||
+    pageableStaleCronJobs(snapshot.cron).length > 0 ||
+    snapshot.restaurants.some(restaurantNeedsPage)
+  );
+}
+
+export function deliveryHealthAlertFingerprint(snapshot: {
+  slo: { breached: boolean; late: number };
+  cron: readonly CronLagRow[];
+  restaurants: readonly RestaurantOpsRow[];
+}): string {
+  const hung = snapshot.restaurants
+    .filter(restaurantNeedsPage)
+    .map((row) => row.restaurantId)
+    .sort();
+  return [
+    snapshot.slo.breached ? "slo" : "ok",
+    `late:${snapshot.slo.late}`,
+    `stale:${pageableStaleCronJobs(snapshot.cron).join(",")}`,
+    `hung:${hung.join(",")}`,
+  ].join("|");
 }

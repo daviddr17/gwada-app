@@ -1129,3 +1129,80 @@ export async function setPurchaseOrderDeliveryDateRelational(
   }
   return { ok: true };
 }
+
+export async function addPurchaseOrderLineRelational(
+  restaurantId: string,
+  params: {
+    supplierId: string;
+    supplierName: string;
+    createdBy: string;
+    lineId: string;
+    ingredientId: string;
+    ingredientName: string;
+    brandLabel: string;
+    quantity: number;
+    unitId: string;
+    unitLabel: string;
+    logEntry: PurchaseOrderLogEntry;
+    orderId?: string | null;
+  },
+): Promise<
+  | {
+      ok: true;
+      orderId: string;
+      lineId: string;
+      quantity: number;
+      createdOrder: boolean;
+      createdLine: boolean;
+    }
+  | { ok: false; message: string }
+> {
+  await ensurePurchaseOrderSuppliers(restaurantId, [
+    {
+      id: params.orderId ?? params.lineId,
+      supplierId: params.supplierId,
+      supplierName: params.supplierName,
+      status: "open",
+      createdAt: new Date().toISOString(),
+      statusUpdatedAt: new Date().toISOString(),
+      createdBy: params.createdBy,
+      deliveryDate: null,
+      lines: [],
+      log: [],
+    },
+  ]);
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase.rpc("inventory_purchase_order_add_line", {
+    p_restaurant_id: restaurantId,
+    p_supplier_id: params.supplierId,
+    p_supplier_name: params.supplierName,
+    p_created_by: params.createdBy,
+    p_line_id: params.lineId,
+    p_ingredient_id: params.ingredientId,
+    p_ingredient_name: params.ingredientName,
+    p_brand_label: params.brandLabel,
+    p_quantity: params.quantity,
+    p_unit_id: params.unitId,
+    p_unit_label: params.unitLabel,
+    p_log_entry: params.logEntry,
+    p_order_id: params.orderId ?? null,
+  });
+  if (error) {
+    console.warn("[gwada] inventory_purchase_order_add_line", error.message);
+    return { ok: false, message: rpcFailureMessage(error) };
+  }
+  const row = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  const orderId = typeof row.order_id === "string" ? row.order_id : params.orderId;
+  const lineId = typeof row.line_id === "string" ? row.line_id : params.lineId;
+  if (!orderId || !lineId) {
+    return { ok: false, message: "add_line_missing_ids" };
+  }
+  return {
+    ok: true,
+    orderId,
+    lineId,
+    quantity: typeof row.quantity === "number" ? row.quantity : params.quantity,
+    createdOrder: row.created_order === true,
+    createdLine: row.created_line === true,
+  };
+}

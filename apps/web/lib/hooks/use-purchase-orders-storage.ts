@@ -41,6 +41,7 @@ import {
   savePurchaseOrdersRelational,
   setPurchaseOrderStatusRelational,
   applyPurchaseOrderLineDeliveryStockRelational,
+  addPurchaseOrderLineRelational,
   setPurchaseOrderLineQuantityRelational,
   setPurchaseOrderDeliveryDateRelational,
 } from "@/lib/supabase/inventory-db";
@@ -800,6 +801,91 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     ],
   );
 
+  const persistAddLineAtomicOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      lineId: string;
+      supplierId: string;
+      supplierName: string;
+      createdBy: string;
+      ingredientId: string;
+      ingredientName: string;
+      brandLabel: string;
+      quantity: number;
+      unitId: string;
+      unitLabel: string;
+      logEntry: PurchaseOrderLogAdd;
+    }): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      return persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await addPurchaseOrderLineRelational(rid, {
+            orderId: params.orderId,
+            lineId: params.lineId,
+            supplierId: params.supplierId,
+            supplierName: params.supplierName,
+            createdBy: params.createdBy,
+            ingredientId: params.ingredientId,
+            ingredientName: params.ingredientName,
+            brandLabel: params.brandLabel,
+            quantity: params.quantity,
+            unitId: params.unitId,
+            unitLabel: params.unitLabel,
+            logEntry: params.logEntry,
+          });
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          afterOrdersPersistSuccess();
+          dispatchInventoryDataRefresh();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
   const persistDeliveryDateAtomicOptimistic = useCallback(
     (params: {
       next: PurchaseOrder[];
@@ -1110,13 +1196,15 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
 
       const existing = order.lines.find((l) => l.ingredientId === params.ingredientId);
       let addedNewLine = false;
+      let lineId = existing?.id ?? "";
       if (existing) {
         existing.quantity += params.quantity;
         existing.brandLabel = params.brandLabel;
       } else {
         addedNewLine = true;
+        lineId = createId();
         order.lines.push({
-          id: createId(),
+          id: lineId,
           ingredientId: params.ingredientId,
           ingredientName: params.ingredientName,
           brandLabel: params.brandLabel,
@@ -1148,10 +1236,25 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         );
       }
 
-      void persistOptimisticQueued(next, prev);
+      void persistAddLineAtomicOptimistic({
+        next,
+        rollbackSnapshot: prev,
+        orderId: order.id,
+        lineId,
+        supplierId: params.supplierId,
+        supplierName: params.supplierName,
+        createdBy: protocolCreatedByLabel(params.actor),
+        ingredientId: params.ingredientId,
+        ingredientName: params.ingredientName,
+        brandLabel: params.brandLabel,
+        quantity: params.quantity,
+        unitId: params.unitId,
+        unitLabel: params.unitLabel,
+        logEntry,
+      });
       return true;
     },
-    [persistOptimisticQueued, readOrdersSnapshot],
+    [persistAddLineAtomicOptimistic, readOrdersSnapshot],
   );
 
   /** Offen → Bestellt */

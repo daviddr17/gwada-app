@@ -1,5 +1,6 @@
 import "server-only";
 
+import { shouldSyncRestaurantInCronSlot as shouldSyncInBucket } from "@/lib/ops/cron-restaurant-stagger";
 import { listStaleReviewsPlatforms, syncRestaurantReviewsPlatforms } from "@/lib/reviews/reviews-feed-sync-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -12,22 +13,11 @@ export type ReviewsFeedSyncCronStats = {
 
 const CRON_STAGGER_BUCKETS = 10;
 
-/** Verteilt Sync-Last über 10 Minuten (Hash-Bucket pro Restaurant). */
-export function restaurantReviewsCronBucket(restaurantId: string): number {
-  let hash = 0;
-  for (let i = 0; i < restaurantId.length; i++) {
-    hash = (hash * 31 + restaurantId.charCodeAt(i)) >>> 0;
-  }
-  return hash % CRON_STAGGER_BUCKETS;
-}
-
 export function shouldSyncRestaurantInCronSlot(
   restaurantId: string,
   slot?: number,
 ): boolean {
-  const currentSlot =
-    slot ?? Math.floor(Date.now() / 60000) % CRON_STAGGER_BUCKETS;
-  return restaurantReviewsCronBucket(restaurantId) === currentSlot;
+  return shouldSyncInBucket(restaurantId, CRON_STAGGER_BUCKETS, slot);
 }
 
 export async function runReviewsFeedSyncCron(

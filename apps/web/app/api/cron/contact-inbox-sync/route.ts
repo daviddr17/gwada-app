@@ -18,6 +18,7 @@ export async function GET(req: Request) {
     const result = await runContactInboxSyncCron(admin);
     return {
       restaurants: result.restaurants,
+      skipped: result.skipped,
       emailImported: result.emailImported,
       whatsappImported: result.whatsappImported,
       lexofficeContactsSynced: result.lexofficeContactsSynced,

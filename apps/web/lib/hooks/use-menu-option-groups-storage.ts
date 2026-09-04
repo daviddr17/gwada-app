@@ -65,7 +65,6 @@ export function useMenuOptionGroupsStorage() {
       if (Array.isArray(localRaw) && localRaw.every(isValidLoose)) {
         setItems(localRaw.map(normalizeGroup));
       }
-      setIsHydrated(true);
 
       void (async () => {
         const rid = await getWorkspaceRestaurantId();
@@ -76,6 +75,7 @@ export function useMenuOptionGroupsStorage() {
           setItems(next);
           mirrorWorkspaceJsonLocal(STORAGE_KEY, next);
         }
+        setIsHydrated(true);
       })();
     } else {
       const localRaw = loadWorkspaceJsonLocal(STORAGE_KEY);
@@ -98,6 +98,10 @@ export function useMenuOptionGroupsStorage() {
   const add = useCallback(
     async (input: MenuOptionGroupSaveInput): Promise<string | null> => {
       if (useDb) {
+        if (!isHydrated) {
+          toast.error("Optionen werden noch geladen — bitte kurz warten.");
+          return null;
+        }
         const rid = await getWorkspaceRestaurantId();
         if (!rid) {
           failSave();
@@ -131,12 +135,16 @@ export function useMenuOptionGroupsStorage() {
       toast.success("Option angelegt");
       return id;
     },
-    [useDb, failSave, persistLocal, items],
+    [useDb, failSave, isHydrated, persistLocal, items],
   );
 
   const update = useCallback(
     async (id: string, input: MenuOptionGroupSaveInput): Promise<boolean> => {
       if (useDb) {
+        if (!isHydrated) {
+          toast.error("Optionen werden noch geladen — bitte kurz warten.");
+          return false;
+        }
         const ok = await updateMenuOptionGroupRelational(id, input);
         if (!ok) {
           failSave();
@@ -170,12 +178,16 @@ export function useMenuOptionGroupsStorage() {
       toast.success("Option gespeichert");
       return true;
     },
-    [useDb, failSave, persistLocal, items],
+    [useDb, failSave, isHydrated, persistLocal, items],
   );
 
   const remove = useCallback(
     async (id: string): Promise<boolean> => {
       if (useDb) {
+        if (!isHydrated) {
+          toast.error("Optionen werden noch geladen — bitte kurz warten.");
+          return false;
+        }
         const ok = await deleteMenuOptionGroupRelational(id);
         if (!ok) {
           failSave();
@@ -189,7 +201,7 @@ export function useMenuOptionGroupsStorage() {
       toast.success("Option gelöscht");
       return true;
     },
-    [useDb, failSave, persistLocal, items],
+    [useDb, failSave, isHydrated, persistLocal, items],
   );
 
   const reorder = useCallback(

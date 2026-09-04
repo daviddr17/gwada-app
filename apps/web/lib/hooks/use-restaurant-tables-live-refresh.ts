@@ -1,45 +1,62 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { dispatchStaffDataRefresh } from "@/lib/staff/staff-live-events";
 import { useVisibleIntervalPolling } from "@/lib/hooks/use-visible-interval-polling";
 import { isPublicSupabaseProxyEnabled } from "@/lib/public-env";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { subscribeRestaurantTableChanges } from "@/lib/supabase/restaurant-table-realtime";
+import {
+  subscribeRestaurantTableChanges,
+  type RestaurantRealtimeTable,
+} from "@/lib/supabase/restaurant-table-realtime";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
-const STAFF_POLL_MS = 30_000;
 const REALTIME_READY_TIMEOUT_MS = 12_000;
+const REFRESH_DEBOUNCE_MS = 300;
 
 /**
- * Mitarbeiter: Realtime; bei Ausfall oder `/sb`-Proxy Polling (30 s).
+ * Zone-Level Realtime → Callback. Der Callback darf nur refetch/invalidate —
+ * niemals Client-State in die DB zurückschreiben.
  */
-export function useRestaurantStaffRealtime() {
+export function useRestaurantTablesLiveRefresh(params: {
+  tables: readonly RestaurantRealtimeTable[];
+  channelPrefix: string;
+  onRefresh: () => void;
+  pollMs?: number;
+}) {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const sbRef = useRef(createSupabaseBrowserClient());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const subscribedChannelsRef = useRef(0);
-  const polling = useVisibleIntervalPolling(STAFF_POLL_MS);
+  const onRefreshRef = useRef(params.onRefresh);
+  onRefreshRef.current = params.onRefresh;
+  const polling = useVisibleIntervalPolling(params.pollMs ?? 15_000);
+  const tablesKey = params.tables.join(",");
 
   useEffect(() => {
     if (!ready || !restaurantId || !isUuidRestaurantId(restaurantId)) return;
+    const tables = tablesKey.split(",") as RestaurantRealtimeTable[];
+    if (tables.length === 0) return;
 
     subscribedChannelsRef.current = 0;
-    const expectedChannels = 4;
+    const expectedChannels = tables.length;
+
+    const fire = () => {
+      onRefreshRef.current();
+    };
 
     const scheduleRefresh = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
-        dispatchStaffDataRefresh();
-      }, 400);
+        fire();
+      }, REFRESH_DEBOUNCE_MS);
     };
 
     const enablePolling = () => {
       polling.start(() => {
         if (document.visibilityState !== "visible") return;
-        dispatchStaffDataRefresh();
+        fire();
       });
     };
 
@@ -47,7 +64,9 @@ export function useRestaurantStaffRealtime() {
       polling.stop();
     };
 
-    const onChannelStatus = (status: "SUBSCRIBED" | "CHANNEL_ERROR" | "TIMED_OUT" | "CLOSED") => {
+    const onChannelStatus = (
+      status: "SUBSCRIBED" | "CHANNEL_ERROR" | "TIMED_OUT" | "CLOSED",
+    ) => {
       if (status === "SUBSCRIBED") {
         subscribedChannelsRef.current = Math.min(
           expectedChannels,
@@ -73,50 +92,29 @@ export function useRestaurantStaffRealtime() {
       if (subscribedChannelsRef.current < expectedChannels) enablePolling();
     }, REALTIME_READY_TIMEOUT_MS);
 
-    const teardownEntries = subscribeRestaurantTableChanges(sbRef.current, {
-      channelName: `staff-work-entries-live:${restaurantId}`,
-      table: "restaurant_staff_work_entries",
-      restaurantId,
-      events: ["INSERT", "UPDATE", "DELETE"],
-      onChange: scheduleRefresh,
-      onStatus: onChannelStatus,
-    });
-
-    const teardownStaff = subscribeRestaurantTableChanges(sbRef.current, {
-      channelName: `staff-roster-live:${restaurantId}`,
-      table: "restaurant_staff",
-      restaurantId,
-      events: ["INSERT", "UPDATE", "DELETE"],
-      onChange: scheduleRefresh,
-      onStatus: onChannelStatus,
-    });
-
-    const teardownShifts = subscribeRestaurantTableChanges(sbRef.current, {
-      channelName: `staff-shifts-live:${restaurantId}`,
-      table: "restaurant_staff_scheduled_shifts",
-      restaurantId,
-      events: ["INSERT", "UPDATE", "DELETE"],
-      onChange: scheduleRefresh,
-      onStatus: onChannelStatus,
-    });
-
-    const teardownTodos = subscribeRestaurantTableChanges(sbRef.current, {
-      channelName: `staff-todos-live:${restaurantId}`,
-      table: "restaurant_staff_todos",
-      restaurantId,
-      events: ["INSERT", "UPDATE", "DELETE"],
-      onChange: scheduleRefresh,
-      onStatus: onChannelStatus,
-    });
+    const teardowns = tables.map((table) =>
+      subscribeRestaurantTableChanges(sbRef.current, {
+        channelName: `${params.channelPrefix}-${table}:${restaurantId}`,
+        table,
+        restaurantId,
+        events: ["INSERT", "UPDATE", "DELETE"],
+        onChange: scheduleRefresh,
+        onStatus: onChannelStatus,
+      }),
+    );
 
     return () => {
       window.clearTimeout(readyTimeout);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       disablePolling();
-      teardownEntries();
-      teardownStaff();
-      teardownShifts();
-      teardownTodos();
+      for (const teardown of teardowns) teardown();
     };
-  }, [ready, restaurantId, polling.start, polling.stop]);
+  }, [
+    ready,
+    restaurantId,
+    tablesKey,
+    params.channelPrefix,
+    polling.start,
+    polling.stop,
+  ]);
 }

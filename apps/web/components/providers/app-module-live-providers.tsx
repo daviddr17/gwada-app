@@ -1,8 +1,11 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { AppContactsLive } from "@/components/providers/app-contacts-live";
 import { AppDashboardWidgetsLive } from "@/components/providers/app-dashboard-widgets-live";
+import { AppDiningLive } from "@/components/providers/app-dining-live";
 import { AppInventoryLive } from "@/components/providers/app-inventory-live";
+import { AppMenuLive } from "@/components/providers/app-menu-live";
 import { AppNotificationBellLive } from "@/components/providers/app-notification-bell-live";
 import { AppReservationsLive } from "@/components/providers/app-reservations-live";
 import { AppStaffLive } from "@/components/providers/app-staff-live";
@@ -37,6 +40,9 @@ export function AppModuleLiveProviders() {
       <AppReservationsLive />
       <AppStaffLive />
       <AppInventoryLive />
+      <AppMenuLive />
+      <AppContactsLive />
+      <AppDiningLive />
       <AppDashboardWidgetsLive />
     </>
   );

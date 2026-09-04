@@ -27,7 +27,11 @@ export type RestaurantRealtimeTable =
   | "menu_categories"
   | "menu_main_categories"
   | "contacts"
-  | "restaurant_integrations";
+  | "restaurant_integrations"
+  | "restaurant_staff_scheduled_shifts"
+  | "restaurant_staff_todos"
+  | "dining_tables"
+  | "dining_areas";
 
 type RealtimeChangeEvent = "INSERT" | "UPDATE" | "DELETE";
 

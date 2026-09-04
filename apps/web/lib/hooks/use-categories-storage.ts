@@ -153,10 +153,7 @@ export function useCategoriesStorage() {
     ? (categoriesQuery.data ?? peekMenuCategoriesCache() ?? defaultMenuCategories())
     : localCategories;
   const isHydrated = useDbMenu
-    ? workspaceReady &&
-      (categoriesQuery.isSuccess ||
-        categoriesQuery.isError ||
-        Boolean(peekMenuCategoriesCache()?.length))
+    ? workspaceReady && (categoriesQuery.isSuccess || categoriesQuery.isError)
     : isLocalHydrated;
 
   const addCategory = useCallback(

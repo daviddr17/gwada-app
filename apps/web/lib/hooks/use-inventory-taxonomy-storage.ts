@@ -65,40 +65,47 @@ export function useInventoryTaxonomyStorage(
       if (Array.isArray(localRaw) && localRaw.every(isValidLoose)) {
         setItems(localRaw.map(normalizeTaxonomy));
       }
-      setIsHydrated(true);
 
       void (async () => {
         const rid = await getWorkspaceRestaurantId();
         const rows = await loadInventoryTaxonomyRelational(table, rid);
         if (cancelled) return;
-        if (rows && rows.length > 0) {
+        if (rows === null) {
+          // Fetch fehlgeschlagen — Anzeige aus LS, kein Seed/Upsert in die DB.
+          setIsHydrated(true);
+          return;
+        }
+        if (rows.length > 0) {
           const next = rows.map(normalizeTaxonomy);
           setItems(next);
           mirrorWorkspaceJsonLocal(storageKey, next);
-        } else {
-          const seeded = initialSeed.map(normalizeTaxonomy);
-          setItems(seeded);
-          if (rid) {
-            const legacyRaw = await readLegacyRestaurantAppStatePayload(storageKey);
-            const legacy =
-              Array.isArray(legacyRaw) && legacyRaw.every(isValidLoose)
-                ? legacyRaw.map(normalizeTaxonomy)
-                : seeded;
-            for (const item of legacy) {
-              await upsertInventoryTaxonomyRow(
-                table,
-                rid,
-                item.id,
-                item.name,
-                item.active !== false,
-              );
-            }
-            const after = await loadInventoryTaxonomyRelational(table, rid);
-            if (after && after.length > 0) {
-              const migrated = after.map(normalizeTaxonomy);
-              setItems(migrated);
-              mirrorWorkspaceJsonLocal(storageKey, migrated);
-            }
+          setIsHydrated(true);
+          return;
+        }
+        // Bestätigt leere DB: einmalig aus Legacy/Seed anlegen — nur wenn wirklich 0 Zeilen.
+        const seeded = initialSeed.map(normalizeTaxonomy);
+        setItems(seeded);
+        if (rid) {
+          const legacyRaw = await readLegacyRestaurantAppStatePayload(storageKey);
+          const legacy =
+            Array.isArray(legacyRaw) && legacyRaw.every(isValidLoose)
+              ? legacyRaw.map(normalizeTaxonomy)
+              : seeded;
+          for (const item of legacy) {
+            await upsertInventoryTaxonomyRow(
+              table,
+              rid,
+              item.id,
+              item.name,
+              item.active !== false,
+            );
+          }
+          const after = await loadInventoryTaxonomyRelational(table, rid);
+          if (cancelled) return;
+          if (after && after.length > 0) {
+            const migrated = after.map(normalizeTaxonomy);
+            setItems(migrated);
+            mirrorWorkspaceJsonLocal(storageKey, migrated);
           }
         }
         setIsHydrated(true);
@@ -164,6 +171,10 @@ export function useInventoryTaxonomyStorage(
       successMessage?: string,
     ): Promise<boolean> => {
       if (!table) return false;
+      if (!isHydrated) {
+        toast.error("Listen werden noch geladen — bitte kurz warten.");
+        return false;
+      }
       const rid = await getWorkspaceRestaurantId();
       if (!rid) {
         failSave();
@@ -182,7 +193,7 @@ export function useInventoryTaxonomyStorage(
       if (successMessage) toast.success(successMessage);
       return true;
     },
-    [failSave, table],
+    [failSave, isHydrated, table],
   );
 
   const add = useCallback(
@@ -193,6 +204,10 @@ export function useInventoryTaxonomyStorage(
       const trimmed = name.trim();
       if (!trimmed) return null;
       if (useDbInventory && table) {
+        if (!isHydrated) {
+          toast.error("Listen werden noch geladen — bitte kurz warten.");
+          return null;
+        }
         const rid = await getWorkspaceRestaurantId();
         if (!rid) {
           failSave();
@@ -224,7 +239,7 @@ export function useInventoryTaxonomyStorage(
       );
       return ok ? { id, name: trimmed } : null;
     },
-    [failSave, items, persist, table, useDbInventory],
+    [failSave, isHydrated, items, persist, table, useDbInventory],
   );
 
   const update = useCallback(
@@ -233,6 +248,10 @@ export function useInventoryTaxonomyStorage(
       updates: { name?: string; active?: boolean },
     ): Promise<boolean> => {
       if (useDbInventory && table) {
+        if (!isHydrated) {
+          toast.error("Listen werden noch geladen — bitte kurz warten.");
+          return false;
+        }
         const rid = await getWorkspaceRestaurantId();
         if (!rid) {
           failSave();
@@ -270,19 +289,23 @@ export function useInventoryTaxonomyStorage(
       );
       return true;
     },
-    [failSave, items, persist, table, useDbInventory],
+    [failSave, isHydrated, items, persist, table, useDbInventory],
   );
 
   const reorder = useCallback(
     (next: InventoryTaxonomyDefinition[]) => {
       const cleaned = next.map(normalizeTaxonomy);
       if (useDbInventory && table) {
+        if (!isHydrated) {
+          toast.error("Listen werden noch geladen — bitte kurz warten.");
+          return;
+        }
         void persistDbReorder(cleaned, "Reihenfolge aktualisiert");
         return;
       }
       persist(cleaned, "Reihenfolge aktualisiert");
     },
-    [persist, persistDbReorder, table, useDbInventory],
+    [isHydrated, persist, persistDbReorder, table, useDbInventory],
   );
 
   const getById = useCallback(
@@ -293,6 +316,10 @@ export function useInventoryTaxonomyStorage(
   const remove = useCallback(
     async (id: string): Promise<boolean> => {
       if (useDbInventory && table) {
+        if (!isHydrated) {
+          toast.error("Listen werden noch geladen — bitte kurz warten.");
+          return false;
+        }
         const rid = await getWorkspaceRestaurantId();
         if (!rid) {
           failSave();
@@ -315,7 +342,7 @@ export function useInventoryTaxonomyStorage(
       });
       return ok;
     },
-    [failSave, persist, table, useDbInventory],
+    [failSave, isHydrated, persist, table, useDbInventory],
   );
 
   return {

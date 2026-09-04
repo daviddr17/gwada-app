@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useWindowEventRefresh } from "@/lib/hooks/use-window-event-refresh";
+import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { useSearchParams } from "next/navigation";
 import { Filter, Pencil, Plus, Search, Check, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -257,6 +259,14 @@ export function StaffTodosScreen({ active = true }: { active?: boolean }) {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useWindowEventRefresh(
+    GWADA_STAFF_DATA_REFRESH_EVENT,
+    Boolean(restaurantId),
+    () => {
+      void reload();
+    },
+  );
 
   useEffect(() => {
     const onVisible = () => {

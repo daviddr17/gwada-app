@@ -126,11 +126,9 @@ export function useMenuStorage() {
   }, [supabaseOnly, useDbMenu]);
 
   const items = useDbMenu ? (itemsQuery.data ?? peekMenuItemsCache() ?? []) : localItems;
+  const dbFetchReady = !useDbMenu || itemsQuery.isSuccess;
   const isHydrated = useDbMenu
-    ? workspaceReady &&
-      (itemsQuery.isSuccess ||
-        itemsQuery.isError ||
-        Boolean(peekMenuItemsCache()?.length))
+    ? workspaceReady && (itemsQuery.isSuccess || itemsQuery.isError)
     : isLocalHydrated;
 
   const addItem = useCallback(
@@ -145,6 +143,10 @@ export function useMenuStorage() {
             : null,
       };
       if (useDbMenu) {
+        if (!dbFetchReady) {
+          toast.error("Speisekarte wird noch geladen — bitte kurz warten.");
+          return null;
+        }
         patchItemsCache((prev) => [newItem, ...prev]);
         afterMenuMutation();
         toast.success("Gericht hinzugefügt");
@@ -172,7 +174,7 @@ export function useMenuStorage() {
         });
       });
     },
-    [afterMenuMutation, failSave, patchItemsCache, useDbMenu],
+    [afterMenuMutation, dbFetchReady, failSave, patchItemsCache, useDbMenu],
   );
 
   const updateItem = useCallback(
@@ -187,6 +189,10 @@ export function useMenuStorage() {
             : null,
       };
       if (useDbMenu) {
+        if (!dbFetchReady) {
+          toast.error("Speisekarte wird noch geladen — bitte kurz warten.");
+          return false;
+        }
         const before = items.find((i) => i.id === id);
         patchItemsCache((prev) =>
           prev.map((existing) => (existing.id === id ? built : existing)),
@@ -224,7 +230,7 @@ export function useMenuStorage() {
         });
       });
     },
-    [afterMenuMutation, failSave, items, patchItemsCache, useDbMenu],
+    [afterMenuMutation, dbFetchReady, failSave, items, patchItemsCache, useDbMenu],
   );
 
   const getItemById = useCallback(
@@ -235,6 +241,10 @@ export function useMenuStorage() {
   const reorderItemsInCategory = useCallback(
     (categoryId: string, orderedIds: string[]) => {
       if (useDbMenu) {
+        if (!dbFetchReady) {
+          toast.error("Speisekarte wird noch geladen — bitte kurz warten.");
+          return;
+        }
         const snapshot = items;
         patchItemsCache((prev) =>
           prev.map((item) => {
@@ -274,12 +284,16 @@ export function useMenuStorage() {
         return next;
       });
     },
-    [afterMenuMutation, failSave, items, patchItemsCache, useDbMenu],
+    [afterMenuMutation, dbFetchReady, failSave, items, patchItemsCache, useDbMenu],
   );
 
   const deleteItem = useCallback(
     async (id: string): Promise<boolean> => {
       if (useDbMenu) {
+        if (!dbFetchReady) {
+          toast.error("Speisekarte wird noch geladen — bitte kurz warten.");
+          return false;
+        }
         patchItemsCache((prev) => prev.filter((i) => i.id !== id));
         afterMenuMutation();
         toast.success("Gericht gelöscht");
@@ -311,7 +325,7 @@ export function useMenuStorage() {
         });
       });
     },
-    [afterMenuMutation, failSave, items, patchItemsCache, useDbMenu],
+    [afterMenuMutation, dbFetchReady, failSave, items, patchItemsCache, useDbMenu],
   );
 
   return {

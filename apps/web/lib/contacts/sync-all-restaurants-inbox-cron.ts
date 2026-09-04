@@ -15,7 +15,7 @@ export type ContactInboxCronStats = {
   errors: string[];
 };
 
-/** Cron läuft */5 — jedes Restaurant etwa alle 25 Min. */
+/** Inbox-Cron alle 5 Minuten; jedes Restaurant etwa alle 25 Minuten. */
 const INBOX_STAGGER_BUCKETS = 5;
 
 const EMAIL_INBOX_STATUSES = ["custom", "gmail", "outlook"] as const;

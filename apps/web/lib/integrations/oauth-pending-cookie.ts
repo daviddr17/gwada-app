@@ -36,7 +36,7 @@ export function clearLegacyOAuthPendingCookieHeaders(): string[] {
 }
 
 export function oauthPendingClearAllCookieHeaders(): string[] {
-  return authEntryCookieClearHeaders();
+  return [...authEntryCookieClearHeaders(), clearOAuthPendingIdCookieHeader()];
 }
 
 export function readOAuthPendingIdFromRequest(req: Request): string | null {

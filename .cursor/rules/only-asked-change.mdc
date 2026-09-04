@@ -1,0 +1,13 @@
+---
+description: Nur die aktuell besprochene Sache ändern — nichts anderes anfassen, vorher fragen.
+alwaysApply: true
+---
+
+# Nur die aktuelle Sache
+
+David: In letzter Zeit geht zu viel kaputt, wenn nebenbei anderer Code angefasst wird.
+
+- **Nur** den Bereich ändern, um den es in dieser Anfrage geht.
+- Keinen Nachbarcode „mitaufräumen“, keine anderen Module, keine Drive-by-Refactors.
+- Wenn die Sache **andere Dateien/Bereiche** brauchen würde: **zuerst fragen**, nicht stillschweigend mitziehen.
+- Unklar, ob etwas dazugehört? Fragen, nicht annehmen.

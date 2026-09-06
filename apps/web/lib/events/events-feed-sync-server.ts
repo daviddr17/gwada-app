@@ -6,7 +6,10 @@ import {
   isEventsCacheablePlatform,
   type EventsCacheablePlatform,
 } from "@/lib/constants/events-platforms";
-import { upsertEventsPlatformCache } from "@/lib/events/events-cache-db";
+import {
+  touchEventsPlatformSync,
+  upsertEventsPlatformCache,
+} from "@/lib/events/events-cache-db";
 import { isEventsFeedSyncStale } from "@/lib/events/events-cache-constants";
 import { getEventsConnector } from "@/lib/events/connectors/registry";
 import { isFeedConnectorEnabledBySuperadmin } from "@/lib/platform-feed/feed-platform-superadmin";

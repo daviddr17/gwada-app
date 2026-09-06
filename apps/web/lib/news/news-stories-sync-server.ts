@@ -5,7 +5,10 @@ import {
   isNewsStoriesSyncStale,
   type NewsStoriesPlatform,
 } from "@/lib/news/news-stories-cache-constants";
-import { upsertNewsStoriesPlatformCache } from "@/lib/news/news-stories-cache-db";
+import {
+  touchNewsStoriesPlatformSync,
+  upsertNewsStoriesPlatformCache,
+} from "@/lib/news/news-stories-cache-db";
 import { fetchFacebookStories } from "@/lib/news/connectors/facebook-stories";
 import { fetchInstagramStories } from "@/lib/news/connectors/instagram-stories";
 import {

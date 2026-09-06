@@ -7,7 +7,10 @@ import {
   isNewsCacheablePlatform,
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
-import { upsertNewsPlatformCache } from "@/lib/news/news-cache-db";
+import {
+  touchNewsPlatformSync,
+  upsertNewsPlatformCache,
+} from "@/lib/news/news-cache-db";
 import { getNewsConnector } from "@/lib/news/connectors/registry";
 import { isFeedConnectorEnabledBySuperadmin } from "@/lib/platform-feed/feed-platform-superadmin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";

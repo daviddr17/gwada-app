@@ -7,7 +7,10 @@ import {
   isGalleryFeedSyncStale,
   type GalleryCacheablePlatform,
 } from "@/lib/gallery/gallery-cache-constants";
-import { upsertGalleryPlatformCache } from "@/lib/gallery/gallery-cache-db";
+import {
+  touchGalleryPlatformSync,
+  upsertGalleryPlatformCache,
+} from "@/lib/gallery/gallery-cache-db";
 import { getGalleryConnector } from "@/lib/gallery/connectors/registry";
 import { isFeedConnectorEnabledBySuperadmin } from "@/lib/platform-feed/feed-platform-superadmin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";

@@ -467,130 +467,130 @@ export function ContactEditDrawer({
     if (!payload) return;
     setSaving(true);
     void (async () => {
-      if (isEdit && contactId) {
-        const { error } = await updateContact(contactId, payload);
-        if (error) {
-          setSaving(false);
-          toast.error(error.message);
-          return;
-        }
-
-        const shouldSyncToLexoffice =
-          lexofficeConnected &&
-          syncToLexoffice &&
-          (lexofficeLinkStatus?.canAddToLexoffice === true ||
-            lexofficeLinkStatus?.canLinkToLexoffice === true);
-
-        if (shouldSyncToLexoffice) {
-          const res = await fetch("/api/contacts/lexoffice-sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ restaurantId, contactId }),
-          });
-          const data = (await res.json()) as {
-            error?: string;
-            created?: boolean;
-            alreadyLinked?: boolean;
-          };
-          setSaving(false);
-          if (!res.ok) {
-            toast.error(
-              data.error ??
-                "Kontakt gespeichert, Lexware-Sync fehlgeschlagen.",
-            );
-            savedSnapshotRef.current = currentSnapshot;
-            onOpenChange(false);
-            onSaved?.({ contactId, created: false });
+      try {
+        if (isEdit && contactId) {
+          const { error } = await updateContact(contactId, payload);
+          if (error) {
+            toast.error(error.message);
             return;
           }
-          toast.success(
-            data.created
-              ? "Kontakt gespeichert und in Lexware angelegt."
-              : data.alreadyLinked
-                ? "Kontakt gespeichert (bereits mit Lexware verknüpft)."
-                : "Kontakt gespeichert und mit Lexware verknüpft.",
-          );
-        } else if (lexofficeLinkStatus?.linked) {
-          const pushRes = await fetch("/api/contacts/lexoffice-push", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ restaurantId, contactId }),
-          });
-          setSaving(false);
-          if (!pushRes.ok) {
-            const pushData = (await pushRes.json()) as { error?: string };
-            if (pushData.error?.includes("deaktiviert")) {
-              toast.success("Kontakt gespeichert.");
-            } else {
+
+          const shouldSyncToLexoffice =
+            lexofficeConnected &&
+            syncToLexoffice &&
+            (lexofficeLinkStatus?.canAddToLexoffice === true ||
+              lexofficeLinkStatus?.canLinkToLexoffice === true);
+
+          if (shouldSyncToLexoffice) {
+            const res = await fetch("/api/contacts/lexoffice-sync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ restaurantId, contactId }),
+            });
+            const data = (await res.json()) as {
+              error?: string;
+              created?: boolean;
+              alreadyLinked?: boolean;
+            };
+            if (!res.ok) {
               toast.error(
-                pushData.error ??
-                  "Kontakt gespeichert, Lexware-Update fehlgeschlagen.",
+                data.error ??
+                  "Kontakt gespeichert, Lexware-Sync fehlgeschlagen.",
               );
+              savedSnapshotRef.current = currentSnapshot;
+              onOpenChange(false);
+              onSaved?.({ contactId, created: false });
+              return;
+            }
+            toast.success(
+              data.created
+                ? "Kontakt gespeichert und in Lexware angelegt."
+                : data.alreadyLinked
+                  ? "Kontakt gespeichert (bereits mit Lexware verknüpft)."
+                  : "Kontakt gespeichert und mit Lexware verknüpft.",
+            );
+          } else if (lexofficeLinkStatus?.linked) {
+            const pushRes = await fetch("/api/contacts/lexoffice-push", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ restaurantId, contactId }),
+            });
+            if (!pushRes.ok) {
+              const pushData = (await pushRes.json()) as { error?: string };
+              if (pushData.error?.includes("deaktiviert")) {
+                toast.success("Kontakt gespeichert.");
+              } else {
+                toast.error(
+                  pushData.error ??
+                    "Kontakt gespeichert, Lexware-Update fehlgeschlagen.",
+                );
+              }
+            } else {
+              toast.success("Kontakt gespeichert und in Lexware aktualisiert.");
             }
           } else {
-            toast.success("Kontakt gespeichert und in Lexware aktualisiert.");
+            toast.success("Kontakt gespeichert.");
           }
-        } else {
-          setSaving(false);
-          toast.success("Kontakt gespeichert.");
-        }
 
-        savedSnapshotRef.current = currentSnapshot;
-        dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
-          immediate: true,
-        });
-        onOpenChange(false);
-        onSaved?.({ contactId, created: false });
-        return;
-      }
-      const useLexofficeApi =
-        lexofficeConnected &&
-        (syncToLexoffice || Boolean(linkExistingLexofficeId));
-
-      if (useLexofficeApi) {
-        const res = await fetch("/api/contacts/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...payload,
-            syncToLexoffice: syncToLexoffice && !linkExistingLexofficeId,
-            linkExistingLexofficeId,
-          }),
-        });
-        const data = (await res.json()) as {
-          error?: string;
-          contactId?: string;
-        };
-        setSaving(false);
-        if (!res.ok) {
-          toast.error(data.error ?? "Anlegen fehlgeschlagen.");
-          return;
-        }
-        if (data.contactId) {
-          toast.success(
-            syncToLexoffice && !linkExistingLexofficeId
-              ? "Kontakt in Gwada und Lexware angelegt."
-              : "Kontakt in Gwada angelegt und mit Lexware verknüpft.",
-          );
+          savedSnapshotRef.current = currentSnapshot;
           dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
             immediate: true,
           });
           onOpenChange(false);
-          onSaved?.({ contactId: data.contactId, created: true });
+          onSaved?.({ contactId, created: false });
+          return;
         }
-        return;
-      }
+        const useLexofficeApi =
+          lexofficeConnected &&
+          (syncToLexoffice || Boolean(linkExistingLexofficeId));
 
-      const { data: created, error } = await insertContact(payload);
-      setSaving(false);
-      if (error) toast.error(error.message);
-      else if (created?.id) {
-        toast.success("Kontakt angelegt.");
-        dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
-          immediate: true,
-        });
-        onOpenChange(false);
-        onSaved?.({ contactId: created.id, created: true });
+        if (useLexofficeApi) {
+          const res = await fetch("/api/contacts/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...payload,
+              syncToLexoffice: syncToLexoffice && !linkExistingLexofficeId,
+              linkExistingLexofficeId,
+            }),
+          });
+          const data = (await res.json()) as {
+            error?: string;
+            contactId?: string;
+          };
+          if (!res.ok) {
+            toast.error(data.error ?? "Anlegen fehlgeschlagen.");
+            return;
+          }
+          if (data.contactId) {
+            toast.success(
+              syncToLexoffice && !linkExistingLexofficeId
+                ? "Kontakt in Gwada und Lexware angelegt."
+                : "Kontakt in Gwada angelegt und mit Lexware verknüpft.",
+            );
+            dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
+              immediate: true,
+            });
+            onOpenChange(false);
+            onSaved?.({ contactId: data.contactId, created: true });
+          }
+          return;
+        }
+
+        const { data: created, error } = await insertContact(payload);
+        if (error) toast.error(error.message);
+        else if (created?.id) {
+          toast.success("Kontakt angelegt.");
+          dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
+            immediate: true,
+          });
+          onOpenChange(false);
+          onSaved?.({ contactId: created.id, created: true });
+        }
+      } catch {
+        toast.error("Speichern fehlgeschlagen.");
+      } finally {
+        setSaving(false);
       }
     })();
   };
@@ -599,14 +599,19 @@ export function ContactEditDrawer({
     if (!contactId) return;
     setSaving(true);
     void (async () => {
-      const { error } = await deleteContact({ restaurantId, contactId });
-      setSaving(false);
-      if (error) toast.error(error.message);
-      else {
-        toast.success("Kontakt gelöscht.");
-        setConfirmDeleteOpen(false);
-        onOpenChange(false);
-        onSaved?.();
+      try {
+        const { error } = await deleteContact({ restaurantId, contactId });
+        if (error) toast.error(error.message);
+        else {
+          toast.success("Kontakt gelöscht.");
+          setConfirmDeleteOpen(false);
+          onOpenChange(false);
+          onSaved?.();
+        }
+      } catch {
+        toast.error("Löschen fehlgeschlagen.");
+      } finally {
+        setSaving(false);
       }
     })();
   };
@@ -952,36 +957,41 @@ export function ContactEditDrawer({
                         if (!lexofficeLinkStatus.lexofficeContactId) return;
                         setSaving(true);
                         void (async () => {
-                          const res = await fetch("/api/contacts/lexoffice-import", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              restaurantId,
-                              lexofficeContactId:
-                                lexofficeLinkStatus.lexofficeContactId,
-                            }),
-                          });
-                          const data = (await res.json()) as {
-                            error?: string;
-                            contactId?: string;
-                            linked?: boolean;
-                          };
-                          setSaving(false);
-                          if (!res.ok) {
-                            toast.error(data.error ?? "Import fehlgeschlagen.");
-                            return;
-                          }
-                          toast.success(
-                            data.linked
-                              ? "Mit bestehendem Gwada-Kontakt verknüpft."
-                              : "Kontakt aus Lexware importiert.",
-                          );
-                          if (data.contactId) {
-                            dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
-                              immediate: true,
+                          try {
+                            const res = await fetch("/api/contacts/lexoffice-import", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                restaurantId,
+                                lexofficeContactId:
+                                  lexofficeLinkStatus.lexofficeContactId,
+                              }),
                             });
-                            onSaved?.({ contactId: data.contactId, created: false });
-                            onOpenChange(false);
+                            const data = (await res.json()) as {
+                              error?: string;
+                              contactId?: string;
+                              linked?: boolean;
+                            };
+                            if (!res.ok) {
+                              toast.error(data.error ?? "Import fehlgeschlagen.");
+                              return;
+                            }
+                            toast.success(
+                              data.linked
+                                ? "Mit bestehendem Gwada-Kontakt verknüpft."
+                                : "Kontakt aus Lexware importiert.",
+                            );
+                            if (data.contactId) {
+                              dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
+                                immediate: true,
+                              });
+                              onSaved?.({ contactId: data.contactId, created: false });
+                              onOpenChange(false);
+                            }
+                          } catch {
+                            toast.error("Import fehlgeschlagen.");
+                          } finally {
+                            setSaving(false);
                           }
                         })();
                       }}

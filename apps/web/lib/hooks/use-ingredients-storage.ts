@@ -442,28 +442,36 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
       showIngredientPersistToast(toastKind, options?.silentToast);
 
       void persistQueueRef.current.enqueue(async () => {
-        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
-        if (!rid) {
+        try {
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ingredientsMutationGenerationRef.current === generation) {
+              applyIngredientsOptimistic(rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await saveIngredientsRelational(rid, next);
+          if (!result.ok) {
+            if (ingredientsMutationGenerationRef.current === generation) {
+              applyIngredientsOptimistic(rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          const fromDb =
+            (await loadIngredientsRelational(rid)) ?? result.ingredients;
+          if (ingredientsMutationGenerationRef.current === generation) {
+            applyIngredientsOptimistic(fromDb);
+          }
+          return true;
+        } catch {
           if (ingredientsMutationGenerationRef.current === generation) {
             applyIngredientsOptimistic(rollbackSnapshot);
           }
           failSave();
           return false;
         }
-        const result = await saveIngredientsRelational(rid, next);
-        if (!result.ok) {
-          if (ingredientsMutationGenerationRef.current === generation) {
-            applyIngredientsOptimistic(rollbackSnapshot);
-          }
-          toastDatabaseSaveError(result.message);
-          return false;
-        }
-        const fromDb =
-          (await loadIngredientsRelational(rid)) ?? result.ingredients;
-        if (ingredientsMutationGenerationRef.current === generation) {
-          applyIngredientsOptimistic(fromDb);
-        }
-        return true;
       });
     },
     [

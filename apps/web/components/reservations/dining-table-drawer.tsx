@@ -181,46 +181,50 @@ export function DiningTableDrawer({
 
     setSaving(true);
     void (async () => {
-      if (mode === "edit" && table) {
-        const { error } = await updateDiningTable(table.id, {
-          area_id: areaId,
-          table_number: num,
-          table_name: tableName.trim() || null,
-          capacity: cap,
-          plan_x_pct: x,
-          plan_y_pct: y,
-          plan_w_pct: w,
-          plan_h_pct: h,
-          color_hex: color,
-        });
-        setSaving(false);
-        if (error) {
-          toast.error(error.message);
-          return;
+      try {
+        if (mode === "edit" && table) {
+          const { error } = await updateDiningTable(table.id, {
+            area_id: areaId,
+            table_number: num,
+            table_name: tableName.trim() || null,
+            capacity: cap,
+            plan_x_pct: x,
+            plan_y_pct: y,
+            plan_w_pct: w,
+            plan_h_pct: h,
+            color_hex: color,
+          });
+          if (error) {
+            toast.error(error.message);
+            return;
+          }
+          toast.success("Tisch gespeichert.");
+        } else {
+          const { error } = await insertDiningTable({
+            restaurantId,
+            areaId,
+            tableNumber: num,
+            tableName: tableName.trim() || null,
+            capacity: cap,
+            planXPct: x,
+            planYPct: y,
+            planWPct: w,
+            planHPct: h,
+            colorHex: color,
+          });
+          if (error) {
+            toast.error(error.message);
+            return;
+          }
+          toast.success("Tisch angelegt.");
         }
-        toast.success("Tisch gespeichert.");
-      } else {
-        const { error } = await insertDiningTable({
-          restaurantId,
-          areaId,
-          tableNumber: num,
-          tableName: tableName.trim() || null,
-          capacity: cap,
-          planXPct: x,
-          planYPct: y,
-          planWPct: w,
-          planHPct: h,
-          colorHex: color,
-        });
+        onOpenChange(false);
+        onSaved();
+      } catch {
+        toast.error("Speichern fehlgeschlagen.");
+      } finally {
         setSaving(false);
-        if (error) {
-          toast.error(error.message);
-          return;
-        }
-        toast.success("Tisch angelegt.");
       }
-      onOpenChange(false);
-      onSaved();
     })();
   };
 

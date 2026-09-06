@@ -148,34 +148,38 @@ export function ChecklistenSettingsScreen() {
     if (!restaurantId || !canUpdateTodos) return;
     setSaving(true);
     void (async () => {
-      const [todoResult, complianceResult] = await Promise.all([
-        upsertStaffTodoSettings(restaurantId, {
-          deferReasonDefault: deferReasonDefault.trim() || null,
+      try {
+        const [todoResult, complianceResult] = await Promise.all([
+          upsertStaffTodoSettings(restaurantId, {
+            deferReasonDefault: deferReasonDefault.trim() || null,
+            notifyOnCompleted,
+            notifyOnDeferred,
+          }),
+          upsertComplianceSettings(restaurantId, {
+            requireCorrectiveOnDeviation: defaultCorrectiveOnDeviation,
+            showDueReminders,
+          }),
+        ]);
+
+        const error = todoResult.error ?? complianceResult.error;
+        if (error) {
+          toast.error(error);
+          return;
+        }
+
+        toast.success("Einstellungen gespeichert.");
+        savedRef.current = {
+          deferReasonDefault,
           notifyOnCompleted,
           notifyOnDeferred,
-        }),
-        upsertComplianceSettings(restaurantId, {
-          requireCorrectiveOnDeviation: defaultCorrectiveOnDeviation,
+          defaultCorrectiveOnDeviation,
           showDueReminders,
-        }),
-      ]);
-
-      setSaving(false);
-
-      const error = todoResult.error ?? complianceResult.error;
-      if (error) {
-        toast.error(error);
-        return;
+        };
+      } catch {
+        toast.error("Einstellungen konnten nicht gespeichert werden.");
+      } finally {
+        setSaving(false);
       }
-
-      toast.success("Einstellungen gespeichert.");
-      savedRef.current = {
-        deferReasonDefault,
-        notifyOnCompleted,
-        notifyOnDeferred,
-        defaultCorrectiveOnDeviation,
-        showDueReminders,
-      };
     })();
   };
 

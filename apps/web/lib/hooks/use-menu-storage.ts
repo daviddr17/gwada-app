@@ -150,12 +150,17 @@ export function useMenuStorage() {
         patchItemsCache((prev) => [newItem, ...prev]);
         afterMenuMutation();
         toast.success("Gericht hinzugefügt");
-        void insertMenuItemRelational(newItem).then((ok) => {
-          if (!ok) {
+        void insertMenuItemRelational(newItem)
+          .then((ok) => {
+            if (!ok) {
+              patchItemsCache((prev) => prev.filter((i) => i.id !== newItem.id));
+              failSave();
+            }
+          })
+          .catch(() => {
             patchItemsCache((prev) => prev.filter((i) => i.id !== newItem.id));
             failSave();
-          }
-        });
+          });
         return newItem;
       }
       return new Promise((resolve) => {
@@ -199,16 +204,27 @@ export function useMenuStorage() {
         );
         afterMenuMutation();
         toast.success("Gericht gespeichert");
-        void updateMenuItemRelational(built).then((ok) => {
-          if (!ok && before) {
-            patchItemsCache((prev) =>
-              prev.map((existing) =>
-                existing.id === id ? before : existing,
-              ),
-            );
+        void updateMenuItemRelational(built)
+          .then((ok) => {
+            if (!ok && before) {
+              patchItemsCache((prev) =>
+                prev.map((existing) =>
+                  existing.id === id ? before : existing,
+                ),
+              );
+              failSave();
+            }
+          })
+          .catch(() => {
+            if (before) {
+              patchItemsCache((prev) =>
+                prev.map((existing) =>
+                  existing.id === id ? before : existing,
+                ),
+              );
+            }
             failSave();
-          }
-        });
+          });
         return true;
       }
       return new Promise((resolve) => {
@@ -256,14 +272,17 @@ export function useMenuStorage() {
         );
         afterMenuMutation();
         toast.success("Reihenfolge der Gerichte aktualisiert");
-        void reorderMenuItemsInCategoryRelational(categoryId, orderedIds).then(
-          (ok) => {
+        void reorderMenuItemsInCategoryRelational(categoryId, orderedIds)
+          .then((ok) => {
             if (!ok) {
               patchItemsCache(() => snapshot);
               failSave();
             }
-          },
-        );
+          })
+          .catch(() => {
+            patchItemsCache(() => snapshot);
+            failSave();
+          });
         return;
       }
       setLocalItems((prev) => {
@@ -297,15 +316,22 @@ export function useMenuStorage() {
         patchItemsCache((prev) => prev.filter((i) => i.id !== id));
         afterMenuMutation();
         toast.success("Gericht gelöscht");
-        void deleteMenuItemRelational(id).then((ok) => {
-          if (!ok) {
-            const rollback = items.find((i) => i.id === id);
-            if (rollback) {
-              patchItemsCache((prev) => [...prev, rollback]);
+        const deleted = items.find((i) => i.id === id);
+        void deleteMenuItemRelational(id)
+          .then((ok) => {
+            if (!ok) {
+              if (deleted) {
+                patchItemsCache((prev) => [...prev, deleted]);
+              }
+              failSave();
+            }
+          })
+          .catch(() => {
+            if (deleted) {
+              patchItemsCache((prev) => [...prev, deleted]);
             }
             failSave();
-          }
-        });
+          });
         return true;
       }
       return new Promise((resolve) => {

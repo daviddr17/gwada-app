@@ -902,48 +902,56 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const generation = ++ordersMutationGenerationRef.current;
       applyOrdersOptimistic(params.next);
       return persistQueueRef.current.enqueue(async () => {
-        if (useDbInventory) {
-          if (!dbFetchReady) {
-            if (ordersMutationGenerationRef.current === generation) {
-              applyOrdersOptimistic(params.rollbackSnapshot);
+        try {
+          if (useDbInventory) {
+            if (!dbFetchReady) {
+              if (ordersMutationGenerationRef.current === generation) {
+                applyOrdersOptimistic(params.rollbackSnapshot);
+              }
+              toast.error(
+                "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+              );
+              return false;
             }
-            toast.error(
-              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
-            );
-            return false;
+            const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+            if (!rid) {
+              if (ordersMutationGenerationRef.current === generation) {
+                applyOrdersOptimistic(params.rollbackSnapshot);
+              }
+              failSave();
+              return false;
+            }
+            const result = await setPurchaseOrderDeliveryDateRelational(rid, {
+              orderId: params.orderId,
+              deliveryDate: params.deliveryDate,
+            });
+            if (!result.ok) {
+              if (ordersMutationGenerationRef.current === generation) {
+                applyOrdersOptimistic(params.rollbackSnapshot);
+              }
+              toastDatabaseSaveError(result.message);
+              return false;
+            }
+            afterOrdersPersistSuccess();
+            dispatchInventoryDataRefresh();
+            return true;
           }
-          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
-          if (!rid) {
+          const ok = await saveOrdersToBackend(params.next);
+          if (!ok) {
             if (ordersMutationGenerationRef.current === generation) {
               applyOrdersOptimistic(params.rollbackSnapshot);
             }
-            failSave();
-            return false;
-          }
-          const result = await setPurchaseOrderDeliveryDateRelational(rid, {
-            orderId: params.orderId,
-            deliveryDate: params.deliveryDate,
-          });
-          if (!result.ok) {
-            if (ordersMutationGenerationRef.current === generation) {
-              applyOrdersOptimistic(params.rollbackSnapshot);
-            }
-            toastDatabaseSaveError(result.message);
             return false;
           }
           afterOrdersPersistSuccess();
-          dispatchInventoryDataRefresh();
           return true;
-        }
-        const ok = await saveOrdersToBackend(params.next);
-        if (!ok) {
+        } catch {
           if (ordersMutationGenerationRef.current === generation) {
             applyOrdersOptimistic(params.rollbackSnapshot);
           }
+          failSave();
           return false;
         }
-        afterOrdersPersistSuccess();
-        return true;
       });
     },
     [
@@ -1410,16 +1418,23 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const next = previous.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
+      const toastId = `order-delivery-${orderId}`;
       toast.success(
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
-        { id: `order-delivery-${orderId}` },
+        { id: toastId },
       );
       void persistDeliveryDateAtomicOptimistic({
         next,
         rollbackSnapshot: previous,
         orderId,
         deliveryDate: normalized,
-      });
+      })
+        .then((ok) => {
+          if (!ok) toast.dismiss(toastId);
+        })
+        .catch(() => {
+          toast.dismiss(toastId);
+        });
       return true;
     },
     [orders, persistDeliveryDateAtomicOptimistic, readOrdersSnapshot],

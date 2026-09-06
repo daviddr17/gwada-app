@@ -189,29 +189,34 @@ export function StaffSettingsForm() {
     }
     setSaving(true);
     void (async () => {
-      const { error } = await upsertStaffModuleSettings({
-        restaurantId,
-        contractDocumentTagId,
-        profileShowWorkHours,
-        profileShowShiftPlan,
-        profileShowDocuments,
-        profileShowAvailability,
-        profileAllowDisplayPinSelfService,
-        contractTwoStepSigning,
-        displayAutoClockOutEnabled,
-        displayAutoClockOutHours: Number.isFinite(hours)
-          ? hours
-          : DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
-        laborAutoFixMissingBreaks,
-      });
-      setSaving(false);
-      if (error) toast.error(error.message);
-      else {
-        toast.success("Einstellungen gespeichert.");
-        savedRef.current = snapshotJson;
-        window.dispatchEvent(
-          new Event(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT),
-        );
+      try {
+        const { error } = await upsertStaffModuleSettings({
+          restaurantId,
+          contractDocumentTagId,
+          profileShowWorkHours,
+          profileShowShiftPlan,
+          profileShowDocuments,
+          profileShowAvailability,
+          profileAllowDisplayPinSelfService,
+          contractTwoStepSigning,
+          displayAutoClockOutEnabled,
+          displayAutoClockOutHours: Number.isFinite(hours)
+            ? hours
+            : DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
+          laborAutoFixMissingBreaks,
+        });
+        if (error) toast.error(error.message);
+        else {
+          toast.success("Einstellungen gespeichert.");
+          savedRef.current = snapshotJson;
+          window.dispatchEvent(
+            new Event(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT),
+          );
+        }
+      } catch {
+        toast.error("Einstellungen konnten nicht gespeichert werden.");
+      } finally {
+        setSaving(false);
       }
     })();
   };

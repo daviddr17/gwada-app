@@ -129,18 +129,23 @@ export function ContactSettingsForm() {
     if (!restaurantId) return;
     setSaving(true);
     void (async () => {
-      const { error } = await upsertContactSettings({
-        restaurantId,
-        autoLinkEnabled,
-        autoCreateFromReservations,
-        autoCreateFromMessages,
-        autoCreateFromReviews,
-      });
-      setSaving(false);
-      if (error) toast.error(error.message);
-      else {
-        toast.success("Einstellungen gespeichert.");
-        savedRef.current = snapshot;
+      try {
+        const { error } = await upsertContactSettings({
+          restaurantId,
+          autoLinkEnabled,
+          autoCreateFromReservations,
+          autoCreateFromMessages,
+          autoCreateFromReviews,
+        });
+        if (error) toast.error(error.message);
+        else {
+          toast.success("Einstellungen gespeichert.");
+          savedRef.current = snapshot;
+        }
+      } catch {
+        toast.error("Einstellungen konnten nicht gespeichert werden.");
+      } finally {
+        setSaving(false);
       }
     })();
   };

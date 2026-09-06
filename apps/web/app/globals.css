@@ -462,7 +462,19 @@
   backface-visibility: hidden;
 }
 
-/** iOS Safari: Fokus auf Felder unter 16px löst Auto-Zoom aus — global absichern. */
+/**
+ * Pro-User-Darstellung (Profil → Persönliche Daten).
+ * Skaliert rem-basierte Tailwind-Typo/Abstände über die html-Schriftgröße.
+ */
+html[data-ui-density="compact"] {
+  font-size: 93.75%; /* 15px bei 16px Root */
+}
+
+html[data-ui-density="comfortable"] {
+  font-size: 112.5%; /* 18px bei 16px Root */
+}
+
+/** iOS Safari: Fokus auf Feldern unter 16px löst Auto-Zoom aus — global absichern. */
 @media (max-width: 767px) {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not([type="image"]),
   textarea,

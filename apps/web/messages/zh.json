@@ -36,6 +36,19 @@
       "countryPlaceholder": "例如 CN 或中国",
       "saveProfile": "保存资料",
       "loadingAria": "正在加载个人资料"
+    },
+    "density": {
+      "heading": "显示",
+      "description": "仅对你生效的字号与间距 — 此账户在所有设备上同步。",
+      "label": "密度",
+      "compact": "紧凑",
+      "compactHint": "一屏更多",
+      "normal": "标准",
+      "normalHint": "默认",
+      "comfortable": "大号",
+      "comfortableHint": "更易阅读",
+      "updated": "显示已更新",
+      "updateFailed": "无法保存显示设置"
     }
   },
   "SetupWizard": {

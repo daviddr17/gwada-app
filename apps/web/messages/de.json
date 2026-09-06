@@ -25,6 +25,19 @@
       "updated": "Sprache aktualisiert",
       "updateFailed": "Sprache konnte nicht gespeichert werden"
     },
+    "density": {
+      "heading": "Darstellung",
+      "description": "Schriftgröße und Abstände nur für dich — gilt auf allen Geräten mit diesem Konto.",
+      "label": "Dichte",
+      "compact": "Kompakt",
+      "compactHint": "Mehr auf einen Blick",
+      "normal": "Normal",
+      "normalHint": "Standard",
+      "comfortable": "Groß",
+      "comfortableHint": "Besser lesbar",
+      "updated": "Darstellung aktualisiert",
+      "updateFailed": "Darstellung konnte nicht gespeichert werden"
+    },
     "personal": {
       "email": "E-Mail",
       "birthday": "Geburtstag",

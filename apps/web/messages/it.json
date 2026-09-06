@@ -36,6 +36,19 @@
       "countryPlaceholder": "es. IT o Italia",
       "saveProfile": "Salva profilo",
       "loadingAria": "Caricamento dati del profilo"
+    },
+    "density": {
+      "heading": "Visualizzazione",
+      "description": "Dimensione del testo e spaziatura solo per te — su tutti i dispositivi con questo account.",
+      "label": "Densità",
+      "compact": "Compatta",
+      "compactHint": "Più a colpo d’occhio",
+      "normal": "Normale",
+      "normalHint": "Predefinito",
+      "comfortable": "Grande",
+      "comfortableHint": "Più leggibile",
+      "updated": "Visualizzazione aggiornata",
+      "updateFailed": "Impossibile salvare la visualizzazione"
     }
   },
   "SetupWizard": {

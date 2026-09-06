@@ -36,6 +36,19 @@
       "countryPlaceholder": "p. ej. ES o España",
       "saveProfile": "Guardar perfil",
       "loadingAria": "Cargando datos del perfil"
+    },
+    "density": {
+      "heading": "Visualización",
+      "description": "Tamaño de fuente y espaciado solo para ti — en todos los dispositivos con esta cuenta.",
+      "label": "Densidad",
+      "compact": "Compacta",
+      "compactHint": "Más de un vistazo",
+      "normal": "Normal",
+      "normalHint": "Predeterminado",
+      "comfortable": "Grande",
+      "comfortableHint": "Más legible",
+      "updated": "Visualización actualizada",
+      "updateFailed": "No se pudo guardar la visualización"
     }
   },
   "SetupWizard": {

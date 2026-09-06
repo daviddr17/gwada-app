@@ -17,6 +17,7 @@ import { ProfileDocumentsSummaryCard } from "@/components/profile/profile-docume
 import { ProfileLanguageCard } from "@/components/profile/profile-language-card";
 import { ProfileLoginStreakCard } from "@/components/profile/profile-login-streak-card";
 import { ProfilePersoenlicheDatenSkeleton } from "@/components/profile/profile-persoenliche-daten-skeleton";
+import { ProfileUiDensityCard } from "@/components/profile/profile-ui-density-card";
 import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
@@ -272,6 +273,8 @@ export function ProfilePersoenlicheDatenScreen() {
           onChange={setDraftLocale}
           disabled={!isHydrated || saving}
         />
+
+        <ProfileUiDensityCard disabled={!isHydrated || saving} />
 
         <Card className="border-border/50 shadow-card">
           <CardContent className="space-y-4">

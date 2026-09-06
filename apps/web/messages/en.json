@@ -25,6 +25,19 @@
       "updated": "Language updated",
       "updateFailed": "Could not save language"
     },
+    "density": {
+      "heading": "Display",
+      "description": "Font size and spacing for you only — applies on all devices with this account.",
+      "label": "Density",
+      "compact": "Compact",
+      "compactHint": "More at a glance",
+      "normal": "Normal",
+      "normalHint": "Default",
+      "comfortable": "Large",
+      "comfortableHint": "Easier to read",
+      "updated": "Display updated",
+      "updateFailed": "Could not save display setting"
+    },
     "personal": {
       "email": "Email",
       "birthday": "Birthday",

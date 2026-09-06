@@ -2658,6 +2658,7 @@ export type Database = {
           locale: string | null
           nickname: string | null
           phone: string | null
+          ui_density: string | null
           updated_at: string
         }
         Insert: {
@@ -2679,6 +2680,7 @@ export type Database = {
           locale?: string | null
           nickname?: string | null
           phone?: string | null
+          ui_density?: string | null
           updated_at?: string
         }
         Update: {
@@ -2700,6 +2702,7 @@ export type Database = {
           locale?: string | null
           nickname?: string | null
           phone?: string | null
+          ui_density?: string | null
           updated_at?: string
         }
         Relationships: [

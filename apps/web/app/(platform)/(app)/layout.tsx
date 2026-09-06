@@ -15,6 +15,7 @@ import { PersonalOnboardingProvider } from "@/components/onboarding/personal-onb
 import { RestaurantSetupWizardProvider } from "@/components/onboarding/restaurant-setup-wizard-provider";
 import { ProfileLocaleSyncMount } from "@/components/providers/profile-locale-sync-mount";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
+import { ProfileUiDensitySyncMount } from "@/components/providers/profile-ui-density-sync-mount";
 import { WorkspaceShellProviders } from "@/components/providers/workspace-shell-providers";
 import { AccentColorProvider } from "@/lib/contexts/accent-color-context";
 import { DashboardWidgetPreferencesProvider } from "@/lib/contexts/dashboard-widget-preferences-context";
@@ -95,6 +96,7 @@ export default function AppLayout({
                             <AppDashboardLivePatchMount />
                             <ProfilePresenceHeartbeat />
                             <ProfileLocaleSyncMount />
+                            <ProfileUiDensitySyncMount />
                             <AppModuleLiveProviders />
                             <AppZoneRouter>{children}</AppZoneRouter>
                           </AppShellReadinessProvider>

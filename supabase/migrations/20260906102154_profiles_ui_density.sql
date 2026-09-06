@@ -1,7 +1,10 @@
--- Pro-User-Darstellung (Kompakt / Normal / Groß) für Dashboard-Lesbarkeit.
--- App funktioniert auch OHNE diese Migration (Cookie/localStorage-Fallback).
--- Nicht auf Live anwenden, bis DB-Sync bewusst gewollt ist.
--- Kein Massen-UPDATE bestehender Profildaten.
+-- SAFE LIVE MIGRATION (schema only)
+-- Additive only: neue nullable Spalte auf profiles.
+-- - Kein UPDATE bestehender Zeilen
+-- - Kein DELETE / Truncate / Reset / Seed
+-- - Default gilt nur für NEUE Inserts (PG schreibt bestehende Rows nicht um)
+-- - CHECK erlaubt NULL (= App behandelt als "normal")
+-- Bestehende Live-Daten (Reservierungen, Gäste, …) bleiben unberührt.
 
 alter table public.profiles
   add column if not exists ui_density text;

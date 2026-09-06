@@ -16,6 +16,9 @@ alter table public.profiles
 comment on column public.profiles.ui_density is
   'Dashboard-Darstellung pro Konto: compact | normal | comfortable (null = normal).';
 
+alter table public.profiles
+  alter column ui_density set default 'normal';
+
 update public.profiles
 set ui_density = 'normal'
 where ui_density is null;

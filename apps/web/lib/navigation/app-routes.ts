@@ -74,7 +74,7 @@ export const APP_ROUTES = {
     root: "/dashboard/checklisten",
     meine: "/dashboard/checklisten/meine",
     nachrichten: "/dashboard/checklisten/nachrichten",
-    todos: "/dashboard/checklisten/todos",
+    todos: "/dashboard/checklisten",
     vorlagen: "/dashboard/checklisten/vorlagen",
     geraete: "/dashboard/checklisten/geraete",
     eintraege: "/dashboard/checklisten/eintraege",
@@ -93,7 +93,7 @@ export const APP_ROUTES = {
     hoursPayroll: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung",
     statistics: "/dashboard/mitarbeiter/statistiken",
     export: "/dashboard/mitarbeiter/export",
-    todos: "/dashboard/checklisten/todos",
+    todos: "/dashboard/checklisten",
   },
   buchfuehrung: {
     root: "/dashboard/buchfuehrung",

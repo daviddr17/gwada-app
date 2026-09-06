@@ -35,7 +35,7 @@ export async function syncRestaurantGalleryPlatform(
 
     const flags = await fetchPlatformMessagingFlags(admin);
     if (!isFeedConnectorEnabledBySuperadmin(platform, flags)) {
-      await upsertGalleryPlatformCache(admin, restaurantId, platform, [], new Date().toISOString(), null);
+      await touchGalleryPlatformSync(admin, restaurantId, platform, new Date().toISOString(), "disabled");
       return { ok: true, count: 0 };
     }
 
@@ -43,20 +43,13 @@ export async function syncRestaurantGalleryPlatform(
     const syncedAt = new Date().toISOString();
 
     if (!connected) {
-      await upsertGalleryPlatformCache(admin, restaurantId, platform, [], syncedAt, null);
+      await touchGalleryPlatformSync(admin, restaurantId, platform, syncedAt, "not_connected");
       return { ok: true, count: 0 };
     }
 
     const result = await connector.fetchGalleryItems(restaurantId, admin);
     if ("error" in result) {
-      await upsertGalleryPlatformCache(
-        admin,
-        restaurantId,
-        platform,
-        [],
-        syncedAt,
-        result.error,
-      );
+      await touchGalleryPlatformSync(admin, restaurantId, platform, syncedAt, result.error);
       return { ok: false, error: result.error, count: 0 };
     }
 

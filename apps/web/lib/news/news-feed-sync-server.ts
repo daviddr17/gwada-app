@@ -39,7 +39,7 @@ export async function syncRestaurantNewsPlatform(
 
     const flags = await fetchPlatformMessagingFlags(admin);
     if (!isFeedConnectorEnabledBySuperadmin(platform, flags)) {
-      await upsertNewsPlatformCache(admin, restaurantId, platform, [], new Date().toISOString(), null);
+      await touchNewsPlatformSync(admin, restaurantId, platform, new Date().toISOString(), "disabled");
       return { ok: true, count: 0 };
     }
 
@@ -47,20 +47,13 @@ export async function syncRestaurantNewsPlatform(
     const syncedAt = new Date().toISOString();
 
     if (!connected) {
-      await upsertNewsPlatformCache(admin, restaurantId, platform, [], syncedAt, null);
+      await touchNewsPlatformSync(admin, restaurantId, platform, syncedAt, "not_connected");
       return { ok: true, count: 0 };
     }
 
     const result = await connector.fetchFeed(restaurantId, admin);
     if ("error" in result) {
-      await upsertNewsPlatformCache(
-        admin,
-        restaurantId,
-        platform,
-        [],
-        syncedAt,
-        result.error,
-      );
+      await touchNewsPlatformSync(admin, restaurantId, platform, syncedAt, result.error);
       return { ok: false, error: result.error, count: 0 };
     }
 

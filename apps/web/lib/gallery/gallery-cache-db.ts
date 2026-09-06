@@ -108,6 +108,32 @@ export async function readCachedGalleryItems(
   return items;
 }
 
+
+export async function touchGalleryPlatformSync(
+  admin: SupabaseClient,
+  restaurantId: string,
+  platform: GalleryCacheablePlatform,
+  syncedAt: string,
+  lastError: string | null,
+): Promise<void> {
+  const { count } = await admin
+    .from("restaurant_gallery_platform_cache")
+    .select("external_id", { count: "exact", head: true })
+    .eq("restaurant_id", restaurantId)
+    .eq("platform", platform);
+
+  await admin.from("restaurant_gallery_platform_sync").upsert(
+    {
+      restaurant_id: restaurantId,
+      platform,
+      synced_at: syncedAt,
+      last_error: lastError,
+      item_count: count ?? 0,
+    },
+    { onConflict: "restaurant_id,platform" },
+  );
+}
+
 export async function upsertGalleryPlatformCache(
   admin: SupabaseClient,
   restaurantId: string,
@@ -137,7 +163,9 @@ export async function upsertGalleryPlatformCache(
       .upsert(rows, { onConflict: "restaurant_id,platform,external_id" });
 
     if (upsertError) {
-      console.warn("[gwada] gallery cache upsert", platform, upsertError.message);
+      console.warn("[gwada] cache upsert failed — keep existing rows");
+      // Kein Stale-/Empty-Delete nach fehlgeschlagenem Upsert.
+      return;
     }
   }
 

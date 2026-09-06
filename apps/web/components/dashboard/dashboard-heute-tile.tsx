@@ -534,8 +534,13 @@ export function DashboardHeuteTile() {
     can.inventory ||
     can.staff ||
     can.checklists;
+  const sliceErrors = heuteStatSlices
+    .map((slice) => slice.error)
+    .filter((err): err is string => Boolean(err));
+  const hasSliceErrors = sliceErrors.length > 0;
+  const heuteError = hasSliceErrors ? sliceErrors[0]! : null;
   const showAllClear =
-    allHeuteStatsSettled && canHaveActions && !hasActions;
+    allHeuteStatsSettled && canHaveActions && !hasActions && !hasSliceErrors;
 
   // Partial paint: Aktionen sofort zeigen, sobald vorhanden.
   // Ohne Aktionen kein „Alles erledigt“, solange Batch-Slices noch nachkommen.
@@ -627,7 +632,7 @@ export function DashboardHeuteTile() {
       }
       ready={ready}
       loading={showSkeleton}
-      error={null}
+      error={heuteError}
       loadingContent={<DashboardHeuteTileSkeleton />}
     >
       <div

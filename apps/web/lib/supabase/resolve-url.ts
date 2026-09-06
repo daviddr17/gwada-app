@@ -34,7 +34,7 @@ export function getSupabaseUpstreamUrl(): string | null {
 
 /**
  * URL für createBrowserClient / createServerClient.
- * Browser mit Proxy: `/sb` (nur HTTP). Ohne Proxy: direkte `NEXT_PUBLIC_SUPABASE_URL` (Realtime/WebSocket).
+ * Browser mit Proxy: `/sb` (nur HTTP; WebSocket/Realtime nicht — siehe isSupabaseBrowserRealtimeAvailable). Ohne Proxy: direkte `NEXT_PUBLIC_SUPABASE_URL` (Realtime/WebSocket).
  * Server hinter Proxy: direkt Kong/upstream — kein Hairpin über die öffentliche Domain
  * (sonst TLS-Fehler in Docker: ERR_SSL_PACKET_LENGTH_TOO_LONG → Login↔Dashboard-Schleife).
  *

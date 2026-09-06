@@ -6,6 +6,7 @@ import {
   registerRestaurantRealtimeSubscription,
   type RestaurantRealtimeSubscription,
 } from "@/lib/supabase/restaurant-realtime-visibility-coordinator";
+import { isSupabaseBrowserRealtimeAvailable } from "@/lib/public-env";
 
 export type RestaurantRealtimeTable =
   | "reservations"
@@ -79,6 +80,12 @@ export function subscribeRestaurantTableChanges(
     onStatus?: (status: RestaurantRealtimeSubscribeStatus) => void;
   },
 ): () => void {
+  // /sb ist nur HTTP — WebSocket-Subscribe scheitert sonst dauernd (CHANNEL_ERROR-Rauschen).
+  // Hooks schalten unter Proxy bereits auf Polling um.
+  if (!isSupabaseBrowserRealtimeAvailable()) {
+    return () => {};
+  }
+
   const events = options.events ?? ["INSERT"];
 
   let channel: RealtimeChannel | null = null;

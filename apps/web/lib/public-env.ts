@@ -69,6 +69,15 @@ export function isPublicSupabaseProxyEnabled(): boolean {
   return false;
 }
 
+/**
+ * Browser-Realtime (WebSocket) geht nicht über den HTTP-only `/sb`-Proxy.
+ * Live nutzt Polling-Fallback — WS-Subscribe würde nur Console-Rauschen erzeugen.
+ */
+export function isSupabaseBrowserRealtimeAvailable(): boolean {
+  return !isPublicSupabaseProxyEnabled();
+}
+
+
 export function getPublicSupabaseUrl(): string | undefined {
   const injected = runtimeEnv()?.supabaseUrl?.trim();
   if (injected) return injected.replace(/\/+$/, "");

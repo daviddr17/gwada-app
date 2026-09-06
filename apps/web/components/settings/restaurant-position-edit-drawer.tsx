@@ -182,60 +182,59 @@ export function RestaurantPositionEditDrawer({
       return;
     }
     setSaving(true);
-    const sb = createSupabaseBrowserClient();
+    try {
+      const sb = createSupabaseBrowserClient();
 
-    if (nameDirty || colorDirty) {
-      const nextColor = resolvePositionColorInput(colorDraft, position.id);
-      const { error } = await updateRestaurantPosition(sb, position.id, {
-        ...(nameDirty ? { name: trimmedName } : {}),
-        ...(colorDirty ? { color: nextColor } : {}),
-      });
-      if (error) {
-        setSaving(false);
-        toast.error(
-          error === "name_required"
-            ? "Bitte einen Namen eingeben."
-            : error,
-        );
-        return;
-      }
-      if (nameDirty) {
-        setNameDraft(trimmedName);
-        setNameBaseline(trimmedName);
-      }
-      if (colorDirty) setColorBaseline(nextColor);
-    }
-
-    if (permDirty && !isOwner) {
-      const addedKeys = diffAddedPermissionKeys(
-        [...permBaseline],
-        [...permDraft],
-      );
-      const { error } = await updatePositionPermissions(
-        sb,
-        position.id,
-        [...permDraft],
-      );
-      if (error) {
-        setSaving(false);
-        toast.error(error);
-        return;
-      }
-      setPermBaseline(new Set(permDraft));
-      if (addedKeys.length > 0) {
-        void notifyStaffPermissionsGrantedClient({
-          restaurantId,
-          positionId: position.id,
-          addedKeys,
-          positionName: trimmedName || position.name,
+      if (nameDirty || colorDirty) {
+        const nextColor = resolvePositionColorInput(colorDraft, position.id);
+        const { error } = await updateRestaurantPosition(sb, position.id, {
+          ...(nameDirty ? { name: trimmedName } : {}),
+          ...(colorDirty ? { color: nextColor } : {}),
         });
+        if (error) {
+          toast.error(
+            error === "name_required"
+              ? "Bitte einen Namen eingeben."
+              : error,
+          );
+          return;
+        }
+        if (nameDirty) {
+          setNameDraft(trimmedName);
+          setNameBaseline(trimmedName);
+        }
+        if (colorDirty) setColorBaseline(nextColor);
       }
-    }
 
-    setSaving(false);
-    toast.success("Position gespeichert.");
-    onSaved();
-    onOpenChange(false);
+      if (permDirty && !isOwner) {
+        const addedKeys = diffAddedPermissionKeys(
+          [...permBaseline],
+          [...permDraft],
+        );
+        const { error } = await updatePositionPermissions(sb, position.id, [
+          ...permDraft,
+        ]);
+        if (error) {
+          toast.error(error);
+          return;
+        }
+        setPermBaseline(new Set(permDraft));
+        if (addedKeys.length > 0) {
+          void notifyStaffPermissionsGrantedClient({
+            restaurantId,
+            positionId: position.id,
+            addedKeys,
+            positionName: trimmedName || position.name,
+          });
+        }
+      }
+
+      toast.success("Position gespeichert.");
+      onSaved();
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -245,27 +244,30 @@ export function RestaurantPositionEditDrawer({
       throw new Error("cannot_delete_owner");
     }
     setSaving(true);
-    const { error } = await deleteRestaurantPositionClient({
-      restaurantId,
-      positionId: target.id,
-    });
-    setSaving(false);
-    if (error) {
-      const messages: Record<string, string> = {
-        forbidden: "Keine Berechtigung zum Löschen.",
-        cannot_delete_owner: "Die Inhaber-Rolle kann nicht gelöscht werden.",
-        not_found: "Rolle wurde nicht gefunden.",
-        delete_failed: "Rolle konnte nicht gelöscht werden.",
-        server_misconfigured: "Löschen ist serverseitig nicht verfügbar.",
-      };
-      toast.error(messages[error] ?? "Rolle konnte nicht gelöscht werden.");
-      throw new Error(error);
+    try {
+      const { error } = await deleteRestaurantPositionClient({
+        restaurantId,
+        positionId: target.id,
+      });
+      if (error) {
+        const messages: Record<string, string> = {
+          forbidden: "Keine Berechtigung zum Löschen.",
+          cannot_delete_owner: "Die Inhaber-Rolle kann nicht gelöscht werden.",
+          not_found: "Rolle wurde nicht gefunden.",
+          delete_failed: "Rolle konnte nicht gelöscht werden.",
+          server_misconfigured: "Löschen ist serverseitig nicht verfügbar.",
+        };
+        toast.error(messages[error] ?? "Rolle konnte nicht gelöscht werden.");
+        throw new Error(error);
+      }
+      toast.success("Position gelöscht.");
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+      onOpenChange(false);
+      onDeleted();
+    } finally {
+      setSaving(false);
     }
-    toast.success("Position gelöscht.");
-    setDeleteOpen(false);
-    setDeleteTarget(null);
-    onOpenChange(false);
-    onDeleted();
   };
 
   const deleteUsageHint = deleteTarget

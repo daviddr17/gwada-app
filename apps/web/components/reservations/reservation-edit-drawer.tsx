@@ -960,6 +960,7 @@ export function ReservationEditDrawer({
 
     if (isEdit && reservation) {
       setSaving(true);
+      try {
       const previousStatusCode = initialStatusCodeRef.current ?? "";
       const dispatchEvent = reservationStatusDispatchEvent(
         previousStatusCode,
@@ -980,7 +981,6 @@ export function ReservationEditDrawer({
         reservation.updated_at,
       );
       if (error) {
-        setSaving(false);
         toast.error(reservationDocumentSaveErrorMessage(error.message));
         return;
       }
@@ -994,12 +994,10 @@ export function ReservationEditDrawer({
               : [],
         });
         if (assignErr) {
-          setSaving(false);
           toast.error(assignErr.message);
           return;
         }
       }
-      setSaving(false);
       void logReservationUpdateFromBrowser({
         reservation,
         payload,
@@ -1082,16 +1080,19 @@ export function ReservationEditDrawer({
         }
       })();
       return;
+      } finally {
+        setSaving(false);
+      }
     }
 
     if (isCreate && createFor) {
       setSaving(true);
+      try {
       const { data: created, error } = await insertReservation({
         restaurant_id: createFor.restaurantId,
         ...payload,
       });
       if (error) {
-        setSaving(false);
         toast.error(reservationDocumentSaveErrorMessage(error.message));
         return;
       }
@@ -1103,12 +1104,10 @@ export function ReservationEditDrawer({
             staffIds: assignedStaffIds,
           });
           if (assignErr) {
-            setSaving(false);
             toast.error(assignErr.message);
             return;
           }
         }
-        setSaving(false);
         void logReservationCreateFromBrowser({
           restaurantId: createFor.restaurantId,
           reservationId: created.id,
@@ -1139,7 +1138,6 @@ export function ReservationEditDrawer({
           },
         });
       } else {
-        setSaving(false);
       }
       const entityLabel =
         payload.kind === RESERVATION_KIND_PRIVATE_EVENT
@@ -1200,6 +1198,9 @@ export function ReservationEditDrawer({
           setGuestNotifyMessage("");
         }
       })();
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -1240,11 +1241,11 @@ export function ReservationEditDrawer({
       return;
     }
     setSaving(true);
+    try {
     const { error } = await deleteReservation({
       restaurantId,
       id: reservation.id,
     });
-    setSaving(false);
     if (error) {
       toast.error(error.message);
       return;
@@ -1254,6 +1255,9 @@ export function ReservationEditDrawer({
     allowDrawerCloseRef.current = true;
     setConfirmDeleteOpen(false);
     onSaved();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const fieldClass = drawerFormFieldClassName;

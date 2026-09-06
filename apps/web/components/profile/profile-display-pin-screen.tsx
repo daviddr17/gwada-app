@@ -141,27 +141,32 @@ export function ProfileDisplayPinScreen() {
     }
 
     setSaving(true);
-    const { ok, error } = await saveProfileDisplayPin({
-      restaurantId,
-      pin: removePin ? null : newPin,
-      pinConfirm: removePin ? undefined : confirmPin,
-      currentPassword,
-    });
-    setSaving(false);
+    try {
+      const { ok, error } = await saveProfileDisplayPin({
+        restaurantId,
+        pin: removePin ? null : newPin,
+        pinConfirm: removePin ? undefined : confirmPin,
+        currentPassword,
+      });
 
-    if (!ok) {
-      toast.error(error ?? "Speichern fehlgeschlagen.");
-      return;
+      if (!ok) {
+        toast.error(error ?? "Speichern fehlgeschlagen.");
+        return;
+      }
+
+      toast.success(
+        removePin
+          ? "Display-PIN wurde entfernt."
+          : "Display-PIN wurde gespeichert.",
+      );
+      setNewPin("");
+      setConfirmPin("");
+      setCurrentPassword("");
+      setRemovePin(false);
+      await reloadStatus();
+    } finally {
+      setSaving(false);
     }
-
-    toast.success(
-      removePin ? "Display-PIN wurde entfernt." : "Display-PIN wurde gespeichert.",
-    );
-    setNewPin("");
-    setConfirmPin("");
-    setCurrentPassword("");
-    setRemovePin(false);
-    await reloadStatus();
   };
 
   if (!workspaceReady) {

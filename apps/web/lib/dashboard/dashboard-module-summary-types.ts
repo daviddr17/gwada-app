@@ -43,8 +43,19 @@ export type DashboardDocumentsSummary = {
   storageBytes: number;
 };
 
+export type DashboardChecklistsTodoPreview = {
+  id: string;
+  title: string;
+  status: "open" | "overdue" | "partial";
+  priority: "high" | "medium" | "low";
+  areaName: string | null;
+  deviceName: string | null;
+};
+
 export type DashboardChecklistsSummary = {
   openTodos: number;
   overdueTodos: number;
   capturesToday: number;
+  /** Offene / überfällige / teilweise erledigte Todos (Titel für Heute-Sheet). */
+  todos: DashboardChecklistsTodoPreview[];
 };

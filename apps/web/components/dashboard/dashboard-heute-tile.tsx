@@ -346,15 +346,24 @@ export function DashboardHeuteTile() {
     if (can.checklists && checklists.summary) {
       const overdueTodos = checklists.summary.overdueTodos ?? 0;
       const openTodos = checklists.summary.openTodos ?? 0;
+      const previewTodos = checklists.summary.todos ?? [];
+      const singleTodo =
+        previewTodos.length === 1 ? previewTodos[0] : undefined;
       if (overdueTodos > 0) {
         items.push({
           id: "checklists-overdue",
-          title: `${overdueTodos} ${pluralDe(
-            overdueTodos,
-            "überfällige Aufgabe",
-            "überfällige Aufgaben",
-          )}`,
-          meta: "Sofort erledigen",
+          title:
+            singleTodo && overdueTodos === 1
+              ? singleTodo.title
+              : `${overdueTodos} ${pluralDe(
+                  overdueTodos,
+                  "überfällige Aufgabe",
+                  "überfällige Aufgaben",
+                )}`,
+          meta:
+            singleTodo && overdueTodos === 1
+              ? "Überfällig — Sofort erledigen"
+              : "Sofort erledigen",
           tone: "warning",
           icon: <ListChecks aria-hidden />,
           onClick: () => setChecklistsSheetOpen(true),
@@ -362,12 +371,18 @@ export function DashboardHeuteTile() {
       } else if (openTodos > 0) {
         items.push({
           id: "checklists-open",
-          title: `${openTodos} ${pluralDe(
-            openTodos,
-            "offene Aufgabe",
-            "offene Aufgaben",
-          )}`,
-          meta: "Aufgaben prüfen",
+          title:
+            singleTodo && openTodos === 1
+              ? singleTodo.title
+              : `${openTodos} ${pluralDe(
+                  openTodos,
+                  "offene Aufgabe",
+                  "offene Aufgaben",
+                )}`,
+          meta:
+            singleTodo && openTodos === 1
+              ? "Offene Aufgabe prüfen"
+              : "Aufgaben prüfen",
           tone: "attention",
           icon: <ListChecks aria-hidden />,
           onClick: () => setChecklistsSheetOpen(true),
@@ -787,6 +802,7 @@ export function DashboardHeuteTile() {
           openTodos={checklists.summary.openTodos ?? 0}
           overdueTodos={checklists.summary.overdueTodos ?? 0}
           capturesToday={checklists.summary.capturesToday ?? 0}
+          todos={checklists.summary.todos ?? []}
         />
       ) : null}
 

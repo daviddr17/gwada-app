@@ -7,6 +7,7 @@ import {
   peekDashboardBatchSummaryCache,
   writeDashboardBatchSummaryCache,
 } from "@/lib/dashboard/dashboard-batch-summary-cache";
+import { mergeDashboardBatchStreamPublish } from "@/lib/dashboard/dashboard-batch-ndjson";
 import { notifyDashboardFirstKpiReady } from "@/lib/dashboard/dashboard-first-kpi-ready";
 import { fetchDashboardBatchSummaryClient } from "@/lib/dashboard/fetch-dashboard-batch-summary-client";
 import {
@@ -85,18 +86,25 @@ export function dashboardBatchSummaryQueryOptions(
       const queryKey = queryKeys.dashboard.summary(restaurantId, widgets);
       let firstKpiNotified = false;
 
-      const publish = (payload: DashboardBatchQueryData): DashboardBatchQueryData => {
+      const publish = (
+        payload: DashboardBatchQueryData,
+        options?: { persist?: boolean },
+      ): DashboardBatchQueryData => {
         const existing = client.getQueryData(queryKey);
-        const merged: DashboardBatchQueryData = {
-          data: { ...(existing?.data ?? {}), ...payload.data },
-          errors: { ...(existing?.errors ?? {}), ...payload.errors },
-        };
+        const merged = mergeDashboardBatchStreamPublish({
+          existing,
+          streamAcc: payload,
+          requestedWidgets: widgets,
+        });
         const reconciled = batchSummaryWithMessagesFromInboxCache(
           merged,
           restaurantId,
         );
         client.setQueryData(queryKey, reconciled);
-        writeDashboardBatchSummaryCache(restaurantId, widgets, reconciled);
+        // Erst am Ende persistieren — sonst landet ein unvollständiger Stream im localStorage.
+        if (options?.persist !== false) {
+          writeDashboardBatchSummaryCache(restaurantId, widgets, reconciled);
+        }
         if (!firstKpiNotified && Object.keys(reconciled.data).length > 0) {
           firstKpiNotified = true;
           notifyDashboardFirstKpiReady(restaurantId);
@@ -108,10 +116,10 @@ export function dashboardBatchSummaryQueryOptions(
       const payload = await fetchDashboardBatchQueryData(restaurantId, widgets, {
         persistCache: false,
         onPartial: (partial) => {
-          publish(partial);
+          publish(partial, { persist: false });
         },
       });
-      return publish(payload);
+      return publish(payload, { persist: true });
     },
     staleTime: DASHBOARD_SUMMARY_STALE_MS,
     gcTime: DASHBOARD_SUMMARY_GC_MS,
@@ -134,7 +142,14 @@ export function dashboardBatchSummaryQueryOptions(
         peekDashboardBatchSummaryCache(restaurantId, widgets) ??
         undefined;
       if (!base) return undefined;
-      return batchSummaryWithMessagesFromInboxCache(base, restaurantId);
+      const reconciled = batchSummaryWithMessagesFromInboxCache(
+        base,
+        restaurantId,
+      );
+      // Checklisten-Aktionen nie aus Disk/Placeholder — sonst „1 offen“-Flash beim Start.
+      if (!reconciled.data.checklists) return reconciled;
+      const { checklists: _drop, ...data } = reconciled.data;
+      return { ...reconciled, data };
     },
   };
 }

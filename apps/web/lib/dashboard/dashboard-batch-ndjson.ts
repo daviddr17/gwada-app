@@ -56,3 +56,47 @@ export function applyDashboardBatchNdjsonWidgetLine(
     errors: base.errors,
   };
 }
+
+/**
+ * Stream-Publish: angeforderte Widgets, die in diesem Fetch noch nicht
+ * angekommen sind, nicht aus Placeholder/Alt-Cache stehen lassen.
+ * Sonst blitzen z. B. „1 offene Aufgabe“ für Sekunden, bis checklists nachzieht.
+ */
+export function mergeDashboardBatchStreamPublish(args: {
+  existing:
+    | {
+        data: DashboardBatchSummary;
+        errors: DashboardBatchSummaryErrors;
+      }
+    | undefined;
+  streamAcc: {
+    data: DashboardBatchSummary;
+    errors: DashboardBatchSummaryErrors;
+  };
+  requestedWidgets: readonly DashboardBatchWidgetId[];
+}): {
+  data: DashboardBatchSummary;
+  errors: DashboardBatchSummaryErrors;
+} {
+  const data: DashboardBatchSummary = { ...(args.existing?.data ?? {}) };
+  const errors: DashboardBatchSummaryErrors = {
+    ...(args.existing?.errors ?? {}),
+  };
+
+  for (const widget of args.requestedWidgets) {
+    if (Object.prototype.hasOwnProperty.call(args.streamAcc.data, widget)) {
+      (data as Record<string, unknown>)[widget] = (
+        args.streamAcc.data as Record<string, unknown>
+      )[widget];
+    } else {
+      delete (data as Record<string, unknown>)[widget];
+    }
+    if (Object.prototype.hasOwnProperty.call(args.streamAcc.errors, widget)) {
+      errors[widget] = args.streamAcc.errors[widget];
+    } else {
+      delete errors[widget];
+    }
+  }
+
+  return { data, errors };
+}

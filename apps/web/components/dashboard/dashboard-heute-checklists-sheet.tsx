@@ -121,46 +121,11 @@ export function DashboardHeuteChecklistsSheet({
               })}
             </ul>
           ) : (
-            <ul className="space-y-2">
-              {overdueTodos > 0 ? (
-                <li className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300">
-                    <ListChecks className="size-4" aria-hidden />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-semibold leading-snug">
-                      {overdueTodos}{" "}
-                      {pluralDe(
-                        overdueTodos,
-                        "überfällige Aufgabe",
-                        "überfällige Aufgaben",
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Sofort erledigen
-                    </p>
-                  </div>
-                </li>
-              ) : null}
-              {openTodos > 0 ? (
-                <li className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/70 px-4 py-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                    <ListChecks className="size-4" aria-hidden />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-semibold leading-snug">
-                      {openTodos}{" "}
-                      {pluralDe(openTodos, "offene Aufgabe", "offene Aufgaben")}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {capturesToday > 0
-                        ? `${capturesToday} heute erfasst`
-                        : "Noch nichts heute erfasst"}
-                    </p>
-                  </div>
-                </li>
-              ) : null}
-            </ul>
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {openTodos > 0 || overdueTodos > 0
+                ? "Aufgaben werden aktualisiert…"
+                : "Keine offenen Aufgaben."}
+            </p>
           )}
         </div>
         <div className="border-t border-border/50 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">

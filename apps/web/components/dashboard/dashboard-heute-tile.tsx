@@ -344,49 +344,56 @@ export function DashboardHeuteTile() {
     }
 
     if (can.checklists && checklists.summary) {
-      const overdueTodos = checklists.summary.overdueTodos ?? 0;
-      const openTodos = checklists.summary.openTodos ?? 0;
-      const previewTodos = checklists.summary.todos ?? [];
-      const singleTodo =
-        previewTodos.length === 1 ? previewTodos[0] : undefined;
-      if (overdueTodos > 0) {
-        items.push({
-          id: "checklists-overdue",
-          title:
-            singleTodo && overdueTodos === 1
-              ? singleTodo.title
-              : `${overdueTodos} ${pluralDe(
-                  overdueTodos,
-                  "überfällige Aufgabe",
-                  "überfällige Aufgaben",
-                )}`,
-          meta:
-            singleTodo && overdueTodos === 1
-              ? "Überfällig — Sofort erledigen"
-              : "Sofort erledigen",
-          tone: "warning",
-          icon: <ListChecks aria-hidden />,
-          onClick: () => setChecklistsSheetOpen(true),
-        });
-      } else if (openTodos > 0) {
-        items.push({
-          id: "checklists-open",
-          title:
-            singleTodo && openTodos === 1
-              ? singleTodo.title
-              : `${openTodos} ${pluralDe(
-                  openTodos,
-                  "offene Aufgabe",
-                  "offene Aufgaben",
-                )}`,
-          meta:
-            singleTodo && openTodos === 1
-              ? "Offene Aufgabe prüfen"
-              : "Aufgaben prüfen",
-          tone: "attention",
-          icon: <ListChecks aria-hidden />,
-          onClick: () => setChecklistsSheetOpen(true),
-        });
+      // Nur mit todos[] — count-only Placeholder/Legacy würde sonst „1 offen“ flashen.
+      const previewTodos = Array.isArray(checklists.summary.todos)
+        ? checklists.summary.todos
+        : null;
+      if (previewTodos) {
+        const overdueTodos = previewTodos.filter(
+          (todo) => todo.status === "overdue",
+        ).length;
+        const openTodos = previewTodos.length;
+        const singleTodo =
+          previewTodos.length === 1 ? previewTodos[0] : undefined;
+        if (overdueTodos > 0) {
+          items.push({
+            id: "checklists-overdue",
+            title:
+              singleTodo && overdueTodos === 1
+                ? singleTodo.title
+                : `${overdueTodos} ${pluralDe(
+                    overdueTodos,
+                    "überfällige Aufgabe",
+                    "überfällige Aufgaben",
+                  )}`,
+            meta:
+              singleTodo && overdueTodos === 1
+                ? "Überfällig — Sofort erledigen"
+                : "Sofort erledigen",
+            tone: "warning",
+            icon: <ListChecks aria-hidden />,
+            onClick: () => setChecklistsSheetOpen(true),
+          });
+        } else if (openTodos > 0) {
+          items.push({
+            id: "checklists-open",
+            title:
+              singleTodo && openTodos === 1
+                ? singleTodo.title
+                : `${openTodos} ${pluralDe(
+                    openTodos,
+                    "offene Aufgabe",
+                    "offene Aufgaben",
+                  )}`,
+            meta:
+              singleTodo && openTodos === 1
+                ? "Offene Aufgabe prüfen"
+                : "Aufgaben prüfen",
+            tone: "attention",
+            icon: <ListChecks aria-hidden />,
+            onClick: () => setChecklistsSheetOpen(true),
+          });
+        }
       }
     }
 

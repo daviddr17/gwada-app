@@ -114,12 +114,12 @@ export async function touchNewsStoriesPlatformSync(
   lastError: string | null,
 ): Promise<void> {
   const { count } = await admin
-    .from("restaurant_news_stories_platform_cache")
+    .from("restaurant_news_stories_cache")
     .select("external_id", { count: "exact", head: true })
     .eq("restaurant_id", restaurantId)
     .eq("platform", platform);
 
-  await admin.from("restaurant_news_stories_platform_sync").upsert(
+  await admin.from("restaurant_news_stories_sync").upsert(
     {
       restaurant_id: restaurantId,
       platform,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { Flame } from "lucide-react";
 import {
   Card,
@@ -19,10 +19,6 @@ import { queryKeys } from "@/lib/query/query-keys";
 import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
-
-/** Feste Kachelgröße (GitHub-Contribution-Stil) — nicht mit Kartenbreite skalieren. */
-const streakCellClassName =
-  "size-2.5 shrink-0 rounded-[2px] sm:size-3 sm:rounded-[3px]";
 
 const STREAK_STALE_MS = 5 * 60_000;
 
@@ -69,7 +65,7 @@ export function ProfileLoginStreakCard() {
         {loading ? (
           <div className="space-y-3" aria-busy="true">
             <Skeleton className="h-10 w-40 rounded-lg" />
-            <Skeleton className="h-[82px] w-full max-w-xs rounded-xl" />
+            <Skeleton className="h-28 w-full rounded-xl" />
           </div>
         ) : error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
@@ -88,70 +84,68 @@ export function ProfileLoginStreakCard() {
               <div className="text-sm text-muted-foreground">
                 <p>
                   Rekord{" "}
-                  <span className="font-semibold text-foreground tabular-nums">
+                  <span className="font-semibold tabular-nums text-foreground">
                     {summary.longestStreak}
                   </span>
                 </p>
                 <p>
                   Gesamt{" "}
-                  <span className="font-semibold text-foreground tabular-nums">
+                  <span className="font-semibold tabular-nums text-foreground">
                     {summary.totalDays}
                   </span>
                 </p>
               </div>
             </div>
 
-            <div className="overflow-x-auto pb-1">
-              <div className="flex w-max min-w-0 gap-2 sm:gap-3">
-                <div className="flex shrink-0 flex-col gap-[3px] py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {WEEKDAY_LABELS.map((label, index) => (
+            {columns.length > 0 ? (
+              <div
+                className="grid w-full gap-x-1 gap-y-1"
+                style={{
+                  gridTemplateColumns: `1.75rem repeat(${columns.length}, minmax(0, 1fr))`,
+                }}
+                role="img"
+                aria-label="Aktivitäts-Heatmap der letzten Wochen"
+              >
+                {WEEKDAY_LABELS.map((label, rowIndex) => (
+                  <Fragment key={label}>
                     <span
-                      key={label}
                       className={cn(
-                        streakCellClassName,
-                        "flex items-center justify-end pr-0.5 leading-none",
-                        index % 2 === 0 && "invisible",
+                        "flex items-center justify-end pr-1 text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground",
+                        rowIndex % 2 === 0 && "invisible",
                       )}
                     >
                       {label}
                     </span>
-                  ))}
-                </div>
-                <div className="flex gap-[3px]">
-                  {columns.map((week, weekIndex) => (
-                    <div
-                      key={weekIndex}
-                      className="flex shrink-0 flex-col gap-[3px]"
-                    >
-                      {week.map((cell, dayIndex) => {
-                        const empty = !cell.day;
-                        return (
-                          <span
-                            key={`${weekIndex}-${dayIndex}`}
-                            title={
-                              empty
-                                ? undefined
-                                : cell.active
-                                  ? `${cell.day} · aktiv`
-                                  : cell.day
-                            }
-                            className={cn(
-                              streakCellClassName,
-                              empty
-                                ? "bg-transparent"
-                                : cell.active
-                                  ? "bg-orange-500 shadow-[0_0_0_1px_color-mix(in_oklch,var(--color-orange-500)_35%,transparent)]"
-                                  : "bg-muted/70 ring-1 ring-border/40",
-                            )}
-                            aria-hidden={empty}
-                          />
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
+                    {columns.map((week, weekIndex) => {
+                      const cell = week[rowIndex]!;
+                      const empty = !cell.day;
+                      return (
+                        <span
+                          key={`${weekIndex}-${rowIndex}`}
+                          title={
+                            empty
+                              ? undefined
+                              : cell.active
+                                ? `${cell.day} · aktiv`
+                                : cell.day
+                          }
+                          className={cn(
+                            "aspect-square h-auto w-full min-w-0 rounded-[3px] sm:rounded-sm",
+                            empty
+                              ? "bg-transparent"
+                              : cell.active
+                                ? "bg-orange-500 shadow-[0_0_0_1px_color-mix(in_oklch,var(--color-orange-500)_35%,transparent)]"
+                                : "bg-muted/70 ring-1 ring-border/40",
+                          )}
+                          aria-hidden={empty}
+                        />
+                      );
+                    })}
+                  </Fragment>
+                ))}
               </div>
-            </div>
+            ) : null}
+
             <p className="text-[11px] text-muted-foreground">
               {summary.todayActive
                 ? "Heute schon eingeloggt — Streak läuft."

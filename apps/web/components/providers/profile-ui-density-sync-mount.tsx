@@ -4,17 +4,14 @@ import { useEffect, useRef } from "react";
 import {
   applyUiDensity,
   fetchProfileUiDensity,
+  hydrateUiDensityFromLocalStore,
 } from "@/lib/ui/apply-ui-density";
-import {
-  applyUiDensityToDocument,
-  normalizeUiDensity,
-  readUiDensityCookieFromDocument,
-} from "@/lib/ui/ui-density";
+import { applyUiDensityToDocument } from "@/lib/ui/ui-density";
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
 
 /**
- * Once per sign-in: `profiles.ui_density` is the account source of truth.
- * Cookie covers first paint; this reconciles after auth.
+ * Local cookie/storage first (works without Live-DB column).
+ * If/when `profiles.ui_density` exists, reconcile once per sign-in.
  */
 export function ProfileUiDensitySyncMount() {
   const { user, ready } = useWorkspaceAuthSession();
@@ -22,10 +19,7 @@ export function ProfileUiDensitySyncMount() {
   const syncedForUser = useRef<string | null>(null);
 
   useEffect(() => {
-    const cookieDensity = readUiDensityCookieFromDocument();
-    if (cookieDensity) {
-      applyUiDensityToDocument(cookieDensity);
-    }
+    hydrateUiDensityFromLocalStore();
   }, []);
 
   useEffect(() => {
@@ -41,17 +35,9 @@ export function ProfileUiDensitySyncMount() {
     void (async () => {
       const profileDensity = await fetchProfileUiDensity();
       if (cancelled || !profileDensity) return;
-
-      const cookieDensity = readUiDensityCookieFromDocument();
-      if (cookieDensity === profileDensity) {
-        applyUiDensityToDocument(profileDensity);
-        return;
-      }
-
-      const result = await applyUiDensity(profileDensity);
-      if (cancelled || !result.ok) {
-        applyUiDensityToDocument(normalizeUiDensity(profileDensity));
-      }
+      applyUiDensityToDocument(profileDensity);
+      // Best-effort sync cookie; never fails UX if DB column missing.
+      void applyUiDensity(profileDensity);
     })();
 
     return () => {

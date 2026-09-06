@@ -8,12 +8,11 @@ import { Label } from "@/components/ui/label";
 import {
   applyUiDensity,
   fetchProfileUiDensity,
+  hydrateUiDensityFromLocalStore,
 } from "@/lib/ui/apply-ui-density";
 import {
-  applyUiDensityToDocument,
   DEFAULT_UI_DENSITY,
   normalizeUiDensity,
-  readUiDensityCookieFromDocument,
   type UiDensity,
   UI_DENSITIES,
 } from "@/lib/ui/ui-density";
@@ -28,17 +27,12 @@ export function ProfileUiDensityCard({ disabled }: { disabled?: boolean }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const fromCookie = readUiDensityCookieFromDocument();
-      if (fromCookie) {
-        setValue(fromCookie);
-        applyUiDensityToDocument(fromCookie);
-      }
+      const local = hydrateUiDensityFromLocalStore();
+      if (local) setValue(local);
+
       const fromProfile = await fetchProfileUiDensity();
       if (cancelled) return;
-      if (fromProfile) {
-        setValue(fromProfile);
-        applyUiDensityToDocument(fromProfile);
-      }
+      if (fromProfile) setValue(fromProfile);
       setHydrated(true);
     })();
     return () => {
@@ -50,13 +44,12 @@ export function ProfileUiDensityCard({ disabled }: { disabled?: boolean }) {
     if (disabled || saving || !hydrated || next === value) return;
     const previous = value;
     setValue(next);
-    applyUiDensityToDocument(next);
     setSaving(true);
     try {
       const result = await applyUiDensity(next);
       if (!result.ok) {
         setValue(previous);
-        applyUiDensityToDocument(previous);
+        await applyUiDensity(previous);
         toast.error(t("updateFailed"));
         return;
       }

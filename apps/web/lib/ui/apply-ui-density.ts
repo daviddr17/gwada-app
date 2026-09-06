@@ -3,24 +3,26 @@
 import {
   applyUiDensityToDocument,
   normalizeUiDensity,
+  persistUiDensityLocally,
+  readStoredUiDensityClient,
   type UiDensity,
-  writeUiDensityCookie,
 } from "@/lib/ui/ui-density";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { workspacePersistenceConfigured } from "@/lib/supabase/workspace-persistence";
 
 export type ApplyUiDensityResult =
-  | { ok: true; density: UiDensity }
+  | { ok: true; density: UiDensity; persisted: "db" | "local" }
   | { ok: false; density: UiDensity; error: string };
 
 /**
- * Persist UI density via API (Set-Cookie + `profiles.ui_density`) and apply locally.
+ * Always persist locally (cookie + localStorage).
+ * DB write is best-effort — missing column must not fail the UX.
  */
 export async function applyUiDensity(
   nextDensity: string,
 ): Promise<ApplyUiDensityResult> {
   const density = normalizeUiDensity(nextDensity);
-  applyUiDensityToDocument(density);
+  persistUiDensityLocally(density);
 
   try {
     const res = await fetch("/api/profile/ui-density", {
@@ -31,33 +33,39 @@ export async function applyUiDensity(
     });
 
     if (res.ok) {
-      writeUiDensityCookie(density);
-      return { ok: true, density };
+      const body = (await res.json().catch(() => null)) as {
+        data?: { persisted?: string };
+      } | null;
+      const persisted =
+        body?.data?.persisted === "db" ? ("db" as const) : ("local" as const);
+      persistUiDensityLocally(density);
+      return { ok: true, density, persisted };
     }
 
-    const body = (await res.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    return {
-      ok: false,
-      density,
-      error: body?.error || `http_${res.status}`,
-    };
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "unknown";
-    return { ok: false, density, error: message };
+    // API unreachable / unexpected — local already saved.
+    return { ok: true, density, persisted: "local" };
+  } catch {
+    return { ok: true, density, persisted: "local" };
   }
 }
 
-/** Read `profiles.ui_density` for the signed-in user (null if unavailable). */
+/**
+ * Prefer DB when column exists; otherwise cookie/localStorage.
+ * Never throws; never surfaces missing-column errors.
+ */
 export async function fetchProfileUiDensity(): Promise<UiDensity | null> {
-  if (!workspacePersistenceConfigured()) return null;
+  const local = readStoredUiDensityClient();
+
+  if (!workspacePersistenceConfigured()) {
+    return local;
+  }
+
   try {
     const supabase = createSupabaseBrowserClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) return local;
 
     const { data, error } = await supabase
       .from("profiles")
@@ -65,10 +73,17 @@ export async function fetchProfileUiDensity(): Promise<UiDensity | null> {
       .eq("id", user.id)
       .maybeSingle();
 
-    if (error || data?.ui_density == null) return null;
-    if (typeof data.ui_density !== "string") return null;
+    if (error || data?.ui_density == null) return local;
+    if (typeof data.ui_density !== "string") return local;
     return normalizeUiDensity(data.ui_density);
   } catch {
-    return null;
+    return local;
   }
+}
+
+/** Apply stored local preference immediately (first paint / mount). */
+export function hydrateUiDensityFromLocalStore(): UiDensity | null {
+  const stored = readStoredUiDensityClient();
+  if (stored) applyUiDensityToDocument(stored);
+  return stored;
 }

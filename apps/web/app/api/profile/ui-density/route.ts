@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   DEFAULT_UI_DENSITY,
+  isMissingUiDensityColumnError,
   isUiDensity,
   normalizeUiDensity,
   UI_DENSITY_COOKIE,
@@ -24,7 +25,19 @@ function densitySetCookieHeader(density: UiDensity): string {
   return parts.join("; ");
 }
 
-export async function GET() {
+function okDensityResponse(
+  density: UiDensity,
+  persisted: "db" | "cookie",
+): NextResponse {
+  const res = NextResponse.json({ data: { density, persisted } });
+  res.headers.append("Set-Cookie", densitySetCookieHeader(density));
+  return res;
+}
+
+/**
+ * Lesen: DB wenn Spalte existiert, sonst Cookie — nie 4xx wegen fehlender Spalte.
+ */
+export async function GET(req: Request) {
   const sb = await createSupabaseServerClient();
   const {
     data: { user },
@@ -41,17 +54,29 @@ export async function GET() {
     .maybeSingle();
 
   if (error) {
+    if (isMissingUiDensityColumnError(error)) {
+      const cookieHeader = req.headers.get("cookie") ?? "";
+      const match = cookieHeader
+        .split(";")
+        .map((p) => p.trim())
+        .find((p) => p.startsWith(`${UI_DENSITY_COOKIE}=`));
+      const fromCookie = match
+        ? decodeURIComponent(match.slice(UI_DENSITY_COOKIE.length + 1))
+        : null;
+      return okDensityResponse(normalizeUiDensity(fromCookie), "cookie");
+    }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
   const density = normalizeUiDensity(
     typeof data?.ui_density === "string" ? data.ui_density : DEFAULT_UI_DENSITY,
   );
-  const res = NextResponse.json({ data: { density } });
-  res.headers.append("Set-Cookie", densitySetCookieHeader(density));
-  return res;
+  return okDensityResponse(density, "db");
 }
 
+/**
+ * Speichern: DB wenn möglich; fehlt die Spalte → nur Cookie (kein Live-DB-Fehler).
+ */
 export async function PUT(req: Request) {
   let body: { density?: string };
   try {
@@ -81,10 +106,12 @@ export async function PUT(req: Request) {
     .eq("id", user.id);
 
   if (error) {
+    if (isMissingUiDensityColumnError(error)) {
+      // Migration noch nicht auf Live — Preference trotzdem lokal halten.
+      return okDensityResponse(density, "cookie");
+    }
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  const res = NextResponse.json({ data: { density } });
-  res.headers.append("Set-Cookie", densitySetCookieHeader(density));
-  return res;
+  return okDensityResponse(density, "db");
 }

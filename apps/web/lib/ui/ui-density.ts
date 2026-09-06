@@ -1,4 +1,4 @@
-/** Dashboard UI density — stored on `profiles.ui_density`, cookie for first paint. */
+/** Dashboard UI density — cookie/local first; DB optional when column exists. */
 
 export const UI_DENSITIES = ["compact", "normal", "comfortable"] as const;
 
@@ -11,6 +11,8 @@ export const UI_DENSITY_COOKIE = "gwada_ui_density";
 export const UI_DENSITY_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 export const UI_DENSITY_HTML_ATTR = "data-ui-density";
+
+export const UI_DENSITY_LOCAL_STORAGE_KEY = "gwada:ui-density";
 
 export function isUiDensity(value: string): value is UiDensity {
   return (UI_DENSITIES as readonly string[]).includes(value);
@@ -52,4 +54,52 @@ export function writeUiDensityCookie(density: UiDensity): void {
     parts.push("Secure");
   }
   document.cookie = parts.join("; ");
+}
+
+export function readUiDensityLocalStorage(): UiDensity | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(UI_DENSITY_LOCAL_STORAGE_KEY);
+    if (!raw) return null;
+    return isUiDensity(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeUiDensityLocalStorage(density: UiDensity): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(UI_DENSITY_LOCAL_STORAGE_KEY, density);
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+/** Prefer cookie, then localStorage — never throws. */
+export function readStoredUiDensityClient(): UiDensity | null {
+  return readUiDensityCookieFromDocument() ?? readUiDensityLocalStorage();
+}
+
+/** Persist locally (cookie + localStorage). Safe without DB. */
+export function persistUiDensityLocally(density: UiDensity): void {
+  writeUiDensityCookie(density);
+  writeUiDensityLocalStorage(density);
+  applyUiDensityToDocument(density);
+}
+
+/** PostgREST / Postgres: Spalte fehlt noch (Migration nicht auf Live). */
+export function isMissingUiDensityColumnError(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+} | null): boolean {
+  if (!error) return false;
+  const code = (error.code ?? "").toUpperCase();
+  if (code === "42703" || code === "PGRST204" || code === "PGRST116") {
+    return true;
+  }
+  const hay = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  return hay.includes("ui_density");
 }

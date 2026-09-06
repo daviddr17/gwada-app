@@ -7,6 +7,7 @@ export const LIVE_ACTIVITY_FEED_MODULES = [
   "reservations_pending",
   "reservations_change_request",
   "reservations_cancellation",
+  "reservations_activity",
   "events_inquiry",
   "messages",
   "reviews",

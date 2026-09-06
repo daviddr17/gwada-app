@@ -29,6 +29,7 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   reservations_pending: { kind: "module", prefix: "reservations" },
   reservations_change_request: { kind: "module", prefix: "reservations" },
   reservations_cancellation: { kind: "module", prefix: "reservations" },
+  reservations_activity: { kind: "module", prefix: "reservations" },
   events_inquiry: { kind: "anyModule", prefixes: ["events", "reservations"] },
   staff_shift_start: { kind: "staffModuleOrProfile", prefix: "staff" },
   staff_shift_end: { kind: "staffModuleOrProfile", prefix: "staff" },

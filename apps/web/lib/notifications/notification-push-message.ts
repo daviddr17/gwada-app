@@ -388,6 +388,7 @@ export function buildNotificationPushText(
     }
     case "inventory_po_activity":
     case "inventory_stock_activity":
+    case "reservations_activity":
       return buildPushMessage({
         prefix,
         headline: moduleDef.label,

@@ -217,6 +217,16 @@ export function formatNotificationPayloadSummary(
     return name;
   }
 
+  if (module === "reservations_activity") {
+    const guest =
+      typeof p.guestLabel === "string" ? p.guestLabel : "Reservierung";
+    const summary =
+      typeof p.summary === "string" && p.summary.trim()
+        ? ` · ${p.summary.trim()}`
+        : "";
+    return `${guest}${summary}`;
+  }
+
   if (module === "changelog") {
     return typeof p.title === "string" ? p.title : "Changelog";
   }

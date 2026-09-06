@@ -428,6 +428,8 @@ const MODULE_BUILDERS: Record<
       ...ctx,
       module: "reservations_cancellation",
     }),
+  reservations_activity: () =>
+    buildFeedOnlyEmptyModule("reservations_activity"),
   events_inquiry: (ctx) =>
     buildReservationModule(ctx.sb, { ...ctx, module: "events_inquiry" }),
   staff_shift_start: (ctx) =>

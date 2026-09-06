@@ -127,6 +127,8 @@ function pickString(value: unknown): string | null {
 
 function guestFromPayload(payload: Record<string, unknown>): string | null {
   return (
+    pickString(payload.guestLabel) ??
+    pickString(payload.guest_label) ??
     pickString(payload.guest_name) ??
     pickString(payload.contactName) ??
     pickString(payload.contact_name) ??
@@ -169,6 +171,11 @@ export function reservationIdFromNotificationEvent(
     return colon > 0 ? ref.slice(0, colon) : ref;
   }
 
+  // reservations_activity: reference_id = log-entry-id, ID steckt im Payload.
+  if (module === "reservations_activity") {
+    return null;
+  }
+
   return ref;
 }
 
@@ -194,7 +201,8 @@ export function hrefForNotificationModule(
   if (
     module === "reservations_pending" ||
     module === "reservations_change_request" ||
-    module === "reservations_cancellation"
+    module === "reservations_cancellation" ||
+    module === "reservations_activity"
   ) {
     const reservationId = reservationIdFromNotificationEvent(
       module,
@@ -302,6 +310,61 @@ function stockActivityTitle(
   }
 }
 
+function reservationActivityLooksConfirmed(
+  payload: Record<string, unknown>,
+): boolean {
+  const changes = payload.changes;
+  if (!Array.isArray(changes)) return false;
+  for (const raw of changes) {
+    if (!raw || typeof raw !== "object") continue;
+    const c = raw as Record<string, unknown>;
+    if (pickString(c.field) !== "status") continue;
+    const to = (pickString(c.to) ?? "").toLowerCase();
+    if (/(bestätigt|confirmed)/.test(to)) return true;
+  }
+  return false;
+}
+
+function reservationActivityTitle(
+  payload: Record<string, unknown>,
+  staffOrGuest: string | null,
+): string {
+  const action = pickString(payload.action) ?? "";
+  const staff =
+    pickString(payload.staffName) ??
+    (staffOrGuest && !staffOrGuest.startsWith("#") ? staffOrGuest : null);
+  const prefix = staff ? `${staff} · ` : "";
+
+  switch (action) {
+    case "created":
+      return `${prefix}Reservierung angelegt`;
+    case "deleted":
+      return `${prefix}Reservierung gelöscht`;
+    case "change_request_approved":
+      return `${prefix}Änderung übernommen`;
+    case "change_request_declined":
+      return `${prefix}Änderung abgelehnt`;
+    case "updated":
+      if (reservationActivityLooksConfirmed(payload)) {
+        return `${prefix}Reservierung bestätigt`;
+      }
+      return `${prefix}Reservierung geändert`;
+    default:
+      return staff ? `${staff} · Reservierung` : "Reservierung";
+  }
+}
+
+function reservationActivityDescription(
+  payload: Record<string, unknown>,
+): string | null {
+  const guest =
+    pickString(payload.guestLabel) ?? pickString(payload.guest_label);
+  const summary = pickString(payload.summary);
+  if (guest && summary) return `${guest} · ${summary}`;
+  if (summary) return summary;
+  return guest;
+}
+
 /** Human-readable Titel für den Live-Feed (nicht Settings-Labels der Glocke). */
 function feedTitleForModule(
   module: string,
@@ -313,6 +376,8 @@ function feedTitleForModule(
       return poActivityTitle(payload ?? {}, guest);
     case "inventory_stock_activity":
       return stockActivityTitle(payload ?? {}, guest);
+    case "reservations_activity":
+      return reservationActivityTitle(payload ?? {}, guest);
     case "staff_display_clock_in":
       return guest ? `${guest} · Login` : "Mitarbeiter Login";
     case "staff_display_clock_out":
@@ -354,8 +419,10 @@ export function liveActivityFromNotificationEvent(params: {
   const def = moduleId ? NOTIFICATION_MODULES[moduleId] : null;
   const guest =
     params.module === "inventory_po_activity" ||
-    params.module === "inventory_stock_activity"
-      ? staffNameFromPayload(params.payload)
+    params.module === "inventory_stock_activity" ||
+    params.module === "reservations_activity"
+      ? staffNameFromPayload(params.payload) ??
+        guestFromPayload(params.payload)
       : guestFromPayload(params.payload);
   const summary = formatNotificationPayloadSummary(
     params.module,
@@ -368,7 +435,9 @@ export function liveActivityFromNotificationEvent(params: {
       ? poActivityDescription(params.payload)
       : params.module === "inventory_stock_activity"
         ? stockActivityDescription(params.payload)
-        : null) ??
+        : params.module === "reservations_activity"
+          ? reservationActivityDescription(params.payload)
+          : null) ??
     (summary.trim() ||
       pickString(params.payload.title) ||
       pickString(params.payload.body) ||

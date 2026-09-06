@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
@@ -15,9 +15,10 @@ import {
   Sun,
   UserCheck,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { DashboardHeuteBirthdaysSheet } from "@/components/dashboard/dashboard-heute-birthdays-sheet";
 import { DashboardHeuteAllClear } from "@/components/dashboard/dashboard-heute-all-clear";
+import { DashboardHeuteChecklistsSheet } from "@/components/dashboard/dashboard-heute-checklists-sheet";
+import { DashboardHeuteLiveEventSheet } from "@/components/dashboard/dashboard-heute-live-event-sheet";
 import { DashboardHeuteWorkHoursSheet } from "@/components/dashboard/dashboard-heute-work-hours-sheet";
 import { DashboardInventoryAlertsSheet } from "@/components/dashboard/dashboard-inventory-alerts-sheet";
 import { DashboardMessagesListSheet } from "@/components/dashboard/dashboard-messages-list-sheet";
@@ -32,6 +33,8 @@ import {
   type StaffLivePresenceSheetMode,
 } from "@/components/staff/staff-overview-live-presence-sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { resolveHeuteLiveSheetTarget } from "@/lib/dashboard/dashboard-heute-live-sheet-target";
+import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
 import { useDashboardModuleBatchStats } from "@/lib/hooks/use-dashboard-module-batch-stats";
@@ -50,7 +53,7 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { listStaffBirthdaysToday } from "@/lib/staff/staff-birthdays-today";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
-import { APP_ROUTES, DASHBOARD_HOME } from "@/lib/navigation/app-routes";
+import { DASHBOARD_HOME } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
 type HeuteActionTone = "attention" | "warning" | "birthday";
@@ -197,13 +200,13 @@ type DashboardStatSlice = {
 function isDashboardStatSettled(slice: DashboardStatSlice): boolean {
   if (!slice.ready) return false;
   if (slice.summary != null) return true;
-  // Fehler = Slice abgeschlossen (kein endloses Skeleton / kein falsches All-Clear).
-  return Boolean(slice.error);
+  // Fehler oder fertiger Batch ohne Slice → nicht ewig Skeleton.
+  if (slice.error) return true;
+  return !slice.loading;
 }
 
 export function DashboardHeuteTile() {
   const pathname = usePathname();
-  const router = useRouter();
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
@@ -223,6 +226,8 @@ export function DashboardHeuteTile() {
   const [messagesSheetOpen, setMessagesSheetOpen] = useState(false);
   const [inventorySheetOpen, setInventorySheetOpen] = useState(false);
   const [birthdaysSheetOpen, setBirthdaysSheetOpen] = useState(false);
+  const [checklistsSheetOpen, setChecklistsSheetOpen] = useState(false);
+  const [liveEventItem, setLiveEventItem] = useState<LiveActivityItem | null>(null);
 
   const accessOptions = {
     permissionsLoading,
@@ -352,7 +357,7 @@ export function DashboardHeuteTile() {
           meta: "Sofort erledigen",
           tone: "warning",
           icon: <ListChecks aria-hidden />,
-          onClick: () => router.push(APP_ROUTES.checklisten.root),
+          onClick: () => setChecklistsSheetOpen(true),
         });
       } else if (openTodos > 0) {
         items.push({
@@ -365,7 +370,7 @@ export function DashboardHeuteTile() {
           meta: "Aufgaben prüfen",
           tone: "attention",
           icon: <ListChecks aria-hidden />,
-          onClick: () => router.push(APP_ROUTES.checklisten.root),
+          onClick: () => setChecklistsSheetOpen(true),
         });
       }
     }
@@ -450,7 +455,6 @@ export function DashboardHeuteTile() {
     can.messages,
     can.reservations,
     checklists.summary,
-    router,
     deliveriesDueToday,
     deliveriesOverdue,
     deliveryDueTotal,
@@ -561,6 +565,43 @@ export function DashboardHeuteTile() {
   const showJetztHandeln = hasActions || showAllClear;
   const splitJetztHandelnAndLage = hasActions && hasLage;
 
+  const openLiveItem = useCallback(
+    (item: LiveActivityItem) => {
+      const target = resolveHeuteLiveSheetTarget(item);
+      switch (target.type) {
+        case "reservations":
+          if (can.reservations) setReservationSheetMode(target.mode);
+          else setLiveEventItem(item);
+          break;
+        case "messages":
+          if (can.messages) setMessagesSheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "inventory":
+          if (can.inventory) setInventorySheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "presence":
+          if (can.staff) setPresenceSheetMode(target.mode);
+          else setLiveEventItem(item);
+          break;
+        case "work_hours":
+          if (can.staff) setWorkHoursSheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "checklists":
+          if (can.checklists) setChecklistsSheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "event":
+          setLiveEventItem(target.item);
+          break;
+      }
+    },
+    [can.checklists, can.inventory, can.messages, can.reservations, can.staff],
+  );
+
+
   return (
     <DashboardWidgetShell
       title="Heute"
@@ -652,7 +693,7 @@ export function DashboardHeuteTile() {
         ) : null}
       </div>
 
-      <DashboardHeuteLiveTimeline className="mt-4" />
+      <DashboardHeuteLiveTimeline className="mt-4" onSelectItem={openLiveItem} />
 
       {reservationSheetMode && can.reservations && reservations.summary ? (
         <DashboardReservationsListSheet
@@ -733,6 +774,25 @@ export function DashboardHeuteTile() {
           todayYmd={staffTodayYmd}
         />
       ) : null}
+
+      {checklistsSheetOpen && can.checklists && checklists.summary ? (
+        <DashboardHeuteChecklistsSheet
+          open={checklistsSheetOpen}
+          onOpenChange={setChecklistsSheetOpen}
+          openTodos={checklists.summary.openTodos ?? 0}
+          overdueTodos={checklists.summary.overdueTodos ?? 0}
+          capturesToday={checklists.summary.capturesToday ?? 0}
+        />
+      ) : null}
+
+      <DashboardHeuteLiveEventSheet
+        open={liveEventItem != null}
+        onOpenChange={(open) => {
+          if (!open) setLiveEventItem(null);
+        }}
+        item={liveEventItem}
+        timeZone={restaurantTimeZone}
+      />
     </DashboardWidgetShell>
   );
 }

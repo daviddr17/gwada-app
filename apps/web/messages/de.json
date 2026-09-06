@@ -27,7 +27,7 @@
     },
     "density": {
       "heading": "Darstellung",
-      "description": "Schriftgröße und Abstände nur für dich. Speichert lokal auf diesem Gerät — ohne Live-DB-Änderung.",
+      "description": "Schriftgröße und Abstände nur für dich — speichert am Konto, sobald verfügbar; sonst lokal auf dem Gerät.",
       "label": "Dichte",
       "compact": "Kompakt",
       "compactHint": "Mehr auf einen Blick",

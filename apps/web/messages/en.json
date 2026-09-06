@@ -27,7 +27,7 @@
     },
     "density": {
       "heading": "Display",
-      "description": "Font size and spacing for you only. Saved locally on this device — no live database change.",
+      "description": "Font size and spacing for you only — saved to your account when available, otherwise locally on this device.",
       "label": "Density",
       "compact": "Compact",
       "compactHint": "More at a glance",

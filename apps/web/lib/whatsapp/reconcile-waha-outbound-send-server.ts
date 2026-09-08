@@ -10,23 +10,13 @@ import {
 
 const WAHA_PREFIX = "waha:";
 
-export async function findReservationWhatsappSendEvidence(params: {
-  sb: SupabaseClient;
+/** Staff-Push / generisch: nur WAHA-Chat-Historie (kein Reservierungs-Inbox-Bezug). */
+export async function findWahaChatOutboundSendEvidence(params: {
   restaurantId: string;
-  reservationId: string;
   chatId: string;
   body: string;
   sinceMs: number;
 }): Promise<WahaOutboundEvidence> {
-  const fromInbox = await findWahaIdInContactMessages(params);
-  if (fromInbox) {
-    return {
-      status: "confirmed",
-      wahaMessageId: fromInbox,
-      source: "contact_messages",
-    };
-  }
-
   const config = await getWahaServerConfigForRestaurantAdmin(params.restaurantId);
   if (!config) {
     return { status: "unknown", reason: "waha_not_configured" };
@@ -57,6 +47,26 @@ export async function findReservationWhatsappSendEvidence(params: {
   }
 
   return { status: "absent" };
+}
+
+export async function findReservationWhatsappSendEvidence(params: {
+  sb: SupabaseClient;
+  restaurantId: string;
+  reservationId: string;
+  chatId: string;
+  body: string;
+  sinceMs: number;
+}): Promise<WahaOutboundEvidence> {
+  const fromInbox = await findWahaIdInContactMessages(params);
+  if (fromInbox) {
+    return {
+      status: "confirmed",
+      wahaMessageId: fromInbox,
+      source: "contact_messages",
+    };
+  }
+
+  return findWahaChatOutboundSendEvidence(params);
 }
 
 async function findWahaIdInContactMessages(params: {

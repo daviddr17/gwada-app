@@ -42,6 +42,13 @@ import {
 import { buildNotificationPushText } from "@/lib/notifications/notification-push-message";
 import { actorProfileIdFromPayload } from "@/lib/notifications/notification-self-origin";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
+import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
+import {
+  decideWhatsappRetry,
+  isWahaSendTimeoutError,
+  WAHA_RECONCILE_GRACE_MS,
+} from "@/lib/whatsapp/reconcile-waha-outbound-send";
+import { findWahaChatOutboundSendEvidence } from "@/lib/whatsapp/reconcile-waha-outbound-send-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Budget für Sofort-Zustellung eines einzelnen Events (Webhook-Pfad). */
@@ -386,11 +393,29 @@ async function markDeliveryOutcome(
   outcome:
     | { kind: "sent" }
     | { kind: "skip"; error: string }
-    | { kind: "retry"; error: string }
+    | { kind: "retry"; error: string; delayMs?: number }
+    /** Erneut einplanen ohne Attempt-Zähler (z. B. Reconcile-Grace nach Timeout). */
+    | { kind: "defer"; error: string; delayMs: number }
     | { kind: "failed"; error: string },
 ): Promise<"sent" | "failed" | "skipped"> {
-  const attempts = delivery.attempts + 1;
   const now = new Date().toISOString();
+
+  if (outcome.kind === "defer") {
+    const scheduledAt = new Date(Date.now() + outcome.delayMs).toISOString();
+    await admin
+      .from("notification_deliveries")
+      .update({
+        status: "pending",
+        last_error: outcome.error,
+        scheduled_at: scheduledAt,
+        claimed_at: null,
+      })
+      .eq("id", delivery.id)
+      .eq("status", "processing");
+    return "failed";
+  }
+
+  const attempts = delivery.attempts + 1;
 
   if (outcome.kind === "sent") {
     await admin
@@ -422,7 +447,11 @@ async function markDeliveryOutcome(
   }
 
   if (outcome.kind === "retry" && attempts < NOTIFICATION_DELIVER_MAX_ATTEMPTS) {
-    const scheduledAt = new Date(Date.now() + backoffMs(attempts)).toISOString();
+    const delay = Math.max(
+      outcome.delayMs ?? 0,
+      backoffMs(attempts),
+    );
+    const scheduledAt = new Date(Date.now() + delay).toISOString();
     await admin
       .from("notification_deliveries")
       .update({
@@ -448,6 +477,20 @@ async function markDeliveryOutcome(
     .eq("id", delivery.id)
     .eq("status", "processing");
   return "failed";
+}
+
+function deliveryFirstSendAtMs(delivery: DeliveryRow): number {
+  const created = delivery.created_at
+    ? Date.parse(String(delivery.created_at))
+    : Number.NaN;
+  return Number.isFinite(created) ? created : Date.now();
+}
+
+function deliveryClaimedAtMs(delivery: DeliveryRow): number | null {
+  const claimed = delivery.claimed_at
+    ? Date.parse(String(delivery.claimed_at))
+    : Number.NaN;
+  return Number.isFinite(claimed) ? claimed : null;
 }
 
 async function deliverOne(
@@ -488,6 +531,52 @@ async function deliverOne(
       });
     }
 
+    const chatId = guestPhoneToWhatsAppChatId(contact.phone);
+    if (!chatId) {
+      return markDeliveryOutcome(admin, delivery, {
+        kind: "skip",
+        error: "invalid_phone",
+      });
+    }
+
+    const firstSendAtMs = deliveryFirstSendAtMs(delivery);
+    const claimedAtMs = deliveryClaimedAtMs(delivery);
+
+    // Nach Timeout kann WAHA die Nachricht schon angenommen haben — vor erneutem
+    // Send erst Chat-Historie prüfen (wie Reservierungs-Outbox).
+    if (delivery.attempts > 0) {
+      const prior = await findWahaChatOutboundSendEvidence({
+        restaurantId: delivery.context_restaurant_id,
+        chatId,
+        body: text,
+        sinceMs: firstSendAtMs,
+      });
+      if (prior.status === "confirmed") {
+        return markDeliveryOutcome(admin, delivery, { kind: "sent" });
+      }
+      const priorDecision = decideWhatsappRetry({
+        evidence: prior.status,
+        firstSendAtMs,
+        claimedAtMs,
+      });
+      if (priorDecision === "wait") {
+        return markDeliveryOutcome(admin, delivery, {
+          kind: "defer",
+          error: "timeout_reconcile_wait",
+          delayMs: WAHA_RECONCILE_GRACE_MS,
+        });
+      }
+      if (priorDecision === "give_up") {
+        return markDeliveryOutcome(admin, delivery, {
+          kind: "failed",
+          error:
+            prior.status === "unknown"
+              ? "unverified_timeout"
+              : "not_delivered_give_up",
+        });
+      }
+    }
+
     const result = await sendNotificationPushWhatsapp({
       restaurantId: delivery.context_restaurant_id,
       phone: contact.phone,
@@ -498,12 +587,52 @@ async function deliverOne(
       return markDeliveryOutcome(admin, delivery, { kind: "sent" });
     }
 
+    const after = await findWahaChatOutboundSendEvidence({
+      restaurantId: delivery.context_restaurant_id,
+      chatId,
+      body: text,
+      sinceMs: firstSendAtMs,
+    });
+    if (after.status === "confirmed") {
+      return markDeliveryOutcome(admin, delivery, { kind: "sent" });
+    }
+
+    const timeout = isWahaSendTimeoutError(result.error);
+    if (timeout || after.status !== "absent") {
+      const decision = decideWhatsappRetry({
+        evidence: after.status,
+        firstSendAtMs,
+        claimedAtMs: claimedAtMs ?? Date.now(),
+      });
+      if (decision === "already_sent") {
+        return markDeliveryOutcome(admin, delivery, { kind: "sent" });
+      }
+      if (decision === "wait") {
+        // Attempt zählen — sonst würde der nächste Claim ohne Historie-Check erneut senden.
+        return markDeliveryOutcome(admin, delivery, {
+          kind: "retry",
+          error: timeout ? "timeout_reconcile_wait" : result.error,
+          delayMs: WAHA_RECONCILE_GRACE_MS,
+        });
+      }
+      if (decision === "give_up") {
+        return markDeliveryOutcome(admin, delivery, {
+          kind: "failed",
+          error:
+            after.status === "unknown"
+              ? "unverified_timeout"
+              : result.error,
+        });
+      }
+    }
+
     return markDeliveryOutcome(admin, delivery, {
       kind:
         delivery.attempts + 1 < NOTIFICATION_DELIVER_MAX_ATTEMPTS
           ? "retry"
           : "failed",
       error: result.error,
+      delayMs: timeout ? WAHA_RECONCILE_GRACE_MS : undefined,
     });
   }
 

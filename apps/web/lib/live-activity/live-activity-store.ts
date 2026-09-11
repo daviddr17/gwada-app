@@ -103,15 +103,49 @@ export function recordLiveActivity(
     at: item.at ?? new Date().toISOString(),
   };
 
-  const dup = state.items.find(
-    (row) =>
-      row.id === next.id ||
-      (row.title === next.title &&
-        row.description === next.description &&
-        Math.abs(new Date(row.at).getTime() - new Date(next.at).getTime()) <
-          2_000),
-  );
-  if (dup) return;
+  const dup = state.items.find((row) => {
+    if (row.id === next.id) return true;
+    const dt = Math.abs(
+      new Date(row.at).getTime() - new Date(next.at).getTime(),
+    );
+    if (
+      row.title === next.title &&
+      row.description === next.description &&
+      dt < 2_000
+    ) {
+      return true;
+    }
+    // Optimistic Confirm + späteres Log/Backfill: gleicher Inhalt, andere ID.
+    if (
+      row.module &&
+      row.module === next.module &&
+      row.description &&
+      row.description === next.description &&
+      dt < 120_000
+    ) {
+      return true;
+    }
+    return false;
+  });
+  if (dup) {
+    // Server-/Log-ID gewinnt gegen lokales pending.
+    const preferNext =
+      (next.id.startsWith("log:") ||
+        next.id.startsWith("ref:") ||
+        next.id.startsWith("evt:")) &&
+      (dup.id.startsWith("local-") || dup.id.startsWith("local:"));
+    if (!preferNext) return;
+    state = {
+      restaurantId,
+      items: sortByAtDesc([
+        next,
+        ...state.items.filter((row) => row.id !== dup.id),
+      ]).slice(0, MAX_MEMORY_ITEMS),
+    };
+    writePersisted(restaurantId, state.items);
+    emit();
+    return;
+  }
 
   state = {
     restaurantId,
@@ -132,6 +166,22 @@ export function mergeLiveActivityItems(
   for (const row of items) {
     byId.set(row.id, row);
   }
+
+  // Optimistic local-* durch Server-Zeile ersetzen (gleiche description/module).
+  for (const incoming of items) {
+    if (!incoming.description || !incoming.module) continue;
+    for (const [id, existing] of byId) {
+      if (id === incoming.id) continue;
+      if (!id.startsWith("local-") && !id.startsWith("local:")) continue;
+      if (existing.module !== incoming.module) continue;
+      if (existing.description !== incoming.description) continue;
+      const dt = Math.abs(
+        new Date(existing.at).getTime() - new Date(incoming.at).getTime(),
+      );
+      if (dt < 120_000) byId.delete(id);
+    }
+  }
+
   const merged = sortByAtDesc([...byId.values()]).slice(0, MAX_MEMORY_ITEMS);
 
   state = { restaurantId, items: merged };

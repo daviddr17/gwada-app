@@ -111,4 +111,23 @@ const dayParam = plainParams.get("day");
 assert.equal(isNewParam, true);
 assert.match(dayParam, /^\d{4}-\d{2}-\d{2}$/);
 
+/** All Dashboard FAB shortcut queries that modules gate with get("new") === … */
+const fabQueries = [
+  { new: "1", day: "2026-09-11" }, // reservation
+  { new: "1" }, // menu, inventory, contact, document, staff, shift, work hours
+  { new: "template" }, // shift template
+  { new: "invite" }, // review invite
+];
+for (const q of fabQueries) {
+  const encoded = stringifySpaPlainSearch(q);
+  const params = new URLSearchParams(encoded.slice(1));
+  for (const [k, v] of Object.entries(q)) {
+    assert.equal(
+      params.get(k),
+      v,
+      `FAB query ${k}=${v} must stay plain after Soft-Nav stringify`,
+    );
+  }
+}
+
 console.log("ok: spa plain search keeps new=1 readable for FAB deep links");

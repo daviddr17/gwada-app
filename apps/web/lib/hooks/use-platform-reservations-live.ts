@@ -70,6 +70,11 @@ export function usePlatformReservationsLive() {
     updateDebounceRef.current = window.setTimeout(() => {
       updateDebounceRef.current = null;
       dispatchDashboardReservationsLiveUpdate({ restaurantId });
+      // Live-Verlauf: Status-Änderungen anderer Tabs/Nutzer (Proxy ohne WS).
+      void import("@/lib/live-activity/live-activity-fetch-client").then(
+        ({ backfillLiveActivityFeed }) =>
+          backfillLiveActivityFeed(restaurantId),
+      );
     }, UPDATE_PATCH_DEBOUNCE_MS);
   }, [restaurantId]);
 

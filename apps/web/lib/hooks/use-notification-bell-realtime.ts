@@ -57,11 +57,20 @@ export function useNotificationBellRealtime() {
       }, BELL_FULL_REFRESH_DEBOUNCE_MS);
     };
 
+    const refreshLiveActivity = () => {
+      void import("@/lib/live-activity/live-activity-fetch-client").then(
+        ({ backfillLiveActivityFeed }) =>
+          backfillLiveActivityFeed(restaurantId),
+      );
+    };
+
     const enablePolling = () => {
       bellRealtimeActive = false;
       polling.start(() => {
         if (document.visibilityState !== "visible") return;
+        // Live (HTTP-/sb-Proxy): kein WS → Glocke + Live-Verlauf per Poll.
         refreshBell();
+        refreshLiveActivity();
       });
     };
 

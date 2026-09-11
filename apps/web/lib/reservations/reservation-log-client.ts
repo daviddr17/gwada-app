@@ -4,7 +4,7 @@ import {
   reservationSnapshotFromPayload,
   type ReservationLogSnapshot,
 } from "@/lib/reservations/reservation-log-build";
-import { insertReservationLogFromBrowser } from "@/lib/reservations/reservation-log-insert";
+import { insertReservationLogFromBrowser } from "@/lib/reservations/reservation-log-insert-browser";
 import { fetchRestaurantIanaTimezone } from "@/lib/supabase/restaurant-timezone-db";
 import { formatDiningTableLabel, type DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import type {

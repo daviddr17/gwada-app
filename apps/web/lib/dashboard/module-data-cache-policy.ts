@@ -270,30 +270,35 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     pollIntervalMs: 60_000,
     gcTimeMs: 5 * 60_000,
     description:
-      "Unread-Items aller Module in der Glocke — React Query + AppNotificationBellLive (notification_events). Poll 60s nur wenn Realtime nicht aktiv. Nachrichten: leichter Unread-Count aus Inbox-DB/WAHA (kein IMAP-Sync beim Öffnen).",
+      "Unread-Items aller Module in der Glocke — React Query + AppNotificationBellLive (notification_events). Poll 60s nur wenn Realtime nicht aktiv (z. B. Live-/sb-Proxy ohne Browser-WS). Derselbe Poll backfüllt auch den Live-Verlauf. Nachrichten: leichter Unread-Count aus Inbox-DB/WAHA (kein IMAP-Sync beim Öffnen).",
     loadTriggers: [
       "App-Chrome Mount (Workspace ready)",
       "Popover öffnen (nur wenn Cache stale)",
-      "Poll 60s (sichtbarer Tab, nur ohne aktives Bell-Realtime)",
+      "Poll 60s (sichtbarer Tab, nur ohne aktives Bell-Realtime) — inkl. live-activity-feed Backfill",
     ],
     invalidateTriggers: [
       "GWADA_NOTIFICATIONS_REFRESH",
       "GWADA_DASHBOARD_MESSAGES_REFRESH (debounced 3s)",
-      "Realtime notification_events",
+      "Realtime notification_events → Glocke + recordLiveActivity",
+      "Staff-Reservierungs-Log → sofort recordLiveActivity (ohne Realtime)",
       "Workspace-Wechsel",
       "Mark as read",
     ],
-    apiEndpoints: ["/api/notifications/summary"],
+    apiEndpoints: [
+      "/api/notifications/summary",
+      "/api/dashboard/live-activity-feed",
+    ],
     implementationFiles: [
       "lib/hooks/use-notification-summary.ts",
       "lib/hooks/use-notification-bell-realtime.ts",
       "lib/notifications/notification-summary-server.ts",
+      "lib/live-activity/record-reservation-live-activity-client.ts",
       "components/layout/app-chrome-notification-bell.tsx",
       "components/providers/app-notification-bell-live.tsx",
     ],
     status: "active",
     notes:
-      "Messages nutzt serverseitig WAHA + optional E-Mail-Sync — nicht parallel zum Inbox-Warm starten, wenn Batch kürzlich lief.",
+      "Messages nutzt serverseitig WAHA + optional E-Mail-Sync — nicht parallel zum Inbox-Warm starten, wenn Batch kürzlich lief. Live-Verlauf: eigene Aktionen (Bestätigen usw.) clientseitig sofort; fremde Events per Realtime oder Poll-Backfill.",
   },
   {
     id: "dashboardWeather",

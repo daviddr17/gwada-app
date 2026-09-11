@@ -15,6 +15,8 @@ import {
   fetchReservationStatuses,
   updateReservationStatus,
 } from "@/lib/supabase/reservations-db";
+import { formatReservationGuestLabel } from "@/lib/types/reservation-log";
+import { recordReservationLogLiveActivity } from "@/lib/live-activity/record-reservation-live-activity-client";
 
 export type ConfirmPendingReservationResult =
   | { ok: true }
@@ -76,6 +78,38 @@ export async function confirmPendingReservationFromBrowser(params: {
     status_id: confirmed.id,
     status_name: confirmed.name,
   };
+  const previousStatusName = row.reservation_statuses?.name ?? "Ausstehend";
+  const guestLabel = formatReservationGuestLabel(
+    row.reservation_number,
+    row.guest_first_name,
+    row.guest_last_name,
+    row.guest_company,
+  );
+  const statusSummary = `Status: „${previousStatusName}“ → „${confirmed.name}“`;
+
+  // Sofort in den Live-Verlauf — nicht auf Log/Realtime/60s-Poll warten
+  // (Live: kein Browser-WebSocket über /sb-Proxy).
+  recordReservationLogLiveActivity({
+    restaurantId: row.restaurant_id,
+    logEntryId: `local-confirm:${row.id}`,
+    reservationId: row.id,
+    reservationNumber: row.reservation_number,
+    guestLabel,
+    action: "updated",
+    details: {
+      actorSource: "staff",
+      changes: [
+        {
+          field: "status",
+          label: "Status",
+          from: previousStatusName,
+          to: confirmed.name,
+        },
+      ],
+      summary: statusSummary,
+    },
+  });
+
   void logReservationMutationFromBrowser({
     restaurantId: row.restaurant_id,
     reservationId: row.id,

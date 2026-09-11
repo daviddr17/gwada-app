@@ -456,8 +456,22 @@ export function liveActivityFromNotificationEvent(params: {
         : "Hat sich am Display abgemeldet";
   }
 
+  // Stabile IDs für Client-Optimistic + Server-Backfill (kein Doppel-Eintrag).
+  // reservations_activity: reference_id = log-entry-id
+  // cancellation/change_request: reference_id = `${reservationId}:${module}`
+  const stableId =
+    params.module === "reservations_activity" && params.referenceId
+      ? `log:${params.referenceId}`
+      : (params.module === "reservations_cancellation" ||
+            params.module === "reservations_change_request") &&
+          params.referenceId
+        ? `ref:${params.referenceId}`
+        : params.eventId
+          ? `evt:${params.eventId}`
+          : undefined;
+
   return {
-    id: params.eventId ? `evt:${params.eventId}` : undefined,
+    id: stableId,
     kind: "notification",
     module: params.module,
     title,

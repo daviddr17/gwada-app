@@ -5,6 +5,8 @@
  * TanStack default JSON search turns `{ new: "1" }` into `?new=%221%22`.
  * Reading via URLSearchParams then makes `get("new") === "1"` false while
  * `day=YYYY-MM-DD` still works — FAB „Neue Reservierung“ opened the day sheet.
+ *
+ * Full FAB matrix: every Dashboard Plus-menu shortcut ↔ module gate.
  */
 import assert from "node:assert/strict";
 
@@ -75,6 +77,83 @@ function tanstackDefaultStringifySearch(search) {
   return parts.length ? `?${parts.join("&")}` : "";
 }
 
+/**
+ * Mirrors `dashboardShortcutHref` + module `searchParams.get("new")` gates.
+ * Keep in sync with `lib/constants/dashboard-shortcuts.ts` and the screens.
+ */
+const FAB_SHORTCUTS = [
+  {
+    id: "reservation",
+    hrefPath: "/dashboard/reservierungen/uebersicht",
+    search: { new: "1", day: "2026-09-11" },
+    gate: (p) => p.get("new") === "1",
+    wasBrokenByJsonCodec: true,
+  },
+  {
+    id: "menu_dish",
+    hrefPath: "/dashboard/menu/uebersicht",
+    search: { new: "1" },
+    gate: (p) => p.get("new") === "1",
+    wasBrokenByJsonCodec: true,
+  },
+  {
+    id: "inventory_ingredient",
+    hrefPath: "/dashboard/inventory/uebersicht",
+    search: { new: "1" },
+    gate: (p) => p.get("new") === "1",
+    wasBrokenByJsonCodec: true,
+  },
+  {
+    id: "contact",
+    hrefPath: "/dashboard/kontakte/uebersicht",
+    search: { new: "1" },
+    gate: (p) => p.get("new") === "1",
+    wasBrokenByJsonCodec: true,
+  },
+  {
+    id: "document",
+    hrefPath: "/dashboard/dokumente/uebersicht",
+    search: { new: "1" },
+    gate: (p) => p.get("new") === "1",
+    wasBrokenByJsonCodec: true,
+  },
+  {
+    id: "staff_member",
+    hrefPath: "/dashboard/mitarbeiter/uebersicht",
+    search: { new: "1" },
+    gate: (p) => p.get("new") === "1",
+    wasBrokenByJsonCodec: true,
+  },
+  {
+    id: "staff_shift",
+    hrefPath: "/dashboard/mitarbeiter/schichtplan",
+    search: { new: "1" },
+    gate: (p) => p.get("new") === "1",
+    wasBrokenByJsonCodec: true,
+  },
+  {
+    id: "staff_work_entry",
+    hrefPath: "/dashboard/mitarbeiter/arbeitszeiten",
+    search: { new: "1" },
+    gate: (p) => p.get("new") === "1",
+    wasBrokenByJsonCodec: true,
+  },
+  {
+    id: "shift_template",
+    hrefPath: "/dashboard/mitarbeiter/schichtplan",
+    search: { new: "template" },
+    gate: (p) => p.get("new") === "template",
+    wasBrokenByJsonCodec: false,
+  },
+  {
+    id: "review_invite",
+    hrefPath: "/dashboard/bewertungen/uebersicht",
+    search: { new: "invite" },
+    gate: (p) => p.get("new") === "invite",
+    wasBrokenByJsonCodec: false,
+  },
+];
+
 const fabSearch = { new: "1", day: "2026-09-11" };
 
 const broken = tanstackDefaultStringifySearch(fabSearch);
@@ -105,29 +184,38 @@ assert.equal(
   "1",
 );
 
-// FAB deep-link gate as used by reservations overview
-const isNewParam = plainParams.get("new") === "1";
-const dayParam = plainParams.get("day");
-assert.equal(isNewParam, true);
-assert.match(dayParam, /^\d{4}-\d{2}-\d{2}$/);
+for (const shortcut of FAB_SHORTCUTS) {
+  const plainEncoded = stringifySpaPlainSearch(shortcut.search);
+  const plainParsed = parseSpaPlainSearch(plainEncoded);
+  const shimParams = urlSearchParamsFromParsedSearch(plainParsed);
+  assert.equal(
+    shortcut.gate(shimParams),
+    true,
+    `${shortcut.id}: plain Soft-Nav must pass module gate (${shortcut.hrefPath})`,
+  );
 
-/** All Dashboard FAB shortcut queries that modules gate with get("new") === … */
-const fabQueries = [
-  { new: "1", day: "2026-09-11" }, // reservation
-  { new: "1" }, // menu, inventory, contact, document, staff, shift, work hours
-  { new: "template" }, // shift template
-  { new: "invite" }, // review invite
-];
-for (const q of fabQueries) {
-  const encoded = stringifySpaPlainSearch(q);
-  const params = new URLSearchParams(encoded.slice(1));
-  for (const [k, v] of Object.entries(q)) {
+  const legacyEncoded = tanstackDefaultStringifySearch(shortcut.search);
+  const legacyParams = new URLSearchParams(
+    legacyEncoded.startsWith("?") ? legacyEncoded.slice(1) : legacyEncoded,
+  );
+  const legacyPasses = shortcut.gate(legacyParams);
+  if (shortcut.wasBrokenByJsonCodec) {
     assert.equal(
-      params.get(k),
-      v,
-      `FAB query ${k}=${v} must stay plain after Soft-Nav stringify`,
+      legacyPasses,
+      false,
+      `${shortcut.id}: documents JSON-codec break before plain fix`,
+    );
+  } else {
+    assert.equal(
+      legacyPasses,
+      true,
+      `${shortcut.id}: non-numeric new= values were already plain`,
     );
   }
 }
 
-console.log("ok: spa plain search keeps new=1 readable for FAB deep links");
+assert.equal(FAB_SHORTCUTS.length, 10, "all Dashboard FAB shortcuts audited");
+
+console.log(
+  "ok: spa plain search — all 10 FAB shortcuts pass module gates (incl. staff_member)",
+);

@@ -11,6 +11,10 @@ import { SuperadminSpaShell } from "../shell/superadmin-spa-shell";
 import { SUPERADMIN_ROUTE_ENTRIES } from "../generated/route-modules";
 import { GenericModulePendingSkeleton } from "../ui/generic-module-pending-skeleton";
 import { zoneHrefToTanstackTarget } from "@/lib/navigation/spa-zone-path";
+import {
+  parseSpaPlainSearch,
+  stringifySpaPlainSearch,
+} from "@/lib/navigation/spa-plain-search";
 
 const rootRoute = createRootRoute({
   component: SuperadminSpaShell,
@@ -56,6 +60,8 @@ export const superadminRouteTree = rootRoute.addChildren(childRoutes);
 export const superadminRouter = createRouter({
   routeTree: superadminRouteTree,
   basepath: "/superadmin",
+  parseSearch: parseSpaPlainSearch,
+  stringifySearch: stringifySpaPlainSearch,
   defaultPreload: "intent",
   defaultPreloadStaleTime: 60_000,
   defaultPendingMinMs: 0,

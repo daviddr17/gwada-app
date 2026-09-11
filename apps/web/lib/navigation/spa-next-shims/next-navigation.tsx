@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from "react";
 import { useSpaZoneNavigationOptional } from "@/lib/navigation/spa-zone-navigation-bridge";
 import { isZoneSpaHref } from "@/lib/navigation/spa-zone-path";
+import { urlSearchParamsFromParsedSearch } from "@/lib/navigation/spa-plain-search";
 
 export function useServerInsertedHTML(_callback: () => ReactNode): void {
   /* SPA — kein RSC-HTML-Insert. */
@@ -61,7 +62,9 @@ export function useSearchParams(): URLSearchParams {
   if (!spa) {
     return nextSearchParams;
   }
-  return new URLSearchParams(spa.searchStr);
+  // Prefer parsed search: default TanStack JSON codec quotes `"1"` as `%221%22`
+  // in searchStr, which breaks `get("new") === "1"` on Soft-Nav deep links.
+  return urlSearchParamsFromParsedSearch(spa.search);
 }
 
 export function useParams<

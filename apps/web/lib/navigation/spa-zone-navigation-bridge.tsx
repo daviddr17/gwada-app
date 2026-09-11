@@ -20,6 +20,8 @@ type SpaZoneNavigationValue = {
   base: SpaZoneBase;
   pathname: string;
   searchStr: string;
+  /** TanStack-parsed search — preferred over raw searchStr for query reads. */
+  search: Record<string, unknown>;
   params: Record<string, string>;
   navigate: ReturnType<typeof useNavigate>;
   hrefToTarget: (href: string) => ReturnType<typeof zoneHrefToTanstackTarget>;
@@ -41,6 +43,7 @@ export function SpaZoneNavigationBridge({
     select: (s) => ({
       pathname: s.location.pathname,
       searchStr: s.location.searchStr ?? "",
+      search: (s.location.search ?? {}) as Record<string, unknown>,
       params: s.matches[s.matches.length - 1]?.params ?? {},
     }),
   });
@@ -51,11 +54,19 @@ export function SpaZoneNavigationBridge({
       base,
       pathname,
       searchStr: snapshot.searchStr,
+      search: snapshot.search,
       params: snapshot.params as Record<string, string>,
       navigate,
       hrefToTarget: (href: string) => zoneHrefToTanstackTarget(base, href),
     }),
-    [base, pathname, snapshot.searchStr, snapshot.params, navigate],
+    [
+      base,
+      pathname,
+      snapshot.searchStr,
+      snapshot.search,
+      snapshot.params,
+      navigate,
+    ],
   );
 
   return (

@@ -8,7 +8,8 @@ import {
   useReducedMotion,
 } from "framer-motion";
 import { Plus } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
@@ -19,6 +20,8 @@ import {
   type DashboardShortcutDefinition,
 } from "@/lib/constants/dashboard-shortcuts";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
+import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
 import { appMobileFabBottomClassName, appMobileFabButtonClassName, appMobileFabIconClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { getDocumentBodyPortalTarget } from "@/lib/ui/resolve-floating-portal-container";
@@ -91,6 +94,9 @@ function DashboardFabLayer({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { restaurantId } = useWorkspaceRestaurantUuid();
   const close = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
@@ -105,6 +111,20 @@ function DashboardFabLayer({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
+
+  // Mobile: kein Hover vor dem Tap — Route-Chunks + Modul-Daten schon beim
+  // Öffnen warmhalten, sonst wirkt z. B. „Neue Schicht“ (Lazy-Schichtplan) ewig.
+  useEffect(() => {
+    if (!open || items.length === 0) return;
+    for (const shortcut of items) {
+      warmModuleRouteIntent(
+        router,
+        queryClient,
+        restaurantId,
+        dashboardShortcutHref(shortcut.id),
+      );
+    }
+  }, [open, items, router, queryClient, restaurantId]);
 
   return (
     <>

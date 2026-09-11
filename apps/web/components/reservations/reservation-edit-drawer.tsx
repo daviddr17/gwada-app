@@ -41,6 +41,7 @@ import {
   GUEST_NOTIFY_MESSAGE_MAX_CHARS,
   normalizeGuestNotifyMessage,
 } from "@/lib/reservations/append-guest-notify-message";
+import { humanizeReservationSaveError } from "@/lib/reservations/reservation-save-error-message";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import {
   isValidStaffPartySize,
@@ -221,22 +222,7 @@ function addMinutesToHm(hm: string, minutes: number): string {
 }
 
 function reservationDocumentSaveErrorMessage(message: string): string {
-  const m = message.toLowerCase();
-  if (
-    m.includes("reservations_quotation_id_unique") ||
-    (m.includes("quotation_id") &&
-      (m.includes("duplicate") || m.includes("unique")))
-  ) {
-    return "Dieses Angebot ist bereits einer anderen Reservierung zugeordnet.";
-  }
-  if (
-    m.includes("reservations_invoice_id_unique") ||
-    (m.includes("invoice_id") &&
-      (m.includes("duplicate") || m.includes("unique")))
-  ) {
-    return "Diese Rechnung ist bereits einer anderen Reservierung zugeordnet.";
-  }
-  return message;
+  return humanizeReservationSaveError(message);
 }
 
 export type ReservationWhatsappDispatchedPayload = {
@@ -973,7 +959,6 @@ export function ReservationEditDrawer({
           : isConfirmNotify
             ? "Reservierung bestätigt."
             : "Reservierung gespeichert.";
-      toast.success(saveTitle);
 
       const { data: updated, error } = await updateReservation(
         reservation.id,
@@ -984,6 +969,7 @@ export function ReservationEditDrawer({
         toast.error(reservationDocumentSaveErrorMessage(error.message));
         return;
       }
+      toast.success(saveTitle);
       if (restaurantId) {
         const { error: assignErr } = await replaceReservationStaffAssignees({
           reservationId: reservation.id,

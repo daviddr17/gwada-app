@@ -27,6 +27,26 @@ function apply(base, line) {
   };
 }
 
+/** Mirrors mergeDashboardBatchStreamPublish (stale-while-revalidate). */
+function mergeStreamPublish({ existing, streamAcc, requestedWidgets }) {
+  const data = { ...(existing?.data ?? {}) };
+  const errors = { ...(existing?.errors ?? {}) };
+
+  for (const widget of requestedWidgets) {
+    if (Object.prototype.hasOwnProperty.call(streamAcc.data, widget)) {
+      data[widget] = streamAcc.data[widget];
+      if (!Object.prototype.hasOwnProperty.call(streamAcc.errors, widget)) {
+        delete errors[widget];
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(streamAcc.errors, widget)) {
+      errors[widget] = streamAcc.errors[widget];
+    }
+  }
+
+  return { data, errors };
+}
+
 function parseStream(text, onPartial) {
   let acc = { data: {}, errors: {} };
   const paints = [];
@@ -63,5 +83,38 @@ assert.equal(acc.data.staff, undefined);
 // First paint must not wait for later widgets
 assert.equal(Object.keys(paints[0]).join(","), "inventory");
 assert.ok(!("reservations" in paints[0]));
+
+// Refetch: keep reviews while reservations streams in first
+const kept = mergeStreamPublish({
+  existing: {
+    data: {
+      reviews: { unreadRecentCount: 2 },
+      reservations: { unconfirmedCount: 1 },
+    },
+    errors: {},
+  },
+  streamAcc: {
+    data: { reservations: { unconfirmedCount: 4 } },
+    errors: {},
+  },
+  requestedWidgets: ["reservations", "reviews", "checklists"],
+});
+assert.equal(kept.data.reservations.unconfirmedCount, 4);
+assert.equal(kept.data.reviews.unreadRecentCount, 2);
+assert.equal(kept.data.checklists, undefined);
+
+const clearedError = mergeStreamPublish({
+  existing: {
+    data: {},
+    errors: { reviews: "load_failed" },
+  },
+  streamAcc: {
+    data: { reviews: { unreadRecentCount: 0 } },
+    errors: {},
+  },
+  requestedWidgets: ["reviews"],
+});
+assert.deepEqual(clearedError.data.reviews, { unreadRecentCount: 0 });
+assert.equal(clearedError.errors.reviews, undefined);
 
 console.log("ok: ndjson progressive merge");

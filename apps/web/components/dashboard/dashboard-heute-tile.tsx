@@ -564,10 +564,10 @@ export function DashboardHeuteTile() {
   const showAllClear =
     allHeuteStatsSettled && canHaveActions && !hasActions && !hasSliceErrors;
 
-  // Partial paint: Aktionen sofort zeigen, sobald vorhanden.
-  // Ohne Aktionen kein „Alles erledigt“, solange Batch-Slices noch nachkommen.
+  // Partial paint: Aktionen/Lage behalten, sobald etwas da ist.
+  // Skeleton nur beim ersten leeren Warten — nicht bei Batch-Refetch.
   const awaitingCompleteEmpty =
-    canHaveActions && !hasActions && !allHeuteStatsSettled;
+    canHaveActions && !hasActions && !hasLage && !allHeuteStatsSettled;
   const loading =
     (heuteStatSlices.length > 0 && !ready) || awaitingCompleteEmpty;
   const showSkeleton = useDeferredSkeleton(loading);

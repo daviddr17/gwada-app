@@ -18,7 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -80,6 +80,30 @@ function formatCents(cents: number): string {
     style: "currency",
     currency: "EUR",
   }).format(cents / 100);
+}
+
+/** KPI-Karten wie im fertigen Layout (mobil gestapelt) — Hub ist statisch und bleibt sichtbar. */
+function PosOverviewKpiSkeleton() {
+  return (
+    <div
+      className="grid gap-3 sm:grid-cols-3"
+      aria-busy="true"
+      aria-label="POS-Kennzahlen werden geladen"
+    >
+      {Array.from({ length: 3 }).map((_, i) => (
+        <SkeletonCardFrame key={i} className="border-border/50 shadow-card">
+          <div className="flex gap-3">
+            <Skeleton className="size-10 shrink-0 rounded-xl" />
+            <div className="min-w-0 flex-1 space-y-2 py-0.5">
+              <Skeleton className="h-3 w-24 rounded-md" />
+              <Skeleton className="h-7 w-16 rounded-lg" />
+              <Skeleton className="h-3 w-28 rounded-md" />
+            </div>
+          </div>
+        </SkeletonCardFrame>
+      ))}
+    </div>
+  );
 }
 
 export function PosOverviewScreen({ active = true }: { active?: boolean }) {
@@ -158,40 +182,39 @@ export function PosOverviewScreen({ active = true }: { active?: boolean }) {
   if (!restaurantId) {
     return <WorkspaceRestaurantMissingMessage className="py-10" />;
   }
-  if (showSkeleton) {
-    return (
-      <div className="grid gap-3 pt-2 sm:grid-cols-3">
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="h-24 rounded-xl" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 pt-2">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <KpiCard
-          label="Umsatz heute"
-          value={paidTodayCents == null ? "—" : formatCents(paidTodayCents)}
-          hint="Bezahlte Bestellungen"
-          icon={Receipt}
-        />
-        <KpiCard
-          label="Offene Bestellungen"
-          value={activeCount == null ? "—" : String(activeCount)}
-          hint="Noch nicht abgeschlossen"
-          icon={ShoppingBag}
-        />
-        <KpiCard
-          label="Kasse"
-          value={
-            registerOpen == null ? "—" : registerOpen ? "Geöffnet" : "Geschlossen"
-          }
-          hint="Register-Status"
-          icon={MonitorSmartphone}
-        />
-      </div>
+      {showSkeleton ? (
+        <PosOverviewKpiSkeleton />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <KpiCard
+            label="Umsatz heute"
+            value={paidTodayCents == null ? "—" : formatCents(paidTodayCents)}
+            hint="Bezahlte Bestellungen"
+            icon={Receipt}
+          />
+          <KpiCard
+            label="Offene Bestellungen"
+            value={activeCount == null ? "—" : String(activeCount)}
+            hint="Noch nicht abgeschlossen"
+            icon={ShoppingBag}
+          />
+          <KpiCard
+            label="Kasse"
+            value={
+              registerOpen == null
+                ? "—"
+                : registerOpen
+                  ? "Geöffnet"
+                  : "Geschlossen"
+            }
+            hint="Register-Status"
+            icon={MonitorSmartphone}
+          />
+        </div>
+      )}
 
       <Card className="border-border/50 shadow-card">
         <CardHeader className="pb-3">

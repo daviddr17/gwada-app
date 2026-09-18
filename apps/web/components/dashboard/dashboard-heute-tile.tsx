@@ -13,7 +13,6 @@ import {
   MessageCircle,
   Package,
   Sun,
-  UserCheck,
 } from "lucide-react";
 import { DashboardHeuteBirthdaysSheet } from "@/components/dashboard/dashboard-heute-birthdays-sheet";
 import { DashboardHeuteAllClear } from "@/components/dashboard/dashboard-heute-all-clear";
@@ -171,13 +170,11 @@ function DashboardHeuteTileSkeleton() {
     <div className="space-y-4" aria-busy="true">
       <div className="space-y-2">
         <Skeleton className="h-3 w-24 rounded" />
-        <Skeleton className="h-14 w-full rounded-xl" />
-        <Skeleton className="h-14 w-full rounded-xl" />
+        <Skeleton className="h-[4.25rem] w-full rounded-xl" />
       </div>
       <div className="space-y-2">
         <Skeleton className="h-3 w-20 rounded" />
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <Skeleton className="h-[5rem] w-full rounded-xl" />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Skeleton className="h-[5rem] w-full rounded-xl" />
           <Skeleton className="h-[5rem] w-full rounded-xl" />
         </div>
@@ -294,8 +291,6 @@ export function DashboardHeuteTile() {
   const todayUpcomingReservations =
     reservations.summary?.todayUpcomingReservations ?? 0;
   const todayUpcomingGuests = reservations.summary?.todayUpcomingGuests ?? 0;
-  const activeStaff = staff.summary?.activeStaff ?? 0;
-  const completedShiftsToday = staff.summary?.completedShiftsToday ?? 0;
 
   const deliveriesDueToday = inventory.summary?.deliveriesDueToday ?? 0;
   const deliveriesOverdue = inventory.summary?.deliveriesOverdue ?? 0;
@@ -511,20 +506,6 @@ export function DashboardHeuteTile() {
 
     if (can.staff && staff.summary) {
       items.push({
-        id: "team",
-        label: "Team",
-        value: String(activeStaff),
-        meta:
-          completedShiftsToday > 0
-            ? `${pluralDe(activeStaff, "aktiv", "aktiv")} · ${completedShiftsToday} fertig`
-            : activeStaff > 0
-              ? "Jetzt im Haus"
-              : "Niemand eingeloggt",
-        icon: <UserCheck aria-hidden />,
-        onClick: () => setPresenceSheetMode("working"),
-        emphasize: activeStaff > 0,
-      });
-      items.push({
         id: "hours",
         label: "Arbeitszeit",
         value: todayWorkHours > 0 ? formatHoursDe(todayWorkHours) : "0 h",
@@ -537,10 +518,8 @@ export function DashboardHeuteTile() {
 
     return items;
   }, [
-    activeStaff,
     can.reservations,
     can.staff,
-    completedShiftsToday,
     reservations.summary,
     staff.summary,
     todayUpcomingGuests,
@@ -563,33 +542,27 @@ export function DashboardHeuteTile() {
   const heuteError = hasSliceErrors ? sliceErrors[0]! : null;
   const showAllClear =
     allHeuteStatsSettled && canHaveActions && !hasActions && !hasSliceErrors;
+  const checkingActions =
+    canHaveActions && !hasActions && !hasSliceErrors && !allHeuteStatsSettled;
 
   // Partial paint: Aktionen/Lage behalten, sobald etwas da ist.
   // Skeleton nur beim ersten leeren Warten — nicht bei Batch-Refetch.
-  const awaitingCompleteEmpty =
-    canHaveActions && !hasActions && !hasLage && !allHeuteStatsSettled;
-  const loading =
-    (heuteStatSlices.length > 0 && !ready) || awaitingCompleteEmpty;
+  const loading = heuteStatSlices.length > 0 && !ready;
   const showSkeleton = useDeferredSkeleton(loading);
 
   const [allClearAnimKey, setAllClearAnimKey] = useState(0);
-  const prevShowAllClearRef = useRef(false);
   const prevPathnameRef = useRef(pathname);
 
   useEffect(() => {
     const enteredDashboard =
       pathname === DASHBOARD_HOME && prevPathnameRef.current !== DASHBOARD_HOME;
-    const becameAllClear = showAllClear && !prevShowAllClearRef.current;
-
-    if (showAllClear && (becameAllClear || enteredDashboard)) {
+    if (showAllClear && enteredDashboard) {
       setAllClearAnimKey((key) => key + 1);
     }
-
-    prevShowAllClearRef.current = showAllClear;
     prevPathnameRef.current = pathname;
   }, [pathname, showAllClear]);
 
-  const showJetztHandeln = hasActions || showAllClear;
+  const showJetztHandeln = hasActions || showAllClear || checkingActions;
   const splitJetztHandelnAndLage = hasActions && hasLage;
 
   const openLiveItem = useCallback(
@@ -680,7 +653,10 @@ export function DashboardHeuteTile() {
                 ))}
               </div>
             ) : (
-              <DashboardHeuteAllClear replayKey={allClearAnimKey} />
+              <DashboardHeuteAllClear
+                phase={showAllClear ? "clear" : "checking"}
+                replayKey={allClearAnimKey}
+              />
             )}
           </section>
         ) : null}
@@ -714,7 +690,7 @@ export function DashboardHeuteTile() {
 
         {!showJetztHandeln && !hasLage ? (
           <p className="py-2 text-sm text-muted-foreground">
-            Keine Module freigeschaltet — sobald Reservierungen, Team oder
+            Keine Module freigeschaltet — sobald Reservierungen, Arbeitszeit oder
             Nachrichten verfügbar sind, erscheint hier dein Tagesüberblick.
           </p>
         ) : null}

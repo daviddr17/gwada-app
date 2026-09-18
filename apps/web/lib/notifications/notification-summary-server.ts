@@ -7,6 +7,7 @@ import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-revi
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
 import { loadInventoryPoDeliveryDueBellSummary } from "@/lib/notifications/notification-inventory-po-delivery-server";
+import { loadInventoryPoStatusNotificationItems } from "@/lib/notifications/notification-po-status-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
 import { loadPersonalReminderNotificationItems } from "@/lib/notifications/notification-personal-reminder-server";
@@ -337,6 +338,31 @@ async function buildInventoryPoDeliveryDueModule(
   };
 }
 
+async function buildInventoryPoStatusModule(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module: "inventory_po_ordered" | "inventory_po_closed";
+  },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[params.module];
+  const { items, totalCount } = await loadInventoryPoStatusNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
 async function buildAccountingModule(
   sb: SupabaseClient,
   params: {
@@ -449,6 +475,16 @@ const MODULE_BUILDERS: Record<
   inventory_low_stock: (ctx) => buildInventoryLowStockModule(ctx.sb, ctx),
   inventory_po_delivery_due: (ctx) =>
     buildInventoryPoDeliveryDueModule(ctx.sb, ctx),
+  inventory_po_ordered: (ctx) =>
+    buildInventoryPoStatusModule(ctx.sb, {
+      ...ctx,
+      module: "inventory_po_ordered",
+    }),
+  inventory_po_closed: (ctx) =>
+    buildInventoryPoStatusModule(ctx.sb, {
+      ...ctx,
+      module: "inventory_po_closed",
+    }),
   inventory_po_activity: () => buildFeedOnlyEmptyModule("inventory_po_activity"),
   inventory_stock_activity: () =>
     buildFeedOnlyEmptyModule("inventory_stock_activity"),

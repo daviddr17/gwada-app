@@ -13,6 +13,7 @@ import type {
 } from "@/lib/types/purchase-order";
 import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
 import { mergePurchaseOrdersForReplace } from "@/lib/inventory/merge-purchase-orders-for-replace";
+import { triggerPoStatusNotificationDeliver } from "@/lib/notifications/trigger-notification-deliver-client";
 import { dedupePurchaseOrdersById } from "@/lib/inventory/dedupe-purchase-orders-by-id";
 import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import { isPurchaseOrderStatus } from "@/lib/inventory/purchase-order-status";
@@ -1021,6 +1022,13 @@ export async function setPurchaseOrderStatusRelational(
     console.warn("[gwada] inventory_purchase_order_set_status", error.message);
     return { ok: false, message: error.message };
   }
+  if (params.toStatus === "ordered" || params.toStatus === "closed") {
+    triggerPoStatusNotificationDeliver({
+      restaurantId,
+      orderId: params.orderId,
+      status: params.toStatus,
+    });
+  }
   return { ok: true };
 }
 
@@ -1069,11 +1077,19 @@ export async function applyPurchaseOrderLineDeliveryStockRelational(
     return { ok: false, message: rpcFailureMessage(error) };
   }
   const row = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  const autoClosed = row.auto_closed === true;
+  if (autoClosed) {
+    triggerPoStatusNotificationDeliver({
+      restaurantId,
+      orderId: params.orderId,
+      status: "closed",
+    });
+  }
   return {
     ok: true,
     stockDelta: typeof row.stock_delta === "number" ? row.stock_delta : 0,
     stockAfter: typeof row.stock_after === "number" ? row.stock_after : null,
-    autoClosed: row.auto_closed === true,
+    autoClosed,
   };
 }
 

@@ -54,6 +54,22 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   accounting_quotation: { kind: "module", prefix: "accounting" },
   accounting_invoice: { kind: "module", prefix: "accounting" },
   accounting_voucher: { kind: "module", prefix: "accounting" },
+  digest_daily_preview: {
+    kind: "anyModule",
+    prefixes: ["staff", "inventory", "reservations", "accounting"],
+  },
+  digest_daily_review: {
+    kind: "anyModule",
+    prefixes: ["staff", "inventory", "reservations", "accounting"],
+  },
+  digest_weekly_preview: {
+    kind: "anyModule",
+    prefixes: ["staff", "inventory", "reservations", "accounting"],
+  },
+  digest_weekly_review: {
+    kind: "anyModule",
+    prefixes: ["staff", "inventory", "reservations", "accounting"],
+  },
 };
 
 export function isNotificationModuleVisibleForUser(

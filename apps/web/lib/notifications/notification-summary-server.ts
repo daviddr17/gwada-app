@@ -8,6 +8,7 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
 import { loadInventoryPoDeliveryDueBellSummary } from "@/lib/notifications/notification-inventory-po-delivery-server";
 import { loadInventoryPoStatusNotificationItems } from "@/lib/notifications/notification-po-status-server";
+import { loadDigestNotificationItems } from "@/lib/notifications/notification-digest-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
 import { loadPersonalReminderNotificationItems } from "@/lib/notifications/notification-personal-reminder-server";
@@ -363,6 +364,34 @@ async function buildInventoryPoStatusModule(
   };
 }
 
+async function buildDigestModule(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module:
+      | "digest_daily_preview"
+      | "digest_daily_review"
+      | "digest_weekly_preview"
+      | "digest_weekly_review";
+  },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[params.module];
+  const { items, totalCount } = await loadDigestNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
 async function buildAccountingModule(
   sb: SupabaseClient,
   params: {
@@ -485,6 +514,14 @@ const MODULE_BUILDERS: Record<
       ...ctx,
       module: "inventory_po_closed",
     }),
+  digest_daily_preview: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_daily_preview" }),
+  digest_daily_review: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_daily_review" }),
+  digest_weekly_preview: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_weekly_preview" }),
+  digest_weekly_review: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_weekly_review" }),
   inventory_po_activity: () => buildFeedOnlyEmptyModule("inventory_po_activity"),
   inventory_stock_activity: () =>
     buildFeedOnlyEmptyModule("inventory_stock_activity"),

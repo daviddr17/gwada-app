@@ -75,6 +75,18 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
       "accounting_voucher",
     ],
   },
+  {
+    id: "digests",
+    title: "Zusammenfassungen",
+    description:
+      "Optional. Täglich 8 Uhr Vorschau und 21 Uhr Rückblick, montags die Woche, sonntags der Wochenrückblick — Restaurantzeit. Kosten sind voraussichtlich.",
+    moduleIds: [
+      "digest_daily_preview",
+      "digest_daily_review",
+      "digest_weekly_preview",
+      "digest_weekly_review",
+    ],
+  },
 ];
 
 export function notificationModulesForSettingsGroup(

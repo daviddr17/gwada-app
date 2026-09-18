@@ -16,6 +16,7 @@ import {
   formatPoStatusPushDetails,
   parsePoStatusLines,
 } from "@/lib/notifications/notification-po-status-copy";
+import { digestPushDetails } from "@/lib/notifications/notification-digest-server";
 
 function absoluteAppUrl(path: string): string {
   const base =
@@ -417,6 +418,18 @@ export function buildNotificationPushText(
         href,
         details: formatPoStatusPushDetails(poCopy),
         emailBodyHtml: formatPoStatusEmailBodyHtml(poCopy),
+      });
+    }
+    case "digest_daily_preview":
+    case "digest_daily_review":
+    case "digest_weekly_preview":
+    case "digest_weekly_review": {
+      return buildPushMessage({
+        prefix,
+        headline: moduleDef.label,
+        subject: `${prefix}${moduleDef.label}`,
+        href,
+        details: digestPushDetails(p),
       });
     }
     case "inventory_po_activity":

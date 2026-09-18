@@ -82,6 +82,7 @@ ${marker_begin}
 */10 * * * * ${env_snippet} ${wrapper} /api/cron/reviews-feed-sync 180 >> ${log_dir}/reviews-feed-sync.log 2>&1
 */10 * * * * ${env_snippet} ${wrapper} /api/cron/accounting-lexoffice-sync 300 >> ${log_dir}/accounting-lexoffice-sync.log 2>&1
 0 6 * * * ${env_snippet} ${wrapper} /api/cron/billing-past-due 180 >> ${log_dir}/billing-past-due.log 2>&1
+15 * * * * ${env_snippet} ${wrapper} /api/cron/notification-digests 180 >> ${log_dir}/notification-digests.log 2>&1
 0 7 * * 1 ${env_snippet} ${wrapper} /api/cron/social-suggestions 300 >> ${log_dir}/social-suggestions.log 2>&1
 ${marker_end}
 EOF

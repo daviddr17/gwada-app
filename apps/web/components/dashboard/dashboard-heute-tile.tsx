@@ -192,6 +192,7 @@ type DashboardStatSlice = {
   loading: boolean;
   summary: unknown;
   error?: string | null;
+  hasSettledFetch?: boolean;
 };
 
 function isDashboardStatSettled(slice: DashboardStatSlice): boolean {
@@ -199,6 +200,9 @@ function isDashboardStatSettled(slice: DashboardStatSlice): boolean {
   if (slice.summary != null) return true;
   // Fehler oder fertiger Batch ohne Slice → nicht ewig Skeleton.
   if (slice.error) return true;
+  // Vor dem ersten Fetch ist loading oft noch false — das darf nicht
+  // schon „Alles erledigt“ aufblitzen lassen.
+  if (slice.hasSettledFetch === false) return false;
   return !slice.loading;
 }
 
@@ -528,7 +532,6 @@ export function DashboardHeuteTile() {
   ]);
 
   const hasActions = actionItems.length > 0;
-  const hasLage = lageItems.length > 0;
   const canHaveActions =
     can.reservations ||
     can.messages ||
@@ -563,7 +566,15 @@ export function DashboardHeuteTile() {
   }, [pathname, showAllClear]);
 
   const showJetztHandeln = hasActions || showAllClear || checkingActions;
-  const splitJetztHandelnAndLage = hasActions && hasLage;
+  const reservationsLage = lageItems.find((item) => item.id === "reservations-today");
+  const hoursLage = lageItems.find((item) => item.id === "hours");
+  const showReservationsSlot = Boolean(
+    reservationsLage || (can.reservations && checkingActions),
+  );
+  const showHoursSlot = Boolean(hoursLage || (can.staff && checkingActions));
+  const lageSlotCount = Number(showReservationsSlot) + Number(showHoursSlot);
+  const showLage = lageSlotCount > 0;
+  const splitJetztHandelnAndLage = hasActions && showLage;
 
   const openLiveItem = useCallback(
     (item: LiveActivityItem) => {
@@ -661,7 +672,7 @@ export function DashboardHeuteTile() {
           </section>
         ) : null}
 
-        {hasLage ? (
+        {showLage ? (
           <section
             className={cn(
               "min-w-0 space-y-2",
@@ -673,22 +684,29 @@ export function DashboardHeuteTile() {
             <div
               className={cn(
                 "grid gap-2",
-                lageItems.length === 1 && "grid-cols-1",
-                lageItems.length === 2 && "grid-cols-1 sm:grid-cols-2",
-                lageItems.length >= 3 &&
-                  (splitJetztHandelnAndLage
-                    ? "grid-cols-1 sm:grid-cols-3 xl:grid-cols-1"
-                    : "grid-cols-1 sm:grid-cols-3"),
+                lageSlotCount === 1 && "grid-cols-1",
+                lageSlotCount >= 2 && "grid-cols-1 sm:grid-cols-2",
               )}
             >
-              {lageItems.map((item) => (
-                <HeuteLageTile key={item.id} item={item} />
-              ))}
+              {showReservationsSlot ? (
+                reservationsLage ? (
+                  <HeuteLageTile item={reservationsLage} />
+                ) : (
+                  <Skeleton className="h-[5.25rem] w-full rounded-xl" />
+                )
+              ) : null}
+              {showHoursSlot ? (
+                hoursLage ? (
+                  <HeuteLageTile item={hoursLage} />
+                ) : (
+                  <Skeleton className="h-[5.25rem] w-full rounded-xl" />
+                )
+              ) : null}
             </div>
           </section>
         ) : null}
 
-        {!showJetztHandeln && !hasLage ? (
+        {!showJetztHandeln && !showLage ? (
           <p className="py-2 text-sm text-muted-foreground">
             Keine Module freigeschaltet — sobald Reservierungen, Arbeitszeit oder
             Nachrichten verfügbar sind, erscheint hier dein Tagesüberblick.

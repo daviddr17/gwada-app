@@ -44,22 +44,3 @@ select platform, synced_at, last_error, item_count
 from public.restaurant_news_platform_sync
 where restaurant_id = 'fcc50bb3-130d-476b-94dc-3c7392b773a8'
 order by platform;
-
--- Einmalig: Auth-Fehler von 21:55 löschen, damit der nächste Seitenaufruf neu synct.
-update public.restaurant_reviews_platform_sync
-set last_error = null
-where restaurant_id = 'fcc50bb3-130d-476b-94dc-3c7392b773a8'
-  and platform = 'google'
-  and last_error is not null;
-
-update public.restaurant_gallery_platform_sync
-set last_error = null,
-    synced_at = timestamptz '2000-01-01'
-where restaurant_id = 'fcc50bb3-130d-476b-94dc-3c7392b773a8'
-  and platform = 'google_business';
-
-update public.restaurant_news_platform_sync
-set last_error = null,
-    synced_at = timestamptz '2000-01-01'
-where restaurant_id = 'fcc50bb3-130d-476b-94dc-3c7392b773a8'
-  and platform = 'google_business';

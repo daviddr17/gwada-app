@@ -213,6 +213,15 @@ export function formatNotificationPayloadSummary(
     return `${supplier}${count}`;
   }
 
+  if (
+    module === "digest_daily_preview" ||
+    module === "digest_daily_review" ||
+    module === "digest_weekly_preview" ||
+    module === "digest_weekly_review"
+  ) {
+    return typeof p.periodLabel === "string" ? p.periodLabel : "Zusammenfassung";
+  }
+
   if (module === "inventory_po_activity") {
     const name =
       typeof p.ingredientName === "string" ? p.ingredientName : "Bestellung";

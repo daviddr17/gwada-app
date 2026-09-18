@@ -40,6 +40,11 @@ import {
   isPoStatusNotifyModule,
 } from "@/lib/notifications/notification-po-status-server";
 import {
+  dismissAllDigestNotifications,
+  dismissDigestNotification,
+  isDigestModule,
+} from "@/lib/notifications/notification-digest-server";
+import {
   dismissAllReservationNotifications,
   dismissReservationNotification,
 } from "@/lib/notifications/notification-reservations-server";
@@ -334,6 +339,31 @@ export async function markNotificationReadServer(
       const eventId = itemId ?? meta?.eventId;
       if (!eventId) return { ok: false, error: "invalid_request" };
       const result = await dismissInventoryPoStatusNotification(sb, {
+        restaurantId,
+        userId,
+        eventId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "digest_daily_preview":
+    case "digest_daily_review":
+    case "digest_weekly_preview":
+    case "digest_weekly_review": {
+      if (!isDigestModule(module)) {
+        return { ok: false, error: "invalid_module" };
+      }
+      if (!itemId) {
+        const all = await dismissAllDigestNotifications(sb, {
+          restaurantId,
+          userId,
+          module,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const eventId = itemId ?? meta?.eventId;
+      if (!eventId) return { ok: false, error: "invalid_request" };
+      const result = await dismissDigestNotification(sb, {
         restaurantId,
         userId,
         eventId,

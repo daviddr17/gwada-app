@@ -27,6 +27,7 @@ Logs: `/var/log/gwada-cron/*.log` auf dem VPS.
 | `*/2` | `notification-deliver` |
 | `*/10` | `news-feed-sync`, `reviews-feed-sync`, `accounting-lexoffice-sync` |
 | `0 6 * * *` | `billing-past-due` |
+| `15 * * * *` | `notification-digests` |
 | `0 7 * * 1` | `social-suggestions` |
 
 On-Call-Mails nur bei Lag der **Zustell-Crons** (WhatsApp/E-Mail/Push/SLO/WAHA-Recover), nicht bei Sync-Jobs.

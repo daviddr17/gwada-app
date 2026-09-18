@@ -63,6 +63,10 @@ export const NOTIFICATION_MODULE_IDS = [
   "staff_display_clock_in",
   "staff_display_clock_out",
   "staff_permissions_granted",
+  "digest_daily_preview",
+  "digest_daily_review",
+  "digest_weekly_preview",
+  "digest_weekly_review",
 ] as const;
 
 export type NotificationModuleId = (typeof NOTIFICATION_MODULE_IDS)[number];
@@ -403,6 +407,46 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Neue Modul-Rechte in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei neuen Rechten",
     settingsPushEmailLabel: "E-Mail bei neuen Rechten",
+  },
+  digest_daily_preview: {
+    id: "digest_daily_preview",
+    label: "Tagesvorschau",
+    labelPlural: "Tagesvorschau",
+    href: APP_ROUTES.dashboard,
+    icon: CalendarDays,
+    settingsInAppLabel: "Tagesvorschau in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp mit der Tagesvorschau",
+    settingsPushEmailLabel: "E-Mail mit der Tagesvorschau",
+  },
+  digest_daily_review: {
+    id: "digest_daily_review",
+    label: "Tagesrückblick",
+    labelPlural: "Tagesrückblick",
+    href: APP_ROUTES.dashboard,
+    icon: CalendarClock,
+    settingsInAppLabel: "Tagesrückblick in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp mit dem Tagesrückblick",
+    settingsPushEmailLabel: "E-Mail mit dem Tagesrückblick",
+  },
+  digest_weekly_preview: {
+    id: "digest_weekly_preview",
+    label: "Wochenvorschau",
+    labelPlural: "Wochenvorschau",
+    href: APP_ROUTES.dashboard,
+    icon: CalendarDays,
+    settingsInAppLabel: "Wochenvorschau in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp mit der Wochenvorschau",
+    settingsPushEmailLabel: "E-Mail mit der Wochenvorschau",
+  },
+  digest_weekly_review: {
+    id: "digest_weekly_review",
+    label: "Wochenrückblick",
+    labelPlural: "Wochenrückblick",
+    href: APP_ROUTES.dashboard,
+    icon: CalendarClock,
+    settingsInAppLabel: "Wochenrückblick in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp mit dem Wochenrückblick",
+    settingsPushEmailLabel: "E-Mail mit dem Wochenrückblick",
   },
 };
 

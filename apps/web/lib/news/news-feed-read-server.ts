@@ -49,7 +49,7 @@ function buildSyncMeta(
   const stale = requestedCacheable.some((platform) => {
     const row = syncByPlatform.get(platform);
     if (!row) return true;
-    return isNewsFeedSyncStale(row.synced_at);
+    return isNewsFeedSyncStale(row.synced_at, { lastError: row.last_error });
   });
 
   return { lastSyncedAt, stale, platformErrors, platformItemCounts };

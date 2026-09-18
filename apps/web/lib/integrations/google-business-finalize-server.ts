@@ -32,7 +32,7 @@ export async function finalizeGoogleBusinessIntegration(
   const now = new Date().toISOString();
   clearGoogleInsightsQuotaCooldown(restaurantId);
 
-  return upsertRestaurantOAuthIntegration(
+  const saved = await upsertRestaurantOAuthIntegration(
     admin,
     restaurantId,
     "google_business",
@@ -56,4 +56,25 @@ export async function finalizeGoogleBusinessIntegration(
     googleBusinessConfigFromJson,
     mergeGoogleConfig,
   );
+  if (saved.error) return saved;
+
+  await Promise.all([
+    admin
+      .from("restaurant_reviews_platform_sync")
+      .update({ last_error: null, synced_at: null })
+      .eq("restaurant_id", restaurantId)
+      .eq("platform", "google"),
+    admin
+      .from("restaurant_gallery_platform_sync")
+      .update({ last_error: null, synced_at: null })
+      .eq("restaurant_id", restaurantId)
+      .eq("platform", "google_business"),
+    admin
+      .from("restaurant_news_platform_sync")
+      .update({ last_error: null, synced_at: null })
+      .eq("restaurant_id", restaurantId)
+      .eq("platform", "google_business"),
+  ]);
+
+  return saved;
 }

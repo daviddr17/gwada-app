@@ -1,3 +1,5 @@
+import { escapeHtml } from "@/lib/email/escape-html";
+
 export type PoStatusNotifyModuleId =
   | "inventory_po_ordered"
   | "inventory_po_closed";
@@ -178,4 +180,176 @@ export function formatPoStatusPushDetails(params: {
       : ["Fehlend / abweichend:", ...capLines(exceptions)];
 
   return [...header, ...exceptionBlock, ...positions].join("\n");
+}
+
+const EMAIL_FONT =
+  "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',Helvetica,Arial,sans-serif";
+
+function emailSectionTitle(label: string): string {
+  return `<p style="margin:0 0 8px;font-family:${EMAIL_FONT};font-size:13px;font-weight:600;line-height:1.3;color:#1d1d1f;">${escapeHtml(label)}</p>`;
+}
+
+function emailCell(
+  html: string,
+  options?: { header?: boolean; align?: "left" | "right"; nowrap?: boolean },
+): string {
+  const header = options?.header === true;
+  const align = options?.align ?? "left";
+  const nowrap = options?.nowrap ? "white-space:nowrap;" : "";
+  return `<td style="padding:8px 10px;border-bottom:1px solid #e8e8ed;font-family:${EMAIL_FONT};font-size:${header ? "11px" : "14px"};font-weight:${header ? "600" : "400"};line-height:1.35;letter-spacing:${header ? "0.02em" : "0"};color:${header ? "#6e6e73" : "#1d1d1f"};text-align:${align};vertical-align:top;${header ? "background-color:#f5f5f7;" : ""}${nowrap}">${html}</td>`;
+}
+
+function emailTable(
+  headers: Array<{ label: string; align?: "left" | "right"; nowrap?: boolean }>,
+  rows: string[][],
+): string {
+  const head = `<tr>${headers
+    .map((header) =>
+      emailCell(escapeHtml(header.label), {
+        header: true,
+        align: header.align,
+        nowrap: header.nowrap,
+      }),
+    )
+    .join("")}</tr>`;
+  const body = rows
+    .map(
+      (row) =>
+        `<tr>${row
+          .map((cell, index) =>
+            emailCell(cell, {
+              align: headers[index]?.align,
+              nowrap: headers[index]?.nowrap,
+            }),
+          )
+          .join("")}</tr>`,
+    )
+    .join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin:0 0 18px;">${head}${body}</table>`;
+}
+
+function articleCell(line: PoStatusLinePayload): string {
+  const name = escapeHtml(line.ingredientName);
+  if (!line.brandLabel) return name;
+  return `${name}<br /><span style="color:#6e6e73;font-size:12px;">${escapeHtml(line.brandLabel)}</span>`;
+}
+
+function dash(value: string | null | undefined): string {
+  const text = value?.trim();
+  return text ? escapeHtml(text) : "—";
+}
+
+function statusCell(status: string | null): string {
+  if (status === "not_delivered") {
+    return `<span style="color:#b42318;">Fehlend</span>`;
+  }
+  if (status === "partial") {
+    return `<span style="color:#b54708;">Abweichend</span>`;
+  }
+  if (status === "delivered") {
+    return `<span style="color:#067647;">Geliefert</span>`;
+  }
+  return "—";
+}
+
+function cappedPoLines(lines: PoStatusLinePayload[]): {
+  shown: PoStatusLinePayload[];
+  more: number;
+} {
+  if (lines.length <= PUSH_LINE_CAP) return { shown: lines, more: 0 };
+  return { shown: lines.slice(0, PUSH_LINE_CAP), more: lines.length - PUSH_LINE_CAP };
+}
+
+function moreRowsNote(more: number): string {
+  if (more <= 0) return "";
+  return `<p style="margin:-6px 0 16px;font-family:${EMAIL_FONT};font-size:13px;line-height:1.4;color:#6e6e73;">… und ${more} weitere</p>`;
+}
+
+/** E-Mail-Körper: Positionen als Tabelle, damit Menge und Einheit nicht in der Fließzeile verrutschen. */
+export function formatPoStatusEmailBodyHtml(params: {
+  module: PoStatusNotifyModuleId;
+  supplierName: string;
+  deliveryDate: unknown;
+  staffName: string | null;
+  lines: PoStatusLinePayload[];
+}): string {
+  const date = formatPoDeliveryDateDe(params.deliveryDate);
+  const header = [
+    `Lieferant: ${params.supplierName}`,
+    date ? `Lieferdatum: ${date}` : null,
+    params.staffName ? `Von: ${params.staffName}` : null,
+  ].filter((line): line is string => Boolean(line));
+  const headerHtml = `<p style="margin:0 0 16px;font-family:${EMAIL_FONT};font-size:15px;line-height:1.5;color:#1d1d1f;">${header
+    .map((line) => escapeHtml(line))
+    .join("<br />\n")}</p>`;
+
+  const { shown, more } = cappedPoLines(params.lines);
+  const positionHeaders = [
+    { label: "Artikel" },
+    { label: "Art.-Nr.", nowrap: true },
+    { label: "Menge", align: "right" as const, nowrap: true },
+    { label: "Einheit", nowrap: true },
+  ];
+  const positionRows =
+    shown.length > 0
+      ? shown.map((line) => [
+          articleCell(line),
+          dash(line.articleNumber),
+          escapeHtml(line.quantityLabel),
+          dash(line.unitLabel),
+        ])
+      : [];
+
+  if (params.module !== "inventory_po_closed") {
+    const table =
+      positionRows.length > 0
+        ? `${emailSectionTitle("Positionen")}${emailTable(positionHeaders, positionRows)}${moreRowsNote(more)}`
+        : `<p style="margin:0;font-family:${EMAIL_FONT};font-size:15px;color:#1d1d1f;">Positionen: keine</p>`;
+    return `${headerHtml}${table}`;
+  }
+
+  const { shown: exceptions, more: exceptionMore } = cappedPoLines(
+    params.lines.filter(
+      (line) =>
+        line.deliveryStatus === "not_delivered" ||
+        line.deliveryStatus === "partial",
+    ),
+  );
+  const exceptionHtml =
+    exceptions.length === 0
+      ? `<p style="margin:0 0 16px;font-family:${EMAIL_FONT};font-size:15px;line-height:1.45;color:#1d1d1f;">Abweichungen: keine — alles wie bestellt.</p>`
+      : `${emailSectionTitle("Fehlend / abweichend")}${emailTable(
+          [
+            { label: "Artikel" },
+            { label: "Bestellt", align: "right", nowrap: true },
+            { label: "Geliefert", align: "right", nowrap: true },
+            { label: "Hinweis" },
+          ],
+          exceptions.map((line) => [
+            articleCell(line),
+            escapeHtml(qtyWithUnit(line.quantityLabel, line.unitLabel)),
+            line.deliveredQuantityLabel
+              ? escapeHtml(qtyWithUnit(line.deliveredQuantityLabel, line.unitLabel))
+              : "—",
+            dash(line.deliveryNote),
+          ]),
+        )}${moreRowsNote(exceptionMore)}`;
+
+  const statusHeaders = [
+    ...positionHeaders,
+    { label: "Status", nowrap: true },
+  ];
+  const statusRows = shown.map((line) => [
+    articleCell(line),
+    dash(line.articleNumber),
+    escapeHtml(line.quantityLabel),
+    dash(line.unitLabel),
+    statusCell(line.deliveryStatus),
+  ]);
+  const positionsHtml =
+    statusRows.length > 0
+      ? `${emailSectionTitle("Positionen")}${emailTable(statusHeaders, statusRows)}${moreRowsNote(more)}`
+      : `<p style="margin:0;font-family:${EMAIL_FONT};font-size:15px;color:#1d1d1f;">Positionen: keine</p>`;
+
+  return `${headerHtml}${exceptionHtml}${positionsHtml}`;
 }

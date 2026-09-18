@@ -511,7 +511,7 @@ async function deliverOne(
     restaurantNames.get(delivery.context_restaurant_id) ?? null;
   const timeZone =
     restaurantTimezones.get(delivery.context_restaurant_id) ?? undefined;
-  const { text, subject, emailDetails, href, platformCode } =
+  const { text, subject, emailDetails, emailBodyHtml, href, platformCode } =
     buildNotificationPushText(
     {
       module: event.module,
@@ -649,6 +649,7 @@ async function deliverOne(
     subject,
     text,
     emailDetails,
+    emailBodyHtml,
     href,
     platformCode,
     admin,

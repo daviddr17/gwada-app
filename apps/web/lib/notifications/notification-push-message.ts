@@ -12,6 +12,7 @@ import { GWADA_PRODUCTION_ORIGIN } from "@/lib/constants/gwada-domains";
 import { getPublicSiteUrl } from "@/lib/public-env";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import {
+  formatPoStatusEmailBodyHtml,
   formatPoStatusPushDetails,
   parsePoStatusLines,
 } from "@/lib/notifications/notification-po-status-copy";
@@ -140,6 +141,8 @@ export type NotificationPushMessageResult = {
   subject: string;
   /** Nur Detailblock für E-Mail-Body (ohne Intro-Doppelung zur Karten-Überschrift) */
   emailDetails: string | null;
+  /** Fertiges HTML für den Karten-Inhalt, z. B. Positionstabelle. */
+  emailBodyHtml?: string | null;
   href: string;
   /** Roh-Code für Plattform-Icon in E-Mails (z. B. whatsapp) */
   platformCode?: string | null;
@@ -151,6 +154,7 @@ function buildPushMessage(params: {
   subject: string;
   href: string;
   details?: string | null;
+  emailBodyHtml?: string | null;
   platformCode?: string | null;
 }): NotificationPushMessageResult {
   const intro = params.prefix
@@ -164,6 +168,7 @@ function buildPushMessage(params: {
     subject: params.subject,
     text: textParts.join("\n\n"),
     emailDetails: detailBlock || null,
+    emailBodyHtml: params.emailBodyHtml?.trim() || null,
     href: params.href,
     platformCode: params.platformCode ?? null,
   };
@@ -397,18 +402,21 @@ export function buildNotificationPushText(
       const headline = ordered
         ? "Bestellung aufgegeben"
         : "Bestellung abgeschlossen";
+      const poLines = parsePoStatusLines(p.lines);
+      const poCopy = {
+        module: event.module,
+        supplierName: supplier,
+        deliveryDate: p.deliveryDate,
+        staffName: pickString(p.staffName),
+        lines: poLines,
+      };
       return buildPushMessage({
         prefix,
         headline,
         subject: `${prefix}${headline} — ${supplier}`,
         href,
-        details: formatPoStatusPushDetails({
-          module: event.module,
-          supplierName: supplier,
-          deliveryDate: p.deliveryDate,
-          staffName: pickString(p.staffName),
-          lines: parsePoStatusLines(p.lines),
-        }),
+        details: formatPoStatusPushDetails(poCopy),
+        emailBodyHtml: formatPoStatusEmailBodyHtml(poCopy),
       });
     }
     case "inventory_po_activity":

@@ -138,7 +138,7 @@ async function loadIngredientsAdmin(
   const { data: ings, error: e1 } = await admin
     .from("inventory_ingredients")
     .select(
-      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,supplier_id,category_id,production_site_id,brand_id,is_active",
+      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,article_number,image_path,supplier_id,category_id,production_site_id,brand_id,is_active",
     )
     .eq("restaurant_id", restaurantId)
     .order("name", { ascending: true });
@@ -174,6 +174,14 @@ async function loadIngredientsAdmin(
       purchaseUnitPrice:
         o.purchase_unit_price != null && o.purchase_unit_price !== ""
           ? Number(o.purchase_unit_price)
+          : null,
+      articleNumber:
+        typeof o.article_number === "string" && o.article_number.trim()
+          ? o.article_number.trim()
+          : null,
+      imagePath:
+        typeof o.image_path === "string" && o.image_path.trim()
+          ? o.image_path.trim()
           : null,
       supplierId: o.supplier_id as string,
       categoryId: o.category_id as string,

@@ -11,6 +11,7 @@ import {
 } from "@/components/inventory/purchase-order-close-delivery-drawer";
 import { PurchaseOrderCloseProgressOverlay } from "@/components/inventory/purchase-order-close-progress-overlay";
 import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
+import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
 import { PurchaseOrderCardStickyHeader } from "@/components/inventory/purchase-order-card-sticky-header";
 import type { LineDeliveryCommit } from "@/components/inventory/purchase-order-line-delivery-controls";
 import { PurchaseOrderLineDeliveryControls } from "@/components/inventory/purchase-order-line-delivery-controls";
@@ -905,7 +906,7 @@ export function PurchaseOrdersScreen() {
                           : undefined
                       }
                     >
-                      <table className="w-full min-w-[920px] text-sm">
+                      <table className="w-full min-w-[1040px] text-sm">
                         <thead>
                           <tr className={moduleDataTableHeadRowNormalCaseClassName}>
                             <ModuleTableSortHeader
@@ -915,7 +916,14 @@ export function PurchaseOrdersScreen() {
                               dir={lineSortDir}
                               onSort={toggleLineSort}
                               className={cn(
-                                "min-w-[12rem]",
+                                "min-w-[14rem]",
+                                moduleDataTableHeadCellDenseClassName,
+                              )}
+                            />
+                            <ModuleTableStaticColumnHeader
+                              label="Art.-Nr."
+                              className={cn(
+                                "min-w-[7rem]",
                                 moduleDataTableHeadCellDenseClassName,
                               )}
                             />
@@ -975,7 +983,7 @@ export function PurchaseOrdersScreen() {
                           {order.lines.length === 0 ? (
                             <tr>
                               <td
-                                colSpan={6}
+                                colSpan={7}
                                 className="px-4 py-8 text-center text-muted-foreground"
                               >
                                 Noch keine Positionen.
@@ -997,7 +1005,18 @@ export function PurchaseOrdersScreen() {
                                 className="border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60"
                               >
                                 <td className="px-3 py-2 font-medium text-foreground">
-                                  {line.ingredientName}
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <IngredientThumb
+                                      imagePath={ingRow?.imagePath}
+                                      className="size-8"
+                                    />
+                                    <span className="min-w-0 truncate">
+                                      {line.ingredientName}
+                                    </span>
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-muted-foreground">
+                                  {ingRow?.articleNumber?.trim() || "—"}
                                 </td>
                                 <td className="max-w-[10rem] truncate px-3 py-2 text-muted-foreground">
                                   {line.brandLabel ?? "—"}

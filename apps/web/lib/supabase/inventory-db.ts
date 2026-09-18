@@ -673,7 +673,7 @@ export async function loadIngredientsRelational(
   const { data: ings, error: e1 } = await supabase
     .from("inventory_ingredients")
     .select(
-      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,supplier_id,category_id,production_site_id,brand_id,is_active",
+      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,article_number,image_path,supplier_id,category_id,production_site_id,brand_id,is_active",
     )
     .eq("restaurant_id", rid)
     .order("name", { ascending: true });
@@ -725,6 +725,14 @@ export async function loadIngredientsRelational(
       currentStock: Number(o.current_stock),
       lowStockThreshold: Number(o.low_stock_threshold ?? 0),
       purchaseUnitPrice: parsePurchaseUnitPrice(o.purchase_unit_price),
+      articleNumber:
+        typeof o.article_number === "string" && o.article_number.trim()
+          ? o.article_number.trim()
+          : null,
+      imagePath:
+        typeof o.image_path === "string" && o.image_path.trim()
+          ? o.image_path.trim()
+          : null,
       lastPriceChangeAt: lastPriceChangeByIng.get(o.id as string) ?? null,
       supplierId: o.supplier_id as string,
       categoryId: o.category_id as string,

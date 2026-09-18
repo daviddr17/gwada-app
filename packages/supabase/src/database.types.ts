@@ -1088,6 +1088,7 @@ export type Database = {
           created_at: string
           current_stock: number
           id: string
+          image_path: string | null
           is_active: boolean
           low_stock_threshold: number
           name: string
@@ -1097,13 +1098,16 @@ export type Database = {
           supplier_id: string
           unit: string
           updated_at: string
+          article_number: string | null
         }
         Insert: {
+          article_number?: string | null
           brand_id: string
           category_id: string
           created_at?: string
           current_stock?: number
           id: string
+          image_path?: string | null
           is_active?: boolean
           low_stock_threshold?: number
           name: string
@@ -1115,11 +1119,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          article_number?: string | null
           brand_id?: string
           category_id?: string
           created_at?: string
           current_stock?: number
           id?: string
+          image_path?: string | null
           is_active?: boolean
           low_stock_threshold?: number
           name?: string

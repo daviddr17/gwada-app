@@ -9,7 +9,7 @@ import {
 } from "@/lib/ops/delivery-health";
 import { loadDeliveryHealthSnapshot } from "@/lib/ops/load-delivery-health";
 import {
-  ALERT_COOLDOWN_MS,
+  alertRepeatCooldownMs,
   encodeAlertFingerprint,
   opsAlertSubject,
   parseAlertFingerprintState,
@@ -49,10 +49,11 @@ export async function evaluateWhatsappSloAlerts(
       : null;
 
   const escalation = parseAlertFingerprintState(lastFingerprint, fingerprint);
+  const cooldownMs = alertRepeatCooldownMs(fingerprint);
   if (
     escalation.sameIssue &&
     Number.isFinite(lastSentAt) &&
-    Date.now() - lastSentAt < ALERT_COOLDOWN_MS
+    Date.now() - lastSentAt < cooldownMs
   ) {
     return { alerted: false, fingerprint, skipped: "cooldown" };
   }

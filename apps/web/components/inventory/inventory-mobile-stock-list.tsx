@@ -8,6 +8,7 @@ import {
   IngredientInactiveBadge,
   ingredientInactiveRowClassName,
 } from "@/components/inventory/ingredient-inactive-badge";
+import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
 import type { AddPurchaseLineParams } from "@/lib/hooks/use-purchase-orders-storage";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
@@ -368,16 +369,23 @@ export function InventoryMobileStockList({
             <div className="mb-3 flex items-start justify-between gap-3">
               <button
                 type="button"
-                className="min-w-0 flex-1 rounded-xl text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
+                className="flex min-w-0 flex-1 items-start gap-2 rounded-xl text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
                 onClick={() => onEditIngredient(row)}
                 aria-label={`${row.name} bearbeiten`}
               >
+                <IngredientThumb imagePath={row.imagePath} className="mt-0.5" />
+                <span className="min-w-0">
                 <p className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-base font-semibold leading-snug">
                     {row.name}
                   </span>
                   {inactive ? <IngredientInactiveBadge /> : null}
                 </p>
+                {row.articleNumber?.trim() ? (
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    Art.-Nr. {row.articleNumber.trim()}
+                  </p>
+                ) : null}
                 {meta ? (
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {meta}
@@ -391,6 +399,7 @@ export function InventoryMobileStockList({
                 <p className="mt-1 text-xs text-muted-foreground">
                   Tippen zum Bearbeiten
                 </p>
+                </span>
               </button>
               <div className="flex shrink-0 items-center gap-0.5">
                 <Button
@@ -532,13 +541,21 @@ export function InventoryCompactStockList(props: InventoryMobileStockListProps) 
             >
               <button
                 type="button"
-                className="min-w-0 rounded-lg text-left text-sm font-medium leading-snug text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
+                className="flex min-w-0 items-center gap-2 rounded-lg text-left text-sm font-medium leading-snug text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
                 onClick={() => onEditIngredient(row)}
                 aria-label={`${row.name} bearbeiten`}
               >
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="break-words">{row.name}</span>
-                  {inactive ? <IngredientInactiveBadge /> : null}
+                <IngredientThumb imagePath={row.imagePath} className="size-8" />
+                <span className="min-w-0">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="break-words">{row.name}</span>
+                    {inactive ? <IngredientInactiveBadge /> : null}
+                  </span>
+                  {row.articleNumber?.trim() ? (
+                    <span className="block truncate text-[11px] font-normal text-muted-foreground">
+                      {row.articleNumber.trim()}
+                    </span>
+                  ) : null}
                 </span>
               </button>
               <InventoryMobileStockInput

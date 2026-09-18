@@ -6,6 +6,7 @@ import {
   PurchaseOrderLineDeliveryControls,
   type LineDeliveryCommit,
 } from "@/components/inventory/purchase-order-line-delivery-controls";
+import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
 import { resolveLineDelivery } from "@/lib/inventory/purchase-order-line-delivery";
 import { purchaseOrderAllowsDeliveryActions } from "@/lib/inventory/purchase-order-status";
 import type { Ingredient } from "@/lib/types/inventory";
@@ -141,6 +142,9 @@ export function PurchaseOrderMobileLinesList({
         const ingRow = ingredients.find((i) => i.id === line.ingredientId);
         const resolved = resolveLineDelivery(line);
         const metaParts = [
+          ingRow?.articleNumber?.trim()
+            ? `Art.-Nr. ${ingRow.articleNumber.trim()}`
+            : null,
           line.brandLabel?.trim() || null,
           ingRow != null ? `Bestand ${ingRow.currentStock}` : null,
         ].filter(Boolean);
@@ -156,6 +160,10 @@ export function PurchaseOrderMobileLinesList({
             )}
           >
             <div className="flex items-start gap-2">
+              <IngredientThumb
+                imagePath={ingRow?.imagePath}
+                className="mt-0.5 size-8"
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold leading-snug">
                   {line.ingredientName}

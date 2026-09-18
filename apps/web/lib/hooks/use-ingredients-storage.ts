@@ -247,6 +247,19 @@ function normalizeIngredient(raw: Record<string, unknown>): Ingredient | null {
     if (Number.isFinite(p) && p >= 0) purchaseUnitPrice = p;
   }
 
+  const articleNumber =
+    typeof raw.articleNumber === "string"
+      ? raw.articleNumber.trim() || null
+      : raw.articleNumber === null
+        ? null
+        : undefined;
+  const imagePath =
+    typeof raw.imagePath === "string"
+      ? raw.imagePath.trim() || null
+      : raw.imagePath === null
+        ? null
+        : undefined;
+
   return {
     id: raw.id,
     name: raw.name,
@@ -254,6 +267,8 @@ function normalizeIngredient(raw: Record<string, unknown>): Ingredient | null {
     currentStock: raw.currentStock,
     lowStockThreshold,
     purchaseUnitPrice,
+    ...(articleNumber !== undefined ? { articleNumber } : {}),
+    ...(imagePath !== undefined ? { imagePath } : {}),
     lastPriceChangeAt:
       typeof raw.lastPriceChangeAt === "string" ? raw.lastPriceChangeAt : null,
     supplierId: raw.supplierId,

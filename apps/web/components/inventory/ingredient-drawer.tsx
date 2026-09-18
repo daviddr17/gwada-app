@@ -22,7 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
+import { uploadIngredientImage } from "@/lib/inventory/ingredient-image";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { Switch } from "@/components/ui/switch";
 import {
   isIosTouchDevice,
@@ -76,10 +80,16 @@ export function IngredientDrawer({
   units,
 }: IngredientDrawerProps) {
   const mode = initial ? "edit" : "create";
+  const { restaurantId } = useWorkspaceRestaurantUuid();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
   const [iosTouch, setIosTouch] = useState(false);
   const [name, setName] = useState("");
+  const [articleNumber, setArticleNumber] = useState("");
+  const [imagePath, setImagePath] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [unit, setUnit] = useState<IngredientStockUnit>("g");
   const [currentStock, setCurrentStock] = useState("0");
   const [lowStockThreshold, setLowStockThreshold] = useState("0");
@@ -98,6 +108,13 @@ export function IngredientDrawer({
   useDrawerFormSeed(open, initial?.id ?? "__create__", () => {
     if (initial) {
       setName(initial.name);
+      setArticleNumber(initial.articleNumber ?? "");
+      setImagePath(initial.imagePath ?? null);
+      setPendingFile(null);
+      setPreviewUrl((current) => {
+        if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+        return null;
+      });
       setUnit(initial.unit || firstActiveId(units) || "g");
       setCurrentStock(String(initial.currentStock ?? 0));
       setLowStockThreshold(String(initial.lowStockThreshold ?? 0));
@@ -116,6 +133,13 @@ export function IngredientDrawer({
       return;
     }
     setName("");
+    setArticleNumber("");
+    setImagePath(null);
+    setPendingFile(null);
+    setPreviewUrl((current) => {
+      if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+      return null;
+    });
     setUnit(firstActiveId(units) || "g");
     setCurrentStock("0");
     setLowStockThreshold("0");
@@ -206,41 +230,43 @@ export function IngredientDrawer({
     void (async () => {
       setSaving(true);
       try {
+        let nextImagePath = imagePath;
+        if (pendingFile) {
+          if (!restaurantId) {
+            toast.error("Restaurant ist noch nicht bereit.");
+            return;
+          }
+          const uploaded = await uploadIngredientImage(restaurantId, pendingFile);
+          if ("error" in uploaded) {
+            toast.error(uploaded.error);
+            return;
+          }
+          nextImagePath = uploaded.path;
+        }
+        const article = articleNumber.trim() || null;
+        const shared = {
+          name: trimmed,
+          articleNumber: article,
+          imagePath: nextImagePath,
+          unit,
+          currentStock: stock,
+          lowStockThreshold: threshold,
+          purchaseUnitPrice: parsedPrice,
+          supplierId: supplierId || firstActiveId(suppliers),
+          categoryId: categoryId || firstActiveId(ingredientCategories),
+          productionSiteId:
+            productionSiteId || firstActiveId(productionSites),
+          brandId: brandId || firstActiveId(brands),
+          active,
+        };
         if (mode === "edit" && initial && onSave) {
-          const ok = await Promise.resolve(
-            onSave(initial.id, {
-              name: trimmed,
-              unit,
-              currentStock: stock,
-              lowStockThreshold: threshold,
-              purchaseUnitPrice: parsedPrice,
-              supplierId: supplierId || firstActiveId(suppliers),
-              categoryId: categoryId || firstActiveId(ingredientCategories),
-              productionSiteId:
-                productionSiteId || firstActiveId(productionSites),
-              brandId: brandId || firstActiveId(brands),
-              active,
-            }),
-          );
+          const ok = await Promise.resolve(onSave(initial.id, shared));
           if (ok) onOpenChange(false);
           return;
         }
         if (!onCreate) return;
         onOpenChange(false);
-        const ok = await Promise.resolve(
-          onCreate({
-            name: trimmed,
-            unit,
-            currentStock: stock,
-            lowStockThreshold: threshold,
-            purchaseUnitPrice: parsedPrice,
-            supplierId: supplierId || firstActiveId(suppliers),
-            categoryId: categoryId || firstActiveId(ingredientCategories),
-            productionSiteId: productionSiteId || firstActiveId(productionSites),
-            brandId: brandId || firstActiveId(brands),
-            active,
-          }),
-        );
+        const ok = await Promise.resolve(onCreate(shared));
         if (!ok) toast.error("Zutat konnte nicht angelegt werden.");
       } finally {
         setSaving(false);
@@ -284,6 +310,81 @@ export function IngredientDrawer({
                   autoFocus={!iosTouch}
                   enterKeyHint="done"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ing-article">Artikelnummer</Label>
+                <Input
+                  id="ing-article"
+                  value={articleNumber}
+                  onChange={(e) => setArticleNumber(e.target.value)}
+                  placeholder="z. B. 4711-12"
+                  className="h-12 rounded-xl"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ing-image">Bild</Label>
+                <div className="flex items-center gap-3">
+                  {previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- lokale Blob-Vorschau
+                    <img
+                      src={previewUrl}
+                      alt=""
+                      className="size-14 shrink-0 rounded-xl border border-border/50 object-cover"
+                    />
+                  ) : (
+                    <IngredientThumb
+                      imagePath={imagePath}
+                      className="size-14 rounded-xl"
+                    />
+                  )}
+                  <div className="flex min-w-0 flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      {imagePath || pendingFile ? "Bild ersetzen" : "Bild wählen"}
+                    </Button>
+                    {imagePath || pendingFile ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="rounded-xl"
+                        onClick={() => {
+                          setPendingFile(null);
+                          setImagePath(null);
+                          setPreviewUrl((current) => {
+                            if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+                            return null;
+                          });
+                          if (fileRef.current) fileRef.current.value = "";
+                        }}
+                      >
+                        Entfernen
+                      </Button>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={fileRef}
+                    id="ing-image"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setPendingFile(file);
+                      setPreviewUrl((current) => {
+                        if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+                        return file ? URL.createObjectURL(file) : null;
+                      });
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG oder WebP, maximal 5 MB.
+                </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">

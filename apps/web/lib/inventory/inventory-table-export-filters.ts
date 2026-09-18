@@ -57,8 +57,10 @@ export function filterIngredientsForTableExport(
 
   const q = options?.search?.trim();
   if (q && options?.menuItems) {
-    rows = rows.filter((r) =>
-      ingredientRowMatchesDishSearch(r.id, r.name, q, options.menuItems!),
+    rows = rows.filter(
+      (r) =>
+        ingredientRowMatchesDishSearch(r.id, r.name, q, options.menuItems!) ||
+        (r.articleNumber?.toLowerCase().includes(q.toLowerCase()) ?? false),
     );
   }
 

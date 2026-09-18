@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
 import { toast } from "sonner";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
@@ -257,6 +258,7 @@ const KIND_UI: Record<
 
 type SortKey =
   | "name"
+  | "articleNumber"
   | "unit"
   | "currentStock"
   | "lowStockThreshold"
@@ -839,8 +841,11 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
 
     if (search.trim()) {
       const q = search.trim();
-      rows = rows.filter((r) =>
-        ingredientRowMatchesDishSearch(r.id, r.name, q, menuItems),
+      const qLower = q.toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          ingredientRowMatchesDishSearch(r.id, r.name, q, menuItems) ||
+          (r.articleNumber?.toLowerCase().includes(qLower) ?? false),
       );
     }
     if (filterStatus === "active") {
@@ -868,6 +873,11 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
       switch (sortKey) {
         case "name":
           return a.name.localeCompare(b.name, "de") * dir;
+        case "articleNumber":
+          return (a.articleNumber ?? "").localeCompare(
+            b.articleNumber ?? "",
+            "de",
+          ) * dir;
         case "unit":
           return (
             nameById(units.items, a.unit).localeCompare(
@@ -1081,7 +1091,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Zutaten suchen…"
+              placeholder="Name oder Artikelnummer"
               className={moduleSearchInputClassName}
               aria-label="Zutaten suchen"
             />
@@ -1292,7 +1302,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
           />
         )}
       >
-        <table className="w-full min-w-[1340px] text-sm">
+        <table className="w-full min-w-[1480px] text-sm">
           <thead>
             <tr className={moduleDataTableHeadRowSortableClassName}>
               <ModuleTableSortHeader
@@ -1302,7 +1312,16 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
                 dir={sortDir}
                 onSort={toggleSort}
                 stickyIdentityColumn
-                className="min-w-[10rem] px-2 py-2"
+                className="min-w-[12rem] px-2 py-2"
+              />
+              <ModuleTableSortHeader
+                label="Art.-Nr."
+                sortKey="articleNumber"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="min-w-[7rem] px-2 py-2"
+                ariaLabel="Artikelnummer sortieren"
               />
               <ModuleTableSortHeader
                 label="Bestand"
@@ -1390,7 +1409,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
             {filteredSorted.length === 0 ? (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   className="px-4 py-10 text-center text-muted-foreground"
                 >
                   Keine Zutaten für die aktuelle Suche oder Filter.
@@ -1418,7 +1437,8 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
                     tone="muted-hover-60"
                     className="px-2 py-1.5 align-middle"
                   >
-                    <div className="flex min-w-0 items-center gap-1.5">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <IngredientThumb imagePath={row.imagePath} />
                       <input
                         value={row.name}
                         onChange={(e) =>
@@ -1429,6 +1449,9 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
                       {inactive ? <IngredientInactiveBadge /> : null}
                     </div>
                   </ModuleTableStickyBodyCell>
+                  <td className="px-2 py-1.5 align-middle text-muted-foreground">
+                    {row.articleNumber?.trim() || "—"}
+                  </td>
                   <td className="px-2 py-1.5 align-middle">
                     <InventoryStockInputCell
                       ingredientId={row.id}

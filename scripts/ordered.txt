@@ -1,0 +1,9 @@
+Hafengaststätte Zur Schlagd: Bestellung aufgegeben — Metro
+
+Du hast eine neue Benachrichtigung in gwada.
+
+Positionen als Tabelle in der HTML-Mail.
+
+https://gwada.app/dashboard/inventory/bestellung
+
+Diese Nachricht wurde von SENDER_NAME_TOKEN gesendet.

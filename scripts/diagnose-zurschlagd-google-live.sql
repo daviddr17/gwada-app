@@ -29,3 +29,18 @@ select
   pi.updated_at
 from public.platform_integrations pi
 where pi.key = 'google_business';
+
+select platform, synced_at, last_error, item_count
+from public.restaurant_reviews_platform_sync
+where restaurant_id = 'fcc50bb3-130d-476b-94dc-3c7392b773a8'
+order by platform;
+
+select platform, synced_at, last_error, item_count
+from public.restaurant_gallery_platform_sync
+where restaurant_id = 'fcc50bb3-130d-476b-94dc-3c7392b773a8'
+order by platform;
+
+select platform, synced_at, last_error, item_count
+from public.restaurant_news_platform_sync
+where restaurant_id = 'fcc50bb3-130d-476b-94dc-3c7392b773a8'
+order by platform;

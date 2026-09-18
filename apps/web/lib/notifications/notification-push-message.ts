@@ -11,6 +11,10 @@ import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezon
 import { GWADA_PRODUCTION_ORIGIN } from "@/lib/constants/gwada-domains";
 import { getPublicSiteUrl } from "@/lib/public-env";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import {
+  formatPoStatusPushDetails,
+  parsePoStatusLines,
+} from "@/lib/notifications/notification-po-status-copy";
 
 function absoluteAppUrl(path: string): string {
   const base =
@@ -384,6 +388,27 @@ export function buildNotificationPushText(
           deliveryDate ? `Lieferdatum: ${deliveryDate}` : null,
           "Bitte Lieferung prüfen und Bestellung abschließen.",
         ]),
+      });
+    }
+    case "inventory_po_ordered":
+    case "inventory_po_closed": {
+      const supplier = pickString(p.supplierName) ?? "Lieferant";
+      const ordered = event.module === "inventory_po_ordered";
+      const headline = ordered
+        ? "Bestellung aufgegeben"
+        : "Bestellung abgeschlossen";
+      return buildPushMessage({
+        prefix,
+        headline,
+        subject: `${prefix}${headline} — ${supplier}`,
+        href,
+        details: formatPoStatusPushDetails({
+          module: event.module,
+          supplierName: supplier,
+          deliveryDate: p.deliveryDate,
+          staffName: pickString(p.staffName),
+          lines: parsePoStatusLines(p.lines),
+        }),
       });
     }
     case "inventory_po_activity":

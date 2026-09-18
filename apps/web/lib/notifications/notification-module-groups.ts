@@ -56,7 +56,14 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
   {
     id: "inventory",
     title: "Bestand",
-    moduleIds: ["inventory_low_stock", "inventory_po_delivery_due"],
+    description:
+      "Niedrigbestand, fällige Lieferungen, aufgegebene und abgeschlossene Bestellungen.",
+    moduleIds: [
+      "inventory_low_stock",
+      "inventory_po_delivery_due",
+      "inventory_po_ordered",
+      "inventory_po_closed",
+    ],
   },
   {
     id: "accounting",

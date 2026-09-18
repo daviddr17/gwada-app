@@ -205,6 +205,14 @@ export function formatNotificationPayloadSummary(
     return typeof p.supplierName === "string" ? p.supplierName : "Lieferung";
   }
 
+  if (module === "inventory_po_ordered" || module === "inventory_po_closed") {
+    const supplier =
+      typeof p.supplierName === "string" ? p.supplierName : "Lieferant";
+    const count =
+      typeof p.lineCount === "number" ? ` · ${p.lineCount} Positionen` : "";
+    return `${supplier}${count}`;
+  }
+
   if (module === "inventory_po_activity") {
     const name =
       typeof p.ingredientName === "string" ? p.ingredientName : "Bestellung";

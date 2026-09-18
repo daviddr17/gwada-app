@@ -1,0 +1,57 @@
+name: Send zurschlagd PO sample mails
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [send-zurschlagd-po-sample-mails]
+
+concurrency:
+  group: send-zurschlagd-po-sample-mails
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Render transactional sample mails
+        run: |
+          node --experimental-strip-types --import ./scripts/register-web-alias.mjs \
+            scripts/render-po-sample-mails.mjs /tmp/po-mails
+
+      - name: Setup SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
+
+      - name: Diagnose on-call and send sample mails
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            scripts/send-zurschlagd-po-sample-mails.py \
+            scripts/diagnose-oncall-live.sql \
+            /tmp/po-mails/ordered.html /tmp/po-mails/ordered.txt \
+            /tmp/po-mails/closed.html /tmp/po-mails/closed.txt \
+            "root@${LIVE_VPS_HOST}:/tmp/"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cid=$(docker ps --format '{{.Names}}' | grep supabase-db | head -1)
+          echo "db_container_found=$([ -n "$cid" ] && echo yes || echo no)"
+          docker exec -i "$cid" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < /tmp/diagnose-oncall-live.sql || echo "diagnose_failed"
+          python3 /tmp/send-zurschlagd-po-sample-mails.py /tmp
+          rm -f /tmp/send-zurschlagd-po-sample-mails.py /tmp/diagnose-oncall-live.sql \
+            /tmp/ordered.html /tmp/ordered.txt /tmp/closed.html /tmp/closed.txt
+          REMOTE

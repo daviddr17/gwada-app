@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Camera, Package } from "lucide-react";
 import { toast } from "sonner";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
   DrawerDescription,
-  DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
@@ -22,10 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
-import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
-import { uploadIngredientImage } from "@/lib/inventory/ingredient-image";
+import { ingredientImagePublicUrl, uploadIngredientImage } from "@/lib/inventory/ingredient-image";
+import {
+  profileAvatarFallbackPlateClassName,
+  profileAvatarHeaderFrameClassName,
+  profileAvatarImageClassName,
+} from "@/lib/ui/profile-avatar-image";
+import { cn } from "@/lib/utils";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -65,6 +69,15 @@ type IngredientDrawerProps = {
 function firstActiveId(list: InventoryTaxonomyDefinition[]): string {
   const x = list.find((i) => i.active !== false);
   return x?.id ?? list[0]?.id ?? "";
+}
+
+function ingredientInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0] ?? "";
+  if (!first) return "";
+  if (parts.length === 1) return first.slice(0, 2).toLocaleUpperCase("de-DE");
+  const second = parts[1] ?? "";
+  return `${first.slice(0, 1)}${second.slice(0, 1)}`.toLocaleUpperCase("de-DE");
 }
 
 export function IngredientDrawer({
@@ -200,6 +213,20 @@ export function IngredientDrawer({
     return u?.name ?? unit;
   }, [unit, units]);
 
+  const displayImageUrl = previewUrl ?? ingredientImagePublicUrl(imagePath);
+  const initials = ingredientInitials(name);
+  const titleName = name.trim();
+
+  const clearImage = () => {
+    setPendingFile(null);
+    setImagePath(null);
+    setPreviewUrl((current) => {
+      if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+      return null;
+    });
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
@@ -282,22 +309,85 @@ export function IngredientDrawer({
       repositionInputs={repositionInputs}
     >
       <DrawerContent className={drawerContentClassName("formMd")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            {mode === "edit" ? "Zutat bearbeiten" : "Neue Zutat"}
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            {mode === "edit"
-              ? "Name, Bestand und Zuordnungen anpassen."
-              : "Bestand und Zuordnungen – später mit Lagerbuchung verknüpfbar."}
-          </DrawerDescription>
-        </DrawerHeader>
-
         <form
           onSubmit={handleSubmit}
           className="flex min-h-0 flex-1 flex-col"
         >
           <div ref={scrollRef} className={drawerScrollAreaClassName(6)}>
+            <DrawerFormSection className="flex flex-col items-center pt-1 pb-5 text-center">
+              <input
+                ref={fileRef}
+                id="ing-image"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setPendingFile(file);
+                  setPreviewUrl((current) => {
+                    if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+                    return file ? URL.createObjectURL(file) : null;
+                  });
+                }}
+              />
+              <button
+                type="button"
+                className={cn(
+                  profileAvatarHeaderFrameClassName,
+                  "group relative mx-auto size-24",
+                  !displayImageUrl && profileAvatarFallbackPlateClassName,
+                )}
+                onClick={() => fileRef.current?.click()}
+                aria-label={displayImageUrl ? "Bild ändern" : "Bild hochladen"}
+              >
+                {displayImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- Blob-Vorschau oder Storage-URL
+                  <img
+                    src={displayImageUrl}
+                    alt=""
+                    className={profileAvatarImageClassName}
+                  />
+                ) : initials ? (
+                  <span className="text-2xl font-semibold text-muted-foreground">
+                    {initials}
+                  </span>
+                ) : (
+                  <Package className="size-8 text-muted-foreground" aria-hidden />
+                )}
+                <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                  <Camera className="size-6 text-white" aria-hidden />
+                </span>
+              </button>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Bild tippen zum {displayImageUrl ? "Ändern" : "Hochladen"}
+                  {displayImageUrl ? "" : " · JPG, PNG oder WebP, max. 5 MB"}
+                </p>
+                {displayImageUrl ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                    onClick={clearImage}
+                  >
+                    Bild entfernen
+                  </button>
+                ) : null}
+                <DrawerTitle className="pt-1 text-xl font-semibold tracking-tight">
+                  {titleName || (mode === "edit" ? "Zutat" : "Neue Zutat")}
+                </DrawerTitle>
+                {articleNumber.trim() ? (
+                  <p className="text-sm text-muted-foreground">
+                    Art.-Nr. {articleNumber.trim()}
+                  </p>
+                ) : null}
+                <DrawerDescription className="sr-only">
+                  {mode === "edit"
+                    ? "Bild, Name, Bestand und Zuordnungen anpassen."
+                    : "Bild, Bestand und Zuordnungen erfassen."}
+                </DrawerDescription>
+              </div>
+            </DrawerFormSection>
+
             <DrawerFormSection title="Stammdaten">
               <div className="space-y-2">
                 <Label htmlFor="ing-name">Name</Label>
@@ -322,70 +412,9 @@ export function IngredientDrawer({
                   autoComplete="off"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="ing-image">Bild</Label>
-                <div className="flex items-center gap-3">
-                  {previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- lokale Blob-Vorschau
-                    <img
-                      src={previewUrl}
-                      alt=""
-                      className="size-14 shrink-0 rounded-xl border border-border/50 object-cover"
-                    />
-                  ) : (
-                    <IngredientThumb
-                      imagePath={imagePath}
-                      className="size-14 rounded-xl"
-                    />
-                  )}
-                  <div className="flex min-w-0 flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-xl"
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      {imagePath || pendingFile ? "Bild ersetzen" : "Bild wählen"}
-                    </Button>
-                    {imagePath || pendingFile ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="rounded-xl"
-                        onClick={() => {
-                          setPendingFile(null);
-                          setImagePath(null);
-                          setPreviewUrl((current) => {
-                            if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
-                            return null;
-                          });
-                          if (fileRef.current) fileRef.current.value = "";
-                        }}
-                      >
-                        Entfernen
-                      </Button>
-                    ) : null}
-                  </div>
-                  <input
-                    ref={fileRef}
-                    id="ing-image"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null;
-                      setPendingFile(file);
-                      setPreviewUrl((current) => {
-                        if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
-                        return file ? URL.createObjectURL(file) : null;
-                      });
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  JPG, PNG oder WebP, maximal 5 MB.
-                </p>
-              </div>
+            </DrawerFormSection>
+
+            <DrawerFormSection title="Bestand">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="ing-unit">Einheit</Label>

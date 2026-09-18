@@ -1,5 +1,24 @@
-/** Wiederholung, solange ungesund — nicht 30 Min Stille. */
+/** Akut (Cron-Lag, hängender Versand): kurze Wiederholung. */
 export const ALERT_COOLDOWN_MS = 10 * 60 * 1000;
+
+/**
+ * Unverändertes 24h-SLO (gleiche späte Anzahl, kein Cron-Lag, nichts hängend).
+ * Die Quote rollt über 24 Stunden — nicht alle 10 Minuten neu mailen.
+ */
+export const ALERT_SLO_UNCHANGED_REPEAT_MS = 24 * 60 * 60 * 1000;
+
+const SLO_ONLY_FINGERPRINT = /^slo\|late:\d+\|stale:\|hung:$/;
+
+/** Nur die 24h-Quote, ohne akuten Zustellausfall. */
+export function isSloOnlyFingerprint(fingerprint: string): boolean {
+  return SLO_ONLY_FINGERPRINT.test(fingerprint);
+}
+
+export function alertRepeatCooldownMs(fingerprint: string): number {
+  return isSloOnlyFingerprint(fingerprint)
+    ? ALERT_SLO_UNCHANGED_REPEAT_MS
+    : ALERT_COOLDOWN_MS;
+}
 
 const COUNT_SUFFIX = /^(.*)::n=(\d+)$/;
 

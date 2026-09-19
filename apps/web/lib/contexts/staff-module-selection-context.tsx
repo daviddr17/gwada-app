@@ -182,6 +182,8 @@ export function StaffModuleSelectionProvider({
     if (!needsStaffPicker || selectedStaffIds.length === 0 || staffList.length === 0) {
       return;
     }
+    // Arbeitszeiten darf ehemalige wählen. Andere Module bleiben bei Aktiven.
+    if (pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten")) return;
     const activeIds = selectedStaffIds.filter((id) => {
       const row = staffList.find((s) => s.id === id);
       return row?.is_active !== false;
@@ -195,6 +197,7 @@ export function StaffModuleSelectionProvider({
     selectedStaffIdsKey,
     staffList,
     setSelectedStaffIds,
+    pathname,
   ]);
 
   const value = React.useMemo(

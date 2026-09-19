@@ -76,23 +76,27 @@ export function StaffModuleStickyBar() {
     return pathname === "/dashboard/mitarbeiter/arbeitszeiten";
   }, [pathname]);
 
+  const includeInactiveStaff = pathname.startsWith(
+    "/dashboard/mitarbeiter/arbeitszeiten",
+  );
+
   const singleOptions = useMemo(
     () =>
       buildStaffModulePickerOptions(staffList, {
         allowAll: false,
-        activeOnly: true,
+        activeOnly: !includeInactiveStaff,
         includeStaffIds: [selectedStaffId],
       }),
-    [staffList, selectedStaffId],
+    [includeInactiveStaff, staffList, selectedStaffId],
   );
 
   const multiOptions = useMemo(
     () =>
       buildStaffSearchableSelectOptions(staffList, {
-        activeOnly: true,
+        activeOnly: !includeInactiveStaff,
         includeStaffIds: selectedStaffIds,
       }),
-    [staffList, selectedStaffIds],
+    [includeInactiveStaff, staffList, selectedStaffIds],
   );
 
   const handleStaffSaved = useCallback(

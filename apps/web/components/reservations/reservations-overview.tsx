@@ -28,7 +28,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -1332,16 +1331,21 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
               key={key}
               size="sm"
               className={cn(
-                /* overflow-visible: sticky day headers need a non-clipping ancestor */
-                "overflow-visible gap-2 border-border/50 py-2 shadow-card transition-colors",
+                /* overflow-visible: sticky day headers need a non-clipping ancestor.
+                   py-0: Rundung sitzt an Kopf und Liste, nicht an einem Außen-Padding. */
+                "gap-0 overflow-visible border-border/50 py-0 shadow-card transition-colors data-[size=sm]:gap-0 data-[size=sm]:py-0",
                 isToday && "ring-1 ring-green-500/25 dark:ring-green-400/20",
               )}
             >
               <CardHeader
                 className={cn(
-                  /* self-start w-full: Safari/iOS sticky inside flex column cards */
-                  "sticky top-0 z-10 w-full self-start gap-1.5 border-b border-border/40 bg-card pb-1 pt-2",
-                  "supports-[backdrop-filter]:bg-card/95 supports-[backdrop-filter]:backdrop-blur",
+                  /* self-start w-full: Safari/iOS sticky inside flex column cards.
+                     Solider Hintergrund + overflow-hidden: iPad clippt die Ecken,
+                     backdrop-blur zeichnet dort sonst ein eckiges Rechteck. */
+                  "sticky top-0 z-10 w-full self-start gap-1.5 overflow-hidden bg-card pt-3 pb-2.5",
+                  list.length > 0
+                    ? "rounded-t-xl border-b border-border/40"
+                    : "rounded-xl",
                 )}
               >
                 {isToday ? (
@@ -1426,11 +1430,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                 </div>
               </CardHeader>
               {list.length > 0 ? (
-                <>
-                  <Separator className="mx-6" />
+                <div className="isolate overflow-hidden rounded-b-xl bg-card">
                   <CardContent
                     className={cn(
-                      "py-2",
+                      "pt-2 pb-3",
                       overviewViewMode === "compact"
                         ? "space-y-0.5"
                         : "space-y-1.5",
@@ -1684,7 +1687,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       );
                     })}
                   </CardContent>
-                </>
+                </div>
               ) : null}
             </Card>
           );

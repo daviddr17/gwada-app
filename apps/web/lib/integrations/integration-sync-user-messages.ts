@@ -24,7 +24,11 @@ export function integrationSyncErrorMessage(code: string): string {
     case "no_open_days":
       return "Keine geöffneten Wochentage zum Übertragen.";
     case "menu_empty":
-      return "Keine aktiven Gerichte auf der Speisekarte.";
+      return "Keine aktiven Gerichte in aktiven Kategorien.";
+    case "google_food_menu_unsupported":
+      return "Dieser Google-Standort kann keine Speisekarte führen.";
+    case "google_token_missing":
+      return "Google-Zugang abgelaufen — unter Integrationen erneut verbinden.";
     case "kitchen_hours_disabled":
       return "Zuerst eigene Küchenzeiten aktivieren und speichern.";
     case "kitchen_hours_empty":
@@ -34,6 +38,9 @@ export function integrationSyncErrorMessage(code: string): string {
     case "facebook_timeout":
       return "Facebook hat zu lange nicht geantwortet — bitte erneut versuchen.";
     default:
+      if (code.startsWith("google_")) {
+        return `Google: ${code.replace(/^google_/, "")}`;
+      }
       if (
         code.includes("pages_manage_metadata") ||
         code.includes("(#200)") ||
@@ -44,7 +51,7 @@ export function integrationSyncErrorMessage(code: string): string {
       if (code.includes("must be an object") || code.includes("hours")) {
         return "Facebook hat das Öffnungszeiten-Format abgelehnt — bitte Zeiten prüfen (kein ungültiges Format).";
       }
-      if (code.startsWith("google_") || code.includes("Google")) {
+      if (code.includes("Google")) {
         return `Google: ${code.replace(/^google_/, "")}`;
       }
       if (code.startsWith("facebook_")) {

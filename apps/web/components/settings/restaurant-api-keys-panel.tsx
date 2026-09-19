@@ -24,6 +24,7 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import type { RestaurantApiKeyRow } from "@/lib/api/restaurant-api-keys-server";
 import {
+  defaultEnabledRestaurantApiModuleIds,
   RESTAURANT_API_MODULES,
   type RestaurantApiModuleId,
 } from "@/lib/api/restaurant-api-modules";
@@ -62,7 +63,7 @@ export function RestaurantApiKeysPanel() {
   const [name, setName] = useState("");
   const [domainsText, setDomainsText] = useState("");
   const [selectedModules, setSelectedModules] = useState<RestaurantApiModuleId[]>(
-    RESTAURANT_API_MODULES.map((m) => m.id),
+    defaultEnabledRestaurantApiModuleIds,
   );
 
   const [secretDialogOpen, setSecretDialogOpen] = useState(false);
@@ -120,7 +121,7 @@ export function RestaurantApiKeysPanel() {
   const resetCreateForm = () => {
     setName("");
     setDomainsText("");
-    setSelectedModules(RESTAURANT_API_MODULES.map((m) => m.id));
+    setSelectedModules(defaultEnabledRestaurantApiModuleIds());
   };
 
   const createKey = async () => {

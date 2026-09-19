@@ -677,6 +677,89 @@ export const API_READ_MODULE_GUIDES: Record<
       { label: "Rate Limits", href: "/docs/api/rate-limits" },
     ],
   },
+  purchase_orders: {
+    moduleId: "purchase_orders",
+    title: "Bestellungen",
+    description:
+      "Einkaufsbestellungen mit Positionen, Artikelnummer und Lieferstatus — für Lieferantenprogramme und andere Server.",
+    intro: [
+      "Liest die Bestellungen des Restaurants, das am API-Schlüssel hängt. Modul-ID im Schlüssel: purchase_orders. Das Modul ist beim Anlegen eines Schlüssels nicht vorausgewählt.",
+      "Anders als Speisekarte oder News muss das Restaurant dafür nicht veröffentlicht sein. Protokoll und Mitarbeiternamen sind nicht in der Antwort.",
+    ],
+    path: "purchase-orders",
+    methods: ["GET", "OPTIONS"],
+    cacheNote: "Cache-Control: private, no-store — Bestellungen werden nicht zwischengespeichert.",
+    sections: [
+      {
+        heading: "Endpunkt",
+        code: `curl -s "https://gwada.app/api/v1/purchase-orders?status=ordered" \\
+  -H "Authorization: Bearer gwada_sk_live_…" \\
+  -H "Accept: application/json"`,
+      },
+      {
+        heading: "Query",
+        table: {
+          headers: ["Parameter", "Bedeutung"],
+          rows: [
+            ["status", "Optional. open, ordered, closed — kommagetrennt. Ohne Filter: alle."],
+            ["supplierId", "Optional. Nur dieser Lieferant."],
+            ["id", "Optional. Genau eine Bestellung, sonst 404 not_found."],
+            ["limit", "1–100, Standard 50. Bei id ignoriert."],
+            ["offset", "Standard 0, höchstens 10000."],
+          ],
+        },
+      },
+      {
+        heading: "Antwort (Auszug)",
+        code: `{
+  "data": {
+    "orders": [
+      {
+        "id": "po-1",
+        "supplierId": "sup-1",
+        "supplierName": "Großmarkt",
+        "status": "ordered",
+        "createdAt": "2026-09-18T08:00:00.000Z",
+        "statusUpdatedAt": "2026-09-18T09:12:00.000Z",
+        "deliveryDate": "2026-09-19",
+        "lines": [
+          {
+            "id": "line-1",
+            "ingredientId": "ing-1",
+            "articleNumber": "4711",
+            "name": "Tomaten",
+            "brand": "Hof Müller",
+            "quantity": 5,
+            "unit": "kg",
+            "deliveryStatus": null,
+            "deliveredQuantity": null,
+            "deliveredAt": null,
+            "deliveryNote": null
+          }
+        ]
+      }
+    ],
+    "limit": 50,
+    "offset": 0,
+    "total": 1
+  }
+}`,
+      },
+      {
+        heading: "Hinweise",
+        items: [
+          "status ordered = an den Lieferanten gegeben, open = noch Entwurf, closed = abgeschlossen",
+          "deliveryStatus: delivered, not_delivered, partial oder null",
+          "Bestehende Schlüssel bekommen das Modul nicht von selbst — neuen Key anlegen und Bestellungen anhaken",
+          "Schreiben (Status oder Lieferung zurückmelden) gibt es hier nicht",
+        ],
+      },
+    ],
+    related: [
+      { label: "Authentifizierung", href: "/docs/api/authentication" },
+      { label: "Rate Limits", href: "/docs/api/rate-limits" },
+    ],
+  },
 };
 
 export function apiModuleGuideById(

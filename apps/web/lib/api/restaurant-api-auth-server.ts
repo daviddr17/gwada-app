@@ -94,6 +94,7 @@ export function handleRestaurantApiPreflight(
 export async function authenticateRestaurantApiKey(
   request: Request,
   module: RestaurantApiModuleId,
+  options?: { requirePublished?: boolean },
 ): Promise<
   | { ok: true; auth: AuthenticatedRestaurantApiKey }
   | AuthFailure
@@ -172,7 +173,7 @@ export async function authenticateRestaurantApiKey(
     return { ok: false, response: jsonError(404, "not_found") };
   }
 
-  if (!restaurant.is_published) {
+  if (options?.requirePublished !== false && !restaurant.is_published) {
     return { ok: false, response: jsonError(403, "restaurant_not_published") };
   }
 

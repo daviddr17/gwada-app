@@ -56,6 +56,7 @@ export const DOCS_NAV: DocsNavItem[] = [
       { title: "Events", href: "/docs/api/events" },
       { title: "Galerie", href: "/docs/api/gallery" },
       { title: "Öffnungszeiten", href: "/docs/api/opening-hours" },
+      { title: "Bestellungen", href: "/docs/api/purchase-orders" },
     ],
   },
 ];

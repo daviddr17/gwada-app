@@ -23,7 +23,9 @@ export default function DocsApiPage() {
         Schlüssel erzeugst du in der App unter{" "}
         <Link href={APP_ROUTES.settings.api}>Einstellungen → API</Link>. Jeder Schlüssel
         gehört zu genau einem Restaurant und kann pro Modul freigeschaltet werden. Das
-        Restaurant wird aus dem Key abgeleitet — kein Slug in der URL nötig.
+        Restaurant wird aus dem Key abgeleitet — kein Slug in der URL nötig. Bestellungen
+        sind zusätzlich lesbar, auch wenn das Restaurant nicht veröffentlicht ist — das
+        Modul muss am Schlüssel extra angehakt sein.
       </p>
 
       <DocsCallout variant="note" title="Antwortformat">

@@ -20,6 +20,10 @@ import {
   restaurantApiJsonResponse,
 } from "@/lib/api/restaurant-api-auth-server";
 import type { RestaurantApiModuleId } from "@/lib/api/restaurant-api-modules";
+import {
+  fetchPurchaseOrdersForApi,
+  parsePurchaseOrdersApiQuery,
+} from "@/lib/inventory/purchase-orders-api-server";
 
 const NO_CACHE =
   "private, no-cache, no-store, must-revalidate" as const;
@@ -31,7 +35,9 @@ export async function handleRestaurantApiV1Get(
   const preflightOnly = handleRestaurantApiPreflight(request);
   if (preflightOnly) return preflightOnly;
 
-  const authResult = await authenticateRestaurantApiKey(request, module);
+  const authResult = await authenticateRestaurantApiKey(request, module, {
+    requirePublished: module !== "purchase_orders",
+  });
   if (!authResult.ok) return authResult.response;
 
   const { auth } = authResult;
@@ -112,6 +118,18 @@ export async function handleRestaurantApiV1Get(
       );
     }
     return restaurantApiJsonResponse(request, result.data, auth);
+  }
+
+  if (module === "purchase_orders") {
+    const parsed = parsePurchaseOrdersApiQuery(new URL(request.url));
+    if (!parsed.ok) {
+      return Response.json({ error: parsed.error }, { status: 400 });
+    }
+    const result = await fetchPurchaseOrdersForApi(auth.restaurantId, parsed.query);
+    if (!result.ok) {
+      return Response.json({ error: result.error }, { status: result.status });
+    }
+    return restaurantApiJsonResponse(request, result.data, auth, NO_CACHE);
   }
 
   return Response.json({ error: "invalid_module" }, { status: 400 });

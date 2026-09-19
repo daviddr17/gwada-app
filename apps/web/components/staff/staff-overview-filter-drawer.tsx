@@ -16,7 +16,10 @@ import {
   DrawerFilterZone,
 } from "@/components/ui/drawer-filter-sheet";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
+import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
 import type {
+  RestaurantStaffContractRow,
+  RestaurantStaffRow,
   StaffEmploymentTypeDefinition,
   StaffPositionTagDefinition,
 } from "@/lib/types/staff";
@@ -73,19 +76,96 @@ type StaffOverviewFilterDrawerProps = {
   positionTags: StaffPositionTagDefinition[];
   roleOptions: { value: string; label: string }[];
   employmentTypes: StaffEmploymentTypeDefinition[];
+  /** Zurücksetzen. Übersicht: nur Aktive. Arbeitszeiten: alle Status. */
+  resetTo?: StaffOverviewFilterState;
 };
 
 export function countStaffOverviewActiveFilters(
   input: StaffOverviewFilterState,
+  baseline: StaffOverviewFilterState = STAFF_OVERVIEW_FILTER_DEFAULTS,
 ): number {
   let n = 0;
-  if (input.statusFilter !== "active") n += 1;
-  if (input.positionFilter !== "all") n += 1;
-  if (input.appFilter !== "all") n += 1;
-  if (input.presenceFilter !== "all") n += 1;
-  if (input.roleFilter !== "all") n += 1;
-  if (input.employmentFilter !== "all") n += 1;
+  if (input.statusFilter !== baseline.statusFilter) n += 1;
+  if (input.positionFilter !== baseline.positionFilter) n += 1;
+  if (input.appFilter !== baseline.appFilter) n += 1;
+  if (input.presenceFilter !== baseline.presenceFilter) n += 1;
+  if (input.roleFilter !== baseline.roleFilter) n += 1;
+  if (input.employmentFilter !== baseline.employmentFilter) n += 1;
   return n;
+}
+
+/** Dieselbe Auswahl wie in der Mitarbeiter-Übersicht, ohne die Textsuche. */
+export function applyStaffOverviewFilters(
+  rows: RestaurantStaffRow[],
+  filters: StaffOverviewFilterState,
+  workingIds: Set<string>,
+  breakIds: Set<string>,
+  contracts: RestaurantStaffContractRow[],
+  dayDate: string,
+  search = "",
+): RestaurantStaffRow[] {
+  let list = [...rows];
+
+  if (filters.statusFilter === "active") {
+    list = list.filter((r) => r.is_active);
+  } else if (filters.statusFilter === "inactive") {
+    list = list.filter((r) => !r.is_active);
+  }
+
+  if (filters.positionFilter === "__none__") {
+    list = list.filter((r) => !r.position_tag_id);
+  } else if (filters.positionFilter !== "all") {
+    list = list.filter((r) => r.position_tag_id === filters.positionFilter);
+  }
+
+  if (filters.appFilter === "linked") {
+    list = list.filter((r) => Boolean(r.profile_id));
+  } else if (filters.appFilter === "unlinked") {
+    list = list.filter((r) => !r.profile_id);
+  }
+
+  if (filters.presenceFilter === "working") {
+    list = list.filter((r) => workingIds.has(r.id));
+  } else if (filters.presenceFilter === "on_break") {
+    list = list.filter((r) => breakIds.has(r.id));
+  } else if (filters.presenceFilter === "off") {
+    list = list.filter((r) => !workingIds.has(r.id) && !breakIds.has(r.id));
+  }
+
+  if (filters.roleFilter === "__none__") {
+    list = list.filter((r) => !r.restaurant_position_id);
+  } else if (filters.roleFilter !== "all") {
+    list = list.filter((r) => r.restaurant_position_id === filters.roleFilter);
+  }
+
+  if (filters.employmentFilter !== "all") {
+    list = list.filter((r) => {
+      const contract = findStaffContractForDay(contracts, r.id, dayDate);
+      if (filters.employmentFilter === "__none__") {
+        return !contract?.employment_type_id;
+      }
+      return contract?.employment_type_id === filters.employmentFilter;
+    });
+  }
+
+  const q = search.trim().toLowerCase();
+  if (q) {
+    list = list.filter((r) => {
+      const hay = [
+        r.family_name,
+        r.given_name,
+        r.email ?? "",
+        r.phone ?? "",
+        r.position_tag?.name ?? "",
+        r.restaurant_position?.name ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  return list;
 }
 
 export function StaffOverviewFilterDrawer({
@@ -96,6 +176,7 @@ export function StaffOverviewFilterDrawer({
   positionTags,
   roleOptions,
   employmentTypes,
+  resetTo = STAFF_OVERVIEW_FILTER_DEFAULTS,
 }: StaffOverviewFilterDrawerProps) {
   const positionOptions = useMemo(
     () => [
@@ -120,7 +201,7 @@ export function StaffOverviewFilterDrawer({
   );
 
   const resetFilters = () => {
-    onFiltersChange(STAFF_OVERVIEW_FILTER_DEFAULTS);
+    onFiltersChange(resetTo);
     toast.success("Filter zurückgesetzt");
   };
 

@@ -205,27 +205,16 @@ export async function replaceOpeningHoursForRestaurant(
     return sessionOk;
   }
 
-  // Bestehende IDs merken → erst insert, dann alte löschen.
-  // So bleibt bei Insert-Fehler der alte Plan erhalten (kein leerer Kalender).
-  const { data: existingRows, error: loadErr } = await supabase
-    .from("opening_hours")
-    .select("id")
-    .eq("restaurant_id", restaurantId);
-  if (loadErr) {
-    console.warn("[gwada] opening_hours load", loadErr.message);
-    return { ok: false, error: loadErr.message };
-  }
-  const oldIds = (existingRows ?? [])
-    .map((row) => row.id as string)
-    .filter(Boolean);
+  // Atomar über RPC: DELETE + INSERT in einer Transaktion.
+  // Client-Insert vor Delete kollidiert mit Unique-Indexes, sobald schon Zeilen
+  // existieren. Bei Fehler in der Function bleibt der alte Plan erhalten.
+  const rows: Record<string, unknown>[] = [];
 
-  const inserts: Record<string, unknown>[] = [];
-
-  pushWeeklyInserts(inserts, restaurantId, "business", profile.weeklyHours);
+  pushWeeklyInserts(rows, restaurantId, "business", profile.weeklyHours);
 
   if (profile.kitchenHoursEnabled) {
     pushWeeklyInserts(
-      inserts,
+      rows,
       restaurantId,
       "kitchen",
       profile.kitchenWeeklyHours,
@@ -234,7 +223,7 @@ export async function replaceOpeningHoursForRestaurant(
 
   for (const ex of profile.dateExceptions) {
     if (ex.closed) {
-      inserts.push({
+      rows.push({
         restaurant_id: restaurantId,
         kind: "exception",
         weekday: null,
@@ -249,7 +238,7 @@ export async function replaceOpeningHoursForRestaurant(
     }
     const periods = exceptionOpenPeriods(ex);
     for (const period of periods) {
-      inserts.push({
+      rows.push({
         restaurant_id: restaurantId,
         kind: "exception",
         weekday: null,
@@ -263,24 +252,13 @@ export async function replaceOpeningHoursForRestaurant(
     }
   }
 
-  if (inserts.length > 0) {
-    const { error: insErr } = await supabase.from("opening_hours").insert(inserts);
-    if (insErr) {
-      console.warn("[gwada] opening_hours insert", insErr.message);
-      return { ok: false, error: insErr.message };
-    }
-  }
-
-  if (oldIds.length > 0) {
-    const { error: delErr } = await supabase
-      .from("opening_hours")
-      .delete()
-      .eq("restaurant_id", restaurantId)
-      .in("id", oldIds);
-    if (delErr) {
-      console.warn("[gwada] opening_hours delete-old", delErr.message);
-      return { ok: false, error: delErr.message };
-    }
+  const { error: rpcErr } = await supabase.rpc("replace_opening_hours", {
+    p_restaurant_id: restaurantId,
+    p_rows: rows,
+  });
+  if (rpcErr) {
+    console.warn("[gwada] replace_opening_hours", rpcErr.message);
+    return { ok: false, error: rpcErr.message };
   }
   return { ok: true };
 }

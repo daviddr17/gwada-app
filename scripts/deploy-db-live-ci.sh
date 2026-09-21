@@ -336,6 +336,7 @@ alter index if exists supabase_migrations.schema_migrations_pkey
   rename to schema_migrations_pkey_corrupt;
 alter table supabase_migrations.schema_migrations_rebuild rename to schema_migrations;
 alter table supabase_migrations.schema_migrations add primary key (version);
+alter table supabase_migrations.schema_migrations owner to postgres;
 grant select, insert, update, delete on supabase_migrations.schema_migrations to postgres;
 do $$
 declare r record;
@@ -366,6 +367,19 @@ if [[ "${break_history}" != "1" ]]; then
   echo "History ${BREAK_VERSION} ist für den CLI-User nicht sichtbar." >&2
   exit 1
 fi
+fi
+
+break_owner="$(admin_tac "select pg_get_userbyid(c.relowner) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'supabase_migrations' and c.relname = 'schema_migrations'")"
+echo "schema_migrations owner: ${break_owner}"
+if [[ -n "${break_owner}" && "${break_owner}" != "postgres" ]]; then
+  echo "Owner auf postgres setzen, damit spätere Migrationen die History-Tabelle ändern dürfen."
+  printf '%s\n' "alter table supabase_migrations.schema_migrations owner to postgres;" | admin_psql
+  break_owner="$(admin_tac "select pg_get_userbyid(c.relowner) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'supabase_migrations' and c.relname = 'schema_migrations'")"
+  echo "schema_migrations owner jetzt: ${break_owner}"
+fi
+if [[ "${break_owner}" != "postgres" ]]; then
+  echo "schema_migrations gehört nicht postgres." >&2
+  exit 1
 fi
 
 SUPABASE_CMD="supabase"

@@ -240,33 +240,41 @@ where n.oid = c.relnamespace
 echo "Check-Katalog angeglichen."
 REMOTE
 
-echo "Suche DDL-Hook und den unsichtbaren Constraint-Namen …"
+echo "Vergleiche kurzen Check unter altem Namen mit langem Check unter neuem Namen …"
 gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${DB_CONTAINER}" <<'REMOTE'
-set -euo pipefail
+set +e
 db="$1"
+echo "short + old name:"
 docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "
-select 'event_trigger ' || evtname || ' ' || evtevent || ' ' || evtfoid::regproc::text
-from pg_event_trigger
-union all
-select 'extension ' || extname from pg_extension
-union all
-select 'proc ' || n.nspname || '.' || p.proname
-from pg_proc p
-join pg_namespace n on n.oid = p.pronamespace
-where p.prosrc ilike '%notification_events_module_check%'
-union all
-select 'namehit ' || conrelid::regclass::text || ' ' || conname || ' ' || contype::text
-from pg_constraint
-where conname::text like '%module_check%';
+begin;
+alter table public.notification_events
+  add constraint notification_events_module_check
+  check (module in ('messages'));
+rollback;
 "
-echo "index pages with that name:"
+echo "short_old_exit=$?"
+echo "long + new name:"
 docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "
-create extension if not exists pageinspect;
-select blkno::text || ' off=' || itemoffset::text || ' ctid=' || ctid::text
-from generate_series(1, greatest(1, (pg_relation_size('pg_constraint_conrelid_contypid_conname_index'::regclass) / 8192)::int) - 1) as blkno
-cross join lateral bt_page_items('pg_constraint_conrelid_contypid_conname_index', blkno)
-where data::text like '%notification_events_module_check%';
+begin;
+alter table public.notification_events
+  add constraint gwada_probe_module_check
+  check (
+    module in (
+      'messages','reviews','changelog','reservations_pending','reservations_change_request',
+      'reservations_cancellation','reservations_activity','events_inquiry','staff_shift_start',
+      'staff_shift_end','inventory_low_stock','inventory_po_delivery_due','inventory_po_ordered',
+      'inventory_po_closed','inventory_po_activity','inventory_stock_activity','messages_follow_up',
+      'accounting_quotation','accounting_invoice','accounting_voucher','staff_todo_completed',
+      'staff_todo_deferred','personal_reminder','staff_messages','staff_contract_signed',
+      'staff_document_assigned','staff_display_time_request','staff_invite_accepted',
+      'staff_invite_declined','staff_display_clock_in','staff_display_clock_out',
+      'staff_display_break_start','staff_display_break_end','staff_permissions_granted',
+      'digest_daily_preview','digest_daily_review','digest_weekly_preview','digest_weekly_review'
+    )
+  );
+rollback;
 "
+echo "long_new_exit=$?"
 exit 1
 REMOTE
 

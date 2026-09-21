@@ -75,6 +75,12 @@ export function mergePlatformIntegrationConfig(
     const incKey =
       typeof incoming.api_key === "string" ? incoming.api_key : undefined;
     merged.api_key = mergeOpenaiApiKey(incKey, ex);
+    if (typeof incoming.provider === "string") {
+      merged.provider =
+        incoming.provider.trim() === "grok" ? "grok" : "openai";
+    } else {
+      merged.provider = ex.provider ?? "openai";
+    }
     if (typeof incoming.model === "string") {
       const model = incoming.model.trim();
       merged.model = model || ex.model;

@@ -10,13 +10,28 @@ import { SecretInput } from "@/components/ui/secret-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { DEFAULT_OPENAI_ASSISTANT_MODEL } from "@/lib/integrations/platform-openai-config";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DEFAULT_GROK_ASSISTANT_MODEL,
+  DEFAULT_OPENAI_ASSISTANT_MODEL,
+  defaultModelForProvider,
+  normalizeAssistantProvider,
+  type AssistantLlmProvider,
+} from "@/lib/integrations/platform-openai-config";
 import { useRegisterSuperadminIntegrationSave } from "@/lib/superadmin/integrations-save-registry";
 import { saveSuperadminPlatformIntegration } from "@/lib/superadmin/platform-integrations-api";
 import type { PlatformIntegrationRow } from "@/lib/types/platform-integration";
+import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 
 type OpenaiUiConfig = {
   api_key_configured?: boolean;
+  provider?: AssistantLlmProvider;
   model?: string;
 };
 
@@ -30,8 +45,11 @@ export function PlatformOpenaiFeatureCard({
   const ui = row.config as OpenaiUiConfig;
   const [enabled, setEnabled] = useState(row.enabled);
   const [apiKey, setApiKey] = useState("");
+  const [provider, setProvider] = useState<AssistantLlmProvider>(
+    normalizeAssistantProvider(ui.provider),
+  );
   const [model, setModel] = useState(
-    ui.model?.trim() || DEFAULT_OPENAI_ASSISTANT_MODEL,
+    ui.model?.trim() || defaultModelForProvider(provider),
   );
   const apiKeyConfigured = Boolean(ui.api_key_configured);
 
@@ -39,31 +57,45 @@ export function PlatformOpenaiFeatureCard({
     () =>
       JSON.stringify({
         enabled: row.enabled,
-        model: ui.model?.trim() || DEFAULT_OPENAI_ASSISTANT_MODEL,
+        provider: normalizeAssistantProvider(ui.provider),
+        model:
+          ui.model?.trim() ||
+          defaultModelForProvider(normalizeAssistantProvider(ui.provider)),
       }),
-    [row.enabled, ui.model],
+    [row.enabled, ui.model, ui.provider],
   );
 
   const dirty = useMemo(() => {
-    const current = JSON.stringify({ enabled, model: model.trim() });
+    const current = JSON.stringify({
+      enabled,
+      provider,
+      model: model.trim(),
+    });
     return current !== snapshot || apiKey.length > 0;
-  }, [enabled, model, apiKey, snapshot]);
+  }, [enabled, provider, model, apiKey, snapshot]);
 
   useEffect(() => {
     setEnabled(row.enabled);
     setApiKey("");
-    setModel(ui.model?.trim() || DEFAULT_OPENAI_ASSISTANT_MODEL);
+    const nextProvider = normalizeAssistantProvider(ui.provider);
+    setProvider(nextProvider);
+    setModel(ui.model?.trim() || defaultModelForProvider(nextProvider));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot
   }, [snapshot]);
 
   const save = async () => {
     if (enabled && !apiKeyConfigured && !apiKey.trim()) {
-      toast.error("OpenAI API-Key erforderlich.");
+      toast.error(
+        provider === "grok"
+          ? "xAI / Grok API-Key erforderlich."
+          : "OpenAI API-Key erforderlich.",
+      );
       return;
     }
 
     const config: Record<string, unknown> = {
-      model: model.trim() || DEFAULT_OPENAI_ASSISTANT_MODEL,
+      provider,
+      model: model.trim() || defaultModelForProvider(provider),
     };
     if (apiKey.trim()) {
       config.api_key = apiKey.trim();
@@ -78,7 +110,7 @@ export function PlatformOpenaiFeatureCard({
       toast.error(error ?? "Speichern fehlgeschlagen.");
       return;
     }
-    toast.success("Assistent (OpenAI) gespeichert.");
+    toast.success("Assistent gespeichert.");
     setApiKey("");
     onSaved();
   };
@@ -87,8 +119,8 @@ export function PlatformOpenaiFeatureCard({
 
   return (
     <SuperadminIntegrationPanel
-      title="Assistent (OpenAI)"
-      description="API-Key für den Dashboard-Chatbot. Der Key wird nur serverseitig genutzt und nie ins UI zurückgegeben."
+      title="Assistent (OpenAI / Grok)"
+      description="API-Key für den Dashboard-Chatbot. OpenAI oder Grok (xAI) — der Key wird nur serverseitig genutzt und nie ins UI zurückgegeben."
       icon={<Sparkles className="size-5" aria-hidden />}
       accentColor={INTEGRATION_PANEL_ACCENT.openai}
       badges={
@@ -107,20 +139,56 @@ export function PlatformOpenaiFeatureCard({
       }
     >
       <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="assistant-provider">Anbieter</Label>
+          <Select
+            value={provider}
+            onValueChange={(v) => {
+              if (typeof v !== "string") return;
+              const next = normalizeAssistantProvider(v);
+              setProvider(next);
+              setModel((prev) => {
+                const wasDefault =
+                  !prev.trim() ||
+                  prev === DEFAULT_OPENAI_ASSISTANT_MODEL ||
+                  prev === DEFAULT_GROK_ASSISTANT_MODEL;
+                return wasDefault ? defaultModelForProvider(next) : prev;
+              });
+            }}
+            disabled={!enabled}
+          >
+            <SelectTrigger
+              id="assistant-provider"
+              className={appSelectTriggerAccentCn("h-9 w-full")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="openai">OpenAI</SelectItem>
+              <SelectItem value="grok">Grok (xAI)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <SecretInput
           id="openai-api-key"
-          label="OpenAI API-Key"
+          label={provider === "grok" ? "xAI API-Key" : "OpenAI API-Key"}
           disabled={!enabled}
           configured={apiKeyConfigured}
           value={apiKey}
           onChange={setApiKey}
           placeholder={
-            enabled && !apiKeyConfigured ? "sk-… eingeben" : undefined
+            enabled && !apiKeyConfigured
+              ? provider === "grok"
+                ? "xai-… eingeben"
+                : "sk-… eingeben"
+              : undefined
           }
           hint={
             apiKeyConfigured
               ? "Punkte = gespeicherter Key. Feld anklicken zum Ersetzen."
-              : undefined
+              : provider === "grok"
+                ? "Key unter console.x.ai"
+                : undefined
           }
         />
         <div className="space-y-1.5">
@@ -129,7 +197,7 @@ export function PlatformOpenaiFeatureCard({
             id="openai-model"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder={DEFAULT_OPENAI_ASSISTANT_MODEL}
+            placeholder={defaultModelForProvider(provider)}
             disabled={!enabled}
           />
         </div>

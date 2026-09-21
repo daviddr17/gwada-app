@@ -1,70 +1,42 @@
 import { localDayKey } from "@/lib/staff/shift-schedule-range";
-import {
-  displayShiftNetWorkHours,
-  groupWorkHoursDayEntries,
-} from "@/lib/staff/staff-work-hours-display";
+import { workBreakHoursFromIntervals } from "@/lib/staff/staff-work-hours-display";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 
 export type StaffWorkHoursSummary = {
-  /** Summe Arbeitszeit-Einträge (Bubble: „eingeloggt“). */
+  /** Anwesenheit (Union Arbeit+Pause) — „Eingeloggt“ in UI/Abrechnung. */
   loggedH: number;
   breakH: number;
-  /** Zahlbare Netto-Arbeitszeit — gleiche Logik wie Schicht-Zeilen (Display). */
+  /** Zahlbare Netto-Arbeitszeit — Pause nur abziehen, wenn sie in Work liegt. */
   netWorkH: number;
-  /** Anwesenheit brutto (Arbeit + Pause), nur zur Einordnung. */
+  /** Alias zu loggedH (Anwesenheit). */
   presenceH: number;
   vacationDays: number;
   /** Eindeutige Kranktage (Mitarbeiter × Kalendertag). */
   sickDays: number;
 };
 
-function entryDurationMs(
-  e: Pick<RestaurantStaffWorkEntryRow, "starts_at" | "ends_at" | "is_open">,
-  now: Date,
-): number {
-  const startMs = new Date(e.starts_at).getTime();
-  const endMs = e.is_open ? now.getTime() : new Date(e.ends_at).getTime();
-  return Math.max(0, endMs - startMs);
-}
-
 /**
- * Netto über Schicht-Gruppen: bei sequentiellen Display-Segmenten sind Work-Segmente
- * bereits netto (Pause nicht noch einmal abziehen); bei Pause *in* Work wird abgezogen.
+ * Netto + Eingeloggt aus allen Work/Break-Intervallen (Union/Überlappung).
+ * Überlappende Pause auf durchgehender Arbeit: Eingeloggt bleibt, Netto − Pause.
+ * Nicht: Pausendauer auf Eingeloggt addieren und danach wieder abziehen.
  */
 export function netWorkHoursFromWorkBreakEntries(
   workBreakEntries: readonly RestaurantStaffWorkEntryRow[],
   now: Date = new Date(),
 ): { loggedH: number; breakH: number; netWorkH: number; presenceH: number } {
-  let workMs = 0;
-  let breakMs = 0;
-  let netMs = 0;
+  const nowMs = now.getTime();
+  const workIntervals: { start: number; end: number }[] = [];
+  const breakIntervals: { start: number; end: number }[] = [];
 
-  for (const item of groupWorkHoursDayEntries([...workBreakEntries])) {
-    if (item.kind === "entry") {
-      const ms = entryDurationMs(item.entry, now);
-      if (item.entry.entry_type === "work") {
-        workMs += ms;
-        netMs += ms;
-      } else if (item.entry.entry_type === "break") {
-        breakMs += ms;
-      }
-      continue;
-    }
-
-    for (const s of item.segments) {
-      const ms = entryDurationMs(s, now);
-      if (s.entry_type === "work") workMs += ms;
-      else if (s.entry_type === "break") breakMs += ms;
-    }
-    netMs += displayShiftNetWorkHours(item.segments, now) * 3_600_000;
+  for (const e of workBreakEntries) {
+    const start = new Date(e.starts_at).getTime();
+    const end = e.is_open ? nowMs : new Date(e.ends_at).getTime();
+    if (!(end > start)) continue;
+    if (e.entry_type === "work") workIntervals.push({ start, end });
+    else if (e.entry_type === "break") breakIntervals.push({ start, end });
   }
 
-  return {
-    loggedH: workMs / 3_600_000,
-    breakH: breakMs / 3_600_000,
-    netWorkH: Math.max(0, netMs) / 3_600_000,
-    presenceH: (workMs + breakMs) / 3_600_000,
-  };
+  return workBreakHoursFromIntervals(workIntervals, breakIntervals);
 }
 
 export function summarizeStaffWorkEntries(

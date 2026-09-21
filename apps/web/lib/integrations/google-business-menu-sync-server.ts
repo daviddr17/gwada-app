@@ -5,37 +5,54 @@ import {
   normalizeMenuCurrencyCode,
 } from "@/lib/constants/menu-currencies";
 import {
+  fetchWithGoogleBusinessAuth,
   getGoogleBusinessAccessTokenForRestaurant,
+  googleLocationResourceName,
   googleReviewsParentPath,
 } from "@/lib/integrations/google-business-access";
+import {
+  buildGoogleFoodMenusBody,
+  googleFoodMenuErrorCode,
+  googleFoodMenusResourceName,
+  selectGoogleMenuSections,
+  type GoogleMenuCategoryCandidate,
+  type GoogleMenuItemCandidate,
+} from "@/lib/integrations/google-business-menu-payload";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
-import { isMenuItemPubliclyAvailable } from "@/lib/menu/item-utils";
 
-type MenuRow = {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  is_active: boolean;
-  category_id: string;
-  available_from: string | null;
-  available_to: string | null;
-  menu_categories: { name: string; sort_order: number } | { name: string; sort_order: number }[] | null;
+type GoogleErrorBody = {
+  error?: {
+    message?: string;
+    status?: string;
+    details?: Array<{ reason?: string; message?: string }>;
+  };
+  metadata?: { canHaveFoodMenus?: boolean };
 };
 
-function priceToGoogleMoney(
-  price: number,
-  currencyCode: string,
-): {
-  currencyCode: string;
-  units: string;
-  nanos: number;
-} {
-  const safe = Math.max(0, price);
-  const units = Math.floor(safe);
-  const nanos = Math.round((safe - units) * 1e9);
-  return { currencyCode, units: String(units), nanos };
+function googleErrorText(payload: GoogleErrorBody): string {
+  return [
+    payload.error?.message,
+    payload.error?.status,
+    ...(payload.error?.details ?? []).flatMap((detail) => [
+      detail.reason,
+      detail.message,
+    ]),
+  ]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join(" ");
+}
+
+async function locationCanHaveFoodMenus(
+  restaurantId: string,
+  locationName: string,
+): Promise<boolean | null> {
+  const url = `https://mybusinessbusinessinformation.googleapis.com/v1/${locationName}?readMask=metadata`;
+  const res = await fetchWithGoogleBusinessAuth(restaurantId, url);
+  if ("error" in res || !res.ok) return null;
+  const payload = (await res.json().catch(() => ({}))) as GoogleErrorBody;
+  const flag = payload.metadata?.canHaveFoodMenus;
+  return typeof flag === "boolean" ? flag : null;
 }
 
 export async function syncMenuToGoogleBusiness(
@@ -54,120 +71,124 @@ export async function syncMenuToGoogleBusiness(
     return { ok: false, error: "google_location_missing" };
   }
 
-  const { data: settingsRow } = await admin
-    .from("restaurant_menu_settings")
-    .select("currency_code")
-    .eq("restaurant_id", restaurantId)
-    .maybeSingle();
-  const currencyCode = normalizeMenuCurrencyCode(
-    (settingsRow?.currency_code as string | undefined) ?? DEFAULT_MENU_CURRENCY_CODE,
-  );
-
-  const { data: rows, error: menuErr } = await admin
-    .from("menu_items")
-    .select(
-      "id, name, description, price, is_active, category_id, available_from, available_to, menu_categories(name, sort_order)",
-    )
-    .eq("restaurant_id", restaurantId)
-    .eq("is_active", true)
-    .order("category_id", { ascending: true })
-    .order("list_number", { ascending: true });
-
-  if (menuErr) {
-    return { ok: false, error: menuErr.message };
-  }
-
-  const restaurantTimeZone = await fetchRestaurantTimezoneServer(admin, restaurantId);
-
-  const items = (rows ?? []).filter((item) =>
-    isMenuItemPubliclyAvailable({
-      id: item.id,
-      name: item.name,
-      description: item.description ?? "",
-      price: Number(item.price),
-      category: item.category_id,
-      imageUrl: "",
-      tags: [],
-      active: item.is_active,
-      availableFrom: item.available_from,
-      availableTo: item.available_to,
-    }, new Date(), restaurantTimeZone),
-  ) as MenuRow[];
-  if (items.length === 0) {
-    return { ok: false, error: "menu_empty" };
-  }
-
-  const sectionsMap = new Map<
-    string,
-    { title: string; sort: number; items: MenuRow[] }
-  >();
-
-  for (const item of items) {
-    const catRaw = item.menu_categories;
-    const cat = Array.isArray(catRaw) ? catRaw[0] : catRaw;
-    const key = item.category_id;
-    const existing = sectionsMap.get(key);
-    if (existing) {
-      existing.items.push(item);
-    } else {
-      sectionsMap.set(key, {
-        title: cat?.name?.trim() || "Speisekarte",
-        sort: cat?.sort_order ?? 0,
-        items: [item],
-      });
+  const locationRaw = auth.config.location_name?.trim();
+  if (locationRaw) {
+    const canHave = await locationCanHaveFoodMenus(
+      restaurantId,
+      googleLocationResourceName(locationRaw),
+    );
+    if (canHave === false) {
+      return { ok: false, error: "google_food_menu_unsupported" };
     }
   }
 
-  const sections = [...sectionsMap.values()]
-    .sort((a, b) => a.sort - b.sort)
-    .map((section) => ({
-      labels: [{ displayName: section.title, languageCode: "de" }],
-      items: section.items.map((item) => ({
-        labels: [{ displayName: item.name.trim(), languageCode: "de" }],
-        attributes: {
-          price: priceToGoogleMoney(Number(item.price), currencyCode),
-        },
-        ...(item.description?.trim()
-          ? {
-              description: {
-                text: item.description.trim(),
-                languageCode: "de",
-              },
-            }
-          : {}),
-      })),
-    }));
+  const [settingsRes, itemsRes, categoriesRes, mainsRes] = await Promise.all([
+    admin
+      .from("restaurant_menu_settings")
+      .select("currency_code")
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle(),
+    admin
+      .from("menu_items")
+      .select(
+        "id, name, description, price, is_active, category_id, available_from, available_to",
+      )
+      .eq("restaurant_id", restaurantId)
+      .eq("is_active", true)
+      .order("category_id", { ascending: true })
+      .order("list_number", { ascending: true }),
+    admin
+      .from("menu_categories")
+      .select("id, name, is_active, sort_order, main_category_id")
+      .eq("restaurant_id", restaurantId)
+      .eq("is_active", true),
+    admin
+      .from("menu_main_categories")
+      .select("id, is_active, sort_order")
+      .eq("restaurant_id", restaurantId)
+      .eq("is_active", true),
+  ]);
 
-  const foodMenus = {
-    menus: [
-      {
-        labels: [{ displayName: "Speisekarte", languageCode: "de" }],
-        sections,
-      },
-    ],
-  };
+  const queryError =
+    settingsRes.error ?? itemsRes.error ?? categoriesRes.error ?? mainsRes.error;
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
 
-  const url = `https://mybusiness.googleapis.com/v4/${parent}/foodMenus`;
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${auth.accessToken}`,
-      "Content-Type": "application/json",
+  const currencyCode = normalizeMenuCurrencyCode(
+    (settingsRes.data?.currency_code as string | undefined) ??
+      DEFAULT_MENU_CURRENCY_CODE,
+  );
+
+  const mainById = new Map(
+    (mainsRes.data ?? []).map((row) => [
+      row.id,
+      { active: row.is_active, sortOrder: row.sort_order },
+    ]),
+  );
+
+  const categories: GoogleMenuCategoryCandidate[] = (categoriesRes.data ?? []).map(
+    (row) => {
+      const main = mainById.get(row.main_category_id);
+      return {
+        id: row.id,
+        name: row.name,
+        active: row.is_active,
+        sortOrder: row.sort_order,
+        mainCategoryId: row.main_category_id,
+        mainActive: main?.active === true,
+        mainSortOrder: main?.sortOrder ?? 0,
+      };
     },
-    body: JSON.stringify(foodMenus),
-    cache: "no-store",
+  );
+
+  const items: GoogleMenuItemCandidate[] = (itemsRes.data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description ?? "",
+    price: Number(row.price),
+    active: row.is_active,
+    categoryId: row.category_id,
+    availableFrom: row.available_from,
+    availableTo: row.available_to,
+  }));
+
+  const restaurantTimeZone = await fetchRestaurantTimezoneServer(admin, restaurantId);
+  const sections = selectGoogleMenuSections(
+    items,
+    categories,
+    new Date(),
+    restaurantTimeZone,
+  );
+  const itemCount = sections.reduce((sum, section) => sum + section.items.length, 0);
+  if (itemCount === 0) {
+    return { ok: false, error: "menu_empty" };
+  }
+
+  const resourceName = googleFoodMenusResourceName(parent);
+  const url = `https://mybusiness.googleapis.com/v4/${resourceName}?updateMask=menus`;
+  const res = await fetchWithGoogleBusinessAuth(restaurantId, url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(
+      buildGoogleFoodMenusBody({
+        resourceName,
+        currencyCode,
+        sections,
+      }),
+    ),
   });
+  if ("error" in res) {
+    return { ok: false, error: res.error };
+  }
 
-  const payload = (await res.json().catch(() => ({}))) as {
-    error?: { message?: string };
-  };
-
+  const payload = (await res.json().catch(() => ({}))) as GoogleErrorBody;
   if (!res.ok) {
     return {
       ok: false,
-      error: payload.error?.message ?? `google_menu_${res.status}`,
+      error: googleFoodMenuErrorCode(res.status, googleErrorText(payload)),
     };
   }
 
-  return { ok: true, itemCount: items.length };
+  return { ok: true, itemCount };
 }

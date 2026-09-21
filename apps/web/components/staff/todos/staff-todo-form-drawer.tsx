@@ -393,42 +393,52 @@ export function StaffTodoFormDrawer({
     const input = buildInput();
     if (!input) return;
     setSaving(true);
-    const { data, error } = await upsertStaffTodo(restaurantId, input, todo?.id);
-    setSaving(false);
-    if (error || !data) {
-      toast.error(error ?? "Speichern fehlgeschlagen.");
-      return;
+    try {
+      const { data, error } = await upsertStaffTodo(
+        restaurantId,
+        input,
+        todo?.id,
+      );
+      if (error || !data) {
+        toast.error(error ?? "Speichern fehlgeschlagen.");
+        return;
+      }
+      toast.success(isEdit ? "ToDo gespeichert." : "ToDo angelegt.");
+      onSaved();
+      onOpenChange(false);
+      void insertStaffTodoLogEntry({
+        restaurantId,
+        todoId: data.id,
+        action: isEdit ? "updated" : "created",
+        details: { title: data.title },
+      });
+    } finally {
+      setSaving(false);
     }
-    toast.success(isEdit ? "ToDo gespeichert." : "ToDo angelegt.");
-    onSaved();
-    onOpenChange(false);
-    void insertStaffTodoLogEntry({
-      restaurantId,
-      todoId: data.id,
-      action: isEdit ? "updated" : "created",
-      details: { title: data.title },
-    });
   };
 
   const handleArchive = async () => {
     if (!todo) return;
     setSaving(true);
-    const { error } = await archiveStaffTodo(restaurantId, todo.id);
-    if (!error) {
-      await insertStaffTodoLogEntry({
-        restaurantId,
-        todoId: todo.id,
-        action: "archived",
-        details: { title: todo.title },
-      });
-    }
-    setSaving(false);
-    setConfirmArchive(false);
-    if (error) toast.error(error);
-    else {
-      toast.success("ToDo archiviert.");
-      onSaved();
-      onOpenChange(false);
+    try {
+      const { error } = await archiveStaffTodo(restaurantId, todo.id);
+      if (!error) {
+        await insertStaffTodoLogEntry({
+          restaurantId,
+          todoId: todo.id,
+          action: "archived",
+          details: { title: todo.title },
+        });
+      }
+      setConfirmArchive(false);
+      if (error) toast.error(error);
+      else {
+        toast.success("ToDo archiviert.");
+        onSaved();
+        onOpenChange(false);
+      }
+    } finally {
+      setSaving(false);
     }
   };
 

@@ -1,19 +1,23 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
   Cake,
   CalendarDays,
   ChevronRight,
   Clock,
+  ListChecks,
   MessageCircle,
   Package,
   Sun,
-  UserCheck,
 } from "lucide-react";
 import { DashboardHeuteBirthdaysSheet } from "@/components/dashboard/dashboard-heute-birthdays-sheet";
+import { DashboardHeuteAllClear } from "@/components/dashboard/dashboard-heute-all-clear";
+import { DashboardHeuteChecklistsSheet } from "@/components/dashboard/dashboard-heute-checklists-sheet";
+import { DashboardHeuteLiveEventSheet } from "@/components/dashboard/dashboard-heute-live-event-sheet";
 import { DashboardHeuteWorkHoursSheet } from "@/components/dashboard/dashboard-heute-work-hours-sheet";
 import { DashboardInventoryAlertsSheet } from "@/components/dashboard/dashboard-inventory-alerts-sheet";
 import { DashboardMessagesListSheet } from "@/components/dashboard/dashboard-messages-list-sheet";
@@ -28,8 +32,11 @@ import {
   type StaffLivePresenceSheetMode,
 } from "@/components/staff/staff-overview-live-presence-sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { resolveHeuteLiveSheetTarget } from "@/lib/dashboard/dashboard-heute-live-sheet-target";
+import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
+import { useDashboardModuleBatchStats } from "@/lib/hooks/use-dashboard-module-batch-stats";
 import { useDashboardReservationStats } from "@/lib/hooks/use-dashboard-reservation-stats";
 import { useDashboardStaffStats } from "@/lib/hooks/use-dashboard-staff-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -45,6 +52,7 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { listStaffBirthdaysToday } from "@/lib/staff/staff-birthdays-today";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
+import { DASHBOARD_HOME } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
 type HeuteActionTone = "attention" | "warning" | "birthday";
@@ -162,13 +170,11 @@ function DashboardHeuteTileSkeleton() {
     <div className="space-y-4" aria-busy="true">
       <div className="space-y-2">
         <Skeleton className="h-3 w-24 rounded" />
-        <Skeleton className="h-14 w-full rounded-xl" />
-        <Skeleton className="h-14 w-full rounded-xl" />
+        <Skeleton className="h-[4.25rem] w-full rounded-xl" />
       </div>
       <div className="space-y-2">
         <Skeleton className="h-3 w-20 rounded" />
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <Skeleton className="h-[5rem] w-full rounded-xl" />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Skeleton className="h-[5rem] w-full rounded-xl" />
           <Skeleton className="h-[5rem] w-full rounded-xl" />
         </div>
@@ -181,7 +187,27 @@ function pluralDe(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
 }
 
+type DashboardStatSlice = {
+  ready: boolean;
+  loading: boolean;
+  summary: unknown;
+  error?: string | null;
+  hasSettledFetch?: boolean;
+};
+
+function isDashboardStatSettled(slice: DashboardStatSlice): boolean {
+  if (!slice.ready) return false;
+  if (slice.summary != null) return true;
+  // Fehler oder fertiger Batch ohne Slice → nicht ewig Skeleton.
+  if (slice.error) return true;
+  // Vor dem ersten Fetch ist loading oft noch false — das darf nicht
+  // schon „Alles erledigt“ aufblitzen lassen.
+  if (slice.hasSettledFetch === false) return false;
+  return !slice.loading;
+}
+
 export function DashboardHeuteTile() {
+  const pathname = usePathname();
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
@@ -191,6 +217,7 @@ export function DashboardHeuteTile() {
   const staff = useDashboardStaffStats();
   const messages = useDashboardMessagesStats();
   const inventory = useDashboardInventoryStats();
+  const checklists = useDashboardModuleBatchStats("checklists");
 
   const [reservationSheetMode, setReservationSheetMode] =
     useState<DashboardReservationsListSheetMode | null>(null);
@@ -200,6 +227,8 @@ export function DashboardHeuteTile() {
   const [messagesSheetOpen, setMessagesSheetOpen] = useState(false);
   const [inventorySheetOpen, setInventorySheetOpen] = useState(false);
   const [birthdaysSheetOpen, setBirthdaysSheetOpen] = useState(false);
+  const [checklistsSheetOpen, setChecklistsSheetOpen] = useState(false);
+  const [liveEventItem, setLiveEventItem] = useState<LiveActivityItem | null>(null);
 
   const accessOptions = {
     permissionsLoading,
@@ -213,21 +242,26 @@ export function DashboardHeuteTile() {
     staff: hasDashboardWidgetAccess(has, "staff", accessOptions),
     messages: hasDashboardWidgetAccess(has, "messages", accessOptions),
     inventory: hasDashboardWidgetAccess(has, "inventory", accessOptions),
+    checklists: hasDashboardWidgetAccess(has, "checklists", accessOptions),
   };
 
+  const heuteStatSlices = useMemo((): DashboardStatSlice[] => {
+    const slices: DashboardStatSlice[] = [];
+    if (can.reservations) slices.push(reservations);
+    if (can.staff) slices.push(staff);
+    if (can.messages) slices.push(messages);
+    if (can.inventory) slices.push(inventory);
+    if (can.checklists) slices.push(checklists);
+    return slices;
+  }, [can, checklists, inventory, messages, reservations, staff]);
+
+  const allHeuteStatsSettled =
+    heuteStatSlices.length === 0 ||
+    heuteStatSlices.every(isDashboardStatSettled);
+
   const ready =
-    reservations.ready ||
-    staff.ready ||
-    messages.ready ||
-    inventory.ready;
-
-  const loading =
-    (reservations.loading && !reservations.summary) ||
-    (staff.loading && !staff.summary) ||
-    (messages.loading && !messages.summary) ||
-    (inventory.loading && !inventory.summary);
-
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+    heuteStatSlices.length === 0 ||
+    heuteStatSlices.some((slice) => slice.ready);
 
   const todayLabel = useMemo(
     () =>
@@ -261,8 +295,6 @@ export function DashboardHeuteTile() {
   const todayUpcomingReservations =
     reservations.summary?.todayUpcomingReservations ?? 0;
   const todayUpcomingGuests = reservations.summary?.todayUpcomingGuests ?? 0;
-  const activeStaff = staff.summary?.activeStaff ?? 0;
-  const completedShiftsToday = staff.summary?.completedShiftsToday ?? 0;
 
   const deliveriesDueToday = inventory.summary?.deliveriesDueToday ?? 0;
   const deliveriesOverdue = inventory.summary?.deliveriesOverdue ?? 0;
@@ -308,6 +340,60 @@ export function DashboardHeuteTile() {
         icon: <MessageCircle aria-hidden />,
         onClick: () => setMessagesSheetOpen(true),
       });
+    }
+
+    if (can.checklists && checklists.summary) {
+      // Nur mit todos[] — count-only Placeholder/Legacy würde sonst „1 offen“ flashen.
+      const previewTodos = Array.isArray(checklists.summary.todos)
+        ? checklists.summary.todos
+        : null;
+      if (previewTodos) {
+        const overdueTodos = previewTodos.filter(
+          (todo) => todo.status === "overdue",
+        ).length;
+        const openTodos = previewTodos.length;
+        const singleTodo =
+          previewTodos.length === 1 ? previewTodos[0] : undefined;
+        if (overdueTodos > 0) {
+          items.push({
+            id: "checklists-overdue",
+            title:
+              singleTodo && overdueTodos === 1
+                ? singleTodo.title
+                : `${overdueTodos} ${pluralDe(
+                    overdueTodos,
+                    "überfällige Aufgabe",
+                    "überfällige Aufgaben",
+                  )}`,
+            meta:
+              singleTodo && overdueTodos === 1
+                ? "Überfällig — Sofort erledigen"
+                : "Sofort erledigen",
+            tone: "warning",
+            icon: <ListChecks aria-hidden />,
+            onClick: () => setChecklistsSheetOpen(true),
+          });
+        } else if (openTodos > 0) {
+          items.push({
+            id: "checklists-open",
+            title:
+              singleTodo && openTodos === 1
+                ? singleTodo.title
+                : `${openTodos} ${pluralDe(
+                    openTodos,
+                    "offene Aufgabe",
+                    "offene Aufgaben",
+                  )}`,
+            meta:
+              singleTodo && openTodos === 1
+                ? "Offene Aufgabe prüfen"
+                : "Aufgaben prüfen",
+            tone: "attention",
+            icon: <ListChecks aria-hidden />,
+            onClick: () => setChecklistsSheetOpen(true),
+          });
+        }
+      }
     }
 
     if (can.inventory && deliveryDueTotal > 0) {
@@ -385,9 +471,11 @@ export function DashboardHeuteTile() {
     return items;
   }, [
     birthdaysToday,
+    can.checklists,
     can.inventory,
     can.messages,
     can.reservations,
+    checklists.summary,
     deliveriesDueToday,
     deliveriesOverdue,
     deliveryDueTotal,
@@ -422,20 +510,6 @@ export function DashboardHeuteTile() {
 
     if (can.staff && staff.summary) {
       items.push({
-        id: "team",
-        label: "Team",
-        value: String(activeStaff),
-        meta:
-          completedShiftsToday > 0
-            ? `${pluralDe(activeStaff, "aktiv", "aktiv")} · ${completedShiftsToday} fertig`
-            : activeStaff > 0
-              ? "Jetzt im Haus"
-              : "Niemand eingeloggt",
-        icon: <UserCheck aria-hidden />,
-        onClick: () => setPresenceSheetMode("working"),
-        emphasize: activeStaff > 0,
-      });
-      items.push({
         id: "hours",
         label: "Arbeitszeit",
         value: todayWorkHours > 0 ? formatHoursDe(todayWorkHours) : "0 h",
@@ -448,10 +522,8 @@ export function DashboardHeuteTile() {
 
     return items;
   }, [
-    activeStaff,
     can.reservations,
     can.staff,
-    completedShiftsToday,
     reservations.summary,
     staff.summary,
     todayUpcomingGuests,
@@ -460,7 +532,86 @@ export function DashboardHeuteTile() {
   ]);
 
   const hasActions = actionItems.length > 0;
-  const hasLage = lageItems.length > 0;
+  const canHaveActions =
+    can.reservations ||
+    can.messages ||
+    can.inventory ||
+    can.staff ||
+    can.checklists;
+  const sliceErrors = heuteStatSlices
+    .map((slice) => slice.error)
+    .filter((err): err is string => Boolean(err));
+  const hasSliceErrors = sliceErrors.length > 0;
+  const heuteError = hasSliceErrors ? sliceErrors[0]! : null;
+  const showAllClear =
+    allHeuteStatsSettled && canHaveActions && !hasActions && !hasSliceErrors;
+  const checkingActions =
+    canHaveActions && !hasActions && !hasSliceErrors && !allHeuteStatsSettled;
+
+  // Partial paint: Aktionen/Lage behalten, sobald etwas da ist.
+  // Skeleton nur beim ersten leeren Warten — nicht bei Batch-Refetch.
+  const loading = heuteStatSlices.length > 0 && !ready;
+  const showSkeleton = useDeferredSkeleton(loading);
+
+  const [allClearAnimKey, setAllClearAnimKey] = useState(0);
+  const prevPathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    const enteredDashboard =
+      pathname === DASHBOARD_HOME && prevPathnameRef.current !== DASHBOARD_HOME;
+    if (showAllClear && enteredDashboard) {
+      setAllClearAnimKey((key) => key + 1);
+    }
+    prevPathnameRef.current = pathname;
+  }, [pathname, showAllClear]);
+
+  const showJetztHandeln = hasActions || showAllClear || checkingActions;
+  const reservationsLage = lageItems.find((item) => item.id === "reservations-today");
+  const hoursLage = lageItems.find((item) => item.id === "hours");
+  const showReservationsSlot = Boolean(
+    reservationsLage || (can.reservations && checkingActions),
+  );
+  const showHoursSlot = Boolean(hoursLage || (can.staff && checkingActions));
+  const lageSlotCount = Number(showReservationsSlot) + Number(showHoursSlot);
+  const showLage = lageSlotCount > 0;
+  const splitJetztHandelnAndLage = hasActions && showLage;
+
+  const openLiveItem = useCallback(
+    (item: LiveActivityItem) => {
+      const target = resolveHeuteLiveSheetTarget(item);
+      switch (target.type) {
+        case "reservations":
+          if (can.reservations) setReservationSheetMode(target.mode);
+          else setLiveEventItem(item);
+          break;
+        case "messages":
+          if (can.messages) setMessagesSheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "inventory":
+          if (can.inventory) setInventorySheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "presence":
+          if (can.staff) setPresenceSheetMode(target.mode);
+          else setLiveEventItem(item);
+          break;
+        case "work_hours":
+          if (can.staff) setWorkHoursSheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "checklists":
+          if (can.checklists) setChecklistsSheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "event":
+          setLiveEventItem(target.item);
+          break;
+      }
+    },
+    [can.checklists, can.inventory, can.messages, can.reservations, can.staff],
+  );
+
 
   return (
     <DashboardWidgetShell
@@ -487,34 +638,45 @@ export function DashboardHeuteTile() {
       }
       ready={ready}
       loading={showSkeleton}
-      error={null}
+      error={heuteError}
       loadingContent={<DashboardHeuteTileSkeleton />}
     >
       <div
         className={cn(
           "flex flex-col gap-4 sm:gap-5",
-          hasActions && hasLage && "xl:grid xl:grid-cols-12 xl:items-start xl:gap-5",
+          splitJetztHandelnAndLage &&
+            "xl:grid xl:grid-cols-12 xl:items-start xl:gap-5",
         )}
       >
-        {hasActions ? (
-          <section
-            className={cn("min-w-0 space-y-2", hasLage && "xl:col-span-7")}
-            aria-label="Jetzt handeln"
-          >
-            <HeuteSectionLabel>Jetzt handeln</HeuteSectionLabel>
-            <div className="flex flex-col gap-2">
-              {actionItems.map((item) => (
-                <HeuteActionRow key={item.id} item={item} />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {hasLage ? (
+        {showJetztHandeln ? (
           <section
             className={cn(
               "min-w-0 space-y-2",
-              hasActions && "xl:col-span-5",
+              splitJetztHandelnAndLage && "xl:col-span-7",
+            )}
+            aria-label="Jetzt handeln"
+          >
+            <HeuteSectionLabel>Jetzt handeln</HeuteSectionLabel>
+            {hasActions ? (
+              <div className="flex flex-col gap-2">
+                {actionItems.map((item) => (
+                  <HeuteActionRow key={item.id} item={item} />
+                ))}
+              </div>
+            ) : (
+              <DashboardHeuteAllClear
+                phase={showAllClear ? "clear" : "checking"}
+                replayKey={allClearAnimKey}
+              />
+            )}
+          </section>
+        ) : null}
+
+        {showLage ? (
+          <section
+            className={cn(
+              "min-w-0 space-y-2",
+              splitJetztHandelnAndLage && "xl:col-span-5",
             )}
             aria-label="Heute läuft"
           >
@@ -522,31 +684,37 @@ export function DashboardHeuteTile() {
             <div
               className={cn(
                 "grid gap-2",
-                // Phone: 1 Spalte; Tablet+: bis 3; neben Aktionen auf XL: wieder 1 Spalte
-                lageItems.length === 1 && "grid-cols-1",
-                lageItems.length === 2 && "grid-cols-1 sm:grid-cols-2",
-                lageItems.length >= 3 &&
-                  (hasActions
-                    ? "grid-cols-1 sm:grid-cols-3 xl:grid-cols-1"
-                    : "grid-cols-1 sm:grid-cols-3"),
+                lageSlotCount === 1 && "grid-cols-1",
+                lageSlotCount >= 2 && "grid-cols-1 sm:grid-cols-2",
               )}
             >
-              {lageItems.map((item) => (
-                <HeuteLageTile key={item.id} item={item} />
-              ))}
+              {showReservationsSlot ? (
+                reservationsLage ? (
+                  <HeuteLageTile item={reservationsLage} />
+                ) : (
+                  <Skeleton className="h-[5.25rem] w-full rounded-xl" />
+                )
+              ) : null}
+              {showHoursSlot ? (
+                hoursLage ? (
+                  <HeuteLageTile item={hoursLage} />
+                ) : (
+                  <Skeleton className="h-[5.25rem] w-full rounded-xl" />
+                )
+              ) : null}
             </div>
           </section>
         ) : null}
 
-        {!hasActions && !hasLage ? (
+        {!showJetztHandeln && !showLage ? (
           <p className="py-2 text-sm text-muted-foreground">
-            Keine Module freigeschaltet — sobald Reservierungen, Team oder
+            Keine Module freigeschaltet — sobald Reservierungen, Arbeitszeit oder
             Nachrichten verfügbar sind, erscheint hier dein Tagesüberblick.
           </p>
         ) : null}
       </div>
 
-      <DashboardHeuteLiveTimeline className="mt-4" />
+      <DashboardHeuteLiveTimeline className="mt-4" onSelectItem={openLiveItem} />
 
       {reservationSheetMode && can.reservations && reservations.summary ? (
         <DashboardReservationsListSheet
@@ -627,6 +795,26 @@ export function DashboardHeuteTile() {
           todayYmd={staffTodayYmd}
         />
       ) : null}
+
+      {checklistsSheetOpen && can.checklists && checklists.summary ? (
+        <DashboardHeuteChecklistsSheet
+          open={checklistsSheetOpen}
+          onOpenChange={setChecklistsSheetOpen}
+          openTodos={checklists.summary.openTodos ?? 0}
+          overdueTodos={checklists.summary.overdueTodos ?? 0}
+          capturesToday={checklists.summary.capturesToday ?? 0}
+          todos={checklists.summary.todos ?? []}
+        />
+      ) : null}
+
+      <DashboardHeuteLiveEventSheet
+        open={liveEventItem != null}
+        onOpenChange={(open) => {
+          if (!open) setLiveEventItem(null);
+        }}
+        item={liveEventItem}
+        timeZone={restaurantTimeZone}
+      />
     </DashboardWidgetShell>
   );
 }

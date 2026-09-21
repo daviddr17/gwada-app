@@ -1,7 +1,7 @@
 "use client";
 
 import { ClipboardList, Filter } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
@@ -9,7 +9,9 @@ import {
   PurchaseOrderCloseDeliveryDrawer,
   type PurchaseOrderCloseDeliveryException,
 } from "@/components/inventory/purchase-order-close-delivery-drawer";
+import { PurchaseOrderCloseProgressOverlay } from "@/components/inventory/purchase-order-close-progress-overlay";
 import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
+import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
 import { PurchaseOrderCardStickyHeader } from "@/components/inventory/purchase-order-card-sticky-header";
 import type { LineDeliveryCommit } from "@/components/inventory/purchase-order-line-delivery-controls";
 import { PurchaseOrderLineDeliveryControls } from "@/components/inventory/purchase-order-line-delivery-controls";
@@ -206,6 +208,11 @@ export function PurchaseOrdersScreen() {
   const [closeConfirmOrderId, setCloseConfirmOrderId] = useState<string | null>(
     null,
   );
+  const [closeProgress, setCloseProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const closeInFlightUiRef = useRef(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [lineSortKey, setLineSortKey] =
     useState<PurchaseOrderLineSortKey>("categoryId");
@@ -454,28 +461,13 @@ export function PurchaseOrdersScreen() {
         }
       }
 
-      // Zuerst Liefer-Antwort (optimistic), danach Bestand — Chip reagiert sofort
+      // Liefer-Antwort (optimistic) — Toast sofort, Bestand im Hintergrund
       const result = await setLineDelivery(orderId, lineId, input, actor);
       if (!result.ok) {
         toast.error("Liefer-Antwort konnte nicht gespeichert werden.");
         return;
       }
 
-      if (
-        !(await applyStockDelta(
-          order,
-          line,
-          previewDelta,
-          previewDelta >= 0 ? "delivery" : "revert",
-        ))
-      ) {
-        await clearLineDelivery(orderId, lineId, actor);
-        return;
-      }
-
-      if (result.stockDelta !== previewDelta && result.stockDelta !== 0) {
-        // rare drift — ignore; persist already done
-      }
       const label =
         input.status === "delivered"
           ? "geliefert"
@@ -487,17 +479,30 @@ export function PurchaseOrdersScreen() {
           `„${line.ingredientName}“ ${label} – Bestellung abgeschlossen.`,
         );
         setStatusFilter("closed");
-      } else if (result.stockDelta > 0) {
+      } else if (previewDelta > 0) {
         toast.success(
-          `„${line.ingredientName}“ ${label} – Bestand +${result.stockDelta} ${unitLabelForLine(line)}.`,
+          `„${line.ingredientName}“ ${label} – Bestand +${previewDelta} ${unitLabelForLine(line)}.`,
         );
-      } else if (result.stockDelta < 0) {
+      } else if (previewDelta < 0) {
         toast.success(
-          `„${line.ingredientName}“ ${label} – Bestand ${result.stockDelta} ${unitLabelForLine(line)}.`,
+          `„${line.ingredientName}“ ${label} – Bestand ${previewDelta} ${unitLabelForLine(line)}.`,
         );
       } else {
         toast.success(`„${line.ingredientName}“ als ${label} markiert.`);
       }
+
+      if (result.stockApplied) return;
+
+      void applyStockDelta(
+        order,
+        line,
+        previewDelta,
+        previewDelta >= 0 ? "delivery" : "revert",
+      ).then((stockOk) => {
+        if (!stockOk) {
+          void clearLineDelivery(orderId, lineId, actor);
+        }
+      });
     },
     [
       actor,
@@ -517,24 +522,10 @@ export function PurchaseOrdersScreen() {
       if (!order || !line) return;
       const prevStock = lineDeliveryStockQuantity(line);
 
-      // Optimistic zurücksetzen zuerst — Chip reagiert sofort
+      // Optimistic zurücksetzen zuerst — Toast sofort, Bestand im Hintergrund
       const result = await clearLineDelivery(orderId, lineId, actor);
       if (!result.ok) {
         toast.error("Liefer-Antwort konnte nicht zurückgesetzt werden.");
-        return;
-      }
-
-      if (!(await applyStockDelta(order, line, -prevStock, "revert"))) {
-        await setLineDelivery(
-          orderId,
-          lineId,
-          {
-            status: line.deliveryStatus ?? "delivered",
-            deliveredQuantity: line.deliveredQuantity,
-            note: line.deliveryNote,
-          },
-          actor,
-        );
         return;
       }
 
@@ -543,6 +534,23 @@ export function PurchaseOrdersScreen() {
           ? `Lieferung von „${line.ingredientName}“ zurückgesetzt – Bestand −${prevStock} ${unitLabelForLine(line)}.`
           : `Liefer-Antwort zu „${line.ingredientName}“ zurückgesetzt.`,
       );
+
+      if (result.stockApplied) return;
+
+      void applyStockDelta(order, line, -prevStock, "revert").then((stockOk) => {
+        if (!stockOk) {
+          void setLineDelivery(
+            orderId,
+            lineId,
+            {
+              status: line.deliveryStatus ?? "delivered",
+              deliveredQuantity: line.deliveredQuantity,
+              note: line.deliveryNote,
+            },
+            actor,
+          );
+        }
+      });
     },
     [
       actor,
@@ -557,10 +565,23 @@ export function PurchaseOrdersScreen() {
   const requestCloseOrder = useCallback(
     (order: PurchaseOrder) => {
       if (order.status !== "ordered") return;
+      if (closeInFlightUiRef.current) return;
       if (allPurchaseOrderLinesResolved(order.lines)) {
-        void closeOrder(order.id, actor).then((ok) => {
-          if (ok) setStatusFilter("closed");
-        });
+        void (async () => {
+          closeInFlightUiRef.current = true;
+          setCloseProgress({ done: 0, total: 1 });
+          try {
+            const ok = await closeOrder(order.id, actor);
+            if (ok) {
+              setCloseProgress({ done: 1, total: 1 });
+              await new Promise((resolve) => window.setTimeout(resolve, 280));
+              setStatusFilter("closed");
+            }
+          } finally {
+            setCloseProgress(null);
+            closeInFlightUiRef.current = false;
+          }
+        })();
         return;
       }
       setCloseConfirmOrderId(order.id);
@@ -579,44 +600,36 @@ export function PurchaseOrdersScreen() {
       options: { skipStock: boolean },
     ) => {
       const order = closeDeliveryOrder;
-      if (!order) return;
+      if (!order || closeInFlightUiRef.current) return;
 
-      const result = await resolveOpenDeliveriesAndClose(
-        order.id,
-        exceptions,
-        actor,
-      );
-      if (!result.ok) {
-        toast.error("Bestellung konnte nicht abgeschlossen werden.");
-        return;
-      }
+      const openCount = order.lines.filter(
+        (l) => !isLineDeliveryResolved(l),
+      ).length;
+      closeInFlightUiRef.current = true;
+      setCloseProgress({ done: 0, total: Math.max(1, openCount) });
+      setCloseConfirmOrderId(null);
 
-      const skipStock = options.skipStock === true;
-      const stockOk = skipStock
-        ? true
-        : await applyDeliveryStockDeltas(
-            result.stockDeltas.map((d) => ({
-              ingredientId: d.ingredientId,
-              delta: d.delta,
-              unitId: d.unitId,
-              unitLabel: d.unitLabel,
-              orderId: order.id,
-              supplierName: supplierNameForOrder(order),
-            })),
-            actor,
-          );
-      if (!stockOk) {
-        toast.error(
-          "Lieferung gespeichert, aber Bestand konnte nicht vollständig angepasst werden.",
+      try {
+        const result = await resolveOpenDeliveriesAndClose(
+          order.id,
+          exceptions,
+          actor,
+          {
+            applyStock: options.skipStock !== true,
+            onProgress: (progress) => setCloseProgress(progress),
+          },
         );
-      } else {
-        const openCount = order.lines.filter(
-          (l) => !isLineDeliveryResolved(l),
-        ).length;
+        if (!result.ok) {
+          toast.error("Bestellung konnte nicht abgeschlossen werden.");
+          return;
+        }
+
+        const skipStock = options.skipStock === true;
         const deliveredCount = openCount - exceptions.length;
         const stockSum = skipStock
           ? 0
           : result.stockDeltas.reduce((s, d) => s + d.delta, 0);
+
         if (skipStock) {
           toast.success(
             exceptions.length === 0
@@ -636,10 +649,34 @@ export function PurchaseOrdersScreen() {
               : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"}.`,
           );
         }
-      }
 
-      setCloseConfirmOrderId(null);
-      setStatusFilter("closed");
+        setCloseProgress({ done: openCount, total: Math.max(1, openCount) });
+        await new Promise((resolve) => window.setTimeout(resolve, 280));
+        setStatusFilter("closed");
+
+        if (skipStock || result.stockApplied) return;
+
+        void applyDeliveryStockDeltas(
+          result.stockDeltas.map((d) => ({
+            ingredientId: d.ingredientId,
+            delta: d.delta,
+            unitId: d.unitId,
+            unitLabel: d.unitLabel,
+            orderId: order.id,
+            supplierName: supplierNameForOrder(order),
+          })),
+          actor,
+        ).then((stockOk) => {
+          if (!stockOk) {
+            toast.error(
+              "Bestellung abgeschlossen, aber Bestand konnte nicht vollständig angepasst werden.",
+            );
+          }
+        });
+      } finally {
+        setCloseProgress(null);
+        closeInFlightUiRef.current = false;
+      }
     },
     [
       actor,
@@ -788,6 +825,7 @@ export function PurchaseOrdersScreen() {
                             "rounded-full px-3 sm:px-4",
                             brandActionButtonRoundedClassName,
                           )}
+                          disabled={closeProgress != null}
                           onClick={() => requestCloseOrder(order)}
                         >
                           Abschließen
@@ -842,11 +880,11 @@ export function PurchaseOrdersScreen() {
                     <div className="hidden md:block">
                     <ModuleDataTableFrame
                       tableFullscreen
+                      scrollPort="page"
                       fullscreenTitle={`Bestellung · ${supplierNameForOrder(order)}`}
                       summaryText={`${order.lines.length} Position${order.lines.length === 1 ? "" : "en"}`}
                       toolbarClassName="px-4 sm:px-5"
                       shellClassName="overflow-hidden rounded-none bg-transparent ring-0 shadow-none"
-                      scrollClassName="overflow-x-auto"
                       fullscreenChromeInsetClassName={
                         moduleTableFullscreenChromeInsetDenseClassName
                       }
@@ -868,7 +906,7 @@ export function PurchaseOrdersScreen() {
                           : undefined
                       }
                     >
-                      <table className="w-full min-w-[920px] text-sm">
+                      <table className="w-full min-w-[1040px] text-sm">
                         <thead>
                           <tr className={moduleDataTableHeadRowNormalCaseClassName}>
                             <ModuleTableSortHeader
@@ -878,7 +916,14 @@ export function PurchaseOrdersScreen() {
                               dir={lineSortDir}
                               onSort={toggleLineSort}
                               className={cn(
-                                "min-w-[12rem]",
+                                "min-w-[14rem]",
+                                moduleDataTableHeadCellDenseClassName,
+                              )}
+                            />
+                            <ModuleTableStaticColumnHeader
+                              label="Art.-Nr."
+                              className={cn(
+                                "min-w-[7rem]",
                                 moduleDataTableHeadCellDenseClassName,
                               )}
                             />
@@ -938,7 +983,7 @@ export function PurchaseOrdersScreen() {
                           {order.lines.length === 0 ? (
                             <tr>
                               <td
-                                colSpan={6}
+                                colSpan={7}
                                 className="px-4 py-8 text-center text-muted-foreground"
                               >
                                 Noch keine Positionen.
@@ -960,7 +1005,18 @@ export function PurchaseOrdersScreen() {
                                 className="border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60"
                               >
                                 <td className="px-3 py-2 font-medium text-foreground">
-                                  {line.ingredientName}
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <IngredientThumb
+                                      imagePath={ingRow?.imagePath}
+                                      className="size-8"
+                                    />
+                                    <span className="min-w-0 truncate">
+                                      {line.ingredientName}
+                                    </span>
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-muted-foreground">
+                                  {ingRow?.articleNumber?.trim() || "—"}
                                 </td>
                                 <td className="max-w-[10rem] truncate px-3 py-2 text-muted-foreground">
                                   {line.brandLabel ?? "—"}
@@ -972,7 +1028,7 @@ export function PurchaseOrdersScreen() {
                                   <OrderLineQtyCell
                                     orderId={order.id}
                                     line={line}
-                                    readOnly={false}
+                                    readOnly={order.status !== "open"}
                                     actor={actor}
                                     onCommit={commitLineQty}
                                   />
@@ -1037,6 +1093,11 @@ export function PurchaseOrdersScreen() {
         }}
         unitLabelForLine={unitLabelForLine}
         onConfirm={handleCloseWithDeliveries}
+      />
+
+      <PurchaseOrderCloseProgressOverlay
+        open={closeProgress != null}
+        progress={closeProgress}
       />
     </div>
   );

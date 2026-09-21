@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Briefcase, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -64,7 +64,7 @@ export function StaffContractsScreen() {
   const contractIdFromUrl = searchParams.get("contract");
 
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const { selectedStaff, selectedStaffId, staffList, setSelectedStaffId } =
+  const { selectedStaff, selectedStaffId, selectedStaffIds, staffList, setSelectedStaffId } =
     useStaffModuleSelection();
   const { profile: restaurantProfile } = useRestaurantProfile();
   const employmentTypes = useStaffEmploymentTypesStorage(restaurantId);
@@ -102,6 +102,12 @@ export function StaffContractsScreen() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const overviewContracts = useMemo(() => {
+    if (selectedStaffIds.length <= 1) return contracts;
+    const allowed = new Set(selectedStaffIds);
+    return contracts.filter((c) => allowed.has(c.staff_id));
+  }, [contracts, selectedStaffIds]);
 
   const clearContractQuery = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -172,7 +178,7 @@ export function StaffContractsScreen() {
           <StaffTodosTableSkeleton />
         ) : (
           <StaffContractsAllTable
-            contracts={contracts}
+            contracts={overviewContracts}
             staffList={staffList}
             employmentTypes={employmentTypes.items}
             onSelectContract={openEdit}

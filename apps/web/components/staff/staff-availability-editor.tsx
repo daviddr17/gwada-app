@@ -229,51 +229,80 @@ export function StaffAvailabilityEditor({
     }
 
     setSaving(true);
-    const isAvailable = !isUnavailable;
-    const effectiveStart = isAvailable
-      ? startTime
-      : STAFF_AVAILABILITY_ALL_DAY_START;
-    const effectiveEnd = isAvailable ? endTime : STAFF_AVAILABILITY_ALL_DAY_END;
+    try {
+      const isAvailable = !isUnavailable;
+      const effectiveStart = isAvailable
+        ? startTime
+        : STAFF_AVAILABILITY_ALL_DAY_START;
+      const effectiveEnd = isAvailable ? endTime : STAFF_AVAILABILITY_ALL_DAY_END;
 
-    if (displayApi) {
-      try {
-        const res = await fetch("/api/display/availability", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            kind: "date",
-            serviceDates: resolvedDates,
-            startTime: effectiveStart,
-            endTime: effectiveEnd,
-            isAvailable,
-            note: note.trim() || null,
-          }),
-        });
-        const data = (await res.json()) as { error?: string };
-        setSaving(false);
-        if (!res.ok) {
-          toast.error(
-            data.error === "invalid_range"
-              ? "Ende muss nach Beginn liegen."
-              : data.error === "unavailable_requires_date"
-                ? "Nicht verfügbar gilt nur für bestimmte Tage."
-                : data.error ?? "Speichern fehlgeschlagen.",
-          );
+      if (displayApi) {
+        try {
+          const res = await fetch("/api/display/availability", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              kind: "date",
+              serviceDates: resolvedDates,
+              startTime: effectiveStart,
+              endTime: effectiveEnd,
+              isAvailable,
+              note: note.trim() || null,
+            }),
+          });
+          const data = (await res.json()) as { error?: string };
+          if (!res.ok) {
+            toast.error(
+              data.error === "invalid_range"
+                ? "Ende muss nach Beginn liegen."
+                : data.error === "unavailable_requires_date"
+                  ? "Nicht verfügbar gilt nur für bestimmte Tage."
+                  : data.error ?? "Speichern fehlgeschlagen.",
+            );
+            return;
+          }
+        } catch {
+          toast.error("Speichern fehlgeschlagen.");
           return;
         }
-      } catch {
-        setSaving(false);
-        toast.error("Speichern fehlgeschlagen.");
+        toast.success(
+          isAvailable
+            ? resolvedDates.length > 1
+              ? `${resolvedDates.length} Verfügbarkeiten gespeichert.`
+              : "Verfügbarkeit gespeichert."
+            : resolvedDates.length > 1
+              ? `${resolvedDates.length} Tage als nicht verfügbar gespeichert.`
+              : "Nicht verfügbar gespeichert.",
+        );
+        setNote("");
+        setServiceDates([]);
+        setDraftDate("");
+        await reload();
+        onSlotsChanged?.();
+        return;
+      }
+
+      const { created, error } = await createStaffAvailabilityDateSlots({
+        restaurantId,
+        staffId,
+        serviceDates: resolvedDates,
+        startTime: effectiveStart,
+        endTime: effectiveEnd,
+        isAvailable,
+        note: note.trim() || null,
+      });
+      if (error) {
+        toast.error(error);
         return;
       }
       toast.success(
         isAvailable
-          ? resolvedDates.length > 1
-            ? `${resolvedDates.length} Verfügbarkeiten gespeichert.`
+          ? created > 1
+            ? `${created} Verfügbarkeiten gespeichert.`
             : "Verfügbarkeit gespeichert."
-          : resolvedDates.length > 1
-            ? `${resolvedDates.length} Tage als nicht verfügbar gespeichert.`
+          : created > 1
+            ? `${created} Tage als nicht verfügbar gespeichert.`
             : "Nicht verfügbar gespeichert.",
       );
       setNote("");
@@ -281,37 +310,9 @@ export function StaffAvailabilityEditor({
       setDraftDate("");
       await reload();
       onSlotsChanged?.();
-      return;
+    } finally {
+      setSaving(false);
     }
-
-    const { created, error } = await createStaffAvailabilityDateSlots({
-      restaurantId,
-      staffId,
-      serviceDates: resolvedDates,
-      startTime: effectiveStart,
-      endTime: effectiveEnd,
-      isAvailable,
-      note: note.trim() || null,
-    });
-    setSaving(false);
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    toast.success(
-      isAvailable
-        ? created > 1
-          ? `${created} Verfügbarkeiten gespeichert.`
-          : "Verfügbarkeit gespeichert."
-        : created > 1
-          ? `${created} Tage als nicht verfügbar gespeichert.`
-          : "Nicht verfügbar gespeichert.",
-    );
-    setNote("");
-    setServiceDates([]);
-    setDraftDate("");
-    await reload();
-    onSlotsChanged?.();
   };
 
   const deleteLabel = useMemo(() => {

@@ -28,6 +28,10 @@ export const DEFAULT_IN_APP_ENABLED_MODULE_IDS: readonly NotificationModuleId[] 
     "events_inquiry",
     "staff_permissions_granted",
     "inventory_po_delivery_due",
+    "inventory_po_ordered",
+    "inventory_po_closed",
+    "personal_reminder",
+    "staff_messages",
   ];
 
 export function defaultModuleToggles(

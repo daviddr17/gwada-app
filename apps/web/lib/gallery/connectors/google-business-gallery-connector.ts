@@ -4,6 +4,7 @@ import { galleryCategoryLabelForPlatform } from "@/lib/gallery/gallery-categorie
 import type { GalleryPlatformConnector } from "@/lib/gallery/connectors/types";
 import type { UnifiedGalleryItem } from "@/lib/gallery/unified-gallery-item";
 import {
+  fetchWithGoogleBusinessAuth,
   getGoogleBusinessAccessTokenForRestaurant,
   googleReviewsParentPath,
 } from "@/lib/integrations/google-business-access";
@@ -74,8 +75,8 @@ function mapGoogleMedia(
 }
 
 async function listGoogleMediaPages(
+  restaurantId: string,
   url: string,
-  accessToken: string,
 ): Promise<{ items: GoogleMediaItem[]; error?: string }> {
   const items: GoogleMediaItem[] = [];
   let pageToken: string | undefined;
@@ -85,17 +86,18 @@ async function listGoogleMediaPages(
     if (pageToken) requestUrl.searchParams.set("pageToken", pageToken);
     requestUrl.searchParams.set("pageSize", "200");
 
-    const res = await fetch(requestUrl.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: "no-store",
-    });
-    const body = (await res.json()) as {
+    const fetched = await fetchWithGoogleBusinessAuth(
+      restaurantId,
+      requestUrl.toString(),
+    );
+    if ("error" in fetched) return { items, error: fetched.error };
+    const body = (await fetched.json()) as {
       mediaItems?: GoogleMediaItem[];
       nextPageToken?: string;
       error?: { message?: string };
     };
-    if (!res.ok) {
-      return { items, error: body.error?.message ?? `google_media_${res.status}` };
+    if (!fetched.ok) {
+      return { items, error: body.error?.message ?? `google_media_${fetched.status}` };
     }
     items.push(...(body.mediaItems ?? []));
     pageToken = body.nextPageToken;
@@ -131,8 +133,8 @@ export const googleBusinessGalleryConnector: GalleryPlatformConnector = {
     const customerUrl = `https://mybusiness.googleapis.com/v4/${auth.parent}/media/customers`;
 
     const [ownerResult, customerResult] = await Promise.all([
-      listGoogleMediaPages(ownerUrl, auth.accessToken),
-      listGoogleMediaPages(customerUrl, auth.accessToken),
+      listGoogleMediaPages(restaurantId, ownerUrl),
+      listGoogleMediaPages(restaurantId, customerUrl),
     ]);
 
     const errors = [ownerResult.error, customerResult.error].filter(Boolean);

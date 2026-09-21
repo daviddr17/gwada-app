@@ -85,7 +85,6 @@ export function useMenuTaxonomyStorage(
       if (Array.isArray(localRaw) && localRaw.every(isValidLoose)) {
         setItems(localRaw.map(normalizeTaxonomy));
       }
-      setIsHydrated(true);
 
       void (async () => {
         const rid = await getWorkspaceRestaurantId();

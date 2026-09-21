@@ -7,9 +7,14 @@ import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-revi
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
 import { loadInventoryPoDeliveryDueBellSummary } from "@/lib/notifications/notification-inventory-po-delivery-server";
+import { loadInventoryPoStatusNotificationItems } from "@/lib/notifications/notification-po-status-server";
+import { loadDigestNotificationItems } from "@/lib/notifications/notification-digest-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
+import { loadPersonalReminderNotificationItems } from "@/lib/notifications/notification-personal-reminder-server";
+import { loadStaffMessagesNotificationItems } from "@/lib/notifications/notification-staff-messages-server";
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
+import { loadStaffDocumentAssignedNotificationItems } from "@/lib/notifications/notification-staff-document-server";
 import { loadStaffDisplayTimeRequestNotificationItems } from "@/lib/notifications/notification-staff-display-time-request-server";
 import { loadStaffDisplayClockNotificationItems } from "@/lib/notifications/notification-staff-display-clock-server";
 import {
@@ -46,6 +51,20 @@ import { isMetaInboxConnected } from "@/lib/contact-messages/meta-inbox-auth-ser
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BELL_ITEMS_PER_MODULE = 5;
+
+/** Nur Live-Feed — keine Glocke/Push. */
+async function buildFeedOnlyEmptyModule(
+  moduleId: NotificationModuleId,
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[moduleId];
+  return {
+    id: moduleId,
+    count: 0,
+    label: def.labelPlural,
+    href: def.href,
+    items: [],
+  };
+}
 
 async function fetchUnreadChangelogItems(
   sb: SupabaseClient,
@@ -320,6 +339,59 @@ async function buildInventoryPoDeliveryDueModule(
   };
 }
 
+async function buildInventoryPoStatusModule(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module: "inventory_po_ordered" | "inventory_po_closed";
+  },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[params.module];
+  const { items, totalCount } = await loadInventoryPoStatusNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
+async function buildDigestModule(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module:
+      | "digest_daily_preview"
+      | "digest_daily_review"
+      | "digest_weekly_preview"
+      | "digest_weekly_review";
+  },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[params.module];
+  const { items, totalCount } = await loadDigestNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
 async function buildAccountingModule(
   sb: SupabaseClient,
   params: {
@@ -411,6 +483,8 @@ const MODULE_BUILDERS: Record<
       ...ctx,
       module: "reservations_cancellation",
     }),
+  reservations_activity: () =>
+    buildFeedOnlyEmptyModule("reservations_activity"),
   events_inquiry: (ctx) =>
     buildReservationModule(ctx.sb, { ...ctx, module: "events_inquiry" }),
   staff_shift_start: (ctx) =>
@@ -430,6 +504,27 @@ const MODULE_BUILDERS: Record<
   inventory_low_stock: (ctx) => buildInventoryLowStockModule(ctx.sb, ctx),
   inventory_po_delivery_due: (ctx) =>
     buildInventoryPoDeliveryDueModule(ctx.sb, ctx),
+  inventory_po_ordered: (ctx) =>
+    buildInventoryPoStatusModule(ctx.sb, {
+      ...ctx,
+      module: "inventory_po_ordered",
+    }),
+  inventory_po_closed: (ctx) =>
+    buildInventoryPoStatusModule(ctx.sb, {
+      ...ctx,
+      module: "inventory_po_closed",
+    }),
+  digest_daily_preview: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_daily_preview" }),
+  digest_daily_review: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_daily_review" }),
+  digest_weekly_preview: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_weekly_preview" }),
+  digest_weekly_review: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_weekly_review" }),
+  inventory_po_activity: () => buildFeedOnlyEmptyModule("inventory_po_activity"),
+  inventory_stock_activity: () =>
+    buildFeedOnlyEmptyModule("inventory_stock_activity"),
   accounting_quotation: (ctx) =>
     buildAccountingModule(ctx.sb, {
       ...ctx,
@@ -457,9 +552,51 @@ const MODULE_BUILDERS: Record<
       userId: ctx.userId,
       module: "staff_todo_deferred",
     }),
+  personal_reminder: async (ctx) => {
+    const def = NOTIFICATION_MODULES.personal_reminder;
+    const { items, totalCount } = await loadPersonalReminderNotificationItems(
+      ctx.admin,
+      { restaurantId: ctx.restaurantId, userId: ctx.userId },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_messages: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_messages;
+    const { items, totalCount } = await loadStaffMessagesNotificationItems(
+      ctx.admin,
+      { restaurantId: ctx.restaurantId, userId: ctx.userId },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
   staff_contract_signed: async (ctx) => {
     const def = NOTIFICATION_MODULES.staff_contract_signed;
     const items = await loadStaffContractSignedNotificationItems(ctx.sb, {
+      restaurantId: ctx.restaurantId,
+      userId: ctx.userId,
+    });
+    return {
+      id: def.id,
+      count: items.length,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_document_assigned: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_document_assigned;
+    const items = await loadStaffDocumentAssignedNotificationItems(ctx.sb, {
       restaurantId: ctx.restaurantId,
       userId: ctx.userId,
     });

@@ -444,9 +444,14 @@ export function ReviewInvitationSheet({
               {!channelsLoading && !canWhatsapp && !canEmail ? (
                 <p className="text-xs text-muted-foreground">
                   Kein Versandkanal aktiv — Link oben kopieren und manuell teilen.
-                  Unter Einstellungen → Integrationen WhatsApp oder E-Mail aktivieren.
+                  {whatsappEnabled
+                    ? " Unter Einstellungen → Integrationen WhatsApp oder E-Mail aktivieren."
+                    : emailEnabled
+                      ? " Unter Einstellungen → Integrationen E-Mail aktivieren."
+                      : ""}
                 </p>
               ) : null}
+              {whatsappEnabled ? (
               <div
                 className={cn(
                   "flex items-center justify-between gap-3",
@@ -478,6 +483,7 @@ export function ReviewInvitationSheet({
                   onCheckedChange={(v) => void handleWhatsappToggle(v === true)}
                 />
               </div>
+              ) : null}
               <div
                 className={cn(
                   "flex items-center justify-between gap-3",

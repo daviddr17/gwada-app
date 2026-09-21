@@ -148,7 +148,11 @@ export function PurchaseOrderCloseDeliveryDrawer({
   return (
     <Drawer
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (pending && !next) return;
+        onOpenChange(next);
+      }}
+      dismissible={!pending}
       direction="bottom"
       repositionInputs={false}
     >

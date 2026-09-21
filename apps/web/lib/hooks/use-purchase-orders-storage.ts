@@ -7,13 +7,14 @@ import { PURCHASE_ORDERS_STORAGE_KEY } from "@/lib/constants/inventory-storage";
 import { createId } from "@/lib/create-id";
 import {
   getModuleCacheGcTime,
-  getModuleCacheStaleTime,
 } from "@/lib/dashboard/module-data-cache-policy";
 import {
   fetchPurchaseOrdersForRestaurant,
   peekPurchaseOrdersCache,
 } from "@/lib/inventory/purchase-orders-query";
+import { useInventoryDataRefreshListener } from "@/lib/hooks/use-inventory-data-refresh-listener";
 import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-inventory-live-patch-from-cache";
+import { dispatchInventoryDataRefresh } from "@/lib/inventory/inventory-live-events";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
 import {
@@ -25,6 +26,8 @@ import {
   toastPurchaseOrderQuantityIncreased,
 } from "@/lib/inventory/purchase-order-notifications";
 import { withoutEmptyOpenPurchaseOrders } from "@/lib/inventory/prune-empty-open-purchase-orders";
+import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
+import { createSerialAsyncQueue } from "@/lib/inventory/serial-async-queue";
 import { applyTaxonomySupplierNamesToOrders } from "@/lib/inventory/resolve-purchase-order-supplier-name";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
@@ -34,8 +37,15 @@ import {
 } from "@/lib/supabase/db-toast";
 import {
   inventoryRelationalPersistenceEnabled,
+  loadPurchaseOrdersRelational,
   savePurchaseOrdersRelational,
+  setPurchaseOrderStatusRelational,
+  applyPurchaseOrderLineDeliveryStockRelational,
+  addPurchaseOrderLineRelational,
+  setPurchaseOrderLineQuantityRelational,
+  setPurchaseOrderDeliveryDateRelational,
 } from "@/lib/supabase/inventory-db";
+import type { Ingredient } from "@/lib/types/inventory";
 import {
   getWorkspaceRestaurantId,
   loadWorkspaceJsonLocal,
@@ -81,7 +91,7 @@ function appendStatusChangeLog(
   fromStatus: PurchaseOrderStatus,
   toStatus: PurchaseOrderStatus,
   actor: OrderProtocolActor,
-) {
+): PurchaseOrderLogStatusChange {
   const logEntry: PurchaseOrderLogStatusChange = {
     id: createId(),
     at: new Date().toISOString(),
@@ -95,6 +105,8 @@ function appendStatusChangeLog(
     unitLabel: "",
   };
   order.log.push(logEntry);
+  order.statusUpdatedAt = logEntry.at;
+  return logEntry;
 }
 
 function parseLogEntry(raw: unknown): PurchaseOrderLogEntry | null {
@@ -336,11 +348,16 @@ function parseOrder(raw: unknown): PurchaseOrder | null {
   if (typeof raw.deliveryDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.deliveryDate)) {
     deliveryDate = raw.deliveryDate;
   }
+  const statusUpdatedAt =
+    typeof raw.statusUpdatedAt === "string" && raw.statusUpdatedAt
+      ? raw.statusUpdatedAt
+      : undefined;
   return {
     id: raw.id,
     supplierId: raw.supplierId,
     supplierName: raw.supplierName,
     status: raw.status as PurchaseOrderStatus,
+    ...(statusUpdatedAt ? { statusUpdatedAt } : {}),
     createdAt: raw.createdAt,
     createdBy: raw.createdBy,
     ...(createdByUserSource ? { createdByUserSource } : {}),
@@ -411,11 +428,27 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       useDbInventory &&
       workspaceReady &&
       Boolean(restaurantId),
-    staleTime: getModuleCacheStaleTime("inventoryModule") ?? 60_000,
+    staleTime: 0,
     gcTime: getModuleCacheGcTime("inventoryModule") ?? 5 * 60_000,
+    refetchOnMount: "always",
     placeholderData: (previous) =>
       previous ?? peekPurchaseOrdersCache() ?? undefined,
   });
+
+  const refetchPurchaseOrders = useCallback(() => {
+    if (!restaurantId) return;
+    void ordersQuery.refetch();
+  }, [ordersQuery, restaurantId]);
+
+  const refetchPurchaseOrdersNow = useCallback(async () => {
+    if (!restaurantId) return;
+    await ordersQuery.refetch();
+  }, [ordersQuery, restaurantId]);
+
+  useInventoryDataRefreshListener(
+    queryEnabled && useDbInventory && workspaceReady && Boolean(restaurantId),
+    refetchPurchaseOrders,
+  );
 
   const afterOrdersMutation = useCallback(() => {
     if (restaurantId) {
@@ -465,64 +498,57 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     ? (ordersQuery.data ?? peekPurchaseOrdersCache() ?? [])
     : localOrders;
   const isHydrated = useDbInventory
-    ? workspaceReady &&
-      (ordersQuery.isSuccess ||
-        ordersQuery.isError ||
-        peekPurchaseOrdersCache().length > 0)
+    ? workspaceReady && (ordersQuery.isSuccess || ordersQuery.isError)
     : isLocalHydrated;
+  /** Kein Full-Replace solange der erste DB-Fetch noch läuft (stale LS/Placeholder). */
+  const dbFetchReady = !useDbInventory || ordersQuery.isSuccess;
 
-  const persist = useCallback(
-    async (next: PurchaseOrder[]): Promise<boolean> => {
-      if (useDbInventory) {
-        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
-        if (!rid) {
-          failSave();
-          return false;
-        }
-        const result = await savePurchaseOrdersRelational(rid, next);
-        if (!result.ok) {
-          toastDatabaseSaveError(result.message);
-          return false;
-        }
-        queryClient.setQueryData(
-          queryKeys.inventory.purchaseOrders(rid),
-          next,
-        );
-        mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
-          version: 1 as const,
-          orders: next,
-        });
-        afterOrdersMutation();
-        return true;
-      }
-      const payload: PurchaseOrdersPersistenceV1 = { version: 1, orders: next };
-      const ok = mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, payload);
-      if (!ok) {
-        failSave();
-        return false;
-      }
-      setLocalOrders(next);
-      if (restaurantId) {
-        dispatchDashboardInventoryLivePatchFromCache(restaurantId);
-      }
-      return true;
-    },
-    [afterOrdersMutation, failSave, queryClient, restaurantId, useDbInventory],
-  );
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
+  const persistQueueRef = useRef(createSerialAsyncQueue());
+  const ordersMutationGenerationRef = useRef(0);
+  const closeInFlightRef = useRef(false);
 
-  /** Bestehende offene Bestellungen ohne Positionen entfernen (Legacy-Schalen). */
-  const emptyOpenPruneInFlightRef = useRef(false);
-  useEffect(() => {
-    if (!isHydrated || emptyOpenPruneInFlightRef.current) return;
-    const pruned = withoutEmptyOpenPurchaseOrders(orders);
-    if (pruned.length === orders.length) return;
-    emptyOpenPruneInFlightRef.current = true;
-    void persist(pruned).finally(() => {
-      emptyOpenPruneInFlightRef.current = false;
-    });
-  }, [isHydrated, orders, persist]);
+  const readOrdersSnapshot = useCallback((): PurchaseOrder[] => {
+    if (useDbInventory && restaurantId) {
+      return (
+        queryClient.getQueryData<PurchaseOrder[]>(
+          queryKeys.inventory.purchaseOrders(restaurantId),
+        ) ?? ordersRef.current
+      );
+    }
+    return ordersRef.current;
+  }, [queryClient, restaurantId, useDbInventory]);
 
   /** Sofort in UI/Cache schreiben (vor await Persist) — bei Fehler zurückrollen. */
+  const applyIngredientStockOptimistic = useCallback(
+    (ingredientId: string, currentStock: number) => {
+      if (!restaurantId) return;
+      queryClient.setQueryData<Ingredient[]>(
+        queryKeys.inventory.ingredients(restaurantId),
+        (prev) => {
+          if (!prev) return prev;
+          return prev.map((item) =>
+            item.id === ingredientId ? { ...item, currentStock } : item,
+          );
+        },
+      );
+    },
+    [queryClient, restaurantId],
+  );
+
+  const readIngredientStock = useCallback(
+    (ingredientId: string): number | null => {
+      if (!restaurantId) return null;
+      const list = queryClient.getQueryData<Ingredient[]>(
+        queryKeys.inventory.ingredients(restaurantId),
+      );
+      const match = list?.find((item) => item.id === ingredientId);
+      return match ? match.currentStock : null;
+    },
+    [queryClient, restaurantId],
+  );
+
   const applyOrdersOptimistic = useCallback(
     (next: PurchaseOrder[]) => {
       if (useDbInventory) {
@@ -546,6 +572,570 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
     },
     [queryClient, restaurantId, useDbInventory],
   );
+
+  const saveOrdersToBackend = useCallback(
+    async (next: PurchaseOrder[]): Promise<boolean> => {
+      if (useDbInventory) {
+        if (!dbFetchReady) {
+          toast.error(
+            "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+          );
+          return false;
+        }
+        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+        if (!rid) {
+          failSave();
+          return false;
+        }
+        const result = await savePurchaseOrdersRelational(rid, next);
+        if (!result.ok) {
+          toastDatabaseSaveError(result.message);
+          return false;
+        }
+        const fromDb = result.orders;
+        if (restaurantId) {
+          queryClient.setQueryData(
+            queryKeys.inventory.purchaseOrders(restaurantId),
+            fromDb,
+          );
+        }
+        mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+          version: 1 as const,
+          orders: fromDb,
+        });
+        return true;
+      }
+      const payload: PurchaseOrdersPersistenceV1 = { version: 1, orders: next };
+      const ok = mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, payload);
+      if (!ok) {
+        failSave();
+        return false;
+      }
+      return true;
+    },
+    [dbFetchReady, failSave, queryClient, restaurantId, useDbInventory],
+  );
+
+  const afterOrdersPersistSuccess = useCallback(() => {
+    if (useDbInventory) {
+      afterOrdersMutation();
+      return;
+    }
+    if (restaurantId) {
+      dispatchDashboardInventoryLivePatchFromCache(restaurantId);
+    }
+  }, [afterOrdersMutation, restaurantId, useDbInventory]);
+
+  const persist = useCallback(
+    async (next: PurchaseOrder[]): Promise<boolean> => {
+      return persistQueueRef.current.enqueue(async () => {
+        const ok = await saveOrdersToBackend(next);
+        if (!ok) return false;
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [afterOrdersPersistSuccess, saveOrdersToBackend],
+  );
+
+  const persistOptimisticQueued = useCallback(
+    (
+      next: PurchaseOrder[],
+      rollbackSnapshot: PurchaseOrder[],
+    ): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(next);
+      return persistQueueRef.current.enqueue(async () => {
+        const ok = await saveOrdersToBackend(next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      saveOrdersToBackend,
+    ],
+  );
+
+  /**
+   * Statuswechsel: UI sofort; DB per O(1)-RPC (kein Full-Replace).
+   * Erfolg-Toast erst nach RPC — verhindert „Erfolg, dann wieder offen“.
+   */
+  const persistStatusChangeOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      fromStatus: PurchaseOrderStatus;
+      toStatus: PurchaseOrderStatus;
+      logEntry: PurchaseOrderLogStatusChange;
+    }): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      return persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await setPurchaseOrderStatusRelational(rid, {
+            orderId: params.orderId,
+            fromStatus: params.fromStatus,
+            toStatus: params.toStatus,
+            logEntry: params.logEntry,
+          });
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          afterOrdersPersistSuccess();
+          // Andere Module/Tabs im selben Browser sofort; andere Mitarbeiter via Realtime-Signal.
+          dispatchInventoryDataRefresh();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
+  const persistLineQuantityAtomicOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      lineId: string;
+      quantity: number;
+      logEntry: PurchaseOrderLogEntry;
+    }): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      return persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await setPurchaseOrderLineQuantityRelational(rid, {
+            orderId: params.orderId,
+            lineId: params.lineId,
+            quantity: params.quantity,
+            logEntry: params.logEntry,
+          });
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          afterOrdersPersistSuccess();
+          dispatchInventoryDataRefresh();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
+  const persistAddLineAtomicOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      lineId: string;
+      supplierId: string;
+      supplierName: string;
+      createdBy: string;
+      ingredientId: string;
+      ingredientName: string;
+      brandLabel: string;
+      quantity: number;
+      unitId: string;
+      unitLabel: string;
+      logEntry: PurchaseOrderLogAdd;
+    }): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      return persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await addPurchaseOrderLineRelational(rid, {
+            orderId: params.orderId,
+            lineId: params.lineId,
+            supplierId: params.supplierId,
+            supplierName: params.supplierName,
+            createdBy: params.createdBy,
+            ingredientId: params.ingredientId,
+            ingredientName: params.ingredientName,
+            brandLabel: params.brandLabel,
+            quantity: params.quantity,
+            unitId: params.unitId,
+            unitLabel: params.unitLabel,
+            logEntry: params.logEntry,
+          });
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          afterOrdersPersistSuccess();
+          dispatchInventoryDataRefresh();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
+  const persistDeliveryDateAtomicOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      deliveryDate: string | null;
+    }): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      return persistQueueRef.current.enqueue(async () => {
+        try {
+          if (useDbInventory) {
+            if (!dbFetchReady) {
+              if (ordersMutationGenerationRef.current === generation) {
+                applyOrdersOptimistic(params.rollbackSnapshot);
+              }
+              toast.error(
+                "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+              );
+              return false;
+            }
+            const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+            if (!rid) {
+              if (ordersMutationGenerationRef.current === generation) {
+                applyOrdersOptimistic(params.rollbackSnapshot);
+              }
+              failSave();
+              return false;
+            }
+            const result = await setPurchaseOrderDeliveryDateRelational(rid, {
+              orderId: params.orderId,
+              deliveryDate: params.deliveryDate,
+            });
+            if (!result.ok) {
+              if (ordersMutationGenerationRef.current === generation) {
+                applyOrdersOptimistic(params.rollbackSnapshot);
+              }
+              toastDatabaseSaveError(result.message);
+              return false;
+            }
+            afterOrdersPersistSuccess();
+            dispatchInventoryDataRefresh();
+            return true;
+          }
+          const ok = await saveOrdersToBackend(params.next);
+          if (!ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+            }
+            return false;
+          }
+          afterOrdersPersistSuccess();
+          return true;
+        } catch {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+          }
+          failSave();
+          return false;
+        }
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
+  const persistLineDeliveryAtomicOptimistic = useCallback(
+    (params: {
+      next: PurchaseOrder[];
+      rollbackSnapshot: PurchaseOrder[];
+      orderId: string;
+      lineId: string;
+      mode: "set" | "clear";
+      deliveryStatus?: PurchaseOrderLineDeliveryStatus | null;
+      deliveredQuantity?: number | null;
+      deliveryNote?: string | null;
+      poLog: PurchaseOrderLogEntry;
+      stockLog: Record<string, unknown>;
+      applyStock: boolean;
+      ingredientId: string;
+      optimisticStockAfter: number | null;
+      rollbackStock: number | null;
+    }): Promise<boolean> => {
+      const generation = ++ordersMutationGenerationRef.current;
+      applyOrdersOptimistic(params.next);
+      if (params.optimisticStockAfter != null) {
+        applyIngredientStockOptimistic(
+          params.ingredientId,
+          params.optimisticStockAfter,
+        );
+      }
+      return persistQueueRef.current.enqueue(async () => {
+        if (useDbInventory) {
+          if (!dbFetchReady) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+              if (params.rollbackStock != null) {
+                applyIngredientStockOptimistic(
+                  params.ingredientId,
+                  params.rollbackStock,
+                );
+              }
+            }
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return false;
+          }
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+              if (params.rollbackStock != null) {
+                applyIngredientStockOptimistic(
+                  params.ingredientId,
+                  params.rollbackStock,
+                );
+              }
+            }
+            failSave();
+            return false;
+          }
+          const result = await applyPurchaseOrderLineDeliveryStockRelational(
+            rid,
+            {
+              orderId: params.orderId,
+              lineId: params.lineId,
+              mode: params.mode,
+              deliveryStatus: params.deliveryStatus,
+              deliveredQuantity: params.deliveredQuantity,
+              deliveryNote: params.deliveryNote,
+              poLog: params.poLog,
+              stockLog: params.stockLog,
+              applyStock: params.applyStock,
+            },
+          );
+          if (!result.ok) {
+            if (ordersMutationGenerationRef.current === generation) {
+              applyOrdersOptimistic(params.rollbackSnapshot);
+              if (params.rollbackStock != null) {
+                applyIngredientStockOptimistic(
+                  params.ingredientId,
+                  params.rollbackStock,
+                );
+              }
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          if (result.stockAfter != null) {
+            applyIngredientStockOptimistic(params.ingredientId, result.stockAfter);
+          }
+          afterOrdersPersistSuccess();
+          dispatchInventoryDataRefresh();
+          return true;
+        }
+        const ok = await saveOrdersToBackend(params.next);
+        if (!ok) {
+          if (ordersMutationGenerationRef.current === generation) {
+            applyOrdersOptimistic(params.rollbackSnapshot);
+            if (params.rollbackStock != null) {
+              applyIngredientStockOptimistic(
+                params.ingredientId,
+                params.rollbackStock,
+              );
+            }
+          }
+          return false;
+        }
+        afterOrdersPersistSuccess();
+        return true;
+      });
+    },
+    [
+      afterOrdersPersistSuccess,
+      applyIngredientStockOptimistic,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      failSave,
+      restaurantId,
+      saveOrdersToBackend,
+      useDbInventory,
+    ],
+  );
+
+  /** Bestehende offene Bestellungen ohne Positionen entfernen (Legacy-Schalen). */
+  const emptyOpenPruneInFlightRef = useRef(false);
+  const lineHealInFlightRef = useRef(false);
+  useEffect(() => {
+    if (!isHydrated || emptyOpenPruneInFlightRef.current) return;
+    /** Kein Full-Replace aus stale localStorage vor frischem DB-Fetch (Deploy/Reload). */
+    if (useDbInventory && !dbFetchReady) return;
+    const pruned = withoutEmptyOpenPurchaseOrders(orders);
+    if (pruned.length === orders.length) return;
+    emptyOpenPruneInFlightRef.current = true;
+    void persist(pruned).finally(() => {
+      emptyOpenPruneInFlightRef.current = false;
+    });
+  }, [dbFetchReady, isHydrated, orders, persist, useDbInventory]);
+
+  /** Protokoll/Positions-Desync in der UI ausgleichen — ohne Hintergrund-Save (Race mit Display). */
+  useEffect(() => {
+    if (!isHydrated || lineHealInFlightRef.current) return;
+    if (useDbInventory && !dbFetchReady) return;
+    const healed = orders.map(reconcilePurchaseOrderLinesFromLog);
+    const needsHeal = healed.some((order, index) => {
+      const prev = orders[index];
+      if (!prev || order.id !== prev.id) return true;
+      if (order.lines.length !== prev.lines.length) return true;
+      return order.lines.some((line) => {
+        const before = prev.lines.find((l) => l.ingredientId === line.ingredientId);
+        return !before || before.quantity !== line.quantity;
+      });
+    });
+    if (!needsHeal) return;
+    lineHealInFlightRef.current = true;
+    applyOrdersOptimistic(healed);
+    if (restaurantId) {
+      queryClient.setQueryData(
+        queryKeys.inventory.purchaseOrders(restaurantId),
+        healed,
+      );
+    }
+    mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+      version: 1 as const,
+      orders: healed,
+    });
+    lineHealInFlightRef.current = false;
+  }, [
+    applyOrdersOptimistic,
+    dbFetchReady,
+    isHydrated,
+    orders,
+    queryClient,
+    restaurantId,
+    useDbInventory,
+  ]);
 
   const getOpenLineContext = useCallback(
     (supplierId: string, ingredientId: string): OpenLineContext => {
@@ -576,7 +1166,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         return false;
       }
 
-      const prev = orders;
+      const prev = readOrdersSnapshot();
       const next: PurchaseOrder[] = structuredClone(prev);
       let order = next.find(
         (o) => o.supplierId === params.supplierId && o.status === "open",
@@ -589,6 +1179,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           supplierName: params.supplierName,
           status: "open",
           createdAt: new Date().toISOString(),
+          statusUpdatedAt: new Date().toISOString(),
           createdBy: protocolCreatedByLabel(params.actor),
           deliveryDate: null,
           lines: [],
@@ -619,13 +1210,15 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
 
       const existing = order.lines.find((l) => l.ingredientId === params.ingredientId);
       let addedNewLine = false;
+      let lineId = existing?.id ?? "";
       if (existing) {
         existing.quantity += params.quantity;
         existing.brandLabel = params.brandLabel;
       } else {
         addedNewLine = true;
+        lineId = createId();
         order.lines.push({
-          id: createId(),
+          id: lineId,
           ingredientId: params.ingredientId,
           ingredientName: params.ingredientName,
           brandLabel: params.brandLabel,
@@ -634,9 +1227,6 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           unitLabel: params.unitLabel,
         });
       }
-
-      const ok = await persist(next);
-      if (!ok) return false;
 
       if (createdNewOrder) {
         toastPurchaseOrderOpened(
@@ -659,15 +1249,33 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           params.unitLabel,
         );
       }
+
+      void persistAddLineAtomicOptimistic({
+        next,
+        rollbackSnapshot: prev,
+        orderId: order.id,
+        lineId,
+        supplierId: params.supplierId,
+        supplierName: params.supplierName,
+        createdBy: protocolCreatedByLabel(params.actor),
+        ingredientId: params.ingredientId,
+        ingredientName: params.ingredientName,
+        brandLabel: params.brandLabel,
+        quantity: params.quantity,
+        unitId: params.unitId,
+        unitLabel: params.unitLabel,
+        logEntry,
+      });
       return true;
     },
-    [orders, persist],
+    [persistAddLineAtomicOptimistic, readOrdersSnapshot],
   );
 
   /** Offen → Bestellt */
   const markOrderOrdered = useCallback(
     async (orderId: string, actor: OrderProtocolActor): Promise<boolean> => {
-      const target = orders.find((o) => o.id === orderId);
+      const prev = readOrdersSnapshot();
+      const target = prev.find((o) => o.id === orderId);
       if (!target || target.status !== "open") {
         toast.error("Bestellung nicht gefunden oder nicht offen.");
         return false;
@@ -676,16 +1284,23 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         toast.error("Bestellung hat keine Positionen.");
         return false;
       }
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const next: PurchaseOrder[] = structuredClone(prev);
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       o.status = "ordered";
-      appendStatusChangeLog(o, "open", "ordered", actor);
-      if (!(await persist(next))) return false;
-      toast.success("Als bestellt markiert");
-      return true;
+      const logEntry = appendStatusChangeLog(o, "open", "ordered", actor);
+      const ok = await persistStatusChangeOptimistic({
+        next,
+        rollbackSnapshot: prev,
+        orderId,
+        fromStatus: "open",
+        toStatus: "ordered",
+        logEntry,
+      });
+      if (ok) toast.success("Als bestellt markiert");
+      return ok;
     },
-    [orders, persist],
+    [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   /**
@@ -698,7 +1313,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       actor: OrderProtocolActor,
       options?: { force?: boolean; silent?: boolean },
     ): Promise<boolean> => {
-      const target = orders.find((o) => o.id === orderId);
+      const prev = readOrdersSnapshot();
+      const target = prev.find((o) => o.id === orderId);
       if (!target || target.status !== "ordered") {
         toast.error("Bestellung nicht gefunden oder nicht im Status Bestellt.");
         return false;
@@ -708,35 +1324,52 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         toast.error("Noch nicht alle Positionen bearbeitet.");
         return false;
       }
-      const next: PurchaseOrder[] = structuredClone(orders);
-      const o = next.find((x) => x.id === orderId);
-      if (!o) return false;
-      o.status = "closed";
-      appendStatusChangeLog(o, "ordered", "closed", actor);
-      if (!(await persist(next))) return false;
-      if (!options?.silent) {
-        toast.success("Bestellung abgeschlossen");
+      if (closeInFlightRef.current) {
+        toast.error("Abschluss läuft bereits — bitte warten.");
+        return false;
       }
-      return true;
+      closeInFlightRef.current = true;
+      try {
+        const next: PurchaseOrder[] = structuredClone(prev);
+        const o = next.find((x) => x.id === orderId);
+        if (!o) return false;
+        o.status = "closed";
+        const logEntry = appendStatusChangeLog(o, "ordered", "closed", actor);
+        const ok = await persistStatusChangeOptimistic({
+          next,
+          rollbackSnapshot: prev,
+          orderId,
+          fromStatus: "ordered",
+          toStatus: "closed",
+          logEntry,
+        });
+        if (ok && !options?.silent) {
+          toast.success("Bestellung abgeschlossen");
+        }
+        return ok;
+      } finally {
+        closeInFlightRef.current = false;
+      }
     },
-    [orders, persist],
+    [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   /** Immer einen Status zurück: Abgeschlossen → Bestellt → Offen */
   const reopenOrder = useCallback(
     async (orderId: string, actor: OrderProtocolActor): Promise<boolean> => {
-      const target = orders.find((o) => o.id === orderId);
+      const snapshot = readOrdersSnapshot();
+      const target = snapshot.find((o) => o.id === orderId);
       if (!target) {
         toast.error("Bestellung nicht gefunden.");
         return false;
       }
-      const prev = previousPurchaseOrderStatus(target.status);
-      if (!prev) {
+      const prevStatus = previousPurchaseOrderStatus(target.status);
+      if (!prevStatus) {
         toast.error("Bestellung ist bereits offen.");
         return false;
       }
-      if (prev === "open") {
-        const hasOpenForSupplier = orders.some(
+      if (prevStatus === "open") {
+        const hasOpenForSupplier = snapshot.some(
           (o) =>
             o.id !== target.id &&
             o.supplierId === target.supplierId &&
@@ -749,17 +1382,26 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           return false;
         }
       }
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const next: PurchaseOrder[] = structuredClone(snapshot);
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       const from = o.status;
-      o.status = prev;
-      appendStatusChangeLog(o, from, prev, actor);
-      if (!(await persist(next))) return false;
-      toast.success(`Zurück auf „${purchaseOrderStatusLabel(prev)}“`);
-      return true;
+      o.status = prevStatus;
+      const logEntry = appendStatusChangeLog(o, from, prevStatus, actor);
+      const ok = await persistStatusChangeOptimistic({
+        next,
+        rollbackSnapshot: snapshot,
+        orderId,
+        fromStatus: from,
+        toStatus: prevStatus,
+        logEntry,
+      });
+      if (ok) {
+        toast.success(`Zurück auf „${purchaseOrderStatusLabel(prevStatus)}“`);
+      }
+      return ok;
     },
-    [orders, persist],
+    [persistStatusChangeOptimistic, readOrdersSnapshot],
   );
 
   const setOrderDeliveryDate = useCallback(
@@ -772,22 +1414,30 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const normalized =
         ymd && /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
       if (target.deliveryDate === normalized) return true;
-      const previous = orders;
-      const next = orders.map((o) =>
+      const previous = readOrdersSnapshot();
+      const next = previous.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      applyOrdersOptimistic(next);
-      if (!(await persist(next))) {
-        applyOrdersOptimistic(previous);
-        return false;
-      }
+      const toastId = `order-delivery-${orderId}`;
       toast.success(
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
-        { id: `order-delivery-${orderId}` },
+        { id: toastId },
       );
+      void persistDeliveryDateAtomicOptimistic({
+        next,
+        rollbackSnapshot: previous,
+        orderId,
+        deliveryDate: normalized,
+      })
+        .then((ok) => {
+          if (!ok) toast.dismiss(toastId);
+        })
+        .catch(() => {
+          toast.dismiss(toastId);
+        });
       return true;
     },
-    [applyOrdersOptimistic, orders, persist],
+    [orders, persistDeliveryDateAtomicOptimistic, readOrdersSnapshot],
   );
 
   const updateLineQuantity = useCallback(
@@ -797,9 +1447,14 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       nextQty: number,
       actor: OrderProtocolActor,
     ): Promise<boolean> => {
-      const order = orders.find((o) => o.id === orderId);
+      const snapshot = readOrdersSnapshot();
+      const order = snapshot.find((o) => o.id === orderId);
       if (!order) {
         toast.error("Bestellung nicht gefunden.");
+        return false;
+      }
+      if (order.status !== "open") {
+        toast.error("Menge nur in offenen Bestellungen ändern.");
         return false;
       }
       if (!Number.isFinite(nextQty) || nextQty < 0) {
@@ -814,7 +1469,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const oldQty = line.quantity;
       if (oldQty === nextQty) return true;
 
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const prev = snapshot;
+      const next: PurchaseOrder[] = structuredClone(snapshot);
       const o = next.find((x) => x.id === orderId);
       if (!o) return false;
       const l = o.lines.find((x) => x.id === lineId);
@@ -847,7 +1503,6 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         ? next.filter((x) => x.id !== orderId)
         : next;
 
-      if (!(await persist(toPersist))) return false;
       if (deletedEmptyOpen) {
         toastPurchaseOrderDeletedEmpty(supplierNameForToast);
       } else if (nextQty === 0) {
@@ -859,14 +1514,22 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
           l.unitLabel,
         );
       }
+      void persistLineQuantityAtomicOptimistic({
+        next: toPersist,
+        rollbackSnapshot: prev,
+        orderId,
+        lineId,
+        quantity: nextQty,
+        logEntry,
+      });
       return true;
     },
-    [orders, persist],
+    [persistLineQuantityAtomicOptimistic, readOrdersSnapshot],
   );
 
   /**
-   * Setzt Liefer-Antwort. Gibt `stockDelta` für Bestand und ggf. `autoClosed` zurück.
-   * Persistiert die Bestellung; Bestand bleibt Aufgabe des Callers.
+   * Setzt Liefer-Antwort. In der DB eine Transaktion (Lieferung + Lager).
+   * `stockApplied` = Caller soll keinen zweiten Bestand-Write machen.
    */
   const setLineDelivery = useCallback(
     async (
@@ -879,7 +1542,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       },
       actor: OrderProtocolActor,
     ): Promise<
-      | { ok: true; stockDelta: number; autoClosed: boolean }
+      | { ok: true; stockDelta: number; autoClosed: boolean; stockApplied: boolean }
       | { ok: false }
     > => {
       const target = orders.find((o) => o.id === orderId);
@@ -932,8 +1595,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       const nextStock = lineDeliveryStockQuantity(nextLinePreview);
       const stockDelta = nextStock - prevStock;
 
-      const previous = orders;
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const previous = readOrdersSnapshot();
+      const next: PurchaseOrder[] = structuredClone(previous);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
       const l = o.lines.find((x) => x.id === lineId);
@@ -961,24 +1624,70 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       };
       o.log.push(logEntry);
 
-      let autoClosed = false;
-      if (
-        o.status === "ordered" &&
-        allPurchaseOrderLinesResolved(o.lines)
-      ) {
+      const shouldAutoClose =
+        o.status === "ordered" && allPurchaseOrderLinesResolved(o.lines);
+      if (shouldAutoClose) {
         o.status = "closed";
         appendStatusChangeLog(o, "ordered", "closed", actor);
-        autoClosed = true;
       }
 
-      applyOrdersOptimistic(next);
-      if (!(await persist(next))) {
-        applyOrdersOptimistic(previous);
-        return { ok: false };
+      const currentStock = readIngredientStock(l.ingredientId);
+      const optimisticStockAfter =
+        currentStock == null ? null : currentStock + stockDelta;
+      const stockLog = {
+        id: createId(),
+        at: new Date().toISOString(),
+        ...protocolActorNameFields(actor),
+        kind: stockDelta < 0 ? "stock_delivery_reverted" : "stock_from_delivery",
+        fromQuantity: currentStock ?? 0,
+        toQuantity: optimisticStockAfter ?? stockDelta,
+        unitId: l.unitId,
+        unitLabel: l.unitLabel,
+        orderId,
+        supplierName: o.supplierName,
+      };
+
+      if (useDbInventory) {
+        void persistLineDeliveryAtomicOptimistic({
+          next,
+          rollbackSnapshot: previous,
+          orderId,
+          lineId,
+          mode: "set",
+          deliveryStatus: input.status,
+          deliveredQuantity,
+          deliveryNote: note ?? null,
+          poLog: logEntry,
+          stockLog,
+          applyStock: true,
+          ingredientId: l.ingredientId,
+          optimisticStockAfter,
+          rollbackStock: currentStock,
+        });
+        return {
+          ok: true,
+          stockDelta,
+          autoClosed: shouldAutoClose,
+          stockApplied: true,
+        };
       }
-      return { ok: true, stockDelta, autoClosed };
+
+      const persistOk = await persistOptimisticQueued(next, previous);
+      if (!persistOk) return { ok: false };
+      return {
+        ok: true,
+        stockDelta,
+        autoClosed: shouldAutoClose,
+        stockApplied: false,
+      };
     },
-    [applyOrdersOptimistic, orders, persist],
+    [
+      persistLineDeliveryAtomicOptimistic,
+      persistOptimisticQueued,
+      readIngredientStock,
+      readOrdersSnapshot,
+      useDbInventory,
+    ],
   );
 
   const clearLineDelivery = useCallback(
@@ -986,7 +1695,9 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       orderId: string,
       lineId: string,
       actor: OrderProtocolActor,
-    ): Promise<{ ok: true; stockDelta: number } | { ok: false }> => {
+    ): Promise<
+      { ok: true; stockDelta: number; stockApplied: boolean } | { ok: false }
+    > => {
       const target = orders.find((o) => o.id === orderId);
       if (!target || (target.status !== "ordered" && target.status !== "closed")) {
         toast.error("Nur bei bestellten oder abgeschlossenen Bestellungen möglich.");
@@ -1003,8 +1714,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         return { ok: false };
       }
 
-      const previous = orders;
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const previous = readOrdersSnapshot();
+      const next: PurchaseOrder[] = structuredClone(previous);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
       const l = o.lines.find((x) => x.id === lineId);
@@ -1028,14 +1739,51 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       };
       o.log.push(logEntry);
 
-      applyOrdersOptimistic(next);
-      if (!(await persist(next))) {
-        applyOrdersOptimistic(previous);
-        return { ok: false };
+      const currentStock = readIngredientStock(l.ingredientId);
+      const stockDelta = -prevStock;
+      const optimisticStockAfter =
+        currentStock == null ? null : currentStock + stockDelta;
+      const stockLog = {
+        id: createId(),
+        at: new Date().toISOString(),
+        ...protocolActorNameFields(actor),
+        kind: "stock_delivery_reverted" as const,
+        fromQuantity: currentStock ?? 0,
+        toQuantity: optimisticStockAfter ?? 0,
+        unitId: l.unitId,
+        unitLabel: l.unitLabel,
+        orderId,
+        supplierName: o.supplierName,
+      };
+
+      if (useDbInventory) {
+        void persistLineDeliveryAtomicOptimistic({
+          next,
+          rollbackSnapshot: previous,
+          orderId,
+          lineId,
+          mode: "clear",
+          poLog: logEntry,
+          stockLog,
+          applyStock: true,
+          ingredientId: l.ingredientId,
+          optimisticStockAfter,
+          rollbackStock: currentStock,
+        });
+        return { ok: true, stockDelta, stockApplied: true };
       }
-      return { ok: true, stockDelta: -prevStock };
+
+      const persistOk = await persistOptimisticQueued(next, previous);
+      if (!persistOk) return { ok: false };
+      return { ok: true, stockDelta, stockApplied: false };
     },
-    [applyOrdersOptimistic, orders, persist],
+    [
+      persistLineDeliveryAtomicOptimistic,
+      persistOptimisticQueued,
+      readIngredientStock,
+      readOrdersSnapshot,
+      useDbInventory,
+    ],
   );
 
   /**
@@ -1053,6 +1801,10 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         note?: string;
       }>,
       actor: OrderProtocolActor,
+      options?: {
+        applyStock?: boolean;
+        onProgress?: (progress: { done: number; total: number }) => void;
+      },
     ): Promise<
       | {
           ok: true;
@@ -1063,6 +1815,7 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
             unitId: string;
             unitLabel: string;
           }>;
+          stockApplied: boolean;
         }
       | { ok: false }
     > => {
@@ -1096,8 +1849,8 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
         }
       }
 
-      const previous = orders;
-      const next: PurchaseOrder[] = structuredClone(orders);
+      const previous = readOrdersSnapshot();
+      const next: PurchaseOrder[] = structuredClone(previous);
       const o = next.find((x) => x.id === orderId);
       if (!o) return { ok: false };
 
@@ -1176,14 +1929,139 @@ export function usePurchaseOrdersStorage(options?: { enabled?: boolean }) {
       o.status = "closed";
       appendStatusChangeLog(o, "ordered", "closed", actor);
 
-      applyOrdersOptimistic(next);
-      if (!(await persist(next))) {
-        applyOrdersOptimistic(previous);
+      const applyStock = options?.applyStock !== false;
+      const unresolved = target.lines.filter((l) => !isLineDeliveryResolved(l));
+      const reportProgress = (done: number) => {
+        options?.onProgress?.({ done, total: unresolved.length });
+      };
+
+      if (closeInFlightRef.current) {
+        toast.error("Abschluss läuft bereits — bitte warten.");
         return { ok: false };
       }
-      return { ok: true, stockDeltas };
+      closeInFlightRef.current = true;
+
+      try {
+        reportProgress(0);
+
+        if (useDbInventory) {
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid || !dbFetchReady) {
+            toast.error(
+              "Bestellungen werden noch geladen — bitte kurz warten und erneut versuchen.",
+            );
+            return { ok: false };
+          }
+
+          applyOrdersOptimistic(next);
+
+          let persistResult: { ok: true } | { ok: false };
+          try {
+            persistResult = await persistQueueRef.current.enqueue(async () => {
+              let persisted = 0;
+              for (const line of unresolved) {
+              const nextLine = o.lines.find((x) => x.id === line.id);
+              if (!nextLine) {
+                toastDatabaseSaveError(
+                  "Position fehlt — der aktuelle Stand wird neu geladen.",
+                );
+                await refetchPurchaseOrdersNow();
+                return { ok: false as const };
+              }
+              const poLog = [...o.log].reverse().find(
+                (entry) =>
+                  entry.kind === "marked_delivered" &&
+                  "lineId" in entry &&
+                  entry.lineId === line.id,
+              );
+              const currentStock = readIngredientStock(line.ingredientId);
+              const delta =
+                stockDeltas.find((d) => d.lineId === line.id)?.delta ?? 0;
+              const result = await applyPurchaseOrderLineDeliveryStockRelational(
+                rid,
+                {
+                  orderId,
+                  lineId: line.id,
+                  mode: "set",
+                  deliveryStatus: nextLine.deliveryStatus,
+                  deliveredQuantity: nextLine.deliveredQuantity,
+                  deliveryNote: nextLine.deliveryNote ?? null,
+                  poLog: poLog ?? {
+                    id: createId(),
+                    at: now,
+                    ...protocolActorNameFields(actor),
+                    kind: "marked_delivered",
+                    ingredientId: line.ingredientId,
+                    ingredientName: line.ingredientName,
+                    quantity: lineDeliveryStockQuantity(nextLine),
+                    unitId: line.unitId,
+                    unitLabel: line.unitLabel,
+                    lineId: line.id,
+                    deliveryStatus: nextLine.deliveryStatus ?? "delivered",
+                  },
+                  stockLog: {
+                    id: createId(),
+                    at: now,
+                    ...protocolActorNameFields(actor),
+                    kind: delta < 0 ? "stock_delivery_reverted" : "stock_from_delivery",
+                    fromQuantity: currentStock ?? 0,
+                    toQuantity: (currentStock ?? 0) + delta,
+                    unitId: line.unitId,
+                    unitLabel: line.unitLabel,
+                    orderId,
+                    supplierName: o.supplierName,
+                  },
+                  applyStock,
+                },
+              );
+              if (!result.ok) {
+                toastDatabaseSaveError(result.message);
+                await refetchPurchaseOrdersNow();
+                return { ok: false as const };
+              }
+              persisted += 1;
+              reportProgress(persisted);
+              if (result.stockAfter != null) {
+                applyIngredientStockOptimistic(line.ingredientId, result.stockAfter);
+              }
+            }
+            afterOrdersPersistSuccess();
+            dispatchInventoryDataRefresh();
+            return { ok: true as const };
+            });
+          } catch {
+            toastDatabaseSaveError(
+              "Abschluss unterbrochen — der aktuelle Stand wird neu geladen.",
+            );
+            await refetchPurchaseOrdersNow();
+            return { ok: false };
+          }
+
+          if (!persistResult.ok) return { ok: false };
+          return { ok: true, stockDeltas, stockApplied: applyStock };
+        }
+
+        const persistOk = await persistOptimisticQueued(next, previous);
+        if (!persistOk) return { ok: false };
+        reportProgress(unresolved.length);
+        return { ok: true, stockDeltas, stockApplied: false };
+      } finally {
+        closeInFlightRef.current = false;
+      }
     },
-    [applyOrdersOptimistic, orders, persist],
+    [
+      afterOrdersPersistSuccess,
+      applyIngredientStockOptimistic,
+      applyOrdersOptimistic,
+      dbFetchReady,
+      orders,
+      persistOptimisticQueued,
+      readIngredientStock,
+      readOrdersSnapshot,
+      refetchPurchaseOrdersNow,
+      restaurantId,
+      useDbInventory,
+    ],
   );
 
   /** @deprecated Kompatibilität — nutzt setLineDelivery(delivered) */

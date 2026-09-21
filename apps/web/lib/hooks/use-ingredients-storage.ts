@@ -9,19 +9,23 @@ import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { SEED_INGREDIENTS } from "@/lib/data/inventory-seeds";
 import {
   getModuleCacheGcTime,
-  getModuleCacheStaleTime,
 } from "@/lib/dashboard/module-data-cache-policy";
 import {
   fetchIngredientsForRestaurant,
   peekIngredientsCache,
 } from "@/lib/inventory/ingredients-query";
+import { useInventoryDataRefreshListener } from "@/lib/hooks/use-inventory-data-refresh-listener";
 import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-inventory-live-patch-from-cache";
 import { toastStorageError } from "@/lib/persist-notify";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
-import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
+import {
+  toastDatabaseSaveError,
+  toastDatabaseUnavailable,
+} from "@/lib/supabase/db-toast";
 import {
   inventoryRelationalPersistenceEnabled,
+  loadIngredientsRelational,
   saveIngredientsRelational,
 } from "@/lib/supabase/inventory-db";
 import {
@@ -38,6 +42,7 @@ import type {
   IngredientStockLogFromInvoice,
   IngredientStockLogManual,
 } from "@/lib/types/ingredient-stock-log";
+import { createSerialAsyncQueue } from "@/lib/inventory/serial-async-queue";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -242,6 +247,19 @@ function normalizeIngredient(raw: Record<string, unknown>): Ingredient | null {
     if (Number.isFinite(p) && p >= 0) purchaseUnitPrice = p;
   }
 
+  const articleNumber =
+    typeof raw.articleNumber === "string"
+      ? raw.articleNumber.trim() || null
+      : raw.articleNumber === null
+        ? null
+        : undefined;
+  const imagePath =
+    typeof raw.imagePath === "string"
+      ? raw.imagePath.trim() || null
+      : raw.imagePath === null
+        ? null
+        : undefined;
+
   return {
     id: raw.id,
     name: raw.name,
@@ -249,6 +267,8 @@ function normalizeIngredient(raw: Record<string, unknown>): Ingredient | null {
     currentStock: raw.currentStock,
     lowStockThreshold,
     purchaseUnitPrice,
+    ...(articleNumber !== undefined ? { articleNumber } : {}),
+    ...(imagePath !== undefined ? { imagePath } : {}),
     lastPriceChangeAt:
       typeof raw.lastPriceChangeAt === "string" ? raw.lastPriceChangeAt : null,
     supplierId: raw.supplierId,
@@ -289,6 +309,8 @@ export type UpdateIngredientOptions = {
   skipStockLog?: boolean;
   stockFromDelivery?: { orderId: string; supplierName: string };
   stockDeliveryRevert?: { orderId: string; supplierName: string };
+  /** Kein Erfolgs-Toast (z. B. Bestand via Bestell-Lieferung — Caller toastet). */
+  silentToast?: boolean;
 };
 
 export function useIngredientsStorage(options?: { enabled?: boolean }) {
@@ -303,9 +325,9 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
     supabaseOnly ? [] : [...SEED_INGREDIENTS],
   );
   const [isLocalHydrated, setIsLocalHydrated] = useState(!useDbInventory);
-  const updateSaveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const ingredientsRef = useRef<Ingredient[]>([]);
+  const persistQueueRef = useRef(createSerialAsyncQueue());
+  const ingredientsMutationGenerationRef = useRef(0);
 
   const ingredientsQuery = useQuery({
     queryKey: queryKeys.inventory.ingredients(restaurantId ?? ""),
@@ -315,11 +337,22 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
       useDbInventory &&
       workspaceReady &&
       Boolean(restaurantId),
-    staleTime: getModuleCacheStaleTime("inventoryModule") ?? 60_000,
+    staleTime: 0,
     gcTime: getModuleCacheGcTime("inventoryModule") ?? 5 * 60_000,
+    refetchOnMount: "always",
     placeholderData: (previous) =>
       previous ?? peekIngredientsCache() ?? undefined,
   });
+
+  const refetchIngredients = useCallback(() => {
+    if (!restaurantId) return;
+    void ingredientsQuery.refetch();
+  }, [ingredientsQuery, restaurantId]);
+
+  useInventoryDataRefreshListener(
+    queryEnabled && useDbInventory && workspaceReady && Boolean(restaurantId),
+    refetchIngredients,
+  );
 
   const afterInventoryMutation = useCallback(
     (options?: { stockChanged?: boolean }) => {
@@ -369,57 +402,122 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
   const ingredients = useDbInventory
     ? (ingredientsQuery.data ?? peekIngredientsCache() ?? [])
     : localIngredients;
+  ingredientsRef.current = ingredients;
   const isHydrated = useDbInventory
-    ? workspaceReady &&
-      (ingredientsQuery.isSuccess ||
-        ingredientsQuery.isError ||
-        Boolean(peekIngredientsCache()?.length))
+    ? workspaceReady && (ingredientsQuery.isSuccess || ingredientsQuery.isError)
     : isLocalHydrated;
+  /** Kein Full-Replace solange der erste DB-Fetch noch läuft (stale LS/Placeholder). */
+  const dbFetchReady = !useDbInventory || ingredientsQuery.isSuccess;
 
-  useEffect(
-    () => () => {
-      if (updateSaveToastTimerRef.current) {
-        clearTimeout(updateSaveToastTimerRef.current);
+  const applyIngredientsOptimistic = useCallback(
+    (next: Ingredient[]) => {
+      if (useDbInventory && restaurantId) {
+        queryClient.setQueryData(
+          queryKeys.inventory.ingredients(restaurantId),
+          next,
+        );
+      }
+      mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, next);
+      if (!useDbInventory) {
+        setLocalIngredients(next);
+      }
+    },
+    [queryClient, restaurantId, useDbInventory],
+  );
+
+  const showIngredientPersistToast = useCallback(
+    (
+      toastKind?: "add" | "remove" | "update",
+      silentToast?: boolean,
+    ) => {
+      if (silentToast) return;
+      if (toastKind === "add") {
+        toast.success("Zutat angelegt");
+      } else if (toastKind === "remove") {
+        toast.success("Zutat entfernt");
+      } else if (toastKind === "update") {
+        toast.success("Zutat gespeichert", { id: "ingredient-update" });
       }
     },
     [],
+  );
+
+  const persistOptimisticQueued = useCallback(
+    (
+      next: Ingredient[],
+      rollbackSnapshot: Ingredient[],
+      toastKind?: "add" | "remove" | "update",
+      options?: { stockChanged?: boolean; silentToast?: boolean },
+    ): void => {
+      const generation = ++ingredientsMutationGenerationRef.current;
+      applyIngredientsOptimistic(next);
+      afterInventoryMutation({
+        stockChanged: options?.stockChanged ?? toastKind === "update",
+      });
+      showIngredientPersistToast(toastKind, options?.silentToast);
+
+      void persistQueueRef.current.enqueue(async () => {
+        try {
+          const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+          if (!rid) {
+            if (ingredientsMutationGenerationRef.current === generation) {
+              applyIngredientsOptimistic(rollbackSnapshot);
+            }
+            failSave();
+            return false;
+          }
+          const result = await saveIngredientsRelational(rid, next);
+          if (!result.ok) {
+            if (ingredientsMutationGenerationRef.current === generation) {
+              applyIngredientsOptimistic(rollbackSnapshot);
+            }
+            toastDatabaseSaveError(result.message);
+            return false;
+          }
+          const fromDb =
+            (await loadIngredientsRelational(rid)) ?? result.ingredients;
+          if (ingredientsMutationGenerationRef.current === generation) {
+            applyIngredientsOptimistic(fromDb);
+          }
+          return true;
+        } catch {
+          if (ingredientsMutationGenerationRef.current === generation) {
+            applyIngredientsOptimistic(rollbackSnapshot);
+          }
+          failSave();
+          return false;
+        }
+      });
+    },
+    [
+      afterInventoryMutation,
+      applyIngredientsOptimistic,
+      failSave,
+      restaurantId,
+      showIngredientPersistToast,
+    ],
   );
 
   const persist = useCallback(
     async (
       next: Ingredient[],
       toastKind?: "add" | "remove" | "update",
-      options?: { stockChanged?: boolean },
+      options?: { stockChanged?: boolean; silentToast?: boolean },
     ): Promise<boolean> => {
       if (useDbInventory) {
-        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
-        if (!rid) {
-          failSave();
+        if (!dbFetchReady) {
+          toast.error(
+            "Zutaten werden noch geladen — bitte kurz warten und erneut versuchen.",
+          );
           return false;
         }
-        const ok = await saveIngredientsRelational(rid, next);
-        if (!ok) {
-          failSave();
-          return false;
-        }
-        queryClient.setQueryData(queryKeys.inventory.ingredients(rid), next);
-        mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, next);
-        afterInventoryMutation({
-          stockChanged: options?.stockChanged ?? toastKind === "update",
-        });
-        if (toastKind === "add") {
-          toast.success("Zutat angelegt");
-        } else if (toastKind === "remove") {
-          toast.success("Zutat entfernt");
-        } else if (toastKind === "update") {
-          if (updateSaveToastTimerRef.current) {
-            clearTimeout(updateSaveToastTimerRef.current);
-          }
-          updateSaveToastTimerRef.current = setTimeout(() => {
-            updateSaveToastTimerRef.current = null;
-            toast.success("Zutat gespeichert", { id: "ingredient-update" });
-          }, 450);
-        }
+        const rollback =
+          (restaurantId
+            ? queryClient.getQueryData<Ingredient[]>(
+                queryKeys.inventory.ingredients(restaurantId),
+              )
+            : null) ?? ingredientsRef.current;
+        persistOptimisticQueued(next, rollback, toastKind, options);
         return true;
       }
 
@@ -436,26 +534,22 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
             if (restaurantId) {
               dispatchDashboardInventoryLivePatchFromCache(restaurantId);
             }
-            if (toastKind === "add") {
-              toast.success("Zutat angelegt");
-            } else if (toastKind === "remove") {
-              toast.success("Zutat entfernt");
-            } else if (toastKind === "update") {
-              if (updateSaveToastTimerRef.current) {
-                clearTimeout(updateSaveToastTimerRef.current);
-              }
-              updateSaveToastTimerRef.current = setTimeout(() => {
-                updateSaveToastTimerRef.current = null;
-                toast.success("Zutat gespeichert", { id: "ingredient-update" });
-              }, 450);
-            }
+            showIngredientPersistToast(toastKind, options?.silentToast);
             resolve(true);
           })();
           return next;
         });
       });
     },
-    [afterInventoryMutation, failSave, queryClient, restaurantId, useDbInventory],
+    [
+      dbFetchReady,
+      failSave,
+      persistOptimisticQueued,
+      queryClient,
+      restaurantId,
+      showIngredientPersistToast,
+      useDbInventory,
+    ],
   );
 
   const addIngredient = useCallback(
@@ -559,7 +653,12 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
       const stockChanged =
         patch.currentStock !== undefined ||
         patch.lowStockThreshold !== undefined;
-      return persist(mapped, "update", { stockChanged });
+      return persist(mapped, "update", {
+        stockChanged,
+        silentToast:
+          opts?.silentToast ??
+          Boolean(opts?.stockFromDelivery ?? opts?.stockDeliveryRevert),
+      });
     },
     [ingredients, persist],
   );
@@ -665,7 +764,7 @@ export function useIngredientsStorage(options?: { enabled?: boolean }) {
         );
       }
 
-      return persist(next, undefined, { stockChanged: true });
+      return persist(next, undefined, { stockChanged: true, silentToast: true });
     },
     [ingredients, persist],
   );

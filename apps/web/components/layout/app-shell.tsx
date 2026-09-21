@@ -153,7 +153,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
               size="icon-sm"
               className="shrink-0 rounded-full border-border/60"
               aria-label="Einstellungen"
-              render={<AppNavLink href={APP_ROUTES.settings.root} />}
+              render={<AppNavLink href={APP_ROUTES.settings.entry} />}
             >
               <Settings className="size-4" />
             </Button>
@@ -203,7 +203,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <div className="relative min-h-0 flex-1">
+      <div data-app-chrome-footer-host className="relative min-h-0 flex-1">
         {showDashboardBrandedBackground ? (
           <div
             className="pointer-events-none absolute inset-0 z-0 overflow-hidden"

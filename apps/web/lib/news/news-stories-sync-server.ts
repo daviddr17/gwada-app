@@ -5,7 +5,10 @@ import {
   isNewsStoriesSyncStale,
   type NewsStoriesPlatform,
 } from "@/lib/news/news-stories-cache-constants";
-import { upsertNewsStoriesPlatformCache } from "@/lib/news/news-stories-cache-db";
+import {
+  touchNewsStoriesPlatformSync,
+  upsertNewsStoriesPlatformCache,
+} from "@/lib/news/news-stories-cache-db";
 import { fetchFacebookStories } from "@/lib/news/connectors/facebook-stories";
 import { fetchInstagramStories } from "@/lib/news/connectors/instagram-stories";
 import {
@@ -65,19 +68,12 @@ export async function syncRestaurantNewsStoriesPlatform(
     if (platform === "instagram") {
       const auth = await getInstagramAuth(restaurantId);
       if ("error" in auth) {
-        await upsertNewsStoriesPlatformCache(admin, restaurantId, platform, [], syncedAt, null);
+        await touchNewsStoriesPlatformSync(admin, restaurantId, platform, syncedAt, "not_connected");
         return { ok: true, count: 0 };
       }
       const fetched = await fetchInstagramStories(restaurantId, auth);
       if (!fetched.ok) {
-        await upsertNewsStoriesPlatformCache(
-          admin,
-          restaurantId,
-          platform,
-          [],
-          syncedAt,
-          fetched.error,
-        );
+        await touchNewsStoriesPlatformSync(admin, restaurantId, platform, syncedAt, fetched.error);
         return { ok: false, error: fetched.error, count: 0 };
       }
       await upsertNewsStoriesPlatformCache(
@@ -93,19 +89,12 @@ export async function syncRestaurantNewsStoriesPlatform(
 
     const auth = await getFacebookAuth(restaurantId);
     if ("error" in auth) {
-      await upsertNewsStoriesPlatformCache(admin, restaurantId, platform, [], syncedAt, null);
+      await touchNewsStoriesPlatformSync(admin, restaurantId, platform, syncedAt, "not_connected");
       return { ok: true, count: 0 };
     }
     const fetched = await fetchFacebookStories(auth);
     if (!fetched.ok) {
-      await upsertNewsStoriesPlatformCache(
-        admin,
-        restaurantId,
-        platform,
-        [],
-        syncedAt,
-        fetched.error,
-      );
+      await touchNewsStoriesPlatformSync(admin, restaurantId, platform, syncedAt, fetched.error);
       return { ok: false, error: fetched.error, count: 0 };
     }
     await upsertNewsStoriesPlatformCache(

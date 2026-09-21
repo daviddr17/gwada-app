@@ -26,6 +26,7 @@ export function useRestaurantStaffRealtime() {
     if (!ready || !restaurantId || !isUuidRestaurantId(restaurantId)) return;
 
     subscribedChannelsRef.current = 0;
+    const expectedChannels = 4;
 
     const scheduleRefresh = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -49,10 +50,10 @@ export function useRestaurantStaffRealtime() {
     const onChannelStatus = (status: "SUBSCRIBED" | "CHANNEL_ERROR" | "TIMED_OUT" | "CLOSED") => {
       if (status === "SUBSCRIBED") {
         subscribedChannelsRef.current = Math.min(
-          2,
+          expectedChannels,
           subscribedChannelsRef.current + 1,
         );
-        if (subscribedChannelsRef.current >= 2) disablePolling();
+        if (subscribedChannelsRef.current >= expectedChannels) disablePolling();
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         enablePolling();
       } else if (status === "CLOSED") {
@@ -60,7 +61,7 @@ export function useRestaurantStaffRealtime() {
           0,
           subscribedChannelsRef.current - 1,
         );
-        if (subscribedChannelsRef.current < 2) enablePolling();
+        if (subscribedChannelsRef.current < expectedChannels) enablePolling();
       }
     };
 
@@ -69,7 +70,7 @@ export function useRestaurantStaffRealtime() {
     }
 
     const readyTimeout = window.setTimeout(() => {
-      if (subscribedChannelsRef.current < 2) enablePolling();
+      if (subscribedChannelsRef.current < expectedChannels) enablePolling();
     }, REALTIME_READY_TIMEOUT_MS);
 
     const teardownEntries = subscribeRestaurantTableChanges(sbRef.current, {
@@ -90,12 +91,32 @@ export function useRestaurantStaffRealtime() {
       onStatus: onChannelStatus,
     });
 
+    const teardownShifts = subscribeRestaurantTableChanges(sbRef.current, {
+      channelName: `staff-shifts-live:${restaurantId}`,
+      table: "restaurant_staff_scheduled_shifts",
+      restaurantId,
+      events: ["INSERT", "UPDATE", "DELETE"],
+      onChange: scheduleRefresh,
+      onStatus: onChannelStatus,
+    });
+
+    const teardownTodos = subscribeRestaurantTableChanges(sbRef.current, {
+      channelName: `staff-todos-live:${restaurantId}`,
+      table: "restaurant_staff_todos",
+      restaurantId,
+      events: ["INSERT", "UPDATE", "DELETE"],
+      onChange: scheduleRefresh,
+      onStatus: onChannelStatus,
+    });
+
     return () => {
       window.clearTimeout(readyTimeout);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       disablePolling();
       teardownEntries();
       teardownStaff();
+      teardownShifts();
+      teardownTodos();
     };
   }, [ready, restaurantId, polling.start, polling.stop]);
 }

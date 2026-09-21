@@ -4,6 +4,7 @@ export async function uploadRestaurantDocumentClient(params: {
   title?: string;
   tagId?: string | null;
   staffId?: string | null;
+  visibleToStaff?: boolean;
 }): Promise<{ documentId?: string; error?: string }> {
   const form = new FormData();
   form.set("restaurantId", params.restaurantId);
@@ -11,6 +12,9 @@ export async function uploadRestaurantDocumentClient(params: {
   if (params.title?.trim()) form.set("title", params.title.trim());
   if (params.tagId) form.set("tagId", params.tagId);
   if (params.staffId?.trim()) form.set("staffId", params.staffId.trim());
+  if (params.staffId?.trim() && params.visibleToStaff) {
+    form.set("visibleToStaff", "1");
+  }
 
   const res = await fetch("/api/documents/upload", {
     method: "POST",
@@ -45,6 +49,8 @@ export async function updateRestaurantDocumentClient(params: {
   documentId: string;
   title?: string;
   tagId?: string | null;
+  staffId?: string | null;
+  visibleToStaff?: boolean;
 }): Promise<{ error?: string }> {
   const res = await fetch("/api/documents/update", {
     method: "POST",

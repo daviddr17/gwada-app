@@ -15,6 +15,7 @@ import {
 } from "@/components/contacts/contact-message-bubble-list";
 import { ContactMessageChatSkeleton } from "@/components/contacts/contact-message-chat-skeleton";
 import { Button } from "@/components/ui/button";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import { cn } from "@/lib/utils";
 
@@ -82,7 +83,8 @@ export const ContactMessageChatViewport = memo(function ContactMessageChatViewpo
   const awaitingThread = loading || threadPending;
   const showEmpty =
     !awaitingThread && !hasMessages && sawLoadingForThreadRef.current;
-  const showSkeleton = awaitingThread && !hasMessages;
+  const showSkeletonRaw = awaitingThread && !hasMessages;
+  const showSkeleton = useDeferredSkeleton(showSkeletonRaw);
 
   useLayoutEffect(() => {
     if (threadKey !== prevThreadKeyRef.current) {

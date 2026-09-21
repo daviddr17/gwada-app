@@ -1,6 +1,10 @@
 import "server-only";
 
-import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/google-business-access";
+import {
+  fetchWithGoogleBusinessAuth,
+  getGoogleBusinessAccessTokenForRestaurant,
+  googleLocationResourceName,
+} from "@/lib/integrations/google-business-access";
 import type { GoogleOpeningHoursSyncScope } from "@/lib/integrations/google-opening-hours-sync-scopes";
 import {
   toGoogleKitchenMoreHours,
@@ -11,13 +15,6 @@ import { loadOpeningHoursPayloadAdmin } from "@/lib/integrations/opening-hours-l
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DateHoursException } from "@/lib/types/restaurant";
 
-function googleLocationResourceName(locationName: string): string {
-  const trimmed = locationName.trim();
-  if (trimmed.startsWith("locations/")) return trimmed;
-  const match = /locations\/[^/]+/.exec(trimmed);
-  return match?.[0] ?? trimmed;
-}
-
 function futureDateExceptions(
   dateExceptions: DateHoursException[],
   todayYmd: string,
@@ -26,21 +23,22 @@ function futureDateExceptions(
 }
 
 async function patchGoogleLocationHours(
-  accessToken: string,
+  restaurantId: string,
   locationName: string,
   body: Record<string, unknown>,
   updateMask: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const url = `https://mybusinessbusinessinformation.googleapis.com/v1/${locationName}?updateMask=${encodeURIComponent(updateMask)}`;
-  const res = await fetch(url, {
+  const res = await fetchWithGoogleBusinessAuth(restaurantId, url, {
     method: "PATCH",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    cache: "no-store",
   });
+  if ("error" in res) {
+    return { ok: false, error: res.error };
+  }
 
   const payload = (await res.json().catch(() => ({}))) as {
     error?: { message?: string };
@@ -83,7 +81,7 @@ export async function syncOpeningHoursToGoogleBusiness(
 
   if (scope === "regular") {
     return patchGoogleLocationHours(
-      auth.accessToken,
+      restaurantId,
       locationName,
       { regularHours: toGoogleRegularHours(hoursRes.weeklyHours) },
       "regularHours",
@@ -99,7 +97,7 @@ export async function syncOpeningHoursToGoogleBusiness(
       return { ok: false, error: "kitchen_hours_empty" };
     }
     return patchGoogleLocationHours(
-      auth.accessToken,
+      restaurantId,
       locationName,
       { moreHours: [kitchen] },
       "moreHours",
@@ -109,7 +107,7 @@ export async function syncOpeningHoursToGoogleBusiness(
   const future = futureDateExceptions(hoursRes.dateExceptions, todayYmd);
   const specialHours = toGoogleSpecialHours(future);
   return patchGoogleLocationHours(
-    auth.accessToken,
+    restaurantId,
     locationName,
     { specialHours },
     "specialHours",

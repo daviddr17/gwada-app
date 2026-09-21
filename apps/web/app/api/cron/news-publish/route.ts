@@ -1,5 +1,6 @@
 import { assertCronAuthorized } from "@/lib/api/cron-auth";
 import { processDueScheduledNewsPosts } from "@/lib/news/news-scheduled-publish-cron";
+import { withCronHeartbeat } from "@/lib/ops/record-cron-heartbeat";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ export async function GET(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const stats = await processDueScheduledNewsPosts(sb);
+  const stats = await withCronHeartbeat("news-publish", () =>
+    processDueScheduledNewsPosts(sb),
+  );
   return Response.json(stats);
 }

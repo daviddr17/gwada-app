@@ -16,3 +16,18 @@ export async function triggerNotificationDeliverReferences(params: {
     // Cron-Fallback
   }
 }
+
+/** Sofort-Push nach Bestellstatus ordered/closed. Cron bleibt Fallback. */
+export function triggerPoStatusNotificationDeliver(params: {
+  restaurantId: string;
+  orderId: string;
+  status: "ordered" | "closed";
+}): void {
+  void fetch("/api/notifications/po-status-deliver", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  }).catch(() => {
+    // Cron-Fallback
+  });
+}

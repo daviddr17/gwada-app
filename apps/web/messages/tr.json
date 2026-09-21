@@ -36,6 +36,19 @@
       "countryPlaceholder": "örn. TR veya Türkiye",
       "saveProfile": "Profili kaydet",
       "loadingAria": "Profil verileri yükleniyor"
+    },
+    "density": {
+      "heading": "Görünüm",
+      "description": "Yazı boyutu ve boşluklar yalnızca sizin için — bu hesapla tüm cihazlarda geçerli.",
+      "label": "Yoğunluk",
+      "compact": "Kompakt",
+      "compactHint": "Daha fazla bilgi",
+      "normal": "Normal",
+      "normalHint": "Varsayılan",
+      "comfortable": "Büyük",
+      "comfortableHint": "Daha okunaklı",
+      "updated": "Görünüm güncellendi",
+      "updateFailed": "Görünüm kaydedilemedi"
     }
   },
   "SetupWizard": {

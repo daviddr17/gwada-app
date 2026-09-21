@@ -12,6 +12,7 @@ import { UnifiedInboxBackgroundSyncMount } from "@/components/contacts/unified-i
 import { AppScrollUnlockOnNavigate } from "@/components/providers/app-scroll-unlock-on-navigate";
 import { ProfileLocaleSyncMount } from "@/components/providers/profile-locale-sync-mount";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
+import { ProfileUiDensitySyncMount } from "@/components/providers/profile-ui-density-sync-mount";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { PersonalOnboardingProvider } from "@/components/onboarding/personal-onboarding-provider";
 import { RestaurantSetupWizardProvider } from "@/components/onboarding/restaurant-setup-wizard-provider";
@@ -50,6 +51,7 @@ export function DashboardStandaloneRoot() {
                             <AppDashboardLivePatchMount />
                             <ProfilePresenceHeartbeat />
                             <ProfileLocaleSyncMount />
+                            <ProfileUiDensitySyncMount />
                             <AppModuleLiveProviders />
                             <DashboardSPA />
                           </AppShellReadinessProvider>

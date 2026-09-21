@@ -17,7 +17,7 @@ export type ContactThreadCacheEntry = {
 const SESSION_KEY_PREFIX = "gwada:contact-thread:";
 const SESSION_INDEX_KEY = "gwada:contact-thread-index";
 const SESSION_MAX_AGE_MS = 20 * 60 * 1000;
-const SESSION_MAX_THREADS = 12;
+const SESSION_MAX_THREADS = 24;
 
 const cache = new Map<string, ContactThreadCacheEntry>();
 

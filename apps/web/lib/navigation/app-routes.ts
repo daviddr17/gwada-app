@@ -72,13 +72,16 @@ export const APP_ROUTES = {
   },
   checklisten: {
     root: "/dashboard/checklisten",
-    todos: "/dashboard/checklisten/todos",
+    meine: "/dashboard/checklisten/meine",
+    nachrichten: "/dashboard/checklisten/nachrichten",
+    todos: "/dashboard/checklisten",
     vorlagen: "/dashboard/checklisten/vorlagen",
     geraete: "/dashboard/checklisten/geraete",
     eintraege: "/dashboard/checklisten/eintraege",
     protokoll: "/dashboard/checklisten/protokoll",
     settings: "/dashboard/checklisten/einstellungen",
   },
+
   mitarbeiter: {
     root: "/dashboard/mitarbeiter",
     overview: "/dashboard/mitarbeiter/uebersicht",
@@ -87,9 +90,10 @@ export const APP_ROUTES = {
     documents: "/dashboard/mitarbeiter/dokumente",
     hours: "/dashboard/mitarbeiter/arbeitszeiten",
     hoursFix: "/dashboard/mitarbeiter/arbeitszeiten/beheben",
+    hoursPayroll: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung",
     statistics: "/dashboard/mitarbeiter/statistiken",
     export: "/dashboard/mitarbeiter/export",
-    todos: "/dashboard/checklisten/todos",
+    todos: "/dashboard/checklisten",
   },
   buchfuehrung: {
     root: "/dashboard/buchfuehrung",
@@ -123,7 +127,10 @@ export const APP_ROUTES = {
     settings: "/dashboard/news/einstellungen",
   },
   settings: {
+    /** Prefix for `startsWith` (sidebar active) — not a SPA leaf route. */
     root: "/dashboard/settings",
+    /** Chrome gear / sidebar — always a registered SPA page (not redirect-only `/settings`). */
+    entry: "/dashboard/settings/restaurant",
     restaurant: "/dashboard/settings/restaurant",
     dashboard: "/dashboard/settings/dashboard",
     team: "/dashboard/settings/team",
@@ -209,6 +216,11 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
     source: "/settings/eigenkontrolle/:path*",
     destination: "/dashboard/checklisten/:path*",
   },
+  {
+    source: "/dashboard/checklisten/eigenkontrolle",
+    destination: "/dashboard/checklisten",
+  },
+
   { source: "/settings", destination: APP_ROUTES.settings.restaurant },
   { source: "/settings/:path*", destination: "/dashboard/settings/:path*" },
   { source: "/profile", destination: APP_ROUTES.profile.personal },

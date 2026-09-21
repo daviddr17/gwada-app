@@ -14,6 +14,10 @@ export const STAFF_MODULE_NAV: readonly ModuleSubnavItem[] = [
     href: "/dashboard/mitarbeiter/arbeitszeiten",
     label: "Arbeitszeiten",
     matchMode: "exact",
+    activeWhen: [
+      "/dashboard/mitarbeiter/arbeitszeiten/beheben",
+      "/dashboard/mitarbeiter/arbeitszeiten/abrechnung",
+    ],
   },
   {
     href: "/dashboard/mitarbeiter/schichtplan",

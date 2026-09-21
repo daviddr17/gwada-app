@@ -1,19 +1,16 @@
 import "server-only";
 
-import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/google-business-access";
+import {
+  fetchWithGoogleBusinessAuth,
+  getGoogleBusinessAccessTokenForRestaurant,
+  googleLocationResourceName,
+} from "@/lib/integrations/google-business-access";
 import {
   fromGoogleKitchenMoreHours,
   fromGoogleRegularHours,
   fromGoogleSpecialHours,
 } from "@/lib/integrations/opening-hours-platform-format";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
-
-function googleLocationResourceName(locationName: string): string {
-  const trimmed = locationName.trim();
-  if (trimmed.startsWith("locations/")) return trimmed;
-  const match = /locations\/[^/]+/.exec(trimmed);
-  return match?.[0] ?? trimmed;
-}
 
 export type GoogleLocationHoursRemote = {
   weeklyHours: Record<Weekday, DayHours>;
@@ -41,10 +38,10 @@ export async function fetchGoogleLocationHours(
   const readMask = encodeURIComponent("regularHours,moreHours,specialHours");
   const url = `https://mybusinessbusinessinformation.googleapis.com/v1/${locationName}?readMask=${readMask}`;
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${auth.accessToken}` },
-    cache: "no-store",
-  });
+  const res = await fetchWithGoogleBusinessAuth(restaurantId, url);
+  if ("error" in res) {
+    return { ok: false, error: res.error };
+  }
 
   const payload = (await res.json().catch(() => ({}))) as {
     regularHours?: Parameters<typeof fromGoogleRegularHours>[0];

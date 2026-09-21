@@ -34,7 +34,7 @@ const MODULE_UPSELL_DESCRIPTION: Partial<Record<SidebarModuleId, string>> = {
   dokumente:
     "Verträge, HACCP und Team-Dokumente — sicher abgelegt und schnell auffindbar.",
   checklisten:
-    "HACCP und Tagesaufgaben — abhaken, protokollieren, nichts vergessen.",
+    "Persönliche Notizen, Team-Aufgaben, Chat und HACCP — abhaken und nichts vergessen.",
   mitarbeiter:
     "Team, Schichtplan, Verträge und Einladungen — alles an einem Ort.",
   buchfuehrung:

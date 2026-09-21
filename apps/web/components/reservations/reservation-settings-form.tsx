@@ -822,89 +822,94 @@ export function ReservationSettingsForm() {
 
     setSaving(true);
     void (async () => {
-      const { error } = await upsertReservationSettings({
-        restaurantId,
-        defaultDwellMinutes: n,
-        bookingLeadTimeHours: leadH,
-        minMinutesBeforeClosing: minClose,
-        bookingTimeStepMinutes: bookingStep,
-        embedFormFooterText: footerTrim || null,
-        guestManageUrlTemplate: guestManageUrl.trim() || null,
-        whatsappReceivedEnabled: whatsapp.received,
-        whatsappConfirmedEnabled: whatsapp.confirmed,
-        whatsappReminderEnabled: whatsapp.reminder,
-        whatsappReminderHoursBefore: waRh,
-        whatsappThanksEnabled: whatsapp.thanks,
-        whatsappThanksHoursAfter: waTh,
-        whatsappCancelledEnabled: whatsapp.cancelled,
-        whatsappDeclinedEnabled: whatsapp.declined,
-        whatsappNoShowEnabled: whatsapp.noShow,
-        whatsappReceivedTemplate: templateFormValueToDb(whatsapp.tmplReceived, "received"),
-        whatsappConfirmedTemplate: templateFormValueToDb(
-          whatsapp.tmplConfirmed,
-          "confirmed",
-        ),
-        whatsappReminderTemplate: templateFormValueToDb(whatsapp.tmplReminder, "reminder"),
-        whatsappThanksTemplate: templateFormValueToDb(whatsapp.tmplThanks, "thanks"),
-        whatsappCancelledTemplate: templateFormValueToDb(
-          whatsapp.tmplCancelled,
-          "cancelled",
-        ),
-        whatsappDeclinedTemplate: templateFormValueToDb(whatsapp.tmplDeclined, "declined"),
-        whatsappNoShowTemplate: templateFormValueToDb(whatsapp.tmplNoShow, "no_show"),
-        emailReceivedEnabled: email.received,
-        emailConfirmedEnabled: email.confirmed,
-        emailReminderEnabled: email.reminder,
-        emailReminderHoursBefore: emRh,
-        emailThanksEnabled: email.thanks,
-        emailThanksHoursAfter: emTh,
-        emailCancelledEnabled: email.cancelled,
-        emailDeclinedEnabled: email.declined,
-        emailNoShowEnabled: email.noShow,
-        emailReceivedTemplate: templateFormValueToDb(email.tmplReceived, "received"),
-        emailConfirmedTemplate: templateFormValueToDb(email.tmplConfirmed, "confirmed"),
-        emailReminderTemplate: templateFormValueToDb(email.tmplReminder, "reminder"),
-        emailThanksTemplate: templateFormValueToDb(email.tmplThanks, "thanks"),
-        emailCancelledTemplate: templateFormValueToDb(email.tmplCancelled, "cancelled"),
-        emailDeclinedTemplate: templateFormValueToDb(email.tmplDeclined, "declined"),
-        emailNoShowTemplate: templateFormValueToDb(email.tmplNoShow, "no_show"),
-        emailSenderName: emailSenderName.trim() || null,
-        emailReceivedSubject: emailSubjectFormValueToDb(email.subjReceived, "received"),
-        emailConfirmedSubject: emailSubjectFormValueToDb(
-          email.subjConfirmed,
-          "confirmed",
-        ),
-        emailReminderSubject: emailSubjectFormValueToDb(email.subjReminder, "reminder"),
-        emailThanksSubject: emailSubjectFormValueToDb(email.subjThanks, "thanks"),
-        emailCancelledSubject: emailSubjectFormValueToDb(
-          email.subjCancelled,
-          "cancelled",
-        ),
-        emailDeclinedSubject: emailSubjectFormValueToDb(email.subjDeclined, "declined"),
-        emailNoShowSubject: emailSubjectFormValueToDb(email.subjNoShow, "no_show"),
-        whatsappReviewIncludeGwada: whatsappReview.includeGwada,
-        whatsappReviewIncludeGoogle: whatsappReview.includeGoogle,
-        whatsappReviewIncludeFacebook: whatsappReview.includeFacebook,
-        emailReviewIncludeGwada: emailReview.includeGwada,
-        emailReviewIncludeGoogle: emailReview.includeGoogle,
-        emailReviewIncludeFacebook: emailReview.includeFacebook,
-        reviewGoogleUrl: reviewGoogleUrl.trim() || null,
-        reviewFacebookUrl: reviewFacebookUrl.trim() || null,
-        walkInEnabled,
-        guestEmailRequiredEnabled,
-        guestEmailRequiredMinPartySize: guestEmailRequiredEnabled
-          ? emailMinParty
-          : 6,
-        guestPhoneRequiredEnabled,
-        guestPhoneRequiredMinPartySize: guestPhoneRequiredEnabled
-          ? phoneMinParty
-          : 6,
-      });
-      setSaving(false);
-      if (error) toast.error(error.message);
-      else {
-        toast.success("Einstellungen gespeichert.");
-        savedSnapshotRef.current = JSON.stringify(currentSnapshot);
+      try {
+        const { error } = await upsertReservationSettings({
+          restaurantId,
+          defaultDwellMinutes: n,
+          bookingLeadTimeHours: leadH,
+          minMinutesBeforeClosing: minClose,
+          bookingTimeStepMinutes: bookingStep,
+          embedFormFooterText: footerTrim || null,
+          guestManageUrlTemplate: guestManageUrl.trim() || null,
+          whatsappReceivedEnabled: whatsapp.received,
+          whatsappConfirmedEnabled: whatsapp.confirmed,
+          whatsappReminderEnabled: whatsapp.reminder,
+          whatsappReminderHoursBefore: waRh,
+          whatsappThanksEnabled: whatsapp.thanks,
+          whatsappThanksHoursAfter: waTh,
+          whatsappCancelledEnabled: whatsapp.cancelled,
+          whatsappDeclinedEnabled: whatsapp.declined,
+          whatsappNoShowEnabled: whatsapp.noShow,
+          whatsappReceivedTemplate: templateFormValueToDb(whatsapp.tmplReceived, "received"),
+          whatsappConfirmedTemplate: templateFormValueToDb(
+            whatsapp.tmplConfirmed,
+            "confirmed",
+          ),
+          whatsappReminderTemplate: templateFormValueToDb(whatsapp.tmplReminder, "reminder"),
+          whatsappThanksTemplate: templateFormValueToDb(whatsapp.tmplThanks, "thanks"),
+          whatsappCancelledTemplate: templateFormValueToDb(
+            whatsapp.tmplCancelled,
+            "cancelled",
+          ),
+          whatsappDeclinedTemplate: templateFormValueToDb(whatsapp.tmplDeclined, "declined"),
+          whatsappNoShowTemplate: templateFormValueToDb(whatsapp.tmplNoShow, "no_show"),
+          emailReceivedEnabled: email.received,
+          emailConfirmedEnabled: email.confirmed,
+          emailReminderEnabled: email.reminder,
+          emailReminderHoursBefore: emRh,
+          emailThanksEnabled: email.thanks,
+          emailThanksHoursAfter: emTh,
+          emailCancelledEnabled: email.cancelled,
+          emailDeclinedEnabled: email.declined,
+          emailNoShowEnabled: email.noShow,
+          emailReceivedTemplate: templateFormValueToDb(email.tmplReceived, "received"),
+          emailConfirmedTemplate: templateFormValueToDb(email.tmplConfirmed, "confirmed"),
+          emailReminderTemplate: templateFormValueToDb(email.tmplReminder, "reminder"),
+          emailThanksTemplate: templateFormValueToDb(email.tmplThanks, "thanks"),
+          emailCancelledTemplate: templateFormValueToDb(email.tmplCancelled, "cancelled"),
+          emailDeclinedTemplate: templateFormValueToDb(email.tmplDeclined, "declined"),
+          emailNoShowTemplate: templateFormValueToDb(email.tmplNoShow, "no_show"),
+          emailSenderName: emailSenderName.trim() || null,
+          emailReceivedSubject: emailSubjectFormValueToDb(email.subjReceived, "received"),
+          emailConfirmedSubject: emailSubjectFormValueToDb(
+            email.subjConfirmed,
+            "confirmed",
+          ),
+          emailReminderSubject: emailSubjectFormValueToDb(email.subjReminder, "reminder"),
+          emailThanksSubject: emailSubjectFormValueToDb(email.subjThanks, "thanks"),
+          emailCancelledSubject: emailSubjectFormValueToDb(
+            email.subjCancelled,
+            "cancelled",
+          ),
+          emailDeclinedSubject: emailSubjectFormValueToDb(email.subjDeclined, "declined"),
+          emailNoShowSubject: emailSubjectFormValueToDb(email.subjNoShow, "no_show"),
+          whatsappReviewIncludeGwada: whatsappReview.includeGwada,
+          whatsappReviewIncludeGoogle: whatsappReview.includeGoogle,
+          whatsappReviewIncludeFacebook: whatsappReview.includeFacebook,
+          emailReviewIncludeGwada: emailReview.includeGwada,
+          emailReviewIncludeGoogle: emailReview.includeGoogle,
+          emailReviewIncludeFacebook: emailReview.includeFacebook,
+          reviewGoogleUrl: reviewGoogleUrl.trim() || null,
+          reviewFacebookUrl: reviewFacebookUrl.trim() || null,
+          walkInEnabled,
+          guestEmailRequiredEnabled,
+          guestEmailRequiredMinPartySize: guestEmailRequiredEnabled
+            ? emailMinParty
+            : 6,
+          guestPhoneRequiredEnabled,
+          guestPhoneRequiredMinPartySize: guestPhoneRequiredEnabled
+            ? phoneMinParty
+            : 6,
+        });
+        if (error) toast.error(error.message);
+        else {
+          toast.success("Einstellungen gespeichert.");
+          savedSnapshotRef.current = JSON.stringify(currentSnapshot);
+        }
+      } catch {
+        toast.error("Einstellungen konnten nicht gespeichert werden.");
+      } finally {
+        setSaving(false);
       }
     })();
   };

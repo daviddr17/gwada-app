@@ -238,7 +238,7 @@ export type RestaurantStaffWorkEntryRow = {
   shift_id?: string | null;
 };
 
-/** Lohnvorschuss — Abzug in der Monatsabrechnung (paid_on). */
+/** Auszahlung — Abzug in der Monatsabrechnung (paid_on). */
 export type RestaurantStaffWageAdvanceRow = {
   id: string;
   restaurant_id: string;
@@ -246,6 +246,27 @@ export type RestaurantStaffWageAdvanceRow = {
   amount_cents: number;
   paid_on: string;
   note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Monatsstatus der Lohnabrechnung (bezahlt / über / unter / offen). */
+export type StaffPayrollSettlementStatus =
+  | "open"
+  | "paid"
+  | "overpaid"
+  | "underpaid";
+
+export type RestaurantStaffPayrollSettlementRow = {
+  id: string;
+  restaurant_id: string;
+  staff_id: string;
+  period_year: number;
+  period_month: number;
+  status: StaffPayrollSettlementStatus;
+  amount_cents: number;
+  note: string | null;
+  paid_at: string | null;
   created_at: string;
   updated_at: string;
 };

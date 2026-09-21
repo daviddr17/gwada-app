@@ -11,7 +11,10 @@ import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { StaffDisplayShiftSegmentsList } from "@/components/staff/staff-display-shift-segments-list";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
-import type { CompletedDisplayShift } from "@/lib/staff/staff-work-hours-display";
+import {
+  displayShiftHoursBreakdown,
+  type CompletedDisplayShift,
+} from "@/lib/staff/staff-work-hours-display";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 import { staffDisplayName } from "@/lib/types/staff";
 import {
@@ -55,7 +58,10 @@ export function StaffOverviewCompletedShiftsSheet({
               {shifts.map((shift) => {
                 const staff = staffById.get(shift.staffId);
                 const name = staff ? staffDisplayName(staff) : "Unbekannt";
-                const netMinutes = shift.workMinutes;
+                const breakdown = displayShiftHoursBreakdown(shift.segments);
+                const presenceH = breakdown.presenceMs / 3_600_000;
+                const netH = breakdown.netMs / 3_600_000;
+                const breakH = breakdown.breakMs / 3_600_000;
                 return (
                   <li
                     key={shift.shiftId}
@@ -67,11 +73,11 @@ export function StaffOverviewCompletedShiftsSheet({
                       timeZone={timeZone}
                       className="mt-2 text-sm"
                     />
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Gesamt Arbeitszeit {formatHoursDe(netMinutes / 60)}
-                      {shift.breakMinutes > 0
-                        ? ` · Pause ${formatHoursDe(shift.breakMinutes / 60)}`
-                        : ""}
+                    <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+                      Eingeloggt {formatHoursDe(presenceH)}
+                      {breakH > 0.0005
+                        ? ` · Pause ${formatHoursDe(breakH)} · Netto ${formatHoursDe(netH)}`
+                        : ` · Netto ${formatHoursDe(netH)}`}
                     </p>
                   </li>
                 );

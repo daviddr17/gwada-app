@@ -2,12 +2,12 @@ import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const checklistenGuide: UserGuidePage = {
   slug: "checklisten",
-  title: "Checklisten",
+  title: "Aufgaben",
   description:
-    "Team-ToDos, HACCP-Eigenkontrolle, Bereiche, Geräte und Protokoll.",
+    "Persönliche Notizen, Team-ToDos, Team-Chat, HACCP und Protokoll.",
   intro: [
-    "Checklisten vereint zwei Bereiche: ToDo-Listen für das Team (Opening, Closing, Aufgaben) und HACCP/Eigenkontrolle (Temperaturen, Reinigung, Geräte-Checks). Was du siehst, hängt von deinen Berechtigungen ab.",
-    "Erfassungen können am Display-Terminal in der Küche erfolgen — das Dashboard dient der Übersicht und des Abhakens durch Teamleiter.",
+    "Aufgaben vereint persönliche Erinnerungen, Team-ToDos (Opening, Closing), internen Team-Chat und HACCP-Erfassungen. Was du siehst, hängt von deinen Berechtigungen ab.",
+    "Erfassungen können am Display-Terminal in der Küche erfolgen — das Dashboard dient der Übersicht, dem Chat und dem Abhaken durch Teamleiter.",
   ],
   sections: [
     {
@@ -15,12 +15,15 @@ export const checklistenGuide: UserGuidePage = {
       table: {
         headers: ["Tab", "Zweck"],
         rows: [
-          ["Übersicht", "Offene ToDos und fällige Compliance-Einträge"],
+          ["Meine", "Private Notizen und Erinnerungen (nur du)"],
+          ["Team", "Offene Team-ToDos, KPI-Übersicht und operative Aufgaben"],
+          ["Nachrichten", "1:1-Chat unter Kollegen"],
           ["Protokoll", "Abgeschlossene Einträge und Änderungshistorie"],
           ["Einstellungen", "Erinnerungen, Korrekturmaßnahmen, Compliance-Optionen"],
         ],
       },
     },
+
     {
       heading: "KPI-Pills (Übersicht)",
       table: {
@@ -75,7 +78,7 @@ export const checklistenGuide: UserGuidePage = {
       ],
     },
     {
-      heading: "ToDos vs. Eigenkontrolle",
+      heading: "ToDos vs. HACCP-Erfassung",
       table: {
         headers: ["Typ", "Beispiel", "Erfassung"],
         rows: [
@@ -85,6 +88,7 @@ export const checklistenGuide: UserGuidePage = {
         ],
       },
     },
+
   ],
   tips: [
     "Temperatur-ToDos entstehen automatisch bei Grenzwert-Überschreitung.",
@@ -172,7 +176,7 @@ export const mitarbeiterGuide: UserGuidePage = {
   ],
   related: [
     { label: "Display → Zeiterfassung", href: "/docs/handbuch/display" },
-    { label: "Checklisten (Team-ToDos)", href: "/docs/handbuch/checklisten" },
+    { label: "Aufgaben", href: "/docs/handbuch/checklisten" },
     { label: "Profil", href: "/docs/handbuch/profil" },
   ],
 };

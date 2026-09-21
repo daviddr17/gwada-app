@@ -88,7 +88,7 @@ type StaffWorkEntryDrawerProps = {
   siblingEntries?: readonly RestaurantStaffWorkEntryRow[];
   /** Alle Segmente beim Bearbeiten einer Schicht mit Pause (Display/Legacy). */
   shiftClusterSegments?: readonly RestaurantStaffWorkEntryRow[];
-  onSaved: () => void;
+  onSaved: (dayYmd?: string) => void;
   onDelete: (id: string) => Promise<void>;
 };
 
@@ -104,6 +104,16 @@ function combineLocal(dateStr: string, timeStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   const [hh, mm] = timeStr.split(":").map(Number);
   return new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
+}
+
+function lastWorkSegmentInCluster(
+  segments: readonly RestaurantStaffWorkEntryRow[],
+): RestaurantStaffWorkEntryRow | null {
+  const workSegs = segments.filter((s) => s.entry_type === "work");
+  if (workSegs.length === 0) return null;
+  return [...workSegs].sort(
+    (a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime(),
+  )[0]!;
 }
 
 export function StaffWorkEntryDrawer({
@@ -146,6 +156,11 @@ export function StaffWorkEntryDrawer({
     clusterOpen &&
     entry?.entry_type === "work" &&
     !isOpenEntry;
+  const canReopenClosedShift =
+    entryType === "work" &&
+    Boolean(entry) &&
+    !isOpenEntry &&
+    !clusterOpen;
 
   const reloadLog = useCallback(async () => {
     if (!entry?.id) {
@@ -232,6 +247,51 @@ export function StaffWorkEntryDrawer({
     const willStayOpen = entryType === "work" && stillRunning && !clusterStartOnlyEdit;
     const ends_at = willStayOpen ? starts_at : ends_at_input;
 
+    const finishUi = (entryId: string, after: {
+      entry_type: StaffWorkEntryType;
+      starts_at: string;
+      ends_at: string;
+      note: string | null;
+    }, opts?: { runAutoFix?: boolean }) => {
+      setPending(false);
+      toast.success("Gespeichert");
+      onOpenChange(false);
+      onSaved(dateStr);
+
+      const runAutoFix = opts?.runAutoFix === true;
+      void (async () => {
+        try {
+          const changes = buildStaffWorkEntryChanges(entry, after);
+          if (changes.length > 0 || !entry) {
+            await insertStaffWorkEntryLogEntry(
+              restaurantId,
+              entryId,
+              entry ? "updated" : "created",
+              changes,
+            );
+          }
+          if (!runAutoFix) return;
+          const { data: settings } = await fetchStaffModuleSettings(restaurantId);
+          if (!settings?.labor_auto_fix_missing_breaks) return;
+          const fixResult = await applyLaborComplianceAutoFixForStaffDay({
+            restaurantId,
+            staffId,
+            dayYmd: dateStr,
+          });
+          if (fixResult.error) {
+            toast.error(fixResult.error);
+            return;
+          }
+          if (fixResult.fixed) {
+            toast.success("Fehlende Mindestpause automatisch eingetragen");
+            onSaved(dateStr);
+          }
+        } catch {
+          // UI already closed — log/autofix failures must not reopen the sheet.
+        }
+      })();
+    };
+
     if (clusterStartOnlyEdit && entry) {
       const timing = validateStaffWorkEntryTiming({
         entryType: entry.entry_type,
@@ -262,19 +322,48 @@ export function StaffWorkEntryDrawer({
         toast.error("Speichern fehlgeschlagen.");
         return;
       }
-      setPending(false);
-      const changes = buildStaffWorkEntryChanges(entry, after);
-      if (changes.length > 0) {
-        await insertStaffWorkEntryLogEntry(
-          restaurantId,
-          res.id,
-          "updated",
-          changes,
-        );
+      finishUi(res.id, after);
+      return;
+    }
+
+    if (willStayOpen && editingShiftCluster && !clusterOpen) {
+      const lastWork = lastWorkSegmentInCluster(shiftClusterSegments);
+      if (!lastWork) {
+        toast.error("Kein Arbeitssegment zum Wiedereröffnen gefunden.");
+        return;
       }
-      toast.success("Gespeichert");
-      onSaved();
-      onOpenChange(false);
+      const timing = validateStaffWorkEntryTiming({
+        entryType: "work",
+        startsAt: lastWork.starts_at,
+        endsAt: lastWork.starts_at,
+        staffId,
+        entryId: lastWork.id,
+        isOpen: true,
+        siblings: siblingEntries,
+      });
+      if (!timing.ok) {
+        toast.error(timing.message);
+        return;
+      }
+      const after = {
+        entry_type: "work" as const,
+        starts_at: lastWork.starts_at,
+        ends_at: lastWork.starts_at,
+        note: lastWork.note ?? null,
+      };
+      setPending(true);
+      const res = await upsertStaffWorkEntry(restaurantId, staffId, {
+        id: lastWork.id,
+        ...after,
+        is_open: true,
+        shift_id: lastWork.shift_id ?? entry?.shift_id ?? null,
+      });
+      if (!res) {
+        setPending(false);
+        toast.error("Speichern fehlgeschlagen.");
+        return;
+      }
+      finishUi(res.id, after);
       return;
     }
 
@@ -357,42 +446,9 @@ export function StaffWorkEntryDrawer({
       }
     }
 
-    setPending(false);
-
-    const changes = buildStaffWorkEntryChanges(entry, after);
-    if (changes.length > 0 || !entry) {
-      await insertStaffWorkEntryLogEntry(
-        restaurantId,
-        res.id,
-        entry ? "updated" : "created",
-        changes,
-      );
-    }
-
-    let autoFixApplied = false;
-    if (entryType === "work" && !willStayOpen) {
-      const { data: settings } = await fetchStaffModuleSettings(restaurantId);
-      if (settings?.labor_auto_fix_missing_breaks) {
-        const fixResult = await applyLaborComplianceAutoFixForStaffDay({
-          restaurantId,
-          staffId,
-          dayYmd: dateStr,
-        });
-        if (fixResult.error) {
-          toast.error(fixResult.error);
-        } else if (fixResult.fixed) {
-          autoFixApplied = true;
-        }
-      }
-    }
-
-    toast.success(
-      autoFixApplied
-        ? "Gespeichert · fehlende Mindestpause automatisch eingetragen"
-        : "Gespeichert",
-    );
-    onSaved();
-    onOpenChange(false);
+    finishUi(res.id, after, {
+      runAutoFix: entryType === "work" && !willStayOpen,
+    });
   }, [
     pending,
     readOnly,
@@ -410,6 +466,7 @@ export function StaffWorkEntryDrawer({
     stillRunning,
     editingShiftCluster,
     clusterStartOnlyEdit,
+    shiftClusterSegments,
   ]);
 
   const drawerTitle = entry
@@ -438,7 +495,9 @@ export function StaffWorkEntryDrawer({
                 <p className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
                   {clusterStartOnlyEdit
                     ? "Schicht läuft noch nach der Pause — nur Start und Datum sind bearbeitbar."
-                    : "Ende offen — Start und Datum sind bearbeitbar. Zum Beenden Haken entfernen und „Bis“ setzen (oder am Display ausstempeln)."}
+                    : canReopenClosedShift
+                      ? "Schicht wird wieder als laufend markiert — das Ende wird zurückgesetzt (Display kann erneut ausstempeln)."
+                      : "Ende offen — Start und Datum sind bearbeitbar. Zum Beenden Haken entfernen und „Bis“ setzen (oder am Display ausstempeln)."}
                 </p>
               ) : null}
               {editingShiftCluster && !clusterOpen && entryType === "work" ? (
@@ -531,9 +590,7 @@ export function StaffWorkEntryDrawer({
                   />
                 </div>
               </div>
-              {entryType === "work" &&
-              !readOnly &&
-              (!entry || isOpenEntry || clusterOpen) ? (
+              {entryType === "work" && !readOnly ? (
                 <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/50 p-3">
                   <Checkbox
                     checked={stillRunning}
@@ -548,8 +605,9 @@ export function StaffWorkEntryDrawer({
                     className="mt-0.5"
                   />
                   <span className="text-sm leading-snug">
-                    Läuft noch — Ende offen lassen (Mitarbeiter stempelt später
-                    am Display aus)
+                    {canReopenClosedShift && !stillRunning
+                      ? "Schicht läuft wieder — Ende zurücksetzen (versehentliches Schichtende rückgängig)"
+                      : "Läuft noch — Ende offen lassen (Mitarbeiter stempelt später am Display aus)"}
                   </span>
                 </label>
               ) : null}

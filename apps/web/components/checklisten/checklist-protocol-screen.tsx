@@ -227,7 +227,7 @@ export function ChecklistProtocolScreen() {
   ]);
 
   if (!permissionsLoading && !canReadTodos) {
-    return <ModuleAccessDenied label="Checklisten" />;
+    return <ModuleAccessDenied label="Aufgaben" />;
   }
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;

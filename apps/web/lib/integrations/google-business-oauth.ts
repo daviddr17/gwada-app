@@ -8,6 +8,10 @@ import {
   type GoogleBusinessIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
 import type { GoogleBusinessLocationOption } from "@/lib/integrations/google-oauth-pending";
+import {
+  PLATFORM_OAUTH_REFRESH_TIMEOUT_MS,
+  platformApiFetchSignal,
+} from "@/lib/integrations/platform-api-timeout";
 import { getPublicSiteUrl } from "@/lib/public-env";
 
 export type GoogleBusinessPlatformConfig = {
@@ -187,6 +191,7 @@ export async function refreshGoogleBusinessAccessToken(params: {
       grant_type: "refresh_token",
     }),
     cache: "no-store",
+    signal: platformApiFetchSignal(PLATFORM_OAUTH_REFRESH_TIMEOUT_MS),
   });
   const body = (await res.json()) as {
     access_token?: string;

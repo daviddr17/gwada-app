@@ -77,6 +77,9 @@ const INTEGRATIONEN_NAV: readonly ModuleSubnavItem[] = [
 const WAHA_NAV: readonly ModuleSubnavItem[] = [
   { href: "/superadmin/waha", label: "Server", matchMode: "exact" },
 ];
+const OPS_NAV: readonly ModuleSubnavItem[] = [
+  { href: "/superadmin/ops", label: "Zustellung", matchMode: "exact" },
+];
 const DESIGN_NAV: readonly ModuleSubnavItem[] = [
   { href: "/superadmin/design", label: "Referenz", matchMode: "exact" },
 ];
@@ -171,6 +174,9 @@ const LazyIntegrationen = chromeLazy(
 );
 const LazyWaha = chromeLazy("WAHA", "Superadmin WAHA", WAHA_NAV, () =>
   import("@/app/(platform)/(app)/superadmin/waha/page"),
+);
+const LazyOps = chromeLazy("Ops", "Superadmin Ops", OPS_NAV, () =>
+  import("@/app/(platform)/(app)/superadmin/ops/page"),
 );
 const LazyDatenbank = chromeLazy(
   "System",
@@ -284,6 +290,7 @@ export const SUPERADMIN_ROUTE_ENTRIES: SuperadminRouteEntry[] = [
     Lazy: LazyIntegrationen,
   },
   { path: "/waha", fullPath: "/superadmin/waha", Lazy: LazyWaha },
+  { path: "/ops", fullPath: "/superadmin/ops", Lazy: LazyOps },
   {
     path: "/datenbank",
     fullPath: "/superadmin/datenbank",

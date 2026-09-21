@@ -8,7 +8,7 @@ import {
   reservationSnapshotFromPayload,
   type ReservationLogSnapshot,
 } from "@/lib/reservations/reservation-log-build";
-import { insertReservationLogFromBrowser } from "@/lib/reservations/reservation-log-insert";
+import { insertReservationLogFromBrowser } from "@/lib/reservations/reservation-log-insert-browser";
 import { relocatedFromPatchOnDatetimeChange } from "@/lib/reservations/reservation-relocated-marker";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";

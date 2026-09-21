@@ -1,22 +1,5 @@
-import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
-import { canSendStaffInviteEmail } from "@/lib/staff/staff-invite-send-server";
-import {
-  oauthConfigFromJson,
-  type MetaOAuthIntegrationConfig,
-} from "@/lib/integrations/oauth-integration-types";
-import {
-  assertPlatformEmailEnabled,
-  assertPlatformFacebookEnabled,
-  assertPlatformInstagramEnabled,
-  assertPlatformWhatsappEnabled,
-} from "@/lib/integrations/platform-messaging-guard";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { fetchRestaurantOAuthIntegration } from "@/lib/supabase/restaurant-oauth-integration-db";
-import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
-import { wahaGetSession } from "@/lib/waha/waha-client";
-import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
-import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
+import { resolveRestaurantChannelConnectionsServer } from "@/lib/contact-messages/restaurant-channel-connections-server";
 
 export const dynamic = "force-dynamic";
 
@@ -27,84 +10,10 @@ export async function GET(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const admin = createSupabaseAdminClient();
-  let metaReviewDemo = false;
-  if (admin) {
-    const { data: rest } = await admin
-      .from("restaurants")
-      .select("slug")
-      .eq("id", auth.restaurantId)
-      .maybeSingle();
-    metaReviewDemo = isMetaReviewDemoRestaurantSlug(
-      (rest as { slug?: string } | null)?.slug,
-    );
-  }
-
-  const waPlatform = metaReviewDemo
-    ? ({ ok: false as const, error: "whatsapp_disabled" as const })
-    : await assertPlatformWhatsappEnabled(auth.supabase);
-  const emPlatform = await assertPlatformEmailEnabled(auth.supabase);
-  const fbPlatform = await assertPlatformFacebookEnabled(auth.supabase);
-  const igPlatform = await assertPlatformInstagramEnabled(auth.supabase);
-
-  let whatsappConnected = false;
-  if (waPlatform.ok) {
-    const config = await getWahaServerConfigForRestaurantAdmin(
-      auth.restaurantId,
-    );
-    if (admin && config) {
-      const session = wahaSessionNameForRestaurant(auth.restaurantId);
-      const live = await wahaGetSession(config, session);
-      whatsappConnected = live.ok && live.data?.status === "WORKING";
-    }
-  }
-
-  let emailConnected = false;
-  if (emPlatform.ok) {
-    if (admin) {
-      const creds = await resolveRestaurantImapCredentials(
-        admin,
-        auth.restaurantId,
-      );
-      emailConnected = creds != null;
-    }
-  }
-
-  let facebookConnected = false;
-  if (fbPlatform.ok) {
-    const fbRow = await fetchRestaurantOAuthIntegration(
-      auth.supabase,
-      auth.restaurantId,
-      "facebook",
-      (raw) => oauthConfigFromJson<MetaOAuthIntegrationConfig>(raw),
-    );
-    facebookConnected = fbRow?.status === "working";
-  }
-
-  let instagramConnected = false;
-  if (igPlatform.ok) {
-    const igRow = await fetchRestaurantOAuthIntegration(
-      auth.supabase,
-      auth.restaurantId,
-      "instagram",
-      (raw) => oauthConfigFromJson<MetaOAuthIntegrationConfig>(raw),
-    );
-    instagramConnected = igRow?.status === "working";
-  }
-
-  const staffInviteEmailAvailable =
-    emPlatform.ok &&
-    (await canSendStaffInviteEmail(auth.restaurantId, auth.supabase));
-
-  return Response.json({
-    whatsappEnabled: waPlatform.ok,
-    emailEnabled: emPlatform.ok,
-    facebookEnabled: fbPlatform.ok,
-    instagramEnabled: igPlatform.ok,
-    whatsappConnected,
-    emailConnected,
-    facebookConnected,
-    instagramConnected,
-    staffInviteEmailAvailable,
+  const payload = await resolveRestaurantChannelConnectionsServer({
+    restaurantId: auth.restaurantId,
+    supabase: auth.supabase,
   });
+
+  return Response.json(payload);
 }

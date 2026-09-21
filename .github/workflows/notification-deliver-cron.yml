@@ -1,8 +1,8 @@
 name: Notification deliver cron
 
+# Kein schedule — der Live-VPS taktet notification-deliver und newsletter-send.
+# Dieser Workflow ist nur manueller Notfall.
 on:
-  schedule:
-    - cron: "*/2 * * * *"
   workflow_dispatch:
 
 env:

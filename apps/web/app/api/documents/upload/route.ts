@@ -11,6 +11,7 @@ import {
 } from "@/lib/documents/document-log-server";
 import { assertWorkspaceStorageAvailable } from "@/lib/gallery/workspace-storage-server";
 import { buildRestaurantDocumentStoragePath } from "@/lib/supabase/documents-db";
+import { emitStaffDocumentAssignedNotification } from "@/lib/notifications/notification-staff-document-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
   const titleRaw = form?.get("title");
   const tagIdRaw = form?.get("tagId");
   const staffIdRaw = form?.get("staffId");
+  const visibleToStaffRaw = form?.get("visibleToStaff");
 
   if (!(file instanceof File)) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
@@ -65,17 +67,22 @@ export async function POST(req: Request) {
     typeof staffIdRaw === "string" && staffIdRaw.trim()
       ? staffIdRaw.trim()
       : null;
+  const visibleToStaff =
+    staffId != null &&
+    (visibleToStaffRaw === "1" || visibleToStaffRaw === "true");
 
+  let staffProfileId: string | null = null;
   if (staffId) {
     const { data: staffRow } = await admin
       .from("restaurant_staff")
-      .select("id")
+      .select("id, profile_id")
       .eq("id", staffId)
       .eq("restaurant_id", restaurantId)
       .maybeSingle();
     if (!staffRow?.id) {
       return Response.json({ error: "invalid_staff" }, { status: 400 });
     }
+    staffProfileId = (staffRow.profile_id as string | null) ?? null;
   }
 
   if (tagId) {
@@ -125,6 +132,7 @@ export async function POST(req: Request) {
     tag_id: tagId,
     employee_id: employeeId,
     staff_id: staffId,
+    visible_to_staff: visibleToStaff,
     title,
     file_name: file.name,
     storage_path: storagePath,
@@ -155,6 +163,18 @@ export async function POST(req: Request) {
     documentTitle: title,
     fileName: file.name,
   });
+
+  if (staffId && visibleToStaff) {
+    await emitStaffDocumentAssignedNotification(admin, {
+      restaurantId,
+      documentId,
+      staffId,
+      targetProfileId: staffProfileId,
+      documentTitle: title,
+      actorUserId: auth.userId,
+      visibleToStaff,
+    });
+  }
 
   return Response.json({ documentId });
 }

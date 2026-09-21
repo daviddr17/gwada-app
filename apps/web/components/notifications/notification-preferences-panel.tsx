@@ -106,11 +106,13 @@ export function NotificationPreferencesPanel() {
     );
   }
 
+  const whatsappChannelVisible = channels?.whatsappChannelVisible !== false;
   const whatsappConnected = channels?.whatsappConnected ?? false;
   const hasPhoneForPush = Boolean(
     normalizeNotificationPhoneForStorage(contact.draft.phone),
   );
-  const whatsappPushAvailable = whatsappConnected && hasPhoneForPush;
+  const whatsappPushAvailable =
+    whatsappChannelVisible && whatsappConnected && hasPhoneForPush;
 
   const emailChannelAvailable = Boolean(
     channels?.restaurantEmailConfigured ||
@@ -281,17 +283,17 @@ export function NotificationPreferencesPanel() {
         <CardHeader className="gap-2">
           <CardTitle className="text-xl">Benachrichtigungen</CardTitle>
           <CardDescription className="text-base leading-relaxed">
-            Pro Hinweis Glocke, E-Mail und WhatsApp einzeln oder kombiniert —
-            kompakt in einer Liste. Sichtbare Module hängen von deinen
-            Berechtigungen ab (z. B. Reservierungen nur mit Zugriff auf
-            Reservierungen).
+            {whatsappChannelVisible
+              ? "Pro Hinweis Glocke, E-Mail und WhatsApp einzeln oder kombiniert — kompakt in einer Liste. Sichtbare Module hängen von deinen Berechtigungen ab (z. B. Reservierungen nur mit Zugriff auf Reservierungen)."
+              : "Pro Hinweis Glocke und E-Mail einzeln oder kombiniert — kompakt in einer Liste. Sichtbare Module hängen von deinen Berechtigungen ab (z. B. Reservierungen nur mit Zugriff auf Reservierungen)."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
-          {!emailPushAvailable || !whatsappPushAvailable ? (
+          {!emailPushAvailable ||
+          (whatsappChannelVisible && !whatsappPushAvailable) ? (
             <div className="space-y-1 rounded-xl border border-border/40 bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">
               {!emailPushAvailable ? <p>{emailNote}</p> : null}
-              {!whatsappPushAvailable ? (
+              {whatsappChannelVisible && !whatsappPushAvailable ? (
                 <p>
                   {!whatsappConnected
                     ? "WhatsApp-Push: Integration unter Einstellungen → Integrationen verbinden."
@@ -303,8 +305,9 @@ export function NotificationPreferencesPanel() {
           {visibleNotificationGroups.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Für deine Berechtigungen sind keine Modul-Benachrichtigungen
-              verfügbar. Zustellung per E-Mail/WhatsApp kannst du oben trotzdem
-              pflegen.
+              verfügbar. Zustellung
+              {whatsappChannelVisible ? " per E-Mail/WhatsApp" : " per E-Mail"}{" "}
+              kannst du oben trotzdem pflegen.
             </p>
           ) : (
             visibleNotificationGroups.map((group) => (
@@ -347,6 +350,7 @@ export function NotificationPreferencesPanel() {
                       )}
                       emailDisabled={!emailPushAvailable}
                       whatsappDisabled={!whatsappPushAvailable}
+                      hideWhatsapp={!whatsappChannelVisible}
                       emailDisabledHint={emailNote}
                       whatsappDisabledHint={whatsappDisabledHint}
                       onChange={(channel, enabled) =>

@@ -94,11 +94,3 @@ export function pickStoredActiveStaffId(
   if (preferred?.is_active) return preferredId;
   return null;
 }
-
-/** @deprecated Kein Auto-Fallback mehr — {@link pickStoredActiveStaffId} nutzen. */
-export function pickDefaultActiveStaffId(
-  staffList: readonly RestaurantStaffRow[],
-  preferredId?: string | null,
-): string | null {
-  return pickStoredActiveStaffId(staffList, preferredId);
-}

@@ -43,6 +43,10 @@ import {
   inboxUnreadStatusChipClassName,
   inboxUnreadStatusChipLabel,
 } from "@/lib/contact-messages/inbox-unread-hint-ui";
+import {
+  buildInboxStaffIdentityIndex,
+  resolveInboxThreadStaffMatch,
+} from "@/lib/contact-messages/inbox-thread-staff-match";
 import { ContactThreadHeaderAvatar } from "@/components/contacts/contact-thread-header-avatar";
 import { ContactConversationsReadFilter } from "@/components/contacts/contact-conversations-read-filter";
 import { ContactConversationsSearchBar } from "@/components/contacts/contact-conversations-search-bar";
@@ -55,6 +59,7 @@ import {
   type InboxThreadAssignStaffKind,
 } from "@/components/contacts/inbox-thread-assign-staff-sheet";
 import { ContactInboxThreadHeaderMenu } from "@/components/contacts/contact-inbox-thread-header-menu";
+import { InboxThreadStaffBadge } from "@/components/contacts/inbox-thread-staff-badge";
 import {
   ContactInboxThreadChrome,
   ContactInboxThreadOverlay,
@@ -129,6 +134,7 @@ import { useIsLgUp } from "@/lib/hooks/use-is-lg-up";
 import { filterInboxConversationsByPlatform } from "@/lib/contact-messages/unified-inbox-merge";
 import {
   fetchUnifiedInboxConversations,
+  fetchInboxConversationsForPlatform,
   isUnifiedInboxFilter,
   markUnifiedInboxConversationReadClient,
 } from "@/lib/contact-messages/unified-inbox-client";
@@ -140,7 +146,6 @@ import {
   upsertConversationFollowUpClient,
   clearConversationFollowUpClient,
 } from "@/lib/contact-messages/fetch-inbox-client";
-import { enrichConversationsWithReadState } from "@/lib/contact-messages/enrich-gwada-conversations-client";
 import {
   CONTACT_THREAD_PAGE_SIZE,
   dedupeContactMessagesById,
@@ -248,6 +253,7 @@ import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-chan
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { useStaffListQuery } from "@/lib/hooks/use-staff-list-query";
 import {
   hasModuleCreate,
   hasModuleRead,
@@ -266,7 +272,6 @@ import {
 } from "@/lib/supabase/contacts-db";
 import {
   fetchContactMessages,
-  fetchContactConversations,
   type ContactConversationPreview,
   type ContactMessageRow,
 } from "@/lib/supabase/contact-messages-db";
@@ -431,6 +436,11 @@ export function ContactsMessagesScreen({
   const canCreateReservation = hasModuleCreate(has, "reservations");
   const canCreateReviewInvite = hasModuleCreate(has, "reviews");
   const canUpdateStaff = hasModuleUpdate(has, "staff");
+  const { rows: staffRows } = useStaffListQuery(restaurantId, workspaceReady);
+  const inboxStaffIndex = useMemo(
+    () => buildInboxStaffIdentityIndex(staffRows),
+    [staffRows],
+  );
   const { profile } = useRestaurantProfile();
   const defaultCountryIso2 = useMemo(
     () => resolveCountryIso2FromLabel(profile.country),
@@ -970,10 +980,6 @@ export function ContactsMessagesScreen({
     if (isUnifiedInboxFilter(inboxFilter)) {
       const { data, error } = await fetchUnifiedInboxConversations({
         restaurantId,
-        whatsappConnected,
-        emailConnected,
-        facebookConnected,
-        instagramConnected,
       });
       if (error && activeRef.current) toast.error(error.message);
       setConversations(data);
@@ -986,7 +992,7 @@ export function ContactsMessagesScreen({
       setConversations([]);
     } else {
       const platform = inboxFilter as ContactMessagePlatform;
-      const { data, error } = await fetchContactConversations({
+      const { data, error } = await fetchInboxConversationsForPlatform({
         restaurantId,
         platform,
       });
@@ -994,12 +1000,7 @@ export function ContactsMessagesScreen({
         if (activeRef.current) toast.error(error.message);
         setConversations([]);
       } else {
-        const enriched = await enrichConversationsWithReadState({
-          restaurantId,
-          platform,
-          conversations: data,
-        });
-        setConversations(enriched);
+        setConversations(data);
       }
     }
 
@@ -1018,16 +1019,7 @@ export function ContactsMessagesScreen({
     setRefreshingInbox(true);
     try {
       if (isUnifiedInboxFilter(inboxFilter)) {
-        await refreshUnifiedInboxCache(
-          {
-            restaurantId,
-            whatsappConnected,
-            emailConnected,
-            facebookConnected,
-            instagramConnected,
-          },
-          { force: true },
-        );
+        await refreshUnifiedInboxCache({ restaurantId }, { force: true });
         const cached = peekUnifiedInboxCache(restaurantId);
         if (cached) setConversations(cached);
       } else {
@@ -1092,22 +1084,14 @@ export function ContactsMessagesScreen({
         toast.error(contactInboxMarkReadErrorMessage(result.error));
         return;
       }
-      if (
-        isEmailPseudoContactId(conversationKey) ||
-        inboxFilter === "email" ||
-        inboxFilter === "whatsapp" ||
-        isUnifiedInboxFilter(inboxFilter)
-      ) {
-        void loadConversations({ silent: true, force: true });
-      }
+      // Kein Force-Refetch: patchConversationReadState + mark-read-API dispatchen
+      // bereits GWADA_DASHBOARD_MESSAGES_REFRESH mit contactId (Background überspringt).
     },
     [
       restaurantId,
-      inboxFilter,
       whatsappConnected,
       emailConnected,
       patchConversationReadState,
-      loadConversations,
     ],
   );
 
@@ -1653,8 +1637,8 @@ export function ContactsMessagesScreen({
       if (!pendingContactId) {
         openThreadIdRef.current = null;
       }
-      if (connectionsLoading) return;
       const hasInboxCache = Boolean(peekUnifiedInboxCache(restaurantId)?.length);
+      if (connectionsLoading && !hasInboxCache) return;
       void loadConversations(hasInboxCache ? { silent: true } : undefined);
       return;
     }
@@ -1676,10 +1660,11 @@ export function ContactsMessagesScreen({
       return;
     }
 
-    if (connectionsLoading) return;
     const cached = peekContactThreadCache(restaurantId, contactParam);
+    const hasThreadCache = Boolean(cached && cached.messages.length > 0);
+    if (connectionsLoading && !hasThreadCache) return;
     void loadThread({
-      silent: Boolean(cached && cached.messages.length > 0),
+      silent: hasThreadCache,
     });
   }, [
     active,
@@ -2882,6 +2867,16 @@ export function ContactsMessagesScreen({
   const threadHeaderListLabel = threadListPreview
     ? wahaConversationDisplayName(threadListPreview)
     : contactName || "Kontakt";
+  const openThreadStaffMatch = threadId
+    ? resolveInboxThreadStaffMatch({
+        contactId: threadId,
+        staffIndex: inboxStaffIndex,
+        phone: whatsappHeaderSubtitle ?? whatsappThreadPhone,
+        email: isEmailPseudoContactId(threadId)
+          ? emailAddressFromPseudoContactId(threadId)
+          : null,
+      })
+    : null;
   const threadHeader = (
 <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
               <Button
@@ -2921,6 +2916,13 @@ export function ContactsMessagesScreen({
                 ) : (
                   <p className="truncate font-semibold">{contactName || "Kontakt"}</p>
                 )}
+                {openThreadStaffMatch ? (
+                  <div className="mt-0.5">
+                    <InboxThreadStaffBadge
+                      staffName={openThreadStaffMatch.staffName}
+                    />
+                  </div>
+                ) : null}
                 {linkedThread && lastGuestPlatform ? (
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span>Zuletzt aktiv über</span>
@@ -3236,6 +3238,10 @@ showReplyComposer ? (
               <ul className="divide-y divide-border/50">
                 {paginatedConversations.map((c) => {
                   const listName = wahaConversationDisplayName(c);
+                  const staffMatch = resolveInboxThreadStaffMatch({
+                    contactId: c.contact_id,
+                    staffIndex: inboxStaffIndex,
+                  });
                   const unread = c.is_unread;
                   const unreadHint = c.unread_hint ?? null;
                   const hintLabel = inboxUnreadHintLabel(unreadHint);
@@ -3507,6 +3513,13 @@ showReplyComposer ? (
                               <Clock className="size-3 opacity-70" aria-hidden />
                             ) : null}
                           </Badge>
+                        ) : null}
+                        {staffMatch ? (
+                          <InboxThreadStaffBadge
+                            staffName={staffMatch.staffName}
+                            compact
+                            className="pointer-events-none mt-1.5 mr-1.5"
+                          />
                         ) : null}
                         {c.has_reservation_link && c.last_reservation_id ? (
                           <Badge

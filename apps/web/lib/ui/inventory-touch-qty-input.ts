@@ -22,12 +22,6 @@ function inventoryQtyInputShellClassName(density: InventoryQtyInputDensity): str
     : inventoryTouchQtyInputClassName;
 }
 
-function inventoryQtyUnitSuffixClassName(density: InventoryQtyInputDensity): string {
-  return density === "compact"
-    ? inventoryCompactQtyUnitSuffixClassName
-    : inventoryTouchQtyUnitSuffixClassName;
-}
-
 /** Bestand: kühles Sky, ruhig. */
 export function inventoryTouchStockQtyInputCn(
   density: InventoryQtyInputDensity = "touch",
@@ -38,9 +32,6 @@ export function inventoryTouchStockQtyInputCn(
     "border-sky-500/30 bg-sky-500/10 text-sky-950 focus-visible:border-sky-500/55 dark:bg-sky-500/12 dark:text-sky-50",
   );
 }
-
-/** @deprecated Nutze inventoryTouchStockQtyInputCn — bleibt für bestehende Imports. */
-export const inventoryTouchStockQtyInputClassName = inventoryTouchStockQtyInputCn("touch");
 
 /** Bestellung: Grün, Aktion — stärker wenn Menge > 0. */
 export function inventoryTouchOrderQtyInputCn(

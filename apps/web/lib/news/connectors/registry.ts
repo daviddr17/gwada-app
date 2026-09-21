@@ -18,12 +18,31 @@ import {
   isFeedConnectorEnabledBySuperadmin,
   resolveFeedConnectorConnected,
 } from "@/lib/platform-feed/feed-platform-superadmin";
+import {
+  isMetaReviewDemoRestaurantSlug,
+  isWhatsappPlatformKey,
+} from "@/lib/restaurants/meta-review-demo";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   fetchPlatformMessagingFlags,
   type PlatformMessagingFlags,
 } from "@/lib/supabase/platform-messaging-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function isMetaReviewDemoRestaurantId(
+  restaurantId: string,
+): Promise<boolean> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return false;
+  const { data } = await admin
+    .from("restaurants")
+    .select("slug")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  return isMetaReviewDemoRestaurantSlug(
+    typeof data?.slug === "string" ? data.slug : null,
+  );
+}
 
 const CONNECTOR_FETCH_TIMEOUT_MS = 8_000;
 
@@ -56,7 +75,10 @@ export async function getNewsConnectorPublicInfo(
         appleBusinessConnectEnabled: false,
       };
 
-  const platforms = Object.keys(CONNECTORS) as NewsPlatform[];
+  const hideWhatsapp = await isMetaReviewDemoRestaurantId(restaurantId);
+  const platforms = (Object.keys(CONNECTORS) as NewsPlatform[]).filter(
+    (key) => !(hideWhatsapp && isWhatsappPlatformKey(key)),
+  );
   return Promise.all(
     platforms.map(async (key) => {
       const connector = CONNECTORS[key];
@@ -96,7 +118,10 @@ export async function fetchUnifiedNewsFeed(
         appleBusinessConnectEnabled: false,
       };
 
-  const keys = platforms ?? (Object.keys(CONNECTORS) as NewsPlatform[]);
+  const hideWhatsapp = await isMetaReviewDemoRestaurantId(restaurantId);
+  const keys = (platforms ?? (Object.keys(CONNECTORS) as NewsPlatform[])).filter(
+    (key) => !(hideWhatsapp && isWhatsappPlatformKey(key)),
+  );
   const batches = await Promise.all(
     keys.map(async (key) => {
       const connector = CONNECTORS[key];

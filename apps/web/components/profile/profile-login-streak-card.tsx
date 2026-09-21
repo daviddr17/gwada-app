@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Fragment, useMemo } from "react";
 import { Flame } from "lucide-react";
 import {
   Card,
@@ -14,38 +15,33 @@ import {
   loginStreakCellsToWeekColumns,
   type LoginStreakSummary,
 } from "@/lib/profile/login-streak";
+import { queryKeys } from "@/lib/query/query-keys";
 import { cn } from "@/lib/utils";
 
 const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
 
-export function ProfileLoginStreakCard() {
-  const [summary, setSummary] = useState<LoginStreakSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const STREAK_STALE_MS = 5 * 60_000;
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/profile/login-streak");
-        if (!res.ok) {
-          if (!cancelled) setError("Streak konnte nicht geladen werden.");
-          return;
-        }
-        const json = (await res.json()) as { data?: LoginStreakSummary };
-        if (!cancelled) setSummary(json.data ?? null);
-      } catch {
-        if (!cancelled) setError("Streak konnte nicht geladen werden.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+async function fetchLoginStreakSummary(): Promise<LoginStreakSummary> {
+  const res = await fetch("/api/profile/login-streak");
+  if (!res.ok) throw new Error("streak_load_failed");
+  const json = (await res.json()) as { data?: LoginStreakSummary };
+  if (!json.data) throw new Error("streak_empty");
+  return json.data;
+}
+
+export function ProfileLoginStreakCard() {
+  const query = useQuery({
+    queryKey: queryKeys.profile.loginStreak(),
+    queryFn: fetchLoginStreakSummary,
+    staleTime: STREAK_STALE_MS,
+    gcTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const summary = query.data ?? null;
+  const loading = query.isLoading && !summary;
+  const error = query.isError ? "Streak konnte nicht geladen werden." : null;
 
   const columns = useMemo(
     () => (summary ? loginStreakCellsToWeekColumns(summary.cells) : []),
@@ -69,7 +65,7 @@ export function ProfileLoginStreakCard() {
         {loading ? (
           <div className="space-y-3" aria-busy="true">
             <Skeleton className="h-10 w-40 rounded-lg" />
-            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-28 w-full rounded-xl" />
           </div>
         ) : error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
@@ -77,7 +73,7 @@ export function ProfileLoginStreakCard() {
           <>
             <div className="flex flex-wrap items-end gap-4">
               <div>
-                <p className="text-3xl font-semibold tabular-nums tracking-tight">
+                <p className="text-2xl font-semibold tabular-nums tracking-tight">
                   {summary.currentStreak}
                   <span className="ml-1 text-sm font-medium text-muted-foreground">
                     {summary.currentStreak === 1 ? "Tag" : "Tage"}
@@ -88,46 +84,44 @@ export function ProfileLoginStreakCard() {
               <div className="text-sm text-muted-foreground">
                 <p>
                   Rekord{" "}
-                  <span className="font-semibold text-foreground tabular-nums">
+                  <span className="font-semibold tabular-nums text-foreground">
                     {summary.longestStreak}
                   </span>
                 </p>
                 <p>
                   Gesamt{" "}
-                  <span className="font-semibold text-foreground tabular-nums">
+                  <span className="font-semibold tabular-nums text-foreground">
                     {summary.totalDays}
                   </span>
                 </p>
               </div>
             </div>
 
-            <div className="flex w-full gap-2 sm:gap-3">
-              <div className="flex shrink-0 flex-col justify-between py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
-                {WEEKDAY_LABELS.map((label, index) =>
-                  index % 2 === 1 ? (
-                    <span key={label} className="leading-none">
-                      {label}
-                    </span>
-                  ) : (
-                    <span key={label} className="invisible leading-none">
-                      {label}
-                    </span>
-                  ),
-                )}
-              </div>
+            {columns.length > 0 ? (
               <div
-                className="grid min-w-0 flex-1 gap-[3px]"
+                className="grid w-full gap-x-1 gap-y-1"
                 style={{
-                  gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+                  gridTemplateColumns: `1.75rem repeat(${columns.length}, minmax(0, 1fr))`,
                 }}
+                role="img"
+                aria-label="Aktivitäts-Heatmap der letzten Wochen"
               >
-                {columns.map((week, weekIndex) => (
-                  <div key={weekIndex} className="flex min-w-0 flex-col gap-[3px]">
-                    {week.map((cell, dayIndex) => {
+                {WEEKDAY_LABELS.map((label, rowIndex) => (
+                  <Fragment key={label}>
+                    <span
+                      className={cn(
+                        "flex items-center justify-end pr-1 text-[10px] font-medium uppercase leading-none tracking-wide text-muted-foreground",
+                        rowIndex % 2 === 0 && "invisible",
+                      )}
+                    >
+                      {label}
+                    </span>
+                    {columns.map((week, weekIndex) => {
+                      const cell = week[rowIndex]!;
                       const empty = !cell.day;
                       return (
                         <span
-                          key={`${weekIndex}-${dayIndex}`}
+                          key={`${weekIndex}-${rowIndex}`}
                           title={
                             empty
                               ? undefined
@@ -136,7 +130,7 @@ export function ProfileLoginStreakCard() {
                                 : cell.day
                           }
                           className={cn(
-                            "aspect-square w-full rounded-[2px] sm:rounded-[3px]",
+                            "aspect-square h-auto w-full min-w-0 rounded-[3px] sm:rounded-sm",
                             empty
                               ? "bg-transparent"
                               : cell.active
@@ -147,10 +141,11 @@ export function ProfileLoginStreakCard() {
                         />
                       );
                     })}
-                  </div>
+                  </Fragment>
                 ))}
               </div>
-            </div>
+            ) : null}
+
             <p className="text-[11px] text-muted-foreground">
               {summary.todayActive
                 ? "Heute schon eingeloggt — Streak läuft."

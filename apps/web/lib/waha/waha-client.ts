@@ -1,4 +1,5 @@
 import { wahaSessionWebhookConfig } from "@/lib/integrations/waha-webhook-url";
+import { sanitizeOpsText } from "@/lib/ops/sanitize-ops-text";
 import type { WahaServerConfig } from "@/lib/waha/waha-config";
 import type { WahaSessionStatus } from "@/lib/types/restaurant-integration";
 
@@ -18,12 +19,13 @@ type WahaFetchResult<T> =
   | { ok: true; data: T; status: number }
   | { ok: false; error: string; status: number };
 
-function sanitizeWahaError(error: string, config: WahaServerConfig): string {
+export function sanitizeWahaError(error: string, config: WahaServerConfig): string {
   const key = config.apiKey;
-  if (key && error.includes(key)) {
-    return error.replaceAll(key, "***");
+  let out = error;
+  if (key && out.includes(key)) {
+    out = out.replaceAll(key, "***");
   }
-  return error;
+  return sanitizeOpsText(out);
 }
 
 async function wahaFetch<T>(
@@ -187,6 +189,18 @@ export async function wahaLogoutSession(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: sessionName }),
   });
+}
+
+/** Entfernt Session inkl. Auth-Daten auf dem WAHA-Host. */
+export async function wahaDeleteSession(
+  config: WahaServerConfig,
+  sessionName: string,
+): Promise<WahaFetchResult<unknown>> {
+  return wahaFetch(
+    config,
+    `/api/sessions/${encodeURIComponent(sessionName)}`,
+    { method: "DELETE" },
+  );
 }
 
 export async function wahaGetQrBase64(

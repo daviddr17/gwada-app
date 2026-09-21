@@ -349,7 +349,7 @@ export const BILLING_COMPARISON_ROWS: readonly BillingComparisonRow[] = [
   },
   {
     id: "checklists",
-    label: "Checklisten / To-dos",
+    label: "Aufgaben / To-dos",
     free: false,
     basic: true,
     pro: true,

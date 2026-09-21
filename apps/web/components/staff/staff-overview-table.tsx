@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  applyStaffOverviewFilters,
   countStaffOverviewActiveFilters,
   StaffOverviewFilterDrawer,
   STAFF_OVERVIEW_FILTER_DEFAULTS,
@@ -42,7 +43,6 @@ import {
   staffPresenceStatusForRow,
   STAFF_PRESENCE_STATUS_LABELS,
 } from "@/lib/staff/staff-presence-labels";
-import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
 import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restaurant-position-label";
 import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
 import {
@@ -176,79 +176,6 @@ function SortHeaderCell({
       />
     </th>
   );
-}
-
-function applyStaffOverviewFilters(
-  rows: RestaurantStaffRow[],
-  filters: StaffOverviewFilterState,
-  workingIds: Set<string>,
-  breakIds: Set<string>,
-  contracts: RestaurantStaffContractRow[],
-  dayDate: string,
-  search: string,
-): RestaurantStaffRow[] {
-  let list = [...rows];
-
-  if (filters.statusFilter === "active") {
-    list = list.filter((r) => r.is_active);
-  } else if (filters.statusFilter === "inactive") {
-    list = list.filter((r) => !r.is_active);
-  }
-
-  if (filters.positionFilter === "__none__") {
-    list = list.filter((r) => !r.position_tag_id);
-  } else if (filters.positionFilter !== "all") {
-    list = list.filter((r) => r.position_tag_id === filters.positionFilter);
-  }
-
-  if (filters.appFilter === "linked") {
-    list = list.filter((r) => Boolean(r.profile_id));
-  } else if (filters.appFilter === "unlinked") {
-    list = list.filter((r) => !r.profile_id);
-  }
-
-  if (filters.presenceFilter === "working") {
-    list = list.filter((r) => workingIds.has(r.id));
-  } else if (filters.presenceFilter === "on_break") {
-    list = list.filter((r) => breakIds.has(r.id));
-  } else if (filters.presenceFilter === "off") {
-    list = list.filter((r) => !workingIds.has(r.id) && !breakIds.has(r.id));
-  }
-
-  if (filters.roleFilter === "__none__") {
-    list = list.filter((r) => !r.restaurant_position_id);
-  } else if (filters.roleFilter !== "all") {
-    list = list.filter((r) => r.restaurant_position_id === filters.roleFilter);
-  }
-
-  if (filters.employmentFilter !== "all") {
-    list = list.filter((r) => {
-      const contract = findStaffContractForDay(contracts, r.id, dayDate);
-      if (filters.employmentFilter === "__none__") {
-        return !contract?.employment_type_id;
-      }
-      return contract?.employment_type_id === filters.employmentFilter;
-    });
-  }
-
-  const q = search.trim().toLowerCase();
-  if (q) {
-    list = list.filter((r) => {
-      const hay = [
-        r.family_name,
-        r.given_name,
-        r.email ?? "",
-        r.phone ?? "",
-        r.position_tag?.name ?? "",
-        r.restaurant_position?.name ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }
-
-  return list;
 }
 
 function staffRoleSortKey(row: RestaurantStaffRow): string {

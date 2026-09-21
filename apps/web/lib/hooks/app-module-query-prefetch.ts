@@ -15,7 +15,7 @@ import {
 import { queryKeys } from "@/lib/query/query-keys";
 import { fetchNotificationSummaryClient } from "@/lib/notifications/fetch-notifications-client";
 import { notificationSummaryWithMessagesFromConversations } from "@/lib/notifications/patch-notification-messages-from-inbox-cache";
-import { peekUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
+import { peekCompleteUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
 import type { QueryClient } from "@tanstack/react-query";
 
 export function menuItemsPrefetchOptions(restaurantId: string) {
@@ -60,7 +60,7 @@ export function notificationSummaryPrefetchOptions(restaurantId: string) {
     queryFn: async () => {
       const { data, error } = await fetchNotificationSummaryClient(restaurantId);
       if (!data) throw new Error(error ?? "notification_summary_failed");
-      const conversations = peekUnifiedInboxCache(restaurantId);
+      const conversations = peekCompleteUnifiedInboxCache(restaurantId);
       if (!conversations) return data;
       return notificationSummaryWithMessagesFromConversations(data, conversations);
     },

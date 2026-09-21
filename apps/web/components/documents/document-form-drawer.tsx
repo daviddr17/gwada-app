@@ -8,6 +8,7 @@ import { Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
@@ -53,11 +54,14 @@ type DocumentFormDrawerProps = {
     title: string;
     tagId: string | null;
     staffId: string | null;
+    visibleToStaff: boolean;
   }) => Promise<boolean>;
   onSaveEdit: (params: {
     documentId: string;
     title: string;
     tagId: string | null;
+    staffId: string | null;
+    visibleToStaff: boolean;
   }) => Promise<boolean>;
   onDelete?: () => Promise<void>;
   canEditNotes?: boolean;
@@ -85,6 +89,7 @@ export function DocumentFormDrawer({
   const [title, setTitle] = useState("");
   const [tagId, setTagId] = useState<string>(DOCUMENT_TAG_NONE);
   const [staffId, setStaffId] = useState<string>(DOCUMENT_STAFF_NONE);
+  const [visibleToStaff, setVisibleToStaff] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [pending, setPending] = useState(false);
@@ -119,10 +124,13 @@ export function DocumentFormDrawer({
       if (mode === "edit" && document) {
         setTitle(document.title);
         setTagId(document.tag_id ?? DOCUMENT_TAG_NONE);
+        setStaffId(document.staff_id ?? DOCUMENT_STAFF_NONE);
+        setVisibleToStaff(Boolean(document.visible_to_staff));
         setFile(null);
       } else {
         setTagId(DOCUMENT_TAG_NONE);
         setStaffId(DOCUMENT_STAFF_NONE);
+        setVisibleToStaff(false);
         if (initialFile) {
           applySelectedFile(initialFile);
         } else {
@@ -171,6 +179,9 @@ export function DocumentFormDrawer({
     [applySelectedFile],
   );
 
+  const staffAssigned =
+    staffId !== DOCUMENT_STAFF_NONE && staffId.trim().length > 0;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = title.trim();
@@ -184,7 +195,8 @@ export function DocumentFormDrawer({
           file,
           title: trimmed,
           tagId: tagId === DOCUMENT_TAG_NONE ? null : tagId,
-          staffId: staffId === DOCUMENT_STAFF_NONE ? null : staffId,
+          staffId: staffAssigned ? staffId : null,
+          visibleToStaff: staffAssigned && visibleToStaff,
         });
         if (ok) onOpenChange(false);
       } else if (document) {
@@ -192,6 +204,8 @@ export function DocumentFormDrawer({
           documentId: document.id,
           title: trimmed,
           tagId: tagId === DOCUMENT_TAG_NONE ? null : tagId,
+          staffId: staffAssigned ? staffId : null,
+          visibleToStaff: staffAssigned && visibleToStaff,
         });
         if (ok) onOpenChange(false);
       }
@@ -359,13 +373,31 @@ export function DocumentFormDrawer({
                   <DocumentStaffSelect
                     staffMembers={staffMembers}
                     value={staffId}
-                    onValueChange={setStaffId}
+                    onValueChange={(next) => {
+                      setStaffId(next);
+                      if (next === DOCUMENT_STAFF_NONE) {
+                        setVisibleToStaff(false);
+                      }
+                    }}
                     aria-label="Mitarbeiter zuordnen"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Nur bei personalbezogenen Dokumenten — z. B. Zeugnis oder
-                    Ausweis. Allgemeine Dokumente ohne Zuordnung lassen.
+                    Personalbezogen — z. B. Zeugnis, Lohnabrechnung (PDF) oder
+                    Ausweis. Ohne Zuordnung bleibt das Dokument allgemein.
                   </p>
+                  {staffAssigned ? (
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/50 p-3">
+                      <Checkbox
+                        checked={visibleToStaff}
+                        onCheckedChange={(v) => setVisibleToStaff(v === true)}
+                        className="mt-0.5"
+                      />
+                      <span className="text-sm leading-snug">
+                        Für den Mitarbeiter sichtbar (Profil & Display) — sonst
+                        nur für HR/Verwaltung
+                      </span>
+                    </label>
+                  ) : null}
                 </div>
               ) : null}
             </DrawerFormSection>

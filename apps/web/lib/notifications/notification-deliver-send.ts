@@ -63,6 +63,7 @@ export async function sendNotificationPushEmail(params: {
   subject: string;
   text: string;
   emailDetails?: string | null;
+  emailBodyHtml?: string | null;
   href?: string;
   platformCode?: string | null;
   admin: SupabaseClient;
@@ -82,8 +83,10 @@ export async function sendNotificationPushEmail(params: {
   if (href) emailTextParts.push(href);
   const emailText = emailTextParts.join("\n\n") || params.text;
 
-  const bodyHtml =
-    emailDetails != null
+  const customHtml = params.emailBodyHtml?.trim() || null;
+  const bodyHtml = customHtml
+    ? customHtml
+    : emailDetails != null
       ? buildPushNotificationEmailBodyHtml(
           emailDetails,
           params.platformCode,

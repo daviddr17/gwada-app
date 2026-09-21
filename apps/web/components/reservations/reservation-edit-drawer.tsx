@@ -41,6 +41,7 @@ import {
   GUEST_NOTIFY_MESSAGE_MAX_CHARS,
   normalizeGuestNotifyMessage,
 } from "@/lib/reservations/append-guest-notify-message";
+import { humanizeReservationSaveError } from "@/lib/reservations/reservation-save-error-message";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import {
   isValidStaffPartySize,
@@ -116,16 +117,14 @@ import {
   type DiningTableRow,
 } from "@/lib/supabase/dining-floor-db";
 import {
+  dispatchReservationGuestNotificationsInBackground,
+} from "@/lib/reservations/reservation-guest-notify-dispatch-client";
+import {
   triggerReservationEmailDispatch,
 } from "@/lib/reservations/trigger-email-dispatch";
 import {
   triggerReservationWhatsappDispatch,
 } from "@/lib/reservations/trigger-whatsapp-dispatch";
-import {
-  reservationDispatchWarningMessage,
-  reservationGuestNotifyToastDescription,
-  summarizeGuestNotifyChannel,
-} from "@/lib/reservations/reservation-guest-notify-dispatch-summary";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import {
   reservationDateTimeChanged,
@@ -223,22 +222,7 @@ function addMinutesToHm(hm: string, minutes: number): string {
 }
 
 function reservationDocumentSaveErrorMessage(message: string): string {
-  const m = message.toLowerCase();
-  if (
-    m.includes("reservations_quotation_id_unique") ||
-    (m.includes("quotation_id") &&
-      (m.includes("duplicate") || m.includes("unique")))
-  ) {
-    return "Dieses Angebot ist bereits einer anderen Reservierung zugeordnet.";
-  }
-  if (
-    m.includes("reservations_invoice_id_unique") ||
-    (m.includes("invoice_id") &&
-      (m.includes("duplicate") || m.includes("unique")))
-  ) {
-    return "Diese Rechnung ist bereits einer anderen Reservierung zugeordnet.";
-  }
-  return message;
+  return humanizeReservationSaveError(message);
 }
 
 export type ReservationWhatsappDispatchedPayload = {
@@ -962,40 +946,8 @@ export function ReservationEditDrawer({
 
     if (isEdit && reservation) {
       setSaving(true);
-      const { data: updated, error } = await updateReservation(
-        reservation.id,
-        payload,
-      );
-      if (error) {
-        setSaving(false);
-        toast.error(reservationDocumentSaveErrorMessage(error.message));
-        return;
-      }
-      if (restaurantId) {
-        const { error: assignErr } = await replaceReservationStaffAssignees({
-          reservationId: reservation.id,
-          restaurantId,
-          staffIds:
-            payload.kind === RESERVATION_KIND_PRIVATE_EVENT
-              ? assignedStaffIds
-              : [],
-        });
-        if (assignErr) {
-          setSaving(false);
-          toast.error(assignErr.message);
-          return;
-        }
-      }
-      setSaving(false);
-      void logReservationUpdateFromBrowser({
-        reservation,
-        payload,
-        statuses,
-        tables,
-      });
-      setProtocolRefreshKey((k) => k + 1);
+      try {
       const previousStatusCode = initialStatusCodeRef.current ?? "";
-      initialStatusCodeRef.current = newStatusCode;
       const dispatchEvent = reservationStatusDispatchEvent(
         previousStatusCode,
         newStatusCode,
@@ -1007,9 +959,39 @@ export function ReservationEditDrawer({
           : isConfirmNotify
             ? "Reservierung bestätigt."
             : "Reservierung gespeichert.";
-      if (!isConfirmNotify) {
-        toast.success(saveTitle);
+
+      const { data: updated, error } = await updateReservation(
+        reservation.id,
+        payload,
+        reservation.updated_at,
+      );
+      if (error) {
+        toast.error(reservationDocumentSaveErrorMessage(error.message));
+        return;
       }
+      toast.success(saveTitle);
+      if (restaurantId) {
+        const { error: assignErr } = await replaceReservationStaffAssignees({
+          reservationId: reservation.id,
+          restaurantId,
+          staffIds:
+            payload.kind === RESERVATION_KIND_PRIVATE_EVENT
+              ? assignedStaffIds
+              : [],
+        });
+        if (assignErr) {
+          toast.error(assignErr.message);
+          return;
+        }
+      }
+      void logReservationUpdateFromBrowser({
+        reservation,
+        payload,
+        statuses,
+        tables,
+      });
+      setProtocolRefreshKey((k) => k + 1);
+      initialStatusCodeRef.current = newStatusCode;
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
       dispatchReservationOpenResolvedLivePatch({
@@ -1041,62 +1023,25 @@ export function ReservationEditDrawer({
           );
         }
         const notifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
-        const dispatchOpts = notifyExtra
-          ? { guestNotifyMessage: notifyExtra }
-          : undefined;
-        let whatsappResult = null;
-        let emailResult = null;
-        if (dispatchEvent && payload.notify_whatsapp) {
-          whatsappResult = await triggerReservationWhatsappDispatch(
-            reservation.id,
+        if (dispatchEvent) {
+          dispatchReservationGuestNotificationsInBackground({
+            reservationId: reservation.id,
             dispatchEvent,
-            dispatchOpts,
-          );
-          if (whatsappResult?.ok && whatsappResult.messageBody?.trim()) {
-            onWhatsappDispatched?.({
-              messageBody: whatsappResult.messageBody,
-              messageId: whatsappResult.messageId,
-              wahaMessageId: whatsappResult.wahaMessageId,
-              threadContactId: whatsappResult.threadContactId,
-            });
-          }
-        }
-        if (dispatchEvent && payload.notify_email) {
-          emailResult = await triggerReservationEmailDispatch(
-            reservation.id,
-            dispatchEvent,
-            dispatchOpts,
-          );
-        }
-        if (isConfirmNotify) {
-          const notifications = [
-            summarizeGuestNotifyChannel({
-              channel: "whatsapp",
-              enabled: payload.notify_whatsapp === true,
-              result: whatsappResult,
-            }),
-            summarizeGuestNotifyChannel({
-              channel: "email",
-              enabled: payload.notify_email === true,
-              result: emailResult,
-              isSuperadmin,
-            }),
-          ];
-          toast.success(saveTitle, {
-            description: reservationGuestNotifyToastDescription(notifications),
+            notifyWhatsapp: payload.notify_whatsapp === true,
+            notifyEmail: payload.notify_email === true,
+            isSuperadmin,
+            guestNotifyMessage: notifyExtra || null,
+            onWhatsappDispatched: (wa) => {
+              if (wa.messageBody?.trim()) {
+                onWhatsappDispatched?.({
+                  messageBody: wa.messageBody,
+                  messageId: wa.messageId,
+                  wahaMessageId: wa.wahaMessageId,
+                  threadContactId: wa.threadContactId,
+                });
+              }
+            },
           });
-        } else {
-          const waWarn = reservationDispatchWarningMessage(
-            "whatsapp",
-            whatsappResult,
-          );
-          if (waWarn) toast.warning(waWarn);
-          const emWarn = reservationDispatchWarningMessage(
-            "email",
-            emailResult,
-            { isSuperadmin },
-          );
-          if (emWarn) toast.warning(emWarn);
         }
         if (dispatchEvent && notifyExtra) {
           setGuestNotifyMessage("");
@@ -1121,16 +1066,19 @@ export function ReservationEditDrawer({
         }
       })();
       return;
+      } finally {
+        setSaving(false);
+      }
     }
 
     if (isCreate && createFor) {
       setSaving(true);
+      try {
       const { data: created, error } = await insertReservation({
         restaurant_id: createFor.restaurantId,
         ...payload,
       });
       if (error) {
-        setSaving(false);
         toast.error(reservationDocumentSaveErrorMessage(error.message));
         return;
       }
@@ -1142,12 +1090,10 @@ export function ReservationEditDrawer({
             staffIds: assignedStaffIds,
           });
           if (assignErr) {
-            setSaving(false);
             toast.error(assignErr.message);
             return;
           }
         }
-        setSaving(false);
         void logReservationCreateFromBrowser({
           restaurantId: createFor.restaurantId,
           reservationId: created.id,
@@ -1178,7 +1124,6 @@ export function ReservationEditDrawer({
           },
         });
       } else {
-        setSaving(false);
       }
       const entityLabel =
         payload.kind === RESERVATION_KIND_PRIVATE_EVENT
@@ -1212,42 +1157,36 @@ export function ReservationEditDrawer({
           );
         }
         const createNotifyExtra = normalizeGuestNotifyMessage(guestNotifyMessage);
-        const createDispatchOpts = createNotifyExtra
-          ? { guestNotifyMessage: createNotifyExtra }
-          : undefined;
-        if (created && payload.notify_whatsapp) {
-          const wa = await triggerReservationWhatsappDispatch(
-            created.id,
-            "created",
-            createDispatchOpts,
-          );
-          const msg = reservationDispatchWarningMessage("whatsapp", wa);
-          if (msg) toast.warning(msg);
-          if (wa?.ok && wa.messageBody?.trim()) {
-            onWhatsappDispatched?.({
-              messageBody: wa.messageBody,
-              messageId: wa.messageId,
-              wahaMessageId: wa.wahaMessageId,
-              threadContactId: wa.threadContactId,
-            });
-          }
-        }
-        if (created && payload.notify_email) {
-          void triggerReservationEmailDispatch(
-            created.id,
-            "created",
-            createDispatchOpts,
-          ).then((em) => {
-            const msg = reservationDispatchWarningMessage("email", em, {
-              isSuperadmin,
-            });
-            if (msg) toast.warning(msg);
+        if (
+          created &&
+          (payload.notify_whatsapp || payload.notify_email)
+        ) {
+          dispatchReservationGuestNotificationsInBackground({
+            reservationId: created.id,
+            dispatchEvent: "created",
+            notifyWhatsapp: payload.notify_whatsapp === true,
+            notifyEmail: payload.notify_email === true,
+            isSuperadmin,
+            guestNotifyMessage: createNotifyExtra || null,
+            onWhatsappDispatched: (wa) => {
+              if (wa.messageBody?.trim()) {
+                onWhatsappDispatched?.({
+                  messageBody: wa.messageBody,
+                  messageId: wa.messageId,
+                  wahaMessageId: wa.wahaMessageId,
+                  threadContactId: wa.threadContactId,
+                });
+              }
+            },
           });
         }
         if (created && createNotifyExtra) {
           setGuestNotifyMessage("");
         }
       })();
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -1288,11 +1227,11 @@ export function ReservationEditDrawer({
       return;
     }
     setSaving(true);
+    try {
     const { error } = await deleteReservation({
       restaurantId,
       id: reservation.id,
     });
-    setSaving(false);
     if (error) {
       toast.error(error.message);
       return;
@@ -1302,6 +1241,9 @@ export function ReservationEditDrawer({
     allowDrawerCloseRef.current = true;
     setConfirmDeleteOpen(false);
     onSaved();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const fieldClass = drawerFormFieldClassName;

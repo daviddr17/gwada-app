@@ -41,9 +41,3 @@ export const appLayerStackedSurfaceZClassName = "z-[210]";
 export const appLayerFloatingInFullscreenOverlayZClassName = "z-[205]";
 /** Über Vaul-Overlay; `pointer-events-auto` gegen body-lock des Drawers. */
 export const appLayerToastZClassName = "z-[400] pointer-events-auto";
-
-/** @deprecated Alias — bitte `APP_LAYER_Z_INDEX.fullscreenOverlay` nutzen. */
-export const APP_FULLSCREEN_OVERLAY_Z_INDEX = APP_LAYER_Z_INDEX.fullscreenOverlay;
-
-/** @deprecated Alias — bitte `APP_LAYER_Z_INDEX.stackedSurface` nutzen. */
-export const APP_STACKED_SURFACE_Z_INDEX = APP_LAYER_Z_INDEX.stackedSurface;

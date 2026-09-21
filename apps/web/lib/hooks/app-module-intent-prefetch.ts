@@ -21,10 +21,6 @@ import {
   menuItemsPrefetchOptions,
   menuMainCategoriesPrefetchOptions,
 } from "@/lib/hooks/app-module-query-prefetch";
-import { peekMenuItemsCache } from "@/lib/menu/menu-items-query";
-import { peekMenuCategoriesCache } from "@/lib/menu/menu-categories-query";
-import { peekMenuMainCategoriesCache } from "@/lib/menu/menu-main-categories-query";
-import { peekIngredientsCache } from "@/lib/inventory/ingredients-query";
 import { requestUnifiedInboxWarmIntent } from "@/lib/contact-messages/unified-inbox-background-sync";
 import {
   warmAccountingInvoices,
@@ -99,23 +95,6 @@ export async function ensureCriticalModuleDataReady(
   ]);
 }
 
-function seedMenuQueryCaches(
-  queryClient: QueryClient,
-  restaurantId: string,
-): void {
-  const items = peekMenuItemsCache();
-  if (items) {
-    queryClient.setQueryData(queryKeys.menu.items(restaurantId), items);
-  }
-  const main = peekMenuMainCategoriesCache();
-  if (main) {
-    queryClient.setQueryData(queryKeys.menu.mainCategories(restaurantId), main);
-  }
-  const cats = peekMenuCategoriesCache();
-  if (cats) {
-    queryClient.setQueryData(queryKeys.menu.categories(restaurantId), cats);
-  }
-}
 
 export function warmModuleData(
   queryClient: QueryClient,
@@ -140,7 +119,6 @@ export function warmModuleData(
     return;
   }
   if (path.startsWith("/dashboard/menu")) {
-    seedMenuQueryCaches(queryClient, restaurantId);
     void queryClient.prefetchQuery(menuItemsPrefetchOptions(restaurantId));
     void queryClient.prefetchQuery(
       menuMainCategoriesPrefetchOptions(restaurantId),
@@ -149,13 +127,6 @@ export function warmModuleData(
     return;
   }
   if (path.startsWith("/dashboard/inventory")) {
-    const ingredients = peekIngredientsCache();
-    if (ingredients) {
-      queryClient.setQueryData(
-        queryKeys.inventory.ingredients(restaurantId),
-        ingredients,
-      );
-    }
     void queryClient.prefetchQuery(
       inventoryIngredientsPrefetchOptions(restaurantId),
     );

@@ -273,25 +273,15 @@ async function replaceMenuChildren(
   menuId: string,
   input: EventMenuWriteFields,
 ): Promise<string | null> {
-  const { error: deleteCoursesError } = await sb
-    .from("event_menu_courses")
-    .delete()
-    .eq("menu_id", menuId);
-  if (deleteCoursesError) {
-    console.warn("[gwada] replace event menu courses", deleteCoursesError.message);
-    return "save_failed";
-  }
-  const { error: deleteAddonsError } = await sb
-    .from("event_menu_addons")
-    .delete()
-    .eq("menu_id", menuId);
-  if (deleteAddonsError) {
-    console.warn("[gwada] replace event menu addons", deleteAddonsError.message);
-    return "save_failed";
-  }
+  const courseIds = input.courses.map((course) => course.id);
+  const optionIds = input.courses.flatMap((course) =>
+    course.options.map((option) => option.id),
+  );
+  const addonIds = input.addons.map((addon) => addon.id);
 
+  // Upsert zuerst — bei Fehler bleiben bestehende Children erhalten.
   if (input.courses.length > 0) {
-    const { error: insertCoursesError } = await sb.from("event_menu_courses").insert(
+    const { error: upsertCoursesError } = await sb.from("event_menu_courses").upsert(
       input.courses.map((course, index) => ({
         id: course.id,
         menu_id: menuId,
@@ -300,9 +290,10 @@ async function replaceMenuChildren(
         required: course.required,
         sort_order: index,
       })),
+      { onConflict: "id" },
     );
-    if (insertCoursesError) {
-      console.warn("[gwada] insert event menu courses", insertCoursesError.message);
+    if (upsertCoursesError) {
+      console.warn("[gwada] upsert event menu courses", upsertCoursesError.message);
       return "save_failed";
     }
 
@@ -318,18 +309,18 @@ async function replaceMenuChildren(
       })),
     );
     if (optionRows.length > 0) {
-      const { error: insertOptionsError } = await sb
+      const { error: upsertOptionsError } = await sb
         .from("event_menu_course_options")
-        .insert(optionRows);
-      if (insertOptionsError) {
-        console.warn("[gwada] insert event menu options", insertOptionsError.message);
+        .upsert(optionRows, { onConflict: "id" });
+      if (upsertOptionsError) {
+        console.warn("[gwada] upsert event menu options", upsertOptionsError.message);
         return "save_failed";
       }
     }
   }
 
   if (input.addons.length > 0) {
-    const { error: insertAddonsError } = await sb.from("event_menu_addons").insert(
+    const { error: upsertAddonsError } = await sb.from("event_menu_addons").upsert(
       input.addons.map((addon, index) => ({
         id: addon.id,
         menu_id: menuId,
@@ -340,14 +331,74 @@ async function replaceMenuChildren(
         exclude_kids: addon.excludeKids,
         sort_order: index,
       })),
+      { onConflict: "id" },
     );
-    if (insertAddonsError) {
-      console.warn("[gwada] insert event menu addons", insertAddonsError.message);
+    if (upsertAddonsError) {
+      console.warn("[gwada] upsert event menu addons", upsertAddonsError.message);
       return "save_failed";
     }
   }
+
+  const { data: existingCourses, error: loadCoursesError } = await sb
+    .from("event_menu_courses")
+    .select("id")
+    .eq("menu_id", menuId);
+  if (loadCoursesError) {
+    console.warn("[gwada] load event menu courses", loadCoursesError.message);
+    return "save_failed";
+  }
+  const existingCourseIds = (existingCourses ?? []).map((row) => row.id as string);
+
+  if (existingCourseIds.length > 0) {
+    let optionsDelete = sb
+      .from("event_menu_course_options")
+      .delete()
+      .in("course_id", existingCourseIds);
+    if (optionIds.length > 0) {
+      optionsDelete = optionsDelete.not(
+        "id",
+        "in",
+        `(${optionIds.map((id) => `"${id}"`).join(",")})`,
+      );
+    }
+    const { error: deleteOptionsError } = await optionsDelete;
+    if (deleteOptionsError) {
+      console.warn("[gwada] delete stale event menu options", deleteOptionsError.message);
+      return "save_failed";
+    }
+  }
+
+  let coursesDelete = sb.from("event_menu_courses").delete().eq("menu_id", menuId);
+  if (courseIds.length > 0) {
+    coursesDelete = coursesDelete.not(
+      "id",
+      "in",
+      `(${courseIds.map((id) => `"${id}"`).join(",")})`,
+    );
+  }
+  const { error: deleteCoursesError } = await coursesDelete;
+  if (deleteCoursesError) {
+    console.warn("[gwada] delete stale event menu courses", deleteCoursesError.message);
+    return "save_failed";
+  }
+
+  let addonsDelete = sb.from("event_menu_addons").delete().eq("menu_id", menuId);
+  if (addonIds.length > 0) {
+    addonsDelete = addonsDelete.not(
+      "id",
+      "in",
+      `(${addonIds.map((id) => `"${id}"`).join(",")})`,
+    );
+  }
+  const { error: deleteAddonsError } = await addonsDelete;
+  if (deleteAddonsError) {
+    console.warn("[gwada] delete stale event menu addons", deleteAddonsError.message);
+    return "save_failed";
+  }
+
   return null;
 }
+
 
 function menuWriteRow(input: EventMenuWriteFields): Record<string, unknown> {
   return {

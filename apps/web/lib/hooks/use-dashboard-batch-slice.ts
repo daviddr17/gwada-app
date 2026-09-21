@@ -15,6 +15,8 @@ export type DashboardSummarySliceState<T> = {
   loading: boolean;
   error: string | null;
   ready: boolean;
+  /** Erster Fetch ist durch — sonst nicht als „leer und erledigt“ werten. */
+  hasSettledFetch: boolean;
 };
 
 export function useDashboardBatchSlice<K extends DashboardBatchWidgetId>(
@@ -49,6 +51,7 @@ export function useDashboardBatchSlice<K extends DashboardBatchWidgetId>(
       loading: false,
       error: null,
       ready: false,
+      hasSettledFetch: false,
     };
   }
 
@@ -58,8 +61,9 @@ export function useDashboardBatchSlice<K extends DashboardBatchWidgetId>(
       batchEnabled &&
       summary == null &&
       widgetError == null &&
-      query.isLoading,
+      (query.isLoading || query.isFetching),
     error: widgetError ?? (summary == null && batchEnabled && !query.isFetching ? fatalError : null),
     ready: batchEnabled || retainWarm,
+    hasSettledFetch: query.isFetched,
   };
 }

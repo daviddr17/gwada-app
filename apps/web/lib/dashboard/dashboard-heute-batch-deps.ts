@@ -12,12 +12,14 @@ import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permi
 /**
  * Batch-Daten für das Heute-Widget (auch wenn Einzel-Widgets ausgeblendet sind).
  * Ohne reviews — Heute nutzt Reviews nicht; spart Cold-Start-Latenz.
+ * checklists muss dabei sein: Heute wartet auf den Slice und öffnet Aufgaben-Sheets.
  */
 export const DASHBOARD_HEUTE_BATCH_WIDGET_IDS = [
   "reservations",
   "staff",
   "messages",
   "inventory",
+  "checklists",
 ] as const satisfies readonly DashboardBatchWidgetId[];
 
 export function resolveDashboardBatchWidgetIds(

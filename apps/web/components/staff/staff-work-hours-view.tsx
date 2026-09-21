@@ -25,6 +25,14 @@ import { StaffCollapsibleCard } from "@/components/staff/staff-collapsible-card"
 import { StaffWorkHoursSkeleton } from "@/components/staff/staff-work-hours-skeleton";
 import { StaffWorkEntryDrawer } from "@/components/staff/staff-work-entry-drawer";
 import { StaffWageAdvancesSection } from "@/components/staff/staff-wage-advances-section";
+import { StaffPayrollSettlementStatusBadge } from "@/components/staff/staff-payroll-settlement-controls";
+import { StaffPayrollQuickSettleButton } from "@/components/staff/staff-payroll-quick-settle-button";
+import {
+  derivePayrollSettlement,
+  targetHoursForCalendarMonth,
+} from "@/lib/staff/staff-payroll-settlement";
+import { fetchRestaurantWageAdvancesInRange } from "@/lib/supabase/staff-wage-advances-db";
+import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
 import {
   daysInclusive,
   exclusiveUtcIsoAfterLocalVisibleEnd,
@@ -215,6 +223,7 @@ export function StaffWorkHoursView({
     allowEdit && chromeContext === "staff-module";
   const staffSelection = useStaffModuleSelectionOptional();
   const staffList = staffSelection?.staffList ?? [];
+  const multiStaffFilterIds = staffSelection?.selectedStaffIds ?? [];
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -227,6 +236,9 @@ export function StaffWorkHoursView({
     RestaurantStaffWorkEntryRow[]
   >([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
+  const [advanceCentsByStaffId, setAdvanceCentsByStaffId] = useState(
+    () => new Map<string, number>(),
+  );
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
   // Re-bind height observer when the month strip mounts after skeleton/loading.
@@ -286,15 +298,18 @@ export function StaffWorkHoursView({
       : new Date().toISOString();
   }, [monthDays]);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
+  const pendingScrollDayRef = useRef<string | null>(null);
+
+  const reload = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) setLoading(true);
     const { data, error } = await fetchStaffWorkEntriesInRange(
       restaurantId,
       staffId,
       rangeStart,
       rangeEnd,
     );
-    setLoading(false);
+    if (!silent) setLoading(false);
     if (error) toast.error(error);
     else setEntries(data);
   }, [restaurantId, staffId, rangeStart, rangeEnd]);
@@ -333,11 +348,57 @@ export function StaffWorkHoursView({
     monthEnd,
   ]);
 
+  const reloadAfterMutation = useCallback(
+    async (dayYmd?: string) => {
+      if (dayYmd) pendingScrollDayRef.current = dayYmd;
+      await reload({ silent: true });
+      void reloadComplianceEntries();
+      const key = pendingScrollDayRef.current;
+      pendingScrollDayRef.current = null;
+      if (key) {
+        // Double rAF: wait until React commits the silent entry update.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            scrollToWorkHoursDay(key);
+          });
+        });
+      }
+    },
+    [reload, reloadComplianceEntries],
+  );
+
   const reloadContracts = useCallback(async () => {
     const { data, error } = await fetchStaffContractsForRestaurant(restaurantId);
     if (error) toast.error(error);
     else setContracts(data);
   }, [restaurantId]);
+
+  const periodYear = cursor.year;
+  const periodMonth = cursor.month + 1;
+
+  const reloadPayouts = useCallback(async () => {
+    const advancesRes = await fetchRestaurantWageAdvancesInRange(
+      restaurantId,
+      monthStartYmd,
+      monthEndYmd,
+    );
+    if (advancesRes.error) toast.error(advancesRes.error);
+    else {
+      const map = new Map<string, number>();
+      for (const row of advancesRes.data) {
+        if (staffId && row.staff_id !== staffId) continue;
+        map.set(
+          row.staff_id,
+          (map.get(row.staff_id) ?? 0) + row.amount_cents,
+        );
+      }
+      setAdvanceCentsByStaffId(map);
+    }
+  }, [restaurantId, staffId, monthStartYmd, monthEndYmd]);
+
+  useEffect(() => {
+    void reloadPayouts();
+  }, [reloadPayouts]);
 
   useEffect(() => {
     void reload();
@@ -369,44 +430,56 @@ export function StaffWorkHoursView({
     };
   }, [reloadContracts]);
 
+  const visibleEntries = useMemo(() => {
+    if (staffId || multiStaffFilterIds.length <= 1) return entries;
+    const allowed = new Set(multiStaffFilterIds);
+    return entries.filter((e) => allowed.has(e.staff_id));
+  }, [entries, staffId, multiStaffFilterIds]);
+
+  const visibleComplianceEntries = useMemo(() => {
+    if (staffId || multiStaffFilterIds.length <= 1) return complianceEntries;
+    const allowed = new Set(multiStaffFilterIds);
+    return complianceEntries.filter((e) => allowed.has(e.staff_id));
+  }, [complianceEntries, staffId, multiStaffFilterIds]);
+
   const byDay = useMemo(() => {
     const map = new Map<string, RestaurantStaffWorkEntryRow[]>();
-    for (const e of entries) {
+    for (const e of visibleEntries) {
       const k = dayKeyFromIso(e.starts_at);
       const list = map.get(k) ?? [];
       list.push(e);
       map.set(k, list);
     }
     return map;
-  }, [entries]);
+  }, [visibleEntries]);
 
   const summary = useMemo(
-    () => summarizeStaffWorkEntries(entries, new Date()),
-    [entries],
+    () => summarizeStaffWorkEntries(visibleEntries, new Date()),
+    [visibleEntries],
   );
 
   const wageSummary = useMemo(
     () =>
       computeStaffPeriodWageSummary({
-        entries,
+        entries: visibleEntries,
         contracts,
         periodStart: monthStart,
         periodEnd: monthEnd,
         now: new Date(),
       }),
-    [entries, contracts, monthStart, monthEnd],
+    [visibleEntries, contracts, monthStart, monthEnd],
   );
 
   const payrollLines = useMemo(
     () =>
       computeStaffPeriodPayrollLines({
-        entries,
+        entries: visibleEntries,
         contracts,
         periodStart: monthStart,
         periodEnd: monthEnd,
         now: new Date(),
       }),
-    [entries, contracts, monthStart, monthEnd],
+    [visibleEntries, contracts, monthStart, monthEnd],
   );
 
   const staffNameById = useMemo(() => {
@@ -418,9 +491,11 @@ export function StaffWorkHoursView({
   }, [staffList]);
 
   const laborViolations = useMemo(() => {
-    if (!showLaborComplianceHints || complianceEntries.length === 0) return [];
+    if (!showLaborComplianceHints || visibleComplianceEntries.length === 0) {
+      return [];
+    }
     return evaluateLaborCompliance({
-      entries: complianceEntries,
+      entries: visibleComplianceEntries,
       countryIso2: profile.countryIso2,
       countryLabel: profile.country,
       timeZone: restaurantTimeZone,
@@ -428,7 +503,7 @@ export function StaffWorkHoursView({
     });
   }, [
     showLaborComplianceHints,
-    complianceEntries,
+    visibleComplianceEntries,
     profile.countryIso2,
     profile.country,
     restaurantTimeZone,
@@ -801,7 +876,7 @@ export function StaffWorkHoursView({
             ) : (
               <div className={cn(moduleDataTableShellClassName, "ring-1 ring-border/40")}>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[36rem] text-sm">
+                  <table className="w-full min-w-[44rem] text-sm">
                     <thead>
                       <tr className={moduleDataTableHeadRowClassName}>
                         <th className={moduleDataTableHeadCellClassName}>
@@ -839,6 +914,9 @@ export function StaffWorkHoursView({
                         >
                           Lohn
                         </th>
+                        <th className={moduleDataTableHeadCellClassName}>
+                          Status
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -847,6 +925,27 @@ export function StaffWorkHoursView({
                           staffNameById.get(line.staffId) ?? "Mitarbeiter";
                         const canSelect =
                           Boolean(staffSelection) && !staffId;
+                        const payoutCents =
+                          advanceCentsByStaffId.get(line.staffId) ?? 0;
+                        const derived = derivePayrollSettlement({
+                          wageCents: line.wageCents,
+                          payoutCents,
+                        });
+                        const midMonthYmd = `${periodYear}-${String(periodMonth).padStart(2, "0")}-15`;
+                        const contract = findStaffContractForDay(
+                          contracts,
+                          line.staffId,
+                          midMonthYmd,
+                        );
+                        const targetH = targetHoursForCalendarMonth(
+                          contract?.target_weekly_minutes,
+                          periodYear,
+                          periodMonth,
+                        );
+                        const hoursBalanceH =
+                          targetH != null
+                            ? Math.round((line.netWorkH - targetH) * 10) / 10
+                            : null;
                         return (
                           <tr
                             key={line.staffId}
@@ -871,6 +970,14 @@ export function StaffWorkHoursView({
                                   {line.note}
                                 </span>
                               ) : null}
+                              {hoursBalanceH != null ? (
+                                <span className="mt-0.5 block text-xs tabular-nums text-muted-foreground">
+                                  Stundenkonto{" "}
+                                  {hoursBalanceH > 0 ? "+" : ""}
+                                  {hoursBalanceH.toFixed(1).replace(".", ",")}{" "}
+                                  h
+                                </span>
+                              ) : null}
                             </td>
                             <td className="px-4 py-2.5 text-right tabular-nums">
                               {line.loggedH.toFixed(1)} h
@@ -891,7 +998,7 @@ export function StaffWorkHoursView({
                                   line.wageHours > 0 ? (
                                     <span className="text-xs font-normal text-muted-foreground">
                                       {line.wageHours
-                                        .toFixed(1)
+                                        .toFixed(2)
                                         .replace(".", ",")}{" "}
                                       h ×{" "}
                                       {formatStaffEuroCents(
@@ -900,10 +1007,53 @@ export function StaffWorkHoursView({
                                       /h
                                     </span>
                                   ) : null}
+                                  {derived.openCents > 0 ? (
+                                    <span className="text-xs font-normal text-muted-foreground">
+                                      Offen{" "}
+                                      {formatStaffEuroCents(derived.openCents)}
+                                    </span>
+                                  ) : null}
                                 </span>
                               ) : (
                                 "—"
                               )}
+                            </td>
+                            <td
+                              className="px-4 py-2.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-end gap-1">
+                                <StaffPayrollQuickSettleButton
+                                  restaurantId={restaurantId}
+                                  staffId={line.staffId}
+                                  staffName={name}
+                                  wageCents={line.wageCents}
+                                  payoutCents={payoutCents}
+                                  periodYear={periodYear}
+                                  periodMonth={periodMonth}
+                                  allowEdit={allowEdit}
+                                  onOptimisticSettle={(amountCents) => {
+                                    setAdvanceCentsByStaffId((prev) => {
+                                      const next = new Map(prev);
+                                      next.set(
+                                        line.staffId,
+                                        (next.get(line.staffId) ?? 0) +
+                                          amountCents,
+                                      );
+                                      return next;
+                                    });
+                                  }}
+                                  onSettled={() => void reloadPayouts()}
+                                />
+                                <StaffPayrollSettlementStatusBadge
+                                  status={derived.status}
+                                  openCents={derived.openCents}
+                                  overpaidCreditCents={
+                                    derived.overpaidCreditCents
+                                  }
+                                  compact
+                                />
+                              </div>
                             </td>
                           </tr>
                         );
@@ -914,14 +1064,35 @@ export function StaffWorkHoursView({
               </div>
             )}
             {staffId ? (
-              <StaffWageAdvancesSection
-                restaurantId={restaurantId}
-                staffId={staffId}
-                paidOnFromYmd={localDayKey(monthStart)}
-                paidOnToYmd={localDayKey(monthEnd)}
-                wageCents={payrollWageTotalCents}
-                allowEdit={allowEdit}
-              />
+              <>
+                <div className="mt-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-3">
+                  <p className="mb-2 text-sm font-semibold">Monatsstatus</p>
+                  {(() => {
+                    const derived = derivePayrollSettlement({
+                      wageCents: payrollWageTotalCents,
+                      payoutCents: advanceCentsByStaffId.get(staffId) ?? 0,
+                    });
+                    return (
+                      <StaffPayrollSettlementStatusBadge
+                        status={derived.status}
+                        openCents={derived.openCents}
+                        overpaidCreditCents={derived.overpaidCreditCents}
+                      />
+                    );
+                  })()}
+                </div>
+                <StaffWageAdvancesSection
+                  restaurantId={restaurantId}
+                  staffId={staffId}
+                  paidOnFromYmd={monthStartYmd}
+                  paidOnToYmd={monthEndYmd}
+                  wageCents={payrollWageTotalCents}
+                  allowEdit={allowEdit}
+                  onChanged={() => {
+                    void reloadPayouts();
+                  }}
+                />
+              </>
             ) : null}
           </StaffCollapsibleCard>
 
@@ -936,7 +1107,7 @@ export function StaffWorkHoursView({
               const dayEntries = byDay.get(key) ?? [];
               const canAddEntry = Boolean(staffId);
               const blockNewTimeEntry = staffId
-                ? findStaffAbsenceOnDay(entries, staffId, key) != null
+                ? findStaffAbsenceOnDay(visibleEntries, staffId, key) != null
                 : false;
               const dayLaborIssues = showLaborComplianceHints
                 ? dayLaborViolations(laborViolations, key, staffId)
@@ -1089,16 +1260,21 @@ export function StaffWorkHoursView({
             allowEdit={allowEdit}
             siblingEntries={siblingEntries}
             shiftClusterSegments={shiftClusterSegments}
-            onSaved={() => {
-              void reload();
-              void reloadComplianceEntries();
+            onSaved={(dayYmd) => {
+              void reloadAfterMutation(dayYmd);
             }}
             onDelete={async (id) => {
+              // Capture before close/reload — editEntry may clear when drawer closes.
+              const dayYmd = editEntry
+                ? localDayKey(new Date(editEntry.starts_at))
+                : dayForNew
+                  ? localDayKey(dayForNew)
+                  : undefined;
               const ok = await deleteStaffWorkEntry(id);
               if (!ok) toast.error("Löschen fehlgeschlagen.");
               else {
                 toast.success("Gelöscht");
-                void reload();
+                void reloadAfterMutation(dayYmd);
               }
             }}
           />

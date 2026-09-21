@@ -159,7 +159,7 @@ export const dokumenteGuide: UserGuidePage = {
   ],
   related: [
     { label: "Mitarbeiter → Dokumente", href: "/docs/handbuch/mitarbeiter" },
-    { label: "Checklisten", href: "/docs/handbuch/checklisten" },
+    { label: "Aufgaben", href: "/docs/handbuch/checklisten" },
     { label: "Buchführung", href: "/docs/handbuch/buchfuehrung" },
   ],
 };

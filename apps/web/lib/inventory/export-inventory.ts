@@ -17,6 +17,7 @@ import type { MenuItem } from "@/lib/types/menu";
 
 const HEADERS = [
   "Name",
+  "Art.-Nr.",
   "Bestand",
   "Einheit",
   "Neuer Bestand",
@@ -55,6 +56,7 @@ function ingredientToRow(
   const unitLabel = inventoryUnitLabelDe(row.unit, nameById(ctx.units, row.unit) || undefined);
   return [
     row.name.trim(),
+    row.articleNumber?.trim() ?? "",
     String(row.currentStock),
     unitLabel,
     HANDWRITTEN_EMPTY,

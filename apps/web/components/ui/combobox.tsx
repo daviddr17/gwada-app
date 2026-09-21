@@ -213,8 +213,13 @@ export function SearchableSelect({
       inputValue={inputValue}
       onInputValueChange={(next) => setInputValue(next)}
       onValueChange={(v) => {
-        if (typeof v === "string") onValueChange(v)
-        else onValueChange("")
+        if (typeof v === "string") {
+          setInputValue(labelById.get(v) ?? v)
+          onValueChange(v)
+        } else {
+          setInputValue("")
+          onValueChange("")
+        }
       }}
       items={optionValues}
       itemToStringLabel={(id) => labelById.get(id) ?? id}

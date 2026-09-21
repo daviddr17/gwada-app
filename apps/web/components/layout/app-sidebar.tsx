@@ -8,10 +8,12 @@ import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { usePathname } from "next/navigation";
 import { useAuthLogoutTransition } from "@/components/auth/auth-logout-transition-provider";
 import {
-  normalizeNavHref,
-  useSoftNavLock,
-} from "@/components/providers/soft-nav-lock-provider";
+  isSidebarDashboardActive,
+  isSidebarModuleActive,
+} from "@/lib/navigation/sidebar-active";
+import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import {
+  Activity,
   Bell,
   Building2,
   CreditCard,
@@ -78,6 +80,7 @@ import {
   isSidebarModuleBillingLocked,
 } from "@/lib/permissions/sidebar-module-permissions";
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
+import { useVerticalScrollOverflow } from "@/lib/hooks/use-vertical-scroll-overflow";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import {
   appMobileSidebarFooterClassName,
@@ -87,6 +90,7 @@ import {
   appMobileSidebarHeaderButtonClassName,
   appMobileSidebarModuleGroupContentClassName,
 } from "@/lib/ui/app-mobile-sidebar-menu";
+import { SidebarScrollOverflowHints } from "@/components/layout/sidebar-scroll-overflow-hints";
 import { cn } from "@/lib/utils";
 
 function profileInitials(firstName: string, lastName: string): string {
@@ -207,6 +211,13 @@ export function AppSidebar() {
     ? appMobileSidebarFooterMenuButtonClassName
     : undefined;
 
+  const {
+    ref: moduleListScrollRef,
+    canScrollUp: moduleListCanScrollUp,
+    canScrollDown: moduleListCanScrollDown,
+    scrollByPage: scrollModuleListByPage,
+  } = useVerticalScrollOverflow();
+
   return (
     <Sidebar collapsible="icon" variant="inset">
       <div className="flex h-full w-full flex-col">
@@ -270,7 +281,11 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <SidebarContent
+        ref={moduleListScrollRef}
+        className="flex min-h-0 flex-1 flex-col gap-2"
+      >
         <SidebarGroup className={cn("pb-1.5", isMobile && appMobileSidebarGroupClassName)}>
           <SidebarGroupContent
             className={isMobile ? appMobileSidebarModuleGroupContentClassName : undefined}
@@ -364,6 +379,16 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/ops")}
+                      tooltip="Ops"
+                      render={<AppNavLink href="/superadmin/ops" />}
+                    >
+                      <Activity />
+                      <span>Ops</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
                       isActive={isSuperadminSystemPath(pathname)}
                       tooltip="System"
                       render={<AppNavLink href={SUPERADMIN_SYSTEM_ROUTES.datenbank} />}
@@ -424,10 +449,7 @@ export function AppSidebar() {
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={
-                        pathname === "/dashboard" ||
-                        pendingHref === "/dashboard"
-                      }
+                      isActive={isSidebarDashboardActive(pathname, pendingHref)}
                       tooltip="Dashboard"
                       render={<AppNavLink href="/dashboard" />}
                     >
@@ -464,17 +486,12 @@ export function AppSidebar() {
                             notificationSummary,
                             mod.id,
                           );
-                      const modulePending =
-                        !billingLocked &&
-                        pendingHref != null &&
-                        normalizeNavHref(mod.href) === pendingHref;
                       return (
                         <SidebarMenuItem key={mod.id}>
                           <SidebarMenuButton
                             isActive={
                               !billingLocked &&
-                              (pathname.startsWith(mod.pathPrefix) ||
-                                modulePending)
+                              isSidebarModuleActive(pathname, pendingHref, mod)
                             }
                             tooltip={
                               billingLocked
@@ -528,6 +545,13 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarScrollOverflowHints
+        canScrollUp={moduleListCanScrollUp}
+        canScrollDown={moduleListCanScrollDown}
+        onScrollUp={() => scrollModuleListByPage("up")}
+        onScrollDown={() => scrollModuleListByPage("down")}
+      />
+      </div>
       {isMobile ? null : <SidebarSeparator className="mx-0 w-full" />}
       <SidebarFooter
         className={cn(
@@ -568,7 +592,7 @@ export function AppSidebar() {
           {inSuperadmin ? (
             <SidebarMenuItem>
               <SidebarMenuButton
-                isActive={pathname === "/dashboard"}
+                isActive={isSidebarDashboardActive(pathname, pendingHref)}
                 tooltip="Dashboard"
                 className={mobileFooterButtonClassName}
                 render={
@@ -605,7 +629,7 @@ export function AppSidebar() {
                 isActive={pathname.startsWith(APP_ROUTES.settings.root)}
                 tooltip="Einstellungen"
                 className={mobileFooterButtonClassName}
-                render={<AppNavLink href={APP_ROUTES.settings.root} />}
+                render={<AppNavLink href={APP_ROUTES.settings.entry} />}
               >
                 <Settings />
                 <span>Einstellungen</span>

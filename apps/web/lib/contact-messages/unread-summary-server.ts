@@ -8,7 +8,7 @@ import {
   type MessagesUnreadSummary,
 } from "@/lib/contact-messages/messages-unread-summary";
 import {
-  fetchUnifiedInboxConversationsForDashboard,
+  fetchUnifiedInboxConversationsForUnreadSummary,
   fetchUnifiedInboxConversationsServer,
 } from "@/lib/contact-messages/unified-inbox-server";
 import {
@@ -34,14 +34,16 @@ export async function fetchMessagesUnreadSummary(
     emailConnected: boolean;
     facebookConnected?: boolean;
     instagramConnected?: boolean;
-    /** Dashboard-Widget: keine volle Inbox-Liste (schlanker). */
+    /** Dashboard-Widget / Glocke: Light-Pfad (ohne Attachment-Join). */
     includeInboxConversations?: boolean;
   },
 ): Promise<MessagesUnreadSummary> {
   const includeInbox = params.includeInboxConversations !== false;
+  // Glocke/Dashboard: volle Zeilen-Tiefe ohne Attachment-Join (nicht 400-Zeilen-Light).
+  // Nach Live-Deploy ist der Client-Inbox-Cache leer — Light unter-/überzählt Unreads.
   const conversations = includeInbox
     ? await fetchUnifiedInboxConversationsServer(admin, params)
-    : await fetchUnifiedInboxConversationsForDashboard(admin, params);
+    : await fetchUnifiedInboxConversationsForUnreadSummary(admin, params);
   const notifyable = conversations.filter(
     (c) => !conversationExcludedFromSeparateMessageNotification(c),
   );

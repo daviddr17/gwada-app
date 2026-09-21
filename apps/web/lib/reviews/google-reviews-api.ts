@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  fetchWithGoogleBusinessAuth,
   getGoogleBusinessAccessTokenForRestaurant,
   googleReviewsParentPath,
 } from "@/lib/integrations/google-business-access";
@@ -119,13 +120,11 @@ export async function fetchGoogleReviewsForRestaurant(
 
   const url = `https://mybusiness.googleapis.com/v4/${parent}/reviews?${params}`;
   const acceptLanguage = await acceptLanguageForRestaurant(restaurantId);
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${auth.accessToken}`,
-      "Accept-Language": acceptLanguage,
-    },
-    cache: "no-store",
+  const fetched = await fetchWithGoogleBusinessAuth(restaurantId, url, {
+    headers: { "Accept-Language": acceptLanguage },
   });
+  if ("error" in fetched) return fetched;
+  const res = fetched;
   const body = (await res.json()) as {
     reviews?: GoogleReviewRaw[];
     averageRating?: number;
@@ -163,18 +162,17 @@ export async function replyToGoogleReview(params: {
   const reviewName = params.reviewName.trim();
   if (!reviewName) return { error: "invalid_review" };
 
-  const res = await fetch(
+  const fetched = await fetchWithGoogleBusinessAuth(
+    params.restaurantId,
     `https://mybusiness.googleapis.com/v4/${reviewName}/reply`,
     {
       method: "PUT",
-      headers: {
-        Authorization: `Bearer ${auth.accessToken}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ comment: params.comment.trim() }),
-      cache: "no-store",
     },
   );
+  if ("error" in fetched) return fetched;
+  const res = fetched;
 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as {

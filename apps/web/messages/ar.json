@@ -36,6 +36,19 @@
       "countryPlaceholder": "مثل SA أو السعودية",
       "saveProfile": "حفظ الملف الشخصي",
       "loadingAria": "جارٍ تحميل بيانات الملف الشخصي"
+    },
+    "density": {
+      "heading": "العرض",
+      "description": "حجم الخط والمسافات لك فقط — على جميع الأجهزة بهذا الحساب.",
+      "label": "الكثافة",
+      "compact": "مضغوط",
+      "compactHint": "المزيد بنظرة",
+      "normal": "عادي",
+      "normalHint": "افتراضي",
+      "comfortable": "كبير",
+      "comfortableHint": "أسهل للقراءة",
+      "updated": "تم تحديث العرض",
+      "updateFailed": "تعذر حفظ إعداد العرض"
     }
   },
   "SetupWizard": {

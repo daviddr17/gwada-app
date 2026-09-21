@@ -36,6 +36,19 @@
       "countryPlaceholder": "p. ex. FR ou France",
       "saveProfile": "Enregistrer le profil",
       "loadingAria": "Chargement des données du profil"
+    },
+    "density": {
+      "heading": "Affichage",
+      "description": "Taille du texte et espacements pour vous uniquement — sur tous les appareils avec ce compte.",
+      "label": "Densité",
+      "compact": "Compact",
+      "compactHint": "Plus d’infos",
+      "normal": "Normal",
+      "normalHint": "Par défaut",
+      "comfortable": "Grand",
+      "comfortableHint": "Plus lisible",
+      "updated": "Affichage mis à jour",
+      "updateFailed": "Impossible d’enregistrer l’affichage"
     }
   },
   "SetupWizard": {

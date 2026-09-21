@@ -1,8 +1,8 @@
 "use client";
 
 import { Activity } from "lucide-react";
-import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { useLiveActivityFeed } from "@/lib/hooks/use-live-activity-feed";
+import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import {
   isNotificationModuleId,
   NOTIFICATION_MODULES,
@@ -35,8 +35,11 @@ function formatWhen(iso: string, timeZone: string): string {
 /** Kompakte Tages-Timeline im Heute-Widget — speist aus Live-Verlauf. */
 export function DashboardHeuteLiveTimeline({
   className,
+  onSelectItem,
 }: {
   className?: string;
+  /** Im Heute-Widget: Bottom Sheet statt Modul-Navigation. */
+  onSelectItem?: (item: LiveActivityItem) => void;
 }) {
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const timeZone = useRestaurantIanaTimezone(restaurantId);
@@ -87,7 +90,6 @@ export function DashboardHeuteLiveTimeline({
               ? NOTIFICATION_MODULES[item.module]
               : null;
           const Icon = mod?.icon ?? Activity;
-          const href = item.href ?? mod?.href ?? null;
           const body = (
             <div className="flex items-start gap-2.5 px-3 py-2">
               <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent">
@@ -115,13 +117,14 @@ export function DashboardHeuteLiveTimeline({
           );
           return (
             <li key={item.id}>
-              {href ? (
-                <AppNavLink
-                  href={href}
-                  className="block transition-colors hover:bg-muted/40"
+              {onSelectItem ? (
+                <button
+                  type="button"
+                  className="block w-full text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  onClick={() => onSelectItem(item)}
                 >
                   {body}
-                </AppNavLink>
+                </button>
               ) : (
                 body
               )}

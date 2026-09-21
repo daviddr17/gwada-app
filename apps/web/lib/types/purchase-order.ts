@@ -166,6 +166,11 @@ export type PurchaseOrder = {
   supplierId: string;
   supplierName: string;
   status: PurchaseOrderStatus;
+  /**
+   * Wann der Status zuletzt gesetzt wurde (ISO). Neuere Werte gewinnen bei
+   * parallelem Full-Replace gegen stale Clients.
+   */
+  statusUpdatedAt?: string;
   /** Erstellungszeitpunkt – unveränderlich */
   createdAt: string;
   /** Klarname zum Zeitpunkt der Eröffnung (eingefroren). */

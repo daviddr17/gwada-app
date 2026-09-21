@@ -5,10 +5,8 @@ import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { confirmPendingReservationFromBrowser } from "@/lib/reservations/confirm-reservation-client";
-import { reservationConfirmNotificationToastContent } from "@/lib/reservations/reservation-guest-notify-dispatch-summary";
-import {
-  dispatchReservationOpenResolvedLivePatch,
-} from "@/lib/reservations/reservation-open-status";
+import { humanizeReservationSaveError } from "@/lib/reservations/reservation-save-error-message";
+import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/reservation-open-status";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +79,7 @@ export function ReservationQuickAcceptButton({
           nextStatusCode: "confirmed",
         });
         onConfirmed?.();
+        toast.success("Reservierung bestätigt.");
 
         void (async () => {
           try {
@@ -92,19 +91,22 @@ export function ReservationQuickAcceptButton({
             if (!result.ok) {
               setOptimisticConfirmed(false);
               onFailed?.();
-              toast.error(result.error);
-              return;
+              toast.error(
+                humanizeReservationSaveError(
+                  result.error,
+                  "Bestätigen fehlgeschlagen. Bitte erneut versuchen.",
+                ),
+              );
             }
-            const toastContent = reservationConfirmNotificationToastContent(
-              result.notifications,
-            );
-            toast.success(toastContent.title, {
-              description: toastContent.description,
-            });
-          } catch {
+          } catch (e) {
             setOptimisticConfirmed(false);
             onFailed?.();
-            toast.error("Bestätigen fehlgeschlagen.");
+            toast.error(
+              humanizeReservationSaveError(
+                e instanceof Error ? e.message : null,
+                "Bestätigen fehlgeschlagen. Bitte erneut versuchen.",
+              ),
+            );
           } finally {
             setBusy(false);
           }

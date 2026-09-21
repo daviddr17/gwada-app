@@ -21,8 +21,8 @@ export function ChecklistenHomeKeepAliveScreen({
     <ModuleHomeKeepAliveShell
       active={active}
       showChrome={showChrome}
-      title="Checklisten"
-      subnavAriaLabel="Checklisten-Bereiche"
+      title="Aufgaben"
+      subnavAriaLabel="Aufgaben-Bereiche"
       subnavItems={CHECKLISTEN_NAV}
     >
       {permissionsLoading ? null : canReadTodos ? (

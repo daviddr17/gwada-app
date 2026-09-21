@@ -17,6 +17,7 @@ import { ProfileDocumentsSummaryCard } from "@/components/profile/profile-docume
 import { ProfileLanguageCard } from "@/components/profile/profile-language-card";
 import { ProfileLoginStreakCard } from "@/components/profile/profile-login-streak-card";
 import { ProfilePersoenlicheDatenSkeleton } from "@/components/profile/profile-persoenliche-daten-skeleton";
+import { ProfileUiDensityCard } from "@/components/profile/profile-ui-density-card";
 import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
@@ -62,6 +63,7 @@ export function ProfilePersoenlicheDatenScreen() {
     country,
     avatarStoragePath,
     coverStoragePath,
+    profileLocale,
     setFirstName,
     setLastName,
     setNickname,
@@ -79,11 +81,50 @@ export function ProfilePersoenlicheDatenScreen() {
   const [draftLocale, setDraftLocale] = useState<AppLocale>(activeLocale);
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [profileLocaleReady, setProfileLocaleReady] = useState(false);
   const savedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setDraftLocale(activeLocale);
-  }, [activeLocale]);
+    setProfileLocaleReady(false);
+  }, [userId]);
+
+  // Locale kommt mit demselben profiles-Select — kein zweiter Roundtrip.
+  useEffect(() => {
+    if (!isHydrated || !isRemoteLoaded || profileLocaleReady) return;
+
+    const resolvedLocale = profileLocale ?? activeLocale;
+    setDraftLocale(resolvedLocale);
+
+    if (savedRef.current === null) {
+      savedRef.current = snapshotFromFields({
+        firstName,
+        lastName,
+        nickname,
+        birthDate,
+        street,
+        postalCode,
+        city,
+        country,
+        locale: resolvedLocale,
+      });
+    }
+    setProfileLocaleReady(true);
+  }, [
+    isHydrated,
+    isRemoteLoaded,
+    profileLocaleReady,
+    profileLocale,
+    userId,
+    activeLocale,
+    firstName,
+    lastName,
+    nickname,
+    birthDate,
+    street,
+    postalCode,
+    city,
+    country,
+  ]);
 
   const profileSnapshot = useMemo(
     () =>
@@ -114,53 +155,26 @@ export function ProfilePersoenlicheDatenScreen() {
   useEffect(() => {
     if (!isHydrated || !isRemoteLoaded) {
       savedRef.current = null;
-      return;
+      setProfileLocaleReady(false);
     }
-    if (savedRef.current === null) {
-      savedRef.current = snapshotFromFields({
-        firstName,
-        lastName,
-        nickname,
-        birthDate,
-        street,
-        postalCode,
-        city,
-        country,
-        locale: activeLocale,
-      });
-      setDraftLocale(activeLocale);
-    }
-  }, [
-    isHydrated,
-    isRemoteLoaded,
-    firstName,
-    lastName,
-    nickname,
-    birthDate,
-    street,
-    postalCode,
-    city,
-    country,
-    activeLocale,
-  ]);
+  }, [isHydrated, isRemoteLoaded]);
 
   const profileDirty =
-    savedRef.current !== null && profileSnapshot !== savedRef.current;
+    profileLocaleReady &&
+    savedRef.current !== null &&
+    profileSnapshot !== savedRef.current;
 
   const handleSave = useCallback(async () => {
     if (saving) return;
     setSaving(true);
     try {
-      const localeChanged = draftLocale !== activeLocale;
       const ok = await save();
       if (!ok) return;
 
-      if (localeChanged) {
-        const localeResult = await applyAppLocale(draftLocale);
-        if (!localeResult.ok) {
-          toast.error(tLang("updateFailed"));
-          return;
-        }
+      const localeResult = await applyAppLocale(draftLocale);
+      if (!localeResult.ok) {
+        toast.error(tLang("updateFailed"));
+        return;
       }
 
       savedRef.current = snapshotFromFields({
@@ -177,7 +191,7 @@ export function ProfilePersoenlicheDatenScreen() {
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 2000);
 
-      if (localeChanged) {
+      if (localeResult.locale !== activeLocale) {
         router.refresh();
       }
     } finally {
@@ -259,6 +273,8 @@ export function ProfilePersoenlicheDatenScreen() {
           onChange={setDraftLocale}
           disabled={!isHydrated || saving}
         />
+
+        <ProfileUiDensityCard disabled={!isHydrated || saving} />
 
         <Card className="border-border/50 shadow-card">
           <CardContent className="space-y-4">

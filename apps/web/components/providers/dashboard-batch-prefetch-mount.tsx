@@ -30,19 +30,27 @@ export function DashboardBatchPrefetchMount() {
     }
 
     const key = queryKeys.dashboard.summary(restaurantId, batchWidgets);
-    if (queryClient.getQueryData(key) == null) {
+    const hadMemory = queryClient.getQueryData(key) != null;
+    let hadLs = false;
+    if (!hadMemory) {
       const cached = peekDashboardBatchSummaryCache(restaurantId, batchWidgets);
       if (cached) {
+        hadLs = true;
         queryClient.setQueryData(key, cached);
       }
     }
 
-    // Nach Modul-Warm (Staff/Menu/…) — Batch hat LS-Placeholder für Home.
-    runWhenIdle(() => {
+    // Cold: sofort prefetchen. Warm (LS/Memory): kurz idle, UI-Klicks zuerst.
+    const prefetch = () => {
       void queryClient.prefetchQuery(
         dashboardBatchSummaryQueryOptions(restaurantId, batchWidgets),
       );
-    }, 1_600);
+    };
+    if (hadMemory || hadLs) {
+      runWhenIdle(prefetch, 400);
+    } else {
+      prefetch();
+    }
   }, [queryClient, restaurantId, batchWidgets, workspaceReady]);
 
   return null;

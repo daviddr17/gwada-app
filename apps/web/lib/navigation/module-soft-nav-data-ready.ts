@@ -13,8 +13,6 @@ import { peekDocumentsListCache } from "@/lib/documents/documents-list-client-ca
 import { peekEventsFeedCache } from "@/lib/events/events-feed-client-cache";
 import { peekGalleryFeedCache } from "@/lib/gallery/gallery-feed-client-cache";
 import { peekInsightsOverviewCache } from "@/lib/insights/insights-overview-client-cache";
-import { peekIngredientsCache } from "@/lib/inventory/ingredients-query";
-import { peekMenuItemsCache } from "@/lib/menu/menu-items-query";
 import { peekNewsFeedCache } from "@/lib/news/news-feed-client-cache";
 import { peekPosOverviewCache } from "@/lib/pos/pos-overview-client-cache";
 import { queryKeys } from "@/lib/query/query-keys";
@@ -54,17 +52,14 @@ export function isModuleSoftNavDataReady(
   }
 
   if (path.startsWith("/dashboard/menu")) {
-    return (
-      queryClient.getQueryData(queryKeys.menu.items(restaurantId)) != null ||
-      Boolean(peekMenuItemsCache())
-    );
+    return queryClient.getQueryData(queryKeys.menu.items(restaurantId)) != null;
   }
 
   if (path.startsWith("/dashboard/inventory")) {
     return (
       queryClient.getQueryData(
         queryKeys.inventory.ingredients(restaurantId),
-      ) != null || Boolean(peekIngredientsCache())
+      ) != null
     );
   }
 

@@ -75,6 +75,7 @@ export async function attachPdfToStaffContract(params: {
     tag_id: tagId,
     employee_id: (employeeRow?.id as string | null) ?? null,
     staff_id: params.staffId,
+    visible_to_staff: true,
     title: params.title.trim() || params.fileName,
     file_name: params.fileName,
     storage_path: storagePath,

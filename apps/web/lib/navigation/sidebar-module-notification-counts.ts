@@ -23,7 +23,12 @@ const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
     "accounting_invoice",
     "accounting_voucher",
   ],
-  checklisten: ["staff_todo_completed", "staff_todo_deferred"],
+  checklisten: [
+    "staff_todo_completed",
+    "staff_todo_deferred",
+    "personal_reminder",
+    "staff_messages",
+  ],
   mitarbeiter: [
     "staff_display_time_request",
     "staff_display_clock_in",

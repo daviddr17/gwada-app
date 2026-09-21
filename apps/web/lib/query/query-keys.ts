@@ -39,6 +39,13 @@ export const queryKeys = {
     list: (restaurantId: string) => ["staff", restaurantId, "list"] as const,
     dayStats: (restaurantId: string, dayDate: string) =>
       ["staff", restaurantId, "day-stats", dayDate] as const,
+    myProfile: (restaurantId: string, profileId: string) =>
+      ["staff", restaurantId, "my-profile", profileId] as const,
+    profileVisibility: (restaurantId: string) =>
+      ["staff", restaurantId, "profile-visibility"] as const,
+  },
+  profile: {
+    loginStreak: () => ["profile", "login-streak"] as const,
   },
   reservations: {
     root: (restaurantId: string) => ["reservations", restaurantId] as const,

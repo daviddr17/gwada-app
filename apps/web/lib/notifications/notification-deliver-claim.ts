@@ -9,6 +9,8 @@ export type ClaimedNotificationDelivery = {
   context_restaurant_id: string;
   channel: "whatsapp" | "email";
   attempts: number;
+  created_at?: string | null;
+  claimed_at?: string | null;
 };
 
 export type ClaimedNotificationEvent = {

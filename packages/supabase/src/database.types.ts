@@ -1088,6 +1088,7 @@ export type Database = {
           created_at: string
           current_stock: number
           id: string
+          image_path: string | null
           is_active: boolean
           low_stock_threshold: number
           name: string
@@ -1097,13 +1098,16 @@ export type Database = {
           supplier_id: string
           unit: string
           updated_at: string
+          article_number: string | null
         }
         Insert: {
+          article_number?: string | null
           brand_id: string
           category_id: string
           created_at?: string
           current_stock?: number
           id: string
+          image_path?: string | null
           is_active?: boolean
           low_stock_threshold?: number
           name: string
@@ -1115,11 +1119,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          article_number?: string | null
           brand_id?: string
           category_id?: string
           created_at?: string
           current_stock?: number
           id?: string
+          image_path?: string | null
           is_active?: boolean
           low_stock_threshold?: number
           name?: string
@@ -1206,6 +1212,32 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "inventory_production_sites_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_purchase_order_deletions: {
+        Row: {
+          deleted_at: string
+          order_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          order_id: string
+          restaurant_id: string
+        }
+        Update: {
+          deleted_at?: string
+          order_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_purchase_order_deletions_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -1315,6 +1347,7 @@ export type Database = {
           id: string
           restaurant_id: string
           status: string
+          status_updated_at: string
           supplier_id: string
           supplier_name: string
         }
@@ -1326,6 +1359,7 @@ export type Database = {
           id: string
           restaurant_id: string
           status: string
+          status_updated_at?: string
           supplier_id: string
           supplier_name: string
         }
@@ -1337,6 +1371,7 @@ export type Database = {
           id?: string
           restaurant_id?: string
           status?: string
+          status_updated_at?: string
           supplier_id?: string
           supplier_name?: string
         }
@@ -2629,6 +2664,7 @@ export type Database = {
           locale: string | null
           nickname: string | null
           phone: string | null
+          ui_density: string | null
           updated_at: string
         }
         Insert: {
@@ -2650,6 +2686,7 @@ export type Database = {
           locale?: string | null
           nickname?: string | null
           phone?: string | null
+          ui_density?: string | null
           updated_at?: string
         }
         Update: {
@@ -2671,6 +2708,7 @@ export type Database = {
           locale?: string | null
           nickname?: string | null
           phone?: string | null
+          ui_density?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -4970,6 +5008,23 @@ export type Database = {
       explain_staff_invite_by_token: {
         Args: { p_token: string }
         Returns: Json
+      }
+      inventory_purchase_order_set_status: {
+        Args: {
+          p_from_status: string
+          p_log_entry: Json
+          p_order_id: string
+          p_restaurant_id: string
+          p_to_status: string
+        }
+        Returns: undefined
+      }
+      inventory_purchase_order_delete_empty_open: {
+        Args: {
+          p_order_id: string
+          p_restaurant_id: string
+        }
+        Returns: undefined
       }
       inventory_replace_ingredients: {
         Args: { p_ingredients: Json; p_restaurant_id: string }

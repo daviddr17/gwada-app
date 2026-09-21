@@ -68,9 +68,50 @@ ghcr_login() {
   fi
 }
 
+# Contabo IPv6 → GHCR bricht oft mit "connection reset by peer" ab.
+# Für den Pull A-Records in /etc/hosts pinnen (danach wiederherstellen).
+GHCR_IPV4_HOSTS_BACKUP=""
+prefer_ghcr_ipv4() {
+  local host ip line
+  local hosts=(
+    ghcr.io
+    pkg-containers.githubusercontent.com
+    ghcr-io.pkg.dev
+  )
+  GHCR_IPV4_HOSTS_BACKUP="$(mktemp /tmp/gwada-hosts-ghcr.XXXXXX)"
+  cp /etc/hosts "${GHCR_IPV4_HOSTS_BACKUP}"
+  for host in "${hosts[@]}"; do
+    ip=""
+    if command -v dig >/dev/null 2>&1; then
+      ip="$(dig +short A "${host}" | awk '/^[0-9.]+$/ {print; exit}')"
+    fi
+    if [[ -z "${ip}" ]] && command -v getent >/dev/null 2>&1; then
+      ip="$(getent ahostsv4 "${host}" 2>/dev/null | awk '{print $1; exit}')"
+    fi
+    if [[ -z "${ip}" ]]; then
+      echo "GHCR IPv4-Pin: kein A-Record für ${host} — überspringe." >&2
+      continue
+    fi
+    # Alte Einträge für diesen Host entfernen, IPv4 setzen.
+    sed -i -E "/[[:space:]]${host//./\\.}\$/d" /etc/hosts
+    line="${ip} ${host}"
+    echo "${line}" >> /etc/hosts
+    echo "GHCR IPv4-Pin: ${line}"
+  done
+}
+
+restore_ghcr_ipv4_hosts() {
+  if [[ -n "${GHCR_IPV4_HOSTS_BACKUP}" && -f "${GHCR_IPV4_HOSTS_BACKUP}" ]]; then
+    cp "${GHCR_IPV4_HOSTS_BACKUP}" /etc/hosts
+    rm -f "${GHCR_IPV4_HOSTS_BACKUP}"
+    GHCR_IPV4_HOSTS_BACKUP=""
+    echo "GHCR IPv4-Pin: /etc/hosts wiederhergestellt."
+  fi
+}
+
 force_clear_deploy_lock
 acquire_deploy_lock
-trap 'rm -f "${LOCK}"' EXIT
+trap 'restore_ghcr_ipv4_hosts; rm -f "${LOCK}"' EXIT
 
 exec > >(tee -a "$LOG") 2>&1
 echo "=== Gwada live app deploy $(date -Is) image=${DEPLOY_IMAGE:-?} sha=${EXPECTED_SHA:-?} ==="
@@ -118,7 +159,9 @@ fi
 ghcr_login
 
 echo "Pull ${DEPLOY_IMAGE} …"
+prefer_ghcr_ipv4
 docker pull "${DEPLOY_IMAGE}"
+restore_ghcr_ipv4_hosts
 
 if [[ -f "${COMPOSE_FILE}" ]]; then
   if grep -q "image: '${COOLIFY_APP_ID}:" "${COMPOSE_FILE}"; then

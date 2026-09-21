@@ -9,6 +9,7 @@ export const RESTAURANT_API_MODULE_IDS = [
   "events",
   "gallery",
   "opening_hours",
+  "purchase_orders",
 ] as const;
 
 export type RestaurantApiModuleId = (typeof RESTAURANT_API_MODULE_IDS)[number];
@@ -19,7 +20,9 @@ export type RestaurantApiModuleMeta = {
   /** Pfad unter /api/v1/… */
   path: string;
   docsPath: string;
-  embedWidgetId: GwadaEmbedWidgetId;
+  embedWidgetId?: GwadaEmbedWidgetId;
+  /** Nicht vorauswählen — operative Daten, eigener Schlüssel. */
+  optIn?: boolean;
 };
 
 export const RESTAURANT_API_MODULES: readonly RestaurantApiModuleMeta[] = [
@@ -72,7 +75,18 @@ export const RESTAURANT_API_MODULES: readonly RestaurantApiModuleMeta[] = [
     docsPath: "/docs/api/opening-hours",
     embedWidgetId: "opening_hours",
   },
+  {
+    id: "purchase_orders",
+    label: "Bestellungen",
+    path: "purchase-orders",
+    docsPath: "/docs/api/purchase-orders",
+    optIn: true,
+  },
 ] as const;
+
+export function defaultEnabledRestaurantApiModuleIds(): RestaurantApiModuleId[] {
+  return RESTAURANT_API_MODULES.filter((mod) => !mod.optIn).map((mod) => mod.id);
+}
 
 const MODULE_BY_ID = new Map(
   RESTAURANT_API_MODULES.map((m) => [m.id, m] as const),

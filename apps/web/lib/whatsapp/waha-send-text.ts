@@ -1,7 +1,9 @@
 import { parseWahaSendResponseMessageId } from "@/lib/contact-messages/outbound-whatsapp-db-server";
-import { WAHA_FETCH_TIMEOUT_MS } from "@/lib/waha/waha-client";
 import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
+
+/** sendText darf länger brauchen als Session-Health — 15s erzeugte False-Failures + Retries. */
+export const WAHA_SEND_TEXT_TIMEOUT_MS = 30_000;
 
 export async function wahaSendText(params: {
   restaurantId: string;
@@ -37,7 +39,7 @@ export async function wahaSendText(params: {
         linkPreview: params.linkPreview ?? false,
       }),
       cache: "no-store",
-      signal: AbortSignal.timeout(WAHA_FETCH_TIMEOUT_MS),
+      signal: AbortSignal.timeout(WAHA_SEND_TEXT_TIMEOUT_MS),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "fetch_failed";

@@ -270,30 +270,35 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     pollIntervalMs: 60_000,
     gcTimeMs: 5 * 60_000,
     description:
-      "Unread-Items aller Module in der Glocke — React Query + AppNotificationBellLive (notification_events). Poll 60s nur wenn Realtime nicht aktiv. Nachrichten: leichter Unread-Count aus Inbox-DB/WAHA (kein IMAP-Sync beim Öffnen).",
+      "Unread-Items aller Module in der Glocke — React Query + AppNotificationBellLive (notification_events). Poll 60s nur wenn Realtime nicht aktiv (z. B. Live-/sb-Proxy ohne Browser-WS). Derselbe Poll backfüllt auch den Live-Verlauf. Nachrichten: leichter Unread-Count aus Inbox-DB/WAHA (kein IMAP-Sync beim Öffnen).",
     loadTriggers: [
       "App-Chrome Mount (Workspace ready)",
       "Popover öffnen (nur wenn Cache stale)",
-      "Poll 60s (sichtbarer Tab, nur ohne aktives Bell-Realtime)",
+      "Poll 60s (sichtbarer Tab, nur ohne aktives Bell-Realtime) — inkl. live-activity-feed Backfill",
     ],
     invalidateTriggers: [
       "GWADA_NOTIFICATIONS_REFRESH",
       "GWADA_DASHBOARD_MESSAGES_REFRESH (debounced 3s)",
-      "Realtime notification_events",
+      "Realtime notification_events → Glocke + recordLiveActivity",
+      "Staff-Reservierungs-Log → sofort recordLiveActivity (ohne Realtime)",
       "Workspace-Wechsel",
       "Mark as read",
     ],
-    apiEndpoints: ["/api/notifications/summary"],
+    apiEndpoints: [
+      "/api/notifications/summary",
+      "/api/dashboard/live-activity-feed",
+    ],
     implementationFiles: [
       "lib/hooks/use-notification-summary.ts",
       "lib/hooks/use-notification-bell-realtime.ts",
       "lib/notifications/notification-summary-server.ts",
+      "lib/live-activity/record-reservation-live-activity-client.ts",
       "components/layout/app-chrome-notification-bell.tsx",
       "components/providers/app-notification-bell-live.tsx",
     ],
     status: "active",
     notes:
-      "Messages nutzt serverseitig WAHA + optional E-Mail-Sync — nicht parallel zum Inbox-Warm starten, wenn Batch kürzlich lief.",
+      "Messages nutzt serverseitig WAHA + optional E-Mail-Sync — nicht parallel zum Inbox-Warm starten, wenn Batch kürzlich lief. Live-Verlauf: eigene Aktionen (Bestätigen usw.) clientseitig sofort; fremde Events per Realtime oder Poll-Backfill.",
   },
   {
     id: "dashboardWeather",
@@ -348,7 +353,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 5 * 60 * 1000,
     pollIntervalMs: 5 * 60 * 1000,
     description:
-      "Gwada-DB + WAHA/E-Mail/Facebook/Instagram — sessionStorage-Cache (30 Min Session). Öffnen: Cache sofort, Force-Refetch nur wenn älter als 5 Min (SWR); sonst Background-Poll 5 Min + Realtime. Keep-alive Home in Dashboard-SPA. Mount app-weit im (app)-Layout.",
+      "Gwada-DB — ein GET /api/contact-messages/inbox (Server bündelt Kanäle + Reads + Follow-ups). sessionStorage-Cache (30 Min Session). Öffnen: Cache sofort, Force-Refetch nur wenn älter als 5 Min (SWR); sonst Background-Poll 5 Min + Realtime. Keep-alive Home in Dashboard-SPA. Mount app-weit im (app)-Layout.",
     loadTriggers: [
       "UnifiedInboxBackgroundSyncMount im App-Layout",
       "Nachrichten Keep-alive Slot (warm nach Soft-Nav/Hover)",
@@ -361,12 +366,11 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "GWADA_DASHBOARD_MESSAGES_REFRESH",
       "Supabase Realtime contact_messages",
     ],
-    apiEndpoints: [
-      "/api/contact-messages/waha/conversations",
-      "/api/contact-messages/email/conversations",
-      "/api/contact-messages/meta/conversations",
-    ],
+    apiEndpoints: ["/api/contact-messages/inbox"],
     implementationFiles: [
+      "app/api/contact-messages/inbox/route.ts",
+      "lib/contact-messages/load-inbox-conversations-server.ts",
+      "lib/contact-messages/unified-inbox-client.ts",
       "components/contacts/unified-inbox-background-sync-mount.tsx",
       "lib/contact-messages/unified-inbox-background-sync.ts",
       "lib/hooks/use-dashboard-live-notifications.ts",
@@ -585,21 +589,48 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     status: "active",
   },
   {
+    id: "inventoryLive",
+    label: "Bestand Live",
+    scope: "module",
+    appModule: "Bestand",
+    strategy: "realtime",
+    pollIntervalMs: 15_000,
+    description:
+      "Zutaten + Bestellungen per Supabase Realtime (Live-Signal + Ingredients-Fallback). Zone-Level AppInventoryLive; Fallback-Polling 15s bei Realtime-Ausfall oder /sb-Proxy.",
+    loadTriggers: [
+      "App-Zone platform/(app) + Workspace-Restaurant ready",
+      "Fallback: sichtbares Intervall-Polling 15s",
+    ],
+    invalidateTriggers: [
+      "Supabase Realtime restaurant_inventory_live_signals / inventory_*",
+      "GWADA_INVENTORY_DATA_REFRESH (debounced 300ms)",
+    ],
+    implementationFiles: [
+      "components/providers/app-inventory-live.tsx",
+      "lib/hooks/use-restaurant-inventory-realtime.ts",
+      "lib/inventory/inventory-live-events.ts",
+      "supabase/migrations/20260902120000_inventory_realtime_live_signals.sql",
+    ],
+    status: "active",
+  },
+  {
     id: "inventoryModule",
     label: "Bestand",
     scope: "module",
     appModule: "Bestand",
-    strategy: "stale-while-revalidate",
-    staleTimeMs: 3 * 60_000,
+    strategy: "realtime",
+    staleTimeMs: 0,
     gcTimeMs: 30 * 60_000,
     description:
-      "Zutaten + Bestellungen per React Query; Bestandsänderung invalidiert auch notifications.summary (Low-Stock-Push).",
+      "Zutaten + Bestellungen per React Query; Live-Invalidierung über AppInventoryLive. Bestandsänderung invalidiert auch notifications.summary (Low-Stock-Push).",
     loadTriggers: [
       "AppModuleWarmPrefetchMount / Intent",
       "Route /dashboard/inventory/**",
       "placeholderData aus LS",
+      "GWADA_INVENTORY_DATA_REFRESH → refetch",
     ],
     invalidateTriggers: [
+      "Realtime / GWADA_INVENTORY_DATA_REFRESH",
       "Zutat/Bestellung speichern",
       "Bestandsänderung → notifications.summary + dashboard.summary",
       "DB-Trigger inventory_low_stock → Push (separater Pfad)",
@@ -749,7 +780,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     strategy: "poll",
     pollIntervalMs: 2_000,
     description:
-      "Eigene Session-Zone (/display/[slug], kein Supabase-User-JWT). Module per fetch; Reservierungen mit Live-Signal-Poll (2s) und stillen Tag-Reloads ohne Full-Skeleton.",
+      "Eigene Session-Zone (/display/[slug], kein Supabase-User-JWT). Module per fetch; Bestand mit O(1) Live-Signal-Poll (1,5s) und debounced Refresh (400ms).",
     loadTriggers: [
       "PIN-Login → GET /api/display/context",
       "Modul-Mount: reservations / inventory / recipes / time",
@@ -782,7 +813,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
   },
   {
     id: "staffTodos",
-    label: "Checklisten",
+    label: "Aufgaben",
     scope: "module",
     appModule: "Mitarbeiter",
     strategy: "stale-while-revalidate",

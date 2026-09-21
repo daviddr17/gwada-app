@@ -28,6 +28,7 @@ import {
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
+import { STALE_WRITE_CONFLICT_MESSAGE } from "@/lib/data/stale-write-conflict";
 import { isValidPublicPartySize } from "@/lib/reservations/reservation-party-size";
 import {
   reservationDateTimeChanged,
@@ -632,14 +633,35 @@ export async function updatePublicReservation(
     terms_accepted: body.terms_accepted,
   };
 
+  const { data: versionRow } = await admin
+    .from("reservations")
+    .select("updated_at")
+    .eq("id", existing.id)
+    .maybeSingle();
+  const expectedUpdatedAt =
+    versionRow && typeof versionRow.updated_at === "string"
+      ? versionRow.updated_at
+      : null;
+
   if (existing.status_code === "pending") {
-    const { error } = await admin
+    let pendingQuery = admin
       .from("reservations")
       .update(patch)
       .eq("id", existing.id);
+    if (expectedUpdatedAt) {
+      pendingQuery = pendingQuery.eq("updated_at", expectedUpdatedAt);
+    }
+    const { data: updated, error } = await pendingQuery.select("id").maybeSingle();
     if (error) {
       console.warn("[gwada] public reservation update", error.message);
       return { data: null, error: "update_failed", status: 500 };
+    }
+    if (!updated) {
+      return {
+        data: null,
+        error: expectedUpdatedAt ? STALE_WRITE_CONFLICT_MESSAGE : "update_failed",
+        status: expectedUpdatedAt ? 409 : 500,
+      };
     }
     const before = reservationSnapshotFromPayload(
       {
@@ -728,7 +750,7 @@ export async function updatePublicReservation(
     requested_at: new Date().toISOString(),
   };
 
-  const { error } = await admin
+  let changeQuery = admin
     .from("reservations")
     .update({
       pending_change: pendingChange,
@@ -738,10 +760,21 @@ export async function updatePublicReservation(
         : currentStatusId ?? null,
     })
     .eq("id", existing.id);
+  if (expectedUpdatedAt) {
+    changeQuery = changeQuery.eq("updated_at", expectedUpdatedAt);
+  }
+  const { data: changed, error } = await changeQuery.select("id").maybeSingle();
 
   if (error) {
     console.warn("[gwada] public change request", error.message);
     return { data: null, error: "update_failed", status: 500 };
+  }
+  if (!changed) {
+    return {
+      data: null,
+      error: expectedUpdatedAt ? STALE_WRITE_CONFLICT_MESSAGE : "update_failed",
+      status: expectedUpdatedAt ? 409 : 500,
+    };
   }
 
   const before = reservationSnapshotFromPayload(

@@ -10,7 +10,12 @@ import { DisplayChromeHeader } from "@/components/display/display-chrome-header"
 import { DisplayAccentRoot } from "@/components/display/display-accent-root";
 import { DisplayRestaurantTimezoneProvider } from "@/components/display/display-restaurant-timezone-provider";
 import { DisplayBrandedBackground } from "@/components/display/display-branded-background";
-import { DisplayCelebrationOverlay, type DisplayCelebrationVariant } from "@/components/display/display-celebration-overlay";
+import {
+  DisplayCelebrationOverlay,
+  isDisplayTimeCelebrationAction,
+  type DisplayCelebrationVariant,
+  type DisplayTimeCelebrationAction,
+} from "@/components/display/display-celebration-overlay";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
 import { DisplayPinPad } from "@/components/display/display-pin-pad";
 import { DisplayPinStandbyScene } from "@/components/display/display-pin-standby";
@@ -32,6 +37,7 @@ import {
 import { DisplayReservationsModule } from "@/components/display/modules/display-reservations-module";
 import { DisplayInventoryModule } from "@/components/display/modules/display-inventory-module";
 import { DisplayComplianceModule } from "@/components/display/modules/display-compliance-module";
+import { DisplayProfileModule } from "@/components/display/modules/display-profile-module";
 import { DisplayRecipesModule } from "@/components/display/modules/display-recipes-module";
 import { DisplayScreenSkeleton } from "@/components/display/display-screen-skeleton";
 import { Button } from "@/components/ui/button";
@@ -482,9 +488,67 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   const screenCelebrationRef = useRef<DisplayCelebrationVariant | null>(null);
   screenCelebrationRef.current = screenCelebration;
+  /** Schicht-Aktion: Abmeldung parallel zum Screen-Overlay-Fade (wie sign_out). */
+  const timeActionLogoutFlowRef = useRef({
+    intent: false,
+    apiOk: false,
+    celebrationExited: false,
+    triggered: false,
+  });
+
+  const resetTimeActionLogoutFlow = useCallback(() => {
+    timeActionLogoutFlowRef.current = {
+      intent: false,
+      apiOk: false,
+      celebrationExited: false,
+      triggered: false,
+    };
+  }, []);
+
+  const tryTimeActionLogout = useCallback(() => {
+    const flow = timeActionLogoutFlowRef.current;
+    if (flow.triggered || !flow.intent || !flow.apiOk || !flow.celebrationExited) {
+      return;
+    }
+    flow.triggered = true;
+    void performLogout();
+  }, [performLogout]);
+
+  const handleTimeActionCelebrationStart = useCallback(
+    (action: DisplayTimeCelebrationAction) => {
+      resetTimeActionLogoutFlow();
+      timeActionLogoutFlowRef.current.intent = true;
+      setScreenCelebrationSublabel(undefined);
+      setScreenCelebration(action);
+    },
+    [resetTimeActionLogoutFlow],
+  );
+
+  const handleTimeActionCelebrationCancel = useCallback(() => {
+    resetTimeActionLogoutFlow();
+    setScreenCelebration((current) =>
+      isDisplayTimeCelebrationAction(current) ? null : current,
+    );
+    setScreenCelebrationSublabel(undefined);
+  }, [resetTimeActionLogoutFlow]);
+
+  const handleTimeActionPersisted = useCallback(() => {
+    timeActionLogoutFlowRef.current.apiOk = true;
+    tryTimeActionLogout();
+  }, [tryTimeActionLogout]);
 
   const handleScreenCelebrationExitStart = useCallback(() => {
     const variant = screenCelebrationRef.current;
+
+    if (
+      variant &&
+      isDisplayTimeCelebrationAction(variant) &&
+      timeActionLogoutFlowRef.current.intent
+    ) {
+      timeActionLogoutFlowRef.current.celebrationExited = true;
+      tryTimeActionLogout();
+      return;
+    }
 
     if (variant === "sign_out") {
       void performLogout();
@@ -498,10 +562,17 @@ export function DisplayScreen({ slug }: { slug: string }) {
       finishPinLogin(pending.ctx);
       pinLoginGatePendingRef.current = true;
     }
-  }, [finishPinLogin, performLogout]);
+  }, [finishPinLogin, performLogout, tryTimeActionLogout]);
 
   const handleScreenCelebrationDone = useCallback(() => {
     const variant = screenCelebrationRef.current;
+
+    if (variant && isDisplayTimeCelebrationAction(variant)) {
+      resetTimeActionLogoutFlow();
+      setScreenCelebration(null);
+      setScreenCelebrationSublabel(undefined);
+      return;
+    }
 
     if (pinLoginGatePendingRef.current) {
       pinLoginGatePendingRef.current = false;
@@ -522,7 +593,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
     setScreenCelebration(null);
     setScreenCelebrationSublabel(undefined);
-  }, [runPinLoginGate, refreshTimeSession]);
+  }, [runPinLoginGate, refreshTimeSession, resetTimeActionLogoutFlow]);
 
   const submitPin = async (pinValue: string) => {
     setPinBusy(true);
@@ -562,12 +633,13 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   const requestLogout = useCallback(() => {
     if (screenCelebration) return;
+    setScreenCelebrationSublabel(undefined);
     setScreenCelebration("sign_out");
   }, [screenCelebration]);
 
-  const logoutAfterClockOut = useCallback(() => {
-    void performLogout();
-  }, [performLogout]);
+  const timeActionCelebrationActive = isDisplayTimeCelebrationAction(
+    screenCelebration,
+  );
 
   const heartbeat = useCallback(async () => {
     if (!context?.session || locked) return;
@@ -895,11 +967,14 @@ export function DisplayScreen({ slug }: { slug: string }) {
                 staffId={session.staff.id}
                 onSessionChange={patchTimeSession}
                 prepareAndGate={prepareAndGate}
+                celebrationActive={timeActionCelebrationActive}
+                onTimeActionCelebrationStart={handleTimeActionCelebrationStart}
+                onTimeActionCelebrationCancel={handleTimeActionCelebrationCancel}
+                onTimeActionPersisted={handleTimeActionPersisted}
                 onChanged={() => {
                   void refreshTodoBadge();
                   void refreshTimeSession();
                 }}
-                onClockOutSuccess={logoutAfterClockOut}
               />
             ) : null}
             {currentModule === "reservations" ? (
@@ -916,6 +991,9 @@ export function DisplayScreen({ slug }: { slug: string }) {
               />
             ) : null}
             {currentModule === "compliance" ? <DisplayComplianceModule /> : null}
+            {currentModule === "profile" && context?.restaurant?.id ? (
+              <DisplayProfileModule restaurantId={context.restaurant.id} />
+            ) : null}
           </DisplayModuleShell>
       );
       }

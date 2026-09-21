@@ -80,8 +80,8 @@ export const MODULE_SUBPAGE_CHROME = {
     subnavItems: DOCUMENTS_MODULE_NAV,
   },
   checklisten: {
-    title: "Checklisten",
-    subnavAriaLabel: "Checklisten-Bereiche",
+    title: "Aufgaben",
+    subnavAriaLabel: "Aufgaben-Bereiche",
     subnavItems: CHECKLISTEN_NAV,
   },
 } as const satisfies Record<string, ModuleSubpageChromeConfig>;

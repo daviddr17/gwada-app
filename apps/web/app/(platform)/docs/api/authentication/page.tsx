@@ -43,7 +43,9 @@ Accept: application/json`}</pre>
           widerrufen
         </li>
         <li>
-          Funktioniert nur, wenn das Restaurant <strong>veröffentlicht</strong> ist
+          Öffentliche Module funktionieren nur, wenn das Restaurant{" "}
+          <strong>veröffentlicht</strong> ist. Bestellungen sind die Ausnahme:
+          der Schlüssel reicht, das Restaurant muss nicht öffentlich sein.
         </li>
         <li>Key nur serverseitig speichern — nie in öffentlichen Frontend-Bundles</li>
       </ul>

@@ -23,9 +23,21 @@ const inventoryFilterSelectClassName = appSelectTriggerAccentCn(
   staffDrawerFieldClassName,
 );
 
+export type InventoryStatusFilter = "all" | "active" | "inactive";
+
+export const INVENTORY_STATUS_FILTER_DEFAULT: InventoryStatusFilter = "all";
+
+const STATUS_OPTIONS: { value: InventoryStatusFilter; label: string }[] = [
+  { value: "all", label: "Alle" },
+  { value: "active", label: "Aktiv" },
+  { value: "inactive", label: "Inaktiv" },
+];
+
 type InventoryFilterDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  filterStatus: InventoryStatusFilter;
+  onFilterStatusChange: (value: InventoryStatusFilter) => void;
   filterSupplier: string;
   onFilterSupplierChange: (value: string) => void;
   suppliers: InventoryTaxonomyDefinition[];
@@ -41,12 +53,14 @@ type InventoryFilterDrawerProps = {
 };
 
 export function countInventoryActiveFilters(input: {
+  filterStatus: InventoryStatusFilter;
   filterSupplier: string;
   filterCategory: string;
   filterProduction: string;
   filterBrand: string;
 }): number {
   let n = 0;
+  if (input.filterStatus !== INVENTORY_STATUS_FILTER_DEFAULT) n += 1;
   if (input.filterSupplier !== "all") n += 1;
   if (input.filterCategory !== "all") n += 1;
   if (input.filterProduction !== "all") n += 1;
@@ -57,6 +71,8 @@ export function countInventoryActiveFilters(input: {
 export function InventoryFilterDrawer({
   open,
   onOpenChange,
+  filterStatus,
+  onFilterStatusChange,
   filterSupplier,
   onFilterSupplierChange,
   suppliers,
@@ -103,6 +119,7 @@ export function InventoryFilterDrawer({
   );
 
   const resetFilters = () => {
+    onFilterStatusChange(INVENTORY_STATUS_FILTER_DEFAULT);
     onFilterSupplierChange("all");
     onFilterCategoryChange("all");
     onFilterProductionChange("all");
@@ -117,6 +134,20 @@ export function InventoryFilterDrawer({
 
         <div className={drawerScrollAreaClassName(6)}>
           <DrawerFilterZone showLabel={false}>
+            <DrawerFilterField label="Status">
+              <SearchableSelect
+                options={STATUS_OPTIONS}
+                value={filterStatus}
+                onValueChange={(value) => {
+                  if (value === "all" || value === "active" || value === "inactive") {
+                    onFilterStatusChange(value);
+                  }
+                }}
+                placeholder="Alle"
+                aria-label="Status filtern"
+                className={inventoryFilterSelectClassName}
+              />
+            </DrawerFilterField>
             <DrawerFilterField label="Lieferant">
               <SearchableSelect
                 options={supplierOptions}

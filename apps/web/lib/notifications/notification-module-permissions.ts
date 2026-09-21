@@ -29,12 +29,16 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   reservations_pending: { kind: "module", prefix: "reservations" },
   reservations_change_request: { kind: "module", prefix: "reservations" },
   reservations_cancellation: { kind: "module", prefix: "reservations" },
+  reservations_activity: { kind: "module", prefix: "reservations" },
   events_inquiry: { kind: "anyModule", prefixes: ["events", "reservations"] },
   staff_shift_start: { kind: "staffModuleOrProfile", prefix: "staff" },
   staff_shift_end: { kind: "staffModuleOrProfile", prefix: "staff" },
   staff_todo_completed: { kind: "staffModuleOrProfile", prefix: "staff_todos" },
   staff_todo_deferred: { kind: "staffModuleOrProfile", prefix: "staff_todos" },
+  personal_reminder: { kind: "always" },
+  staff_messages: { kind: "always" },
   staff_contract_signed: { kind: "staffProfile" },
+  staff_document_assigned: { kind: "staffProfile" },
   staff_display_time_request: { kind: "module", prefix: "staff" },
   staff_invite_accepted: { kind: "module", prefix: "staff" },
   staff_invite_declined: { kind: "module", prefix: "staff" },
@@ -43,9 +47,29 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   staff_permissions_granted: { kind: "always" },
   inventory_low_stock: { kind: "module", prefix: "inventory" },
   inventory_po_delivery_due: { kind: "module", prefix: "inventory" },
+  inventory_po_ordered: { kind: "module", prefix: "inventory" },
+  inventory_po_closed: { kind: "module", prefix: "inventory" },
+  inventory_po_activity: { kind: "module", prefix: "inventory" },
+  inventory_stock_activity: { kind: "module", prefix: "inventory" },
   accounting_quotation: { kind: "module", prefix: "accounting" },
   accounting_invoice: { kind: "module", prefix: "accounting" },
   accounting_voucher: { kind: "module", prefix: "accounting" },
+  digest_daily_preview: {
+    kind: "anyModule",
+    prefixes: ["staff", "inventory", "reservations", "accounting"],
+  },
+  digest_daily_review: {
+    kind: "anyModule",
+    prefixes: ["staff", "inventory", "reservations", "accounting"],
+  },
+  digest_weekly_preview: {
+    kind: "anyModule",
+    prefixes: ["staff", "inventory", "reservations", "accounting"],
+  },
+  digest_weekly_review: {
+    kind: "anyModule",
+    prefixes: ["staff", "inventory", "reservations", "accounting"],
+  },
 };
 
 export function isNotificationModuleVisibleForUser(

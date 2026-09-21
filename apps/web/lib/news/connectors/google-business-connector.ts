@@ -3,6 +3,7 @@ import "server-only";
 import type { NewsPlatformConnector } from "@/lib/news/connectors/types";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import {
+  fetchWithGoogleBusinessAuth,
   getGoogleBusinessAccessTokenForRestaurant,
   googleReviewsParentPath,
 } from "@/lib/integrations/google-business-access";
@@ -50,16 +51,14 @@ export const googleBusinessNewsConnector: NewsPlatformConnector = {
     const auth = await getGoogleLocation(restaurantId);
     if ("error" in auth) return { error: auth.error ?? "google_not_connected" };
     const url = `https://mybusiness.googleapis.com/v4/${auth.parent}/localPosts`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${auth.accessToken}` },
-      cache: "no-store",
-    });
-    const body = (await res.json()) as {
+    const fetched = await fetchWithGoogleBusinessAuth(restaurantId, url);
+    if ("error" in fetched) return { error: fetched.error };
+    const body = (await fetched.json()) as {
       localPosts?: GoogleLocalPost[];
       error?: { message?: string };
     };
-    if (!res.ok) {
-      return { error: body.error?.message ?? `google_local_posts_${res.status}` };
+    if (!fetched.ok) {
+      return { error: body.error?.message ?? `google_local_posts_${fetched.status}` };
     }
     const items: UnifiedNewsItem[] = (body.localPosts ?? []).map((post) => {
       const id = post.name?.split("/").pop() ?? post.name ?? "";

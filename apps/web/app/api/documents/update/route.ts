@@ -3,7 +3,9 @@ import {
   insertRestaurantDocumentLog,
   resolveRestaurantEmployeeId,
 } from "@/lib/documents/document-log-server";
+import { emitStaffDocumentAssignedNotification } from "@/lib/notifications/notification-staff-document-server";
 import type { DocumentLogChange } from "@/lib/types/document-log";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -28,6 +30,8 @@ export async function POST(req: Request) {
     documentId?: string;
     title?: string;
     tagId?: string | null;
+    staffId?: string | null;
+    visibleToStaff?: boolean;
   };
 
   const restaurantId = body.restaurantId?.trim() ?? "";
@@ -35,11 +39,13 @@ export async function POST(req: Request) {
   const title =
     typeof body.title === "string" ? body.title.trim() : undefined;
   const tagIdProvided = body.tagId !== undefined;
+  const staffIdProvided = body.staffId !== undefined;
+  const visibleToStaffProvided = body.visibleToStaff !== undefined;
 
   if (
     !isUuidRestaurantId(restaurantId) ||
     !isUuidRestaurantId(documentId) ||
-    (!title && !tagIdProvided)
+    (!title && !tagIdProvided && !staffIdProvided && !visibleToStaffProvided)
   ) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
@@ -49,10 +55,15 @@ export async function POST(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return Response.json({ error: "server_misconfigured" }, { status: 503 });
+  }
+
   const userSb = await createSupabaseServerClient();
   const { data: existing, error: fetchError } = await userSb
     .from("restaurant_documents")
-    .select("id, title, tag_id, file_name, employee_id")
+    .select("id, title, tag_id, staff_id, visible_to_staff, file_name, employee_id")
     .eq("id", documentId)
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
@@ -70,7 +81,29 @@ export async function POST(req: Request) {
       : null
     : (existing.tag_id as string | null);
 
-  if (nextTagId) {
+  const nextStaffId = staffIdProvided
+    ? body.staffId && String(body.staffId).trim()
+      ? String(body.staffId).trim()
+      : null
+    : (existing.staff_id as string | null);
+
+  if (nextStaffId) {
+    const { data: staffRow } = await admin
+      .from("restaurant_staff")
+      .select("id")
+      .eq("id", nextStaffId)
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle();
+    if (!staffRow?.id) {
+      return Response.json({ error: "invalid_staff" }, { status: 400 });
+    }
+  }
+
+  const nextVisibleToStaff = visibleToStaffProvided
+    ? Boolean(body.visibleToStaff) && nextStaffId != null
+    : Boolean(existing.visible_to_staff);
+
+  if (tagIdProvided && nextTagId) {
     const { data: tag } = await userSb
       .from("restaurant_document_tags")
       .select("id")
@@ -103,9 +136,35 @@ export async function POST(req: Request) {
     });
   }
 
+  if (
+    staffIdProvided &&
+    (existing.staff_id as string | null) !== nextStaffId
+  ) {
+    changes.push({
+      field: "staff",
+      from: (existing.staff_id as string | null) ?? null,
+      to: nextStaffId,
+    });
+  }
+
+  if (
+    visibleToStaffProvided &&
+    Boolean(existing.visible_to_staff) !== nextVisibleToStaff
+  ) {
+    changes.push({
+      field: "visible_to_staff",
+      from: existing.visible_to_staff ? "sichtbar" : "nur HR",
+      to: nextVisibleToStaff ? "sichtbar" : "nur HR",
+    });
+  }
+
   const patch: Record<string, unknown> = {};
   if (title) patch.title = title;
   if (tagIdProvided) patch.tag_id = nextTagId;
+  if (staffIdProvided) patch.staff_id = nextStaffId;
+  if (staffIdProvided || visibleToStaffProvided) {
+    patch.visible_to_staff = nextVisibleToStaff;
+  }
 
   const { error: updateError } = await userSb
     .from("restaurant_documents")
@@ -130,6 +189,28 @@ export async function POST(req: Request) {
       documentTitle: nextTitle,
       fileName: existing.file_name as string,
       details: { changes },
+    });
+  }
+
+  const becameVisible =
+    nextVisibleToStaff &&
+    nextStaffId &&
+    (!Boolean(existing.visible_to_staff) || existing.staff_id !== nextStaffId);
+
+  if (becameVisible) {
+    const { data: staffRow } = await admin
+      .from("restaurant_staff")
+      .select("profile_id")
+      .eq("id", nextStaffId)
+      .maybeSingle();
+    await emitStaffDocumentAssignedNotification(admin, {
+      restaurantId,
+      documentId,
+      staffId: nextStaffId,
+      targetProfileId: (staffRow?.profile_id as string | null) ?? null,
+      documentTitle: nextTitle,
+      actorUserId: auth.userId,
+      visibleToStaff: true,
     });
   }
 

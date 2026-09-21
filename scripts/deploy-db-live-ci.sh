@@ -35,17 +35,141 @@ if [[ -z "${DB_CONTAINER}" ]]; then
   exit 1
 fi
 
+# Passwort nicht rotieren und nicht loggen. Der Container-Env-Wert ist nur der
+# Init-Wert; Coolify SERVICE_PASSWORD_POSTGRES kann der echte Rolle-Wert sein.
+# TCP-Prüfung geht auf die Container-IP (nicht 127.0.0.1/trust).
+echo "Postgres-Login prüfen (ohne Passwort im Log) …"
 POSTGRES_PASSWORD="$(
-  gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
-    "docker exec ${DB_CONTAINER} printenv POSTGRES_PASSWORD"
-)"
-POSTGRES_PASSWORD="${POSTGRES_PASSWORD//$'\r'/}"
-if [[ -z "${POSTGRES_PASSWORD}" ]]; then
-  echo "POSTGRES_PASSWORD im Container leer." >&2
+  gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${DB_CONTAINER}" <<'REMOTE'
+set -euo pipefail
+db="$1"
+db_ip="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "${db}" | awk '{print $1}')"
+if [[ -z "${db_ip}" ]]; then
+  echo "Container-IP fehlt." >&2
+  exit 1
+fi
+if ! docker exec "${db}" psql --version >/dev/null 2>&1; then
+  echo "psql im DB-Container fehlt." >&2
   exit 1
 fi
 
-export SUPABASE_DB_URL="postgresql://postgres:${POSTGRES_PASSWORD}@127.0.0.1:${LIVE_TUNNEL_LOCAL_PORT}/postgres"
+read_env() {
+  local file="$1" key="$2" line val
+  [[ -f "${file}" ]] || return 0
+  line="$(grep -m1 "^${key}=" "${file}" || true)"
+  [[ -n "${line}" ]] || return 0
+  val="${line#"${key}="}"
+  val="${val%$'\r'}"
+  if [[ "${val}" == \"*\" ]]; then val="${val#\"}"; val="${val%\"}"; fi
+  if [[ "${val}" == \'*\' ]]; then val="${val#\'}"; val="${val%\'}"; fi
+  if [[ "${val}" =~ ^\$\{.*\}$ ]]; then
+    return 0
+  fi
+  printf '%s' "${val}"
+}
+
+describe_pw() {
+  local pw="$1" flags=""
+  [[ "${pw}" == *@* ]] && flags+="@ "
+  [[ "${pw}" == *'#'* ]] && flags+="# "
+  [[ "${pw}" == *'?'* ]] && flags+="? "
+  [[ "${pw}" == *%* ]] && flags+="% "
+  [[ "${pw}" == *'/'* ]] && flags+="/ "
+  [[ "${pw}" == *' '* ]] && flags+="space "
+  echo "len=${#pw} url_specials=${flags:-none}" >&2
+}
+
+tried=()
+try_candidate() {
+  local label="$1" pw="$2" prev
+  if [[ -z "${pw}" ]]; then
+    echo "candidate ${label}: empty" >&2
+    return 1
+  fi
+  if ((${#tried[@]})); then
+    for prev in "${tried[@]}"; do
+      if [[ "${prev}" == "${pw}" ]]; then
+        echo "candidate ${label}: same as earlier candidate" >&2
+        return 1
+      fi
+    done
+  fi
+  tried+=("${pw}")
+  echo -n "candidate ${label}: " >&2
+  describe_pw "${pw}"
+  if docker exec -e PGPASSWORD="${pw}" "${db}" \
+    psql -h "${db_ip}" -U postgres -d postgres -v ON_ERROR_STOP=1 -tAc 'select 1' \
+    >/dev/null 2>&1; then
+    echo "candidate ${label}: tcp auth ok" >&2
+    printf '%s' "${pw}"
+    exit 0
+  fi
+  echo "candidate ${label}: tcp auth failed" >&2
+  return 1
+}
+
+container_pw="$(docker exec "${db}" printenv POSTGRES_PASSWORD | tr -d '\r\n' || true)"
+try_candidate container_env "${container_pw}" || true
+
+workdir="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "${db}" 2>/dev/null || true)"
+workdir="${workdir//$'\r'/}"
+if [[ -n "${workdir}" && -f "${workdir}/.env" ]]; then
+  try_candidate compose_postgres_password "$(read_env "${workdir}/.env" POSTGRES_PASSWORD)" || true
+  try_candidate compose_service_password "$(read_env "${workdir}/.env" SERVICE_PASSWORD_POSTGRES)" || true
+fi
+
+while IFS= read -r envf; do
+  [[ -n "${envf}" ]] || continue
+  try_candidate coolify_service_password "$(read_env "${envf}" SERVICE_PASSWORD_POSTGRES)" || true
+done < <(find /data/coolify -name '.env' -type f 2>/dev/null || true)
+
+echo "Kein Postgres-Passwort aus Container-Env oder Coolify hat per TCP gepasst. Passwort wird nicht geändert." >&2
+if docker exec "${db}" psql -U postgres -d postgres -tAc 'select 1' >/dev/null 2>&1; then
+  echo "local socket: ok" >&2
+else
+  echo "local socket: failed" >&2
+fi
+docker exec "${db}" sh -c 'if [ -n "${PGDATA:-}" ] && [ -f "${PGDATA}/pg_hba.conf" ]; then cat "${PGDATA}/pg_hba.conf"; fi' >&2 || true
+exit 1
+REMOTE
+)"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD//$'\r'/}"
+if [[ -z "${POSTGRES_PASSWORD}" ]]; then
+  echo "Postgres-Login fehlgeschlagen." >&2
+  exit 1
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${POSTGRES_PASSWORD}")"
+else
+  echo "python3 fehlt — Passwort kann nicht URL-kodiert werden." >&2
+  exit 1
+fi
+
+if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+  # Workflow-Kommandos: % muss als %25 stehen, sonst maskiert das Log falsch.
+  mask_pw="${POSTGRES_PASSWORD//%/%25}"
+  mask_enc="${ENC_PW//%/%25}"
+  echo "::add-mask::${mask_pw}"
+  echo "::add-mask::${mask_enc}"
+  unset mask_pw mask_enc
+fi
+
+if ! command -v psql >/dev/null 2>&1; then
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq postgresql-client >/dev/null
+fi
+
+echo "Tunnel-Login prüfen …"
+if ! PGPASSWORD="${POSTGRES_PASSWORD}" psql \
+  "host=127.0.0.1 port=${LIVE_TUNNEL_LOCAL_PORT} user=postgres dbname=postgres sslmode=disable" \
+  -v ON_ERROR_STOP=1 -tAc 'select 1' >/dev/null; then
+  echo "Tunnel-Login fehlgeschlagen." >&2
+  exit 1
+fi
+echo "Tunnel-Login ok."
+
+export SUPABASE_DB_URL="postgresql://postgres:${ENC_PW}@127.0.0.1:${LIVE_TUNNEL_LOCAL_PORT}/postgres"
 export PGSSLMODE=disable
 
 SUPABASE_CMD="supabase"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { toast } from "sonner";
 import {
   NotificationGroupBulkChannelActions,
   NotificationModuleChannelRow,
@@ -40,11 +41,29 @@ import {
   type NotificationModuleAccessContext,
 } from "@/lib/notifications/notification-module-permissions";
 import {
+  NOTIFICATION_MODULES,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
 import { NOTIFICATION_SETTINGS_GROUPS } from "@/lib/notifications/notification-module-groups";
 import type { NotificationSettingsGroup } from "@/lib/notifications/notification-module-groups";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+
+const NOTIFICATION_CHANNEL_TOAST_ID = "notification-channel";
+
+function channelToastLabel(channel: NotificationDeliveryChannel): string {
+  switch (channel) {
+    case "inApp":
+      return "Glocke";
+    case "email":
+      return "E-Mail";
+    case "whatsapp":
+      return "WhatsApp";
+  }
+}
+
+function toastChannelChange(message: string) {
+  toast.success(message, { id: NOTIFICATION_CHANNEL_TOAST_ID });
+}
 
 export function NotificationPreferencesPanel() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
@@ -167,6 +186,9 @@ export function NotificationPreferencesPanel() {
       next[id] = enabled;
     }
     patchPreferences({ [field]: next });
+    toastChannelChange(
+      `${channelToastLabel(channel)} ${enabled ? "aktiviert" : "deaktiviert"}`,
+    );
   };
 
   const setAllChannelsForModules = (
@@ -186,6 +208,7 @@ export function NotificationPreferencesPanel() {
       pushEmailModules: pushEmail,
       pushWhatsappModules: pushWhatsapp,
     });
+    toastChannelChange(enabled ? "Alle Kanäle aktiviert" : "Alle Kanäle deaktiviert");
   };
 
   const handleModuleChannelChange = (
@@ -194,6 +217,10 @@ export function NotificationPreferencesPanel() {
     enabled: boolean,
   ) => {
     patchModuleToggle(fieldForChannel(channel), moduleId, enabled);
+    const moduleLabel = NOTIFICATION_MODULES[moduleId].label;
+    toastChannelChange(
+      `${moduleLabel}: ${channelToastLabel(channel)} ${enabled ? "aktiviert" : "deaktiviert"}`,
+    );
   };
 
   const handleSave = async () => {

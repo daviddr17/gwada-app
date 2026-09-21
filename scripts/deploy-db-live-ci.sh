@@ -172,6 +172,74 @@ echo "Tunnel-Login ok."
 export SUPABASE_DB_URL="postgresql://postgres:${ENC_PW}@127.0.0.1:${LIVE_TUNNEL_LOCAL_PORT}/postgres"
 export PGSSLMODE=disable
 
+# notification_events.relchecks ist auf Live 1, obwohl keine CHECK-Zeile da ist.
+# ADD CONSTRAINT läuft dann auf den Unique-Index. postgres darf pg_class nicht
+# schreiben; supabase_admin über den lokalen Socket schon. Keine Tabellendaten.
+echo "Prüfe Check-Katalog (keine Tabellendaten) …"
+gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${DB_CONTAINER}" <<'REMOTE'
+set -euo pipefail
+db="$1"
+psql_admin() {
+  docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 "$@"
+}
+psql_admin -c "
+select c.relname || ' relchecks=' || c.relchecks || ' checks=' || (
+  select count(*) from pg_constraint k where k.conrelid = c.oid and k.contype = 'c'
+)
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public'
+  and c.relname in (
+    'notification_events',
+    'restaurant_staff_display_clock_notification_dismissals'
+  )
+order by 1;
+"
+need="$(psql_admin -tAc "
+select exists (
+  select 1
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relname in (
+      'notification_events',
+      'restaurant_staff_display_clock_notification_dismissals'
+    )
+    and c.relchecks is distinct from (
+      select count(*)::int from pg_constraint k
+      where k.conrelid = c.oid and k.contype = 'c'
+    )
+);
+")"
+need="${need//$'\r'/}"
+need="${need//[[:space:]]/}"
+if [[ "${need}" != "t" ]]; then
+  echo "Check-Katalog passt."
+  exit 0
+fi
+echo "relchecks weicht ab — Constraint-Index neu aufbauen und Zähler angleichen."
+psql_admin -c "REINDEX INDEX pg_catalog.pg_constraint_conrelid_contypid_conname_index;"
+psql_admin -c "
+update pg_class c
+set relchecks = (
+  select count(*)::int from pg_constraint k
+  where k.conrelid = c.oid and k.contype = 'c'
+)
+from pg_namespace n
+where n.oid = c.relnamespace
+  and n.nspname = 'public'
+  and c.relname in (
+    'notification_events',
+    'restaurant_staff_display_clock_notification_dismissals'
+  )
+  and c.relchecks is distinct from (
+    select count(*)::int from pg_constraint k
+    where k.conrelid = c.oid and k.contype = 'c'
+  );
+"
+echo "Check-Katalog angeglichen."
+REMOTE
+
 SUPABASE_CMD="supabase"
 if ! command -v supabase >/dev/null 2>&1; then
   SUPABASE_CMD="npx supabase"

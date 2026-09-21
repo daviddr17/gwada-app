@@ -16,6 +16,7 @@ import { PlatformLexofficeFeatureCard } from "@/components/superadmin/platform-l
 import { PlatformTripadvisorFeatureCard } from "@/components/superadmin/platform-tripadvisor-feature-card";
 import { PlatformAppleBusinessConnectFeatureCard } from "@/components/superadmin/platform-apple-business-connect-feature-card";
 import { PlatformWeatherFeatureCard } from "@/components/superadmin/platform-weather-feature-card";
+import { PlatformOpenaiFeatureCard } from "@/components/superadmin/platform-openai-feature-card";
 import { PlatformWhatsappFeatureCard } from "@/components/superadmin/platform-whatsapp-feature-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -122,6 +123,7 @@ const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow>
     updated_at: "",
   },
   weather: { key: "weather", enabled: false, config: {}, updated_at: "" },
+  openai: { key: "openai", enabled: false, config: {}, updated_at: "" },
   fiskaly: { key: "fiskaly", enabled: false, config: { env: "TEST" }, updated_at: "" },
   stripe: { key: "stripe", enabled: false, config: { mode: "test" }, updated_at: "" },
   lexoffice: { key: "lexoffice", enabled: false, config: {}, updated_at: "" },
@@ -250,6 +252,10 @@ function SuperadminIntegrationsContent() {
             onSaved={() => void load()}
             connection={healthMap.weather}
             connectionChecking={healthLoading}
+          />
+          <PlatformOpenaiFeatureCard
+            row={byKey.get("openai") ?? EMPTY_PLATFORM_ROW.openai}
+            onSaved={() => void load()}
           />
           <PlatformWhatsappFeatureCard
             row={byKey.get("whatsapp") ?? EMPTY_PLATFORM_ROW.whatsapp}

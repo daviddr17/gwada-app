@@ -11,6 +11,7 @@ export const INTEGRATION_PANEL_ACCENT = {
   tripadvisor: "#34E0A1",
   apple_business_connect: "#1d1d1f",
   weather: "#0ea5e9",
+  openai: "#10a37f",
   fiskaly: "#64748b",
   stripe: "#635BFF",
 } as const;

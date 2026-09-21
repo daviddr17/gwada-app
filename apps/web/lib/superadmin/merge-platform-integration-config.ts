@@ -16,6 +16,10 @@ import {
   weatherConfigFromJson,
 } from "@/lib/integrations/platform-weather-config";
 import {
+  mergeOpenaiApiKey,
+  openaiConfigFromJson,
+} from "@/lib/integrations/platform-openai-config";
+import {
   mergeTripadvisorApiKey,
   tripadvisorConfigFromJson,
 } from "@/lib/integrations/platform-tripadvisor-config";
@@ -63,6 +67,18 @@ export function mergePlatformIntegrationConfig(
       typeof incoming.api_key === "string" ? incoming.api_key : undefined;
     merged.api_key = mergeWeatherApiKey(incKey, ex);
     delete merged.visual_crossing_api_key;
+    return merged;
+  }
+
+  if (key === "openai") {
+    const ex = openaiConfigFromJson(existing);
+    const incKey =
+      typeof incoming.api_key === "string" ? incoming.api_key : undefined;
+    merged.api_key = mergeOpenaiApiKey(incKey, ex);
+    if (typeof incoming.model === "string") {
+      const model = incoming.model.trim();
+      merged.model = model || ex.model;
+    }
     return merged;
   }
 

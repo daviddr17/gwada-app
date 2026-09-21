@@ -34,6 +34,7 @@ const INTEGRATION_ALERT_LABELS: Record<PlatformIntegrationKey, string> = {
   whatsapp: "WhatsApp",
   email: "E-Mail",
   weather: "Wetter",
+  openai: "Assistent (OpenAI)",
   fiskaly: "Fiskaly",
   stripe: "Stripe",
   lexoffice: "Lexoffice",

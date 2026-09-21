@@ -22,6 +22,7 @@ const KEYS = new Set<string>([
   "lexoffice",
   "tripadvisor",
   "apple_business_connect",
+  "openai",
 ]);
 
 function isKey(k: string): k is PlatformIntegrationKey {

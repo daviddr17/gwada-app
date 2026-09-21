@@ -17,7 +17,8 @@ export type PlatformIntegrationKey =
   | "stripe"
   | "lexoffice"
   | "tripadvisor"
-  | "apple_business_connect";
+  | "apple_business_connect"
+  | "openai";
 
 export type PlatformIntegrationConfig = {
   client_id?: string;
@@ -55,6 +56,7 @@ export const PLATFORM_INTEGRATION_KEYS: readonly PlatformIntegrationKey[] = [
   "lexoffice",
   "tripadvisor",
   "apple_business_connect",
+  "openai",
 ] as const;
 
 export function integrationConfigFromJson(

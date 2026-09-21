@@ -19,10 +19,13 @@ export function StaffDisplayShiftSegmentsList({
   segments,
   timeZone = DEFAULT_RESTAURANT_TIMEZONE,
   className,
+  onOpenSegment,
 }: {
   segments: RestaurantStaffWorkEntryRow[];
   timeZone?: string;
   className?: string;
+  /** Einzelsegment öffnen (z. B. Pause bearbeiten), statt die ganze Schicht. */
+  onOpenSegment?: (segment: RestaurantStaffWorkEntryRow) => void;
 }) {
   const timeDe = useMemo(
     () =>
@@ -37,14 +40,8 @@ export function StaffDisplayShiftSegmentsList({
     <ul className={cn("space-y-1.5", className)}>
       {segments.map((segment) => {
         const isBreak = segment.entry_type === "break";
-        return (
-          <li
-            key={segment.id}
-            className={cn(
-              "flex items-start gap-2",
-              isBreak && "ml-4",
-            )}
-          >
+        const body = (
+          <>
             <StaffWorkEntryTypeStripe
               type={segment.entry_type}
               className="mt-0.5 self-stretch"
@@ -64,6 +61,27 @@ export function StaffDisplayShiftSegmentsList({
                 )}
               </span>
             </span>
+          </>
+        );
+        return (
+          <li
+            key={segment.id}
+            className={cn("flex items-start gap-2", isBreak && "ml-4")}
+          >
+            {onOpenSegment ? (
+              <button
+                type="button"
+                className="flex w-full items-start gap-2 rounded-md text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenSegment(segment);
+                }}
+              >
+                {body}
+              </button>
+            ) : (
+              body
+            )}
           </li>
         );
       })}

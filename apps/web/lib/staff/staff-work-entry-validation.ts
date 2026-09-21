@@ -1,6 +1,9 @@
 import { localDayKey } from "@/lib/staff/shift-schedule-range";
 import { isShiftPlanAbsenceEntry } from "@/lib/staff/shift-plan-absence";
-import { staffWorkEntriesSameShiftCluster } from "@/lib/staff/staff-work-shift-cluster";
+import {
+  staffWorkEntriesSameShiftCluster,
+  staffWorkShiftClusterSegments,
+} from "@/lib/staff/staff-work-shift-cluster";
 import type {
   RestaurantStaffWorkEntryRow,
   StaffWorkEntryType,
@@ -70,6 +73,46 @@ function breakOverlapMessage(other: RestaurantStaffWorkEntryRow): string {
 
 function breaksOutsideWorkMessage(): string {
   return "Pause muss vollständig innerhalb einer Arbeitszeit liegen — nicht davor, danach oder ohne Arbeitszeit dazwischen.";
+}
+
+function breakOverlapsWorkMessage(other: RestaurantStaffWorkEntryRow): string {
+  return `Diese Pause überschneidet sich mit der Arbeitszeit (${formatRangeLabel(other.starts_at, other.ends_at)}).`;
+}
+
+/**
+ * Display-Pause liegt zwischen den Arbeits-Segmenten derselben Schicht,
+ * nicht in einem einzelnen Arbeitsblock. `null` = passt, `undefined` = keine solche Schicht.
+ */
+function sequentialShiftBreakIssue(
+  candidate: TimeRange,
+  isOpen: boolean | undefined,
+  anchor: RestaurantStaffWorkEntryRow,
+  siblings: readonly RestaurantStaffWorkEntryRow[],
+): string | null | undefined {
+  const works = staffWorkShiftClusterSegments(anchor, siblings).filter(
+    (entry) => entry.entry_type === "work",
+  );
+  if (works.length === 0) return undefined;
+
+  const shiftStart = Math.min(
+    ...works.map((entry) => new Date(entry.starts_at).getTime()),
+  );
+  if (candidate.startMs < shiftStart) return breaksOutsideWorkMessage();
+
+  for (const work of works) {
+    const workRange = toRange(work.starts_at, work.ends_at, work.is_open);
+    if (rangesOverlap(candidate, workRange)) return breakOverlapsWorkMessage(work);
+  }
+
+  if (isOpen) return null;
+
+  const shiftEnd = Math.max(
+    ...works.map((entry) =>
+      entry.is_open ? Date.now() : new Date(entry.ends_at).getTime(),
+    ),
+  );
+  if (candidate.endMs > shiftEnd) return breaksOutsideWorkMessage();
+  return null;
 }
 
 function orphanBreaksAfterWorkChangeMessage(
@@ -208,11 +251,25 @@ export function validateStaffWorkEntryTiming(params: {
     }
 
     const workRanges = collectWorkRanges(sameDay);
-    if (!isBreakContainedInAnyWork(candidate, workRanges)) {
-      return { ok: false, message: breaksOutsideWorkMessage() };
+    if (isBreakContainedInAnyWork(candidate, workRanges)) {
+      return { ok: true };
     }
 
-    return { ok: true };
+    const anchor = params.entryId
+      ? staffSiblings.find((entry) => entry.id === params.entryId)
+      : undefined;
+    if (anchor?.entry_type === "break") {
+      const issue = sequentialShiftBreakIssue(
+        candidate,
+        params.isOpen,
+        anchor,
+        staffSiblings,
+      );
+      if (issue === null) return { ok: true };
+      if (typeof issue === "string") return { ok: false, message: issue };
+    }
+
+    return { ok: false, message: breaksOutsideWorkMessage() };
   }
 
   return { ok: true };

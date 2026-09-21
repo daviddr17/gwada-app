@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  composeStaffActivityTimeline,
   mergeStaffActivityItems,
+  protocolActorMatchesStaff,
+  staffActivityFromPurchaseOrderLog,
+  staffActivityFromStockLog,
   staffActivityFromTimeRequest,
   staffActivityFromWorkEntry,
 } from "./staff-activity-timeline";
@@ -66,4 +70,61 @@ test("Aktivität sortiert neueste zuerst und kürzt", () => {
   );
   assert.equal(items.length, 1);
   assert.equal(items[0]?.id, "b");
+});
+
+test("Bestand nennt Zutat und Mengen", () => {
+  const item = staffActivityFromStockLog({
+    id: "s1",
+    ingredientName: "Tomaten",
+    entry: {
+      at: "2026-09-21T10:00:00.000Z",
+      kind: "manual_stock",
+      fromQuantity: 2,
+      toQuantity: 0.5,
+      unitLabel: "kg",
+      userFirstName: "Mia",
+      userLastName: "Klein",
+    },
+  });
+  assert.equal(item?.area, "Bestand");
+  assert.equal(item?.title, "Bestand geändert");
+  assert.match(item?.detail ?? "", /Tomaten/);
+  assert.match(item?.detail ?? "", /2 kg → 0,5 kg/);
+});
+
+test("Bestellung erkennt den Mitarbeiter am Protokollnamen", () => {
+  const entry = {
+    at: "2026-09-21T11:00:00.000Z",
+    kind: "add_to_order",
+    ingredientName: "Mehl",
+    quantity: 3,
+    unitLabel: "kg",
+    userFirstName: "Mia",
+    userLastName: "Klein",
+  };
+  assert.equal(protocolActorMatchesStaff(entry, "Mia", "Klein"), true);
+  assert.equal(protocolActorMatchesStaff(entry, "Max", "Klein"), false);
+  const item = staffActivityFromPurchaseOrderLog({ id: "p1", entry });
+  assert.equal(item?.area, "Bestellung");
+  assert.equal(item?.title, "Zur Bestellung");
+  assert.match(item?.detail ?? "", /Mehl/);
+});
+
+test("Dashboard-Aktionen bleiben neben vielen Display-Einträgen", () => {
+  const time = Array.from({ length: 30 }, (_, i) => ({
+    id: `work:${i}`,
+    at: `2026-09-21T${String(10 + (i % 10)).padStart(2, "0")}:00:00.000Z`,
+    area: "Arbeitszeit",
+    title: "Arbeitszeit",
+    detail: "am Display",
+  }));
+  const stock = {
+    id: "stock:1",
+    at: "2026-09-01T10:00:00.000Z",
+    area: "Bestand",
+    title: "Bestand geändert",
+    detail: "Tomaten",
+  };
+  const items = composeStaffActivityTimeline([...time, stock]);
+  assert.ok(items.some((item) => item.id === "stock:1"));
 });

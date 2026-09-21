@@ -6,11 +6,22 @@ import {
   titleFromUserMessage,
   touchAssistantThread,
   createAssistantThread,
+  type AssistantThreadRow,
 } from "@/lib/assistant/assistant-chat-db";
 import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboard-restaurant";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 
 export const dynamic = "force-dynamic";
+
+function isAssistantPersistenceUnavailable(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("assistant_chat_") ||
+    m.includes("schema cache") ||
+    m.includes("does not exist") ||
+    m.includes("pgrst205")
+  );
+}
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -32,14 +43,17 @@ export async function POST(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  try {
-    let threadId = body.threadId?.trim() || null;
-    let thread = threadId
-      ? await getAssistantThreadForUser(auth.sb, threadId, auth.userId)
-      : null;
+  let persist = true;
+  let thread: AssistantThreadRow | null = null;
+  let history: Array<{ role: "user" | "assistant"; content: string }> = [];
 
-    if (thread && thread.restaurant_id !== auth.restaurantId) {
-      return Response.json({ error: "not_found" }, { status: 404 });
+  try {
+    const threadId = body.threadId?.trim() || null;
+    if (threadId) {
+      thread = await getAssistantThreadForUser(auth.sb, threadId, auth.userId);
+      if (thread && thread.restaurant_id !== auth.restaurantId) {
+        return Response.json({ error: "not_found" }, { status: 404 });
+      }
     }
 
     if (!thread) {
@@ -49,11 +63,10 @@ export async function POST(req: Request) {
         auth.userId,
         titleFromUserMessage(message),
       );
-      threadId = thread.id;
     }
 
     const existing = await listAssistantMessages(auth.sb, thread.id);
-    const history = existing
+    history = existing
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({
         role: m.role as "user" | "assistant",
@@ -72,7 +85,19 @@ export async function POST(req: Request) {
       thread.id,
       isFirst ? titleFromUserMessage(message) : undefined,
     );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "persist_failed";
+    if (!isAssistantPersistenceUnavailable(msg)) {
+      console.warn("[assistant] chat persist", msg);
+      return Response.json({ error: msg }, { status: 500 });
+    }
+    console.warn("[assistant] chat ephemeral (no persist)", msg);
+    persist = false;
+    thread = null;
+    history = [];
+  }
 
+  try {
     const [{ data: restaurant }, timeZone] = await Promise.all([
       auth.sb
         .from("restaurants")
@@ -95,38 +120,59 @@ export async function POST(req: Request) {
     });
 
     if (!result.ok) {
-      const errText = result.error;
-      await insertAssistantMessage(auth.sb, {
-        threadId: thread.id,
-        role: "assistant",
-        content: errText,
-        metadata: { error: true, configured: result.configured },
-      });
+      if (persist && thread) {
+        try {
+          await insertAssistantMessage(auth.sb, {
+            threadId: thread.id,
+            role: "assistant",
+            content: result.error,
+            metadata: { error: true, configured: result.configured },
+          });
+        } catch {
+          /* ignore */
+        }
+      }
       return Response.json(
         {
-          threadId: thread.id,
-          reply: errText,
+          threadId: thread?.id ?? null,
+          reply: result.error,
           configured: result.configured,
           error: result.error,
+          ephemeral: !persist,
         },
         { status: result.status ?? 500 },
       );
     }
 
-    const assistantMsg = await insertAssistantMessage(auth.sb, {
-      threadId: thread.id,
-      role: "assistant",
-      content: result.reply,
-      metadata: { configured: result.configured, mode: result.mode },
-    });
-    await touchAssistantThread(auth.sb, thread.id);
+    if (persist && thread) {
+      try {
+        const assistantMsg = await insertAssistantMessage(auth.sb, {
+          threadId: thread.id,
+          role: "assistant",
+          content: result.reply,
+          metadata: { configured: result.configured, mode: result.mode },
+        });
+        await touchAssistantThread(auth.sb, thread.id);
+        return Response.json({
+          threadId: thread.id,
+          reply: result.reply,
+          message: assistantMsg,
+          configured: result.configured,
+          mode: result.mode,
+          ephemeral: false,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "persist_failed";
+        console.warn("[assistant] chat persist reply", msg);
+      }
+    }
 
     return Response.json({
-      threadId: thread.id,
+      threadId: thread?.id ?? null,
       reply: result.reply,
-      message: assistantMsg,
       configured: result.configured,
       mode: result.mode,
+      ephemeral: true,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "chat_failed";

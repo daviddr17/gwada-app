@@ -23,7 +23,9 @@ export async function GET(req: Request) {
     return Response.json({ threads });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "load_failed";
-    return Response.json({ error: msg }, { status: 500 });
+    // Historie optional — UI soll ohne rote Blockade öffnen.
+    console.warn("[assistant] threads list", msg);
+    return Response.json({ threads: [], warning: msg });
   }
 }
 

@@ -80,13 +80,16 @@ export function DashboardAssistantMount() {
         error?: string;
       };
       if (!res.ok) {
-        setBootError(json.error ?? "Chats konnten nicht geladen werden.");
+        // Historie optional — Fehler nicht als Blockade vor der ersten Frage zeigen.
+        console.warn("[assistant] threads", json.error ?? res.status);
+        setThreads([]);
         return;
       }
       setBootError(null);
       setThreads(json.threads ?? []);
-    } catch {
-      setBootError("Chats konnten nicht geladen werden.");
+    } catch (e) {
+      console.warn("[assistant] threads", e);
+      setThreads([]);
     }
   }, [restaurantId]);
 
@@ -126,6 +129,7 @@ export function DashboardAssistantMount() {
 
   useEffect(() => {
     if (!open || !restaurantId) return;
+    setBootError(null);
     void loadThreads();
   }, [open, restaurantId, loadThreads]);
 

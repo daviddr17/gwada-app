@@ -3,6 +3,11 @@ import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
+import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
+import {
+  STAFF_WORK_ENTRY_LABELS,
+  type StaffWorkEntryType,
+} from "@/lib/types/staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type SuperadminNotificationLogRow = {
@@ -258,9 +263,158 @@ export function formatNotificationPayloadSummary(
     return typeof p.title === "string" ? p.title : "Changelog";
   }
 
-  const raw = JSON.stringify(p);
-  if (!raw || raw === "{}") return "—";
-  return raw.length > 100 ? `${raw.slice(0, 100)}…` : raw;
+  return plainNotificationPayloadSummary(module, p) ?? "—";
+}
+
+function pickPayloadString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function plainMoneyLabel(raw: string | null): string | null {
+  if (!raw) return null;
+  const match = /^(-?\d+(?:[.,]\d+)?)\s+([A-Za-z]{3})$/.exec(raw);
+  if (!match) return raw;
+  const amount = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(amount)) return raw;
+  try {
+    return new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: match[2].toUpperCase(),
+    }).format(amount);
+  } catch {
+    return raw;
+  }
+}
+
+function clockRangeLabel(fromIso: string | null, toIso: string | null): string | null {
+  const from = fromIso ? restaurantIsoToYmdHm(fromIso).hm : null;
+  const to = toIso ? restaurantIsoToYmdHm(toIso).hm : null;
+  if (from && to) return `${from}–${to}`;
+  return from ?? to;
+}
+
+function joinParts(parts: Array<string | null | undefined>): string | null {
+  const kept = parts.filter((part): part is string => Boolean(part));
+  return kept.length > 0 ? kept.join(" · ") : null;
+}
+
+/** Klartext für Push-Verlauf und Superadmin-Log. Kein JSON. */
+function plainNotificationPayloadSummary(
+  module: string,
+  payload: Record<string, unknown>,
+): string | null {
+  if (module === "messages_follow_up") {
+    const name = pickPayloadString(payload.contactName) ?? "Nachricht";
+    const reason = pickPayloadString(payload.reason);
+    return reason ? `${name} · ${reason}` : name;
+  }
+
+  if (
+    module === "accounting_voucher" ||
+    module === "accounting_invoice" ||
+    module === "accounting_quotation"
+  ) {
+    const contactKey =
+      module === "accounting_voucher" ? "contactName" : "recipientLabel";
+    const number = pickPayloadString(payload.voucherNumber);
+    const amount = plainMoneyLabel(pickPayloadString(payload.amountLabel));
+    const contact = pickPayloadString(payload[contactKey]);
+    const title = pickPayloadString(payload.title);
+    const genericTitles = new Set(["Neues Angebot", "Neue Rechnung", "Beleg"]);
+    const genericContacts = new Set(["Beleg", "Empfänger"]);
+    return joinParts([
+      title && !genericTitles.has(title) ? title : null,
+      number ? `Nr. ${number}` : null,
+      amount,
+      contact && !genericContacts.has(contact) ? contact : null,
+    ]);
+  }
+
+  if (module === "staff_todo_completed" || module === "staff_todo_deferred") {
+    const title = pickPayloadString(payload.todoTitle) ?? "Aufgabe";
+    const details =
+      payload.details && typeof payload.details === "object"
+        ? (payload.details as Record<string, unknown>)
+        : null;
+    const reason =
+      pickPayloadString(details?.reason) ?? pickPayloadString(payload.reason);
+    return reason ? `${title} · ${reason}` : title;
+  }
+
+  if (module === "personal_reminder") {
+    const title = pickPayloadString(payload.title);
+    const body = pickPayloadString(payload.body);
+    if (title && body && title !== body) return `${title} · ${body}`;
+    return title ?? body;
+  }
+
+  if (module === "staff_messages") {
+    const peer = pickPayloadString(payload.peerName);
+    const preview = pickPayloadString(payload.preview);
+    if (peer && preview) return `${peer}: „${preview}“`;
+    if (preview) return `„${preview}“`;
+    return peer;
+  }
+
+  if (module === "staff_contract_signed") {
+    const title = pickPayloadString(payload.contractTitle) ?? "Arbeitsvertrag";
+    if (payload.pendingEmployeeSignature === true) {
+      return `${title} · bitte unterschreiben`;
+    }
+    if (payload.revised === true) return `${title} · überarbeitet`;
+    return title;
+  }
+
+  if (module === "staff_document_assigned") {
+    return pickPayloadString(payload.documentTitle) ?? "Neues Dokument";
+  }
+
+  if (module === "staff_display_time_request") {
+    const entry = pickPayloadString(payload.entryType);
+    const typeLabel =
+      entry && entry in STAFF_WORK_ENTRY_LABELS
+        ? STAFF_WORK_ENTRY_LABELS[entry as StaffWorkEntryType]
+        : "Zeit";
+    const range = clockRangeLabel(
+      pickPayloadString(payload.requestedStartsAt),
+      pickPayloadString(payload.requestedEndsAt),
+    );
+    return range ? `${typeLabel} · ${range}` : typeLabel;
+  }
+
+  if (
+    module === "staff_invite_accepted" ||
+    module === "staff_invite_declined"
+  ) {
+    const staff = pickPayloadString(payload.staffName) ?? "Mitarbeiter";
+    const position = pickPayloadString(payload.positionName);
+    return position ? `${staff} · ${position}` : staff;
+  }
+
+  if (module === "staff_permissions_granted") {
+    const position = pickPayloadString(payload.positionName);
+    const labels = Array.isArray(payload.permissionLabels)
+      ? payload.permissionLabels
+          .filter(
+            (label): label is string =>
+              typeof label === "string" && label.trim().length > 0,
+          )
+          .map((label) => label.trim())
+      : [];
+    const shown = labels.slice(0, 3).join(", ");
+    const extra = labels.length > 3 ? ` +${labels.length - 3}` : "";
+    const rights = shown ? `${shown}${extra}` : null;
+    return joinParts([position, rights]) ?? "Neue Berechtigungen";
+  }
+
+  if (
+    module === "staff_display_break_start" ||
+    module === "staff_display_break_end"
+  ) {
+    return pickPayloadString(payload.staffName) ?? "Mitarbeiter";
+  }
+
+  return null;
 }
 
 export function restaurantLabelForLogRow(row: SuperadminNotificationLogRow): string {

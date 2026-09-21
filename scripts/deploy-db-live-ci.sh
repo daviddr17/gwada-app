@@ -240,6 +240,28 @@ where n.oid = c.relnamespace
 echo "Check-Katalog angeglichen."
 REMOTE
 
+echo "Hängenden Eintrag in schema_migrations entfernen, falls die Checks noch fehlen …"
+gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
+  docker exec -i "${DB_CONTAINER}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+do $$
+declare
+  removed int;
+begin
+  if to_regclass('supabase_migrations.schema_migrations') is null then
+    raise notice 'supabase_migrations.schema_migrations fehlt';
+    return;
+  end if;
+  delete from supabase_migrations.schema_migrations
+  where version = '20260921121144'
+    and not exists (
+      select 1 from pg_constraint where conname = 'notification_events_module_chk'
+    );
+  get diagnostics removed = row_count;
+  raise notice 'stale migration history rows removed: %', removed;
+end
+$$;
+SQL
+
 SUPABASE_CMD="supabase"
 if ! command -v supabase >/dev/null 2>&1; then
   SUPABASE_CMD="npx supabase"

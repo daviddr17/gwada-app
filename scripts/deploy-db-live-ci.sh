@@ -240,24 +240,33 @@ where n.oid = c.relnamespace
 echo "Check-Katalog angeglichen."
 REMOTE
 
-echo "Probe: beliebiger Check auf notification_events (wird zurückgerollt) …"
+echo "Suche DDL-Hook und den unsichtbaren Constraint-Namen …"
 gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${DB_CONTAINER}" <<'REMOTE'
 set -euo pipefail
 db="$1"
 docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "
-select coalesce(conrelid::regclass::text, '?') || ' ' || conname || ' type=' || contype::text
+select 'event_trigger ' || evtname || ' ' || evtevent || ' ' || evtfoid::regproc::text
+from pg_event_trigger
+union all
+select 'extension ' || extname from pg_extension
+union all
+select 'proc ' || n.nspname || '.' || p.proname
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where p.prosrc ilike '%notification_events_module_check%'
+union all
+select 'namehit ' || conrelid::regclass::text || ' ' || conname || ' ' || contype::text
 from pg_constraint
-where conname = 'notification_events_module_check'
-   or conrelid = 'public.notification_events'::regclass
-order by 1;
+where conname::text like '%module_check%';
 "
-echo "probe begin/add/rollback:"
+echo "index pages with that name:"
 docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "
-begin;
-alter table public.notification_events add constraint gwada_probe_check check (true);
-rollback;
+create extension if not exists pageinspect;
+select blkno::text || ' off=' || itemoffset::text || ' ctid=' || ctid::text
+from generate_series(1, greatest(1, (pg_relation_size('pg_constraint_conrelid_contypid_conname_index'::regclass) / 8192)::int) - 1) as blkno
+cross join lateral bt_page_items('pg_constraint_conrelid_contypid_conname_index', blkno)
+where data::text like '%notification_events_module_check%';
 "
-echo "probe ok"
 exit 1
 REMOTE
 

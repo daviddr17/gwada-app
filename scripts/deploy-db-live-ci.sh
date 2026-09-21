@@ -245,7 +245,7 @@ gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${DB_CONTAINER}" <
 set -euo pipefail
 db="$1"
 docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "
-select coalesce(conrelid::regclass::text, '?') || ' ' || conname || ' type=' || contype
+select coalesce(conrelid::regclass::text, '?') || ' ' || conname || ' type=' || contype::text
 from pg_constraint
 where conname = 'notification_events_module_check'
    or conrelid = 'public.notification_events'::regclass

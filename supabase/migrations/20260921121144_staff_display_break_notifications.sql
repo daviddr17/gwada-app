@@ -1,105 +1,86 @@
 -- Display-Pause gestartet / beendet: Glocke + Push (Standard aus).
--- Idempotent: Live legt die Checks als supabase_admin an (die Rolle postgres
--- scheitert am Katalog-Unique-Index). Ein zweiter Lauf macht nichts.
+-- Der Name notification_events_module_check lässt sich auf Live nicht neu anlegen
+-- (Unique-Index belegt, Zeile aber nicht sichtbar). Deshalb module_chk.
 
-do $body$
+alter table public.notification_events
+  drop constraint if exists notification_events_module_check;
+
+alter table public.notification_events
+  drop constraint if exists notification_events_module_chk;
+
+alter table public.notification_events
+  add constraint notification_events_module_chk
+  check (
+    module in (
+      'messages',
+      'reviews',
+      'changelog',
+      'reservations_pending',
+      'reservations_change_request',
+      'reservations_cancellation',
+      'reservations_activity',
+      'events_inquiry',
+      'staff_shift_start',
+      'staff_shift_end',
+      'inventory_low_stock',
+      'inventory_po_delivery_due',
+      'inventory_po_ordered',
+      'inventory_po_closed',
+      'inventory_po_activity',
+      'inventory_stock_activity',
+      'messages_follow_up',
+      'accounting_quotation',
+      'accounting_invoice',
+      'accounting_voucher',
+      'staff_todo_completed',
+      'staff_todo_deferred',
+      'personal_reminder',
+      'staff_messages',
+      'staff_contract_signed',
+      'staff_document_assigned',
+      'staff_display_time_request',
+      'staff_invite_accepted',
+      'staff_invite_declined',
+      'staff_display_clock_in',
+      'staff_display_clock_out',
+      'staff_display_break_start',
+      'staff_display_break_end',
+      'staff_permissions_granted',
+      'digest_daily_preview',
+      'digest_daily_review',
+      'digest_weekly_preview',
+      'digest_weekly_review'
+    )
+  );
+
+do $$
+declare
+  cname text;
 begin
-  if exists (
-    select 1
-    from pg_constraint
-    where conrelid = 'public.notification_events'::regclass
-      and conname = 'notification_events_module_check'
-      and pg_get_constraintdef(oid) ilike '%staff_display_break_start%'
-      and pg_get_constraintdef(oid) ilike '%staff_display_break_end%'
-  ) then
-    raise notice 'notification_events_module_check already includes break modules';
-  else
-    execute 'alter table public.notification_events drop constraint if exists notification_events_module_check';
-    execute $add$
-      alter table public.notification_events
-        add constraint notification_events_module_check
-        check (
-          module in (
-            'messages',
-            'reviews',
-            'changelog',
-            'reservations_pending',
-            'reservations_change_request',
-            'reservations_cancellation',
-            'reservations_activity',
-            'events_inquiry',
-            'staff_shift_start',
-            'staff_shift_end',
-            'inventory_low_stock',
-            'inventory_po_delivery_due',
-            'inventory_po_ordered',
-            'inventory_po_closed',
-            'inventory_po_activity',
-            'inventory_stock_activity',
-            'messages_follow_up',
-            'accounting_quotation',
-            'accounting_invoice',
-            'accounting_voucher',
-            'staff_todo_completed',
-            'staff_todo_deferred',
-            'personal_reminder',
-            'staff_messages',
-            'staff_contract_signed',
-            'staff_document_assigned',
-            'staff_display_time_request',
-            'staff_invite_accepted',
-            'staff_invite_declined',
-            'staff_display_clock_in',
-            'staff_display_clock_out',
-            'staff_display_break_start',
-            'staff_display_break_end',
-            'staff_permissions_granted',
-            'digest_daily_preview',
-            'digest_daily_review',
-            'digest_weekly_preview',
-            'digest_weekly_review'
-          )
-        )
-    $add$;
+  select c.conname into cname
+  from pg_constraint c
+  where c.conrelid = 'public.restaurant_staff_display_clock_notification_dismissals'::regclass
+    and c.contype = 'c'
+    and c.conname is distinct from 'staff_display_clock_dismissals_module_check'
+    and pg_get_constraintdef(c.oid) ilike '%staff_display_clock_in%';
+  if cname is not null then
+    execute format(
+      'alter table public.restaurant_staff_display_clock_notification_dismissals drop constraint %I',
+      cname
+    );
   end if;
+end $$;
 
-  if exists (
-    select 1
-    from pg_constraint
-    where conrelid = 'public.restaurant_staff_display_clock_notification_dismissals'::regclass
-      and conname = 'staff_display_clock_dismissals_module_check'
-      and pg_get_constraintdef(oid) ilike '%staff_display_break_start%'
-      and pg_get_constraintdef(oid) ilike '%staff_display_break_end%'
-  ) then
-    raise notice 'staff_display_clock_dismissals_module_check already includes break modules';
-  else
-    declare
-      cname text;
-    begin
-      select c.conname into cname
-      from pg_constraint c
-      where c.conrelid = 'public.restaurant_staff_display_clock_notification_dismissals'::regclass
-        and c.contype = 'c'
-        and pg_get_constraintdef(c.oid) ilike '%staff_display_clock_in%';
-      if cname is not null then
-        execute format(
-          'alter table public.restaurant_staff_display_clock_notification_dismissals drop constraint %I',
-          cname
-        );
-      end if;
-    end;
-    execute $add$
-      alter table public.restaurant_staff_display_clock_notification_dismissals
-        add constraint staff_display_clock_dismissals_module_check
-        check (
-          module in (
-            'staff_display_clock_in',
-            'staff_display_clock_out',
-            'staff_display_break_start',
-            'staff_display_break_end'
-          )
-        )
-    $add$;
-  end if;
-end
-$body$;
+alter table public.restaurant_staff_display_clock_notification_dismissals
+  drop constraint if exists staff_display_clock_dismissals_module_check;
+
+alter table public.restaurant_staff_display_clock_notification_dismissals
+  add constraint staff_display_clock_dismissals_module_check
+  check (
+    module in (
+      'staff_display_clock_in',
+      'staff_display_clock_out',
+      'staff_display_break_start',
+      'staff_display_break_end'
+    )
+  );

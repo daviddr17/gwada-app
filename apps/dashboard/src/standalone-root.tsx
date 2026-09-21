@@ -54,6 +54,7 @@ export function DashboardStandaloneRoot() {
                             <ProfileLocaleSyncMount />
                             <ProfileUiDensitySyncMount />
                             <AppModuleLiveProviders />
+                            <DashboardAssistantMount />
                             <DashboardSPA />
                           </AppShellReadinessProvider>
                         </RestaurantSetupWizardProvider>

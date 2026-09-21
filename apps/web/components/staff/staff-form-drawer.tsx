@@ -63,6 +63,7 @@ import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboar
 import { hasModuleDelete, hasModuleRead } from "@/lib/permissions/module-crud-permissions";
 import { StaffTodoProfileSection } from "@/components/staff/todos/staff-todo-profile-section";
 import { StaffDocumentsProfileSection } from "@/components/staff/staff-documents-profile-section";
+import { StaffActivitySection } from "@/components/staff/staff-activity-section";
 import { useWorkspaceActiveRole } from "@/lib/hooks/use-workspace-active-role";
 import {
   isRestaurantOwnerRole,
@@ -1446,6 +1447,14 @@ export function StaffFormDrawer({
                     </ul>
                   )}
                 </FormSection>
+              ) : null}
+
+              {mode === "edit" && staff ? (
+                <StaffActivitySection
+                  restaurantId={restaurantId}
+                  staffId={staff.id}
+                  profileId={staff.profile_id}
+                />
               ) : null}
             </div>
           </div>

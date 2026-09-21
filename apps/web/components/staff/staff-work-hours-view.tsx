@@ -648,8 +648,7 @@ export function StaffWorkHoursView({
             )}
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-2.5">
-              {/* Bis lg volle Breite → „Heute“ wrappt; schmale Sidebar-Layouts überdecken sonst den Jahres-Pfeil. */}
-              <div className="flex w-full min-w-0 items-center gap-0.5 sm:gap-1 lg:w-auto lg:shrink-0">
+              <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
                 <Button
                   type="button"
                   variant="ghost"

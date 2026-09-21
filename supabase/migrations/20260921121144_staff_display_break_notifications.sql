@@ -6,40 +6,90 @@
 
 do $$
 declare
-  coid oid;
+  r record;
 begin
-  select oid into coid
-  from pg_constraint
-  where conrelid = 'public.notification_events'::regclass
-    and conname = 'notification_events_module_check';
+  raise notice 'pg % notification_events oid=% kind=% relchecks=%',
+    current_setting('server_version'),
+    'public.notification_events'::oid,
+    (select relkind from pg_class where oid = 'public.notification_events'::regclass),
+    (select relchecks from pg_class where oid = 'public.notification_events'::regclass);
 
-  if coid is null then
-    raise notice 'notification_events_module_check absent before replace';
-  else
-    raise notice 'notification_events_module_check oid=% bin_null=% relchecks=%',
-      coid,
-      (select conbin is null from pg_constraint where oid = coid),
-      (select relchecks from pg_class where oid = 'public.notification_events'::regclass);
+  for r in
+    select c.oid as relid, n.nspname, c.relname, c.relkind,
+           k.oid as coid, k.conname, k.contype, k.conbin is null as bin_null
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    left join pg_constraint k on k.conrelid = c.oid
+    where c.oid = 'public.notification_events'::regclass
+       or c.oid in (
+         select inhrelid from pg_inherits
+         where inhparent = 'public.notification_events'::regclass
+       )
+       or k.conname = 'notification_events_module_check'
+  loop
+    raise notice 'rel %.% oid=% kind=% con=% type=% coid=% bin_null=%',
+      r.nspname, r.relname, r.relid, r.relkind, r.conname, r.contype, r.coid, r.bin_null;
+  end loop;
+
+  for r in
+    select n.nspname, c.relname, c.oid as relid, k.oid as coid, k.conname
+    from pg_constraint k
+    join pg_class c on c.oid = k.conrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where k.conname = 'notification_events_module_check'
+  loop
     begin
-      alter table public.notification_events
-        drop constraint notification_events_module_check;
+      execute format('alter table %I.%I drop constraint %I', r.nspname, r.relname, r.conname);
+      raise notice 'dropped %.%', r.nspname, r.relname;
     exception
       when undefined_object then
-        raise notice 'drop did not see notification_events_module_check; removing catalog row %', coid;
+        raise notice 'catalog-delete %.% constraint %', r.nspname, r.relname, r.coid;
         delete from pg_depend
-        where (classid = 'pg_constraint'::regclass and objid = coid)
-           or (refclassid = 'pg_constraint'::regclass and refobjid = coid);
-        delete from pg_constraint where oid = coid;
+        where (classid = 'pg_constraint'::regclass and objid = r.coid)
+           or (refclassid = 'pg_constraint'::regclass and refobjid = r.coid);
+        delete from pg_constraint where oid = r.coid;
         update pg_class
         set relchecks = (
           select count(*)::integer
-          from pg_constraint
-          where conrelid = pg_class.oid
-            and contype = 'c'
+          from pg_constraint k2
+          where k2.conrelid = pg_class.oid
+            and k2.contype = 'c'
+            and k2.conbin is not null
         )
-        where oid = 'public.notification_events'::regclass;
+        where oid = r.relid;
     end;
-  end if;
+  end loop;
+
+  -- relchecks kann höher sein als die ladbaren CHECK-Zeilen (Warnung
+  -- "pg_constraint record(s) missing"). Nur angleichen, wenn es keine
+  -- PG18-NOT-NULL-Katalogzeilen gibt.
+  update pg_class c
+  set relchecks = (
+    select count(*)::integer
+    from pg_constraint k
+    where k.conrelid = c.oid
+      and k.contype = 'c'
+      and k.conbin is not null
+  )
+  where (
+    c.oid = 'public.notification_events'::regclass
+    or c.oid in (
+      select inhrelid from pg_inherits
+      where inhparent = 'public.notification_events'::regclass
+    )
+  )
+  and not exists (
+    select 1 from pg_constraint k
+    where k.conrelid = c.oid
+      and k.contype = 'n'
+  )
+  and c.relchecks is distinct from (
+    select count(*)::integer
+    from pg_constraint k
+    where k.conrelid = c.oid
+      and k.contype = 'c'
+      and k.conbin is not null
+  );
 end $$;
 
 alter table public.notification_events

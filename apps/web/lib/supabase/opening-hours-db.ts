@@ -205,13 +205,97 @@ export async function replaceOpeningHoursForRestaurant(
     return sessionOk;
   }
 
-  // Atomar über RPC: DELETE + INSERT in einer Transaktion.
-  // Client-Insert vor Delete kollidiert mit Unique-Indexes, sobald schon Zeilen
-  // existieren. Bei Fehler in der Function bleibt der alte Plan erhalten.
+  const rows = buildOpeningHoursReplaceRows(restaurantId, profile);
+
+  // Bevorzugt atomare RPC (DELETE+INSERT in einer Transaktion). Fallback ohne
+  // Function: alte Zeilen laden, löschen, neu einfügen; bei Insert-Fehler den
+  // vorherigen Stand zurückschreiben — Unique-Indexes erlauben kein Insert-first.
+  const { error: rpcErr } = await supabase.rpc("replace_opening_hours", {
+    p_restaurant_id: restaurantId,
+    p_rows: rows,
+  });
+  if (!rpcErr) {
+    return { ok: true };
+  }
+  if (!isMissingReplaceOpeningHoursRpc(rpcErr.message)) {
+    console.warn("[gwada] replace_opening_hours", rpcErr.message);
+    return { ok: false, error: rpcErr.message };
+  }
+
+  const { data: existingRows, error: loadErr } = await supabase
+    .from("opening_hours")
+    .select(
+      "id,restaurant_id,kind,weekday,exception_date,closed,opens_at,closes_at,note,schedule_role",
+    )
+    .eq("restaurant_id", restaurantId);
+  if (loadErr) {
+    console.warn("[gwada] opening_hours load", loadErr.message);
+    return { ok: false, error: loadErr.message };
+  }
+  const previous = (existingRows ?? []) as OpeningHoursRow[];
+
+  const { error: delErr } = await supabase
+    .from("opening_hours")
+    .delete()
+    .eq("restaurant_id", restaurantId);
+  if (delErr) {
+    console.warn("[gwada] opening_hours delete", delErr.message);
+    return { ok: false, error: delErr.message };
+  }
+
+  if (rows.length > 0) {
+    const { error: insErr } = await supabase.from("opening_hours").insert(rows);
+    if (insErr) {
+      console.warn("[gwada] opening_hours insert", insErr.message);
+      if (previous.length > 0) {
+        const restore = previous.map(
+          ({
+            restaurant_id,
+            kind,
+            weekday,
+            exception_date,
+            closed,
+            opens_at,
+            closes_at,
+            note,
+            schedule_role,
+          }) => ({
+            restaurant_id,
+            kind,
+            weekday,
+            exception_date,
+            closed,
+            opens_at,
+            closes_at,
+            note,
+            schedule_role: schedule_role ?? "business",
+          }),
+        );
+        const { error: restoreErr } = await supabase
+          .from("opening_hours")
+          .insert(restore);
+        if (restoreErr) {
+          console.warn("[gwada] opening_hours restore", restoreErr.message);
+        }
+      }
+      return { ok: false, error: insErr.message };
+    }
+  }
+  return { ok: true };
+}
+
+function buildOpeningHoursReplaceRows(
+  restaurantId: string,
+  profile: Pick<
+    RestaurantProfile,
+    | "weeklyHours"
+    | "dateExceptions"
+    | "kitchenHoursEnabled"
+    | "kitchenWeeklyHours"
+  >,
+): Record<string, unknown>[] {
   const rows: Record<string, unknown>[] = [];
-
   pushWeeklyInserts(rows, restaurantId, "business", profile.weeklyHours);
-
   if (profile.kitchenHoursEnabled) {
     pushWeeklyInserts(
       rows,
@@ -220,7 +304,6 @@ export async function replaceOpeningHoursForRestaurant(
       profile.kitchenWeeklyHours,
     );
   }
-
   for (const ex of profile.dateExceptions) {
     if (ex.closed) {
       rows.push({
@@ -251,14 +334,17 @@ export async function replaceOpeningHoursForRestaurant(
       });
     }
   }
+  return rows;
+}
 
-  const { error: rpcErr } = await supabase.rpc("replace_opening_hours", {
-    p_restaurant_id: restaurantId,
-    p_rows: rows,
-  });
-  if (rpcErr) {
-    console.warn("[gwada] replace_opening_hours", rpcErr.message);
-    return { ok: false, error: rpcErr.message };
-  }
-  return { ok: true };
+function isMissingReplaceOpeningHoursRpc(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("replace_opening_hours") &&
+    (m.includes("does not exist") ||
+      m.includes("could not find") ||
+      m.includes("schema cache") ||
+      m.includes("pgrst202") ||
+      m.includes("42883"))
+  );
 }

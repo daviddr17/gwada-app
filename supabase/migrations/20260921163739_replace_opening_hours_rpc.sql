@@ -69,4 +69,4 @@ grant execute on function public.replace_opening_hours(uuid, jsonb)
   to anon, authenticated, service_role;
 
 comment on function public.replace_opening_hours(uuid, jsonb) is
-  'Ersetzt alle opening_hours eines Restaurants atomar (DELETE dann INSERT). Staff oder service_role.';
+  'Ersetzt alle opening_hours eines Restaurants atomar (DELETE dann INSERT). Staff oder service_role. Client fällt ohne Function auf Delete+Insert mit Restore zurück.';

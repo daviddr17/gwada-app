@@ -240,43 +240,15 @@ where n.oid = c.relnamespace
 echo "Check-Katalog angeglichen."
 REMOTE
 
-echo "Vergleiche kurzen Check unter altem Namen mit langem Check unter neuem Namen …"
-gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${DB_CONTAINER}" <<'REMOTE'
-set +e
-db="$1"
-echo "short + old name:"
-docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "
-begin;
-alter table public.notification_events
-  add constraint notification_events_module_check
-  check (module in ('messages'));
-rollback;
-"
-echo "short_old_exit=$?"
-echo "long + new name:"
-docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "
-begin;
-alter table public.notification_events
-  add constraint gwada_probe_module_check
-  check (
-    module in (
-      'messages','reviews','changelog','reservations_pending','reservations_change_request',
-      'reservations_cancellation','reservations_activity','events_inquiry','staff_shift_start',
-      'staff_shift_end','inventory_low_stock','inventory_po_delivery_due','inventory_po_ordered',
-      'inventory_po_closed','inventory_po_activity','inventory_stock_activity','messages_follow_up',
-      'accounting_quotation','accounting_invoice','accounting_voucher','staff_todo_completed',
-      'staff_todo_deferred','personal_reminder','staff_messages','staff_contract_signed',
-      'staff_document_assigned','staff_display_time_request','staff_invite_accepted',
-      'staff_invite_declined','staff_display_clock_in','staff_display_clock_out',
-      'staff_display_break_start','staff_display_break_end','staff_permissions_granted',
-      'digest_daily_preview','digest_daily_review','digest_weekly_preview','digest_weekly_review'
-    )
-  );
-rollback;
-"
-echo "long_new_exit=$?"
-exit 1
-REMOTE
+echo "Katalog von pg_constraint neu schreiben (keine Tabellendaten) …"
+gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
+  docker exec "${DB_CONTAINER}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c \
+  "VACUUM FULL pg_constraint;"
+
+echo "Break-Notification-Checks als supabase_admin anwenden …"
+gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
+  docker exec -i "${DB_CONTAINER}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 \
+  < "${ROOT}/supabase/migrations/20260921121144_staff_display_break_notifications.sql"
 
 SUPABASE_CMD="supabase"
 if ! command -v supabase >/dev/null 2>&1; then

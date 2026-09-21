@@ -12,6 +12,7 @@ import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status"
 import { formatNotificationPayloadSummary } from "@/lib/superadmin/superadmin-notification-log";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
+import { STAFF_WORK_ENTRY_LABELS, type StaffWorkEntryType } from "@/lib/types/staff";
 
 function pickNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -354,6 +355,42 @@ function reservationActivityTitle(
   }
 }
 
+function plainMoneyLabel(raw: string | null): string | null {
+  if (!raw) return null;
+  const match = /^(-?\d+(?:[.,]\d+)?)\s+([A-Za-z]{3})$/.exec(raw);
+  if (!match) return raw;
+  const amount = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(amount)) return raw;
+  try {
+    return new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: match[2].toUpperCase(),
+    }).format(amount);
+  } catch {
+    return raw;
+  }
+}
+
+/** Beleg, Rechnung, Angebot — ohne IDs, für den Heute-Feed. */
+function accountingDocumentDescription(
+  payload: Record<string, unknown>,
+  contactKey: "contactName" | "recipientLabel",
+): string | null {
+  const number = pickString(payload.voucherNumber);
+  const amount = plainMoneyLabel(pickString(payload.amountLabel));
+  const contact = pickString(payload[contactKey]);
+  const title = pickString(payload.title);
+  const genericTitles = new Set(["Neues Angebot", "Neue Rechnung", "Beleg"]);
+  const genericContacts = new Set(["Beleg", "Empfänger"]);
+  const parts = [
+    title && !genericTitles.has(title) ? title : null,
+    number ? `Nr. ${number}` : null,
+    amount,
+    contact && !genericContacts.has(contact) ? contact : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 function reservationActivityDescription(
   payload: Record<string, unknown>,
 ): string | null {
@@ -363,6 +400,238 @@ function reservationActivityDescription(
   if (guest && summary) return `${guest} · ${summary}`;
   if (summary) return summary;
   return guest;
+}
+
+function shortWhen(iso: string | null): string | null {
+  if (!iso) return null;
+  const { ymd, hm } = restaurantIsoToYmdHm(iso);
+  const [, month, day] = ymd.split("-");
+  if (!day || !month) return hm;
+  return `${day}.${month}. · ${hm}`;
+}
+
+function clockRange(fromIso: string | null, toIso: string | null): string | null {
+  const from = fromIso ? restaurantIsoToYmdHm(fromIso).hm : null;
+  const to = toIso ? restaurantIsoToYmdHm(toIso).hm : null;
+  if (from && to) return `${from}–${to}`;
+  return from ?? to;
+}
+
+function amountQty(value: unknown, unit: string | null): string | null {
+  const qty = pickNumber(value);
+  if (qty == null) return null;
+  const q = Number.isInteger(qty) ? String(qty) : String(qty).replace(".", ",");
+  return unit ? `${q} ${unit}` : q;
+}
+
+function channelLabel(platform: string | null): string | null {
+  if (!platform) return null;
+  const labels: Record<string, string> = {
+    gwada: "Gwada",
+    google: "Google",
+    facebook: "Facebook",
+    whatsapp: "WhatsApp",
+    email: "E-Mail",
+    instagram: "Instagram",
+  };
+  return labels[platform.toLowerCase()] ?? null;
+}
+
+function reservationFeedDescription(payload: Record<string, unknown>): string | null {
+  const company = pickString(payload.guestCompany);
+  const guest = pickString(payload.guestLabel) ?? "Gast";
+  const party = pickNumber(payload.partySize);
+  const when = shortWhen(pickString(payload.startsAt));
+  const parts = [
+    company,
+    guest,
+    party == null ? null : party === 1 ? "1 Person" : `${party} Personen`,
+    when,
+  ].filter((part): part is string => Boolean(part));
+  return parts.join(" · ");
+}
+
+function messageFeedDescription(payload: Record<string, unknown>): string | null {
+  const preview = pickString(payload.preview);
+  const channel = channelLabel(pickString(payload.platform));
+  if (preview) {
+    const quote = `„${preview}“`;
+    return channel ? `${channel} — ${quote}` : quote;
+  }
+  return (
+    pickString(payload.senderEmail) ??
+    pickString(payload.senderPhone) ??
+    channel
+  );
+}
+
+function reviewFeedDescription(payload: Record<string, unknown>): string | null {
+  const author = pickString(payload.authorName);
+  const rating =
+    typeof payload.rating === "number" && payload.rating > 0
+      ? `${Math.round(payload.rating)} Sterne`
+      : null;
+  const platform = channelLabel(pickString(payload.platform));
+  const comment = pickString(payload.commentPreview);
+  const head = [author, rating, platform].filter(Boolean).join(" · ");
+  if (comment && head) return `${head} — „${comment}“`;
+  if (comment) return `„${comment}“`;
+  return head || null;
+}
+
+function lowStockFeedDescription(payload: Record<string, unknown>): string | null {
+  const name = pickString(payload.ingredientName) ?? "Zutat";
+  const left = amountQty(payload.currentStock, pickString(payload.unit));
+  return left ? `${name} · noch ${left}` : name;
+}
+
+function deliveryDueFeedDescription(payload: Record<string, unknown>): string | null {
+  const supplier = pickString(payload.supplierName) ?? "Lieferant";
+  const kind = pickString(payload.kind);
+  const date = pickString(payload.deliveryDate);
+  const when =
+    kind === "today"
+      ? "heute"
+      : kind === "overdue"
+        ? "überfällig"
+        : date && /^\d{4}-\d{2}-\d{2}$/.test(date)
+          ? `${date.slice(8, 10)}.${date.slice(5, 7)}.`
+          : null;
+  return when ? `${supplier} · ${when}` : supplier;
+}
+
+function shiftFeedDescription(payload: Record<string, unknown>): string | null {
+  const label = pickString(payload.label);
+  const range = clockRange(pickString(payload.startsAt), pickString(payload.endsAt));
+  const parts = [label, range].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function todoFeedDescription(payload: Record<string, unknown>): string | null {
+  const title = pickString(payload.todoTitle) ?? "Aufgabe";
+  const details =
+    payload.details && typeof payload.details === "object"
+      ? (payload.details as Record<string, unknown>)
+      : null;
+  const reason = pickString(details?.reason) ?? pickString(payload.reason);
+  return reason ? `${title} · ${reason}` : title;
+}
+
+function contractFeedDescription(payload: Record<string, unknown>): string | null {
+  const title = pickString(payload.contractTitle) ?? "Arbeitsvertrag";
+  if (payload.pendingEmployeeSignature === true) {
+    return `${title} · bitte unterschreiben`;
+  }
+  if (payload.revised === true) return `${title} · überarbeitet`;
+  return title;
+}
+
+function timeRequestFeedDescription(payload: Record<string, unknown>): string | null {
+  const entry = pickString(payload.entryType);
+  const typeLabel =
+    entry && entry in STAFF_WORK_ENTRY_LABELS
+      ? STAFF_WORK_ENTRY_LABELS[entry as StaffWorkEntryType]
+      : "Zeit";
+  const range = clockRange(
+    pickString(payload.requestedStartsAt),
+    pickString(payload.requestedEndsAt),
+  );
+  return range ? `${typeLabel} · ${range}` : typeLabel;
+}
+
+function inviteFeedDescription(payload: Record<string, unknown>): string | null {
+  const staff = pickString(payload.staffName) ?? "Mitarbeiter";
+  const position = pickString(payload.positionName);
+  return position ? `${staff} · ${position}` : staff;
+}
+
+function permissionsFeedDescription(payload: Record<string, unknown>): string | null {
+  const position = pickString(payload.positionName);
+  const labels = Array.isArray(payload.permissionLabels)
+    ? payload.permissionLabels
+        .filter((label): label is string => typeof label === "string" && label.trim().length > 0)
+        .map((label) => label.trim())
+    : [];
+  const shown = labels.slice(0, 3).join(", ");
+  const extra = labels.length > 3 ? ` +${labels.length - 3}` : "";
+  const rights = shown ? `${shown}${extra}` : null;
+  const parts = [position, rights].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : "Neue Berechtigungen";
+}
+
+function reminderFeedDescription(payload: Record<string, unknown>): string | null {
+  const title = pickString(payload.title);
+  const body = pickString(payload.body);
+  if (title && body && title !== body) return `${title} · ${body}`;
+  return title ?? body;
+}
+
+function staffMessageFeedDescription(payload: Record<string, unknown>): string | null {
+  const peer = pickString(payload.peerName);
+  const preview = pickString(payload.preview);
+  if (peer && preview) return `${peer}: „${preview}“`;
+  if (preview) return `„${preview}“`;
+  return peer;
+}
+
+/** Klartext für den Heute-Feed. `undefined` = allgemeiner Fallback. */
+function feedDescriptionForModule(
+  module: string,
+  payload: Record<string, unknown>,
+): string | null | undefined {
+  switch (module) {
+    case "inventory_po_activity":
+      return poActivityDescription(payload);
+    case "inventory_stock_activity":
+      return stockActivityDescription(payload);
+    case "reservations_activity":
+      return reservationActivityDescription(payload);
+    case "accounting_voucher":
+      return accountingDocumentDescription(payload, "contactName");
+    case "accounting_invoice":
+    case "accounting_quotation":
+      return accountingDocumentDescription(payload, "recipientLabel");
+    case "staff_display_clock_in":
+      return "Hat sich am Display angemeldet";
+    case "staff_display_clock_out":
+      return "Hat sich am Display abgemeldet";
+    case "staff_shift_start":
+    case "staff_shift_end":
+      return shiftFeedDescription(payload);
+    case "reservations_pending":
+    case "reservations_change_request":
+    case "reservations_cancellation":
+    case "events_inquiry":
+      return reservationFeedDescription(payload);
+    case "messages":
+      return messageFeedDescription(payload);
+    case "reviews":
+      return reviewFeedDescription(payload);
+    case "inventory_low_stock":
+      return lowStockFeedDescription(payload);
+    case "inventory_po_delivery_due":
+      return deliveryDueFeedDescription(payload);
+    case "staff_todo_completed":
+    case "staff_todo_deferred":
+      return todoFeedDescription(payload);
+    case "staff_contract_signed":
+      return contractFeedDescription(payload);
+    case "staff_document_assigned":
+      return pickString(payload.documentTitle) ?? "Neues Dokument";
+    case "staff_display_time_request":
+      return timeRequestFeedDescription(payload);
+    case "staff_invite_accepted":
+    case "staff_invite_declined":
+      return inviteFeedDescription(payload);
+    case "staff_permissions_granted":
+      return permissionsFeedDescription(payload);
+    case "personal_reminder":
+      return reminderFeedDescription(payload);
+    case "staff_messages":
+      return staffMessageFeedDescription(payload);
+    default:
+      return undefined;
+  }
 }
 
 /** Human-readable Titel für den Live-Feed (nicht Settings-Labels der Glocke). */
@@ -379,9 +648,9 @@ function feedTitleForModule(
     case "reservations_activity":
       return reservationActivityTitle(payload ?? {}, guest);
     case "staff_display_clock_in":
-      return guest ? `${guest} · Login` : "Mitarbeiter Login";
+      return guest ? `${guest} · angemeldet` : "Am Display angemeldet";
     case "staff_display_clock_out":
-      return guest ? `${guest} · Logout` : "Mitarbeiter Logout";
+      return guest ? `${guest} · abgemeldet` : "Am Display abgemeldet";
     case "staff_shift_start":
       return guest ? `${guest} · Schichtstart` : "Schichtstart";
     case "staff_shift_end":
@@ -430,18 +699,18 @@ export function liveActivityFromNotificationEvent(params: {
   );
   const title = feedTitleForModule(params.module, guest, params.payload);
 
+  const moduleDescription = feedDescriptionForModule(
+    params.module,
+    params.payload,
+  );
+
   let description: string | null =
-    (params.module === "inventory_po_activity"
-      ? poActivityDescription(params.payload)
-      : params.module === "inventory_stock_activity"
-        ? stockActivityDescription(params.payload)
-        : params.module === "reservations_activity"
-          ? reservationActivityDescription(params.payload)
-          : null) ??
-    (summary.trim() ||
-      pickString(params.payload.title) ||
-      pickString(params.payload.body) ||
-      null);
+    moduleDescription !== undefined
+      ? moduleDescription
+      : summary.trim() ||
+        pickString(params.payload.title) ||
+        pickString(params.payload.body) ||
+        null;
 
   // Bei Login/Logout ist der Name schon im Titel — Summary nur wenn anders.
   if (

@@ -354,6 +354,42 @@ function reservationActivityTitle(
   }
 }
 
+function plainMoneyLabel(raw: string | null): string | null {
+  if (!raw) return null;
+  const match = /^(-?\d+(?:[.,]\d+)?)\s+([A-Za-z]{3})$/.exec(raw);
+  if (!match) return raw;
+  const amount = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(amount)) return raw;
+  try {
+    return new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: match[2].toUpperCase(),
+    }).format(amount);
+  } catch {
+    return raw;
+  }
+}
+
+/** Beleg, Rechnung, Angebot — ohne IDs, für den Heute-Feed. */
+function accountingDocumentDescription(
+  payload: Record<string, unknown>,
+  contactKey: "contactName" | "recipientLabel",
+): string | null {
+  const number = pickString(payload.voucherNumber);
+  const amount = plainMoneyLabel(pickString(payload.amountLabel));
+  const contact = pickString(payload[contactKey]);
+  const title = pickString(payload.title);
+  const genericTitles = new Set(["Neues Angebot", "Neue Rechnung", "Beleg"]);
+  const genericContacts = new Set(["Beleg", "Empfänger"]);
+  const parts = [
+    title && !genericTitles.has(title) ? title : null,
+    number ? `Nr. ${number}` : null,
+    amount,
+    contact && !genericContacts.has(contact) ? contact : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 function reservationActivityDescription(
   payload: Record<string, unknown>,
 ): string | null {
@@ -430,18 +466,27 @@ export function liveActivityFromNotificationEvent(params: {
   );
   const title = feedTitleForModule(params.module, guest, params.payload);
 
-  let description: string | null =
-    (params.module === "inventory_po_activity"
+  const moduleDescription =
+    params.module === "inventory_po_activity"
       ? poActivityDescription(params.payload)
       : params.module === "inventory_stock_activity"
         ? stockActivityDescription(params.payload)
         : params.module === "reservations_activity"
           ? reservationActivityDescription(params.payload)
-          : null) ??
-    (summary.trim() ||
-      pickString(params.payload.title) ||
-      pickString(params.payload.body) ||
-      null);
+          : params.module === "accounting_voucher"
+            ? accountingDocumentDescription(params.payload, "contactName")
+            : params.module === "accounting_invoice" ||
+                params.module === "accounting_quotation"
+              ? accountingDocumentDescription(params.payload, "recipientLabel")
+              : undefined;
+
+  let description: string | null =
+    moduleDescription !== undefined
+      ? moduleDescription
+      : summary.trim() ||
+        pickString(params.payload.title) ||
+        pickString(params.payload.body) ||
+        null;
 
   // Bei Login/Logout ist der Name schon im Titel — Summary nur wenn anders.
   if (

@@ -22,10 +22,16 @@ export function StaffDisplayShiftRow({
   segments,
   timeZone = DEFAULT_RESTAURANT_TIMEZONE,
   className,
+  onOpenShift,
+  onOpenSegment,
 }: {
   segments: RestaurantStaffWorkEntryRow[];
   timeZone?: string;
   className?: string;
+  /** Kopf der Schicht (Gesamtzeit) öffnen. */
+  onOpenShift?: () => void;
+  /** Einzelnes Segment öffnen — Pause getrennt von der Arbeitszeit. */
+  onOpenSegment?: (segment: RestaurantStaffWorkEntryRow) => void;
 }) {
   const timeDe = useMemo(
     () =>
@@ -49,13 +55,8 @@ export function StaffDisplayShiftRow({
   // Pause-only Karte: Anwesenheit = Pause, kein „Netto 0,00“.
   const headerHours = hasWork ? presenceHours : breakHours;
 
-  return (
-    <div
-      className={cn(
-        "min-w-0 flex-1 rounded-lg border border-border/40 bg-muted/15 px-2.5 py-2 text-sm transition-colors group-hover:bg-muted/25",
-        className,
-      )}
-    >
+  const header = (
+    <>
       <p className="font-medium">
         {title}
         {bounds.isOpen ? (
@@ -74,10 +75,32 @@ export function StaffDisplayShiftRow({
           Pause {formatHoursDe(breakHours)} · Netto {formatHoursDe(netWorkHours)}
         </p>
       ) : null}
+    </>
+  );
+
+  return (
+    <div
+      className={cn(
+        "min-w-0 flex-1 rounded-lg border border-border/40 bg-muted/15 px-2.5 py-2 text-sm transition-colors group-hover:bg-muted/25",
+        className,
+      )}
+    >
+      {onOpenShift ? (
+        <button
+          type="button"
+          className="w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45"
+          onClick={onOpenShift}
+        >
+          {header}
+        </button>
+      ) : (
+        header
+      )}
       <StaffDisplayShiftSegmentsList
         segments={segments}
         timeZone={timeZone}
         className="mt-2"
+        onOpenSegment={onOpenSegment}
       />
     </div>
   );

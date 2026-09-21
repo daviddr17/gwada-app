@@ -1,3 +1,4 @@
+import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
 import { formatStaffContractLogSummary } from "@/lib/staff/staff-contract-log";
@@ -24,6 +25,7 @@ import {
   type StaffContractLogAction,
   type StaffWorkEntryType,
 } from "@/lib/types/staff";
+import { COMPLIANCE_LOG_ACTION_LABELS } from "@/lib/types/compliance";
 import { STAFF_TODO_LOG_ACTION_LABELS } from "@/lib/types/staff-todos";
 
 export type StaffActivityItem = {
@@ -144,6 +146,188 @@ export function mergeStaffActivityItems(
     .slice(0, limit);
 }
 
+/** Arbeitszeit nicht die ganze Liste füllen lassen — Dashboard-Aktionen bleiben sichtbar. */
+export function composeStaffActivityTimeline(
+  items: StaffActivityItem[],
+): StaffActivityItem[] {
+  const time = items.filter((item) => item.area === "Arbeitszeit");
+  const dashboard = items.filter((item) => item.area !== "Arbeitszeit");
+  if (dashboard.length === 0) return mergeStaffActivityItems(time);
+  const dashboardKept = mergeStaffActivityItems(
+    dashboard,
+    Math.ceil(STAFF_ACTIVITY_LIMIT / 2),
+  );
+  const timeKept = mergeStaffActivityItems(
+    time,
+    STAFF_ACTIVITY_LIMIT - dashboardKept.length,
+  );
+  return mergeStaffActivityItems(
+    [...timeKept, ...dashboardKept],
+    STAFF_ACTIVITY_LIMIT,
+  );
+}
+
+function protocolName(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLocaleLowerCase("de-DE") : "";
+}
+
+export function protocolActorMatchesStaff(
+  entry: Record<string, unknown>,
+  givenName: string,
+  familyName: string,
+): boolean {
+  const given = givenName.trim().toLocaleLowerCase("de-DE");
+  const family = familyName.trim().toLocaleLowerCase("de-DE");
+  const full = `${given} ${family}`.trim();
+  if (!full) return false;
+  const first = protocolName(entry.userFirstName);
+  const last = protocolName(entry.userLastName);
+  if (first && last && first === given && last === family) return true;
+  const legacy = protocolName(entry.userName);
+  return legacy === full;
+}
+
+function qtyUnitLabel(qty: number, unitLabel: string): string {
+  const unit = unitLabel.trim();
+  const amount = Number.isInteger(qty) ? String(qty) : String(qty).replace(".", ",");
+  return unit ? `${amount} ${unit}` : amount;
+}
+
+function num(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function stockKindTitle(kind: string | null): string {
+  switch (kind) {
+    case "manual_stock":
+      return "Bestand geändert";
+    case "stock_from_delivery":
+      return "Lieferung im Bestand";
+    case "stock_delivery_reverted":
+      return "Lieferung zurück";
+    case "stock_from_invoice":
+      return "Bestand · Rechnung";
+    case "stock_from_invoice_correction":
+      return "Bestand · Korrektur";
+    case "stock_from_pos_order":
+      return "Bestand · POS";
+    case "stock_from_pos_void":
+      return "Bestand · Storno";
+    default:
+      return "Bestand";
+  }
+}
+
+export function staffActivityFromStockLog(row: {
+  id: string;
+  ingredientName?: string | null;
+  entry: Record<string, unknown>;
+}): StaffActivityItem | null {
+  const at = text(row.entry.at);
+  if (!at) return null;
+  const kind = text(row.entry.kind);
+  const name = row.ingredientName?.trim() || text(row.entry.ingredientName);
+  const unit = text(row.entry.unitLabel) ?? "";
+  const from = num(row.entry.fromQuantity);
+  const to = num(row.entry.toQuantity);
+  const detail =
+    name && from != null && to != null
+      ? `„${name}“ · ${qtyUnitLabel(from, unit)} → ${qtyUnitLabel(to, unit)}`
+      : name
+        ? `„${name}“`
+        : stockKindTitle(kind);
+  return {
+    id: `stock:${row.id}`,
+    at,
+    area: "Bestand",
+    title: stockKindTitle(kind),
+    detail,
+  };
+}
+
+function orderStatusLabel(status: string): string {
+  if (status === "open" || status === "ordered" || status === "closed") {
+    return purchaseOrderStatusLabel(status);
+  }
+  return status;
+}
+
+export function staffActivityFromPurchaseOrderLog(row: {
+  id: string;
+  entry: Record<string, unknown>;
+}): StaffActivityItem | null {
+  const at = text(row.entry.at);
+  if (!at) return null;
+  const kind = text(row.entry.kind);
+  const name = text(row.entry.ingredientName);
+  const unit = text(row.entry.unitLabel) ?? "";
+  let title = "Bestellung";
+  let detail = name ? `„${name}“` : "Bestellung";
+  if (kind === "add_to_order") {
+    title = "Zur Bestellung";
+    const qty = num(row.entry.quantity);
+    if (name && qty != null) detail = `„${name}“ · ${qtyUnitLabel(qty, unit)}`;
+  } else if (kind === "quantity_change") {
+    title = "Bestellmenge";
+    const from = num(row.entry.fromQuantity);
+    const to = num(row.entry.toQuantity);
+    if (name && from != null && to != null) {
+      detail =
+        to === 0
+          ? `„${name}“ entfernt`
+          : `„${name}“ · ${qtyUnitLabel(from, unit)} → ${qtyUnitLabel(to, unit)}`;
+    }
+  } else if (kind === "status_change") {
+    title = "Bestellstatus";
+    const from = text(row.entry.fromStatus);
+    const to = text(row.entry.toStatus);
+    if (from && to) detail = `${orderStatusLabel(from)} → ${orderStatusLabel(to)}`;
+  } else if (kind === "marked_delivered") {
+    title = "Lieferung erfasst";
+  } else if (kind === "delivery_reverted") {
+    title = "Lieferung zurück";
+  } else if (kind === "legacy_adjustment") {
+    title = "Bestellung angepasst";
+  }
+  return {
+    id: `po:${row.id}`,
+    at,
+    area: "Bestellung",
+    title,
+    detail,
+  };
+}
+
+export function staffActivityFromComplianceLog(row: {
+  id: string;
+  action: string;
+  created_at: string;
+  details: Record<string, unknown> | null;
+}): StaffActivityItem {
+  const labels = COMPLIANCE_LOG_ACTION_LABELS as Record<string, string>;
+  const title = labels[row.action] ?? "Checkliste";
+  const name =
+    typeof row.details?.name === "string" && row.details.name.trim()
+      ? row.details.name.trim()
+      : null;
+  return {
+    id: `compliance:${row.id}`,
+    at: row.created_at,
+    area: "Checkliste",
+    title,
+    detail: name || title,
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
@@ -249,12 +433,32 @@ export async function loadStaffActivityTimeline(params: {
       ])
     : Promise.resolve([[], [], [], [], []] as const);
 
-  const [workRows, requestRows, todoRows, actorRows] = await Promise.all([
-    workPromise,
-    requestPromise,
-    todoPromise,
-    actorPromise,
-  ]);
+  const compliancePromise = rowsOf(
+    supabase
+      .from("restaurant_compliance_log_entries")
+      .select("id, action, details, created_at")
+      .eq("restaurant_id", restaurantId)
+      .or(todoFilter)
+      .order("created_at", { ascending: false })
+      .limit(PER_SOURCE),
+  );
+
+  const staffNamePromise = supabase
+    .from("restaurant_staff")
+    .select("given_name, family_name")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", staffId)
+    .maybeSingle();
+
+  const [workRows, requestRows, todoRows, complianceRows, staffNameRes, actorRows] =
+    await Promise.all([
+      workPromise,
+      requestPromise,
+      todoPromise,
+      compliancePromise,
+      staffNamePromise,
+      actorPromise,
+    ]);
 
   const [reservationRows, accountingRows, documentRows, workLogRows, contractRows] =
     actorRows;
@@ -286,6 +490,14 @@ export async function loadStaffActivityTimeline(params: {
     ),
     ...todoRows.map((row) =>
       staffActivityFromTodoLog({
+        id: (row as { id: string }).id,
+        action: (row as { action: string }).action,
+        created_at: (row as { created_at: string }).created_at,
+        details: asRecord((row as { details: unknown }).details),
+      }),
+    ),
+    ...complianceRows.map((row) =>
+      staffActivityFromComplianceLog({
         id: (row as { id: string }).id,
         action: (row as { action: string }).action,
         created_at: (row as { created_at: string }).created_at,
@@ -405,5 +617,102 @@ export async function loadStaffActivityTimeline(params: {
     });
   }
 
-  return mergeStaffActivityItems(items);
+  const givenName =
+    typeof staffNameRes.data?.given_name === "string"
+      ? staffNameRes.data.given_name
+      : "";
+  const familyName =
+    typeof staffNameRes.data?.family_name === "string"
+      ? staffNameRes.data.family_name
+      : "";
+  if (`${givenName} ${familyName}`.trim()) {
+    const [stockRows, orderRows] = await Promise.all([
+      rowsOf(
+        supabase
+          .from("inventory_stock_log_entries")
+          .select("id, ingredient_id, entry, seq")
+          .eq("restaurant_id", restaurantId)
+          .order("seq", { ascending: false })
+          .limit(PER_SOURCE * 8),
+      ),
+      rowsOf(
+        supabase
+          .from("inventory_purchase_order_log_entries")
+          .select("id, entry, sort_order")
+          .eq("restaurant_id", restaurantId)
+          .order("sort_order", { ascending: false })
+          .limit(PER_SOURCE * 8),
+      ),
+    ]);
+
+    const matchedStock = stockRows
+      .filter((row) =>
+        protocolActorMatchesStaff(
+          asRecord((row as { entry: unknown }).entry),
+          givenName,
+          familyName,
+        ),
+      )
+      .sort((a, b) => {
+        const atA = text(asRecord((a as { entry: unknown }).entry).at) ?? "";
+        const atB = text(asRecord((b as { entry: unknown }).entry).at) ?? "";
+        return atB.localeCompare(atA);
+      });
+    const ingredientIds = [
+      ...new Set(
+        matchedStock
+          .map((row) => (row as { ingredient_id?: string }).ingredient_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const ingredientNameById = new Map<string, string>();
+    if (ingredientIds.length > 0) {
+      const ingredients = await rowsOf(
+        supabase
+          .from("inventory_ingredients")
+          .select("id, name")
+          .eq("restaurant_id", restaurantId)
+          .in("id", ingredientIds),
+      );
+      for (const ingredient of ingredients) {
+        const row = ingredient as { id: string; name: string };
+        if (row.id && row.name) ingredientNameById.set(row.id, row.name);
+      }
+    }
+
+    let stockShown = 0;
+    for (const raw of matchedStock) {
+      if (stockShown >= PER_SOURCE) break;
+      const row = raw as { id: string; ingredient_id?: string; entry: unknown };
+      const item = staffActivityFromStockLog({
+        id: row.id,
+        ingredientName: row.ingredient_id
+          ? ingredientNameById.get(row.ingredient_id)
+          : null,
+        entry: asRecord(row.entry),
+      });
+      if (!item) continue;
+      items.push(item);
+      stockShown += 1;
+    }
+
+    const matchedOrders = orderRows
+      .map((raw) => {
+        const row = raw as { id: string; entry: unknown };
+        return { id: row.id, entry: asRecord(row.entry) };
+      })
+      .filter((row) => protocolActorMatchesStaff(row.entry, givenName, familyName))
+      .sort((a, b) => (text(b.entry.at) ?? "").localeCompare(text(a.entry.at) ?? ""));
+
+    let orderShown = 0;
+    for (const row of matchedOrders) {
+      if (orderShown >= PER_SOURCE) break;
+      const item = staffActivityFromPurchaseOrderLog(row);
+      if (!item) continue;
+      items.push(item);
+      orderShown += 1;
+    }
+  }
+
+  return composeStaffActivityTimeline(items);
 }

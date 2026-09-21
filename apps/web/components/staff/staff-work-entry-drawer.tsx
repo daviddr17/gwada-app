@@ -198,9 +198,12 @@ export function StaffWorkEntryDrawer({
         (bounds?.isOpen ?? false) ||
           (entry.is_open && entry.entry_type === "work"),
       );
-      setStillRunning(openWork);
+      const openBreak = Boolean(
+        !editingShiftCluster && entry.is_open && entry.entry_type === "break",
+      );
+      setStillRunning(openWork || openBreak);
       setEndTime(
-        openWork
+        openWork || openBreak
           ? toTimeInput(new Date())
           : toTimeInput(
               new Date(bounds?.endsAt ?? entry.ends_at),
@@ -244,7 +247,10 @@ export function StaffWorkEntryDrawer({
     if (pending || readOnly) return;
     const starts_at = combineLocal(dateStr, startTime);
     const ends_at_input = combineLocal(dateStr, endTime);
-    const willStayOpen = entryType === "work" && stillRunning && !clusterStartOnlyEdit;
+    const willStayOpen =
+      stillRunning &&
+      !clusterStartOnlyEdit &&
+      (entryType === "work" || entryType === "break");
     const ends_at = willStayOpen ? starts_at : ends_at_input;
 
     const finishUi = (entryId: string, after: {
@@ -493,11 +499,18 @@ export function StaffWorkEntryDrawer({
               <DrawerFormSection>
               {stillRunning ? (
                 <p className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
-                  {clusterStartOnlyEdit
-                    ? "Schicht läuft noch nach der Pause — nur Start und Datum sind bearbeitbar."
-                    : canReopenClosedShift
-                      ? "Schicht wird wieder als laufend markiert — das Ende wird zurückgesetzt (Display kann erneut ausstempeln)."
-                      : "Ende offen — Start und Datum sind bearbeitbar. Zum Beenden Haken entfernen und „Bis“ setzen (oder am Display ausstempeln)."}
+                  {entryType === "break"
+                    ? "Pause läuft noch — Start und Datum sind bearbeitbar. Zum Beenden Haken entfernen und „Bis“ setzen."
+                    : clusterStartOnlyEdit
+                      ? "Schicht läuft noch nach der Pause — nur Start und Datum sind bearbeitbar."
+                      : canReopenClosedShift
+                        ? "Schicht wird wieder als laufend markiert — das Ende wird zurückgesetzt (Display kann erneut ausstempeln)."
+                        : "Ende offen — Start und Datum sind bearbeitbar. Zum Beenden Haken entfernen und „Bis“ setzen (oder am Display ausstempeln)."}
+                </p>
+              ) : null}
+              {entryType === "break" && entry && !editingShiftCluster ? (
+                <p className="text-sm text-muted-foreground">
+                  Nur diese Pause — Von und Bis gelten nicht für die ganze Arbeitszeit.
                 </p>
               ) : null}
               {editingShiftCluster && !clusterOpen && entryType === "work" ? (
@@ -590,7 +603,8 @@ export function StaffWorkEntryDrawer({
                   />
                 </div>
               </div>
-              {entryType === "work" && !readOnly ? (
+              {((entryType === "work" && !readOnly) ||
+              (entryType === "break" && entry?.is_open && !readOnly)) ? (
                 <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/50 p-3">
                   <Checkbox
                     checked={stillRunning}
@@ -605,9 +619,11 @@ export function StaffWorkEntryDrawer({
                     className="mt-0.5"
                   />
                   <span className="text-sm leading-snug">
-                    {canReopenClosedShift && !stillRunning
-                      ? "Schicht läuft wieder — Ende zurücksetzen (versehentliches Schichtende rückgängig)"
-                      : "Läuft noch — Ende offen lassen (Mitarbeiter stempelt später am Display aus)"}
+                    {entryType === "break"
+                      ? "Pause läuft noch — Ende offen lassen"
+                      : canReopenClosedShift && !stillRunning
+                        ? "Schicht läuft wieder — Ende zurücksetzen (versehentliches Schichtende rückgängig)"
+                        : "Läuft noch — Ende offen lassen (Mitarbeiter stempelt später am Display aus)"}
                   </span>
                 </label>
               ) : null}

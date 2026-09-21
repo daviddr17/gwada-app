@@ -1179,11 +1179,9 @@ export function StaffWorkHoursView({
                             ? staffNameById.get(shiftStaffId)
                             : undefined;
                           return (
-                            <button
+                            <div
                               key={item.shiftId}
-                              type="button"
                               className={displayShiftRowClassName}
-                              onClick={() => openDisplayShift(item.segments)}
                             >
                               {!staffId && shiftStaffLabel ? (
                                 <p className="px-0.5 text-xs text-muted-foreground">
@@ -1193,8 +1191,16 @@ export function StaffWorkHoursView({
                               <StaffDisplayShiftRow
                                 segments={item.segments}
                                 timeZone={restaurantTimeZone}
+                                onOpenShift={() => openDisplayShift(item.segments)}
+                                onOpenSegment={(segment) => {
+                                  if (segment.entry_type === "break") {
+                                    openEntry(segment);
+                                    return;
+                                  }
+                                  openDisplayShift(item.segments);
+                                }}
                               />
-                            </button>
+                            </div>
                           );
                         }
 

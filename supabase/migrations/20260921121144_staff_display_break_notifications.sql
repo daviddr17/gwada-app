@@ -1,7 +1,46 @@
 -- Display-Pause gestartet / beendet: Glocke + Push (Standard aus).
+-- Live: DROP CONSTRAINT IF EXISTS hat die bestehende Check-Zeile übersprungen
+-- (relchecks passt nicht), ADD ist danach an dem Namen gescheitert.
+-- Hier per Name droppen; nur wenn die Zeile für DROP unsichtbar ist, den
+-- kaputten Katalogeintrag entfernen. Keine Zeilen in notification_events.
 
-alter table public.notification_events
-  drop constraint if exists notification_events_module_check;
+do $$
+declare
+  coid oid;
+begin
+  select oid into coid
+  from pg_constraint
+  where conrelid = 'public.notification_events'::regclass
+    and conname = 'notification_events_module_check';
+
+  if coid is null then
+    raise notice 'notification_events_module_check absent before replace';
+  else
+    raise notice 'notification_events_module_check oid=% bin_null=% relchecks=%',
+      coid,
+      (select conbin is null from pg_constraint where oid = coid),
+      (select relchecks from pg_class where oid = 'public.notification_events'::regclass);
+    begin
+      alter table public.notification_events
+        drop constraint notification_events_module_check;
+    exception
+      when undefined_object then
+        raise notice 'drop did not see notification_events_module_check; removing catalog row %', coid;
+        delete from pg_depend
+        where (classid = 'pg_constraint'::regclass and objid = coid)
+           or (refclassid = 'pg_constraint'::regclass and refobjid = coid);
+        delete from pg_constraint where oid = coid;
+        update pg_class
+        set relchecks = (
+          select count(*)::integer
+          from pg_constraint
+          where conrelid = pg_class.oid
+            and contype = 'c'
+        )
+        where oid = 'public.notification_events'::regclass;
+    end;
+  end if;
+end $$;
 
 alter table public.notification_events
   add constraint notification_events_module_check
@@ -51,18 +90,37 @@ alter table public.notification_events
 do $$
 declare
   cname text;
+  coid oid;
 begin
-  select c.conname into cname
+  select c.conname, c.oid into cname, coid
   from pg_constraint c
   where c.conrelid = 'public.restaurant_staff_display_clock_notification_dismissals'::regclass
     and c.contype = 'c'
     and pg_get_constraintdef(c.oid) ilike '%staff_display_clock_in%';
-  if cname is not null then
+  if cname is null then
+    return;
+  end if;
+  begin
     execute format(
       'alter table public.restaurant_staff_display_clock_notification_dismissals drop constraint %I',
       cname
     );
-  end if;
+  exception
+    when undefined_object then
+      raise notice 'drop did not see %; removing catalog row %', cname, coid;
+      delete from pg_depend
+      where (classid = 'pg_constraint'::regclass and objid = coid)
+         or (refclassid = 'pg_constraint'::regclass and refobjid = coid);
+      delete from pg_constraint where oid = coid;
+      update pg_class
+      set relchecks = (
+        select count(*)::integer
+        from pg_constraint
+        where conrelid = pg_class.oid
+          and contype = 'c'
+      )
+      where oid = 'public.restaurant_staff_display_clock_notification_dismissals'::regclass;
+  end;
 end $$;
 
 alter table public.restaurant_staff_display_clock_notification_dismissals

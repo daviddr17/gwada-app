@@ -937,15 +937,16 @@ export function RestaurantSettingsPanel({
         <SocialBrandKitCard restaurantId={draft.id} />
         </div>
         <SettingsStickySaveBar show={overviewDirty}>
-          <Button
-            type="submit"
-            className={cn(
-              "h-11 w-full min-w-[12rem] sm:w-auto",
-              settingsAccentSaveButtonClassName,
-            )}
-          >
-            {savedRestaurantFlash ? "Gespeichert" : "Restaurantdaten speichern"}
-          </Button>
+            <Button
+              type="button"
+              className={cn(
+                "h-11 w-full min-w-[12rem] sm:w-auto",
+                settingsAccentSaveButtonClassName,
+              )}
+              onClick={() => void handleSaveOverview()}
+            >
+              {savedRestaurantFlash ? "Gespeichert" : "Restaurantdaten speichern"}
+            </Button>
         </SettingsStickySaveBar>
         </form>
       </section>
@@ -1271,11 +1272,12 @@ export function RestaurantSettingsPanel({
               }
             />
             <Button
-              type="submit"
+              type="button"
               className={cn(
                 "h-11 w-full min-w-[12rem] sm:w-auto sm:shrink-0",
                 settingsAccentSaveButtonClassName,
               )}
+              onClick={() => void handleSaveHours()}
             >
               {savedHoursFlash ? "Gespeichert" : "Öffnungszeiten speichern"}
             </Button>

@@ -191,11 +191,15 @@ export async function runAssistantChatTurn(input: {
       configured: false,
       status: 503,
       error:
-        "Assistent ist noch nicht konfiguriert. Superadmin → Integrationen → Assistent (OpenAI).",
+        "Assistent ist noch nicht konfiguriert. Superadmin → Integrationen → Assistent (OpenAI / Grok).",
     };
   }
 
-  const client = new OpenAI({ apiKey: llm.apiKey });
+  const client = new OpenAI({
+    apiKey: llm.apiKey,
+    ...(llm.baseURL ? { baseURL: llm.baseURL } : {}),
+  });
+  const providerLabel = llm.provider === "grok" ? "Grok" : "OpenAI";
   const messages: ChatCompletionMessageParam[] = [
     {
       role: "system",
@@ -222,8 +226,8 @@ export async function runAssistantChatTurn(input: {
         temperature: 0.3,
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "OpenAI-Fehler";
-      console.warn("[assistant] openai", msg);
+      const msg = e instanceof Error ? e.message : `${providerLabel}-Fehler`;
+      console.warn("[assistant] llm", llm.provider, msg);
       return { ok: false, configured: true, status: 502, error: msg };
     }
 

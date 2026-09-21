@@ -125,10 +125,16 @@ function StatusMark({
         viewBox="0 0 24 24"
         className={cn(
           "relative size-11 transition-colors duration-700 ease-out sm:size-12",
+          !clear && !reduceMotion && "origin-center animate-spin",
           clear
             ? "text-emerald-600 dark:text-emerald-400"
-            : "text-muted-foreground/45",
+            : "text-muted-foreground",
         )}
+        style={
+          !clear && !reduceMotion
+            ? { animationDuration: "1.15s", transformBox: "view-box" }
+            : undefined
+        }
         aria-hidden
       >
         <circle
@@ -140,45 +146,28 @@ function StatusMark({
           strokeWidth="1.75"
           className="opacity-25"
         />
-        <motion.circle
-          cx="12"
-          cy="12"
-          r="9"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.75"
-          strokeLinecap="round"
-          strokeDasharray={`${RING * 0.28} ${RING * 0.72}`}
-          style={{ transformOrigin: "12px 12px", transformBox: "fill-box" }}
-          initial={false}
-          animate={
-            reduceMotion
-              ? { opacity: clear ? 0 : 0.85, rotate: 0 }
-              : { opacity: clear ? 0 : 1, rotate: clear ? 0 : 360 }
-          }
-          transition={
-            clear || reduceMotion
-              ? { opacity: { duration: reduceMotion ? 0 : 0.35, ease: MOTION_EASE_OUT }, rotate: { duration: 0 } }
-              : {
-                  rotate: { duration: 1.7, repeat: Infinity, ease: "linear" },
-                  opacity: { duration: 0.25 },
-                }
-          }
-        />
-        <motion.circle
-          cx="12"
-          cy="12"
-          r="9"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.75"
-          strokeLinecap="round"
-          initial={false}
-          animate={{ opacity: clear ? 1 : 0 }}
-          transition={{
-            opacity: { duration: reduceMotion ? 0 : 0.45, ease: MOTION_EASE_OUT, delay: clear && !reduceMotion ? 0.12 : 0 },
-          }}
-        />
+        {!clear ? (
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeDasharray={`${RING * 0.28} ${RING * 0.72}`}
+          />
+        ) : (
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+          />
+        )}
         {clear ? (
           <motion.path
             key={replayKey}

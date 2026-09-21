@@ -16,6 +16,10 @@ import {
   weatherConfigToUi,
 } from "@/lib/integrations/platform-weather-config";
 import {
+  openaiConfigFromJson,
+  openaiConfigToUi,
+} from "@/lib/integrations/platform-openai-config";
+import {
   tripadvisorConfigFromJson,
   tripadvisorConfigToUi,
 } from "@/lib/integrations/platform-tripadvisor-config";
@@ -38,6 +42,10 @@ export function platformIntegrationConfigForUi(
 
   if (key === "weather") {
     return weatherConfigToUi(weatherConfigFromJson(raw));
+  }
+
+  if (key === "openai") {
+    return openaiConfigToUi(openaiConfigFromJson(raw));
   }
 
   if (key === "tripadvisor") {

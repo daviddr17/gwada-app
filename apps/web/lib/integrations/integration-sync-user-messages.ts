@@ -37,10 +37,29 @@ export function integrationSyncErrorMessage(code: string): string {
       return "Google hat zu lange nicht geantwortet — bitte erneut versuchen.";
     case "facebook_timeout":
       return "Facebook hat zu lange nicht geantwortet — bitte erneut versuchen.";
-    default:
-      if (code.startsWith("google_")) {
-        return `Google: ${code.replace(/^google_/, "")}`;
+    default: {
+      const lower = code.toLowerCase();
+      const looksGoogle =
+        code.startsWith("google_") ||
+        lower.includes("specialhours") ||
+        lower.includes("special_hours") ||
+        lower.includes("regularhours") ||
+        lower.includes("mybusiness") ||
+        /google\.type\.date/i.test(code) ||
+        /invalid value at ['"]?special/i.test(code);
+
+      if (looksGoogle) {
+        if (
+          /must be an object/i.test(code) ||
+          /google\.type\.date/i.test(code) ||
+          /invalid value at ['"]?special/i.test(code) ||
+          /special.?hours/i.test(code)
+        ) {
+          return "Öffnungszeiten-Format abgelehnt — bitte Ausnahmen/Zeiten prüfen.";
+        }
+        return code.replace(/^google_/i, "").trim() || "Übertragung fehlgeschlagen.";
       }
+
       if (
         code.includes("pages_manage_metadata") ||
         code.includes("(#200)") ||
@@ -48,15 +67,17 @@ export function integrationSyncErrorMessage(code: string): string {
       ) {
         return "Facebook-Berechtigung fehlt — unter Integrationen Facebook erneut verbinden.";
       }
-      if (code.includes("must be an object") || code.includes("hours")) {
-        return "Facebook hat das Öffnungszeiten-Format abgelehnt — bitte Zeiten prüfen (kein ungültiges Format).";
-      }
-      if (code.includes("Google")) {
-        return `Google: ${code.replace(/^google_/, "")}`;
-      }
-      if (code.startsWith("facebook_")) {
-        return `Facebook: ${code.replace(/^facebook_/, "")}`;
+      if (
+        code.startsWith("facebook_") ||
+        /must be an object/i.test(code) ||
+        /\bhours\b/i.test(code)
+      ) {
+        if (code.startsWith("facebook_")) {
+          return code.replace(/^facebook_/, "");
+        }
+        return "Öffnungszeiten-Format abgelehnt — bitte Zeiten prüfen (kein ungültiges Format).";
       }
       return "Übertragung fehlgeschlagen.";
+    }
   }
 }

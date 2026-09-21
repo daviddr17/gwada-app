@@ -107,19 +107,41 @@ export function toGoogleRegularHours(weeklyHours: Record<Weekday, DayHours>) {
   return { periods };
 }
 
+/** Google `google.type.Date` — kein ISO-String (API: „must be an object“). */
+function ymdToGoogleDate(
+  ymd: string,
+): { year: number; month: number; day: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+  return { year, month, day };
+}
+
 export function toGoogleSpecialHours(
   dateExceptions: DateHoursException[],
 ): { specialHourPeriods: Array<Record<string, unknown>> } {
   const specialHourPeriods: Array<Record<string, unknown>> = [];
 
   for (const ex of dateExceptions) {
-    const startDate = ex.date;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) continue;
+    const startDate = ymdToGoogleDate(ex.date);
+    if (!startDate) continue;
 
     if (ex.closed) {
       specialHourPeriods.push({
         startDate,
-        endDate: startDate,
         closed: true,
       });
       continue;
@@ -132,10 +154,8 @@ export function toGoogleSpecialHours(
       if (!open || !close) continue;
       specialHourPeriods.push({
         startDate,
-        endDate: startDate,
         openTime: open,
         closeTime: close,
-        closed: false,
       });
     }
   }

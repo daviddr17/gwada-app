@@ -7,6 +7,7 @@ import {
   fromGoogleRegularHours,
   toFacebookHours,
   toGoogleRegularHours,
+  toGoogleSpecialHours,
   weeklyHoursEqual,
 } from "@/lib/integrations/opening-hours-platform-format";
 import type { DayHours, Weekday } from "@/lib/types/restaurant";
@@ -227,5 +228,47 @@ test("fromGoogleRegularHours treats omitted proto3 midnight defaults as 00:00", 
     closed: false,
     open: "18:00",
     close: "00:00",
+  });
+});
+
+test("toGoogleSpecialHours uses google.type.Date objects, not ISO strings", () => {
+  const payload = toGoogleSpecialHours([
+    { id: "1", date: "2026-12-25", closed: true },
+    {
+      id: "2",
+      date: "2026-12-24",
+      closed: false,
+      open: "11:00",
+      close: "15:00",
+    },
+    {
+      id: "3",
+      date: "2026-12-31",
+      closed: false,
+      periods: [
+        { open: "10:00", close: "14:00" },
+        { open: "17:00", close: "22:00" },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(payload.specialHourPeriods[0], {
+    startDate: { year: 2026, month: 12, day: 25 },
+    closed: true,
+  });
+  assert.deepEqual(payload.specialHourPeriods[1], {
+    startDate: { year: 2026, month: 12, day: 24 },
+    openTime: { hours: 11, minutes: 0 },
+    closeTime: { hours: 15, minutes: 0 },
+  });
+  assert.equal(payload.specialHourPeriods.length, 4);
+  assert.deepEqual(payload.specialHourPeriods[2]?.startDate, {
+    year: 2026,
+    month: 12,
+    day: 31,
+  });
+  assert.deepEqual(payload.specialHourPeriods[3]?.openTime, {
+    hours: 17,
+    minutes: 0,
   });
 });

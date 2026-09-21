@@ -252,10 +252,7 @@ begin
     return;
   end if;
   delete from supabase_migrations.schema_migrations
-  where version = '20260921121144'
-    and not exists (
-      select 1 from pg_constraint where conname = 'notification_events_module_chk'
-    );
+  where version = '20260921121144';
   get diagnostics removed = row_count;
   raise notice 'stale migration history rows removed: %', removed;
 end

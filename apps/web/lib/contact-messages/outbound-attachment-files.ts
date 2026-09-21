@@ -2,6 +2,7 @@ import {
   CONTACT_MESSAGE_ATTACHMENT_MAX_BYTES,
   CONTACT_MESSAGE_ATTACHMENT_MAX_FILES,
 } from "@/lib/constants/contact-message-attachments";
+import { prepareDeclaredUploadBytes, sniffUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export type OutboundAttachmentFile = {
   fileName: string;
@@ -35,8 +36,22 @@ export function outboundAttachmentSendKind(
 
 function mimeAllowed(mime: string): boolean {
   const m = mime.toLowerCase();
+  if (m === "image/svg+xml") return false;
   if (VOICE_MIME_PREFIXES.some((p) => m.startsWith(p))) return false;
   return ALLOWED_PREFIXES.some((p) => m.startsWith(p));
+}
+
+function attachmentBytesAllowed(bytes: Uint8Array, mimeType: string): boolean {
+  const mime = mimeType.toLowerCase();
+  if (mime === "image/svg+xml") return false;
+  if (prepareDeclaredUploadBytes(bytes, mime)) return true;
+  if (mime === "application/octet-stream" || mime.startsWith("application/vnd.")) {
+    const kind = sniffUploadBytes(bytes);
+    if (kind === "html" || kind === "svg" || kind === "unknown") return false;
+    if (mime === "application/octet-stream") return true;
+    return kind === "zip" || kind === "ole" || kind === "pdf";
+  }
+  return false;
 }
 
 export async function parseOutboundVoiceFile(
@@ -50,6 +65,15 @@ export async function parseOutboundVoiceFile(
     return { ok: false, error: "mime_not_allowed" };
   }
   const bytes = Buffer.from(await file.arrayBuffer());
+  const base = mimeType.split(";")[0]?.trim() || mimeType;
+  const declared =
+    base.startsWith("audio/webm") ? "audio/webm"
+    : base.startsWith("audio/ogg") || base === "audio/opus" ? "audio/ogg"
+    : base.startsWith("audio/mp4") ? "audio/mp4"
+    : "audio/mpeg";
+  if (!prepareDeclaredUploadBytes(bytes, declared)) {
+    return { ok: false, error: "mime_not_allowed" };
+  }
   return {
     ok: true,
     file: {
@@ -77,6 +101,9 @@ export function parseOutboundAttachmentFiles(
         return { ok: false, error: "mime_not_allowed" };
       }
       const bytes = Buffer.from(await file.arrayBuffer());
+      if (!attachmentBytesAllowed(bytes, mimeType)) {
+        return { ok: false, error: "mime_not_allowed" };
+      }
       out.push({
         fileName: file.name.trim() || "anhang",
         mimeType,

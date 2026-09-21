@@ -55,6 +55,7 @@ export async function GET(req: Request) {
         ? `inline; filename="${encodeURIComponent(fileName)}"`
         : `attachment; filename="${encodeURIComponent(fileName)}"`,
       "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

@@ -14,6 +14,7 @@ import {
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -55,10 +56,18 @@ export async function POST(req: Request) {
   });
   const userSb = await createSupabaseServerClient();
 
+  const sniffed = prepareDeclaredUploadBytes(
+    new Uint8Array(await file.arrayBuffer()),
+    file.type,
+  );
+  if (!sniffed) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
+
   let processed: Buffer;
   try {
     processed = await processRestaurantProfileImageUpload(
-      Buffer.from(await file.arrayBuffer()),
+      Buffer.from(sniffed),
       kind,
     );
   } catch {

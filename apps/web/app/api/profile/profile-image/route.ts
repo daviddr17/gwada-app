@@ -4,6 +4,7 @@ import {
   type UserProfileImageKind,
 } from "@/lib/profile/user-profile-image";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,13 @@ export async function POST(req: Request) {
         : "jpg";
 
   const path = userProfileImageStoragePath({ userId: user.id, kind, ext });
-  const buf = Buffer.from(await file.arrayBuffer());
+  const buf = prepareDeclaredUploadBytes(
+    new Uint8Array(await file.arrayBuffer()),
+    file.type,
+  );
+  if (!buf) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
 
   const { error: uploadError } = await userSb.storage
     .from(USER_PROFILE_IMAGES_BUCKET)

@@ -13,6 +13,7 @@ import {
   validateAccountingVoucherFile,
 } from "@/lib/accounting/validate-voucher-file";
 import type { AccountingVoucherInput } from "@/lib/types/accounting";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -87,11 +88,18 @@ export async function POST(req: Request) {
       if (!mimeType) {
         return NextResponse.json({ error: "invalid_file" }, { status: 400 });
       }
+      const buffer = prepareDeclaredUploadBytes(
+        new Uint8Array(await file.arrayBuffer()),
+        mimeType,
+      );
+      if (!buffer) {
+        return NextResponse.json({ error: "invalid_file" }, { status: 400 });
+      }
       filePayload = {
-        buffer: Buffer.from(await file.arrayBuffer()),
+        buffer: Buffer.from(buffer),
         fileName: file.name,
         mimeType,
-        sizeBytes: file.size,
+        sizeBytes: buffer.byteLength,
       };
     }
 

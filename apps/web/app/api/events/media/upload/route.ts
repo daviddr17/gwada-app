@@ -6,6 +6,7 @@ import { authorizeEventsRestaurant } from "@/lib/events/route-auth";
 import { uploadEventsMedia } from "@/lib/events/events-media-api";
 import { validateEventsMediaFile } from "@/lib/events/validate-events-media-file";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,13 @@ export async function POST(req: Request) {
     eventId,
     fileName: file.name,
   });
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = prepareDeclaredUploadBytes(
+    new Uint8Array(await file.arrayBuffer()),
+    file.type,
+  );
+  if (!bytes) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
 
   const { error: uploadError } = await admin.storage
     .from(EVENTS_MEDIA_BUCKET)

@@ -14,6 +14,7 @@ import {
   updatePlatformBrandingAssetPath,
 } from "@/lib/supabase/platform-app-settings-db";
 import type { PlatformBrandingAssetKind } from "@/lib/types/platform-app-settings";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -122,7 +123,14 @@ export async function POST(req: Request) {
 
   const ext = extForMime(file.type);
   const storagePath = `${storagePrefix}-${Date.now()}.${ext}`;
-  let bytes = new Uint8Array(await file.arrayBuffer());
+  const prepared = prepareDeclaredUploadBytes(
+    new Uint8Array(await file.arrayBuffer()),
+    file.type,
+  );
+  if (!prepared) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
+  let bytes = prepared;
   let uploadContentType = file.type;
 
   if (

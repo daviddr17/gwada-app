@@ -2,6 +2,7 @@ import { assertSuperadminApi } from "@/lib/superadmin/assert-superadmin-api";
 import { PLATFORM_NEWSLETTER_STORAGE_BUCKET } from "@/lib/newsletter/newsletter-constants";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getPublicSupabaseUrl } from "@/lib/public-env";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,13 @@ export async function POST(req: Request, ctx: Ctx) {
     : file.type === "image/webp" ? "webp"
     : "jpg";
   const path = `${id}/${crypto.randomUUID()}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = prepareDeclaredUploadBytes(
+    new Uint8Array(await file.arrayBuffer()),
+    file.type,
+  );
+  if (!buffer) {
+    return Response.json({ error: "invalid_type" }, { status: 400 });
+  }
 
   const { error } = await admin.storage
     .from(PLATFORM_NEWSLETTER_STORAGE_BUCKET)

@@ -42,6 +42,8 @@ export async function GET(req: Request, context: RouteContext) {
       headers: {
         "Content-Type": row.mime_type ?? "application/octet-stream",
         "Content-Disposition": `inline; filename="${encodeURIComponent(row.file_name ?? "beleg")}"`,
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
       },
     });
   }
@@ -58,6 +60,8 @@ export async function GET(req: Request, context: RouteContext) {
           headers: {
             "Content-Type": file.contentType,
             "Content-Disposition": `inline; filename="${encodeURIComponent(file.filename)}"`,
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
           },
         });
       }

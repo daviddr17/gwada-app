@@ -19,6 +19,7 @@ import {
   resolveStaffContractAttachmentMime,
   validateStaffContractAttachmentFile,
 } from "@/lib/staff/validate-staff-contract-attachment-file";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 function attachmentValidationError(file: File): string | null {
   return validateStaffContractAttachmentFile(file);
@@ -104,6 +105,10 @@ export async function saveStaffContractExternal(
   if (file) {
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const mimeType = resolveStaffContractAttachmentMime(file)!;
+    const sniffed = prepareDeclaredUploadBytes(fileBuffer, mimeType);
+    if (!sniffed) {
+      return { ok: false, error: "invalid_file", status: 400 };
+    }
     const docTitle = buildExternalContractDocumentTitle({
       title: input.documentTitle,
       fileName: file.name,
@@ -120,7 +125,7 @@ export async function saveStaffContractExternal(
       staffId: input.staffId,
       title: docTitle,
       fileName: file.name,
-      fileBuffer,
+      fileBuffer: Buffer.from(sniffed),
       mimeType,
     });
 

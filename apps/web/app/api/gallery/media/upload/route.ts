@@ -13,6 +13,7 @@ import {
   processFeedMediaImage,
 } from "@/lib/images/process-feed-media-image";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -43,10 +44,16 @@ export async function POST(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
+  const rawBytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = prepareDeclaredUploadBytes(rawBytes, file.type);
+  if (!bytes) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
+
   const kind = galleryMediaKindFromMime(file.type);
 
   if (kind === "image") {
-    const input = Buffer.from(await file.arrayBuffer());
+    const input = Buffer.from(bytes);
     const processed = await processFeedMediaImage(input);
     const storagePath = buildGalleryMediaVariantPath({
       restaurantId,
@@ -113,7 +120,6 @@ export async function POST(req: Request) {
     itemId,
     fileName: file.name,
   });
-  const bytes = new Uint8Array(await file.arrayBuffer());
 
   const { error: uploadError } = await admin.storage
     .from(GALLERY_MEDIA_BUCKET)

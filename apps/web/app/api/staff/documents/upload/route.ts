@@ -12,6 +12,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveRestaurantEmployeeId } from "@/lib/documents/document-log-server";
 import { insertRestaurantDocumentLog } from "@/lib/documents/document-log-server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,11 @@ export async function POST(req: Request) {
     documentId,
     fileName: file.name,
   });
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const rawBytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = prepareDeclaredUploadBytes(rawBytes, mimeType);
+  if (!bytes) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
 
   const { error: uploadError } = await admin.storage
     .from(RESTAURANT_DOCUMENTS_STORAGE_BUCKET)

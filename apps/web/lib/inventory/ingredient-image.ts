@@ -1,6 +1,5 @@
 "use client";
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   getPublicSupabaseUrl,
   isPublicSupabaseProxyEnabled,
@@ -10,13 +9,6 @@ export const INGREDIENT_IMAGE_BUCKET = "inventory-ingredient-images";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
-
-function extensionForMime(mime: string): string | null {
-  if (mime === "image/jpeg") return "jpg";
-  if (mime === "image/png") return "png";
-  if (mime === "image/webp") return "webp";
-  return null;
-}
 
 /** Öffentliche Thumbnail-URL. Pfad bleibt in der DB, nicht die volle URL. */
 export function ingredientImagePublicUrl(
@@ -45,14 +37,21 @@ export async function uploadIngredientImage(
   if (file.size > MAX_BYTES) {
     return { error: "Bild ist größer als 5 MB." };
   }
-  const ext = extensionForMime(file.type);
-  if (!ext) return { error: "Nur JPG, PNG oder WebP." };
 
-  const path = `${restaurantId}/${crypto.randomUUID()}.${ext}`;
-  const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase.storage
-    .from(INGREDIENT_IMAGE_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
-  if (error) return { error: error.message };
-  return { path };
+  const form = new FormData();
+  form.set("restaurantId", restaurantId);
+  form.set("file", file);
+  const res = await fetch("/api/inventory/ingredient-image", {
+    method: "POST",
+    body: form,
+  });
+  const body = (await res.json().catch(() => null)) as { path?: string; error?: string } | null;
+  if (!res.ok || !body?.path) {
+    if (res.status === 400) return { error: "Nur JPG, PNG oder WebP." };
+    if (res.status === 401 || res.status === 403) {
+      return { error: "Keine Berechtigung für den Bestand." };
+    }
+    return { error: "Bild konnte nicht gespeichert werden." };
+  }
+  return { path: body.path };
 }

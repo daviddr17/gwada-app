@@ -35,6 +35,9 @@ export function humanizeLoginErrorMessage(raw: string | undefined | null): strin
   if (/rate_limit_exceeded/i.test(t)) {
     return "Zu viele Anfragen. Bitte in einer Stunde erneut versuchen.";
   }
+  if (/too_many_password_attempts/i.test(t)) {
+    return "Zu viele Anmeldeversuche. Bitte in ein paar Minuten erneut versuchen.";
+  }
   if (/E-Mail-Versand hat zu lange gedauert|timeout|aborted|abgebrochen/i.test(t)) {
     return "E-Mail-Versand hat zu lange gedauert. Bitte später erneut versuchen.";
   }

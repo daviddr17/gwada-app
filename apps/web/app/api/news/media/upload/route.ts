@@ -15,6 +15,7 @@ import {
   processFeedMediaImage,
 } from "@/lib/images/process-feed-media-image";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +52,14 @@ export async function POST(req: Request) {
       : 0;
   const kind = newsMediaKindFromMime(file.type);
 
+  const rawBytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = prepareDeclaredUploadBytes(rawBytes, file.type);
+  if (!bytes) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
+
   if (kind === "image") {
-    const input = Buffer.from(await file.arrayBuffer());
+    const input = Buffer.from(bytes);
     const processed = await processFeedMediaImage(input);
     const storagePath = buildNewsMediaVariantPath({
       restaurantId,
@@ -105,7 +112,6 @@ export async function POST(req: Request) {
     postId,
     fileName: file.name,
   });
-  const bytes = new Uint8Array(await file.arrayBuffer());
 
   const { error: uploadError } = await admin.storage
     .from(NEWS_MEDIA_BUCKET)

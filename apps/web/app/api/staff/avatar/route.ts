@@ -2,6 +2,7 @@ import { authorizeStaffRestaurant } from "@/lib/staff/route-auth";
 import { staffAvatarStoragePath } from "@/lib/supabase/staff-db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,13 @@ export async function POST(req: Request) {
 
   const path = staffAvatarStoragePath({ restaurantId, staffId, ext });
   const userSb = await createSupabaseServerClient();
-  const buf = Buffer.from(await file.arrayBuffer());
+  const buf = prepareDeclaredUploadBytes(
+    new Uint8Array(await file.arrayBuffer()),
+    file.type,
+  );
+  if (!buf) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
 
   const { error: uploadError } = await userSb.storage
     .from("restaurant-staff-avatars")

@@ -14,6 +14,7 @@ import { buildRestaurantDocumentStoragePath } from "@/lib/supabase/documents-db"
 import { emitStaffDocumentAssignedNotification } from "@/lib/notifications/notification-staff-document-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { prepareDeclaredUploadBytes } from "@/lib/uploads/sniff-upload-bytes";
 
 export const dynamic = "force-dynamic";
 
@@ -107,7 +108,11 @@ export async function POST(req: Request) {
     documentId,
     fileName: file.name,
   });
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const rawBytes = new Uint8Array(await file.arrayBuffer());
+  const bytes = prepareDeclaredUploadBytes(rawBytes, mimeType);
+  if (!bytes) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
 
   const { error: uploadError } = await admin.storage
     .from(RESTAURANT_DOCUMENTS_STORAGE_BUCKET)

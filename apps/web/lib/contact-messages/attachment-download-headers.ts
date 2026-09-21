@@ -28,5 +28,6 @@ export function attachmentDownloadHeaders(params: {
     "Content-Disposition": attachmentContentDisposition(fileName, inline),
     "X-Gwada-Filename": encodeURIComponent(fileName),
     "Cache-Control": "private, no-store",
+    "X-Content-Type-Options": "nosniff",
   };
 }

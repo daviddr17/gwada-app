@@ -75,7 +75,10 @@ alter table public.restaurant_staff_display_clock_notification_dismissals
   drop constraint if exists staff_display_clock_dismissals_module_check;
 
 alter table public.restaurant_staff_display_clock_notification_dismissals
-  add constraint staff_display_clock_dismissals_module_check
+  drop constraint if exists clock_dismiss_module_chk;
+
+alter table public.restaurant_staff_display_clock_notification_dismissals
+  add constraint clock_dismiss_module_chk
   check (
     module in (
       'staff_display_clock_in',

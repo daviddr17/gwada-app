@@ -418,4 +418,44 @@ echo "=== Live-DB: Migrationen anwenden (nur Schema) ==="
 bash scripts/db-push-live.sh --yes --include-all "$@"
 
 echo ""
+echo "=== Live-DB: Tabellen prüfen + PostgREST Schema-Cache ==="
+# Nach CREATE TABLE kennt PostgREST die Relation erst nach reload — sonst
+# „Could not find the table … in the schema cache“ (Assistent-Chat u. a.).
+verify_and_reload="$(
+  PGPASSWORD="${POSTGRES_PASSWORD}" psql \
+    "host=127.0.0.1 port=${LIVE_TUNNEL_LOCAL_PORT} user=postgres dbname=postgres sslmode=disable" \
+    -v ON_ERROR_STOP=1 -tAc "
+select
+  (to_regclass('public.assistant_chat_threads') is not null)::text
+  || ' '
+  || (to_regclass('public.assistant_chat_messages') is not null)::text;
+NOTIFY pgrst, 'reload schema';
+select 'reloaded';
+"
+)"
+echo "assistant_chat_threads/messages exist: ${verify_and_reload}"
+# Zusätzlich Rest-Container anstupsen (self-hosted Supabase), falls NOTIFY allein nicht reicht.
+gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${DB_CONTAINER}" <<'REMOTE' || true
+set -euo pipefail
+db="$1"
+workdir="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "${db}" 2>/dev/null || true)"
+workdir="${workdir//$'\r'/}"
+if [[ -z "${workdir}" || ! -d "${workdir}" ]]; then
+  echo "Compose-Workdir unbekannt — nur NOTIFY genutzt."
+  exit 0
+fi
+cd "${workdir}"
+for svc in rest postgrest supabase-rest; do
+  if docker compose ps --services 2>/dev/null | grep -qx "${svc}"; then
+    docker compose restart "${svc}" && echo "restarted ${svc}" && exit 0
+  fi
+done
+# Fallback: Container-Name
+rest_c="$(docker ps --format '{{.Names}}' | grep -E 'rest|postgrest' | head -1 || true)"
+if [[ -n "${rest_c}" ]]; then
+  docker restart "${rest_c}" && echo "restarted ${rest_c}"
+fi
+REMOTE
+
+echo ""
 echo "Live-DB-Migrationen angewendet."

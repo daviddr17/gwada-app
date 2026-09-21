@@ -6,6 +6,7 @@ import {
   Filter,
   Layers,
   Package,
+  Pencil,
   Plus,
   Ruler,
   ScrollText,
@@ -16,7 +17,14 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
 import { toast } from "sonner";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
+import {
+  IngredientInactiveBadge,
+  ingredientInactiveRowClassName,
+} from "@/components/inventory/ingredient-inactive-badge";
 import { IngredientDrawer } from "@/components/inventory/ingredient-drawer";
 import { InventoryMobileStockList, InventoryCompactStockList } from "@/components/inventory/inventory-mobile-stock-list";
 import { InventoryModuleViewToggle } from "@/components/inventory/inventory-module-view-toggle";
@@ -24,7 +32,9 @@ import { IngredientStockProtocolDrawer } from "@/components/inventory/ingredient
 import { IngredientUsageDrawer } from "@/components/inventory/ingredient-usage-drawer";
 import {
   countInventoryActiveFilters,
+  INVENTORY_STATUS_FILTER_DEFAULT,
   InventoryFilterDrawer,
+  type InventoryStatusFilter,
 } from "@/components/inventory/inventory-filter-drawer";
 import { InventoryScreenSkeleton } from "@/components/inventory/inventory-screen-skeleton";
 import { InventoryTableExportSheet } from "@/components/inventory/inventory-table-export-sheet";
@@ -67,6 +77,7 @@ import {
   parsePurchaseUnitPriceInput,
 } from "@/lib/inventory/format-purchase-unit-price";
 import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
+import { isIngredientActive } from "@/lib/inventory/low-stock";
 import {
   INVENTORY_STOCK_VIEW_MODE_KEY,
   useInventoryModuleViewMode,
@@ -247,6 +258,7 @@ const KIND_UI: Record<
 
 type SortKey =
   | "name"
+  | "articleNumber"
   | "unit"
   | "currentStock"
   | "lowStockThreshold"
@@ -282,11 +294,10 @@ function InventoryStockInputCell({
     actor: OrderProtocolActor,
   ) => void;
 }) {
-  const [draft, setDraft] = useState(() => String(currentStock));
-
-  useEffect(() => {
-    setDraft(String(currentStock));
-  }, [ingredientId, currentStock]);
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
+    currentStock,
+    ingredientId,
+  );
 
   const commit = useCallback(() => {
     const raw = draft.trim();
@@ -298,7 +309,7 @@ function InventoryStockInputCell({
     }
     if (n === currentStock) return;
     onCommitStock(ingredientId, n, unitLabel, actor);
-  }, [actor, currentStock, draft, ingredientId, onCommitStock, unitLabel]);
+  }, [actor, currentStock, draft, ingredientId, onCommitStock, setDraft, unitLabel]);
 
   return (
     <input
@@ -306,6 +317,7 @@ function InventoryStockInputCell({
       inputMode="decimal"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
+      {...focusProps}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -325,11 +337,10 @@ function InventoryThresholdInputCell({
   lowStockThreshold: number;
   onCommitThreshold: (id: string, nextThreshold: number) => void;
 }) {
-  const [draft, setDraft] = useState(() => String(lowStockThreshold));
-
-  useEffect(() => {
-    setDraft(String(lowStockThreshold));
-  }, [ingredientId, lowStockThreshold]);
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
+    lowStockThreshold,
+    ingredientId,
+  );
 
   const commit = useCallback(() => {
     const raw = draft.trim();
@@ -341,7 +352,7 @@ function InventoryThresholdInputCell({
     }
     if (n === lowStockThreshold) return;
     onCommitThreshold(ingredientId, n);
-  }, [draft, ingredientId, lowStockThreshold, onCommitThreshold]);
+  }, [draft, ingredientId, lowStockThreshold, onCommitThreshold, setDraft]);
 
   return (
     <input
@@ -349,6 +360,7 @@ function InventoryThresholdInputCell({
       inputMode="decimal"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
+      {...focusProps}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -371,13 +383,10 @@ function InventoryPurchasePriceInputCell({
   lastPriceChangeAt?: string | null;
   onCommitPrice: (id: string, nextPrice: number | null) => void;
 }) {
-  const [draft, setDraft] = useState(() =>
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
     formatPurchaseUnitPriceDisplay(purchaseUnitPrice),
+    ingredientId,
   );
-
-  useEffect(() => {
-    setDraft(formatPurchaseUnitPriceDisplay(purchaseUnitPrice));
-  }, [ingredientId, purchaseUnitPrice]);
 
   const commit = useCallback(() => {
     const raw = draft.trim();
@@ -395,7 +404,7 @@ function InventoryPurchasePriceInputCell({
     setDraft(formatPurchaseUnitPriceDisplay(n));
     if (purchaseUnitPrice != null && n === purchaseUnitPrice) return;
     onCommitPrice(ingredientId, n);
-  }, [draft, ingredientId, onCommitPrice, purchaseUnitPrice]);
+  }, [draft, ingredientId, onCommitPrice, purchaseUnitPrice, setDraft]);
 
   const lastChangeLabel = lastPriceChangeAt
     ? new Date(lastPriceChangeAt).toLocaleDateString("de-DE", {
@@ -411,6 +420,7 @@ function InventoryPurchasePriceInputCell({
       inputMode="decimal"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
+      {...focusProps}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -458,13 +468,10 @@ function InventoryOrderAddCell({
     user: OrderProtocolActor,
   ) => Promise<boolean>;
 }) {
-  const [draft, setDraft] = useState(() =>
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
     openLineId ? String(openQty) : "",
+    openLineId ?? ingredient.id,
   );
-
-  useEffect(() => {
-    setDraft(openLineId ? String(openQty) : "");
-  }, [openLineId, openQty]);
 
   const displayOrderQty = useMemo(() => {
     const t = draft.trim();
@@ -484,6 +491,9 @@ function InventoryOrderAddCell({
       return;
     }
     const raw = draft.trim();
+    if (raw === "" && openLineId) {
+      return;
+    }
     let q: number;
     if (raw === "") {
       q = 0;
@@ -555,6 +565,7 @@ function InventoryOrderAddCell({
     openLineId,
     openOrderId,
     openQty,
+    setDraft,
     supplierName,
     unitId,
     unitLabel,
@@ -570,6 +581,7 @@ function InventoryOrderAddCell({
         disabled={!canOrder}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        {...focusProps}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -725,12 +737,11 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
     isHydrated: ingredientsHydrated,
   } = useIngredientsStorage();
 
-  const { items: menuItems, isHydrated: menuHydrated } = useMenuStorage();
-  const { actor, isHydrated: userNameHydrated } = usePersonalProfileNames();
+  const { items: menuItems } = useMenuStorage();
+  const { actor } = usePersonalProfileNames();
   const {
     addLine,
     updateLineQuantity,
-    isHydrated: ordersHydrated,
     getOpenLineContext,
   } = usePurchaseOrdersStorage();
   const {
@@ -752,6 +763,9 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
   } | null>(null);
 
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<InventoryStatusFilter>(
+    INVENTORY_STATUS_FILTER_DEFAULT,
+  );
   const [filterSupplier, setFilterSupplier] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterProduction, setFilterProduction] = useState<string>("all");
@@ -827,9 +841,17 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
 
     if (search.trim()) {
       const q = search.trim();
-      rows = rows.filter((r) =>
-        ingredientRowMatchesDishSearch(r.id, r.name, q, menuItems),
+      const qLower = q.toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          ingredientRowMatchesDishSearch(r.id, r.name, q, menuItems) ||
+          (r.articleNumber?.toLowerCase().includes(qLower) ?? false),
       );
+    }
+    if (filterStatus === "active") {
+      rows = rows.filter(isIngredientActive);
+    } else if (filterStatus === "inactive") {
+      rows = rows.filter((r) => !isIngredientActive(r));
     }
     if (filterSupplier !== "all") {
       rows = rows.filter((r) => r.supplierId === filterSupplier);
@@ -851,6 +873,11 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
       switch (sortKey) {
         case "name":
           return a.name.localeCompare(b.name, "de") * dir;
+        case "articleNumber":
+          return (a.articleNumber ?? "").localeCompare(
+            b.articleNumber ?? "",
+            "de",
+          ) * dir;
         case "unit":
           return (
             nameById(units.items, a.unit).localeCompare(
@@ -907,6 +934,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
   }, [
     ingredients,
     search,
+    filterStatus,
     filterSupplier,
     filterCategory,
     filterProduction,
@@ -935,6 +963,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
     setPage(1);
   }, [
     search,
+    filterStatus,
     filterSupplier,
     filterCategory,
     filterProduction,
@@ -990,26 +1019,25 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
   const filterActiveCount = useMemo(
     () =>
       countInventoryActiveFilters({
+        filterStatus,
         filterSupplier,
         filterCategory,
         filterProduction,
         filterBrand,
       }),
-    [filterBrand, filterCategory, filterProduction, filterSupplier],
+    [filterBrand, filterCategory, filterProduction, filterStatus, filterSupplier],
   );
 
   const restaurantName = profile.name.trim() || undefined;
 
   const ready =
     ingredientsHydrated &&
-    menuHydrated &&
-    ordersHydrated &&
-    userNameHydrated &&
     suppliers.isHydrated &&
     ingredientCategories.isHydrated &&
     productionSites.isHydrated &&
     brands.isHydrated &&
     units.isHydrated;
+  const showInventorySkeleton = useDeferredSkeleton(!ready);
 
   if (!permissionsLoading && !canRead) {
     return <ModuleAccessDenied label="Bestand" />;
@@ -1018,7 +1046,11 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
   return (
     <>
       {!ready ? (
-        <InventoryScreenSkeleton />
+        showInventorySkeleton ? (
+          <InventoryScreenSkeleton />
+        ) : (
+          <div aria-busy className="min-h-[24rem]" />
+        )
       ) : (
         <div className="w-full">
       <div className="mb-4 flex flex-wrap gap-2">
@@ -1059,7 +1091,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Zutaten suchen…"
+              placeholder="Name oder Artikelnummer"
               className={moduleSearchInputClassName}
               aria-label="Zutaten suchen"
             />
@@ -1103,6 +1135,8 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
       <InventoryFilterDrawer
         open={filterOpen}
         onOpenChange={setFilterOpen}
+        filterStatus={filterStatus}
+        onFilterStatusChange={setFilterStatus}
         filterSupplier={filterSupplier}
         onFilterSupplierChange={setFilterSupplier}
         suppliers={suppliers.items}
@@ -1268,7 +1302,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
           />
         )}
       >
-        <table className="w-full min-w-[1340px] text-sm">
+        <table className="w-full min-w-[1480px] text-sm">
           <thead>
             <tr className={moduleDataTableHeadRowSortableClassName}>
               <ModuleTableSortHeader
@@ -1278,7 +1312,16 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
                 dir={sortDir}
                 onSort={toggleSort}
                 stickyIdentityColumn
-                className="min-w-[10rem] px-2 py-2"
+                className="min-w-[12rem] px-2 py-2"
+              />
+              <ModuleTableSortHeader
+                label="Art.-Nr."
+                sortKey="articleNumber"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="min-w-[7rem] px-2 py-2"
+                ariaLabel="Artikelnummer sortieren"
               />
               <ModuleTableSortHeader
                 label="Bestand"
@@ -1358,7 +1401,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
               />
               <ModuleTableIconActionsColumnHeader
                 dense
-                className="min-w-[7.5rem] w-[7.5rem]"
+                className="min-w-[9.5rem] w-[9.5rem]"
               />
             </tr>
           </thead>
@@ -1366,7 +1409,7 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
             {filteredSorted.length === 0 ? (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   className="px-4 py-10 text-center text-muted-foreground"
                 >
                   Keine Zutaten für die aktuelle Suche oder Filter.
@@ -1380,24 +1423,35 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
                 );
                 const canOrderRow = Boolean(row.supplierId?.trim());
                 const orderCtx = getOpenLineContext(row.supplierId, row.id);
+                const inactive = !isIngredientActive(row);
 
                 return (
                 <tr
                   key={row.id}
-                  className="group/tr border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60"
+                  className={cn(
+                    "group/tr border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60",
+                    inactive && ingredientInactiveRowClassName,
+                  )}
                 >
                   <ModuleTableStickyBodyCell
                     tone="muted-hover-60"
                     className="px-2 py-1.5 align-middle"
                   >
-                    <input
-                      value={row.name}
-                      onChange={(e) =>
-                        void updateIngredient(row.id, { name: e.target.value })
-                      }
-                      className={inputCellClass}
-                    />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <IngredientThumb imagePath={row.imagePath} />
+                      <input
+                        value={row.name}
+                        onChange={(e) =>
+                          void updateIngredient(row.id, { name: e.target.value })
+                        }
+                        className={cn(inputCellClass, "min-w-0 flex-1")}
+                      />
+                      {inactive ? <IngredientInactiveBadge /> : null}
+                    </div>
                   </ModuleTableStickyBodyCell>
+                  <td className="px-2 py-1.5 align-middle text-muted-foreground">
+                    {row.articleNumber?.trim() || "—"}
+                  </td>
                   <td className="px-2 py-1.5 align-middle">
                     <InventoryStockInputCell
                       ingredientId={row.id}
@@ -1484,6 +1538,13 @@ export function InventoryScreen({ active = true }: { active?: boolean }) {
                     />
                   </td>
                   <ModuleTableActionsCell dense>
+                    <ModuleTableIconActionButton
+                      label="Zutat bearbeiten"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => setEditingIngredientId(row.id)}
+                    >
+                      <Pencil className="size-4" />
+                    </ModuleTableIconActionButton>
                     <ModuleTableIconActionButton
                       label="Speisen mit dieser Zutat"
                       className="text-muted-foreground hover:text-foreground"

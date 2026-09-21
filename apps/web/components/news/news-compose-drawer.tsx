@@ -9,6 +9,7 @@ import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Drawer,
@@ -48,6 +49,7 @@ export function NewsComposeDrawer({
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [platforms, setPlatforms] = useState<NewsPlatform[]>(["gwada"]);
   const [storyPlatforms, setStoryPlatforms] = useState<NewsStoriesPlatform[]>([]);
@@ -60,6 +62,7 @@ export function NewsComposeDrawer({
     if (!open) return;
     setTitle("");
     setBody("");
+    setScheduleEnabled(false);
     setScheduledAt("");
     setPlatforms(["gwada"]);
     setStoryPlatforms([]);
@@ -85,7 +88,8 @@ export function NewsComposeDrawer({
       (c.key === "instagram" || c.key === "facebook"),
   );
 
-  const canPublishStories = media.length > 0 && !scheduledAt;
+  const effectiveScheduledAt = scheduleEnabled ? scheduledAt : "";
+  const canPublishStories = media.length > 0 && !effectiveScheduledAt;
 
   const togglePlatform = (key: NewsPlatform) => {
     setPlatforms((prev) =>
@@ -174,6 +178,10 @@ export function NewsComposeDrawer({
       toast.error("Instagram benötigt mindestens ein Bild.");
       return;
     }
+    if (scheduleEnabled && !scheduledAt.trim()) {
+      toast.error("Bitte Zeitpunkt für die Planung wählen.");
+      return;
+    }
     if (!postIdRef.current) postIdRef.current = crypto.randomUUID();
     setSaving(true);
     try {
@@ -185,7 +193,9 @@ export function NewsComposeDrawer({
           postId: postIdRef.current,
           title: title.trim() || null,
           body: body.trim(),
-          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+          scheduledAt: effectiveScheduledAt
+            ? new Date(effectiveScheduledAt).toISOString()
+            : null,
           platforms,
           storyPlatforms: canPublishStories ? storyPlatforms : [],
           media: media.map(({ previewUrl: _previewUrl, ...row }) => row),
@@ -193,7 +203,7 @@ export function NewsComposeDrawer({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "save_failed");
-      toast.success(scheduledAt ? "News geplant." : "News veröffentlicht.");
+      toast.success(effectiveScheduledAt ? "News geplant." : "News veröffentlicht.");
       onOpenChange(false);
       onSaved();
     } catch (e) {
@@ -204,7 +214,9 @@ export function NewsComposeDrawer({
   }, [
     body,
     title,
+    scheduleEnabled,
     scheduledAt,
+    effectiveScheduledAt,
     platforms,
     storyPlatforms,
     canPublishStories,
@@ -317,11 +329,29 @@ export function NewsComposeDrawer({
           </DrawerFormSection>
 
           <DrawerFormSection contentPadding={4} title="Planen">
-          <Input
-            type="datetime-local"
-            value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
-          />
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="news-compose-schedule" className="text-sm font-normal">
+                Später veröffentlichen
+              </Label>
+              <Switch
+                id="news-compose-schedule"
+                size="sm"
+                checked={scheduleEnabled}
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true;
+                  setScheduleEnabled(enabled);
+                  if (!enabled) setScheduledAt("");
+                }}
+              />
+            </div>
+            {scheduleEnabled ? (
+              <Input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                aria-label="Veröffentlichungszeitpunkt"
+              />
+            ) : null}
           </DrawerFormSection>
 
           <DrawerFormSection contentPadding={4} title="Plattformen">
@@ -371,7 +401,7 @@ export function NewsComposeDrawer({
           <DrawerFormFooter
             onCancel={() => onOpenChange(false)}
             cancelDisabled={saving || uploading}
-            submitLabel={scheduledAt ? "Planen" : "Veröffentlichen"}
+            submitLabel={effectiveScheduledAt ? "Planen" : "Veröffentlichen"}
             submitPending={saving}
             submitDisabled={uploading}
             submitType="button"

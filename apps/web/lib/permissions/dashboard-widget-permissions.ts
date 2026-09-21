@@ -154,7 +154,6 @@ export function hasDashboardWidgetAccess(
   options?: DashboardWidgetAccessOptions,
 ): boolean {
   if (widgetId === "weather") {
-    if (options?.weatherLoading) return false;
     return options?.weatherAvailable === true;
   }
   if (widgetId === "heute") {
@@ -181,7 +180,8 @@ export function hasDashboardWidgetAccess(
   }
   if (widgetId === "pos") {
     if (!hasPosModuleAccess(has)) return false;
-    return hasWidgetBillingAccess(widgetId, options?.entitlements);
+    // Coming-soon-Kachel bleibt sichtbar; Live-KPIs nur für Superadmin in der Tile.
+    return true;
   }
   if (widgetId === "gallery") {
     if (!GALLERY_WIDGET_KEYS.some((key) => has(key))) return false;

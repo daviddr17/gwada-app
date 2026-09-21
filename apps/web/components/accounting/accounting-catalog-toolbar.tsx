@@ -30,7 +30,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
-import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerChromeMaxWidthClassName, drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/combobox";
@@ -70,6 +70,7 @@ import {
   accountingFormGridClassName,
   accountingFormSelectClassName,
 } from "@/lib/ui/accounting-form-styles";
+import { cn } from "@/lib/utils";
 
 type CatalogState = {
   taxRates: AccountingTaxRateRow[];
@@ -629,7 +630,7 @@ function StatusFormDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-        <DrawerContent className="mx-auto max-w-lg rounded-t-[1.75rem]">
+        <DrawerContent className={cn("mx-auto rounded-t-[1.75rem]", drawerChromeMaxWidthClassName)}>
           <DrawerHeader>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1 text-left">
@@ -783,7 +784,7 @@ function TaxRateFormDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-        <DrawerContent className="mx-auto max-w-lg rounded-t-[1.75rem]">
+        <DrawerContent className={cn("mx-auto rounded-t-[1.75rem]", drawerChromeMaxWidthClassName)}>
           <DrawerHeader>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1 text-left">

@@ -32,6 +32,8 @@ export function MenuCategoryTabs({
 }: MenuCategoryTabsProps) {
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const tabBtnRefs = React.useRef<Map<string, HTMLButtonElement>>(new Map());
+  /** Pill-Klick: smooth; Scroll-Spy / Vertikal: auto (kein Halb-Scroll durch konkurrierende Animationen). */
+  const snapBehaviorRef = React.useRef<ScrollBehavior>("auto");
   const pointerFine = usePointerFine();
   const [canLeft, setCanLeft] = React.useState(false);
   const [canRight, setCanRight] = React.useState(false);
@@ -85,11 +87,11 @@ export function MenuCategoryTabs({
   );
 
   React.useLayoutEffect(() => {
-    const id = requestAnimationFrame(() =>
-      snapActiveTabIntoView(pointerFine ? "smooth" : "auto"),
-    );
+    const behavior = snapBehaviorRef.current;
+    snapBehaviorRef.current = "auto";
+    const id = requestAnimationFrame(() => snapActiveTabIntoView(behavior));
     return () => cancelAnimationFrame(id);
-  }, [activeCategoryId, pointerFine, snapActiveTabIntoView]);
+  }, [activeCategoryId, snapActiveTabIntoView]);
 
   React.useEffect(() => {
     const root = getAppScrollRoot();
@@ -190,7 +192,11 @@ export function MenuCategoryTabs({
                       : "border-border/60 bg-card text-muted-foreground shadow-none dark:shadow-xs hover:bg-muted/80 hover:text-foreground",
                     !catLive && "opacity-70",
                   )}
-                  onClick={() => onCategorySelect(cat.id)}
+                  onClick={() => {
+                    snapBehaviorRef.current =
+                      pointerFine ? "smooth" : "auto";
+                    onCategorySelect(cat.id);
+                  }}
                   title={cat.name}
                 >
                   <span className="whitespace-nowrap">{cat.name}</span>

@@ -6,15 +6,23 @@ export const GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT =
   "gwada:unified-inbox-cache-updated";
 
 /** Erhöhen, wenn Listen-Format wechselt (z. B. DB-only statt Live-Merge). */
-export const UNIFIED_INBOX_CACHE_VERSION = 4;
+export const UNIFIED_INBOX_CACHE_VERSION = 6;
 
 const SESSION_KEY_PREFIX = `gwada:unified-inbox:v${UNIFIED_INBOX_CACHE_VERSION}:`;
 /** Überlebt Soft-Nav und Seiten-Reload in derselben Browser-Session. */
 const SESSION_MAX_AGE_MS = 30 * 60 * 1000;
 
+/**
+ * SWR-Fenster — bei Cache-Hit unter diesem Alter kein Force-Refetch beim Öffnen.
+ * Align mit `module-data-cache-policy` unifiedInbox.staleTimeMs.
+ */
+export const UNIFIED_INBOX_STALE_MS = 5 * 60 * 1000;
+
 type CacheEntry = {
   conversations: ContactConversationPreview[];
   cachedAt: number;
+  /** true nach vollem fetchUnifiedInboxConversations — nicht nach reinem Realtime-Seed. */
+  complete: boolean;
 };
 
 const cache = new Map<string, CacheEntry>();
@@ -34,7 +42,11 @@ function readInboxFromSession(restaurantId: string): CacheEntry | null {
       sessionStorage.removeItem(sessionKey(restaurantId));
       return null;
     }
-    return parsed;
+    return {
+      conversations: parsed.conversations,
+      cachedAt: parsed.cachedAt,
+      complete: parsed.complete === true,
+    };
   } catch {
     return null;
   }
@@ -59,10 +71,13 @@ function hydrateMemoryFromSession(restaurantId: string): CacheEntry | null {
 export function setUnifiedInboxCache(
   restaurantId: string,
   conversations: ContactConversationPreview[],
+  options?: { complete?: boolean },
 ): void {
+  const prev = cache.get(restaurantId) ?? hydrateMemoryFromSession(restaurantId);
   const entry: CacheEntry = {
     conversations,
     cachedAt: Date.now(),
+    complete: options?.complete ?? prev?.complete ?? false,
   };
   cache.set(restaurantId, entry);
   writeInboxToSession(restaurantId, entry);
@@ -84,11 +99,26 @@ export function peekUnifiedInboxCache(
   return hydrated?.conversations ?? null;
 }
 
+/** Nur nach vollem Inbox-Fetch — sonst unterzählt Realtime-Seed die Glocke. */
+export function peekCompleteUnifiedInboxCache(
+  restaurantId: string,
+): ContactConversationPreview[] | null {
+  const entry = cache.get(restaurantId) ?? hydrateMemoryFromSession(restaurantId);
+  if (!entry?.complete) return null;
+  return entry.conversations;
+}
+
 export function peekUnifiedInboxCacheAgeMs(restaurantId: string): number | null {
   const entry =
     cache.get(restaurantId) ?? hydrateMemoryFromSession(restaurantId);
   if (!entry) return null;
   return Date.now() - entry.cachedAt;
+}
+
+/** Cache vorhanden und jünger als {@link UNIFIED_INBOX_STALE_MS}. */
+export function isUnifiedInboxCacheFresh(restaurantId: string): boolean {
+  const age = peekUnifiedInboxCacheAgeMs(restaurantId);
+  return age != null && age < UNIFIED_INBOX_STALE_MS;
 }
 
 export type UnifiedInboxReadStatePatch = Pick<

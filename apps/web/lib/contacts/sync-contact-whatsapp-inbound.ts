@@ -38,6 +38,12 @@ async function mirrorWahaThreadToDb(
     maxMessages?: number;
     /** Kein notification_events / Push (Session-Warmup). */
     silent?: boolean;
+    /**
+     * Historien-Import (Connect): Kanal als gelesen behandeln.
+     * Verhindert Sidebar „Nachrichten (88)“ aus Altverlauf ohne WAHA-ack.
+     * Cron-Catch-up setzt das nicht — dort gilt weiter ack/external_seen.
+     */
+    markChannelSeen?: boolean;
     /** Nur Nachrichten ab diesem Zeitpunkt (Cron-Catch-up, kein Altverlauf). */
     minCreatedAtMs?: number;
   },
@@ -81,7 +87,7 @@ async function mirrorWahaThreadToDb(
 
   let existingQuery = admin
     .from("contact_messages")
-    .select("external_source_id, body")
+    .select("external_source_id, body, external_seen")
     .eq("restaurant_id", params.restaurantId)
     .in("external_source_id", externalIds);
 
@@ -93,10 +99,20 @@ async function mirrorWahaThreadToDb(
 
   const { data: existing } = await existingQuery;
 
-  const known = new Map<string, string>();
+  const known = new Map<
+    string,
+    { body: string; externalSeen: boolean | null | undefined }
+  >();
   for (const row of existing ?? []) {
-    const r = row as { external_source_id: string; body: string };
-    known.set(r.external_source_id, r.body ?? "");
+    const r = row as {
+      external_source_id: string;
+      body: string;
+      external_seen: boolean | null;
+    };
+    known.set(r.external_source_id, {
+      body: r.body ?? "",
+      externalSeen: r.external_seen,
+    });
   }
 
   let imported = 0;
@@ -106,12 +122,23 @@ async function mirrorWahaThreadToDb(
     const mirrorBody = whatsappMirrorBodyFromContactRow(m);
     if (!mirrorBody) continue;
 
+    const externalSeen = params.markChannelSeen
+      ? true
+      : wahaInboundExternalSeen(m);
+
     if (known.has(m.id)) {
-      const currentBody = known.get(m.id) ?? "";
-      const externalSeen = wahaInboundExternalSeen(m);
+      const existingRow = known.get(m.id)!;
+      const currentBody = existingRow.body;
+      /** Cron-Catch-up darf Gwada-Gelesen nicht zurücksetzen (Deploy/Recover). */
+      const resolvedExternalSeen =
+        externalSeen === true
+          ? true
+          : externalSeen === false && existingRow.externalSeen === true
+            ? true
+            : externalSeen;
       if (
         (mirrorBody && mirrorBody !== currentBody) ||
-        externalSeen !== undefined
+        resolvedExternalSeen !== undefined
       ) {
         let updateQuery = admin
           .from("contact_messages")
@@ -119,8 +146,8 @@ async function mirrorWahaThreadToDb(
             ...(mirrorBody && mirrorBody !== currentBody
               ? { body: mirrorBody }
               : {}),
-            ...(externalSeen !== undefined
-              ? { external_seen: externalSeen }
+            ...(resolvedExternalSeen !== undefined
+              ? { external_seen: resolvedExternalSeen }
               : {}),
           })
           .eq("restaurant_id", params.restaurantId)
@@ -150,7 +177,7 @@ async function mirrorWahaThreadToDb(
           params.conversationLabel,
         ),
         suppressNotifications: true,
-        externalSeen: wahaInboundExternalSeen(m),
+        externalSeen,
       });
       if (inserted.inserted) imported += 1;
       continue;
@@ -169,7 +196,7 @@ async function mirrorWahaThreadToDb(
       conversationLabel: sanitizeConversationLabelForStorage(
         params.conversationLabel,
       ),
-      externalSeen: wahaInboundExternalSeen(m),
+      externalSeen,
     });
     if (result.imported) imported += 1;
   }
@@ -185,6 +212,7 @@ export async function syncContactWhatsappInbound(
     contactId: string;
     maxMessages?: number;
     silent?: boolean;
+    markChannelSeen?: boolean;
     minCreatedAtMs?: number;
   },
 ): Promise<{ imported: number; error: string | null }> {
@@ -202,6 +230,7 @@ export async function syncContactWhatsappInbound(
     chatIdOverride: chatId,
     maxMessages: params.maxMessages,
     silent: params.silent,
+    markChannelSeen: params.markChannelSeen,
     minCreatedAtMs: params.minCreatedAtMs,
   });
 }
@@ -215,6 +244,7 @@ export async function syncPseudoWhatsappThread(
     maxMessages?: number;
     conversationLabel?: string | null;
     silent?: boolean;
+    markChannelSeen?: boolean;
     minCreatedAtMs?: number;
   },
 ): Promise<{ imported: number; error: string | null }> {
@@ -233,6 +263,7 @@ export async function syncPseudoWhatsappThread(
       params.conversationLabel,
     ),
     silent: params.silent,
+    markChannelSeen: params.markChannelSeen,
     minCreatedAtMs: params.minCreatedAtMs,
   });
 }

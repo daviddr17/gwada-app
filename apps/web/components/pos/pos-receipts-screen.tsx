@@ -54,6 +54,7 @@ import {
   type PosWebReceiptDto,
 } from "@/lib/pos/pos-web-api-client";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { drawerChromeMaxWidthClassName } from "@/lib/ui/drawer-chrome";
 import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
@@ -614,7 +615,7 @@ export function PosReceiptsScreen() {
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto max-w-lg">
+        <DrawerContent className={cn("mx-auto", drawerChromeMaxWidthClassName)}>
           <DrawerHeader>
             <DrawerTitle>Barzahlung stornieren</DrawerTitle>
           </DrawerHeader>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,17 +14,27 @@ import { EventsComposeDrawer } from "@/components/events/events-compose-drawer";
 import { EventsDetailDrawer } from "@/components/events/events-detail-drawer";
 import { EventsFeedSkeleton } from "@/components/events/events-feed-skeleton";
 import { EventsListView } from "@/components/events/events-feed-views";
-import { EventsPlatformFilterChips } from "@/components/events/events-platform-filter-chips";
+import { EventsAudienceChipNav } from "@/components/events/events-audience-chip-nav";
+import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import {
   EVENTS_FILTER_ALL,
   isEventsCacheablePlatform,
-  type EventsCacheablePlatform,
-  type EventsPlatformFilter,
 } from "@/lib/constants/events-platforms";
 import {
   clampListPage,
   totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
+import {
+  EVENTS_FILTER_PRIVATE,
+  EVENTS_FILTER_PUBLIC,
+  parseEventsDashboardFilter,
+  type EventsDashboardFilter,
+} from "@/lib/events/events-dashboard-filter";
+import { isPrivateEventFeedItem } from "@/lib/events/unified-event-item";
+import {
+  NEW_PRIVATE_EVENT_QUERY,
+  PRIVATE_EVENT_QUERY,
+} from "@/lib/events/private-event-href";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useEventsPlatformConnections } from "@/lib/hooks/use-events-platform-connections";
 import { usePlatformFeedSyncRealtime } from "@/lib/hooks/use-platform-feed-sync-realtime";
@@ -37,12 +48,25 @@ import {
 import { EVENTS_FEED_PAGE_SIZE } from "@/lib/events/events-feed-pagination";
 import type { EventsFeedSyncMeta } from "@/lib/events/events-feed-sync-meta";
 import type { UnifiedEventItem } from "@/lib/events/unified-event-item";
+import { keepAliveOwnsPathname } from "@/lib/navigation/module-home-keep-alive";
+import { useKeepAliveGatedRouter } from "@/lib/navigation/use-keep-alive-gated-router";
+import { RESERVATION_KIND_PRIVATE_EVENT } from "@/lib/reservations/reservation-kind";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import {
+  fetchReservationById,
+  type ReservationListRow,
+} from "@/lib/supabase/reservations-db";
 import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persistence";
+import { RegisterModuleSecondarySubnavContent } from "@/lib/contexts/app-module-chrome-context";
 
 const EVENTS_SYNC_POLL_MS = 5_000;
 const EVENTS_SYNC_POLL_MAX = 3;
+
+function ymdToLocalDate(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1);
+}
 
 function initialEventsRestaurantId(): string | null {
   const cached = peekCachedWorkspaceRestaurantId();
@@ -68,12 +92,24 @@ function initialEventsFeedFromCache(restaurantId: string | null): {
   };
 }
 
-export function EventsScreen({ active = true }: { active?: boolean }) {
-  void active;
+export function EventsScreen({
+  active = true,
+  showChrome = active,
+}: {
+  active?: boolean;
+  /** Keep-alive: Chrome auch während Soft-Nav-Preview. */
+  showChrome?: boolean;
+}) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "events");
   const canManage = hasModuleCreate(has, "events");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const router = useKeepAliveGatedRouter(active);
+  void canRead;
 
   const initialFeedRef = useRef<ReturnType<typeof initialEventsFeedFromCache> | null>(
     null,
@@ -85,7 +121,9 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   }
   const initialFeed = initialFeedRef.current;
 
-  const [platformFilter, setPlatformFilter] = useState<EventsPlatformFilter>(EVENTS_FILTER_ALL);
+  const [platformFilter, setPlatformFilter] = useState<EventsDashboardFilter>(
+    EVENTS_FILTER_PUBLIC,
+  );
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<UnifiedEventItem[]>(() => initialFeed.items);
   const [syncMeta, setSyncMeta] = useState<EventsFeedSyncMeta | null>(
@@ -97,8 +135,13 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   const [composeOpen, setComposeOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<UnifiedEventItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const { connectors, availablePlatforms } = useEventsPlatformConnections(restaurantId);
+  const [privateReservation, setPrivateReservation] =
+    useState<ReservationListRow | null>(null);
+  const [privateCreateOpen, setPrivateCreateOpen] = useState(false);
+  const [privateCreateDay, setPrivateCreateDay] = useState<Date>(() => new Date());
+  const { connectors } = useEventsPlatformConnections(restaurantId);
   const loadGeneration = useRef(0);
+  const handledQueryRef = useRef<string>("");
 
   const applyCachedFeed = useCallback((cached: ReturnType<typeof peekEventsFeedCache>) => {
     if (!cached) return;
@@ -139,7 +182,9 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
         setSyncMeta(nextSync);
         writeEventsFeedCache(restaurantId, { items: nextItems, sync: nextSync });
       } catch {
-        if (!silent && !cached) toast.error("Events konnten nicht geladen werden.");
+        if (!silent && !cached && activeRef.current) {
+          toast.error("Events konnten nicht geladen werden.");
+        }
       } finally {
         if (!silent && generation === loadGeneration.current) setLoading(false);
       }
@@ -156,6 +201,110 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
     void load({ silent: true });
   }, { enabled: Boolean(restaurantId && ready) });
 
+  const clearPrivateEventUrl = useCallback(() => {
+    handledQueryRef.current = "";
+    if (!keepAliveOwnsPathname(active, pathname, "events")) return;
+    router.replace(pathname, { scroll: false });
+  }, [active, pathname, router]);
+
+  const selectAudienceFilter = useCallback(
+    (filter: EventsDashboardFilter) => {
+      setPlatformFilter(filter);
+      setPage(1);
+      if (!keepAliveOwnsPathname(active, pathname, "events")) return;
+      const p = new URLSearchParams(searchParams.toString());
+      p.set("filter", filter);
+      p.delete(PRIVATE_EVENT_QUERY);
+      p.delete(NEW_PRIVATE_EVENT_QUERY);
+      p.delete("day");
+      router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+    },
+    [active, pathname, router, searchParams],
+  );
+
+  const openPrivateEvent = useCallback(
+    async (reservationId: string) => {
+      if (!restaurantId || !isUuidRestaurantId(reservationId)) return;
+      if (!keepAliveOwnsPathname(active, pathname, "events")) return;
+      const { data, error } = await fetchReservationById({
+        restaurantId,
+        id: reservationId,
+      });
+      if (error || !data) {
+        if (activeRef.current) {
+          toast.error("Veranstaltung konnte nicht geladen werden.");
+        }
+        return;
+      }
+      setPrivateCreateOpen(false);
+      setPrivateReservation(data);
+      if (keepAliveOwnsPathname(active, pathname, "events")) {
+        const p = new URLSearchParams();
+        p.set("filter", EVENTS_FILTER_PRIVATE);
+        p.set(PRIVATE_EVENT_QUERY, reservationId);
+        router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+      }
+    },
+    [restaurantId, active, pathname, router],
+  );
+
+  const openNewPrivateEvent = useCallback(
+    (day?: Date) => {
+      setPrivateReservation(null);
+      setPrivateCreateDay(day ?? new Date());
+      setPrivateCreateOpen(true);
+      if (keepAliveOwnsPathname(active, pathname, "events")) {
+        const p = new URLSearchParams();
+        p.set("filter", EVENTS_FILTER_PRIVATE);
+        p.set(NEW_PRIVATE_EVENT_QUERY, "1");
+        router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+      }
+    },
+    [active, pathname, router],
+  );
+
+  useLayoutEffect(() => {
+    if (!active) return;
+    if (!keepAliveOwnsPathname(active, pathname, "events")) return;
+    const filterRaw = searchParams.get("filter");
+    setPlatformFilter(parseEventsDashboardFilter(filterRaw));
+    if (
+      !filterRaw &&
+      !searchParams.get(PRIVATE_EVENT_QUERY) &&
+      searchParams.get(NEW_PRIVATE_EVENT_QUERY) !== "1"
+    ) {
+      const p = new URLSearchParams(searchParams.toString());
+      p.set("filter", EVENTS_FILTER_PUBLIC);
+      router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+    }
+  }, [active, pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (!restaurantId || !ready) return;
+    if (!keepAliveOwnsPathname(active, pathname, "events")) return;
+    const privateId = searchParams.get(PRIVATE_EVENT_QUERY);
+    const newPrivate = searchParams.get(NEW_PRIVATE_EVENT_QUERY) === "1";
+    const dayYmd = searchParams.get("day");
+    const key = `${privateId ?? ""}|${newPrivate ? "1" : "0"}|${dayYmd ?? ""}`;
+    if (handledQueryRef.current === key) return;
+    handledQueryRef.current = key;
+    if (privateId && isUuidRestaurantId(privateId)) {
+      void openPrivateEvent(privateId);
+      return;
+    }
+    if (newPrivate) {
+      openNewPrivateEvent(dayYmd ? ymdToLocalDate(dayYmd) : undefined);
+    }
+  }, [
+    restaurantId,
+    ready,
+    active,
+    pathname,
+    searchParams,
+    openPrivateEvent,
+    openNewPrivateEvent,
+  ]);
+
   const syncNow = useCallback(async () => {
     if (!restaurantId || syncing) return;
     setSyncing(true);
@@ -167,6 +316,8 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
           restaurantId,
           platform:
             platformFilter !== EVENTS_FILTER_ALL &&
+            platformFilter !== EVENTS_FILTER_PRIVATE &&
+            platformFilter !== EVENTS_FILTER_PUBLIC &&
             isEventsCacheablePlatform(platformFilter)
               ? platformFilter
               : undefined,
@@ -174,9 +325,11 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
       });
       if (!res.ok) throw new Error("sync_failed");
       await load({ silent: true });
-      toast.success("Synchronisiert.");
+      if (activeRef.current) toast.success("Synchronisiert.");
     } catch {
-      toast.error("Synchronisierung fehlgeschlagen.");
+      if (activeRef.current) {
+        toast.error("Synchronisierung fehlgeschlagen.");
+      }
     } finally {
       setSyncing(false);
     }
@@ -198,8 +351,16 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   }, [syncMeta?.stale, loading, load]);
 
   const filteredItems = useMemo(() => {
+    if (platformFilter === EVENTS_FILTER_PUBLIC) {
+      return items.filter((item) => !isPrivateEventFeedItem(item));
+    }
+    if (platformFilter === EVENTS_FILTER_PRIVATE) {
+      return items.filter(isPrivateEventFeedItem);
+    }
     if (platformFilter === EVENTS_FILTER_ALL) return items;
-    return items.filter((item) => item.platform === platformFilter);
+    return items.filter(
+      (item) => !isPrivateEventFeedItem(item) && item.platform === platformFilter,
+    );
   }, [items, platformFilter]);
 
   useEffect(() => {
@@ -214,6 +375,18 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
     return filteredItems.slice(from, from + EVENTS_FEED_PAGE_SIZE);
   }, [filteredItems, currentPage]);
 
+  const privateDrawerOpen = Boolean(privateReservation) || privateCreateOpen;
+
+  const audienceChipNav = useMemo(
+    () => (
+      <EventsAudienceChipNav
+        value={platformFilter}
+        onChange={selectAudienceFilter}
+      />
+    ),
+    [platformFilter, selectAudienceFilter],
+  );
+
   if (!ready) {
     return <WorkspaceRestaurantResolvePlaceholder />;
   }
@@ -222,61 +395,78 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
   }
 
   return (
-    <div className="space-y-4">
-      <EventsPlatformFilterChips
-        value={platformFilter}
-        onChange={setPlatformFilter}
-        availablePlatforms={availablePlatforms}
-      />
-
-      {canManage ? (
-        <Button
-          type="button"
-          size="lg"
-          className={modulePrimaryAddButtonFullWidthClassName}
-          onClick={() => setComposeOpen(true)}
-        >
-          <Plus className="size-4" />
-          Neues Event
-        </Button>
+    <>
+      {active || showChrome ? (
+        <RegisterModuleSecondarySubnavContent ariaLabel="Events-Ansicht">
+          {audienceChipNav}
+        </RegisterModuleSecondarySubnavContent>
       ) : null}
+      <div className="space-y-4">
+        {canManage ? (
+          <Button
+            type="button"
+            size="lg"
+            className={modulePrimaryAddButtonFullWidthClassName}
+            onClick={() =>
+              platformFilter === EVENTS_FILTER_PRIVATE
+                ? openNewPrivateEvent()
+                : setComposeOpen(true)
+            }
+          >
+            <Plus className="size-4" />
+            {platformFilter === EVENTS_FILTER_PRIVATE
+              ? "Neue Veranstaltung"
+              : "Öffentliches Event"}
+          </Button>
+        ) : null}
 
-      {showFeedSkeleton ? (
-        <EventsFeedSkeleton />
-      ) : (
-        <ListPaginationSurround
-          classNameAbove="px-0 pt-0"
-          classNameBelow="px-0 pb-0"
-          page={currentPage}
-          totalPages={totalPages}
-          shown={paginatedItems.length}
-          totalCount={totalCount}
-          itemLabel="Events"
-          canPrevious={currentPage > 1}
-          canNext={currentPage < totalPages}
-          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-          feedSync={{
-            syncMeta,
-            syncing,
-            onSyncNow: () => void syncNow(),
-          }}
-        >
-          {paginatedItems.length === 0 && !loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Noch keine Events — verbinde Facebook oder Google, oder lege ein Event an.
-            </p>
-          ) : (
-            <EventsListView
-              items={paginatedItems}
-              onItemClick={(item) => {
-                setDetailItem(item);
-                setDetailOpen(true);
-              }}
-            />
-          )}
-        </ListPaginationSurround>
-      )}
+        {showFeedSkeleton ? (
+          <EventsFeedSkeleton />
+        ) : (
+          <ListPaginationSurround
+            classNameAbove="px-0 pt-0"
+            classNameBelow="px-0 pb-0"
+            page={currentPage}
+            totalPages={totalPages}
+            shown={paginatedItems.length}
+            totalCount={totalCount}
+            itemLabel="Events"
+            canPrevious={currentPage > 1}
+            canNext={currentPage < totalPages}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+            feedSync={
+              platformFilter === EVENTS_FILTER_PRIVATE
+                ? undefined
+                : {
+                    syncMeta,
+                    syncing,
+                    onSyncNow: () => void syncNow(),
+                  }
+            }
+          >
+            {paginatedItems.length === 0 && !loading ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {platformFilter === EVENTS_FILTER_PRIVATE
+                  ? "Noch keine private Veranstaltung — oben anlegen."
+                  : "Noch keine öffentlichen Events — oben anlegen oder Plattformen synchronisieren."}
+              </p>
+            ) : (
+              <EventsListView
+                items={paginatedItems}
+                pastEventLabel="Vergangen"
+                onItemClick={(item) => {
+                  if (isPrivateEventFeedItem(item) && item.eventId) {
+                    void openPrivateEvent(item.eventId);
+                    return;
+                  }
+                  setDetailItem(item);
+                  setDetailOpen(true);
+                }}
+              />
+            )}
+          </ListPaginationSurround>
+        )}
 
       <EventsComposeDrawer
         open={composeOpen}
@@ -299,6 +489,35 @@ export function EventsScreen({ active = true }: { active?: boolean }) {
           void load({ silent: true });
         }}
       />
-    </div>
+
+      <ReservationEditDrawer
+        open={privateDrawerOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPrivateReservation(null);
+            setPrivateCreateOpen(false);
+            clearPrivateEventUrl();
+          }
+        }}
+        reservation={privateReservation}
+        createFor={
+          privateCreateOpen && !privateReservation
+            ? {
+                restaurantId,
+                day: privateCreateDay,
+                initialKind: RESERVATION_KIND_PRIVATE_EVENT,
+              }
+            : null
+        }
+        lockKind={RESERVATION_KIND_PRIVATE_EVENT}
+        onSaved={() => {
+          setPrivateReservation(null);
+          setPrivateCreateOpen(false);
+          clearPrivateEventUrl();
+          void load({ silent: true });
+        }}
+      />
+      </div>
+    </>
   );
 }

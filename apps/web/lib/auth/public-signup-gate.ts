@@ -1,4 +1,7 @@
-/** Vor Live-Start: keine neuen Konten per OAuth/Passwort-Registrierung. */
+/**
+ * Öffentliche Neuanmeldung (User + Restaurant) gesperrt, bis Meta App Review
+ * durch ist. Staff-Einladungen bleiben erlaubt.
+ */
 export const GWADA_PUBLIC_SIGNUP_ENABLED = false;
 
 export function parseOAuthIdTokenEmail(idToken: string): string | null {

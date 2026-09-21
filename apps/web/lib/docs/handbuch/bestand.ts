@@ -32,7 +32,7 @@ export const bestandGuide: UserGuidePage = {
           ["Produktionsstellen", "Stammdaten: z. B. Küche, Bar, Lager"],
           ["Marken", "Stammdaten: Produktmarken"],
           ["Einheiten", "Stammdaten: kg, l, Stück, …"],
-          ["Filter-Icon", "Bottom Sheet: Lieferant, Kategorie, Produktionsstelle, Marke"],
+          ["Filter-Icon", "Bottom Sheet: Status, Lieferant, Kategorie, Produktionsstelle, Marke"],
           ["Suche", "Zutatenname oder Gerichte, die die Zutat im Rezept enthalten"],
           ["Spalte Bestellung", "Menge für offene Bestellung je Lieferant — füllt Bestellliste"],
           ["Vollbild-Toggle", "Tabelle im Vollbild — praktisch am Tablet"],
@@ -44,6 +44,7 @@ export const bestandGuide: UserGuidePage = {
       table: {
         headers: ["Filter", "Bedeutung"],
         rows: [
+          ["Status", "Aktiv, Inaktiv oder Alle — inaktive Zutaten sind gedämpft und mit „Inaktiv“ gekennzeichnet"],
           ["Lieferant", "Nur Zutaten dieses Lieferanten"],
           ["Kategorie", "Nur Zutaten dieser Kategorie"],
           ["Produktionsstelle", "Nur Zutaten dieser Produktionsstelle"],
@@ -61,7 +62,7 @@ export const bestandGuide: UserGuidePage = {
           ["Zeitraum: Vergangene Bestellungen", "Abgeschlossene Bestellungen"],
           ["Lieferant / Produktionsstelle", "Filter auf Bestellliste"],
           ["Protokoll", "Wer hat wann welche Menge geändert"],
-          ["Schließen", "Bestellung abschließen (Einkauf erledigt)"],
+          ["Abschließen", "Offene Positionen als geliefert buchen; optional Bestand nicht anpassen (nachträgliches Abhaken)"],
           ["Wieder öffnen", "Abgeschlossene Bestellung reaktivieren"],
         ],
       },
@@ -85,7 +86,7 @@ export const bestandGuide: UserGuidePage = {
     },
   ],
   tips: [
-    "Leerer Bestand und offene Bestellungen erscheinen im Dashboard unter Heute → Bestand.",
+    "Leerer Bestand und offene Bestellungen erscheinen im Dashboard unter Heute → Bestand. Inaktive Zutaten zählen dort nicht.",
     "Mindestbestand (Schwellwert) löst Hinweise aus, wenn der Bestand darunter fällt.",
     "Das Bestandsprotokoll pro Zutat zeigt alle Buchungen chronologisch.",
   ],

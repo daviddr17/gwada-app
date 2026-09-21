@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  isBillingAddonPurchasable,
   isBillingInterval,
   isBillingPlanId,
   type BillingInterval,
@@ -12,6 +13,7 @@ import {
   posPriceSlot,
   resolvePriceId,
 } from "@/lib/billing/stripe-server";
+import { syncStripeSubscriptionToDb } from "@/lib/billing/sync-stripe-subscription";
 import {
   ensureRestaurantSubscriptionRow,
   loadRestaurantEntitlements,
@@ -35,6 +37,9 @@ export async function createBillingCheckoutSession(
   | { ok: true; url: string }
   | { ok: false; error: string; status: number }
 > {
+  if (input.includePos && !isBillingAddonPurchasable("pos")) {
+    input = { ...input, includePos: false };
+  }
   if (input.planId === "free") {
     return { ok: false, error: "free_no_checkout", status: 400 };
   }
@@ -68,6 +73,38 @@ export async function createBillingCheckoutSession(
 
   await ensureRestaurantSubscriptionRow(input.restaurantId);
   const entitlements = await loadRestaurantEntitlements(input.restaurantId);
+  const blockingStatuses = ["active", "trialing", "past_due", "unpaid"];
+  if (
+    entitlements.stripeSubscriptionId &&
+    entitlements.source === "stripe" &&
+    blockingStatuses.includes(entitlements.status)
+  ) {
+    if (!entitlements.pastDueGraceExpired) {
+      return { ok: false, error: "use_plan_change", status: 409 };
+    }
+    try {
+      const current = await stripe.subscriptions.retrieve(
+        entitlements.stripeSubscriptionId,
+      );
+      if (current.status !== "canceled") {
+        const canceled = await stripe.subscriptions.cancel(current.id);
+        const synced = await syncStripeSubscriptionToDb(
+          config,
+          canceled,
+          input.restaurantId,
+        );
+        if (!synced.ok) {
+          console.warn("checkout cancel expired sub", synced.error);
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/already been canceled|No such subscription/i.test(msg)) {
+        console.warn("checkout cancel expired sub", msg);
+        return { ok: false, error: "cancel_failed", status: 500 };
+      }
+    }
+  }
 
   let customerId = entitlements.stripeCustomerId;
   if (!customerId) {
@@ -154,9 +191,11 @@ export async function createBillingPortalSession(input: {
     return { ok: false, error: "no_customer", status: 400 };
   }
 
+  const configuration = client.config.portal_configuration_id?.trim();
   const session = await client.stripe.billingPortal.sessions.create({
     customer: entitlements.stripeCustomerId,
     return_url: input.returnUrl,
+    ...(configuration ? { configuration } : {}),
   });
   return { ok: true, url: session.url };
 }

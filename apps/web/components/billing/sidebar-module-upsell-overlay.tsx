@@ -56,6 +56,7 @@ export function SidebarModuleUpsellOverlay({
           reduceMotion={reduceMotion}
           onClose={onClose}
           onUpgrade={() => {
+            if (content.ctaDisabled) return;
             onClose();
             router.push(APP_ROUTES.settings.billing);
           }}
@@ -265,6 +266,7 @@ function UpsellSurface({
             type="button"
             size="lg"
             className={cn("w-full sm:flex-1", brandActionButtonRoundedClassName)}
+            disabled={content.ctaDisabled}
             onClick={onUpgrade}
           >
             {content.ctaLabel}

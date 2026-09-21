@@ -23,6 +23,7 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { drawerChromeMaxWidthClassName } from "@/lib/ui/drawer-chrome";
 import { cn } from "@/lib/utils";
 
 type PosDeviceInstallation = {
@@ -295,7 +296,7 @@ export function RestaurantPosDevicesPanel() {
       </div>
 
       <Drawer open={createOpen} onOpenChange={setCreateOpen}>
-        <DrawerContent className="mx-auto max-w-lg">
+        <DrawerContent className={cn("mx-auto", drawerChromeMaxWidthClassName)}>
           <DrawerHeader>
             <DrawerTitle>POS-Gerät anlegen</DrawerTitle>
           </DrawerHeader>
@@ -341,7 +342,7 @@ export function RestaurantPosDevicesPanel() {
           }
         }}
       >
-        <DrawerContent className="mx-auto max-w-lg">
+        <DrawerContent className={cn("mx-auto", drawerChromeMaxWidthClassName)}>
           <DrawerHeader>
             <DrawerTitle>Gerät koppeln</DrawerTitle>
           </DrawerHeader>

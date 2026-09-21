@@ -5,6 +5,7 @@ import {
   DashboardCompactList,
   DashboardCompactListItem,
 } from "@/components/dashboard/dashboard-compact-list";
+import { DashboardEmptyStockHeuteSnoozeButton } from "@/components/dashboard/dashboard-empty-stock-heute-snooze-button";
 import {
   Drawer,
   DrawerContent,
@@ -18,13 +19,22 @@ import {
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
 import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
+import { listPurchaseOrdersDeliveryDue } from "@/lib/inventory/purchase-order-delivery-due";
+import { isEmptyStockVisibleInHeute } from "@/lib/inventory/low-stock";
+import { useEmptyStockHeuteSnoozedIds } from "@/lib/inventory/empty-stock-heute-snooze-client";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
+function formatDeliveryYmd(ymd: string | null | undefined): string {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return "";
+  const [y, m, d] = ymd.split("-");
+  return `${d}.${m}.${y}`;
+}
+
 /**
- * Heute-Pill „Bestand“ — nur Auffälligkeiten (leer + offen/bestellt),
- * kein Dump aller Bestellungen inkl. Abgeschlossen.
+ * Heute-Pill „Bestand“ — Auffälligkeiten (leer, Lieferungen fällig, offen/bestellt).
  */
 export function DashboardInventoryAlertsSheet({
   open,
@@ -32,23 +42,38 @@ export function DashboardInventoryAlertsSheet({
   emptyStockCount,
   openOrdersCount,
   openOrderLinesCount,
+  deliveriesDueTodayCount,
+  deliveriesOverdueCount,
+  todayYmd,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   emptyStockCount: number;
   openOrdersCount: number;
   openOrderLinesCount: number;
+  deliveriesDueTodayCount: number;
+  deliveriesOverdueCount: number;
+  todayYmd: string;
 }) {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const snoozedIds = useEmptyStockHeuteSnoozedIds(restaurantId);
   const { ingredients } = useIngredientsStorage();
   const { orders } = usePurchaseOrdersStorage();
 
   const emptyStockIngredients = useMemo(
     () =>
       ingredients
-        .filter((i) => i.active !== false && i.currentStock <= 0)
+        .filter((i) => isEmptyStockVisibleInHeute(i, snoozedIds))
         .sort((a, b) => a.name.localeCompare(b.name, "de")),
-    [ingredients],
+    [ingredients, snoozedIds],
   );
+
+  const deliveryDue = useMemo(
+    () => listPurchaseOrdersDeliveryDue(orders, todayYmd),
+    [orders, todayYmd],
+  );
+  const dueToday = deliveryDue.filter((d) => d.kind === "today");
+  const overdue = deliveryDue.filter((d) => d.kind === "overdue");
 
   const actionableOrders = useMemo(() => {
     return [...orders]
@@ -59,7 +84,11 @@ export function DashboardInventoryAlertsSheet({
   const openOrders = actionableOrders.filter((o) => o.status === "open");
   const orderedOrders = actionableOrders.filter((o) => o.status === "ordered");
 
-  const empty = emptyStockCount === 0 && openOrdersCount === 0;
+  const empty =
+    emptyStockCount === 0 &&
+    openOrdersCount === 0 &&
+    deliveriesDueTodayCount === 0 &&
+    deliveriesOverdueCount === 0;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
@@ -72,6 +101,12 @@ export function DashboardInventoryAlertsSheet({
             {empty
               ? "Keine Auffälligkeiten"
               : [
+                  deliveriesOverdueCount > 0
+                    ? `${deliveriesOverdueCount} Lieferung überfällig`
+                    : null,
+                  deliveriesDueTodayCount > 0
+                    ? `${deliveriesDueTodayCount} Lieferung heute`
+                    : null,
                   emptyStockCount > 0 ? `${emptyStockCount} leer` : null,
                   openOrdersCount > 0
                     ? `${openOrdersCount} offen/bestellt · ${openOrderLinesCount} Pos.`
@@ -88,6 +123,48 @@ export function DashboardInventoryAlertsSheet({
             </p>
           ) : (
             <div className="space-y-4">
+              {overdue.length > 0 ? (
+                <section className="space-y-2">
+                  <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Lieferung überfällig
+                  </h3>
+                  <DashboardCompactList aria-label="Überfällige Lieferungen">
+                    {overdue.map(({ order }) => (
+                      <DashboardCompactListItem
+                        key={order.id}
+                        href={APP_ROUTES.inventory.order}
+                        title={order.supplierName}
+                        meta={`${order.lines.length} Pos. · prüfen / abschließen`}
+                        trailing={formatDeliveryYmd(order.deliveryDate)}
+                        stripeVariant="attention"
+                        className="py-2.5"
+                      />
+                    ))}
+                  </DashboardCompactList>
+                </section>
+              ) : null}
+
+              {dueToday.length > 0 ? (
+                <section className="space-y-2">
+                  <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Lieferung heute
+                  </h3>
+                  <DashboardCompactList aria-label="Lieferungen heute">
+                    {dueToday.map(({ order }) => (
+                      <DashboardCompactListItem
+                        key={order.id}
+                        href={APP_ROUTES.inventory.order}
+                        title={order.supplierName}
+                        meta={`${order.lines.length} Pos. · prüfen / abschließen`}
+                        trailing={formatDeliveryYmd(order.deliveryDate)}
+                        stripeVariant="attention"
+                        className="py-2.5"
+                      />
+                    ))}
+                  </DashboardCompactList>
+                </section>
+              ) : null}
+
               {emptyStockIngredients.length > 0 ? (
                 <section className="space-y-2">
                   <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -102,6 +179,14 @@ export function DashboardInventoryAlertsSheet({
                         meta={`0 ${row.unit}`}
                         stripeVariant="attention"
                         className="py-2.5"
+                        trailingAction={
+                          restaurantId ? (
+                            <DashboardEmptyStockHeuteSnoozeButton
+                              restaurantId={restaurantId}
+                              ingredientId={row.id}
+                            />
+                          ) : null
+                        }
                       />
                     ))}
                   </DashboardCompactList>
@@ -120,7 +205,7 @@ export function DashboardInventoryAlertsSheet({
                         href={APP_ROUTES.inventory.order}
                         title={order.supplierName}
                         meta={`${order.lines.length} Pos.`}
-                        trailing={order.deliveryDate ?? undefined}
+                        trailing={formatDeliveryYmd(order.deliveryDate) || undefined}
                         stripeVariant="attention"
                         className="py-2.5"
                       />
@@ -141,7 +226,7 @@ export function DashboardInventoryAlertsSheet({
                         href={APP_ROUTES.inventory.order}
                         title={order.supplierName}
                         meta={`${order.lines.length} Pos.`}
-                        trailing={order.deliveryDate ?? undefined}
+                        trailing={formatDeliveryYmd(order.deliveryDate) || undefined}
                         stripeVariant="attention"
                         className="py-2.5"
                       />

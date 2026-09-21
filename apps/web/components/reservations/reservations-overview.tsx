@@ -134,9 +134,11 @@ import { mapRawToReservationListRow } from "@/lib/supabase/reservations-db";
 import {
   formatReservationAssigneeNames,
 } from "@/lib/supabase/reservation-staff-assignees-db";
+import { newPrivateEventOverviewHref, privateEventOverviewHref } from "@/lib/events/private-event-href";
 import {
   isPrivateEventReservation,
   normalizeReservationKind,
+  RESERVATION_KIND_GUEST,
   RESERVATION_KIND_PRIVATE_EVENT,
   reservationListStripeHex,
   type ReservationKind,
@@ -540,6 +542,14 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       (reservationSheet?.mode === "create" && Boolean(workspaceRestaurantId)),
   );
 
+  useEffect(() => {
+    if (!keepAliveMayNavigate(active)) return;
+    if (createKindParam !== RESERVATION_KIND_PRIVATE_EVENT) return;
+    const day =
+      dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : undefined;
+    router.replace(newPrivateEventOverviewHref(day));
+  }, [active, createKindParam, dayParam, router]);
+
   // Deep-Link / Zurück: URL → Sheet (Öffnen per Klick setzt State schon vorher).
   useEffect(() => {
     if (!keepAliveMayNavigate(active)) {
@@ -565,11 +575,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           ? createContactParam
           : undefined;
       const kindFromUrl =
-        createKindParam === RESERVATION_KIND_PRIVATE_EVENT
-          ? RESERVATION_KIND_PRIVATE_EVENT
-          : createKindParam === "guest"
-            ? normalizeReservationKind("guest")
-            : undefined;
+        createKindParam === "guest"
+          ? normalizeReservationKind("guest")
+          : undefined;
       setReservationSheet((prev) => {
         if (prev?.mode === "create") {
           return {
@@ -711,6 +719,12 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       const kind = extras?.kind
         ? normalizeReservationKind(extras.kind)
         : undefined;
+      if (kind === RESERVATION_KIND_PRIVATE_EVENT) {
+        router.push(
+          newPrivateEventOverviewHref(gridDayKey(d, restaurantTimeZone)),
+        );
+        return;
+      }
       setReservationSheet({
         mode: "create",
         day: d,
@@ -730,9 +744,6 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       }
       if (extras?.diningTableId && isUuidRestaurantId(extras.diningTableId)) {
         p.set("table", extras.diningTableId);
-      }
-      if (kind === RESERVATION_KIND_PRIVATE_EVENT) {
-        p.set("kind", RESERVATION_KIND_PRIVATE_EVENT);
       }
       withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
@@ -924,8 +935,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   }, [byDay]);
 
   const visibleDays = useMemo(() => {
-    const hasRows = (d: Date) =>
-      (byDay.get(gridDayKey(d, restaurantTimeZone))?.length ?? 0) > 0;
+    const hasRows = (d: Date) => {
+      const key = gridDayKey(d, restaurantTimeZone);
+      return (byDay.get(key)?.length ?? 0) > 0;
+    };
 
     if (unconfirmedMode) {
       if (!hideEmptyDays && !guestSearchActive) return unconfirmedDayList;
@@ -965,7 +978,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     let daysWithReservations = 0;
     for (const d of visibleDays) {
       const list = byDay.get(gridDayKey(d, restaurantTimeZone)) ?? [];
-      const live = list.filter(reservationCountsTowardDayStats);
+      const live = list.filter(
+        (r) =>
+          reservationCountsTowardDayStats(r) && !isPrivateEventReservation(r),
+      );
       if (live.length > 0) daysWithReservations++;
       reservationCount += live.length;
       guestCount += live.reduce((sum, r) => sum + r.party_size, 0);
@@ -1306,24 +1322,34 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           const holidayName = holidaysByDate[key];
           const list = byDay.get(key) ?? [];
           const liveList = list.filter(reservationCountsTowardDayStats);
-          const resCount = liveList.length;
+          const guestLive = liveList.filter((r) => !isPrivateEventReservation(r));
+          const eventLive = liveList.filter(isPrivateEventReservation);
+          const resCount = guestLive.length;
+          const eventCount = eventLive.length;
           const partyTotal = liveList.reduce((sum, r) => sum + r.party_size, 0);
           return (
             <Card
               key={key}
               size="sm"
               className={cn(
-                "gap-2 border-border/50 py-2 shadow-card transition-colors",
+                /* overflow-visible: sticky day headers need a non-clipping ancestor */
+                "overflow-visible gap-2 border-border/50 py-2 shadow-card transition-colors",
                 isToday && "ring-1 ring-green-500/25 dark:ring-green-400/20",
               )}
             >
-              <CardHeader className="gap-1.5 pb-1 pt-2">
+              <CardHeader
+                className={cn(
+                  /* self-start w-full: Safari/iOS sticky inside flex column cards */
+                  "sticky top-0 z-10 w-full self-start gap-1.5 border-b border-border/40 bg-card pb-1 pt-2",
+                  "supports-[backdrop-filter]:bg-card/95 supports-[backdrop-filter]:backdrop-blur",
+                )}
+              >
                 {isToday ? (
                   <p className="text-sm font-semibold text-green-600 dark:text-green-400">
                     Heute
                   </p>
                 ) : null}
-                <div className="flex items-start justify-between gap-3 sm:items-center">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <CardTitle
@@ -1349,44 +1375,54 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       />
                     </div>
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground sm:text-sm">
-                      <span>
-                        {resCount === 1
-                          ? "1 Reservierung"
-                          : `${resCount} Reservierungen`}
-                      </span>
+                      {resCount > 0 || eventCount === 0 ? (
+                        <span>
+                          {resCount === 1
+                            ? "1 Reservierung"
+                            : `${resCount} Reservierungen`}
+                        </span>
+                      ) : null}
+                      {eventCount > 0 ? (
+                        <>
+                          {resCount > 0 ? <span aria-hidden>·</span> : null}
+                          <span>
+                            {eventCount === 1
+                              ? "1 Veranstaltung"
+                              : `${eventCount} Veranstaltungen`}
+                          </span>
+                        </>
+                      ) : null}
                       <span aria-hidden>·</span>
                       <span>
                         {partyTotal === 1
                           ? "1 Person"
                           : `${partyTotal} Personen`}
                       </span>
-                      {/* Unabhängig vom Reservierungs-Statusfilter — Schichtplan-Stand. */}
-                      {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
-                        <>
-                          <span aria-hidden>·</span>
-                          <ReservationDayShiftStaffOverviewChip
-                            count={shiftStaffCountsByDate.get(key) ?? 0}
-                            onClick={() => {
-                              setShiftStaffSheetDay(d);
-                              setShiftStaffSheetOpen(true);
-                            }}
-                          />
-                        </>
-                      ) : null}
-                      {(dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
-                        <>
-                          <span aria-hidden>·</span>
-                          <ReservationDayNoteOverviewChip
-                            count={dayNoteCountsByDate.get(key) ?? 0}
-                            onClick={() => {
-                              setDayNotesSheetDay(d);
-                              setDayNotesSheetOpen(true);
-                            }}
-                          />
-                        </>
-                      ) : null}
                     </div>
                   </div>
+                  {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ||
+                  (dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
+                    <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+                      {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
+                        <ReservationDayShiftStaffOverviewChip
+                          count={shiftStaffCountsByDate.get(key) ?? 0}
+                          onClick={() => {
+                            setShiftStaffSheetDay(d);
+                            setShiftStaffSheetOpen(true);
+                          }}
+                        />
+                      ) : null}
+                      {(dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
+                        <ReservationDayNoteOverviewChip
+                          count={dayNoteCountsByDate.get(key) ?? 0}
+                          onClick={() => {
+                            setDayNotesSheetDay(d);
+                            setDayNotesSheetOpen(true);
+                          }}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </CardHeader>
               {list.length > 0 ? (
@@ -1436,6 +1472,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       const showQuickAccept =
                         Boolean(workspaceRestaurantId) &&
                         !isMovedMarker &&
+                        !isEvent &&
                         st?.code === "pending";
 
                       if (overviewViewMode === "compact") {
@@ -1477,8 +1514,8 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                                   </span>
                                 ) : null}
                                 {isEvent ? (
-                                  <span className="hidden shrink-0 rounded-md border border-violet-500/40 bg-violet-500/15 px-1.5 py-px text-[10px] font-medium text-violet-800 sm:inline dark:text-violet-200">
-                                    Event
+                                  <span className="shrink-0 rounded-md border border-violet-500/40 bg-violet-500/15 px-1.5 py-px text-[10px] font-medium text-violet-800 dark:text-violet-200">
+                                    Veranstaltung
                                   </span>
                                 ) : null}
                                 {st?.code === "change_requested" ? (
@@ -1751,6 +1788,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         reservation={editReservation}
         createFor={createFor}
         overlapReservations={rows}
+        lockKind={
+          editReservation && isPrivateEventReservation(editReservation)
+            ? RESERVATION_KIND_PRIVATE_EVENT
+            : RESERVATION_KIND_GUEST
+        }
+        eventsHref={
+          editReservation && isPrivateEventReservation(editReservation)
+            ? privateEventOverviewHref(editReservation.id)
+            : undefined
+        }
         onSaved={() => {
           invalidateReservations();
           clearReservationUrl();

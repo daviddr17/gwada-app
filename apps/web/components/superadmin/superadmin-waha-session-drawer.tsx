@@ -8,6 +8,7 @@ import {
   RefreshCw,
   RotateCcw,
   Square,
+  Trash2,
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -81,6 +82,7 @@ export function SuperadminWahaSessionDrawer({
     null,
   );
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const showSkeleton = useDeferredSkeleton(loading && !detail);
 
   const loadDetail = useCallback(async (restaurantId: string) => {
@@ -117,6 +119,11 @@ export function SuperadminWahaSessionDrawer({
       return;
     }
     toast.success(res.message ?? "OK");
+    if (action === "delete") {
+      onChanged();
+      onOpenChange(false);
+      return;
+    }
     if (res.detail) setDetail(res.detail);
     onChanged();
   };
@@ -309,6 +316,22 @@ export function SuperadminWahaSessionDrawer({
                   )}
                   Session heilen
                 </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="w-full text-destructive"
+                  disabled={actionDisabled}
+                  onClick={() => setDeleteConfirmOpen(true)}
+                >
+                  {busyAction === "delete" ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
+                  Session löschen
+                </Button>
               </>
             )}
           </div>
@@ -336,6 +359,19 @@ export function SuperadminWahaSessionDrawer({
         onConfirm={() => {
           setLogoutConfirmOpen(false);
           void runAction("logout");
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Session wirklich löschen?"
+        description="Löscht die WAHA-Session inkl. Login-Daten auf dem Server. WhatsApp ist danach getrennt, der Eintrag verschwindet aus der Liste. Neu verbinden nur über QR-Code in den Restaurant-Einstellungen."
+        confirmLabel="Session löschen"
+        destructive
+        onConfirm={() => {
+          setDeleteConfirmOpen(false);
+          void runAction("delete");
         }}
       />
     </>

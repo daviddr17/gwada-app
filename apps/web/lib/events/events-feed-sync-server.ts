@@ -6,7 +6,10 @@ import {
   isEventsCacheablePlatform,
   type EventsCacheablePlatform,
 } from "@/lib/constants/events-platforms";
-import { upsertEventsPlatformCache } from "@/lib/events/events-cache-db";
+import {
+  touchEventsPlatformSync,
+  upsertEventsPlatformCache,
+} from "@/lib/events/events-cache-db";
 import { isEventsFeedSyncStale } from "@/lib/events/events-cache-constants";
 import { getEventsConnector } from "@/lib/events/connectors/registry";
 import { isFeedConnectorEnabledBySuperadmin } from "@/lib/platform-feed/feed-platform-superadmin";
@@ -39,7 +42,7 @@ export async function syncRestaurantEventsPlatform(
 
     const flags = await fetchPlatformMessagingFlags(admin);
     if (!isFeedConnectorEnabledBySuperadmin(platform, flags)) {
-      await upsertEventsPlatformCache(admin, restaurantId, platform, [], new Date().toISOString(), null);
+      await touchEventsPlatformSync(admin, restaurantId, platform, new Date().toISOString(), "disabled");
       return { ok: true, count: 0 };
     }
 
@@ -47,20 +50,13 @@ export async function syncRestaurantEventsPlatform(
     const syncedAt = new Date().toISOString();
 
     if (!connected) {
-      await upsertEventsPlatformCache(admin, restaurantId, platform, [], syncedAt, null);
+      await touchEventsPlatformSync(admin, restaurantId, platform, syncedAt, "not_connected");
       return { ok: true, count: 0 };
     }
 
     const result = await connector.fetchFeed(restaurantId, admin);
     if ("error" in result) {
-      await upsertEventsPlatformCache(
-        admin,
-        restaurantId,
-        platform,
-        [],
-        syncedAt,
-        result.error,
-      );
+      await touchEventsPlatformSync(admin, restaurantId, platform, syncedAt, result.error);
       return { ok: false, error: result.error, count: 0 };
     }
 

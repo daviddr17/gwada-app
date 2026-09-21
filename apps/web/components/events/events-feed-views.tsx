@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useState } from "react";
-import { CalendarDays, ExternalLink, MapPin, Ticket } from "lucide-react";
+import { CalendarDays, ExternalLink, Lock, MapPin, Ticket } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
 import { EVENTS_PLATFORM_LABELS } from "@/lib/constants/events-platforms";
@@ -15,6 +15,7 @@ import {
   isEventPast,
 } from "@/lib/events/format-events-display-date";
 import type { UnifiedEventItem } from "@/lib/events/unified-event-item";
+import { isPrivateEventFeedItem } from "@/lib/events/unified-event-item";
 import { Badge } from "@/components/ui/badge";
 import { feedTimelineDateChipClassName } from "@/components/feed/feed-timeline-date-skeleton";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
@@ -83,11 +84,13 @@ const EventTimelineRow = memo(function EventTimelineRow({
   onClick,
   showConnectorBelow,
   density = "comfortable",
+  pastEventLabel,
 }: {
   item: UnifiedEventItem;
   onClick?: () => void;
   showConnectorBelow: boolean;
   density?: "comfortable" | "compact";
+  pastEventLabel?: string;
 }) {
   const t = useTranslations("Embed.eventsUi");
   const fullRange = formatEventDateRange(item);
@@ -137,14 +140,26 @@ const EventTimelineRow = memo(function EventTimelineRow({
         <div className={cn("min-w-0 flex-1", compact ? "space-y-1" : "space-y-1.5")}>
           <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <Badge variant="secondary" className="gap-1.5">
-                <EventsPlatformIcon platform={item.platform} className="size-3" />
-                {EVENTS_PLATFORM_LABELS[item.platform]}
-              </Badge>
+              {isPrivateEventFeedItem(item) ? (
+                <Badge variant="secondary" className="gap-1.5">
+                  <Lock className="size-3" aria-hidden />
+                  Privat
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="gap-1.5">
+                  <EventsPlatformIcon platform={item.platform} className="size-3" />
+                  {EVENTS_PLATFORM_LABELS[item.platform]}
+                </Badge>
+              )}
+              {item.statusLabel && isPrivateEventFeedItem(item) ? (
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {item.statusLabel}
+                </span>
+              ) : null}
               {item.isPinned ? <FeedPinnedBadge /> : null}
               {past ? (
                 <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {t("past")}
+                  {pastEventLabel ?? t("past")}
                 </span>
               ) : null}
             </div>
@@ -222,10 +237,12 @@ export function EventsTimelineView({
   items,
   onItemClick,
   density = "comfortable",
+  pastEventLabel,
 }: {
   items: UnifiedEventItem[];
   onItemClick?: (item: UnifiedEventItem) => void;
   density?: "comfortable" | "compact";
+  pastEventLabel?: string;
 }) {
   const compact = density === "compact";
   return (
@@ -258,6 +275,7 @@ export function EventsTimelineView({
               <EventTimelineRow
                 item={item}
                 density={density}
+                pastEventLabel={pastEventLabel}
                 showConnectorBelow={index < items.length - 1}
                 onClick={onItemClick ? () => onItemClick(item) : undefined}
               />
@@ -274,6 +292,7 @@ export function EventsListView(props: {
   items: UnifiedEventItem[];
   onItemClick?: (item: UnifiedEventItem) => void;
   density?: "comfortable" | "compact";
+  pastEventLabel?: string;
 }) {
   return <EventsTimelineView {...props} />;
 }

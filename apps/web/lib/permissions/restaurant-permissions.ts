@@ -53,6 +53,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.recipes",
   "display.inventory",
   "display.compliance",
+  "display.profile",
   "display.kds",
   "display.module_switch",
   "pos.kasse.use",
@@ -124,7 +125,7 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
     {
       key: "billing.manage",
       label: "Abo & Abrechnung",
-      description: "Plan wählen, POS-Add-on und Rechnungen verwalten.",
+      description: "Plan wählen, Zahlungsmittel und Rechnungen verwalten.",
       group: "administration",
     },
     ...moduleCrudCatalogEntries(),
@@ -288,6 +289,13 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       label: "Display: Eigenkontrolle",
       description:
         "HACCP-Checklisten am Tablet erfassen — Temperatur, Reinigung u. a.",
+      group: "display",
+    },
+    {
+      key: "display.profile",
+      label: "Display: Profil",
+      description:
+        "Eigene Stammdaten und freigegebene Dokumente am Tablet einsehen.",
       group: "display",
     },
     {

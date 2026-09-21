@@ -7,7 +7,10 @@ import {
   isNewsCacheablePlatform,
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
-import { upsertNewsPlatformCache } from "@/lib/news/news-cache-db";
+import {
+  touchNewsPlatformSync,
+  upsertNewsPlatformCache,
+} from "@/lib/news/news-cache-db";
 import { getNewsConnector } from "@/lib/news/connectors/registry";
 import { isFeedConnectorEnabledBySuperadmin } from "@/lib/platform-feed/feed-platform-superadmin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -39,7 +42,7 @@ export async function syncRestaurantNewsPlatform(
 
     const flags = await fetchPlatformMessagingFlags(admin);
     if (!isFeedConnectorEnabledBySuperadmin(platform, flags)) {
-      await upsertNewsPlatformCache(admin, restaurantId, platform, [], new Date().toISOString(), null);
+      await touchNewsPlatformSync(admin, restaurantId, platform, new Date().toISOString(), "disabled");
       return { ok: true, count: 0 };
     }
 
@@ -47,20 +50,13 @@ export async function syncRestaurantNewsPlatform(
     const syncedAt = new Date().toISOString();
 
     if (!connected) {
-      await upsertNewsPlatformCache(admin, restaurantId, platform, [], syncedAt, null);
+      await touchNewsPlatformSync(admin, restaurantId, platform, syncedAt, "not_connected");
       return { ok: true, count: 0 };
     }
 
     const result = await connector.fetchFeed(restaurantId, admin);
     if ("error" in result) {
-      await upsertNewsPlatformCache(
-        admin,
-        restaurantId,
-        platform,
-        [],
-        syncedAt,
-        result.error,
-      );
+      await touchNewsPlatformSync(admin, restaurantId, platform, syncedAt, result.error);
       return { ok: false, error: result.error, count: 0 };
     }
 
@@ -114,17 +110,24 @@ export async function triggerNewsFeedSyncIfStale(
 
   const { data } = await admin
     .from("restaurant_news_platform_sync")
-    .select("platform, synced_at")
+    .select("platform, synced_at, last_error")
     .eq("restaurant_id", restaurantId)
     .in("platform", cacheable);
 
   const syncedByPlatform = new Map(
-    (data ?? []).map((row) => [row.platform as string, row.synced_at as string | null]),
+    (data ?? []).map((row) => [
+      row.platform as string,
+      {
+        syncedAt: row.synced_at as string | null,
+        lastError: (row.last_error as string | null) ?? null,
+      },
+    ]),
   );
 
-  const stale = cacheable.filter((platform) =>
-    isNewsFeedSyncStale(syncedByPlatform.get(platform)),
-  );
+  const stale = cacheable.filter((platform) => {
+    const row = syncedByPlatform.get(platform);
+    return isNewsFeedSyncStale(row?.syncedAt, { lastError: row?.lastError });
+  });
   if (stale.length === 0) return;
 
   await syncRestaurantNewsPlatforms(admin, restaurantId, stale);

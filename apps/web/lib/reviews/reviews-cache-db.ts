@@ -105,11 +105,47 @@ export async function readCachedReviews(
     return [];
   }
 
+  return parseCachedReviewRows(data ?? []);
+}
+
+/** Dashboard-Widget: nur die jüngsten Einträge pro Plattform — kein Full-Cache-Scan. */
+export async function readCachedReviewsRecent(
+  sb: SupabaseClient,
+  restaurantId: string,
+  platforms: ReviewsCacheablePlatform[],
+  perPlatform = 8,
+): Promise<UnifiedReview[]> {
+  if (platforms.length === 0) return [];
+
+  const chunks = await Promise.all(
+    platforms.map(async (platform) => {
+      const { data, error } = await sb
+        .from("restaurant_reviews_platform_cache")
+        .select("item, created_at, is_pinned")
+        .eq("restaurant_id", restaurantId)
+        .eq("platform", platform)
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(perPlatform);
+
+      if (error) {
+        console.warn("[gwada] reviews cache read recent", platform, error.message);
+        return [] as UnifiedReview[];
+      }
+      return parseCachedReviewRows(data ?? []);
+    }),
+  );
+
+  return chunks.flat();
+}
+
+function parseCachedReviewRows(
+  rows: { item: unknown; created_at?: string | null; is_pinned?: boolean | null }[],
+): UnifiedReview[] {
   const reviews: UnifiedReview[] = [];
-  for (const row of data ?? []) {
+  for (const row of rows) {
     const review = parseCachedReview(row.item);
     if (!review) continue;
-    const rowCreatedAt = row.created_at as string | null | undefined;
+    const rowCreatedAt = row.created_at;
     if (rowCreatedAt && !review.createdAt) {
       review.createdAt = rowCreatedAt;
     }

@@ -1,4 +1,5 @@
 import { CONTACT_MESSAGE_ATTACHMENTS_BUCKET } from "@/lib/constants/contact-message-attachments";
+import { attachmentDownloadHeaders } from "@/lib/contact-messages/attachment-download-headers";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import { parseImapAttachmentStoragePath } from "@/lib/contact-messages/imap-attachment-storage-path";
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
@@ -64,15 +65,12 @@ export async function GET(req: Request) {
     if (!data) {
       return Response.json({ error: "not_found" }, { status: 404 });
     }
-    const fileName = data.fileName || (row.file_name as string) || "anhang";
-    const mime = data.mimeType || (row.mime_type as string) || "application/octet-stream";
-    const disposition = mime.startsWith("image/") ? "inline" : "attachment";
+    const fileName =
+      data.fileName || (row.file_name as string) || "Anhang";
+    const mimeType =
+      data.mimeType || (row.mime_type as string) || "application/octet-stream";
     return new Response(new Uint8Array(data.bytes), {
-      headers: {
-        "Content-Type": mime,
-        "Content-Disposition": `${disposition}; filename="${encodeURIComponent(fileName)}"`,
-        "Cache-Control": "private, no-store",
-      },
+      headers: attachmentDownloadHeaders({ fileName, mimeType }),
     });
   }
 
@@ -92,15 +90,10 @@ export async function GET(req: Request) {
     );
   }
 
-  const fileName = (row.file_name as string) || "anhang";
-  const mime = (row.mime_type as string) || "application/octet-stream";
-  const disposition = mime.startsWith("image/") ? "inline" : "attachment";
+  const fileName = (row.file_name as string) || "Anhang";
+  const mimeType = (row.mime_type as string) || "application/octet-stream";
 
   return new Response(blob, {
-    headers: {
-      "Content-Type": mime,
-      "Content-Disposition": `${disposition}; filename="${encodeURIComponent(fileName)}"`,
-      "Cache-Control": "private, no-store",
-    },
+    headers: attachmentDownloadHeaders({ fileName, mimeType }),
   });
 }

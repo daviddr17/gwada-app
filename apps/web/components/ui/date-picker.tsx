@@ -15,8 +15,17 @@ import {
   PopoverPositioner,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { useDrawerFloatingPortalHost } from "@/lib/contexts/drawer-floating-portal"
 import { mobileFormControlFontClassName } from "@/lib/ui/mobile-form-control-font"
 import { cn } from "@/lib/utils"
+
+/** Platz für Sticky-Footer in Bottom-Sheets (Kalender flippt nach oben). */
+const drawerDatePickerCollisionPadding = {
+  top: 16,
+  left: 16,
+  right: 16,
+  bottom: 112,
+} as const
 
 /**
  * Native `type="time"`: Mausklicks setzen oft nur `:focus`, nicht `:focus-visible`.
@@ -113,6 +122,7 @@ export function DatePickerField({
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
   const open = openProp ?? uncontrolledOpen
   const setOpen = onOpenChange ?? setUncontrolledOpen
+  const drawerFloatingHost = useDrawerFloatingPortalHost()
   const selected = React.useMemo(() => parseYmdToDate(value ?? null), [value])
   const minDate = React.useMemo(() => parseYmdToDate(minYmd ?? null), [minYmd])
   const hasDate = Boolean(value?.trim())
@@ -179,6 +189,9 @@ export function DatePickerField({
             align="start"
             sideOffset={8}
             positionMethod="fixed"
+            collisionPadding={
+              drawerFloatingHost ? drawerDatePickerCollisionPadding : 12
+            }
           >
             <PopoverContent
               initialFocus={false}

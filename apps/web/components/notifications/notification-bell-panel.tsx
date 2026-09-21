@@ -16,7 +16,11 @@ import { NOTIFICATION_MODULES } from "@/lib/notifications/notification-modules";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
-import { inboxUnreadHintLabel } from "@/lib/contact-messages/inbox-unread-hint-ui";
+import {
+  inboxUnreadHintLabel,
+  inboxUnreadStatusChipClassName,
+  inboxUnreadStatusChipLabel,
+} from "@/lib/contact-messages/inbox-unread-hint-ui";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import {
   DEFAULT_RESTAURANT_TIMEZONE,
@@ -143,8 +147,18 @@ export function NotificationBellPanel({
                     mod.id === "reviews"
                       ? parseReviewNotificationRating(item.meta?.rating)
                       : null;
-                  const gwadaOnlyHint =
+                  const messageUnreadHint =
                     mod.id === "messages" && item.meta?.unreadHint === "gwada_only"
+                      ? "gwada_only"
+                      : mod.id === "messages"
+                        ? "channel"
+                        : null;
+                  const messageStatusChip =
+                    messageUnreadHint
+                      ? inboxUnreadStatusChipLabel(true, messageUnreadHint)
+                      : null;
+                  const gwadaOnlyHint =
+                    messageUnreadHint === "gwada_only"
                       ? inboxUnreadHintLabel("gwada_only")
                       : null;
 
@@ -194,6 +208,14 @@ export function NotificationBellPanel({
                             <p className="min-w-0 truncate text-sm font-medium leading-snug text-foreground">
                               {item.title}
                             </p>
+                            {messageStatusChip ? (
+                              <span
+                                className={inboxUnreadStatusChipClassName(messageUnreadHint)}
+                                title={gwadaOnlyHint ?? undefined}
+                              >
+                                {messageStatusChip}
+                              </span>
+                            ) : null}
                             {reviewRating != null ? (
                               <ReviewRatingStars rating={reviewRating} size="xs" />
                             ) : null}
@@ -201,11 +223,6 @@ export function NotificationBellPanel({
                           {item.subtitle ? (
                             <p className="line-clamp-2 text-xs text-muted-foreground">
                               {item.subtitle}
-                            </p>
-                          ) : null}
-                          {gwadaOnlyHint ? (
-                            <p className="mt-0.5 text-[10px] text-muted-foreground/90">
-                              {gwadaOnlyHint}
                             </p>
                           ) : null}
                         </div>

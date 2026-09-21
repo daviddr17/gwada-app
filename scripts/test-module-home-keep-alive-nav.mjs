@@ -17,7 +17,7 @@ const SIDEBAR = [
   { id: "inventory", href: "/dashboard/inventory/uebersicht" },
   { id: "reservierungen", href: "/dashboard/reservierungen/uebersicht" },
   { id: "pos", href: "/dashboard/pos/uebersicht" },
-  { id: "events", href: "/dashboard/events" },
+  { id: "events", href: "/dashboard/events/uebersicht" },
   { id: "kontakte", href: "/dashboard/kontakte/nachrichten?platform=all" },
   { id: "news", href: "/dashboard/news/uebersicht" },
   { id: "bewertungen", href: "/dashboard/bewertungen/uebersicht" },
@@ -57,6 +57,10 @@ assert.equal(keepAliveMayNavigate(false), false);
 assert.equal(keepAliveMayNavigate(true), true);
 assert.equal(
   matchHome("/dashboard/kontakte/nachrichten?platform=all"),
+  "nachrichten",
+);
+assert.equal(
+  matchHome("/dashboard/kontakte/nachrichten"),
   "nachrichten",
 );
 assert.equal(matchHome("/dashboard/menu/uebersicht"), null);
@@ -105,6 +109,50 @@ assert.equal(
   keepAliveOwnsPathname(true, MODULE_HOME_PATHS.reservierungen, "reservierungen"),
   true,
 );
+
+function moduleHomeSlotVisibility({
+  id,
+  activeHomeId,
+  pendingHomeId,
+  pendingInFlight,
+  warmFlag,
+}) {
+  const onHome = activeHomeId === id;
+  const pendingToThis =
+    pendingInFlight && pendingHomeId === id && !onHome;
+  const warm =
+    warmFlag ||
+    onHome ||
+    (pendingInFlight && pendingHomeId === id);
+  const showAsSource = onHome && !pendingInFlight;
+  const arrivedPending = onHome && pendingInFlight && pendingHomeId === id;
+  return {
+    warm,
+    visible: showAsSource || pendingToThis || arrivedPending,
+    active: showAsSource || arrivedPending,
+  };
+}
+
+const pendingNachrichten = moduleHomeSlotVisibility({
+  id: "nachrichten",
+  activeHomeId: "dashboard",
+  pendingHomeId: "nachrichten",
+  pendingInFlight: true,
+  warmFlag: false,
+});
+assert.equal(pendingNachrichten.warm, true);
+assert.equal(pendingNachrichten.visible, true);
+assert.equal(pendingNachrichten.active, false);
+
+const arrivedNachrichten = moduleHomeSlotVisibility({
+  id: "nachrichten",
+  activeHomeId: "nachrichten",
+  pendingHomeId: "nachrichten",
+  pendingInFlight: true,
+  warmFlag: false,
+});
+assert.equal(arrivedNachrichten.visible, true);
+assert.equal(arrivedNachrichten.active, true);
 
 console.log(
   `OK unit: ${Object.keys(MODULE_HOME_PATHS).length} warm homes × ${SIDEBAR.length} nav targets`,

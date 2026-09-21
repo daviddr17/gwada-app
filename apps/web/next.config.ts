@@ -64,7 +64,13 @@ const supabaseStoragePatterns = [
 const nextConfig: NextConfig = {
   // Dev unter http://127.0.0.1:3000 (statt localhost) — HMR/Dev-Ressourcen erlauben.
   allowedDevOrigins: ["127.0.0.1"],
-  transpilePackages: ["@gwada/shared", "@gwada/pos-domain", "@gwada/supabase"],
+  transpilePackages: [
+    "@gwada/dashboard",
+    "@gwada/superadmin",
+    "@gwada/shared",
+    "@gwada/pos-domain",
+    "@gwada/supabase",
+  ],
   // pdfkit is Node/CJS-only — avoid Turbopack wrapping the constructor export.
   serverExternalPackages: ["pdfkit"],
   // Soft-Nav: Client-Cache + optimisticRouting (cachedNavigations braucht cacheComponents).
@@ -84,6 +90,21 @@ const nextConfig: NextConfig = {
   turbopack: {
     // pnpm-Monorepo: node_modules am Repo-Root; in dev kein outputFileTracingRoot (s. o.).
     root: monorepoRoot,
+    resolveAlias: {
+      "next/navigation": "./apps/web/lib/navigation/spa-next-shims/next-navigation.tsx",
+      "next/link": "./apps/web/lib/navigation/spa-next-shims/next-link.tsx",
+    },
+  },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "next/navigation": path.join(
+        appRoot,
+        "lib/navigation/spa-next-shims/next-navigation.tsx",
+      ),
+      "next/link": path.join(appRoot, "lib/navigation/spa-next-shims/next-link.tsx"),
+    };
+    return config;
   },
   images: {
     localPatterns: [

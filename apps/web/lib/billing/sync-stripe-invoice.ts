@@ -12,6 +12,24 @@ function unixToIso(sec: number | null | undefined): string | null {
   return new Date(sec * 1000).toISOString();
 }
 
+export function stripeInvoiceSubscriptionId(
+  invoice: Stripe.Invoice,
+): string | null {
+  const parentSub = invoice.parent?.subscription_details?.subscription;
+  if (typeof parentSub === "string") return parentSub;
+  if (parentSub && typeof parentSub === "object" && "id" in parentSub) {
+    return parentSub.id;
+  }
+  const legacy = (
+    invoice as Stripe.Invoice & {
+      subscription?: string | { id: string } | null;
+    }
+  ).subscription;
+  if (typeof legacy === "string") return legacy;
+  if (legacy && typeof legacy === "object" && "id" in legacy) return legacy.id;
+  return null;
+}
+
 function mapInvoiceStatus(
   invoice: Stripe.Invoice,
   eventHint?: "payment_failed",
@@ -32,7 +50,7 @@ function mapInvoiceStatus(
 
 export async function syncStripeInvoiceToDb(
   invoice: Stripe.Invoice,
-  options?: { eventHint?: "payment_failed" },
+  options?: { eventHint?: "payment_failed"; restaurantIdHint?: string | null },
 ): Promise<{ ok: true; restaurantId: string | null } | { ok: false; error: string }> {
   const admin = createSupabaseAdminClient();
   if (!admin) return { ok: false, error: "admin_unavailable" };
@@ -45,18 +63,15 @@ export async function syncStripeInvoiceToDb(
           "id" in invoice.customer
         ? invoice.customer.id
         : null;
-  const parentSub = invoice.parent?.subscription_details?.subscription;
-  const subscriptionId =
-    typeof parentSub === "string"
-      ? parentSub
-      : parentSub && typeof parentSub === "object" && "id" in parentSub
-        ? parentSub.id
-        : null;
+  const subscriptionId = stripeInvoiceSubscriptionId(invoice);
 
   let restaurantId: string | null =
-    typeof invoice.metadata?.restaurant_id === "string"
+    (typeof options?.restaurantIdHint === "string"
+      ? options.restaurantIdHint
+      : null) ??
+    (typeof invoice.metadata?.restaurant_id === "string"
       ? invoice.metadata.restaurant_id
-      : null;
+      : null);
   if (!restaurantId && subscriptionId) {
     restaurantId = await findRestaurantIdByStripeSubscription(subscriptionId);
   }
@@ -74,6 +89,7 @@ export async function syncStripeInvoiceToDb(
   const row = {
     restaurant_id: restaurantId,
     stripe_invoice_id: invoice.id,
+    number: invoice.number ?? null,
     stripe_customer_id: customerId,
     stripe_subscription_id: subscriptionId,
     status: mapInvoiceStatus(invoice, options?.eventHint),
@@ -94,6 +110,15 @@ export async function syncStripeInvoiceToDb(
   const { error } = await admin
     .from("restaurant_billing_invoices")
     .upsert(row, { onConflict: "stripe_invoice_id" });
+
+  if (error && /'?number'?/.test(error.message)) {
+    const { number: _number, ...withoutNumber } = row;
+    const retry = await admin
+      .from("restaurant_billing_invoices")
+      .upsert(withoutNumber, { onConflict: "stripe_invoice_id" });
+    if (retry.error) return { ok: false, error: retry.error.message };
+    return { ok: true, restaurantId };
+  }
 
   if (error) return { ok: false, error: error.message };
   return { ok: true, restaurantId };

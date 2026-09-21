@@ -36,7 +36,9 @@ export function useChecklistAreasStorage(restaurantId: string | null) {
       return;
     }
     const { data, error } = await loadChecklistAreas(restaurantId);
-    if (error && !isMissingSchemaError(error)) toast.error(error);
+    if (error && !isMissingSchemaError(error)) {
+      console.warn("[checklist-areas]", error);
+    }
     setItems(data.map(normalizeArea));
     setIsHydrated(true);
   }, [restaurantId]);

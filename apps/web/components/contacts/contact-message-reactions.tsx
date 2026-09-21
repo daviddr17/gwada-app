@@ -147,14 +147,9 @@ export function ContactMessageReactions({
   }, [pickerOpen, closePicker]);
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
-      {showToolbar ? (
-        <div
-          className="absolute bottom-full left-0 right-0 h-10"
-          aria-hidden
-        />
-      ) : null}
-      {/* WhatsApp: Schnell-Reactions bei Hover / Long-Press */}
+    // `contents`: Toolbar am Bubble-Wrapper positionieren (nicht über Anhang/Datei-Chip).
+    <div ref={rootRef} className="contents">
+      {/* WhatsApp: Schnell-Reactions bei Hover / Long-Press — oberhalb der Bubble */}
       <div
         className={cn(
           "absolute z-20 flex items-center gap-0.5 rounded-full border border-border/60 bg-popover px-0.5 py-0.5 text-popover-foreground shadow-md transition-opacity duration-150",
@@ -232,9 +227,10 @@ export function ContactMessageReactions({
       {grouped.length > 0 ? (
         <div
           className={cn(
-            "flex",
+            "relative flex",
             outbound ? "justify-end" : "justify-start",
             "-mt-1.5",
+            className,
           )}
         >
           <div

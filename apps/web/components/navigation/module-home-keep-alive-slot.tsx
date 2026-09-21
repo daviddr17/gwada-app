@@ -10,6 +10,13 @@ import {
 } from "@/lib/navigation/module-home-keep-alive";
 import { cn } from "@/lib/utils";
 
+export type ModuleHomeKeepAliveRenderProps = {
+  /** Interaktiv / echte Route (nicht Soft-Nav-Preview). */
+  active: boolean;
+  /** Titel + Subnav registrieren — auch während Soft-Nav-Preview/Pending. */
+  showChrome: boolean;
+};
+
 /**
  * Hält ein Modul-Home warm unter der App-Shell.
  * Soft-Nav weg: verstecken. Live/Glocke bleiben app-weit.
@@ -17,10 +24,13 @@ import { cn } from "@/lib/utils";
  */
 export function ModuleHomeKeepAliveSlot({
   id,
+  className,
   children,
 }: {
   id: ModuleHomeId;
-  children: (active: boolean) => ReactNode;
+  /** z. B. Nachrichten: `lg:h-full lg:overflow-hidden` — Scrollport füllen. */
+  className?: string;
+  children: (slot: ModuleHomeKeepAliveRenderProps) => ReactNode;
 }) {
   const pathname = usePathname();
   const { warm, visible, active } = useModuleHomeSlot(id);
@@ -29,6 +39,9 @@ export function ModuleHomeKeepAliveSlot({
   const wasVisibleRef = useRef(visible);
   // false — erster aktiver Mount soll restore (0) statt fremde Scroll-Pos behalten.
   const wasActiveRef = useRef(false);
+  // Nur der sichtbare Slot darf Chrome setzen — sonst bleibt die alte
+  // Überschrift/Chips über dem Ziel-Preview (oder umgekehrt).
+  const showChrome = visible;
 
   useLayoutEffect(() => {
     const root = getAppScrollRoot();
@@ -64,18 +77,21 @@ export function ModuleHomeKeepAliveSlot({
   return (
     <div
       data-module-home-keep-alive={id}
+      hidden={!visible}
       className={cn(
         visible
-          ? onHome
-            ? "relative"
+          ? active
+            ? "relative min-h-full"
             : "absolute inset-0 z-10 min-h-full bg-background"
           : "hidden",
         !interactive && "pointer-events-none",
+        className,
       )}
+      style={visible ? undefined : { display: "none" }}
       aria-hidden={!interactive}
       {...(!interactive ? ({ inert: "" } as Record<string, string>) : {})}
     >
-      {children(active)}
+      {children({ active, showChrome })}
     </div>
   );
 }

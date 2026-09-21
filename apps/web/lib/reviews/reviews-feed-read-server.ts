@@ -9,6 +9,7 @@ import {
 } from "@/lib/reviews/reviews-cache-constants";
 import {
   readCachedReviews,
+  readCachedReviewsRecent,
   readReviewsPlatformSyncState,
   type ReviewsPlatformSyncMeta,
   type ReviewsPlatformSyncRow,
@@ -58,6 +59,7 @@ export async function readReviewsFeedFromCache(
   restaurantId: string,
   sb: SupabaseClient,
   platforms?: ReviewPlatform[],
+  options?: { recentPerPlatform?: number },
 ): Promise<{
   reviews: UnifiedReview[];
   sync: ReviewsFeedSyncMeta;
@@ -68,7 +70,14 @@ export async function readReviewsFeedFromCache(
 
   const [cachedReviews, syncRows] = await Promise.all([
     cacheable.length > 0
-      ? readCachedReviews(sb, restaurantId, cacheable)
+      ? options?.recentPerPlatform != null
+        ? readCachedReviewsRecent(
+            sb,
+            restaurantId,
+            cacheable,
+            options.recentPerPlatform,
+          )
+        : readCachedReviews(sb, restaurantId, cacheable)
       : Promise.resolve([] as UnifiedReview[]),
     cacheable.length > 0
       ? readReviewsPlatformSyncState(sb, restaurantId, cacheable)

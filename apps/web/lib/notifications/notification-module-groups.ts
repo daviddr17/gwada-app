@@ -14,7 +14,7 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
   {
     id: "general",
     title: "Allgemein",
-    moduleIds: ["messages", "reviews", "changelog"],
+    moduleIds: ["messages", "messages_follow_up", "reviews", "changelog"],
   },
   {
     id: "reservations",
@@ -27,15 +27,24 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
     ],
   },
   {
+    id: "events",
+    title: "Events",
+    description: "Anfragen für private Veranstaltungen.",
+    moduleIds: ["events_inquiry"],
+  },
+  {
     id: "staff",
     title: "Mitarbeiter",
-    description: "Schichten und ToDo-Listen als eigene Hinweise.",
+    description: "Schichten, Aufgaben und Team-Chat.",
     moduleIds: [
       "staff_shift_start",
       "staff_shift_end",
       "staff_todo_completed",
       "staff_todo_deferred",
+      "personal_reminder",
+      "staff_messages",
       "staff_contract_signed",
+      "staff_document_assigned",
       "staff_display_time_request",
       "staff_invite_accepted",
       "staff_invite_declined",
@@ -47,7 +56,14 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
   {
     id: "inventory",
     title: "Bestand",
-    moduleIds: ["inventory_low_stock"],
+    description:
+      "Niedrigbestand, fällige Lieferungen, aufgegebene und abgeschlossene Bestellungen.",
+    moduleIds: [
+      "inventory_low_stock",
+      "inventory_po_delivery_due",
+      "inventory_po_ordered",
+      "inventory_po_closed",
+    ],
   },
   {
     id: "accounting",
@@ -57,6 +73,18 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
       "accounting_quotation",
       "accounting_invoice",
       "accounting_voucher",
+    ],
+  },
+  {
+    id: "digests",
+    title: "Zusammenfassungen",
+    description:
+      "Optional. Täglich 8 Uhr Vorschau und 21 Uhr Rückblick, montags die Woche, sonntags der Wochenrückblick — Restaurantzeit. Kosten sind voraussichtlich.",
+    moduleIds: [
+      "digest_daily_preview",
+      "digest_daily_review",
+      "digest_weekly_preview",
+      "digest_weekly_review",
     ],
   },
 ];

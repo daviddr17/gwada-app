@@ -17,6 +17,41 @@ export function wahaOutboundExternalSourceId(wahaMessageId: string): string {
   return `waha:${wahaMessageId}`;
 }
 
+/** Pending-Send mit leerem/Platzhalter-Body ↔ WAHA-Media-Webhook (Dateiname/„Datei“). */
+function isOutboundWhatsappMediaMirrorBody(body: string): boolean {
+  const t = body.replace(/\s+/g, " ").trim();
+  if (!t) return true;
+  const lower = t.toLowerCase();
+  return (
+    lower === "datei" ||
+    lower === "bild" ||
+    lower === "video" ||
+    lower === "sprachnachricht" ||
+    lower === "anhang" ||
+    lower === "whatsapp-anhang"
+  );
+}
+
+function outboundPendingMatchesWahaWebhookBody(
+  storedBody: string,
+  webhookBody: string,
+): boolean {
+  const stored = storedBody.trim();
+  const incoming = webhookBody.trim();
+  if (isOutboundWhatsappMediaMirrorBody(stored)) {
+    if (!incoming || isOutboundWhatsappMediaMirrorBody(incoming)) return true;
+    // WAHA: Dateiname als body (ohne Caption / ohne Zeilenumbruch).
+    return !incoming.includes("\n") && incoming.length <= 180;
+  }
+  if (!incoming && !stored) return true;
+  if (!incoming || !stored) return false;
+  return (
+    stored === incoming ||
+    stored.includes(incoming) ||
+    incoming.includes(stored)
+  );
+}
+
 export function parseWahaSendResponseMessageId(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
   const record = body as Record<string, unknown>;
@@ -219,10 +254,10 @@ export async function linkOutboundWhatsappFromWahaWebhook(
       (linkedContactId != null && record.contact_id === linkedContactId);
     if (!matchesThread) return false;
 
-    const stored = record.body?.trim() ?? "";
-    if (!bodyTrim && !stored) return true;
-    if (!bodyTrim || !stored) return false;
-    return stored === bodyTrim || stored.includes(bodyTrim) || bodyTrim.includes(stored);
+    return outboundPendingMatchesWahaWebhookBody(
+      record.body ?? "",
+      bodyTrim,
+    );
   });
 
   if (pending) {

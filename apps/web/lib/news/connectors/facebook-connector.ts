@@ -8,6 +8,10 @@ import {
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
 import { metaGraphListFetch } from "@/lib/news/connectors/meta-feed-fetch";
+import {
+  parseFacebookPostForNews,
+  type FbPostForNews,
+} from "@/lib/news/connectors/facebook-post-content";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
 const CAPABILITIES = {
@@ -23,42 +27,24 @@ const CAPABILITIES = {
   maxMediaCount: 10,
 } as const;
 
-type FbPost = {
-  id?: string;
-  message?: string;
-  created_time?: string;
-  permalink_url?: string;
-  /** Kleineres Vorschaubild (Graph). */
-  picture?: string;
-  /** Volles Beitragsbild. */
-  full_picture?: string;
-  attachments?: {
-    data?: Array<{
-      media?: { image?: { src?: string } };
-    }>;
-  };
-  likes?: { summary?: { total_count?: number } };
-  comments?: { summary?: { total_count?: number } };
-};
+const FB_ATTACHMENT_FIELDS =
+  "attachments{type,title,description,url,unshimmed_url,media_type,media{image{src},source},target{id,url},subattachments{type,title,description,media{image{src}}}}";
 
-function fbPostMedia(post: FbPost): {
-  url: string | null;
-  thumbUrl: string | null;
-} {
-  const url =
-    post.full_picture?.trim() ||
-    post.attachments?.data?.[0]?.media?.image?.src?.trim() ||
-    post.picture?.trim() ||
-    null;
-  const thumbUrl = post.picture?.trim() || null;
-  return {
-    url,
-    thumbUrl: thumbUrl && thumbUrl !== url ? thumbUrl : null,
-  };
-}
+const FB_POST_FIELDS = [
+  "id",
+  "message",
+  "story",
+  "created_time",
+  "permalink_url",
+  "full_picture",
+  "picture",
+  FB_ATTACHMENT_FIELDS,
+].join(",");
 
 async function fetchFacebookPosts(auth: { pageId: string; token: string }) {
   const attempts = [
+    `${auth.pageId}/published_posts?fields=${encodeURIComponent(FB_POST_FIELDS)}&limit=50`,
+    `${auth.pageId}/feed?fields=${encodeURIComponent(FB_POST_FIELDS)}&limit=50`,
     `${auth.pageId}/published_posts?fields=${encodeURIComponent("id,message,created_time,permalink_url,full_picture,picture")}&limit=50`,
     `${auth.pageId}/published_posts?fields=${encodeURIComponent("id,message,created_time,permalink_url,full_picture")}&limit=50`,
     `${auth.pageId}/published_posts?fields=${encodeURIComponent("id,message,created_time,permalink_url")}&limit=50`,
@@ -66,7 +52,7 @@ async function fetchFacebookPosts(auth: { pageId: string; token: string }) {
   ];
   let lastError: string | null = null;
   for (const path of attempts) {
-    const result = await metaGraphListFetch<FbPost>({
+    const result = await metaGraphListFetch<FbPostForNews>({
       path,
       token: auth.token,
       context: { platform: "facebook", feature: "news" },
@@ -75,6 +61,43 @@ async function fetchFacebookPosts(auth: { pageId: string; token: string }) {
     lastError = result.error;
   }
   return { ok: false as const, error: lastError ?? "facebook_posts_failed" };
+}
+
+function mapFacebookPostToNewsItem(post: FbPostForNews): UnifiedNewsItem {
+  const parsed = parseFacebookPostForNews(post);
+  return {
+    id: `facebook:${post.id}`,
+    platform: "facebook",
+    source: "external",
+    postId: null,
+    title: parsed.title,
+    body: parsed.body,
+    media: parsed.mediaUrl
+      ? [
+          {
+            id: post.id ?? "img",
+            kind: "image",
+            url: parsed.mediaUrl,
+            thumbUrl: parsed.thumbUrl,
+            storagePath: null,
+            mimeType: "image/jpeg",
+            sortOrder: 0,
+          },
+        ]
+      : [],
+    createdAt: post.created_time ?? new Date().toISOString(),
+    publishedAt: post.created_time ?? null,
+    scheduledAt: null,
+    status: "published",
+    canEdit: true,
+    canDelete: true,
+    externalUrl: parsed.externalUrl,
+    insights: {
+      likes: post.likes?.summary?.total_count,
+      comments: post.comments?.summary?.total_count,
+    },
+    authorName: null,
+  };
 }
 
 async function getMetaAuth(restaurantId: string) {
@@ -106,43 +129,10 @@ export const facebookNewsConnector: NewsPlatformConnector = {
     if ("error" in auth) return { error: auth.error ?? "facebook_not_connected" };
     const fetched = await fetchFacebookPosts(auth);
     if (!fetched.ok) return { error: fetched.error };
-    const items: UnifiedNewsItem[] = fetched.data.map((post) => {
-      const { url: imageUrl, thumbUrl } = fbPostMedia(post);
-      return {
-      id: `facebook:${post.id}`,
-      platform: "facebook",
-      source: "external",
-      postId: null,
-      title: null,
-      body: post.message?.trim() ?? "",
-      media: imageUrl
-        ? [
-            {
-              id: post.id ?? "img",
-              kind: "image",
-              url: imageUrl,
-              thumbUrl,
-              storagePath: null,
-              mimeType: "image/jpeg",
-              sortOrder: 0,
-            },
-          ]
-        : [],
-      createdAt: post.created_time ?? new Date().toISOString(),
-      publishedAt: post.created_time ?? null,
-      scheduledAt: null,
-      status: "published",
-      canEdit: true,
-      canDelete: true,
-      externalUrl: post.permalink_url ?? null,
-      insights: {
-        likes: post.likes?.summary?.total_count,
-        comments: post.comments?.summary?.total_count,
-      },
-      authorName: null,
+    const items = fetched.data.map(mapFacebookPostToNewsItem);
+    return {
+      items: items.filter((i) => i.body || i.media.length > 0 || i.title),
     };
-    });
-    return { items: items.filter((i) => i.body || i.media.length) };
   },
   async publishPost(restaurantId, _sb, input) {
     const auth = await getMetaAuth(restaurantId);

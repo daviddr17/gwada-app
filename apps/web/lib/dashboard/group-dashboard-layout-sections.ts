@@ -6,6 +6,10 @@ export type DashboardLayoutSection = {
   span: 1 | 2;
 };
 
+export type DashboardMasonryRun =
+  | { type: "full"; items: DashboardLayoutSection[] }
+  | { type: "columns"; items: DashboardLayoutSection[] };
+
 const FULL_WIDTH_WIDGETS = new Set<DashboardWidgetId>(["heute"]);
 
 /** Sichtbare Widgets in Nutzerreihenfolge inkl. Layout-Span. */
@@ -16,4 +20,36 @@ export function groupDashboardLayoutSections(
     id,
     span: FULL_WIDTH_WIDGETS.has(id) ? 2 : 1,
   }));
+}
+
+/**
+ * Volle Breite (Heute) nicht ins Zweispalter-Grid packen — eigene Zeile darüber,
+ * damit Reservierungen/Wetter in Zeile 1 links/rechts auf einer Linie starten.
+ */
+export function groupDashboardMasonryRuns(
+  sections: DashboardLayoutSection[],
+): DashboardMasonryRun[] {
+  const runs: DashboardMasonryRun[] = [];
+  for (const section of sections) {
+    const type = section.span === 2 ? "full" : "columns";
+    const last = runs[runs.length - 1];
+    if (last && last.type === type) {
+      last.items.push(section);
+    } else {
+      runs.push({ type, items: [section] });
+    }
+  }
+  return runs;
+}
+
+/** Zweispalter-Pinnwand: gerade Indizes links, ungerade rechts — pro Spalte ohne Grid-Zeilenhöhe. */
+export function splitDashboardColumnLanes(
+  items: DashboardLayoutSection[],
+): { left: DashboardLayoutSection[]; right: DashboardLayoutSection[] } {
+  const left: DashboardLayoutSection[] = [];
+  const right: DashboardLayoutSection[] = [];
+  for (let i = 0; i < items.length; i++) {
+    (i % 2 === 0 ? left : right).push(items[i]!);
+  }
+  return { left, right };
 }

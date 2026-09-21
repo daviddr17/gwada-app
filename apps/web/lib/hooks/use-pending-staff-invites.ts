@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
+  isRegisteredUserLimitError,
+  REGISTERED_USER_LIMIT_ERROR,
+} from "@/lib/billing/registered-user-seats";
+import {
   invalidateWorkspaceRestaurantCache,
   notifyWorkspaceRestaurantChanged,
 } from "@/lib/supabase/workspace-persistence";
@@ -140,7 +144,12 @@ export async function acceptPendingStaffInviteClient(params: {
   });
 
   if (error) {
-    return { ok: false, error: error.message };
+    return {
+      ok: false,
+      error: isRegisteredUserLimitError(error.message)
+        ? REGISTERED_USER_LIMIT_ERROR
+        : error.message,
+    };
   }
 
   const result = data as {
@@ -150,7 +159,13 @@ export async function acceptPendingStaffInviteClient(params: {
     invite_id?: string;
   } | null;
   if (!result?.ok) {
-    return { ok: false, error: result?.error ?? "accept_failed" };
+    const code = result?.error ?? "accept_failed";
+    return {
+      ok: false,
+      error: isRegisteredUserLimitError(code)
+        ? REGISTERED_USER_LIMIT_ERROR
+        : code,
+    };
   }
 
   if (result.restaurant_id && result.invite_id) {
@@ -176,12 +191,23 @@ export async function repairIncompleteStaffMembershipClient(params?: {
   });
 
   if (error) {
-    return { ok: false, error: error.message };
+    return {
+      ok: false,
+      error: isRegisteredUserLimitError(error.message)
+        ? REGISTERED_USER_LIMIT_ERROR
+        : error.message,
+    };
   }
 
   const result = data as { ok?: boolean; error?: string } | null;
   if (!result?.ok) {
-    return { ok: false, error: result?.error ?? "repair_failed" };
+    const code = result?.error ?? "repair_failed";
+    return {
+      ok: false,
+      error: isRegisteredUserLimitError(code)
+        ? REGISTERED_USER_LIMIT_ERROR
+        : code,
+    };
   }
 
   invalidateWorkspaceRestaurantCache();

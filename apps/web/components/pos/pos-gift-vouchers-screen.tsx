@@ -48,6 +48,7 @@ import {
   type ModuleTableSortDir,
 } from "@/lib/ui/module-table-sort-header";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { drawerChromeMaxWidthClassName } from "@/lib/ui/drawer-chrome";
 import { cn } from "@/lib/utils";
 
 type VoucherSortKey = "code" | "status" | "balance" | "expires";
@@ -449,7 +450,7 @@ export function PosGiftVouchersScreen() {
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto max-w-lg">
+        <DrawerContent className={cn("mx-auto", drawerChromeMaxWidthClassName)}>
           <DrawerHeader>
             <DrawerTitle>Filter</DrawerTitle>
           </DrawerHeader>
@@ -504,7 +505,7 @@ export function PosGiftVouchersScreen() {
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto max-w-lg">
+        <DrawerContent className={cn("mx-auto", drawerChromeMaxWidthClassName)}>
           <DrawerHeader>
             <DrawerTitle>Gutschein ausstellen</DrawerTitle>
           </DrawerHeader>

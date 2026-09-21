@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LogOut } from "lucide-react";
@@ -17,6 +18,14 @@ import {
 } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
+import {
+  isRegisteredUserLimitError,
+  registeredUserLimitToastMessage,
+  registeredUserSeatCap,
+} from "@/lib/billing/registered-user-seats";
+import { toastRegisteredUserLimit } from "@/lib/billing/registered-user-limit-ui";
+import { useRestaurantBilling } from "@/lib/contexts/restaurant-billing-context";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { revokeStaffRestaurantAccessClient } from "@/lib/staff/staff-client-api";
 import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-label";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
@@ -63,8 +72,10 @@ type TeamMemberRow = {
 };
 
 export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }) {
+  const router = useRouter();
   const { restaurantId, role: myRole } = useWorkspaceActiveRole();
   const { has } = useRestaurantPermissions();
+  const { entitlements, loading: billingLoading } = useRestaurantBilling();
   const canManage = has("team.manage") || isRestaurantOwnerRole(myRole);
   const [rows, setRows] = useState<TeamMemberRow[]>([]);
   const [positions, setPositions] = useState<RestaurantPositionRow[]>([]);
@@ -180,6 +191,13 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
         .update({ is_active: active })
         .eq("id", row.id);
       if (error) {
+        if (isRegisteredUserLimitError(error.message)) {
+          toastRegisteredUserLimit({
+            cap: registeredUserSeatCap(entitlements),
+            onOpenBilling: () => router.push(APP_ROUTES.settings.billing),
+          });
+          return;
+        }
         toast.error(error.message);
         return;
       }
@@ -228,6 +246,13 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
       </p>
     );
   }
+
+  const activeLoginCount = rows.filter((r) => r.isActive).length;
+  const seatCap = billingLoading ? null : registeredUserSeatCap(entitlements);
+  const memberCountLabel =
+    seatCap == null
+      ? `${rows.length} Eintrag${rows.length === 1 ? "" : "e"}`
+      : `${activeLoginCount}/${seatCap} registrierte Nutzer`;
 
   const teamTable = (
     <ModuleDataTableFrame>
@@ -369,16 +394,42 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
           <CardHeader>
             <CardTitle className="text-lg">Mitglieder</CardTitle>
             <CardDescription>
-              {rows.length} Eintrag{rows.length === 1 ? "" : "e"}
+              {memberCountLabel}
             </CardDescription>
           </CardHeader>
-          <CardContent>{teamTable}</CardContent>
+          <CardContent>
+            {seatCap != null && activeLoginCount >= seatCap && canManage ? (
+              <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+                {registeredUserLimitToastMessage(seatCap)} Aktuell{" "}
+                {activeLoginCount}/{seatCap}.{" "}
+                <Link
+                  href={APP_ROUTES.settings.billing}
+                  className="font-medium underline underline-offset-2"
+                >
+                  Abo öffnen
+                </Link>
+              </p>
+            ) : null}
+            {teamTable}
+          </CardContent>
         </Card>
       ) : (
         <>
           <p className="mb-3 text-sm text-muted-foreground">
-            {rows.length} Eintrag{rows.length === 1 ? "" : "e"}
+            {memberCountLabel}
           </p>
+          {seatCap != null && activeLoginCount >= seatCap && canManage ? (
+            <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+              {registeredUserLimitToastMessage(seatCap)} Aktuell{" "}
+              {activeLoginCount}/{seatCap}.{" "}
+              <Link
+                href={APP_ROUTES.settings.billing}
+                className="font-medium underline underline-offset-2"
+              >
+                Abo öffnen
+              </Link>
+            </p>
+          ) : null}
           {teamTable}
         </>
       )}

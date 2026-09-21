@@ -19,6 +19,16 @@
       var(--app-mobile-fab-bottom) + var(--app-mobile-fab-size)
     );
     --app-mobile-content-pb: 1rem;
+    /* AppMain: Nav/FAB + Atemluft — im Content-Flow, nicht nur Scroll-Ende. */
+    --app-mobile-content-clearance: calc(
+      var(--app-mobile-bottom-nav-offset) + var(--app-mobile-content-pb)
+    );
+  }
+
+  body:has([data-dashboard-fab], [data-inventory-voice-fab], [data-reservation-voice-fab]) {
+    --app-mobile-content-clearance: calc(
+      var(--app-mobile-fab-clearance) + var(--app-mobile-content-pb)
+    );
   }
 
   /* PWA / Home-Bildschirm: env() oft 0 — Mindest-Pad für Home-Indicator. */
@@ -30,15 +40,6 @@
 
   html[data-display-mode="standalone"] {
     --app-mobile-bottom-safe: max(env(safe-area-inset-bottom, 0px), 0.75rem);
-  }
-
-  [data-app-scroll-root] {
-    padding-bottom: var(--app-mobile-bottom-nav-offset);
-  }
-
-  body:has([data-dashboard-fab], [data-inventory-voice-fab], [data-reservation-voice-fab])
-    [data-app-scroll-root] {
-    padding-bottom: var(--app-mobile-fab-clearance);
   }
 
   body:has([data-dashboard-fab], [data-inventory-voice-fab], [data-reservation-voice-fab])

@@ -22,6 +22,7 @@ export type GwadaEmbedWidgetId =
   | "reviews"
   | "news"
   | "events"
+  | "event_inquiry"
   | "gallery"
   | "opening_hours"
   | "contact";

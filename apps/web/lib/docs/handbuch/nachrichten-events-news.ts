@@ -43,7 +43,7 @@ export const nachrichtenGuide: UserGuidePage = {
         headers: ["Chip", "Bedeutung"],
         rows: [
           ["Alle", "Gelesen und ungelesen"],
-          ["Ungelesen", "Nur offene Konversationen — Badge zeigt Anzahl"],
+          ["Ungelesen", "Chip „Neu“ (am Kanal noch offen) und „In Gwada offen“ (am Handy/Mail schon gelesen)"],
           ["Gelesen", "Bereits bearbeitete Chats"],
         ],
       },
@@ -116,29 +116,77 @@ export const eventsGuide: UserGuidePage = {
   slug: "events",
   title: "Events",
   description:
-    "Veranstaltungen anlegen, auf Plattformen ankündigen und als Widget einbinden.",
+    "Öffentliche Termine ankündigen und private Veranstaltungen als Vorgang führen.",
   intro: [
-    "Mit Events veröffentlichst du Konzerte, Specials, Brunch-Termine, Weinabende und ähnliche Termine. Gwada-Events erscheinen auf dem Profil und im Embed; zusätzlich kannst du Ankündigungen auf Facebook, Google, Instagram oder WhatsApp-Kanal ausspielen.",
+    "Events hat zwei Welten: Öffentliche Termine (Konzerte, Brunch, Specials) erscheinen auf dem Profil, im öffentlichen Embed und optional auf Facebook oder Google. Private Veranstaltungen (Firmenfeier, Hochzeit, geschlossene Gesellschaft) sind ein Vorgang — Anfrage, Angebot, Bestätigung, Rechnung, Team — und landen nie im öffentlichen Feed.",
   ],
   sections: [
+    {
+      heading: "Öffentlich vs. privat",
+      table: {
+        headers: ["Art", "Wo sichtbar", "Typischer Ablauf"],
+        rows: [
+          [
+            "Öffentliches Event",
+            "Profil, Events-Feed-Embed, optional Social",
+            "Anlegen → Veröffentlichen → optional Ankündigen",
+          ],
+          [
+            "Private Veranstaltung",
+            "Events-Modul, Reservierungs-Tagesliste und Kalender",
+            "Anfrage oder manuell → Angebot/Rechnung → Team",
+          ],
+        ],
+      },
+    },
     {
       heading: "Tabs im Modul",
       table: {
         headers: ["Tab", "Zweck"],
         rows: [
-          ["Übersicht", "Events anlegen, bearbeiten, pinnen"],
-          ["Statistiken", "Aufrufe und Reichweite"],
-          ["Einbinden", "Widget-Snippet und Vorschau"],
-          ["Einstellungen", "Embed-Optionen und Plattform-Hinweise"],
+          ["Übersicht", "Öffentliche Events und private Vorgänge, Filter-Chips"],
+          ["Statistiken", "Aufrufe und Reichweite öffentlicher Termine"],
+          ["Einbinden", "Öffentlicher Feed und Veranstaltungs-Anfrage"],
+          ["Einstellungen", "Menüvorschläge, Anfrage-Pakete, Embed-Optionen und Plattform-Hinweise"],
         ],
       },
     },
     {
       heading: "Filter",
-      body: "Plattform-Chips in der Übersicht: Alle, Gwada, Facebook, Google, Instagram, WhatsApp Kanal. Instagram und WhatsApp dienen vor allem als Ankündigungs-Kanäle — der native Event-Sync läuft über Gwada, Facebook und Google.",
+      body: "Chips in der Übersicht: Alle (inkl. privat), Privat, Gwada, Facebook, Google. Instagram und WhatsApp dienen vor allem als Ankündigungs-Kanäle — der native Event-Sync läuft über Gwada, Facebook und Google. Der öffentliche Website-Feed zeigt nur veröffentlichte Gwada-Termine, nie private Vorgänge.",
     },
     {
-      heading: "Neues Event — Felder",
+      heading: "Neue private Veranstaltung",
+      steps: [
+        "Events → Übersicht → Neue Veranstaltung.",
+        "Ansprechpartner, Firma, Datum, Personen und Notizen ausfüllen.",
+        "Optional Mitarbeiter zuweisen.",
+        "Wenn Gäste Menü oder Pakete gewählt haben, liegt schon ein Gwada-Angebot am Vorgang — sonst Angebot selbst anlegen.",
+        "Rechnung über die Buchführung erstellen und am Vorgang verknüpfen.",
+      ],
+    },
+    {
+      heading: "Menüvorschläge",
+      steps: [
+        "Events → Einstellungen → Menüvorschläge.",
+        "Menü anlegen: Name, Preis pro Person, optional Kinderpreis, min./max. Personen.",
+        "Gänge pflegen (Vorspeise, Hauptgang, Dessert). Pro Gang: inklusive für alle — oder Gäste verteilen die Personen auf Gerichte (z. B. 30× Fleisch, 10× vegetarisch).",
+        "Gerichte kennzeichnen (vegetarisch, vegan, glutenfrei, Kinder) und optional Aufpreis setzen.",
+        "Optionen wie Weinbegleitung (pro Person, ohne Kinder) oder Pauschalen ergänzen.",
+        "Im Anfrageformular wählen Gäste ein Menü, tragen Wünsche als Personenzahl ein und klicken die Gerichte zusammen — daraus entsteht das Gwada-Angebot.",
+      ],
+    },
+    {
+      heading: "Anfrage-Pakete",
+      steps: [
+        "Events → Einstellungen → Anfrage-Pakete.",
+        "Buffet, Getränke oder Extras anlegen — Name, Kurztext, Preis pro Person, MwSt.",
+        "Aktive Pakete erscheinen im Anfrageformular (Website-Embed und Profil-Tab „Anfrage“).",
+        "Gäste wählen optional — daraus entsteht ein Gwada-Angebot (ohne Lexoffice) am privaten Vorgang.",
+      ],
+    },
+    {
+      heading: "Neues öffentliches Event — Felder",
       table: {
         headers: ["Feld", "Bedeutung"],
         rows: [
@@ -154,9 +202,9 @@ export const eventsGuide: UserGuidePage = {
       },
     },
     {
-      heading: "Event anlegen",
+      heading: "Öffentliches Event anlegen",
       steps: [
-        "Events → Übersicht → Neues Event.",
+        "Events → Übersicht → Öffentliches Event.",
         "Titel, Startzeit und Beschreibung ausfüllen — optional Ende, Ort, Ticketlink.",
         "Titelbild hinzufügen, wenn du auf Instagram oder WhatsApp ankündigen willst.",
         "Plattformen und Ankündigungs-Schalter setzen.",
@@ -169,19 +217,23 @@ export const eventsGuide: UserGuidePage = {
         "Gwada-Events lassen sich nachträglich bearbeiten, anpinnen oder löschen",
         "Jetzt synchronisieren — Feed mit verbundenen Plattformen abgleichen",
         "WhatsApp-Kanal wird unter News → Einstellungen konfiguriert (Events verweist dorthin)",
+        "Private Vorgänge erscheinen in der Reservierungs-Tagesliste — Klick öffnet das Bearbeiten-Sheet, mit Link nach Events",
       ],
     },
     {
       heading: "Einbinden",
-      body: "Unter Einbinden kopierst du das Snippet. Einstellungen steuern u. a. Standard-Ansicht (Timeline), maximale Einträge und Chip „Alle“. Öffentliche URL: /embed/events/[slug].",
+      body: "Unter Einbinden gibt es zwei Snippets. Öffentliche Events: Feed unter /embed/events/[slug] — nur veröffentlichte Termine. Veranstaltungs-Anfrage: Formular unter /embed/veranstaltung/[slug] — Name, Firma, Wunschdatum, Personen, Anlass, optional Menü (Gerichte nach Personen), Buffet/Getränke, Nachricht. Auf dem öffentlichen Profil steckt dasselbe Formular im Events-Sheet unter dem Tab „Anfrage“. Anfragen erscheinen als unbestätigte private Veranstaltung in Events, nicht unter Reservierungen → Unbestätigt.",
     },
   ],
   tips: [
     "Instagram-Ankündigungen brauchen ein Cover-Bild.",
     "Für reine Gwada-Sichtbarkeit reichen Titel, Zeit und Veröffentlichen — Social-Chips sind optional.",
+    "Private Veranstaltungen sind ein Zeitslot, kein geschlossener Tag — andere Reservierungen am selben Tag bleiben möglich.",
+    "Ohne aktive Menüs oder Pakete bleibt das Anfrageformular frei — der Kalkulator erscheint nur, wenn Preise gepflegt sind.",
   ],
   related: [
     { label: "Events API", href: "/docs/api/events" },
+    { label: "Reservierungen", href: "/docs/handbuch/reservierungen" },
     { label: "News (WhatsApp-Kanal)", href: "/docs/handbuch/news" },
     { label: "Öffentliches Profil", href: "/docs/handbuch/oeffentliches-profil" },
   ],

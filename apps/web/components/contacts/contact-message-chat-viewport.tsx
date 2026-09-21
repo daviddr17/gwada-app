@@ -81,21 +81,23 @@ export const ContactMessageChatViewport = memo(function ContactMessageChatViewpo
   const tailId = sorted.length > 0 ? sorted[sorted.length - 1]?.id : null;
   const hasMessages = messages.length > 0;
   const awaitingThread = loading || threadPending;
-  const showEmpty = !awaitingThread && !hasMessages;
-  const showDeferredSkeleton = useDeferredSkeleton(loading && !hasMessages);
-  const showSkeleton = (loading && !hasMessages && showDeferredSkeleton) || (threadPending && !hasMessages);
+  const showEmpty =
+    !awaitingThread && !hasMessages && sawLoadingForThreadRef.current;
+  const showSkeletonRaw = awaitingThread && !hasMessages;
+  const showSkeleton = useDeferredSkeleton(showSkeletonRaw);
 
   useLayoutEffect(() => {
     if (threadKey !== prevThreadKeyRef.current) {
       prevThreadKeyRef.current = threadKey;
       sawLoadingForThreadRef.current = false;
       contentScrollHeightRef.current = 0;
-      setThreadPending(Boolean(threadKey));
+      // Cache-Hit: Nachrichten schon da → kein Skeleton-Flash.
+      setThreadPending(Boolean(threadKey) && messages.length === 0);
     }
     if (loading) {
       sawLoadingForThreadRef.current = true;
     }
-  }, [threadKey, loading]);
+  }, [threadKey, loading, messages.length]);
 
   useLayoutEffect(() => {
     if (hasMessages) {

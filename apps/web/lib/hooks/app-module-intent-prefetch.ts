@@ -21,10 +21,7 @@ import {
   menuItemsPrefetchOptions,
   menuMainCategoriesPrefetchOptions,
 } from "@/lib/hooks/app-module-query-prefetch";
-import { peekMenuItemsCache } from "@/lib/menu/menu-items-query";
-import { peekMenuCategoriesCache } from "@/lib/menu/menu-categories-query";
-import { peekMenuMainCategoriesCache } from "@/lib/menu/menu-main-categories-query";
-import { peekIngredientsCache } from "@/lib/inventory/ingredients-query";
+import { requestUnifiedInboxWarmIntent } from "@/lib/contact-messages/unified-inbox-background-sync";
 import {
   warmAccountingInvoices,
   warmDocumentsList,
@@ -39,6 +36,7 @@ import {
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 import { requestModuleHomeWarmForHref } from "@/lib/navigation/module-home-warm-intent";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
 function normalizeModuleHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
@@ -97,23 +95,6 @@ export async function ensureCriticalModuleDataReady(
   ]);
 }
 
-function seedMenuQueryCaches(
-  queryClient: QueryClient,
-  restaurantId: string,
-): void {
-  const items = peekMenuItemsCache();
-  if (items) {
-    queryClient.setQueryData(queryKeys.menu.items(restaurantId), items);
-  }
-  const main = peekMenuMainCategoriesCache();
-  if (main) {
-    queryClient.setQueryData(queryKeys.menu.mainCategories(restaurantId), main);
-  }
-  const cats = peekMenuCategoriesCache();
-  if (cats) {
-    queryClient.setQueryData(queryKeys.menu.categories(restaurantId), cats);
-  }
-}
 
 export function warmModuleData(
   queryClient: QueryClient,
@@ -138,7 +119,6 @@ export function warmModuleData(
     return;
   }
   if (path.startsWith("/dashboard/menu")) {
-    seedMenuQueryCaches(queryClient, restaurantId);
     void queryClient.prefetchQuery(menuItemsPrefetchOptions(restaurantId));
     void queryClient.prefetchQuery(
       menuMainCategoriesPrefetchOptions(restaurantId),
@@ -147,13 +127,6 @@ export function warmModuleData(
     return;
   }
   if (path.startsWith("/dashboard/inventory")) {
-    const ingredients = peekIngredientsCache();
-    if (ingredients) {
-      queryClient.setQueryData(
-        queryKeys.inventory.ingredients(restaurantId),
-        ingredients,
-      );
-    }
     void queryClient.prefetchQuery(
       inventoryIngredientsPrefetchOptions(restaurantId),
     );
@@ -193,8 +166,12 @@ export function warmModuleData(
   }
   if (path.startsWith("/dashboard/pos")) {
     void warmPosOverview(restaurantId);
+    return;
   }
-  // kontakte/nachrichten: UnifiedInboxBackgroundSyncMount wärmt mit Kanal-Flags.
+  if (path.startsWith("/dashboard/kontakte")) {
+    // Channel-Flags kennt nur UnifiedInboxBackgroundSyncMount — Intent-Event.
+    requestUnifiedInboxWarmIntent();
+  }
 }
 
 /**
@@ -212,15 +189,16 @@ export function warmPriorityModuleDataCaches(
   });
 }
 
-/** Hover/Focus/Tap: volles Page-Segment + Modul-Daten vor dem Klick wärmen. */
+/** Hover/Focus/Tap: Keep-alive sofort, RSC + Daten sobald Restaurant da ist. */
 export function warmModuleRouteIntent(
   router: AppRouterInstance,
   queryClient: QueryClient,
-  restaurantId: string,
+  restaurantId: string | null | undefined,
   href: string,
 ): void {
-  // Keep-alive-Slot sync mounten — Soft-Nav Preview ohne RSC-Wartezeit.
   requestModuleHomeWarmForHref(href);
   prefetchAppModuleHref(router, href);
-  warmModuleData(queryClient, restaurantId, href);
+  if (restaurantId && isUuidRestaurantId(restaurantId)) {
+    warmModuleData(queryClient, restaurantId, href);
+  }
 }

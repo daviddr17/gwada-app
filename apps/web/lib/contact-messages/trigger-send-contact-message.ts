@@ -1,3 +1,9 @@
+import {
+  CLIENT_SEND_ABORTED,
+  isSilentClientSendResult,
+  shouldSilenceClientSendFailure,
+} from "@/lib/network/client-send-abort";
+
 export type SendContactMessageApiResult = {
   ok: boolean;
   errors?: string[];
@@ -70,7 +76,10 @@ export async function triggerSendContactMessage(body: {
       return { ok: false, error: code, errors: data.errors };
     }
     return data;
-  } catch {
+  } catch (e) {
+    if (shouldSilenceClientSendFailure(e)) {
+      return { ok: false, error: CLIENT_SEND_ABORTED };
+    }
     return null;
   }
 }
@@ -172,7 +181,10 @@ export async function triggerEmailInboxSend(body: {
       return { ok: false, error: code, errors: data.errors };
     }
     return data;
-  } catch {
+  } catch (e) {
+    if (shouldSilenceClientSendFailure(e)) {
+      return { ok: false, error: CLIENT_SEND_ABORTED };
+    }
     return null;
   }
 }
@@ -214,7 +226,10 @@ export async function triggerMetaSendMessage(body: {
       return { ok: false, error: code, errors: data.errors };
     }
     return data;
-  } catch {
+  } catch (e) {
+    if (shouldSilenceClientSendFailure(e)) {
+      return { ok: false, error: CLIENT_SEND_ABORTED };
+    }
     return null;
   }
 }
@@ -263,7 +278,10 @@ export async function triggerWahaSendMessage(body: {
       return { ok: false, error: code, errors: data.errors };
     }
     return data;
-  } catch {
+  } catch (e) {
+    if (shouldSilenceClientSendFailure(e)) {
+      return { ok: false, error: CLIENT_SEND_ABORTED };
+    }
     return null;
   }
 }
@@ -340,6 +358,7 @@ export async function triggerLinkEmailThreadToContact(body: {
 export function sendContactMessageUserMessage(
   result: SendContactMessageApiResult | null,
 ): string | null {
+  if (isSilentClientSendResult(result)) return null;
   if (!result) {
     return "Nachricht konnte nicht gesendet werden (Netzwerkfehler).";
   }
@@ -356,3 +375,5 @@ export function sendContactMessageUserMessage(
   }
   return null;
 }
+
+export { isSilentClientSendResult };

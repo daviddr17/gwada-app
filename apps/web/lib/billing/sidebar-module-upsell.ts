@@ -3,6 +3,7 @@ import {
   BILLING_PLAN_IDS,
   BILLING_PLANS,
   SIDEBAR_MODULE_BILLING_FEATURE,
+  isBillingAddonPurchasable,
   planHasFeature,
   type BillingAddonId,
   type BillingPlanId,
@@ -33,14 +34,14 @@ const MODULE_UPSELL_DESCRIPTION: Partial<Record<SidebarModuleId, string>> = {
   dokumente:
     "Verträge, HACCP und Team-Dokumente — sicher abgelegt und schnell auffindbar.",
   checklisten:
-    "HACCP und Tagesaufgaben — abhaken, protokollieren, nichts vergessen.",
+    "Persönliche Notizen, Team-Aufgaben, Chat und HACCP — abhaken und nichts vergessen.",
   mitarbeiter:
     "Team, Schichtplan, Verträge und Einladungen — alles an einem Ort.",
   buchfuehrung:
     "Rechnungen, Angebote und Belege — übersichtlich für Buchhaltung und Team.",
   insights:
     "Kennzahlen und Plattform-Status — Reservierungen, Bewertungen und Nachrichten auf einen Blick.",
-  pos: "Bestellungen, Kassenläufe und Auswertungen — Web-Hub zur nativen POS-App.",
+  pos: "Native Kasse mit TSE — Coming soon. Noch nicht im Abo zubuchbar.",
 };
 
 /** Kurz-Highlights für die Upsell-Erklärung. */
@@ -90,7 +91,7 @@ const MODULE_UPSELL_BULLETS: Partial<
   mitarbeiter: [
     "Schichtplan & Zeiterfassung",
     "Verträge und Einladungen",
-    "Team ohne Seat-Fees",
+    "Unbegrenzte Nutzer",
   ],
   buchfuehrung: [
     "Rechnungen & Belege",
@@ -105,7 +106,7 @@ const MODULE_UPSELL_BULLETS: Partial<
   pos: [
     "Kasse mit TSE",
     "Quittungen & Berichte",
-    "Zu jedem Plan zubuchbar",
+    "Coming soon — noch nicht zubuchbar",
   ],
 };
 
@@ -127,13 +128,16 @@ export function requiredUnlockForSidebarModule(
 
 export function unlockLabel(unlock: SidebarModuleUnlock): string {
   if (unlock.kind === "addon") {
-    return `${BILLING_ADDONS[unlock.addonId].name}-Add-on`;
+    const addon = BILLING_ADDONS[unlock.addonId];
+    if (addon.comingSoon) return "Coming soon";
+    return `${addon.name}-Add-on`;
   }
   return BILLING_PLANS[unlock.planId].name;
 }
 
 export function unlockCtaLabel(unlock: SidebarModuleUnlock): string {
   if (unlock.kind === "addon") {
+    if (!isBillingAddonPurchasable(unlock.addonId)) return "Bald verfügbar";
     return "POS zubuchen";
   }
   return `${BILLING_PLANS[unlock.planId].name} ansehen`;
@@ -148,6 +152,7 @@ export type SidebarModuleUpsellContent = {
   unlock: SidebarModuleUnlock;
   unlockBadge: string;
   ctaLabel: string;
+  ctaDisabled?: boolean;
 };
 
 export function sidebarModuleUpsellContent(
@@ -169,5 +174,7 @@ export function sidebarModuleUpsellContent(
     unlock,
     unlockBadge: unlockLabel(unlock),
     ctaLabel: unlockCtaLabel(unlock),
+    ctaDisabled:
+      unlock.kind === "addon" && !isBillingAddonPurchasable(unlock.addonId),
   };
 }

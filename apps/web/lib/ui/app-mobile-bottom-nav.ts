@@ -38,9 +38,20 @@ export const appMobileFabBottomClassName =
 export const appMobileFabCaptionBottomClassName =
   "bottom-[calc(var(--app-mobile-fab-bottom)+var(--app-mobile-fab-size)+0.5rem)] md:bottom-[max(calc(1.25rem+var(--app-mobile-fab-size,3rem)),var(--app-mobile-bottom-safe))]";
 
-/** Innen-Padding unten im Scroll-Inhalt (zusätzlich zum Scroll-Root-Offset). */
+/**
+ * Innen-Padding unten im Modul-Inhalt (mobil).
+ * `--app-mobile-content-clearance` = Bottom-Nav/FAB + `--app-mobile-content-pb` —
+ * sitzt im Content-Flow, damit der letzte Block nicht unter der fixen Leiste liegt.
+ */
 export const appMobileContentPbClassName =
-  "max-md:pb-[var(--app-mobile-content-pb,1rem)] md:pb-16";
+  "max-md:pb-[var(--app-mobile-content-clearance,calc(var(--app-mobile-bottom-nav-offset)+var(--app-mobile-content-pb,1rem)))] md:pb-16";
+
+/**
+ * Horizontaler Inhalt: 1rem / 1.5rem, nie unter die Safe-Area
+ * (`viewport-fit: cover` — Notch/Landschaft).
+ */
+export const appContentPxClassName =
+  "pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] sm:pl-[max(1.5rem,env(safe-area-inset-left,0px))] sm:pr-[max(1.5rem,env(safe-area-inset-right,0px))]";
 
 /** Plus / Voice-FAB: mobil kompakter (`size-12`), Desktop unverändert `size-14`. */
 export const appMobileFabButtonClassName =

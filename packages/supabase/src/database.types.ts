@@ -673,6 +673,226 @@ export type Database = {
           },
         ]
       }
+      event_packages: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string
+          id: string
+          kind: string
+          name: string
+          price_per_person: number
+          restaurant_id: string
+          sort_order: number
+          tax_rate_percent: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          kind: string
+          name: string
+          price_per_person: number
+          restaurant_id: string
+          sort_order?: number
+          tax_rate_percent?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          kind?: string
+          name?: string
+          price_per_person?: number
+          restaurant_id?: string
+          sort_order?: number
+          tax_rate_percent?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_packages_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_menus: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string
+          id: string
+          kids_price_per_person: number | null
+          max_party_size: number | null
+          min_party_size: number
+          name: string
+          price_per_person: number
+          restaurant_id: string
+          sort_order: number
+          tax_rate_percent: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          kids_price_per_person?: number | null
+          max_party_size?: number | null
+          min_party_size?: number
+          name: string
+          price_per_person: number
+          restaurant_id: string
+          sort_order?: number
+          tax_rate_percent?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string
+          id?: string
+          kids_price_per_person?: number | null
+          max_party_size?: number | null
+          min_party_size?: number
+          name?: string
+          price_per_person?: number
+          restaurant_id?: string
+          sort_order?: number
+          tax_rate_percent?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_menus_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_menu_addons: {
+        Row: {
+          billing: string
+          description: string
+          exclude_kids: boolean
+          id: string
+          menu_id: string
+          name: string
+          price: number
+          sort_order: number
+        }
+        Insert: {
+          billing?: string
+          description?: string
+          exclude_kids?: boolean
+          id?: string
+          menu_id: string
+          name: string
+          price: number
+          sort_order?: number
+        }
+        Update: {
+          billing?: string
+          description?: string
+          exclude_kids?: boolean
+          id?: string
+          menu_id?: string
+          name?: string
+          price?: number
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_menu_addons_menu_id_fkey"
+            columns: ["menu_id"]
+            isOneToOne: false
+            referencedRelation: "event_menus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_menu_course_options: {
+        Row: {
+          course_id: string
+          description: string
+          diets: string[]
+          extra_price_per_person: number
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          course_id: string
+          description?: string
+          diets?: string[]
+          extra_price_per_person?: number
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          course_id?: string
+          description?: string
+          diets?: string[]
+          extra_price_per_person?: number
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_menu_course_options_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "event_menu_courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_menu_courses: {
+        Row: {
+          id: string
+          menu_id: string
+          name: string
+          required: boolean
+          selection_mode: string
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          menu_id: string
+          name: string
+          required?: boolean
+          selection_mode?: string
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          menu_id?: string
+          name?: string
+          required?: boolean
+          selection_mode?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_menu_courses_menu_id_fkey"
+            columns: ["menu_id"]
+            isOneToOne: false
+            referencedRelation: "event_menus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gwada_review_invitations: {
         Row: {
           completed_at: string | null
@@ -868,6 +1088,7 @@ export type Database = {
           created_at: string
           current_stock: number
           id: string
+          image_path: string | null
           is_active: boolean
           low_stock_threshold: number
           name: string
@@ -877,13 +1098,16 @@ export type Database = {
           supplier_id: string
           unit: string
           updated_at: string
+          article_number: string | null
         }
         Insert: {
+          article_number?: string | null
           brand_id: string
           category_id: string
           created_at?: string
           current_stock?: number
           id: string
+          image_path?: string | null
           is_active?: boolean
           low_stock_threshold?: number
           name: string
@@ -895,11 +1119,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          article_number?: string | null
           brand_id?: string
           category_id?: string
           created_at?: string
           current_stock?: number
           id?: string
+          image_path?: string | null
           is_active?: boolean
           low_stock_threshold?: number
           name?: string
@@ -986,6 +1212,32 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "inventory_production_sites_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_purchase_order_deletions: {
+        Row: {
+          deleted_at: string
+          order_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          order_id: string
+          restaurant_id: string
+        }
+        Update: {
+          deleted_at?: string
+          order_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_purchase_order_deletions_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -1095,6 +1347,7 @@ export type Database = {
           id: string
           restaurant_id: string
           status: string
+          status_updated_at: string
           supplier_id: string
           supplier_name: string
         }
@@ -1106,6 +1359,7 @@ export type Database = {
           id: string
           restaurant_id: string
           status: string
+          status_updated_at?: string
           supplier_id: string
           supplier_name: string
         }
@@ -1117,6 +1371,7 @@ export type Database = {
           id?: string
           restaurant_id?: string
           status?: string
+          status_updated_at?: string
           supplier_id?: string
           supplier_name?: string
         }
@@ -2409,6 +2664,7 @@ export type Database = {
           locale: string | null
           nickname: string | null
           phone: string | null
+          ui_density: string | null
           updated_at: string
         }
         Insert: {
@@ -2430,6 +2686,7 @@ export type Database = {
           locale?: string | null
           nickname?: string | null
           phone?: string | null
+          ui_density?: string | null
           updated_at?: string
         }
         Update: {
@@ -2451,6 +2708,7 @@ export type Database = {
           locale?: string | null
           nickname?: string | null
           phone?: string | null
+          ui_density?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2643,6 +2901,7 @@ export type Database = {
           guest_pin_hash: string | null
           guest_profile_id: string | null
           id: string
+          invoice_id: string | null
           is_walk_in: boolean
           kind: string
           notes: string | null
@@ -2650,6 +2909,7 @@ export type Database = {
           notify_whatsapp: boolean
           party_size: number
           pending_change: Json | null
+          quotation_id: string | null
           relocated_from_dining_table_id: string | null
           relocated_from_ends_at: string | null
           relocated_from_starts_at: string | null
@@ -2678,6 +2938,7 @@ export type Database = {
           guest_pin_hash?: string | null
           guest_profile_id?: string | null
           id?: string
+          invoice_id?: string | null
           is_walk_in?: boolean
           kind?: string
           notes?: string | null
@@ -2685,6 +2946,7 @@ export type Database = {
           notify_whatsapp?: boolean
           party_size?: number
           pending_change?: Json | null
+          quotation_id?: string | null
           relocated_from_dining_table_id?: string | null
           relocated_from_ends_at?: string | null
           relocated_from_starts_at?: string | null
@@ -2713,6 +2975,7 @@ export type Database = {
           guest_pin_hash?: string | null
           guest_profile_id?: string | null
           id?: string
+          invoice_id?: string | null
           is_walk_in?: boolean
           kind?: string
           notes?: string | null
@@ -2720,6 +2983,7 @@ export type Database = {
           notify_whatsapp?: boolean
           party_size?: number
           pending_change?: Json | null
+          quotation_id?: string | null
           relocated_from_dining_table_id?: string | null
           relocated_from_ends_at?: string | null
           relocated_from_starts_at?: string | null
@@ -3563,6 +3827,7 @@ export type Database = {
           whatsapp_thanks_hours_after: number
           whatsapp_thanks_template: string | null
           walk_in_enabled: boolean
+          google_booking_link_enabled: boolean
         }
         Insert: {
           booking_lead_time_hours?: number
@@ -3626,6 +3891,7 @@ export type Database = {
           whatsapp_thanks_hours_after?: number
           whatsapp_thanks_template?: string | null
           walk_in_enabled?: boolean
+          google_booking_link_enabled?: boolean
         }
         Update: {
           booking_lead_time_hours?: number
@@ -3689,6 +3955,7 @@ export type Database = {
           whatsapp_thanks_hours_after?: number
           whatsapp_thanks_template?: string | null
           walk_in_enabled?: boolean
+          google_booking_link_enabled?: boolean
         }
         Relationships: [
           {
@@ -4741,6 +5008,23 @@ export type Database = {
       explain_staff_invite_by_token: {
         Args: { p_token: string }
         Returns: Json
+      }
+      inventory_purchase_order_set_status: {
+        Args: {
+          p_from_status: string
+          p_log_entry: Json
+          p_order_id: string
+          p_restaurant_id: string
+          p_to_status: string
+        }
+        Returns: undefined
+      }
+      inventory_purchase_order_delete_empty_open: {
+        Args: {
+          p_order_id: string
+          p_restaurant_id: string
+        }
+        Returns: undefined
       }
       inventory_replace_ingredients: {
         Args: { p_ingredients: Json; p_restaurant_id: string }

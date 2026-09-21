@@ -8,17 +8,22 @@ export function ContactThreadHeaderAvatar({
   displayName,
   firstName,
   lastName,
+  /** Listen-Logik (z. B. ☎ statt Nummer im Kreis für WAHA). */
+  initialsOverride,
 }: {
   avatarUrl: string | null;
   displayName: string;
   firstName?: string | null;
   lastName?: string | null;
+  initialsOverride?: string;
 }) {
-  const initials = contactThreadAvatarInitials({
-    displayName,
-    firstName,
-    lastName,
-  });
+  const initials =
+    initialsOverride ??
+    contactThreadAvatarInitials({
+      displayName,
+      firstName,
+      lastName,
+    });
 
   return (
     <ProfileRoundAvatar

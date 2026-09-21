@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePersonalOnboardingOptional } from "@/components/onboarding/personal-onboarding-provider";
 import { RestaurantSetupWizardOverlay } from "@/components/onboarding/restaurant-setup-wizard-overlay";
 import { useMyRestaurants } from "@/lib/hooks/use-my-restaurants";
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
@@ -37,7 +38,9 @@ export function useRestaurantSetupWizardOptional(): RestaurantSetupWizardContext
 }
 
 /**
- * Auto-opens the setup overlay when the signed-in user has no restaurant yet.
+ * Auto-opens the setup overlay when the signed-in user has no restaurant yet,
+ * but only after personal onboarding (language) has finished — so the wizard
+ * uses the selected UI locale.
  * Also exposes `openWizard` for „Neues Restaurant“ in the workspace.
  */
 export function RestaurantSetupWizardProvider({
@@ -50,6 +53,7 @@ export function RestaurantSetupWizardProvider({
     useWorkspaceRestaurantContext();
   const { rows, loading: restaurantsLoading, refresh: refreshList } =
     useMyRestaurants();
+  const personal = usePersonalOnboardingOptional();
 
   const [open, setOpen] = useState(false);
   const [required, setRequired] = useState(false);
@@ -65,12 +69,18 @@ export function RestaurantSetupWizardProvider({
     setRequired(false);
   }, []);
 
+  const personalBlocking =
+    personal != null &&
+    (!personal.profileReady || personal.needsOnboarding || personal.isOpen);
+
   useEffect(() => {
     if (!authReady || !workspaceReady || restaurantsLoading) return;
     if (!user) {
       setAutoPrompted(false);
       return;
     }
+    // Wait until language/profile wizard is done so SetupWizard strings match.
+    if (personalBlocking) return;
     if (autoPrompted) return;
     if (restaurantId || rows.length > 0) {
       setAutoPrompted(true);
@@ -87,6 +97,7 @@ export function RestaurantSetupWizardProvider({
     restaurantId,
     rows.length,
     autoPrompted,
+    personalBlocking,
   ]);
 
   const value = useMemo(

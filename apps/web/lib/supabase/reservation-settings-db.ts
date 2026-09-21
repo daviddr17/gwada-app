@@ -59,6 +59,11 @@ export type RestaurantReservationSettingsRow = {
   review_google_url: string | null;
   review_facebook_url: string | null;
   walk_in_enabled: boolean;
+  guest_email_required_enabled: boolean;
+  guest_email_required_min_party_size: number;
+  guest_phone_required_enabled: boolean;
+  guest_phone_required_min_party_size: number;
+  google_booking_link_enabled: boolean;
 };
 
 const SETTINGS_SELECT = [
@@ -118,6 +123,11 @@ const SETTINGS_SELECT = [
   "review_google_url",
   "review_facebook_url",
   "walk_in_enabled",
+  "guest_email_required_enabled",
+  "guest_email_required_min_party_size",
+  "guest_phone_required_enabled",
+  "guest_phone_required_min_party_size",
+  "google_booking_link_enabled",
 ].join(", ");
 
 const WHATSAPP_TEMPLATE_KEY: Record<
@@ -276,6 +286,10 @@ export type UpsertReservationSettingsParams = {
   reviewGoogleUrl: string | null;
   reviewFacebookUrl: string | null;
   walkInEnabled: boolean;
+  guestEmailRequiredEnabled: boolean;
+  guestEmailRequiredMinPartySize: number;
+  guestPhoneRequiredEnabled: boolean;
+  guestPhoneRequiredMinPartySize: number;
 };
 
 export async function upsertReservationSettings(
@@ -354,6 +368,10 @@ export async function upsertReservationSettings(
         params.whatsappReviewIncludeFacebook ||
         params.emailReviewIncludeFacebook,
       walk_in_enabled: params.walkInEnabled,
+      guest_email_required_enabled: params.guestEmailRequiredEnabled,
+      guest_email_required_min_party_size: params.guestEmailRequiredMinPartySize,
+      guest_phone_required_enabled: params.guestPhoneRequiredEnabled,
+      guest_phone_required_min_party_size: params.guestPhoneRequiredMinPartySize,
     },
     { onConflict: "restaurant_id" },
   );

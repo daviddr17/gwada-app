@@ -7,39 +7,37 @@ export async function loadDashboardContactsSummaryServer(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<DashboardContactsSummary> {
-  const { count: total, error: totalErr } = await sb
-    .from("contacts")
-    .select("id", { count: "exact", head: true })
-    .eq("restaurant_id", restaurantId);
+  const [totalRes, companyRes, reservationLinksRes] = await Promise.all([
+    sb
+      .from("contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId),
+    sb
+      .from("contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId)
+      .not("company", "is", null)
+      .neq("company", ""),
+    sb
+      .from("reservations")
+      .select("contact_id")
+      .eq("restaurant_id", restaurantId)
+      .not("contact_id", "is", null),
+  ]);
 
-  if (totalErr) throw new Error(totalErr.message);
-
-  const { count: withCompany, error: companyErr } = await sb
-    .from("contacts")
-    .select("id", { count: "exact", head: true })
-    .eq("restaurant_id", restaurantId)
-    .not("company", "is", null)
-    .neq("company", "");
-
-  if (companyErr) throw new Error(companyErr.message);
-
-  const { data: reservationLinks, error: resErr } = await sb
-    .from("reservations")
-    .select("contact_id")
-    .eq("restaurant_id", restaurantId)
-    .not("contact_id", "is", null);
-
-  if (resErr) throw new Error(resErr.message);
+  if (totalRes.error) throw new Error(totalRes.error.message);
+  if (companyRes.error) throw new Error(companyRes.error.message);
+  if (reservationLinksRes.error) throw new Error(reservationLinksRes.error.message);
 
   const withReservation = new Set(
-    (reservationLinks ?? [])
+    (reservationLinksRes.data ?? [])
       .map((r) => r.contact_id as string | null)
       .filter((id): id is string => Boolean(id)),
   ).size;
 
   return {
-    total: total ?? 0,
+    total: totalRes.count ?? 0,
     withReservation,
-    withCompany: withCompany ?? 0,
+    withCompany: companyRes.count ?? 0,
   };
 }

@@ -12,6 +12,34 @@ function ymdLocal(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+const PDF_HEADER_X = 14;
+const PDF_HEADER_MARGIN_RIGHT = 10;
+
+function pdfHeaderMaxWidth(doc: jsPDF): number {
+  return doc.internal.pageSize.getWidth() - PDF_HEADER_X - PDF_HEADER_MARGIN_RIGHT;
+}
+
+/** Mehrzeiliger Kopf — verhindert Überlauf bei langen Summary-Zeilen (z. B. Arbeitszeiten). */
+function writeWrappedPdfHeaderText(
+  doc: jsPDF,
+  text: string,
+  startY: number,
+  maxWidth: number,
+  lineHeight: number,
+): number {
+  let y = startY;
+  for (const paragraph of text.split(/\n/)) {
+    const trimmed = paragraph.trim();
+    if (!trimmed) continue;
+    const lines = doc.splitTextToSize(trimmed, maxWidth);
+    for (const line of lines) {
+      doc.text(line, PDF_HEADER_X, y);
+      y += lineHeight;
+    }
+  }
+  return y;
+}
+
 export type TableDocumentExportOptions = {
   documentTitle: string;
   filenamePrefix: string;
@@ -70,28 +98,46 @@ export async function buildTablePdfDocument({
 
   const doc = new jsPDF({ orientation, unit: "mm", format: "a4" });
   const rowStyles = resolveTablePdfRowStyles({ rowsPerPage, orientation });
+  const headerMaxWidth = pdfHeaderMaxWidth(doc);
 
   doc.setFontSize(14);
-  doc.text(documentTitle, 14, 16);
+  doc.text(documentTitle, PDF_HEADER_X, 16);
   doc.setFontSize(10);
   let y = 22;
   if (restaurantName?.trim()) {
-    doc.text(restaurantName.trim(), 14, y);
-    y += 5;
+    y = writeWrappedPdfHeaderText(
+      doc,
+      restaurantName.trim(),
+      y,
+      headerMaxWidth,
+      4.5,
+    );
   }
   if (summaryLine?.trim()) {
     doc.setFontSize(9);
     doc.setTextColor(40);
-    doc.text(summaryLine.trim(), 14, y + 2);
-    y += 5;
+    y = writeWrappedPdfHeaderText(
+      doc,
+      summaryLine.trim(),
+      y + 1,
+      headerMaxWidth,
+      4,
+    );
+    doc.setTextColor(0);
   }
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text(`Export ${new Date().toLocaleString("de-DE")}`, 14, y + 2);
+  y = writeWrappedPdfHeaderText(
+    doc,
+    `Export ${new Date().toLocaleString("de-DE")}`,
+    y + 1,
+    headerMaxWidth,
+    3.5,
+  );
   doc.setTextColor(0);
 
   autoTable(doc, {
-    startY: y + 6,
+    startY: y + 4,
     head: [headers as unknown as string[]],
     body: rows,
     styles: {

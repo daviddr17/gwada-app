@@ -1,7 +1,3 @@
-export default function LegacySuperadminVertragsvorlagenLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function PassthroughLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return children;
 }

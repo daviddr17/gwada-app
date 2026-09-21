@@ -18,7 +18,7 @@ import {
   reorderMenuTaxonomyRows,
   updateMenuTaxonomyRow,
 } from "@/lib/supabase/menu-db";
-import { migrateMenuTaxonomyFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
+import { migrateMenuTaxonomyFromLegacyAppStateIfEmpty, loadRelationalOrLegacyMigrate } from "@/lib/supabase/app-state-relational-migration";
 import {
   getWorkspaceRestaurantId,
   loadWorkspaceJsonLocal,
@@ -85,19 +85,23 @@ export function useMenuTaxonomyStorage(
       if (Array.isArray(localRaw) && localRaw.every(isValidLoose)) {
         setItems(localRaw.map(normalizeTaxonomy));
       }
-      setIsHydrated(true);
 
       void (async () => {
         const rid = await getWorkspaceRestaurantId();
-        if (rid) {
-          await migrateMenuTaxonomyFromLegacyAppStateIfEmpty(
-            table,
-            storageKey,
-            rid,
-            initialSeed.map(normalizeTaxonomy),
-          );
-        }
-        const rows = await loadMenuTaxonomyRelational(table, rid);
+        const rows = rid
+          ? await loadRelationalOrLegacyMigrate(
+              `menu-tax:${table}:${rid}`,
+              () => loadMenuTaxonomyRelational(table, rid),
+              () =>
+                migrateMenuTaxonomyFromLegacyAppStateIfEmpty(
+                  table,
+                  storageKey,
+                  rid,
+                  initialSeed.map(normalizeTaxonomy),
+                  { skipExistingCheck: true },
+                ),
+            )
+          : await loadMenuTaxonomyRelational(table, rid);
         if (cancelled) return;
         if (rows && rows.length > 0) {
           const next = rows.map(normalizeTaxonomy);

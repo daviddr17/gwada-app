@@ -33,7 +33,8 @@ export function RestaurantTeamSettingsPanel() {
             Mitglieder des aktuell aktiven Restaurants. Wer die Berechtigung{" "}
             <span className="font-medium text-foreground">Team verwalten</span>{" "}
             hat, kann Rollen anpassen und Zugang entziehen. Es muss immer
-            mindestens ein aktiver Inhaber existieren.
+            mindestens ein aktiver Inhaber existieren. Free: 1 registrierter
+            Nutzer, Basic: maximal 3, Pro unbegrenzt.
           </CardDescription>
         </CardHeader>
         <CardContent>

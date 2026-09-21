@@ -8,6 +8,7 @@ import { AccountingListScreenSkeleton } from "@/components/accounting/accounting
 import { DocumentsOverviewTableSkeleton } from "@/components/documents/documents-overview-skeleton";
 import { InventoryScreenSkeleton } from "@/components/inventory/inventory-screen-skeleton";
 import { MenuOverviewSkeleton } from "@/components/menu/menu-overview-skeleton";
+import { EventsFeedSkeleton } from "@/components/events/events-feed-skeleton";
 import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
 import { ReservationsOverviewSkeleton } from "@/components/reservations/reservations-overview-skeleton";
 import { DashboardHomePendingSkeleton } from "@/components/dashboard/dashboard-home-pending-skeleton";
@@ -15,15 +16,18 @@ import { ReviewsScreenSkeleton } from "@/components/reviews/reviews-screen-skele
 import { StaffOverviewTableSkeleton } from "@/components/staff/staff-overview-skeleton";
 import { StaffTodosTableSkeleton } from "@/components/staff/todos/staff-todos-skeleton";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
-import {
-  normalizeNavHref,
-  useSoftNavLock,
-} from "@/components/providers/soft-nav-lock-provider";
+import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import { useAppModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useModuleHomeKeepAliveOptional } from "@/lib/contexts/module-home-keep-alive-context";
 import { SIDEBAR_MODULE_DEFINITIONS } from "@/lib/constants/sidebar-modules";
 import { ContactConversationsListSkeleton } from "@/components/contacts/contact-conversations-list-skeleton";
-
+import { isSoftNavPendingArrived } from "@/lib/navigation/module-home-keep-alive";
+import { isModuleSoftNavDataReady } from "@/lib/navigation/module-soft-nav-data-ready";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  normalizeNavHref,
+} from "@/lib/navigation/soft-nav-lock-context";
 /**
  * Sofortiges Modul-Skeleton über dem Scroll-Bereich — Sibling zu {children},
  * kein Unmount des Router-Outlets (sonst stirbt der Next-Flight).
@@ -69,6 +73,14 @@ function skeletonForHref(href: string): ReactNode {
     return <AccountingListScreenSkeleton columnCount={6} />;
   }
   if (path.startsWith("/dashboard/news")) return <NewsFeedSkeleton />;
+  if (
+    path.startsWith("/dashboard/events/einstellungen") ||
+    path.startsWith("/dashboard/events/einbinden") ||
+    path.startsWith("/dashboard/events/statistiken")
+  ) {
+    return <GenericModulePendingSkeleton />;
+  }
+  if (path.startsWith("/dashboard/events")) return <EventsFeedSkeleton />;
   if (path.startsWith("/dashboard/checklisten")) {
     return <StaffTodosTableSkeleton />;
   }
@@ -85,24 +97,30 @@ function titleForHref(href: string): string | null {
 }
 
 export function SoftNavPendingOverlay() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { pendingHref } = useSoftNavLock();
   const { setChrome } = useAppModuleChrome();
   const moduleKeepAlive = useModuleHomeKeepAliveOptional();
+  const queryClient = useQueryClient();
+  const { restaurantId } = useWorkspaceRestaurantUuid();
   const prevTitleRef = useRef<string | null>(null);
   const optimisticTargetRef = useRef<string | null>(null);
 
   // Cover bleibt, solange Pending gesetzt ist — auch wenn pathname schon
   // am Ziel ist (Clear erst nach Paint). Sonst: Weißflash / Dashboard-Blitzen.
   const pendingInFlight = pendingHref != null;
-  const arrivedAtPending =
-    pendingInFlight &&
-    normalizeNavHref(pendingHref!) === normalizeNavHref(pathname);
-  const pendingBeforeArrive = pendingInFlight && !arrivedAtPending;
 
+  // Warm-Home: gesamtes Pending inkl. Nach-Arrive ohne Cover — Keep-alive
+  // bleibt sichtbar (Chrome/Subnav), sonst Skeleton ohne Chips.
   const pendingToWarmHome =
-    pendingBeforeArrive &&
+    pendingInFlight &&
     Boolean(moduleKeepAlive?.isPendingWarmHome(pendingHref!));
+
+  // Daten schon im Client-Cache → kein Skeleton-Cover (Facebook-Feeling).
+  const pendingDataReady =
+    pendingInFlight &&
+    pendingHref != null &&
+    isModuleSoftNavDataReady(pendingHref, restaurantId, queryClient);
 
   // Optimistischen Titel setzen; bei abgebrochenem Nav wiederherstellen.
   useLayoutEffect(() => {
@@ -123,7 +141,7 @@ export function SoftNavPendingOverlay() {
     prevTitleRef.current = null;
     if (!target || restore == null) return;
     // Navigation erfolgreich — Titel halten (RegisterModuleChrome / Unmount-Race).
-    if (normalizeNavHref(pathname) === target) {
+    if (isSoftNavPendingArrived(pathname, target)) {
       const title = titleForHref(target);
       if (title) {
         setChrome((prev) =>
@@ -132,11 +150,24 @@ export function SoftNavPendingOverlay() {
       }
       return;
     }
+    const landedTitle = titleForHref(pathname);
+    if (landedTitle) {
+      setChrome((prev) =>
+        prev.title === landedTitle ? prev : { ...prev, title: landedTitle },
+      );
+      return;
+    }
     setChrome((prev) => ({ ...prev, title: restore }));
   }, [pendingInFlight, pendingHref, pathname, setChrome]);
 
-  // Warm-Home-Keep-alive previewt das Ziel selbst — kein Cover nötig.
-  if (!pendingInFlight || !pendingHref || pendingToWarmHome) {
+  // Warm-Home / warme Daten — kein Cover; Sidebar bleibt sowieso klickbar
+  // (pointer-events-none auf dem Overlay).
+  if (
+    !pendingInFlight ||
+    !pendingHref ||
+    pendingToWarmHome ||
+    pendingDataReady
+  ) {
     return null;
   }
 

@@ -22,21 +22,21 @@ import { isSoftNavFlightActive } from "@/lib/navigation/soft-nav-flight";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
-/** Langsamer Stagger — weniger Main-Thread-/Netz-Druck während Dashboard-Stream. */
-const ROUTE_PREFETCH_STAGGER_MS = 160;
-/** FULL-Prefetch erst nach KPI (+ Pause), nicht sofort bei Workspace-Ready. */
-const FULL_PREFETCH_AFTER_KPI_MS = 4_500;
-const FULL_PREFETCH_FAILSAFE_MS = 10_000;
-/** Priority-API nach KPI; Secondary deutlich später. */
-const PRIORITY_DATA_AFTER_KPI_MS = 1_200;
-const SECONDARY_DATA_AFTER_KPI_MS = 8_000;
-const DASHBOARD_WARM_FAILSAFE_MS = 6_500;
+/** Gestaffelt, ohne Dashboard-Stream zu ersticken — aber nicht Sekunden später. */
+const ROUTE_PREFETCH_STAGGER_MS = 90;
+/** FULL-Prefetch direkt nach erstem KPI, nicht erst nach 4.5s. */
+const FULL_PREFETCH_AFTER_KPI_MS = 280;
+const FULL_PREFETCH_FAILSAFE_MS = 2_500;
+/** Priority-API mit dem KPI; Secondary später. */
+const PRIORITY_DATA_AFTER_KPI_MS = 0;
+const SECONDARY_DATA_AFTER_KPI_MS = 5_000;
+const DASHBOARD_WARM_FAILSAFE_MS = 2_000;
 
 /**
  * Background-Warm für Soft-Nav — absichtlich **nach** Dashboard-First-Paint.
  *
  * - Kein Massen-FULL beim ersten Workspace-Ready
- * - Modul-API erst nach KPI (Priority), Secondary idle/spät
+ * - Modul-API direkt nach KPI (Priority), Secondary idle/spät
  * - Soft-Nav darf den Warm nicht abbrechen (kein cancel bei Pathname-Wechsel)
  */
 export function AppModuleWarmPrefetchMount() {

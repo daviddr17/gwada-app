@@ -28,6 +28,7 @@ import {
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
+import { STALE_WRITE_CONFLICT_MESSAGE } from "@/lib/data/stale-write-conflict";
 import { isValidPublicPartySize } from "@/lib/reservations/reservation-party-size";
 import {
   reservationDateTimeChanged,
@@ -45,6 +46,12 @@ import type {
   DayHours,
   Weekday,
 } from "@/lib/types/restaurant";
+import {
+  GUEST_CONTACT_REQUIREMENTS_SELECT,
+  guestContactRequirementSettingsFromPublicConfig,
+  guestContactRequirementSettingsFromRow,
+  validatePublicGuestContact,
+} from "@/lib/reservations/guest-contact-requirements";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   formatReservationGuestLabel,
@@ -160,7 +167,7 @@ export async function fetchPublicEmbedRestaurant(
     admin
       .from("restaurant_reservation_settings")
       .select(
-        "default_dwell_minutes, booking_lead_time_hours, min_minutes_before_closing, embed_form_footer_text",
+        `default_dwell_minutes, booking_lead_time_hours, min_minutes_before_closing, embed_form_footer_text, ${GUEST_CONTACT_REQUIREMENTS_SELECT}`,
       )
       .eq("restaurant_id", row.id)
       .maybeSingle(),
@@ -188,6 +195,10 @@ export async function fetchPublicEmbedRestaurant(
       ? timezoneRaw.trim()
       : DEFAULT_RESTAURANT_TIMEZONE;
 
+  const contactSettings = guestContactRequirementSettingsFromRow(
+    settingsRes.data,
+  );
+
   return {
     data: {
       id: row.id,
@@ -199,6 +210,10 @@ export async function fetchPublicEmbedRestaurant(
       bookingLeadTimeHours,
       minMinutesBeforeClosing,
       embedFormFooterText,
+      guestEmailRequiredEnabled: contactSettings.guestEmailRequiredEnabled,
+      guestEmailRequiredMinPartySize: contactSettings.guestEmailRequiredMinPartySize,
+      guestPhoneRequiredEnabled: contactSettings.guestPhoneRequiredEnabled,
+      guestPhoneRequiredMinPartySize: contactSettings.guestPhoneRequiredMinPartySize,
       weeklyHours,
       dateExceptions,
     },
@@ -245,10 +260,6 @@ function validateIsoRange(startsAt: string, endsAt: string): boolean {
   const s = new Date(startsAt).getTime();
   const e = new Date(endsAt).getTime();
   return Number.isFinite(s) && Number.isFinite(e) && e > s;
-}
-
-function hasGuestContact(phone: string | null, email: string | null): boolean {
-  return Boolean(phone?.trim()) || Boolean(email?.trim());
 }
 
 function hasNotifyChannel(notifyEmail: boolean, notifyWhatsapp: boolean): boolean {
@@ -301,12 +312,6 @@ export async function createPublicReservation(
   if (!normalizeReservationGuestLastName(body.guest_last_name)) {
     return { data: null, error: "last_name_required", status: 400 };
   }
-  if (!hasGuestContact(body.guest_phone, body.guest_email)) {
-    return { data: null, error: "contact_required", status: 400 };
-  }
-  if (!hasNotifyChannel(body.notify_email, body.notify_whatsapp)) {
-    return { data: null, error: "notify_channel_required", status: 400 };
-  }
 
   const restaurantRes = await fetchPublicEmbedRestaurant(body.slug);
   if (restaurantRes.error || !restaurantRes.data) {
@@ -317,6 +322,19 @@ export async function createPublicReservation(
     };
   }
   const restaurant = restaurantRes.data;
+
+  const contactCheck = validatePublicGuestContact(
+    guestContactRequirementSettingsFromPublicConfig(restaurant),
+    body.party_size,
+    body.guest_phone,
+    body.guest_email,
+  );
+  if (!contactCheck.ok) {
+    return { data: null, error: contactCheck.error, status: 400 };
+  }
+  if (!hasNotifyChannel(body.notify_email, body.notify_whatsapp)) {
+    return { data: null, error: "notify_channel_required", status: 400 };
+  }
 
   if (
     !isStartsAtWithinBookingLeadTime(
@@ -532,12 +550,6 @@ export async function updatePublicReservation(
   if (!normalizeReservationGuestLastName(body.guest_last_name)) {
     return { data: null, error: "last_name_required", status: 400 };
   }
-  if (!hasGuestContact(body.guest_phone, body.guest_email)) {
-    return { data: null, error: "contact_required", status: 400 };
-  }
-  if (!hasNotifyChannel(body.notify_email, body.notify_whatsapp)) {
-    return { data: null, error: "notify_channel_required", status: 400 };
-  }
 
   const loadRes = await loadPublicReservationForManage(
     body.slug,
@@ -565,6 +577,20 @@ export async function updatePublicReservation(
       status: restaurantRes.status ?? 404,
     };
   }
+
+  const contactCheck = validatePublicGuestContact(
+    guestContactRequirementSettingsFromPublicConfig(restaurantRes.data),
+    body.party_size,
+    body.guest_phone,
+    body.guest_email,
+  );
+  if (!contactCheck.ok) {
+    return { data: null, error: contactCheck.error, status: 400 };
+  }
+  if (!hasNotifyChannel(body.notify_email, body.notify_whatsapp)) {
+    return { data: null, error: "notify_channel_required", status: 400 };
+  }
+
   const startsChanged =
     new Date(body.starts_at).getTime() !== new Date(existing.starts_at).getTime();
   if (startsChanged) {
@@ -607,14 +633,35 @@ export async function updatePublicReservation(
     terms_accepted: body.terms_accepted,
   };
 
+  const { data: versionRow } = await admin
+    .from("reservations")
+    .select("updated_at")
+    .eq("id", existing.id)
+    .maybeSingle();
+  const expectedUpdatedAt =
+    versionRow && typeof versionRow.updated_at === "string"
+      ? versionRow.updated_at
+      : null;
+
   if (existing.status_code === "pending") {
-    const { error } = await admin
+    let pendingQuery = admin
       .from("reservations")
       .update(patch)
       .eq("id", existing.id);
+    if (expectedUpdatedAt) {
+      pendingQuery = pendingQuery.eq("updated_at", expectedUpdatedAt);
+    }
+    const { data: updated, error } = await pendingQuery.select("id").maybeSingle();
     if (error) {
       console.warn("[gwada] public reservation update", error.message);
       return { data: null, error: "update_failed", status: 500 };
+    }
+    if (!updated) {
+      return {
+        data: null,
+        error: expectedUpdatedAt ? STALE_WRITE_CONFLICT_MESSAGE : "update_failed",
+        status: expectedUpdatedAt ? 409 : 500,
+      };
     }
     const before = reservationSnapshotFromPayload(
       {
@@ -703,7 +750,7 @@ export async function updatePublicReservation(
     requested_at: new Date().toISOString(),
   };
 
-  const { error } = await admin
+  let changeQuery = admin
     .from("reservations")
     .update({
       pending_change: pendingChange,
@@ -713,10 +760,21 @@ export async function updatePublicReservation(
         : currentStatusId ?? null,
     })
     .eq("id", existing.id);
+  if (expectedUpdatedAt) {
+    changeQuery = changeQuery.eq("updated_at", expectedUpdatedAt);
+  }
+  const { data: changed, error } = await changeQuery.select("id").maybeSingle();
 
   if (error) {
     console.warn("[gwada] public change request", error.message);
     return { data: null, error: "update_failed", status: 500 };
+  }
+  if (!changed) {
+    return {
+      data: null,
+      error: expectedUpdatedAt ? STALE_WRITE_CONFLICT_MESSAGE : "update_failed",
+      status: expectedUpdatedAt ? 409 : 500,
+    };
   }
 
   const before = reservationSnapshotFromPayload(

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
 import { ContactMessageComposer } from "@/components/contacts/contact-message-composer";
 import {
+  isSilentClientSendResult,
   sendContactMessageUserMessage,
   triggerSendContactMessage,
 } from "@/lib/contact-messages/trigger-send-contact-message";
@@ -99,6 +100,10 @@ export function ReservationMessagesPanel({
     setSending(false);
 
     const warn = sendContactMessageUserMessage(result);
+    if (isSilentClientSendResult(result)) {
+      void load();
+      return;
+    }
     if (warn) toast.warning(warn);
     else if (result?.ok) toast.success("Nachricht gesendet.");
     else toast.error("Senden fehlgeschlagen.");

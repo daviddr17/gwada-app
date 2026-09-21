@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, MoreVertical, Plus, RefreshCw, Server } from "lucide-react";
 import { toast } from "sonner";
 import { SuperadminPaginatedDataTable } from "@/components/superadmin/superadmin-paginated-data-table";
@@ -10,6 +11,7 @@ import {
   superadminDateCellClass,
 } from "@/components/superadmin/superadmin-table-cells";
 import { SuperadminWahaSessionDrawer } from "@/components/superadmin/superadmin-waha-session-drawer";
+import { SuperadminWahaSessionRowMenu } from "@/components/superadmin/superadmin-waha-session-row-menu";
 import { WahaSessionStatusBadge } from "@/components/superadmin/waha-session-status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -39,6 +41,7 @@ import {
   recoverSuperadminWahaServer,
   restartSuperadminWahaContainer,
   triggerSuperadminWahaHostReboot,
+  runSuperadminWahaSessionAction,
   triggerSuperadminWahaImageUpdate,
   updateSuperadminWahaServer,
   type WahaServerVersionStatus,
@@ -46,8 +49,10 @@ import {
 import type {
   WahaServerCapacityAlert,
   WahaServerPublic,
+  WahaSessionAdminAction,
   WahaSessionListItem,
 } from "@/lib/waha/waha-server-types";
+import type { ReservationWhatsappOutboxHealth } from "@/lib/whatsapp/reservation-whatsapp-outbox-health";
 import {
   normalizeWahaUiStatus,
   wahaSessionStatusBadgeClassName,
@@ -184,6 +189,9 @@ export function SuperadminWahaScreen() {
   const [sessionDrawerRow, setSessionDrawerRow] =
     useState<WahaSessionListItem | null>(null);
   const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
+  const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
+  const [outboxHealth, setOutboxHealth] =
+    useState<ReservationWhatsappOutboxHealth | null>(null);
 
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -203,15 +211,23 @@ export function SuperadminWahaScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [serversRes, sessionsRes] = await Promise.all([
+    const [serversRes, sessionsRes, outboxRes] = await Promise.all([
       fetchSuperadminWahaServers(),
       fetchSuperadminWahaSessions(),
+      fetch("/api/superadmin/whatsapp-outbox-health", { cache: "no-store" })
+        .then(async (res) =>
+          res.ok
+            ? ((await res.json()) as ReservationWhatsappOutboxHealth)
+            : null,
+        )
+        .catch(() => null),
     ]);
     if (serversRes.error) toast.error(serversRes.error);
     if (sessionsRes.error) toast.error(sessionsRes.error);
     setServers(serversRes.servers);
     setAlerts(serversRes.capacityAlerts);
     setSessions(sessionsRes.sessions);
+    setOutboxHealth(outboxRes);
     setLoading(false);
     void loadVersions(serversRes.servers);
   }, [loadVersions]);
@@ -463,6 +479,38 @@ export function SuperadminWahaScreen() {
     }, 45_000);
   };
 
+  const runSessionRowAction = async (
+    row: WahaSessionListItem,
+    action: WahaSessionAdminAction,
+  ) => {
+    setSessionBusyId(row.restaurant_id);
+    const res = await runSuperadminWahaSessionAction(row.restaurant_id, action);
+    setSessionBusyId(null);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(res.message ?? "OK");
+    if (action === "delete") {
+      setSessions((prev) =>
+        prev.filter((s) => s.restaurant_id !== row.restaurant_id),
+      );
+      if (sessionDrawerRow?.restaurant_id === row.restaurant_id) {
+        setSessionDrawerOpen(false);
+        setSessionDrawerRow(null);
+      }
+    }
+    const [serversRes, sessionsRes] = await Promise.all([
+      fetchSuperadminWahaServers(),
+      fetchSuperadminWahaSessions(),
+    ]);
+    if (serversRes.error) toast.error(serversRes.error);
+    if (sessionsRes.error) toast.error(sessionsRes.error);
+    setServers(serversRes.servers);
+    setAlerts(serversRes.capacityAlerts);
+    setSessions(sessionsRes.sessions);
+  };
+
   const onDelete = async (s: WahaServerPublic) => {
     if (
       !window.confirm(
@@ -542,6 +590,35 @@ export function SuperadminWahaScreen() {
               </p>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {outboxHealth ? (
+        <div className="rounded-xl border border-border/50 bg-background px-4 py-3 text-sm">
+          <p className="font-medium">Reservierungs-WhatsApp (alle Restaurants)</p>
+          <p className="mt-1 text-muted-foreground">
+            Zuletzt rausgegangen:{" "}
+            {outboxHealth.lastSentAt
+              ? formatDt(outboxHealth.lastSentAt)
+              : "—"}{" "}
+            · {outboxHealth.sent24h} in 24 h · fällig {outboxHealth.dueScheduled}
+            {outboxHealth.retrying
+              ? ` · Prüfung/Retry ${outboxHealth.retrying}`
+              : ""}
+            {outboxHealth.failedOpen
+              ? ` · fehlgeschlagen ${outboxHealth.failedOpen}`
+              : ""}
+          </p>
+          {outboxHealth.lastError ? (
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              Letzter Fehler: {outboxHealth.lastError}
+            </p>
+          ) : null}
+          <p className="mt-2">
+            <Link href="/superadmin/ops" className="text-foreground underline-offset-4 hover:underline">
+              Ops-Ansicht: SLO, Cron-Lag, Restaurants
+            </Link>
+          </p>
         </div>
       ) : null}
 
@@ -936,6 +1013,23 @@ export function SuperadminWahaScreen() {
               className: superadminDateCellClass,
               sortValue: (r) => r.updated_at,
               cell: (r) => formatDt(r.updated_at),
+            },
+            {
+              id: "actions",
+              header: "",
+              className: superadminCellNowrapClass,
+              sortValue: () => "",
+              cell: (r) => (
+                <SuperadminWahaSessionRowMenu
+                  session={r}
+                  busy={sessionBusyId === r.restaurant_id}
+                  onOpenDetails={() => {
+                    setSessionDrawerRow(r);
+                    setSessionDrawerOpen(true);
+                  }}
+                  onAction={(action) => void runSessionRowAction(r, action)}
+                />
+              ),
             },
           ]}
           rows={filteredSessions}

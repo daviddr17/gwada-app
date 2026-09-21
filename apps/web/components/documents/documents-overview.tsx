@@ -266,6 +266,8 @@ function initialDocumentsFromCache(restaurantId: string | null): {
 }
 
 export function DocumentsOverview({ active = true }: { active?: boolean }) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const router = useKeepAliveGatedRouter(active);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -403,7 +405,7 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
     ]);
     setLoading(false);
     if (docs.error) {
-      toast.error(docs.error);
+      if (activeRef.current) toast.error(docs.error);
     } else {
       setRows(docs.data);
       const ids = docs.data
@@ -1063,7 +1065,7 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
         staffMembers={staffMembers}
         canEditNotes={canEditDocumentNotes}
         onNotesChanged={() => void reload()}
-        onUpload={async ({ file, title, tagId, staffId }) => {
+        onUpload={async ({ file, title, tagId, staffId, visibleToStaff }) => {
           const { documentId, error } = await trackDashboardFileUpload(
             () =>
               uploadRestaurantDocumentClient({
@@ -1072,6 +1074,7 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
                 title,
                 tagId,
                 staffId,
+                visibleToStaff,
               }),
             {
               successMessage: "Dokument hochgeladen.",
@@ -1087,12 +1090,20 @@ export function DocumentsOverview({ active = true }: { active?: boolean }) {
           }
           return false;
         }}
-        onSaveEdit={async ({ documentId, title, tagId }) => {
+        onSaveEdit={async ({
+          documentId,
+          title,
+          tagId,
+          staffId,
+          visibleToStaff,
+        }) => {
           const { error } = await updateRestaurantDocumentClient({
             restaurantId,
             documentId,
             title,
             tagId,
+            staffId,
+            visibleToStaff,
           });
           if (error) {
             toast.error("Speichern fehlgeschlagen.");

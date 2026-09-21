@@ -1,6 +1,15 @@
 import "server-only";
 
 import {
+  CONTACT_MESSAGE_PLATFORM_LABELS,
+  isContactMessagePlatform,
+} from "@/lib/constants/contact-message-platforms";
+import {
+  conversationThreadKeyFromRow,
+  defaultConversationLabel,
+} from "@/lib/contact-messages/conversation-thread-key";
+import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
+import {
   dashboardGlobalSearchResultHref,
   DASHBOARD_GLOBAL_SEARCH_CATEGORY_LABELS,
   DASHBOARD_GLOBAL_SEARCH_CATEGORY_ORDER,
@@ -250,6 +259,8 @@ function canSearchCategory(
       return GALLERY_READ_KEYS.some((key) => has(key));
     case "staff_todos":
       return hasModuleRead(has, "staff_todos");
+    case "messages":
+      return hasModuleRead(has, "contacts");
     default:
       return hasModuleRead(has, category as ModuleCrudPrefix);
   }
@@ -413,6 +424,215 @@ async function searchContacts(
       formatDeDate(row.last_interaction_at, timeZone) ||
       null;
     return makeItem("contacts", row.id, name, subtitle);
+  });
+}
+
+type MessageThreadHit = {
+  threadKey: string;
+  platform: string;
+  body: string;
+  conversationLabel: string | null;
+  identityHint: string | null;
+};
+
+function rememberMessageThreadHit(
+  map: Map<string, MessageThreadHit>,
+  hit: MessageThreadHit,
+): void {
+  if (!map.has(hit.threadKey)) map.set(hit.threadKey, hit);
+}
+
+function contactSearchDisplayName(row: {
+  first_name: string;
+  last_name: string;
+  company?: string | null;
+}): string {
+  const name = `${row.first_name} ${row.last_name}`.trim();
+  return name || row.company?.trim() || "Kontakt";
+}
+
+function messageSearchSnippet(body: string, max = 72): string | null {
+  const text = body.replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+async function searchMessages(
+  sb: SupabaseClient,
+  restaurantId: string,
+  query: string,
+  limit: number,
+): Promise<DashboardGlobalSearchResultItem[]> {
+  const cand = candidateLimitForQuery(query);
+  const [
+    messagesRes,
+    contactsRes,
+    phonesRes,
+    emailsRes,
+  ] = await Promise.all([
+    sb
+      .from("contact_messages")
+      .select(
+        "contact_id, conversation_key, conversation_label, platform, body, created_at",
+      )
+      .eq("restaurant_id", restaurantId)
+      .or(
+        fieldsFilterForQuery(
+          ["body", "conversation_label", "conversation_key"],
+          query,
+        ),
+      )
+      .order("created_at", { ascending: false })
+      .limit(cand),
+    sb
+      .from("contacts")
+      .select("id, first_name, last_name, company")
+      .eq("restaurant_id", restaurantId)
+      .or(fieldsFilterForQuery(["first_name", "last_name", "company"], query))
+      .limit(cand),
+    sb
+      .from("contact_phones")
+      .select("contact_id, phone_display")
+      .eq("restaurant_id", restaurantId)
+      .or(fieldsFilterForQuery(["phone_display", "phone_normalized"], query))
+      .limit(cand),
+    sb
+      .from("contact_emails")
+      .select("contact_id, email")
+      .eq("restaurant_id", restaurantId)
+      .or(fieldsFilterForQuery(["email", "email_normalized"], query))
+      .limit(cand),
+  ]);
+
+  const byThread = new Map<string, MessageThreadHit>();
+  const contactNames = new Map<string, string>();
+  const extraContactIds = new Set<string>();
+  const identityByContact = new Map<string, string>();
+
+  for (const row of contactsRes.data ?? []) {
+    contactNames.set(row.id, contactSearchDisplayName(row));
+    extraContactIds.add(row.id);
+  }
+  for (const row of phonesRes.data ?? []) {
+    extraContactIds.add(row.contact_id);
+    const phone = row.phone_display?.trim();
+    if (phone) identityByContact.set(row.contact_id, phone);
+  }
+  for (const row of emailsRes.data ?? []) {
+    extraContactIds.add(row.contact_id);
+    const email = row.email?.trim();
+    if (email && !identityByContact.has(row.contact_id)) {
+      identityByContact.set(row.contact_id, email);
+    }
+  }
+
+  for (const row of messagesRes.data ?? []) {
+    const threadKey = conversationThreadKeyFromRow({
+      contact_id: row.contact_id,
+      conversation_key: row.conversation_key,
+    });
+    if (!threadKey) continue;
+    rememberMessageThreadHit(byThread, {
+      threadKey,
+      platform: row.platform,
+      body: row.body?.trim() ?? "",
+      conversationLabel: row.conversation_label,
+      identityHint: identityByContact.get(threadKey) ?? null,
+    });
+  }
+
+  const missingMessageIds = [...extraContactIds].filter(
+    (id) => !byThread.has(id),
+  );
+  if (missingMessageIds.length > 0) {
+    const { data: extraMsgs } = await sb
+      .from("contact_messages")
+      .select(
+        "contact_id, conversation_key, conversation_label, platform, body, created_at",
+      )
+      .eq("restaurant_id", restaurantId)
+      .in("contact_id", missingMessageIds)
+      .order("created_at", { ascending: false })
+      .limit(cand);
+
+    for (const row of extraMsgs ?? []) {
+      const threadKey = conversationThreadKeyFromRow({
+        contact_id: row.contact_id,
+        conversation_key: row.conversation_key,
+      });
+      if (!threadKey) continue;
+      rememberMessageThreadHit(byThread, {
+        threadKey,
+        platform: row.platform,
+        body: row.body?.trim() ?? "",
+        conversationLabel: row.conversation_label,
+        identityHint: identityByContact.get(threadKey) ?? null,
+      });
+    }
+  }
+
+  for (const id of extraContactIds) {
+    if (byThread.has(id)) {
+      const hit = byThread.get(id);
+      if (hit && !hit.identityHint) {
+        hit.identityHint = identityByContact.get(id) ?? null;
+      }
+      continue;
+    }
+    rememberMessageThreadHit(byThread, {
+      threadKey: id,
+      platform: "gwada",
+      body: "",
+      conversationLabel: null,
+      identityHint: identityByContact.get(id) ?? null,
+    });
+  }
+
+  const unnamedLinkedIds = [...byThread.keys()].filter(
+    (key) => isLinkedContactId(key) && !contactNames.has(key),
+  );
+  if (unnamedLinkedIds.length > 0) {
+    const { data: named } = await sb
+      .from("contacts")
+      .select("id, first_name, last_name, company")
+      .in("id", unnamedLinkedIds);
+    for (const row of named ?? []) {
+      contactNames.set(row.id, contactSearchDisplayName(row));
+    }
+  }
+
+  const matched = pickFuzzyMatches(
+    [...byThread.values()],
+    query,
+    (hit) =>
+      [
+        contactNames.get(hit.threadKey),
+        hit.conversationLabel,
+        defaultConversationLabel(hit.threadKey),
+        hit.body,
+        hit.identityHint,
+        hit.threadKey,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    limit,
+  );
+
+  return matched.map((hit) => {
+    const title =
+      contactNames.get(hit.threadKey) ||
+      hit.conversationLabel?.trim() ||
+      defaultConversationLabel(hit.threadKey);
+    const platformLabel = isContactMessagePlatform(hit.platform)
+      ? CONTACT_MESSAGE_PLATFORM_LABELS[hit.platform]
+      : null;
+    const subtitle = [
+      platformLabel,
+      messageSearchSnippet(hit.body) ?? hit.identityHint,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return makeItem("messages", hit.threadKey, title, subtitle || null);
   });
 }
 
@@ -809,6 +1029,8 @@ const CATEGORY_SEARCHERS: Record<
     searchReservations(sb, restaurantId, query, pattern, limit, timeZone),
   contacts: (sb, restaurantId, query, _pattern, limit, timeZone) =>
     searchContacts(sb, restaurantId, query, limit, timeZone),
+  messages: (sb, restaurantId, query, _pattern, limit, _timeZone) =>
+    searchMessages(sb, restaurantId, query, limit),
   reviews: (sb, restaurantId, query, _pattern, limit, timeZone) =>
     searchReviews(sb, restaurantId, query, limit, timeZone),
   staff: (sb, restaurantId, query, _pattern, limit, _timeZone) =>

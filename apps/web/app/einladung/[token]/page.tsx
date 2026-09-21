@@ -18,6 +18,10 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  isRegisteredUserLimitError,
+  REGISTERED_USER_LIMIT_ACCEPT_MESSAGE,
+} from "@/lib/billing/registered-user-seats";
 import { usePublicOAuthAvailability } from "@/lib/hooks/use-public-oauth-availability";
 import {
   startGooglePlatformOAuth,
@@ -249,7 +253,11 @@ export default function StaffInvitePage() {
         : {}),
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(
+        isRegisteredUserLimitError(error.message)
+          ? REGISTERED_USER_LIMIT_ACCEPT_MESSAGE
+          : error.message,
+      );
       return false;
     }
     const result = data as {
@@ -267,11 +275,14 @@ export default function StaffInvitePage() {
         staff_already_linked:
           "Diese Einladung ist bereits mit einem anderen App-Konto verknüpft.",
         invite_not_found: "Einladung ungültig oder abgelaufen.",
+        user_limit: REGISTERED_USER_LIMIT_ACCEPT_MESSAGE,
       };
       toast.error(
-        messages[result.error ?? ""] ??
-          result.error ??
-          "Einladung konnte nicht angenommen werden.",
+        isRegisteredUserLimitError(result.error)
+          ? REGISTERED_USER_LIMIT_ACCEPT_MESSAGE
+          : (messages[result.error ?? ""] ??
+            result.error ??
+            "Einladung konnte nicht angenommen werden."),
       );
       return false;
     }

@@ -6,6 +6,7 @@ import {
   DashboardCompactInlineMetrics,
   DashboardCompactMetricPill,
 } from "@/components/dashboard/dashboard-compact-list";
+import { DashboardHeuteWorkHoursSheet } from "@/components/dashboard/dashboard-heute-work-hours-sheet";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import {
   StaffOverviewLivePresenceSheet,
@@ -20,20 +21,35 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { restaurantTodayYmd } from "@/lib/restaurant/restaurant-timezone";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
+import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
+import { DashboardLaborComplianceSheet } from "@/components/dashboard/dashboard-labor-compliance-sheet";
 
 export function DashboardStaffTile() {
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
-  const { summary, staff, presence, completedShifts, loading, error, ready } =
-    useDashboardStaffStats();
+  const {
+    summary,
+    staff,
+    presence,
+    completedShifts,
+    wageBreakdown,
+    laborViolations,
+    loading,
+    error,
+    ready,
+  } = useDashboardStaffStats();
   const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
   const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
+  const [workHoursSheetOpen, setWorkHoursSheetOpen] = useState(false);
+  const [laborSheetOpen, setLaborSheetOpen] = useState(false);
   const active = summary?.activeStaff ?? 0;
+  const laborIssueCount = laborViolations.length;
   const onBreak = summary?.onBreakStaff ?? 0;
   const completed = summary?.completedShiftsToday ?? 0;
   const todayHours = summary?.todayWorkHours ?? 0;
+  const todayYmd = restaurantTodayYmd(restaurantTimeZone);
 
   const staffById = useMemo(
     () => new Map(staff.map((row) => [row.id, row] as const)),
@@ -82,13 +98,23 @@ export function DashboardStaffTile() {
           <DashboardCompactMetricPill
             label="Heute"
             value={todayHours > 0 ? formatHoursDe(todayHours) : "0 h"}
-            href={APP_ROUTES.mitarbeiter.hours}
+            highlight={todayHours > 0}
+            onClick={() => setWorkHoursSheetOpen(true)}
           />
           {summary && summary.totalStaff > 0 ? (
             <DashboardCompactMetricPill
               label="Team"
               value={String(summary.totalStaff)}
               href={APP_ROUTES.mitarbeiter.overview}
+            />
+          ) : null}
+          {laborIssueCount > 0 ? (
+            <DashboardCompactMetricPill
+              label="ArbZG"
+              value={String(laborIssueCount)}
+              highlight
+              stripeVariant="attention"
+              onClick={() => setLaborSheetOpen(true)}
             />
           ) : null}
         </DashboardCompactInlineMetrics>
@@ -130,12 +156,37 @@ export function DashboardStaffTile() {
         <StaffOverviewCompletedShiftsSheet
           open={completedSheetOpen}
           onOpenChange={setCompletedSheetOpen}
-          dayYmd={restaurantTodayYmd(restaurantTimeZone)}
+          dayYmd={todayYmd}
           shifts={completedShifts}
           staffById={staffById}
           timeZone={restaurantTimeZone}
         />
       ) : null}
+
+      {workHoursSheetOpen ? (
+        <DashboardHeuteWorkHoursSheet
+          open={workHoursSheetOpen}
+          onOpenChange={setWorkHoursSheetOpen}
+          dayYmd={todayYmd}
+          todayWorkHours={todayHours}
+          presence={presence}
+          completedShifts={completedShifts}
+          staffById={staffById}
+          wageBreakdown={wageBreakdown}
+          timeZone={restaurantTimeZone}
+        />
+      ) : null}
+
+      <DashboardLaborComplianceSheet
+        open={laborSheetOpen}
+        onOpenChange={setLaborSheetOpen}
+        violations={laborViolations}
+        staffById={staffById}
+        restaurantId={restaurantId}
+        onFixed={() => {
+          window.dispatchEvent(new Event(GWADA_STAFF_DATA_REFRESH_EVENT));
+        }}
+      />
     </DashboardWidgetShell>
   );
 }

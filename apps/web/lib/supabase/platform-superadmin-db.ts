@@ -70,6 +70,7 @@ export type SuperadminBillingInvoiceRow = {
   restaurant_name: string | null;
   restaurant_slug: string | null;
   stripe_invoice_id: string;
+  number: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   status: string;
@@ -194,7 +195,7 @@ export async function fetchSuperadminBillingInvoices(
   const { data, error } = await sb
     .from("restaurant_billing_invoices")
     .select(
-      "id, restaurant_id, stripe_invoice_id, stripe_customer_id, stripe_subscription_id, status, billing_reason, currency, amount_due, amount_paid, amount_remaining, period_start, period_end, paid_at, hosted_invoice_url, invoice_pdf, stripe_created_at, synced_at, restaurants(name, slug)",
+      "id, restaurant_id, stripe_invoice_id, number, stripe_customer_id, stripe_subscription_id, status, billing_reason, currency, amount_due, amount_paid, amount_remaining, period_start, period_end, paid_at, hosted_invoice_url, invoice_pdf, stripe_created_at, synced_at, restaurants(name, slug)",
     )
     .order("stripe_created_at", { ascending: false })
     .limit(500);
@@ -228,6 +229,7 @@ export async function fetchSuperadminBillingInvoices(
       restaurant_name: restaurant?.name ?? null,
       restaurant_slug: restaurant?.slug ?? null,
       stripe_invoice_id: String(r.stripe_invoice_id),
+      number: (r.number as string | null) ?? null,
       stripe_customer_id: (r.stripe_customer_id as string | null) ?? null,
       stripe_subscription_id:
         (r.stripe_subscription_id as string | null) ?? null,

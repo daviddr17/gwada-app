@@ -1,8 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { Mail } from "lucide-react";
-import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
+import {
+  NotificationGroupBulkChannelActions,
+  NotificationModuleChannelRow,
+  type NotificationDeliveryChannel,
+  isModuleChannelEnabled,
+  isModulePushEnabled,
+} from "@/components/notifications/notification-module-channel-pills";
 import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
@@ -17,7 +22,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { NewsletterSubscriptionCard } from "@/components/notifications/newsletter-subscription-card";
 import { NotificationPushHistorySection } from "@/components/notifications/notification-push-history-section";
 import { NotificationPreferencesPanelSkeleton } from "@/components/notifications/notification-preferences-panel-skeleton";
@@ -36,60 +40,11 @@ import {
   type NotificationModuleAccessContext,
 } from "@/lib/notifications/notification-module-permissions";
 import {
-  notificationModulesInOrder,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
 import { NOTIFICATION_SETTINGS_GROUPS } from "@/lib/notifications/notification-module-groups";
 import type { NotificationSettingsGroup } from "@/lib/notifications/notification-module-groups";
-import type { NotificationModuleToggles } from "@/lib/notifications/notification-preferences";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-
-function ModuleToggleRows({
-  toggles,
-  onChange,
-  labelFor,
-  disabled,
-  moduleIds,
-}: {
-  toggles: NotificationModuleToggles;
-  onChange: (moduleId: NotificationModuleId, enabled: boolean) => void;
-  labelFor: (moduleId: NotificationModuleId) => string;
-  disabled?: boolean;
-  moduleIds?: NotificationModuleId[];
-}) {
-  const modules = moduleIds
-    ? moduleIds.map((id) => notificationModulesInOrder().find((m) => m.id === id)!)
-    : notificationModulesInOrder();
-
-  return (
-    <ul className="list-none space-y-2 p-0">
-      {modules.map((mod) => (
-        <li
-          key={mod.id}
-          className={cn(
-            "flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-3",
-            disabled && "opacity-60",
-          )}
-        >
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">
-              {mod.labelPlural}
-            </p>
-            <p className="text-xs text-muted-foreground">{labelFor(mod.id)}</p>
-          </div>
-          <Switch
-            checked={toggles[mod.id] !== false}
-            disabled={disabled}
-            onCheckedChange={(checked) => onChange(mod.id, checked)}
-            aria-labelledby={`notification-module-${mod.id}`}
-          />
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 export function NotificationPreferencesPanel() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
@@ -99,20 +54,17 @@ export function NotificationPreferencesPanel() {
   const {
     ready,
     isLoading,
-    isSaving: isSavingPrefs,
     dirty: prefsDirty,
     draft,
     channels,
-    updateDraft,
-    save: savePrefs,
+    patchPreferences,
     reload: reloadPrefs,
-    resetDraft: resetPrefsDraft,
   } = useNotificationPreferences();
 
   const isLoadingAll =
     isLoading || contact.isLoading || permissionsLoading || staffLoading;
-  const dirty = prefsDirty || contact.dirty;
-  const isSaving = isSavingPrefs || contact.isSaving;
+  const dirty = contact.dirty;
+  const isSaving = contact.isSaving;
   const showSkeleton = useDeferredSkeleton(isLoadingAll);
 
   const notificationAccess = useMemo(
@@ -154,15 +106,18 @@ export function NotificationPreferencesPanel() {
     );
   }
 
+  const whatsappChannelVisible = channels?.whatsappChannelVisible !== false;
   const whatsappConnected = channels?.whatsappConnected ?? false;
   const hasPhoneForPush = Boolean(
     normalizeNotificationPhoneForStorage(contact.draft.phone),
   );
-  const whatsappPushAvailable = whatsappConnected && hasPhoneForPush;
+  const whatsappPushAvailable =
+    whatsappChannelVisible && whatsappConnected && hasPhoneForPush;
 
-  const emailChannelAvailable =
+  const emailChannelAvailable = Boolean(
     channels?.restaurantEmailConfigured ||
-    channels?.platformEmailFallbackAvailable;
+      channels?.platformEmailFallbackAvailable,
+  );
   const hasEmailForPush = Boolean(contact.effectiveEmail.trim());
   const emailPushAvailable = hasEmailForPush && emailChannelAvailable;
 
@@ -179,37 +134,85 @@ export function NotificationPreferencesPanel() {
     moduleId: NotificationModuleId,
     enabled: boolean,
   ) => {
-    updateDraft({
+    patchPreferences({
       [field]: { ...draft[field], [moduleId]: enabled },
     });
   };
 
+  const whatsappDisabledHint = !whatsappConnected
+    ? "WhatsApp unter Einstellungen → Integrationen verbinden."
+    : "Telefonnummer unter Zustellung eintragen.";
+
+  const fieldForChannel = (channel: NotificationDeliveryChannel) => {
+    switch (channel) {
+      case "inApp":
+        return "inAppModules";
+      case "email":
+        return "pushEmailModules";
+      case "whatsapp":
+        return "pushWhatsappModules";
+    }
+  };
+
+  const setChannelForModules = (
+    channel: NotificationDeliveryChannel,
+    enabled: boolean,
+    moduleIds: NotificationModuleId[],
+  ) => {
+    if (channel === "email" && !emailPushAvailable) return;
+    if (channel === "whatsapp" && !whatsappPushAvailable) return;
+    const field = fieldForChannel(channel);
+    const next = { ...draft[field] };
+    for (const id of moduleIds) {
+      next[id] = enabled;
+    }
+    patchPreferences({ [field]: next });
+  };
+
+  const setAllChannelsForModules = (
+    enabled: boolean,
+    moduleIds: NotificationModuleId[],
+  ) => {
+    const inApp = { ...draft.inAppModules };
+    const pushEmail = { ...draft.pushEmailModules };
+    const pushWhatsapp = { ...draft.pushWhatsappModules };
+    for (const id of moduleIds) {
+      inApp[id] = enabled;
+      if (emailPushAvailable) pushEmail[id] = enabled;
+      if (whatsappPushAvailable) pushWhatsapp[id] = enabled;
+    }
+    patchPreferences({
+      inAppModules: inApp,
+      pushEmailModules: pushEmail,
+      pushWhatsappModules: pushWhatsapp,
+    });
+  };
+
+  const handleModuleChannelChange = (
+    moduleId: NotificationModuleId,
+    channel: NotificationDeliveryChannel,
+    enabled: boolean,
+  ) => {
+    patchModuleToggle(fieldForChannel(channel), moduleId, enabled);
+  };
+
   const handleSave = async () => {
-    const saveBoth = contact.dirty && prefsDirty;
     const phoneCleared =
       contact.dirty &&
       !normalizeNotificationPhoneForStorage(contact.draft.phone);
 
-    if (contact.dirty) {
-      const contactResult = await contact.save({ silent: saveBoth });
-      if (!contactResult.ok) return;
-      // Server löscht WhatsApp-Prefs ohne Nummer — UI nachziehen, wenn nur Kontakt gespeichert wurde.
-      if (phoneCleared && !prefsDirty) {
-        await reloadPrefs();
-      }
-    }
-    if (prefsDirty) {
-      const prefsResult = await savePrefs({ silent: saveBoth });
-      if (!prefsResult.ok) return;
-    }
-    if (saveBoth) {
-      toast.success("Benachrichtigungen gespeichert.");
+    if (!contact.dirty) return;
+
+    const contactResult = await contact.save();
+    if (!contactResult.ok) return;
+    // Server löscht WhatsApp-Prefs ohne Nummer — UI nachziehen.
+    if (phoneCleared) {
+      await reloadPrefs();
     }
   };
 
   const handleReset = () => {
-    if (contact.dirty) contact.resetDraft();
-    if (prefsDirty) resetPrefsDraft();
+    contact.resetDraft();
   };
 
   const emailHelper =
@@ -278,127 +281,87 @@ export function NotificationPreferencesPanel() {
 
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">
-          <CardTitle className="text-xl">In der App</CardTitle>
+          <CardTitle className="text-xl">Benachrichtigungen</CardTitle>
           <CardDescription className="text-base leading-relaxed">
-            Welche Module in der Glocken-Leiste oben rechts erscheinen.
+            {whatsappChannelVisible
+              ? "Pro Hinweis Glocke, E-Mail und WhatsApp einzeln oder kombiniert — kompakt in einer Liste. Sichtbare Module hängen von deinen Berechtigungen ab (z. B. Reservierungen nur mit Zugriff auf Reservierungen)."
+              : "Pro Hinweis Glocke und E-Mail einzeln oder kombiniert — kompakt in einer Liste. Sichtbare Module hängen von deinen Berechtigungen ab (z. B. Reservierungen nur mit Zugriff auf Reservierungen)."}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-8">
+          {!emailPushAvailable ||
+          (whatsappChannelVisible && !whatsappPushAvailable) ? (
+            <div className="space-y-1 rounded-xl border border-border/40 bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">
+              {!emailPushAvailable ? <p>{emailNote}</p> : null}
+              {whatsappChannelVisible && !whatsappPushAvailable ? (
+                <p>
+                  {!whatsappConnected
+                    ? "WhatsApp-Push: Integration unter Einstellungen → Integrationen verbinden."
+                    : "WhatsApp-Push: Telefonnummer unter Zustellung eintragen."}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {visibleNotificationGroups.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Für deine Berechtigungen sind keine Modul-Benachrichtigungen
-              verfügbar. Zustellung per E-Mail/WhatsApp kannst du oben trotzdem
-              pflegen.
+              verfügbar. Zustellung
+              {whatsappChannelVisible ? " per E-Mail/WhatsApp" : " per E-Mail"}{" "}
+              kannst du oben trotzdem pflegen.
             </p>
           ) : (
             visibleNotificationGroups.map((group) => (
-              <div key={group.id}>
-                <p className="mb-1 text-sm font-medium text-foreground">
-                  {group.title}
-                </p>
-                {group.description ? (
-                  <p className="mb-3 text-xs text-muted-foreground">
-                    {group.description}
-                  </p>
-                ) : (
-                  <div className="mb-3" />
-                )}
-                <ModuleToggleRows
-                  toggles={draft.inAppModules}
-                  moduleIds={group.moduleIds}
-                  onChange={(id, enabled) =>
-                    patchModuleToggle("inAppModules", id, enabled)
-                  }
-                  labelFor={(id) =>
-                    notificationModulesInOrder().find((m) => m.id === id)!
-                      .settingsInAppLabel
-                  }
-                />
-              </div>
+              <section key={group.id} className="space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground">
+                      {group.title}
+                    </h3>
+                    {group.description ? (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {group.description}
+                      </p>
+                    ) : null}
+                  </div>
+                  <NotificationGroupBulkChannelActions
+                    moduleIds={group.moduleIds}
+                    emailAvailable={emailPushAvailable}
+                    whatsappAvailable={whatsappPushAvailable}
+                    onSetChannel={setChannelForModules}
+                    onSetAllChannels={setAllChannelsForModules}
+                  />
+                </div>
+                <ul className="list-none divide-y divide-border/50 border-y border-border/50 p-0">
+                  {group.moduleIds.map((moduleId) => (
+                    <NotificationModuleChannelRow
+                      key={moduleId}
+                      moduleId={moduleId}
+                      inApp={isModuleChannelEnabled(
+                        draft.inAppModules,
+                        moduleId,
+                      )}
+                      email={isModulePushEnabled(
+                        draft.pushEmailModules,
+                        moduleId,
+                      )}
+                      whatsapp={isModulePushEnabled(
+                        draft.pushWhatsappModules,
+                        moduleId,
+                      )}
+                      emailDisabled={!emailPushAvailable}
+                      whatsappDisabled={!whatsappPushAvailable}
+                      hideWhatsapp={!whatsappChannelVisible}
+                      emailDisabledHint={emailNote}
+                      whatsappDisabledHint={whatsappDisabledHint}
+                      onChange={(channel, enabled) =>
+                        handleModuleChannelChange(moduleId, channel, enabled)
+                      }
+                    />
+                  ))}
+                </ul>
+              </section>
             ))
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/50 shadow-card">
-        <CardHeader className="gap-2">
-          <CardTitle className="text-xl">Push pro Modul</CardTitle>
-          <CardDescription className="text-base leading-relaxed">
-            Externe Zustellung per WhatsApp oder E-Mail — pro Modul einzeln
-            steuerbar.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-              <WhatsAppGlyph className="size-4 shrink-0" />
-              WhatsApp
-            </div>
-            <p className="mb-3 text-xs text-muted-foreground">
-              {whatsappPushAvailable
-                ? "Push über die verbundene Restaurant-WhatsApp."
-                : !whatsappConnected
-                  ? "Nur verfügbar, wenn WhatsApp unter Einstellungen → Integrationen verbunden ist."
-                  : "Trage oben unter Zustellung eine Telefonnummer ein."}
-            </p>
-            {visibleNotificationGroups.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Keine Push-Module für deine Berechtigungen.
-              </p>
-            ) : (
-              visibleNotificationGroups.map((group) => (
-              <div key={`wa-${group.id}`} className="mb-4 last:mb-0">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">
-                  {group.title}
-                </p>
-                <ModuleToggleRows
-                  toggles={draft.pushWhatsappModules}
-                  moduleIds={group.moduleIds}
-                  disabled={!whatsappPushAvailable}
-                  onChange={(id, enabled) =>
-                    patchModuleToggle("pushWhatsappModules", id, enabled)
-                  }
-                  labelFor={(id) =>
-                    notificationModulesInOrder().find((m) => m.id === id)!
-                      .settingsPushWhatsappLabel
-                  }
-                />
-              </div>
-            ))
-            )}
-          </div>
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-              <Mail className="size-4 text-muted-foreground" />
-              E-Mail
-            </div>
-            <p className="mb-3 text-xs text-muted-foreground">{emailNote}</p>
-            {visibleNotificationGroups.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Keine Push-Module für deine Berechtigungen.
-              </p>
-            ) : (
-              visibleNotificationGroups.map((group) => (
-              <div key={`mail-${group.id}`} className="mb-4 last:mb-0">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">
-                  {group.title}
-                </p>
-                <ModuleToggleRows
-                  toggles={draft.pushEmailModules}
-                  moduleIds={group.moduleIds}
-                  disabled={!emailPushAvailable}
-                  onChange={(id, enabled) =>
-                    patchModuleToggle("pushEmailModules", id, enabled)
-                  }
-                  labelFor={(id) =>
-                    notificationModulesInOrder().find((m) => m.id === id)!
-                      .settingsPushEmailLabel
-                  }
-                />
-              </div>
-            ))
-            )}
-          </div>
         </CardContent>
       </Card>
 

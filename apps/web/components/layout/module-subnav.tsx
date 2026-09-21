@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
@@ -13,8 +13,6 @@ import {
 import { scheduleModuleSubnavRoutePrefetches } from "@/lib/hooks/module-subnav-route-prefetch";
 import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
-import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { cn } from "@/lib/utils";
 
 export type ModuleSubnavItem = {
@@ -30,13 +28,59 @@ function normalizePath(p: string): string {
   return p;
 }
 
+function pathOnlyFromHref(href: string): string {
+  const q = href.indexOf("?");
+  const path = q === -1 ? href : href.slice(0, q);
+  return normalizePath(path);
+}
+
+function searchParamsFromHref(href: string): URLSearchParams | null {
+  const q = href.indexOf("?");
+  if (q === -1) return null;
+  return new URLSearchParams(href.slice(q + 1));
+}
+
+/** Query-Keys, die beim Chip-Wechsel erhalten bleiben (z. B. Mitarbeiter-Filter). */
+const MODULE_SUBNAV_PRESERVE_SEARCH_KEYS = ["staff"] as const;
+
+function mergeSubnavHref(
+  itemHref: string,
+  currentSearchParams: URLSearchParams,
+  preserveKeys: readonly string[] = MODULE_SUBNAV_PRESERVE_SEARCH_KEYS,
+): string {
+  const path = pathOnlyFromHref(itemHref);
+  const params = searchParamsFromHref(itemHref) ?? new URLSearchParams();
+  for (const key of preserveKeys) {
+    const value = currentSearchParams.get(key);
+    if (value != null && value !== "") {
+      params.set(key, value);
+    }
+  }
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+export function isActiveModuleSubnavItem(
+  pathname: string,
+  searchParams: URLSearchParams,
+  item: ModuleSubnavItem,
+): boolean {
+  if (!isActiveModulePath(pathname, item)) return false;
+  const expected = searchParamsFromHref(item.href);
+  if (!expected || expected.size === 0) return true;
+  for (const key of expected.keys()) {
+    if (searchParams.get(key) !== expected.get(key)) return false;
+  }
+  return true;
+}
+
 export function isActiveModulePath(
   pathname: string,
   item: ModuleSubnavItem,
 ): boolean {
   if (item.disabled) return false;
   const path = normalizePath(pathname);
-  const h = normalizePath(item.href);
+  const h = pathOnlyFromHref(item.href);
   for (const extra of item.activeWhen ?? []) {
     const e = normalizePath(extra);
     if (path === e) return true;
@@ -62,9 +106,10 @@ export function ModuleChipNav({
   className?: string;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const { restaurantId } = useWorkspaceRestaurantUuid();
   const prefetchTimeoutsRef = useRef<number[]>([]);
 
   useLayoutEffect(() => {
@@ -74,9 +119,7 @@ export function ModuleChipNav({
     prefetchTimeoutsRef.current = scheduleModuleSubnavRoutePrefetches(
       router,
       queryClient,
-      workspaceReady && restaurantId && isUuidRestaurantId(restaurantId)
-        ? restaurantId
-        : null,
+      restaurantId,
       items,
       pathname,
     );
@@ -86,21 +129,13 @@ export function ModuleChipNav({
       }
       prefetchTimeoutsRef.current = [];
     };
-  }, [items, pathname, queryClient, restaurantId, router, workspaceReady]);
+  }, [items, pathname, queryClient, restaurantId, router]);
 
   const warmOnIntent = useCallback(
     (href: string) => {
-      if (
-        !workspaceReady ||
-        !restaurantId ||
-        !isUuidRestaurantId(restaurantId)
-      ) {
-        prefetchAppModuleHref(router, href);
-        return;
-      }
       warmModuleRouteIntent(router, queryClient, restaurantId, href);
     },
-    [queryClient, restaurantId, router, workspaceReady],
+    [queryClient, restaurantId, router],
   );
 
   return (
@@ -114,7 +149,12 @@ export function ModuleChipNav({
       <SidebarGroup className="p-0">
         <SidebarMenu className="flex-row flex-nowrap gap-1.5">
           {items.map((item) => {
-            const active = isActiveModulePath(pathname, item);
+            const navHref = mergeSubnavHref(item.href, searchParams);
+            const active = isActiveModuleSubnavItem(
+              pathname,
+              searchParams,
+              item,
+            );
             if (item.disabled) {
               return (
                 <SidebarMenuItem
@@ -136,9 +176,9 @@ export function ModuleChipNav({
                 <SidebarMenuButton
                   isActive={active}
                   layout="text"
-                  onPointerEnter={() => warmOnIntent(item.href)}
-                  onFocus={() => warmOnIntent(item.href)}
-                  render={<AppNavLink href={item.href} />}
+                  onPointerEnter={() => warmOnIntent(navHref)}
+                  onFocus={() => warmOnIntent(navHref)}
+                  render={<AppNavLink href={navHref} />}
                 >
                   <span>{item.label}</span>
                 </SidebarMenuButton>

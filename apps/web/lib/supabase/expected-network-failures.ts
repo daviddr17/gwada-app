@@ -36,6 +36,24 @@ export function isExpectedSupabaseAuthNetworkFailure(reason: unknown): boolean {
   );
 }
 
+/**
+ * Sonner-Fehlertexte, die Nutzer nie sehen sollen (Safari/WKWebView Transient).
+ * Deckt `Error`, `"Load failed"`, `"TypeError: Load failed"`, `"Failed to fetch"`.
+ */
+export function isTransientNetworkToastMessage(message: unknown): boolean {
+  if (isExpectedSupabaseAuthNetworkFailure(message)) return true;
+  if (typeof message !== "string") return false;
+  const trimmed = message.trim();
+  if (!trimmed) return false;
+  return (
+    /^(typeerror:\s*)?(load failed|failed to fetch|networkerror when attempting to fetch resource)\.?$/i.test(
+      trimmed,
+    ) ||
+    /typeerror:\s*load failed/i.test(trimmed) ||
+    /^failed to fetch$/i.test(trimmed)
+  );
+}
+
 /** Filter für `console.error`-Aufrufe von GoTrue bei gleichen Netzwerkproblemen. */
 export function shouldSuppressExpectedSupabaseConsoleArgs(
   args: unknown[],

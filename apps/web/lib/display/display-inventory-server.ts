@@ -1,5 +1,8 @@
 import "server-only";
 
+import { mergeIngredientsForReplace } from "@/lib/inventory/merge-ingredients-for-replace";
+import { fetchInventoryPurchaseOrdersLiveRevision } from "@/lib/inventory/inventory-purchase-orders-live-revision";
+import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
 import { createId } from "@/lib/create-id";
 import { parseStockLogEntryFromJson } from "@/lib/supabase/inventory-db";
 import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
@@ -135,7 +138,7 @@ async function loadIngredientsAdmin(
   const { data: ings, error: e1 } = await admin
     .from("inventory_ingredients")
     .select(
-      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,supplier_id,category_id,production_site_id,brand_id,is_active",
+      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,article_number,image_path,supplier_id,category_id,production_site_id,brand_id,is_active",
     )
     .eq("restaurant_id", restaurantId)
     .order("name", { ascending: true });
@@ -172,6 +175,14 @@ async function loadIngredientsAdmin(
         o.purchase_unit_price != null && o.purchase_unit_price !== ""
           ? Number(o.purchase_unit_price)
           : null,
+      articleNumber:
+        typeof o.article_number === "string" && o.article_number.trim()
+          ? o.article_number.trim()
+          : null,
+      imagePath:
+        typeof o.image_path === "string" && o.image_path.trim()
+          ? o.image_path.trim()
+          : null,
       supplierId: o.supplier_id as string,
       categoryId: o.category_id as string,
       productionSiteId: o.production_site_id as string,
@@ -189,9 +200,12 @@ async function saveIngredientsAdmin(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createSupabaseAdminClient();
   if (!admin) return { ok: false, error: "server_misconfigured" };
+  const fresh = await loadIngredientsAdmin(restaurantId);
+  if (!fresh) return { ok: false, error: "load_failed" };
+  const merged = mergeIngredientsForReplace(fresh, ingredients);
   const { error } = await admin.rpc("inventory_replace_ingredients", {
     p_restaurant_id: restaurantId,
-    p_ingredients: ingredients,
+    p_ingredients: merged,
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
@@ -206,7 +220,7 @@ async function loadPurchaseOrdersAdmin(
   const { data: orders, error: e1 } = await admin
     .from("inventory_purchase_orders")
     .select(
-      "id,supplier_id,supplier_name,status,created_at,created_by,created_by_user_source,delivery_date",
+      "id,supplier_id,supplier_name,status,status_updated_at,created_at,created_by,created_by_user_source,delivery_date",
     )
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false });
@@ -262,32 +276,42 @@ async function loadPurchaseOrdersAdmin(
     if (typeof o.delivery_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.delivery_date)) {
       deliveryDate = o.delivery_date;
     }
-    out.push({
-      id,
-      supplierId: o.supplier_id as string,
-      supplierName: o.supplier_name as string,
-      status: o.status as PurchaseOrder["status"],
-      createdAt: o.created_at as string,
-      createdBy: (o.created_by as string) ?? "",
-      ...(createdByUserSource ? { createdByUserSource } : {}),
-      deliveryDate,
-      lines: linesByOrder.get(id) ?? [],
-      log: logByOrder.get(id) ?? [],
-    });
+    const statusUpdatedAt =
+      typeof o.status_updated_at === "string" && o.status_updated_at
+        ? o.status_updated_at
+        : undefined;
+    out.push(
+      reconcilePurchaseOrderLinesFromLog({
+        id,
+        supplierId: o.supplier_id as string,
+        supplierName: o.supplier_name as string,
+        status: o.status as PurchaseOrder["status"],
+        ...(statusUpdatedAt ? { statusUpdatedAt } : {}),
+        createdAt: o.created_at as string,
+        createdBy: (o.created_by as string) ?? "",
+        ...(createdByUserSource ? { createdByUserSource } : {}),
+        deliveryDate,
+        lines: linesByOrder.get(id) ?? [],
+        log: logByOrder.get(id) ?? [],
+      }),
+    );
   }
   return out;
 }
 
-async function savePurchaseOrdersAdmin(
+async function deleteEmptyOpenPurchaseOrderAdmin(
   restaurantId: string,
-  orders: PurchaseOrder[],
+  orderId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createSupabaseAdminClient();
   if (!admin) return { ok: false, error: "server_misconfigured" };
-  const { error } = await admin.rpc("inventory_replace_purchase_orders", {
-    p_restaurant_id: restaurantId,
-    p_orders: orders,
-  });
+  const { error } = await admin.rpc(
+    "inventory_purchase_order_delete_empty_open",
+    {
+      p_restaurant_id: restaurantId,
+      p_order_id: orderId,
+    },
+  );
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
@@ -522,6 +546,7 @@ export async function updateDisplayOrderQuantity(params: {
         supplierName,
         status: "open",
         createdAt: new Date().toISOString(),
+        statusUpdatedAt: new Date().toISOString(),
         createdBy: `${params.actor.firstName} ${params.actor.lastName}`.trim(),
         deliveryDate: null,
         lines: [],
@@ -554,13 +579,31 @@ export async function updateDisplayOrderQuantity(params: {
       unitLabel,
     });
 
-    const saved = await savePurchaseOrdersAdmin(params.restaurantId, next);
-    if (!saved.ok) return saved;
+    const admin = createSupabaseAdminClient();
+    if (!admin) return { ok: false, error: "server_misconfigured" };
+    const { data, error } = await admin.rpc("inventory_purchase_order_add_line", {
+      p_restaurant_id: params.restaurantId,
+      p_supplier_id: ing.supplierId,
+      p_supplier_name: supplierName,
+      p_created_by: `${params.actor.firstName} ${params.actor.lastName}`.trim(),
+      p_line_id: lineId,
+      p_ingredient_id: ing.id,
+      p_ingredient_name: ing.name,
+      p_brand_label: brandLabel,
+      p_quantity: nextQty,
+      p_unit_id: ing.unit,
+      p_unit_label: unitLabel,
+      p_log_entry: logEntry,
+      p_order_id: order.id,
+    });
+    if (error) return { ok: false, error: error.message };
+    const row = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
     return {
       ok: true,
-      orderId: order.id,
-      orderLineId: lineId,
-      orderQuantity: nextQty,
+      orderId: typeof row.order_id === "string" ? row.order_id : order.id,
+      orderLineId: typeof row.line_id === "string" ? row.line_id : lineId,
+      orderQuantity:
+        typeof row.quantity === "number" ? row.quantity : nextQty,
     };
   }
 
@@ -597,19 +640,25 @@ export async function updateDisplayOrderQuantity(params: {
     };
     o.log.push(logEntry);
 
-    if (nextQty === 0) {
-      o.lines = o.lines.filter((x) => x.id !== open.lineId);
-    } else {
-      l.quantity = nextQty;
-    }
-
-    const saved = await savePurchaseOrdersAdmin(params.restaurantId, next);
-    if (!saved.ok) return saved;
+    const admin = createSupabaseAdminClient();
+    if (!admin) return { ok: false, error: "server_misconfigured" };
+    const { error } = await admin.rpc(
+      "inventory_purchase_order_line_set_quantity",
+      {
+        p_restaurant_id: params.restaurantId,
+        p_order_id: open.orderId,
+        p_line_id: open.lineId,
+        p_quantity: nextQty,
+        p_log_entry: logEntry,
+      },
+    );
+    if (error) return { ok: false, error: error.message };
 
     if (nextQty === 0) {
       return {
         ok: true,
-        orderId: open.orderId,
+        orderId:
+          o.status === "open" && o.lines.length <= 1 ? null : open.orderId,
         orderLineId: null,
         orderQuantity: 0,
       };
@@ -631,16 +680,28 @@ export async function loadDisplayInventoryLiveRevision(
   const admin = createSupabaseAdminClient();
   if (!admin) return { revision: "" };
 
-  const { fetchTableLatestUpdatedAt, composeDisplayLiveRevision } = await import(
-    "@/lib/display/display-module-live-revision"
-  );
+  const { data, error } = await admin
+    .from("restaurant_inventory_live_signals")
+    .select("revision, updated_at")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
 
-  const [ingredients, orders] = await Promise.all([
-    fetchTableLatestUpdatedAt(admin, "inventory_ingredients", restaurantId),
-    fetchTableLatestUpdatedAt(admin, "inventory_purchase_orders", restaurantId),
-  ]);
+  if (error || !data) {
+    const { fetchTableLatestUpdatedAt, composeDisplayLiveRevision } = await import(
+      "@/lib/display/display-module-live-revision"
+    );
+    const [ingredients, ordersRevision] = await Promise.all([
+      fetchTableLatestUpdatedAt(admin, "inventory_ingredients", restaurantId),
+      fetchInventoryPurchaseOrdersLiveRevision(admin, restaurantId),
+    ]);
+    return {
+      revision: composeDisplayLiveRevision([ingredients, ordersRevision]),
+    };
+  }
 
+  const updatedAt =
+    typeof data.updated_at === "string" ? data.updated_at : "";
   return {
-    revision: composeDisplayLiveRevision([ingredients, orders]),
+    revision: `${data.revision ?? 0}|${updatedAt}`,
   };
 }

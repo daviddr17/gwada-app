@@ -12,8 +12,6 @@ import {
 export type InventoryModuleViewMode = "standard" | "compact";
 
 export const INVENTORY_STOCK_VIEW_MODE_KEY = "gwada-inventory-stock-view-mode";
-export const INVENTORY_PURCHASE_ORDER_VIEW_MODE_KEY =
-  "gwada-inventory-purchase-order-view-mode";
 
 function parseInventoryModuleViewMode(raw: unknown): InventoryModuleViewMode {
   return raw === "compact" ? "compact" : "standard";

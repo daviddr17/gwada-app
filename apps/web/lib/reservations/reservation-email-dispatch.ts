@@ -14,6 +14,13 @@ import {
   type ReservationDispatchOptions,
 } from "@/lib/reservations/append-guest-notify-message";
 import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
+import {
+  computeReservationReminderSendAt,
+  isReservationOutboxSendAtTooStale,
+  isReservationReminderTooLate,
+  resolveReservationThanksSendAt,
+  shouldScheduleReservationReminder,
+} from "@/lib/reservations/reservation-timed-notification-schedule";
 import { isEmailSendConfigured } from "@/lib/email/is-email-send-configured";
 import { smtpCredentialsFromConfig } from "@/lib/integrations/smtp-integration-config";
 import {
@@ -338,24 +345,54 @@ async function upsertOutbox(
 ): Promise<void> {
   const { data: existing } = await sb
     .from("reservation_email_outbox")
-    .select("sent_at")
+    .select("id, sent_at")
     .eq("reservation_id", row.id)
     .eq("message_kind", kind)
     .maybeSingle();
+
+  // Bereits gesendet: nie zurücksetzen (sonst Doppelversand beim nächsten Cron).
   if (existing?.sent_at) return;
 
-  await sb.from("reservation_email_outbox").upsert(
-    {
-      restaurant_id: row.restaurant_id,
-      reservation_id: row.id,
-      message_kind: kind,
+  if (existing?.id) {
+    await sb
+      .from("reservation_email_outbox")
+      .update({
+        send_at: sendAt.toISOString(),
+        last_error: null,
+        cancelled_at: null,
+      })
+      .eq("id", existing.id)
+      .is("sent_at", null);
+    return;
+  }
+
+  const { error: insertError } = await sb.from("reservation_email_outbox").insert({
+    restaurant_id: row.restaurant_id,
+    reservation_id: row.id,
+    message_kind: kind,
+    send_at: sendAt.toISOString(),
+    sent_at: null,
+    last_error: null,
+    cancelled_at: null,
+  });
+  if (!insertError) return;
+  if (
+    insertError.code !== "23505" &&
+    !String(insertError.message ?? "").toLowerCase().includes("duplicate")
+  ) {
+    console.warn("[reservation-email-outbox] insert", insertError.message);
+    return;
+  }
+  await sb
+    .from("reservation_email_outbox")
+    .update({
       send_at: sendAt.toISOString(),
-      sent_at: null,
       last_error: null,
       cancelled_at: null,
-    },
-    { onConflict: "reservation_id,message_kind" },
-  );
+    })
+    .eq("reservation_id", row.id)
+    .eq("message_kind", kind)
+    .is("sent_at", null);
 }
 
 async function cancelOutboxKinds(
@@ -379,6 +416,20 @@ export async function sendImmediateKind(
   settings: ReservationEmailSettings | null,
   options?: ReservationDispatchOptions,
 ): Promise<{ sent: boolean; error?: string }> {
+  const { data: prior } = await sb
+    .from("reservation_email_outbox")
+    .select("id, sent_at, claimed_at")
+    .eq("reservation_id", row.id)
+    .eq("message_kind", kind)
+    .maybeSingle();
+  if (prior?.sent_at) {
+    return { sent: true };
+  }
+  const claimedAtMs = prior?.claimed_at ? Date.parse(String(prior.claimed_at)) : NaN;
+  if (Number.isFinite(claimedAtMs) && Date.now() - claimedAtMs < 10 * 60 * 1000) {
+    return { sent: true };
+  }
+
   const to = row.guest_email?.trim();
   if (!isValidGuestEmail(to ?? null)) return { sent: false, error: "no_email" };
 
@@ -396,22 +447,51 @@ export async function sendImmediateKind(
   if (!delivery) return { sent: false, error: "smtp_not_configured" };
 
   const fromName = resolveEmailSenderDisplayName(settings, delivery.sender.name);
+  const claimNow = new Date().toISOString();
+  if (prior?.id) {
+    await sb
+      .from("reservation_email_outbox")
+      .update({
+        claimed_at: claimNow,
+        last_error: "sending",
+        send_at: claimNow,
+      })
+      .eq("id", prior.id)
+      .is("sent_at", null);
+  } else {
+    await sb.from("reservation_email_outbox").upsert(
+      {
+        restaurant_id: row.restaurant_id,
+        reservation_id: row.id,
+        message_kind: kind,
+        send_at: claimNow,
+        sent_at: null,
+        claimed_at: claimNow,
+        last_error: "sending",
+        cancelled_at: null,
+      },
+      { onConflict: "reservation_id,message_kind" },
+    );
+  }
+
   const result = await sendReservationEmail(
     { ...delivery, sender: { ...delivery.sender, name: fromName } },
     { to: to!, subject, text },
   );
 
   if (!result.ok) {
-    await sb.from("reservation_email_outbox").upsert(
-      {
-        restaurant_id: row.restaurant_id,
-        reservation_id: row.id,
-        message_kind: kind,
-        send_at: new Date().toISOString(),
-        last_error: result.error,
-      },
-      { onConflict: "reservation_id,message_kind" },
+    const timeout = /aborted due to timeout|TimeoutError|signal timed out/i.test(
+      result.error,
     );
+    await sb
+      .from("reservation_email_outbox")
+      .update({
+        last_error: result.error,
+        claimed_at: timeout ? claimNow : null,
+      })
+      .eq("reservation_id", row.id)
+      .eq("message_kind", kind)
+      .is("sent_at", null);
     return { sent: false, error: result.error };
   }
 
@@ -453,14 +533,14 @@ export async function scheduleTimedMessages(
     return;
   }
 
-  const starts = new Date(row.starts_at);
-  const ends = new Date(row.ends_at);
+  const starts = row.starts_at;
 
   if (settings.email_reminder_enabled && settings.email_reminder_hours_before > 0) {
-    const sendAt = new Date(
-      starts.getTime() - settings.email_reminder_hours_before * 60 * 60 * 1000,
+    const sendAt = computeReservationReminderSendAt(
+      starts,
+      settings.email_reminder_hours_before,
     );
-    if (sendAt.getTime() > Date.now()) {
+    if (shouldScheduleReservationReminder(sendAt)) {
       await upsertOutbox(sb, row, "reminder", sendAt);
     } else {
       await cancelOutboxKinds(sb, row.id, ["reminder"]);
@@ -470,14 +550,11 @@ export async function scheduleTimedMessages(
   }
 
   if (settings.email_thanks_enabled && settings.email_thanks_hours_after > 0) {
-    const sendAt = new Date(
-      ends.getTime() + settings.email_thanks_hours_after * 60 * 60 * 1000,
+    const sendAt = resolveReservationThanksSendAt(
+      starts,
+      settings.email_thanks_hours_after,
     );
-    if (sendAt.getTime() > Date.now()) {
-      await upsertOutbox(sb, row, "thanks", sendAt);
-    } else {
-      await cancelOutboxKinds(sb, row.id, ["thanks"]);
-    }
+    await upsertOutbox(sb, row, "thanks", sendAt);
   } else {
     await cancelOutboxKinds(sb, row.id, ["thanks"]);
   }
@@ -579,27 +656,35 @@ export async function processDueEmailOutbox(
   sb: SupabaseClient,
   limit = 50,
 ): Promise<{ processed: number; sent: number; failed: number }> {
-  const { data: due, error } = await sb
-    .from("reservation_email_outbox")
-    .select("id, reservation_id, message_kind")
-    .is("sent_at", null)
-    .is("cancelled_at", null)
-    .lte("send_at", new Date().toISOString())
-    .order("send_at", { ascending: true })
-    .limit(limit);
+  const { data: due, error } = await sb.rpc("claim_reservation_email_outbox", {
+    p_limit: limit,
+  });
 
   if (error || !due?.length) {
+    if (error) {
+      console.warn("[reservation-email-outbox] claim failed", error.message);
+    }
     return { processed: 0, sent: 0, failed: 0 };
   }
 
+  const claimed = due as Array<{
+    id: string;
+    reservation_id: string;
+    message_kind: string;
+    send_at?: string;
+  }>;
+
   if (!isEmailSendConfigured()) {
-    for (const item of due) {
+    for (const item of claimed) {
       await sb
         .from("reservation_email_outbox")
-        .update({ last_error: "email_send_not_configured" })
+        .update({
+          last_error: "email_send_not_configured",
+          claimed_at: null,
+        })
         .eq("id", item.id);
     }
-    return { processed: due.length, sent: 0, failed: due.length };
+    return { processed: claimed.length, sent: 0, failed: claimed.length };
   }
 
   let sent = 0;
@@ -608,14 +693,15 @@ export async function processDueEmailOutbox(
   const deliveryByRestaurant = new Map<string, EmailDelivery>();
   const timezoneByRestaurant = new Map<string, string>();
 
-  for (const item of due) {
-    const row = await fetchReservationForEmail(sb, item.reservation_id as string);
+  for (const item of claimed) {
+    const row = await fetchReservationForEmail(sb, item.reservation_id);
     if (!row || !row.notify_email) {
       await sb
         .from("reservation_email_outbox")
         .update({
           cancelled_at: new Date().toISOString(),
           last_error: "reservation_ineligible",
+          claimed_at: null,
         })
         .eq("id", item.id);
       continue;
@@ -623,13 +709,35 @@ export async function processDueEmailOutbox(
 
     const kind = item.message_kind as OutboxKind;
     if (kind !== "reminder" && kind !== "thanks") {
+      await sb
+        .from("reservation_email_outbox")
+        .update({ claimed_at: null })
+        .eq("id", item.id);
       continue;
     }
 
     if (TERMINAL_STATUS.has(row.status_code)) {
       await sb
         .from("reservation_email_outbox")
-        .update({ cancelled_at: new Date().toISOString() })
+        .update({
+          cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
+        .eq("id", item.id);
+      continue;
+    }
+
+    if (
+      (kind === "reminder" && isReservationReminderTooLate(row.starts_at)) ||
+      (item.send_at && isReservationOutboxSendAtTooStale(item.send_at))
+    ) {
+      await sb
+        .from("reservation_email_outbox")
+        .update({
+          cancelled_at: new Date().toISOString(),
+          last_error: "too_late",
+          claimed_at: null,
+        })
         .eq("id", item.id);
       continue;
     }
@@ -638,7 +746,11 @@ export async function processDueEmailOutbox(
     if (!isValidGuestEmail(to ?? null)) {
       await sb
         .from("reservation_email_outbox")
-        .update({ last_error: "no_email", cancelled_at: new Date().toISOString() })
+        .update({
+          last_error: "no_email",
+          cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
         .eq("id", item.id);
       failed++;
       continue;
@@ -653,7 +765,10 @@ export async function processDueEmailOutbox(
     if (!settings || !isEmailKindEnabled(settings, kind)) {
       await sb
         .from("reservation_email_outbox")
-        .update({ cancelled_at: new Date().toISOString() })
+        .update({
+          cancelled_at: new Date().toISOString(),
+          claimed_at: null,
+        })
         .eq("id", item.id);
       continue;
     }
@@ -666,7 +781,7 @@ export async function processDueEmailOutbox(
     if (!delivery) {
       await sb
         .from("reservation_email_outbox")
-        .update({ last_error: "smtp_not_configured" })
+        .update({ last_error: "smtp_not_configured", claimed_at: null })
         .eq("id", item.id);
       failed++;
       continue;
@@ -716,11 +831,11 @@ export async function processDueEmailOutbox(
     } else {
       await sb
         .from("reservation_email_outbox")
-        .update({ last_error: result.error })
+        .update({ last_error: result.error, claimed_at: null })
         .eq("id", item.id);
       failed++;
     }
   }
 
-  return { processed: due.length, sent, failed };
+  return { processed: claimed.length, sent, failed };
 }

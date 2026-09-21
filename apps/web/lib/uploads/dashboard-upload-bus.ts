@@ -146,13 +146,6 @@ export function subscribeDashboardUploadState(
   };
 }
 
-/** @deprecated Prefer subscribeDashboardUploadState */
-export function subscribeDashboardUploadActive(
-  listener: (active: boolean) => void,
-): () => void {
-  return subscribeDashboardUploadState((state) => listener(state.active));
-}
-
 export async function withDashboardUploadTracking<T>(
   task: () => Promise<T>,
   options?: {

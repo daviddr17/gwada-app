@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { GalleryPlatform } from "@/lib/constants/gallery-platforms";
+import { isGoogleCredentialSyncError } from "@/lib/integrations/google-credential-sync-error";
 
 /** Externe Plattformen mit DB-Cache (Gwada in gwada_gallery_items). */
 export const GALLERY_CACHEABLE_PLATFORMS = [
@@ -39,6 +40,7 @@ export function isGalleryFeedSyncStale(
   if (!syncedAt) return true;
   const ageMs = Date.now() - new Date(syncedAt).getTime();
   if (opts?.lastError) {
+    if (isGoogleCredentialSyncError(opts.lastError)) return true;
     return ageMs > GALLERY_CACHE_RETRY_MS;
   }
   if (platform === "tripadvisor" && (opts?.itemCount ?? 0) === 0) {

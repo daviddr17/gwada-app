@@ -7,33 +7,51 @@ export type PlatformWeatherAvailableState = {
   loading: boolean;
 };
 
-export function usePlatformWeatherAvailable(): PlatformWeatherAvailableState {
-  const [available, setAvailable] = useState(false);
-  const [loading, setLoading] = useState(true);
+/** Letzter bestätigter Status — überlebt Remount/Soft-Nav ohne Flackern. */
+let cachedPlatformWeatherAvailable: boolean | null = null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
+export function usePlatformWeatherAvailable(): PlatformWeatherAvailableState {
+  const [available, setAvailable] = useState(
+    () => cachedPlatformWeatherAvailable ?? false,
+  );
+  const [loading, setLoading] = useState(
+    () => cachedPlatformWeatherAvailable === null,
+  );
+
+  const load = useCallback(async (silent = false) => {
+    const initial = cachedPlatformWeatherAvailable === null;
+    if (!silent && initial) {
+      setLoading(true);
+    }
     try {
       const res = await fetch("/api/weather/status", { cache: "no-store" });
       if (!res.ok) {
-        setAvailable(false);
+        if (initial) {
+          cachedPlatformWeatherAvailable = false;
+          setAvailable(false);
+        }
         return;
       }
       const data = (await res.json()) as { available?: boolean };
-      setAvailable(data.available === true);
+      const next = data.available === true;
+      cachedPlatformWeatherAvailable = next;
+      setAvailable(next);
     } catch {
-      setAvailable(false);
+      if (initial) {
+        cachedPlatformWeatherAvailable = false;
+        setAvailable(false);
+      }
     } finally {
-      setLoading(false);
+      if (!silent && initial) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    void load(false);
   }, [load]);
 
   useEffect(() => {
-    const onFocus = () => void load();
+    const onFocus = () => void load(true);
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [load]);

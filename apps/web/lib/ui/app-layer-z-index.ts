@@ -29,14 +29,15 @@ export const APP_LAYER_Z_INDEX = {
   floatingInFullscreenOverlay: 205,
   drawerFloatingHost: 100,
   floatingInDrawer: 320,
+  /**
+   * Toasts — über Drawer/Dialog (210) und Drawer-Popover (320).
+   * Sonner ohne Portal lag sonst unter Vaul/Radix.
+   */
+  toast: 400,
 } as const;
 
 export const appLayerFullscreenOverlayZClassName = "z-[200]";
 export const appLayerStackedSurfaceZClassName = "z-[210]";
 export const appLayerFloatingInFullscreenOverlayZClassName = "z-[205]";
-
-/** @deprecated Alias — bitte `APP_LAYER_Z_INDEX.fullscreenOverlay` nutzen. */
-export const APP_FULLSCREEN_OVERLAY_Z_INDEX = APP_LAYER_Z_INDEX.fullscreenOverlay;
-
-/** @deprecated Alias — bitte `APP_LAYER_Z_INDEX.stackedSurface` nutzen. */
-export const APP_STACKED_SURFACE_Z_INDEX = APP_LAYER_Z_INDEX.stackedSurface;
+/** Über Vaul-Overlay; `pointer-events-auto` gegen body-lock des Drawers. */
+export const appLayerToastZClassName = "z-[400] pointer-events-auto";

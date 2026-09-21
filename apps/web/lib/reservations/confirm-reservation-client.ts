@@ -5,24 +5,21 @@ import {
   logReservationMutationFromBrowser,
   reservationSnapshotFromListRow,
 } from "@/lib/reservations/reservation-log-client";
+import {
+  dispatchReservationGuestNotificationsInBackground,
+} from "@/lib/reservations/reservation-guest-notify-dispatch-client";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/reservation-open-status";
-import {
-  emailDispatchUserMessage,
-  triggerReservationEmailDispatch,
-} from "@/lib/reservations/trigger-email-dispatch";
-import {
-  triggerReservationWhatsappDispatch,
-  whatsappDispatchUserMessage,
-} from "@/lib/reservations/trigger-whatsapp-dispatch";
 import {
   fetchReservationById,
   fetchReservationStatuses,
   updateReservationStatus,
 } from "@/lib/supabase/reservations-db";
+import { formatReservationGuestLabel } from "@/lib/types/reservation-log";
+import { recordReservationLogLiveActivity } from "@/lib/live-activity/record-reservation-live-activity-client";
 
 export type ConfirmPendingReservationResult =
-  | { ok: true; warning?: string }
+  | { ok: true }
   | { ok: false; error: string };
 
 /**
@@ -69,6 +66,7 @@ export async function confirmPendingReservationFromBrowser(params: {
   const { error: updateError } = await updateReservationStatus(
     row.id,
     confirmed.id,
+    row.updated_at,
   );
   if (updateError) {
     return { ok: false, error: updateError.message };
@@ -80,6 +78,38 @@ export async function confirmPendingReservationFromBrowser(params: {
     status_id: confirmed.id,
     status_name: confirmed.name,
   };
+  const previousStatusName = row.reservation_statuses?.name ?? "Ausstehend";
+  const guestLabel = formatReservationGuestLabel(
+    row.reservation_number,
+    row.guest_first_name,
+    row.guest_last_name,
+    row.guest_company,
+  );
+  const statusSummary = `Status: „${previousStatusName}“ → „${confirmed.name}“`;
+
+  // Sofort in den Live-Verlauf — nicht auf Log/Realtime/60s-Poll warten
+  // (Live: kein Browser-WebSocket über /sb-Proxy).
+  recordReservationLogLiveActivity({
+    restaurantId: row.restaurant_id,
+    logEntryId: `local-confirm:${row.id}`,
+    reservationId: row.id,
+    reservationNumber: row.reservation_number,
+    guestLabel,
+    action: "updated",
+    details: {
+      actorSource: "staff",
+      changes: [
+        {
+          field: "status",
+          label: "Status",
+          from: previousStatusName,
+          to: confirmed.name,
+        },
+      ],
+      summary: statusSummary,
+    },
+  });
+
   void logReservationMutationFromBrowser({
     restaurantId: row.restaurant_id,
     reservationId: row.id,
@@ -109,25 +139,16 @@ export async function confirmPendingReservationFromBrowser(params: {
     previousStatusCode,
     "confirmed",
   );
-  void (async () => {
-    const warnings: string[] = [];
-    if (dispatchEvent && row.notify_whatsapp) {
-      const wa = await triggerReservationWhatsappDispatch(row.id, dispatchEvent);
-      const msg = whatsappDispatchUserMessage(wa);
-      if (msg) warnings.push(msg);
-    }
-    if (dispatchEvent && row.notify_email) {
-      const em = await triggerReservationEmailDispatch(row.id, dispatchEvent);
-      const msg = emailDispatchUserMessage(em, {
-        isSuperadmin: params.isSuperadmin === true,
-      });
-      if (msg) warnings.push(msg);
-    }
-    if (warnings.length > 0) {
-      const { toast } = await import("sonner");
-      toast.warning(warnings.join(" "));
-    }
-  })();
+
+  if (dispatchEvent) {
+    dispatchReservationGuestNotificationsInBackground({
+      reservationId: row.id,
+      dispatchEvent,
+      notifyWhatsapp: row.notify_whatsapp === true,
+      notifyEmail: row.notify_email === true,
+      isSuperadmin: params.isSuperadmin,
+    });
+  }
 
   return { ok: true };
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useWindowEventRefresh } from "@/lib/hooks/use-window-event-refresh";
+import { GWADA_CONTACTS_DATA_REFRESH_EVENT } from "@/lib/contacts/contacts-live-events";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, MessageSquare, Plus, Search, Filter } from "lucide-react";
 import { toast } from "sonner";
@@ -226,6 +228,14 @@ export function ContactsOverview() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useWindowEventRefresh(
+    GWADA_CONTACTS_DATA_REFRESH_EVENT,
+    Boolean(restaurantId),
+    () => {
+      void reload();
+    },
+  );
 
   useEffect(() => {
     if (!restaurantId) return;

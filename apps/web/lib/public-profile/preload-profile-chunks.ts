@@ -5,6 +5,7 @@ export function preloadProfileWidgetChunks() {
   void import("@/components/embed/embed-reviews-widget");
   void import("@/components/embed/embed-news-widget");
   void import("@/components/embed/embed-events-widget");
+  void import("@/components/embed/embed-event-inquiry-widget");
   void import("@/components/embed/embed-gallery-widget");
   void import("@/components/public/restaurant-public-profile-news");
   void import("@/components/public/restaurant-public-profile-events");

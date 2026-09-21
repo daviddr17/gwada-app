@@ -13,6 +13,7 @@ export type LandingFeatureItem = {
   icon: LucideIcon;
   accent: string;
   visual: LandingFeatureVisualKey;
+  comingSoon?: boolean;
 };
 
 const MODULE_DESCRIPTIONS: Record<SidebarModuleId, string> = {
@@ -21,7 +22,7 @@ const MODULE_DESCRIPTIONS: Record<SidebarModuleId, string> = {
     "Zutaten, Lieferanten und Bestände im Blick — verknüpft mit Speisekarte und Einkauf.",
   reservierungen:
     "Tischplan, Slots und Übersicht — klar für Service und Küche, ohne visuelles Rauschen.",
-  pos: "Bestellungen, Kassenläufe und Auswertungen — Web-Hub zur nativen POS-App.",
+  pos: "Native Kasse mit TSE — Coming soon. Bestellungen, Kassenläufe und Auswertungen folgen als Add-on.",
   events:
     "Veranstaltungen planen, Gäste und Ablauf — strukturiert im Betriebsalltag.",
   kontakte:
@@ -60,6 +61,8 @@ const MODULE_ACCENTS: Record<SidebarModuleId, string> = {
   mitarbeiter: "from-blue-500/20 via-indigo-500/10 to-transparent",
 };
 
+const COMING_SOON_MODULE_IDS = new Set<SidebarModuleId>(["pos"]);
+
 /** Scroll-Story: ein Slide pro Sidebar-Modul (Reihenfolge wie in der App). */
 export const LANDING_FEATURE_ITEMS: LandingFeatureItem[] =
   SIDEBAR_MODULE_DEFINITIONS.map((def) => ({
@@ -69,4 +72,5 @@ export const LANDING_FEATURE_ITEMS: LandingFeatureItem[] =
     icon: def.icon,
     accent: MODULE_ACCENTS[def.id],
     visual: def.id,
+    comingSoon: COMING_SOON_MODULE_IDS.has(def.id),
   }));

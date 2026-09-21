@@ -160,6 +160,18 @@ async function ensurePortal(
   }
 }
 
+const BILLING_WEBHOOK_EVENTS = [
+  "checkout.session.completed",
+  "customer.subscription.created",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+  "invoice.paid",
+  "invoice.payment_failed",
+  "invoice.finalized",
+  "invoice.updated",
+  "invoice.voided",
+] as const;
+
 async function ensureWebhook(
   stripe: Stripe,
   opts: { url: string; existingId?: string },
@@ -172,6 +184,14 @@ async function ensureWebhook(
     const listed = await stripe.webhookEndpoints.list({ limit: 100 });
     const existing = listed.data.find((w) => w.url === opts.url);
     if (existing) {
+      const current = new Set(existing.enabled_events ?? []);
+      const missing = BILLING_WEBHOOK_EVENTS.filter((e) => !current.has(e));
+      if (missing.length > 0) {
+        const enabled_events = [
+          ...new Set([...existing.enabled_events, ...BILLING_WEBHOOK_EVENTS]),
+        ];
+        await stripe.webhookEndpoints.update(existing.id, { enabled_events });
+      }
       return { id: existing.id, secret: null };
     }
   } catch {
@@ -182,14 +202,7 @@ async function ensureWebhook(
     const created = await stripe.webhookEndpoints.create({
       url: opts.url,
       description: "Gwada SaaS billing",
-      enabled_events: [
-        "checkout.session.completed",
-        "customer.subscription.created",
-        "customer.subscription.updated",
-        "customer.subscription.deleted",
-        "invoice.paid",
-        "invoice.payment_failed",
-      ],
+      enabled_events: [...BILLING_WEBHOOK_EVENTS],
     });
     return { id: created.id, secret: created.secret ?? null };
   } catch (err) {

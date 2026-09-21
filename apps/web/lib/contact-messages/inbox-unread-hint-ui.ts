@@ -11,13 +11,44 @@ export function inboxUnreadHintLabel(
   return null;
 }
 
+/** Sichtbarer Status in der Inbox-Zeile — beide Ungelesen-Arten bekommen ein Label. */
+export function inboxUnreadStatusChipLabel(
+  unread: boolean,
+  hint: ConversationUnreadHint | null | undefined,
+): string | null {
+  if (!unread) return null;
+  return hint === "gwada_only" ? "In Gwada offen" : "Neu";
+}
+
+export function inboxUnreadStatusChipClassName(
+  hint: ConversationUnreadHint | null | undefined,
+): string {
+  return cn(
+    "inline-flex shrink-0 items-center rounded-md border px-1.5 py-px text-[10px] font-medium",
+    hint === "gwada_only"
+      ? "border-border/70 bg-muted/70 text-muted-foreground"
+      : "border-accent/40 bg-accent/15 text-accent",
+  );
+}
+
+export function inboxUnreadRowStripeClassName(
+  unread: boolean,
+  hint: ConversationUnreadHint | null | undefined,
+): string {
+  if (!unread) return "";
+  return cn(
+    "absolute inset-y-0 left-0 w-1",
+    hint === "gwada_only" ? "bg-muted-foreground/50" : "bg-accent",
+  );
+}
+
 export function inboxUnreadRowBackgroundClassName(
   unread: boolean,
   hint: ConversationUnreadHint | null | undefined,
 ): string {
   if (!unread) return "";
-  if (hint === "gwada_only") return "bg-muted/30";
-  return "bg-accent/[0.04]";
+  if (hint === "gwada_only") return "bg-muted/25";
+  return "bg-accent/10";
 }
 
 export function inboxUnreadAvatarClassName(
@@ -47,4 +78,12 @@ export function inboxUnreadCountBadgeClassName(
       ? "border border-border/60 bg-muted/50 text-muted-foreground"
       : "bg-accent text-accent-foreground",
   );
+}
+
+export function inboxUnreadNameClassName(
+  unread: boolean,
+  hint: ConversationUnreadHint | null | undefined,
+): string {
+  if (unread && hint !== "gwada_only") return "font-semibold text-foreground";
+  return "font-medium";
 }

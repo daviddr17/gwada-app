@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -9,43 +8,35 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  SoftNavLockContext,
+  SOFT_NAV_LOCK_FALLBACK,
+  normalizeNavHref,
+  type SoftNavLockValue,
+} from "@/lib/navigation/soft-nav-lock-context";
+import {
   coalesceSoftNavPush,
+  cancelSoftNavCoalescedPush,
   flushSoftNavPush,
 } from "@/lib/navigation/soft-nav-coalesced-push";
 import {
   beginSoftNavFlight,
   endSoftNavFlight,
 } from "@/lib/navigation/soft-nav-flight";
+import { isSoftNavPendingArrived } from "@/lib/navigation/module-home-keep-alive";
 
-type SoftNavLockValue = {
-  tryAcquireNavLock: (
-    event: { preventDefault: () => void },
-    targetHref: string,
-  ) => boolean;
-  /** Ziel-Route während Soft-Nav — Sidebar + Pending-Overlay. */
-  pendingHref: string | null;
-  /** Coalesced router.push — letzter Klick gewinnt. */
-  scheduleSoftNavPush: (href: string) => void;
-};
-
-const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
-
-const PENDING_CLEAR_FAILSAFE_MS = 6_000;
-const PENDING_RETRY_EXTRA_MS = 3_500;
-
-export function normalizeNavHref(href: string): string {
-  const path = href.split("?")[0]?.split("#")[0] ?? href;
-  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
-  return path || "/dashboard";
-}
+/** Erster Failsafe: ein Retry, dann Hard-Clear — Pending darf nie hängen. */
+const PENDING_CLEAR_FAILSAFE_MS = 4_500;
+const PENDING_RETRY_EXTRA_MS = 2_500;
+/** Absolute Obergrenze inkl. Retry — Overlay/Flight immer weg. */
+const PENDING_HARD_CLEAR_MS = 8_000;
 
 /**
  * Soft-Nav Pending — sofortiges UI-Feedback (Sidebar + Overlay).
- * Doppel-`router.push` auf dasselbe Ziel wird blockiert; neues Ziel ersetzt
- * das Pending (letzter Klick gewinnt). Pushes werden coalesced, Failsafe
- * retried einmal — kein Snap-back nach schnellen Modulwechseln.
+ * Trailing-coalesced `router.push` (letzter Klick gewinnt). Ein Failsafe-Retry,
+ * kein Recovery-/Repush-Loop — der hat Live-Nav unter Stress kaputt gemacht.
  */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -56,6 +47,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pendingTargetRef = useRef<string | null>(null);
   const pendingRawHrefRef = useRef<string | null>(null);
   const clearTimerRef = useRef<number | null>(null);
+  const hardClearTimerRef = useRef<number | null>(null);
   const paintClearRafRef = useRef<number | null>(null);
   const failsafeRetriedRef = useRef(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
@@ -64,11 +56,16 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     pendingTargetRef.current = null;
     pendingRawHrefRef.current = null;
     failsafeRetriedRef.current = false;
+    cancelSoftNavCoalescedPush();
     endSoftNavFlight();
     setPendingHref(null);
     if (clearTimerRef.current != null) {
       window.clearTimeout(clearTimerRef.current);
       clearTimerRef.current = null;
+    }
+    if (hardClearTimerRef.current != null) {
+      window.clearTimeout(hardClearTimerRef.current);
+      hardClearTimerRef.current = null;
     }
     if (paintClearRafRef.current != null) {
       window.cancelAnimationFrame(paintClearRafRef.current);
@@ -87,11 +84,9 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         const target = pendingTargetRef.current;
         const atTarget =
           target != null &&
-          normalizeNavHref(pathnameRef.current) === target;
+          isSoftNavPendingArrived(pathnameRef.current, target);
         if (raw && target && !atTarget && !failsafeRetriedRef.current) {
-          // Ein Retry statt Snap-back auf das Quell-Modul.
           failsafeRetriedRef.current = true;
-          // Coalesce-Queue leeren und hart erneut pushen.
           flushSoftNavPush(router);
           router.push(raw);
           armFailsafe(PENDING_RETRY_EXTRA_MS);
@@ -103,28 +98,36 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
     [clearPending, router],
   );
 
-  // Ziel erreicht → Cover erst nach Paint heben (kein Weiß/Dashboard-Flash).
+  const armHardClear = useCallback(() => {
+    if (hardClearTimerRef.current != null) {
+      window.clearTimeout(hardClearTimerRef.current);
+    }
+    hardClearTimerRef.current = window.setTimeout(() => {
+      hardClearTimerRef.current = null;
+      clearPending();
+    }, PENDING_HARD_CLEAR_MS);
+  }, [clearPending]);
+
+  // Ziel erreicht → Cover nach einem Paint heben (kein Weiß/Dashboard-Flash).
   useEffect(() => {
     const target = pendingTargetRef.current;
     if (target == null) return;
-    if (normalizeNavHref(pathname) !== target) return;
+    if (!isSoftNavPendingArrived(pathname, target)) return;
 
-    let raf2: number | null = null;
-    const raf1 = window.requestAnimationFrame(() => {
-      raf2 = window.requestAnimationFrame(() => {
-        paintClearRafRef.current = null;
-        if (pendingTargetRef.current === target) {
-          clearPending();
-        }
-      });
-      paintClearRafRef.current = raf2;
+    const raf = window.requestAnimationFrame(() => {
+      paintClearRafRef.current = null;
+      if (
+        pendingTargetRef.current === target &&
+        isSoftNavPendingArrived(pathnameRef.current, target)
+      ) {
+        clearPending();
+      }
     });
-    paintClearRafRef.current = raf1;
+    paintClearRafRef.current = raf;
 
     return () => {
-      window.cancelAnimationFrame(raf1);
-      if (raf2 != null) window.cancelAnimationFrame(raf2);
-      if (paintClearRafRef.current === raf1 || paintClearRafRef.current === raf2) {
+      window.cancelAnimationFrame(raf);
+      if (paintClearRafRef.current === raf) {
         paintClearRafRef.current = null;
       }
     };
@@ -141,8 +144,13 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const tryAcquireNavLock = useCallback(
     (_event: { preventDefault: () => void }, targetHref: string) => {
       const target = normalizeNavHref(targetHref);
-      // Bereits unterwegs dorthin — kein zweites push (Race / Jump-back).
-      if (pendingTargetRef.current === target) return false;
+      // Bereits am Ziel — kein zweites push.
+      if (
+        pendingTargetRef.current === target &&
+        isSoftNavPendingArrived(pathnameRef.current, target)
+      ) {
+        return false;
+      }
 
       pendingTargetRef.current = target;
       pendingRawHrefRef.current = targetHref;
@@ -153,29 +161,51 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
         paintClearRafRef.current = null;
       }
 
-      // Synchron: Nutzer sieht sofort Ziel-Titel/Skeleton — kein „nichts tun“.
-      setPendingHref(target);
+      // Pending-Chrome sofort painten, bevor der Microtask-Push läuft —
+      // fühlt sich auf Mobile spürbar direkter an.
+      flushSync(() => {
+        setPendingHref(target);
+      });
       armFailsafe(PENDING_CLEAR_FAILSAFE_MS);
+      armHardClear();
       return true;
     },
-    [armFailsafe],
+    [armFailsafe, armHardClear],
   );
+
+  // bfcache / Tab-Freeze: Pending nie „ewig“ stehen lassen.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) clearPending();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [clearPending]);
 
   useEffect(
     () => () => {
       if (clearTimerRef.current != null) {
         window.clearTimeout(clearTimerRef.current);
       }
+      if (hardClearTimerRef.current != null) {
+        window.clearTimeout(hardClearTimerRef.current);
+      }
       if (paintClearRafRef.current != null) {
         window.cancelAnimationFrame(paintClearRafRef.current);
       }
+      cancelSoftNavCoalescedPush();
+      endSoftNavFlight();
     },
     [],
   );
 
   return (
     <SoftNavLockContext.Provider
-      value={{ tryAcquireNavLock, pendingHref, scheduleSoftNavPush }}
+      value={{
+        tryAcquireNavLock,
+        pendingHref,
+        scheduleSoftNavPush,
+      }}
     >
       {children}
     </SoftNavLockContext.Provider>
@@ -189,3 +219,10 @@ export function useSoftNavLock(): SoftNavLockValue {
   }
   return ctx;
 }
+
+/** Layout-level consumers (z. B. Readiness) — kein Throw vor Dashboard-SPA-Shell. */
+export function useSoftNavLockOptional(): SoftNavLockValue {
+  return useContext(SoftNavLockContext) ?? SOFT_NAV_LOCK_FALLBACK;
+}
+
+export { normalizeNavHref };

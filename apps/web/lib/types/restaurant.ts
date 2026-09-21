@@ -60,6 +60,8 @@ export type RestaurantProfile = {
   street: string;
   postalCode: string;
   city: string;
+  /** ISO2 aus `countries` (zentrales Länderprofil). */
+  countryIso2: string;
   country: string;
   website: string;
   phone: string;

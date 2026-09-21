@@ -22,6 +22,7 @@ import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import type { WahaConnectResponse } from "@/lib/types/restaurant-integration";
 import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import { cn } from "@/lib/utils";
+import { WhatsappOutboxHealthPanel } from "@/components/settings/whatsapp-outbox-health-panel";
 
 const STATUS_LABEL: Record<string, string> = {
   disconnected: "Nicht verbunden",
@@ -434,6 +435,9 @@ export function WhatsappIntegrationCard() {
               </div>
             )}
           </div>
+        ) : null}
+        {restaurantId ? (
+          <WhatsappOutboxHealthPanel restaurantId={restaurantId} />
         ) : null}
       </SettingsIntegrationPanel>
 

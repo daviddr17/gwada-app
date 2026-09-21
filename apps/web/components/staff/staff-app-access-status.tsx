@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 type StaffAppAccessStatusProps = StaffAppAccessFields & {
   variant?: "table" | "drawer";
   className?: string;
+  /** App-Einladung wegen Plan-Limit nicht möglich. */
+  inviteBlocked?: boolean;
 };
 
 export function StaffAppAccessStatus({
@@ -20,6 +22,7 @@ export function StaffAppAccessStatus({
   linked_employee,
   variant = "table",
   className,
+  inviteBlocked = false,
 }: StaffAppAccessStatusProps) {
   const state = resolveStaffAppAccessState({
     profile_id,
@@ -75,7 +78,9 @@ export function StaffAppAccessStatus({
       >
         <p className="text-sm font-medium text-foreground">Kein App-Zugang</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Noch kein eigener Login zum Dashboard — Einladung unten senden.
+          {inviteBlocked
+            ? "Nutzergrenze erreicht — App-Einladung erst nach Upgrade oder nach Entziehen eines Zugangs."
+            : "Noch kein eigener Login zum Dashboard — Einladung unten senden."}
         </p>
       </div>
     );

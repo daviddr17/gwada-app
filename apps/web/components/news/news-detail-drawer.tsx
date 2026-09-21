@@ -221,7 +221,7 @@ export function NewsDetailDrawer({
                 ) : (
                   <>
                     {item.title ? (
-                      <p className="font-medium leading-snug">{item.title}</p>
+                      <p className="text-sm font-medium leading-snug">{item.title}</p>
                     ) : null}
                     <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
                       {item.body}

@@ -45,7 +45,7 @@ export function SupabaseDatabaseGate({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   /** Marketing + Login: keine Mount-DB-Probe (schneller; Login prüft bei Klick auf „Weiter“). */
   const skipDbProbe =
     pathname === "/" ||

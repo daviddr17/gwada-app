@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
 import type { Weekday } from "@/lib/types/restaurant";
+import { readAppLocaleCookie } from "@/i18n/locale-cookie";
 import {
   createEmptyRestaurantSetupDraft,
   RESTAURANT_SETUP_PROGRESS_STEPS,
@@ -36,6 +37,10 @@ import {
   restaurantSetupStepIndex,
   weeklyHoursFromSetupDraft,
 } from "@/lib/onboarding/restaurant-setup-steps";
+import {
+  applyAppLocale,
+  fetchProfileAppLocale,
+} from "@/lib/i18n/apply-app-locale";
 import {
   createWorkspaceRestaurant,
   createWorkspaceRestaurantErrorKey,
@@ -124,6 +129,26 @@ export function RestaurantSetupWizardOverlay({
     return () => window.clearTimeout(timer);
   }, [open, reducedMotion]);
 
+  // Align cookie/RSC messages with profile locale (e.g. stale `en` cookie).
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      const profileLocale = await fetchProfileAppLocale();
+      if (cancelled || !profileLocale) return;
+      const cookieLocale = readAppLocaleCookie();
+      if (cookieLocale === profileLocale && locale === profileLocale) return;
+      const result = await applyAppLocale(profileLocale);
+      if (cancelled || !result.ok) return;
+      if (profileLocale !== locale) {
+        router.refresh();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, locale, router]);
+
   useEffect(() => {
     if (!mounted) return;
     return acquireAppScrollLock();
@@ -202,6 +227,7 @@ export function RestaurantSetupWizardOverlay({
         postalCode: draft.postalCode,
         city: draft.city,
         country: draft.country || "DE",
+        defaultLocale: locale,
         weeklyHours: weeklyHoursFromSetupDraft(draft),
         accentHex: accent,
       });
@@ -222,7 +248,7 @@ export function RestaurantSetupWizardOverlay({
     } finally {
       setBusy(false);
     }
-  }, [busy, draft, onCompleted, t]);
+  }, [busy, draft, locale, onCompleted, t]);
 
   const handlePrimary = useCallback(() => {
     if (step === "welcome") {

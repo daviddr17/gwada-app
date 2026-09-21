@@ -11,6 +11,12 @@ import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezon
 import { GWADA_PRODUCTION_ORIGIN } from "@/lib/constants/gwada-domains";
 import { getPublicSiteUrl } from "@/lib/public-env";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import {
+  formatPoStatusEmailBodyHtml,
+  formatPoStatusPushDetails,
+  parsePoStatusLines,
+} from "@/lib/notifications/notification-po-status-copy";
+import { digestPushDetails } from "@/lib/notifications/notification-digest-server";
 
 function absoluteAppUrl(path: string): string {
   const base =
@@ -136,6 +142,8 @@ export type NotificationPushMessageResult = {
   subject: string;
   /** Nur Detailblock für E-Mail-Body (ohne Intro-Doppelung zur Karten-Überschrift) */
   emailDetails: string | null;
+  /** Fertiges HTML für den Karten-Inhalt, z. B. Positionstabelle. */
+  emailBodyHtml?: string | null;
   href: string;
   /** Roh-Code für Plattform-Icon in E-Mails (z. B. whatsapp) */
   platformCode?: string | null;
@@ -147,6 +155,7 @@ function buildPushMessage(params: {
   subject: string;
   href: string;
   details?: string | null;
+  emailBodyHtml?: string | null;
   platformCode?: string | null;
 }): NotificationPushMessageResult {
   const intro = params.prefix
@@ -160,6 +169,7 @@ function buildPushMessage(params: {
     subject: params.subject,
     text: textParts.join("\n\n"),
     emailDetails: detailBlock || null,
+    emailBodyHtml: params.emailBodyHtml?.trim() || null,
     href: params.href,
     platformCode: params.platformCode ?? null,
   };
@@ -221,6 +231,25 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "messages_follow_up": {
+      const contactName = pickString(p.contactName) ?? "Nachricht";
+      const reason = pickString(p.reason);
+      const when = formatPushDateTime(p.remindAt, timeZone);
+      const followHref = pickString(p.href);
+      return buildPushMessage({
+        prefix,
+        headline: "Später-Erinnerung fällig",
+        subject: `${prefix}Später — ${contactName}`,
+        href: followHref
+          ? absoluteAppUrl(followHref)
+          : absoluteAppUrl(moduleDef.href),
+        details: detailLines([
+          `Chat: ${contactName}`,
+          reason ? `Grund: ${reason}` : null,
+          when ? `Fällig: ${when}` : null,
+        ]),
+      });
+    }
     case "reviews": {
       const author = pickString(p.authorName) ?? "Gast";
       const rating = pickNumber(p.rating);
@@ -273,6 +302,20 @@ export function buildNotificationPushText(
         subject: `${prefix}Stornierung — ${guest}`,
         href,
         details: reservationDetails(p, timeZone),
+      });
+    }
+    case "events_inquiry": {
+      const guest = pickString(p.guestLabel) ?? "Gast";
+      const company = pickString(p.guestCompany);
+      return buildPushMessage({
+        prefix,
+        headline: "Neue Veranstaltungs-Anfrage",
+        subject: `${prefix}Veranstaltungs-Anfrage — ${guest}`,
+        href,
+        details: detailLines([
+          company ? `Firma: ${company}` : null,
+          reservationDetails(p, timeZone),
+        ]),
       });
     }
     case "staff_shift_start": {
@@ -335,6 +378,70 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "inventory_po_delivery_due": {
+      const supplier = pickString(p.supplierName) ?? "Lieferant";
+      const deliveryDate = pickString(p.deliveryDate);
+      const kind = pickString(p.kind);
+      const kindLabel =
+        kind === "overdue" ? "Überfällig" : "Lieferung heute";
+      return buildPushMessage({
+        prefix,
+        headline: kindLabel,
+        subject: `${prefix}${kindLabel} — ${supplier}`,
+        href,
+        details: detailLines([
+          `Lieferant: ${supplier}`,
+          deliveryDate ? `Lieferdatum: ${deliveryDate}` : null,
+          "Bitte Lieferung prüfen und Bestellung abschließen.",
+        ]),
+      });
+    }
+    case "inventory_po_ordered":
+    case "inventory_po_closed": {
+      const supplier = pickString(p.supplierName) ?? "Lieferant";
+      const ordered = event.module === "inventory_po_ordered";
+      const headline = ordered
+        ? "Bestellung aufgegeben"
+        : "Bestellung abgeschlossen";
+      const poLines = parsePoStatusLines(p.lines);
+      const poCopy = {
+        module: event.module,
+        supplierName: supplier,
+        deliveryDate: p.deliveryDate,
+        staffName: pickString(p.staffName),
+        lines: poLines,
+      };
+      return buildPushMessage({
+        prefix,
+        headline,
+        subject: `${prefix}${headline} — ${supplier}`,
+        href,
+        details: formatPoStatusPushDetails(poCopy),
+        emailBodyHtml: formatPoStatusEmailBodyHtml(poCopy),
+      });
+    }
+    case "digest_daily_preview":
+    case "digest_daily_review":
+    case "digest_weekly_preview":
+    case "digest_weekly_review": {
+      return buildPushMessage({
+        prefix,
+        headline: moduleDef.label,
+        subject: `${prefix}${moduleDef.label}`,
+        href,
+        details: digestPushDetails(p),
+      });
+    }
+    case "inventory_po_activity":
+    case "inventory_stock_activity":
+    case "reservations_activity":
+      return buildPushMessage({
+        prefix,
+        headline: moduleDef.label,
+        subject: `${prefix}${moduleDef.label}`,
+        href,
+        details: detailLines([]),
+      });
     case "accounting_quotation": {
       const title = pickString(p.title) ?? "Neues Angebot";
       const number = pickString(p.voucherNumber);
@@ -415,6 +522,27 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "personal_reminder": {
+      const title = pickString(p.title) ?? "Erinnerung";
+      return buildPushMessage({
+        prefix,
+        headline: "Persönliche Erinnerung",
+        subject: `${prefix}Erinnerung — ${title}`,
+        href: "/dashboard/checklisten/meine",
+        details: detailLines([title, pickString(p.body)]),
+      });
+    }
+    case "staff_messages": {
+      const peer = pickString(p.peerName) ?? "Kollege";
+      const preview = pickString(p.preview) ?? "Neue Nachricht";
+      return buildPushMessage({
+        prefix,
+        headline: "Team-Nachricht",
+        subject: `${prefix}Nachricht von ${peer}`,
+        href: "/dashboard/checklisten/nachrichten",
+        details: detailLines([`${peer}: ${preview}`]),
+      });
+    }
     case "staff_contract_signed": {
       const title = pickString(p.contractTitle) ?? "Arbeitsvertrag";
       const revised = p.revised === true;
@@ -439,6 +567,19 @@ export function buildNotificationPushText(
           pending
             ? "Bitte im Profil unter „Meine Dokumente“ unterschreiben."
             : "Im Profil unter „Meine Dokumente“ einsehbar und herunterladbar.",
+        ]),
+      });
+    }
+    case "staff_document_assigned": {
+      const title = pickString(p.documentTitle) ?? "Dokument";
+      return buildPushMessage({
+        prefix,
+        headline: "Neues Dokument",
+        subject: `${prefix}Neues Dokument — ${title}`,
+        href: APP_ROUTES.profile.documents,
+        details: detailLines([
+          title,
+          "Im Profil unter „Meine Dokumente“ einsehbar und herunterladbar.",
         ]),
       });
     }

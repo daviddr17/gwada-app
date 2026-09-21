@@ -50,13 +50,6 @@ export const MODULE_HOME_IDLE_PREWARM_IDS: readonly ModuleHomeId[] = [
 /** Max. zusätzliche warme Homes neben Dashboard + aktuellem Home (LRU). */
 export const MODULE_HOME_MAX_EXTRA_WARM = 4;
 
-/** @deprecated */
-export const MODULE_HOME_PRIORITY_PREWARM_IDS = MODULE_HOME_IDLE_PREWARM_IDS;
-/** @deprecated — Secondary nur noch per Intent. */
-export const MODULE_HOME_SECONDARY_PREWARM_IDS: readonly ModuleHomeId[] = [];
-/** @deprecated */
-export const MODULE_HOME_PREWARM_IDS = MODULE_HOME_IDLE_PREWARM_IDS;
-
 export const MODULE_HOME_IDS = Object.keys(
   MODULE_HOME_PATHS,
 ) as ModuleHomeId[];
@@ -67,18 +60,29 @@ function normalizePath(pathname: string): string {
   return path || APP_ROUTES.dashboard;
 }
 
+/** `/dashboard/menu` ≡ Übersicht, `/dashboard/kontakte` ≡ Nachrichten, … */
+export function moduleHomeRootAlias(homePath: string): string | null {
+  const parts = normalizePath(homePath).split("/").filter(Boolean);
+  if (parts[0] !== "dashboard" || parts.length < 3) return null;
+  return `/${parts[0]}/${parts[1]}`;
+}
+
 export function isModuleHomePath(
   pathname: string,
   id: ModuleHomeId,
 ): boolean {
   if (id === "dashboard") return isDashboardHomePath(pathname);
   const path = normalizePath(pathname);
-  if (path === MODULE_HOME_PATHS[id]) return true;
-  if (id === "events" && path === APP_ROUTES.events.root) return true;
-  return false;
+  const homePath = normalizePath(MODULE_HOME_PATHS[id]);
+  if (path === homePath) return true;
+  const alias = moduleHomeRootAlias(homePath);
+  return alias != null && path === alias;
 }
 
-export function matchModuleHomeId(pathname: string): ModuleHomeId | null {
+export function matchModuleHomeId(
+  pathname: string | null | undefined,
+): ModuleHomeId | null {
+  if (!pathname) return null;
   const path = normalizePath(pathname);
   for (const id of MODULE_HOME_IDS) {
     if (isModuleHomePath(path, id)) return id;
@@ -92,6 +96,105 @@ export function isWarmModuleHomePending(
 ): boolean {
   const id = matchModuleHomeId(pendingHref);
   return id != null && warmIds.has(id);
+}
+
+/**
+ * Soft-Nav-Ziel erreicht — inkl. Home-Aliase
+ * (`/dashboard/menu` Redirect → `/dashboard/menu/uebersicht`).
+ * Unterrouten (Einstellungen, Statistiken, …) nur bei exaktem Pfad.
+ */
+export function isSoftNavPendingArrived(
+  pathname: string,
+  pendingTarget: string,
+): boolean {
+  const path = normalizePath(pathname);
+  const dest = normalizePath(pendingTarget);
+  if (path === dest) return true;
+  const pathHome = matchModuleHomeId(path);
+  const destHome = matchModuleHomeId(dest);
+  return pathHome != null && pathHome === destHome;
+}
+
+/**
+ * Pathname hat die Quelle verlassen, ohne am Pending-Ziel (inkl. Home-Alias)
+ * anzukommen — nur bei Unterrouten (Einstellungen, Statistiken, …).
+ *
+ * Nicht aufgeben, wenn ein älterer RSC auf einem *anderen Modul-Home*
+ * ankommt (Speisekarte-Flight, während Events schon pending ist).
+ */
+export function shouldAbandonSoftNavPending(
+  pathname: string,
+  pendingFrom: string | null,
+  pendingTarget: string | null,
+): boolean {
+  if (pendingFrom == null || pendingTarget == null) return false;
+  if (isSoftNavPendingArrived(pathname, pendingTarget)) return false;
+  const path = normalizePath(pathname);
+  if (path === normalizePath(pendingFrom)) return false;
+  if (matchModuleHomeId(path) != null) return false;
+  return true;
+}
+
+/**
+ * Soft-Nav erneut pushen: Push wurde geschluckt (noch Quelle) oder ein
+ * älterer RSC hat ein anderes Modul-Home eingesetzt.
+ * Nicht bei Unterrouten (Einstellungen) — dort gibt Pending auf.
+ */
+export function shouldRepushSoftNav(
+  pathname: string,
+  pendingFrom: string | null,
+  pendingTarget: string | null,
+): boolean {
+  if (pendingFrom == null || pendingTarget == null) return false;
+  if (isSoftNavPendingArrived(pathname, pendingTarget)) return false;
+  if (shouldAbandonSoftNavPending(pathname, pendingFrom, pendingTarget)) {
+    return false;
+  }
+  return true;
+}
+
+export type ModuleHomeSlotVisibility = {
+  warm: boolean;
+  visible: boolean;
+  active: boolean;
+};
+
+/**
+ * Welches Keep-alive-Home den Scroll-Bereich füllt.
+ * Quelle während eines Flights zu einem anderen Home nie sichtbar halten —
+ * sonst bleibt der alte Inhalt unter der neuen Überschrift.
+ */
+export function moduleHomeSlotVisibility({
+  id,
+  activeHomeId,
+  pendingHomeId,
+  pendingInFlight,
+  warmFlag,
+  suppressHomeId = null,
+}: {
+  id: ModuleHomeId;
+  activeHomeId: ModuleHomeId | null;
+  pendingHomeId: ModuleHomeId | null;
+  pendingInFlight: boolean;
+  warmFlag: boolean;
+  /** Quelle nach Ankunft noch kurz unterdrücken — späte RSC-Reverts ohne Dashboard-Flash. */
+  suppressHomeId?: ModuleHomeId | null;
+}): ModuleHomeSlotVisibility {
+  const onHome = activeHomeId === id;
+  const pendingToThis =
+    pendingInFlight && pendingHomeId === id && !onHome;
+  const warm =
+    warmFlag ||
+    onHome ||
+    (pendingInFlight && pendingHomeId === id);
+  const showAsSource =
+    onHome && !pendingInFlight && suppressHomeId !== id;
+  const arrivedPending = onHome && pendingInFlight && pendingHomeId === id;
+  return {
+    warm,
+    visible: showAsSource || pendingToThis || arrivedPending,
+    active: showAsSource || arrivedPending,
+  };
 }
 
 export function keepAliveMayNavigate(active: boolean): boolean {

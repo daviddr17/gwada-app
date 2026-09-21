@@ -23,9 +23,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import {
+  isSilentClientSendResult,
   sendContactMessageUserMessage,
   type SendContactMessageApiResult,
 } from "@/lib/contact-messages/trigger-send-contact-message";
+import { shouldSilenceClientSendFailure } from "@/lib/network/client-send-abort";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { cn } from "@/lib/utils";
 
@@ -260,6 +262,7 @@ export function ReviewInvitationSheet({
     }
 
     setSending(true);
+    onOpenChange(false);
     try {
       const res = await fetch("/api/reviews/invitations/send", {
         method: "POST",
@@ -292,8 +295,10 @@ export function ReviewInvitationSheet({
         if (sendWhatsapp) {
           onWhatsappOutboundFailure?.({ clientSendId });
         }
-        const warn = sendContactMessageUserMessage(data);
-        toast.error(warn ?? "Senden fehlgeschlagen.");
+        if (!isSilentClientSendResult(data)) {
+          const warn = sendContactMessageUserMessage(data);
+          toast.error(warn ?? "Senden fehlgeschlagen.");
+        }
         return;
       }
       if (sendWhatsapp) {
@@ -308,12 +313,13 @@ export function ReviewInvitationSheet({
       const warn = sendContactMessageUserMessage(data);
       if (warn) toast.warning(warn);
       else toast.success("Einladung gesendet.");
-      onOpenChange(false);
-    } catch {
+    } catch (e) {
       if (sendWhatsapp) {
         onWhatsappOutboundFailure?.({ clientSendId });
       }
-      toast.error("Senden fehlgeschlagen.");
+      if (!shouldSilenceClientSendFailure(e)) {
+        toast.error("Senden fehlgeschlagen.");
+      }
     } finally {
       setSending(false);
     }
@@ -438,9 +444,14 @@ export function ReviewInvitationSheet({
               {!channelsLoading && !canWhatsapp && !canEmail ? (
                 <p className="text-xs text-muted-foreground">
                   Kein Versandkanal aktiv — Link oben kopieren und manuell teilen.
-                  Unter Einstellungen → Integrationen WhatsApp oder E-Mail aktivieren.
+                  {whatsappEnabled
+                    ? " Unter Einstellungen → Integrationen WhatsApp oder E-Mail aktivieren."
+                    : emailEnabled
+                      ? " Unter Einstellungen → Integrationen E-Mail aktivieren."
+                      : ""}
                 </p>
               ) : null}
+              {whatsappEnabled ? (
               <div
                 className={cn(
                   "flex items-center justify-between gap-3",
@@ -472,6 +483,7 @@ export function ReviewInvitationSheet({
                   onCheckedChange={(v) => void handleWhatsappToggle(v === true)}
                 />
               </div>
+              ) : null}
               <div
                 className={cn(
                   "flex items-center justify-between gap-3",

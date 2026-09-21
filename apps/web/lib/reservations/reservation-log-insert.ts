@@ -3,9 +3,8 @@ import type {
   ReservationLogAction,
   ReservationLogDetails,
 } from "@/lib/types/reservation-log";
-import { resolveReservationLogActorNames } from "@/lib/reservations/reservation-log-actor-resolve";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
+/** Shared Server/Browser: nur DB-Insert (kein Live-Verlauf / kein window). */
 export async function insertReservationLogEntry(
   supabase: SupabaseClient,
   params: {
@@ -17,10 +16,10 @@ export async function insertReservationLogEntry(
     guestLabel: string;
     details?: ReservationLogDetails;
   },
-): Promise<void> {
+): Promise<{ id: string | null; createdAt: string | null }> {
   const details: ReservationLogDetails = params.details ?? {};
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("restaurant_reservation_log_entries")
     .insert({
       restaurant_id: params.restaurantId,
@@ -30,55 +29,17 @@ export async function insertReservationLogEntry(
       reservation_number: params.reservationNumber,
       guest_label: params.guestLabel.trim(),
       details,
-    });
+    })
+    .select("id, created_at")
+    .maybeSingle();
 
   if (error) {
     console.warn("[gwada] restaurant_reservation_log_entries", error.message);
-  }
-}
-
-export async function insertReservationLogFromBrowser(params: {
-  restaurantId: string;
-  reservationId: string | null;
-  action: ReservationLogAction;
-  reservationNumber: number | null;
-  guestLabel: string;
-  details?: ReservationLogDetails;
-}): Promise<void> {
-  const supabase = createSupabaseBrowserClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let details = params.details ?? { actorSource: "staff" as const };
-  if (user && details.actorSource !== "guest" && details.actorSource !== "display") {
-    const hasName = Boolean(
-      details.actorGivenName?.trim() || details.actorFamilyName?.trim(),
-    );
-    if (!hasName) {
-      const actor = await resolveReservationLogActorNames(supabase, {
-        restaurantId: params.restaurantId,
-        actorUserId: user.id,
-      });
-      if (actor) {
-        details = {
-          ...details,
-          actorGivenName: actor.actorGivenName,
-          actorFamilyName: actor.actorFamilyName,
-          actorSource: details.actorSource ?? "staff",
-        };
-      }
-    } else {
-      details = {
-        ...details,
-        actorSource: details.actorSource ?? "staff",
-      };
-    }
+    return { id: null, createdAt: null };
   }
 
-  await insertReservationLogEntry(supabase, {
-    ...params,
-    actorUserId: user?.id ?? null,
-    details,
-  });
+  return {
+    id: typeof data?.id === "string" ? data.id : null,
+    createdAt: typeof data?.created_at === "string" ? data.created_at : null,
+  };
 }

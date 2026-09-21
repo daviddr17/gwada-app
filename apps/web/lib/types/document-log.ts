@@ -5,7 +5,7 @@ export type DocumentLogAction =
   | "note_updated"
   | "note_added";
 
-export type DocumentLogChangeField = "title" | "tag";
+export type DocumentLogChangeField = "title" | "tag" | "staff" | "visible_to_staff";
 
 export type DocumentLogChange = {
   field: DocumentLogChangeField;

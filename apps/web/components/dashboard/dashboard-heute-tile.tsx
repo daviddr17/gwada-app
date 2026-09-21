@@ -1,22 +1,23 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
-  Bell,
   Cake,
   CalendarDays,
-  CheckCircle2,
+  ChevronRight,
   Clock,
+  ListChecks,
   MessageCircle,
   Package,
   Sun,
-  UserCheck,
 } from "lucide-react";
-import { DashboardCompactInlineMetrics } from "@/components/dashboard/dashboard-compact-list";
-import { DashboardHeuteAufmerksamkeitSheet } from "@/components/dashboard/dashboard-heute-aufmerksamkeit-sheet";
 import { DashboardHeuteBirthdaysSheet } from "@/components/dashboard/dashboard-heute-birthdays-sheet";
+import { DashboardHeuteAllClear } from "@/components/dashboard/dashboard-heute-all-clear";
+import { DashboardHeuteChecklistsSheet } from "@/components/dashboard/dashboard-heute-checklists-sheet";
+import { DashboardHeuteLiveEventSheet } from "@/components/dashboard/dashboard-heute-live-event-sheet";
 import { DashboardHeuteWorkHoursSheet } from "@/components/dashboard/dashboard-heute-work-hours-sheet";
 import { DashboardInventoryAlertsSheet } from "@/components/dashboard/dashboard-inventory-alerts-sheet";
 import { DashboardMessagesListSheet } from "@/components/dashboard/dashboard-messages-list-sheet";
@@ -25,14 +26,17 @@ import {
   type DashboardReservationsListSheetMode,
 } from "@/components/dashboard/dashboard-reservations-list-sheet";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
+import { DashboardHeuteLiveTimeline } from "@/components/dashboard/dashboard-heute-live-timeline";
 import {
   StaffOverviewLivePresenceSheet,
   type StaffLivePresenceSheetMode,
 } from "@/components/staff/staff-overview-live-presence-sheet";
-import { StaffOverviewCompletedShiftsSheet } from "@/components/staff/staff-overview-completed-shifts-sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { resolveHeuteLiveSheetTarget } from "@/lib/dashboard/dashboard-heute-live-sheet-target";
+import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
+import { useDashboardModuleBatchStats } from "@/lib/hooks/use-dashboard-module-batch-stats";
 import { useDashboardReservationStats } from "@/lib/hooks/use-dashboard-reservation-stats";
 import { useDashboardStaffStats } from "@/lib/hooks/use-dashboard-staff-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -48,103 +52,162 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { listStaffBirthdaysToday } from "@/lib/staff/staff-birthdays-today";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
+import { DASHBOARD_HOME } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
-type HeuteMetricTone =
-  | "neutral"
-  | "accent"
-  | "attention"
-  | "success"
-  | "warning"
-  | "break"
-  | "birthday";
+type HeuteActionTone = "attention" | "warning" | "birthday";
 
-const HEUTE_METRIC_TONE_CLASS: Record<HeuteMetricTone, string> = {
-  neutral: "border-border/50 bg-background/70",
-  accent:
-    "border-accent/45 bg-accent/12 shadow-[inset_0_1px_0_0_color-mix(in_oklch,var(--accent)_25%,transparent)]",
+const ACTION_TONE_STRIPE: Record<HeuteActionTone, string> = {
+  attention: "bg-blue-500",
+  warning: "bg-amber-500",
+  birthday: "bg-pink-500",
+};
+
+const ACTION_TONE_SHELL: Record<HeuteActionTone, string> = {
   attention:
-    "border-blue-500/40 bg-blue-500/12 dark:border-blue-400/35 dark:bg-blue-500/15",
-  success:
-    "border-emerald-500/40 bg-emerald-500/12 dark:border-emerald-400/35 dark:bg-emerald-500/15",
+    "border-blue-500/35 bg-blue-500/[0.07] hover:bg-blue-500/[0.11] dark:border-blue-400/30 dark:bg-blue-500/10 dark:hover:bg-blue-500/15",
   warning:
-    "border-amber-500/45 bg-amber-500/14 dark:border-amber-400/35 dark:bg-amber-500/15",
-  break:
-    "border-amber-400/40 bg-amber-400/12 dark:border-amber-300/30 dark:bg-amber-400/12",
+    "border-amber-500/40 bg-amber-500/[0.08] hover:bg-amber-500/[0.12] dark:border-amber-400/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/15",
   birthday:
-    "border-pink-500/40 bg-pink-500/12 dark:border-pink-400/35 dark:bg-pink-500/15",
+    "border-pink-500/35 bg-pink-500/[0.07] hover:bg-pink-500/[0.11] dark:border-pink-400/30 dark:bg-pink-500/10 dark:hover:bg-pink-500/15",
 };
 
-const HEUTE_METRIC_VALUE_CLASS: Record<HeuteMetricTone, string> = {
-  neutral: "text-foreground",
-  accent: "text-foreground",
-  attention: "text-blue-700 dark:text-blue-300",
-  success: "text-emerald-800 dark:text-emerald-300",
-  warning: "text-amber-800 dark:text-amber-300",
-  break: "text-amber-800 dark:text-amber-200",
-  birthday: "text-pink-800 dark:text-pink-300",
+type HeuteActionItem = {
+  id: string;
+  title: string;
+  meta: string;
+  tone: HeuteActionTone;
+  icon: ReactNode;
+  onClick: () => void;
 };
 
-function HeuteMetricPill({
-  label,
-  value,
-  onClick,
-  tone = "neutral",
-  icon,
-}: {
+type HeuteLageItem = {
+  id: string;
   label: string;
   value: string;
+  meta: string;
+  icon: ReactNode;
   onClick: () => void;
-  tone?: HeuteMetricTone;
-  icon?: ReactNode;
-}) {
-  const shellClass = cn(
-    "inline-flex min-w-0 rounded-lg border text-left transition-colors",
-    HEUTE_METRIC_TONE_CLASS[tone],
-    "cursor-pointer hover:brightness-[1.02] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-  );
+  emphasize?: boolean;
+};
 
-  const content = (
-    <div className="flex min-w-0 items-center gap-1.5 px-2 py-1">
-      {icon ? (
-        <span className="shrink-0 text-muted-foreground [&_svg]:size-3">{icon}</span>
-      ) : null}
-      <div className="min-w-0">
-        <span className="block truncate text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </span>
-        <span
-          className={cn(
-            "block truncate text-xs font-semibold tabular-nums leading-tight",
-            HEUTE_METRIC_VALUE_CLASS[tone],
-          )}
-        >
-          {value}
-        </span>
-      </div>
-    </div>
-  );
-
+function HeuteSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className={shellClass}>
-      {content}
+    <h3 className="px-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+      {children}
+    </h3>
+  );
+}
+
+function HeuteActionRow({ item }: { item: HeuteActionItem }) {
+  return (
+    <button
+      type="button"
+      onClick={item.onClick}
+      className={cn(
+        "flex w-full min-h-12 items-stretch gap-2.5 rounded-xl border px-2.5 py-2.5 text-left transition-colors sm:min-h-14 sm:gap-3 sm:px-3 sm:py-3",
+        "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        ACTION_TONE_SHELL[item.tone],
+      )}
+    >
+      <span
+        className={cn(
+          "w-1 shrink-0 self-stretch rounded-full",
+          ACTION_TONE_STRIPE[item.tone],
+        )}
+        aria-hidden
+      />
+      <span className="flex size-8 shrink-0 items-center justify-center self-center rounded-lg bg-background/60 text-muted-foreground sm:size-9 [&_svg]:size-4">
+        {item.icon}
+      </span>
+      <span className="min-w-0 flex-1 self-center">
+        <span className="block text-sm font-semibold leading-snug text-foreground sm:text-[0.9375rem]">
+          {item.title}
+        </span>
+        <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+          {item.meta}
+        </span>
+      </span>
+      <ChevronRight
+        className="size-4 shrink-0 self-center text-muted-foreground/70"
+        aria-hidden
+      />
+    </button>
+  );
+}
+
+function HeuteLageTile({ item }: { item: HeuteLageItem }) {
+  return (
+    <button
+      type="button"
+      onClick={item.onClick}
+      className={cn(
+        "flex min-h-[4.75rem] w-full flex-col justify-between rounded-xl border border-border/50 bg-background/65 p-3 text-left transition-colors",
+        "hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "sm:min-h-[5.25rem] sm:p-3.5",
+        item.emphasize &&
+          "border-accent/40 bg-accent/[0.07] shadow-[inset_0_1px_0_0_color-mix(in_oklch,var(--accent)_20%,transparent)]",
+      )}
+    >
+      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="[&_svg]:size-3.5">{item.icon}</span>
+        {item.label}
+      </span>
+      <span className="mt-2">
+        <span className="block text-xl font-semibold tabular-nums tracking-tight text-foreground sm:text-2xl">
+          {item.value}
+        </span>
+        <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+          {item.meta}
+        </span>
+      </span>
     </button>
   );
 }
 
 function DashboardHeuteTileSkeleton() {
   return (
-    <div className="space-y-2" aria-busy="true">
-      <div className="flex flex-wrap gap-1.5">
-        {Array.from({ length: 7 }).map((_, i) => (
-          <Skeleton key={i} className="h-9 w-[5.25rem] rounded-lg" />
-        ))}
+    <div className="space-y-4" aria-busy="true">
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-24 rounded" />
+        <Skeleton className="h-[4.25rem] w-full rounded-xl" />
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-20 rounded" />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Skeleton className="h-[5rem] w-full rounded-xl" />
+          <Skeleton className="h-[5rem] w-full rounded-xl" />
+        </div>
       </div>
     </div>
   );
 }
 
+function pluralDe(count: number, one: string, many: string): string {
+  return count === 1 ? one : many;
+}
+
+type DashboardStatSlice = {
+  ready: boolean;
+  loading: boolean;
+  summary: unknown;
+  error?: string | null;
+  hasSettledFetch?: boolean;
+};
+
+function isDashboardStatSettled(slice: DashboardStatSlice): boolean {
+  if (!slice.ready) return false;
+  if (slice.summary != null) return true;
+  // Fehler oder fertiger Batch ohne Slice → nicht ewig Skeleton.
+  if (slice.error) return true;
+  // Vor dem ersten Fetch ist loading oft noch false — das darf nicht
+  // schon „Alles erledigt“ aufblitzen lassen.
+  if (slice.hasSettledFetch === false) return false;
+  return !slice.loading;
+}
+
 export function DashboardHeuteTile() {
+  const pathname = usePathname();
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
@@ -154,17 +217,18 @@ export function DashboardHeuteTile() {
   const staff = useDashboardStaffStats();
   const messages = useDashboardMessagesStats();
   const inventory = useDashboardInventoryStats();
+  const checklists = useDashboardModuleBatchStats("checklists");
 
   const [reservationSheetMode, setReservationSheetMode] =
     useState<DashboardReservationsListSheetMode | null>(null);
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
-  const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
   const [workHoursSheetOpen, setWorkHoursSheetOpen] = useState(false);
-  const [aufmerksamkeitSheetOpen, setAufmerksamkeitSheetOpen] = useState(false);
   const [messagesSheetOpen, setMessagesSheetOpen] = useState(false);
   const [inventorySheetOpen, setInventorySheetOpen] = useState(false);
   const [birthdaysSheetOpen, setBirthdaysSheetOpen] = useState(false);
+  const [checklistsSheetOpen, setChecklistsSheetOpen] = useState(false);
+  const [liveEventItem, setLiveEventItem] = useState<LiveActivityItem | null>(null);
 
   const accessOptions = {
     permissionsLoading,
@@ -178,21 +242,26 @@ export function DashboardHeuteTile() {
     staff: hasDashboardWidgetAccess(has, "staff", accessOptions),
     messages: hasDashboardWidgetAccess(has, "messages", accessOptions),
     inventory: hasDashboardWidgetAccess(has, "inventory", accessOptions),
+    checklists: hasDashboardWidgetAccess(has, "checklists", accessOptions),
   };
 
+  const heuteStatSlices = useMemo((): DashboardStatSlice[] => {
+    const slices: DashboardStatSlice[] = [];
+    if (can.reservations) slices.push(reservations);
+    if (can.staff) slices.push(staff);
+    if (can.messages) slices.push(messages);
+    if (can.inventory) slices.push(inventory);
+    if (can.checklists) slices.push(checklists);
+    return slices;
+  }, [can, checklists, inventory, messages, reservations, staff]);
+
+  const allHeuteStatsSettled =
+    heuteStatSlices.length === 0 ||
+    heuteStatSlices.every(isDashboardStatSettled);
+
   const ready =
-    reservations.ready ||
-    staff.ready ||
-    messages.ready ||
-    inventory.ready;
-
-  const loading =
-    (reservations.loading && !reservations.summary) ||
-    (staff.loading && !staff.summary) ||
-    (messages.loading && !messages.summary) ||
-    (inventory.loading && !inventory.summary);
-
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+    heuteStatSlices.length === 0 ||
+    heuteStatSlices.some((slice) => slice.ready);
 
   const todayLabel = useMemo(
     () =>
@@ -202,11 +271,6 @@ export function DashboardHeuteTile() {
         month: "long",
       }).format(new Date()),
     [restaurantTimeZone],
-  );
-
-  const unconfirmedRecent = useMemo(
-    () => (can.reservations ? reservations.summary?.unconfirmedList ?? [] : []),
-    [can.reservations, reservations.summary],
   );
 
   const unreadMessages = useMemo(
@@ -219,18 +283,12 @@ export function DashboardHeuteTile() {
     [staff.staff],
   );
 
-  const inventoryAlerts =
-    (inventory.summary?.emptyStock ?? 0) > 0 ||
-    (inventory.summary?.openOrders ?? 0) > 0;
-
-  const canShowAufmerksamkeit = can.reservations || can.messages;
   const unconfirmedCount = can.reservations
     ? (reservations.summary?.unconfirmedCount ?? 0)
     : 0;
   const unreadMessageCount = can.messages
     ? (messages.summary?.total_unread ?? 0)
     : 0;
-  const aufmerksamkeitCount = unconfirmedCount + unreadMessageCount;
 
   const staffTodayYmd = restaurantTodayYmd(restaurantTimeZone);
   const todayWorkHours = staff.summary?.todayWorkHours ?? 0;
@@ -238,18 +296,329 @@ export function DashboardHeuteTile() {
     reservations.summary?.todayUpcomingReservations ?? 0;
   const todayUpcomingGuests = reservations.summary?.todayUpcomingGuests ?? 0;
 
+  const deliveriesDueToday = inventory.summary?.deliveriesDueToday ?? 0;
+  const deliveriesOverdue = inventory.summary?.deliveriesOverdue ?? 0;
+  const emptyStock = inventory.summary?.emptyStock ?? 0;
+  const openOrders = inventory.summary?.openOrders ?? 0;
+  const deliveryDueTotal = deliveriesDueToday + deliveriesOverdue;
+  const inventoryOtherAlerts = emptyStock > 0 || openOrders > 0;
+
   const birthdaysToday = useMemo(
     () =>
       can.staff ? listStaffBirthdaysToday(staff.staff, staffTodayYmd) : [],
     [can.staff, staff.staff, staffTodayYmd],
   );
 
+  const actionItems = useMemo((): HeuteActionItem[] => {
+    const items: HeuteActionItem[] = [];
+
+    if (can.reservations && unconfirmedCount > 0) {
+      items.push({
+        id: "reservations-unconfirmed",
+        title: `${unconfirmedCount} ${pluralDe(
+          unconfirmedCount,
+          "Reservierung wartet",
+          "Reservierungen warten",
+        )} auf Bestätigung`,
+        meta: "Sofort prüfen",
+        tone: "attention",
+        icon: <AlertTriangle aria-hidden />,
+        onClick: () => setReservationSheetMode("unconfirmed"),
+      });
+    }
+
+    if (can.messages && unreadMessageCount > 0) {
+      items.push({
+        id: "messages-unread",
+        title: `${unreadMessageCount} ${pluralDe(
+          unreadMessageCount,
+          "ungelesene Nachricht",
+          "ungelesene Nachrichten",
+        )}`,
+        meta: "Gäste warten auf Antwort",
+        tone: "attention",
+        icon: <MessageCircle aria-hidden />,
+        onClick: () => setMessagesSheetOpen(true),
+      });
+    }
+
+    if (can.checklists && checklists.summary) {
+      // Nur mit todos[] — count-only Placeholder/Legacy würde sonst „1 offen“ flashen.
+      const previewTodos = Array.isArray(checklists.summary.todos)
+        ? checklists.summary.todos
+        : null;
+      if (previewTodos) {
+        const overdueTodos = previewTodos.filter(
+          (todo) => todo.status === "overdue",
+        ).length;
+        const openTodos = previewTodos.length;
+        const singleTodo =
+          previewTodos.length === 1 ? previewTodos[0] : undefined;
+        if (overdueTodos > 0) {
+          items.push({
+            id: "checklists-overdue",
+            title:
+              singleTodo && overdueTodos === 1
+                ? singleTodo.title
+                : `${overdueTodos} ${pluralDe(
+                    overdueTodos,
+                    "überfällige Aufgabe",
+                    "überfällige Aufgaben",
+                  )}`,
+            meta:
+              singleTodo && overdueTodos === 1
+                ? "Überfällig — Sofort erledigen"
+                : "Sofort erledigen",
+            tone: "warning",
+            icon: <ListChecks aria-hidden />,
+            onClick: () => setChecklistsSheetOpen(true),
+          });
+        } else if (openTodos > 0) {
+          items.push({
+            id: "checklists-open",
+            title:
+              singleTodo && openTodos === 1
+                ? singleTodo.title
+                : `${openTodos} ${pluralDe(
+                    openTodos,
+                    "offene Aufgabe",
+                    "offene Aufgaben",
+                  )}`,
+            meta:
+              singleTodo && openTodos === 1
+                ? "Offene Aufgabe prüfen"
+                : "Aufgaben prüfen",
+            tone: "attention",
+            icon: <ListChecks aria-hidden />,
+            onClick: () => setChecklistsSheetOpen(true),
+          });
+        }
+      }
+    }
+
+    if (can.inventory && deliveryDueTotal > 0) {
+      const parts: string[] = [];
+      if (deliveriesOverdue > 0) {
+        parts.push(
+          `${deliveriesOverdue} ${pluralDe(
+            deliveriesOverdue,
+            "Lieferung überfällig",
+            "Lieferungen überfällig",
+          )}`,
+        );
+      }
+      if (deliveriesDueToday > 0) {
+        parts.push(
+          `${deliveriesDueToday} ${pluralDe(
+            deliveriesDueToday,
+            "Lieferung heute",
+            "Lieferungen heute",
+          )}`,
+        );
+      }
+      items.push({
+        id: "inventory-delivery",
+        title: parts.join(" · "),
+        meta: "Lieferung prüfen und Bestellung abschließen",
+        tone: "warning",
+        icon: <Package aria-hidden />,
+        onClick: () => setInventorySheetOpen(true),
+      });
+    } else if (can.inventory && inventoryOtherAlerts) {
+      const parts: string[] = [];
+      if (emptyStock > 0) {
+        parts.push(
+          `${emptyStock} ${pluralDe(emptyStock, "Zutat leer", "Zutaten leer")}`,
+        );
+      }
+      if (openOrders > 0) {
+        parts.push(
+          `${openOrders} ${pluralDe(
+            openOrders,
+            "Bestellung offen",
+            "Bestellungen offen",
+          )}`,
+        );
+      }
+      items.push({
+        id: "inventory-alerts",
+        title: parts.join(" · "),
+        meta: "Bestand prüfen",
+        tone: "warning",
+        icon: <Package aria-hidden />,
+        onClick: () => setInventorySheetOpen(true),
+      });
+    }
+
+    if (birthdaysToday.length > 0) {
+      items.push({
+        id: "birthdays",
+        title: `${birthdaysToday.length} ${pluralDe(
+          birthdaysToday.length,
+          "Geburtstag heute",
+          "Geburtstage heute",
+        )}`,
+        meta: birthdaysToday
+          .slice(0, 2)
+          .map((b) => b.name)
+          .join(", "),
+        tone: "birthday",
+        icon: <Cake aria-hidden />,
+        onClick: () => setBirthdaysSheetOpen(true),
+      });
+    }
+
+    return items;
+  }, [
+    birthdaysToday,
+    can.checklists,
+    can.inventory,
+    can.messages,
+    can.reservations,
+    checklists.summary,
+    deliveriesDueToday,
+    deliveriesOverdue,
+    deliveryDueTotal,
+    emptyStock,
+    inventoryOtherAlerts,
+    openOrders,
+    unconfirmedCount,
+    unreadMessageCount,
+  ]);
+
+  const lageItems = useMemo((): HeuteLageItem[] => {
+    const items: HeuteLageItem[] = [];
+
+    if (can.reservations && reservations.summary) {
+      items.push({
+        id: "reservations-today",
+        label: "Reservierungen",
+        value: String(todayUpcomingReservations),
+        meta:
+          todayUpcomingReservations > 0
+            ? `${todayUpcomingGuests} ${pluralDe(
+                todayUpcomingGuests,
+                "Person",
+                "Personen",
+              )} heute`
+            : "Keine weiteren heute",
+        icon: <CalendarDays aria-hidden />,
+        onClick: () => setReservationSheetMode("today_upcoming"),
+        emphasize: todayUpcomingReservations > 0,
+      });
+    }
+
+    if (can.staff && staff.summary) {
+      items.push({
+        id: "hours",
+        label: "Arbeitszeit",
+        value: todayWorkHours > 0 ? formatHoursDe(todayWorkHours) : "0 h",
+        meta: "Heute erfasst",
+        icon: <Clock aria-hidden />,
+        onClick: () => setWorkHoursSheetOpen(true),
+        emphasize: todayWorkHours > 0,
+      });
+    }
+
+    return items;
+  }, [
+    can.reservations,
+    can.staff,
+    reservations.summary,
+    staff.summary,
+    todayUpcomingGuests,
+    todayUpcomingReservations,
+    todayWorkHours,
+  ]);
+
+  const hasActions = actionItems.length > 0;
+  const canHaveActions =
+    can.reservations ||
+    can.messages ||
+    can.inventory ||
+    can.staff ||
+    can.checklists;
+  const sliceErrors = heuteStatSlices
+    .map((slice) => slice.error)
+    .filter((err): err is string => Boolean(err));
+  const hasSliceErrors = sliceErrors.length > 0;
+  const heuteError = hasSliceErrors ? sliceErrors[0]! : null;
+  const showAllClear =
+    allHeuteStatsSettled && canHaveActions && !hasActions && !hasSliceErrors;
+  const checkingActions =
+    canHaveActions && !hasActions && !hasSliceErrors && !allHeuteStatsSettled;
+
+  // Partial paint: Aktionen/Lage behalten, sobald etwas da ist.
+  // Skeleton nur beim ersten leeren Warten — nicht bei Batch-Refetch.
+  const loading = heuteStatSlices.length > 0 && !ready;
+  const showSkeleton = useDeferredSkeleton(loading);
+
+  const [allClearAnimKey, setAllClearAnimKey] = useState(0);
+  const prevPathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    const enteredDashboard =
+      pathname === DASHBOARD_HOME && prevPathnameRef.current !== DASHBOARD_HOME;
+    if (showAllClear && enteredDashboard) {
+      setAllClearAnimKey((key) => key + 1);
+    }
+    prevPathnameRef.current = pathname;
+  }, [pathname, showAllClear]);
+
+  const showJetztHandeln = hasActions || showAllClear || checkingActions;
+  const reservationsLage = lageItems.find((item) => item.id === "reservations-today");
+  const hoursLage = lageItems.find((item) => item.id === "hours");
+  const showReservationsSlot = Boolean(
+    reservationsLage || (can.reservations && checkingActions),
+  );
+  const showHoursSlot = Boolean(hoursLage || (can.staff && checkingActions));
+  const lageSlotCount = Number(showReservationsSlot) + Number(showHoursSlot);
+  const showLage = lageSlotCount > 0;
+  const splitJetztHandelnAndLage = hasActions && showLage;
+
+  const openLiveItem = useCallback(
+    (item: LiveActivityItem) => {
+      const target = resolveHeuteLiveSheetTarget(item);
+      switch (target.type) {
+        case "reservations":
+          if (can.reservations) setReservationSheetMode(target.mode);
+          else setLiveEventItem(item);
+          break;
+        case "messages":
+          if (can.messages) setMessagesSheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "inventory":
+          if (can.inventory) setInventorySheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "presence":
+          if (can.staff) setPresenceSheetMode(target.mode);
+          else setLiveEventItem(item);
+          break;
+        case "work_hours":
+          if (can.staff) setWorkHoursSheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "checklists":
+          if (can.checklists) setChecklistsSheetOpen(true);
+          else setLiveEventItem(item);
+          break;
+        case "event":
+          setLiveEventItem(target.item);
+          break;
+      }
+    },
+    [can.checklists, can.inventory, can.messages, can.reservations, can.staff],
+  );
+
+
   return (
     <DashboardWidgetShell
       title="Heute"
       description={todayLabel}
       variant="compact"
-      cardClassName="border-accent/35 shadow-md"
+      cardClassName="border-border/40 shadow-sm"
       background={
         <>
           <div
@@ -269,97 +638,83 @@ export function DashboardHeuteTile() {
       }
       ready={ready}
       loading={showSkeleton}
-      error={null}
+      error={heuteError}
       loadingContent={<DashboardHeuteTileSkeleton />}
     >
-      <DashboardCompactInlineMetrics className="gap-1.5">
-        {/* Aufmerksamkeit zuerst — unbestätigt / ungelesen vor Tagesstatistik */}
-        {canShowAufmerksamkeit ? (
-          <HeuteMetricPill
-            label="Achtung"
-            value={String(aufmerksamkeitCount)}
-            onClick={() => setAufmerksamkeitSheetOpen(true)}
-            tone={aufmerksamkeitCount > 0 ? "attention" : "neutral"}
-            icon={<Bell aria-hidden />}
-          />
-        ) : null}
-
-        {can.reservations && reservations.summary ? (
-          <>
-            <HeuteMetricPill
-              label="Unbest."
-              value={String(reservations.summary.unconfirmedCount)}
-              onClick={() => setReservationSheetMode("unconfirmed")}
-              tone={
-                reservations.summary.unconfirmedCount > 0 ? "attention" : "neutral"
-              }
-              icon={<AlertTriangle aria-hidden />}
-            />
-            <HeuteMetricPill
-              label="Heute"
-              value={`${todayUpcomingReservations} · ${todayUpcomingGuests} P.`}
-              onClick={() => setReservationSheetMode("today_upcoming")}
-              tone={todayUpcomingReservations > 0 ? "accent" : "neutral"}
-              icon={<CalendarDays aria-hidden />}
-            />
-          </>
-        ) : null}
-
-        {can.messages && messages.summary ? (
-          <HeuteMetricPill
-            label="Chats"
-            value={String(messages.summary.total_unread)}
-            onClick={() => setMessagesSheetOpen(true)}
-            tone={messages.summary.total_unread > 0 ? "attention" : "neutral"}
-            icon={<MessageCircle aria-hidden />}
-          />
-        ) : null}
-
-        {can.staff && staff.summary ? (
-          <>
-            {birthdaysToday.length > 0 ? (
-              <HeuteMetricPill
-                label="Geburt"
-                value={String(birthdaysToday.length)}
-                onClick={() => setBirthdaysSheetOpen(true)}
-                tone="birthday"
-                icon={<Cake aria-hidden />}
+      <div
+        className={cn(
+          "flex flex-col gap-4 sm:gap-5",
+          splitJetztHandelnAndLage &&
+            "xl:grid xl:grid-cols-12 xl:items-start xl:gap-5",
+        )}
+      >
+        {showJetztHandeln ? (
+          <section
+            className={cn(
+              "min-w-0 space-y-2",
+              splitJetztHandelnAndLage && "xl:col-span-7",
+            )}
+            aria-label="Jetzt handeln"
+          >
+            <HeuteSectionLabel>Jetzt handeln</HeuteSectionLabel>
+            {hasActions ? (
+              <div className="flex flex-col gap-2">
+                {actionItems.map((item) => (
+                  <HeuteActionRow key={item.id} item={item} />
+                ))}
+              </div>
+            ) : (
+              <DashboardHeuteAllClear
+                phase={showAllClear ? "clear" : "checking"}
+                replayKey={allClearAnimKey}
               />
-            ) : null}
-            <HeuteMetricPill
-              label="Team"
-              value={String(staff.summary.activeStaff)}
-              onClick={() => setPresenceSheetMode("working")}
-              tone={staff.summary.activeStaff > 0 ? "success" : "neutral"}
-              icon={<UserCheck aria-hidden />}
-            />
-            <HeuteMetricPill
-              label="Fertig"
-              value={String(staff.summary.completedShiftsToday)}
-              onClick={() => setCompletedSheetOpen(true)}
-              tone={staff.summary.completedShiftsToday > 0 ? "success" : "neutral"}
-              icon={<CheckCircle2 aria-hidden />}
-            />
-            <HeuteMetricPill
-              label="Std."
-              value={todayWorkHours > 0 ? formatHoursDe(todayWorkHours) : "0 h"}
-              onClick={() => setWorkHoursSheetOpen(true)}
-              tone={todayWorkHours > 0 ? "accent" : "neutral"}
-              icon={<Clock aria-hidden />}
-            />
-          </>
+            )}
+          </section>
         ) : null}
 
-        {can.inventory && inventory.summary && inventoryAlerts ? (
-          <HeuteMetricPill
-            label="Bestand"
-            value={`${inventory.summary.emptyStock} · ${inventory.summary.openOrders}`}
-            onClick={() => setInventorySheetOpen(true)}
-            tone="warning"
-            icon={<Package aria-hidden />}
-          />
+        {showLage ? (
+          <section
+            className={cn(
+              "min-w-0 space-y-2",
+              splitJetztHandelnAndLage && "xl:col-span-5",
+            )}
+            aria-label="Heute läuft"
+          >
+            <HeuteSectionLabel>Heute läuft</HeuteSectionLabel>
+            <div
+              className={cn(
+                "grid gap-2",
+                lageSlotCount === 1 && "grid-cols-1",
+                lageSlotCount >= 2 && "grid-cols-1 sm:grid-cols-2",
+              )}
+            >
+              {showReservationsSlot ? (
+                reservationsLage ? (
+                  <HeuteLageTile item={reservationsLage} />
+                ) : (
+                  <Skeleton className="h-[5.25rem] w-full rounded-xl" />
+                )
+              ) : null}
+              {showHoursSlot ? (
+                hoursLage ? (
+                  <HeuteLageTile item={hoursLage} />
+                ) : (
+                  <Skeleton className="h-[5.25rem] w-full rounded-xl" />
+                )
+              ) : null}
+            </div>
+          </section>
         ) : null}
-      </DashboardCompactInlineMetrics>
+
+        {!showJetztHandeln && !showLage ? (
+          <p className="py-2 text-sm text-muted-foreground">
+            Keine Module freigeschaltet — sobald Reservierungen, Arbeitszeit oder
+            Nachrichten verfügbar sind, erscheint hier dein Tagesüberblick.
+          </p>
+        ) : null}
+      </div>
+
+      <DashboardHeuteLiveTimeline className="mt-4" onSelectItem={openLiveItem} />
 
       {reservationSheetMode && can.reservations && reservations.summary ? (
         <DashboardReservationsListSheet
@@ -395,17 +750,6 @@ export function DashboardHeuteTile() {
         />
       ) : null}
 
-      {completedSheetOpen ? (
-        <StaffOverviewCompletedShiftsSheet
-          open={completedSheetOpen}
-          onOpenChange={setCompletedSheetOpen}
-          dayYmd={staffTodayYmd}
-          shifts={staff.completedShifts}
-          staffById={staffById}
-          timeZone={restaurantTimeZone}
-        />
-      ) : null}
-
       {workHoursSheetOpen ? (
         <DashboardHeuteWorkHoursSheet
           open={workHoursSheetOpen}
@@ -416,18 +760,6 @@ export function DashboardHeuteTile() {
           completedShifts={staff.completedShifts}
           staffById={staffById}
           wageBreakdown={staff.wageBreakdown}
-          timeZone={restaurantTimeZone}
-        />
-      ) : null}
-
-      {aufmerksamkeitSheetOpen ? (
-        <DashboardHeuteAufmerksamkeitSheet
-          open={aufmerksamkeitSheetOpen}
-          onOpenChange={setAufmerksamkeitSheetOpen}
-          unconfirmedReservations={unconfirmedRecent}
-          unreadMessages={unreadMessages}
-          unconfirmedCount={unconfirmedCount}
-          unreadMessageCount={unreadMessageCount}
           timeZone={restaurantTimeZone}
         />
       ) : null}
@@ -458,8 +790,31 @@ export function DashboardHeuteTile() {
           emptyStockCount={inventory.summary.emptyStock}
           openOrdersCount={inventory.summary.openOrders}
           openOrderLinesCount={inventory.summary.openOrderLines}
+          deliveriesDueTodayCount={inventory.summary.deliveriesDueToday ?? 0}
+          deliveriesOverdueCount={inventory.summary.deliveriesOverdue ?? 0}
+          todayYmd={staffTodayYmd}
         />
       ) : null}
+
+      {checklistsSheetOpen && can.checklists && checklists.summary ? (
+        <DashboardHeuteChecklistsSheet
+          open={checklistsSheetOpen}
+          onOpenChange={setChecklistsSheetOpen}
+          openTodos={checklists.summary.openTodos ?? 0}
+          overdueTodos={checklists.summary.overdueTodos ?? 0}
+          capturesToday={checklists.summary.capturesToday ?? 0}
+          todos={checklists.summary.todos ?? []}
+        />
+      ) : null}
+
+      <DashboardHeuteLiveEventSheet
+        open={liveEventItem != null}
+        onOpenChange={(open) => {
+          if (!open) setLiveEventItem(null);
+        }}
+        item={liveEventItem}
+        timeZone={restaurantTimeZone}
+      />
     </DashboardWidgetShell>
   );
 }

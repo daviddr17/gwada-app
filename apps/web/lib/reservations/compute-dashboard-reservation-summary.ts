@@ -2,6 +2,7 @@ import {
   DEFAULT_RESTAURANT_TIMEZONE,
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
+import { isPrivateEventReservation } from "@/lib/reservations/reservation-kind";
 import { isUnconfirmedReservation } from "@/lib/reservations/unconfirmed-reservations";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 
@@ -46,8 +47,9 @@ function dayKeyFromIso(iso: string, timeZone: string): string {
   return restaurantZonedDateKey(new Date(iso), timeZone);
 }
 
-/** Zählt in Kennzahlen (keine Stornos / Absagen / No-Shows). */
+/** Zählt in Kennzahlen (keine Stornos / Absagen / No-Shows / privaten Events). */
 function countsTowardGuestTotals(row: ReservationListRow): boolean {
+  if (isPrivateEventReservation(row)) return false;
   const code = statusCode(row);
   return code !== "cancelled" && code !== "declined" && code !== "no_show";
 }

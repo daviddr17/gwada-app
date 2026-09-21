@@ -48,6 +48,7 @@ import {
 } from "@/lib/reservations/reservations-month-client-cache";
 import { patchReservationOpenResolvedInQueryCaches } from "@/lib/reservations/reservations-list-query";
 import { mapRawToReservationListRow } from "@/lib/supabase/reservations-db";
+import { GWADA_INVENTORY_DATA_REFRESH_EVENT } from "@/lib/inventory/inventory-live-events";
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { queryKeys } from "@/lib/query/query-keys";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -335,6 +336,11 @@ export function AppDashboardLivePatchMount() {
       scheduleBatchReconcile(BATCH_RECONCILE_DEBOUNCE_MS);
     };
 
+    const onInventoryRefresh = () => {
+      dispatchDashboardWidgetLiveFetch(restaurantId, "inventory");
+      scheduleBatchReconcile(BATCH_RECONCILE_DEBOUNCE_MS);
+    };
+
     const onWorkspaceChanged = () => {
       if (batchReconcileRef.current) {
         window.clearTimeout(batchReconcileRef.current);
@@ -364,6 +370,7 @@ export function AppDashboardLivePatchMount() {
       onLegacyReservationsRefresh,
     );
     window.addEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onStaffRefresh);
+    window.addEventListener(GWADA_INVENTORY_DATA_REFRESH_EVENT, onInventoryRefresh);
     window.addEventListener(
       GWADA_DASHBOARD_RESERVATIONS_LIVE_UPDATE_EVENT,
       onReservationLiveUpdate,
@@ -413,6 +420,10 @@ export function AppDashboardLivePatchMount() {
         onLegacyReservationsRefresh,
       );
       window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onStaffRefresh);
+      window.removeEventListener(
+        GWADA_INVENTORY_DATA_REFRESH_EVENT,
+        onInventoryRefresh,
+      );
       window.removeEventListener(
         GWADA_DASHBOARD_RESERVATIONS_LIVE_UPDATE_EVENT,
         onReservationLiveUpdate,

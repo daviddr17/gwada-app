@@ -53,7 +53,7 @@ export const DEFAULT_DASHBOARD_WIDGET_VISIBILITY: Record<
   heute: true,
   reservations: true,
   staff: true,
-  messages: true,
+  messages: false,
   weather: true,
   menu: false,
   reviews: false,
@@ -162,8 +162,9 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
   },
   {
     id: "checklists",
-    label: "Checklisten",
-    description: "Offene Aufgaben",
+    label: "Aufgaben",
+    description: "Persönlich, Team und Protokoll",
+
   },
 ] as const;
 

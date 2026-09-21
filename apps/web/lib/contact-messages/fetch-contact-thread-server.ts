@@ -78,14 +78,17 @@ type ContactRow = {
   first_name: string;
   last_name: string;
   company?: string | null;
-  contact_phones?: { phone: string }[] | { phone: string } | null;
+  contact_phones?:
+    | { phone_display: string; is_primary?: boolean; sort_order?: number }[]
+    | { phone_display: string; is_primary?: boolean; sort_order?: number }
+    | null;
   contact_emails?: { email: string }[] | { email: string } | null;
   contact_messaging_ids?: { platform: string; external_sender_id: string }[] | null;
 };
 
 function hasMessagingPlatform(
   rows: ContactRow["contact_messaging_ids"],
-  platform: "facebook" | "instagram",
+  platform: "facebook" | "instagram" | "whatsapp",
 ): boolean {
   const list = Array.isArray(rows) ? rows : [];
   return list.some((r) => r.platform === platform && r.external_sender_id?.trim());
@@ -103,7 +106,7 @@ async function loadContactRow(
       first_name,
       last_name,
       company,
-      contact_phones ( phone ),
+      contact_phones ( phone_display, is_primary, sort_order ),
       contact_emails ( email ),
       contact_messaging_ids ( platform, external_sender_id )
     `,
@@ -121,7 +124,28 @@ function firstPhoneFromRow(contact: ContactRow): string | null {
     : contact.contact_phones
       ? [contact.contact_phones]
       : [];
-  return rows[0]?.phone?.trim() ?? null;
+  const sorted = [...rows].sort(
+    (a, b) =>
+      Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)) ||
+      (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  for (const row of sorted) {
+    const phone = row.phone_display?.trim();
+    if (phone) return phone;
+  }
+  return null;
+}
+
+function whatsappChatIdFromContactRow(contact: ContactRow): string | null {
+  const fromPhone = guestPhoneToWhatsAppChatId(firstPhoneFromRow(contact));
+  if (fromPhone) return fromPhone;
+  const list = Array.isArray(contact.contact_messaging_ids)
+    ? contact.contact_messaging_ids
+    : [];
+  const wa = list.find(
+    (r) => r.platform === "whatsapp" && r.external_sender_id?.trim(),
+  );
+  return wa?.external_sender_id.trim() ?? null;
 }
 
 function firstEmailFromRow(contact: ContactRow): string | null {
@@ -164,7 +188,7 @@ function contactMetaFromRow(
     name,
     hasPhone: Boolean(phone),
     hasEmail: Boolean(email),
-    whatsappThreadChatId: guestPhoneToWhatsAppChatId(phone),
+    whatsappThreadChatId: whatsappChatIdFromContactRow(contact),
     hasFacebookId: hasMessagingPlatform(contact.contact_messaging_ids, "facebook"),
     hasInstagramId: hasMessagingPlatform(
       contact.contact_messaging_ids,
@@ -217,14 +241,30 @@ async function loadLinkedThreadSlice(
   });
 
   const tContact = performance.now();
-  const contactPromise = loadContactRow(admin, restaurantId, contactId).then(
-    (contact) => {
+  // Kontakt + Avatar parallel zu Messages — nicht erst nach dem DB-Slice.
+  const contactMetaPromise = loadContactRow(admin, restaurantId, contactId).then(
+    async (contact) => {
       mark("contact", Math.round(performance.now() - tContact));
-      return contact;
+      const tAvatar = performance.now();
+      const meta = await enrichContactThreadMetaWithAvatar(admin, {
+        restaurantId,
+        meta: contactMetaFromRow(contact, "Kontakt"),
+        linkedContactId: contactId,
+        firstName: contact?.first_name,
+        lastName: contact?.last_name,
+        includeAvatar: !before,
+      });
+      if (!before) {
+        mark("avatar", Math.round(performance.now() - tAvatar));
+      }
+      return meta;
     },
   );
 
-  const [dbResult, contact] = await Promise.all([dbPromise, contactPromise]);
+  const [dbResult, contactMeta] = await Promise.all([
+    dbPromise,
+    contactMetaPromise,
+  ]);
 
   if (dbResult.error) {
     return {
@@ -241,14 +281,7 @@ async function loadLinkedThreadSlice(
     hasMore: dbResult.hasMore,
     oldestCursor:
       dbResult.data.length > 0 ? dbResult.data[0]!.created_at : null,
-    contact: await enrichContactThreadMetaWithAvatar(admin, {
-      restaurantId,
-      meta: contactMetaFromRow(contact, "Kontakt"),
-      linkedContactId: contactId,
-      firstName: contact?.first_name,
-      lastName: contact?.last_name,
-      includeAvatar: !before,
-    }),
+    contact: contactMeta,
     error: null,
   };
 }
@@ -398,12 +431,13 @@ export async function fetchContactThreadPageServer(
   });
 
   if (!before) {
-    const tSync = performance.now();
-    await ensureEmailAttachmentMetaForThreadOpen(admin, {
+    // Nicht blockieren: IMAP-Meta nachziehen im Hintergrund — Thread kommt sofort aus DB.
+    void ensureEmailAttachmentMetaForThreadOpen(admin, {
       restaurantId,
       contactId,
+    }).catch(() => {
+      /* best-effort */
     });
-    mark("email_attach_sync", Math.round(performance.now() - tSync));
   }
 
   if (isLinkedContactId(contactId)) {
@@ -429,16 +463,22 @@ export async function fetchContactThreadPageServer(
     };
   }
 
-  const slice = await loadConversationThreadSlice(
-    admin,
-    {
-      restaurantId,
-      threadKey: contactId,
-      pageLimit,
-      before,
-    },
-    mark,
-  );
+  // Pseudo-Threads: Messages + Kontakt-Meta (inkl. Avatar) parallel.
+  const [slice, contact] = await Promise.all([
+    loadConversationThreadSlice(
+      admin,
+      {
+        restaurantId,
+        threadKey: contactId,
+        pageLimit,
+        before,
+      },
+      mark,
+    ),
+    contactMetaForThread(admin, restaurantId, contactId, null, {
+      includeAvatar: !before,
+    }),
+  ]);
 
   const timing = finish();
   logContactThreadTiming(timing);
@@ -447,13 +487,7 @@ export async function fetchContactThreadPageServer(
     messages: slice.messages,
     hasMore: slice.hasMore,
     oldestCursor: slice.oldestCursor,
-    contact: await contactMetaForThread(
-      admin,
-      restaurantId,
-      contactId,
-      null,
-      { includeAvatar: !before },
-    ),
+    contact,
     error: slice.error,
     timing,
   };

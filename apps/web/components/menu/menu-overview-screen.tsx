@@ -60,6 +60,10 @@ import {
   sortItemsInCategoryForDisplay,
 } from "@/lib/menu/item-utils";
 import { itemMatchesIngredientSearch } from "@/lib/menu/recipe-utils";
+import {
+  dedupeMenuMainCategories,
+  remapCategoryMainCategoryIds,
+} from "@/lib/menu/normalize-menu-main-categories";
 import { fuzzyTextMatchesQuery } from "@/lib/utils/fuzzy-search";
 import type {
   DietFilter,
@@ -86,6 +90,7 @@ import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primar
 import { ListRangeCount } from "@/lib/ui/list-range-count";
 import { cn } from "@/lib/utils";
 import { useMenuViewMode } from "@/hooks/use-menu-view-mode";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { readModuleChipStripHeightPx } from "@/lib/layout/module-chip-strip";
 import { getAppScrollRoot } from "@/lib/layout/app-scroll-root";
 import {
@@ -118,7 +123,7 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
   const restaurantName = profile?.name?.trim() || "Restaurant";
   const restaurantSlug = profile?.slug?.trim() ?? null;
   const {
-    mainCategories,
+    mainCategories: rawMainCategories,
     addMainCategory,
     updateMainCategory,
     reorderMainCategories,
@@ -126,13 +131,22 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
     isHydrated: mainCategoriesHydrated,
   } = useMainCategoriesStorage();
   const {
-    categories,
+    categories: rawCategories,
     addCategory,
     updateCategory,
     reorderCategories,
     deleteCategory,
     isHydrated: categoriesHydrated,
   } = useCategoriesStorage();
+  const mainCategories = useMemo(
+    () => dedupeMenuMainCategories(rawMainCategories, rawCategories),
+    [rawMainCategories, rawCategories],
+  );
+  const categories = useMemo(
+    () => remapCategoryMainCategoryIds(rawCategories, rawMainCategories),
+    [rawCategories, rawMainCategories],
+  );
+
   const {
     items,
     addItem,
@@ -143,7 +157,7 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
     isHydrated: menuHydrated,
   } = useMenuStorage();
 
-  const { ingredients, isHydrated: ingredientsHydrated } =
+  const { ingredients } =
     useIngredientsStorage();
 
   const menuTags = useMenuTaxonomyStorage(
@@ -166,17 +180,11 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
     [mergedTagDefinitions],
   );
 
+  const catalogHydrated =
+    categoriesHydrated && mainCategoriesHydrated && menuHydrated;
+
   const { mode: viewMode, setMode: setViewMode, ready: viewReady } =
     useMenuViewMode();
-
-  const isHydrated =
-    categoriesHydrated &&
-    mainCategoriesHydrated &&
-    menuHydrated &&
-    ingredientsHydrated &&
-    menuTags.isHydrated &&
-    menuAllergens.isHydrated &&
-    menuOptionGroups.isHydrated;
 
   const ingredientNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -264,8 +272,21 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
     [categories, activeMainCategoryId],
   );
 
-  const catalogReady =
-    isHydrated && (items.length === 0 || categoriesInMain.length > 0);
+  const catalogReady = catalogHydrated;
+  const showMenuSkeleton = useDeferredSkeleton(!catalogReady);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      if (categoriesInMain.length > 0) return;
+      const fallback = mainCategories.find((main) =>
+        categories.some((cat) => cat.mainCategoryId === main.id),
+      );
+      if (fallback && fallback.id !== activeMainCategoryId) {
+        setActiveMainCategoryId(fallback.id);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [mainCategories, categories, categoriesInMain.length, activeMainCategoryId]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -395,7 +416,7 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
   }, []);
 
   useEffect(() => {
-    if (!isHydrated || categoriesInMain.length === 0) return;
+    if (!catalogHydrated || categoriesInMain.length === 0) return;
 
     let ticking = false;
 
@@ -428,7 +449,7 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
     target.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => target.removeEventListener("scroll", onScroll);
-  }, [isHydrated, categoriesInMain]);
+  }, [catalogHydrated, categoriesInMain]);
 
   const selectMainCategory = useCallback((id: string) => {
     setActiveMainCategoryId(id);
@@ -597,7 +618,11 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
   return (
     <>
       {!catalogReady ? (
-        <MenuOverviewSkeleton />
+        showMenuSkeleton ? (
+          <MenuOverviewSkeleton />
+        ) : (
+          <div aria-busy className="min-h-[24rem]" />
+        )
       ) : (
         <div className="w-full pb-16">
         <div className="-mx-4 mb-3 flex flex-wrap gap-2 px-4 sm:-mx-6 sm:px-6">
@@ -680,6 +705,20 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
           </div>
         </div>
 
+        <div className="-mx-4 mb-3 space-y-3 px-4 sm:-mx-6 sm:px-6">
+          <MenuSearchFilters
+            search={search}
+            onSearchChange={setSearch}
+          />
+          {search.trim() ? (
+            <p className="text-xs text-muted-foreground">
+              Suche in Gericht, Beschreibung und{" "}
+              <span className="font-medium text-foreground">Rezept-Zutaten</span>{" "}
+              (ca. 80% Übereinstimmung).
+            </p>
+          ) : null}
+        </div>
+
         <div
           ref={stickyRef}
           style={{
@@ -690,17 +729,6 @@ export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
           )}
         >
           <div className="space-y-3">
-            <MenuSearchFilters
-              search={search}
-              onSearchChange={setSearch}
-            />
-            {search.trim() ? (
-              <p className="text-xs text-muted-foreground">
-                Suche in Gericht, Beschreibung und{" "}
-                <span className="font-medium text-foreground">Rezept-Zutaten</span>{" "}
-                (ca. 80% Übereinstimmung).
-              </p>
-            ) : null}
             <MenuMainCategoryTabs
               mainCategories={mainCategories}
               activeMainCategoryId={activeMainCategoryId}

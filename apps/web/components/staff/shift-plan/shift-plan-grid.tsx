@@ -1183,7 +1183,9 @@ function ShiftPlanMonthDayCard({
 
         {!dayHasEntries && groups.length > 0 ? (
           <p className="px-1 text-xs text-muted-foreground">
-            Noch keine Schichten — Vorlage ziehen oder „+“ nutzen.
+            {editable
+              ? "Noch keine Schichten — Vorlage ziehen oder „+“ nutzen."
+              : "Keine Schichten an diesem Tag."}
           </p>
         ) : null}
       </div>

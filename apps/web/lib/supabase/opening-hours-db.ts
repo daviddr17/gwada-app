@@ -205,14 +205,19 @@ export async function replaceOpeningHoursForRestaurant(
     return sessionOk;
   }
 
-  const { error: delErr } = await supabase
+  // Bestehende IDs merken → erst insert, dann alte löschen.
+  // So bleibt bei Insert-Fehler der alte Plan erhalten (kein leerer Kalender).
+  const { data: existingRows, error: loadErr } = await supabase
     .from("opening_hours")
-    .delete()
+    .select("id")
     .eq("restaurant_id", restaurantId);
-  if (delErr) {
-    console.warn("[gwada] opening_hours delete", delErr.message);
-    return { ok: false, error: delErr.message };
+  if (loadErr) {
+    console.warn("[gwada] opening_hours load", loadErr.message);
+    return { ok: false, error: loadErr.message };
   }
+  const oldIds = (existingRows ?? [])
+    .map((row) => row.id as string)
+    .filter(Boolean);
 
   const inserts: Record<string, unknown>[] = [];
 
@@ -258,10 +263,24 @@ export async function replaceOpeningHoursForRestaurant(
     }
   }
 
-  const { error: insErr } = await supabase.from("opening_hours").insert(inserts);
-  if (insErr) {
-    console.warn("[gwada] opening_hours insert", insErr.message);
-    return { ok: false, error: insErr.message };
+  if (inserts.length > 0) {
+    const { error: insErr } = await supabase.from("opening_hours").insert(inserts);
+    if (insErr) {
+      console.warn("[gwada] opening_hours insert", insErr.message);
+      return { ok: false, error: insErr.message };
+    }
+  }
+
+  if (oldIds.length > 0) {
+    const { error: delErr } = await supabase
+      .from("opening_hours")
+      .delete()
+      .eq("restaurant_id", restaurantId)
+      .in("id", oldIds);
+    if (delErr) {
+      console.warn("[gwada] opening_hours delete-old", delErr.message);
+      return { ok: false, error: delErr.message };
+    }
   }
   return { ok: true };
 }

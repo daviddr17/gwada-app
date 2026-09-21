@@ -3,7 +3,8 @@ import type { RouteSweepMeta } from "@/components/layout/route-sweep-overlay";
 
 export type AppWorkspaceZone = "superadmin" | "app";
 
-export function appZoneFromPath(pathname: string): AppWorkspaceZone {
+export function appZoneFromPath(pathname: string | null | undefined): AppWorkspaceZone {
+  if (!pathname) return "app";
   return pathname.startsWith("/superadmin") ? "superadmin" : "app";
 }
 

@@ -1,19 +1,21 @@
 "use client";
 
-import { ChevronDown, ClipboardList, Filter } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ClipboardList, Filter } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useFocusGuardedDraft } from "@/lib/hooks/use-focus-guarded-draft";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
 import {
   PurchaseOrderCloseDeliveryDrawer,
   type PurchaseOrderCloseDeliveryException,
 } from "@/components/inventory/purchase-order-close-delivery-drawer";
+import { PurchaseOrderCloseProgressOverlay } from "@/components/inventory/purchase-order-close-progress-overlay";
 import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
-import { PurchaseOrderCompactLinesList } from "@/components/inventory/purchase-order-compact-lines-list";
+import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
+import { PurchaseOrderCardStickyHeader } from "@/components/inventory/purchase-order-card-sticky-header";
 import type { LineDeliveryCommit } from "@/components/inventory/purchase-order-line-delivery-controls";
 import { PurchaseOrderLineDeliveryControls } from "@/components/inventory/purchase-order-line-delivery-controls";
 import { PurchaseOrderStatusChips } from "@/components/inventory/purchase-order-status-chips";
-import { InventoryModuleViewToggle } from "@/components/inventory/inventory-module-view-toggle";
 import {
   countPurchaseOrderActiveFilters,
   PurchaseOrdersFilterDrawer,
@@ -25,13 +27,10 @@ import {
 } from "@/lib/inventory/purchase-order-line-delivery";
 import {
   purchaseOrderAllowsDeliveryActions,
-  purchaseOrderStatusLabel,
   type PurchaseOrderStatusFilter,
 } from "@/lib/inventory/purchase-order-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { DatePickerField } from "@/components/ui/date-picker";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import { INVENTORY_BRANDS_KEY, INVENTORY_INGREDIENT_CATEGORIES_KEY, INVENTORY_PRODUCTION_SITES_KEY, INVENTORY_SUPPLIERS_KEY, INVENTORY_UNITS_KEY } from "@/lib/constants/inventory-storage";
 import { SEED_BRANDS, SEED_INGREDIENT_CATEGORIES, SEED_PRODUCTION_SITES, SEED_SUPPLIERS, SEED_UNITS } from "@/lib/data/inventory-seeds";
@@ -41,10 +40,6 @@ import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { resolvePurchaseOrderSupplierName } from "@/lib/inventory/resolve-purchase-order-supplier-name";
 import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
-import {
-  INVENTORY_PURCHASE_ORDER_VIEW_MODE_KEY,
-  useInventoryModuleViewMode,
-} from "@/lib/hooks/use-inventory-module-view-mode";
 import {
   type OrderProtocolActor,
   type PurchaseOrder,
@@ -122,11 +117,10 @@ function OrderLineQtyCell({
     user: OrderProtocolActor,
   ) => Promise<boolean>;
 }) {
-  const [draft, setDraft] = useState(() => String(line.quantity));
-
-  useEffect(() => {
-    setDraft(String(line.quantity));
-  }, [line.quantity]);
+  const { draft, setDraft, focusProps } = useFocusGuardedDraft(
+    line.quantity,
+    line.id,
+  );
 
   const commit = useCallback(async () => {
     if (readOnly) return;
@@ -140,7 +134,7 @@ function OrderLineQtyCell({
     if (!ok) {
       setDraft(String(line.quantity));
     }
-  }, [draft, line.id, line.quantity, onCommit, orderId, readOnly, actor]);
+  }, [draft, line.id, line.quantity, onCommit, orderId, readOnly, actor, setDraft]);
 
   return (
     <input
@@ -149,6 +143,7 @@ function OrderLineQtyCell({
       disabled={readOnly}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
+      {...focusProps}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -203,11 +198,6 @@ export function PurchaseOrdersScreen() {
     SEED_INGREDIENT_CATEGORIES,
   );
   const units = useInventoryTaxonomyStorage(INVENTORY_UNITS_KEY, SEED_UNITS);
-  const {
-    mode: orderViewMode,
-    setMode: setOrderViewMode,
-    ready: orderViewReady,
-  } = useInventoryModuleViewMode(INVENTORY_PURCHASE_ORDER_VIEW_MODE_KEY);
   const [statusFilter, setStatusFilter] =
     useState<PurchaseOrderStatusFilter>("open");
   const [supplierFilterId, setSupplierFilterId] = useState<string>("all");
@@ -218,6 +208,11 @@ export function PurchaseOrdersScreen() {
   const [closeConfirmOrderId, setCloseConfirmOrderId] = useState<string | null>(
     null,
   );
+  const [closeProgress, setCloseProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const closeInFlightUiRef = useRef(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [lineSortKey, setLineSortKey] =
     useState<PurchaseOrderLineSortKey>("categoryId");
@@ -466,28 +461,13 @@ export function PurchaseOrdersScreen() {
         }
       }
 
-      // Zuerst Liefer-Antwort (optimistic), danach Bestand — Chip reagiert sofort
+      // Liefer-Antwort (optimistic) — Toast sofort, Bestand im Hintergrund
       const result = await setLineDelivery(orderId, lineId, input, actor);
       if (!result.ok) {
         toast.error("Liefer-Antwort konnte nicht gespeichert werden.");
         return;
       }
 
-      if (
-        !(await applyStockDelta(
-          order,
-          line,
-          previewDelta,
-          previewDelta >= 0 ? "delivery" : "revert",
-        ))
-      ) {
-        await clearLineDelivery(orderId, lineId, actor);
-        return;
-      }
-
-      if (result.stockDelta !== previewDelta && result.stockDelta !== 0) {
-        // rare drift — ignore; persist already done
-      }
       const label =
         input.status === "delivered"
           ? "geliefert"
@@ -499,17 +479,30 @@ export function PurchaseOrdersScreen() {
           `„${line.ingredientName}“ ${label} – Bestellung abgeschlossen.`,
         );
         setStatusFilter("closed");
-      } else if (result.stockDelta > 0) {
+      } else if (previewDelta > 0) {
         toast.success(
-          `„${line.ingredientName}“ ${label} – Bestand +${result.stockDelta} ${unitLabelForLine(line)}.`,
+          `„${line.ingredientName}“ ${label} – Bestand +${previewDelta} ${unitLabelForLine(line)}.`,
         );
-      } else if (result.stockDelta < 0) {
+      } else if (previewDelta < 0) {
         toast.success(
-          `„${line.ingredientName}“ ${label} – Bestand ${result.stockDelta} ${unitLabelForLine(line)}.`,
+          `„${line.ingredientName}“ ${label} – Bestand ${previewDelta} ${unitLabelForLine(line)}.`,
         );
       } else {
         toast.success(`„${line.ingredientName}“ als ${label} markiert.`);
       }
+
+      if (result.stockApplied) return;
+
+      void applyStockDelta(
+        order,
+        line,
+        previewDelta,
+        previewDelta >= 0 ? "delivery" : "revert",
+      ).then((stockOk) => {
+        if (!stockOk) {
+          void clearLineDelivery(orderId, lineId, actor);
+        }
+      });
     },
     [
       actor,
@@ -529,24 +522,10 @@ export function PurchaseOrdersScreen() {
       if (!order || !line) return;
       const prevStock = lineDeliveryStockQuantity(line);
 
-      // Optimistic zurücksetzen zuerst — Chip reagiert sofort
+      // Optimistic zurücksetzen zuerst — Toast sofort, Bestand im Hintergrund
       const result = await clearLineDelivery(orderId, lineId, actor);
       if (!result.ok) {
         toast.error("Liefer-Antwort konnte nicht zurückgesetzt werden.");
-        return;
-      }
-
-      if (!(await applyStockDelta(order, line, -prevStock, "revert"))) {
-        await setLineDelivery(
-          orderId,
-          lineId,
-          {
-            status: line.deliveryStatus ?? "delivered",
-            deliveredQuantity: line.deliveredQuantity,
-            note: line.deliveryNote,
-          },
-          actor,
-        );
         return;
       }
 
@@ -555,6 +534,23 @@ export function PurchaseOrdersScreen() {
           ? `Lieferung von „${line.ingredientName}“ zurückgesetzt – Bestand −${prevStock} ${unitLabelForLine(line)}.`
           : `Liefer-Antwort zu „${line.ingredientName}“ zurückgesetzt.`,
       );
+
+      if (result.stockApplied) return;
+
+      void applyStockDelta(order, line, -prevStock, "revert").then((stockOk) => {
+        if (!stockOk) {
+          void setLineDelivery(
+            orderId,
+            lineId,
+            {
+              status: line.deliveryStatus ?? "delivered",
+              deliveredQuantity: line.deliveredQuantity,
+              note: line.deliveryNote,
+            },
+            actor,
+          );
+        }
+      });
     },
     [
       actor,
@@ -569,10 +565,23 @@ export function PurchaseOrdersScreen() {
   const requestCloseOrder = useCallback(
     (order: PurchaseOrder) => {
       if (order.status !== "ordered") return;
+      if (closeInFlightUiRef.current) return;
       if (allPurchaseOrderLinesResolved(order.lines)) {
-        void closeOrder(order.id, actor).then((ok) => {
-          if (ok) setStatusFilter("closed");
-        });
+        void (async () => {
+          closeInFlightUiRef.current = true;
+          setCloseProgress({ done: 0, total: 1 });
+          try {
+            const ok = await closeOrder(order.id, actor);
+            if (ok) {
+              setCloseProgress({ done: 1, total: 1 });
+              await new Promise((resolve) => window.setTimeout(resolve, 280));
+              setStatusFilter("closed");
+            }
+          } finally {
+            setCloseProgress(null);
+            closeInFlightUiRef.current = false;
+          }
+        })();
         return;
       }
       setCloseConfirmOrderId(order.id);
@@ -586,42 +595,48 @@ export function PurchaseOrdersScreen() {
   );
 
   const handleCloseWithDeliveries = useCallback(
-    async (exceptions: PurchaseOrderCloseDeliveryException[]) => {
+    async (
+      exceptions: PurchaseOrderCloseDeliveryException[],
+      options: { skipStock: boolean },
+    ) => {
       const order = closeDeliveryOrder;
-      if (!order) return;
+      if (!order || closeInFlightUiRef.current) return;
 
-      const result = await resolveOpenDeliveriesAndClose(
-        order.id,
-        exceptions,
-        actor,
-      );
-      if (!result.ok) {
-        toast.error("Bestellung konnte nicht abgeschlossen werden.");
-        return;
-      }
+      const openCount = order.lines.filter(
+        (l) => !isLineDeliveryResolved(l),
+      ).length;
+      closeInFlightUiRef.current = true;
+      setCloseProgress({ done: 0, total: Math.max(1, openCount) });
+      setCloseConfirmOrderId(null);
 
-      const stockOk = await applyDeliveryStockDeltas(
-        result.stockDeltas.map((d) => ({
-          ingredientId: d.ingredientId,
-          delta: d.delta,
-          unitId: d.unitId,
-          unitLabel: d.unitLabel,
-          orderId: order.id,
-          supplierName: supplierNameForOrder(order),
-        })),
-        actor,
-      );
-      if (!stockOk) {
-        toast.error(
-          "Lieferung gespeichert, aber Bestand konnte nicht vollständig angepasst werden.",
+      try {
+        const result = await resolveOpenDeliveriesAndClose(
+          order.id,
+          exceptions,
+          actor,
+          {
+            applyStock: options.skipStock !== true,
+            onProgress: (progress) => setCloseProgress(progress),
+          },
         );
-      } else {
-        const openCount = order.lines.filter(
-          (l) => !isLineDeliveryResolved(l),
-        ).length;
+        if (!result.ok) {
+          toast.error("Bestellung konnte nicht abgeschlossen werden.");
+          return;
+        }
+
+        const skipStock = options.skipStock === true;
         const deliveredCount = openCount - exceptions.length;
-        const stockSum = result.stockDeltas.reduce((s, d) => s + d.delta, 0);
-        if (exceptions.length === 0) {
+        const stockSum = skipStock
+          ? 0
+          : result.stockDeltas.reduce((s, d) => s + d.delta, 0);
+
+        if (skipStock) {
+          toast.success(
+            exceptions.length === 0
+              ? "Alles geliefert – Bestand unverändert."
+              : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"} – Bestand unverändert.`,
+          );
+        } else if (exceptions.length === 0) {
           toast.success(
             stockSum > 0
               ? `Alles geliefert – Bestand +${stockSum}.`
@@ -634,10 +649,34 @@ export function PurchaseOrdersScreen() {
               : `Abgeschlossen: ${deliveredCount} geliefert, ${exceptions.length} Ausnahme${exceptions.length === 1 ? "" : "n"}.`,
           );
         }
-      }
 
-      setCloseConfirmOrderId(null);
-      setStatusFilter("closed");
+        setCloseProgress({ done: openCount, total: Math.max(1, openCount) });
+        await new Promise((resolve) => window.setTimeout(resolve, 280));
+        setStatusFilter("closed");
+
+        if (skipStock || result.stockApplied) return;
+
+        void applyDeliveryStockDeltas(
+          result.stockDeltas.map((d) => ({
+            ingredientId: d.ingredientId,
+            delta: d.delta,
+            unitId: d.unitId,
+            unitLabel: d.unitLabel,
+            orderId: order.id,
+            supplierName: supplierNameForOrder(order),
+          })),
+          actor,
+        ).then((stockOk) => {
+          if (!stockOk) {
+            toast.error(
+              "Bestellung abgeschlossen, aber Bestand konnte nicht vollständig angepasst werden.",
+            );
+          }
+        });
+      } finally {
+        setCloseProgress(null);
+        closeInFlightUiRef.current = false;
+      }
     },
     [
       actor,
@@ -673,11 +712,6 @@ export function PurchaseOrdersScreen() {
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <InventoryModuleViewToggle
-              value={orderViewMode}
-              onChange={setOrderViewMode}
-              disabled={!orderViewReady}
-            />
             <div className={moduleSearchFilterButtonWrapClassName}>
               <Button
                 type="button"
@@ -734,157 +768,95 @@ export function PurchaseOrdersScreen() {
         <div className="space-y-3">
           {filtered.map((order) => {
             const isExpanded = Boolean(expanded[order.id]);
-            const deliveryLabel = formatDeliveryYmd(order.deliveryDate);
             return (
               <section
                 key={order.id}
-                className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm"
+                className={cn(
+                  "rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm",
+                  // Zugeklappt: Ecken clippen. Aufgeklappt: overflow sichtbar,
+                  // damit der Sticky-Kopf am Scroll-Root haften kann.
+                  isExpanded ? "overflow-visible" : "overflow-hidden",
+                )}
               >
-                <div className="flex min-h-[3.25rem] items-stretch gap-0">
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 px-3 py-3 text-left transition-colors hover:bg-muted/30 sm:gap-3 sm:px-4"
-                    onClick={() => toggleExpanded(order.id)}
-                    aria-expanded={isExpanded}
-                  >
-                    <ChevronDown
-                      className={cn(
-                        "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                        isExpanded && "rotate-180",
-                      )}
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-base font-semibold tracking-tight">
-                          {supplierNameForOrder(order)}
-                        </span>
-                        <span
+                <PurchaseOrderCardStickyHeader
+                  order={order}
+                  supplierName={supplierNameForOrder(order)}
+                  creatorLabel={creatorLabelForOrder(order)}
+                  isExpanded={isExpanded}
+                  onToggleExpanded={() => toggleExpanded(order.id)}
+                  onDeliveryDateChange={(ymd) =>
+                    void setOrderDeliveryDate(order.id, ymd)
+                  }
+                  formatWhen={formatWhen}
+                  formatDeliveryYmd={formatDeliveryYmd}
+                  actions={
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full border-border/60"
+                        onClick={() => openProtocol(order)}
+                      >
+                        Protokoll
+                      </Button>
+                      {order.status === "open" ? (
+                        <Button
+                          type="button"
+                          size="sm"
                           className={cn(
-                            "rounded-full px-2 py-0.5 text-[11px] font-medium",
-                            order.status === "open"
-                              ? "bg-accent/15 text-foreground"
-                              : order.status === "ordered"
-                                ? "bg-amber-500/15 text-amber-950 dark:text-amber-100"
-                                : "bg-muted text-muted-foreground",
+                            "rounded-full px-3 sm:px-4",
+                            brandActionButtonRoundedClassName,
                           )}
+                          onClick={() =>
+                            void markOrderOrdered(order.id, actor).then((ok) => {
+                              if (ok) setStatusFilter("ordered");
+                            })
+                          }
                         >
-                          {purchaseOrderStatusLabel(order.status)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground sm:text-sm">
-                        {order.lines.length} Position{order.lines.length === 1 ? "" : "en"}
-                        {deliveryLabel ? ` · Lieferung ${deliveryLabel}` : ""}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        Erstellt {formatWhen(order.createdAt)}
-                        {(() => {
-                          const creator = creatorLabelForOrder(order);
-                          return creator ? ` · ${creator}` : "";
-                        })()}
-                      </p>
-                    </div>
-                  </button>
-                  <div className="flex shrink-0 flex-col justify-center gap-2 border-l border-border/50 px-2 py-2 sm:flex-row sm:items-center sm:px-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full border-border/60"
-                      onClick={() => openProtocol(order)}
-                    >
-                      Protokoll
-                    </Button>
-                    {order.status === "open" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className={cn(
-                          "rounded-full px-3 sm:px-4",
-                          brandActionButtonRoundedClassName,
-                        )}
-                        onClick={() =>
-                          void markOrderOrdered(order.id, actor).then((ok) => {
-                            if (ok) setStatusFilter("ordered");
-                          })
-                        }
-                      >
-                        Bestellt
-                      </Button>
-                    ) : null}
-                    {order.status === "ordered" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className={cn(
-                          "rounded-full px-3 sm:px-4",
-                          brandActionButtonRoundedClassName,
-                        )}
-                        onClick={() => requestCloseOrder(order)}
-                      >
-                        Abschließen
-                      </Button>
-                    ) : null}
-                    {order.status !== "open" ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="rounded-full px-3 sm:px-4"
-                        onClick={() => {
-                          void reopenOrder(order.id, actor).then((ok) => {
-                            if (!ok) return;
-                            if (order.status === "closed") setStatusFilter("ordered");
-                            else setStatusFilter("open");
-                          });
-                        }}
-                      >
-                        Zurück
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
+                          Bestellt
+                        </Button>
+                      ) : null}
+                      {order.status === "ordered" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className={cn(
+                            "rounded-full px-3 sm:px-4",
+                            brandActionButtonRoundedClassName,
+                          )}
+                          disabled={closeProgress != null}
+                          onClick={() => requestCloseOrder(order)}
+                        >
+                          Abschließen
+                        </Button>
+                      ) : null}
+                      {order.status !== "open" ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="rounded-full px-3 sm:px-4"
+                          onClick={() => {
+                            void reopenOrder(order.id, actor).then((ok) => {
+                              if (!ok) return;
+                              if (order.status === "closed") {
+                                setStatusFilter("ordered");
+                              } else {
+                                setStatusFilter("open");
+                              }
+                            });
+                          }}
+                        >
+                          Zurück
+                        </Button>
+                      ) : null}
+                    </>
+                  }
+                />
 
                 {isExpanded ? (
-                  <div className="border-t border-border/50">
-                    <div className="flex flex-col gap-2 border-b border-border/40 bg-muted/20 px-4 py-3 sm:flex-row sm:items-end sm:gap-6 sm:px-5">
-                      <div className="space-y-1.5">
-                        <Label
-                          htmlFor={`delivery-${order.id}`}
-                          className="text-xs text-muted-foreground"
-                        >
-                          Lieferdatum
-                        </Label>
-                        <DatePickerField
-                          id={`delivery-${order.id}`}
-                          size="compact"
-                          value={order.deliveryDate}
-                          onChange={(ymd) => void setOrderDeliveryDate(order.id, ymd)}
-                          placeholder="Lieferdatum wählen"
-                          className="max-w-[min(100%,12rem)]"
-                        />
-                      </div>
-                    </div>
-
-                    {orderViewMode === "compact" ? (
-                      <PurchaseOrderCompactLinesList
-                        order={order}
-                        lines={sortPurchaseOrderLines(
-                          order.lines,
-                          ingredients,
-                          ingredientCategories.items,
-                          lineSortKey,
-                          lineSortDir,
-                          units.items,
-                        )}
-                        actor={actor}
-                        onCommitQty={commitLineQty}
-                        unitLabelForLine={unitLabelForLine}
-                        onSetDelivery={handleSetLineDelivery}
-                        onClearDelivery={handleClearLineDelivery}
-                      />
-                    ) : (
-                      <>
+                  <div className="overflow-hidden rounded-b-xl border-t border-border/50">
                     <div className="md:hidden">
                       <PurchaseOrderMobileLinesList
                         order={order}
@@ -908,11 +880,11 @@ export function PurchaseOrdersScreen() {
                     <div className="hidden md:block">
                     <ModuleDataTableFrame
                       tableFullscreen
+                      scrollPort="page"
                       fullscreenTitle={`Bestellung · ${supplierNameForOrder(order)}`}
                       summaryText={`${order.lines.length} Position${order.lines.length === 1 ? "" : "en"}`}
                       toolbarClassName="px-4 sm:px-5"
                       shellClassName="overflow-hidden rounded-none bg-transparent ring-0 shadow-none"
-                      scrollClassName="overflow-x-auto"
                       fullscreenChromeInsetClassName={
                         moduleTableFullscreenChromeInsetDenseClassName
                       }
@@ -934,7 +906,7 @@ export function PurchaseOrdersScreen() {
                           : undefined
                       }
                     >
-                      <table className="w-full min-w-[920px] text-sm">
+                      <table className="w-full min-w-[1040px] text-sm">
                         <thead>
                           <tr className={moduleDataTableHeadRowNormalCaseClassName}>
                             <ModuleTableSortHeader
@@ -944,7 +916,14 @@ export function PurchaseOrdersScreen() {
                               dir={lineSortDir}
                               onSort={toggleLineSort}
                               className={cn(
-                                "min-w-[12rem]",
+                                "min-w-[14rem]",
+                                moduleDataTableHeadCellDenseClassName,
+                              )}
+                            />
+                            <ModuleTableStaticColumnHeader
+                              label="Art.-Nr."
+                              className={cn(
+                                "min-w-[7rem]",
                                 moduleDataTableHeadCellDenseClassName,
                               )}
                             />
@@ -1004,7 +983,7 @@ export function PurchaseOrdersScreen() {
                           {order.lines.length === 0 ? (
                             <tr>
                               <td
-                                colSpan={6}
+                                colSpan={7}
                                 className="px-4 py-8 text-center text-muted-foreground"
                               >
                                 Noch keine Positionen.
@@ -1026,7 +1005,18 @@ export function PurchaseOrdersScreen() {
                                 className="border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60"
                               >
                                 <td className="px-3 py-2 font-medium text-foreground">
-                                  {line.ingredientName}
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <IngredientThumb
+                                      imagePath={ingRow?.imagePath}
+                                      className="size-8"
+                                    />
+                                    <span className="min-w-0 truncate">
+                                      {line.ingredientName}
+                                    </span>
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-muted-foreground">
+                                  {ingRow?.articleNumber?.trim() || "—"}
                                 </td>
                                 <td className="max-w-[10rem] truncate px-3 py-2 text-muted-foreground">
                                   {line.brandLabel ?? "—"}
@@ -1038,7 +1028,7 @@ export function PurchaseOrdersScreen() {
                                   <OrderLineQtyCell
                                     orderId={order.id}
                                     line={line}
-                                    readOnly={false}
+                                    readOnly={order.status !== "open"}
                                     actor={actor}
                                     onCommit={commitLineQty}
                                   />
@@ -1077,8 +1067,6 @@ export function PurchaseOrdersScreen() {
                       </table>
                     </ModuleDataTableFrame>
                     </div>
-                      </>
-                    )}
                   </div>
                 ) : null}
               </section>
@@ -1105,6 +1093,11 @@ export function PurchaseOrdersScreen() {
         }}
         unitLabelForLine={unitLabelForLine}
         onConfirm={handleCloseWithDeliveries}
+      />
+
+      <PurchaseOrderCloseProgressOverlay
+        open={closeProgress != null}
+        progress={closeProgress}
       />
     </div>
   );

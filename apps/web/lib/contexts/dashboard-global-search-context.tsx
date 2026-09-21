@@ -22,7 +22,8 @@ type DashboardGlobalSearchContextValue = {
 const DashboardGlobalSearchContext =
   createContext<DashboardGlobalSearchContextValue | null>(null);
 
-function isRestaurantDashboardPath(pathname: string): boolean {
+function isRestaurantDashboardPath(pathname: string | null): boolean {
+  if (!pathname) return false;
   return (
     pathname === APP_ROUTES.dashboard ||
     pathname.startsWith(`${APP_ROUTES.dashboard}/`)
@@ -37,7 +38,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 export function DashboardGlobalSearchProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const [open, setOpen] = useState(false);
   const dashboardPath = isRestaurantDashboardPath(pathname);
 

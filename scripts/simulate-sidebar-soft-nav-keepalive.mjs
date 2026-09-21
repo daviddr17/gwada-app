@@ -17,7 +17,7 @@ const SIDEBAR = [
   { id: "inventory", href: "/dashboard/inventory/uebersicht" },
   { id: "reservierungen", href: "/dashboard/reservierungen/uebersicht" },
   { id: "pos", href: "/dashboard/pos/uebersicht" },
-  { id: "events", href: "/dashboard/events" },
+  { id: "events", href: "/dashboard/events/uebersicht" },
   { id: "kontakte", href: "/dashboard/kontakte/nachrichten?platform=all" },
   { id: "news", href: "/dashboard/news/uebersicht" },
   { id: "bewertungen", href: "/dashboard/bewertungen/uebersicht" },

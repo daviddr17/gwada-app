@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useCallback, useMemo, useState, type MouseEvent } from "react";
-import { ExternalLink, Newspaper } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import { feedTimelineDateChipClassName } from "@/components/feed/feed-timeline-date-skeleton";
@@ -44,14 +44,19 @@ function NewsFeedBodyActions({
   externalUrl,
   platform,
   onToggleExpanded,
+  showExternalLinkAlways = false,
 }: {
   canExpandBody: boolean;
   expanded: boolean;
   externalUrl: string | null;
   platform: UnifiedNewsItem["platform"];
   onToggleExpanded: (event: MouseEvent) => void;
+  /** Geteilte FB-Posts: Link ohne „Mehr anzeigen“. */
+  showExternalLinkAlways?: boolean;
 }) {
-  if (!canExpandBody && !(expanded && externalUrl)) return null;
+  const showExternal =
+    Boolean(externalUrl) && (expanded || showExternalLinkAlways);
+  if (!canExpandBody && !showExternal) return null;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
@@ -64,9 +69,9 @@ function NewsFeedBodyActions({
           <NewsExpandLabel expanded={expanded} />
         </button>
       ) : null}
-      {expanded && externalUrl ? (
+      {showExternal ? (
         <a
-          href={externalUrl}
+          href={externalUrl!}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(event) => event.stopPropagation()}
@@ -101,34 +106,23 @@ const NewsTimelineThumb = memo(function NewsTimelineThumb({
   const [coverBroken, setCoverBroken] = useState(false);
   const showCover = Boolean(mediaSrc) && !coverBroken;
 
-  if (showCover) {
-    return (
-      <div className={timelineThumbClassName}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={mediaSrc!}
-          alt=""
-          width={80}
-          height={80}
-          loading="lazy"
-          decoding="async"
-          fetchPriority="low"
-          className="size-full object-cover object-center"
-          onError={() => setCoverBroken(true)}
-        />
-      </div>
-    );
-  }
+  // Ohne Bild kein Platzhalter-Kästchen — Text-Posts nutzen die volle Zeilenbreite.
+  if (!showCover) return null;
 
   return (
-    <div
-      className={cn(
-        timelineThumbClassName,
-        "flex items-center justify-center text-muted-foreground/70",
-      )}
-      aria-hidden
-    >
-      <Newspaper className="size-6 sm:size-7" />
+    <div className={timelineThumbClassName}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={mediaSrc!}
+        alt=""
+        width={80}
+        height={80}
+        loading="lazy"
+        decoding="async"
+        fetchPriority="low"
+        className="size-full object-cover object-center"
+        onError={() => setCoverBroken(true)}
+      />
     </div>
   );
 });
@@ -152,6 +146,10 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
   const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
+  const showExternalLinkAlways =
+    Boolean(externalUrl) &&
+    item.platform === "facebook" &&
+    (item.title === "Geteilter Beitrag" || !item.body.trim());
   const dateTime = newsDisplayTimestamp(item);
   const dateLabel = formatNewsCardDate(item);
 
@@ -176,13 +174,14 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
         {/* Voller Text + CSS-Clamp: Embed-MT übersetzt einmal, Expand triggert kein Re-Translate. */}
         {inlineExpandBody ? fullBody : newsCardPreviewBody(item.body)}
       </p>
-      {canExpandBody || (expanded && externalUrl) ? (
+      {canExpandBody || showExternalLinkAlways ? (
         <NewsFeedBodyActions
           canExpandBody={canExpandBody}
           expanded={expanded}
           externalUrl={externalUrl}
           platform={item.platform}
           onToggleExpanded={toggleExpanded}
+          showExternalLinkAlways={showExternalLinkAlways}
         />
       ) : null}
     </div>
@@ -230,7 +229,7 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
             </time>
           </div>
           {item.title ? (
-            <p className="font-medium leading-snug" data-embed-mt>
+            <p className="text-sm font-medium leading-snug" data-embed-mt>
               {item.title}
             </p>
           ) : null}
@@ -354,6 +353,10 @@ const NewsCard = memo(function NewsCard({
   const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
+  const showExternalLinkAlways =
+    Boolean(externalUrl) &&
+    item.platform === "facebook" &&
+    (item.title === "Geteilter Beitrag" || !item.body.trim());
 
   const toggleExpanded = useCallback((event: MouseEvent) => {
     event.stopPropagation();
@@ -371,13 +374,14 @@ const NewsCard = memo(function NewsCard({
       >
         {inlineExpandBody ? fullBody : newsCardPreviewBody(item.body)}
       </p>
-      {canExpandBody || (expanded && externalUrl) ? (
+      {canExpandBody || showExternalLinkAlways ? (
         <NewsFeedBodyActions
           canExpandBody={canExpandBody}
           expanded={expanded}
           externalUrl={externalUrl}
           platform={item.platform}
           onToggleExpanded={toggleExpanded}
+          showExternalLinkAlways={showExternalLinkAlways}
         />
       ) : null}
     </div>
@@ -420,7 +424,7 @@ const NewsCard = memo(function NewsCard({
           </time>
         </div>
         {item.title ? (
-          <p className="font-medium leading-snug" data-embed-mt>
+          <p className="text-sm font-medium leading-snug" data-embed-mt>
             {item.title}
           </p>
         ) : null}

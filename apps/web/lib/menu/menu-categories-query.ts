@@ -4,8 +4,8 @@ import {
   CATEGORY_STORAGE_KEY,
   DEFAULT_CATEGORIES,
 } from "@/lib/constants/categories";
-import { migrateMenuCategoriesFromLegacyAppStateIfEmpty, migrateMenuMainCategoriesIfEmpty } from "@/lib/supabase/app-state-relational-migration";
-import { loadMenuCategoriesRelational } from "@/lib/supabase/menu-db";
+import { migrateMenuCategoriesFromLegacyAppStateIfEmpty, migrateMenuMainCategoriesIfEmpty, loadRelationalOrLegacyMigrate } from "@/lib/supabase/app-state-relational-migration";
+import { loadMenuCategoriesRelational, loadMenuMainCategoriesRelational } from "@/lib/supabase/menu-db";
 import {
   getWorkspaceRestaurantId,
   loadWorkspaceJsonLocal,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/supabase/workspace-persistence";
 import type { MenuCategoryDefinition } from "@/lib/types/menu";
 import { defaultMenuMainCategories } from "@/lib/menu/menu-main-categories-query";
+import { remapCategoryMainCategoryIds } from "@/lib/menu/normalize-menu-main-categories";
 
 function normalizeCategory(c: MenuCategoryDefinition): MenuCategoryDefinition {
   return {
@@ -61,13 +62,27 @@ export async function fetchMenuCategoriesForRestaurant(): Promise<
 > {
   const rid = await getWorkspaceRestaurantId();
   const seed = defaultMenuCategories();
-  if (rid) {
-    await migrateMenuMainCategoriesIfEmpty(rid, defaultMenuMainCategories());
-    await migrateMenuCategoriesFromLegacyAppStateIfEmpty(rid, seed);
-  }
-  const rows = await loadMenuCategoriesRelational(rid);
+  const rows = rid
+    ? await loadRelationalOrLegacyMigrate(
+        `menu-cats:${rid}`,
+        () => loadMenuCategoriesRelational(rid),
+        async () => {
+          await migrateMenuMainCategoriesIfEmpty(
+            rid,
+            defaultMenuMainCategories(),
+          );
+          await migrateMenuCategoriesFromLegacyAppStateIfEmpty(rid, seed, {
+            skipExistingCheck: true,
+          });
+        },
+      )
+    : await loadMenuCategoriesRelational(rid);
   if (rows && rows.length > 0) {
-    const next = rows.map(normalizeCategory);
+    const mainRows = (await loadMenuMainCategoriesRelational(rid)) ?? [];
+    const next = remapCategoryMainCategoryIds(
+      rows.map(normalizeCategory),
+      mainRows,
+    ).map(normalizeCategory);
     mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next);
     return next;
   }

@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { useWindowEventRefresh } from "@/lib/hooks/use-window-event-refresh";
+import { GWADA_DINING_DATA_REFRESH_EVENT } from "@/lib/reservations/dining-live-events";
 import { Minus, Pencil, Plus, RotateCcw, Trash2, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -198,6 +200,14 @@ export function FloorPlanScreen() {
   useEffect(() => {
     void loadAll();
   }, [loadAll, reloadNonce]);
+
+  useWindowEventRefresh(
+    GWADA_DINING_DATA_REFRESH_EVENT,
+    Boolean(restaurantId),
+    () => {
+      setReloadNonce((n) => n + 1);
+    },
+  );
 
   const tablesInArea = useMemo(
     () => tables.filter((t) => t.area_id === selectedAreaId),

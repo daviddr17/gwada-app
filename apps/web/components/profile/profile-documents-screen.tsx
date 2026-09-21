@@ -1,10 +1,11 @@
 "use client";
 
 import { ProfilePendingContractsSection } from "@/components/profile/profile-pending-contracts-section";
+import { ProfileDocumentsSkeleton } from "@/components/profile/profile-documents-skeleton";
 import { StaffDocumentsList } from "@/components/staff/staff-documents-list";
-import { StaffDocumentsSkeleton } from "@/components/staff/staff-documents-skeleton";
 import { useMyRestaurantStaff } from "@/lib/hooks/use-my-restaurant-staff";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -19,15 +20,13 @@ import {
 
 export function ProfileDocumentsScreen() {
   const { profile } = useRestaurantProfile();
-  const {
-    restaurantId,
-    workspaceReady,
-    staff,
-    loading: staffLoading,
-    showSkeleton: staffSkeleton,
-  } = useMyRestaurantStaff();
+  const { restaurantId, workspaceReady, staff, loading: staffLoading } =
+    useMyRestaurantStaff();
   const [documents, setDocuments] = useState<StaffDocumentListItem[]>([]);
   const [docsLoading, setDocsLoading] = useState(true);
+
+  const pageLoading = staffLoading || docsLoading;
+  const showSkeleton = useDeferredSkeleton(pageLoading);
 
   const reload = useCallback(async () => {
     if (!restaurantId || !staff) {
@@ -73,12 +72,12 @@ export function ProfileDocumentsScreen() {
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
-  if (staffLoading && !staffSkeleton) {
-    return <div className="min-h-[20rem]" aria-busy="true" />;
+  if (pageLoading && showSkeleton) {
+    return <ProfileDocumentsSkeleton />;
   }
 
-  if (staffSkeleton || docsLoading) {
-    return <StaffDocumentsSkeleton />;
+  if (pageLoading) {
+    return <div className="min-h-[20rem]" aria-busy="true" />;
   }
 
   if (!staff) {

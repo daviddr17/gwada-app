@@ -138,6 +138,11 @@ import {
   PlatformFeedListMetaRow,
   platformFeedSyncMetaVisible,
 } from "@/components/platform-feed/platform-feed-sync-status-bar";
+import { humanizeReviewsApiError } from "@/lib/reviews/reviews-api-error-messages";
+import {
+  REVIEW_FOCUS_QUERY,
+  reviewNotificationDomId,
+} from "@/lib/reviews/review-notification-href";
 
 const REVIEWS_SYNC_POLL_MS = 5_000;
 const REVIEWS_SYNC_POLL_MAX = 3;
@@ -174,6 +179,8 @@ function withNextPageToken(
 
 export function ReviewsScreen({ active = true }: { active?: boolean }) {
   const router = useKeepAliveGatedRouter(active);
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const platformParam = searchParams.get("platform");
@@ -381,6 +388,7 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
     isPlatformAvailable(platformFilter);
 
   const reviewProtocolParam = searchParams.get("reviewProtocol")?.trim() ?? "";
+  const reviewFocusParam = searchParams.get(REVIEW_FOCUS_QUERY)?.trim() ?? "";
 
   const allReviews = useMemo(() => {
     if (platformFilter === "google") {
@@ -414,6 +422,43 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
       setProtocolReview(match);
     }
   }, [reviewProtocolParam, platformFilter, ready, allReviews]);
+
+  /** Glocke / Deep-Link: Google, Facebook, TripAdvisor — zur Karte scrollen. */
+  useEffect(() => {
+    if (!reviewFocusParam || !ready || platformFilter === REVIEW_FILTER_ALL) return;
+    const match = allReviews.find(
+      (r) => r.platform === platformFilter && r.id === reviewFocusParam,
+    );
+    if (!match) return;
+
+    const domId = reviewNotificationDomId(match.platform, match.id);
+    const scrollToReview = () => {
+      document.getElementById(domId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    };
+    const frame = window.requestAnimationFrame(scrollToReview);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(REVIEW_FOCUS_QUERY);
+    const q = params.toString();
+    router.replace(
+      q
+        ? `/dashboard/bewertungen/uebersicht?${q}`
+        : "/dashboard/bewertungen/uebersicht",
+      { scroll: false },
+    );
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    reviewFocusParam,
+    platformFilter,
+    ready,
+    allReviews,
+    router,
+    searchParams,
+  ]);
 
   useEffect(() => {
     if (connectionsLoading || !ready || !restaurantId) return;
@@ -515,7 +560,14 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
           const params = new URLSearchParams({ restaurantId, platform: "all" });
           const { res, json } = await fetchReviewsJson(params);
           if (!res.ok) {
-            toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+            if (!silent && activeRef.current) {
+              toast.error(
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
+              );
+            }
             return;
           }
           const reviewsRead = json.reviews.map((review) => ({
@@ -610,7 +662,10 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
               };
               if (!res.ok) {
                 setGoogleStatsError(
-                  json.loadError ?? json.error ?? "Google-Statistik nicht verfügbar.",
+                  humanizeReviewsApiError(
+                    json.loadError ?? json.error,
+                    "Google-Statistik nicht verfügbar.",
+                  ),
                 );
                 return;
               }
@@ -711,7 +766,7 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
       await Promise.all(requests);
       setFeedCache((prev) => ({ ...prev, ready: true }));
     } catch {
-      if (!silent) {
+      if (!silent && activeRef.current) {
         toast.error("Netzwerkfehler beim Laden der Bewertungen.");
       }
     } finally {
@@ -785,7 +840,9 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
       await prefetchFeed({ silent: true });
       toast.success("Synchronisiert.");
     } catch {
-      toast.error("Synchronisierung fehlgeschlagen.");
+      if (activeRef.current) {
+        toast.error("Synchronisierung fehlgeschlagen.");
+      }
     } finally {
       setSyncing(false);
     }
@@ -820,7 +877,14 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         if (token) params.set("pageToken", token);
         const { res, json } = await fetchReviewsJson(params);
         if (!res.ok) {
-          toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+          if (activeRef.current) {
+              toast.error(
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
+              );
+            }
           return;
         }
         const reviewsRead = json.reviews.map((review) => ({
@@ -847,7 +911,9 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         }));
         setAllPage(page);
       } catch {
-        toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+        if (activeRef.current) {
+          toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+        }
       } finally {
         setPaginationBusy(false);
       }
@@ -870,7 +936,14 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         if (token) params.set("googlePageToken", token);
         const { res, json } = await fetchReviewsJson(params);
         if (!res.ok) {
-          toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+          if (activeRef.current) {
+              toast.error(
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
+              );
+            }
           return;
         }
         const reviewsRead = json.reviews.map((review) => ({
@@ -892,7 +965,9 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         }));
         setGooglePage(page);
       } catch {
-        toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+        if (activeRef.current) {
+          toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+        }
       } finally {
         setPaginationBusy(false);
       }
@@ -921,7 +996,14 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         if (token) params.set("pageToken", token);
         const { res, json } = await fetchReviewsJson(params);
         if (!res.ok) {
-          toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+          if (activeRef.current) {
+              toast.error(
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
+              );
+            }
           return;
         }
         const reviewsRead = json.reviews.map((review) => ({
@@ -943,7 +1025,9 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         }));
         setFacebookPage(page);
       } catch {
-        toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+        if (activeRef.current) {
+          toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+        }
       } finally {
         setPaginationBusy(false);
       }
@@ -975,7 +1059,14 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         if (token) params.set("pageToken", token);
         const { res, json } = await fetchReviewsJson(params);
         if (!res.ok) {
-          toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+          if (activeRef.current) {
+              toast.error(
+                humanizeReviewsApiError(
+                  json.error,
+                  "Bewertungen konnten nicht geladen werden.",
+                ),
+              );
+            }
           return;
         }
         const reviewsRead = json.reviews.map((review) => ({
@@ -998,7 +1089,9 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         }));
         setTripadvisorPage(page);
       } catch {
-        toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+        if (activeRef.current) {
+          toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+        }
       } finally {
         setPaginationBusy(false);
       }
@@ -1163,7 +1256,12 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
-        toast.error(body.error ?? "Antwort konnte nicht gesendet werden.");
+        toast.error(
+          humanizeReviewsApiError(
+            body.error,
+            "Antwort konnte nicht gesendet werden.",
+          ),
+        );
         return;
       }
       toast.success("Antwort gesendet.");
@@ -1204,7 +1302,12 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
         });
         const body = (await res.json()) as { error?: string };
         if (!res.ok) {
-          toast.error(body.error ?? "Sichtbarkeit konnte nicht geändert werden.");
+          toast.error(
+            humanizeReviewsApiError(
+              body.error,
+              "Sichtbarkeit konnte nicht geändert werden.",
+            ),
+          );
           return;
         }
         patchReviewInState(review, { hiddenFromPublic: hidden });

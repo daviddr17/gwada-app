@@ -84,7 +84,9 @@ async function loadPublicEmbedEventsUncached(
     embedPlatforms,
   );
 
-  const embedFiltered = filterItemsForEventsEmbed(feed.items, embedPlatforms);
+  const embedFiltered = filterItemsForEventsEmbed(feed.items, embedPlatforms).filter(
+    (item) => item.source !== "gwada" || item.status === "published",
+  );
   const { upcoming, past } = splitEmbedEventsByUpcoming(embedFiltered);
   const maxItems = Number(settings?.embed_max_items ?? 24);
 

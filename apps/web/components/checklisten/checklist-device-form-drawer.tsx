@@ -88,27 +88,33 @@ export function ChecklistDeviceFormDrawer({
       return;
     }
     setSaving(true);
-    const ok = await onSave(
-      {
-        name: trimmed,
-        areaId: areaId || null,
-        targetMin: parseOptionalNumber(targetMin),
-        targetMax: parseOptionalNumber(targetMax),
-      },
-      device?.id ?? null,
-    );
-    setSaving(false);
-    if (ok) onOpenChange(false);
+    try {
+      const ok = await onSave(
+        {
+          name: trimmed,
+          areaId: areaId || null,
+          targetMin: parseOptionalNumber(targetMin),
+          targetMax: parseOptionalNumber(targetMax),
+        },
+        device?.id ?? null,
+      );
+      if (ok) onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async () => {
     if (!device || !onDelete) return;
     setSaving(true);
-    const ok = await onDelete(device.id);
-    setSaving(false);
-    if (ok) {
-      setConfirmDelete(false);
-      onOpenChange(false);
+    try {
+      const ok = await onDelete(device.id);
+      if (ok) {
+        setConfirmDelete(false);
+        onOpenChange(false);
+      }
+    } finally {
+      setSaving(false);
     }
   };
 

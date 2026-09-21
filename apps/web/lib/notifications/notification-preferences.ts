@@ -20,11 +20,18 @@ export const NOTIFICATION_BELL_POLL_MS = 45_000;
 export const DEFAULT_IN_APP_ENABLED_MODULE_IDS: readonly NotificationModuleId[] =
   [
     "messages",
+    "messages_follow_up",
     "reviews",
     "reservations_pending",
     "reservations_change_request",
     "reservations_cancellation",
+    "events_inquiry",
     "staff_permissions_granted",
+    "inventory_po_delivery_due",
+    "inventory_po_ordered",
+    "inventory_po_closed",
+    "personal_reminder",
+    "staff_messages",
   ];
 
 export function defaultModuleToggles(

@@ -4,9 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollText, Trash2, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  IngredientInactiveBadge,
+  ingredientInactiveRowClassName,
+} from "@/components/inventory/ingredient-inactive-badge";
+import { IngredientThumb } from "@/components/inventory/ingredient-thumb";
 import type { AddPurchaseLineParams } from "@/lib/hooks/use-purchase-orders-storage";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
+import { isIngredientActive } from "@/lib/inventory/low-stock";
 import {
   inventoryCompactQtyUnitSuffixClassName,
   inventoryTouchOrderQtyInputCn,
@@ -154,6 +160,9 @@ function InventoryMobileOrderInput({
         return;
       }
       const raw = draft.trim();
+      if (raw === "" && openLineId) {
+        return;
+      }
       let q: number;
       if (raw === "") {
         q = 0;
@@ -339,8 +348,10 @@ export function InventoryMobileStockList({
         const unitLabel = unitLabelById(row.unit);
         const meta = metaLineForRow(row);
         const orderCtx = orderContextForRow(row);
+        const inactive = !isIngredientActive(row);
         const threshold = row.lowStockThreshold ?? 0;
         const low =
+          !inactive &&
           Number.isFinite(row.currentStock) &&
           Number.isFinite(threshold) &&
           threshold > 0 &&
@@ -352,18 +363,29 @@ export function InventoryMobileStockList({
             className={cn(
               "rounded-2xl border border-border/50 bg-card p-4 shadow-card",
               low && "border-amber-500/40 bg-amber-500/5",
+              inactive && ingredientInactiveRowClassName,
             )}
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <button
                 type="button"
-                className="min-w-0 flex-1 rounded-xl text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
+                className="flex min-w-0 flex-1 items-start gap-2 rounded-xl text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
                 onClick={() => onEditIngredient(row)}
                 aria-label={`${row.name} bearbeiten`}
               >
-                <p className="truncate text-base font-semibold leading-snug">
-                  {row.name}
+                <IngredientThumb imagePath={row.imagePath} className="mt-0.5" />
+                <span className="min-w-0">
+                <p className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-base font-semibold leading-snug">
+                    {row.name}
+                  </span>
+                  {inactive ? <IngredientInactiveBadge /> : null}
                 </p>
+                {row.articleNumber?.trim() ? (
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    Art.-Nr. {row.articleNumber.trim()}
+                  </p>
+                ) : null}
                 {meta ? (
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {meta}
@@ -377,6 +399,7 @@ export function InventoryMobileStockList({
                 <p className="mt-1 text-xs text-muted-foreground">
                   Tippen zum Bearbeiten
                 </p>
+                </span>
               </button>
               <div className="flex shrink-0 items-center gap-0.5">
                 <Button
@@ -494,8 +517,10 @@ export function InventoryCompactStockList(props: InventoryMobileStockListProps) 
         {rows.map((row) => {
           const unitLabel = unitLabelById(row.unit);
           const orderCtx = orderContextForRow(row);
+          const inactive = !isIngredientActive(row);
           const threshold = row.lowStockThreshold ?? 0;
           const low =
+            !inactive &&
             Number.isFinite(row.currentStock) &&
             Number.isFinite(threshold) &&
             threshold > 0 &&
@@ -511,15 +536,27 @@ export function InventoryCompactStockList(props: InventoryMobileStockListProps) 
                 low && "bg-amber-500/5",
                 inOpenOrder &&
                   "ring-1 ring-inset ring-sky-500/45 dark:ring-sky-400/40",
+                inactive && ingredientInactiveRowClassName,
               )}
             >
               <button
                 type="button"
-                className="min-w-0 rounded-lg text-left text-sm font-medium leading-snug break-words text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
+                className="flex min-w-0 items-center gap-2 rounded-lg text-left text-sm font-medium leading-snug text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
                 onClick={() => onEditIngredient(row)}
                 aria-label={`${row.name} bearbeiten`}
               >
-                {row.name}
+                <IngredientThumb imagePath={row.imagePath} className="size-8" />
+                <span className="min-w-0">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="break-words">{row.name}</span>
+                    {inactive ? <IngredientInactiveBadge /> : null}
+                  </span>
+                  {row.articleNumber?.trim() ? (
+                    <span className="block truncate text-[11px] font-normal text-muted-foreground">
+                      {row.articleNumber.trim()}
+                    </span>
+                  ) : null}
+                </span>
               </button>
               <InventoryMobileStockInput
                 ingredientId={row.id}

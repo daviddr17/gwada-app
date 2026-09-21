@@ -5,6 +5,8 @@ import {
 } from "@/lib/constants/events-platforms";
 import { readEventsFeedFromCache } from "@/lib/events/events-feed-read-server";
 import { triggerEventsFeedSyncIfStale } from "@/lib/events/events-feed-sync-server";
+import { sortEventsByStartAt } from "@/lib/events/format-events-display-date";
+import { readPrivateEventsForDashboardFeed } from "@/lib/events/private-events-feed-server";
 import { authorizeEventsRestaurant } from "@/lib/events/route-auth";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +23,16 @@ export async function GET(req: Request) {
   const platforms =
     filter === "all" ? undefined : ([filter] as EventsPlatform[]);
 
-  const { items, sync } = await readEventsFeedFromCache(restaurantId, auth.sb, platforms);
+  const includePrivate = filter === "all";
+
+  const [{ items: publicItems, sync }, privateItems] = await Promise.all([
+    readEventsFeedFromCache(restaurantId, auth.sb, platforms),
+    includePrivate
+      ? readPrivateEventsForDashboardFeed(restaurantId, auth.sb)
+      : Promise.resolve([]),
+  ]);
+
+  const items = sortEventsByStartAt([...publicItems, ...privateItems]);
 
   after(() => {
     void triggerEventsFeedSyncIfStale(restaurantId, platforms);

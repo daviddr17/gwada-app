@@ -42,7 +42,7 @@ function segmentEndMs(e: RestaurantStaffWorkEntryRow): number {
  * Bubble-/manuelle Arbeit+Pause ohne `shift_id`: zeitlich aneinandergrenzende
  * Segmente desselben Mitarbeiters zu einer Schicht-Zeile clustern.
  */
-function clusterLegacyWorkBreakShifts(
+export function clusterLegacyWorkBreakShifts(
   entries: RestaurantStaffWorkEntryRow[],
 ): WorkHoursListItem[] {
   const items: WorkHoursListItem[] = [];
@@ -73,6 +73,15 @@ function clusterLegacyWorkBreakShifts(
         clusterEnd = Math.max(clusterEnd, segmentEndMs(next));
         i += 1;
       }
+      const hasWork = segments.some((s) => s.entry_type === "work");
+      // Lone Pause must stay a flat entry — wrapping as Schicht shows "0,00 h" above Pause.
+      // Single work also stays flat; only Arbeit+Pause (multi-segment) is a Schicht block.
+      if (!hasWork || segments.length === 1) {
+        for (const s of segments) {
+          items.push({ kind: "entry", entry: s });
+        }
+        continue;
+      }
       items.push({
         kind: "display_shift",
         shiftId: `legacy-${segments[0]!.id}`,
@@ -89,6 +98,80 @@ function clusterLegacyWorkBreakShifts(
  * Display ohne `shift_id` und Legacy Arbeit/Pause (Bubble) werden ebenfalls
  * als Schicht-Block dargestellt — nicht als flache manuelle Zeilen.
  */
+function entryIntervalMs(
+  e: RestaurantStaffWorkEntryRow,
+  nowMs: number,
+): { start: number; end: number } | null {
+  const start = new Date(e.starts_at).getTime();
+  const end = e.is_open ? nowMs : new Date(e.ends_at).getTime();
+  if (!(end > start)) return null;
+  return { start, end };
+}
+
+function intervalsOverlap(
+  a: { start: number; end: number },
+  b: { start: number; end: number },
+): boolean {
+  return a.start < b.end && b.start < a.end;
+}
+
+/**
+ * Manuelle/verwaiste Pausen, die in eine Display-/Shift-Spanne fallen,
+ * der Display-Schicht zuordnen — sonst entstehen „Schicht · 0,00 h“-Karten
+ * neben einer Display-Arbeitszeit, die die Pause nicht kennt.
+ */
+function attachOverlappingOrphanBreaks(
+  shiftItems: WorkHoursListItem[],
+  orphans: RestaurantStaffWorkEntryRow[],
+  now: Date = new Date(),
+): { shifts: WorkHoursListItem[]; remaining: RestaurantStaffWorkEntryRow[] } {
+  const nowMs = now.getTime();
+  const shifts = shiftItems.map((item) =>
+    item.kind === "display_shift"
+      ? { ...item, segments: [...item.segments] }
+      : item,
+  );
+  const remaining: RestaurantStaffWorkEntryRow[] = [];
+
+  for (const orphan of orphans) {
+    if (orphan.entry_type !== "break") {
+      remaining.push(orphan);
+      continue;
+    }
+    const breakIv = entryIntervalMs(orphan, nowMs);
+    if (!breakIv) {
+      remaining.push(orphan);
+      continue;
+    }
+
+    let attached = false;
+    for (const item of shifts) {
+      if (item.kind !== "display_shift") continue;
+      if (workHoursListItemStaffId(item) !== orphan.staff_id) continue;
+      const hasWork = item.segments.some((s) => s.entry_type === "work");
+      if (!hasWork) continue;
+
+      const shiftStart = Math.min(
+        ...item.segments.map((s) => new Date(s.starts_at).getTime()),
+      );
+      const shiftEnd = Math.max(
+        ...item.segments.map((s) =>
+          s.is_open ? nowMs : new Date(s.ends_at).getTime(),
+        ),
+      );
+      if (!intervalsOverlap(breakIv, { start: shiftStart, end: shiftEnd })) {
+        continue;
+      }
+      item.segments = sortSegmentsByStart([...item.segments, orphan]);
+      attached = true;
+      break;
+    }
+    if (!attached) remaining.push(orphan);
+  }
+
+  return { shifts, remaining };
+}
+
 export function groupWorkHoursDayEntries(
   entries: RestaurantStaffWorkEntryRow[],
   options?: {
@@ -118,14 +201,33 @@ export function groupWorkHoursDayEntries(
     legacyRaw.push(e);
   }
 
-  const display: WorkHoursListItem[] = [
-    ...[...displayByShift.entries()].map(([shiftId, segments]) => ({
-      kind: "display_shift" as const,
+  const baseShifts: WorkHoursListItem[] = [];
+  const shiftIdOrphans: RestaurantStaffWorkEntryRow[] = [];
+
+  for (const [shiftId, segments] of displayByShift.entries()) {
+    const sorted = sortSegmentsByStart(segments);
+    const hasWork = sorted.some((s) => s.entry_type === "work");
+    // Pause-only shift_id groups look like "Schicht · 0,00 h" — treat as orphans.
+    if (!hasWork) {
+      shiftIdOrphans.push(...sorted);
+      continue;
+    }
+    baseShifts.push({
+      kind: "display_shift",
       shiftId,
-      segments: sortSegmentsByStart(segments),
-    })),
-    ...displayLone,
-    ...clusterLegacyWorkBreakShifts(legacyRaw),
+      segments: sorted,
+    });
+  }
+  baseShifts.push(...displayLone);
+
+  const { shifts, remaining } = attachOverlappingOrphanBreaks(
+    baseShifts,
+    [...legacyRaw, ...shiftIdOrphans],
+  );
+
+  const display: WorkHoursListItem[] = [
+    ...shifts,
+    ...clusterLegacyWorkBreakShifts(remaining),
   ];
 
   display.sort((a, b) => {
@@ -169,49 +271,153 @@ export function displayShiftBounds(
 
 /**
  * Netto-Arbeitszeit einer Schicht (Pausen abgezogen) — nicht die Brutto-Spanne Start–Ende.
- * Bei überlappender Arbeitszeit (Pause liegt in einem Work-Segment) wird Pause von Work abgezogen;
- * bei sequentiellen Display-Segmenten ist die Summe der Work-Segmente bereits netto.
+ * Nur Pausenanteile, die mit Work-Intervallen überlappen, werden abgezogen
+ * (Display: sequentielle Pause außerhalb Work → kein Abzug; Bubble/ArbZG: Pause in Work → Abzug).
  */
 export function displayShiftNetWorkHours(
   segments: RestaurantStaffWorkEntryRow[],
   now: Date = new Date(),
 ): number {
+  return displayShiftHoursBreakdown(segments, now).netMs / 3_600_000;
+}
+
+export type DisplayShiftHoursBreakdown = {
+  workMs: number;
+  breakMs: number;
+  /** Pause, die in Work-Intervallen liegt (nur dieser Anteil geht vom Netto ab). */
+  overlapBreakMs: number;
+  netMs: number;
+  /** Union aus Arbeit + Pause (= Anwesenheit / „Eingeloggt“). */
+  presenceMs: number;
+};
+
+function intervalOverlapMs(
+  a: { start: number; end: number },
+  b: { start: number; end: number },
+): number {
+  return Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
+}
+
+
+/** Zusammenhängende Intervalle mergen (Überlappung/Berührung). */
+export function mergeIntervals(
+  intervals: readonly { start: number; end: number }[],
+): { start: number; end: number }[] {
+  if (intervals.length === 0) return [];
+  const sorted = [...intervals].sort((a, b) => a.start - b.start);
+  const out: { start: number; end: number }[] = [
+    { start: sorted[0]!.start, end: sorted[0]!.end },
+  ];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const next = sorted[i]!;
+    const cur = out[out.length - 1]!;
+    if (next.start <= cur.end) {
+      cur.end = Math.max(cur.end, next.end);
+      continue;
+    }
+    out.push({ start: next.start, end: next.end });
+  }
+  return out;
+}
+
+export function measureIntervalsMs(
+  intervals: readonly { start: number; end: number }[],
+): number {
+  let total = 0;
+  for (const iv of mergeIntervals(intervals)) {
+    total += Math.max(0, iv.end - iv.start);
+  }
+  return total;
+}
+
+/** Dauer der Schnittmenge zweier Intervallmengen. */
+export function measureIntervalOverlapMs(
+  a: readonly { start: number; end: number }[],
+  b: readonly { start: number; end: number }[],
+): number {
+  const aa = mergeIntervals(a);
+  const bb = mergeIntervals(b);
+  let total = 0;
+  let i = 0;
+  let j = 0;
+  while (i < aa.length && j < bb.length) {
+    const x = aa[i]!;
+    const y = bb[j]!;
+    total += intervalOverlapMs(x, y);
+    if (x.end < y.end) i += 1;
+    else j += 1;
+  }
+  return total;
+}
+
+/**
+ * Globale Stunden aus Work/Break-Intervallen (ohne Doppelzählung).
+ * Eingeloggt = Union(Arbeit∪Pause), Netto = Union(Arbeit) − Überlappung mit Pause.
+ * Überlappende manuelle Pause auf durchgehender Arbeit erhöht Eingeloggt nicht.
+ */
+export function workBreakHoursFromIntervals(
+  workIntervals: readonly { start: number; end: number }[],
+  breakIntervals: readonly { start: number; end: number }[],
+): {
+  loggedH: number;
+  breakH: number;
+  netWorkH: number;
+  presenceH: number;
+} {
+  const workMs = measureIntervalsMs(workIntervals);
+  const breakMs = measureIntervalsMs(breakIntervals);
+  const presenceMs = measureIntervalsMs([...workIntervals, ...breakIntervals]);
+  const overlapMs = measureIntervalOverlapMs(workIntervals, breakIntervals);
+  const netMs = Math.max(0, workMs - overlapMs);
+  return {
+    loggedH: presenceMs / 3_600_000,
+    breakH: breakMs / 3_600_000,
+    netWorkH: netMs / 3_600_000,
+    presenceH: presenceMs / 3_600_000,
+  };
+}
+
+export function displayShiftHoursBreakdown(
+  segments: RestaurantStaffWorkEntryRow[],
+  now: Date = new Date(),
+): DisplayShiftHoursBreakdown {
   const nowMs = now.getTime();
-  let workMs = 0;
-  let breakMs = 0;
   const workIntervals: { start: number; end: number }[] = [];
+  const breakIntervals: { start: number; end: number }[] = [];
 
   for (const s of segments) {
     const start = new Date(s.starts_at).getTime();
     const end = s.is_open ? nowMs : new Date(s.ends_at).getTime();
-    const ms = Math.max(0, end - start);
-    if (s.entry_type === "work") {
-      workMs += ms;
-      workIntervals.push({ start, end });
-    } else if (s.entry_type === "break") {
-      breakMs += ms;
-    }
+    if (!(end > start)) continue;
+    if (s.entry_type === "work") workIntervals.push({ start, end });
+    else if (s.entry_type === "break") breakIntervals.push({ start, end });
   }
 
-  const breakInsideWork = segments.some((s) => {
-    if (s.entry_type !== "break") return false;
-    const bStart = new Date(s.starts_at).getTime();
-    const bEnd = s.is_open ? nowMs : new Date(s.ends_at).getTime();
-    return workIntervals.some(
-      (w) => bStart >= w.start && bEnd <= w.end + 1,
-    );
-  });
+  // Gleiche Union-/Überlappungslogik wie Abrechnung (workBreakHoursFromIntervals),
+  // sonst können überlappende Work-Segmente Netto in der Schicht-Zeile aufblasen.
+  const workMs = measureIntervalsMs(workIntervals);
+  const breakMs = measureIntervalsMs(breakIntervals);
+  const overlapBreakMs = measureIntervalOverlapMs(workIntervals, breakIntervals);
+  const presenceMs = measureIntervalsMs([...workIntervals, ...breakIntervals]);
 
-  const netMs = breakInsideWork
-    ? Math.max(0, workMs - breakMs)
-    : workMs;
-  return netMs / 3_600_000;
+  return {
+    workMs,
+    breakMs,
+    overlapBreakMs,
+    netMs: Math.max(0, workMs - overlapBreakMs),
+    presenceMs,
+  };
 }
 
 export function displayShiftTitle(
   segments: RestaurantStaffWorkEntryRow[],
 ): string {
-  return segments.some(isDisplayWorkEntry) ? "Display-Schicht" : "Schicht";
+  if (segments.some(isDisplayWorkEntry)) return "Display-Schicht";
+  const hasWork = segments.some((s) => s.entry_type === "work");
+  if (!hasWork && segments.some((s) => s.entry_type === "break")) {
+    return "Pause";
+  }
+  return "Schicht";
 }
 
 export type CompletedDisplayShift = {

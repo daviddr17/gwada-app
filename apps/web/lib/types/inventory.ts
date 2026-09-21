@@ -21,12 +21,17 @@ export type Ingredient = {
   lowStockThreshold?: number;
   /** Einkaufspreis (EUR) pro Lagereinheit — Basis für Food-Cost. */
   purchaseUnitPrice?: number | null;
+  /** Lieferanten- oder interne Artikelnummer. */
+  articleNumber?: string | null;
+  /** Pfad im Bucket inventory-ingredient-images. */
+  imagePath?: string | null;
   /** Letzte Preisänderung (aus Preishistorie, optional beim Laden). */
   lastPriceChangeAt?: string | null;
   supplierId: string;
   categoryId: string;
   productionSiteId: string;
   brandId: string;
+  /** `false` = inaktiv (gedämpft in Listen, nicht in Heute-Leerbestand). Default aktiv. */
   active?: boolean;
   /** Bestandsprotokoll (lokal), gleiche Idee wie Bestellprotokoll */
   stockLog: IngredientStockLogEntry[];

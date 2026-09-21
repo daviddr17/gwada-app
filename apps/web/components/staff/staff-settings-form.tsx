@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -60,6 +61,7 @@ type SettingsSnapshot = {
   contractTwoStepSigning: boolean;
   displayAutoClockOutEnabled: boolean;
   displayAutoClockOutHours: string;
+  laborAutoFixMissingBreaks: boolean;
 };
 
 export function StaffSettingsForm() {
@@ -81,6 +83,8 @@ export function StaffSettingsForm() {
   const [displayAutoClockOutHours, setDisplayAutoClockOutHours] = useState(
     String(DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT),
   );
+  const [laborAutoFixMissingBreaks, setLaborAutoFixMissingBreaks] =
+    useState(false);
   const [platformImportOpen, setPlatformImportOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -97,6 +101,7 @@ export function StaffSettingsForm() {
       contractTwoStepSigning,
       displayAutoClockOutEnabled,
       displayAutoClockOutHours,
+      laborAutoFixMissingBreaks,
     }),
     [
       contractDocumentTagId,
@@ -108,6 +113,7 @@ export function StaffSettingsForm() {
       contractTwoStepSigning,
       displayAutoClockOutEnabled,
       displayAutoClockOutHours,
+      laborAutoFixMissingBreaks,
     ],
   );
 
@@ -126,6 +132,7 @@ export function StaffSettingsForm() {
     setContractTwoStepSigning(next.contractTwoStepSigning);
     setDisplayAutoClockOutEnabled(next.displayAutoClockOutEnabled);
     setDisplayAutoClockOutHours(next.displayAutoClockOutHours);
+    setLaborAutoFixMissingBreaks(next.laborAutoFixMissingBreaks);
     savedRef.current = JSON.stringify(next);
   };
 
@@ -157,6 +164,8 @@ export function StaffSettingsForm() {
           data?.display_auto_clock_out_hours ??
             DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
         ),
+        laborAutoFixMissingBreaks:
+          data?.labor_auto_fix_missing_breaks ?? false,
       });
     })();
     return () => {
@@ -180,28 +189,34 @@ export function StaffSettingsForm() {
     }
     setSaving(true);
     void (async () => {
-      const { error } = await upsertStaffModuleSettings({
-        restaurantId,
-        contractDocumentTagId,
-        profileShowWorkHours,
-        profileShowShiftPlan,
-        profileShowDocuments,
-        profileShowAvailability,
-        profileAllowDisplayPinSelfService,
-        contractTwoStepSigning,
-        displayAutoClockOutEnabled,
-        displayAutoClockOutHours: Number.isFinite(hours)
-          ? hours
-          : DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
-      });
-      setSaving(false);
-      if (error) toast.error(error.message);
-      else {
-        toast.success("Einstellungen gespeichert.");
-        savedRef.current = snapshotJson;
-        window.dispatchEvent(
-          new Event(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT),
-        );
+      try {
+        const { error } = await upsertStaffModuleSettings({
+          restaurantId,
+          contractDocumentTagId,
+          profileShowWorkHours,
+          profileShowShiftPlan,
+          profileShowDocuments,
+          profileShowAvailability,
+          profileAllowDisplayPinSelfService,
+          contractTwoStepSigning,
+          displayAutoClockOutEnabled,
+          displayAutoClockOutHours: Number.isFinite(hours)
+            ? hours
+            : DISPLAY_AUTO_CLOCK_OUT_HOURS_DEFAULT,
+          laborAutoFixMissingBreaks,
+        });
+        if (error) toast.error(error.message);
+        else {
+          toast.success("Einstellungen gespeichert.");
+          savedRef.current = snapshotJson;
+          window.dispatchEvent(
+            new Event(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT),
+          );
+        }
+      } catch {
+        toast.error("Einstellungen konnten nicht gespeichert werden.");
+      } finally {
+        setSaving(false);
       }
     })();
   };
@@ -379,6 +394,39 @@ export function StaffSettingsForm() {
 
         <Card className="border-border/50 shadow-card">
           <CardHeader className="gap-2">
+            <CardTitle className="text-xl">Arbeitszeit (ArbZG)</CardTitle>
+            <CardDescription>
+              Prüfung auf Basis des deutschen Arbeitszeitgesetzes (Gastronomie
+              ohne Tarifvertrag). Keine Rechtsberatung — Tarifverträge können
+              abweichen. Hinweise sieht nur das Team im Modul Arbeitszeiten,
+              nicht Display-Mitarbeiter im Profil.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-muted/15 p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  Fehlende Pause automatisch verbuchen
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Nach dem Abschluss eines Arbeitseintrags wird eine fehlende
+                  Mindestpause automatisch als Pausen-Eintrag eingetragen
+                  (Netto-Arbeitszeit wird kürzer). Weitere Korrekturen weiterhin
+                  im Dashboard oder unter Arbeitszeiten.
+                </p>
+              </div>
+              <Switch
+                checked={laborAutoFixMissingBreaks}
+                onCheckedChange={setLaborAutoFixMissingBreaks}
+                disabled={loading}
+                aria-label="Fehlende Mindestpause automatisch verbuchen"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 shadow-card">
+          <CardHeader className="gap-2">
             <CardTitle className="text-xl">Vertrags-Dokumente</CardTitle>
             <CardDescription>
               Tag für PDF-Arbeitsverträge im Modul Dokumente. Ohne Auswahl wird
@@ -425,12 +473,12 @@ export function StaffSettingsForm() {
               </Select>
               <p className="text-xs text-muted-foreground">
                 Tags verwalten im Modul{" "}
-                <Link
-                  href="/dashboard/dokumente"
+                <AppNavLink
+                  href={APP_ROUTES.dokumente.overview}
                   className="text-accent underline-offset-4 hover:underline"
                 >
                   Dokumente
-                </Link>
+                </AppNavLink>
                 .
               </p>
             </div>

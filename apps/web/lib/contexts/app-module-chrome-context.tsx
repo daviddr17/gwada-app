@@ -13,6 +13,8 @@ export type AppModuleChromeState = {
   subnav: AppModuleSubnav | null;
   /** Zweite Chip-Leiste unter der Modul-Subnav (z. B. POS → Einstellungen). */
   secondarySubnav: AppModuleSubnav | null;
+  /** Custom secondary strip (z. B. Events Öffentlich/Privat ohne Soft-Nav-Links). */
+  secondarySubnavContent: React.ReactNode | null;
   /** Modul-eigene Aktionen rechts im Header (z. B. Dashboard Kalender / Anordnen). */
   headerActions: React.ReactNode | null;
 };
@@ -21,6 +23,7 @@ const EMPTY: AppModuleChromeState = {
   title: "",
   subnav: null,
   secondarySubnav: null,
+  secondarySubnavContent: null,
   headerActions: null,
 };
 
@@ -75,6 +78,11 @@ export function RegisterModuleChrome({
   headerActions?: React.ReactNode | null;
 }) {
   const { setChrome } = useAppModuleChrome();
+  // Inline JSX (`headerActions={<Foo />}`) hat jedes Render neue Identity —
+  // nie als Effect-Dep, sonst Maximum-update-depth. Parent soll memoizen;
+  // Ref hält den aktuellen Node für den Sync unten.
+  const headerActionsRef = React.useRef(headerActions);
+  headerActionsRef.current = headerActions;
 
   React.useLayoutEffect(() => {
     setChrome((prev) => ({
@@ -83,19 +91,28 @@ export function RegisterModuleChrome({
         subnavItems && subnavItems.length > 0 && subnavAriaLabel
           ? { items: [...subnavItems], ariaLabel: subnavAriaLabel }
           : null,
-      // Nested layouts may own the secondary strip — don't wipe it here.
-      secondarySubnav: prev.secondarySubnav,
-      headerActions: headerActions ?? null,
+      // Nested layouts may own the secondary strip — preserve only within the same module title.
+      secondarySubnav: prev.title === title ? prev.secondarySubnav : null,
+      secondarySubnavContent:
+        prev.title === title ? prev.secondarySubnavContent : null,
+      headerActions: headerActionsRef.current ?? null,
     }));
     return () => {
       // Soft-Nav: nicht blind auf EMPTY — SoftNavPendingOverlay / nächstes Modul
       // setzen den Titel oft schon optimistisch. Sonst flackert der Chrome-Titel.
+      // Subnav bei gleichem Modul-Titel erhalten (Chip-Leiste nicht ausblenden).
       setChrome((prev) => {
         if (prev.title !== title) return prev;
-        return EMPTY;
+        return {
+          title,
+          subnav: prev.subnav,
+          secondarySubnav: prev.secondarySubnav,
+          secondarySubnavContent: prev.secondarySubnavContent,
+          headerActions: null,
+        };
       });
     };
-  }, [title, subnavAriaLabel, subnavItems, headerActions, setChrome]);
+  }, [title, subnavAriaLabel, subnavItems, setChrome]);
 
   return null;
 }
@@ -118,11 +135,55 @@ export function RegisterModuleSecondarySubnav({
       ...prev,
       secondarySubnav:
         items.length > 0 ? { items: [...items], ariaLabel } : null,
+      secondarySubnavContent: null,
     }));
     return () => {
-      setChrome((prev) => ({ ...prev, secondarySubnav: null }));
+      setChrome((prev) => {
+        if (prev.secondarySubnav?.ariaLabel !== ariaLabel) return prev;
+        return { ...prev, secondarySubnav: null };
+      });
     };
   }, [ariaLabel, items, setChrome]);
+
+  return null;
+}
+
+/** Custom secondary chip row — kein AppNavLink / Soft-Nav (nur Query-Toggles). */
+export function RegisterModuleSecondarySubnavContent({
+  ariaLabel,
+  children,
+}: {
+  ariaLabel: string;
+  children: React.ReactNode;
+}) {
+  const { setChrome } = useAppModuleChrome();
+
+  React.useLayoutEffect(() => {
+    setChrome((prev) => ({
+      ...prev,
+      secondarySubnav: null,
+      secondarySubnavContent: (
+        <nav aria-label={ariaLabel} className="min-w-0 flex-1 overflow-x-auto">
+          {children}
+        </nav>
+      ),
+    }));
+    return () => {
+      setChrome((prev) => {
+        const nav = prev.secondarySubnavContent;
+        if (!nav || typeof nav !== "object" || !("props" in nav)) return prev;
+        const navAria =
+          nav.props &&
+          typeof nav.props === "object" &&
+          "aria-label" in nav.props &&
+          typeof nav.props["aria-label"] === "string"
+            ? nav.props["aria-label"]
+            : null;
+        if (navAria !== ariaLabel) return prev;
+        return { ...prev, secondarySubnavContent: null };
+      });
+    };
+  }, [ariaLabel, children, setChrome]);
 
   return null;
 }

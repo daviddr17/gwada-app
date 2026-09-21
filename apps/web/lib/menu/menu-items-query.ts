@@ -2,7 +2,7 @@
 
 import { mockMenu } from "@/lib/data/mock-menu";
 import { normalizeMenuItem } from "@/lib/menu/item-utils";
-import { migrateMenuItemsFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
+import { migrateMenuItemsFromLegacyAppStateIfEmpty, loadRelationalOrLegacyMigrate } from "@/lib/supabase/app-state-relational-migration";
 import { loadMenuItemsRelational } from "@/lib/supabase/menu-db";
 import {
   getWorkspaceRestaurantId,
@@ -40,10 +40,16 @@ export function peekMenuItemsCache(): MenuItem[] | null {
 
 export async function fetchMenuItemsForRestaurant(): Promise<MenuItem[]> {
   const rid = await getWorkspaceRestaurantId();
-  if (rid) {
-    await migrateMenuItemsFromLegacyAppStateIfEmpty(rid);
-  }
-  const rows = await loadMenuItemsRelational(rid);
+  const rows = rid
+    ? await loadRelationalOrLegacyMigrate(
+        `menu-items:${rid}`,
+        () => loadMenuItemsRelational(rid),
+        () =>
+          migrateMenuItemsFromLegacyAppStateIfEmpty(rid, {
+            skipExistingCheck: true,
+          }),
+      )
+    : await loadMenuItemsRelational(rid);
   if (rows && rows.length > 0) {
     mirrorWorkspaceJsonLocal(MENU_ITEMS_STORAGE_KEY, rows);
     return rows;

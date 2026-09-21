@@ -71,7 +71,10 @@ function exportMeta(options: StaffWorkHoursExportOptions) {
   return {
     documentTitle: "Arbeitszeiten",
     filenamePrefix: `arbeitszeiten-${staffName.replace(/\s+/g, "-").toLowerCase()}-${options.rangeStartYmd}_${options.rangeEndYmd}`,
-    summaryLine: `${staffName} · ${options.rangeStartYmd} – ${options.rangeEndYmd} · ${formatStaffWorkHoursSummaryLine(options.summary)}`,
+    summaryLine: [
+      `${staffName} · ${options.rangeStartYmd} – ${options.rangeEndYmd}`,
+      formatStaffWorkHoursSummaryLine(options.summary),
+    ].join("\n"),
     restaurantName: options.restaurantName,
   };
 }

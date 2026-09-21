@@ -34,7 +34,7 @@ export const PROFILE_APP_DEFINITIONS: ProfileAppDefinition[] = [
   {
     id: "events",
     label: "Events",
-    subtitle: "Termine & Tickets",
+    subtitle: "Termine & Anfrage",
     module: "events",
     icon: Ticket,
     gradient: "from-amber-500 via-orange-600 to-red-600",

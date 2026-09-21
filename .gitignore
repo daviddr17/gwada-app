@@ -22,6 +22,10 @@ package-lock.json
 apps/web/.next/
 apps/web/out/
 
+# Vite standalone dashboard bundle (Next embeds @gwada/dashboard via transpile)
+apps/web/public/dashboard-spa/
+apps/web/public/superadmin-spa/
+
 # production
 /build
 

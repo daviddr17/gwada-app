@@ -21,9 +21,9 @@ import {
   MODULE_HOME_IDS,
   MODULE_HOME_IDLE_PREWARM_IDS,
   MODULE_HOME_MAX_EXTRA_WARM,
-  isModuleHomePath,
   isWarmModuleHomePending,
   matchModuleHomeId,
+  moduleHomeSlotVisibility,
   type ModuleHomeId,
 } from "@/lib/navigation/module-home-keep-alive";
 import { onDashboardFirstKpiReady } from "@/lib/dashboard/dashboard-first-kpi-ready";
@@ -40,9 +40,7 @@ export type ModuleHomeSlotState = {
 
 type ModuleHomeKeepAliveValue = {
   slots: Record<ModuleHomeId, ModuleHomeSlotState>;
-  warmIds: ReadonlySet<ModuleHomeId>;
   isPendingWarmHome: (pendingHref: string) => boolean;
-  ensureModuleHomeWarm: (id: ModuleHomeId) => void;
 };
 
 const ModuleHomeKeepAliveContext =
@@ -68,16 +66,16 @@ function emptySlots(): Record<ModuleHomeId, boolean> {
   };
 }
 
-/** Idle-Prewarm erst wenn Dashboard-Stream durch ist — nicht alle Module. */
-const IDLE_PREWARM_AFTER_KPI_MS = 2_400;
-const IDLE_PREWARM_GAP_MS = 450;
+/** Idle-Prewarm nach First-Paint — nicht Sekunden warten. */
+const IDLE_PREWARM_AFTER_KPI_MS = 700;
+const IDLE_PREWARM_GAP_MS = 280;
 
 export function ModuleHomeKeepAliveProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { pendingHref } = useSoftNavLock();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const activeHomeId = matchModuleHomeId(pathname);
@@ -149,17 +147,15 @@ export function ModuleHomeKeepAliveProvider({
     [applyWarmFlags],
   );
 
-  const ensureModuleHomeWarm = useCallback(
-    (id: ModuleHomeId) => {
-      warmModuleHomeSync(id);
-    },
-    [warmModuleHomeSync],
-  );
-
   useLayoutEffect(() => {
     if (!activeHomeId) return;
     applyWarmFlags(activeHomeId);
   }, [activeHomeId, applyWarmFlags]);
+
+  useLayoutEffect(() => {
+    if (!pendingHomeId) return;
+    applyWarmFlags(pendingHomeId);
+  }, [pendingHomeId, applyWarmFlags]);
 
   // Sidebar Intent: sync nur beim ersten Mount des Ziel-Moduls.
   useEffect(
@@ -221,34 +217,23 @@ export function ModuleHomeKeepAliveProvider({
     const pendingInFlight = pendingNormalized != null;
 
     for (const id of MODULE_HOME_IDS) {
-      const onHome = activeHomeId === id;
-      const warm = warmFlags[id] || onHome;
-      if (warm) warmIds.add(id);
-
-      const pendingToThis = warm && pendingHomeId === id && !onHome;
-      const showAsSource = onHome && !pendingInFlight;
-
-      slots[id] = {
-        warm,
-        visible: showAsSource || pendingToThis,
-        active: showAsSource,
-      };
+      const slot = moduleHomeSlotVisibility({
+        id,
+        activeHomeId,
+        pendingHomeId,
+        pendingInFlight,
+        warmFlag: warmFlags[id],
+      });
+      if (slot.warm) warmIds.add(id);
+      slots[id] = slot;
     }
 
     return {
       slots,
-      warmIds,
       isPendingWarmHome: (href: string) =>
         isWarmModuleHomePending(href, warmIds),
-      ensureModuleHomeWarm,
     };
-  }, [
-    activeHomeId,
-    warmFlags,
-    pendingHomeId,
-    pendingNormalized,
-    ensureModuleHomeWarm,
-  ]);
+  }, [activeHomeId, warmFlags, pendingHomeId, pendingNormalized]);
 
   return (
     <ModuleHomeKeepAliveContext.Provider value={value}>
@@ -283,14 +268,7 @@ export function useModuleHomeSlotOptional(
   return ctx?.slots[id] ?? null;
 }
 
-/** @deprecated Prefer useModuleHomeSlot('dashboard') — Compat für Batch-Hooks. */
+/** Compat für Dashboard-Batch-Hooks. */
 export function useDashboardHomeKeepAliveOptional(): ModuleHomeSlotState | null {
   return useModuleHomeSlotOptional("dashboard");
-}
-
-export function isModuleHomePathActive(
-  pathname: string,
-  id: ModuleHomeId,
-): boolean {
-  return isModuleHomePath(pathname, id);
 }

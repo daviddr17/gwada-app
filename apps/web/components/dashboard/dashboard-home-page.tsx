@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardAccountingTile } from "@/components/dashboard/dashboard-accounting-tile";
@@ -25,10 +26,16 @@ import { DashboardWidgetErrorBoundaryWithReset } from "@/components/dashboard/da
 import { DashboardPermissionUnlockCelebration } from "@/components/dashboard/dashboard-permission-unlock-celebration";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
-import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
+import { groupDashboardLayoutSections, groupDashboardMasonryRuns, splitDashboardColumnLanes } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
-import { cn } from "@/lib/utils";
+import {
+  dashboardWidgetMasonryClassName,
+  dashboardWidgetMasonryItemClassName,
+  dashboardWidgetMasonryLaneClassName,
+  dashboardWidgetMasonryMobileStackClassName,
+  dashboardWidgetStackClassName,
+} from "@/lib/ui/dashboard-widget-masonry";
 
 function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   switch (id) {
@@ -95,6 +102,15 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
   const orderedVisible = groupDashboardLayoutSections(
     order.filter((id) => visibility[id]),
   );
+  const masonryRuns = groupDashboardMasonryRuns(orderedVisible);
+
+  const renderWidgetCell = (id: DashboardWidgetId) => (
+    <div key={id} className={dashboardWidgetMasonryItemClassName(1)}>
+      <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
+        <DashboardWidgetById id={id} />
+      </DashboardWidgetErrorBoundaryWithReset>
+    </div>
+  );
 
   const anyWidget = orderedVisible.length > 0;
 
@@ -140,17 +156,32 @@ export function DashboardHomePage({ onOpenArrange }: DashboardHomePageProps = {}
   return (
     <>
       <DashboardPermissionUnlockCelebration />
-      <div className="grid gap-4 pt-2 lg:grid-cols-2">
-        {orderedVisible.map(({ id, span }) => (
-          <div
-            key={id}
-            className={cn("min-w-0", span === 2 && "lg:col-span-2")}
-          >
-            <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
-              <DashboardWidgetById id={id} />
-            </DashboardWidgetErrorBoundaryWithReset>
-          </div>
-        ))}
+      <div className={dashboardWidgetStackClassName}>
+        {masonryRuns.map((run, runIndex) => {
+          if (run.type === "full") {
+            return (
+              <Fragment key={`full-${runIndex}`}>
+                {run.items.map(({ id }) => renderWidgetCell(id))}
+              </Fragment>
+            );
+          }
+          const { left, right } = splitDashboardColumnLanes(run.items);
+          return (
+            <div key={`columns-${runIndex}`}>
+              <div className={dashboardWidgetMasonryMobileStackClassName}>
+                {run.items.map(({ id }) => renderWidgetCell(id))}
+              </div>
+              <div className={dashboardWidgetMasonryClassName}>
+                <div className={dashboardWidgetMasonryLaneClassName}>
+                  {left.map(({ id }) => renderWidgetCell(id))}
+                </div>
+                <div className={dashboardWidgetMasonryLaneClassName}>
+                  {right.map(({ id }) => renderWidgetCell(id))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </>
   );

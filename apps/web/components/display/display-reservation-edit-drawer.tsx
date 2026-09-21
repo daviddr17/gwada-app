@@ -87,6 +87,12 @@ import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { dispatchDisplayReservationsRefresh } from "@/lib/display/display-reservations-live-events";
+import {
+  guestContactRequirementToastMessage,
+  validateGuestContactRequirements,
+  type GuestContactRequirementSettings,
+  DEFAULT_GUEST_CONTACT_REQUIREMENT_SETTINGS,
+} from "@/lib/reservations/guest-contact-requirements";
 import { displayReservationSaveErrorMessage } from "@/lib/display/display-reservation-save-errors";
 import {
   buildDisplayReservationSlotIso,
@@ -129,6 +135,7 @@ export function DisplayReservationEditDrawer({
   reservations,
   defaultDwellMinutes,
   bookingTimeStepMinutes,
+  guestContactRequirements = DEFAULT_GUEST_CONTACT_REQUIREMENT_SETTINGS,
   onSaved,
 }: {
   open: boolean;
@@ -139,6 +146,7 @@ export function DisplayReservationEditDrawer({
   reservations: ReservationListRow[];
   defaultDwellMinutes: number;
   bookingTimeStepMinutes: number;
+  guestContactRequirements?: GuestContactRequirementSettings;
   onSaved: (reservation?: DisplayReservationRow | null) => void;
 }) {
   const timeZone = useDisplayRestaurantTimezone();
@@ -331,6 +339,23 @@ export function DisplayReservationEditDrawer({
       toast.error("Bitte einen Nachnamen eingeben.");
       return null;
     }
+    const formattedPhone = formatGuestPhone(phoneCountryIso, phoneLocal, countries);
+    const formattedEmail = email.trim() || null;
+    const contactCheck = validateGuestContactRequirements(
+      guestContactRequirements,
+      ps,
+      formattedPhone,
+      formattedEmail,
+    );
+    if (!contactCheck.ok) {
+      toast.error(
+        guestContactRequirementToastMessage(
+          contactCheck.error,
+          guestContactRequirements,
+        ),
+      );
+      return null;
+    }
     const minutesForEnd = resolveDisplayReservationDwellMinutes(
       dwellDraft,
       defaultDwellMinutes,
@@ -356,8 +381,8 @@ export function DisplayReservationEditDrawer({
       guest_first_name: normalizeReservationGuestFirstName(firstName),
       guest_last_name: normalizeReservationGuestLastName(lastName),
       guest_company: normalizeReservationGuestCompany(company),
-      guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
-      guest_email: email.trim() || null,
+      guest_phone: formattedPhone,
+      guest_email: formattedEmail,
       party_size: ps,
       starts_at: slot.startsIso,
       ends_at: slot.endsIso,
@@ -399,7 +424,13 @@ export function DisplayReservationEditDrawer({
         reservation?: DisplayReservationRow | null;
       };
       if (!res.ok) {
-        toast.error(displayReservationSaveErrorMessage(data.error));
+        toast.error(
+          displayReservationSaveErrorMessage(
+            data.error,
+            undefined,
+            guestContactRequirements,
+          ),
+        );
         return;
       }
       toast.success("Reservierung gespeichert.");

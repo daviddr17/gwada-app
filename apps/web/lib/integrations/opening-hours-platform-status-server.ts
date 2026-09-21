@@ -68,15 +68,23 @@ export async function loadOpeningHoursPlatformStatus(
   let googleExceptions: HoursPlatformSyncCheck | null = null;
   let facebookRegular: HoursPlatformSyncCheck | null = null;
 
-  if (googleConnected) {
-    const remote = await fetchGoogleLocationHours(restaurantId);
-    if (!remote.ok) {
+  const [googleRemote, facebookRemote] = await Promise.all([
+    googleConnected
+      ? fetchGoogleLocationHours(restaurantId)
+      : Promise.resolve(null),
+    facebookConnected
+      ? fetchFacebookPageHours(restaurantId)
+      : Promise.resolve(null),
+  ]);
+
+  if (googleRemote) {
+    if (!googleRemote.ok) {
       const msg = "Stand bei Google konnte nicht geladen werden.";
       googleRegular = syncCheck("unavailable", msg);
       googleKitchen = syncCheck("unavailable", msg);
       googleExceptions = syncCheck("unavailable", msg);
     } else {
-      googleRegular = weeklyHoursEqual(local.weeklyHours, remote.data.weeklyHours)
+      googleRegular = weeklyHoursEqual(local.weeklyHours, googleRemote.data.weeklyHours)
         ? syncCheck("in_sync", "Entspricht den gespeicherten Gwada-Öffnungszeiten.")
         : syncCheck(
             "out_of_sync",
@@ -85,7 +93,7 @@ export async function loadOpeningHoursPlatformStatus(
 
       if (!local.kitchenHoursEnabled) {
         googleKitchen =
-          remote.data.kitchenWeeklyHours == null
+          googleRemote.data.kitchenWeeklyHours == null
             ? syncCheck(
                 "in_sync",
                 "Keine separaten Küchenzeiten bei Google (wie in Gwada).",
@@ -94,31 +102,29 @@ export async function loadOpeningHoursPlatformStatus(
                 "out_of_sync",
                 "Bei Google sind Küchenzeiten hinterlegt, in Gwada nicht.",
               );
+      } else if (googleRemote.data.kitchenWeeklyHours == null) {
+        googleKitchen = syncCheck(
+          "out_of_sync",
+          "Küchenzeiten fehlen bei Google.",
+        );
       } else {
-        if (remote.data.kitchenWeeklyHours == null) {
-          googleKitchen = syncCheck(
-            "out_of_sync",
-            "Küchenzeiten fehlen bei Google.",
-          );
-        } else {
-          googleKitchen = weeklyHoursEqual(
-            local.kitchenWeeklyHours,
-            remote.data.kitchenWeeklyHours,
-          )
-            ? syncCheck(
-                "in_sync",
-                "Entspricht den gespeicherten Gwada-Küchenzeiten.",
-              )
-            : syncCheck(
-                "out_of_sync",
-                "Küchenzeiten weichen von Gwada ab.",
-              );
-        }
+        googleKitchen = weeklyHoursEqual(
+          local.kitchenWeeklyHours,
+          googleRemote.data.kitchenWeeklyHours,
+        )
+          ? syncCheck(
+              "in_sync",
+              "Entspricht den gespeicherten Gwada-Küchenzeiten.",
+            )
+          : syncCheck(
+              "out_of_sync",
+              "Küchenzeiten weichen von Gwada ab.",
+            );
       }
 
       const futureLocal = local.dateExceptions.filter((ex) => ex.date >= todayYmd);
       if (futureLocal.length === 0) {
-        const remoteFuture = remote.data.dateExceptions.filter(
+        const remoteFuture = googleRemote.data.dateExceptions.filter(
           (ex) => ex.date >= todayYmd,
         );
         googleExceptions =
@@ -134,7 +140,7 @@ export async function loadOpeningHoursPlatformStatus(
       } else {
         googleExceptions = futureExceptionsEqual(
           local.dateExceptions,
-          remote.data.dateExceptions,
+          googleRemote.data.dateExceptions,
           todayYmd,
         )
           ? syncCheck(
@@ -149,15 +155,14 @@ export async function loadOpeningHoursPlatformStatus(
     }
   }
 
-  if (facebookConnected) {
-    const remote = await fetchFacebookPageHours(restaurantId);
-    if (!remote.ok) {
+  if (facebookRemote) {
+    if (!facebookRemote.ok) {
       facebookRegular = syncCheck(
         "unavailable",
         "Stand bei Facebook konnte nicht geladen werden.",
       );
     } else {
-      facebookRegular = weeklyHoursEqual(local.weeklyHours, remote.weeklyHours)
+      facebookRegular = weeklyHoursEqual(local.weeklyHours, facebookRemote.weeklyHours)
         ? syncCheck(
             "in_sync",
             "Entspricht den gespeicherten Gwada-Öffnungszeiten.",

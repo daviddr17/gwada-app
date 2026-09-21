@@ -11,6 +11,7 @@ import {
 import { useRef, useState } from "react";
 import { LandingFeatureVisual } from "@/components/landing/landing-feature-visual";
 import { LANDING_FEATURE_ITEMS } from "@/components/landing/landing-feature-items";
+import { Badge } from "@/components/ui/badge";
 import {
   SCROLL_STORY_VH_PER_ITEM,
   scrollStoryItemRange,
@@ -122,6 +123,14 @@ function StoryCopy({ scrollYProgress }: StoryCopyProps) {
         className="mt-3 text-balance text-3xl font-semibold tracking-tight md:text-4xl"
       >
         {feature.title}
+        {feature.comingSoon ? (
+          <Badge
+            variant="secondary"
+            className="ml-3 align-middle text-[10px] font-semibold tracking-wide uppercase"
+          >
+            Coming soon
+          </Badge>
+        ) : null}
       </motion.h2>
       <motion.p
         key={feature.description}
@@ -176,7 +185,17 @@ export function LandingScrollStory() {
           <ul className="space-y-6">
             {LANDING_FEATURE_ITEMS.map((f) => (
               <li key={f.id} className="rounded-2xl border border-border/60 p-6">
-                <h3 className="text-lg font-semibold">{f.title}</h3>
+                <h3 className="text-lg font-semibold">
+                  {f.title}
+                  {f.comingSoon ? (
+                    <Badge
+                      variant="secondary"
+                      className="ml-2 align-middle text-[10px] font-semibold tracking-wide uppercase"
+                    >
+                      Coming soon
+                    </Badge>
+                  ) : null}
+                </h3>
                 <p className="mt-2 text-muted-foreground">{f.description}</p>
               </li>
             ))}

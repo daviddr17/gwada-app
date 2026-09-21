@@ -153,14 +153,22 @@ export function sumTeamWorkHoursForDay(
   now: Date = new Date(),
   timeZone?: string,
 ): number {
-  const dayEntries: RestaurantStaffWorkEntryRow[] = [];
+  const staffIds = new Set<string>();
   for (const e of entries) {
     if (e.entry_type !== "work" && e.entry_type !== "break") continue;
-    const clipped = clipStaffWorkEntryToLocalDay(e, dayYmd, now, timeZone);
-    if (!clipped) continue;
-    dayEntries.push(clipped);
+    staffIds.add(e.staff_id);
   }
-  return netWorkHoursFromWorkBreakEntries(dayEntries, now).netWorkH;
+  let total = 0;
+  for (const staffId of staffIds) {
+    total += sumStaffWorkHoursForDay(
+      entries,
+      staffId,
+      dayYmd,
+      now,
+      timeZone,
+    );
+  }
+  return total;
 }
 
 export type StaffDayWageLine = {

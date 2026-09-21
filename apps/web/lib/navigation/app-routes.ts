@@ -46,6 +46,8 @@ export const APP_ROUTES = {
   kontakte: {
     root: "/dashboard/kontakte",
     messages: "/dashboard/kontakte/nachrichten",
+    /** Standard-Posteingang: Chip „Alle“, nicht letzter Kanal-Filter (Keep-alive). */
+    messagesInbox: "/dashboard/kontakte/nachrichten?platform=all",
     overview: "/dashboard/kontakte/uebersicht",
     statistics: "/dashboard/kontakte/statistiken",
     export: "/dashboard/kontakte/export",
@@ -61,8 +63,6 @@ export const APP_ROUTES = {
   insights: {
     root: "/dashboard/insights",
     overview: "/dashboard/insights/uebersicht",
-    /** @deprecated Alias → Übersicht (Redirect). */
-    statistics: "/dashboard/insights/statistiken",
   },
   dokumente: {
     root: "/dashboard/dokumente",
@@ -72,13 +72,16 @@ export const APP_ROUTES = {
   },
   checklisten: {
     root: "/dashboard/checklisten",
-    todos: "/dashboard/checklisten/todos",
+    meine: "/dashboard/checklisten/meine",
+    nachrichten: "/dashboard/checklisten/nachrichten",
+    todos: "/dashboard/checklisten",
     vorlagen: "/dashboard/checklisten/vorlagen",
     geraete: "/dashboard/checklisten/geraete",
     eintraege: "/dashboard/checklisten/eintraege",
     protokoll: "/dashboard/checklisten/protokoll",
     settings: "/dashboard/checklisten/einstellungen",
   },
+
   mitarbeiter: {
     root: "/dashboard/mitarbeiter",
     overview: "/dashboard/mitarbeiter/uebersicht",
@@ -86,9 +89,11 @@ export const APP_ROUTES = {
     contracts: "/dashboard/mitarbeiter/vertraege",
     documents: "/dashboard/mitarbeiter/dokumente",
     hours: "/dashboard/mitarbeiter/arbeitszeiten",
+    hoursFix: "/dashboard/mitarbeiter/arbeitszeiten/beheben",
+    hoursPayroll: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung",
     statistics: "/dashboard/mitarbeiter/statistiken",
     export: "/dashboard/mitarbeiter/export",
-    todos: "/dashboard/checklisten/todos",
+    todos: "/dashboard/checklisten",
   },
   buchfuehrung: {
     root: "/dashboard/buchfuehrung",
@@ -122,7 +127,10 @@ export const APP_ROUTES = {
     settings: "/dashboard/news/einstellungen",
   },
   settings: {
+    /** Prefix for `startsWith` (sidebar active) — not a SPA leaf route. */
     root: "/dashboard/settings",
+    /** Chrome gear / sidebar — always a registered SPA page (not redirect-only `/settings`). */
+    entry: "/dashboard/settings/restaurant",
     restaurant: "/dashboard/settings/restaurant",
     dashboard: "/dashboard/settings/dashboard",
     team: "/dashboard/settings/team",
@@ -144,6 +152,8 @@ export const APP_ROUTES = {
     documents: "/dashboard/profile/dokumente",
     displayPin: "/dashboard/profile/display-pin",
   },
+  /** Kunden-Changelog (Dashboard-SPA-Tab-Stack, Soft-Nav). */
+  changelog: "/dashboard/changelog",
 } as const;
 
 /** Legacy-Pfade → neue Dashboard-Pfade (Permanent Redirect). */
@@ -206,10 +216,16 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
     source: "/settings/eigenkontrolle/:path*",
     destination: "/dashboard/checklisten/:path*",
   },
+  {
+    source: "/dashboard/checklisten/eigenkontrolle",
+    destination: "/dashboard/checklisten",
+  },
+
   { source: "/settings", destination: APP_ROUTES.settings.restaurant },
   { source: "/settings/:path*", destination: "/dashboard/settings/:path*" },
   { source: "/profile", destination: APP_ROUTES.profile.personal },
   { source: "/profile/:path*", destination: "/dashboard/profile/:path*" },
+  { source: "/changelog", destination: APP_ROUTES.changelog },
   {
     source: "/dashboard/mitarbeiter/todos",
     destination: "/dashboard/checklisten",

@@ -9,15 +9,17 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
+import { AppChromeActivityFeed } from "@/components/layout/app-chrome-activity-feed";
+import { AppChromeCalendar } from "@/components/layout/app-chrome-calendar";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
+import { AppChromeOpsStatus } from "@/components/ops/app-chrome-ops-status";
 import { DashboardPwaInstallButton } from "@/components/dashboard/dashboard-pwa-install-button";
 import { AuthLogoutTransitionProvider } from "@/components/auth/auth-logout-transition-provider";
 import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-overlay";
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
-import { AppModuleHomeKeepAlives } from "@/components/navigation/app-module-home-keep-alives";
 import { SoftNavPendingOverlay } from "@/components/navigation/soft-nav-pending-overlay";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -30,29 +32,28 @@ import {
   AppModuleChromeProvider,
   useAppModuleChrome,
 } from "@/lib/contexts/app-module-chrome-context";
-import { ModuleHomeKeepAliveProvider } from "@/lib/contexts/module-home-keep-alive-context";
 import {
   DashboardGlobalSearchChrome,
   DashboardGlobalSearchTrigger,
 } from "@/components/search/dashboard-global-search-chrome";
-import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
+import {
+  appChromeFixedZoneBgClassName,
+  appChromeSafeEndClassName,
+  appChromeSafeStartClassName,
+} from "@/lib/ui/app-chrome-fixed-zone";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { isRestaurantDashboardPath } from "@/lib/contexts/dashboard-global-search-context";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { cn } from "@/lib/utils";
 
-function isRestaurantDashboardPath(pathname: string): boolean {
-  return (
-    pathname === APP_ROUTES.dashboard ||
-    pathname.startsWith(`${APP_ROUTES.dashboard}/`)
-  );
-}
-
 function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { accentHex } = useAccentColor();
   const { chrome } = useAppModuleChrome();
   const showChipRow = Boolean(chrome.subnav?.items.length);
-  const showSecondaryChipRow = Boolean(chrome.secondarySubnav?.items.length);
+  const showSecondaryChipRow =
+    Boolean(chrome.secondarySubnav?.items.length) ||
+    Boolean(chrome.secondarySubnavContent);
   const showChipStrip = showChipRow || showSecondaryChipRow;
   const showDashboardBrandedBackground = isRestaurantDashboardPath(pathname);
 
@@ -87,7 +88,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
       window.removeEventListener("resize", measure);
       document.documentElement.style.removeProperty("--app-module-chip-sticky-h");
     };
-  }, [showChipStrip, chrome.subnav, chrome.secondarySubnav]);
+  }, [showChipStrip, chrome.subnav, chrome.secondarySubnav, chrome.secondarySubnavContent]);
 
   return (
     <SidebarInset className="min-w-0">
@@ -107,7 +108,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           />
         </div>
         <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex h-full w-max min-w-full items-center gap-2 ps-4 sm:gap-3">
+          <div className={cn("flex h-full w-max min-w-full items-center gap-2 sm:gap-3", appChromeSafeStartClassName)}>
             <div className="flex shrink-0 items-center gap-2">
               {chrome.title ? (
                 <h1 className="whitespace-nowrap text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
@@ -123,8 +124,9 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
           </div>
         </div>
-        {/* Rechts fest: Modul-Aktionen (Kalender/Anordnen) bleiben mobil sichtbar */}
-        <div className="flex shrink-0 items-center gap-1.5 pe-3 ps-1 sm:gap-2 sm:pe-6">
+        {/* Rechts: Kalender global; Modul-Aktionen nur wenn nötig (z. B. Dashboard anordnen) */}
+        <div className={cn("flex shrink-0 items-center gap-1.5 ps-1 sm:gap-2", appChromeSafeEndClassName)}>
+          <AppChromeCalendar />
           {chrome.headerActions ? (
             <div className="flex shrink-0 items-center gap-1.5">
               {chrome.headerActions}
@@ -132,7 +134,9 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           ) : null}
           {/* Desktop-Chrome: Suche, Glocke, Profil, … — mobil in Bottom-Nav / Menü */}
           <div className="hidden shrink-0 items-center gap-2 md:flex">
+            <AppChromeOpsStatus />
             <DashboardGlobalSearchTrigger />
+            <AppChromeActivityFeed />
             <AppChromeNotificationBell />
             <AppChromeRestaurantProfileLink />
             <Button
@@ -149,14 +153,14 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
               size="icon-sm"
               className="shrink-0 rounded-full border-border/60"
               aria-label="Einstellungen"
-              render={<AppNavLink href={APP_ROUTES.settings.root} />}
+              render={<AppNavLink href={APP_ROUTES.settings.entry} />}
             >
               <Settings className="size-4" />
             </Button>
             <DashboardPwaInstallButton />
             <ModeToggle size="icon-sm" />
           </div>
-          {/* Mobil: Theme neben Modul-Aktionen */}
+          {/* Mobil: Theme neben Modul-Aktionen — Live-Verlauf im Bottom-Dock */}
           <div className="flex shrink-0 items-center gap-1.5 md:hidden">
             <ModeToggle size="icon-sm" />
           </div>
@@ -177,6 +181,13 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
               />
             </div>
           ) : null}
+          {showSecondaryChipRow && chrome.secondarySubnavContent ? (
+            <div
+              className="flex min-h-12 w-full items-center border-b border-border/50 bg-app-chrome px-1.5 py-2"
+            >
+              {chrome.secondarySubnavContent}
+            </div>
+          ) : null}
           {showSecondaryChipRow && chrome.secondarySubnav ? (
             <div
               className="flex min-h-12 w-full items-center border-b border-border/50 bg-app-chrome px-1.5 py-2"
@@ -192,26 +203,26 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <div
-        data-app-scroll-root
-        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
-      >
+      <div data-app-chrome-footer-host className="relative min-h-0 flex-1">
         {showDashboardBrandedBackground ? (
           <div
-            className="pointer-events-none sticky top-0 z-0 -mb-[100dvh] h-dvh w-full overflow-hidden"
+            className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
             aria-hidden
           >
             <AppBrandedBackground accentHex={accentHex} intensity="hint" />
           </div>
         ) : null}
-        <div className="relative z-[1]">
-          <WorkspaceZoneTransition>
-            {children}
-          </WorkspaceZoneTransition>
-          {/* Soft-Nav: Modul-Homes warm — Sibling, kein Route-Unmount */}
-          <AppModuleHomeKeepAlives />
+        <div
+          data-app-scroll-root
+          className="relative z-[1] h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]"
+        >
+          <div className="relative h-full min-h-full">
+            <WorkspaceZoneTransition>
+              {children}
+            </WorkspaceZoneTransition>
+          </div>
         </div>
-        {/* Sibling — deckt alten Content sofort ab, unmountet den Flight nicht */}
+        {/* Soft-Nav Pending — Keep-alive Homes nur in DashboardSpaShell */}
         <SoftNavPendingOverlay />
       </div>
 
@@ -225,13 +236,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AuthLogoutTransitionProvider>
         <AppModuleChromeProvider>
-          <ModuleHomeKeepAliveProvider>
-            <DashboardGlobalSearchChrome>
-              <AppSidebar />
-              <AppInsetWithChrome>{children}</AppInsetWithChrome>
-              <DashboardUploadOverlay />
-            </DashboardGlobalSearchChrome>
-          </ModuleHomeKeepAliveProvider>
+          <DashboardGlobalSearchChrome>
+            <AppSidebar />
+            <AppInsetWithChrome>{children}</AppInsetWithChrome>
+            <DashboardUploadOverlay />
+          </DashboardGlobalSearchChrome>
         </AppModuleChromeProvider>
       </AuthLogoutTransitionProvider>
     </SidebarProvider>

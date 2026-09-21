@@ -1,3 +1,9 @@
+import {
+  CLIENT_SEND_ABORTED,
+  isAppBackgroundedOrRecentlyResumed,
+  isSilentClientSendResult,
+  shouldSilenceClientSendFailure,
+} from "@/lib/network/client-send-abort";
 import type { DispatchEvent } from "@/lib/reservations/reservation-whatsapp-dispatch";
 
 export type WhatsappDispatchApiResult = {
@@ -17,6 +23,8 @@ const SKIP_USER_MESSAGE: Record<string, string> = {
   waha_session_not_working:
     "WhatsApp-Session ist nicht aktiv — Integrationen prüfen oder neu verbinden.",
   no_settings: "Reservierungs-Einstellungen fehlen für dieses Restaurant.",
+  whatsapp_verifying:
+    "WhatsApp-Versand wird geprüft — falls nichts rausgegangen ist, versuchen wir es automatisch erneut.",
 };
 
 const API_ERROR_MESSAGE: Record<string, string> = {
@@ -34,10 +42,20 @@ const API_ERROR_MESSAGE: Record<string, string> = {
 export function whatsappDispatchUserMessage(
   result: WhatsappDispatchApiResult | null,
 ): string | null {
+  if (isSilentClientSendResult(result)) return null;
   if (!result) {
     return "WhatsApp-Versand konnte nicht gestartet werden (Netzwerkfehler).";
   }
   if (result.error) {
+    if (
+      (result.error === "unauthorized" || result.error === "http_401") &&
+      isAppBackgroundedOrRecentlyResumed()
+    ) {
+      return null;
+    }
+    if (/aborted due to timeout|TimeoutError|signal timed out|timeout_absent|unverified/i.test(result.error)) {
+      return "WhatsApp-Server antwortet nicht rechtzeitig. Wir prüfen, ob die Nachricht rausgegangen ist, und versuchen es sonst automatisch erneut.";
+    }
     return (
       API_ERROR_MESSAGE[result.error] ??
       `WhatsApp-Versand fehlgeschlagen: ${result.error}`
@@ -74,6 +92,9 @@ export async function triggerReservationWhatsappDispatch(
     }
     return body;
   } catch (e) {
+    if (shouldSilenceClientSendFailure(e)) {
+      return { ok: false, skipped: CLIENT_SEND_ABORTED };
+    }
     console.warn("[gwada] whatsapp dispatch", e);
     return null;
   }

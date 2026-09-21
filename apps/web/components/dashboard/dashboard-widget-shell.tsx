@@ -49,6 +49,8 @@ export function DashboardWidgetShell({
   loadingContent,
   /** Zusätzliche Karten-Klassen (z. B. Heute-Hervorhebung). */
   cardClassName,
+  onPress,
+  pressAriaLabel,
 }: {
   title: string;
   description?: string;
@@ -66,6 +68,8 @@ export function DashboardWidgetShell({
   staticChrome?: boolean;
   loadingContent?: ReactNode;
   cardClassName?: string;
+  onPress?: () => void;
+  pressAriaLabel?: string;
 }) {
   const isCompact = variant === "compact";
   const hasContent = children != null && children !== false;
@@ -76,18 +80,35 @@ export function DashboardWidgetShell({
   }
 
   const layered = Boolean(background);
+  const interactive = Boolean(onPress);
 
   return (
     <Card
       className={cn(
         "min-w-0 border-border/50 shadow-card",
         cardClassName,
-        layered && "relative overflow-hidden",
+        layered && "relative isolate overflow-hidden",
+        interactive && "cursor-pointer transition-colors hover:bg-muted/30",
       )}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? pressAriaLabel ?? title : undefined}
+      onClick={interactive ? onPress : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onPress?.();
+              }
+            }
+          : undefined
+      }
     >
       {background}
       <CardHeader
         className={cn(
+          "shrink-0",
           isCompact
             ? "flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3"
             : "flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0",
@@ -132,10 +153,28 @@ export function DashboardWidgetShell({
               </>
             )}
           </AppNavLink>
+        ) : interactive ? (
+          <span
+            className={cn(
+              buttonVariants({
+                variant: "ghost",
+                size: isCompact ? "icon-sm" : "sm",
+              }),
+              isCompact
+                ? "size-8 shrink-0 rounded-lg text-muted-foreground pointer-events-none"
+                : "h-9 shrink-0 gap-1 rounded-xl pointer-events-none",
+            )}
+            aria-hidden
+          >
+            <ChevronRight className="size-4" />
+          </span>
         ) : null}
       </CardHeader>
       <CardContent
-        className={cn(isCompact ? "px-4 pb-4 pt-0" : "pt-0", layered && "relative z-10")}
+        className={cn(
+          isCompact ? "px-4 pb-4 pt-0" : "pt-0",
+          layered && "relative z-10",
+        )}
       >
         {error ? (
           <p className="text-sm text-muted-foreground">

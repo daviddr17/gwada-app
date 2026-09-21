@@ -11,6 +11,7 @@ import { displayNameForPseudoConversation } from "@/lib/contact-messages/waha-ch
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
 import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
 import { previewBodyAndKindFromWhatsappMirror } from "@/lib/contact-messages/whatsapp-mirror-preview";
+import { contactAvatarStoragePathFromRow } from "@/lib/contact-messages/enrich-conversation-preview-avatars";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
 import {
   mapContactMessageRowFromRecord,
@@ -29,7 +30,10 @@ export function buildContactConversationsFromRows(params: {
   const inboundAfter = new Map<string, number>();
   const emailUnreadByThread = new Map<string, number>();
   const whatsappUnreadByThread = new Map<string, number>();
-  const previews = new Map<string, ContactConversationPreview>();
+  const previews = new Map<
+    string,
+    ContactConversationPreview & { _avatar_storage_path?: string | null }
+  >();
   const lastInboundByThread = new Map<string, ContactMessagePlatform>();
 
   for (const raw of params.rows) {
@@ -93,8 +97,16 @@ export function buildContactConversationsFromRows(params: {
 
     const contactRaw = raw.contacts;
     const contact = Array.isArray(contactRaw)
-      ? (contactRaw[0] as { first_name: string; last_name: string })
-      : (contactRaw as { first_name: string; last_name: string } | null);
+      ? (contactRaw[0] as {
+          first_name: string;
+          last_name: string;
+          avatar_storage_path?: string | null;
+        })
+      : (contactRaw as {
+          first_name: string;
+          last_name: string;
+          avatar_storage_path?: string | null;
+        } | null);
 
     const conversationKey = raw.conversation_key as string | null;
     const storedLabel = (raw.conversation_label as string | null)?.trim() || null;
@@ -122,6 +134,9 @@ export function buildContactConversationsFromRows(params: {
     previews.set(threadKey, {
       contact_id: threadKey,
       contact_name: contactName,
+      contact_first_name: contact?.first_name ?? null,
+      contact_last_name: contact?.last_name ?? null,
+      _avatar_storage_path: contactAvatarStoragePathFromRow(threadKey, contact),
       platform: params.platform,
       last_body: mirrored.body,
       last_at: mapped.created_at,

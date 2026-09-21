@@ -2,8 +2,10 @@ import type { ContactMessagePlatform } from "@/lib/constants/contact-message-pla
 
 const META_PREFIX = "meta:";
 
-export function isMetaPseudoContactId(contactId: string): boolean {
-  return contactId.startsWith(META_PREFIX);
+export function isMetaPseudoContactId(
+  contactId: string | null | undefined,
+): boolean {
+  return typeof contactId === "string" && contactId.startsWith(META_PREFIX);
 }
 
 export function metaPseudoContactId(
@@ -13,11 +15,13 @@ export function metaPseudoContactId(
   return `${META_PREFIX}${platform}:${senderId.trim()}`;
 }
 
-export function parseMetaPseudoContactId(contactId: string): {
+export function parseMetaPseudoContactId(
+  contactId: string | null | undefined,
+): {
   platform: "facebook" | "instagram";
   senderId: string;
 } | null {
-  if (!isMetaPseudoContactId(contactId)) return null;
+  if (!isMetaPseudoContactId(contactId) || !contactId) return null;
   const rest = contactId.slice(META_PREFIX.length);
   const colon = rest.indexOf(":");
   if (colon <= 0) return null;
@@ -33,7 +37,7 @@ export function parseMetaPseudoContactId(contactId: string): {
 }
 
 export function metaPlatformFromPseudoContactId(
-  contactId: string,
+  contactId: string | null | undefined,
 ): ContactMessagePlatform | null {
   const parsed = parseMetaPseudoContactId(contactId);
   return parsed?.platform ?? null;

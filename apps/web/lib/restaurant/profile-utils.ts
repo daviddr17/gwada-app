@@ -6,6 +6,11 @@ import {
   WEEKDAY_LABEL_DE,
   WEEKDAY_ORDER,
 } from "@/lib/constants/restaurant-profile";
+import { resolveCountryIso2FromLabel } from "@/lib/constants/countries";
+import {
+  countryLabelFromIso2,
+  normalizeCountryIso2,
+} from "@/lib/restaurant/country-profile";
 import {
   isUuidRestaurantId,
   normalizeScheduleHHmm,
@@ -228,7 +233,18 @@ export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile
     street: p.street.trim(),
     postalCode: p.postalCode.trim(),
     city: p.city.trim(),
-    country: p.country.trim() || "Deutschland",
+    countryIso2: normalizeCountryIso2(
+      p.countryIso2?.trim() ||
+        resolveCountryIso2FromLabel(p.country.trim() || "Deutschland"),
+    ),
+    country:
+      p.country.trim() ||
+      countryLabelFromIso2(
+        normalizeCountryIso2(
+          p.countryIso2?.trim() ||
+            resolveCountryIso2FromLabel(p.country.trim() || "Deutschland"),
+        ),
+      ),
     website: normalizeWebsite(p.website),
     phone: p.phone.trim(),
     vatNumber: p.vatNumber.trim(),

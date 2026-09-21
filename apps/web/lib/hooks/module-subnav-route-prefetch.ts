@@ -42,7 +42,7 @@ export function scheduleModuleSubnavRoutePrefetches(
     index += 1;
 
     const timeoutId = window.setTimeout(() => {
-      if (queryClient && restaurantId) {
+      if (queryClient) {
         warmModuleRouteIntent(router, queryClient, restaurantId, item.href);
         return;
       }

@@ -17,6 +17,9 @@ import {
 } from "@/lib/contact-messages/mark-unified-conversation-read-server";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import { conversationChannelForRead } from "@/lib/contact-messages/unified-inbox-merge";
+import {
+  markFollowUpReminderSeen,
+} from "@/lib/contact-messages/conversation-follow-ups-server";
 import { markReviewReadServer } from "@/lib/reviews/mark-review-read-server";
 import { markAllReviewsReadForUserServer } from "@/lib/reviews/mark-all-reviews-read-server";
 import {
@@ -27,6 +30,20 @@ import {
   dismissAllInventoryLowStockNotifications,
   dismissInventoryLowStockNotification,
 } from "@/lib/notifications/notification-inventory-server";
+import {
+  dismissAllInventoryPoDeliveryDueNotifications,
+  dismissInventoryPoDeliveryDueNotification,
+} from "@/lib/notifications/notification-inventory-po-delivery-server";
+import {
+  dismissAllInventoryPoStatusNotifications,
+  dismissInventoryPoStatusNotification,
+  isPoStatusNotifyModule,
+} from "@/lib/notifications/notification-po-status-server";
+import {
+  dismissAllDigestNotifications,
+  dismissDigestNotification,
+  isDigestModule,
+} from "@/lib/notifications/notification-digest-server";
 import {
   dismissAllReservationNotifications,
   dismissReservationNotification,
@@ -50,9 +67,18 @@ import {
   isStaffTodoNotificationModule,
 } from "@/lib/notifications/notification-staff-todos-server";
 import {
+  markAllPersonalRemindersSeen,
+  markPersonalReminderSeen,
+} from "@/lib/notifications/notification-personal-reminder-server";
+import {
+  markAllStaffMessageConversationsReadServer,
+  markStaffMessageConversationReadServer,
+} from "@/lib/notifications/notification-staff-messages-server";
+import {
   dismissAllStaffContractSignedNotifications,
   dismissStaffContractSignedNotification,
 } from "@/lib/notifications/notification-staff-contract-server";
+import { markStaffDocumentAssignedRead } from "@/lib/notifications/notification-staff-document-server";
 import {
   dismissAllStaffDisplayTimeRequestNotifications,
   dismissStaffDisplayTimeRequestNotification,
@@ -159,6 +185,31 @@ export async function markNotificationReadServer(
       return { ok: true };
     }
 
+    case "messages_follow_up": {
+      if (!itemId) {
+        const rows = await admin
+          .from("contact_conversation_follow_ups")
+          .select("id")
+          .eq("restaurant_id", restaurantId)
+          .is("cleared_at", null)
+          .not("remind_at", "is", null)
+          .lte("remind_at", new Date().toISOString());
+        for (const row of (rows.data ?? []) as { id: string }[]) {
+          await markFollowUpReminderSeen(admin, {
+            restaurantId,
+            followUpId: row.id,
+          });
+        }
+        return { ok: true };
+      }
+      const followUpId = meta?.followUpId ?? itemId;
+      const result = await markFollowUpReminderSeen(admin, {
+        restaurantId,
+        followUpId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
     case "reviews": {
       if (!itemId) {
         const all = await markAllReviewsReadForUserServer(admin, {
@@ -185,7 +236,8 @@ export async function markNotificationReadServer(
 
     case "reservations_pending":
     case "reservations_change_request":
-    case "reservations_cancellation": {
+    case "reservations_cancellation":
+    case "events_inquiry": {
       if (!itemId) {
         const all = await dismissAllReservationNotifications(admin, {
           restaurantId,
@@ -251,6 +303,74 @@ export async function markNotificationReadServer(
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }
 
+    case "inventory_po_delivery_due": {
+      if (!itemId) {
+        const all = await dismissAllInventoryPoDeliveryDueNotifications(admin, {
+          restaurantId,
+          userId,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const orderId = itemId ?? meta?.orderId;
+      if (!orderId || typeof orderId !== "string") {
+        return { ok: false, error: "invalid_request" };
+      }
+      const result = await dismissInventoryPoDeliveryDueNotification(sb, {
+        restaurantId,
+        userId,
+        orderId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "inventory_po_ordered":
+    case "inventory_po_closed": {
+      if (!isPoStatusNotifyModule(module)) {
+        return { ok: false, error: "invalid_module" };
+      }
+      if (!itemId) {
+        const all = await dismissAllInventoryPoStatusNotifications(sb, {
+          restaurantId,
+          userId,
+          module,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const eventId = itemId ?? meta?.eventId;
+      if (!eventId) return { ok: false, error: "invalid_request" };
+      const result = await dismissInventoryPoStatusNotification(sb, {
+        restaurantId,
+        userId,
+        eventId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "digest_daily_preview":
+    case "digest_daily_review":
+    case "digest_weekly_preview":
+    case "digest_weekly_review": {
+      if (!isDigestModule(module)) {
+        return { ok: false, error: "invalid_module" };
+      }
+      if (!itemId) {
+        const all = await dismissAllDigestNotifications(sb, {
+          restaurantId,
+          userId,
+          module,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const eventId = itemId ?? meta?.eventId;
+      if (!eventId) return { ok: false, error: "invalid_request" };
+      const result = await dismissDigestNotification(sb, {
+        restaurantId,
+        userId,
+        eventId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
     case "accounting_quotation":
     case "accounting_invoice":
     case "accounting_voucher": {
@@ -300,6 +420,37 @@ export async function markNotificationReadServer(
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }
 
+    case "personal_reminder": {
+      if (!itemId) {
+        const all = await markAllPersonalRemindersSeen(admin, {
+          restaurantId,
+          userId,
+        });
+        return all.ok ? { ok: true } : { ok: false, error: all.error };
+      }
+      const seen = await markPersonalReminderSeen(admin, {
+        restaurantId,
+        userId,
+        noteId: itemId,
+      });
+      return seen.ok ? { ok: true } : { ok: false, error: seen.error };
+    }
+
+    case "staff_messages": {
+      if (!itemId) {
+        const all = await markAllStaffMessageConversationsReadServer(admin, {
+          restaurantId,
+          userId,
+        });
+        return all.ok ? { ok: true } : { ok: false, error: all.error };
+      }
+      const read = await markStaffMessageConversationReadServer(admin, {
+        conversationId: itemId,
+        userId,
+      });
+      return read.ok ? { ok: true } : { ok: false, error: read.error };
+    }
+
     case "staff_contract_signed": {
       if (!itemId) {
         const all = await dismissAllStaffContractSignedNotifications(sb, {
@@ -316,6 +467,25 @@ export async function markNotificationReadServer(
         contractId,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "staff_document_assigned": {
+      if (!itemId) {
+        await markStaffDocumentAssignedRead(sb, {
+          restaurantId,
+          userId,
+          all: true,
+        });
+        return { ok: true };
+      }
+      const documentId = itemId ?? meta?.documentId;
+      if (!documentId) return { ok: false, error: "invalid_request" };
+      await markStaffDocumentAssignedRead(sb, {
+        restaurantId,
+        userId,
+        documentId,
+      });
+      return { ok: true };
     }
 
     case "staff_display_time_request": {

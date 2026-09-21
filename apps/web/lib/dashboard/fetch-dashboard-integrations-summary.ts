@@ -9,6 +9,7 @@ import {
   smtpConfigFromJson,
   smtpConfigToPublic,
 } from "@/lib/integrations/smtp-integration-config";
+import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
 import { fetchPlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -17,10 +18,11 @@ const INTEGRATION_KEYS = DASHBOARD_INTEGRATION_CHANNELS.map((c) => c.id);
 function platformEnabledForChannel(
   flags: Awaited<ReturnType<typeof fetchPlatformMessagingFlags>>,
   id: DashboardIntegrationChannelId,
+  hideWhatsapp: boolean,
 ): boolean {
   switch (id) {
     case "whatsapp":
-      return flags.whatsappEnabled;
+      return !hideWhatsapp && flags.whatsappEnabled;
     case "email":
       return flags.emailEnabled;
     case "facebook":
@@ -63,18 +65,24 @@ export async function fetchDashboardIntegrationsSummary(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<DashboardIntegrationsSummary> {
-  const [flags, { data: integrationRows, error }] = await Promise.all([
-    fetchPlatformMessagingFlags(sb),
-    sb
-      .from("restaurant_integrations")
-      .select("integration_key, status, config")
-      .eq("restaurant_id", restaurantId)
-      .in("integration_key", [...INTEGRATION_KEYS]),
-  ]);
+  const [flags, { data: rest }, { data: integrationRows, error }] =
+    await Promise.all([
+      fetchPlatformMessagingFlags(sb),
+      sb.from("restaurants").select("slug").eq("id", restaurantId).maybeSingle(),
+      sb
+        .from("restaurant_integrations")
+        .select("integration_key, status, config")
+        .eq("restaurant_id", restaurantId)
+        .in("integration_key", [...INTEGRATION_KEYS]),
+    ]);
 
   if (error) {
     console.warn("fetchDashboardIntegrationsSummary", error.message);
   }
+
+  const hideWhatsapp = isMetaReviewDemoRestaurantSlug(
+    typeof rest?.slug === "string" ? rest.slug : null,
+  );
 
   const rowByKey = new Map(
     (integrationRows ?? []).map((r) => [
@@ -88,7 +96,7 @@ export async function fetchDashboardIntegrationsSummary(
   );
 
   const items = DASHBOARD_INTEGRATION_CHANNELS.filter((ch) =>
-    platformEnabledForChannel(flags, ch.id),
+    platformEnabledForChannel(flags, ch.id, hideWhatsapp),
   ).map((ch) => ({
     ...ch,
     connected: isChannelConnected(ch.id, rowByKey.get(ch.id)),

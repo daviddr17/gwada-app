@@ -1,6 +1,7 @@
 import "server-only";
 
 import { reviewInvitationPublicUrl } from "@/lib/reviews/gwada-review-invitation-server";
+import { dashboardReviewNotificationHref } from "@/lib/reviews/review-notification-href";
 import type {
   GwadaReviewProtocolEvent,
   GwadaReviewProtocolPayload,
@@ -459,7 +460,7 @@ export async function loadGwadaReviewsOverviewProtocol(
         .filter(Boolean)
         .join(" · "),
       actorName: guest,
-      href: `/dashboard/bewertungen/uebersicht?platform=gwada&reviewProtocol=${encodeURIComponent(rev.id as string)}`,
+      href: dashboardReviewNotificationHref("gwada", rev.id as string),
       hrefLabel: "Einzelprotokoll",
     });
   }

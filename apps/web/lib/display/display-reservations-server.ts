@@ -1,6 +1,10 @@
 import "server-only";
 
 import { defaultWeeklyHours, WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
+import {
+  GUEST_CONTACT_REQUIREMENTS_SELECT,
+  guestContactRequirementSettingsFromRow,
+} from "@/lib/reservations/guest-contact-requirements";
 import { normalizeBookingTimeStepMinutes } from "@/lib/reservations/booking-time-step";
 import {
   parseReservationPendingChange,
@@ -220,7 +224,7 @@ export async function loadDisplayReservationsDay(
     admin
       .from("restaurant_reservation_settings")
       .select(
-        "default_dwell_minutes, booking_time_step_minutes, min_minutes_before_closing, walk_in_enabled",
+        `default_dwell_minutes, booking_time_step_minutes, min_minutes_before_closing, walk_in_enabled, ${GUEST_CONTACT_REQUIREMENTS_SELECT}`,
       )
       .eq("restaurant_id", restaurantId)
       .maybeSingle(),
@@ -259,6 +263,10 @@ export async function loadDisplayReservationsDay(
 
   const guestCount = reservations.reduce((s, r) => s + r.party_size, 0);
 
+  const guestContactRequirements = guestContactRequirementSettingsFromRow(
+    settings,
+  );
+
   return {
     day,
     timezone: timeZone,
@@ -275,6 +283,12 @@ export async function loadDisplayReservationsDay(
         ? settings.min_minutes_before_closing
         : 60,
     walk_in_enabled: settings?.walk_in_enabled === true,
+    guest_email_required_enabled: guestContactRequirements.guestEmailRequiredEnabled,
+    guest_email_required_min_party_size:
+      guestContactRequirements.guestEmailRequiredMinPartySize,
+    guest_phone_required_enabled: guestContactRequirements.guestPhoneRequiredEnabled,
+    guest_phone_required_min_party_size:
+      guestContactRequirements.guestPhoneRequiredMinPartySize,
     restaurant_name: (restaurantRow?.name as string | undefined) ?? null,
     restaurant_id: restaurantId,
     next_reservation_number:

@@ -14,7 +14,9 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import {
+  guestContactRequirementSettingsFromRow,
+} from "@/lib/reservations/guest-contact-requirements";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DisplayReservationsDayPickerOverlay,
@@ -72,6 +74,7 @@ import {
   reservationsAtTableForRange,
 } from "@/lib/reservations/reservations-table-occupancy";
 import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import type { DiningAreaRow, DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import { formatDiningTableSelectLabel } from "@/lib/supabase/dining-floor-db";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
@@ -115,6 +118,10 @@ type DayPayload = {
   booking_time_step_minutes: BookingTimeStepMinutes;
   min_minutes_before_closing: number;
   walk_in_enabled: boolean;
+  guest_email_required_enabled: boolean;
+  guest_email_required_min_party_size: number;
+  guest_phone_required_enabled: boolean;
+  guest_phone_required_min_party_size: number;
   next_reservation_number: number;
   weekly_hours: Record<Weekday, DayHours>;
   date_exceptions: DateHoursException[];
@@ -184,6 +191,7 @@ function mapDisplayReservationToListRow(
     ends_at: r.ends_at,
     dining_table_id: r.dining_table_id,
     quotation_id: null,
+    invoice_id: null,
     dwell_minutes: null,
     notify_email: false,
     notify_whatsapp: false,
@@ -212,6 +220,7 @@ function mapDisplayReservationToListRow(
       : null,
     assigned_staff: [],
     accounting_quotation: null,
+    accounting_invoice: null,
   };
 }
 
@@ -742,6 +751,23 @@ export function DisplayReservationsModule() {
 
   const restaurantId = payload?.restaurant_id ?? "";
   const walkInEnabled = payload?.walk_in_enabled === true;
+  const guestContactRequirements = useMemo(
+    () =>
+      guestContactRequirementSettingsFromRow({
+        guest_email_required_enabled: payload?.guest_email_required_enabled,
+        guest_email_required_min_party_size:
+          payload?.guest_email_required_min_party_size,
+        guest_phone_required_enabled: payload?.guest_phone_required_enabled,
+        guest_phone_required_min_party_size:
+          payload?.guest_phone_required_min_party_size,
+      }),
+    [
+      payload?.guest_email_required_enabled,
+      payload?.guest_email_required_min_party_size,
+      payload?.guest_phone_required_enabled,
+      payload?.guest_phone_required_min_party_size,
+    ],
+  );
 
   const overlapReservations = useMemo((): ReservationListRow[] => {
     return reservations.map((r) =>
@@ -1448,6 +1474,7 @@ export function DisplayReservationsModule() {
         reservations={overlapReservations}
         defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
         bookingTimeStepMinutes={bookingStep}
+        guestContactRequirements={guestContactRequirements}
         onSaved={(row) => {
           if (row) applyOptimisticReservation(row);
           else void load({ silent: true });
@@ -1462,6 +1489,7 @@ export function DisplayReservationsModule() {
         tables={tables}
         defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
         bookingTimeStepMinutes={bookingStep}
+        guestContactRequirements={guestContactRequirements}
         nextReservationNumber={payload?.next_reservation_number ?? null}
         initialDayYmd={selectedDayYmd}
         initialTimeHm={createInitialTimeHm}

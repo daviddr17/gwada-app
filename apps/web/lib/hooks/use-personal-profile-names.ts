@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { type AppLocale, normalizeAppLocale } from "@/i18n/config";
 import { USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY } from "@/lib/constants/user-identity";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
@@ -260,6 +261,7 @@ export function usePersonalProfileNames() {
   const [userId, setUserId] = useState<string | null>(null);
   const [avatarStoragePath, setAvatarStoragePath] = useState<string | null>(null);
   const [coverStoragePath, setCoverStoragePath] = useState<string | null>(null);
+  const [profileLocale, setProfileLocale] = useState<AppLocale | null>(null);
   const [isHydrated, setIsHydrated] = useState(
     !workspacePersistenceConfigured(),
   );
@@ -313,7 +315,7 @@ export function usePersonalProfileNames() {
           const { data: prof } = await supabase
             .from("profiles")
             .select(
-              "given_name, family_name, nickname, birth_date, address_line1, address_postal_code, address_city, address_country, avatar_storage_path, cover_storage_path",
+              "given_name, family_name, nickname, birth_date, address_line1, address_postal_code, address_city, address_country, avatar_storage_path, cover_storage_path, locale",
             )
             .eq("id", user.id)
             .maybeSingle();
@@ -330,6 +332,14 @@ export function usePersonalProfileNames() {
                 ? prof.cover_storage_path
                 : null,
             );
+            const rawLocale =
+              typeof prof.locale === "string" ? prof.locale : null;
+            // Legacy column default `fr-GP` predates UI i18n — treat as unset.
+            setProfileLocale(
+              rawLocale && rawLocale !== "fr-GP"
+                ? normalizeAppLocale(rawLocale)
+                : null,
+            );
             if (isPersonalProfileRowEmpty(prof)) {
               const migrated = await migrateLegacyPersonalProfileIfEmpty(
                 supabase,
@@ -340,6 +350,7 @@ export function usePersonalProfileNames() {
             }
           } else if (!cancelled) {
             setUserId(user.id);
+            setProfileLocale(null);
             const migrated = await migrateLegacyPersonalProfileIfEmpty(
               supabase,
               user.id,
@@ -537,6 +548,7 @@ export function usePersonalProfileNames() {
     country,
     avatarStoragePath,
     coverStoragePath,
+    profileLocale,
     setFirstName,
     setLastName,
     setNickname,

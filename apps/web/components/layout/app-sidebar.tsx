@@ -5,13 +5,15 @@ import Link from "next/link";
 import { SidebarModuleUpsellOverlay } from "@/components/billing/sidebar-module-upsell-overlay";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuthLogoutTransition } from "@/components/auth/auth-logout-transition-provider";
 import {
-  normalizeNavHref,
-  useSoftNavLock,
-} from "@/components/providers/soft-nav-lock-provider";
+  isSidebarDashboardActive,
+  isSidebarModuleActive,
+} from "@/lib/navigation/sidebar-active";
+import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import {
+  Activity,
   Bell,
   Building2,
   CreditCard,
@@ -30,6 +32,7 @@ import {
   Settings,
   Settings2,
   Shield,
+  UserRound,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -64,8 +67,6 @@ import {
   type SidebarModuleId,
 } from "@/lib/constants/sidebar-modules";
 import { useSidebarModuleOrder } from "@/lib/contexts/sidebar-module-order-context";
-import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
-import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
 import { formatSidebarMenuLabel } from "@/lib/navigation/format-sidebar-menu-label";
 import {
   sidebarChangelogUnreadCount,
@@ -79,6 +80,7 @@ import {
   isSidebarModuleBillingLocked,
 } from "@/lib/permissions/sidebar-module-permissions";
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
+import { useVerticalScrollOverflow } from "@/lib/hooks/use-vertical-scroll-overflow";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import {
   appMobileSidebarFooterClassName,
@@ -88,6 +90,7 @@ import {
   appMobileSidebarHeaderButtonClassName,
   appMobileSidebarModuleGroupContentClassName,
 } from "@/lib/ui/app-mobile-sidebar-menu";
+import { SidebarScrollOverflowHints } from "@/components/layout/sidebar-scroll-overflow-hints";
 import { cn } from "@/lib/utils";
 
 function profileInitials(firstName: string, lastName: string): string {
@@ -123,8 +126,7 @@ function restaurantInitials(name: string): string {
 }
 
 export function AppSidebar() {
-  const pathname = usePathname();
-  const router = useRouter();
+  const pathname = usePathname() ?? "";
   const { pendingHref } = useSoftNavLock();
   const { logout, isLoggingOut } = useAuthLogoutTransition();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -165,9 +167,17 @@ export function AppSidebar() {
       .filter((mod) => hasSidebarModulePermissionAccess(has, mod.id))
       .map((mod) => ({
         mod,
-        billingLocked: isSidebarModuleBillingLocked(entitlements, mod.id),
+        billingLocked: isSidebarModuleBillingLocked(entitlements, mod.id, {
+          isSuperadmin,
+        }),
       }));
-  }, [sidebarModuleOrder, has, permissionsPending, entitlements]);
+  }, [
+    sidebarModuleOrder,
+    has,
+    permissionsPending,
+    entitlements,
+    isSuperadmin,
+  ]);
 
   const displayName = profile.name.trim() || (profileReady ? "Restaurant" : "");
   const userFullName = formatOrderProtocolUserName({ firstName, lastName });
@@ -180,12 +190,6 @@ export function AppSidebar() {
   const headerTooltip = userFullName
     ? `${userFullName} · ${displayName || "Restaurant"}`
     : displayName || "Restaurant";
-
-  useEffect(() => {
-    for (const href of APP_MODULE_PRIORITY_ROUTES) {
-      prefetchAppModuleHref(router, href);
-    }
-  }, [router]);
 
   // Menü erst nach Pending/Pathname schließen — nie sync im Link-click.
   // Sync-Close startet Sheet-Dismiss und unmountet den geklickten <a> bevor
@@ -206,6 +210,13 @@ export function AppSidebar() {
   const mobileFooterButtonClassName = isMobile
     ? appMobileSidebarFooterMenuButtonClassName
     : undefined;
+
+  const {
+    ref: moduleListScrollRef,
+    canScrollUp: moduleListCanScrollUp,
+    canScrollDown: moduleListCanScrollDown,
+    scrollByPage: scrollModuleListByPage,
+  } = useVerticalScrollOverflow();
 
   return (
     <Sidebar collapsible="icon" variant="inset">
@@ -270,7 +281,11 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <SidebarContent
+        ref={moduleListScrollRef}
+        className="flex min-h-0 flex-1 flex-col gap-2"
+      >
         <SidebarGroup className={cn("pb-1.5", isMobile && appMobileSidebarGroupClassName)}>
           <SidebarGroupContent
             className={isMobile ? appMobileSidebarModuleGroupContentClassName : undefined}
@@ -282,9 +297,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/allgemein")}
                       tooltip="Allgemein"
-                      render={
-                        <Link href="/superadmin/allgemein" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/allgemein" />}
                     >
                       <Settings2 />
                       <span>Allgemein</span>
@@ -294,7 +307,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/users")}
                       tooltip="User"
-                      render={<Link href="/superadmin/users" prefetch />}
+                      render={<AppNavLink href="/superadmin/users" />}
                     >
                       <Users />
                       <span>User</span>
@@ -306,9 +319,7 @@ export function AppSidebar() {
                         "/superadmin/restaurants",
                       )}
                       tooltip="Restaurants"
-                      render={
-                        <Link href="/superadmin/restaurants" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/restaurants" />}
                     >
                       <Building2 />
                       <span>Restaurants</span>
@@ -320,9 +331,7 @@ export function AppSidebar() {
                         "/superadmin/abonnements",
                       )}
                       tooltip="Abonnements"
-                      render={
-                        <Link href="/superadmin/abonnements" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/abonnements" />}
                     >
                       <CreditCard />
                       <span>Abonnements</span>
@@ -332,7 +341,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/warteliste")}
                       tooltip="Warteliste"
-                      render={<Link href="/superadmin/warteliste" prefetch />}
+                      render={<AppNavLink href="/superadmin/warteliste" />}
                     >
                       <Hourglass />
                       <span>Warteliste</span>
@@ -342,9 +351,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/newsletter")}
                       tooltip="Newsletter"
-                      render={
-                        <Link href="/superadmin/newsletter" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/newsletter" />}
                     >
                       <Mail />
                       <span>Newsletter</span>
@@ -354,9 +361,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/integrationen")}
                       tooltip="Integrationen"
-                      render={
-                        <Link href="/superadmin/integrationen" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/integrationen" />}
                     >
                       <Plug />
                       <span>Integrationen</span>
@@ -366,7 +371,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/waha")}
                       tooltip="WAHA"
-                      render={<Link href="/superadmin/waha" prefetch />}
+                      render={<AppNavLink href="/superadmin/waha" />}
                     >
                       <WhatsAppGlyph className="size-4 [&_path]:fill-current" />
                       <span>WAHA</span>
@@ -374,11 +379,19 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/ops")}
+                      tooltip="Ops"
+                      render={<AppNavLink href="/superadmin/ops" />}
+                    >
+                      <Activity />
+                      <span>Ops</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
                       isActive={isSuperadminSystemPath(pathname)}
                       tooltip="System"
-                      render={
-                        <Link href={SUPERADMIN_SYSTEM_ROUTES.datenbank} prefetch />
-                      }
+                      render={<AppNavLink href={SUPERADMIN_SYSTEM_ROUTES.datenbank} />}
                     >
                       <Server />
                       <span>System</span>
@@ -388,7 +401,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/design")}
                       tooltip="Design"
-                      render={<Link href="/superadmin/design" prefetch />}
+                      render={<AppNavLink href="/superadmin/design" />}
                     >
                       <Palette />
                       <span>Design</span>
@@ -398,9 +411,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith(SUPERADMIN_VORLAGEN_ROUTES.root)}
                       tooltip="Vorlagen"
-                      render={
-                        <Link href={SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen} prefetch />
-                      }
+                      render={<AppNavLink href={SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen} />}
                     >
                       <Files />
                       <span>Vorlagen</span>
@@ -410,9 +421,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/superadmin/changelog")}
                       tooltip="Changelog"
-                      render={
-                        <Link href="/superadmin/changelog" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/changelog" />}
                     >
                       <ScrollText />
                       <span>
@@ -429,9 +438,7 @@ export function AppSidebar() {
                         "/superadmin/benachrichtigungen",
                       )}
                       tooltip="Benachrichtigungen"
-                      render={
-                        <Link href="/superadmin/benachrichtigungen" prefetch />
-                      }
+                      render={<AppNavLink href="/superadmin/benachrichtigungen" />}
                     >
                       <Bell />
                       <span>Benachrichtigungen</span>
@@ -442,10 +449,7 @@ export function AppSidebar() {
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={
-                        pathname === "/dashboard" ||
-                        pendingHref === "/dashboard"
-                      }
+                      isActive={isSidebarDashboardActive(pathname, pendingHref)}
                       tooltip="Dashboard"
                       render={<AppNavLink href="/dashboard" />}
                     >
@@ -482,21 +486,18 @@ export function AppSidebar() {
                             notificationSummary,
                             mod.id,
                           );
-                      const modulePending =
-                        !billingLocked &&
-                        pendingHref != null &&
-                        normalizeNavHref(mod.href) === pendingHref;
                       return (
                         <SidebarMenuItem key={mod.id}>
                           <SidebarMenuButton
                             isActive={
                               !billingLocked &&
-                              (pathname.startsWith(mod.pathPrefix) ||
-                                modulePending)
+                              isSidebarModuleActive(pathname, pendingHref, mod)
                             }
                             tooltip={
                               billingLocked
-                                ? `${mod.tooltip} — Abo erforderlich`
+                                ? mod.id === "pos"
+                                  ? `${mod.tooltip} — Coming soon`
+                                  : `${mod.tooltip} — Abo erforderlich`
                                 : mod.tooltip
                             }
                             className={
@@ -544,6 +545,13 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarScrollOverflowHints
+        canScrollUp={moduleListCanScrollUp}
+        canScrollDown={moduleListCanScrollDown}
+        onScrollUp={() => scrollModuleListByPage("up")}
+        onScrollDown={() => scrollModuleListByPage("down")}
+      />
+      </div>
       {isMobile ? null : <SidebarSeparator className="mx-0 w-full" />}
       <SidebarFooter
         className={cn(
@@ -584,7 +592,7 @@ export function AppSidebar() {
           {inSuperadmin ? (
             <SidebarMenuItem>
               <SidebarMenuButton
-                isActive={pathname === "/dashboard"}
+                isActive={isSidebarDashboardActive(pathname, pendingHref)}
                 tooltip="Dashboard"
                 className={mobileFooterButtonClassName}
                 render={
@@ -604,13 +612,24 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ) : null}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname.startsWith(APP_ROUTES.profile.root)}
+              tooltip="Profil"
+              className={mobileFooterButtonClassName}
+              render={<AppNavLink href={APP_ROUTES.profile.personal} />}
+            >
+              <UserRound />
+              <span>Profil</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           {!inSuperadmin ? (
             <SidebarMenuItem>
               <SidebarMenuButton
                 isActive={pathname.startsWith(APP_ROUTES.settings.root)}
                 tooltip="Einstellungen"
                 className={mobileFooterButtonClassName}
-                render={<AppNavLink href={APP_ROUTES.settings.root} />}
+                render={<AppNavLink href={APP_ROUTES.settings.entry} />}
               >
                 <Settings />
                 <span>Einstellungen</span>
@@ -620,10 +639,10 @@ export function AppSidebar() {
           {!inSuperadmin ? (
             <SidebarMenuItem>
               <SidebarMenuButton
-                isActive={pathname.startsWith("/changelog")}
+                isActive={pathname.startsWith(APP_ROUTES.changelog)}
                 tooltip="Changelog"
                 className={mobileFooterButtonClassName}
-                render={<AppNavLink href="/changelog" />}
+                render={<AppNavLink href={APP_ROUTES.changelog} />}
               >
                 <ScrollText />
                 <span>

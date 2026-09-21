@@ -32,7 +32,9 @@ export function useStaffEmploymentTypesStorage(restaurantId: string | null) {
     }
     await seedStaffEmploymentTypesIfEmpty(restaurantId);
     const { data, error } = await loadStaffEmploymentTypes(restaurantId);
-    if (error) toast.error(error);
+    if (error) {
+      console.warn("[staff-employment-types]", error);
+    }
     setItems(data.map(normalizeItem));
     setIsHydrated(true);
   }, [restaurantId]);

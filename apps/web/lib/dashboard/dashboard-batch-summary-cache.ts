@@ -8,7 +8,8 @@ import type {
 import type { DashboardBatchQueryData } from "@/lib/hooks/use-dashboard-batch-summary-query";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
-const CACHE_PREFIX = "gwada:dashboard-batch:";
+const LEGACY_CACHE_PREFIX = "gwada:dashboard-batch:";
+const CACHE_PREFIX = "gwada:dashboard-batch:v2:";
 /** Nach 30 Min kein sofortiges Rendern mehr aus dem Speicher. */
 export const DASHBOARD_BATCH_CACHE_MAX_AGE_MS = 30 * 60_000;
 
@@ -36,7 +37,10 @@ function storageKey(restaurantId: string, widgets: readonly DashboardBatchWidget
 }
 
 function toQueryData(payload: DashboardBatchCachePayload): DashboardBatchQueryData {
-  return { data: payload.data, errors: payload.errors };
+  return sanitizeDashboardBatchQueryDataForPeek({
+    data: payload.data,
+    errors: payload.errors,
+  });
 }
 
 function isFreshPayload(
@@ -44,6 +48,43 @@ function isFreshPayload(
   maxAgeMs: number,
 ): boolean {
   return Date.now() - payload.at <= maxAgeMs;
+}
+
+
+/** Peek/Placeholder: Checklisten weglassen (sonst Start-Flash mit veralteten Todos). */
+function sanitizeDashboardBatchQueryDataForPeek(
+  payload: DashboardBatchQueryData,
+): DashboardBatchQueryData {
+  if (!payload.data.checklists) return payload;
+  const { checklists: _drop, ...rest } = payload.data;
+  return { ...payload, data: rest };
+}
+
+/** Write: Legacy count-only Checklisten (ohne todos[]) verwerfen. */
+function sanitizeDashboardBatchQueryDataForWrite(
+  payload: DashboardBatchQueryData,
+): DashboardBatchQueryData {
+  const checklists = payload.data.checklists as
+    | { todos?: unknown }
+    | undefined;
+  if (!checklists) return payload;
+  if (Array.isArray(checklists.todos)) return payload;
+  const { checklists: _drop, ...rest } = payload.data;
+  return { ...payload, data: rest };
+}
+
+function scrubLegacyDashboardBatchCacheKeys(restaurantId?: string): void {
+  if (typeof localStorage === "undefined") return;
+  const prefix = restaurantId
+    ? `${LEGACY_CACHE_PREFIX}${restaurantId}:`
+    : LEGACY_CACHE_PREFIX;
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const k = localStorage.key(i);
+    if (!k?.startsWith(prefix)) continue;
+    // v2-Keys nicht löschen
+    if (k.startsWith(CACHE_PREFIX)) continue;
+    localStorage.removeItem(k);
+  }
 }
 
 /** Neueste gültige Batch-Payload fürs Restaurant (Widget-Set darf abweichen). */
@@ -93,6 +134,7 @@ export function peekDashboardBatchSummaryCache(
   widgets: readonly DashboardBatchWidgetId[],
   maxAgeMs = DASHBOARD_BATCH_CACHE_MAX_AGE_MS,
 ): DashboardBatchQueryData | null {
+  scrubLegacyDashboardBatchCacheKeys(restaurantId);
   const key = memoryKey(restaurantId, widgets);
   const fromMemory = memory.get(key);
   if (fromMemory && isFreshPayload(fromMemory, maxAgeMs)) {
@@ -130,11 +172,13 @@ export function writeDashboardBatchSummaryCache(
   widgets: readonly DashboardBatchWidgetId[],
   data: DashboardBatchQueryData,
 ): void {
+  const sanitized = sanitizeDashboardBatchQueryDataForWrite(data);
+  scrubLegacyDashboardBatchCacheKeys(restaurantId);
   const payload: DashboardBatchCachePayload = {
     at: Date.now(),
     widgets: widgetsKey(widgets),
-    data: data.data,
-    errors: data.errors,
+    data: sanitized.data,
+    errors: sanitized.errors,
   };
   const key = memoryKey(restaurantId, widgets);
   memory.set(key, payload);
@@ -154,6 +198,7 @@ export function writeDashboardBatchSummaryCache(
 }
 
 export function clearDashboardBatchSummaryCache(restaurantId?: string): void {
+  scrubLegacyDashboardBatchCacheKeys(restaurantId);
   if (restaurantId) {
     for (const key of [...memory.keys()]) {
       if (key.startsWith(`${restaurantId}:`)) memory.delete(key);

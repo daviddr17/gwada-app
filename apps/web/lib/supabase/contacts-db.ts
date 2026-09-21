@@ -15,6 +15,7 @@ import {
   fetchContactTagsByContactIds,
   type ContactTagRow,
 } from "@/lib/supabase/contact-tags-db";
+import { resolveMissingUpdateConflict } from "@/lib/data/stale-write-conflict";
 
 export {
   findContactByEmailNormalized,
@@ -328,6 +329,7 @@ export type ContactUpsertPayload = {
   notes?: string | null;
   emails: ContactEmailInput[];
   phones: ContactPhoneInput[];
+  expectedUpdatedAt?: string | null;
 };
 
 async function replaceContactEmails(
@@ -516,7 +518,7 @@ export async function updateContact(
   }
 
   const sb = createSupabaseBrowserClient();
-  const { error } = await sb
+  let query = sb
     .from("contacts")
     .update({
       first_name: payload.firstName.trim() || "Gast",
@@ -530,9 +532,29 @@ export async function updateContact(
     })
     .eq("id", contactId)
     .eq("restaurant_id", payload.restaurantId);
+  if (payload.expectedUpdatedAt) {
+    query = query.eq("updated_at", payload.expectedUpdatedAt);
+  }
+  const { data, error } = await query.select("id").maybeSingle();
 
   if (error) {
     return { error: new Error(error.message) };
+  }
+  if (!data) {
+    return {
+      error: await resolveMissingUpdateConflict({
+        expectedUpdatedAt: payload.expectedUpdatedAt,
+        exists: async () => {
+          const { data: row } = await sb
+            .from("contacts")
+            .select("id")
+            .eq("id", contactId)
+            .eq("restaurant_id", payload.restaurantId)
+            .maybeSingle();
+          return Boolean(row);
+        },
+      }),
+    };
   }
 
   const emailErr = await replaceContactEmails(

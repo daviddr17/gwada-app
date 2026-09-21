@@ -1,4 +1,9 @@
 /** Anzeige-Texte für Display-Reservierungs-API-Fehler (POST/PATCH). */
+import {
+  guestContactRequirementErrorMessage,
+  type GuestContactRequirementSettings,
+} from "@/lib/reservations/guest-contact-requirements";
+
 export const DISPLAY_RESERVATION_SAVE_ERRORS: Record<string, string> = {
   session_expired: "Sitzung abgelaufen — bitte erneut anmelden.",
   session_locked: "Bitte mit PIN anmelden.",
@@ -22,9 +27,12 @@ export const DISPLAY_RESERVATION_SAVE_ERRORS: Record<string, string> = {
 export function displayReservationSaveErrorMessage(
   error?: string | null,
   fallback = "Speichern fehlgeschlagen.",
+  guestContactSettings?: GuestContactRequirementSettings | null,
 ): string {
   if (!error?.trim()) return fallback;
   const key = error.trim();
+  const contactMsg = guestContactRequirementErrorMessage(key, guestContactSettings);
+  if (contactMsg) return contactMsg;
   if (DISPLAY_RESERVATION_SAVE_ERRORS[key]) {
     return DISPLAY_RESERVATION_SAVE_ERRORS[key];
   }

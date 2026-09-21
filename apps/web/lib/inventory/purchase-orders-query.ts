@@ -1,7 +1,8 @@
 "use client";
 
 import { PURCHASE_ORDERS_STORAGE_KEY } from "@/lib/constants/inventory-storage";
-import { migratePurchaseOrdersFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
+import { reconcilePurchaseOrderLinesFromLog } from "@/lib/inventory/reconcile-purchase-order-lines-from-log";
+import { loadRelationalOrLegacyMigrate, migratePurchaseOrdersFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import { loadPurchaseOrdersRelational } from "@/lib/supabase/inventory-db";
 import {
   getWorkspaceRestaurantId,
@@ -30,16 +31,21 @@ export function peekPurchaseOrdersCache(): PurchaseOrder[] {
 
 export async function fetchPurchaseOrdersForRestaurant(): Promise<PurchaseOrder[]> {
   const rid = await getWorkspaceRestaurantId();
-  if (rid) {
-    await migratePurchaseOrdersFromLegacyAppStateIfEmpty(rid);
-  }
-  const rows = await loadPurchaseOrdersRelational(rid);
-  const orders = rows ?? [];
-  if (orders.length) {
-    mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
-      version: 1 as const,
-      orders,
-    });
-  }
+  const rows = rid
+    ? await loadRelationalOrLegacyMigrate(
+        `purchase-orders:${rid}`,
+        () => loadPurchaseOrdersRelational(rid),
+        () =>
+          migratePurchaseOrdersFromLegacyAppStateIfEmpty(rid, {
+            skipExistingCheck: true,
+          }),
+      )
+    : await loadPurchaseOrdersRelational(rid);
+  /** DB is source of truth on read — no merge with stale localStorage (Display ↔ Dashboard). */
+  const orders = (rows ?? []).map(reconcilePurchaseOrderLinesFromLog);
+  mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+    version: 1 as const,
+    orders,
+  });
   return orders;
 }

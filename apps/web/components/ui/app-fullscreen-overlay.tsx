@@ -33,7 +33,8 @@ function prefersReducedMotion(): boolean {
 type AppFullscreenOverlayProps = {
   open: boolean;
   onClose: () => void;
-  header: ReactNode;
+  /** Fehlt oder `null`: keine Kopfzeile (z. B. Steuerelemente im Inhalt). */
+  header?: ReactNode | null;
   footer?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -117,9 +118,16 @@ export function AppFullscreenOverlay({
           willChange: motionReduced || presented ? undefined : "transform",
         }}
       >
-        <header className="sticky top-0 z-20 shrink-0 border-b border-border/50 bg-background/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">
-          {header}
-        </header>
+        {header != null ? (
+          <header className="sticky top-0 z-20 shrink-0 border-b border-border/50 bg-background/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">
+            {header}
+          </header>
+        ) : (
+          <div
+            className="shrink-0 pt-[env(safe-area-inset-top,0px)]"
+            aria-hidden
+          />
+        )}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {children}

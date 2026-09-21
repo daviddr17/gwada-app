@@ -15,9 +15,12 @@ import {
 import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useSpaZoneNavigationOptional } from "@/lib/navigation/spa-zone-navigation-bridge";
+import { isZoneSpaHref, spaZoneFromHref } from "@/lib/navigation/spa-zone-path";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
-import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { prefetchAppModuleHref } from "@/lib/navigation/prefetch-app-module-href";
+import { isSamePathSearchNav } from "@/lib/navigation/same-path-search-nav";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -73,29 +76,24 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
     const pathname = usePathname();
     const router = useRouter();
     const queryClient = useQueryClient();
-    const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-    const { tryAcquireNavLock, scheduleSoftNavPush } = useSoftNavLock();
+    const { restaurantId } = useWorkspaceRestaurantUuid();
+    const { tryAcquireNavLock, scheduleSoftNavPush, pendingHref } =
+      useSoftNavLock();
+    const spaNav = useSpaZoneNavigationOptional();
     const hrefStr = hrefToString(href);
     const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
+    const hrefZone = spaZoneFromHref(hrefStr);
+    const spaSameZoneHref =
+      spaNav != null && hrefZone === spaNav.base && isZoneSpaHref(spaNav.base, hrefStr);
 
     const warmOnIntent = useCallback(() => {
-      if (
-        !crossModuleNav ||
-        !workspaceReady ||
-        !restaurantId ||
-        !isUuidRestaurantId(restaurantId)
-      ) {
+      if (!hrefZone) return;
+      if (hrefZone === "/dashboard") {
+        warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
         return;
       }
-      warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
-    }, [
-      crossModuleNav,
-      workspaceReady,
-      restaurantId,
-      router,
-      queryClient,
-      hrefStr,
-    ]);
+      prefetchAppModuleHref(router, hrefStr);
+    }, [hrefZone, hrefStr, router, queryClient, restaurantId]);
 
     return (
       <Link
@@ -116,10 +114,7 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
         }}
         onPointerDown={(event) => {
           onPointerDown?.(event);
-          // Touch/schneller Klick: FULL + Daten vor dem Flight (Hover fehlt oft).
           warmOnIntent();
-          // Pending erst im click: pointerdown+Pending vor synthetischem click
-          // kann auf iOS Keep-alive-Slots umbauen und den click killen.
         }}
         onClick={(event) => {
           onClick?.(event);
@@ -128,7 +123,17 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
             event.preventDefault();
             return;
           }
-          if (!crossModuleNav) return;
+          if (
+            spaSameZoneHref &&
+            isSamePathSearchNav(pathname ?? "", hrefStr)
+          ) {
+            event.preventDefault();
+            router.replace(hrefStr, { scroll: false });
+            return;
+          }
+          if (!spaSameZoneHref && !crossModuleNav) {
+            if (!pendingHref) return;
+          }
           // Cmd/Ctrl-Klick etc. → natives Link-Verhalten (neuer Tab).
           if (
             event.metaKey ||
@@ -141,7 +146,6 @@ export const AppNavLink = forwardRef<HTMLAnchorElement, AppNavLinkProps>(
           }
           // Sofort Pending (Titel/Cover), Push coalesced (letzter Klick gewinnt).
           // Flight hängt nicht am <a> im Mobile-Sheet (Close/Unmount killt sonst Nav).
-          // Kein startTransition: sonst wartet der erste Soft-Nav hinter Dashboard-Stream.
           event.preventDefault();
           if (!tryAcquireNavLock(event, hrefStr)) return;
           scheduleSoftNavPush(hrefStr);

@@ -176,7 +176,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Legacy-OAuth-Cookies schrumpfen (Live: zu große Cookie-Header → RSC-Soft-Nav schlägt fehl).
+  // Nur Legacy-Pending-JSONs schrumpfen — nicht gwada_oauth_pending_id (Standortwahl).
   appendAuthEntryCookieCleanup(response.headers);
 
   logDashboardRscRequest(request, pathname);

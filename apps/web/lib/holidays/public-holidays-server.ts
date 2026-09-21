@@ -15,8 +15,20 @@ type NagerHoliday = {
 
 const yearCache = new Map<string, PublicHolidayEntry[]>();
 
+/** Externes Nager.Date darf den Kalender nicht blockieren (hängende TCP / langsame DNS). */
+const NAGER_FETCH_TIMEOUT_MS = 2_500;
+
 export function resolveRestaurantCountryIso2(countryLabel: string): string {
   return resolveCountryIso2FromLabel(countryLabel);
+}
+
+function nagerFetchSignal(): AbortSignal {
+  if (typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(NAGER_FETCH_TIMEOUT_MS);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), NAGER_FETCH_TIMEOUT_MS);
+  return controller.signal;
 }
 
 async function fetchHolidaysForYear(
@@ -28,22 +40,27 @@ async function fetchHolidaysForYear(
   const cached = yearCache.get(cacheKey);
   if (cached) return cached;
 
-  const res = await fetch(
-    `https://date.nager.at/api/v3/PublicHolidays/${year}/${iso}`,
-    { cache: "no-store" },
-  );
-  if (!res.ok) {
-    yearCache.set(cacheKey, []);
+  try {
+    const res = await fetch(
+      `https://date.nager.at/api/v3/PublicHolidays/${year}/${iso}`,
+      { cache: "no-store", signal: nagerFetchSignal() },
+    );
+    if (!res.ok) {
+      yearCache.set(cacheKey, []);
+      return [];
+    }
+
+    const raw = (await res.json().catch(() => [])) as NagerHoliday[];
+    const entries: PublicHolidayEntry[] = raw.map((h) => ({
+      date: h.date,
+      name: (h.localName?.trim() || h.name?.trim() || "Feiertag").slice(0, 120),
+    }));
+    yearCache.set(cacheKey, entries);
+    return entries;
+  } catch {
+    // Timeout / Netz — Kalender ohne Feiertage fortsetzen (nicht cachen, Retry möglich).
     return [];
   }
-
-  const raw = (await res.json().catch(() => [])) as NagerHoliday[];
-  const entries: PublicHolidayEntry[] = raw.map((h) => ({
-    date: h.date,
-    name: (h.localName?.trim() || h.name?.trim() || "Feiertag").slice(0, 120),
-  }));
-  yearCache.set(cacheKey, entries);
-  return entries;
 }
 
 /** Feiertage im Datumsbereich (inklusive), `from`/`to` als YYYY-MM-DD. */

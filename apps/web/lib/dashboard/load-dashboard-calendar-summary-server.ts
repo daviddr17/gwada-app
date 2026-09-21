@@ -149,14 +149,15 @@ export async function loadDashboardCalendarSummaryServer(
   for (const row of reservationsRes.data ?? []) {
     const startsAt = row.starts_at as string;
     const dayKey = restaurantZonedDateKey(new Date(startsAt), timeZone);
-    reservationCountByDay.set(
-      dayKey,
-      (reservationCountByDay.get(dayKey) ?? 0) + 1,
-    );
     if (row.kind === RESERVATION_KIND_PRIVATE_EVENT) {
       privateEventCountByDay.set(
         dayKey,
         (privateEventCountByDay.get(dayKey) ?? 0) + 1,
+      );
+    } else {
+      reservationCountByDay.set(
+        dayKey,
+        (reservationCountByDay.get(dayKey) ?? 0) + 1,
       );
     }
   }

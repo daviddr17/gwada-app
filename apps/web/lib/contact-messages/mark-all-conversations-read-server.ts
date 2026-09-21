@@ -9,10 +9,14 @@ import {
   platformsToMarkForConversation,
   resolveInboxChannelConnections,
 } from "@/lib/contact-messages/mark-unified-conversation-read-server";
-import { fetchUnifiedInboxConversationsForDashboard } from "@/lib/contact-messages/unified-inbox-server";
+import { fetchUnifiedInboxConversationsServer } from "@/lib/contact-messages/unified-inbox-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Alle ungelesenen Konversationen: nur DB (schnell). */
+/**
+ * Alle ungelesenen Konversationen: nur DB.
+ * Volle Inbox-Liste — Light (400 Zeilen/Plattform) unterzählt Unreads; nach Remount
+ * würde die Glocke wieder den vollständigen DB-Stand zeigen.
+ */
 export async function markAllConversationsReadDbForUserServer(
   admin: SupabaseClient,
   params: { restaurantId: string; userId: string },
@@ -22,7 +26,7 @@ export async function markAllConversationsReadDbForUserServer(
     params.restaurantId,
   );
 
-  const conversations = await fetchUnifiedInboxConversationsForDashboard(admin, {
+  const conversations = await fetchUnifiedInboxConversationsServer(admin, {
     restaurantId: params.restaurantId,
     userId: params.userId,
     ...channelConnections,

@@ -56,3 +56,49 @@ export function applyDashboardBatchNdjsonWidgetLine(
     errors: base.errors,
   };
 }
+
+/**
+ * Stream-Publish: fertige Widget-Zeilen auf den bestehenden Stand mergen.
+ * Widgets ohne Zeile in diesem Fetch bleiben stehen (stale-while-revalidate).
+ * Sonst löscht die erste NDJSON-Zeile alle anderen KPIs → Skeleton-Flash.
+ *
+ * Checklisten-Startflash („1 offen“ aus Disk): placeholderData droppt checklists,
+ * Heute wartet auf den echten Slice — nicht den ganzen Batch leeren.
+ */
+export function mergeDashboardBatchStreamPublish(args: {
+  existing:
+    | {
+        data: DashboardBatchSummary;
+        errors: DashboardBatchSummaryErrors;
+      }
+    | undefined;
+  streamAcc: {
+    data: DashboardBatchSummary;
+    errors: DashboardBatchSummaryErrors;
+  };
+  requestedWidgets: readonly DashboardBatchWidgetId[];
+}): {
+  data: DashboardBatchSummary;
+  errors: DashboardBatchSummaryErrors;
+} {
+  const data: DashboardBatchSummary = { ...(args.existing?.data ?? {}) };
+  const errors: DashboardBatchSummaryErrors = {
+    ...(args.existing?.errors ?? {}),
+  };
+
+  for (const widget of args.requestedWidgets) {
+    if (Object.prototype.hasOwnProperty.call(args.streamAcc.data, widget)) {
+      (data as Record<string, unknown>)[widget] = (
+        args.streamAcc.data as Record<string, unknown>
+      )[widget];
+      if (!Object.prototype.hasOwnProperty.call(args.streamAcc.errors, widget)) {
+        delete errors[widget];
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(args.streamAcc.errors, widget)) {
+      errors[widget] = args.streamAcc.errors[widget];
+    }
+  }
+
+  return { data, errors };
+}

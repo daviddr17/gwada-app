@@ -5,7 +5,10 @@ import type { NotificationModuleId } from "@/lib/notifications/notification-modu
 import type { NotificationPreferences } from "@/lib/notifications/notification-preferences";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
 import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
-import { invalidateMessagesInboxAfterMarkRead } from "@/lib/contact-messages/invalidate-messages-inbox-cache-client";
+import {
+  invalidateMessagesInboxAfterMarkRead,
+  refreshMessagesInboxAfterMarkAllSuccess,
+} from "@/lib/contact-messages/invalidate-messages-inbox-cache-client";
 
 export type NotificationPreferencesResponse = {
   preferences: NotificationPreferences;
@@ -79,11 +82,15 @@ export async function markNotificationReadClient(
     if (options?.notify !== false) {
       dispatchNotificationsRefresh();
       if (params.module === "messages") {
+        const markAll = params.itemId == null;
         invalidateMessagesInboxAfterMarkRead({
           restaurantId: params.restaurantId,
           contactId: params.itemId ?? params.meta?.contactId,
-          all: params.itemId == null,
+          all: markAll,
         });
+        if (markAll) {
+          refreshMessagesInboxAfterMarkAllSuccess(params.restaurantId);
+        }
       }
     }
     return { ok: true, error: null };

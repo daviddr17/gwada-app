@@ -1,4 +1,5 @@
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
+import { isGoogleCredentialSyncError } from "@/lib/integrations/google-credential-sync-error";
 
 /** Externe Plattformen, deren Bewertungen in der DB gecacht werden (Gwada bleibt in gwada_reviews). */
 export const REVIEWS_CACHEABLE_PLATFORMS = [
@@ -36,6 +37,7 @@ export function isReviewsFeedSyncStale(
   if (!syncedAt) return true;
   const ageMs = Date.now() - new Date(syncedAt).getTime();
   if (opts?.lastError) {
+    if (isGoogleCredentialSyncError(opts.lastError)) return true;
     return ageMs > REVIEWS_CACHE_RETRY_MS;
   }
   if (platform === "tripadvisor" && (opts?.itemCount ?? 0) === 0) {

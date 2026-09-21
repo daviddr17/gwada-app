@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, Pencil, StickyNote, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
@@ -41,6 +40,10 @@ type ReservationDayNotesSectionProps = {
   serviceDate: string | null;
   onNotesChanged?: () => void;
   className?: string;
+  /**
+   * Kompakt mit Toggle-Zeile — standardmäßig ausgeklappt (Inhalt sichtbar).
+   */
+  collapsible?: boolean;
 };
 
 export function ReservationDayNotesSection({
@@ -49,6 +52,7 @@ export function ReservationDayNotesSection({
   serviceDate,
   onNotesChanged,
   className,
+  collapsible = false,
 }: ReservationDayNotesSectionProps) {
   const { user } = useWorkspaceAuthSession();
   const currentUserId = user?.id ?? null;
@@ -66,13 +70,15 @@ export function ReservationDayNotesSection({
   const [deleteTarget, setDeleteTarget] =
     useState<RestaurantReservationDayNoteEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   useEffect(() => {
     if (!open) return;
     setDraft("");
     setEditingId(null);
     setDeleteTarget(null);
-  }, [open, serviceDate]);
+    if (collapsible) setExpanded(true);
+  }, [open, serviceDate, collapsible]);
 
   const reloadEntries = useCallback(async () => {
     if (!restaurantId || !serviceDate) return;
@@ -169,132 +175,180 @@ export function ReservationDayNotesSection({
 
   if (!restaurantId || !serviceDate) return null;
 
+  const noteCount = entries.length;
+  const showBody = !collapsible || expanded;
+
   return (
     <>
-      <div className={cn("space-y-4 border-b border-border/50 pb-4", className)}>
-        <div className="space-y-1">
-          <Label htmlFor="res-day-note">Tagesnotizen</Label>
-          <p className="text-xs text-muted-foreground">
-            Protokoll für dieses Datum — jede Person kann eigene Einträge
-            bearbeiten und löschen.
-          </p>
-        </div>
-
-        {loadingEntries && !showEntriesSkeleton ? (
-          <div className="min-h-16" aria-busy="true" />
-        ) : null}
-        {showEntriesSkeleton ? (
-          <div className="space-y-2" aria-busy>
-            <Skeleton className="h-14 w-full rounded-xl" />
-            <Skeleton className="h-14 w-full rounded-xl" />
-          </div>
-        ) : entries.length > 0 ? (
-          <ul className="max-h-48 space-y-3 overflow-y-auto rounded-xl border border-border/50 bg-muted/20 p-3">
-            {entries.map((entry) => {
-              const isEditing = editingId === entry.id;
-              const isOwn = currentUserId === entry.actor_user_id;
-              const edited =
-                entry.updated_at &&
-                entry.updated_at !== entry.created_at;
-              return (
-                <li key={entry.id} className="text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-xs text-muted-foreground">
-                      {formatWhen(entry.created_at)}
-                      {edited ? " · bearbeitet" : null}
-                      {entry.actor_label ? ` · ${entry.actor_label}` : null}
-                    </p>
-                    {isOwn && !isEditing ? (
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          className="text-muted-foreground"
-                          aria-label="Notiz bearbeiten"
-                          onClick={() => startEdit(entry)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          className="text-muted-foreground"
-                          aria-label="Notiz löschen"
-                          onClick={() => setDeleteTarget(entry)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                  {isEditing ? (
-                    <div className="mt-1.5 space-y-2">
-                      <Textarea
-                        value={editDraft}
-                        onChange={(e) => setEditDraft(e.target.value)}
-                        rows={2}
-                        className="resize-y rounded-xl text-sm"
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="rounded-xl"
-                          disabled={
-                            savingEdit ||
-                            !editDraft.trim() ||
-                            editDraft.trim() === entry.body.trim()
-                          }
-                          onClick={() => void handleSaveEdit(entry.id)}
-                        >
-                          {savingEdit ? "Speichern …" : "Speichern"}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="rounded-xl"
-                          disabled={savingEdit}
-                          onClick={cancelEdit}
-                        >
-                          Abbrechen
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="mt-0.5 whitespace-pre-wrap">{entry.body}</p>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="text-xs text-muted-foreground">Noch keine Tagesnotizen.</p>
+      <div
+        className={cn(
+          collapsible ? "border-b border-border/40" : "space-y-3 border-b border-border/50 pb-4",
+          className,
         )}
-
-        <div className="space-y-2">
-          <Textarea
-            id="res-day-note"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Tagesnotiz hinzufügen …"
-            rows={2}
-            className="resize-y rounded-xl"
-          />
-          <Button
+      >
+        {collapsible ? (
+          <button
             type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            disabled={!draft.trim() || adding}
-            onClick={() => void handleAdd()}
+            onClick={() => setExpanded((v) => !v)}
+            className={cn(
+              "flex min-h-11 w-full items-center gap-2.5 px-0 py-2 text-left text-sm",
+              "text-muted-foreground transition-colors hover:text-foreground",
+              "touch-manipulation [-webkit-tap-highlight-color:transparent]",
+            )}
+            aria-expanded={expanded}
           >
-            {adding ? "Hinzufügen …" : "Notiz hinzufügen"}
-          </Button>
-        </div>
+            <StickyNote className="size-4 shrink-0 text-accent" aria-hidden />
+            <span className="min-w-0 flex-1 font-medium text-foreground">
+              Tagesnotizen
+              {noteCount > 0 ? (
+                <span className="ms-1.5 tabular-nums text-muted-foreground">
+                  ({noteCount})
+                </span>
+              ) : null}
+            </span>
+            <ChevronDown
+              className={cn(
+                "size-4 shrink-0 transition-transform",
+                expanded && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+        ) : null}
+
+        {showBody ? (
+          <div
+            className={cn(
+              "space-y-3",
+              collapsible && "pb-3",
+              !collapsible && "space-y-4",
+            )}
+          >
+            {!collapsible ? (
+              <p className="text-xs text-muted-foreground">
+                Protokoll für dieses Datum — eigene Einträge bearbeiten und
+                löschen.
+              </p>
+            ) : null}
+
+            {loadingEntries && !showEntriesSkeleton ? (
+              <div className="min-h-10" aria-busy="true" />
+            ) : null}
+            {showEntriesSkeleton ? (
+              <div className="space-y-2" aria-busy>
+                <Skeleton className="h-12 w-full rounded-xl" />
+              </div>
+            ) : entries.length > 0 ? (
+              <ul className="max-h-36 space-y-2 overflow-y-auto rounded-xl border border-border/50 bg-muted/20 p-2.5">
+                {entries.map((entry) => {
+                  const isEditing = editingId === entry.id;
+                  const isOwn = currentUserId === entry.actor_user_id;
+                  const edited =
+                    entry.updated_at &&
+                    entry.updated_at !== entry.created_at;
+                  return (
+                    <li key={entry.id} className="text-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          {formatWhen(entry.created_at)}
+                          {edited ? " · bearbeitet" : null}
+                          {entry.actor_label ? ` · ${entry.actor_label}` : null}
+                        </p>
+                        {isOwn && !isEditing ? (
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              className="text-muted-foreground"
+                              aria-label="Notiz bearbeiten"
+                              onClick={() => startEdit(entry)}
+                            >
+                              <Pencil className="size-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              className="text-muted-foreground"
+                              aria-label="Notiz löschen"
+                              onClick={() => setDeleteTarget(entry)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                      {isEditing ? (
+                        <div className="mt-1.5 space-y-2">
+                          <Textarea
+                            value={editDraft}
+                            onChange={(e) => setEditDraft(e.target.value)}
+                            rows={2}
+                            className="resize-y rounded-xl text-sm"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="rounded-xl"
+                              disabled={
+                                savingEdit ||
+                                !editDraft.trim() ||
+                                editDraft.trim() === entry.body.trim()
+                              }
+                              onClick={() => void handleSaveEdit(entry.id)}
+                            >
+                              {savingEdit ? "Speichern …" : "Speichern"}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="rounded-xl"
+                              disabled={savingEdit}
+                              onClick={cancelEdit}
+                            >
+                              Abbrechen
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-0.5 whitespace-pre-wrap">{entry.body}</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : collapsible ? null : (
+              <p className="text-xs text-muted-foreground">
+                Noch keine Tagesnotizen.
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <Textarea
+                id="res-day-note"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Notiz hinzufügen …"
+                rows={collapsible ? 1 : 2}
+                className="min-h-9 flex-1 resize-none rounded-xl py-2 text-sm"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0 self-end rounded-xl"
+                disabled={!draft.trim() || adding}
+                onClick={() => void handleAdd()}
+              >
+                {adding ? "…" : "Hinzufügen"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <ConfirmDialog

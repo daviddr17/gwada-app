@@ -1,3 +1,4 @@
+import { attachmentDownloadHeaders } from "@/lib/contact-messages/attachment-download-headers";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
 import { fetchImapAttachmentContent } from "@/lib/email/imap-inbox";
@@ -46,15 +47,10 @@ export async function GET(req: Request) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
 
-  const disposition = data.mimeType.startsWith("image/")
-    ? "inline"
-    : "attachment";
+  const fileName = data.fileName?.trim() || "Anhang";
+  const mimeType = data.mimeType || "application/octet-stream";
 
   return new Response(new Uint8Array(data.bytes), {
-    headers: {
-      "Content-Type": data.mimeType,
-      "Content-Disposition": `${disposition}; filename="${encodeURIComponent(data.fileName)}"`,
-      "Cache-Control": "private, no-store",
-    },
+    headers: attachmentDownloadHeaders({ fileName, mimeType }),
   });
 }

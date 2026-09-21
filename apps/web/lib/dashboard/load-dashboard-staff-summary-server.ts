@@ -8,6 +8,8 @@ import {
   restaurantTodayYmd,
 } from "@/lib/restaurant/restaurant-timezone";
 import { computeStaffDayWageBreakdown } from "@/lib/staff/staff-day-wage";
+import { evaluateLaborCompliance } from "@/lib/staff/labor-law/evaluate-work-compliance";
+import { normalizeCountryIso2 } from "@/lib/restaurant/country-profile";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import type {
   RestaurantStaffContractRow,
@@ -174,36 +176,37 @@ async function fetchStaffWorkEntriesTodayServer(
     timeZone,
   );
 
-  // Überlappung mit dem Restaurant-Tag — nicht nur starts_at im Tag.
-  // Sonst fehlen Übernacht-Anteile von gestern (Morgenstunden) im Heute-Widget.
-  const { data: closed, error: closedErr } = await sb
-    .from("restaurant_staff_work_entries")
-    .select(
-      "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
-    )
-    .eq("restaurant_id", restaurantId)
-    .eq("is_open", false)
-    .lt("starts_at", rangeEnd)
-    .gt("ends_at", rangeStart);
-
-  if (closedErr) throw new Error(closedErr.message);
-
   // Offene Segmente: Übernacht von gestern + heute. Lookback begrenzt Geister-Stempel.
   const openLookbackStart = new Date(
     Date.parse(rangeStart) - 36 * 3_600_000,
   ).toISOString();
 
-  const { data: open, error: openErr } = await sb
-    .from("restaurant_staff_work_entries")
-    .select(
-      "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
-    )
-    .eq("restaurant_id", restaurantId)
-    .eq("is_open", true)
-    .gte("starts_at", openLookbackStart)
-    .lt("starts_at", rangeEnd);
+  // Closed + open parallel — unabhängige Filter, wall-time = langsamere Query.
+  const [closedRes, openRes] = await Promise.all([
+    sb
+      .from("restaurant_staff_work_entries")
+      .select(
+        "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .eq("is_open", false)
+      .lt("starts_at", rangeEnd)
+      .gt("ends_at", rangeStart),
+    sb
+      .from("restaurant_staff_work_entries")
+      .select(
+        "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .eq("is_open", true)
+      .gte("starts_at", openLookbackStart)
+      .lt("starts_at", rangeEnd),
+  ]);
 
-  if (openErr) throw new Error(openErr.message);
+  if (closedRes.error) throw new Error(closedRes.error.message);
+  if (openRes.error) throw new Error(openRes.error.message);
+  const closed = closedRes.data;
+  const open = openRes.data;
 
   const mapRow = (r: Record<string, unknown>) => ({
     id: r.id as string,
@@ -226,6 +229,52 @@ async function fetchStaffWorkEntriesTodayServer(
   return [...byId.values()].sort(
     (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
   );
+}
+
+async function fetchStaffWorkEntriesClosedSinceServer(
+  sb: SupabaseClient,
+  restaurantId: string,
+  rangeStartIso: string,
+) {
+  const { data, error } = await sb
+    .from("restaurant_staff_work_entries")
+    .select(
+      "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("is_open", false)
+    .gte("ends_at", rangeStartIso)
+    .in("entry_type", ["work", "break"])
+    .order("starts_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    restaurant_id: r.restaurant_id as string,
+    staff_id: r.staff_id as string,
+    entry_type: r.entry_type as "work" | "break",
+    starts_at: r.starts_at as string,
+    ends_at: r.ends_at as string,
+    note: (r.note as string | null) ?? null,
+    is_open: false,
+    shift_id: (r.shift_id as string | null) ?? null,
+  }));
+}
+
+async function fetchRestaurantCountryIso2Server(
+  sb: SupabaseClient,
+  restaurantId: string,
+): Promise<string> {
+  const { data } = await sb
+    .from("restaurants")
+    .select("country_iso2, country")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  if (typeof data?.country_iso2 === "string" && data.country_iso2.trim()) {
+    return normalizeCountryIso2(data.country_iso2);
+  }
+  return "DE";
 }
 
 /** Minimaler Contract-Stand für Tageslohn — ohne Dokument-/Signatur-Felder. */
@@ -272,7 +321,8 @@ export async function loadDashboardStaffSummaryServer(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<DashboardStaffSummaryPayload> {
-  const [staffResult, timeZone, presence, contracts] = await Promise.all([
+  const [staffResult, timeZone, presence, contracts, countryIso2] =
+    await Promise.all([
     sb
       .from("restaurant_staff")
       .select(STAFF_SELECT)
@@ -282,6 +332,7 @@ export async function loadDashboardStaffSummaryServer(
     fetchRestaurantTimezoneServer(sb, restaurantId),
     fetchStaffLivePresenceServer(sb, restaurantId),
     fetchStaffContractsForWageServer(sb, restaurantId),
+    fetchRestaurantCountryIso2Server(sb, restaurantId),
   ]);
 
   if (staffResult.error) throw new Error(staffResult.error.message);
@@ -290,13 +341,27 @@ export async function loadDashboardStaffSummaryServer(
     mapStaffRow(r as Record<string, unknown>),
   );
 
-  const todayEntries = await fetchStaffWorkEntriesTodayServer(
-    sb,
-    restaurantId,
-    timeZone,
-  );
-
   const dayYmd = restaurantTodayYmd(timeZone);
+  const complianceLookbackStart = new Date(
+    Date.now() - 183 * 24 * 3_600_000,
+  ).toISOString();
+
+  // Heute-Entries und ArbZG-Lookback parallel — Lookback braucht keinen today-Result.
+  const [todayEntries, complianceEntries] = await Promise.all([
+    fetchStaffWorkEntriesTodayServer(sb, restaurantId, timeZone),
+    fetchStaffWorkEntriesClosedSinceServer(
+      sb,
+      restaurantId,
+      complianceLookbackStart,
+    ),
+  ]);
+  const laborViolations = evaluateLaborCompliance({
+    entries: complianceEntries,
+    countryIso2,
+    timeZone,
+    closedOnly: true,
+  });
+
   const wageBreakdown = computeStaffDayWageBreakdown({
     entries: todayEntries,
     contracts,
@@ -316,5 +381,6 @@ export async function loadDashboardStaffSummaryServer(
       dayYmd,
       timeZone,
     }),
+    laborViolations,
   };
 }

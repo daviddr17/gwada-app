@@ -8,7 +8,7 @@ import {
   type MessagesUnreadSummary,
 } from "@/lib/contact-messages/messages-unread-summary";
 import {
-  fetchUnifiedInboxConversationsForDashboard,
+  fetchUnifiedInboxConversationsForUnreadSummary,
   fetchUnifiedInboxConversationsServer,
 } from "@/lib/contact-messages/unified-inbox-server";
 import {
@@ -20,8 +20,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type { MessagesUnreadSummary } from "@/lib/contact-messages/messages-unread-summary";
 
-function sumUnread(list: ContactConversationPreview[]): number {
-  return list.reduce((acc, c) => acc + (c.is_unread ? c.unread_count : 0), 0);
+/** Anzahl ungelesener Konversationen (nicht Summe der Message-Unread-Zähler). */
+function countUnreadConversations(list: ContactConversationPreview[]): number {
+  return list.filter((c) => c.is_unread && c.unread_count > 0).length;
 }
 
 export async function fetchMessagesUnreadSummary(
@@ -33,18 +34,20 @@ export async function fetchMessagesUnreadSummary(
     emailConnected: boolean;
     facebookConnected?: boolean;
     instagramConnected?: boolean;
-    /** Dashboard-Widget: keine volle Inbox-Liste (schlanker). */
+    /** Dashboard-Widget / Glocke: Light-Pfad (ohne Attachment-Join). */
     includeInboxConversations?: boolean;
   },
 ): Promise<MessagesUnreadSummary> {
   const includeInbox = params.includeInboxConversations !== false;
+  // Glocke/Dashboard: volle Zeilen-Tiefe ohne Attachment-Join (nicht 400-Zeilen-Light).
+  // Nach Live-Deploy ist der Client-Inbox-Cache leer — Light unter-/überzählt Unreads.
   const conversations = includeInbox
     ? await fetchUnifiedInboxConversationsServer(admin, params)
-    : await fetchUnifiedInboxConversationsForDashboard(admin, params);
+    : await fetchUnifiedInboxConversationsForUnreadSummary(admin, params);
   const notifyable = conversations.filter(
     (c) => !conversationExcludedFromSeparateMessageNotification(c),
   );
-  const total_unread = sumUnread(notifyable);
+  const total_unread = countUnreadConversations(notifyable);
 
   const unread = notifyable
     .filter((c) => c.is_unread && c.unread_count > 0)

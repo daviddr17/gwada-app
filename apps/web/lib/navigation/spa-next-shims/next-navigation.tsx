@@ -1,0 +1,79 @@
+"use client";
+
+import {
+  usePathname as useNextPathname,
+  useRouter as useNextRouter,
+  useSearchParams as useNextSearchParams,
+  useParams as useNextParams,
+} from "next/dist/client/components/navigation";
+import type { ReactNode } from "react";
+import { useSpaZoneNavigationOptional } from "@/lib/navigation/spa-zone-navigation-bridge";
+import { isZoneSpaHref } from "@/lib/navigation/spa-zone-path";
+import { urlSearchParamsFromParsedSearch } from "@/lib/navigation/spa-plain-search";
+
+export function useServerInsertedHTML(_callback: () => ReactNode): void {
+  /* SPA — kein RSC-HTML-Insert. */
+}
+
+export function usePathname(): string {
+  const spa = useSpaZoneNavigationOptional();
+  const nextPathname = useNextPathname();
+  // Next kann kurz null liefern (SSR/static) — nie null an Call-Sites weiterreichen.
+  return spa?.pathname ?? nextPathname ?? "/";
+}
+
+export function useRouter() {
+  const spa = useSpaZoneNavigationOptional();
+  const nextRouter = useNextRouter();
+
+  if (!spa) {
+    return nextRouter;
+  }
+
+  const { navigate, hrefToTarget, base } = spa;
+
+  return {
+    push: (href: string) => {
+      if (!isZoneSpaHref(base, href)) {
+        window.location.assign(href);
+        return;
+      }
+      const { to, search } = hrefToTarget(href);
+      navigate({ to, search });
+    },
+    replace: (href: string) => {
+      if (!isZoneSpaHref(base, href)) {
+        window.location.assign(href);
+        return;
+      }
+      const { to, search } = hrefToTarget(href);
+      navigate({ to, search, replace: true });
+    },
+    back: () => window.history.back(),
+    forward: () => window.history.forward(),
+    refresh: () => window.location.reload(),
+    prefetch: () => {},
+  };
+}
+
+export function useSearchParams(): URLSearchParams {
+  const spa = useSpaZoneNavigationOptional();
+  const nextSearchParams = useNextSearchParams();
+  if (!spa) {
+    return nextSearchParams;
+  }
+  // Prefer parsed search: default TanStack JSON codec quotes `"1"` as `%221%22`
+  // in searchStr, which breaks `get("new") === "1"` on Soft-Nav deep links.
+  return urlSearchParamsFromParsedSearch(spa.search);
+}
+
+export function useParams<
+  T extends Record<string, string> = Record<string, string>,
+>(): T {
+  const spa = useSpaZoneNavigationOptional();
+  const nextParams = useNextParams();
+  if (!spa) {
+    return nextParams as T;
+  }
+  return spa.params as T;
+}

@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { AppShellBootstrapOverlay } from "@/components/layout/app-shell-bootstrap-overlay";
-import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
+import { useSoftNavLockOptional } from "@/components/providers/soft-nav-lock-provider";
 import {
   APP_SHELL_READY_MAX_MS,
   computeAppShellInteractive,
@@ -53,7 +53,7 @@ export function AppShellReadinessProvider({ children }: { children: ReactNode })
   } = useWorkspaceRestaurantUuid();
   const { loading: permissionsLoading, permissions } =
     useRestaurantPermissionsContext();
-  const { pendingHref } = useSoftNavLock();
+  const { pendingHref } = useSoftNavLockOptional();
 
   const warmCacheRef = useRef(hasWarmRestaurantCache());
   const [interactive, setInteractive] = useState(

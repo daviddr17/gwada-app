@@ -6,6 +6,7 @@ import {
   registerRestaurantRealtimeSubscription,
   type RestaurantRealtimeSubscription,
 } from "@/lib/supabase/restaurant-realtime-visibility-coordinator";
+import { isSupabaseBrowserRealtimeAvailable } from "@/lib/public-env";
 
 export type RestaurantRealtimeTable =
   | "reservations"
@@ -20,11 +21,18 @@ export type RestaurantRealtimeTable =
   | "restaurant_events_platform_sync"
   | "inventory_ingredients"
   | "inventory_purchase_orders"
+  | "inventory_purchase_order_lines"
+  | "inventory_purchase_order_log_entries"
+  | "restaurant_inventory_live_signals"
   | "menu_items"
   | "menu_categories"
   | "menu_main_categories"
   | "contacts"
-  | "restaurant_integrations";
+  | "restaurant_integrations"
+  | "restaurant_staff_scheduled_shifts"
+  | "restaurant_staff_todos"
+  | "dining_tables"
+  | "dining_areas";
 
 type RealtimeChangeEvent = "INSERT" | "UPDATE" | "DELETE";
 
@@ -72,19 +80,40 @@ export function subscribeRestaurantTableChanges(
     onStatus?: (status: RestaurantRealtimeSubscribeStatus) => void;
   },
 ): () => void {
+  // /sb ist nur HTTP — WebSocket-Subscribe scheitert sonst dauernd (CHANNEL_ERROR-Rauschen).
+  // Hooks schalten unter Proxy bereits auf Polling um.
+  if (!isSupabaseBrowserRealtimeAvailable()) {
+    return () => {};
+  }
+
   const events = options.events ?? ["INSERT"];
 
   let channel: RealtimeChannel | null = null;
   let subscribing = false;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let retryAttempt = 0;
   /** CLOSED von Replace/Teardown — kein Polling-Sturm (besonders nach Tab-Idle). */
   let suppressClosedUntil = 0;
+
+  const RETRY_BASE_MS = 3_000;
+  const RETRY_MAX_MS = 30_000;
 
   const clearRetry = () => {
     if (retryTimer) {
       clearTimeout(retryTimer);
       retryTimer = null;
     }
+  };
+
+  const scheduleRetry = () => {
+    clearRetry();
+    if (document.visibilityState !== "visible") return;
+    const delay = Math.min(
+      RETRY_MAX_MS,
+      RETRY_BASE_MS * 2 ** Math.min(retryAttempt, 4),
+    );
+    retryAttempt += 1;
+    retryTimer = setTimeout(subscribe, delay);
   };
 
   const suppressClosedBriefly = () => {
@@ -142,6 +171,7 @@ export function subscribeRestaurantTableChanges(
         subscribing = false;
         if (status === "SUBSCRIBED") {
           channel = ch;
+          retryAttempt = 0;
           options.onStatus?.("SUBSCRIBED");
           return;
         }
@@ -155,10 +185,7 @@ export function subscribeRestaurantTableChanges(
           suppressClosedBriefly();
           void sb.removeChannel(ch);
           channel = null;
-          clearRetry();
-          if (document.visibilityState === "visible") {
-            retryTimer = setTimeout(subscribe, 3_000);
-          }
+          scheduleRetry();
           return;
         }
         if (status === "CLOSED") {
@@ -173,15 +200,13 @@ export function subscribeRestaurantTableChanges(
       channel = null;
       console.warn(`[gwada] realtime ${options.channelName}: subscribe failed`, err);
       options.onStatus?.("CHANNEL_ERROR");
-      clearRetry();
-      if (document.visibilityState === "visible") {
-        retryTimer = setTimeout(subscribe, 3_000);
-      }
+      scheduleRetry();
     }
   };
 
   const unsubscribe = () => {
     clearRetry();
+    retryAttempt = 0;
     subscribing = false;
     // Intentional pause (Tab-Idle) / Unmount / Replace — CLOSED unterdrücken,
     // sonst starten alle Hooks sofort Fallback-Polling (Klick-Freeze nach Tab-Rückkehr).

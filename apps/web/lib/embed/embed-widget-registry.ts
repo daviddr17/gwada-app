@@ -60,6 +60,14 @@ export const GWADA_EMBED_WIDGETS: Record<
       `embed/events/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
+  event_inquiry: {
+    id: "event_inquiry",
+    title: "Veranstaltungs-Anfrage",
+    defaultMinHeightPx: 520,
+    embedPath: (slug) =>
+      `embed/veranstaltung/${encodeURIComponent(normalizedSlug(slug))}`,
+    available: true,
+  },
   gallery: {
     id: "gallery",
     title: "Galerie",

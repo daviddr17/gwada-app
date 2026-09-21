@@ -140,19 +140,32 @@ export async function setPosRoleCapabilities(params: {
     .maybeSingle();
   if (!role) return false;
 
-  const { error: delErr } = await supabase
+  const unique = [...new Set(capabilityKeys.filter(Boolean))];
+
+  // Erst upsert, dann entfernte Keys löschen — Insert-Fehler lässt Rechte intakt.
+  if (unique.length > 0) {
+    const { error: upsertErr } = await supabase
+      .from("pos_role_capabilities")
+      .upsert(
+        unique.map((capability_key) => ({ role_id: roleId, capability_key })),
+        { onConflict: "role_id,capability_key" },
+      );
+    if (upsertErr) return false;
+  }
+
+  let delQuery = supabase
     .from("pos_role_capabilities")
     .delete()
     .eq("role_id", roleId);
-  if (delErr) return false;
-
-  const unique = [...new Set(capabilityKeys.filter(Boolean))];
-  if (unique.length === 0) return true;
-
-  const { error: insErr } = await supabase.from("pos_role_capabilities").insert(
-    unique.map((capability_key) => ({ role_id: roleId, capability_key })),
-  );
-  return !insErr;
+  if (unique.length > 0) {
+    delQuery = delQuery.not(
+      "capability_key",
+      "in",
+      `(${unique.map((k) => `"${k.replaceAll('"', "")}"`).join(",")})`,
+    );
+  }
+  const { error: delErr } = await delQuery;
+  return !delErr;
 }
 
 export async function listPosDevices(

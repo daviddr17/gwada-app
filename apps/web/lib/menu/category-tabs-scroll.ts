@@ -1,13 +1,15 @@
-/** Horizontale Chip-Leiste: nur scrollen, wenn der Tab abgeschnitten ist (kein Zentrieren). */
+/** Horizontale Chip-Leiste: Tab vollständig sichtbar scrollen (nicht zentrieren). */
 export function scrollCategoryTabIntoView(
   scroller: HTMLElement,
   tabWrap: HTMLElement,
   options?: { behavior?: ScrollBehavior; padding?: number },
 ): void {
   const padding = options?.padding ?? 8;
-  const behavior = options?.behavior ?? "smooth";
-  const tabLeft = tabWrap.offsetLeft;
-  const tabWidth = tabWrap.offsetWidth;
+  const behavior = options?.behavior ?? "auto";
+  const scrollerRect = scroller.getBoundingClientRect();
+  const tabRect = tabWrap.getBoundingClientRect();
+  const tabLeft = tabRect.left - scrollerRect.left + scroller.scrollLeft;
+  const tabWidth = tabRect.width;
   const { scrollLeft, clientWidth, scrollWidth } = scroller;
   const maxScroll = Math.max(0, scrollWidth - clientWidth);
 

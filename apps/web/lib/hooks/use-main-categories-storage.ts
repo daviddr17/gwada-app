@@ -153,9 +153,7 @@ export function useMainCategoriesStorage() {
     : localMainCategories;
   const isHydrated = useDbMenu
     ? workspaceReady &&
-      (mainCategoriesQuery.isSuccess ||
-        mainCategoriesQuery.isError ||
-        Boolean(peekMenuMainCategoriesCache()?.length))
+      (mainCategoriesQuery.isSuccess || mainCategoriesQuery.isError)
     : isLocalHydrated;
 
   const addMainCategory = useCallback(

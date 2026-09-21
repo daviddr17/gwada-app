@@ -89,7 +89,8 @@ export function sourceTimestampFromPayload(
   if (
     module === "reservations_pending" ||
     module === "reservations_change_request" ||
-    module === "reservations_cancellation"
+    module === "reservations_cancellation" ||
+    module === "events_inquiry"
   ) {
     return pick("startsAt");
   }
@@ -117,7 +118,8 @@ export function sourceTimestampLabel(module: string): string {
   if (
     module === "reservations_pending" ||
     module === "reservations_change_request" ||
-    module === "reservations_cancellation"
+    module === "reservations_cancellation" ||
+    module === "events_inquiry"
   ) {
     return "Termin";
   }
@@ -173,7 +175,8 @@ export function formatNotificationPayloadSummary(
   if (
     module === "reservations_pending" ||
     module === "reservations_change_request" ||
-    module === "reservations_cancellation"
+    module === "reservations_cancellation" ||
+    module === "events_inquiry"
   ) {
     const guest = typeof p.guestLabel === "string" ? p.guestLabel : "Gast";
     const party =
@@ -196,6 +199,49 @@ export function formatNotificationPayloadSummary(
     const name =
       typeof p.ingredientName === "string" ? p.ingredientName : "Zutat";
     return name;
+  }
+
+  if (module === "inventory_po_delivery_due") {
+    return typeof p.supplierName === "string" ? p.supplierName : "Lieferung";
+  }
+
+  if (module === "inventory_po_ordered" || module === "inventory_po_closed") {
+    const supplier =
+      typeof p.supplierName === "string" ? p.supplierName : "Lieferant";
+    const count =
+      typeof p.lineCount === "number" ? ` · ${p.lineCount} Positionen` : "";
+    return `${supplier}${count}`;
+  }
+
+  if (
+    module === "digest_daily_preview" ||
+    module === "digest_daily_review" ||
+    module === "digest_weekly_preview" ||
+    module === "digest_weekly_review"
+  ) {
+    return typeof p.periodLabel === "string" ? p.periodLabel : "Zusammenfassung";
+  }
+
+  if (module === "inventory_po_activity") {
+    const name =
+      typeof p.ingredientName === "string" ? p.ingredientName : "Bestellung";
+    return name;
+  }
+
+  if (module === "inventory_stock_activity") {
+    const name =
+      typeof p.ingredientName === "string" ? p.ingredientName : "Bestand";
+    return name;
+  }
+
+  if (module === "reservations_activity") {
+    const guest =
+      typeof p.guestLabel === "string" ? p.guestLabel : "Reservierung";
+    const summary =
+      typeof p.summary === "string" && p.summary.trim()
+        ? ` · ${p.summary.trim()}`
+        : "";
+    return `${guest}${summary}`;
   }
 
   if (module === "changelog") {

@@ -22,6 +22,7 @@ import {
   REVIEW_PLATFORM_LABELS,
 } from "@/lib/constants/review-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { humanizeReviewsApiError } from "@/lib/reviews/reviews-api-error-messages";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
@@ -90,7 +91,12 @@ export function ReviewsSettingsPanel() {
         error?: string;
       };
       if (!res.ok) {
-        toast.error(json.error ?? "Einstellungen konnten nicht geladen werden.");
+        toast.error(
+          humanizeReviewsApiError(
+            json.error,
+            "Einstellungen konnten nicht geladen werden.",
+          ),
+        );
         return;
       }
       const next = json.rules ?? defaultReviewAutoReplyRules();
@@ -135,7 +141,7 @@ export function ReviewsSettingsPanel() {
         autoRepliesSent?: number;
       };
       if (!res.ok) {
-        toast.error(json.error ?? "Speichern fehlgeschlagen.");
+        toast.error(humanizeReviewsApiError(json.error, "Speichern fehlgeschlagen."));
         return;
       }
       setInitialRules(rules);

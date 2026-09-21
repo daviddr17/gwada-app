@@ -2,10 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import {
-  GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
-  dispatchNotificationsRefresh,
-} from "@/lib/notifications/notification-events";
+import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import {
   isReservationNotificationModule,
@@ -60,11 +57,20 @@ export function useNotificationBellRealtime() {
       }, BELL_FULL_REFRESH_DEBOUNCE_MS);
     };
 
+    const refreshLiveActivity = () => {
+      void import("@/lib/live-activity/live-activity-fetch-client").then(
+        ({ backfillLiveActivityFeed }) =>
+          backfillLiveActivityFeed(restaurantId),
+      );
+    };
+
     const enablePolling = () => {
       bellRealtimeActive = false;
       polling.start(() => {
         if (document.visibilityState !== "visible") return;
+        // Live (HTTP-/sb-Proxy): kein WS → Glocke + Live-Verlauf per Poll.
         refreshBell();
+        refreshLiveActivity();
       });
     };
 
@@ -92,6 +98,10 @@ export function useNotificationBellRealtime() {
       onStatus: (status) => {
         if (status === "SUBSCRIBED") {
           disablePolling();
+          void import("@/lib/live-activity/live-activity-fetch-client").then(
+            ({ backfillLiveActivityFeed }) =>
+              backfillLiveActivityFeed(restaurantId),
+          );
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           enablePolling();
         } else if (status === "CLOSED") {
@@ -100,19 +110,34 @@ export function useNotificationBellRealtime() {
       },
       onInsert: (payload) => {
         const row = payload.new as {
+          id?: string;
           module?: string;
           reference_id?: string;
           payload?: Record<string, unknown>;
+          created_at?: string;
         };
-        if (row.module === "messages" && row.payload) {
-          window.dispatchEvent(
-            new CustomEvent(GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT, {
-              detail: {
+        if (row.module && row.payload) {
+          void import("@/lib/live-activity/live-activity-store").then(
+            async ({ recordLiveActivity }) => {
+              const { liveActivityFromNotificationEvent } = await import(
+                "@/lib/live-activity/live-activity-from-notification-event"
+              );
+              recordLiveActivity(
                 restaurantId,
-                notificationPayload: row.payload,
-              },
-            }),
+                liveActivityFromNotificationEvent({
+                  eventId: row.id,
+                  referenceId: row.reference_id,
+                  module: row.module!,
+                  payload: row.payload!,
+                  createdAt: row.created_at,
+                }),
+              );
+            },
           );
+        }
+        if (row.module === "messages") {
+          // Zähler kommt aus Unified-Inbox-Cache (contact_messages Realtime).
+          // notification_events nur für Live-Activity — kein optimistisches +1 in der Glocke.
           return;
         }
         if (

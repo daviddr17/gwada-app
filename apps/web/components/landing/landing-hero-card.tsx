@@ -103,7 +103,7 @@ export function LandingHeroCard({
       </h1>
       <p className="landing-hero-rise-sub mx-auto mt-3 max-w-xl text-pretty text-sm font-medium text-neutral-500 sm:mt-5 sm:text-base md:text-lg dark:text-white/70">
         Speisekarte, Reservierungen, Team und Kanäle — ein System für den ganzen
-        Betrieb.
+        Betrieb. App-Logins: 1 in Free, 3 in Basic, unbegrenzt in Pro.
       </p>
       <div className="landing-hero-rise-cta mt-5 flex w-full flex-col items-stretch justify-center gap-2.5 sm:mt-8 sm:w-auto sm:flex-row sm:items-center md:mt-10">
         <Button

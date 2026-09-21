@@ -1,11 +1,20 @@
 import "server-only";
 
 import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summary-server";
+import { listActiveFollowUpsForRestaurant } from "@/lib/contact-messages/conversation-follow-ups-server";
+import { dashboardMessageThreadHref } from "@/lib/contact-messages/messages-unread-summary";
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
+import { loadInventoryPoDeliveryDueBellSummary } from "@/lib/notifications/notification-inventory-po-delivery-server";
+import { loadInventoryPoStatusNotificationItems } from "@/lib/notifications/notification-po-status-server";
+import { loadDigestNotificationItems } from "@/lib/notifications/notification-digest-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
+import { loadPersonalReminderNotificationItems } from "@/lib/notifications/notification-personal-reminder-server";
+import { loadStaffMessagesNotificationItems } from "@/lib/notifications/notification-staff-messages-server";
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
+import { loadStaffDocumentAssignedNotificationItems } from "@/lib/notifications/notification-staff-document-server";
 import { loadStaffDisplayTimeRequestNotificationItems } from "@/lib/notifications/notification-staff-display-time-request-server";
 import { loadStaffDisplayClockNotificationItems } from "@/lib/notifications/notification-staff-display-clock-server";
 import {
@@ -42,6 +51,20 @@ import { isMetaInboxConnected } from "@/lib/contact-messages/meta-inbox-auth-ser
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BELL_ITEMS_PER_MODULE = 5;
+
+/** Nur Live-Feed — keine Glocke/Push. */
+async function buildFeedOnlyEmptyModule(
+  moduleId: NotificationModuleId,
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[moduleId];
+  return {
+    id: moduleId,
+    count: 0,
+    label: def.labelPlural,
+    href: def.href,
+    items: [],
+  };
+}
 
 async function fetchUnreadChangelogItems(
   sb: SupabaseClient,
@@ -85,7 +108,7 @@ async function fetchUnreadChangelogItems(
         id: row.id,
         title: row.title,
         subtitle: row.version ? `Version ${row.version}` : null,
-        href: "/changelog",
+        href: APP_ROUTES.changelog,
         at: row.published_at,
       };
     }),
@@ -137,6 +160,45 @@ async function buildMessagesModule(
   };
 }
 
+async function buildMessagesFollowUpModule(
+  admin: SupabaseClient,
+  params: { restaurantId: string },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES.messages_follow_up;
+  const now = Date.now();
+  const rows = await listActiveFollowUpsForRestaurant(admin, params.restaurantId);
+  const due = rows
+    .filter((row) => {
+      if (!row.remind_at) return false;
+      const remindMs = new Date(row.remind_at).getTime();
+      if (Number.isNaN(remindMs) || remindMs > now) return false;
+      if (!row.reminded_at) return true;
+      const remindedMs = new Date(row.reminded_at).getTime();
+      return Number.isNaN(remindedMs) || remindedMs < remindMs;
+    })
+    .sort((a, b) => (a.remind_at ?? "").localeCompare(b.remind_at ?? ""));
+
+  const items: NotificationItem[] = due.slice(0, BELL_ITEMS_PER_MODULE).map((row) => ({
+    id: row.id,
+    title: row.contact_display_name?.trim() || "Nachricht später",
+    subtitle: row.reason?.trim() || row.staff_name || "Erinnerung fällig",
+    href: dashboardMessageThreadHref(row.conversation_key),
+    at: row.remind_at ?? row.updated_at,
+    meta: {
+      contactId: row.conversation_key,
+      followUpId: row.id,
+    },
+  }));
+
+  return {
+    id: def.id,
+    count: due.length,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
 async function buildReviewsModule(
   sb: SupabaseClient,
   params: { restaurantId: string; userId: string },
@@ -182,7 +244,8 @@ async function buildReservationModule(
     module:
       | "reservations_pending"
       | "reservations_change_request"
-      | "reservations_cancellation";
+      | "reservations_cancellation"
+      | "events_inquiry";
   },
 ): Promise<NotificationModuleSummary> {
   const def = NOTIFICATION_MODULES[params.module];
@@ -247,6 +310,79 @@ async function buildInventoryLowStockModule(
     limit: BELL_ITEMS_PER_MODULE,
   });
 
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
+async function buildInventoryPoDeliveryDueModule(
+  sb: SupabaseClient,
+  params: { restaurantId: string; userId: string },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES.inventory_po_delivery_due;
+  const { items, totalCount } = await loadInventoryPoDeliveryDueBellSummary(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
+async function buildInventoryPoStatusModule(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module: "inventory_po_ordered" | "inventory_po_closed";
+  },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[params.module];
+  const { items, totalCount } = await loadInventoryPoStatusNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
+async function buildDigestModule(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module:
+      | "digest_daily_preview"
+      | "digest_daily_review"
+      | "digest_weekly_preview"
+      | "digest_weekly_review";
+  },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[params.module];
+  const { items, totalCount } = await loadDigestNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
   return {
     id: def.id,
     count: totalCount,
@@ -332,6 +468,7 @@ const MODULE_BUILDERS: Record<
   ) => Promise<NotificationModuleSummary>
 > = {
   messages: (ctx) => buildMessagesModule(ctx.admin, ctx),
+  messages_follow_up: (ctx) => buildMessagesFollowUpModule(ctx.admin, ctx),
   reviews: (ctx) => buildReviewsModule(ctx.sb, ctx),
   changelog: (ctx) => buildChangelogModule(ctx.sb, ctx.userId),
   reservations_pending: (ctx) =>
@@ -346,6 +483,10 @@ const MODULE_BUILDERS: Record<
       ...ctx,
       module: "reservations_cancellation",
     }),
+  reservations_activity: () =>
+    buildFeedOnlyEmptyModule("reservations_activity"),
+  events_inquiry: (ctx) =>
+    buildReservationModule(ctx.sb, { ...ctx, module: "events_inquiry" }),
   staff_shift_start: (ctx) =>
     buildStaffShiftModule(ctx.sb, {
       restaurantId: ctx.restaurantId,
@@ -361,6 +502,29 @@ const MODULE_BUILDERS: Record<
       shiftScope: ctx.shiftScope,
     }),
   inventory_low_stock: (ctx) => buildInventoryLowStockModule(ctx.sb, ctx),
+  inventory_po_delivery_due: (ctx) =>
+    buildInventoryPoDeliveryDueModule(ctx.sb, ctx),
+  inventory_po_ordered: (ctx) =>
+    buildInventoryPoStatusModule(ctx.sb, {
+      ...ctx,
+      module: "inventory_po_ordered",
+    }),
+  inventory_po_closed: (ctx) =>
+    buildInventoryPoStatusModule(ctx.sb, {
+      ...ctx,
+      module: "inventory_po_closed",
+    }),
+  digest_daily_preview: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_daily_preview" }),
+  digest_daily_review: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_daily_review" }),
+  digest_weekly_preview: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_weekly_preview" }),
+  digest_weekly_review: (ctx) =>
+    buildDigestModule(ctx.sb, { ...ctx, module: "digest_weekly_review" }),
+  inventory_po_activity: () => buildFeedOnlyEmptyModule("inventory_po_activity"),
+  inventory_stock_activity: () =>
+    buildFeedOnlyEmptyModule("inventory_stock_activity"),
   accounting_quotation: (ctx) =>
     buildAccountingModule(ctx.sb, {
       ...ctx,
@@ -388,9 +552,51 @@ const MODULE_BUILDERS: Record<
       userId: ctx.userId,
       module: "staff_todo_deferred",
     }),
+  personal_reminder: async (ctx) => {
+    const def = NOTIFICATION_MODULES.personal_reminder;
+    const { items, totalCount } = await loadPersonalReminderNotificationItems(
+      ctx.admin,
+      { restaurantId: ctx.restaurantId, userId: ctx.userId },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_messages: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_messages;
+    const { items, totalCount } = await loadStaffMessagesNotificationItems(
+      ctx.admin,
+      { restaurantId: ctx.restaurantId, userId: ctx.userId },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
   staff_contract_signed: async (ctx) => {
     const def = NOTIFICATION_MODULES.staff_contract_signed;
     const items = await loadStaffContractSignedNotificationItems(ctx.sb, {
+      restaurantId: ctx.restaurantId,
+      userId: ctx.userId,
+    });
+    return {
+      id: def.id,
+      count: items.length,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_document_assigned: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_document_assigned;
+    const items = await loadStaffDocumentAssignedNotificationItems(ctx.sb, {
       restaurantId: ctx.restaurantId,
       userId: ctx.userId,
     });

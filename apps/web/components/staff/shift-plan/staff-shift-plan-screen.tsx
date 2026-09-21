@@ -36,6 +36,8 @@ import { ShiftPlanTemplateDrawer } from "@/components/staff/shift-plan/shift-pla
 import { ShiftPlanShiftCard } from "@/components/staff/shift-plan/shift-plan-shift-card";
 import { StaffShiftPlanSkeleton } from "@/components/staff/shift-plan/staff-shift-plan-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { useWindowEventRefresh } from "@/lib/hooks/use-window-event-refresh";
+import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { hasModuleUpdate } from "@/lib/permissions/module-crud-permissions";
 import {
   ShiftPlanTemplatePalette,
@@ -361,6 +363,14 @@ export function StaffShiftPlanScreen({
       await fetchShiftsForRange(opts);
     },
     [fetchShiftsForRange],
+  );
+
+  useWindowEventRefresh(
+    GWADA_STAFF_DATA_REFRESH_EVENT,
+    Boolean(restaurantId) && !bootstrapping,
+    () => {
+      void reload({ quiet: true });
+    },
   );
 
   const reloadStaffRows = useCallback(async () => {

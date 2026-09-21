@@ -25,7 +25,9 @@ export function useChecklistDevicesStorage(restaurantId: string | null) {
       return;
     }
     const { data, error } = await fetchChecklistDevices(restaurantId);
-    if (error && !isMissingSchemaError(error)) toast.error(error);
+    if (error && !isMissingSchemaError(error)) {
+      console.warn("[checklist-devices]", error);
+    }
     setItems(data);
     setIsHydrated(true);
   }, [restaurantId]);

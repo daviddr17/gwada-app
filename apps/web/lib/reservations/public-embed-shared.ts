@@ -33,6 +33,10 @@ export type PublicEmbedRestaurant = {
   minMinutesBeforeClosing: number;
   /** Optional unter dem Embed-Formular. */
   embedFormFooterText: string | null;
+  guestEmailRequiredEnabled: boolean;
+  guestEmailRequiredMinPartySize: number;
+  guestPhoneRequiredEnabled: boolean;
+  guestPhoneRequiredMinPartySize: number;
   weeklyHours: Record<Weekday, DayHours>;
   dateExceptions: DateHoursException[];
 };

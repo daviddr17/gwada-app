@@ -27,7 +27,7 @@ export function invalidateMessagesInboxAfterMarkRead(params: {
       email_unread_count: 0,
       unread_hint: null,
     });
-    deleteContactThreadCacheEntry(restaurantId, contactId!);
+    // Thread-Cache behalten — sonst fühlt sich jeder Re-Open wie Cold-Load an.
   }
 
   dispatchDashboardMessagesRefresh({
@@ -35,4 +35,22 @@ export function invalidateMessagesInboxAfterMarkRead(params: {
     contactId: markAll ? undefined : contactId ?? undefined,
     all: markAll,
   });
+}
+
+/**
+ * Nach erfolgreichem Mark-all: Inbox neu laden (ohne `all`), damit Cache = DB.
+ * Background-Sync skippt Force-Refetch bei optimistischem `all` — hier nachziehen.
+ */
+export function refreshMessagesInboxAfterMarkAllSuccess(
+  restaurantId: string,
+): void {
+  dispatchDashboardMessagesRefresh({ restaurantId });
+}
+
+/** Explizit Thread-Cache droppen (z. B. nach Senden/Löschen mit Content-Änderung). */
+export function invalidateContactThreadCacheAfterContentChange(params: {
+  restaurantId: string;
+  contactId: string;
+}): void {
+  deleteContactThreadCacheEntry(params.restaurantId, params.contactId);
 }

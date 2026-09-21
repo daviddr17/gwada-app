@@ -8,10 +8,17 @@ const INSIGHTS_NAV: readonly ModuleSubnavItem[] = [
   { href: "/dashboard/insights/uebersicht", label: "Übersicht", matchMode: "exact", activeWhen: ["/dashboard/insights"] },
 ];
 
-export function InsightsOverviewKeepAliveScreen({ active }: { active: boolean }) {
+export function InsightsOverviewKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="Insights"
       subnavAriaLabel="Insights-Bereiche"
       subnavItems={INSIGHTS_NAV}

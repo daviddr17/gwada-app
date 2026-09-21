@@ -37,7 +37,9 @@ export function useDocumentTagsStorage(restaurantId: string | null) {
       return;
     }
     const { data, error } = await loadDocumentTags(restaurantId);
-    if (error) toast.error(error);
+    if (error) {
+      console.warn("[document-tags]", error);
+    }
     setItems(data.map(normalizeTag));
     setIsHydrated(true);
   }, [restaurantId]);

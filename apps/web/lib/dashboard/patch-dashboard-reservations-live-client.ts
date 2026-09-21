@@ -4,6 +4,7 @@ import {
   DEFAULT_RESTAURANT_TIMEZONE,
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
+import { isPrivateEventReservation } from "@/lib/reservations/reservation-kind";
 import { isUnconfirmedReservation } from "@/lib/reservations/unconfirmed-reservations";
 import type { ReservationStatusJoin } from "@/lib/supabase/reservations-db";
 
@@ -158,12 +159,13 @@ export function patchDashboardReservationSummaryFromInsert(
   today: Date = new Date(),
   timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): DashboardReservationSummary {
+  if (isPrivateEventReservation(insert)) return summary;
   const statusJoin: ReservationStatusJoin = {
     ...DEFAULT_PENDING_STATUS,
     code: insert.statusCode,
     name: insert.statusName,
   };
-  const rowLike = { reservation_statuses: statusJoin };
+  const rowLike = { reservation_statuses: statusJoin, kind: insert.kind };
   const guests = Math.max(0, insert.party_size);
   const todayKey = restaurantZonedDateKey(today, timeZone);
   const inWeek = isInWeekRange(insert.starts_at, today, timeZone);

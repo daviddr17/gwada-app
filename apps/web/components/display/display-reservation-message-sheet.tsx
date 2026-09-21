@@ -21,9 +21,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
 import {
+  isSilentClientSendResult,
   sendContactMessageUserMessage,
   type SendContactMessageApiResult,
 } from "@/lib/contact-messages/trigger-send-contact-message";
+import { shouldSilenceClientSendFailure } from "@/lib/network/client-send-abort";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import { cn } from "@/lib/utils";
 
@@ -186,7 +188,9 @@ export function DisplayReservationMessageSheet({
           );
         } else {
           const warn = sendContactMessageUserMessage(data);
-          toast.error(warn ?? "Senden fehlgeschlagen.");
+          if (!isSilentClientSendResult(data)) {
+            toast.error(warn ?? "Senden fehlgeschlagen.");
+          }
         }
         return;
       }
@@ -195,8 +199,10 @@ export function DisplayReservationMessageSheet({
       else toast.success("Nachricht gesendet.");
       setBody("");
       void loadMessages();
-    } catch {
-      toast.error("Senden fehlgeschlagen.");
+    } catch (e) {
+      if (!shouldSilenceClientSendFailure(e)) {
+        toast.error("Senden fehlgeschlagen.");
+      }
     } finally {
       setSending(false);
     }

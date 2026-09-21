@@ -126,6 +126,10 @@ type SettingsSnapshot = {
   reviewGoogleUrl: string;
   reviewFacebookUrl: string;
   walkInEnabled: boolean;
+  guestEmailRequiredEnabled: boolean;
+  guestEmailRequiredMinPartySize: string;
+  guestPhoneRequiredEnabled: boolean;
+  guestPhoneRequiredMinPartySize: string;
 };
 
 function tmplFromRow(
@@ -305,6 +309,14 @@ function rowToSnapshot(
         ? data.review_facebook_url
         : "",
     walkInEnabled: data?.walk_in_enabled === true,
+    guestEmailRequiredEnabled: data?.guest_email_required_enabled === true,
+    guestEmailRequiredMinPartySize: String(
+      data?.guest_email_required_min_party_size ?? 6,
+    ),
+    guestPhoneRequiredEnabled: data?.guest_phone_required_enabled === true,
+    guestPhoneRequiredMinPartySize: String(
+      data?.guest_phone_required_min_party_size ?? 6,
+    ),
   };
 }
 
@@ -489,6 +501,13 @@ export function ReservationSettingsForm() {
   const [reviewGoogleUrl, setReviewGoogleUrl] = useState("");
   const [reviewFacebookUrl, setReviewFacebookUrl] = useState("");
   const [walkInEnabled, setWalkInEnabled] = useState(false);
+  const [guestEmailRequiredEnabled, setGuestEmailRequiredEnabled] = useState(false);
+  const [guestEmailRequiredMinPartySize, setGuestEmailRequiredMinPartySize] =
+    useState("6");
+  const [guestPhoneRequiredEnabled, setGuestPhoneRequiredEnabled] = useState(false);
+  const [guestPhoneRequiredMinPartySize, setGuestPhoneRequiredMinPartySize] =
+    useState("6");
+  const [googleBookingLinkEnabled, setGoogleBookingLinkEnabled] = useState(false);
   const [testWhatsappPhone, setTestWhatsappPhone] = useState("");
   const [testEmailAddress, setTestEmailAddress] = useState("");
   const [sendingTestKind, setSendingTestKind] = useState<{
@@ -533,6 +552,10 @@ export function ReservationSettingsForm() {
       reviewGoogleUrl,
       reviewFacebookUrl,
       walkInEnabled,
+      guestEmailRequiredEnabled,
+      guestEmailRequiredMinPartySize,
+      guestPhoneRequiredEnabled,
+      guestPhoneRequiredMinPartySize,
     }),
     [
       minutes,
@@ -549,6 +572,10 @@ export function ReservationSettingsForm() {
       reviewGoogleUrl,
       reviewFacebookUrl,
       walkInEnabled,
+      guestEmailRequiredEnabled,
+      guestEmailRequiredMinPartySize,
+      guestPhoneRequiredEnabled,
+      guestPhoneRequiredMinPartySize,
     ],
   );
 
@@ -596,6 +623,11 @@ export function ReservationSettingsForm() {
       setReviewGoogleUrl(next.reviewGoogleUrl);
       setReviewFacebookUrl(next.reviewFacebookUrl);
       setWalkInEnabled(next.walkInEnabled);
+      setGuestEmailRequiredEnabled(next.guestEmailRequiredEnabled);
+      setGuestEmailRequiredMinPartySize(next.guestEmailRequiredMinPartySize);
+      setGuestPhoneRequiredEnabled(next.guestPhoneRequiredEnabled);
+      setGuestPhoneRequiredMinPartySize(next.guestPhoneRequiredMinPartySize);
+      setGoogleBookingLinkEnabled(data?.google_booking_link_enabled === true);
       savedSnapshotRef.current = JSON.stringify(next);
     })();
     return () => {
@@ -736,6 +768,22 @@ export function ReservationSettingsForm() {
     const bookingStep = normalizeBookingTimeStepMinutes(
       Number.parseInt(bookingTimeStepMinutes, 10),
     );
+    const emailMinParty = Number.parseInt(guestEmailRequiredMinPartySize, 10);
+    if (
+      guestEmailRequiredEnabled &&
+      (!Number.isFinite(emailMinParty) || emailMinParty < 1 || emailMinParty > 200)
+    ) {
+      toast.error("E-Mail Pflicht: Personenzahl zwischen 1 und 200.");
+      return;
+    }
+    const phoneMinParty = Number.parseInt(guestPhoneRequiredMinPartySize, 10);
+    if (
+      guestPhoneRequiredEnabled &&
+      (!Number.isFinite(phoneMinParty) || phoneMinParty < 1 || phoneMinParty > 200)
+    ) {
+      toast.error("Telefon Pflicht: Personenzahl zwischen 1 und 200.");
+      return;
+    }
     const footerTrim = embedFormFooterText.trim();
     if (footerTrim.length > EMBED_FOOTER_TEXT_MAX) {
       toast.error(`Hinweistext: maximal ${EMBED_FOOTER_TEXT_MAX} Zeichen.`);
@@ -774,81 +822,94 @@ export function ReservationSettingsForm() {
 
     setSaving(true);
     void (async () => {
-      const { error } = await upsertReservationSettings({
-        restaurantId,
-        defaultDwellMinutes: n,
-        bookingLeadTimeHours: leadH,
-        minMinutesBeforeClosing: minClose,
-        bookingTimeStepMinutes: bookingStep,
-        embedFormFooterText: footerTrim || null,
-        guestManageUrlTemplate: guestManageUrl.trim() || null,
-        whatsappReceivedEnabled: whatsapp.received,
-        whatsappConfirmedEnabled: whatsapp.confirmed,
-        whatsappReminderEnabled: whatsapp.reminder,
-        whatsappReminderHoursBefore: waRh,
-        whatsappThanksEnabled: whatsapp.thanks,
-        whatsappThanksHoursAfter: waTh,
-        whatsappCancelledEnabled: whatsapp.cancelled,
-        whatsappDeclinedEnabled: whatsapp.declined,
-        whatsappNoShowEnabled: whatsapp.noShow,
-        whatsappReceivedTemplate: templateFormValueToDb(whatsapp.tmplReceived, "received"),
-        whatsappConfirmedTemplate: templateFormValueToDb(
-          whatsapp.tmplConfirmed,
-          "confirmed",
-        ),
-        whatsappReminderTemplate: templateFormValueToDb(whatsapp.tmplReminder, "reminder"),
-        whatsappThanksTemplate: templateFormValueToDb(whatsapp.tmplThanks, "thanks"),
-        whatsappCancelledTemplate: templateFormValueToDb(
-          whatsapp.tmplCancelled,
-          "cancelled",
-        ),
-        whatsappDeclinedTemplate: templateFormValueToDb(whatsapp.tmplDeclined, "declined"),
-        whatsappNoShowTemplate: templateFormValueToDb(whatsapp.tmplNoShow, "no_show"),
-        emailReceivedEnabled: email.received,
-        emailConfirmedEnabled: email.confirmed,
-        emailReminderEnabled: email.reminder,
-        emailReminderHoursBefore: emRh,
-        emailThanksEnabled: email.thanks,
-        emailThanksHoursAfter: emTh,
-        emailCancelledEnabled: email.cancelled,
-        emailDeclinedEnabled: email.declined,
-        emailNoShowEnabled: email.noShow,
-        emailReceivedTemplate: templateFormValueToDb(email.tmplReceived, "received"),
-        emailConfirmedTemplate: templateFormValueToDb(email.tmplConfirmed, "confirmed"),
-        emailReminderTemplate: templateFormValueToDb(email.tmplReminder, "reminder"),
-        emailThanksTemplate: templateFormValueToDb(email.tmplThanks, "thanks"),
-        emailCancelledTemplate: templateFormValueToDb(email.tmplCancelled, "cancelled"),
-        emailDeclinedTemplate: templateFormValueToDb(email.tmplDeclined, "declined"),
-        emailNoShowTemplate: templateFormValueToDb(email.tmplNoShow, "no_show"),
-        emailSenderName: emailSenderName.trim() || null,
-        emailReceivedSubject: emailSubjectFormValueToDb(email.subjReceived, "received"),
-        emailConfirmedSubject: emailSubjectFormValueToDb(
-          email.subjConfirmed,
-          "confirmed",
-        ),
-        emailReminderSubject: emailSubjectFormValueToDb(email.subjReminder, "reminder"),
-        emailThanksSubject: emailSubjectFormValueToDb(email.subjThanks, "thanks"),
-        emailCancelledSubject: emailSubjectFormValueToDb(
-          email.subjCancelled,
-          "cancelled",
-        ),
-        emailDeclinedSubject: emailSubjectFormValueToDb(email.subjDeclined, "declined"),
-        emailNoShowSubject: emailSubjectFormValueToDb(email.subjNoShow, "no_show"),
-        whatsappReviewIncludeGwada: whatsappReview.includeGwada,
-        whatsappReviewIncludeGoogle: whatsappReview.includeGoogle,
-        whatsappReviewIncludeFacebook: whatsappReview.includeFacebook,
-        emailReviewIncludeGwada: emailReview.includeGwada,
-        emailReviewIncludeGoogle: emailReview.includeGoogle,
-        emailReviewIncludeFacebook: emailReview.includeFacebook,
-        reviewGoogleUrl: reviewGoogleUrl.trim() || null,
-        reviewFacebookUrl: reviewFacebookUrl.trim() || null,
-        walkInEnabled,
-      });
-      setSaving(false);
-      if (error) toast.error(error.message);
-      else {
-        toast.success("Einstellungen gespeichert.");
-        savedSnapshotRef.current = JSON.stringify(currentSnapshot);
+      try {
+        const { error } = await upsertReservationSettings({
+          restaurantId,
+          defaultDwellMinutes: n,
+          bookingLeadTimeHours: leadH,
+          minMinutesBeforeClosing: minClose,
+          bookingTimeStepMinutes: bookingStep,
+          embedFormFooterText: footerTrim || null,
+          guestManageUrlTemplate: guestManageUrl.trim() || null,
+          whatsappReceivedEnabled: whatsapp.received,
+          whatsappConfirmedEnabled: whatsapp.confirmed,
+          whatsappReminderEnabled: whatsapp.reminder,
+          whatsappReminderHoursBefore: waRh,
+          whatsappThanksEnabled: whatsapp.thanks,
+          whatsappThanksHoursAfter: waTh,
+          whatsappCancelledEnabled: whatsapp.cancelled,
+          whatsappDeclinedEnabled: whatsapp.declined,
+          whatsappNoShowEnabled: whatsapp.noShow,
+          whatsappReceivedTemplate: templateFormValueToDb(whatsapp.tmplReceived, "received"),
+          whatsappConfirmedTemplate: templateFormValueToDb(
+            whatsapp.tmplConfirmed,
+            "confirmed",
+          ),
+          whatsappReminderTemplate: templateFormValueToDb(whatsapp.tmplReminder, "reminder"),
+          whatsappThanksTemplate: templateFormValueToDb(whatsapp.tmplThanks, "thanks"),
+          whatsappCancelledTemplate: templateFormValueToDb(
+            whatsapp.tmplCancelled,
+            "cancelled",
+          ),
+          whatsappDeclinedTemplate: templateFormValueToDb(whatsapp.tmplDeclined, "declined"),
+          whatsappNoShowTemplate: templateFormValueToDb(whatsapp.tmplNoShow, "no_show"),
+          emailReceivedEnabled: email.received,
+          emailConfirmedEnabled: email.confirmed,
+          emailReminderEnabled: email.reminder,
+          emailReminderHoursBefore: emRh,
+          emailThanksEnabled: email.thanks,
+          emailThanksHoursAfter: emTh,
+          emailCancelledEnabled: email.cancelled,
+          emailDeclinedEnabled: email.declined,
+          emailNoShowEnabled: email.noShow,
+          emailReceivedTemplate: templateFormValueToDb(email.tmplReceived, "received"),
+          emailConfirmedTemplate: templateFormValueToDb(email.tmplConfirmed, "confirmed"),
+          emailReminderTemplate: templateFormValueToDb(email.tmplReminder, "reminder"),
+          emailThanksTemplate: templateFormValueToDb(email.tmplThanks, "thanks"),
+          emailCancelledTemplate: templateFormValueToDb(email.tmplCancelled, "cancelled"),
+          emailDeclinedTemplate: templateFormValueToDb(email.tmplDeclined, "declined"),
+          emailNoShowTemplate: templateFormValueToDb(email.tmplNoShow, "no_show"),
+          emailSenderName: emailSenderName.trim() || null,
+          emailReceivedSubject: emailSubjectFormValueToDb(email.subjReceived, "received"),
+          emailConfirmedSubject: emailSubjectFormValueToDb(
+            email.subjConfirmed,
+            "confirmed",
+          ),
+          emailReminderSubject: emailSubjectFormValueToDb(email.subjReminder, "reminder"),
+          emailThanksSubject: emailSubjectFormValueToDb(email.subjThanks, "thanks"),
+          emailCancelledSubject: emailSubjectFormValueToDb(
+            email.subjCancelled,
+            "cancelled",
+          ),
+          emailDeclinedSubject: emailSubjectFormValueToDb(email.subjDeclined, "declined"),
+          emailNoShowSubject: emailSubjectFormValueToDb(email.subjNoShow, "no_show"),
+          whatsappReviewIncludeGwada: whatsappReview.includeGwada,
+          whatsappReviewIncludeGoogle: whatsappReview.includeGoogle,
+          whatsappReviewIncludeFacebook: whatsappReview.includeFacebook,
+          emailReviewIncludeGwada: emailReview.includeGwada,
+          emailReviewIncludeGoogle: emailReview.includeGoogle,
+          emailReviewIncludeFacebook: emailReview.includeFacebook,
+          reviewGoogleUrl: reviewGoogleUrl.trim() || null,
+          reviewFacebookUrl: reviewFacebookUrl.trim() || null,
+          walkInEnabled,
+          guestEmailRequiredEnabled,
+          guestEmailRequiredMinPartySize: guestEmailRequiredEnabled
+            ? emailMinParty
+            : 6,
+          guestPhoneRequiredEnabled,
+          guestPhoneRequiredMinPartySize: guestPhoneRequiredEnabled
+            ? phoneMinParty
+            : 6,
+        });
+        if (error) toast.error(error.message);
+        else {
+          toast.success("Einstellungen gespeichert.");
+          savedSnapshotRef.current = JSON.stringify(currentSnapshot);
+        }
+      } catch {
+        toast.error("Einstellungen konnten nicht gespeichert werden.");
+      } finally {
+        setSaving(false);
       }
     })();
   };
@@ -1001,6 +1062,97 @@ export function ReservationSettingsForm() {
               </div>
             </div>
 
+            <div className="max-w-2xl space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Gilt für Online-Buchung, Dashboard, Display und Mitarbeiter-Eingabe.
+                E-Mail und Telefon lassen sich getrennt aktivieren.
+              </p>
+              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="guest-email-required"
+                      className="text-sm font-medium"
+                    >
+                      E-Mail Pflicht ab Personenzahl
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Ab der gewählten Gruppengröße muss eine E-Mail-Adresse
+                      eingetragen werden.
+                    </p>
+                  </div>
+                  <Switch
+                    id="guest-email-required"
+                    checked={guestEmailRequiredEnabled}
+                    disabled={loading}
+                    onCheckedChange={setGuestEmailRequiredEnabled}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="guest-email-min-party"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Ab Personenzahl
+                  </Label>
+                  <Input
+                    id="guest-email-min-party"
+                    type="number"
+                    min={1}
+                    max={200}
+                    disabled={loading || !guestEmailRequiredEnabled}
+                    value={guestEmailRequiredMinPartySize}
+                    onChange={(e) =>
+                      setGuestEmailRequiredMinPartySize(e.target.value)
+                    }
+                    className="h-11 max-w-[8rem] rounded-xl"
+                  />
+                </div>
+              </div>
+              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="guest-phone-required"
+                      className="text-sm font-medium"
+                    >
+                      Telefon Pflicht ab Personenzahl
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Ab der gewählten Gruppengröße muss eine Telefonnummer
+                      eingetragen werden.
+                    </p>
+                  </div>
+                  <Switch
+                    id="guest-phone-required"
+                    checked={guestPhoneRequiredEnabled}
+                    disabled={loading}
+                    onCheckedChange={setGuestPhoneRequiredEnabled}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="guest-phone-min-party"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Ab Personenzahl
+                  </Label>
+                  <Input
+                    id="guest-phone-min-party"
+                    type="number"
+                    min={1}
+                    max={200}
+                    disabled={loading || !guestPhoneRequiredEnabled}
+                    value={guestPhoneRequiredMinPartySize}
+                    onChange={(e) =>
+                      setGuestPhoneRequiredMinPartySize(e.target.value)
+                    }
+                    className="h-11 max-w-[8rem] rounded-xl"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="max-w-2xl space-y-1.5">
               <Label
                 htmlFor="embed-form-footer"
@@ -1064,6 +1216,8 @@ export function ReservationSettingsForm() {
                 googleConnected={googleConnected}
                 facebookConnected={facebookConnected}
                 instagramConnected={instagramConnected}
+                googleBookingLinkEnabled={googleBookingLinkEnabled}
+                onGoogleBookingLinkEnabledChange={setGoogleBookingLinkEnabled}
                 connectionsLoading={
                   reviewConnectionsLoading || channelConnectionsLoading
                 }

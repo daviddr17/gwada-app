@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
+import { cookies } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { isRtlLocale } from "@/i18n/config";
@@ -10,6 +11,11 @@ import {
 import { faviconMimeTypeFromPath, platformFaviconHref } from "@/lib/platform/branding-asset-url";
 import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
 import { buildGwadaPublicEnvForScript, GWADA_PUBLIC_ENV_HTML_ATTR } from "@/lib/public-env";
+import {
+  isUiDensity,
+  UI_DENSITY_COOKIE,
+  UI_DENSITY_HTML_ATTR,
+} from "@/lib/ui/ui-density";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -45,6 +51,11 @@ export default async function RootLayout({
       ? JSON.stringify(publicEnv).replace(/</g, "\\u003c")
       : null;
 
+  const cookieStore = await cookies();
+  const densityCookie = cookieStore.get(UI_DENSITY_COOKIE)?.value;
+  const uiDensity =
+    densityCookie && isUiDensity(densityCookie) ? densityCookie : undefined;
+
   return (
     <html
       lang={locale}
@@ -52,6 +63,7 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={dmSans.variable}
       data-platform-favicon={faviconHref ?? undefined}
+      {...(uiDensity ? { [UI_DENSITY_HTML_ATTR]: uiDensity } : {})}
       {...(publicEnvJson
         ? { [GWADA_PUBLIC_ENV_HTML_ATTR]: publicEnvJson }
         : {})}

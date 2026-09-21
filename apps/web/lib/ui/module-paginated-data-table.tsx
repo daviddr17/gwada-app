@@ -17,7 +17,9 @@ import {
 } from "@/components/ui/list-pagination";
 import {
   moduleDataTableFullscreenShellClassName,
-  moduleDataTableShellClassName,
+  moduleDataTablePageScrollClassName,
+  moduleDataTableScrollClassName,
+  moduleDataTableShellWithStickyHeadClassName,
   moduleListPaginationAboveClassName,
   moduleListPaginationBelowClassName,
   moduleTableFullscreenChromeInsetClassName,
@@ -75,7 +77,9 @@ function ModuleTableShell({
 }) {
   return (
     <div className={shellClassName}>
-      <ModuleTableHorizontalScrollRegion className={scrollClassName}>
+      <ModuleTableHorizontalScrollRegion
+        className={cn(moduleDataTableScrollClassName, scrollClassName)}
+      >
         {children}
       </ModuleTableHorizontalScrollRegion>
     </div>
@@ -91,7 +95,7 @@ export function ModulePaginatedDataTable({
   classNameAbove,
   classNameBelow,
   scrollClassName,
-  shellClassName = moduleDataTableShellClassName,
+  shellClassName = moduleDataTableShellWithStickyHeadClassName,
   tableFullscreen = true,
   fullscreenTitle,
   fullscreenChromeInsetClassName = moduleTableFullscreenChromeInsetClassName,
@@ -277,6 +281,8 @@ export type ModuleDataTableFrameProps = {
   children: ReactNode;
   className?: string;
   scrollClassName?: string;
+  /** `contained` = eigener Scrollport (Standard); `page` = nur App scrollt vertikal. */
+  scrollPort?: "contained" | "page";
   shellClassName?: string;
   /** Tabellen-Vollbild (Protokoll-Listen). */
   tableFullscreen?: boolean;
@@ -298,7 +304,8 @@ export function ModuleDataTableFrame({
   children,
   className,
   scrollClassName,
-  shellClassName = moduleDataTableShellClassName,
+  scrollPort = "contained",
+  shellClassName = moduleDataTableShellWithStickyHeadClassName,
   tableFullscreen = false,
   fullscreenTitle,
   summaryText,
@@ -337,7 +344,14 @@ export function ModuleDataTableFrame({
 
   const tableShell = (
     <div className={cn(shellClassName, className)}>
-      <ModuleTableHorizontalScrollRegion className={scrollClassName}>
+      <ModuleTableHorizontalScrollRegion
+        className={cn(
+          scrollPort === "page"
+            ? moduleDataTablePageScrollClassName
+            : moduleDataTableScrollClassName,
+          scrollClassName,
+        )}
+      >
         {children}
       </ModuleTableHorizontalScrollRegion>
     </div>

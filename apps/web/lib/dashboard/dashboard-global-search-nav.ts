@@ -8,6 +8,7 @@ export const DASHBOARD_GLOBAL_SEARCH_CATEGORY_LABELS: Record<
   menu: "Speisekarte",
   reservations: "Reservierungen",
   contacts: "Kontakte",
+  messages: "Nachrichten",
   reviews: "Bewertungen",
   staff: "Mitarbeiter",
   inventory: "Bestand",
@@ -24,6 +25,7 @@ export const DASHBOARD_GLOBAL_SEARCH_CATEGORY_ORDER: DashboardGlobalSearchCatego
     "menu",
     "reservations",
     "contacts",
+    "messages",
     "reviews",
     "staff",
     "inventory",
@@ -46,6 +48,8 @@ export function dashboardGlobalSearchModuleHref(
       return APP_ROUTES.reservierungen.overview;
     case "contacts":
       return APP_ROUTES.kontakte.overview;
+    case "messages":
+      return `${APP_ROUTES.kontakte.messages}?platform=all`;
     case "reviews":
       return APP_ROUTES.bewertungen.overview;
     case "staff":
@@ -82,6 +86,8 @@ export function dashboardGlobalSearchEntityCtaLabel(
       return "Zur Reservierung";
     case "contacts":
       return "Zum Kontakt";
+    case "messages":
+      return "Zum Chat";
     case "reviews":
       return "Zur Bewertung";
     case "staff":
@@ -118,6 +124,8 @@ export function dashboardGlobalSearchModuleCtaLabel(
       return "Zu Reservierungen";
     case "contacts":
       return "Zu Kontakten";
+    case "messages":
+      return "Zu Nachrichten";
     case "reviews":
       return "Zu Bewertungen";
     case "staff":
@@ -154,6 +162,7 @@ export function dashboardGlobalSearchHasEntityDeepLink(
     case "menu":
     case "reservations":
     case "contacts":
+    case "messages":
     case "staff":
       return true;
     case "reviews":
@@ -196,6 +205,8 @@ export function dashboardGlobalSearchResultHref(
     }
     case "contacts":
       return `${APP_ROUTES.kontakte.overview}?contact=${encodeURIComponent(id)}`;
+    case "messages":
+      return `${APP_ROUTES.kontakte.messages}?platform=all&contact=${encodeURIComponent(id)}`;
     case "reviews":
       return APP_ROUTES.bewertungen.overview;
     case "staff":

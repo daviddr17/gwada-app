@@ -22,14 +22,14 @@ export async function GET(req: Request) {
     req.headers.get("accept")?.includes("application/x-ndjson") === true;
 
   const sb = auth.sb;
-  const widgets = await filterDashboardBatchWidgetsForRestaurant(
-    sb,
-    auth.restaurantId,
-    requested,
-  );
 
   if (!stream) {
     try {
+      const widgets = await filterDashboardBatchWidgetsForRestaurant(
+        sb,
+        auth.restaurantId,
+        requested,
+      );
       const { data, errors } = await loadDashboardBatchSummaryServer(
         sb,
         auth.restaurantId,
@@ -53,6 +53,12 @@ export async function GET(req: Request) {
         controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
       };
       try {
+        // Filter erst im Stream — TTFB nicht durch Permissions/Entitlements blockieren.
+        const widgets = await filterDashboardBatchWidgetsForRestaurant(
+          sb,
+          auth.restaurantId,
+          requested,
+        );
         const { errors } = await loadDashboardBatchSummaryServer(
           sb,
           auth.restaurantId,

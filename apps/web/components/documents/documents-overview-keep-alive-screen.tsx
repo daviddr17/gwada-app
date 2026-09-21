@@ -2,21 +2,22 @@
 
 import { ModuleHomeKeepAliveShell } from "@/components/navigation/module-home-keep-alive-shell";
 import { DocumentsOverview } from "@/components/documents/documents-overview";
-import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
+import { DOCUMENTS_MODULE_NAV } from "@/components/documents/documents-module-nav";
 
-const DOCUMENTS_NAV: readonly ModuleSubnavItem[] = [
-  { href: "/dashboard/dokumente/uebersicht", label: "Übersicht", matchMode: "exact", activeWhen: ["/dashboard/dokumente"] },
-  { href: "/dashboard/dokumente/statistiken", label: "Statistiken", matchMode: "exact" },
-  { href: "/dashboard/dokumente/protokoll", label: "Protokoll", matchMode: "exact" },
-];
-
-export function DocumentsOverviewKeepAliveScreen({ active }: { active: boolean }) {
+export function DocumentsOverviewKeepAliveScreen({
+  active,
+  showChrome = active,
+}: {
+  active: boolean;
+  showChrome?: boolean;
+}) {
   return (
     <ModuleHomeKeepAliveShell
       active={active}
+      showChrome={showChrome}
       title="Dokumente"
       subnavAriaLabel="Dokumente-Bereiche"
-      subnavItems={DOCUMENTS_NAV}
+      subnavItems={DOCUMENTS_MODULE_NAV}
     >
       <DocumentsOverview active={active} />
     </ModuleHomeKeepAliveShell>

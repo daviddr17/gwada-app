@@ -23,6 +23,8 @@ export function wahaMediaProxyUrl(params: {
     restaurantId: params.restaurantId,
     chatId: params.chatId,
     messageId: params.messageId,
+    // Cache-Bust gegen früher ausgelieferte HTML-Fehlerantworten.
+    v: "3",
   });
   return `/api/contact-messages/waha/media?${q.toString()}`;
 }

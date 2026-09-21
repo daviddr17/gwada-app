@@ -10,7 +10,7 @@ declare
 begin
   raise notice 'pg % notification_events oid=% kind=% relchecks=%',
     current_setting('server_version'),
-    'public.notification_events'::oid,
+    'public.notification_events'::regclass,
     (select relkind from pg_class where oid = 'public.notification_events'::regclass),
     (select relchecks from pg_class where oid = 'public.notification_events'::regclass);
 

@@ -44,6 +44,8 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   staff_invite_declined: { kind: "module", prefix: "staff" },
   staff_display_clock_in: { kind: "module", prefix: "staff" },
   staff_display_clock_out: { kind: "module", prefix: "staff" },
+  staff_display_break_start: { kind: "module", prefix: "staff" },
+  staff_display_break_end: { kind: "module", prefix: "staff" },
   staff_permissions_granted: { kind: "always" },
   inventory_low_stock: { kind: "module", prefix: "inventory" },
   inventory_po_delivery_due: { kind: "module", prefix: "inventory" },

@@ -49,6 +49,29 @@ test("Todo-Module öffnen Checklists-Sheet", () => {
   assert.deepEqual(target, { type: "checklists" });
 });
 
+test("Pause gestartet öffnet Anwesenheits-Sheet in Pause", () => {
+  const target = resolveHeuteLiveSheetTarget(
+    item({
+      id: "5",
+      title: "Pause",
+      at: "2026-09-06T10:00:00.000Z",
+      module: "staff_display_break_start",
+    }),
+  );
+  assert.deepEqual(target, { type: "presence", mode: "on_break" });
+});
+
+test("Pause beendet öffnet Anwesenheits-Sheet in Arbeit", () => {
+  const target = resolveHeuteLiveSheetTarget(
+    item({
+      id: "6",
+      title: "Pause vorbei",
+      at: "2026-09-06T10:00:00.000Z",
+      module: "staff_display_break_end",
+    }),
+  );
+  assert.deepEqual(target, { type: "presence", mode: "working" });
+});
 test("Unbekannte Module fallen auf Event-Detail zurück", () => {
   const row = item({
     id: "4",

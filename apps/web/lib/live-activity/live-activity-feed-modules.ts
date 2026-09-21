@@ -2,6 +2,8 @@
 export const LIVE_ACTIVITY_FEED_MODULES = [
   "staff_display_clock_in",
   "staff_display_clock_out",
+  "staff_display_break_start",
+  "staff_display_break_end",
   "staff_shift_start",
   "staff_shift_end",
   "reservations_pending",

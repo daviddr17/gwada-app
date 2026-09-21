@@ -33,6 +33,8 @@ const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
     "staff_display_time_request",
     "staff_display_clock_in",
     "staff_display_clock_out",
+    "staff_display_break_start",
+    "staff_display_break_end",
   ],
 };
 

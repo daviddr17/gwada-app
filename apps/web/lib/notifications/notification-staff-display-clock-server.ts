@@ -11,6 +11,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const DISPLAY_CLOCK_MODULES = [
   "staff_display_clock_in",
   "staff_display_clock_out",
+  "staff_display_break_start",
+  "staff_display_break_end",
 ] as const;
 
 export type DisplayClockModule = (typeof DISPLAY_CLOCK_MODULES)[number];
@@ -26,6 +28,24 @@ export function isDisplayClockNotificationModule(
 
 function formatClockTime(iso: string, timeZone: string): string {
   return formatReservationTimeInRestaurantTz(iso, timeZone);
+}
+
+function displayTimeBellTitle(
+  module: DisplayClockModule,
+  autoClockOut: boolean,
+): string {
+  switch (module) {
+    case "staff_display_clock_in":
+      return "Display: Schicht gestartet";
+    case "staff_display_clock_out":
+      return autoClockOut
+        ? "Display: Auto-Abmeldung"
+        : "Display: Schicht beendet";
+    case "staff_display_break_start":
+      return "Display: Pause gestartet";
+    case "staff_display_break_end":
+      return "Display: Pause beendet";
+  }
 }
 
 async function fetchDismissedShiftIds(
@@ -113,12 +133,7 @@ export async function loadStaffDisplayClockNotificationItems(
         ? `${def.href}?staff=${encodeURIComponent(staffId)}`
         : def.href;
 
-    const title =
-      params.module === "staff_display_clock_in"
-        ? "Display: Schicht gestartet"
-        : autoClockOut
-          ? "Display: Auto-Abmeldung"
-          : "Display: Schicht beendet";
+    const title = displayTimeBellTitle(params.module, autoClockOut);
     const timeLabel = formatClockTime(at, timeZone);
     const subtitle = autoClockOut
       ? `${staffName} · Auto-Abmeldung${timeLabel ? ` · ${timeLabel}` : ""}`
@@ -254,6 +269,64 @@ export async function emitStaffDisplayClockNotification(
         action: params.action,
         at: params.at,
         ...(params.auto ? { auto: true } : {}),
+      },
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[display-clock-notifications] emit", module, error.message);
+    return;
+  }
+
+  const eventId = (data as { id: string } | null)?.id;
+  if (eventId) {
+    scheduleNotificationDeliverForEvent(admin, eventId);
+  }
+}
+
+/** Nach erfolgreichem Display start_break / end_break. reference_id = Work-Entry, nicht die Schicht. */
+export async function emitStaffDisplayBreakNotification(
+  admin: SupabaseClient,
+  params: {
+    restaurantId: string;
+    staffId: string;
+    shiftId: string;
+    entryId: string;
+    action: "start_break" | "end_break";
+    at: string;
+  },
+): Promise<void> {
+  const module: DisplayClockModule =
+    params.action === "start_break"
+      ? "staff_display_break_start"
+      : "staff_display_break_end";
+
+  const staffName = await loadStaffDisplayName(admin, params.staffId);
+
+  const { data: existing } = await admin
+    .from("notification_events")
+    .select("id")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("module", module)
+    .eq("reference_id", params.entryId)
+    .maybeSingle();
+
+  if (existing) return;
+
+  const { data, error } = await admin
+    .from("notification_events")
+    .insert({
+      restaurant_id: params.restaurantId,
+      module,
+      reference_id: params.entryId,
+      payload: {
+        entryId: params.entryId,
+        shiftId: params.shiftId,
+        staffId: params.staffId,
+        staffName,
+        action: params.action,
+        at: params.at,
       },
     })
     .select("id")

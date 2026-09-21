@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   History,
   Loader2,
-  MessageCircle,
   Plus,
   Send,
   Sparkles,
@@ -16,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
 import {
+  appMobileAssistantFabEndClassName,
   appMobileFabBottomClassName,
   appMobileFabButtonClassName,
   appMobileFabIconClassName,
@@ -201,10 +201,12 @@ export function DashboardAssistantMount() {
   const panel = (
     <div
       className={cn(
-        "pointer-events-none fixed end-4 flex flex-col items-end gap-3 sm:end-6",
+        "pointer-events-none fixed flex flex-col items-end gap-3",
+        appMobileAssistantFabEndClassName,
         appMobileFabBottomClassName,
       )}
-      style={{ zIndex: APP_LAYER_Z_INDEX.fab }}
+      style={{ zIndex: APP_LAYER_Z_INDEX.fab + 1 }}
+      data-dashboard-assistant-fab
     >
       <AnimatePresence>
         {open ? (
@@ -406,7 +408,7 @@ export function DashboardAssistantMount() {
         {open ? (
           <X className={appMobileFabIconClassName} />
         ) : (
-          <MessageCircle className={appMobileFabIconClassName} />
+          <Sparkles className={appMobileFabIconClassName} />
         )}
       </motion.button>
     </div>

@@ -10,6 +10,7 @@ import {
   type AssistantToolContext,
 } from "@/lib/assistant/assistant-tools";
 import { fetchPlatformOpenaiConfigAdmin } from "@/lib/supabase/platform-openai-secrets-db";
+import { runAssistantOfflineFallback } from "@/lib/assistant/assistant-offline-fallback";
 
 export const ASSISTANT_TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionTool[] =
   [
@@ -168,7 +169,8 @@ export type AssistantChatTurnResult =
   | {
       ok: true;
       reply: string;
-      configured: true;
+      configured: boolean;
+      mode: "llm" | "offline";
     }
   | {
       ok: false;
@@ -186,13 +188,19 @@ export async function runAssistantChatTurn(input: {
 }): Promise<AssistantChatTurnResult> {
   const llm = await fetchPlatformOpenaiConfigAdmin();
   if (!llm.enabled || !llm.apiKey) {
-    return {
-      ok: false,
-      configured: false,
-      status: 503,
-      error:
-        "Assistent ist noch nicht konfiguriert. Superadmin → Integrationen → Assistent (OpenAI / Grok).",
-    };
+    try {
+      const reply = await runAssistantOfflineFallback({
+        ctx: input.ctx,
+        userMessage: input.userMessage,
+        timeZone: input.timeZone,
+        restaurantName: input.restaurantName,
+      });
+      return { ok: true, configured: false, mode: "offline", reply };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Offline-Assistent fehlgeschlagen.";
+      console.warn("[assistant] offline", msg);
+      return { ok: false, configured: false, status: 500, error: msg };
+    }
   }
 
   const client = new OpenAI({
@@ -252,7 +260,7 @@ export async function runAssistantChatTurn(input: {
           error: "Leere Assistenten-Antwort.",
         };
       }
-      return { ok: true, configured: true, reply };
+      return { ok: true, configured: true, mode: "llm", reply };
     }
 
     messages.push({

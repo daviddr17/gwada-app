@@ -275,9 +275,14 @@ export function DashboardAssistantMount() {
                     <p className="font-medium text-foreground">Hallo — wie kann ich helfen?</p>
                     <ul className="list-disc space-y-1 pl-4">
                       <li>„Wie viele Reservierungen nächste Woche?“</li>
+                      <li>„Wann haben wir geöffnet?“</li>
                       <li>„Wie lege ich Sonderöffnungszeiten an?“</li>
-                      <li>„Reservierung für Samstag 19 Uhr, 4 Personen …“</li>
                     </ul>
+                    <p className="pt-1 text-xs leading-relaxed">
+                      Offline: Stats, Öffnungszeiten &amp; Handbuch. Mit API-Key
+                      (Superadmin → Integrationen → Assistent) mehr Dialoge &amp;
+                      Aktionen.
+                    </p>
                   </div>
                 ) : null}
                 {messages.map((m) => (

@@ -117,6 +117,7 @@ export async function POST(req: Request) {
       threadId: thread.id,
       role: "assistant",
       content: result.reply,
+      metadata: { configured: result.configured, mode: result.mode },
     });
     await touchAssistantThread(auth.sb, thread.id);
 
@@ -124,7 +125,8 @@ export async function POST(req: Request) {
       threadId: thread.id,
       reply: result.reply,
       message: assistantMsg,
-      configured: true,
+      configured: result.configured,
+      mode: result.mode,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "chat_failed";

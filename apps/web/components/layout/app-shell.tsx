@@ -56,6 +56,81 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
     Boolean(chrome.secondarySubnavContent);
   const showChipStrip = showChipRow || showSecondaryChipRow;
   const showDashboardBrandedBackground = isRestaurantDashboardPath(pathname);
+  const headerRef = React.useRef<HTMLElement>(null);
+  const centerRef = React.useRef<HTMLDivElement>(null);
+  const titleGroupRef = React.useRef<HTMLDivElement>(null);
+  const titleRef = React.useRef<HTMLHeadingElement>(null);
+  const logoSlotRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+  const rightClusterRef = React.useRef<HTMLDivElement>(null);
+  const savedTriggerWidthRef = React.useRef(0);
+  const savedRightWidthRef = React.useRef(0);
+  const savedTitleWidthRef = React.useRef(0);
+  const [compactTools, setCompactTools] = React.useState(false);
+
+  React.useLayoutEffect(() => {
+    const header = headerRef.current;
+    const center = centerRef.current;
+    if (!header || !center) return;
+
+    const desktopQuery = window.matchMedia("(min-width: 768px)");
+
+    const measure = () => {
+      if (!desktopQuery.matches) {
+        setCompactTools(false);
+        return;
+      }
+
+      const titleWidth = Math.max(
+        titleRef.current?.scrollWidth ?? 0,
+        titleGroupRef.current?.scrollWidth ?? 0,
+        compactTools ? savedTitleWidthRef.current : 0,
+      );
+      if (!compactTools && titleWidth > 0) {
+        savedTitleWidthRef.current = titleWidth;
+      }
+      const logoWidth = logoSlotRef.current?.offsetWidth ?? 0;
+      const minCenter = titleWidth + 40 + logoWidth;
+      const style = getComputedStyle(center);
+      const pad =
+        (Number.parseFloat(style.paddingLeft) || 0) +
+        (Number.parseFloat(style.paddingRight) || 0);
+      const triggerWidth = triggerRef.current?.offsetWidth ?? 0;
+      const rightWidth = rightClusterRef.current?.offsetWidth ?? 0;
+      if (!compactTools && triggerWidth > 0) {
+        savedTriggerWidthRef.current = triggerWidth;
+      }
+      if (!compactTools && rightWidth > 0) {
+        savedRightWidthRef.current = rightWidth;
+      }
+
+      if (!compactTools) {
+        const available = center.clientWidth - pad;
+        if (minCenter > available + 1) setCompactTools(true);
+        return;
+      }
+
+      const availableIfFull =
+        header.clientWidth -
+        savedTriggerWidthRef.current -
+        savedRightWidthRef.current -
+        pad;
+      if (minCenter + 32 <= availableIfFull) setCompactTools(false);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    observer.observe(center);
+    if (titleGroupRef.current) observer.observe(titleGroupRef.current);
+    if (logoSlotRef.current) observer.observe(logoSlotRef.current);
+    if (rightClusterRef.current) observer.observe(rightClusterRef.current);
+    desktopQuery.addEventListener("change", measure);
+    return () => {
+      observer.disconnect();
+      desktopQuery.removeEventListener("change", measure);
+    };
+  }, [chrome.title, compactTools]);
 
   React.useLayoutEffect(() => {
     if (!showChipStrip) {
@@ -91,8 +166,12 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
   }, [showChipStrip, chrome.subnav, chrome.secondarySubnav, chrome.secondarySubnavContent]);
 
   return (
-    <SidebarInset className="min-w-0">
+    <SidebarInset
+      className="group/inset min-w-0"
+      data-chrome-compact={compactTools ? "true" : undefined}
+    >
       <header
+        ref={headerRef}
         data-app-chrome-header
         className={cn(
           "z-30 flex box-border h-[var(--app-chrome-header-h)] max-h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] min-w-0 shrink-0 overflow-hidden border-b border-border/50",
@@ -100,32 +179,61 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
         )}
       >
         {/* Desktop: Sidebar-Trigger; mobil: Bottom-Nav „Menü“ */}
-        <div className="hidden shrink-0 items-center gap-4 ps-4 md:flex">
+        <div
+          ref={triggerRef}
+          className={cn(
+            "shrink-0 items-center gap-4 ps-4",
+            compactTools ? "hidden" : "hidden md:flex",
+          )}
+        >
           <SidebarTrigger className="-ms-1 shrink-0" />
           <Separator
             orientation="vertical"
             className="!h-7 shrink-0 self-center bg-border/50 data-vertical:!self-center"
           />
         </div>
-        <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className={cn("flex h-full w-max min-w-full items-center gap-2 sm:gap-3", appChromeSafeStartClassName)}>
-            <div className="flex shrink-0 items-center gap-2">
-              {chrome.title ? (
-                <h1 className="whitespace-nowrap text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
-                  {chrome.title}
-                </h1>
-              ) : (
-                <span className="sr-only">App</span>
-              )}
-              <TestEnvironmentChip />
-            </div>
-            <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
-            <AppChromeCenterFavicon />
-            <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
+        <div
+          ref={centerRef}
+          className={cn(
+            "flex h-full min-w-0 flex-1 items-center overflow-hidden",
+            appChromeSafeStartClassName,
+          )}
+        >
+          <div
+            ref={titleGroupRef}
+            className={cn(
+              "flex items-center gap-2",
+              compactTools ? "min-w-0 shrink overflow-hidden" : "shrink-0",
+            )}
+          >
+            {chrome.title ? (
+              <h1
+                ref={titleRef}
+                className="whitespace-nowrap text-left text-base font-semibold tracking-tight text-foreground sm:text-lg"
+                title={chrome.title}
+              >
+                {chrome.title}
+              </h1>
+            ) : (
+              <span className="sr-only">App</span>
+            )}
+            <TestEnvironmentChip />
           </div>
+          {/* Gleicher Abstand links/rechts hält das Logo mittig, bis zum Titel nur noch 40px bleiben. */}
+          <div
+            className={cn("min-w-10", compactTools ? "w-10 shrink-0" : "flex-1")}
+            aria-hidden
+          />
+          <div ref={logoSlotRef} className="shrink-0">
+            <AppChromeCenterFavicon />
+          </div>
+          <div className="min-w-0 flex-1" aria-hidden />
         </div>
         {/* Rechts: Kalender global; Modul-Aktionen nur wenn nötig (z. B. Dashboard anordnen) */}
-        <div className={cn("flex shrink-0 items-center gap-1.5 ps-1 sm:gap-2", appChromeSafeEndClassName)}>
+        <div
+          ref={rightClusterRef}
+          className={cn("flex shrink-0 items-center gap-1.5 ps-1 sm:gap-2", appChromeSafeEndClassName)}
+        >
           <AppChromeCalendar />
           {chrome.headerActions ? (
             <div className="flex shrink-0 items-center gap-1.5">
@@ -133,7 +241,12 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             </div>
           ) : null}
           {/* Desktop-Chrome: Suche, Glocke, Profil, … — mobil in Bottom-Nav / Menü */}
-          <div className="hidden shrink-0 items-center gap-2 md:flex">
+          <div
+            className={cn(
+              "shrink-0 items-center gap-2",
+              compactTools ? "hidden" : "hidden md:flex",
+            )}
+          >
             <AppChromeOpsStatus />
             <DashboardGlobalSearchTrigger />
             <AppChromeActivityFeed />
@@ -161,7 +274,12 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <ModeToggle size="icon-sm" />
           </div>
           {/* Mobil: Theme neben Modul-Aktionen — Live-Verlauf im Bottom-Dock */}
-          <div className="flex shrink-0 items-center gap-1.5 md:hidden">
+          <div
+            className={cn(
+              "shrink-0 items-center gap-1.5",
+              compactTools ? "flex" : "flex md:hidden",
+            )}
+          >
             <ModeToggle size="icon-sm" />
           </div>
         </div>

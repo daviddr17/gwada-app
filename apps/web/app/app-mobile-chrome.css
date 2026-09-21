@@ -48,3 +48,24 @@
     padding-inline-end: calc(1rem + var(--app-mobile-fab-size));
   }
 }
+
+/* Kopfzeile zu schmal für Desktop-Icons: dieselbe Mobile-Chrome, auch über 767px. */
+[data-chrome-compact="true"] {
+  --app-mobile-bottom-nav-bar: 3.5rem;
+  --app-mobile-fab-size: 3rem;
+  --app-mobile-fab-gap: 2rem;
+  --app-mobile-bottom-safe: env(safe-area-inset-bottom, 0px);
+  --app-mobile-bottom-nav-offset: calc(
+    var(--app-mobile-bottom-nav-bar) + var(--app-mobile-bottom-safe)
+  );
+  --app-mobile-fab-bottom: calc(
+    var(--app-mobile-bottom-nav-offset) + var(--app-mobile-fab-gap)
+  );
+  --app-mobile-fab-clearance: calc(
+    var(--app-mobile-fab-bottom) + var(--app-mobile-fab-size)
+  );
+  --app-mobile-content-pb: 1rem;
+  --app-mobile-content-clearance: calc(
+    var(--app-mobile-bottom-nav-offset) + var(--app-mobile-content-pb)
+  );
+}

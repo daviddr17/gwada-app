@@ -32,7 +32,7 @@ export const appMobileBottomSafePbLgClassName =
 
 /** Fixed FABs über der Bottom-Nav (mobil) bzw. Safe-Area (Desktop). */
 export const appMobileFabBottomClassName =
-  "bottom-[var(--app-mobile-fab-bottom)] md:bottom-[max(1.25rem,var(--app-mobile-bottom-safe))]";
+  "bottom-[var(--app-mobile-fab-bottom)] md:bottom-[max(1.25rem,var(--app-mobile-bottom-safe))] group-data-[chrome-compact]/inset:md:bottom-[var(--app-mobile-fab-bottom)]";
 
 /** Schwebende Sprach-Caption über dem FAB (nicht dieselbe `bottom`-Zeile). */
 export const appMobileFabCaptionBottomClassName =
@@ -44,7 +44,7 @@ export const appMobileFabCaptionBottomClassName =
  * sitzt im Content-Flow, damit der letzte Block nicht unter der fixen Leiste liegt.
  */
 export const appMobileContentPbClassName =
-  "max-md:pb-[var(--app-mobile-content-clearance,calc(var(--app-mobile-bottom-nav-offset)+var(--app-mobile-content-pb,1rem)))] md:pb-16";
+  "max-md:pb-[var(--app-mobile-content-clearance,calc(var(--app-mobile-bottom-nav-offset)+var(--app-mobile-content-pb,1rem)))] md:pb-16 group-data-[chrome-compact]/inset:md:pb-[var(--app-mobile-content-clearance,calc(var(--app-mobile-bottom-nav-offset)+var(--app-mobile-content-pb,1rem)))]";
 
 /**
  * Horizontaler Inhalt: 1rem / 1.5rem, nie unter die Safe-Area
@@ -62,4 +62,4 @@ export const appMobileFabStopIconClassName = "size-4 fill-current md:size-5";
 
 /** Sticky Bars: über der Bottom-Nav parken (FAB-Ausweichung per CSS `:has`). */
 export const appMobileStickyAboveBottomNavClassName =
-  "max-md:bottom-[var(--app-mobile-bottom-nav-offset)]";
+  "max-md:bottom-[var(--app-mobile-bottom-nav-offset)] group-data-[chrome-compact]/inset:md:bottom-[var(--app-mobile-bottom-nav-offset)]";

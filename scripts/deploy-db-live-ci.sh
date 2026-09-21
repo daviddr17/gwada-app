@@ -240,24 +240,133 @@ where n.oid = c.relnamespace
 echo "Check-Katalog angeglichen."
 REMOTE
 
-echo "Hängenden Eintrag in schema_migrations entfernen, falls die Checks noch fehlen …"
-gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
-  docker exec -i "${DB_CONTAINER}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+# Die Pause-Checks lassen sich anlegen, aber der CLI-Insert in
+# schema_migrations scheitert: Version 20260921121144 sitzt im Unique-Index,
+# DELETE sieht keine Zeile. Deshalb hier autocommit (nur Constraints), danach
+# den Historieneintrag sichtbar machen. Kein Löschen — sonst liefe die
+# Migration bei jedem späteren Live-Deploy erneut.
+admin_psql() {
+  gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
+    docker exec -i "${DB_CONTAINER}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -q "$@"
+}
+admin_tac() {
+  local out
+  out="$(printf '%s\n' "$1" | admin_psql -tA)"
+  out="${out//$'\r'/}"
+  out="${out//[[:space:]]/}"
+  printf '%s' "${out}"
+}
+tunnel_tac() {
+  local out
+  out="$(printf '%s\n' "$1" | PGPASSWORD="${POSTGRES_PASSWORD}" psql \
+    "host=127.0.0.1 port=${LIVE_TUNNEL_LOCAL_PORT} user=postgres dbname=postgres sslmode=disable" \
+    -v ON_ERROR_STOP=1 -q -tA)"
+  out="${out//$'\r'/}"
+  out="${out//[[:space:]]/}"
+  printf '%s' "${out}"
+}
+
+BREAK_VERSION="20260921121144"
+BREAK_CHECKS_SQL="select count(*) from pg_constraint where (conname = 'notification_events_module_chk' and pg_get_constraintdef(oid) like '%staff_display_break_start%' and pg_get_constraintdef(oid) like '%staff_display_break_end%') or (conname = 'clock_dismiss_module_chk' and pg_get_constraintdef(oid) like '%staff_display_break_start%' and pg_get_constraintdef(oid) like '%staff_display_break_end%')"
+BREAK_HISTORY_SQL="select count(*) from supabase_migrations.schema_migrations where version = '${BREAK_VERSION}'"
+
+break_checks="$(admin_tac "${BREAK_CHECKS_SQL}")"
+break_history="$(tunnel_tac "${BREAK_HISTORY_SQL}")"
+echo "Pause-Checks vorhanden: ${break_checks}/2; History sichtbar: ${break_history}"
+if [[ "${break_checks}" != "2" || "${break_history}" != "1" ]]; then
+echo "Migration-History-Index neu aufbauen (keine Tabellendaten) …"
+printf '%s\n' "set lock_timeout = '15s'; reindex table supabase_migrations.schema_migrations;" | admin_psql
+
+break_checks="$(admin_tac "${BREAK_CHECKS_SQL}")"
+echo "Pause-Checks nach Reindex: ${break_checks}/2"
+if [[ "${break_checks}" != "2" ]]; then
+  echo "Pause-Modul-Checks anwenden (nur Constraints, keine Zeilen) …"
+  admin_psql --single-transaction -f - \
+    < "${ROOT}/supabase/migrations/${BREAK_VERSION}_staff_display_break_notifications.sql"
+  break_checks="$(admin_tac "${BREAK_CHECKS_SQL}")"
+  echo "Pause-Checks nach Apply: ${break_checks}/2"
+fi
+if [[ "${break_checks}" != "2" ]]; then
+  echo "Pause-Checks fehlen nach dem Apply." >&2
+  exit 1
+fi
+
+record_break_history() {
+  printf '%s\n' "insert into supabase_migrations.schema_migrations (version, name, statements) values ('${BREAK_VERSION}', 'staff_display_break_notifications', array[]::text[]) on conflict (version) do nothing;" \
+    | PGPASSWORD="${POSTGRES_PASSWORD}" psql \
+      "host=127.0.0.1 port=${LIVE_TUNNEL_LOCAL_PORT} user=postgres dbname=postgres sslmode=disable" \
+      -v ON_ERROR_STOP=1 -q
+}
+
+break_history="$(tunnel_tac "${BREAK_HISTORY_SQL}")"
+echo "History ${BREAK_VERSION} für postgres sichtbar: ${break_history}"
+if [[ "${break_history}" == "0" ]]; then
+  echo "History-Eintrag setzen (on conflict do nothing) …"
+  set +e
+  record_break_history
+  insert_status=$?
+  set -e
+  break_history="$(tunnel_tac "${BREAK_HISTORY_SQL}")"
+  echo "History nach Insert: ${break_history} (insert_status=${insert_status})"
+fi
+if [[ "${break_history}" != "1" ]]; then
+  echo "History-Zeile bleibt unsichtbar — Tabelle aus sichtbaren Zeilen neu aufbauen …"
+  admin_psql <<'SQL'
+begin;
+set lock_timeout = '15s';
+drop table if exists supabase_migrations.schema_migrations_rebuild;
+create temp table gwada_mig_grants on commit drop as
+select grantee::text as grantee, privilege_type::text as privilege_type
+from information_schema.role_table_grants
+where table_schema = 'supabase_migrations'
+  and table_name = 'schema_migrations';
 do $$
-declare
-  removed int;
 begin
-  if to_regclass('supabase_migrations.schema_migrations') is null then
-    raise notice 'supabase_migrations.schema_migrations fehlt';
-    return;
+  if to_regclass('supabase_migrations.schema_migrations') is not null
+     and to_regclass('supabase_migrations.schema_migrations_corrupt') is not null then
+    execute 'drop table supabase_migrations.schema_migrations_corrupt';
   end if;
-  delete from supabase_migrations.schema_migrations
-  where version = '20260921121144';
-  get diagnostics removed = row_count;
-  raise notice 'stale migration history rows removed: %', removed;
-end
-$$;
+end $$;
+create table supabase_migrations.schema_migrations_rebuild
+  (like supabase_migrations.schema_migrations including defaults);
+insert into supabase_migrations.schema_migrations_rebuild
+select * from supabase_migrations.schema_migrations;
+alter table supabase_migrations.schema_migrations rename to schema_migrations_corrupt;
+alter index if exists supabase_migrations.schema_migrations_pkey
+  rename to schema_migrations_pkey_corrupt;
+alter table supabase_migrations.schema_migrations_rebuild rename to schema_migrations;
+alter table supabase_migrations.schema_migrations add primary key (version);
+grant select, insert, update, delete on supabase_migrations.schema_migrations to postgres;
+do $$
+declare r record;
+begin
+  for r in select distinct grantee, privilege_type from gwada_mig_grants loop
+    if r.grantee = 'PUBLIC' then
+      execute format(
+        'grant %s on table supabase_migrations.schema_migrations to public',
+        r.privilege_type
+      );
+    else
+      execute format(
+        'grant %s on table supabase_migrations.schema_migrations to %I',
+        r.privilege_type,
+        r.grantee
+      );
+    end if;
+  end loop;
+end $$;
+drop table supabase_migrations.schema_migrations_corrupt;
+commit;
 SQL
+  record_break_history
+  break_history="$(tunnel_tac "${BREAK_HISTORY_SQL}")"
+  echo "History nach Rebuild: ${break_history}"
+fi
+if [[ "${break_history}" != "1" ]]; then
+  echo "History ${BREAK_VERSION} ist für den CLI-User nicht sichtbar." >&2
+  exit 1
+fi
+fi
 
 SUPABASE_CMD="supabase"
 if ! command -v supabase >/dev/null 2>&1; then

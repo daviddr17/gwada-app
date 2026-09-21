@@ -240,15 +240,12 @@ where n.oid = c.relnamespace
 echo "Check-Katalog angeglichen."
 REMOTE
 
-echo "Katalog von pg_constraint neu schreiben (keine Tabellendaten) …"
-gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
-  docker exec "${DB_CONTAINER}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c \
-  "VACUUM FULL pg_constraint;"
-
 echo "Break-Notification-Checks als supabase_admin anwenden …"
-gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
-  docker exec -i "${DB_CONTAINER}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 \
-  < "${ROOT}/supabase/migrations/20260921121144_staff_display_break_notifications.sql"
+{
+  echo "set session_replication_role = replica;"
+  cat "${ROOT}/supabase/migrations/20260921121144_staff_display_break_notifications.sql"
+} | gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
+  docker exec -i "${DB_CONTAINER}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1
 
 SUPABASE_CMD="supabase"
 if ! command -v supabase >/dev/null 2>&1; then

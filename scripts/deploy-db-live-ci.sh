@@ -240,10 +240,26 @@ where n.oid = c.relnamespace
 echo "Check-Katalog angeglichen."
 REMOTE
 
-echo "Break-Notification-Checks als supabase_admin anwenden …"
-gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
-  docker exec -i "${DB_CONTAINER}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 \
-  < "${ROOT}/supabase/migrations/20260921121144_staff_display_break_notifications.sql"
+echo "Probe: beliebiger Check auf notification_events (wird zurückgerollt) …"
+gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${DB_CONTAINER}" <<'REMOTE'
+set -euo pipefail
+db="$1"
+docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "
+select coalesce(conrelid::regclass::text, '?') || ' ' || conname || ' type=' || contype
+from pg_constraint
+where conname = 'notification_events_module_check'
+   or conrelid = 'public.notification_events'::regclass
+order by 1;
+"
+echo "probe begin/add/rollback:"
+docker exec "${db}" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "
+begin;
+alter table public.notification_events add constraint gwada_probe_check check (true);
+rollback;
+"
+echo "probe ok"
+exit 1
+REMOTE
 
 SUPABASE_CMD="supabase"
 if ! command -v supabase >/dev/null 2>&1; then

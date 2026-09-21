@@ -9,10 +9,19 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { useLocale } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import {
+  getLocalAssistantThread,
+  mergeAssistantThreadLists,
+  readLocalAssistantThreads,
+  titleFromAssistantMessage,
+  upsertLocalAssistantThread,
+} from "@/lib/assistant/assistant-chat-local";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { APP_LOCALE_TO_PROFILE, normalizeAppLocale } from "@/i18n/config";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
 import {
   appMobileAssistantFabEndClassName,
@@ -35,12 +44,14 @@ type ChatMessage = {
   content: string;
 };
 
-function newLocalId() {
-  return `local-${Math.random().toString(36).slice(2, 10)}`;
+function newLocalId(prefix = "local") {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function DashboardAssistantMount() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const locale = normalizeAppLocale(useLocale());
+  const dateLocale = APP_LOCALE_TO_PROFILE[locale];
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -53,6 +64,11 @@ export function DashboardAssistantMount() {
   const [bootError, setBootError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     setMounted(true);
@@ -69,8 +85,28 @@ export function DashboardAssistantMount() {
     listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages, open, sending]);
 
+  const mirrorThreadLocal = useCallback(
+    (id: string, nextMessages: ChatMessage[], titleHint?: string) => {
+      if (!restaurantId || !id) return;
+      const existing = getLocalAssistantThread(restaurantId, id);
+      const firstUser = nextMessages.find((m) => m.role === "user");
+      upsertLocalAssistantThread(restaurantId, {
+        id,
+        title:
+          titleHint?.trim() ||
+          existing?.title ||
+          titleFromAssistantMessage(firstUser?.content ?? "") ||
+          "Chat",
+        updated_at: new Date().toISOString(),
+        messages: nextMessages,
+      });
+    },
+    [restaurantId],
+  );
+
   const loadThreads = useCallback(async () => {
     if (!restaurantId) return;
+    const local = readLocalAssistantThreads(restaurantId);
     try {
       const res = await fetch(
         `/api/assistant/threads?restaurantId=${encodeURIComponent(restaurantId)}`,
@@ -79,17 +115,20 @@ export function DashboardAssistantMount() {
         threads?: Thread[];
         error?: string;
       };
+      const server = res.ok ? (json.threads ?? []) : [];
       if (!res.ok) {
-        // Historie optional — Fehler nicht als Blockade vor der ersten Frage zeigen.
         console.warn("[assistant] threads", json.error ?? res.status);
-        setThreads([]);
-        return;
       }
       setBootError(null);
-      setThreads(json.threads ?? []);
+      setThreads(mergeAssistantThreadLists(server, local));
     } catch (e) {
       console.warn("[assistant] threads", e);
-      setThreads([]);
+      setThreads(
+        mergeAssistantThreadLists(
+          [],
+          local,
+        ),
+      );
     }
   }, [restaurantId]);
 
@@ -98,6 +137,7 @@ export function DashboardAssistantMount() {
       if (!restaurantId) return;
       setLoadingThread(true);
       try {
+        const local = getLocalAssistantThread(restaurantId, id);
         const res = await fetch(
           `/api/assistant/threads/${encodeURIComponent(id)}?restaurantId=${encodeURIComponent(restaurantId)}`,
         );
@@ -105,26 +145,42 @@ export function DashboardAssistantMount() {
           messages?: Array<{ id: string; role: string; content: string }>;
           error?: string;
         };
-        if (!res.ok) {
-          setBootError(json.error ?? "Chat konnte nicht geladen werden.");
-          return;
-        }
-        setThreadId(id);
-        setMessages(
-          (json.messages ?? [])
+
+        if (res.ok) {
+          const next = (json.messages ?? [])
             .filter((m) => m.role === "user" || m.role === "assistant")
             .map((m) => ({
               id: m.id,
               role: m.role as "user" | "assistant",
               content: m.content,
-            })),
-        );
-        setShowHistory(false);
+            }));
+          // Prefer server when it has messages; otherwise keep local mirror.
+          const useMessages =
+            next.length > 0 ? next : (local?.messages ?? []);
+          setThreadId(id);
+          setMessages(useMessages);
+          if (useMessages.length > 0) {
+            mirrorThreadLocal(id, useMessages, local?.title);
+          }
+          setShowHistory(false);
+          setBootError(null);
+          return;
+        }
+
+        if (local && local.messages.length > 0) {
+          setThreadId(id);
+          setMessages(local.messages);
+          setShowHistory(false);
+          setBootError(null);
+          return;
+        }
+
+        setBootError(json.error ?? "Chat konnte nicht geladen werden.");
       } finally {
         setLoadingThread(false);
       }
     },
-    [restaurantId],
+    [restaurantId, mirrorThreadLocal],
   );
 
   useEffect(() => {
@@ -149,11 +205,19 @@ export function DashboardAssistantMount() {
     setSending(true);
     setBootError(null);
     const userLocal: ChatMessage = {
-      id: newLocalId(),
+      id: newLocalId("msg"),
       role: "user",
       content: text,
     };
-    setMessages((prev) => [...prev, userLocal]);
+    const withUser = [...messagesRef.current, userLocal];
+    setMessages(withUser);
+
+    // Ensure a stable thread id even when server persist is ephemeral.
+    let activeThreadId = threadId ?? newLocalId("thread");
+    if (!threadId) {
+      setThreadId(activeThreadId);
+      mirrorThreadLocal(activeThreadId, withUser, titleFromAssistantMessage(text));
+    }
 
     try {
       const res = await fetch("/api/assistant/chat", {
@@ -161,15 +225,16 @@ export function DashboardAssistantMount() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           restaurantId,
-          threadId,
+          threadId: threadId && !threadId.startsWith("thread-") ? threadId : null,
           message: text,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as {
-        threadId?: string;
+        threadId?: string | null;
         reply?: string;
         error?: string;
         configured?: boolean;
+        ephemeral?: boolean;
       };
 
       const reply =
@@ -178,27 +243,54 @@ export function DashboardAssistantMount() {
         "Antwort fehlgeschlagen. Bitte erneut versuchen.";
 
       if (json.threadId) {
+        // Migrate local placeholder → server id when persist succeeds.
+        if (activeThreadId !== json.threadId && activeThreadId.startsWith("thread-")) {
+          const placeholder = getLocalAssistantThread(restaurantId, activeThreadId);
+          if (placeholder) {
+            upsertLocalAssistantThread(restaurantId, {
+              ...placeholder,
+              id: json.threadId,
+            });
+          }
+        }
+        activeThreadId = json.threadId;
         setThreadId(json.threadId);
       }
 
-      setMessages((prev) => [
-        ...prev,
-        { id: newLocalId(), role: "assistant", content: reply },
-      ]);
+      const assistantLocal: ChatMessage = {
+        id: newLocalId("msg"),
+        role: "assistant",
+        content: reply,
+      };
+      const withAssistant = [...withUser, assistantLocal];
+      setMessages(withAssistant);
+      mirrorThreadLocal(
+        activeThreadId,
+        withAssistant,
+        titleFromAssistantMessage(text),
+      );
       void loadThreads();
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: newLocalId(),
-          role: "assistant",
-          content: "Netzwerkfehler — bitte erneut versuchen.",
-        },
-      ]);
+      const errMsg: ChatMessage = {
+        id: newLocalId("msg"),
+        role: "assistant",
+        content: "Netzwerkfehler — bitte erneut versuchen.",
+      };
+      const withErr = [...withUser, errMsg];
+      setMessages(withErr);
+      mirrorThreadLocal(activeThreadId, withErr, titleFromAssistantMessage(text));
+      void loadThreads();
     } finally {
       setSending(false);
     }
-  }, [restaurantId, sending, input, threadId, loadThreads]);
+  }, [
+    restaurantId,
+    sending,
+    input,
+    threadId,
+    loadThreads,
+    mirrorThreadLocal,
+  ]);
 
   if (!mounted || !ready || !restaurantId) return null;
 
@@ -345,7 +437,7 @@ export function DashboardAssistantMount() {
                               {t.title || "Chat"}
                             </span>
                             <span className="mt-0.5 block text-xs text-muted-foreground">
-                              {new Date(t.updated_at).toLocaleString("de-DE", {
+                              {new Date(t.updated_at).toLocaleString(dateLocale, {
                                 dateStyle: "short",
                                 timeStyle: "short",
                               })}

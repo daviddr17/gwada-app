@@ -1,11 +1,17 @@
 import "server-only";
 
 import {
+  DEFAULT_APP_LOCALE,
+  normalizeAppLocale,
+  type AppLocale,
+} from "@/i18n/config";
+import {
   toolCountReservations,
   toolGetRestaurantRules,
   toolSearchHandbook,
   type AssistantToolContext,
 } from "@/lib/assistant/assistant-tools";
+import { weekdayLabelForLocale } from "@/lib/assistant/assistant-weekday-label";
 import { addDays, startOfWeekMonday } from "@/lib/staff/shift-schedule-range";
 
 export const ASSISTANT_API_KEY_HINT =
@@ -233,7 +239,7 @@ function formatHandbookReply(raw: string): string {
   return lines.join("\n");
 }
 
-function formatRulesReply(raw: string): string {
+function formatRulesReply(raw: string, locale: AppLocale): string {
   let parsed: {
     ok?: boolean;
     error?: string;
@@ -241,6 +247,7 @@ function formatRulesReply(raw: string): string {
     time_zone?: string;
     weekly_hours?: Array<{
       weekday: string | null;
+      weekday_label?: string | null;
       closed: boolean;
       opens_at: string | null;
       closes_at: string | null;
@@ -264,15 +271,6 @@ function formatRulesReply(raw: string): string {
   }
   if (!parsed.ok) return parsed.error ?? "Regeln nicht verfügbar.";
 
-  const weekdayDe: Record<string, string> = {
-    mon: "Mo",
-    tue: "Di",
-    wed: "Mi",
-    thu: "Do",
-    fri: "Fr",
-    sat: "Sa",
-    sun: "So",
-  };
   const lines: string[] = [
     parsed.restaurant_name
       ? `Regeln für ${parsed.restaurant_name}:`
@@ -281,7 +279,9 @@ function formatRulesReply(raw: string): string {
   if (parsed.weekly_hours?.length) {
     lines.push("\nWochenplan:");
     for (const h of parsed.weekly_hours) {
-      const day = h.weekday ? weekdayDe[h.weekday] ?? h.weekday : "?";
+      const day =
+        h.weekday_label?.trim() ||
+        weekdayLabelForLocale(h.weekday, locale, "short");
       if (h.closed) {
         lines.push(`• ${day}: geschlossen`);
       } else {
@@ -357,7 +357,9 @@ export async function runAssistantOfflineFallback(input: {
   userMessage: string;
   timeZone: string;
   restaurantName: string | null;
+  locale?: AppLocale | string | null;
 }): Promise<string> {
+  const locale = normalizeAppLocale(input.locale ?? DEFAULT_APP_LOCALE);
   const msg = input.userMessage.trim();
   if (!msg) {
     return appendApiKeyHint("Schreib mir eine kurze Frage.");
@@ -397,8 +399,8 @@ export async function runAssistantOfflineFallback(input: {
   }
 
   if (wantsRules(msg)) {
-    const raw = await toolGetRestaurantRules(input.ctx);
-    return appendApiKeyHint(formatRulesReply(raw));
+    const raw = await toolGetRestaurantRules(input.ctx, { locale });
+    return appendApiKeyHint(formatRulesReply(raw, locale));
   }
 
   if (wantsHandbook(msg)) {

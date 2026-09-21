@@ -10,6 +10,8 @@ import {
 } from "@/lib/assistant/assistant-chat-db";
 import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboard-restaurant";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
+import { getLocale } from "next-intl/server";
+import { normalizeAppLocale } from "@/i18n/config";
 
 export const dynamic = "force-dynamic";
 
@@ -98,13 +100,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    const [{ data: restaurant }, timeZone] = await Promise.all([
+    const [{ data: restaurant }, timeZone, localeRaw] = await Promise.all([
       auth.sb
         .from("restaurants")
         .select("name")
         .eq("id", auth.restaurantId)
         .maybeSingle(),
       fetchRestaurantTimezoneServer(auth.sb, auth.restaurantId),
+      getLocale().catch(() => "de"),
     ]);
 
     const result = await runAssistantChatTurn({
@@ -117,6 +120,7 @@ export async function POST(req: Request) {
       userMessage: message,
       restaurantName: restaurant?.name ?? null,
       timeZone,
+      locale: normalizeAppLocale(localeRaw),
     });
 
     if (!result.ok) {

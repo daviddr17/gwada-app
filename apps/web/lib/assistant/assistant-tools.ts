@@ -11,6 +11,11 @@ import {
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { defaultStaffReservationStatusId } from "@/lib/supabase/reservations-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  DEFAULT_APP_LOCALE,
+  normalizeAppLocale,
+} from "@/i18n/config";
+import { weekdayLabelForLocale } from "@/lib/assistant/assistant-weekday-label";
 
 export type AssistantToolContext = {
   restaurantId: string;
@@ -159,8 +164,10 @@ export async function toolSearchHandbook(
 
 export async function toolGetRestaurantRules(
   ctx: AssistantToolContext,
+  options?: { locale?: string | null },
 ): Promise<string> {
   const timeZone = await fetchRestaurantTimezoneServer(ctx.sb, ctx.restaurantId);
+  const locale = normalizeAppLocale(options?.locale ?? DEFAULT_APP_LOCALE);
 
   const [{ data: hours }, { data: settings }, { data: restaurant }] =
     await Promise.all([
@@ -192,8 +199,10 @@ export async function toolGetRestaurantRules(
     ok: true,
     restaurant_name: restaurant?.name ?? null,
     time_zone: timeZone,
+    locale,
     weekly_hours: weekly.map((h) => ({
       weekday: h.weekday,
+      weekday_label: weekdayLabelForLocale(h.weekday, locale, "long"),
       closed: h.closed,
       opens_at: h.opens_at,
       closes_at: h.closes_at,

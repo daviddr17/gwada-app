@@ -3,6 +3,11 @@ import "server-only";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import OpenAI from "openai";
 import {
+  DEFAULT_APP_LOCALE,
+  normalizeAppLocale,
+  type AppLocale,
+} from "@/i18n/config";
+import {
   toolCountReservations,
   toolCreateReservation,
   toolGetRestaurantRules,
@@ -11,6 +16,17 @@ import {
 } from "@/lib/assistant/assistant-tools";
 import { fetchPlatformOpenaiConfigAdmin } from "@/lib/supabase/platform-openai-secrets-db";
 import { runAssistantOfflineFallback } from "@/lib/assistant/assistant-offline-fallback";
+
+const LOCALE_REPLY_HINT: Record<AppLocale, string> = {
+  de: "Antworte auf Deutsch, kurz und klar.",
+  en: "Reply in English, briefly and clearly.",
+  es: "Responde en español, de forma breve y clara.",
+  fr: "Réponds en français, de façon courte et claire.",
+  it: "Rispondi in italiano, in modo breve e chiaro.",
+  tr: "Kısa ve net bir şekilde Türkçe yanıt ver.",
+  ar: "أجب بالعربية باختصار ووضوح.",
+  zh: "用简体中文简短清楚地回答。",
+};
 
 export const ASSISTANT_TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionTool[] =
   [
@@ -99,6 +115,7 @@ async function runTool(
   ctx: AssistantToolContext,
   name: string,
   argsJson: string,
+  locale: string,
 ): Promise<string> {
   let args: Record<string, unknown> = {};
   try {
@@ -116,7 +133,7 @@ async function runTool(
     case "search_handbook":
       return toolSearchHandbook(ctx, { query: String(args.query ?? "") });
     case "get_restaurant_rules":
-      return toolGetRestaurantRules(ctx);
+      return toolGetRestaurantRules(ctx, { locale });
     case "create_reservation":
       return toolCreateReservation(ctx, {
         date_ymd: String(args.date_ymd ?? ""),
@@ -151,14 +168,17 @@ function todayYmdInTz(timeZone: string): string {
 function buildSystemPrompt(input: {
   restaurantName: string | null;
   timeZone: string;
+  locale: AppLocale;
 }): string {
   const today = todayYmdInTz(input.timeZone);
   return [
     "Du bist der Gwada-Assistent im Restaurant-Dashboard.",
-    "Antworte auf Deutsch, kurz und klar.",
+    LOCALE_REPLY_HINT[input.locale],
     "Nutze Tools für Fakten (Statistiken, Regeln, Handbuch, Aktionen) — erfinde keine Zahlen.",
+    "Bei Wochentagen immer weekday_label aus den Tool-Daten verwenden (aktuelle UI-Sprache), nie englische Schlüssel wie monday.",
     "Bei Aktionen fehlende Pflichtfelder nachfragen; vor dem Anlegen einer Reservierung confirm=false, dann nach OK confirm=true.",
     "Handbuch-Links als /docs/handbuch/<slug> nennen.",
+    `UI-Locale: ${input.locale}`,
     `Restaurant: ${input.restaurantName ?? "unbekannt"}`,
     `Zeitzone: ${input.timeZone}`,
     `Heute (Restaurant): ${today}`,
@@ -185,7 +205,9 @@ export async function runAssistantChatTurn(input: {
   userMessage: string;
   restaurantName: string | null;
   timeZone: string;
+  locale?: AppLocale | string | null;
 }): Promise<AssistantChatTurnResult> {
+  const locale = normalizeAppLocale(input.locale ?? DEFAULT_APP_LOCALE);
   const llm = await fetchPlatformOpenaiConfigAdmin();
   if (!llm.enabled || !llm.apiKey) {
     try {
@@ -194,6 +216,7 @@ export async function runAssistantChatTurn(input: {
         userMessage: input.userMessage,
         timeZone: input.timeZone,
         restaurantName: input.restaurantName,
+        locale,
       });
       return { ok: true, configured: false, mode: "offline", reply };
     } catch (e) {
@@ -214,6 +237,7 @@ export async function runAssistantChatTurn(input: {
       content: buildSystemPrompt({
         restaurantName: input.restaurantName,
         timeZone: input.timeZone,
+        locale,
       }),
     },
     ...input.history.map((m) => ({
@@ -275,6 +299,7 @@ export async function runAssistantChatTurn(input: {
         input.ctx,
         call.function.name,
         call.function.arguments,
+        locale,
       );
       messages.push({
         role: "tool",

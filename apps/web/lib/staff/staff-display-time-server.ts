@@ -2,7 +2,10 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { signStaffAvatarUrl } from "@/lib/display/display-storage-urls";
-import { emitStaffDisplayClockNotification } from "@/lib/notifications/notification-staff-display-clock-server";
+import {
+  emitStaffDisplayBreakNotification,
+  emitStaffDisplayClockNotification,
+} from "@/lib/notifications/notification-staff-display-clock-server";
 import {
   isDisplayAutoClockOutDue,
   type StaffDisplayAutoClockOutPolicy,
@@ -299,9 +302,12 @@ async function openSegment(
     shiftId: string;
     entryType: "work" | "break";
     startsAt: string;
+    id?: string;
   },
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const id = params.id ?? randomUUID();
   const { error } = await admin.from("restaurant_staff_work_entries").insert({
+    id,
     restaurant_id: params.restaurantId,
     staff_id: params.staffId,
     entry_type: params.entryType,
@@ -314,7 +320,7 @@ async function openSegment(
   if (error) {
     return { ok: false, error: error.message || "work_entry_insert_failed" };
   }
-  return { ok: true };
+  return { ok: true, id };
 }
 
 export async function runDisplayTimeAction(
@@ -390,6 +396,14 @@ export async function runDisplayTimeAction(
     if (!opened.ok) {
       return { ok: false, error: opened.error, status: 500 };
     }
+    await emitStaffDisplayBreakNotification(admin, {
+      restaurantId: params.restaurantId,
+      staffId: params.staffId,
+      shiftId: open.shift_id,
+      entryId: opened.id,
+      action: "start_break",
+      at: now,
+    });
     const clockedInAt = await shiftClockedInAt(admin, open.shift_id, open.starts_at);
     return {
       ok: true,
@@ -429,6 +443,14 @@ export async function runDisplayTimeAction(
     if (!opened.ok) {
       return { ok: false, error: opened.error, status: 500 };
     }
+    await emitStaffDisplayBreakNotification(admin, {
+      restaurantId: params.restaurantId,
+      staffId: params.staffId,
+      shiftId: open.shift_id,
+      entryId: open.id,
+      action: "end_break",
+      at: now,
+    });
     const clockedInAt = await shiftClockedInAt(admin, open.shift_id, open.starts_at);
     return {
       ok: true,

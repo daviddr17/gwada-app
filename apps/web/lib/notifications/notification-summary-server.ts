@@ -702,6 +702,44 @@ const MODULE_BUILDERS: Record<
       items,
     };
   },
+  staff_display_break_start: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_display_break_start;
+    const { items, totalCount } = await loadStaffDisplayClockNotificationItems(
+      ctx.sb,
+      {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        module: "staff_display_break_start",
+        limit: BELL_ITEMS_PER_MODULE,
+      },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_display_break_end: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_display_break_end;
+    const { items, totalCount } = await loadStaffDisplayClockNotificationItems(
+      ctx.sb,
+      {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        module: "staff_display_break_end",
+        limit: BELL_ITEMS_PER_MODULE,
+      },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
   staff_permissions_granted: async (ctx) => {
     const def = NOTIFICATION_MODULES.staff_permissions_granted;
     const { items, totalCount } =

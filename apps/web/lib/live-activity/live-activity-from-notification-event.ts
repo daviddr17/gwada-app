@@ -231,6 +231,16 @@ export function hrefForNotificationModule(
     }
   }
 
+  if (
+    module === "staff_display_break_start" ||
+    module === "staff_display_break_end"
+  ) {
+    const staffId = staffIdFromPayload(payload);
+    if (staffId && defHref) {
+      return appendQueryParam(defHref, "staff", staffId);
+    }
+  }
+
   if (module === "staff_shift_start" || module === "staff_shift_end") {
     const base = defHref ?? "/dashboard/mitarbeiter/schichtplan";
     const iso =
@@ -595,6 +605,10 @@ function feedDescriptionForModule(
       return "Hat sich am Display angemeldet";
     case "staff_display_clock_out":
       return "Hat sich am Display abgemeldet";
+    case "staff_display_break_start":
+      return "Hat die Pause am Display gestartet";
+    case "staff_display_break_end":
+      return "Hat die Pause am Display beendet";
     case "staff_shift_start":
     case "staff_shift_end":
       return shiftFeedDescription(payload);
@@ -651,6 +665,10 @@ function feedTitleForModule(
       return guest ? `${guest} · angemeldet` : "Am Display angemeldet";
     case "staff_display_clock_out":
       return guest ? `${guest} · abgemeldet` : "Am Display abgemeldet";
+    case "staff_display_break_start":
+      return guest ? `${guest} · Pause gestartet` : "Pause gestartet";
+    case "staff_display_break_end":
+      return guest ? `${guest} · Pause beendet` : "Pause beendet";
     case "staff_shift_start":
       return guest ? `${guest} · Schichtstart` : "Schichtstart";
     case "staff_shift_end":
@@ -723,6 +741,18 @@ export function liveActivityFromNotificationEvent(params: {
       params.module === "staff_display_clock_in"
         ? "Hat sich am Display angemeldet"
         : "Hat sich am Display abgemeldet";
+  }
+
+  if (
+    (params.module === "staff_display_break_start" ||
+      params.module === "staff_display_break_end") &&
+    guest &&
+    description === guest
+  ) {
+    description =
+      params.module === "staff_display_break_start"
+        ? "Hat die Pause am Display gestartet"
+        : "Hat die Pause am Display beendet";
   }
 
   // Stabile IDs für Client-Optimistic + Server-Backfill (kein Doppel-Eintrag).

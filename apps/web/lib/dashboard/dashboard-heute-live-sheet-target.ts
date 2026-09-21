@@ -40,9 +40,14 @@ export function resolveHeuteLiveSheetTarget(
     return { type: "inventory" };
   }
 
+  if (mod === "staff_display_break_start") {
+    return { type: "presence", mode: "on_break" };
+  }
+
   if (
     mod === "staff_display_clock_in" ||
     mod === "staff_display_clock_out" ||
+    mod === "staff_display_break_end" ||
     mod === "staff_shift_start" ||
     mod === "staff_shift_end" ||
     mod === "staff_invite_accepted"

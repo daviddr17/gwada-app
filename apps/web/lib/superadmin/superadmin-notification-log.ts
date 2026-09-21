@@ -102,7 +102,9 @@ export function sourceTimestampFromPayload(
   }
   if (
     module === "staff_display_clock_in" ||
-    module === "staff_display_clock_out"
+    module === "staff_display_clock_out" ||
+    module === "staff_display_break_start" ||
+    module === "staff_display_break_end"
   ) {
     return pick("at");
   }
@@ -125,6 +127,12 @@ export function sourceTimestampLabel(module: string): string {
   }
   if (module === "staff_shift_start" || module === "staff_shift_end") {
     return "Schicht";
+  }
+  if (
+    module === "staff_display_break_start" ||
+    module === "staff_display_break_end"
+  ) {
+    return "Display-Pause";
   }
   if (
     module === "staff_display_clock_in" ||
@@ -190,7 +198,9 @@ export function formatNotificationPayloadSummary(
 
   if (
     module === "staff_display_clock_in" ||
-    module === "staff_display_clock_out"
+    module === "staff_display_clock_out" ||
+    module === "staff_display_break_start" ||
+    module === "staff_display_break_end"
   ) {
     return typeof p.staffName === "string" ? p.staffName : "Mitarbeiter";
   }

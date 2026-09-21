@@ -606,7 +606,9 @@ export function buildNotificationPushText(
       });
     }
     case "staff_display_clock_in":
-    case "staff_display_clock_out": {
+    case "staff_display_clock_out":
+    case "staff_display_break_start":
+    case "staff_display_break_end": {
       const staffName = pickString(p.staffName) ?? "Mitarbeiter";
       const at = pickString(p.at);
       const staffId = pickString(p.staffId);
@@ -617,18 +619,31 @@ export function buildNotificationPushText(
           ? `${moduleDef.href}?staff=${encodeURIComponent(staffId)}`
           : moduleDef.href,
       );
-      const isStart = event.module === "staff_display_clock_in";
       const atLabel = formatPushTime(at, timeZone);
-      const endHeadline = autoClockOut
-        ? "Display: Auto-Abmeldung"
-        : "Display: Schicht beendet";
-      const endSubjectBit = autoClockOut
-        ? "Auto-Abmeldung"
-        : "Schicht beendet";
+      const headline =
+        event.module === "staff_display_clock_in"
+          ? "Display: Schicht gestartet"
+          : event.module === "staff_display_break_start"
+            ? "Display: Pause gestartet"
+            : event.module === "staff_display_break_end"
+              ? "Display: Pause beendet"
+              : autoClockOut
+                ? "Display: Auto-Abmeldung"
+                : "Display: Schicht beendet";
+      const subjectBit =
+        event.module === "staff_display_clock_in"
+          ? "Schicht gestartet"
+          : event.module === "staff_display_break_start"
+            ? "Pause gestartet"
+            : event.module === "staff_display_break_end"
+              ? "Pause beendet"
+              : autoClockOut
+                ? "Auto-Abmeldung"
+                : "Schicht beendet";
       return buildPushMessage({
         prefix,
-        headline: isStart ? "Display: Schicht gestartet" : endHeadline,
-        subject: `${prefix}Display: ${isStart ? "Schicht gestartet" : endSubjectBit} — ${staffName}`,
+        headline,
+        subject: `${prefix}Display: ${subjectBit} — ${staffName}`,
         href: clockHref,
         details: detailLines([
           staffName,

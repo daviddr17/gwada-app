@@ -507,7 +507,9 @@ export async function markNotificationReadServer(
     }
 
     case "staff_display_clock_in":
-    case "staff_display_clock_out": {
+    case "staff_display_clock_out":
+    case "staff_display_break_start":
+    case "staff_display_break_end": {
       if (!isDisplayClockNotificationModule(module)) {
         return { ok: false, error: "invalid_module" };
       }

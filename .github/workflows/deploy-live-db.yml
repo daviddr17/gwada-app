@@ -1,6 +1,18 @@
 name: Deploy DB live
 
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git-Ref (Branch, Tag oder SHA)
+        type: string
+        required: false
+        default: ""
+      install_dev_pubkey:
+        description: Optional — öffentlicher SSH-Key für lokales deploy:live
+        type: string
+        required: false
+        default: ""
   workflow_dispatch:
     inputs:
       install_dev_pubkey:
@@ -27,6 +39,10 @@ jobs:
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             REF="${{ github.event.client_payload.ref }}"
             PUBKEY="${{ github.event.client_payload.install_dev_pubkey }}"
+          elif [ "${{ github.event_name }}" = "workflow_call" ]; then
+            REF="${{ inputs.ref }}"
+            PUBKEY="${{ inputs.install_dev_pubkey }}"
+            REF="${REF:-${{ github.sha }}}"
           else
             REF="${{ github.ref_name }}"
             PUBKEY="${{ inputs.install_dev_pubkey }}"
@@ -57,15 +73,23 @@ jobs:
         with:
           version: 2.105.0
 
+      - name: Preflight (Secrets + SSH)
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          LIVE_NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.LIVE_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          GWADA_GITHUB_APP_ID: ${{ secrets.GWADA_GITHUB_APP_ID }}
+          GWADA_GITHUB_APP_INSTALLATION_ID: ${{ secrets.GWADA_GITHUB_APP_INSTALLATION_ID }}
+          GWADA_GITHUB_APP_PRIVATE_KEY: ${{ secrets.GWADA_GITHUB_APP_PRIVATE_KEY }}
+          GWADA_GITHUB_DEPLOY_TOKEN: ${{ secrets.GWADA_GITHUB_DEPLOY_TOKEN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: bash scripts/ci-live-secrets-preflight.sh
+
       - name: Setup SSH
         env:
           LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
-          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
-            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
-            exit 1
-          fi
           mkdir -p ~/.ssh
           printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -73,7 +97,6 @@ jobs:
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
-          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
           echo "VPS erreichbar unter: ${LIVE_VPS_HOST}"
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
             "echo Remote-IPs: \$(hostname -I | tr -s ' ')"

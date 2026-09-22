@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Kopiert Daten von lokaler Supabase-CLI-DB → Live (via SUPABASE_DB_URL / Tunnel).
 # Destruktiv auf Live. SYNC_INCLUDE_AUTH=1 kopiert zusätzlich auth (Login).
+# Pflicht: GWADA_CONFIRM_LIVE_DATA=1
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+# shellcheck source=scripts/require-live-data-confirm.sh
+source "${ROOT}/scripts/require-live-data-confirm.sh"
 
 LOCAL_URL="${LOCAL_DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 

@@ -9,56 +9,59 @@ Wenn der Nutzer **live deployen**, **jetzt live**, **alles live pushen**, **prod
 
 Reihenfolge und Details für App: `live-app-deploy.mdc`, für Git-Commit/Push: `git-deploy-on-request.mdc`.
 
-## 1. Live-Datenbank (Migrationen, nur Schema)
+## Kanonischer Weg (DB + App, einheitlich)
 
-**Standardweg (Agent / CI — immer zuerst versuchen nach Push auf `main`):**
+Nach Push auf `main` — **bevorzugt ein Full-Deploy** (ruft intern dieselben Jobs wie einzeln/Superadmin):
 
 ```bash
-# Optional einmalig: Dev-Key auf VPS (wenn ~/.ssh/gwada_vps_ed25519.pub existiert)
-gh workflow run deploy-live-db.yml --ref main \
-  -f install_dev_pubkey="$(cat ~/.ssh/gwada_vps_ed25519.pub)"
-
-# Normal (nur Migrationen):
-gh workflow run deploy-live-db.yml --ref main
-gh run watch --workflow=deploy-live-db.yml --exit-status
+git pull origin main   # nie mit veraltetem Checkout deployen
+gh workflow run deploy-live-full.yml --ref main
+gh run watch --workflow=deploy-live-full.yml --exit-status
+curl -s https://gwada.app/api/build-info
 ```
 
-- Workflow: `.github/workflows/deploy-live-db.yml` (Secrets `LIVE_SSH_KEY`, `LIVE_VPS_HOST` auf GitHub).
-- Wendet alle ausstehenden Dateien unter `supabase/migrations/` an — **kein** `db reset`, **keine** Daten von lokal.
-- Nach Start: Run-Link mit `gh run list --workflow=deploy-live-db.yml --limit 1` melden; bei Erfolg kurz die angewendeten Migrationen aus dem Log nennen (oder „keine ausstehenden“).
+Alternativen (gleicher Code-Pfad):
 
-**Fallback lokal** (nur wenn SSH vom Agent-Rechner funktioniert):
+```bash
+# Einzeln
+gh workflow run deploy-live-db.yml --ref main
+gh run watch --workflow=deploy-live-db.yml --exit-status
+gh workflow run deploy-live-app.yml --ref main
+gh run watch --workflow=deploy-live-app.yml --exit-status
+
+# Optional einmalig Dev-SSH-Key auf VPS:
+gh workflow run deploy-live-db.yml --ref main \
+  -f install_dev_pubkey="$(cat ~/.ssh/gwada_vps_ed25519.pub)"
+```
+
+Oder Superadmin **DB deployen** / **App deployen**.
+
+- Secrets: `LIVE_SSH_KEY`, `LIVE_VPS_HOST` (Pflicht); GitHub App für Superadmin — siehe `docs/live-deploy.md`
+- Schema: nur Migrationen — **kein** `db reset`, **keine** lokalen Daten
+- **Nicht:** lokal Passwörter/Keys raten, Coolify-Webhook, `.github/triggers/deploy-live.env` als Standard (nur Fallback)
+- Preflight: `scripts/ci-live-secrets-preflight.sh`
+
+**Fallback lokal** (nur wenn SSH vom Agent-Rechner geht und Nutzer das will):
 
 ```bash
 npm run deploy:live          # Schema
-npm run deploy:live:dry-run  # optional vorher
 ```
 
-Voraussetzung lokal: `SUPABASE_DB_URL` in `.env.production`, SSH mit `~/.ssh/gwada_vps_ed25519` oder `ssh-copy-id root@95.111.229.250`.
+**SSH lokal fehlgeschlagen:** trotzdem `deploy-live-full.yml` / `deploy-live-db.yml` per `gh` — nicht stoppen.
 
-**SSH schlägt lokal fehl:** nicht nur „bitte ssh-copy-id“ und stoppen — **trotzdem** `deploy-live-db.yml` per `gh` ausführen (wie oben).
-
-**Nur wenn der Nutzer ausdrücklich lokale Live-Daten will (destruktiv):**
+**Nur wenn der Nutzer ausdrücklich lokale Daten auf Live will (destruktiv):**
 
 ```bash
-npm run deploy:live:full
+GWADA_CONFIRM_LIVE_DATA=1 pnpm deploy:live:full
+# oder
+GWADA_CONFIRM_LIVE_DATA=1 pnpm sync:live:data
 ```
 
-## 2. Live-App
+Ohne `GWADA_CONFIRM_LIVE_DATA=1` bricht der Sync sofort ab — Live-Zeilen bleiben unberührt.
 
-Nach Push auf `main` **manuell** starten — Superadmin **App deployen** oder:
+## Kurz bestätigen (Pflicht)
 
-```bash
-gh workflow run deploy-live-app.yml --ref main
-gh run watch --workflow=deploy-live-app.yml --exit-status
-```
-
-Verifikation: `curl -s https://gwada.app/api/build-info` (`sha` = kurzer Commit-Hash).
-
-## 3. Kurz bestätigen (Pflicht)
-
-- **DB:** GitHub Action `deploy-live-db` — Status + Link; welche Migrationen liefen
-- **App:** Commit + Branch; `build-info`-SHA vs. Ziel; `deploy-live-app`-Run
+- Run-Link(s) + Status; bei DB welche Migrationen; `build-info`-SHA vs. Ziel
 - Kein „Coolify deployt“ — siehe `live-app-deploy.mdc`
 
 **Nie** ohne ausdrückliche Live-Anfrage deployen.

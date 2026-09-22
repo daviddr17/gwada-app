@@ -15,7 +15,7 @@ alwaysApply: true
 
 1. Zuerst sicherstellen, dass alle Schemaänderungen als **Migrationen im Repo** liegen (nicht nur manuell in Studio lokal).
 2. **Live nur Struktur:** ausstehende Migrationen gegen die **Production-DB** anwenden (`db push` auf verlinktes Live-Projekt / VPS, oder einmalig gleiches SQL in Live-Studio — **kein `db reset`**).
-3. **Keine Datenmigration:** keine `pg_dump`/`COPY` von lokal nach live, keine Seeds auf live, bestehende Live-Zeilen nicht überschreiben.
+3. **Keine Datenmigration:** keine `pg_dump`/`COPY` von lokal nach live, keine Seeds auf live, bestehende Live-Zeilen nicht überschreiben. Daten-Sync nur mit explizitem Nutzerbefehl und `GWADA_CONFIRM_LIVE_DATA=1` (`pnpm sync:live:data` / `deploy:live:full`).
 4. Kurz bestätigen: welche Migrationen auf live gelaufen sind bzw. warum nicht (z. B. nicht verlinkt, CLI-Fehler).
 
 ## Selbst gehostetes Live (VPS)
@@ -24,8 +24,9 @@ alwaysApply: true
 
 ## Trennung
 
-| | Lokal | Live (nur bei Deploy-Anfrage) |
+| | Lokal / Dev | Live (nur bei Deploy-Anfrage) |
 |---|--------|------------------------------|
 | Migrationen in Git | ja | gleicher Stand nach Push |
-| Struktur anwenden | `db push --local` | `db push` (linked) / SQL |
+| Struktur anwenden | `pnpm db:push` (Dev) | `deploy-live-db` / `GWADA_CONFIRM_LIVE_DB=1 pnpm db:push:live` |
 | Demo-/Testdaten | ok | **nein** (Standard) |
+| Daten lokal → Live | — | **nur** mit `GWADA_CONFIRM_LIVE_DATA=1` + ausdrücklichem Befehl |

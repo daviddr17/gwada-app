@@ -1,6 +1,18 @@
 name: Deploy app live
 
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git-Ref (Branch, Tag oder SHA)
+        type: string
+        required: false
+        default: ""
+      force_unlock:
+        description: Hängenden VPS-Deploy beenden (Lock + Prozess) und neu starten
+        type: boolean
+        required: false
+        default: false
   workflow_dispatch:
     inputs:
       ref:
@@ -35,6 +47,10 @@ jobs:
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             REF="${{ github.event.client_payload.ref }}"
             FORCE="${{ github.event.client_payload.force_unlock }}"
+          elif [ "${{ github.event_name }}" = "workflow_call" ]; then
+            REF="${{ inputs.ref }}"
+            FORCE="${{ inputs.force_unlock }}"
+            REF="${REF:-${{ github.sha }}}"
           else
             REF="${{ inputs.ref }}"
             FORCE="${{ inputs.force_unlock }}"
@@ -58,6 +74,18 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ needs.resolve-ref.outputs.ref }}
+
+      - name: Preflight (Secrets + SSH)
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          LIVE_NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.LIVE_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          GWADA_GITHUB_APP_ID: ${{ secrets.GWADA_GITHUB_APP_ID }}
+          GWADA_GITHUB_APP_INSTALLATION_ID: ${{ secrets.GWADA_GITHUB_APP_INSTALLATION_ID }}
+          GWADA_GITHUB_APP_PRIVATE_KEY: ${{ secrets.GWADA_GITHUB_APP_PRIVATE_KEY }}
+          GWADA_GITHUB_DEPLOY_TOKEN: ${{ secrets.GWADA_GITHUB_DEPLOY_TOKEN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: bash scripts/ci-live-secrets-preflight.sh
 
       - name: Live build env (Supabase anon)
         id: live_env

@@ -73,7 +73,9 @@ if [[ "${WITH_DATA}" -eq 1 ]]; then
     echo "(Dry-run: Daten-Sync übersprungen.)"
   else
     echo ""
-    echo "=== Live-DB: Daten von lokal (public) ==="
+    echo "=== Live-DB: Daten von lokal (public) — destruktiv ==="
+    # shellcheck source=scripts/require-live-data-confirm.sh
+    source "${ROOT}/scripts/require-live-data-confirm.sh"
     npx dotenv -e .env.production -- bash "${ROOT}/scripts/live-sync-data.sh"
   fi
 fi

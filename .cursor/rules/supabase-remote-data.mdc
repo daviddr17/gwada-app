@@ -8,3 +8,4 @@ alwaysApply: true
 - **Standard:** Schema, Seeds und Ad-hoc-SQL gegen die **Entwickler-Supabase auf dem VPS** (`pnpm db:push`, `pnpm dev`, `.env.development`). Kein `supabase start` im Alltag.
 - **Lokales Docker** (`pnpm db:push:local`, `pnpm dev:local`) nur bei Offline-Bedarf oder wenn der Nutzer es verlangt.
 - **Live/VPS Production** (`.env.production`, `sync:live:*`, `deploy:live`, `GWADA_CONFIRM_LIVE_DB=1 pnpm db:push:live`) **nur**, wenn der Nutzer das **explizit** will — siehe `live-deploy-on-request.mdc` und `supabase-dev-db-default.mdc`.
+- **Live-Daten kopieren** (`sync:live:data`, `deploy:live:full`): zusätzlich **`GWADA_CONFIRM_LIVE_DATA=1`** — sonst Abbruch.

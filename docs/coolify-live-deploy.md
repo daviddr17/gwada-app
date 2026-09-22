@@ -11,14 +11,23 @@ Kein `docker build` mehr auf dem VPS — damit entfallen OOM/Timeout beim TypeSc
 
 ## Standard (GitHub Actions)
 
+Voll (DB + App, empfohlen):
+
 ```bash
 git push origin main
-gh workflow run deploy-live-app.yml --ref main
-gh run watch --workflow=deploy-live-app.yml --exit-status
+gh workflow run deploy-live-full.yml --ref main
+gh run watch --workflow=deploy-live-full.yml --exit-status
 curl -s https://gwada.app/api/build-info
 ```
 
-Workflow: `.github/workflows/deploy-live-app.yml` — Jobs **`Build image (GHA)`** + **`Pull on VPS`**.
+Nur App:
+
+```bash
+gh workflow run deploy-live-app.yml --ref main
+gh run watch --workflow=deploy-live-app.yml --exit-status
+```
+
+`deploy-live-full` ruft `deploy-live-db` + `deploy-live-app` auf. Secrets und Fehlerbilder: [live-deploy.md](./live-deploy.md).
 
 ## Manuell (lokal)
 

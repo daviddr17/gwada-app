@@ -20,19 +20,23 @@ concurrency:
   group: deploy-live-full
   cancel-in-progress: false
 
+# Caller muss Packages/Actions erlauben, sonst scheitert der Reusable-Aufruf beim Start.
+permissions:
+  contents: read
+  packages: write
+  actions: write
+
 jobs:
   db:
-    name: Live DB
     uses: ./.github/workflows/deploy-live-db.yml
     with:
       ref: ${{ github.sha }}
     secrets: inherit
 
   app:
-    name: Live App
     needs: db
     uses: ./.github/workflows/deploy-live-app.yml
     with:
       ref: ${{ github.sha }}
-      force_unlock: ${{ inputs.force_unlock == true }}
+      force_unlock: ${{ inputs.force_unlock }}
     secrets: inherit

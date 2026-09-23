@@ -401,11 +401,47 @@ function accountingDocumentDescription(
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+function blankReservationValue(value: string | null): boolean {
+  const trimmed = (value ?? "").trim();
+  return trimmed === "" || trimmed === "—" || trimmed === "-";
+}
+
+/** Neuanlage: Werte direkt, ohne „—“ → „…“. Gast steht schon im guestLabel. */
+function createdReservationFacts(changes: unknown): string | null {
+  if (!Array.isArray(changes)) return null;
+  const byField = new Map<string, string>();
+  for (const raw of changes) {
+    if (!raw || typeof raw !== "object") continue;
+    const change = raw as Record<string, unknown>;
+    const field = pickString(change.field);
+    const to = pickString(change.to);
+    if (!field || !to || blankReservationValue(to)) continue;
+    byField.set(field, to);
+  }
+
+  const parts: string[] = [];
+  const company = byField.get("guest_company");
+  if (company) parts.push(company);
+  const party = byField.get("party_size");
+  if (party) parts.push(`${party} Personen`);
+  const slot = byField.get("starts_at");
+  if (slot) parts.push(slot);
+  const status = byField.get("status");
+  if (status) parts.push(status);
+  const table = byField.get("table");
+  if (table && table !== "Kein Tisch") parts.push(table);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 function reservationActivityDescription(
   payload: Record<string, unknown>,
 ): string | null {
   const guest =
     pickString(payload.guestLabel) ?? pickString(payload.guest_label);
+  if (pickString(payload.action) === "created") {
+    const facts = createdReservationFacts(payload.changes);
+    if (facts) return guest ? `${guest} · ${facts}` : facts;
+  }
   const summary = pickString(payload.summary);
   if (guest && summary) return `${guest} · ${summary}`;
   if (summary) return summary;

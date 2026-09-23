@@ -56,6 +56,37 @@ test("Rechnung und Angebot nennen Nummer, Betrag und Empfänger", () => {
   assert.equal(money(quote.description), "Sommerfest · Nr. AN-3 · 1.000,00 €");
 });
 
+test("angelegte Reservierung nennt die Angaben ohne Leer-Diff", () => {
+  const item = liveActivityFromNotificationEvent({
+    module: "reservations_activity",
+    payload: {
+      action: "created",
+      staffName: "David Dreyer",
+      guestLabel: "#2625 · Cristian Vidal",
+      summary:
+        "Gast: „—“ → „Cristian Vidal“ · Personen: „—“ → „3“ · Termin: „—“ → „Sa. 26.09.2026, 19:00“ · Status: „—“ → „Bestätigt“ · Tisch: „—“ → „Kein Tisch“",
+      changes: [
+        { field: "guest", label: "Gast", from: null, to: "Cristian Vidal" },
+        { field: "party_size", label: "Personen", from: null, to: "3" },
+        {
+          field: "starts_at",
+          label: "Termin",
+          from: null,
+          to: "Sa. 26.09.2026, 19:00",
+        },
+        { field: "status", label: "Status", from: null, to: "Bestätigt" },
+        { field: "table", label: "Tisch", from: null, to: "Kein Tisch" },
+      ],
+    },
+  });
+
+  assert.equal(item.title, "David Dreyer · Reservierung angelegt");
+  assert.equal(
+    item.description,
+    "#2625 · Cristian Vidal · 3 Personen · Sa. 26.09.2026, 19:00 · Bestätigt",
+  );
+});
+
 test("übrige Feed-Zeilen sind Klartext ohne IDs", () => {
   const cases: Array<{
     module: string;

@@ -49,10 +49,18 @@ import {
   fetchReservationById,
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
-import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import {
+  isUuidRestaurantId,
+  loadOpeningHoursForRestaurant,
+} from "@/lib/supabase/opening-hours-db";
+import { defaultWeeklyHours } from "@/lib/constants/restaurant-profile";
 import { formatDayHoursLabel } from "@/lib/opening-hours/embed-display-utils";
 import { resolveHoursForRestaurantCalendarDay } from "@/lib/reservations/day-opening-slots";
+import type {
+  DateHoursException,
+  DayHours,
+  Weekday,
+} from "@/lib/types/restaurant";
 import {
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
@@ -238,16 +246,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     supabaseEnvOk,
     ready: workspaceReady,
   } = useWorkspaceRestaurantUuid();
-  const { getProfileForRestaurantId, isReady: profileReady } =
-    useRestaurantProfile();
-  const openingHoursBundle = useMemo(() => {
-    if (!workspaceRestaurantId || !profileReady) return null;
-    const p = getProfileForRestaurantId(workspaceRestaurantId);
-    return {
-      weekly: p.weeklyHours,
-      exceptions: p.dateExceptions,
-    };
-  }, [workspaceRestaurantId, profileReady, getProfileForRestaurantId]);
+  const [openingHoursBundle, setOpeningHoursBundle] = useState<{
+    weekly: Record<Weekday, DayHours>;
+    exceptions: DateHoursException[];
+  } | null>(null);
   const {
     mode: overviewViewMode,
     setMode: setOverviewViewMode,
@@ -1072,6 +1074,33 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     restaurantTimeZone,
   ]);
 
+  useEffect(() => {
+    if (!workspaceRestaurantId || !dbOk) {
+      setOpeningHoursBundle(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const loaded = await loadOpeningHoursForRestaurant(workspaceRestaurantId);
+      if (cancelled) return;
+      if (loaded) {
+        setOpeningHoursBundle({
+          weekly: loaded.weeklyHours,
+          exceptions: loaded.dateExceptions,
+        });
+        return;
+      }
+      // DB kurz nicht erreichbar: Wochenplan-Defaults, damit die Meta-Zeile nicht leer bleibt
+      setOpeningHoursBundle({
+        weekly: defaultWeeklyHours(),
+        exceptions: [],
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceRestaurantId, dbOk]);
+
   const filterActiveCount = useMemo(() => {
     if (unconfirmedUi) {
       let n = 1;
@@ -1340,16 +1369,12 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           const eventCount = eventLive.length;
           const partyTotal = liveList.reduce((sum, r) => sum + r.party_size, 0);
           const staffCount = shiftStaffCountsByDate.get(key) ?? 0;
-          const dayHours = openingHoursBundle
-            ? resolveHoursForRestaurantCalendarDay(
-                key,
-                openingHoursBundle.weekly,
-                openingHoursBundle.exceptions,
-              )
-            : null;
-          const hoursLabel = dayHours
-            ? formatDayHoursLabel(dayHours, "Geschlossen")
-            : null;
+          const dayHours = resolveHoursForRestaurantCalendarDay(
+            key,
+            openingHoursBundle?.weekly ?? defaultWeeklyHours(),
+            openingHoursBundle?.exceptions ?? [],
+          );
+          const hoursLabel = formatDayHoursLabel(dayHours, "Geschlossen");
           return (
             <Card
               key={key}
@@ -1444,20 +1469,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       ) : (
                         <span>0 Mitarbeiter</span>
                       )}
-                      {hoursLabel ? (
-                        <>
-                          <span aria-hidden>·</span>
-                          <span
-                            className={
-                              dayHours?.closed
-                                ? "font-medium text-destructive"
-                                : undefined
-                            }
-                          >
-                            {hoursLabel}
-                          </span>
-                        </>
-                      ) : null}
+                      <span aria-hidden>·</span>
+                      <span
+                        className={
+                          dayHours.closed
+                            ? "font-medium text-destructive"
+                            : undefined
+                        }
+                      >
+                        {hoursLabel}
+                      </span>
                     </div>
                   </div>
                   {staffCount > 0 ||

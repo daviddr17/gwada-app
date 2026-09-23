@@ -81,9 +81,17 @@ export function subscribeRestaurantTableChanges(
   },
 ): () => void {
   // /sb ist nur HTTP — WebSocket-Subscribe scheitert sonst dauernd (CHANNEL_ERROR-Rauschen).
-  // Hooks schalten unter Proxy bereits auf Polling um.
+  // Hooks schalten unter Proxy bereits auf Polling um. Die Kanäle trotzdem
+  // zählen, sonst bleibt der Betriebsstatus bei „Kanäle starten …“ (channelCount 0).
+  // onStatus bleibt stumm — kein falsches SUBSCRIBED, Polling läuft weiter.
   if (!isSupabaseBrowserRealtimeAvailable()) {
-    return () => {};
+    const subscription: RestaurantRealtimeSubscription = {
+      channelName: options.channelName,
+      connected: false,
+      subscribe: () => {},
+      unsubscribe: () => {},
+    };
+    return registerRestaurantRealtimeSubscription(subscription);
   }
 
   const events = options.events ?? ["INSERT"];

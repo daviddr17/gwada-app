@@ -50,6 +50,9 @@ import {
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { formatDayHoursLabel } from "@/lib/opening-hours/embed-display-utils";
+import { resolveHoursForRestaurantCalendarDay } from "@/lib/reservations/day-opening-slots";
 import {
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
@@ -235,6 +238,16 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     supabaseEnvOk,
     ready: workspaceReady,
   } = useWorkspaceRestaurantUuid();
+  const { getProfileForRestaurantId, isReady: profileReady } =
+    useRestaurantProfile();
+  const openingHoursBundle = useMemo(() => {
+    if (!workspaceRestaurantId || !profileReady) return null;
+    const p = getProfileForRestaurantId(workspaceRestaurantId);
+    return {
+      weekly: p.weeklyHours,
+      exceptions: p.dateExceptions,
+    };
+  }, [workspaceRestaurantId, profileReady, getProfileForRestaurantId]);
   const {
     mode: overviewViewMode,
     setMode: setOverviewViewMode,
@@ -1326,6 +1339,17 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           const resCount = guestLive.length;
           const eventCount = eventLive.length;
           const partyTotal = liveList.reduce((sum, r) => sum + r.party_size, 0);
+          const staffCount = shiftStaffCountsByDate.get(key) ?? 0;
+          const dayHours = openingHoursBundle
+            ? resolveHoursForRestaurantCalendarDay(
+                key,
+                openingHoursBundle.weekly,
+                openingHoursBundle.exceptions,
+              )
+            : null;
+          const hoursLabel = dayHours
+            ? formatDayHoursLabel(dayHours, "Geschlossen")
+            : null;
           return (
             <Card
               key={key}
@@ -1402,14 +1426,46 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                           ? "1 Person"
                           : `${partyTotal} Personen`}
                       </span>
+                      <span aria-hidden>·</span>
+                      {staffCount > 0 ? (
+                        <button
+                          type="button"
+                          className="font-medium text-foreground underline-offset-2 hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShiftStaffSheetDay(d);
+                            setShiftStaffSheetOpen(true);
+                          }}
+                        >
+                          {staffCount === 1
+                            ? "1 Mitarbeiter"
+                            : `${staffCount} Mitarbeiter`}
+                        </button>
+                      ) : (
+                        <span>0 Mitarbeiter</span>
+                      )}
+                      {hoursLabel ? (
+                        <>
+                          <span aria-hidden>·</span>
+                          <span
+                            className={
+                              dayHours?.closed
+                                ? "font-medium text-destructive"
+                                : undefined
+                            }
+                          >
+                            {hoursLabel}
+                          </span>
+                        </>
+                      ) : null}
                     </div>
                   </div>
-                  {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ||
+                  {staffCount > 0 ||
                   (dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
                     <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
-                      {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
+                      {staffCount > 0 ? (
                         <ReservationDayShiftStaffOverviewChip
-                          count={shiftStaffCountsByDate.get(key) ?? 0}
+                          count={staffCount}
                           onClick={() => {
                             setShiftStaffSheetDay(d);
                             setShiftStaffSheetOpen(true);

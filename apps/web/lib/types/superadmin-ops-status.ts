@@ -60,6 +60,8 @@ export type SuperadminGithubRepoStatus = {
   headCommit: SuperadminGithubHeadCommit;
   appDeployWorkflow: SuperadminGithubDeployWorkflowStatus;
   dbDeployWorkflow: SuperadminGithubDeployWorkflowStatus;
+  /** Voll-Deploy (DB + App via deploy-live-full.yml). */
+  fullDeployWorkflow: SuperadminGithubDeployWorkflowStatus;
   message: string | null;
 };
 

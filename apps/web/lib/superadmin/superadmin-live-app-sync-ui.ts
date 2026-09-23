@@ -34,7 +34,7 @@ export function localDevRuntimeSummary(
     github.headCommit.shortSha ?? github.headCommit.sha,
   );
   if (github.configured && head !== "—") {
-    parts.push(`GitHub ${head}`);
+    parts.push(`origin/${github.deployBranch} ${head}`);
   }
   parts.push("Live-Sync nur auf VPS");
   return parts.join(" · ");
@@ -56,14 +56,14 @@ export function liveAppSyncLabel(
 ): string {
   switch (state) {
     case "in_sync":
-      return "Live ist aktuell";
+      return "Live = origin/main";
     case "out_of_sync":
-      return "Live ist veraltet";
+      return "Live hinter origin/main";
     case "deploying":
-      return "Deploy läuft";
+      return "GitHub Deploy läuft";
     default:
       if (liveApp?.liveReachable && (liveApp.liveSha || liveApp.liveShortSha)) {
-        return "GitHub-Vergleich fehlt";
+        return "origin/GitHub-Vergleich fehlt";
       }
       return "Live-Status unklar";
   }
@@ -93,18 +93,18 @@ export function liveAppVersionSummary(
 
   switch (liveApp.syncState) {
     case "in_sync":
-      return `Live = neueste Version (${live})`;
+      return `Live = origin/${github.deployBranch} (${live}) · GitHub`;
     case "out_of_sync":
-      return `Live ${live} · GitHub ${head}`;
+      return `Live ${live} · origin/${github.deployBranch} ${head}`;
     case "deploying":
-      return `Deploy läuft · Ziel ${head}`;
+      return `GitHub Deploy · Ziel origin/${github.deployBranch} ${head}`;
     default:
       if (!liveApp.liveReachable && live === "—") {
         return "Live nicht erreichbar";
       }
       if (head === "—") {
-        return `Live ${live} · GitHub nicht lesbar`;
+        return `Live ${live} · origin/GitHub nicht lesbar`;
       }
-      return `Live ${live} · GitHub ${head}`;
+      return `Live ${live} · origin/${github.deployBranch} ${head}`;
   }
 }

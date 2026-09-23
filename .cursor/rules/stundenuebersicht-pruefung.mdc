@@ -1,0 +1,44 @@
+---
+description: Stundenübersicht aus Gwada-Stempelzeiten, ArbZG-Pausen nur wenn nötig, Urlaub je Monat aus den Stunden.
+alwaysApply: true
+---
+
+# Stundenübersicht Prüfung (Zur Schlagd)
+
+Pro Mitarbeiter **eine** Stundenübersicht-PDF (ArbZG-konform reicht). Uhrzeiten nur aus den live gestempelten Zeiten in Gwada (Zur Schlagd, Europe/Berlin), nicht erfinden. Lohnabrechnung liefert die Monatsstunden zum Abgleich, nicht die Uhrzeiten.
+
+## Pausen
+
+Pause **nur**, wenn das Gesetz sie verlangt. Kurze Schichten (z. B. 2,87 h) bekommen **keine** Pause.
+
+| Netto | Pause |
+|---|---|
+| bis 6 h | keine |
+| mehr als 6 h bis 9 h | 30 Min. |
+| mehr als 9 h | 45 Min. |
+
+Fehlt die Pause oder ist sie zu kurz: auf die Pflichtlänge ergänzen und das **Schichtende um dieselbe Minutenzahl nach hinten** schieben. Beginn bleibt. Netto-Stunden bleiben die Live-Netto-Stunden.
+
+Bereits gestempelte Pausen auf kurzen Schichten nicht löschen und nicht verlängern.
+
+## Urlaub je Monat
+
+Auch Minijobs und reine Stundenkräfte, ohne festen Wochenvertrag. Urlaub nur für die Stunden dieses Monats, nicht für eine volle Stelle. Steht in Lexware nur „Lohn“, in der Übersicht trotzdem als Urlaubsstunden ausweisen. Nicht obendrauf: die Stunden sind schon ausgezahlt. Arbeit + Urlaub = Menge der Abrechnung dieses Monats.
+
+- Monat mit Stunden: **Urlaub = Menge ÷ 13**, auch wenn der Monat erst mittendrin beginnt. Beispiel: 16 h → 1,23 h. Die Stunden sind die Menge der Abrechnung, nicht die SV-Tage.
+- Monat mit 0 Stunden: kein Urlaub.
+- In der Tabelle am Ende jedes Monats, nicht auf einzelne Schichten verteilen.
+- „Tage übrig“ ist der Rest, nicht der genommene Urlaub. Monat mit Lohn trotzdem Menge ÷ 13, innen in der Summe. Steht im Monat schon Lohnfortzahlung Urlaub, diese Stunden nehmen und nicht noch einmal durch 13 teilen.
+- Ausnahme nur bei den wenigen, die sechs Monate da sind und in der zweiten Kalenderjahreshälfte aufhören: dann das volle Kalenderjahr, nicht nur die Monate bis zum Austritt.
+
+## Sonst
+
+- Summe der konformen Übersicht = Menge der Lohnabrechnung, Betrag = Menge × Satz, auf den Cent. Alle Stempel bleiben drauf. Nur fürs Gesetz verschieben: Tag über 10 h, Woche über 48 h, Nacht. Die Minuten an kürzere schon gestempelte Tage hängen, keine neuen Tage, nichts streichen. Differenz Stempel minus Lohn = Lohnkonto, damit die Monatssumme die Abrechnung trifft. Lohnstunden ohne Stempel sind Auszahlung vom Lohnkonto, keine leeren Uhrzeiten. Monate ohne Abrechnung nicht in die Summe.
+- Tageshöchst 10 h, Woche 48 h, Ruhezeit 11 h, Nacht 23–6 Uhr meiden. Sonntag in der Gaststätte erlaubt.
+- Arbeitszeitkonto nur bei den wenigen Saisonkräften (etwa Ende März bis Ende Oktober), nicht bei Minijobs. Winterlohn ohne Stempel ist Auszahlung vom Konto. Die Stunden dafür liegen im Sommer davor (August bis Oktober), der Stand steigt dort und fällt im Winter. Nicht erst auf den folgenden Frühling schieben, sonst rutscht das Konto unter null. Urlaubszeilen bleiben Urlaub. Minijobs ohne Winterauszahlung bleiben Monat für Monat bei der Abrechnung.
+- Reihenfolge: erste Abrechnung August 2025, Mitarbeiter für Mitarbeiter. Liste: `Desktop/Prüfung/Stundenuebersicht/00-Mitarbeiterliste.md`.
+- Kopf jeder Übersicht: Name, Geburtsdatum, Anschrift, Personal-Nr., dann `Export 01.08.2025 – 31.07.2026`. Der Zeitraum gilt für alle, auch wenn jemand nur in einzelnen Monaten Stunden hat. Stempel vor dem 01.08.2025 nicht in die Export-Summe.
+- Stundenkonto wird am 01.08.2025 nicht auf null gesetzt. Es läuft ab dem 01.04.2025. Wer eines hat, bekommt davor die Zeile `Stand 31.07.2025`: Stempel 01.04.–31.07.2025 minus die Lohnstunden der Abrechnungen April–Juli. Sachbezug zählt nicht. Stempel vor dem 01.04. und die echten April–Juli-Stempel stehen nicht in der Export-Summe. Minijobs ohne Konto bleiben bei null.
+- Bei Abmeldung muss das Lohnkonto auf 0 stehen. Ein Rest wäre nicht ausgezahlter Lohn. Den im letzten Monat über die Zeiten begleichen, die Monatssumme bleibt die der Abrechnung.
+- Der Rest stempelt. Uhrzeiten nur nachtragen, wenn nicht gestempelt wurde: Petra, Kirsten (nur der nicht gestempelte Rest), Frank Herbert Dreyer, Peer Ziegler, Wilhelm Bernd Herwig, Marie-Kathrin Dreyer. Daniel und Lukas haben immer gestempelt. Differenz zur Abrechnung ist dann Lohnkonto, keine nachgetragenen Uhrzeiten.
+- Vollzeitschulpflichtige, auch mit 15, gelten als Kinder. Außerhalb der Schulferien dürfen sie nicht arbeiten. In den Ferien höchstens vier Wochen im Kalenderjahr. Sienna, geboren 26.08.2010, ist in diesem Export noch schulpflichtig. Die Stempel 12.–17.08.2025 waren falsch nachgetragen. Live ab 28.08.2025: nur Schichten 16:00–20:00, je 4,00 h, ohne Pause. August 4 Tage = 16,00 h, Abrechnung 42,00 h, Differenz 26,00 h voraus für September. September 14 Tage = 56,00 h, Abrechnung 30,00 h. Urlaub bleibt Menge ÷ 13 innen, Kontozeilen deshalb 22,77 und 28,31, Stand danach +5,54. Mai 2026: zwei kurze Tage 24.05. 0,70 h und 30.05. 0,68 h, dazu aus Lohnkonto 5,54 und Urlaub 0,58, Summe 7,50, Saldo 0,00.

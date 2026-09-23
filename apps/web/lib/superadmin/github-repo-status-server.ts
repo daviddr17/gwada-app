@@ -3,6 +3,7 @@ import "server-only";
 import {
   APP_DEPLOY_WORKFLOW_FILE,
   DB_DEPLOY_WORKFLOW_FILE,
+  FULL_DEPLOY_WORKFLOW_FILE,
   fetchGithubBranches,
   fetchGithubDeployWorkflowStatus,
   fetchGithubHeadCommit,
@@ -19,7 +20,7 @@ export async function fetchSuperadminGithubRepoStatus(): Promise<SuperadminGithu
   const configured = githubDeployAuthConfigured();
   const htmlUrl = `https://github.com/${slug}`;
 
-  const [branches, headCommit, appDeployWorkflow, dbDeployWorkflow] =
+  const [branches, headCommit, appDeployWorkflow, dbDeployWorkflow, fullDeployWorkflow] =
     await Promise.all([
       fetchGithubBranches(),
       fetchGithubHeadCommit(deployBranch),
@@ -31,18 +32,24 @@ export async function fetchSuperadminGithubRepoStatus(): Promise<SuperadminGithu
         workflowFile: DB_DEPLOY_WORKFLOW_FILE,
         label: "DB live",
       }),
+      fetchGithubDeployWorkflowStatus({
+        workflowFile: FULL_DEPLOY_WORKFLOW_FILE,
+        label: "Live full",
+      }),
     ]);
 
   const reachable =
     branches.reachable ||
     headCommit.reachable ||
     appDeployWorkflow.reachable ||
-    dbDeployWorkflow.reachable;
+    dbDeployWorkflow.reachable ||
+    fullDeployWorkflow.reachable;
 
   const message =
     branches.message ??
     appDeployWorkflow.message ??
     dbDeployWorkflow.message ??
+    fullDeployWorkflow.message ??
     null;
 
   return {
@@ -65,6 +72,7 @@ export async function fetchSuperadminGithubRepoStatus(): Promise<SuperadminGithu
     },
     appDeployWorkflow,
     dbDeployWorkflow,
+    fullDeployWorkflow,
     message,
   };
 }

@@ -25,6 +25,7 @@ import {
   fetchSuperadminDatabaseStatus,
   triggerSuperadminLiveAppDeploy,
   triggerSuperadminLiveDbDeploy,
+  triggerSuperadminLiveFullDeploy,
 } from "@/lib/superadmin/superadmin-ops-status-api";
 import type {
   SuperadminDatabaseStatus,
@@ -215,6 +216,7 @@ export function SuperadminDatabasePanel() {
   const [refreshing, setRefreshing] = useState(false);
   const [deployingApp, setDeployingApp] = useState(false);
   const [deployingDb, setDeployingDb] = useState(false);
+  const [deployingFull, setDeployingFull] = useState(false);
   const [vpsRebootOpen, setVpsRebootOpen] = useState(false);
   const [vpsRebootConfirm, setVpsRebootConfirm] = useState("");
   const [vpsRebootBusy, setVpsRebootBusy] = useState(false);
@@ -289,6 +291,20 @@ export function SuperadminDatabasePanel() {
     setDeployingDb(false);
   }, [load]);
 
+  const handleDeployFull = useCallback(async () => {
+    setDeployingFull(true);
+    const { ok, error } = await triggerSuperadminLiveFullDeploy();
+    if (ok) {
+      toast.success(
+        "Voll-Deploy gestartet — zuerst DB-Migrationen, dann App-Image auf den VPS.",
+      );
+      void load(true);
+    } else {
+      toast.error(error ?? "Voll-Deploy fehlgeschlagen.");
+    }
+    setDeployingFull(false);
+  }, [load]);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -297,7 +313,8 @@ export function SuperadminDatabasePanel() {
     status?.liveApp.syncState === "deploying" ||
     status?.liveApp.syncState === "out_of_sync" ||
     status?.github.appDeployWorkflow.activeRun != null ||
-    status?.github.dbDeployWorkflow.activeRun != null;
+    status?.github.dbDeployWorkflow.activeRun != null ||
+    status?.github.fullDeployWorkflow.activeRun != null;
 
   useEffect(() => {
     if (!shouldPollLive) return;
@@ -331,8 +348,8 @@ export function SuperadminDatabasePanel() {
           <div className="space-y-1">
             <CardTitle className="text-base">Live & Deploy</CardTitle>
             <SectionIntro
-              what="Ist gwada.app auf dem Stand von GitHub main?"
-              does="Push auf main deployt nicht automatisch. Hier DB- und App-Deploy starten (bei Schema zuerst DB, dann App). Verifikation: /api/build-info — SHA = Commit. Coolify nur noch Infrastruktur, kein App-Build."
+              what="Live (gwada.app) vs. origin/main — Deploy läuft über GitHub Actions."
+              does="Push auf origin/main deployt nicht automatisch. Standard: „DB + App“ (deploy-live-full auf GitHub). Verifikation: /api/build-info = origin-SHA. Live-Daten werden nicht überschrieben. Coolify nur Infrastruktur."
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -351,37 +368,63 @@ export function SuperadminDatabasePanel() {
             </Button>
             <Button
               type="button"
+              size="sm"
+              className={cn("rounded-xl", settingsAccentSaveButtonClassName)}
+              disabled={
+                deployingFull ||
+                deployingDb ||
+                deployingApp ||
+                !status.liveApp.triggerConfigured ||
+                status.liveApp.syncState === "deploying" ||
+                Boolean(github.fullDeployWorkflow.activeRun) ||
+                Boolean(github.appDeployWorkflow.activeRun) ||
+                Boolean(github.dbDeployWorkflow.activeRun)
+              }
+              onClick={() => void handleDeployFull()}
+            >
+              <Rocket
+                className={cn("mr-1.5 size-4", deployingFull && "animate-pulse")}
+              />
+              {deployingFull ? "Startet …" : "DB + App"}
+            </Button>
+            <Button
+              type="button"
               variant="outline"
               size="sm"
               className="rounded-xl"
               disabled={
                 deployingDb ||
+                deployingFull ||
                 !status.liveApp.triggerConfigured ||
-                Boolean(github.dbDeployWorkflow.activeRun)
+                Boolean(github.dbDeployWorkflow.activeRun) ||
+                Boolean(github.fullDeployWorkflow.activeRun)
               }
               onClick={() => void handleDeployDb()}
             >
               <Rocket
                 className={cn("mr-1.5 size-4", deployingDb && "animate-pulse")}
               />
-              {deployingDb ? "Startet …" : "DB deployen"}
+              {deployingDb ? "Startet …" : "Nur DB"}
             </Button>
             <Button
               type="button"
+              variant="outline"
               size="sm"
-              className={cn("rounded-xl", settingsAccentSaveButtonClassName)}
+              className="rounded-xl"
               disabled={
                 deployingApp ||
+                deployingFull ||
                 !status.liveApp.triggerConfigured ||
                 status.liveApp.syncState === "deploying" ||
-                Boolean(github.appDeployWorkflow.activeRun)
+                Boolean(github.appDeployWorkflow.activeRun) ||
+                Boolean(github.fullDeployWorkflow.activeRun)
               }
               onClick={() => void handleDeployApp()}
             >
               <Rocket
                 className={cn("mr-1.5 size-4", deployingApp && "animate-pulse")}
               />
-              {deployingApp ? "Startet …" : "App deployen"}
+              {deployingApp ? "Startet …" : "Nur App"}
             </Button>
           </div>
         </CardHeader>
@@ -430,10 +473,13 @@ export function SuperadminDatabasePanel() {
               }
             />
             <InfoRow
-              label={`GitHub ${github.deployBranch}`}
+              label={`origin/${github.deployBranch}`}
               value={
                 <span className="font-mono text-xs">
                   {formatDeploySha(head.shortSha ?? head.sha)}
+                  <span className="ml-2 font-sans text-muted-foreground">
+                    (GitHub)
+                  </span>
                   {head.htmlUrl ? (
                     <a
                       href={head.htmlUrl}
@@ -492,8 +538,8 @@ export function SuperadminDatabasePanel() {
         <CardHeader>
           <CardTitle className="text-base">GitHub</CardTitle>
           <SectionIntro
-            what="Quellcode, Branches und CI/CD im Repo."
-            does="Zeigt alle Branches, den letzten main-Commit und die GitHub Actions für App- und DB-Deploy — ohne Tokens oder Secrets."
+            what="GitHub hostet das Repo und die Actions; origin ist der Remote-Stand."
+            does="Repository-Link, Branches, origin/main-Commit und die Workflows Full / App / DB — ohne Tokens oder Secrets."
           />
         </CardHeader>
         <CardContent className="space-y-4">
@@ -505,10 +551,12 @@ export function SuperadminDatabasePanel() {
               }
             />
             <InfoRow
-              label="Deploy-Branch"
+              label="origin (Deploy-Branch)"
               value={
                 <span>
-                  <span className="font-mono text-xs">{github.deployBranch}</span>
+                  <span className="font-mono text-xs">
+                    origin/{github.deployBranch}
+                  </span>
                   {github.deployBranch !== github.defaultBranch ? (
                     <span className="ml-2 text-xs text-muted-foreground">
                       (Default: {github.defaultBranch})
@@ -517,9 +565,32 @@ export function SuperadminDatabasePanel() {
                 </span>
               }
             />
+            <InfoRow
+              label={`origin/${github.deployBranch} HEAD`}
+              value={
+                <span className="font-mono text-xs">
+                  {formatDeploySha(head.shortSha ?? head.sha)}
+                  {head.htmlUrl ? (
+                    <a
+                      href={head.htmlUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 inline-flex items-center gap-1 font-sans text-foreground underline-offset-4 hover:underline"
+                    >
+                      auf GitHub
+                      <ExternalLink className="size-3 opacity-60" aria-hidden />
+                    </a>
+                  ) : null}
+                </span>
+              }
+            />
             {github.description ? (
               <InfoRow label="Beschreibung" value={github.description} />
             ) : null}
+            <InfoRow
+              label="Workflow Full (DB+App)"
+              value={<WorkflowRunSummary workflow={github.fullDeployWorkflow} />}
+            />
             <InfoRow
               label="Workflow App live"
               value={<WorkflowRunSummary workflow={github.appDeployWorkflow} />}
@@ -593,7 +664,7 @@ export function SuperadminDatabasePanel() {
             </CardTitle>
             <SectionIntro
               what="Supabase Postgres — Erreichbarkeit und Endpunkte."
-              does="Prüft die DB-Verbindung, zeigt API-URL und Studio-Zugang. Schema-Änderungen liegen in supabase/migrations/ und gehen live über deploy-live-db.yml."
+              does="Prüft die DB-Verbindung, zeigt API-URL und Studio-Zugang. Schema-Änderungen liegen in supabase/migrations/ und gehen live über deploy-live-full / deploy-live-db.yml."
             />
             {!status.ok && status.message ? (
               <p className="text-xs text-destructive">{status.message}</p>
@@ -776,14 +847,14 @@ export function SuperadminDatabasePanel() {
             <CardTitle className="text-base">Coolify</CardTitle>
             <SectionIntro
               what="Nur Infrastruktur (Domain, TLS, Env, Compose)."
-              does="Kein App-Deploy über Coolify-Webhook/Nixpacks. App und Schema: Superadmin-Buttons bzw. deploy-live-app.yml / deploy-live-db.yml."
+              does="Kein App-Deploy über Coolify-Webhook/Nixpacks. App und Schema: Superadmin „DB + App“ bzw. deploy-live-full.yml (ruft db + app auf)."
             />
           </CardHeader>
           <CardContent>
             <dl className="grid gap-3">
               <InfoRow
                 label="App-Deploy"
-                value="GitHub Actions (deploy-live-app.yml)"
+                value="GitHub Actions (deploy-live-full / app / db)"
               />
               <InfoRow
                 label="Coolify auf Server"

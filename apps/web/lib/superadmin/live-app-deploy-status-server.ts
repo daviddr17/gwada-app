@@ -31,7 +31,7 @@ export function shasMatch(
 }
 
 /**
- * Erwarteter GitHub-Stand für den Live-Vergleich.
+ * Erwarteter origin/main-Stand für den Live-Vergleich.
  * Fallback: Deploy-Branch-Tip aus Branch-Liste, dann letzter App-Deploy-Run.
  */
 export function resolveGithubCompareSha(
@@ -108,7 +108,8 @@ export function deriveLiveAppSyncState(input: {
 }): SuperadminLiveAppDeployStatus["syncState"] {
   const githubActive = Boolean(
     input.github.appDeployWorkflow.activeRun ||
-      input.github.dbDeployWorkflow.activeRun,
+      input.github.dbDeployWorkflow.activeRun ||
+      input.github.fullDeployWorkflow.activeRun,
   );
 
   if (githubActive) return "deploying";
@@ -128,21 +129,24 @@ function buildMessage(input: {
   github: SuperadminGithubRepoStatus;
 }): string | null {
   if (input.syncState === "in_sync") {
-    return "Live-App entspricht dem neuesten Commit auf GitHub main.";
+    return "Live-App entspricht origin/main (GitHub Remote).";
   }
 
   if (input.syncState === "deploying") {
+    if (input.github.fullDeployWorkflow.activeRun) {
+      return "GitHub Actions: Voll-Deploy (DB-Migrationen, dann App-Image → VPS).";
+    }
     if (input.github.appDeployWorkflow.activeRun) {
       return "GitHub Actions baut das Image und deployt es auf den VPS (Build → ghcr.io → pull).";
     }
     if (input.github.dbDeployWorkflow.activeRun) {
       return "GitHub Actions wendet gerade DB-Migrationen auf live an.";
     }
-    return "Deploy läuft — Live-Commit wird gleich aktualisiert.";
+    return "GitHub Deploy läuft — Live-Commit wird gleich aktualisiert.";
   }
 
   if (input.syncState === "out_of_sync") {
-    return "Live-App ist veraltet: öffentliche URL liefert einen älteren Build als GitHub main. Nach Commit/Push hier „App deployen“ starten.";
+    return "Live-App ist veraltet: build-info älter als origin/main auf GitHub. Nach Push „DB + App“ starten.";
   }
 
   if (!input.liveReachable && !input.liveSha) {
@@ -151,15 +155,15 @@ function buildMessage(input: {
 
   if (!input.githubSha) {
     if (!input.github.configured) {
-      return "GitHub-Auth fehlt (GitHub App oder PAT) — Live-Commit bekannt, Vergleich mit main nicht möglich.";
+      return "GitHub-Auth fehlt (GitHub App oder PAT) — Live-Commit bekannt, origin/main-Vergleich nicht möglich.";
     }
     if (!input.github.reachable) {
       return (
         input.github.message ??
-        "GitHub-API nicht erreichbar — Live-Commit bekannt, Vergleich mit main nicht möglich."
+        "GitHub-API nicht erreichbar — Live-Commit bekannt, origin/main-Vergleich nicht möglich."
       );
     }
-    return "GitHub-Commit konnte nicht abgerufen werden — Live-Commit bekannt.";
+    return "origin/main (GitHub) konnte nicht gelesen werden — Live-Commit bekannt.";
   }
 
   return null;

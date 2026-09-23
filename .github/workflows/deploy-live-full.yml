@@ -11,6 +11,8 @@ on:
         required: false
         type: boolean
         default: false
+  repository_dispatch:
+    types: [deploy-live-full]
   push:
     branches: [main]
     paths:
@@ -30,13 +32,13 @@ jobs:
   db:
     uses: ./.github/workflows/deploy-live-db.yml
     with:
-      ref: ${{ github.sha }}
+      ref: ${{ github.event.client_payload.ref || github.sha }}
     secrets: inherit
 
   app:
     needs: db
     uses: ./.github/workflows/deploy-live-app.yml
     with:
-      ref: ${{ github.sha }}
-      force_unlock: ${{ inputs.force_unlock }}
+      ref: ${{ github.event.client_payload.ref || github.sha }}
+      force_unlock: ${{ inputs.force_unlock == true || github.event.client_payload.force_unlock == true }}
     secrets: inherit

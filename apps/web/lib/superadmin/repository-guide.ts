@@ -26,7 +26,7 @@ export function buildRepositoryGuide(input: {
       {
         path: ".github/workflows/",
         description:
-          "deploy-live-app/db, reboot-live-vps, update-waha-live (SSH)",
+          "deploy-live-full (DB+App), deploy-live-app/db, reboot-live-vps, WAHA (SSH)",
       },
       {
         path: "scripts/",

@@ -16,8 +16,10 @@ import type {
 const GITHUB_API_TIMEOUT_MS = 8_000;
 export const APP_DEPLOY_WORKFLOW_FILE = "deploy-live-app.yml";
 export const DB_DEPLOY_WORKFLOW_FILE = "deploy-live-db.yml";
+export const FULL_DEPLOY_WORKFLOW_FILE = "deploy-live-full.yml";
 export const APP_DEPLOY_REPOSITORY_DISPATCH_TYPE = "deploy-live-app";
 export const DB_DEPLOY_REPOSITORY_DISPATCH_TYPE = "deploy-live-db";
+export const FULL_DEPLOY_REPOSITORY_DISPATCH_TYPE = "deploy-live-full";
 
 /** Nur statischer PAT — kein Changelog-/Build-Fallback. */
 export function githubDeployTokenStrict(): string | null {
@@ -470,6 +472,78 @@ export async function dispatchGithubLiveDbDeploy(
       error: githubDispatchErrorMessage({
         status,
         workflowFile: DB_DEPLOY_WORKFLOW_FILE,
+        usedRepositoryDispatch: status === 403 || msg === "github_api_403",
+      }),
+    };
+  }
+}
+
+export async function dispatchGithubLiveFullDeploy(
+  ref?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = await resolveGithubDeployAccessToken({ strict: true });
+  if (!token) {
+    return {
+      ok: false,
+      error:
+        "GitHub-Auth fehlt — Deploy kann nicht ausgelöst werden (GitHub App oder GITHUB_DEPLOY_TOKEN).",
+    };
+  }
+
+  const branch = ref?.trim() || githubDeployBranch();
+
+  try {
+    const [fullActive, appActive, dbActive] = await Promise.all([
+      fetchGithubDeployWorkflowStatus({
+        workflowFile: FULL_DEPLOY_WORKFLOW_FILE,
+        label: "Live full",
+      }),
+      fetchGithubDeployWorkflowStatus({
+        workflowFile: APP_DEPLOY_WORKFLOW_FILE,
+        label: "App live",
+      }),
+      fetchGithubDeployWorkflowStatus({
+        workflowFile: DB_DEPLOY_WORKFLOW_FILE,
+        label: "DB live",
+      }),
+    ]);
+    if (fullActive.activeRun || appActive.activeRun || dbActive.activeRun) {
+      return {
+        ok: false,
+        error: "Ein Live-Deploy läuft bereits (GitHub Actions).",
+      };
+    }
+
+    await dispatchGithubDeployEvent({
+      workflowFile: FULL_DEPLOY_WORKFLOW_FILE,
+      repositoryDispatchType: FULL_DEPLOY_REPOSITORY_DISPATCH_TYPE,
+      ref: branch,
+      workflowInputs: { force_unlock: "false" },
+      clientPayload: { ref: branch, force_unlock: false },
+    });
+
+    return { ok: true };
+  } catch (e) {
+    const status =
+      e instanceof Error && "status" in e
+        ? (e as Error & { status?: number }).status
+        : undefined;
+    const msg = e instanceof Error ? e.message : "dispatch_failed";
+    if (msg === "github_api_404") {
+      return {
+        ok: false,
+        error: githubDispatchErrorMessage({
+          status: 404,
+          workflowFile: FULL_DEPLOY_WORKFLOW_FILE,
+          usedRepositoryDispatch: false,
+        }),
+      };
+    }
+    return {
+      ok: false,
+      error: githubDispatchErrorMessage({
+        status,
+        workflowFile: FULL_DEPLOY_WORKFLOW_FILE,
         usedRepositoryDispatch: status === 403 || msg === "github_api_403",
       }),
     };

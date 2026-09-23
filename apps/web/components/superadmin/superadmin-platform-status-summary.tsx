@@ -93,7 +93,7 @@ function collectPlatformAlerts(
     ) {
       alerts.push({
         key: "github-compare-missing",
-        label: "GitHub-Vergleich fehlt",
+        label: "origin/GitHub-Vergleich fehlt",
         detail: status.liveApp.message ?? undefined,
         tone: "warning",
       });
@@ -168,7 +168,8 @@ export function SuperadminPlatformStatusSummary() {
     (status?.liveApp.syncState === "deploying" ||
       status?.liveApp.syncState === "out_of_sync" ||
       status?.github.appDeployWorkflow.activeRun != null ||
-      status?.github.dbDeployWorkflow.activeRun != null);
+      status?.github.dbDeployWorkflow.activeRun != null ||
+      status?.github.fullDeployWorkflow.activeRun != null);
 
   useEffect(() => {
     if (!shouldPoll) return;

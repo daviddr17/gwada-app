@@ -5,6 +5,7 @@ import {
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
 import { isPrivateEventReservation } from "@/lib/reservations/reservation-kind";
+import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { isUnconfirmedReservation } from "@/lib/reservations/unconfirmed-reservations";
 import type { ReservationStatusJoin } from "@/lib/supabase/reservations-db";
 
@@ -22,6 +23,7 @@ export type ReservationLiveInsertFields = {
   statusCode: string;
   statusName: string;
   statusColorHex?: string;
+  notes?: string | null;
 };
 
 const DEFAULT_LIVE_INSERT_DWELL_MINUTES = 120;
@@ -76,7 +78,6 @@ const DEFAULT_PENDING_STATUS: ReservationStatusJoin = {
 
 const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 50;
 const DASHBOARD_RESERVATION_TODAY_LIMIT = 6;
-const DASHBOARD_RESERVATION_SHEET_LIMIT = 50;
 
 function dayKeyFromIso(iso: string, timeZone: string): string {
   return restaurantZonedDateKey(new Date(iso), timeZone);
@@ -141,6 +142,7 @@ export function reservationLiveInsertFromRecord(
     statusCode: statusObj?.code ?? DEFAULT_PENDING_STATUS.code,
     statusName: statusObj?.name ?? DEFAULT_PENDING_STATUS.name,
     statusColorHex: statusObj?.color_hex,
+    notes: typeof row.notes === "string" ? row.notes : null,
   };
 }
 
@@ -217,6 +219,7 @@ export function patchDashboardReservationSummaryFromInsert(
     statusCode: insert.statusCode,
     href: `/dashboard/reservierungen/uebersicht?reservation=${insert.id}`,
     unconfirmed: isUnconfirmedReservation(rowLike),
+    internalNote: reservationInternalNoteText(insert.notes),
   };
 
   if (isUnconfirmedReservation(rowLike)) {
@@ -251,12 +254,10 @@ export function patchDashboardReservationSummaryFromInsert(
       );
       next = {
         ...next,
-        todayUpcomingList: [recentEntry, ...withoutUpcomingDup]
-          .sort(
-            (a, b) =>
-              new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
-          )
-          .slice(0, DASHBOARD_RESERVATION_SHEET_LIMIT),
+        todayUpcomingList: [recentEntry, ...withoutUpcomingDup].sort(
+          (a, b) =>
+            new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+        ),
       };
     }
   }

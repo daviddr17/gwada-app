@@ -61,12 +61,15 @@ export function DashboardCompactListItem({
   trailingAction,
   leading,
   stripeVariant,
+  footnote,
   className,
 }: {
   href?: string;
   title: React.ReactNode;
   meta?: React.ReactNode;
   trailing?: React.ReactNode;
+  /** Zusatz unter der Meta-Zeile, z. B. interne Notiz. */
+  footnote?: React.ReactNode;
   /** Außerhalb des Links (z. B. Schnell-Aktion), kein Navigieren. */
   trailingAction?: React.ReactNode;
   leading?: React.ReactNode;
@@ -85,6 +88,7 @@ export function DashboardCompactListItem({
           {meta ? (
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{meta}</p>
           ) : null}
+          {footnote ? <div className="mt-0.5">{footnote}</div> : null}
         </div>
       </div>
       {trailing ? (

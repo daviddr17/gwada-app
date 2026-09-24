@@ -23,6 +23,7 @@ const DASHBOARD_RESERVATION_KPI_SELECT = `
   guest_last_name,
   party_size,
   starts_at,
+  notes,
   ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex )
 `;
 
@@ -56,7 +57,7 @@ function mapDashboardReservationKpiRow(
     notify_email: false,
     notify_whatsapp: false,
     terms_accepted: false,
-    notes: null,
+    notes: typeof row.notes === "string" ? row.notes : null,
     pending_change: null,
     status_before_change_id: null,
     relocated_from_starts_at: null,

@@ -40,6 +40,8 @@ export async function loadDashboardInventorySummaryServer(
   ).length;
 
   const allOrders = orderRows ?? [];
+  const ordersOpen = allOrders.filter((o) => o.status === "open").length;
+  const ordersOrdered = allOrders.filter((o) => o.status === "ordered").length;
   const actionable = allOrders.filter(
     (o) => o.status === "open" || o.status === "ordered",
   );
@@ -89,6 +91,8 @@ export async function loadDashboardInventorySummaryServer(
       .filter((r) => snoozedIds.has(r.id as string))
       .map((r) => r.id as string),
     openOrders: actionable.length,
+    ordersOpen,
+    ordersOrdered,
     openOrderLines,
     allOrders: allOrders.length,
     allOrderLines,

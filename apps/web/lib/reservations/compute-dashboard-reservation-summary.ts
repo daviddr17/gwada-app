@@ -3,6 +3,7 @@ import {
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
 import { isPrivateEventReservation } from "@/lib/reservations/reservation-kind";
+import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { isUnconfirmedReservation } from "@/lib/reservations/unconfirmed-reservations";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 
@@ -15,6 +16,8 @@ export type DashboardReservationRecent = {
   statusCode: string;
   href: string;
   unconfirmed: boolean;
+  /** Sichtbare interne Notiz, sonst null (Demo-Notizen ausgeblendet). */
+  internalNote: string | null;
 };
 
 export type DashboardReservationSummary = {
@@ -37,7 +40,6 @@ export type DashboardReservationSummary = {
 
 const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 50;
 const DASHBOARD_RESERVATION_TODAY_LIMIT = 6;
-const DASHBOARD_RESERVATION_SHEET_LIMIT = 50;
 
 function statusCode(row: ReservationListRow): string {
   return row.reservation_statuses?.code ?? "";
@@ -66,6 +68,7 @@ function toRecentRow(row: ReservationListRow): DashboardReservationRecent {
     statusCode: row.reservation_statuses?.code ?? "",
     href: `/dashboard/reservierungen/uebersicht?reservation=${row.id}`,
     unconfirmed: isUnconfirmedReservation(row),
+    internalNote: reservationInternalNoteText(row.notes),
   };
 }
 
@@ -141,7 +144,7 @@ export function computeDashboardReservationSummary(
         dayKeyFromIso(row.starts_at, timeZone) === todayKey &&
         new Date(row.starts_at).getTime() >= nowMs,
     ),
-    DASHBOARD_RESERVATION_SHEET_LIMIT,
+    Number.POSITIVE_INFINITY,
   );
 
   return {

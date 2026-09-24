@@ -11,8 +11,12 @@ export type DashboardInventorySummary = {
   /** Aus Heute ausgeblendet (noch leer, bis nach Auffüllung erneut 0). */
   emptyStockSnoozed: number;
   emptyStockSnoozedIngredientIds: string[];
-  /** Offen + Bestellt (handlungsrelevant) */
+  /** Offen + Bestellt (handlungsrelevant, z. B. Bestand-Kachel). */
   openOrders: number;
+  /** Nur Status `open`. */
+  ordersOpen: number;
+  /** Nur Status `ordered`. */
+  ordersOrdered: number;
   openOrderLines: number;
   /** Alle Bestellungen inkl. Abgeschlossen (für Widget-Liste) */
   allOrders: number;
@@ -37,6 +41,8 @@ export function computeDashboardInventorySummary(
   const emptyStockSnoozedIngredientIds = emptyActive
     .filter((i) => snoozed.has(i.id))
     .map((i) => i.id);
+  const ordersOpen = orders.filter((o) => o.status === "open").length;
+  const ordersOrdered = orders.filter((o) => o.status === "ordered").length;
   const actionable = orders.filter(
     (o) => o.status === "open" || o.status === "ordered",
   );
@@ -53,6 +59,8 @@ export function computeDashboardInventorySummary(
     emptyStockSnoozed,
     emptyStockSnoozedIngredientIds,
     openOrders: actionable.length,
+    ordersOpen,
+    ordersOrdered,
     openOrderLines,
     allOrders: orders.length,
     allOrderLines,

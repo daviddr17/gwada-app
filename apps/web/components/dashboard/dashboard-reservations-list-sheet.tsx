@@ -1,6 +1,7 @@
 "use client";
 
 import { DashboardReservationQuickAcceptButton } from "@/components/dashboard/dashboard-reservation-quick-accept-button";
+import { ReservationInternalNoteFinePrint } from "@/components/reservations/reservation-internal-note-indicator";
 import {
   DashboardCompactList,
   DashboardCompactListItem,
@@ -106,6 +107,11 @@ export function DashboardReservationsListSheet({
                     ) : null
                   }
                   stripeVariant={row.unconfirmed ? "attention" : undefined}
+                  footnote={
+                    row.internalNote ? (
+                      <ReservationInternalNoteFinePrint note={row.internalNote} />
+                    ) : null
+                  }
                   className="py-2.5"
                 />
               ))}

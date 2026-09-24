@@ -33,6 +33,7 @@ import {
 } from "@/components/staff/staff-overview-live-presence-sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { resolveHeuteLiveSheetTarget } from "@/lib/dashboard/dashboard-heute-live-sheet-target";
+import { heutePurchaseOrderActions } from "@/lib/dashboard/heute-purchase-order-action";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
@@ -299,9 +300,11 @@ export function DashboardHeuteTile() {
   const deliveriesDueToday = inventory.summary?.deliveriesDueToday ?? 0;
   const deliveriesOverdue = inventory.summary?.deliveriesOverdue ?? 0;
   const emptyStock = inventory.summary?.emptyStock ?? 0;
-  const openOrders = inventory.summary?.openOrders ?? 0;
+  const ordersOpen = inventory.summary?.ordersOpen ?? 0;
+  const ordersOrdered = inventory.summary?.ordersOrdered ?? 0;
   const deliveryDueTotal = deliveriesDueToday + deliveriesOverdue;
-  const inventoryOtherAlerts = emptyStock > 0 || openOrders > 0;
+  const inventoryOtherAlerts =
+    emptyStock > 0 || ordersOpen > 0 || ordersOrdered > 0;
 
   const birthdaysToday = useMemo(
     () =>
@@ -425,29 +428,29 @@ export function DashboardHeuteTile() {
         onClick: () => setInventorySheetOpen(true),
       });
     } else if (can.inventory && inventoryOtherAlerts) {
-      const parts: string[] = [];
       if (emptyStock > 0) {
-        parts.push(
-          `${emptyStock} ${pluralDe(emptyStock, "Zutat leer", "Zutaten leer")}`,
-        );
+        items.push({
+          id: "inventory-empty",
+          title: `${emptyStock} ${pluralDe(emptyStock, "Zutat leer", "Zutaten leer")}`,
+          meta: "Bestand prüfen",
+          tone: "warning",
+          icon: <Package aria-hidden />,
+          onClick: () => setInventorySheetOpen(true),
+        });
       }
-      if (openOrders > 0) {
-        parts.push(
-          `${openOrders} ${pluralDe(
-            openOrders,
-            "Bestellung offen",
-            "Bestellungen offen",
-          )}`,
-        );
+      for (const orderAction of heutePurchaseOrderActions({
+        ordersOpen,
+        ordersOrdered,
+      })) {
+        items.push({
+          id: orderAction.id,
+          title: orderAction.title,
+          meta: "Bestand prüfen",
+          tone: orderAction.tone,
+          icon: <Package aria-hidden />,
+          onClick: () => setInventorySheetOpen(true),
+        });
       }
-      items.push({
-        id: "inventory-alerts",
-        title: parts.join(" · "),
-        meta: "Bestand prüfen",
-        tone: "warning",
-        icon: <Package aria-hidden />,
-        onClick: () => setInventorySheetOpen(true),
-      });
     }
 
     if (birthdaysToday.length > 0) {
@@ -481,7 +484,8 @@ export function DashboardHeuteTile() {
     deliveryDueTotal,
     emptyStock,
     inventoryOtherAlerts,
-    openOrders,
+    ordersOpen,
+    ordersOrdered,
     unconfirmedCount,
     unreadMessageCount,
   ]);

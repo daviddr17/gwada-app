@@ -62,7 +62,7 @@ import {
   reservationCountsTowardDayStats,
   RESERVATION_MOVED_STATUS_CODE,
 } from "@/lib/reservations/reservation-relocated-marker";
-import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
+import { ReservationInternalNoteFinePrint } from "@/components/reservations/reservation-internal-note-indicator";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
 import { useShiftPlanWeatherByDate } from "@/lib/hooks/use-shift-plan-weather-by-date";
@@ -1464,11 +1464,17 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                       const gwadaReview = isMovedMarker
                         ? undefined
                         : gwadaReviewsByReservation.get(r.id);
+                      const internalNote = isMovedMarker
+                        ? null
+                        : reservationInternalNoteText(r.notes);
                       const ariaLabel = isMovedMarker
                         ? `Verschobene Reservierung ${guest} öffnen`
                         : isEvent
                           ? `Veranstaltung ${guest} bearbeiten`
                           : `Reservierung ${guest} bearbeiten`;
+                      const rowAriaLabel = internalNote
+                        ? `${ariaLabel}. Interne Notiz: ${internalNote}`
+                        : ariaLabel;
                       const openEdit = () => {
                         pushReservationEdit(liveId);
                       };
@@ -1492,8 +1498,9 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                               className={cn(
                                 "min-w-0 flex-1",
                                 reservationOverviewCompactRowButtonClassName,
+                                internalNote && "flex flex-col items-stretch",
                               )}
-                              aria-label={ariaLabel}
+                              aria-label={rowAriaLabel}
                               onClick={openEdit}
                             >
                               <div className="flex min-w-0 items-center gap-2">
@@ -1526,10 +1533,6 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                                     Änderung
                                   </span>
                                 ) : null}
-                                {!isMovedMarker &&
-                                reservationInternalNoteText(r.notes) ? (
-                                  <ReservationInternalNoteIndicator />
-                                ) : null}
                                 {gwadaReview ? (
                                   <ReservationGwadaReviewStarButton
                                     review={gwadaReview}
@@ -1544,6 +1547,12 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                                   />
                                 ) : null}
                               </div>
+                              {internalNote ? (
+                                <ReservationInternalNoteFinePrint
+                                  note={internalNote}
+                                  className="mt-0.5"
+                                />
+                              ) : null}
                             </button>
                             {showQuickAccept ? (
                               <div className="flex shrink-0 items-center self-center">
@@ -1576,7 +1585,7 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                               "min-w-0 flex-1",
                               reservationListRowButtonClassName,
                             )}
-                            aria-label={ariaLabel}
+                            aria-label={rowAriaLabel}
                             onClick={openEdit}
                           >
                             <div className="flex gap-3">
@@ -1624,10 +1633,6 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                                     {tableLabel}
                                   </span>
                                 ) : null}
-                                {!isMovedMarker &&
-                                reservationInternalNoteText(r.notes) ? (
-                                  <ReservationInternalNoteIndicator />
-                                ) : null}
                               </div>
                             </div>
                             <div className="col-start-2 row-start-2 min-w-0 flex flex-col gap-0.5">
@@ -1652,6 +1657,11 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                                 <div className="min-w-0 truncate text-xs text-muted-foreground sm:text-sm">
                                   Team: {assigneeNames}
                                 </div>
+                              ) : null}
+                              {internalNote ? (
+                                <ReservationInternalNoteFinePrint
+                                  note={internalNote}
+                                />
                               ) : null}
                             </div>
                             {gwadaReview ? (

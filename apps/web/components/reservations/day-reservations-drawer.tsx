@@ -52,7 +52,7 @@ import {
   reservationDiningTableLabel,
 } from "@/lib/reservations/reservation-table-assignment";
 import { formatReservationQuotationJoinLabel } from "@/lib/reservations/reservation-quotation-label";
-import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
+import { ReservationInternalNoteFinePrint } from "@/components/reservations/reservation-internal-note-indicator";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import {
   fallbackSlotRangeFromReservations,
@@ -751,6 +751,9 @@ export function DayReservationsDrawer({
     const assigneeNames = isEvent
       ? formatReservationAssigneeNames(r.assigned_staff)
       : "";
+    const internalNote = isMovedMarker
+      ? null
+      : reservationInternalNoteText(r.notes);
     const gwadaReview = isMovedMarker
       ? undefined
       : gwadaReviewsByReservation.get(r.id);
@@ -777,11 +780,12 @@ export function DayReservationsDrawer({
             type="button"
             className={cn("min-w-0 flex-1", reservationListRowButtonCompactClassName)}
             aria-label={
-              isMovedMarker
+              (isMovedMarker
                 ? `Verschobene Reservierung ${guest} öffnen`
                 : isEvent
                   ? `Veranstaltung ${guest} bearbeiten`
-                  : `Reservierung ${guest} bearbeiten`
+                  : `Reservierung ${guest} bearbeiten`) +
+              (internalNote ? `. Interne Notiz: ${internalNote}` : "")
             }
             onClick={() => onEdit(r)}
           >
@@ -824,6 +828,9 @@ export function DayReservationsDrawer({
                       : ""}
                     {assigneeNames ? ` · Team: ${assigneeNames}` : ""}
                   </p>
+                  {internalNote ? (
+                    <ReservationInternalNoteFinePrint note={internalNote} />
+                  ) : null}
                 </div>
               </div>
               {starBtn}
@@ -855,11 +862,12 @@ export function DayReservationsDrawer({
             gwadaReview && "pr-1",
           )}
           aria-label={
-            isMovedMarker
+            (isMovedMarker
               ? `Verschobene Reservierung ${guest} öffnen`
               : isEvent
                 ? `Veranstaltung ${guest} bearbeiten`
-                : `Reservierung ${guest} bearbeiten`
+                : `Reservierung ${guest} bearbeiten`) +
+            (internalNote ? `. Interne Notiz: ${internalNote}` : "")
           }
           onClick={() => onEdit(r)}
         >
@@ -905,9 +913,6 @@ export function DayReservationsDrawer({
                   {tableLabel}
                 </span>
               ) : null}
-              {!isMovedMarker && reservationInternalNoteText(r.notes) ? (
-                <ReservationInternalNoteIndicator />
-              ) : null}
             </div>
           </div>
           <div className="col-start-2 row-start-2 min-w-0 flex flex-col gap-0.5">
@@ -931,6 +936,9 @@ export function DayReservationsDrawer({
               <p className="truncate text-xs text-muted-foreground">
                 Team: {assigneeNames}
               </p>
+            ) : null}
+            {internalNote ? (
+              <ReservationInternalNoteFinePrint note={internalNote} />
             ) : null}
           </div>
           {gwadaReview ? (

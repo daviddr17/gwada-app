@@ -1,3 +1,4 @@
+import { parseWahaSendResponseMessageId } from "@/lib/contact-messages/outbound-whatsapp-db-server";
 import { getWahaServerConfigForRestaurantAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
@@ -18,7 +19,10 @@ async function wahaPostSend(
     caption?: string;
     convert?: boolean;
   },
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; wahaMessageId?: string | null }
+  | { ok: false; error: string }
+> {
   const config = await getWahaServerConfigForRestaurantAdmin(params.restaurantId);
   if (!config) {
     return { ok: false, error: "waha_not_configured" };
@@ -72,7 +76,13 @@ async function wahaPostSend(
     return { ok: false, error: msgError(endpoint, error) };
   }
 
-  return { ok: true };
+  let wahaMessageId: string | null = null;
+  try {
+    wahaMessageId = parseWahaSendResponseMessageId(await res.json());
+  } catch {
+    /* leerer Body */
+  }
+  return { ok: true, wahaMessageId };
 }
 
 function msgError(endpoint: SendEndpoint, error: string): string {
@@ -84,7 +94,10 @@ export async function wahaSendImage(params: {
   chatId: string;
   file: WahaOutboundFile;
   caption?: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; wahaMessageId?: string | null }
+  | { ok: false; error: string }
+> {
   return wahaPostSend("sendImage", params);
 }
 
@@ -93,7 +106,10 @@ export async function wahaSendFile(params: {
   chatId: string;
   file: WahaOutboundFile;
   caption?: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; wahaMessageId?: string | null }
+  | { ok: false; error: string }
+> {
   return wahaPostSend("sendFile", params);
 }
 
@@ -101,7 +117,10 @@ export async function wahaSendVoice(params: {
   restaurantId: string;
   chatId: string;
   file: WahaOutboundFile;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; wahaMessageId?: string | null }
+  | { ok: false; error: string }
+> {
   return wahaPostSend("sendVoice", {
     ...params,
     convert: true,
@@ -113,7 +132,10 @@ export async function wahaSendVideo(params: {
   chatId: string;
   file: WahaOutboundFile;
   caption?: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; wahaMessageId?: string | null }
+  | { ok: false; error: string }
+> {
   return wahaPostSend("sendVideo", {
     ...params,
     convert: true,

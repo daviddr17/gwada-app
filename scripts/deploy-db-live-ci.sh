@@ -457,5 +457,66 @@ if [[ -n "${rest_c}" ]]; then
 fi
 REMOTE
 
+# grep 'supabase-db' | head -1 kann den anderen Stack treffen (supabase-db),
+# während die App supabase-kong-<coolify> nutzt. Dort fehlen die Kalenderspalten
+# sonst, obwohl db push sie auf dem anderen Postgres schon angelegt hat.
+echo ""
+echo "=== App-Postgres: Kalenderspalten (nur diese drei) ==="
+gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s <<'REMOTE'
+set -euo pipefail
+kong="$(docker ps --format '{{.Names}}' | grep -E '^supabase-kong-' | head -1 || true)"
+if [[ -z "${kong}" ]]; then
+  echo "Coolify-Kong (supabase-kong-*) nicht gefunden." >&2
+  docker ps --format '{{.Names}}' | grep -E 'kong|supabase-db' || true
+  exit 1
+fi
+project="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "${kong}")"
+db="$(docker ps --filter "label=com.docker.compose.project=${project}" --format '{{.Names}}' | grep -E 'supabase-db' | head -1 || true)"
+rest="$(docker ps --filter "label=com.docker.compose.project=${project}" --format '{{.Names}}' | grep -E 'supabase-rest' | head -1 || true)"
+if [[ -z "${db}" ]]; then
+  echo "DB zum Kong ${kong} (project ${project}) nicht gefunden." >&2
+  exit 1
+fi
+echo "App-DB=${db} Kong=${kong}"
+missing="$(docker exec "${db}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -tAc "
+select count(*) from information_schema.columns
+where table_schema = 'public' and table_name = 'reservations'
+  and column_name = 'calendar_sequence';
+")"
+missing="${missing//$'\r'/}"
+missing="${missing//[[:space:]]/}"
+docker exec -i "${db}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q <<'SQL'
+alter table public.reservations
+  add column if not exists calendar_sequence integer not null default 0;
+alter table public.reservations
+  add column if not exists calendar_fingerprint text;
+alter table public.reservations
+  add column if not exists calendar_emailed_fingerprint text;
+notify pgrst, 'reload schema';
+SQL
+docker exec -i "${db}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q <<'SQL' || echo "History-Eintrag übersprungen."
+insert into supabase_migrations.schema_migrations (version, name, statements)
+values
+  ('20260925123000', 'reservation_calendar_sequence', array[]::text[]),
+  ('20260925164000', 'reservation_calendar_columns', array[]::text[])
+on conflict (version) do nothing;
+SQL
+echo "Kalenderspalten:"
+docker exec "${db}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -tAc "
+select column_name from information_schema.columns
+where table_schema = 'public' and table_name = 'reservations'
+  and column_name in (
+    'calendar_sequence',
+    'calendar_fingerprint',
+    'calendar_emailed_fingerprint'
+  )
+order by 1;
+"
+if [[ "${missing}" == "0" && -n "${rest}" ]]; then
+  docker restart "${rest}"
+  echo "restarted ${rest}"
+fi
+REMOTE
+
 echo ""
 echo "Live-DB-Migrationen angewendet."

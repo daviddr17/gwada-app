@@ -130,6 +130,7 @@ import {
   reservationDateTimeChanged,
   shouldRescheduleTimedOutbox,
 } from "@/lib/reservations/reservation-datetime-reschedule";
+import { reservationCalendarFactsChanged } from "@/lib/reservations/reservation-calendar-ics";
 import {
   dispatchDashboardReservationCreateLivePatch,
   dispatchDashboardReservationUpdateLivePatch,
@@ -1053,6 +1054,20 @@ export function ReservationEditDrawer({
           },
           { starts_at: payload.starts_at, ends_at: payload.ends_at },
         );
+        const calendarChanged = reservationCalendarFactsChanged(
+          {
+            starts_at: reservation.starts_at,
+            ends_at: reservation.ends_at,
+            party_size: reservation.party_size,
+            dining_table_id: reservation.dining_table_id,
+          },
+          {
+            starts_at: payload.starts_at,
+            ends_at: payload.ends_at,
+            party_size: payload.party_size,
+            dining_table_id: payload.dining_table_id,
+          },
+        );
         if (shouldRescheduleTimedOutbox(newStatusCode, datetimeChanged)) {
           if (payload.notify_whatsapp) {
             void triggerReservationWhatsappDispatch(
@@ -1063,6 +1078,12 @@ export function ReservationEditDrawer({
           if (payload.notify_email) {
             void triggerReservationEmailDispatch(reservation.id, "rescheduled");
           }
+        } else if (
+          newStatusCode === "confirmed" &&
+          calendarChanged &&
+          payload.notify_email
+        ) {
+          void triggerReservationEmailDispatch(reservation.id, "rescheduled");
         }
       })();
       return;

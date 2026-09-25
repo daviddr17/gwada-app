@@ -21,6 +21,7 @@ import {
   reservationDateTimeChanged,
   shouldRescheduleTimedOutbox,
 } from "@/lib/reservations/reservation-datetime-reschedule";
+import { reservationCalendarFactsChanged } from "@/lib/reservations/reservation-calendar-ics";
 import { relocatedFromPatchOnDatetimeChange } from "@/lib/reservations/reservation-relocated-marker";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
@@ -236,9 +237,23 @@ export async function approveDisplayReservationChangeRequest(
     },
     { starts_at: pending.starts_at, ends_at: pending.ends_at },
   );
+  const notifyWhatsapp = pending.notify_whatsapp ?? Boolean(row.notify_whatsapp);
+  const notifyEmail = pending.notify_email ?? Boolean(row.notify_email);
+  const calendarChanged = reservationCalendarFactsChanged(
+    {
+      starts_at: row.starts_at as string,
+      ends_at: row.ends_at as string,
+      party_size: row.party_size as number,
+      dining_table_id: (row.dining_table_id as string | null) ?? null,
+    },
+    {
+      starts_at: pending.starts_at,
+      ends_at: pending.ends_at,
+      party_size: pending.party_size,
+      dining_table_id: (row.dining_table_id as string | null) ?? null,
+    },
+  );
   if (shouldRescheduleTimedOutbox(restoreStatusCode, datetimeChanged)) {
-    const notifyWhatsapp = pending.notify_whatsapp ?? Boolean(row.notify_whatsapp);
-    const notifyEmail = pending.notify_email ?? Boolean(row.notify_email);
     if (notifyWhatsapp) {
       void dispatchReservationWhatsapp(admin, reservationId, "rescheduled").catch(
         () => undefined,
@@ -249,6 +264,14 @@ export async function approveDisplayReservationChangeRequest(
         () => undefined,
       );
     }
+  } else if (
+    restoreStatusCode === "confirmed" &&
+    calendarChanged &&
+    notifyEmail
+  ) {
+    void dispatchReservationEmail(admin, reservationId, "rescheduled").catch(
+      () => undefined,
+    );
   }
 
   return { ok: true };

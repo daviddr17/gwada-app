@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Mail, Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { GuestPhoneCountrySelect } from "@/components/phone/guest-phone-country-select";
 import { useTranslations } from "next-intl";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
@@ -145,6 +146,7 @@ const API_ERROR_KEYS: Record<string, string> = {
   not_found: "errorNotFound",
   create_failed: "errorCreateFailed",
   update_failed: "errorUpdateFailed",
+  not_confirmed: "errorCalendar",
 };
 
 function showGuestContactRequirementToast(
@@ -322,6 +324,7 @@ function EmbedReservationWidgetBody({
   const [managePin, setManagePin] = useState("");
   const [loadedReservation, setLoadedReservation] =
     useState<PublicGuestReservation | null>(null);
+  const [calendarBusy, setCalendarBusy] = useState(false);
 
   const dayDate = useMemo(() => {
     const [y, m, d] = dateYmd.split("-").map(Number);
@@ -1014,6 +1017,41 @@ function EmbedReservationWidgetBody({
       </p>
     ) : null;
 
+  const downloadCalendar = async () => {
+    if (!loadedReservation || loadedReservation.status_code !== "confirmed") return;
+    setError(null);
+    setCalendarBusy(true);
+    try {
+      const res = await fetch("/api/public/reservations/calendar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug: config.slug,
+          reservation_number: loadedReservation.reservation_number,
+          pin: managePin,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(errorMessage(body.error));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `Reservierung-${loadedReservation.reservation_number}.ics`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError(tr("networkError"));
+    } finally {
+      setCalendarBusy(false);
+    }
+  };
+
   const resizeDeps = [
     tab,
     error,
@@ -1144,6 +1182,18 @@ function EmbedReservationWidgetBody({
                     number: loadedReservation.reservation_number,
                   })}
                 </p>
+                {loadedReservation.status_code === "confirmed" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full rounded-xl border-border/60"
+                    disabled={calendarBusy}
+                    onClick={() => void downloadCalendar()}
+                  >
+                    <CalendarDays className="size-4" />
+                    {calendarBusy ? tr("addingToCalendar") : tr("addToCalendar")}
+                  </Button>
+                ) : null}
                 {formFields}
                 {embedFormFooter}
                 <EmbedSubmitButton

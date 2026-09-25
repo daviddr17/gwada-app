@@ -27,6 +27,7 @@ export type ReservationEmailPayload = Omit<
   footerNote?: string | null;
   replyTo?: string;
   attachments?: SmtpSendPayload["attachments"];
+  icalEvent?: SmtpSendPayload["icalEvent"];
 };
 
 export async function sendReservationEmail(
@@ -67,5 +68,6 @@ export async function sendReservationEmail(
     fromName: delivery.sender.name,
     replyTo: payload.replyTo,
     attachments: payload.attachments,
+    icalEvent: payload.icalEvent,
   });
 }

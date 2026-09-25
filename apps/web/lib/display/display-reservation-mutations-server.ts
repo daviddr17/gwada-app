@@ -17,6 +17,7 @@ import {
   reservationDateTimeChanged,
   shouldRescheduleTimedOutbox,
 } from "@/lib/reservations/reservation-datetime-reschedule";
+import { reservationCalendarFactsChanged } from "@/lib/reservations/reservation-calendar-ics";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import { formatDiningTableLabel } from "@/lib/supabase/dining-floor-db";
@@ -482,6 +483,20 @@ export async function updateDisplayReservation(
     },
     { starts_at: input.starts_at, ends_at: input.ends_at },
   );
+  const calendarChanged = reservationCalendarFactsChanged(
+    {
+      starts_at: reservation.starts_at as string,
+      ends_at: reservation.ends_at as string,
+      party_size: reservation.party_size as number,
+      dining_table_id: beforeTableId,
+    },
+    {
+      starts_at: input.starts_at,
+      ends_at: input.ends_at,
+      party_size: input.party_size,
+      dining_table_id: input.dining_table_id,
+    },
+  );
   if (shouldRescheduleTimedOutbox(newCode, datetimeChanged)) {
     if (notifyWhatsapp) {
       void dispatchReservationWhatsapp(admin, reservationId, "rescheduled").catch(
@@ -493,6 +508,10 @@ export async function updateDisplayReservation(
         () => undefined,
       );
     }
+  } else if (newCode === "confirmed" && calendarChanged && notifyEmail) {
+    void dispatchReservationEmail(admin, reservationId, "rescheduled").catch(
+      () => undefined,
+    );
   }
 
   return { ok: true };
@@ -545,6 +564,15 @@ export async function updateDisplayReservationTable(
     typeof reservation.updated_at === "string" ? reservation.updated_at : null,
   );
   if (!updated.ok) return updated;
+
+  if (
+    beforeTableLabel !== afterTableLabel &&
+    statusRow?.code === "confirmed"
+  ) {
+    void dispatchReservationEmail(admin, reservationId, "rescheduled").catch(
+      () => undefined,
+    );
+  }
 
   if (beforeTableLabel !== afterTableLabel) {
     await insertReservationLogEntry(admin, {

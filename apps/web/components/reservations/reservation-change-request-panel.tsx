@@ -24,6 +24,7 @@ import {
   reservationDateTimeChanged,
   shouldRescheduleTimedOutbox,
 } from "@/lib/reservations/reservation-datetime-reschedule";
+import { reservationCalendarFactsChanged } from "@/lib/reservations/reservation-calendar-ics";
 import {
   triggerReservationEmailDispatch,
 } from "@/lib/reservations/trigger-email-dispatch";
@@ -105,15 +106,35 @@ export function ReservationChangeRequestPanel({
       },
       { starts_at: pending.starts_at, ends_at: pending.ends_at },
     );
+    const notifyWhatsapp = pending.notify_whatsapp ?? reservation.notify_whatsapp;
+    const notifyEmail = pending.notify_email ?? reservation.notify_email;
+    const calendarChanged = reservationCalendarFactsChanged(
+      {
+        starts_at: reservation.starts_at,
+        ends_at: reservation.ends_at,
+        party_size: reservation.party_size,
+        dining_table_id: reservation.dining_table_id,
+      },
+      {
+        starts_at: pending.starts_at,
+        ends_at: pending.ends_at,
+        party_size: pending.party_size,
+        dining_table_id: reservation.dining_table_id,
+      },
+    );
     if (shouldRescheduleTimedOutbox(restoredStatusCode, datetimeChanged)) {
-      const notifyWhatsapp = pending.notify_whatsapp ?? reservation.notify_whatsapp;
-      const notifyEmail = pending.notify_email ?? reservation.notify_email;
       if (notifyWhatsapp) {
         void triggerReservationWhatsappDispatch(reservation.id, "rescheduled");
       }
       if (notifyEmail) {
         void triggerReservationEmailDispatch(reservation.id, "rescheduled");
       }
+    } else if (
+      restoredStatusCode === "confirmed" &&
+      calendarChanged &&
+      notifyEmail
+    ) {
+      void triggerReservationEmailDispatch(reservation.id, "rescheduled");
     }
     toast.success("Änderung übernommen.");
     onResolved();

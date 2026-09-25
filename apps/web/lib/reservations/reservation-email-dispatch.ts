@@ -42,6 +42,13 @@ import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezon
 import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email-secrets-db";
 import { fetchRestaurantEmailSmtpConfig } from "@/lib/supabase/restaurant-email-integration-db";
 import { mirrorOutboundEmailToContactMessages } from "@/lib/contact-messages/mirror-outbound-email-server";
+import {
+  claimReservationCalendarEmailUpdate,
+  loadReservationCalendarFile,
+  rememberReservationCalendarEmailed,
+  restoreReservationCalendarEmailedFingerprint,
+  type ReservationCalendarFile,
+} from "@/lib/reservations/reservation-calendar-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ReservationEmailSettings = {
@@ -415,18 +422,24 @@ export async function sendImmediateKind(
   kind: WhatsappImmediateKind,
   settings: ReservationEmailSettings | null,
   options?: ReservationDispatchOptions,
-): Promise<{ sent: boolean; error?: string }> {
+  internal?: { calendarResend?: boolean },
+): Promise<{ sent: boolean; error?: string; calendarAttached?: boolean }> {
   const { data: prior } = await sb
     .from("reservation_email_outbox")
     .select("id, sent_at, claimed_at")
     .eq("reservation_id", row.id)
     .eq("message_kind", kind)
     .maybeSingle();
-  if (prior?.sent_at) {
+  const calendarResend = Boolean(internal?.calendarResend && prior?.sent_at);
+  if (prior?.sent_at && !calendarResend) {
     return { sent: true };
   }
   const claimedAtMs = prior?.claimed_at ? Date.parse(String(prior.claimed_at)) : NaN;
-  if (Number.isFinite(claimedAtMs) && Date.now() - claimedAtMs < 10 * 60 * 1000) {
+  if (
+    !calendarResend &&
+    Number.isFinite(claimedAtMs) &&
+    Date.now() - claimedAtMs < 10 * 60 * 1000
+  ) {
     return { sent: true };
   }
 
@@ -448,7 +461,7 @@ export async function sendImmediateKind(
 
   const fromName = resolveEmailSenderDisplayName(settings, delivery.sender.name);
   const claimNow = new Date().toISOString();
-  if (prior?.id) {
+  if (!calendarResend && prior?.id) {
     await sb
       .from("reservation_email_outbox")
       .update({
@@ -458,7 +471,7 @@ export async function sendImmediateKind(
       })
       .eq("id", prior.id)
       .is("sent_at", null);
-  } else {
+  } else if (!calendarResend) {
     await sb.from("reservation_email_outbox").upsert(
       {
         restaurant_id: row.restaurant_id,
@@ -474,9 +487,24 @@ export async function sendImmediateKind(
     );
   }
 
+  const calendar =
+    kind === "confirmed"
+      ? await loadReservationCalendarFile(sb, row.id)
+      : null;
   const result = await sendReservationEmail(
     { ...delivery, sender: { ...delivery.sender, name: fromName } },
-    { to: to!, subject, text },
+    {
+      to: to!,
+      subject,
+      text,
+      icalEvent: calendar
+        ? {
+            filename: calendar.filename,
+            method: "REQUEST",
+            content: calendar.content,
+          }
+        : undefined,
+    },
   );
 
   if (!result.ok) {
@@ -492,7 +520,11 @@ export async function sendImmediateKind(
       .eq("reservation_id", row.id)
       .eq("message_kind", kind)
       .is("sent_at", null);
-    return { sent: false, error: result.error };
+    return { sent: false, error: result.error, calendarAttached: false };
+  }
+
+  if (calendar) {
+    await rememberReservationCalendarEmailed(sb, row.id, calendar.fingerprint);
   }
 
   await sb.from("reservation_email_outbox").upsert(
@@ -519,7 +551,37 @@ export async function sendImmediateKind(
     deliveryStatus: "sent",
   });
 
-  return { sent: true };
+  return { sent: true, calendarAttached: Boolean(calendar) };
+}
+
+async function sendConfirmedCalendarUpdate(
+  sb: SupabaseClient,
+  row: ReservationForEmail,
+  settings: ReservationEmailSettings,
+  options?: ReservationDispatchOptions,
+): Promise<void> {
+  const calendar: ReservationCalendarFile | null = await loadReservationCalendarFile(
+    sb,
+    row.id,
+  );
+  if (!calendar) return;
+  const claim = await claimReservationCalendarEmailUpdate(
+    sb,
+    row.id,
+    calendar.fingerprint,
+  );
+  if (!claim.send) return;
+  const send = await sendImmediateKind(sb, row, "confirmed", settings, options, {
+    calendarResend: true,
+  });
+  if (!send.sent || !send.calendarAttached) {
+    await restoreReservationCalendarEmailedFingerprint(
+      sb,
+      row.id,
+      calendar.fingerprint,
+      claim.previous,
+    );
+  }
 }
 
 export async function scheduleTimedMessages(
@@ -617,6 +679,9 @@ export async function dispatchReservationEmail(
 
   if (event === "rescheduled") {
     await scheduleTimedMessages(sb, row, settings);
+    if (row.status_code === "confirmed") {
+      await sendConfirmedCalendarUpdate(sb, row, settings, options);
+    }
     return { ok: true };
   }
 

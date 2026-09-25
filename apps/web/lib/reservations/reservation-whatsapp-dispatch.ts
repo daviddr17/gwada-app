@@ -26,6 +26,8 @@ import {
 import { wahaPseudoContactIdFromChatId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { resolveContactIdByWhatsappChat } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
+import { wahaSendFile } from "@/lib/whatsapp/waha-send-media";
+import { loadReservationCalendarFile } from "@/lib/reservations/reservation-calendar-server";
 import { findReservationWhatsappSendEvidence } from "@/lib/whatsapp/reconcile-waha-outbound-send-server";
 import {
   decideWhatsappRetry,
@@ -358,6 +360,43 @@ async function cancelOutboxKinds(
 
 export type { ReservationDispatchOptions };
 
+/** Dieselbe ICS wie die Mail, als Dokument. WhatsApp übernimmt sie nicht in den Kalender. */
+async function sendConfirmedCalendarDocument(params: {
+  sb: SupabaseClient;
+  kind: string;
+  reservationId: string;
+  restaurantId: string;
+  chatId: string;
+}): Promise<void> {
+  if (params.kind !== "confirmed") return;
+  const file = await loadReservationCalendarFile(params.sb, params.reservationId);
+  if (!file) return;
+  const base64 = Buffer.from(file.content, "utf8").toString("base64");
+  const payload = {
+    restaurantId: params.restaurantId,
+    chatId: params.chatId,
+    caption: "Kalenderdatei zur Reservierung",
+    file: {
+      fileName: file.filename,
+      mimeType: "text/calendar",
+      base64,
+    },
+  };
+  const sent = await wahaSendFile(payload);
+  if (sent.ok) return;
+  const asDocument = await wahaSendFile({
+    ...payload,
+    file: { ...payload.file, mimeType: "application/octet-stream" },
+  });
+  if (!asDocument.ok) {
+    console.warn(
+      "[reservation-calendar] whatsapp",
+      sent.error,
+      asDocument.error,
+    );
+  }
+}
+
 async function markWhatsappOutboxSent(
   sb: SupabaseClient,
   row: ReservationForWhatsapp,
@@ -447,6 +486,13 @@ export async function sendImmediateKind(
     });
 
     if (evidence.status === "confirmed") {
+      await sendConfirmedCalendarDocument({
+        sb,
+        kind,
+        reservationId: row.id,
+        restaurantId: row.restaurant_id,
+        chatId,
+      });
       await markWhatsappOutboxSent(sb, row, kind, evidence.wahaMessageId);
       return { sent: true, wahaMessageId: evidence.wahaMessageId ?? null };
     }
@@ -551,6 +597,13 @@ export async function sendImmediateKind(
           wahaMessageId: after.wahaMessageId,
         });
       }
+      await sendConfirmedCalendarDocument({
+        sb,
+        kind,
+        reservationId: row.id,
+        restaurantId: row.restaurant_id,
+        chatId,
+      });
       await markWhatsappOutboxSent(sb, row, kind, after.wahaMessageId);
       return {
         sent: true,
@@ -587,6 +640,14 @@ export async function sendImmediateKind(
       wahaMessageId: result.wahaMessageId,
     });
   }
+
+  await sendConfirmedCalendarDocument({
+    sb,
+    kind,
+    reservationId: row.id,
+    restaurantId: row.restaurant_id,
+    chatId,
+  });
 
   await sb.from("reservation_whatsapp_outbox").upsert(
     {
@@ -960,6 +1021,13 @@ export async function processDueWhatsappOutbox(
         })
       : { status: "absent" as const };
     if (evidence.status === "confirmed") {
+      await sendConfirmedCalendarDocument({
+        sb,
+        kind,
+        reservationId: row.id,
+        restaurantId: row.restaurant_id,
+        chatId,
+      });
       await sb
         .from("reservation_whatsapp_outbox")
         .update({
@@ -1042,6 +1110,13 @@ export async function processDueWhatsappOutbox(
           wahaMessageId: result.wahaMessageId,
         });
       }
+      await sendConfirmedCalendarDocument({
+        sb,
+        kind,
+        reservationId: row.id,
+        restaurantId: row.restaurant_id,
+        chatId,
+      });
       await sb
         .from("reservation_whatsapp_outbox")
         .update({
@@ -1071,6 +1146,13 @@ export async function processDueWhatsappOutbox(
           wahaMessageId: after.wahaMessageId,
         });
       }
+      await sendConfirmedCalendarDocument({
+        sb,
+        kind,
+        reservationId: row.id,
+        restaurantId: row.restaurant_id,
+        chatId,
+      });
       await sb
         .from("reservation_whatsapp_outbox")
         .update({

@@ -2919,6 +2919,9 @@ export type Database = {
           status_before_change_id: string | null
           status_id: string
           terms_accepted: boolean
+          calendar_emailed_fingerprint: string | null
+          calendar_fingerprint: string | null
+          calendar_sequence: number
           updated_at: string
         }
         Insert: {
@@ -2956,6 +2959,9 @@ export type Database = {
           status_before_change_id?: string | null
           status_id: string
           terms_accepted?: boolean
+          calendar_emailed_fingerprint?: string | null
+          calendar_fingerprint?: string | null
+          calendar_sequence?: number
           updated_at?: string
         }
         Update: {
@@ -2993,6 +2999,9 @@ export type Database = {
           status_before_change_id?: string | null
           status_id?: string
           terms_accepted?: boolean
+          calendar_emailed_fingerprint?: string | null
+          calendar_fingerprint?: string | null
+          calendar_sequence?: number
           updated_at?: string
         }
         Relationships: [

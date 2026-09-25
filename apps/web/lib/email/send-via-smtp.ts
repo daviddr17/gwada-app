@@ -9,6 +9,12 @@ export type SmtpAttachmentPart = {
   contentType: string;
 };
 
+export type SmtpIcalEvent = {
+  filename: string;
+  method: "REQUEST" | "PUBLISH" | "CANCEL";
+  content: string;
+};
+
 export type SmtpSendPayload = {
   to: string;
   subject: string;
@@ -17,6 +23,8 @@ export type SmtpSendPayload = {
   fromName: string;
   replyTo?: string;
   attachments?: SmtpAttachmentPart[];
+  /** iMIP: text/calendar mit METHOD, damit Mailprogramme denselben Termin aktualisieren. */
+  icalEvent?: SmtpIcalEvent;
 };
 
 export async function sendViaSmtp(
@@ -58,6 +66,13 @@ export async function sendViaSmtp(
       subject: payload.subject,
       text: payload.text,
       html: payload.html,
+      icalEvent: payload.icalEvent
+        ? {
+            filename: payload.icalEvent.filename,
+            method: payload.icalEvent.method,
+            content: payload.icalEvent.content,
+          }
+        : undefined,
       attachments: payload.attachments?.map((a) => ({
         filename: a.filename,
         content: a.content,

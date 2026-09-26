@@ -1544,7 +1544,11 @@ export function ReservationEditDrawer({
                         setEndTimeHm(addMinutesToHm(next, mins));
                       }
                     }}
-                    className={cn(fieldClass, "tabular-nums")}
+                    className={cn(
+                      fieldClass,
+                      "tabular-nums",
+                      "max-sm:box-border max-sm:max-w-[calc(100%-1.5rem)]",
+                    )}
                   />
                 </div>
               </div>

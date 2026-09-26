@@ -47,6 +47,10 @@ import { ReservationGwadaReviewStarButton } from "@/components/reservations/rese
 import { ReservationQuickAcceptButton } from "@/components/reservations/reservation-quick-accept-button";
 import { formatDayHeadingDe } from "@/lib/reservations/month-range";
 import {
+  formatReservationDaySheetSummary,
+  reservationDayOverviewFacts,
+} from "@/lib/reservations/reservation-day-overview-facts";
+import {
   isConfirmedReservationStatus,
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
@@ -134,6 +138,11 @@ type DayReservationsDrawerProps = {
   }) => void;
   onDataChanged?: () => void;
   onDayNotesChanged?: () => void;
+  /**
+   * Geplante Mitarbeiter dieses Tages, dieselbe Zahl wie der Chip am Tageskopf.
+   * `null`, solange der Zähler noch nicht geladen ist — dann keine 0 erfinden.
+   */
+  scheduledStaffCount?: number | null;
 };
 
 function sortReservations(
@@ -419,6 +428,7 @@ export function DayReservationsDrawer({
   onCreateReservation,
   onDataChanged,
   onDayNotesChanged,
+  scheduledStaffCount = null,
 }: DayReservationsDrawerProps) {
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const timeFmt = useMemo(
@@ -990,6 +1000,11 @@ export function DayReservationsDrawer({
 
   const dayTitle = day ? formatDayHeadingDe(day) : "";
   const serviceDateYmd = day ? localDateStringForDate(day) : null;
+  const dayFacts = reservationDayOverviewFacts(reservations);
+  const daySummary = formatReservationDaySheetSummary({
+    ...dayFacts,
+    staffCount: scheduledStaffCount,
+  });
 
   return (
     <>
@@ -1019,9 +1034,7 @@ export function DayReservationsDrawer({
                 Tagesübersicht Reservierungen
               </DrawerDescription>
               <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-                {sorted.length === 1
-                  ? "1 Reservierung"
-                  : `${sorted.length} Reservierungen`}
+                {daySummary}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">

@@ -89,6 +89,7 @@ import {
 } from "@/lib/ui/module-search-filter-toolbar";
 import { publicHolidayChipClassName } from "@/lib/ui/public-holiday-chip";
 import { reservationMatchesGuestSearch } from "@/lib/reservations/reservation-guest-search";
+import { reservationDayOverviewFacts } from "@/lib/reservations/reservation-day-overview-facts";
 import { useReservationGwadaReviews } from "@/lib/hooks/use-reservation-gwada-reviews";
 import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gwada-review-types";
 import { cn } from "@/lib/utils";
@@ -345,6 +346,8 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   const [shiftStaffCountsByDate, setShiftStaffCountsByDate] = useState<
     Map<string, number>
   >(new Map());
+  /** Erst nach dem Schichtplan-Fetch. Vorher keine 0 in der Tagesübersicht. */
+  const [shiftStaffCountsReady, setShiftStaffCountsReady] = useState(false);
   const [dayNotesReloadNonce, setDayNotesReloadNonce] = useState(0);
   const [dayNotesSheetOpen, setDayNotesSheetOpen] = useState(false);
   const [dayNotesSheetDay, setDayNotesSheetDay] = useState<Date | null>(null);
@@ -1031,8 +1034,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
   useEffect(() => {
     if (!workspaceRestaurantId || !dbOk) {
       setShiftStaffCountsByDate(new Map());
+      setShiftStaffCountsReady(false);
       return;
     }
+    setShiftStaffCountsReady(false);
     let cancelled = false;
     void (async () => {
       const { data, error } = await fetchScheduledStaffCountsByDayForRange(
@@ -1044,9 +1049,11 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
       if (cancelled) return;
       if (error) {
         setShiftStaffCountsByDate(new Map());
+        setShiftStaffCountsReady(false);
         return;
       }
       setShiftStaffCountsByDate(data);
+      setShiftStaffCountsReady(true);
     })();
     return () => {
       cancelled = true;
@@ -1320,12 +1327,11 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           const key = gridDayKey(d, restaurantTimeZone);
           const holidayName = holidaysByDate[key];
           const list = byDay.get(key) ?? [];
-          const liveList = list.filter(reservationCountsTowardDayStats);
-          const guestLive = liveList.filter((r) => !isPrivateEventReservation(r));
-          const eventLive = liveList.filter(isPrivateEventReservation);
-          const resCount = guestLive.length;
-          const eventCount = eventLive.length;
-          const partyTotal = liveList.reduce((sum, r) => sum + r.party_size, 0);
+          const {
+            reservationCount: resCount,
+            eventCount,
+            partySize: partyTotal,
+          } = reservationDayOverviewFacts(list);
           return (
             <Card
               key={key}
@@ -1754,6 +1760,13 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
         }
         onDataChanged={invalidateReservations}
         onDayNotesChanged={() => setDayNotesReloadNonce((n) => n + 1)}
+        scheduledStaffCount={
+          daySheetDay && shiftStaffCountsReady
+            ? (shiftStaffCountsByDate.get(
+                gridDayKey(daySheetDay, restaurantTimeZone),
+              ) ?? 0)
+            : null
+        }
       />
 
       <ReservationDayNotesSheet

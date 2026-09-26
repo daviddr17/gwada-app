@@ -18,6 +18,7 @@ async function wahaPostSend(
     file: WahaOutboundFile;
     caption?: string;
     convert?: boolean;
+    timeoutMs?: number;
   },
 ): Promise<
   | { ok: true; wahaMessageId?: string | null }
@@ -59,6 +60,10 @@ async function wahaPostSend(
       },
       body: JSON.stringify(body),
       cache: "no-store",
+      signal:
+        params.timeoutMs != null
+          ? AbortSignal.timeout(params.timeoutMs)
+          : undefined,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "fetch_failed";
@@ -106,6 +111,7 @@ export async function wahaSendFile(params: {
   chatId: string;
   file: WahaOutboundFile;
   caption?: string;
+  timeoutMs?: number;
 }): Promise<
   | { ok: true; wahaMessageId?: string | null }
   | { ok: false; error: string }

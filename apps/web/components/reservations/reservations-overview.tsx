@@ -49,7 +49,18 @@ import {
   fetchReservationById,
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
-import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import {
+  isUuidRestaurantId,
+  loadOpeningHoursForRestaurant,
+} from "@/lib/supabase/opening-hours-db";
+import { defaultWeeklyHours } from "@/lib/constants/restaurant-profile";
+import { formatDayHoursLabel } from "@/lib/opening-hours/embed-display-utils";
+import { resolveHoursForRestaurantCalendarDay } from "@/lib/reservations/day-opening-slots";
+import type {
+  DateHoursException,
+  DayHours,
+  Weekday,
+} from "@/lib/types/restaurant";
 import {
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
@@ -235,6 +246,10 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     supabaseEnvOk,
     ready: workspaceReady,
   } = useWorkspaceRestaurantUuid();
+  const [openingHoursBundle, setOpeningHoursBundle] = useState<{
+    weekly: Record<Weekday, DayHours>;
+    exceptions: DateHoursException[];
+  } | null>(null);
   const {
     mode: overviewViewMode,
     setMode: setOverviewViewMode,
@@ -1059,6 +1074,33 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
     restaurantTimeZone,
   ]);
 
+  useEffect(() => {
+    if (!workspaceRestaurantId || !dbOk) {
+      setOpeningHoursBundle(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const loaded = await loadOpeningHoursForRestaurant(workspaceRestaurantId);
+      if (cancelled) return;
+      if (loaded) {
+        setOpeningHoursBundle({
+          weekly: loaded.weeklyHours,
+          exceptions: loaded.dateExceptions,
+        });
+        return;
+      }
+      // DB kurz nicht erreichbar: Wochenplan-Defaults, damit die Meta-Zeile nicht leer bleibt
+      setOpeningHoursBundle({
+        weekly: defaultWeeklyHours(),
+        exceptions: [],
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceRestaurantId, dbOk]);
+
   const filterActiveCount = useMemo(() => {
     if (unconfirmedUi) {
       let n = 1;
@@ -1326,6 +1368,13 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
           const resCount = guestLive.length;
           const eventCount = eventLive.length;
           const partyTotal = liveList.reduce((sum, r) => sum + r.party_size, 0);
+          const staffCount = shiftStaffCountsByDate.get(key) ?? 0;
+          const dayHours = resolveHoursForRestaurantCalendarDay(
+            key,
+            openingHoursBundle?.weekly ?? defaultWeeklyHours(),
+            openingHoursBundle?.exceptions ?? [],
+          );
+          const hoursLabel = formatDayHoursLabel(dayHours, "Geschlossen");
           return (
             <Card
               key={key}
@@ -1402,14 +1451,42 @@ export function ReservationsOverview({ active = true }: { active?: boolean }) {
                           ? "1 Person"
                           : `${partyTotal} Personen`}
                       </span>
+                      <span aria-hidden>·</span>
+                      {staffCount > 0 ? (
+                        <button
+                          type="button"
+                          className="font-medium text-foreground underline-offset-2 hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShiftStaffSheetDay(d);
+                            setShiftStaffSheetOpen(true);
+                          }}
+                        >
+                          {staffCount === 1
+                            ? "1 Mitarbeiter"
+                            : `${staffCount} Mitarbeiter`}
+                        </button>
+                      ) : (
+                        <span>0 Mitarbeiter</span>
+                      )}
+                      <span aria-hidden>·</span>
+                      <span
+                        className={
+                          dayHours.closed
+                            ? "font-medium text-destructive"
+                            : undefined
+                        }
+                      >
+                        {hoursLabel}
+                      </span>
                     </div>
                   </div>
-                  {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ||
+                  {staffCount > 0 ||
                   (dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
                     <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
-                      {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
+                      {staffCount > 0 ? (
                         <ReservationDayShiftStaffOverviewChip
-                          count={shiftStaffCountsByDate.get(key) ?? 0}
+                          count={staffCount}
                           onClick={() => {
                             setShiftStaffSheetDay(d);
                             setShiftStaffSheetOpen(true);

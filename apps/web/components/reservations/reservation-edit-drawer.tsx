@@ -93,7 +93,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DatePickerField } from "@/components/ui/date-picker";
+import {
+  DatePickerField,
+  formScheduleTimeInputClassName,
+} from "@/components/ui/date-picker";
 import { localDayToYmd } from "@/lib/reservations/datetime-local";
 import {
   DEFAULT_RESTAURANT_TIMEZONE,
@@ -1544,7 +1547,7 @@ export function ReservationEditDrawer({
                         setEndTimeHm(addMinutesToHm(next, mins));
                       }
                     }}
-                    className={cn(fieldClass, "tabular-nums")}
+                    className={formScheduleTimeInputClassName}
                   />
                 </div>
               </div>
@@ -1561,7 +1564,7 @@ export function ReservationEditDrawer({
                     type="time"
                     value={endTimeHm}
                     onChange={(e) => setEndTimeHm(e.target.value)}
-                    className={cn(fieldClass, "max-w-[12rem] tabular-nums")}
+                    className={formScheduleTimeInputClassName}
                   />
                   <p className="text-[11px] text-muted-foreground">
                     Liegt die Endzeit vor der Startzeit, gilt der Folgetag.

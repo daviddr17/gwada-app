@@ -25,9 +25,13 @@ import {
 } from "@/lib/contact-messages/outbound-whatsapp-db-server";
 import { wahaPseudoContactIdFromChatId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { resolveContactIdByWhatsappChat } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
-import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
+import {
+  WAHA_SEND_TEXT_TIMEOUT_MS,
+  wahaSendText,
+} from "@/lib/whatsapp/waha-send-text";
 import { wahaSendFile } from "@/lib/whatsapp/waha-send-media";
 import { loadReservationCalendarFile } from "@/lib/reservations/reservation-calendar-server";
+import { shouldSendReservationConfirmationText } from "@/lib/reservations/reservation-whatsapp-calendar-send";
 import { findReservationWhatsappSendEvidence } from "@/lib/whatsapp/reconcile-waha-outbound-send-server";
 import {
   decideWhatsappRetry,
@@ -363,7 +367,40 @@ async function cancelOutboxKinds(
 
 export type { ReservationDispatchOptions };
 
-/** Bestätigungstext als Caption, dieselbe ICS als Anhang dieser einen Nachricht. */
+async function sendConfirmationCalendarFile(params: {
+  restaurantId: string;
+  chatId: string;
+  text: string;
+  filename: string;
+  content: string;
+}): Promise<
+  | { ok: true; wahaMessageId?: string | null }
+  | { ok: false; error: string }
+> {
+  const base64 = Buffer.from(params.content, "utf8").toString("base64");
+  const payload = {
+    restaurantId: params.restaurantId,
+    chatId: params.chatId,
+    caption: params.text,
+    timeoutMs: WAHA_SEND_TEXT_TIMEOUT_MS,
+    file: {
+      fileName: params.filename,
+      mimeType: "text/calendar",
+      base64,
+    },
+  };
+  const sent = await wahaSendFile(payload);
+  if (sent.ok) return sent;
+  const asDocument = await wahaSendFile({
+    ...payload,
+    file: { ...payload.file, mimeType: "application/octet-stream" },
+  });
+  if (asDocument.ok) return asDocument;
+  console.warn("[reservation-calendar] whatsapp", sent.error, asDocument.error);
+  return { ok: false, error: asDocument.error };
+}
+
+/** Bestätigungstext als Caption, dieselbe ICS als Anhang — sonst nur der Text. */
 async function sendWhatsappBody(params: {
   sb: SupabaseClient;
   kind: string;
@@ -377,31 +414,32 @@ async function sendWhatsappBody(params: {
 > {
   if (params.kind === "confirmed") {
     const file = await loadReservationCalendarFile(params.sb, params.reservationId);
-    if (file) {
-      const base64 = Buffer.from(file.content, "utf8").toString("base64");
-      const payload = {
-        restaurantId: params.restaurantId,
-        chatId: params.chatId,
-        caption: params.text,
-        file: {
-          fileName: file.filename,
-          mimeType: "text/calendar",
-          base64,
-        },
-      };
-      const sent = await wahaSendFile(payload);
-      if (sent.ok) return sent;
-      const asDocument = await wahaSendFile({
-        ...payload,
-        file: { ...payload.file, mimeType: "application/octet-stream" },
-      });
-      if (asDocument.ok) return asDocument;
-      console.warn(
-        "[reservation-calendar] whatsapp",
-        sent.error,
-        asDocument.error,
-      );
-      return { ok: false, error: asDocument.error };
+    const attached = file
+      ? await sendConfirmationCalendarFile({
+          restaurantId: params.restaurantId,
+          chatId: params.chatId,
+          text: params.text,
+          filename: file.filename,
+          content: file.content,
+        })
+      : null;
+    const already =
+      file && attached && !attached.ok
+        ? await findConfirmedCalendarWhatsapp({
+            restaurantId: params.restaurantId,
+            chatId: params.chatId,
+            body: params.text,
+            sinceMs: Date.now() - 5 * 60 * 1000,
+          })
+        : null;
+    if (
+      !shouldSendReservationConfirmationText({
+        calendarAttached: Boolean(attached?.ok),
+        alreadyDelivered: Boolean(already),
+      })
+    ) {
+      if (attached?.ok) return attached;
+      return { ok: true, wahaMessageId: already?.id ?? null };
     }
   }
   return wahaSendText({
@@ -530,7 +568,8 @@ export async function sendImmediateKind(
       await markWhatsappOutboxSent(sb, row, kind, already.id);
       return { sent: true, messageBody: text, wahaMessageId: already.id };
     }
-  } else if (prior) {
+  }
+  if (prior) {
     const evidence = await findReservationWhatsappSendEvidence({
       sb,
       restaurantId: row.restaurant_id,
@@ -640,17 +679,14 @@ export async function sendImmediateKind(
             sinceMs: Number.isFinite(firstSendAtMs) ? firstSendAtMs : Date.parse(claimNow),
           })
         : null;
-    const afterText =
-      kind === "confirmed"
-        ? null
-        : await findReservationWhatsappSendEvidence({
-            sb,
-            restaurantId: row.restaurant_id,
-            reservationId: row.id,
-            chatId,
-            body: text,
-            sinceMs: Number.isFinite(firstSendAtMs) ? firstSendAtMs : Date.parse(claimNow),
-          });
+    const afterText = await findReservationWhatsappSendEvidence({
+      sb,
+      restaurantId: row.restaurant_id,
+      reservationId: row.id,
+      chatId,
+      body: text,
+      sinceMs: Number.isFinite(firstSendAtMs) ? firstSendAtMs : Date.parse(claimNow),
+    });
     const afterId = after?.id ?? afterText?.wahaMessageId;
     const afterConfirmed = Boolean(after) || afterText?.status === "confirmed";
     if (afterConfirmed) {
@@ -1055,7 +1091,7 @@ export async function processDueWhatsappOutbox(
     const firstSendAtMs = item.send_at ? Date.parse(item.send_at) : Date.now();
     const { data: outboxMeta } = await sb
       .from("reservation_whatsapp_outbox")
-      .select("last_error, attempt_count")
+      .select("last_error, attempt_count, last_attempt_at")
       .eq("id", item.id)
       .maybeSingle();
     const needsReconcile =
@@ -1082,19 +1118,22 @@ export async function processDueWhatsappOutbox(
         continue;
       }
     }
-    const evidence =
-      kind === "confirmed"
-        ? { status: "absent" as const }
-        : needsReconcile
-          ? await findReservationWhatsappSendEvidence({
-              sb,
-              restaurantId: row.restaurant_id,
-              reservationId: row.id,
-              chatId,
-              body: text,
-              sinceMs,
-            })
-          : { status: "absent" as const };
+    const evidence = needsReconcile
+      ? await findReservationWhatsappSendEvidence({
+          sb,
+          restaurantId: row.restaurant_id,
+          reservationId: row.id,
+          chatId,
+          body: text,
+          sinceMs,
+        })
+      : { status: "absent" as const };
+    const lastAttemptRaw = (
+      outboxMeta as { last_attempt_at?: string | null } | null
+    )?.last_attempt_at;
+    const lastAttemptMs = lastAttemptRaw
+      ? Date.parse(String(lastAttemptRaw))
+      : Number.NaN;
     if (evidence.status === "confirmed") {
       await sb
         .from("reservation_whatsapp_outbox")
@@ -1111,7 +1150,14 @@ export async function processDueWhatsappOutbox(
       const decision = decideWhatsappRetry({
         evidence: evidence.status,
         firstSendAtMs: Number.isFinite(firstSendAtMs) ? firstSendAtMs : Date.now(),
-        claimedAtMs: Date.now(),
+        // Bestätigung: letzter Versuch, nicht „jetzt“. Sonst wartet jeder Cron
+        // und der Text geht nach einem fehlgeschlagenen Kalender-Anhang nie raus.
+        claimedAtMs:
+          kind === "confirmed"
+            ? Number.isFinite(lastAttemptMs)
+              ? lastAttemptMs
+              : null
+            : Date.now(),
       });
       if (decision === "wait") {
         continue;
@@ -1202,20 +1248,17 @@ export async function processDueWhatsappOutbox(
             sinceMs,
           })
         : null;
-    const after =
-      kind === "confirmed"
-        ? {
-            status: afterMedia ? ("confirmed" as const) : ("absent" as const),
-            wahaMessageId: afterMedia?.id,
-          }
-        : await findReservationWhatsappSendEvidence({
-            sb,
-            restaurantId: row.restaurant_id,
-            reservationId: row.id,
-            chatId,
-            body: text,
-            sinceMs,
-          });
+    const afterTextEvidence = await findReservationWhatsappSendEvidence({
+      sb,
+      restaurantId: row.restaurant_id,
+      reservationId: row.id,
+      chatId,
+      body: text,
+      sinceMs,
+    });
+    const after = afterMedia
+      ? { status: "confirmed" as const, wahaMessageId: afterMedia.id }
+      : afterTextEvidence;
     if (after.status === "confirmed") {
       if (pending.ok) {
         await finalizeOutboundWhatsappMessage(sb, {

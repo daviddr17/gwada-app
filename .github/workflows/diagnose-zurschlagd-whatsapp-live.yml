@@ -25,7 +25,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Apply deposit migration on 10.0.2.6
+      - name: Apply deposit migration on the live app database
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
@@ -35,20 +35,21 @@ jobs:
             "root@${LIVE_VPS_HOST}:/tmp/reservation-deposit-settings.sql"
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" bash -s <<'REMOTE'
           set -euo pipefail
-          target=10.0.2.6
-          cid=""
-          for c in $(docker ps -q); do
-            ips="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$c")"
-            case " ${ips} " in
-              *" ${target} "*) cid="$c"; break ;;
-            esac
-          done
-          if [[ -z "${cid}" ]]; then
-            echo "Kein Container mit IP ${target}."
+          name="supabase-db-oogd5syyxiqb1k4g0wy1u9n8"
+          cid="$(docker ps -q --filter "name=${name}" | head -1)"
+          actual="$(docker inspect -f '{{.Name}}' "${cid}" 2>/dev/null || true)"
+          if [[ "${actual}" != "/${name}" ]]; then
+            echo "Container ${name} nicht gefunden (actual=${actual})."
             docker ps --format '{{.Names}}'
             exit 1
           fi
-          echo "container=$(docker inspect -f '{{.Name}}' "${cid}") ip=${target}"
+          if [[ -z "${cid}" ]]; then
+            echo "Container ${name} nicht gefunden."
+            docker ps --format '{{.Names}}'
+            exit 1
+          fi
+          ip="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "${cid}")"
+          echo "container=${name} ip=${ip}"
           docker exec -i "${cid}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
             < /tmp/reservation-deposit-settings.sql
           docker exec -i "${cid}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \

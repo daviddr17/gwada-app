@@ -10,10 +10,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  apply-deposit:
+  apply-mollie-adyen:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ef72bfed0c261e118f525d593c25941cddee0a87
 
       - name: Setup SSH
         env:
@@ -25,14 +27,14 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Apply deposit migration on the live app database
+      - name: Apply Mollie and Adyen migration on the live app database
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
           set -euo pipefail
           scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
-            supabase/migrations/20260929163306_reservation_deposit_settings.sql \
-            "root@${LIVE_VPS_HOST}:/tmp/reservation-deposit-settings.sql"
+            supabase/migrations/20260929190000_mollie_adyen_connect.sql \
+            "root@${LIVE_VPS_HOST}:/tmp/mollie-adyen-connect.sql"
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" bash -s <<'REMOTE'
           set -euo pipefail
           name="supabase-db-oogd5syyxiqb1k4g0wy1u9n8"
@@ -43,18 +45,15 @@ jobs:
             docker ps --format '{{.Names}}'
             exit 1
           fi
-          if [[ -z "${cid}" ]]; then
-            echo "Container ${name} nicht gefunden."
-            docker ps --format '{{.Names}}'
-            exit 1
-          fi
           ip="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "${cid}")"
           echo "container=${name} ip=${ip}"
           docker exec -i "${cid}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
-            < /tmp/reservation-deposit-settings.sql
+            < /tmp/mollie-adyen-connect.sql
           docker exec -i "${cid}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
             -c "NOTIFY pgrst, 'reload schema';"
           docker exec -i "${cid}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
-            "select column_name from information_schema.columns where table_schema = 'public' and table_name = 'restaurant_reservation_settings' and column_name like 'deposit_%' order by 1;"
-          rm -f /tmp/reservation-deposit-settings.sql
+            "select to_regclass('public.restaurant_mollie_connections') as mollie, to_regclass('public.restaurant_adyen_connections') as adyen;"
+          docker exec -i "${cid}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+            "select key, enabled from public.platform_integrations where key in ('mollie','adyen') order by 1;"
+          rm -f /tmp/mollie-adyen-connect.sql
           REMOTE

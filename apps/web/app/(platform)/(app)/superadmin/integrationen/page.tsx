@@ -12,6 +12,8 @@ import { IntegrationProviderCard } from "@/components/superadmin/integration-pro
 import { PlatformEmailSmtpCard } from "@/components/superadmin/platform-email-smtp-card";
 import { PlatformFiskalyFeatureCard } from "@/components/superadmin/platform-fiskaly-feature-card";
 import { PlatformStripeFeatureCard } from "@/components/superadmin/platform-stripe-feature-card";
+import { PlatformMollieFeatureCard } from "@/components/superadmin/platform-mollie-feature-card";
+import { PlatformAdyenFeatureCard } from "@/components/superadmin/platform-adyen-feature-card";
 import { PlatformLexofficeFeatureCard } from "@/components/superadmin/platform-lexoffice-feature-card";
 import { PlatformTripadvisorFeatureCard } from "@/components/superadmin/platform-tripadvisor-feature-card";
 import { PlatformAppleBusinessConnectFeatureCard } from "@/components/superadmin/platform-apple-business-connect-feature-card";
@@ -134,6 +136,8 @@ const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow>
     config: {},
     updated_at: "",
   },
+  mollie: { key: "mollie", enabled: false, config: {}, updated_at: "" },
+  adyen: { key: "adyen", enabled: false, config: { env: "test" }, updated_at: "" },
 };
 
 function SuperadminIntegrationsContent() {
@@ -174,6 +178,9 @@ function SuperadminIntegrationsContent() {
     for (const r of rows) m.set(r.key, r);
     return m;
   }, [rows]);
+
+  const mollieRow = byKey.get("mollie") ?? EMPTY_PLATFORM_ROW.mollie;
+  const adyenRow = byKey.get("adyen") ?? EMPTY_PLATFORM_ROW.adyen;
 
   return (
     <div className="space-y-6 pt-2">
@@ -245,6 +252,20 @@ function SuperadminIntegrationsContent() {
             row={byKey.get("stripe") ?? EMPTY_PLATFORM_ROW.stripe}
             onSaved={() => void load()}
             connection={healthMap.stripe}
+            connectionChecking={healthLoading}
+          />
+          <PlatformMollieFeatureCard
+            key={`mollie-${mollieRow.updated_at}-${String(mollieRow.enabled)}`}
+            row={mollieRow}
+            onSaved={() => void load()}
+            connection={healthMap.mollie}
+            connectionChecking={healthLoading}
+          />
+          <PlatformAdyenFeatureCard
+            key={`adyen-${adyenRow.updated_at}-${String(adyenRow.enabled)}`}
+            row={adyenRow}
+            onSaved={() => void load()}
+            connection={healthMap.adyen}
             connectionChecking={healthLoading}
           />
           <PlatformWeatherFeatureCard

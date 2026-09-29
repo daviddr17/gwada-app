@@ -200,7 +200,13 @@ export function pickMetaPageForInstagram(
 }
 
 export function settingsIntegrationsUrl(params?: {
-  provider?: "facebook" | "instagram" | "google_business" | "email";
+  provider?:
+    | "facebook"
+    | "instagram"
+    | "google_business"
+    | "email"
+    | "mollie"
+    | "adyen";
   result?: "connected" | "error" | "select_page" | "select_location";
   message?: string;
 }): string {

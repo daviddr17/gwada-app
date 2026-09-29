@@ -24,6 +24,10 @@ import { fetchPlatformTripadvisorConfigAdmin } from "@/lib/supabase/platform-tri
 import { fetchPlatformWeatherConfigAdmin } from "@/lib/supabase/platform-weather-secrets-db";
 import { fetchPlatformWhatsappWahaConfigAdmin } from "@/lib/supabase/platform-whatsapp-secrets-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  adyenConfigFromJson,
+  adyenPlatformSecretsReady,
+} from "@/lib/integrations/platform-adyen-config";
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
 import type {
   SuperadminDatabaseStatus,
@@ -336,6 +340,22 @@ async function checkOAuthIntegration(
   return health("ok", "Zugangsdaten hinterlegt.");
 }
 
+async function checkAdyenConnection(): Promise<SuperadminIntegrationConnectionHealth> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return health("error", "Service-Role nicht konfiguriert.");
+  const { data } = await admin
+    .from("platform_integrations")
+    .select("enabled, config")
+    .eq("key", "adyen")
+    .maybeSingle();
+  if (!data?.enabled) return health("disabled", "Integration ist deaktiviert.");
+  const cfg = adyenConfigFromJson(data.config);
+  if (!adyenPlatformSecretsReady(cfg)) {
+    return health("not_configured", "API-Keys fehlen.");
+  }
+  return health("ok", "API-Keys hinterlegt.");
+}
+
 async function countExact(
   table: "restaurants" | "profiles" | "platform_superadmins",
 ): Promise<number | null> {
@@ -451,6 +471,8 @@ const HEALTH_CHECKERS: Partial<
   facebook: () => checkOAuthIntegration("facebook"),
   instagram: () => checkOAuthIntegration("instagram"),
   google_business: () => checkOAuthIntegration("google_business"),
+  mollie: () => checkOAuthIntegration("mollie"),
+  adyen: checkAdyenConnection,
 };
 
 export async function buildSuperadminIntegrationHealthMap(): Promise<{

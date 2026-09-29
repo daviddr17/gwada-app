@@ -23,6 +23,8 @@ const KEYS = new Set<string>([
   "tripadvisor",
   "apple_business_connect",
   "openai",
+  "mollie",
+  "adyen",
 ]);
 
 function isKey(k: string): k is PlatformIntegrationKey {

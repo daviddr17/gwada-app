@@ -10,6 +10,8 @@ import { InstagramIntegrationCard } from "@/components/settings/instagram-integr
 import { TripadvisorIntegrationCard } from "@/components/settings/tripadvisor-integration-card";
 import { IntegrationenSettingsSkeleton } from "@/components/settings/integrationen-settings-skeleton";
 import { WhatsappIntegrationCard } from "@/components/settings/whatsapp-integration-card";
+import { MollieIntegrationCard } from "@/components/settings/mollie-integration-card";
+import { AdyenIntegrationCard } from "@/components/settings/adyen-integration-card";
 import {
   SettingsIntegrationSaveProvider,
   useSettingsIntegrationSave,
@@ -65,17 +67,20 @@ function IntegrationenContent() {
     tripadvisorEnabled ||
     appleBusinessConnectEnabled;
 
-  if (!anyEnabled) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Derzeit sind keine Integrationen für euer Restaurant freigeschaltet.
-      </p>
-    );
-  }
-
   return (
     <>
       <div className="space-y-6">
+        <Suspense fallback={null}>
+          <MollieIntegrationCard />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AdyenIntegrationCard />
+        </Suspense>
+        {!anyEnabled ? (
+          <p className="text-sm text-muted-foreground">
+            Weitere Integrationen sind derzeit nicht freigeschaltet.
+          </p>
+        ) : null}
         {whatsappEnabled && !hideWhatsappForMetaReview ? (
           <WhatsappIntegrationCard />
         ) : null}

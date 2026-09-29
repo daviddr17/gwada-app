@@ -120,6 +120,22 @@ export function authorizeEmailRestaurantRoute(restaurantIdRaw: string | null) {
   });
 }
 
+export function authorizeMollieRestaurantRoute(restaurantIdRaw: string | null) {
+  return authorizeRestaurantOAuthRoute({
+    restaurantIdRaw,
+    permission: "integrations.mollie",
+    assertPlatform: async () => ({ ok: true as const }),
+  });
+}
+
+export function authorizeAdyenRestaurantRoute(restaurantIdRaw: string | null) {
+  return authorizeRestaurantOAuthRoute({
+    restaurantIdRaw,
+    permission: "integrations.adyen",
+    assertPlatform: async () => ({ ok: true as const }),
+  });
+}
+
 export function authorizeOpeningHoursSettingsRoute(
   restaurantIdRaw: string | null,
 ) {

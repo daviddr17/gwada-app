@@ -1,44 +1,62 @@
 export type PlatformMollieConfig = {
-  api_key?: string;
-  profile_id?: string;
-  webhook_secret?: string;
+  client_id?: string;
+  client_secret?: string;
 };
 
 export type PlatformMollieConfigUi = {
-  api_key_configured?: boolean;
-  profile_id?: string;
-  webhook_secret_configured?: boolean;
+  client_id_configured?: boolean;
+  client_secret_configured?: boolean;
 };
+
+function str(value: unknown): string | undefined {
+  return typeof value === "string" ? value.trim() || undefined : undefined;
+}
 
 export function mollieConfigFromJson(raw: unknown): PlatformMollieConfig {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const o = raw as Record<string, unknown>;
-  const str = (k: string) =>
-    typeof o[k] === "string" ? (o[k] as string).trim() || undefined : undefined;
   return {
-    api_key: str("api_key"),
-    profile_id: str("profile_id"),
-    webhook_secret: str("webhook_secret"),
+    client_id: str(o.client_id),
+    client_secret: str(o.client_secret),
   };
 }
 
+/** Superadmin-UI: keine Klartext-Secrets. */
 export function mollieConfigToUi(
   config: PlatformMollieConfig,
 ): PlatformMollieConfigUi {
   return {
-    api_key_configured: Boolean(config.api_key?.length),
-    profile_id: config.profile_id,
-    webhook_secret_configured: Boolean(config.webhook_secret?.length),
+    client_id_configured: Boolean(config.client_id?.length),
+    client_secret_configured: Boolean(config.client_secret?.length),
   };
 }
 
-export function mergeMollieSecretFields(
-  incoming: { api_key?: string; webhook_secret?: string },
-  existing: PlatformMollieConfig,
-): PlatformMollieConfig {
-  return {
-    ...existing,
-    api_key: incoming.api_key?.trim() || existing.api_key,
-    webhook_secret: incoming.webhook_secret?.trim() || existing.webhook_secret,
-  };
+export function mergeMolliePlatformConfig(
+  existingRaw: unknown,
+  incomingRaw: unknown,
+): Record<string, unknown> {
+  const existing = mollieConfigFromJson(existingRaw);
+  const incoming = mollieConfigFromJson(incomingRaw);
+  const base =
+    existingRaw && typeof existingRaw === "object" && !Array.isArray(existingRaw)
+      ? { ...(existingRaw as Record<string, unknown>) }
+      : {};
+  delete base.client_id_configured;
+  delete base.client_secret_configured;
+  delete base.api_key_configured;
+  delete base.webhook_secret_configured;
+
+  const clientId = incoming.client_id || existing.client_id;
+  const clientSecret = incoming.client_secret || existing.client_secret;
+  if (clientId) base.client_id = clientId;
+  else delete base.client_id;
+  if (clientSecret) base.client_secret = clientSecret;
+  else delete base.client_secret;
+  return base;
+}
+
+export function molliePlatformSecretsReady(
+  config: PlatformMollieConfig,
+): boolean {
+  return Boolean(config.client_id && config.client_secret);
 }

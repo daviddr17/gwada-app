@@ -64,6 +64,10 @@ export type RestaurantReservationSettingsRow = {
   guest_phone_required_enabled: boolean;
   guest_phone_required_min_party_size: number;
   google_booking_link_enabled: boolean;
+  deposit_enabled: boolean;
+  deposit_min_party_size: number;
+  deposit_amount_cents_per_person: number;
+  deposit_due_hours_before: number;
 };
 
 const SETTINGS_SELECT = [
@@ -128,6 +132,10 @@ const SETTINGS_SELECT = [
   "guest_phone_required_enabled",
   "guest_phone_required_min_party_size",
   "google_booking_link_enabled",
+  "deposit_enabled",
+  "deposit_min_party_size",
+  "deposit_amount_cents_per_person",
+  "deposit_due_hours_before",
 ].join(", ");
 
 const WHATSAPP_TEMPLATE_KEY: Record<
@@ -290,6 +298,10 @@ export type UpsertReservationSettingsParams = {
   guestEmailRequiredMinPartySize: number;
   guestPhoneRequiredEnabled: boolean;
   guestPhoneRequiredMinPartySize: number;
+  depositEnabled: boolean;
+  depositMinPartySize: number;
+  depositAmountCentsPerPerson: number;
+  depositDueHoursBefore: number;
 };
 
 export async function upsertReservationSettings(
@@ -372,6 +384,10 @@ export async function upsertReservationSettings(
       guest_email_required_min_party_size: params.guestEmailRequiredMinPartySize,
       guest_phone_required_enabled: params.guestPhoneRequiredEnabled,
       guest_phone_required_min_party_size: params.guestPhoneRequiredMinPartySize,
+      deposit_enabled: params.depositEnabled,
+      deposit_min_party_size: params.depositMinPartySize,
+      deposit_amount_cents_per_person: params.depositAmountCentsPerPerson,
+      deposit_due_hours_before: params.depositDueHoursBefore,
     },
     { onConflict: "restaurant_id" },
   );

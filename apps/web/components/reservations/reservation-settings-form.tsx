@@ -43,6 +43,11 @@ import {
   reviewIncludesFromRow,
   type ReviewRequestIncludes,
 } from "@/lib/reviews/review-request-settings";
+import {
+  depositIsEnabled,
+  depositNumbersForSave,
+  formatDepositAmountInput,
+} from "@/lib/reservations/reservation-deposit-settings";
 import { validateGuestManageUrlTemplate } from "@/lib/reservations/guest-manage-url";
 import {
   BOOKING_TIME_STEP_LABELS,
@@ -132,6 +137,10 @@ type SettingsSnapshot = {
   guestEmailRequiredMinPartySize: string;
   guestPhoneRequiredEnabled: boolean;
   guestPhoneRequiredMinPartySize: string;
+  depositEnabled: boolean;
+  depositMinPartySize: string;
+  depositAmount: string;
+  depositDueHours: string;
 };
 
 function tmplFromRow(
@@ -319,6 +328,12 @@ function rowToSnapshot(
     guestPhoneRequiredMinPartySize: String(
       data?.guest_phone_required_min_party_size ?? 6,
     ),
+    depositEnabled: depositIsEnabled(data),
+    depositMinPartySize: String(data?.deposit_min_party_size ?? 1),
+    depositAmount: formatDepositAmountInput(
+      data?.deposit_amount_cents_per_person ?? 0,
+    ),
+    depositDueHours: String(data?.deposit_due_hours_before ?? 24),
   };
 }
 
@@ -513,6 +528,10 @@ export function ReservationSettingsForm() {
   const [guestPhoneRequiredEnabled, setGuestPhoneRequiredEnabled] = useState(false);
   const [guestPhoneRequiredMinPartySize, setGuestPhoneRequiredMinPartySize] =
     useState("6");
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositMinPartySize, setDepositMinPartySize] = useState("1");
+  const [depositAmount, setDepositAmount] = useState("0,00");
+  const [depositDueHours, setDepositDueHours] = useState("24");
   const [googleBookingLinkEnabled, setGoogleBookingLinkEnabled] = useState(false);
   const [testWhatsappPhone, setTestWhatsappPhone] = useState("");
   const [testEmailAddress, setTestEmailAddress] = useState("");
@@ -567,6 +586,10 @@ export function ReservationSettingsForm() {
       guestEmailRequiredMinPartySize,
       guestPhoneRequiredEnabled,
       guestPhoneRequiredMinPartySize,
+      depositEnabled,
+      depositMinPartySize,
+      depositAmount,
+      depositDueHours,
     }),
     [
       minutes,
@@ -587,6 +610,10 @@ export function ReservationSettingsForm() {
       guestEmailRequiredMinPartySize,
       guestPhoneRequiredEnabled,
       guestPhoneRequiredMinPartySize,
+      depositEnabled,
+      depositMinPartySize,
+      depositAmount,
+      depositDueHours,
     ],
   );
 
@@ -638,6 +665,10 @@ export function ReservationSettingsForm() {
       setGuestEmailRequiredMinPartySize(next.guestEmailRequiredMinPartySize);
       setGuestPhoneRequiredEnabled(next.guestPhoneRequiredEnabled);
       setGuestPhoneRequiredMinPartySize(next.guestPhoneRequiredMinPartySize);
+      setDepositEnabled(next.depositEnabled);
+      setDepositMinPartySize(next.depositMinPartySize);
+      setDepositAmount(next.depositAmount);
+      setDepositDueHours(next.depositDueHours);
       setGoogleBookingLinkEnabled(data?.google_booking_link_enabled === true);
       savedSnapshotRef.current = JSON.stringify(next);
     })();
@@ -795,6 +826,16 @@ export function ReservationSettingsForm() {
       toast.error("Telefon Pflicht: Personenzahl zwischen 1 und 200.");
       return;
     }
+    const deposit = depositNumbersForSave({
+      enabled: depositEnabled,
+      minPartyRaw: depositMinPartySize,
+      amountRaw: depositAmount,
+      dueHoursRaw: depositDueHours,
+    });
+    if (!deposit.ok) {
+      toast.error(deposit.error);
+      return;
+    }
     const footerTrim = embedFormFooterText.trim();
     if (footerTrim.length > EMBED_FOOTER_TEXT_MAX) {
       toast.error(`Hinweistext: maximal ${EMBED_FOOTER_TEXT_MAX} Zeichen.`);
@@ -918,6 +959,10 @@ export function ReservationSettingsForm() {
           guestPhoneRequiredMinPartySize: guestPhoneRequiredEnabled
             ? phoneMinParty
             : 6,
+          depositEnabled,
+          depositMinPartySize: deposit.minParty,
+          depositAmountCentsPerPerson: deposit.amountCents,
+          depositDueHoursBefore: deposit.dueHours,
         });
         if (error) toast.error(error.message);
         else {
@@ -1077,6 +1122,83 @@ export function ReservationSettingsForm() {
                   disabled={loading}
                   onCheckedChange={setWalkInEnabled}
                 />
+              </div>
+            </div>
+
+            <div className="max-w-2xl">
+              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="deposit-enabled" className="text-sm font-medium">
+                      Anzahlung
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Ab der Personenzahl gilt ein Betrag pro Person. Die Zahlung
+                      durch den Gast ist noch nicht angebunden.
+                    </p>
+                  </div>
+                  <Switch
+                    id="deposit-enabled"
+                    checked={depositEnabled}
+                    disabled={loading}
+                    onCheckedChange={setDepositEnabled}
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="deposit-min-party"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Ab Personenzahl
+                    </Label>
+                    <Input
+                      id="deposit-min-party"
+                      type="number"
+                      min={1}
+                      max={200}
+                      disabled={loading || !depositEnabled}
+                      value={depositMinPartySize}
+                      onChange={(e) => setDepositMinPartySize(e.target.value)}
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="deposit-amount"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Betrag pro Person (€)
+                    </Label>
+                    <Input
+                      id="deposit-amount"
+                      type="text"
+                      inputMode="decimal"
+                      disabled={loading || !depositEnabled}
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      className="h-11 rounded-xl tabular-nums"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="deposit-due-hours"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Fällig vor Beginn (Stunden)
+                    </Label>
+                    <Input
+                      id="deposit-due-hours"
+                      type="number"
+                      min={0}
+                      max={720}
+                      disabled={loading || !depositEnabled}
+                      value={depositDueHours}
+                      onChange={(e) => setDepositDueHours(e.target.value)}
+                      className="h-11 rounded-xl tabular-nums"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 

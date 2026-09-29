@@ -17,7 +17,6 @@ import { isPlatformIntegrationEnabledAdmin } from "@/lib/supabase/platform-integ
 import {
   fetchRestaurantAdyenConnectionAdmin,
   saveRestaurantAdyenConnectionAdmin,
-  type AdyenConnectionRow,
 } from "@/lib/supabase/restaurant-adyen-connection-db";
 
 export type AdyenPlatformSecrets = {
@@ -154,9 +153,7 @@ export async function createAdyenHostedOnboardingRedirect(params: {
   const profile = await loadRestaurantLegalName(params.restaurantId);
   if ("error" in profile) return profile;
 
-  const persist = async (
-    patch: Partial<AdyenConnectionRow> & { status?: "disconnected" | "connected" },
-  ) => {
+  const persist = async () => {
     const saved = await saveRestaurantAdyenConnectionAdmin({
       restaurantId: params.restaurantId,
       status: "disconnected",
@@ -166,7 +163,6 @@ export async function createAdyenHostedOnboardingRedirect(params: {
       accountHolderId,
       balanceAccountId,
       connectedAt: null,
-      ...patch,
     });
     return saved.error;
   };
@@ -187,7 +183,7 @@ export async function createAdyenHostedOnboardingRedirect(params: {
     const id = idFrom(created);
     if (typeof id !== "string") return id;
     legalEntityId = id;
-    const error = await persist({});
+    const error = await persist();
     if (error) return { error };
   }
 
@@ -208,7 +204,7 @@ export async function createAdyenHostedOnboardingRedirect(params: {
     const id = idFrom(created);
     if (typeof id !== "string") return id;
     accountHolderId = id;
-    const error = await persist({});
+    const error = await persist();
     if (error) return { error };
   }
 
@@ -225,7 +221,7 @@ export async function createAdyenHostedOnboardingRedirect(params: {
     const id = idFrom(created);
     if (typeof id !== "string") return id;
     balanceAccountId = id;
-    const error = await persist({});
+    const error = await persist();
     if (error) return { error };
   }
 

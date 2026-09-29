@@ -14,6 +14,8 @@ export const INTEGRATION_PANEL_ACCENT = {
   openai: "#10a37f",
   fiskaly: "#64748b",
   stripe: "#635BFF",
+  mollie: "#111111",
+  adyen: "#0ABF53",
 } as const;
 
 export type IntegrationPanelAccentKey = keyof typeof INTEGRATION_PANEL_ACCENT;

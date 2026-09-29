@@ -11,6 +11,7 @@ import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-blo
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { buildReservationEmbedSnippet } from "@/lib/embed/build-embed-snippet";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -168,8 +169,10 @@ export function ReservationEmbedPanel() {
       <section className="rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
         <p>
           Gäste können im Tab „Ändern“ mit <strong>Reservierungsnummer</strong> und{" "}
-          <strong>PIN</strong> bestehende Buchungen anpassen. E-Mail- und WhatsApp-Hinweise
-          folgen deinen Einstellungen unter Reservierungen → Einstellungen.
+          <strong>PIN</strong> bestehende Buchungen anpassen.{" "}
+          {isMetaReviewDemoRestaurantSlug(slug)
+            ? "E-Mail-Hinweise folgen deinen Einstellungen unter Reservierungen → Einstellungen."
+            : "E-Mail- und WhatsApp-Hinweise folgen deinen Einstellungen unter Reservierungen → Einstellungen."}
         </p>
       </section>
     </div>

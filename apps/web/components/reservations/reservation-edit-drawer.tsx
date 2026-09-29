@@ -109,6 +109,8 @@ import {
 import { fetchCountries } from "@/lib/supabase/countries-db";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
+import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import {
@@ -394,6 +396,17 @@ export function ReservationEditDrawer({
 
   const restaurantIdForFetch =
     reservation?.restaurant_id ?? createFor?.restaurantId ?? null;
+  const { whatsappEnabled: restaurantWhatsappEnabled } =
+    useRestaurantChannelConnections(restaurantIdForFetch);
+  const restaurantSlug = restaurantIdForFetch
+    ? getProfileForRestaurantId(restaurantIdForFetch).slug
+    : "";
+  const hideWhatsappForMetaReview =
+    isMetaReviewDemoRestaurantSlug(restaurantSlug) ||
+    (!restaurantSlug.trim() && !restaurantWhatsappEnabled);
+  const notifyWhatsappEffective = hideWhatsappForMetaReview
+    ? false
+    : notifyWhatsapp;
 
   const countriesForPhone = useMemo(
     () => (countries.length > 0 ? countries : COUNTRIES_REFERENCE_FALLBACK),
@@ -928,7 +941,7 @@ export function ReservationEditDrawer({
       invoice_id: isPrivateEvent ? invoiceId : null,
       dwell_minutes: dwellStored,
       notify_email: notifyEmail && hasEmail,
-      notify_whatsapp: notifyWhatsapp && hasPhone,
+      notify_whatsapp: notifyWhatsappEffective && hasPhone,
       terms_accepted: termsAccepted,
       notes: internalNote.trim() || null,
     };
@@ -1277,7 +1290,7 @@ export function ReservationEditDrawer({
     const draft = normalizeGuestNotifyMessage(guestNotifyMessage);
     if (!draft) return "Speichern";
     const channelOn =
-      (notifyEmail && hasEmail) || (notifyWhatsapp && hasPhone);
+      (notifyEmail && hasEmail) || (notifyWhatsappEffective && hasPhone);
     if (!channelOn) return "Speichern";
     const nextStatusCode =
       statuses.find((s) => s.id === statusId)?.code ?? "";
@@ -1291,7 +1304,7 @@ export function ReservationEditDrawer({
   }, [
     guestNotifyMessage,
     notifyEmail,
-    notifyWhatsapp,
+    notifyWhatsappEffective,
     hasEmail,
     hasPhone,
     statuses,
@@ -1887,7 +1900,7 @@ export function ReservationEditDrawer({
                   restaurantName={restaurantDisplayName}
                   hasPhone={hasPhone}
                   hasEmail={hasEmail}
-                  defaultSendWhatsapp={notifyWhatsapp}
+                  defaultSendWhatsapp={notifyWhatsappEffective}
                   defaultSendEmail={notifyEmail}
                 />
                 </DrawerFormSection>
@@ -1951,6 +1964,7 @@ export function ReservationEditDrawer({
                     aria-labelledby="res-notify-email"
                   />
                 </div>
+                {hideWhatsappForMetaReview ? null : (
                 <div
                   className={cn(
                     "flex items-center justify-between gap-3",
@@ -1974,6 +1988,7 @@ export function ReservationEditDrawer({
                     aria-labelledby="res-notify-whatsapp"
                   />
                 </div>
+                )}
                 <div className="flex items-center justify-between gap-3">
                   <span
                     id="res-terms"

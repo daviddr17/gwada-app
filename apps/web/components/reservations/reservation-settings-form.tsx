@@ -33,7 +33,9 @@ import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { usePlatformMessagingFlags } from "@/lib/hooks/use-platform-messaging-flags";
+import { isMetaReviewDemoRestaurantSlug } from "@/lib/restaurants/meta-review-demo";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
 import {
@@ -481,8 +483,12 @@ function buildFieldsByKind(
 
 export function ReservationSettingsForm() {
   const platformFlags = usePlatformMessagingFlags();
+  const { getProfileForRestaurantId } = useRestaurantProfile();
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
+  const hideWhatsappForMetaReview = isMetaReviewDemoRestaurantSlug(
+    restaurantId ? getProfileForRestaurantId(restaurantId).slug : null,
+  );
   const [minutes, setMinutes] = useState("120");
   const [leadTimeHours, setLeadTimeHours] = useState("2");
   const [minBeforeCloseMinutes, setMinBeforeCloseMinutes] = useState("60");
@@ -522,7 +528,12 @@ export function ReservationSettingsForm() {
   const {
     loading: channelConnectionsLoading,
     instagramConnected,
+    whatsappEnabled: restaurantWhatsappEnabled,
   } = useRestaurantChannelConnections(restaurantId);
+  const showWhatsappSettings =
+    platformFlags.whatsappEnabled &&
+    restaurantWhatsappEnabled &&
+    !hideWhatsappForMetaReview;
   const [statusColorsByCode, setStatusColorsByCode] = useState<Map<string, string>>(
     () => new Map(),
   );
@@ -794,9 +805,11 @@ export function ReservationSettingsForm() {
     const emRh = Number.parseFloat(email.reminderHours.replace(",", "."));
     const emTh = Number.parseFloat(email.thanksHours.replace(",", "."));
     for (const [label, rh, th] of [
-      ["WhatsApp", waRh, waTh],
-      ["E-Mail", emRh, emTh],
-    ] as const) {
+      ...(showWhatsappSettings
+        ? [["WhatsApp", waRh, waTh] as const]
+        : []),
+      ["E-Mail", emRh, emTh] as const,
+    ]) {
       if (!Number.isFinite(rh) || rh < 0 || rh > 168) {
         toast.error(`${label} Erinnerung: 0–168 Stunden.`);
         return;
@@ -811,7 +824,12 @@ export function ReservationSettingsForm() {
       toast.error(urlErr);
       return;
     }
-    if (!validateChannelTemplates(whatsapp, "WhatsApp")) return;
+    if (
+      showWhatsappSettings &&
+      !validateChannelTemplates(whatsapp, "WhatsApp")
+    ) {
+      return;
+    }
     if (!validateChannelTemplates(email, "E-Mail")) return;
     if (!validateEmailSubjects(email)) return;
     const senderErr = validateEmailSenderName(emailSenderName);
@@ -1226,7 +1244,7 @@ export function ReservationSettingsForm() {
 
             <Separator />
 
-            {platformFlags.whatsappEnabled ? (
+            {showWhatsappSettings ? (
             <ReservationNotificationChannelSection
               sectionId="reservation-whatsapp-settings-heading"
               collapsible

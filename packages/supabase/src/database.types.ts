@@ -3837,6 +3837,10 @@ export type Database = {
           whatsapp_thanks_template: string | null
           walk_in_enabled: boolean
           google_booking_link_enabled: boolean
+          deposit_enabled: boolean
+          deposit_min_party_size: number
+          deposit_amount_cents_per_person: number
+          deposit_due_hours_before: number
         }
         Insert: {
           booking_lead_time_hours?: number
@@ -3901,6 +3905,10 @@ export type Database = {
           whatsapp_thanks_template?: string | null
           walk_in_enabled?: boolean
           google_booking_link_enabled?: boolean
+          deposit_enabled?: boolean
+          deposit_min_party_size?: number
+          deposit_amount_cents_per_person?: number
+          deposit_due_hours_before?: number
         }
         Update: {
           booking_lead_time_hours?: number
@@ -3965,6 +3973,10 @@ export type Database = {
           whatsapp_thanks_template?: string | null
           walk_in_enabled?: boolean
           google_booking_link_enabled?: boolean
+          deposit_enabled?: boolean
+          deposit_min_party_size?: number
+          deposit_amount_cents_per_person?: number
+          deposit_due_hours_before?: number
         }
         Relationships: [
           {

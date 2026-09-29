@@ -97,7 +97,14 @@ function safeAdyenDetail(json: Record<string, unknown>): string {
 function idFrom(result: { json: Record<string, unknown> } | AdyenError | { id: string }): string | AdyenError {
   if ("error" in result) return result;
   if ("id" in result && !("json" in result)) return result.id;
-  const id = "json" in result && typeof result.json.id === "string" ? result.json.id.trim() : "";
+  const payload = "json" in result ? result.json : undefined;
+  const id =
+    payload &&
+    typeof payload === "object" &&
+    "id" in payload &&
+    typeof payload.id === "string"
+      ? payload.id.trim()
+      : "";
   if (!id) return { error: "Adyen hat keine Konto-Kennung zurückgegeben." };
   return id;
 }

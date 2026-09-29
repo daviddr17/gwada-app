@@ -34,6 +34,8 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "integrations.lexoffice",
   "integrations.tripadvisor",
   "integrations.apple_business_connect",
+  "integrations.mollie",
+  "integrations.adyen",
   "settings.restaurant",
   "settings.opening_hours",
   "settings.branding",
@@ -199,6 +201,18 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "integrations.apple_business_connect",
       label: "Apple Business Connect",
       description: "Standort in Apple Maps per Location-ID verknüpfen.",
+      group: "integrationen",
+    },
+    {
+      key: "integrations.mollie",
+      label: "Mollie verbinden",
+      description: "Eigenes Mollie-Konto für spätere Zahlungen verbinden.",
+      group: "integrationen",
+    },
+    {
+      key: "integrations.adyen",
+      label: "Adyen verbinden",
+      description: "Eigenes Adyen-Konto über das gehostete Onboarding verbinden.",
       group: "integrationen",
     },
     {

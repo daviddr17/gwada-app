@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  diagnose:
+  apply-deposit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -25,73 +25,35 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Install psql
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
-
-      - name: Diagnose WhatsApp row + WAHA servers
-        env:
-          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
-        run: |
-          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
-          export GWADA_SSH_BATCH=1
-          export LIVE_VPS_HOST
-          bash scripts/run-live-sql-ci.sh scripts/diagnose-zurschlagd-whatsapp-live.sql
-
-      - name: Probe WAHA session via app container
+      - name: Apply deposit migration on 10.0.2.6
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
           set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            supabase/migrations/20260929163306_reservation_deposit_settings.sql \
+            "root@${LIVE_VPS_HOST}:/tmp/reservation-deposit-settings.sql"
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" bash -s <<'REMOTE'
           set -euo pipefail
-          cid=$(docker ps --format '{{.Names}}' | grep d3cg1b54arvue2tcm8u34qty- | head -1)
-          echo "container=$cid"
-          docker exec "$cid" node -e '
-          const base=(process.env.SUPABASE_UPSTREAM_URL||process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/\/$/,"");
-          const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
-          if(!base||!key){console.error("missing env"); process.exit(1);}
-          const h={apikey:key,Authorization:"Bearer "+key,Accept:"application/json"};
-          (async()=>{
-            const r=await fetch(base+"/rest/v1/restaurants?slug=eq.zurschlagd&select=id,slug",{headers:h});
-            const rest=await r.json();
-            console.log("restaurant", JSON.stringify(rest));
-            const rid=rest[0]?.id;
-            if(!rid) process.exit(1);
-            const i=await fetch(base+"/rest/v1/restaurant_integrations?restaurant_id=eq."+rid+"&integration_key=eq.whatsapp&select=status,phone_number,waha_session_name,waha_server_id,last_error,updated_at",{headers:h});
-            console.log("integration", await i.text());
-            const s=await fetch(base+"/rest/v1/waha_servers?select=id,name,base_url,enabled,accept_new_sessions&order=sort_order",{headers:h});
-            console.log("waha_servers", await s.text());
-          })().catch(e=>{console.error(e); process.exit(1);});
-          '
-          REMOTE
-
-      - name: Probe live WAHA session status
-        env:
-          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
-          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
-          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" bash -s <<'REMOTE'
-          set -euo pipefail
-          cid=$(docker ps --format '{{.Names}}' | grep d3cg1b54arvue2tcm8u34qty- | head -1)
-          docker exec "$cid" node -e '
-          const base=(process.env.SUPABASE_UPSTREAM_URL||"").replace(/\/$/,"");
-          const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
-          const h={apikey:key,Authorization:"Bearer "+key,Accept:"application/json"};
-          (async()=>{
-            const servers=await (await fetch(base+"/rest/v1/waha_servers?select=id,base_url,api_key&enabled=eq.true&limit=1",{headers:h})).json();
-            const s=servers[0];
-            if(!s){console.log("no server"); process.exit(1);}
-            const session="gwadafcc50bb3130d476b94dc3c7392b773a8";
-            const url=s.base_url.replace(/\/$/,"")+"/api/sessions/"+encodeURIComponent(session);
-            const wr=await fetch(url,{headers:{"X-Api-Key":s.api_key,Accept:"application/json"}});
-            const body=await wr.text();
-            console.log("waha_http", wr.status);
-            console.log(body.slice(0,2000));
-          })().catch(e=>{console.error(e); process.exit(1);});
-          '
+          target=10.0.2.6
+          cid=""
+          for c in $(docker ps -q); do
+            ips="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$c")"
+            case " ${ips} " in
+              *" ${target} "*) cid="$c"; break ;;
+            esac
+          done
+          if [[ -z "${cid}" ]]; then
+            echo "Kein Container mit IP ${target}."
+            docker ps --format '{{.Names}}'
+            exit 1
+          fi
+          echo "container=$(docker inspect -f '{{.Name}}' "${cid}") ip=${target}"
+          docker exec -i "${cid}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            < /tmp/reservation-deposit-settings.sql
+          docker exec -i "${cid}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "NOTIFY pgrst, 'reload schema';"
+          docker exec -i "${cid}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
+            "select column_name from information_schema.columns where table_schema = 'public' and table_name = 'restaurant_reservation_settings' and column_name like 'deposit_%' order by 1;"
+          rm -f /tmp/reservation-deposit-settings.sql
           REMOTE

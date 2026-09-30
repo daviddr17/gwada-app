@@ -31,18 +31,40 @@ gwada_ssh_cmd() {
   ssh "${GWADA_SSH_OPTS[@]}" "$@"
 }
 
+# Postgres hinter https://gwada.app/sb: gleicher Compose-Stack wie supabase-kong-*.
+# `grep supabase-db | head -1` trifft sonst den anderen Stack (z. B. 10.0.3.3).
+gwada_resolve_app_db_container() {
+  gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s <<'REMOTE'
+set -euo pipefail
+kong="$(docker ps --format '{{.Names}}' | grep -E '^supabase-kong-' | head -1 || true)"
+if [[ -z "${kong}" ]]; then
+  echo "Coolify-Kong (supabase-kong-*) nicht gefunden." >&2
+  exit 1
+fi
+project="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "${kong}")"
+project="${project//$'\r'/}"
+db="$(docker ps --filter "label=com.docker.compose.project=${project}" --format '{{.Names}}' | grep -E 'supabase-db' | head -1 || true)"
+db="${db//$'\r'/}"
+if [[ -z "${db}" ]]; then
+  echo "DB zum Kong ${kong} (project ${project}) nicht gefunden." >&2
+  exit 1
+fi
+printf '%s\n' "${db}"
+REMOTE
+}
+
 gwada_resolve_container_ip() {
   if [[ -n "${LIVE_TUNNEL_REMOTE_HOST:-}" ]]; then
     echo "${LIVE_TUNNEL_REMOTE_HOST}"
     return
   fi
-  gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${LIVE_DB_CONTAINER_GREP}" <<'REMOTE'
-set -euo pipefail
-grep_pat="$1"
-c="$(docker ps --format '{{.Names}}' | grep "${grep_pat}" | head -1 || true)"
-[[ -n "${c}" ]] || { echo "Kein Container: ${grep_pat}" >&2; exit 1; }
-docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${c}"
-REMOTE
+  local name
+  name="$(gwada_resolve_app_db_container | tail -1)"
+  name="${name//$'\r'/}"
+  echo "App-DB-Container=${name}" >&2
+  gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
+    docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "${name}" \
+    | awk '{print $1}'
 }
 
 gwada_tunnel_port_open() {

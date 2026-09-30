@@ -25,15 +25,13 @@ fi
 
 gwada_tunnel_start_bg
 
-DB_CONTAINER="$(
-  gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
-    "docker ps --format '{{.Names}}' | grep '${LIVE_DB_CONTAINER_GREP}' | head -1"
-)"
+DB_CONTAINER="$(gwada_resolve_app_db_container | tail -1)"
 DB_CONTAINER="${DB_CONTAINER//$'\r'/}"
 if [[ -z "${DB_CONTAINER}" ]]; then
   echo "Supabase-DB-Container nicht gefunden." >&2
   exit 1
 fi
+echo "DB-Container=${DB_CONTAINER}"
 
 # Passwort nicht rotieren und nicht loggen. Der Container-Env-Wert ist nur der
 # Init-Wert; Coolify SERVICE_PASSWORD_POSTGRES kann der echte Rolle-Wert sein.
@@ -416,6 +414,24 @@ done
 echo ""
 echo "=== Live-DB: Migrationen anwenden (nur Schema) ==="
 bash scripts/db-push-live.sh --yes --include-all "$@"
+
+echo ""
+echo "=== App-DB: Migrationen 20260930120000 und 20260930150000 ==="
+applied="$(
+  PGPASSWORD="${POSTGRES_PASSWORD}" psql \
+    "host=127.0.0.1 port=${LIVE_TUNNEL_LOCAL_PORT} user=postgres dbname=postgres sslmode=disable" \
+    -v ON_ERROR_STOP=1 -tAc "
+select count(*) from supabase_migrations.schema_migrations
+where version in ('20260930120000', '20260930150000');
+"
+)"
+applied="${applied//$'\r'/}"
+applied="${applied//[[:space:]]/}"
+echo "applied_count=${applied}"
+if [[ "${applied}" != "2" ]]; then
+  echo "Die App-Datenbank hat nicht beide neuen Migrationen." >&2
+  exit 1
+fi
 
 echo ""
 echo "=== Live-DB: Tabellen prüfen + PostgREST Schema-Cache ==="

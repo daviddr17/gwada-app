@@ -27,13 +27,16 @@ import { currentCalendarMonthYmdRange } from "@/lib/staff/export-staff-work-hour
 import {
   derivePayrollSettlement,
   monthsInclusive,
+  payrollCarryCentsBeforeMonth,
   payrollPeriodKey,
   targetHoursForCalendarMonth,
+  withPayrollCarryForward,
 } from "@/lib/staff/staff-payroll-settlement";
 import {
   computeStaffPeriodPayrollLines,
   findStaffContractForDay,
   formatStaffEuroCents,
+  staffHourlyRateCentsForWorkedHours,
 } from "@/lib/staff/staff-day-wage";
 import { summarizeStaffWorkEntries } from "@/lib/staff/staff-work-hours-summary";
 import {
@@ -129,8 +132,11 @@ type PayrollOverviewRow = {
   staffName: string;
   periodYear: number;
   periodMonth: number;
+  /** Saldo aller früheren Monate. */
+  carryCents: number;
   wageCents: number;
   payoutCents: number;
+  /** Übertrag + Lohn − Auszahlungen, vorzeichenbehaftet. */
   dueCents: number;
   openCents: number;
   paidCents: number;
@@ -139,6 +145,42 @@ type PayrollOverviewRow = {
   netWorkH: number;
   hoursBalanceH: number | null;
 };
+
+function monthSortKey(year: number, month: number): number {
+  return year * 100 + month;
+}
+
+/** Frühester Monat mit Zeiten oder Auszahlungen, sonst der sichtbare Beginn. */
+function earliestPayrollMonth(
+  entries: readonly RestaurantStaffWorkEntryRow[],
+  advances: readonly RestaurantStaffWageAdvanceRow[],
+  fallbackYear: number,
+  fallbackMonth: number,
+): { year: number; month: number } {
+  let best = monthSortKey(fallbackYear, fallbackMonth);
+  let year = fallbackYear;
+  let month = fallbackMonth;
+  for (const entry of entries) {
+    const ymd = localDayKey(new Date(entry.starts_at));
+    const y = Number(ymd.slice(0, 4));
+    const m = Number(ymd.slice(5, 7));
+    const key = monthSortKey(y, m);
+    if (!y || !m || key >= best) continue;
+    best = key;
+    year = y;
+    month = m;
+  }
+  for (const advance of advances) {
+    const y = Number(advance.paid_on.slice(0, 4));
+    const m = Number(advance.paid_on.slice(5, 7));
+    const key = monthSortKey(y, m);
+    if (!y || !m || key >= best) continue;
+    best = key;
+    year = y;
+    month = m;
+  }
+  return { year, month };
+}
 
 function buildPayrollOverviewRows(params: {
   fromYmd: string;
@@ -154,13 +196,33 @@ function buildPayrollOverviewRows(params: {
   const fromMonth = Number(params.fromYmd.slice(5, 7));
   const toYear = Number(params.toYmd.slice(0, 4));
   const toMonth = Number(params.toYmd.slice(5, 7));
-  const months = monthsInclusive(fromYear, fromMonth, toYear, toMonth);
-
+  const earliest = earliestPayrollMonth(
+    params.entries,
+    params.advances,
+    fromYear,
+    fromMonth,
+  );
+  const months = monthsInclusive(
+    earliest.year,
+    earliest.month,
+    toYear,
+    toMonth,
+  );
   const nameById = new Map(
     params.staffList.map((s) => [s.id, staffFamilyFirstDisplayName(s)]),
   );
 
-  const rows: PayrollOverviewRow[] = [];
+  type MonthFigure = {
+    staffId: string;
+    staffName: string;
+    periodYear: number;
+    periodMonth: number;
+    wageCents: number;
+    payoutCents: number;
+    netWorkH: number;
+    hoursBalanceH: number | null;
+  };
+  const figures: MonthFigure[] = [];
 
   for (const { year, month } of months) {
     const bounds = monthBoundsYmd(year, month);
@@ -201,7 +263,6 @@ function buildPayrollOverviewRows(params: {
       const line = payrollByStaff.get(staffId);
       const wageCents = line?.wageCents ?? 0;
       const payoutCents = payoutByStaff.get(staffId) ?? 0;
-      const derived = derivePayrollSettlement({ wageCents, payoutCents });
 
       let netWorkH = line?.netWorkH ?? 0;
       if (!line) {
@@ -233,12 +294,97 @@ function buildPayrollOverviewRows(params: {
         continue;
       }
 
-      rows.push({
-        key: payrollPeriodKey(year, month, staffId),
+      figures.push({
         staffId,
         staffName: nameById.get(staffId) ?? "Mitarbeiter",
         periodYear: year,
         periodMonth: month,
+        wageCents,
+        payoutCents,
+        netWorkH,
+        hoursBalanceH,
+      });
+    }
+  }
+
+  const settled = withPayrollCarryForward(figures);
+  const settledByKey = new Map(
+    settled.map((row) => [
+      payrollPeriodKey(row.periodYear, row.periodMonth, row.staffId),
+      row,
+    ]),
+  );
+  const figureByKey = new Map(
+    figures.map((row) => [
+      payrollPeriodKey(row.periodYear, row.periodMonth, row.staffId),
+      row,
+    ]),
+  );
+  const staffWithHistory = new Set(figures.map((row) => row.staffId));
+  const rows: PayrollOverviewRow[] = [];
+
+  for (const { year, month } of monthsInclusive(
+    fromYear,
+    fromMonth,
+    toYear,
+    toMonth,
+  )) {
+    const staffIds = new Set<string>();
+    for (const figure of figures) {
+      if (figure.periodYear === year && figure.periodMonth === month) {
+        staffIds.add(figure.staffId);
+      }
+    }
+    for (const staffId of staffWithHistory) {
+      if (payrollCarryCentsBeforeMonth(settled, staffId, year, month) !== 0) {
+        staffIds.add(staffId);
+      }
+    }
+
+    for (const staffId of staffIds) {
+      if (
+        params.staffIdsFilter &&
+        params.staffIdsFilter.length > 0 &&
+        !params.staffIdsFilter.includes(staffId)
+      ) {
+        continue;
+      }
+      if (params.staffIdFilter && staffId !== params.staffIdFilter) continue;
+
+      const key = payrollPeriodKey(year, month, staffId);
+      const figure = figureByKey.get(key);
+      const existing = settledByKey.get(key);
+      const derived =
+        existing ??
+        derivePayrollSettlement({
+          wageCents: 0,
+          payoutCents: 0,
+          carryCents: payrollCarryCentsBeforeMonth(
+            settled,
+            staffId,
+            year,
+            month,
+          ),
+        });
+      const wageCents = figure?.wageCents ?? 0;
+      const payoutCents = figure?.payoutCents ?? 0;
+      const netWorkH = figure?.netWorkH ?? 0;
+      if (
+        wageCents === 0 &&
+        payoutCents === 0 &&
+        netWorkH === 0 &&
+        derived.carryCents === 0
+      ) {
+        continue;
+      }
+
+      rows.push({
+        key,
+        staffId,
+        staffName: figure?.staffName ?? nameById.get(staffId) ?? "Mitarbeiter",
+        periodYear: year,
+        periodMonth: month,
+        carryCents: derived.carryCents,
         wageCents,
         payoutCents,
         dueCents: derived.dueCents,
@@ -247,7 +393,7 @@ function buildPayrollOverviewRows(params: {
         overpaidCreditCents: derived.overpaidCreditCents,
         status: derived.status,
         netWorkH,
-        hoursBalanceH,
+        hoursBalanceH: figure?.hoursBalanceH ?? null,
       });
     }
   }
@@ -291,7 +437,9 @@ export function StaffPayrollSettlementScreen() {
       return;
     }
     setLoading(true);
-    const rangeStart = localDayStartToUtcIso(ymdToLocalDate(fromYmd));
+    // Übertrag braucht alle Monate vor „Von“, nicht nur das sichtbare Fenster.
+    const historyFromYmd = "2000-01-01";
+    const rangeStart = localDayStartToUtcIso(ymdToLocalDate(historyFromYmd));
     const rangeEnd = exclusiveUtcIsoAfterLocalVisibleEnd(ymdToLocalDate(toYmd));
 
     const [staffRes, entriesRes, contractsRes, advancesRes] =
@@ -304,7 +452,11 @@ export function StaffPayrollSettlementScreen() {
           rangeEnd,
         ),
         fetchStaffContractsForRestaurant(restaurantId),
-        fetchRestaurantWageAdvancesInRange(restaurantId, fromYmd, toYmd),
+        fetchRestaurantWageAdvancesInRange(
+          restaurantId,
+          historyFromYmd,
+          toYmd,
+        ),
       ]);
 
     setLoading(false);
@@ -355,9 +507,24 @@ export function StaffPayrollSettlementScreen() {
     ],
   );
 
+  const latestRowByStaff = useMemo(() => {
+    const latest = new Map<string, PayrollOverviewRow>();
+    for (const row of rows) {
+      const prev = latest.get(row.staffId);
+      const key = row.periodYear * 100 + row.periodMonth;
+      if (
+        !prev ||
+        key > prev.periodYear * 100 + prev.periodMonth
+      ) {
+        latest.set(row.staffId, row);
+      }
+    }
+    return [...latest.values()];
+  }, [rows]);
+
   const openTotalCents = useMemo(
-    () => rows.reduce((sum, r) => sum + r.openCents, 0),
-    [rows],
+    () => latestRowByStaff.reduce((sum, r) => sum + r.openCents, 0),
+    [latestRowByStaff],
   );
   const paidTotalCents = useMemo(
     () => rows.reduce((sum, r) => sum + r.paidCents, 0),
@@ -452,7 +619,7 @@ export function StaffPayrollSettlementScreen() {
               <KpiCard
                 label="Summe offen"
                 value={formatStaffEuroCents(openTotalCents)}
-                hint={`${rows.filter((r) => r.openCents > 0).length} Monate mit Rest`}
+                hint={`${latestRowByStaff.filter((r) => r.openCents > 0).length} Mitarbeiter mit Rest`}
                 icon={CircleDollarSign}
               />
               <KpiCard
@@ -479,11 +646,19 @@ export function StaffPayrollSettlementScreen() {
                 onPrevious={() => setPage((p) => Math.max(1, p - 1))}
                 onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
-                <table className="w-full min-w-[52rem] text-sm">
+                <table className="w-full min-w-[60rem] text-sm">
                   <thead>
                     <tr className={moduleDataTableHeadRowClassName}>
                       <th className={moduleDataTableHeadCellClassName}>Name</th>
                       <th className={moduleDataTableHeadCellClassName}>Monat</th>
+                      <th
+                        className={cn(
+                          moduleDataTableHeadCellClassName,
+                          "text-right",
+                        )}
+                      >
+                        Übertrag
+                      </th>
                       <th
                         className={cn(
                           moduleDataTableHeadCellClassName,
@@ -534,6 +709,9 @@ export function StaffPayrollSettlementScreen() {
                           {formatMonthLabel(row.periodYear, row.periodMonth)}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums">
+                          {formatStaffEuroCents(row.carryCents)}
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">
                           {row.wageCents > 0
                             ? formatStaffEuroCents(row.wageCents)
                             : "—"}
@@ -558,7 +736,7 @@ export function StaffPayrollSettlementScreen() {
                           </div>
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums font-medium">
-                          {formatStaffEuroCents(row.openCents)}
+                          {formatStaffEuroCents(row.dueCents)}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                           {row.hoursBalanceH != null
@@ -573,6 +751,7 @@ export function StaffPayrollSettlementScreen() {
                               staffName={row.staffName}
                               wageCents={row.wageCents}
                               payoutCents={row.payoutCents}
+                              carryCents={row.carryCents}
                               periodYear={row.periodYear}
                               periodMonth={row.periodMonth}
                               onOptimisticSettle={(amountCents) =>
@@ -609,6 +788,13 @@ export function StaffPayrollSettlementScreen() {
           staffId={payoutDrawerTarget.staffId}
           advance={null}
           defaultPaidOn={payoutDrawerTarget.defaultPaidOn}
+          resolveHourlyRateCents={(paidOn) =>
+            staffHourlyRateCentsForWorkedHours(
+              contracts,
+              payoutDrawerTarget.staffId,
+              paidOn,
+            )
+          }
           onSaved={() => {
             void reload();
           }}

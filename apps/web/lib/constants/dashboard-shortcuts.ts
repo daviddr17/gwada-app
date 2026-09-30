@@ -56,25 +56,25 @@ export function dashboardShortcutHref(id: DashboardShortcutId): string {
   const today = localDayParam();
   switch (id) {
     case "reservation":
-      return `/dashboard/reservierungen/uebersicht?new=1&day=${today}`;
+      return `/dashboard/reservations/overview?new=1&day=${today}`;
     case "menu_dish":
-      return `/dashboard/menu/uebersicht?new=1`;
+      return `/dashboard/menu/overview?new=1`;
     case "inventory_ingredient":
-      return `/dashboard/inventory/uebersicht?new=1`;
+      return `/dashboard/inventory/overview?new=1`;
     case "contact":
-      return `/dashboard/kontakte/uebersicht?new=1`;
+      return `/dashboard/contacts/overview?new=1`;
     case "document":
-      return `/dashboard/dokumente/uebersicht?new=1`;
+      return `/dashboard/documents/overview?new=1`;
     case "staff_member":
-      return `/dashboard/mitarbeiter/uebersicht?new=1`;
+      return `/dashboard/staff/overview?new=1`;
     case "staff_shift":
-      return `/dashboard/mitarbeiter/schichtplan?new=1`;
+      return `/dashboard/staff/shift-plan?new=1`;
     case "staff_work_entry":
-      return `/dashboard/mitarbeiter/arbeitszeiten?new=1`;
+      return `/dashboard/staff/work-hours?new=1`;
     case "shift_template":
-      return `/dashboard/mitarbeiter/schichtplan?new=template`;
+      return `/dashboard/staff/shift-plan?new=template`;
     case "review_invite":
-      return `/dashboard/bewertungen/uebersicht?new=invite`;
+      return `/dashboard/reviews/overview?new=invite`;
     default:
       return "/dashboard";
   }

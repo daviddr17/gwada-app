@@ -48,7 +48,7 @@ export default function DocsErsteSchrittePage() {
 
       <h2>3. Dashboard erkunden</h2>
       <p>
-        Nach dem Login landest du auf dem <Link href="/docs/handbuch/dashboard">Dashboard</Link>.
+        Nach dem Login landest du auf dem <Link href="/docs/handbook/dashboard">Dashboard</Link>.
         Hier siehst du Widgets mit Tagesinformationen. Tippe auf eine Pill oder ein Widget,
         um Details im Bottom Sheet zu öffnen — ohne das Modul wechseln zu müssen. Über die
         Sidebar links erreichst du alle Module.
@@ -57,7 +57,7 @@ export default function DocsErsteSchrittePage() {
       <h2>4. Berechtigungen</h2>
       <p>
         Nicht jeder sieht alle Module. Dein Team-Admin legt unter{" "}
-        <Link href="/docs/handbuch/einstellungen">Einstellungen → Team → Rollen</Link>{" "}
+        <Link href="/docs/handbook/settings">Einstellungen → Team → Rollen</Link>{" "}
         fest, wer was darf. Fehlt ein Modul in der Sidebar, brauchst du mehr Rechte
         — sprich mit deinem Administrator.
       </p>
@@ -65,21 +65,21 @@ export default function DocsErsteSchrittePage() {
       <h2>5. Empfohlene Einrichtung (Inhaber)</h2>
       <ol>
         <li>
-          <Link href="/docs/handbuch/einstellungen">Restaurant-Stammdaten</Link> —
+          <Link href="/docs/handbook/settings">Restaurant-Stammdaten</Link> —
           Name, Slug, Adresse, Branding
         </li>
         <li>
           Öffnungszeiten und Team/Rollen anlegen
         </li>
         <li>
-          <Link href="/docs/handbuch/integrationen">Integrationen</Link> verbinden
+          <Link href="/docs/handbook/integrations">Integrationen</Link> verbinden
           (WhatsApp, E-Mail, Google, …)
         </li>
         <li>
           Kernmodule befüllen: Speisekarte, Reservierungen, Nachrichten
         </li>
         <li>
-          <Link href="/docs/handbuch/oeffentliches-profil">Profil veröffentlichen</Link>{" "}
+          <Link href="/docs/handbook/public-profile">Profil veröffentlichen</Link>{" "}
           und Embeds testen
         </li>
       </ol>
@@ -91,7 +91,7 @@ export default function DocsErsteSchrittePage() {
           Filter-Sheets, Schnellaktionen
         </li>
         <li>
-          <Link href="/docs/handbuch/dashboard">Dashboard im Detail</Link> — Widgets und
+          <Link href="/docs/handbook/dashboard">Dashboard im Detail</Link> — Widgets und
           Heute-Briefing
         </li>
         <li>
@@ -103,7 +103,7 @@ export default function DocsErsteSchrittePage() {
       <ul>
         {USER_GUIDE_PAGES.map((page) => (
           <li key={page.slug}>
-            <Link href={`/docs/handbuch/${page.slug}`}>{page.title}</Link> —{" "}
+            <Link href={`/docs/handbook/${page.slug}`}>{page.title}</Link> —{" "}
             {page.description}
           </li>
         ))}

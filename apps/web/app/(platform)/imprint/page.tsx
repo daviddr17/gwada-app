@@ -21,7 +21,7 @@ export default function ImpressumPage() {
       title="Impressum"
       description="Angaben gemäß § 5 DDG (ehemals TMG) und § 18 Abs. 2 MStV."
       updatedLabel={o.documentsUpdatedLabel}
-      activePath="/impressum"
+      activePath="/imprint"
     >
       <h2>Anbieter</h2>
       <address className="space-y-0.5">
@@ -115,13 +115,13 @@ export default function ImpressumPage() {
 
       <h2>Weitere Rechtstexte</h2>
       <p>
-        <Link href="/datenschutz">Datenschutzerklärung</Link>
+        <Link href="/privacy">Datenschutzerklärung</Link>
         {" · "}
-        <Link href="/agb">Allgemeine Geschäftsbedingungen</Link>
+        <Link href="/terms">Allgemeine Geschäftsbedingungen</Link>
         {" · "}
-        <Link href="/avv">Auftragsverarbeitungsvertrag (AVV)</Link>
+        <Link href="/dpa">Auftragsverarbeitungsvertrag (AVV)</Link>
         {" · "}
-        <Link href="/datenloeschung">Datenlöschung (Meta / Konto)</Link>
+        <Link href="/data-deletion">Datenlöschung (Meta / Konto)</Link>
       </p>
     </MarketingStaticPage>
   );

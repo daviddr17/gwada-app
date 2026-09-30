@@ -189,7 +189,7 @@ export async function toolSearchHandbook(
         items: s.items?.slice(0, 6) ?? null,
       })),
       tips: page.tips?.slice(0, 3) ?? [],
-      href: `/docs/handbuch/${page.slug}`,
+      href: `/docs/handbook/${page.slug}`,
     })),
   });
 }

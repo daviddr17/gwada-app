@@ -34,11 +34,11 @@ export function dashboardMessagesInboxHref(
   if (opts?.read && opts.read !== "all") {
     params.set("read", opts.read);
   }
-  return `/dashboard/kontakte/nachrichten?${params.toString()}`;
+  return `/dashboard/contacts/messages?${params.toString()}`;
 }
 
 export function dashboardMessageThreadHref(contactId: string): string {
-  return `/dashboard/kontakte/nachrichten?platform=all&contact=${encodeURIComponent(contactId)}`;
+  return `/dashboard/contacts/messages?platform=all&contact=${encodeURIComponent(contactId)}`;
 }
 
 export function deriveMessagesUnreadSummaryFromConversations(

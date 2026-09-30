@@ -185,7 +185,7 @@ export function StaffShiftPlanScreen({
   );
 
   useEffect(() => {
-    if (!pathname.startsWith("/dashboard/mitarbeiter/schichtplan")) return;
+    if (!pathname.startsWith("/dashboard/staff/shift-plan")) return;
     const newParam = searchParams.get("new");
     if (!newParam) return;
     const p = new URLSearchParams(searchParams.toString());

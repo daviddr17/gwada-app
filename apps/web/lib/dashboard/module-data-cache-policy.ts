@@ -677,7 +677,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     loadTriggers: [
       "UnifiedInboxBackgroundSyncMount (App-Layout)",
       "Keep-alive Home Nachrichten/Kontakte",
-      "/dashboard/kontakte/**",
+      "/dashboard/contacts/**",
     ],
     invalidateTriggers: ["Realtime", "Nachricht gesendet/gelesen"],
     implementationFiles: [
@@ -822,7 +822,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "Todos + Mitarbeiterliste — sessionStorage-Cache, Secondary-Warm; Suche/Filter/Sortierung clientseitig. Deferred Skeleton nur beim Erstload.",
     loadTriggers: [
       "Warm-Prefetch (Secondary)",
-      "Mount /dashboard/checklisten/**",
+      "Mount /dashboard/tasks/**",
     ],
     invalidateTriggers: [
       "Todo anlegen / bearbeiten / löschen",

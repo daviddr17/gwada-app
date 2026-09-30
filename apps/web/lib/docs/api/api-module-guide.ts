@@ -145,7 +145,7 @@ export const API_READ_MODULE_GUIDES: Record<
       "Tags auflösen über tagDefinitions[].id → name / backgroundColor.",
     ],
     related: [
-      { label: "Handbuch Speisekarte", href: "/docs/handbuch/speisekarte" },
+      { label: "Handbuch Speisekarte", href: "/docs/handbook/menu" },
       { label: "Authentifizierung", href: "/docs/api/authentication" },
       { label: "Rate Limits", href: "/docs/api/rate-limits" },
     ],
@@ -226,7 +226,7 @@ export const API_READ_MODULE_GUIDES: Record<
       },
     ],
     related: [
-      { label: "Handbuch Bewertungen", href: "/docs/handbuch/bewertungen" },
+      { label: "Handbuch Bewertungen", href: "/docs/handbook/reviews" },
       { label: "Authentifizierung", href: "/docs/api/authentication" },
       { label: "Rate Limits", href: "/docs/api/rate-limits" },
     ],
@@ -360,7 +360,7 @@ export const API_READ_MODULE_GUIDES: Record<
       "Story-Rings können unabhängig vom Feed-Items leer sein.",
     ],
     related: [
-      { label: "Handbuch News", href: "/docs/handbuch/news" },
+      { label: "Handbuch News", href: "/docs/handbook/news" },
       { label: "Authentifizierung", href: "/docs/api/authentication" },
       { label: "Rate Limits", href: "/docs/api/rate-limits" },
     ],
@@ -458,7 +458,7 @@ export const API_READ_MODULE_GUIDES: Record<
       },
     ],
     related: [
-      { label: "Handbuch Events", href: "/docs/handbuch/events" },
+      { label: "Handbuch Events", href: "/docs/handbook/events" },
       { label: "Authentifizierung", href: "/docs/api/authentication" },
       { label: "Rate Limits", href: "/docs/api/rate-limits" },
     ],
@@ -575,7 +575,7 @@ export const API_READ_MODULE_GUIDES: Record<
       "Wenn totalCount > pageSize, plane Pagination über Public-Profile-API oder warte auf erweiterte v1-Query-Unterstützung — v1 allein liefert nur die erste Seite.",
     ],
     related: [
-      { label: "Handbuch Galerie", href: "/docs/handbuch/galerie" },
+      { label: "Handbuch Galerie", href: "/docs/handbook/gallery" },
       { label: "Authentifizierung", href: "/docs/api/authentication" },
       { label: "Rate Limits", href: "/docs/api/rate-limits" },
     ],
@@ -672,7 +672,7 @@ export const API_READ_MODULE_GUIDES: Record<
       },
     ],
     related: [
-      { label: "Handbuch Einstellungen → Öffnungszeiten", href: "/docs/handbuch/einstellungen" },
+      { label: "Handbuch Einstellungen → Öffnungszeiten", href: "/docs/handbook/settings" },
       { label: "Authentifizierung", href: "/docs/api/authentication" },
       { label: "Rate Limits", href: "/docs/api/rate-limits" },
     ],

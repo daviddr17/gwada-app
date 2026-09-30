@@ -8,7 +8,7 @@ function extractReviewTokensFromBodies(
 ): string[] {
   const tokens = new Set<string>();
   for (const body of bodies) {
-    const match = body.match(/\/bewertung\/([A-Za-z0-9_-]+)/);
+    const match = body.match(/\/review\/([A-Za-z0-9_-]+)/);
     if (match?.[1]) tokens.add(match[1]);
   }
   return [...tokens];
@@ -43,7 +43,7 @@ export async function contactHasSubmittedGwadaReview(
     .eq("restaurant_id", restaurantId)
     .eq("contact_id", contactId)
     .eq("direction", "outbound")
-    .ilike("body", "%/bewertung/%")
+    .ilike("body", "%/review/%")
     .limit(100);
 
   const tokens = extractReviewTokensFromBodies(
@@ -114,7 +114,7 @@ async function contactIdsByInvitationTokens(
     .select("contact_id, body, created_at")
     .eq("restaurant_id", restaurantId)
     .eq("direction", "outbound")
-    .ilike("body", "%/bewertung/%")
+    .ilike("body", "%/review/%")
     .not("contact_id", "is", null)
     .order("created_at", { ascending: false })
     .limit(500);
@@ -123,7 +123,7 @@ async function contactIdsByInvitationTokens(
     const body = (m.body as string) ?? "";
     const contactId = m.contact_id as string;
     for (const token of unique) {
-      if (!map.has(token) && body.includes(`/bewertung/${token}`)) {
+      if (!map.has(token) && body.includes(`/review/${token}`)) {
         map.set(token, contactId);
       }
     }

@@ -284,7 +284,7 @@ export function ContactTimelineSection({
                         className="h-7 text-xs"
                         render={
                           <Link
-                            href={`/dashboard/reservierungen/uebersicht?reservation=${entry.reservationId}`}
+                            href={`/dashboard/reservations/overview?reservation=${entry.reservationId}`}
                             prefetch
                           />
                         }

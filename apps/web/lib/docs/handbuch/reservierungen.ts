@@ -1,7 +1,7 @@
 import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const reservierungenGuide: UserGuidePage = {
-  slug: "reservierungen",
+  slug: "reservations",
   title: "Reservierungen",
   description:
     "Tischreservierungen, Tischplan, Bestätigung, Kanäle und Spracheingabe.",
@@ -95,9 +95,9 @@ export const reservierungenGuide: UserGuidePage = {
     "Kanäle (WhatsApp, Website, Profil) konfigurierst du unter Einstellungen → Integrationen und Reservierungen → Einstellungen.",
   ],
   related: [
-    { label: "Nachrichten (Gast-Chat)", href: "/docs/handbuch/nachrichten" },
-    { label: "Events (private Veranstaltungen)", href: "/docs/handbuch/events" },
+    { label: "Nachrichten (Gast-Chat)", href: "/docs/handbook/messages" },
+    { label: "Events (private Veranstaltungen)", href: "/docs/handbook/events" },
     { label: "Reservierung API", href: "/docs/api/reservation" },
-    { label: "Integrationen", href: "/docs/handbuch/integrationen" },
+    { label: "Integrationen", href: "/docs/handbook/integrations" },
   ],
 };

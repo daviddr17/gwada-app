@@ -3,7 +3,7 @@ import { getPublicSiteUrl } from "@/lib/public-env";
 
 export function publicReservationBookingPath(slug: string): string {
   const clean = slug.trim();
-  return `/embed/reservieren/${encodeURIComponent(clean)}`;
+  return `/embed/reserve/${encodeURIComponent(clean)}`;
 }
 
 export function publicReservationBookingUrl(

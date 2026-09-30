@@ -17,6 +17,20 @@ import { subscribeRestaurantTableInserts } from "@/lib/supabase/restaurant-table
 import { NOTIFICATION_SUMMARY_REFETCH_MS } from "@/lib/query/dashboard-query-policy";
 import { queryKeys } from "@/lib/query/query-keys";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { APP_LOCALE_COOKIE } from "@/i18n/config";
+
+function readViewerLocale(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(
+    new RegExp(`(?:^|; )${APP_LOCALE_COOKIE}=([^;]*)`),
+  );
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
 
 const REALTIME_READY_TIMEOUT_MS = 12_000;
 const BELL_FULL_REFRESH_DEBOUNCE_MS = 2_000;
@@ -130,6 +144,7 @@ export function useNotificationBellRealtime() {
                   module: row.module!,
                   payload: row.payload!,
                   createdAt: row.created_at,
+                  locale: readViewerLocale(),
                 }),
               );
             },

@@ -60,7 +60,7 @@ export function patchNotificationSummaryFromReservationEvent(
     href:
       params.module === "events_inquiry"
         ? privateEventOverviewHref(params.referenceId)
-        : `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(params.referenceId)}`,
+        : `/dashboard/reservations/overview?reservation=${encodeURIComponent(params.referenceId)}`,
     at: startsAt,
     meta: { reservationId: params.referenceId },
   };

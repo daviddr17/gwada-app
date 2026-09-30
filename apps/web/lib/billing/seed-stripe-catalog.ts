@@ -331,7 +331,7 @@ export async function seedStripeBillingCatalog(input: {
     }),
   };
 
-  const returnUrl = `${input.webhookBaseUrl.replace(/\/$/, "")}/dashboard/settings/abo`;
+  const returnUrl = `${input.webhookBaseUrl.replace(/\/$/, "")}/dashboard/settings/billing`;
   const portalId = await ensurePortal(stripe, {
     productBasic: basicId,
     productPro: proId,

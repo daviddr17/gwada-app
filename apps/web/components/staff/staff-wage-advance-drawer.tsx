@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
@@ -11,6 +11,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +29,7 @@ import {
 } from "@/lib/supabase/staff-wage-advances-db";
 import type { RestaurantStaffWageAdvanceRow } from "@/lib/types/staff";
 import { formatStaffEuroCents } from "@/lib/staff/staff-day-wage";
+import { payoutCentsFromHours } from "@/lib/staff/staff-payroll-settlement";
 import { cn } from "@/lib/utils";
 
 function toDateInput(d: Date): string {
@@ -40,6 +42,14 @@ function parseEuroToCents(raw: string): number | null {
   return Math.round(parsed * 100);
 }
 
+function parseHours(raw: string): number | null {
+  const parsed = Number.parseFloat(raw.trim().replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+type PayoutEntryMode = "amount" | "hours";
+
 type StaffWageAdvanceDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,6 +58,11 @@ type StaffWageAdvanceDrawerProps = {
   advance: RestaurantStaffWageAdvanceRow | null;
   defaultPaidOn: string;
   allowEdit?: boolean;
+  /**
+   * Stundenlohn, der die gearbeiteten Stunden an diesem Tag bewertet.
+   * Fehlt die Funktion, bleibt nur der Betrag (andere Aufrufer).
+   */
+  resolveHourlyRateCents?: (paidOnYmd: string) => number | null;
   onSaved: () => void;
 };
 
@@ -59,9 +74,12 @@ export function StaffWageAdvanceDrawer({
   advance,
   defaultPaidOn,
   allowEdit = true,
+  resolveHourlyRateCents,
   onSaved,
 }: StaffWageAdvanceDrawerProps) {
+  const [entryMode, setEntryMode] = useState<PayoutEntryMode>("amount");
   const [amount, setAmount] = useState("");
+  const [hours, setHours] = useState("");
   const [paidOn, setPaidOn] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
@@ -71,6 +89,8 @@ export function StaffWageAdvanceDrawer({
   const readOnly = !allowEdit;
 
   useDrawerFormSeed(open, advance?.id ?? "__create__", () => {
+    setEntryMode("amount");
+    setHours("");
     if (advance) {
       setAmount(String(advance.amount_cents / 100).replace(".", ","));
       setPaidOn(advance.paid_on);
@@ -82,12 +102,43 @@ export function StaffWageAdvanceDrawer({
     setNote("");
   });
 
+  const hourlyRateCents =
+    paidOn && resolveHourlyRateCents ? resolveHourlyRateCents(paidOn) : null;
+  const hoursAllowed = hourlyRateCents != null && hourlyRateCents > 0;
+  const offerHours = resolveHourlyRateCents != null;
+  const parsedHours = parseHours(hours);
+  const hoursCents =
+    parsedHours != null && hourlyRateCents != null
+      ? payoutCentsFromHours(parsedHours, hourlyRateCents)
+      : null;
+
+  useEffect(() => {
+    if (entryMode === "hours" && !hoursAllowed) setEntryMode("amount");
+  }, [entryMode, hoursAllowed]);
+
   const save = useCallback(async () => {
     if (pending || readOnly) return;
-    const amountCents = parseEuroToCents(amount);
-    if (amountCents == null) {
-      toast.error("Bitte einen gültigen Betrag größer als 0 angeben.");
-      return;
+    let amountCents: number | null;
+    if (entryMode === "hours") {
+      if (!hoursAllowed || hourlyRateCents == null) {
+        toast.error("Ohne Stundenlohn nur als Betrag möglich.");
+        return;
+      }
+      const parsedHours = parseHours(hours);
+      amountCents =
+        parsedHours == null
+          ? null
+          : payoutCentsFromHours(parsedHours, hourlyRateCents);
+      if (amountCents == null) {
+        toast.error("Bitte einen gültigen Stundenwert größer als 0 angeben.");
+        return;
+      }
+    } else {
+      amountCents = parseEuroToCents(amount);
+      if (amountCents == null) {
+        toast.error("Bitte einen gültigen Betrag größer als 0 angeben.");
+        return;
+      }
     }
     if (!paidOn) {
       toast.error("Bitte ein Datum angeben.");
@@ -118,7 +169,11 @@ export function StaffWageAdvanceDrawer({
   }, [
     pending,
     readOnly,
+    entryMode,
     amount,
+    hours,
+    hourlyRateCents,
+    hoursAllowed,
     paidOn,
     note,
     restaurantId,
@@ -157,23 +212,84 @@ export function StaffWageAdvanceDrawer({
           </DrawerHeader>
           <div ref={scrollRef} className={staffDrawerScrollClassName}>
             <DrawerFormSection contentPadding={5}>
-              <div className="space-y-2">
-                <Label htmlFor="wage-advance-amount">Betrag</Label>
-                <div className="relative">
-                  <Input
-                    id="wage-advance-amount"
-                    inputMode="decimal"
-                    placeholder="0,00"
-                    value={amount}
-                    disabled={readOnly || pending}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className={cn(staffDrawerFieldClassName, "pr-10")}
-                  />
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
-                    €
-                  </span>
+              {offerHours ? (
+                <div className="space-y-2">
+                  <Label>Erfassen als</Label>
+                  <div
+                    className="grid grid-cols-2 gap-2"
+                    role="group"
+                    aria-label="Auszahlung erfassen als"
+                  >
+                    <Button
+                      type="button"
+                      variant={entryMode === "amount" ? "secondary" : "outline"}
+                      className="rounded-xl"
+                      disabled={readOnly || pending}
+                      aria-pressed={entryMode === "amount"}
+                      onClick={() => setEntryMode("amount")}
+                    >
+                      Betrag
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={entryMode === "hours" ? "secondary" : "outline"}
+                      className="rounded-xl"
+                      disabled={readOnly || pending || !hoursAllowed}
+                      aria-pressed={entryMode === "hours"}
+                      onClick={() => setEntryMode("hours")}
+                    >
+                      Stunden
+                    </Button>
+                  </div>
+                  {!hoursAllowed ? (
+                    <p className="text-xs text-muted-foreground">
+                      Kein Stundenlohn hinterlegt. Auszahlung nur als Betrag.
+                    </p>
+                  ) : null}
                 </div>
-              </div>
+              ) : null}
+              {entryMode === "hours" && hoursAllowed && hourlyRateCents != null ? (
+                <div className="space-y-2">
+                  <Label htmlFor="wage-advance-hours">Stunden</Label>
+                  <div className="relative">
+                    <Input
+                      id="wage-advance-hours"
+                      inputMode="decimal"
+                      placeholder="0,00"
+                      value={hours}
+                      disabled={readOnly || pending}
+                      onChange={(e) => setHours(e.target.value)}
+                      className={cn(staffDrawerFieldClassName, "pr-10")}
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+                      h
+                    </span>
+                  </div>
+                  <p className="text-xs tabular-nums text-muted-foreground">
+                    {hoursCents != null
+                      ? `Entspricht ${formatStaffEuroCents(hoursCents)} (${formatStaffEuroCents(hourlyRateCents)}/h)`
+                      : `${formatStaffEuroCents(hourlyRateCents)}/h`}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="wage-advance-amount">Betrag</Label>
+                  <div className="relative">
+                    <Input
+                      id="wage-advance-amount"
+                      inputMode="decimal"
+                      placeholder="0,00"
+                      value={amount}
+                      disabled={readOnly || pending}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className={cn(staffDrawerFieldClassName, "pr-10")}
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+                      €
+                    </span>
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Datum</Label>
                 <DatePickerField

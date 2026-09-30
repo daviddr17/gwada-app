@@ -25,7 +25,7 @@ export const GWADA_EMBED_WIDGETS: Record<
     title: "Reservierung",
     defaultMinHeightPx: 420,
     embedPath: (slug) =>
-      `embed/reservieren/${encodeURIComponent(normalizedSlug(slug))}`,
+      `embed/reserve/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
   menu: {
@@ -33,7 +33,7 @@ export const GWADA_EMBED_WIDGETS: Record<
     title: "Speisekarte",
     defaultMinHeightPx: 480,
     embedPath: (slug) =>
-      `embed/speisekarte/${encodeURIComponent(normalizedSlug(slug))}`,
+      `embed/menu/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
   reviews: {
@@ -41,7 +41,7 @@ export const GWADA_EMBED_WIDGETS: Record<
     title: "Bewertungen",
     defaultMinHeightPx: 520,
     embedPath: (slug) =>
-      `embed/bewertungen/${encodeURIComponent(normalizedSlug(slug))}`,
+      `embed/reviewen/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
   news: {
@@ -65,7 +65,7 @@ export const GWADA_EMBED_WIDGETS: Record<
     title: "Veranstaltungs-Anfrage",
     defaultMinHeightPx: 520,
     embedPath: (slug) =>
-      `embed/veranstaltung/${encodeURIComponent(normalizedSlug(slug))}`,
+      `embed/event-inquiry/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
   gallery: {
@@ -81,7 +81,7 @@ export const GWADA_EMBED_WIDGETS: Record<
     title: "Öffnungszeiten",
     defaultMinHeightPx: 420,
     embedPath: (slug) =>
-      `embed/oeffnungszeiten/${encodeURIComponent(normalizedSlug(slug))}`,
+      `embed/opening-hours/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
   contact: {
@@ -89,7 +89,7 @@ export const GWADA_EMBED_WIDGETS: Record<
     title: "Kontakt",
     defaultMinHeightPx: 360,
     embedPath: (slug) =>
-      `embed/kontakt/${encodeURIComponent(normalizedSlug(slug))}`,
+      `embed/contact/${encodeURIComponent(normalizedSlug(slug))}`,
     available: false,
   },
 };

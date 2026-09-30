@@ -135,9 +135,9 @@ export function StaffModuleSelectionProvider({
 
   React.useEffect(() => {
     const skipAutoSelect =
-      pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
-      pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
-      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten");
+      pathname.startsWith("/dashboard/staff/contracts") ||
+      pathname.startsWith("/dashboard/staff/documents") ||
+      pathname.startsWith("/dashboard/staff/work-hours");
     if (
       !needsStaffPicker ||
       selectedStaffIds.length > 0 ||
@@ -171,8 +171,8 @@ export function StaffModuleSelectionProvider({
 
   React.useEffect(() => {
     const singleStaffSubRoute =
-      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten/abrechnung") ||
-      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten/beheben");
+      pathname.startsWith("/dashboard/staff/work-hours/payroll") ||
+      pathname.startsWith("/dashboard/staff/work-hours/fix");
     if (singleStaffSubRoute && selectedStaffIds.length > 1) {
       setSelectedStaffIds([selectedStaffIds[0]!]);
     }
@@ -183,7 +183,7 @@ export function StaffModuleSelectionProvider({
       return;
     }
     // Arbeitszeiten darf ehemalige wählen. Andere Module bleiben bei Aktiven.
-    if (pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten")) return;
+    if (pathname.startsWith("/dashboard/staff/work-hours")) return;
     const activeIds = selectedStaffIds.filter((id) => {
       const row = staffList.find((s) => s.id === id);
       return row?.is_active !== false;

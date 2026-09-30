@@ -256,7 +256,7 @@ export function ContactsOverview() {
       else p.set("platform", next);
       const q = p.toString();
       router.replace(
-        q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht",
+        q ? `/dashboard/contacts/overview?${q}` : "/dashboard/contacts/overview",
       );
     },
     [router, searchParams],
@@ -277,12 +277,12 @@ export function ContactsOverview() {
     const p = new URLSearchParams(searchParams.toString());
     p.delete("contact");
     const q = p.toString();
-    router.replace(q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht");
+    router.replace(q ? `/dashboard/contacts/overview?${q}` : "/dashboard/contacts/overview");
   }, [contactParam, router, searchParams]);
 
   useEffect(() => {
     // Nur auf der Kontakte-Übersicht — nicht bei fremdem ?new=1 (Keep-alive Soft-Nav).
-    if (!pathname.startsWith("/dashboard/kontakte/uebersicht")) return;
+    if (!pathname.startsWith("/dashboard/contacts/overview")) return;
     if (searchParams.get("new") !== "1") return;
     setCreateDraft(null);
     setEditContactId(null);
@@ -291,7 +291,7 @@ export function ContactsOverview() {
     p.delete("new");
     const q = p.toString();
     router.replace(
-      q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht",
+      q ? `/dashboard/contacts/overview?${q}` : "/dashboard/contacts/overview",
       { scroll: false },
     );
   }, [pathname, searchParams, router]);

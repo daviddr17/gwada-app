@@ -52,7 +52,7 @@ export function SupabaseDatabaseGate({
     pathname === "/login" ||
     pathname.startsWith("/login/") ||
     pathname.startsWith("/embed/") ||
-    pathname.startsWith("/einladung/");
+    pathname.startsWith("/invitation/");
 
   const supabaseOnly = isSupabaseOnlyMode();
   const [state, setState] = useState<GateState>(() =>

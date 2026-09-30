@@ -1,5 +1,6 @@
 import { ensureRestaurantReservationSettings } from "@/lib/reservations/reservation-settings-server";
 import { buildGuestManageUrl } from "@/lib/reservations/guest-manage-url";
+import { loadGuestNotificationLocale } from "@/lib/notifications/notification-recipient-locale";
 import {
   buildEmailMessage,
   buildEmailSubject,
@@ -93,6 +94,7 @@ export type ReservationForEmail = {
   ends_at: string;
   notify_email: boolean;
   status_code: string;
+  notify_locale?: string | null;
 };
 
 export type OutboxKind = WhatsappMessageKind;
@@ -242,6 +244,8 @@ export async function fetchReservationForEmail(
       starts_at,
       ends_at,
       notify_email,
+      guest_profile_id,
+      guest_locale,
       ${RESERVATION_STATUS_EMBED} ( code )
     `,
     )
@@ -265,6 +269,11 @@ export async function fetchReservationForEmail(
     ends_at: data.ends_at as string,
     notify_email: Boolean(data.notify_email),
     status_code: status?.code ?? "pending",
+    notify_locale: await loadGuestNotificationLocale(sb, {
+      restaurantId: data.restaurant_id as string,
+      guestLocale: (data as { guest_locale?: string | null }).guest_locale,
+      guestProfileId: (data as { guest_profile_id?: string | null }).guest_profile_id,
+    }),
   };
 }
 
@@ -323,6 +332,7 @@ function messageContext(
     timeZone,
     reservationNumber: row.reservation_number,
     guestPin: row.guest_pin,
+    locale: row.notify_locale,
     manageUrl: buildGuestManageUrl(
       settings?.guest_manage_url_template,
       row.reservation_number,

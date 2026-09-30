@@ -6,9 +6,9 @@ import assert from "node:assert/strict";
 
 const MODULE_HOME_PATHS = {
   dashboard: "/dashboard",
-  reservierungen: "/dashboard/reservierungen/uebersicht",
-  nachrichten: "/dashboard/kontakte/nachrichten",
-  events: "/dashboard/events/uebersicht",
+  reservierungen: "/dashboard/reservations/overview",
+  nachrichten: "/dashboard/contacts/messages",
+  events: "/dashboard/events/overview",
 };
 
 function normalizeNavHref(href) {
@@ -25,10 +25,10 @@ function matchHome(pathname) {
   if (path === MODULE_HOME_PATHS.events || path === "/dashboard/events") {
     return "events";
   }
-  if (path === "/dashboard/menu/uebersicht" || path === "/dashboard/menu") {
+  if (path === "/dashboard/menu/overview" || path === "/dashboard/menu") {
     return "menu";
   }
-  if (path === "/dashboard/news/uebersicht" || path === "/dashboard/news") {
+  if (path === "/dashboard/news/overview" || path === "/dashboard/news") {
     return "news";
   }
   return null;
@@ -70,7 +70,7 @@ function slotVisible({ id, pathname, pendingHref, warm, suppressHomeId = null })
 // 1) Dashboard → Speisekarte: Cover + Dashboard weg
 {
   const pathname = "/dashboard";
-  const pendingHref = "/dashboard/menu/uebersicht";
+  const pendingHref = "/dashboard/menu/overview";
   assert.equal(
     shouldShowPendingCover({ pendingHref, pendingToWarmHome: false }),
     true,
@@ -99,8 +99,8 @@ function slotVisible({ id, pathname, pendingHref, warm, suppressHomeId = null })
 
 // 2) Pathname schon am Ziel, Pending noch gesetzt (pre-paint): Cover bleibt, Dashboard weg
 {
-  const pathname = "/dashboard/menu/uebersicht";
-  const pendingHref = "/dashboard/menu/uebersicht";
+  const pathname = "/dashboard/menu/overview";
+  const pendingHref = "/dashboard/menu/overview";
   assert.equal(
     shouldShowPendingCover({ pendingHref, pendingToWarmHome: false }),
     true,
@@ -142,13 +142,13 @@ function slotVisible({ id, pathname, pendingHref, warm, suppressHomeId = null })
   const dash = slotVisible({
     id: "dashboard",
     pathname: "/dashboard",
-    pendingHref: "/dashboard/menu/uebersicht",
+    pendingHref: "/dashboard/menu/overview",
     warm: true,
   });
   assert.equal(dash.visible, false, "Revert + Pending → Dashboard hidden");
   assert.equal(
     shouldShowPendingCover({
-      pendingHref: "/dashboard/menu/uebersicht",
+      pendingHref: "/dashboard/menu/overview",
       pendingToWarmHome: false,
     }),
     true,
@@ -186,7 +186,7 @@ function slotVisible({ id, pathname, pendingHref, warm, suppressHomeId = null })
 {
   assert.equal(
     shouldClearPendingOnPathname({
-      pendingTarget: "/dashboard/menu/uebersicht",
+      pendingTarget: "/dashboard/menu/overview",
       pathname: "/dashboard",
     }),
     false,
@@ -198,7 +198,7 @@ function slotVisible({ id, pathname, pendingHref, warm, suppressHomeId = null })
   assert.equal(
     shouldClearPendingOnPathname({
       pendingTarget: "/dashboard/events",
-      pathname: "/dashboard/events/uebersicht",
+      pathname: "/dashboard/events/overview",
     }),
     true,
     "Events-Root-Redirect räumt Pending",
@@ -206,7 +206,7 @@ function slotVisible({ id, pathname, pendingHref, warm, suppressHomeId = null })
   assert.equal(
     shouldClearPendingOnPathname({
       pendingTarget: "/dashboard/events",
-      pathname: "/dashboard/events/einstellungen",
+      pathname: "/dashboard/events/settings",
     }),
     false,
     "Events-Einstellungen ist kein Home-Alias",
@@ -218,7 +218,7 @@ function slotVisible({ id, pathname, pendingHref, warm, suppressHomeId = null })
   assert.equal(
     shouldClearPendingOnPathname({
       pendingTarget: "/dashboard/menu",
-      pathname: "/dashboard/menu/uebersicht",
+      pathname: "/dashboard/menu/overview",
     }),
     true,
     "Menu-Root-Redirect räumt Pending",
@@ -226,7 +226,7 @@ function slotVisible({ id, pathname, pendingHref, warm, suppressHomeId = null })
   assert.equal(
     shouldClearPendingOnPathname({
       pendingTarget: "/dashboard/news",
-      pathname: "/dashboard/news/einstellungen",
+      pathname: "/dashboard/news/settings",
     }),
     false,
     "News-Einstellungen ist kein Home-Alias",
@@ -263,18 +263,18 @@ function shouldClearPendingAfterArrive({ arrivedAt, now, stableMs }) {
 {
   assert.equal(
     shouldAbandon({
-      pathname: "/dashboard/events/einstellungen",
+      pathname: "/dashboard/events/settings",
       pendingFrom: "/dashboard",
-      pendingTarget: "/dashboard/events/uebersicht",
+      pendingTarget: "/dashboard/events/overview",
     }),
     true,
     "Einstellungen während Events-Flight gibt Pending auf",
   );
   assert.equal(
     shouldRetryFailsafe({
-      pathname: "/dashboard/events/einstellungen",
+      pathname: "/dashboard/events/settings",
       pendingFrom: "/dashboard",
-      pendingTarget: "/dashboard/events/uebersicht",
+      pendingTarget: "/dashboard/events/overview",
     }),
     false,
     "Failsafe darf nicht von Einstellungen zurück auf Übersicht pushen",
@@ -287,7 +287,7 @@ function shouldClearPendingAfterArrive({ arrivedAt, now, stableMs }) {
     shouldRetryFailsafe({
       pathname: "/dashboard",
       pendingFrom: "/dashboard",
-      pendingTarget: "/dashboard/menu/uebersicht",
+      pendingTarget: "/dashboard/menu/overview",
     }),
     true,
   );
@@ -295,7 +295,7 @@ function shouldClearPendingAfterArrive({ arrivedAt, now, stableMs }) {
     shouldAbandon({
       pathname: "/dashboard",
       pendingFrom: "/dashboard",
-      pendingTarget: "/dashboard/menu/uebersicht",
+      pendingTarget: "/dashboard/menu/overview",
     }),
     false,
   );
@@ -305,9 +305,9 @@ function shouldClearPendingAfterArrive({ arrivedAt, now, stableMs }) {
 {
   assert.equal(
     shouldAbandon({
-      pathname: "/dashboard/menu/uebersicht",
+      pathname: "/dashboard/menu/overview",
       pendingFrom: "/dashboard",
-      pendingTarget: "/dashboard/events/uebersicht",
+      pendingTarget: "/dashboard/events/overview",
     }),
     false,
     "Stale Speisekarte-RSC darf Events-Pending nicht aufgeben",
@@ -320,7 +320,7 @@ function shouldClearPendingAfterArrive({ arrivedAt, now, stableMs }) {
     shouldRepush({
       pathname: "/dashboard",
       pendingFrom: "/dashboard",
-      pendingTarget: "/dashboard/menu/uebersicht",
+      pendingTarget: "/dashboard/menu/overview",
     }),
     true,
     "Push geschluckt: Retry von der Quelle",
@@ -331,9 +331,9 @@ function shouldClearPendingAfterArrive({ arrivedAt, now, stableMs }) {
 {
   assert.equal(
     shouldRepush({
-      pathname: "/dashboard/menu/uebersicht",
+      pathname: "/dashboard/menu/overview",
       pendingFrom: "/dashboard",
-      pendingTarget: "/dashboard/events/uebersicht",
+      pendingTarget: "/dashboard/events/overview",
     }),
     true,
     "Stale RSC auf anderem Home → Ziel nachpushen",
@@ -344,9 +344,9 @@ function shouldClearPendingAfterArrive({ arrivedAt, now, stableMs }) {
 {
   assert.equal(
     shouldRepush({
-      pathname: "/dashboard/events/einstellungen",
+      pathname: "/dashboard/events/settings",
       pendingFrom: "/dashboard",
-      pendingTarget: "/dashboard/events/uebersicht",
+      pendingTarget: "/dashboard/events/overview",
     }),
     false,
     "Einstellungen darf kein Overview-Retry auslösen",

@@ -11,35 +11,35 @@ export const DOCS_NAV: DocsNavItem[] = [
   },
   {
     title: "Erste Schritte",
-    href: "/docs/erste-schritte",
+    href: "/docs/getting-started",
     items: [
-      { title: "Willkommen", href: "/docs/erste-schritte" },
+      { title: "Willkommen", href: "/docs/getting-started" },
       { title: "Navigation", href: "/docs/navigation" },
     ],
   },
   {
     title: "Handbuch",
-    href: "/docs/handbuch/dashboard",
+    href: "/docs/handbook/dashboard",
     items: [
-      { title: "Dashboard", href: "/docs/handbuch/dashboard" },
-      { title: "Speisekarte", href: "/docs/handbuch/speisekarte" },
-      { title: "Bestand", href: "/docs/handbuch/bestand" },
-      { title: "Reservierungen", href: "/docs/handbuch/reservierungen" },
-      { title: "Events", href: "/docs/handbuch/events" },
-      { title: "Nachrichten", href: "/docs/handbuch/nachrichten" },
-      { title: "News", href: "/docs/handbuch/news" },
-      { title: "Bewertungen", href: "/docs/handbuch/bewertungen" },
-      { title: "Insights", href: "/docs/handbuch/insights" },
-      { title: "Galerie", href: "/docs/handbuch/galerie" },
-      { title: "Buchführung", href: "/docs/handbuch/buchfuehrung" },
-      { title: "Dokumente", href: "/docs/handbuch/dokumente" },
-      { title: "Aufgaben", href: "/docs/handbuch/checklisten" },
-      { title: "Mitarbeiter", href: "/docs/handbuch/mitarbeiter" },
-      { title: "Einstellungen", href: "/docs/handbuch/einstellungen" },
-      { title: "Integrationen", href: "/docs/handbuch/integrationen" },
-      { title: "Display", href: "/docs/handbuch/display" },
-      { title: "Öffentliches Profil", href: "/docs/handbuch/oeffentliches-profil" },
-      { title: "Profil", href: "/docs/handbuch/profil" },
+      { title: "Dashboard", href: "/docs/handbook/dashboard" },
+      { title: "Speisekarte", href: "/docs/handbook/menu" },
+      { title: "Bestand", href: "/docs/handbook/inventory" },
+      { title: "Reservierungen", href: "/docs/handbook/reservations" },
+      { title: "Events", href: "/docs/handbook/events" },
+      { title: "Nachrichten", href: "/docs/handbook/messages" },
+      { title: "News", href: "/docs/handbook/news" },
+      { title: "Bewertungen", href: "/docs/handbook/reviews" },
+      { title: "Insights", href: "/docs/handbook/insights" },
+      { title: "Galerie", href: "/docs/handbook/gallery" },
+      { title: "Buchführung", href: "/docs/handbook/accounting" },
+      { title: "Dokumente", href: "/docs/handbook/documents" },
+      { title: "Aufgaben", href: "/docs/handbook/tasks" },
+      { title: "Mitarbeiter", href: "/docs/handbook/staff" },
+      { title: "Einstellungen", href: "/docs/handbook/settings" },
+      { title: "Integrationen", href: "/docs/handbook/integrations" },
+      { title: "Display", href: "/docs/handbook/display" },
+      { title: "Öffentliches Profil", href: "/docs/handbook/public-profile" },
+      { title: "Profil", href: "/docs/handbook/profile" },
     ],
   },
   {
@@ -63,7 +63,7 @@ export const DOCS_NAV: DocsNavItem[] = [
 
 export function isDocsNavItemActive(pathname: string, href: string): boolean {
   if (href === "/docs") return pathname === "/docs";
-  if (href.startsWith("/docs/handbuch/") && pathname.startsWith("/docs/handbuch/")) {
+  if (href.startsWith("/docs/handbook/") && pathname.startsWith("/docs/handbook/")) {
     return pathname === href;
   }
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -76,8 +76,8 @@ export function isDocsNavSectionActive(
   if (isDocsNavItemActive(pathname, section.href)) return true;
   if (section.items?.some((item) => pathname === item.href)) return true;
   if (
-    section.href.startsWith("/docs/handbuch/") &&
-    pathname.startsWith("/docs/handbuch/")
+    section.href.startsWith("/docs/handbook/") &&
+    pathname.startsWith("/docs/handbook/")
   ) {
     return true;
   }
@@ -85,8 +85,8 @@ export function isDocsNavSectionActive(
     return true;
   }
   if (
-    section.href === "/docs/erste-schritte" &&
-    (pathname === "/docs/erste-schritte" || pathname === "/docs/navigation")
+    section.href === "/docs/getting-started" &&
+    (pathname === "/docs/getting-started" || pathname === "/docs/navigation")
   ) {
     return true;
   }
@@ -112,7 +112,7 @@ export function docsNavCurrentTitle(pathname: string): string {
       return section.title;
     }
   }
-  if (pathname.startsWith("/docs/handbuch/")) return "Handbuch";
+  if (pathname.startsWith("/docs/handbook/")) return "Handbuch";
   if (pathname.startsWith("/docs/api")) return "API";
   return "Dokumentation";
 }

@@ -63,7 +63,7 @@ export function showNewReservationToast(
           module: "reservations_pending",
           title: "Neue Reservierung",
           description,
-          href: "/dashboard/reservierungen",
+          href: "/dashboard/reservations",
         });
       },
     );

@@ -1,7 +1,7 @@
 import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const einstellungenGuide: UserGuidePage = {
-  slug: "einstellungen",
+  slug: "settings",
   title: "Einstellungen",
   description:
     "Restaurant, Team, Integrationen, Displays, API und Dashboard-Konfiguration.",
@@ -94,14 +94,14 @@ export const einstellungenGuide: UserGuidePage = {
     },
   ],
   related: [
-    { label: "Integrationen (Detail)", href: "/docs/handbuch/integrationen" },
-    { label: "Display", href: "/docs/handbuch/display" },
+    { label: "Integrationen (Detail)", href: "/docs/handbook/integrations" },
+    { label: "Display", href: "/docs/handbook/display" },
     { label: "API-Dokumentation", href: "/docs/api" },
   ],
 };
 
 export const integrationenGuide: UserGuidePage = {
-  slug: "integrationen",
+  slug: "integrations",
   title: "Integrationen",
   description:
     "WhatsApp, E-Mail, Google, Meta, Lexware, TripAdvisor Schritt für Schritt.",
@@ -173,9 +173,9 @@ export const integrationenGuide: UserGuidePage = {
     "Nach jeder Integration: passendes Modul testen (Nachricht senden, Bewertung abrufen, …).",
   ],
   related: [
-    { label: "Einstellungen", href: "/docs/handbuch/einstellungen" },
-    { label: "Nachrichten", href: "/docs/handbuch/nachrichten" },
-    { label: "Insights", href: "/docs/handbuch/insights" },
+    { label: "Einstellungen", href: "/docs/handbook/settings" },
+    { label: "Nachrichten", href: "/docs/handbook/messages" },
+    { label: "Insights", href: "/docs/handbook/insights" },
   ],
 };
 
@@ -244,15 +244,15 @@ export const displayGuide: UserGuidePage = {
     "Koppel-Links mit Code eignen sich gut für vorbereitete Tablets vor Schichtbeginn.",
   ],
   related: [
-    { label: "Mitarbeiter", href: "/docs/handbuch/mitarbeiter" },
-    { label: "Aufgaben", href: "/docs/handbuch/checklisten" },
-    { label: "Bestand", href: "/docs/handbuch/bestand" },
-    { label: "Einstellungen → Displays", href: "/docs/handbuch/einstellungen" },
+    { label: "Mitarbeiter", href: "/docs/handbook/staff" },
+    { label: "Aufgaben", href: "/docs/handbook/tasks" },
+    { label: "Bestand", href: "/docs/handbook/inventory" },
+    { label: "Einstellungen → Displays", href: "/docs/handbook/settings" },
   ],
 };
 
 export const oeffentlichesProfilGuide: UserGuidePage = {
-  slug: "oeffentliches-profil",
+  slug: "public-profile",
   title: "Öffentliches Profil & Einbinden",
   description:
     "Gästeseite unter gwada.app/[slug], Profil-Apps und Website-Widgets.",
@@ -298,14 +298,14 @@ export const oeffentlichesProfilGuide: UserGuidePage = {
       table: {
         headers: ["Modul", "Embed-URL"],
         rows: [
-          ["Speisekarte", "/embed/speisekarte/[slug]"],
-          ["Reservieren", "/embed/reservieren/[slug]"],
-          ["Bewertungen", "/embed/bewertungen/[slug]"],
+          ["Speisekarte", "/embed/menu/[slug]"],
+          ["Reservieren", "/embed/reserve/[slug]"],
+          ["Bewertungen", "/embed/reviews/[slug]"],
           ["News", "/embed/news/[slug]"],
           ["Events", "/embed/events/[slug]"],
-          ["Veranstaltungs-Anfrage", "/embed/veranstaltung/[slug]"],
+          ["Veranstaltungs-Anfrage", "/embed/event-inquiry/[slug]"],
           ["Galerie", "/embed/gallery/[slug]"],
-          ["Öffnungszeiten", "/embed/oeffnungszeiten/[slug]"],
+          ["Öffnungszeiten", "/embed/opening-hours/[slug]"],
         ],
       },
     },
@@ -323,14 +323,14 @@ export const oeffentlichesProfilGuide: UserGuidePage = {
     "Teste Embeds im Tab Einbinden mit der integrierten Vorschau, bevor du den Code auf die Website setzt.",
   ],
   related: [
-    { label: "Einstellungen → Übersicht", href: "/docs/handbuch/einstellungen" },
-    { label: "News einbinden", href: "/docs/handbuch/news" },
+    { label: "Einstellungen → Übersicht", href: "/docs/handbook/settings" },
+    { label: "News einbinden", href: "/docs/handbook/news" },
     { label: "API", href: "/docs/api" },
   ],
 };
 
 export const profilGuide: UserGuidePage = {
-  slug: "profil",
+  slug: "profile",
   title: "Profil & Benachrichtigungen",
   description:
     "Persönliches Konto, Anmeldung, Self-Service für Mitarbeiter und Restaurant-Wechsel.",
@@ -385,8 +385,8 @@ export const profilGuide: UserGuidePage = {
     "Fehlt ein Mitarbeiter-Tab, liegt das an Rolle oder Modul-Freischaltung — nicht an einem Fehler.",
   ],
   related: [
-    { label: "Erste Schritte", href: "/docs/erste-schritte" },
-    { label: "Display", href: "/docs/handbuch/display" },
-    { label: "Mitarbeiter", href: "/docs/handbuch/mitarbeiter" },
+    { label: "Erste Schritte", href: "/docs/getting-started" },
+    { label: "Display", href: "/docs/handbook/display" },
+    { label: "Mitarbeiter", href: "/docs/handbook/staff" },
   ],
 };

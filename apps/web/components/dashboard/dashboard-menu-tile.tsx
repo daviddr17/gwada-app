@@ -22,7 +22,7 @@ export function DashboardMenuTile() {
           aria-hidden
         />
       }
-      href="/dashboard/menu/uebersicht"
+      href="/dashboard/menu/overview"
       linkLabel="Zur Speisekarte"
       ready={ready}
       loading={showSkeleton}
@@ -59,7 +59,7 @@ export function DashboardMenuTile() {
             <DashboardCompactMetricPill
               label="Ohne Kategorie"
               value={String(summary.withoutCategory)}
-              href="/dashboard/menu/uebersicht"
+              href="/dashboard/menu/overview"
               highlight
             />
           ) : null}

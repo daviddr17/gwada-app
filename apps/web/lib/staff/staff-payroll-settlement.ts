@@ -10,10 +10,15 @@ export const STAFF_PAYROLL_SETTLEMENT_STATUS_LABELS: Record<
   underpaid: "Unterzahlt",
 };
 
-/** Status und Beträge aus Lohn − Auszahlungen (kein manueller Snapshot). */
+/** Status und Beträge aus Übertrag + Lohn − Auszahlungen (kein manueller Snapshot). */
 export type DerivedPayrollSettlement = {
   status: StaffPayrollSettlementStatus;
-  /** Lohn − Auszahlungen. */
+  /** Saldo aus allen früheren Monaten. Negativ = zu viel gezahlt. */
+  carryCents: number;
+  /**
+   * Offen, vorzeichenbehaftet:
+   * Übertrag + Lohn dieses Monats − Auszahlungen dieses Monats.
+   */
   dueCents: number;
   /** Noch zu zahlen: max(0, due). */
   openCents: number;
@@ -26,10 +31,13 @@ export type DerivedPayrollSettlement = {
 export function derivePayrollSettlement(snap: {
   wageCents: number;
   payoutCents: number;
+  /** Saldo vor diesem Monat. Weglassen = 0 (nur dieser Monat). */
+  carryCents?: number;
 }): DerivedPayrollSettlement {
   const wageCents = Math.max(0, Math.round(snap.wageCents));
   const payoutCents = Math.max(0, Math.round(snap.payoutCents));
-  const dueCents = wageCents - payoutCents;
+  const carryCents = Math.round(snap.carryCents ?? 0);
+  const dueCents = carryCents + wageCents - payoutCents;
   const openCents = Math.max(0, dueCents);
   const paidCents = Math.min(wageCents, payoutCents);
   const overpaidCreditCents = Math.max(0, -dueCents);
@@ -42,11 +50,90 @@ export function derivePayrollSettlement(snap: {
 
   return {
     status,
+    carryCents,
     dueCents,
     openCents,
     paidCents,
     overpaidCreditCents,
   };
+}
+
+export type PayrollMonthMoney = {
+  staffId: string;
+  periodYear: number;
+  periodMonth: number;
+  wageCents: number;
+  payoutCents: number;
+};
+
+export type PayrollMonthWithCarry = PayrollMonthMoney & DerivedPayrollSettlement;
+
+function payrollMonthSortKey(year: number, month: number): number {
+  return year * 100 + month;
+}
+
+/**
+ * Übertrag je Mitarbeiter: Schlusssaldo des Vormonats.
+ * Monate chronologisch; ein negativer Saldo bleibt stehen.
+ */
+export function withPayrollCarryForward(
+  months: readonly PayrollMonthMoney[],
+): PayrollMonthWithCarry[] {
+  const sorted = [...months].sort((a, b) => {
+    const ym =
+      payrollMonthSortKey(a.periodYear, a.periodMonth) -
+      payrollMonthSortKey(b.periodYear, b.periodMonth);
+    if (ym !== 0) return ym;
+    return a.staffId.localeCompare(b.staffId);
+  });
+  const running = new Map<string, number>();
+  return sorted.map((row) => {
+    const carryCents = running.get(row.staffId) ?? 0;
+    const derived = derivePayrollSettlement({
+      wageCents: row.wageCents,
+      payoutCents: row.payoutCents,
+      carryCents,
+    });
+    running.set(row.staffId, derived.dueCents);
+    return { ...row, ...derived };
+  });
+}
+
+/** Saldo unmittelbar vor diesem Monat (0, wenn es keinen früheren Monat gibt). */
+export function payrollCarryCentsBeforeMonth(
+  settled: readonly Pick<
+    PayrollMonthWithCarry,
+    "staffId" | "periodYear" | "periodMonth" | "dueCents"
+  >[],
+  staffId: string,
+  year: number,
+  month: number,
+): number {
+  const target = payrollMonthSortKey(year, month);
+  let best = -1;
+  let carry = 0;
+  for (const row of settled) {
+    if (row.staffId !== staffId) continue;
+    const key = payrollMonthSortKey(row.periodYear, row.periodMonth);
+    if (key >= target || key < best) continue;
+    best = key;
+    carry = row.dueCents;
+  }
+  return carry;
+}
+
+/**
+ * Auszahlung in Stunden → Cent mit demselben Stundenlohn,
+ * der die gearbeiteten Stunden bewertet. Kein eigener Satz.
+ */
+export function payoutCentsFromHours(
+  hours: number,
+  hourlyRateCents: number,
+): number | null {
+  if (!Number.isFinite(hours) || hours <= 0) return null;
+  if (!Number.isFinite(hourlyRateCents) || hourlyRateCents <= 0) return null;
+  const cents = Math.round(hours * hourlyRateCents);
+  return cents > 0 ? cents : null;
 }
 
 /** Soll-Stunden für Kalendermonat aus Wochen-Soll-Minuten. */

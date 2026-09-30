@@ -820,6 +820,37 @@ export async function deleteStaffContract(
   return { ok: true };
 }
 
+const WORK_ENTRY_PAGE = 1000;
+
+async function fetchWorkEntryPages(
+  queryPage: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{
+    data: unknown[] | null;
+    error: { message: string } | null;
+  }>,
+): Promise<{ data: Record<string, unknown>[]; error: string | null }> {
+  const data: Record<string, unknown>[] = [];
+  let from = 0;
+  let previousFirstId: string | null = null;
+  for (;;) {
+    const { data: page, error } = await queryPage(
+      from,
+      from + WORK_ENTRY_PAGE - 1,
+    );
+    if (error) return { data: [], error: error.message };
+    const rows = (page ?? []) as Record<string, unknown>[];
+    const firstId = rows[0] ? String(rows[0].id ?? "") : "";
+    if (firstId && firstId === previousFirstId) break;
+    previousFirstId = firstId || previousFirstId;
+    data.push(...rows);
+    if (rows.length < WORK_ENTRY_PAGE) break;
+    from += WORK_ENTRY_PAGE;
+  }
+  return { data, error: null };
+}
+
 export async function fetchStaffWorkEntriesInRange(
   restaurantId: string,
   staffId: string | null,
@@ -827,39 +858,42 @@ export async function fetchStaffWorkEntriesInRange(
   rangeEndIso: string,
 ): Promise<{ data: RestaurantStaffWorkEntryRow[]; error: string | null }> {
   const supabase = createSupabaseBrowserClient();
+  const select =
+    "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id";
 
-  // Überlappung mit [rangeStart, rangeEnd): offene Segmente + geschlossene Intervalle.
-  let closedQ = supabase
-    .from("restaurant_staff_work_entries")
-    .select(
-      "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
-    )
-    .eq("restaurant_id", restaurantId)
-    .eq("is_open", false)
-    .lt("starts_at", rangeEndIso)
-    .gt("ends_at", rangeStartIso)
-    .order("starts_at", { ascending: true });
+  // Überlappung mit [rangeStart, rangeEnd). Paginiert — max_rows ist 1000.
+  const [closedRes, openRes] = await Promise.all([
+    fetchWorkEntryPages((from, to) => {
+      let q = supabase
+        .from("restaurant_staff_work_entries")
+        .select(select)
+        .eq("restaurant_id", restaurantId)
+        .eq("is_open", false)
+        .lt("starts_at", rangeEndIso)
+        .gt("ends_at", rangeStartIso)
+        .order("starts_at", { ascending: true })
+        .order("id", { ascending: true });
+      if (staffId) q = q.eq("staff_id", staffId);
+      return q.range(from, to);
+    }),
+    fetchWorkEntryPages((from, to) => {
+      let q = supabase
+        .from("restaurant_staff_work_entries")
+        .select(select)
+        .eq("restaurant_id", restaurantId)
+        .eq("is_open", true)
+        .lt("starts_at", rangeEndIso)
+        .order("starts_at", { ascending: true })
+        .order("id", { ascending: true });
+      if (staffId) q = q.eq("staff_id", staffId);
+      return q.range(from, to);
+    }),
+  ]);
 
-  let openQ = supabase
-    .from("restaurant_staff_work_entries")
-    .select(
-      "id, restaurant_id, staff_id, entry_type, starts_at, ends_at, note, is_open, shift_id",
-    )
-    .eq("restaurant_id", restaurantId)
-    .eq("is_open", true)
-    .lt("starts_at", rangeEndIso)
-    .order("starts_at", { ascending: true });
-
-  if (staffId) {
-    closedQ = closedQ.eq("staff_id", staffId);
-    openQ = openQ.eq("staff_id", staffId);
-  }
-
-  const [{ data: closed, error: closedErr }, { data: open, error: openErr }] =
-    await Promise.all([closedQ, openQ]);
-
-  const error = closedErr?.message ?? openErr?.message ?? null;
+  const error = closedRes.error ?? openRes.error;
   if (error) return { data: [], error };
+  const closed = closedRes.data;
+  const open = openRes.data;
 
   const mapRow = (r: Record<string, unknown>): RestaurantStaffWorkEntryRow => ({
     id: r.id as string,

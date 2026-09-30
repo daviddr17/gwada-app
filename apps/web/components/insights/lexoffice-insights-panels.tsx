@@ -83,7 +83,7 @@ export function LexofficeInsightsPanels({
             sehen.
           </p>
           <Link
-            href="/dashboard/settings/integrationen"
+            href="/dashboard/settings/integrations"
             className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
           >
             Zu Integrationen

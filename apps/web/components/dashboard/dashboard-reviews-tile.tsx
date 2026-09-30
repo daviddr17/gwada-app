@@ -58,7 +58,7 @@ export function DashboardReviewsTile() {
           aria-hidden
         />
       }
-      href="/dashboard/bewertungen/uebersicht"
+      href="/dashboard/reviews/overview"
       linkLabel="Zu Bewertungen"
       ready={ready}
       loading={showSkeleton}

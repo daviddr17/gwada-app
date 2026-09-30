@@ -23,7 +23,7 @@ export function DashboardInsightsTile() {
           aria-hidden
         />
       }
-      href="/dashboard/insights/uebersicht"
+      href="/dashboard/insights/overview"
       linkLabel="Zu Insights"
       ready={ready}
       loading={showSkeleton}

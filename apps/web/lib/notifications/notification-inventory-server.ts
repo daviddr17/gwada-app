@@ -111,7 +111,7 @@ export async function loadInventoryLowStockBellSummary(
       id: ing.id,
       title: ing.name,
       subtitle: `${ing.currentStock} ${unitLabel} (${copy.bellThreshold} ${ing.lowStockThreshold})`,
-      href: "/dashboard/inventory/uebersicht",
+      href: "/dashboard/inventory/overview",
       at: ing.updatedAt,
       meta: { ingredientId: ing.id },
     };

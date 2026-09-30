@@ -217,7 +217,7 @@ function mapQuotationToBellItem(row: {
     id: row.id,
     title: row.title?.trim() || "Neues Angebot",
     subtitle: subtitleParts.join(" · ") || recipient,
-    href: "/dashboard/buchfuehrung/angebote",
+    href: "/dashboard/accounting/quotations",
     at: row.created_at,
     meta: { documentId: row.id },
   };
@@ -245,7 +245,7 @@ function mapInvoiceToBellItem(row: {
     id: row.id,
     title: row.title?.trim() || "Neue Rechnung",
     subtitle: subtitleParts.join(" · ") || recipient,
-    href: "/dashboard/buchfuehrung/rechnungen",
+    href: "/dashboard/accounting/invoices",
     at: row.created_at,
     meta: { documentId: row.id },
   };
@@ -271,7 +271,7 @@ function mapVoucherToBellItem(row: {
     id: row.id,
     title: "Neuer Beleg",
     subtitle: subtitleParts.join(" · ") || contact,
-    href: "/dashboard/buchfuehrung/belege",
+    href: "/dashboard/accounting/vouchers",
     at: row.created_at,
     meta: { documentId: row.id },
   };

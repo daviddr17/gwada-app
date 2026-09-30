@@ -70,7 +70,7 @@ export function IngredientUsageDrawer({
                     className="shrink-0 rounded-full"
                     render={
                       <Link
-                        href={`/dashboard/menu/uebersicht?dish=${encodeURIComponent(d.id)}`}
+                        href={`/dashboard/menu/overview?dish=${encodeURIComponent(d.id)}`}
                         prefetch
                       />
                     }

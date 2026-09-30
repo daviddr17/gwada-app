@@ -15,7 +15,7 @@ import { generateAdminAuthActionLink } from "@/lib/auth/generate-admin-auth-acti
 import type { PreparedAuthEmailJob } from "@/lib/auth/auth-email-background-dispatch";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const DEFAULT_RESET_NEXT = "/auth/neues-passwort";
+const DEFAULT_RESET_NEXT = "/auth/new-password";
 
 type PrepareResult =
   | { ok: true; prepared: PreparedAuthEmailJob }

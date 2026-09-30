@@ -1,7 +1,7 @@
 /** Superadmin: zentrale Vorlagen-Bibliothek */
 export const SUPERADMIN_VORLAGEN_ROUTES = {
-  root: "/superadmin/vorlagen",
-  vertragsvorlagen: "/superadmin/vorlagen/vertragsvorlagen",
+  root: "/superadmin/templates",
+  vertragsvorlagen: "/superadmin/templates/contract-templates",
 } as const;
 
 export const SUPERADMIN_VORLAGEN_NAV = [

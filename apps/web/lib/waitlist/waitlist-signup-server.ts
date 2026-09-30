@@ -99,7 +99,7 @@ async function sendWaitlistAdminNotification(params: {
     noteBlock,
     `Eingetragen am: ${when}`,
     "",
-    `Warteliste im Superadmin: ${params.origin.replace(/\/$/, "")}/superadmin/warteliste`,
+    `Warteliste im Superadmin: ${params.origin.replace(/\/$/, "")}/superadmin/waitlist`,
   ].join("\n");
 
   const html = buildTransactionalEmailHtmlFromText({
@@ -110,7 +110,7 @@ async function sendWaitlistAdminNotification(params: {
     text,
     cta: {
       label: "Warteliste öffnen",
-      href: `${params.origin.replace(/\/$/, "")}/superadmin/warteliste`,
+      href: `${params.origin.replace(/\/$/, "")}/superadmin/waitlist`,
     },
     footerNote: "Diese E-Mail geht an alle Superadmins.",
   });

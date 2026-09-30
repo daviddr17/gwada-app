@@ -21,7 +21,7 @@ function isReadyViaQuery(queryClient, href) {
   if (path.startsWith("/dashboard/menu")) {
     return queryClient.getQueryData(["menu", restaurantId, "items"]) != null;
   }
-  if (path.startsWith("/dashboard/mitarbeiter")) {
+  if (path.startsWith("/dashboard/staff")) {
     return queryClient.getQueryData(["staff", restaurantId, "list"]) != null;
   }
   return false;
@@ -29,19 +29,19 @@ function isReadyViaQuery(queryClient, href) {
 
 const qc = new QueryClient();
 assert.equal(
-  isReadyViaQuery(qc, "/dashboard/menu/uebersicht"),
+  isReadyViaQuery(qc, "/dashboard/menu/overview"),
   false,
   "cold menu",
 );
 qc.setQueryData(["menu", restaurantId, "items"], [{ id: "1" }]);
 assert.equal(
-  isReadyViaQuery(qc, "/dashboard/menu/uebersicht"),
+  isReadyViaQuery(qc, "/dashboard/menu/overview"),
   true,
   "warm menu",
 );
 qc.setQueryData(["staff", restaurantId, "list"], { staff: [] });
 assert.equal(
-  isReadyViaQuery(qc, "/dashboard/mitarbeiter/uebersicht"),
+  isReadyViaQuery(qc, "/dashboard/staff/overview"),
   true,
   "warm staff",
 );

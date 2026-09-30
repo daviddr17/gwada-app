@@ -66,7 +66,7 @@ function toRecentRow(row: ReservationListRow): DashboardReservationRecent {
     partySize: row.party_size,
     statusName: row.reservation_statuses?.name ?? "—",
     statusCode: row.reservation_statuses?.code ?? "",
-    href: `/dashboard/reservierungen/uebersicht?reservation=${row.id}`,
+    href: `/dashboard/reservations/overview?reservation=${row.id}`,
     unconfirmed: isUnconfirmedReservation(row),
     internalNote: reservationInternalNoteText(row.notes),
   };

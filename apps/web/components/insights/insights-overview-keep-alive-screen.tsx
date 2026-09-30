@@ -5,7 +5,7 @@ import { InsightsOverviewScreen } from "@/components/insights/insights-overview-
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 
 const INSIGHTS_NAV: readonly ModuleSubnavItem[] = [
-  { href: "/dashboard/insights/uebersicht", label: "Übersicht", matchMode: "exact", activeWhen: ["/dashboard/insights"] },
+  { href: "/dashboard/insights/overview", label: "Übersicht", matchMode: "exact", activeWhen: ["/dashboard/insights"] },
 ];
 
 export function InsightsOverviewKeepAliveScreen({

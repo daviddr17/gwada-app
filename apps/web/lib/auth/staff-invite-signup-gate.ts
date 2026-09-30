@@ -41,5 +41,5 @@ export async function isSignupAllowedForEmailAdmin(
 /** OAuth/Magic-Link-Rückkehr direkt auf Einladungsseite — neues Konto zulassen. */
 export function isInviteSignupNextPath(next: string | null | undefined): boolean {
   const path = safeInternalPath(next);
-  return path.startsWith("/einladung/") && path.length > "/einladung/".length;
+  return path.startsWith("/invitation/") && path.length > "/invitation/".length;
 }

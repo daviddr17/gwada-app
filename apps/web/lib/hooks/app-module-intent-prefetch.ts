@@ -102,12 +102,12 @@ export function warmModuleData(
   href: string,
 ): void {
   const path = normalizeModuleHref(href);
-  if (path.startsWith("/dashboard/mitarbeiter")) {
+  if (path.startsWith("/dashboard/staff")) {
     seedPriorityModuleQueryCaches(queryClient, restaurantId);
     prefetchCriticalModuleQueries(queryClient, restaurantId);
     return;
   }
-  if (path.startsWith("/dashboard/reservierungen")) {
+  if (path.startsWith("/dashboard/reservations")) {
     seedPriorityModuleQueryCaches(queryClient, restaurantId);
     void queryClient.prefetchQuery(
       reservationsMonthQueryOptions(
@@ -132,11 +132,11 @@ export function warmModuleData(
     );
     return;
   }
-  if (path.startsWith("/dashboard/bewertungen")) {
+  if (path.startsWith("/dashboard/reviews")) {
     void warmReviewsFeed(restaurantId);
     return;
   }
-  if (path.startsWith("/dashboard/buchfuehrung")) {
+  if (path.startsWith("/dashboard/accounting")) {
     void warmAccountingInvoices(restaurantId);
     return;
   }
@@ -148,15 +148,15 @@ export function warmModuleData(
     void warmEventsFeed(restaurantId);
     return;
   }
-  if (path.startsWith("/dashboard/galerie")) {
+  if (path.startsWith("/dashboard/gallery")) {
     void warmGalleryFeed(restaurantId);
     return;
   }
-  if (path.startsWith("/dashboard/dokumente")) {
+  if (path.startsWith("/dashboard/documents")) {
     void warmDocumentsList(restaurantId);
     return;
   }
-  if (path.startsWith("/dashboard/checklisten")) {
+  if (path.startsWith("/dashboard/tasks")) {
     void warmStaffTodos(restaurantId);
     return;
   }
@@ -168,7 +168,7 @@ export function warmModuleData(
     void warmPosOverview(restaurantId);
     return;
   }
-  if (path.startsWith("/dashboard/kontakte")) {
+  if (path.startsWith("/dashboard/contacts")) {
     // Channel-Flags kennt nur UnifiedInboxBackgroundSyncMount — Intent-Event.
     requestUnifiedInboxWarmIntent();
   }

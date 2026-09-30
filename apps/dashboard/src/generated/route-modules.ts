@@ -54,84 +54,84 @@ function posLazy(
   });
 }
 
-const Lazy__dashboard_bewertungen_einbinden = lazy(moduleSubpageLazy("bewertungen", () => import("@/components/reviews/reviews-embed-panel").then((m) => ({ default: m.ReviewsEmbedPanel as ComponentType }))));
-const Lazy__dashboard_bewertungen_einstellungen = lazy(moduleSubpageLazy("bewertungen", () => import("@/components/reviews/reviews-settings-panel").then((m) => ({ default: m.ReviewsSettingsPanel as ComponentType }))));
-const Lazy__dashboard_bewertungen_statistiken = lazy(moduleSubpageLazy("bewertungen", () => import("@/components/reviews/reviews-statistics-screen").then((m) => ({ default: m.ReviewsStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_buchfuehrung_angebote = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-quotations-screen").then((m) => ({ default: m.AccountingQuotationsScreen as ComponentType }))));
-const Lazy__dashboard_buchfuehrung_belege = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-vouchers-screen").then((m) => ({ default: m.AccountingVouchersScreen as ComponentType }))));
-const Lazy__dashboard_buchfuehrung_einstellungen = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-settings-form").then((m) => ({ default: m.AccountingSettingsForm as ComponentType }))));
-const Lazy__dashboard_buchfuehrung_kasse = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-cash-book-screen").then((m) => ({ default: m.AccountingCashBookScreen as ComponentType }))));
-const Lazy__dashboard_buchfuehrung_statistiken = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-statistics-screen").then((m) => ({ default: m.AccountingStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_checklisten_einstellungen = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/checklisten-settings-screen").then((m) => ({ default: m.ChecklistenSettingsScreen as ComponentType }))));
-const Lazy__dashboard_checklisten_protokoll = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/checklist-protocol-screen").then((m) => ({ default: m.ChecklistProtocolScreen as ComponentType }))));
-const Lazy__dashboard_dokumente_protokoll = lazy(moduleSubpageLazy("dokumente", () => import("@/components/documents/documents-protocol-screen").then((m) => ({ default: m.DocumentsProtocolScreen as ComponentType }))));
-const Lazy__dashboard_dokumente_statistiken = lazy(moduleSubpageLazy("dokumente", () => import("@/components/documents/documents-statistics-screen").then((m) => ({ default: m.DocumentsStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_events_einbinden = lazy(moduleSubpageLazy("events", () => import("@/components/events/events-embed-panel").then((m) => ({ default: m.EventsEmbedPanel as ComponentType }))));
-const Lazy__dashboard_events_einstellungen = lazy(moduleSubpageLazy("events", () => import("@/components/events/events-settings-panel").then((m) => ({ default: m.EventsSettingsPanel as ComponentType }))));
-const Lazy__dashboard_events_statistiken = lazy(moduleSubpageLazy("events", () => import("@/components/events/events-statistics-screen").then((m) => ({ default: m.EventsStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_galerie_einbinden = lazy(moduleSubpageLazy("galerie", () => import("@/components/gallery/gallery-embed-panel").then((m) => ({ default: m.GalleryEmbedPanel as ComponentType }))));
-const Lazy__dashboard_galerie_einstellungen = lazy(moduleSubpageLazy("galerie", () => import("@/components/gallery/gallery-settings-panel").then((m) => ({ default: m.GallerySettingsPanel as ComponentType }))));
-const Lazy__dashboard_galerie_statistiken = lazy(moduleSubpageLazy("galerie", () => import("@/components/gallery/gallery-statistics-screen").then((m) => ({ default: m.GalleryStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_inventory_bestellung = lazy(moduleSubpageLazy("inventory", () => import("@/components/inventory/purchase-orders-screen").then((m) => ({ default: m.PurchaseOrdersScreen as ComponentType }))));
-const Lazy__dashboard_inventory_statistiken = lazy(moduleSubpageLazy("inventory", () => import("@/components/inventory/inventory-statistics-screen").then((m) => ({ default: m.InventoryStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_kontakte_einstellungen = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contact-settings-form").then((m) => ({ default: m.ContactSettingsForm as ComponentType }))));
-const Lazy__dashboard_kontakte_export = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contacts-export-screen").then((m) => ({ default: m.ContactsExportScreen as ComponentType }))));
-const Lazy__dashboard_kontakte_statistiken = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contacts-statistics-screen").then((m) => ({ default: m.ContactsStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_kontakte_uebersicht = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contacts-overview").then((m) => ({ default: m.ContactsOverview as ComponentType }))));
-const Lazy__dashboard_menu_einbinden = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-embed-panel").then((m) => ({ default: m.MenuEmbedPanel as ComponentType }))));
-const Lazy__dashboard_menu_einstellungen = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-settings-form").then((m) => ({ default: m.MenuSettingsForm as ComponentType }))));
+const Lazy__dashboard_reviews_embed = lazy(moduleSubpageLazy("bewertungen", () => import("@/components/reviews/reviews-embed-panel").then((m) => ({ default: m.ReviewsEmbedPanel as ComponentType }))));
+const Lazy__dashboard_reviews_settings = lazy(moduleSubpageLazy("bewertungen", () => import("@/components/reviews/reviews-settings-panel").then((m) => ({ default: m.ReviewsSettingsPanel as ComponentType }))));
+const Lazy__dashboard_reviews_statistics = lazy(moduleSubpageLazy("bewertungen", () => import("@/components/reviews/reviews-statistics-screen").then((m) => ({ default: m.ReviewsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_accounting_quotations = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-quotations-screen").then((m) => ({ default: m.AccountingQuotationsScreen as ComponentType }))));
+const Lazy__dashboard_accounting_vouchers = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-vouchers-screen").then((m) => ({ default: m.AccountingVouchersScreen as ComponentType }))));
+const Lazy__dashboard_accounting_settings = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-settings-form").then((m) => ({ default: m.AccountingSettingsForm as ComponentType }))));
+const Lazy__dashboard_accounting_cash_book = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-cash-book-screen").then((m) => ({ default: m.AccountingCashBookScreen as ComponentType }))));
+const Lazy__dashboard_accounting_statistics = lazy(moduleSubpageLazy("buchfuehrung", () => import("@/components/accounting/accounting-statistics-screen").then((m) => ({ default: m.AccountingStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_tasks_settings = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/checklisten-settings-screen").then((m) => ({ default: m.ChecklistenSettingsScreen as ComponentType }))));
+const Lazy__dashboard_tasks_log = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/checklist-protocol-screen").then((m) => ({ default: m.ChecklistProtocolScreen as ComponentType }))));
+const Lazy__dashboard_documents_log = lazy(moduleSubpageLazy("dokumente", () => import("@/components/documents/documents-protocol-screen").then((m) => ({ default: m.DocumentsProtocolScreen as ComponentType }))));
+const Lazy__dashboard_documents_statistics = lazy(moduleSubpageLazy("dokumente", () => import("@/components/documents/documents-statistics-screen").then((m) => ({ default: m.DocumentsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_events_embed = lazy(moduleSubpageLazy("events", () => import("@/components/events/events-embed-panel").then((m) => ({ default: m.EventsEmbedPanel as ComponentType }))));
+const Lazy__dashboard_events_settings = lazy(moduleSubpageLazy("events", () => import("@/components/events/events-settings-panel").then((m) => ({ default: m.EventsSettingsPanel as ComponentType }))));
+const Lazy__dashboard_events_statistics = lazy(moduleSubpageLazy("events", () => import("@/components/events/events-statistics-screen").then((m) => ({ default: m.EventsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_gallery_embed = lazy(moduleSubpageLazy("galerie", () => import("@/components/gallery/gallery-embed-panel").then((m) => ({ default: m.GalleryEmbedPanel as ComponentType }))));
+const Lazy__dashboard_gallery_settings = lazy(moduleSubpageLazy("galerie", () => import("@/components/gallery/gallery-settings-panel").then((m) => ({ default: m.GallerySettingsPanel as ComponentType }))));
+const Lazy__dashboard_gallery_statistics = lazy(moduleSubpageLazy("galerie", () => import("@/components/gallery/gallery-statistics-screen").then((m) => ({ default: m.GalleryStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_inventory_purchase_orders = lazy(moduleSubpageLazy("inventory", () => import("@/components/inventory/purchase-orders-screen").then((m) => ({ default: m.PurchaseOrdersScreen as ComponentType }))));
+const Lazy__dashboard_inventory_statistics = lazy(moduleSubpageLazy("inventory", () => import("@/components/inventory/inventory-statistics-screen").then((m) => ({ default: m.InventoryStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_contacts_settings = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contact-settings-form").then((m) => ({ default: m.ContactSettingsForm as ComponentType }))));
+const Lazy__dashboard_contacts_export = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contacts-export-screen").then((m) => ({ default: m.ContactsExportScreen as ComponentType }))));
+const Lazy__dashboard_contacts_statistics = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contacts-statistics-screen").then((m) => ({ default: m.ContactsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_contacts_overview = lazy(moduleSubpageLazy("kontakte", () => import("@/components/contacts/contacts-overview").then((m) => ({ default: m.ContactsOverview as ComponentType }))));
+const Lazy__dashboard_menu_embed = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-embed-panel").then((m) => ({ default: m.MenuEmbedPanel as ComponentType }))));
+const Lazy__dashboard_menu_settings = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-settings-form").then((m) => ({ default: m.MenuSettingsForm as ComponentType }))));
 const Lazy__dashboard_menu_export = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-export-screen").then((m) => ({ default: m.MenuExportScreen as ComponentType }))));
-const Lazy__dashboard_menu_statistiken = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-statistics-screen").then((m) => ({ default: m.MenuStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_mitarbeiter_arbeitszeiten = staffLazy(() => import("@/components/staff/staff-work-hours-screen").then((m) => ({ default: m.StaffWorkHoursScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_dokumente = staffLazy(() => import("@/components/staff/staff-documents-screen").then((m) => ({ default: m.StaffDocumentsScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_einstellungen = staffLazy(() => import("@/components/staff/staff-settings-form").then((m) => ({ default: m.StaffSettingsForm as ComponentType })));
-const Lazy__dashboard_mitarbeiter_export = staffLazy(() => import("@/components/staff/staff-export-screen").then((m) => ({ default: m.StaffExportScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_schichtplan = staffLazy(() => import("@/components/staff/shift-plan/staff-shift-plan-screen").then((m) => ({ default: m.StaffShiftPlanScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_statistiken = staffLazy(() => import("@/components/staff/staff-statistics-screen").then((m) => ({ default: m.StaffStatisticsScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_vertraege = staffLazy(() => import("@/components/staff/staff-contracts-screen").then((m) => ({ default: m.StaffContractsScreen as ComponentType })));
+const Lazy__dashboard_menu_statistics = lazy(moduleSubpageLazy("menu", () => import("@/components/menu/menu-statistics-screen").then((m) => ({ default: m.MenuStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_staff_work_hours = staffLazy(() => import("@/components/staff/staff-work-hours-screen").then((m) => ({ default: m.StaffWorkHoursScreen as ComponentType })));
+const Lazy__dashboard_staff_documents = staffLazy(() => import("@/components/staff/staff-documents-screen").then((m) => ({ default: m.StaffDocumentsScreen as ComponentType })));
+const Lazy__dashboard_staff_settings = staffLazy(() => import("@/components/staff/staff-settings-form").then((m) => ({ default: m.StaffSettingsForm as ComponentType })));
+const Lazy__dashboard_staff_export = staffLazy(() => import("@/components/staff/staff-export-screen").then((m) => ({ default: m.StaffExportScreen as ComponentType })));
+const Lazy__dashboard_staff_shift_plan = staffLazy(() => import("@/components/staff/shift-plan/staff-shift-plan-screen").then((m) => ({ default: m.StaffShiftPlanScreen as ComponentType })));
+const Lazy__dashboard_staff_statistics = staffLazy(() => import("@/components/staff/staff-statistics-screen").then((m) => ({ default: m.StaffStatisticsScreen as ComponentType })));
+const Lazy__dashboard_staff_contracts = staffLazy(() => import("@/components/staff/staff-contracts-screen").then((m) => ({ default: m.StaffContractsScreen as ComponentType })));
 const Lazy__dashboard_news_autopilot = lazy(moduleSubpageLazy("news", () => import("@/components/social/social-autopilot-screen").then((m) => ({ default: m.SocialAutopilotScreen as ComponentType }))));
-const Lazy__dashboard_news_einbinden = lazy(moduleSubpageLazy("news", () => import("@/components/news/news-embed-panel").then((m) => ({ default: m.NewsEmbedPanel as ComponentType }))));
-const Lazy__dashboard_news_einstellungen = lazy(moduleSubpageLazy("news", () => import("@/components/news/news-settings-panel").then((m) => ({ default: m.NewsSettingsPanel as ComponentType }))));
-const Lazy__dashboard_news_statistiken = lazy(moduleSubpageLazy("news", () => import("@/components/news/news-statistics-screen").then((m) => ({ default: m.NewsStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_pos_berichte = posLazy(() => import("@/components/pos/pos-reports-screen").then((m) => ({ default: m.PosReportsScreen as ComponentType })));
-const Lazy__dashboard_pos_bestellungen = posLazy(() => import("@/components/pos/pos-orders-screen").then((m) => ({ default: m.PosOrdersScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_bestand_storno = posLazy(() => import("@/components/pos/pos-settings-inventory-void-screen").then((m) => ({ default: m.PosSettingsInventoryVoidScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_drucker_routing = posLazy(() => import("@/components/pos/pos-settings-printers-routing-screen").then((m) => ({ default: m.PosSettingsPrintersRoutingScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_fiskal_zahlung = posLazy(() => import("@/components/pos/pos-settings-fiscal-payment-screen").then((m) => ({ default: m.PosSettingsFiscalPaymentScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_geraete_rechte = posLazy(() => import("@/components/pos/pos-settings-devices-rights-screen").then((m) => ({ default: m.PosSettingsDevicesRightsScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_geraete = posLazy(() => import("@/components/pos/restaurant-pos-devices-panel").then((m) => ({ default: m.RestaurantPosDevicesPanel as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_gutscheine = posLazy(() => import("@/components/pos/pos-settings-gift-vouchers-screen").then((m) => ({ default: m.PosSettingsGiftVouchersScreen as ComponentType })));
-const Lazy__dashboard_pos_einstellungen_kueche = posLazy(() => import("@/components/pos/pos-settings-kitchen-screen").then((m) => ({ default: m.PosSettingsKitchenScreen as ComponentType })));
-const Lazy__dashboard_pos_gutscheine = posLazy(() => import("@/components/pos/pos-gift-vouchers-screen").then((m) => ({ default: m.PosGiftVouchersScreen as ComponentType })));
-const Lazy__dashboard_pos_quittungen = posLazy(() => import("@/components/pos/pos-receipts-screen").then((m) => ({ default: m.PosReceiptsScreen as ComponentType })));
-const Lazy__dashboard_pos_statistiken = posLazy(() => import("@/components/pos/pos-statistics-screen").then((m) => ({ default: m.PosStatisticsScreen as ComponentType })));
-const Lazy__dashboard_profile_anmeldung = profileLazy(() => import("@/components/profile/profile-anmeldung-screen").then((m) => ({ default: m.ProfileAnmeldungScreen as ComponentType })));
-const Lazy__dashboard_profile_arbeitszeiten = profileLazy(() => import("@/components/profile/profile-work-hours-screen").then((m) => ({ default: m.ProfileWorkHoursScreen as ComponentType })));
-const Lazy__dashboard_profile_benachrichtigungen = profileLazy(() => import("@/components/notifications/notification-preferences-panel").then((m) => ({ default: m.NotificationPreferencesPanel as ComponentType })));
-const Lazy__dashboard_profile_dienstplan = profileLazy(() => import("@/components/profile/profile-shift-plan-screen").then((m) => ({ default: m.ProfileShiftPlanScreen as ComponentType })));
+const Lazy__dashboard_news_embed = lazy(moduleSubpageLazy("news", () => import("@/components/news/news-embed-panel").then((m) => ({ default: m.NewsEmbedPanel as ComponentType }))));
+const Lazy__dashboard_news_settings = lazy(moduleSubpageLazy("news", () => import("@/components/news/news-settings-panel").then((m) => ({ default: m.NewsSettingsPanel as ComponentType }))));
+const Lazy__dashboard_news_statistics = lazy(moduleSubpageLazy("news", () => import("@/components/news/news-statistics-screen").then((m) => ({ default: m.NewsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_pos_reports = posLazy(() => import("@/components/pos/pos-reports-screen").then((m) => ({ default: m.PosReportsScreen as ComponentType })));
+const Lazy__dashboard_pos_orders = posLazy(() => import("@/components/pos/pos-orders-screen").then((m) => ({ default: m.PosOrdersScreen as ComponentType })));
+const Lazy__dashboard_pos_settings_inventory_void = posLazy(() => import("@/components/pos/pos-settings-inventory-void-screen").then((m) => ({ default: m.PosSettingsInventoryVoidScreen as ComponentType })));
+const Lazy__dashboard_pos_settings_printer_routing = posLazy(() => import("@/components/pos/pos-settings-printers-routing-screen").then((m) => ({ default: m.PosSettingsPrintersRoutingScreen as ComponentType })));
+const Lazy__dashboard_pos_settings_fiscal_payment = posLazy(() => import("@/components/pos/pos-settings-fiscal-payment-screen").then((m) => ({ default: m.PosSettingsFiscalPaymentScreen as ComponentType })));
+const Lazy__dashboard_pos_settings_device_permissions = posLazy(() => import("@/components/pos/pos-settings-devices-rights-screen").then((m) => ({ default: m.PosSettingsDevicesRightsScreen as ComponentType })));
+const Lazy__dashboard_pos_settings_devices = posLazy(() => import("@/components/pos/restaurant-pos-devices-panel").then((m) => ({ default: m.RestaurantPosDevicesPanel as ComponentType })));
+const Lazy__dashboard_pos_settings_gift_vouchers = posLazy(() => import("@/components/pos/pos-settings-gift-vouchers-screen").then((m) => ({ default: m.PosSettingsGiftVouchersScreen as ComponentType })));
+const Lazy__dashboard_pos_settings_kitchen = posLazy(() => import("@/components/pos/pos-settings-kitchen-screen").then((m) => ({ default: m.PosSettingsKitchenScreen as ComponentType })));
+const Lazy__dashboard_pos_gift_vouchers = posLazy(() => import("@/components/pos/pos-gift-vouchers-screen").then((m) => ({ default: m.PosGiftVouchersScreen as ComponentType })));
+const Lazy__dashboard_pos_receipts = posLazy(() => import("@/components/pos/pos-receipts-screen").then((m) => ({ default: m.PosReceiptsScreen as ComponentType })));
+const Lazy__dashboard_pos_statistics = posLazy(() => import("@/components/pos/pos-statistics-screen").then((m) => ({ default: m.PosStatisticsScreen as ComponentType })));
+const Lazy__dashboard_profile_sign_in = profileLazy(() => import("@/components/profile/profile-anmeldung-screen").then((m) => ({ default: m.ProfileAnmeldungScreen as ComponentType })));
+const Lazy__dashboard_profile_work_hours = profileLazy(() => import("@/components/profile/profile-work-hours-screen").then((m) => ({ default: m.ProfileWorkHoursScreen as ComponentType })));
+const Lazy__dashboard_profile_notifications = profileLazy(() => import("@/components/notifications/notification-preferences-panel").then((m) => ({ default: m.NotificationPreferencesPanel as ComponentType })));
+const Lazy__dashboard_profile_schedule = profileLazy(() => import("@/components/profile/profile-shift-plan-screen").then((m) => ({ default: m.ProfileShiftPlanScreen as ComponentType })));
 const Lazy__dashboard_profile_display_pin = profileLazy(() => import("@/components/profile/profile-display-pin-screen").then((m) => ({ default: m.ProfileDisplayPinScreen as ComponentType })));
-const Lazy__dashboard_profile_dokumente = profileLazy(() => import("@/components/profile/profile-documents-screen").then((m) => ({ default: m.ProfileDocumentsScreen as ComponentType })));
-const Lazy__dashboard_profile_persoenliche_daten = profileLazy(() => import("@/components/profile/profile-persoenliche-daten-screen").then((m) => ({ default: m.ProfilePersoenlicheDatenScreen as ComponentType })));
-const Lazy__dashboard_profile_verfuegbarkeit = profileLazy(() => import("@/components/profile/profile-availability-screen").then((m) => ({ default: m.ProfileAvailabilityScreen as ComponentType })));
-const Lazy__dashboard_reservierungen_einbinden = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservation-embed-panel").then((m) => ({ default: m.ReservationEmbedPanel as ComponentType }))));
-const Lazy__dashboard_reservierungen_einstellungen = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservation-settings-form").then((m) => ({ default: m.ReservationSettingsForm as ComponentType }))));
-const Lazy__dashboard_reservierungen_protokoll = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservations-protocol-screen").then((m) => ({ default: m.ReservationsProtocolScreen as ComponentType }))));
-const Lazy__dashboard_reservierungen_statistiken = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservations-statistics-screen").then((m) => ({ default: m.ReservationsStatisticsScreen as ComponentType }))));
-const Lazy__dashboard_reservierungen_tischplan = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/floor-plan-screen").then((m) => ({ default: m.FloorPlanScreen as ComponentType }))));
-const Lazy__dashboard_settings_abo = settingsLazy(() => import("@/components/settings/restaurant-billing-panel").then((m) => ({ default: m.RestaurantBillingPanel as ComponentType })));
+const Lazy__dashboard_profile_documents = profileLazy(() => import("@/components/profile/profile-documents-screen").then((m) => ({ default: m.ProfileDocumentsScreen as ComponentType })));
+const Lazy__dashboard_profile_personal = profileLazy(() => import("@/components/profile/profile-persoenliche-daten-screen").then((m) => ({ default: m.ProfilePersoenlicheDatenScreen as ComponentType })));
+const Lazy__dashboard_profile_availability = profileLazy(() => import("@/components/profile/profile-availability-screen").then((m) => ({ default: m.ProfileAvailabilityScreen as ComponentType })));
+const Lazy__dashboard_reservations_embed = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservation-embed-panel").then((m) => ({ default: m.ReservationEmbedPanel as ComponentType }))));
+const Lazy__dashboard_reservations_settings = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservation-settings-form").then((m) => ({ default: m.ReservationSettingsForm as ComponentType }))));
+const Lazy__dashboard_reservations_log = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservations-protocol-screen").then((m) => ({ default: m.ReservationsProtocolScreen as ComponentType }))));
+const Lazy__dashboard_reservations_statistics = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/reservations-statistics-screen").then((m) => ({ default: m.ReservationsStatisticsScreen as ComponentType }))));
+const Lazy__dashboard_reservations_floor_plan = lazy(moduleSubpageLazy("reservierungen", () => import("@/components/reservations/floor-plan-screen").then((m) => ({ default: m.FloorPlanScreen as ComponentType }))));
+const Lazy__dashboard_settings_billing = settingsLazy(() => import("@/components/settings/restaurant-billing-panel").then((m) => ({ default: m.RestaurantBillingPanel as ComponentType })));
 const Lazy__dashboard_settings_api = settingsLazy(() => import("@/components/settings/restaurant-api-keys-panel").then((m) => ({ default: m.RestaurantApiKeysPanel as ComponentType })));
 const Lazy__dashboard_settings_dashboard = settingsLazy(() => import("@/components/settings/dashboard-shortcuts-panel").then((m) => ({ default: m.DashboardShortcutsPanel as ComponentType })));
 const Lazy__dashboard_settings_displays = settingsLazy(() => import("@/components/settings/restaurant-displays-panel").then((m) => ({ default: m.RestaurantDisplaysPanel as ComponentType })));
-const Lazy__dashboard_settings_integrationen = settingsLazy(() => import("../routes/settings-integrationen-route").then((m) => ({ default: m.SettingsIntegrationenRoute as ComponentType })));
-const Lazy__dashboard_settings_oeffnungszeiten_einbinden = settingsLazy(() => import("@/components/settings/opening-hours-embed-panel").then((m) => ({ default: m.OpeningHoursEmbedPanel as ComponentType })));
-const Lazy__dashboard_settings_oeffnungszeiten = settingsLazy(() => import("../routes/settings-oeffnungszeiten-route").then((m) => ({ default: m.SettingsOeffnungszeitenRoute as ComponentType })));
+const Lazy__dashboard_settings_integrations = settingsLazy(() => import("../routes/settings-integrationen-route").then((m) => ({ default: m.SettingsIntegrationenRoute as ComponentType })));
+const Lazy__dashboard_settings_opening_hours_embed = settingsLazy(() => import("@/components/settings/opening-hours-embed-panel").then((m) => ({ default: m.OpeningHoursEmbedPanel as ComponentType })));
+const Lazy__dashboard_settings_opening_hours = settingsLazy(() => import("../routes/settings-oeffnungszeiten-route").then((m) => ({ default: m.SettingsOeffnungszeitenRoute as ComponentType })));
 const Lazy__dashboard_settings_restaurant = settingsLazy(() => import("../routes/settings-restaurant-route").then((m) => ({ default: m.SettingsRestaurantRoute as ComponentType })));
 const Lazy__dashboard_settings_team = settingsLazy(() => import("@/components/settings/restaurant-team-settings-panel").then((m) => ({ default: m.RestaurantTeamSettingsPanel as ComponentType })));
 const Lazy__dashboard_changelog = changelogLazy(() => import("@/components/changelog/changelog-overview").then((m) => ({ default: m.ChangelogOverview as ComponentType })));
-const Lazy__dashboard_mitarbeiter_arbeitszeiten_beheben = staffLazy(() => import("@/components/staff/staff-labor-compliance-screen").then((m) => ({ default: m.StaffLaborComplianceScreen as ComponentType })));
-const Lazy__dashboard_mitarbeiter_arbeitszeiten_abrechnung = staffLazy(() => import("@/components/staff/staff-payroll-settlement-screen").then((m) => ({ default: m.StaffPayrollSettlementScreen as ComponentType })));
-const Lazy__dashboard_checklisten_meine = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-meine-screen").then((m) => ({ default: m.AufgabenMeineScreen as ComponentType }))));
-const Lazy__dashboard_checklisten_nachrichten = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-nachrichten-screen").then((m) => ({ default: m.AufgabenNachrichtenScreen as ComponentType }))));
+const Lazy__dashboard_staff_work_hours_fix = staffLazy(() => import("@/components/staff/staff-labor-compliance-screen").then((m) => ({ default: m.StaffLaborComplianceScreen as ComponentType })));
+const Lazy__dashboard_staff_work_hours_payroll = staffLazy(() => import("@/components/staff/staff-payroll-settlement-screen").then((m) => ({ default: m.StaffPayrollSettlementScreen as ComponentType })));
+const Lazy__dashboard_tasks_mine = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-meine-screen").then((m) => ({ default: m.AufgabenMeineScreen as ComponentType }))));
+const Lazy__dashboard_tasks_messages = lazy(moduleSubpageLazy("checklisten", () => import("@/components/checklisten/aufgaben-nachrichten-screen").then((m) => ({ default: m.AufgabenNachrichtenScreen as ComponentType }))));
 
 export type DashboardRouteEntry = {
   path: string;
@@ -142,133 +142,133 @@ export type DashboardRouteEntry = {
 };
 
 export const DASHBOARD_ROUTE_ENTRIES: DashboardRouteEntry[] = [
-  { path: "/bewertungen/einbinden", fullPath: "/dashboard/bewertungen/einbinden", Lazy: Lazy__dashboard_bewertungen_einbinden },
-  { path: "/bewertungen/einstellungen", fullPath: "/dashboard/bewertungen/einstellungen", Lazy: Lazy__dashboard_bewertungen_einstellungen },
-  { path: "/bewertungen/facebook", fullPath: "/dashboard/bewertungen/uebersicht?platform=facebook", redirect: "/dashboard/bewertungen/uebersicht?platform=facebook" },
-  { path: "/bewertungen/google", fullPath: "/dashboard/bewertungen/uebersicht?platform=google", redirect: "/dashboard/bewertungen/uebersicht?platform=google" },
-  { path: "/bewertungen/gwada", fullPath: "/dashboard/bewertungen/uebersicht?platform=gwada", redirect: "/dashboard/bewertungen/uebersicht?platform=gwada" },
-  { path: "/bewertungen", fullPath: "/dashboard/bewertungen/uebersicht", redirect: "/dashboard/bewertungen/uebersicht" },
-  { path: "/bewertungen/statistiken", fullPath: "/dashboard/bewertungen/statistiken", Lazy: Lazy__dashboard_bewertungen_statistiken },
-  { path: "/bewertungen/uebersicht", fullPath: "/dashboard/bewertungen/uebersicht", keepAliveHome: true },
-  { path: "/buchfuehrung/angebote", fullPath: "/dashboard/buchfuehrung/angebote", Lazy: Lazy__dashboard_buchfuehrung_angebote },
-  { path: "/buchfuehrung/belege", fullPath: "/dashboard/buchfuehrung/belege", Lazy: Lazy__dashboard_buchfuehrung_belege },
-  { path: "/buchfuehrung/einstellungen", fullPath: "/dashboard/buchfuehrung/einstellungen", Lazy: Lazy__dashboard_buchfuehrung_einstellungen },
-  { path: "/buchfuehrung/kasse", fullPath: "/dashboard/buchfuehrung/kasse", Lazy: Lazy__dashboard_buchfuehrung_kasse },
-  { path: "/buchfuehrung", fullPath: "/dashboard/buchfuehrung/rechnungen", redirect: "/dashboard/buchfuehrung/rechnungen" },
-  { path: "/buchfuehrung/rechnungen", fullPath: "/dashboard/buchfuehrung/rechnungen", keepAliveHome: true },
-  { path: "/buchfuehrung/statistiken", fullPath: "/dashboard/buchfuehrung/statistiken", Lazy: Lazy__dashboard_buchfuehrung_statistiken },
-  { path: "/checklisten/einstellungen", fullPath: "/dashboard/checklisten/einstellungen", Lazy: Lazy__dashboard_checklisten_einstellungen },
-  { path: "/checklisten/eintraege", fullPath: "/dashboard/checklisten/protokoll", redirect: "/dashboard/checklisten/protokoll" },
-  { path: "/checklisten/geraete", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
-  { path: "/checklisten", fullPath: "/dashboard/checklisten", keepAliveHome: true },
-  { path: "/checklisten/protokoll", fullPath: "/dashboard/checklisten/protokoll", Lazy: Lazy__dashboard_checklisten_protokoll },
-  { path: "/checklisten/todos", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
-  { path: "/checklisten/vorlagen", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
-  { path: "/dokumente", fullPath: "/dashboard/dokumente/uebersicht", redirect: "/dashboard/dokumente/uebersicht" },
-  { path: "/dokumente/protokoll", fullPath: "/dashboard/dokumente/protokoll", Lazy: Lazy__dashboard_dokumente_protokoll },
-  { path: "/dokumente/statistiken", fullPath: "/dashboard/dokumente/statistiken", Lazy: Lazy__dashboard_dokumente_statistiken },
-  { path: "/dokumente/uebersicht", fullPath: "/dashboard/dokumente/uebersicht", keepAliveHome: true },
-  { path: "/events/einbinden", fullPath: "/dashboard/events/einbinden", Lazy: Lazy__dashboard_events_einbinden },
-  { path: "/events/einstellungen", fullPath: "/dashboard/events/einstellungen", Lazy: Lazy__dashboard_events_einstellungen },
-  { path: "/events", fullPath: "/dashboard/events/uebersicht", redirect: "/dashboard/events/uebersicht" },
-  { path: "/events/statistiken", fullPath: "/dashboard/events/statistiken", Lazy: Lazy__dashboard_events_statistiken },
-  { path: "/events/uebersicht", fullPath: "/dashboard/events/uebersicht", keepAliveHome: true },
-  { path: "/galerie/einbinden", fullPath: "/dashboard/galerie/einbinden", Lazy: Lazy__dashboard_galerie_einbinden },
-  { path: "/galerie/einstellungen", fullPath: "/dashboard/galerie/einstellungen", Lazy: Lazy__dashboard_galerie_einstellungen },
-  { path: "/galerie", fullPath: "/dashboard/galerie/uebersicht", redirect: "/dashboard/galerie/uebersicht" },
-  { path: "/galerie/statistiken", fullPath: "/dashboard/galerie/statistiken", Lazy: Lazy__dashboard_galerie_statistiken },
-  { path: "/galerie/uebersicht", fullPath: "/dashboard/galerie/uebersicht", keepAliveHome: true },
-  { path: "/insights", fullPath: "/dashboard/insights/uebersicht", redirect: "/dashboard/insights/uebersicht" },
-  { path: "/insights/statistiken", fullPath: "/dashboard/insights/uebersicht", redirect: "/dashboard/insights/uebersicht" },
-  { path: "/insights/uebersicht", fullPath: "/dashboard/insights/uebersicht", keepAliveHome: true },
-  { path: "/inventory/bestellung", fullPath: "/dashboard/inventory/bestellung", Lazy: Lazy__dashboard_inventory_bestellung },
-  { path: "/inventory", fullPath: "/dashboard/inventory/uebersicht", redirect: "/dashboard/inventory/uebersicht" },
-  { path: "/inventory/statistiken", fullPath: "/dashboard/inventory/statistiken", Lazy: Lazy__dashboard_inventory_statistiken },
-  { path: "/inventory/uebersicht", fullPath: "/dashboard/inventory/uebersicht", keepAliveHome: true },
-  { path: "/kontakte/einstellungen", fullPath: "/dashboard/kontakte/einstellungen", Lazy: Lazy__dashboard_kontakte_einstellungen },
-  { path: "/kontakte/export", fullPath: "/dashboard/kontakte/export", Lazy: Lazy__dashboard_kontakte_export },
-  { path: "/kontakte/nachrichten", fullPath: "/dashboard/kontakte/nachrichten", keepAliveHome: true },
-  { path: "/kontakte", fullPath: "/dashboard/kontakte/nachrichten?platform=all", redirect: "/dashboard/kontakte/nachrichten?platform=all" },
-  { path: "/kontakte/statistiken", fullPath: "/dashboard/kontakte/statistiken", Lazy: Lazy__dashboard_kontakte_statistiken },
-  { path: "/kontakte/uebersicht", fullPath: "/dashboard/kontakte/uebersicht", Lazy: Lazy__dashboard_kontakte_uebersicht },
-  { path: "/menu/einbinden", fullPath: "/dashboard/menu/einbinden", Lazy: Lazy__dashboard_menu_einbinden },
-  { path: "/menu/einstellungen", fullPath: "/dashboard/menu/einstellungen", Lazy: Lazy__dashboard_menu_einstellungen },
+  { path: "/reviews/embed", fullPath: "/dashboard/reviews/embed", Lazy: Lazy__dashboard_reviews_embed },
+  { path: "/reviews/settings", fullPath: "/dashboard/reviews/settings", Lazy: Lazy__dashboard_reviews_settings },
+  { path: "/reviews/facebook", fullPath: "/dashboard/reviews/overview?platform=facebook", redirect: "/dashboard/reviews/overview?platform=facebook" },
+  { path: "/reviews/google", fullPath: "/dashboard/reviews/overview?platform=google", redirect: "/dashboard/reviews/overview?platform=google" },
+  { path: "/reviews/gwada", fullPath: "/dashboard/reviews/overview?platform=gwada", redirect: "/dashboard/reviews/overview?platform=gwada" },
+  { path: "/reviews", fullPath: "/dashboard/reviews/overview", redirect: "/dashboard/reviews/overview" },
+  { path: "/reviews/statistics", fullPath: "/dashboard/reviews/statistics", Lazy: Lazy__dashboard_reviews_statistics },
+  { path: "/reviews/overview", fullPath: "/dashboard/reviews/overview", keepAliveHome: true },
+  { path: "/accounting/quotations", fullPath: "/dashboard/accounting/quotations", Lazy: Lazy__dashboard_accounting_quotations },
+  { path: "/accounting/vouchers", fullPath: "/dashboard/accounting/vouchers", Lazy: Lazy__dashboard_accounting_vouchers },
+  { path: "/accounting/settings", fullPath: "/dashboard/accounting/settings", Lazy: Lazy__dashboard_accounting_settings },
+  { path: "/accounting/cash-book", fullPath: "/dashboard/accounting/cash-book", Lazy: Lazy__dashboard_accounting_cash_book },
+  { path: "/accounting", fullPath: "/dashboard/accounting/invoices", redirect: "/dashboard/accounting/invoices" },
+  { path: "/accounting/invoices", fullPath: "/dashboard/accounting/invoices", keepAliveHome: true },
+  { path: "/accounting/statistics", fullPath: "/dashboard/accounting/statistics", Lazy: Lazy__dashboard_accounting_statistics },
+  { path: "/tasks/settings", fullPath: "/dashboard/tasks/settings", Lazy: Lazy__dashboard_tasks_settings },
+  { path: "/tasks/entries", fullPath: "/dashboard/tasks/log", redirect: "/dashboard/tasks/log" },
+  { path: "/tasks/devices", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
+  { path: "/tasks", fullPath: "/dashboard/tasks", keepAliveHome: true },
+  { path: "/tasks/log", fullPath: "/dashboard/tasks/log", Lazy: Lazy__dashboard_tasks_log },
+  { path: "/tasks/todos", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
+  { path: "/tasks/templates", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
+  { path: "/documents", fullPath: "/dashboard/documents/overview", redirect: "/dashboard/documents/overview" },
+  { path: "/documents/log", fullPath: "/dashboard/documents/log", Lazy: Lazy__dashboard_documents_log },
+  { path: "/documents/statistics", fullPath: "/dashboard/documents/statistics", Lazy: Lazy__dashboard_documents_statistics },
+  { path: "/documents/overview", fullPath: "/dashboard/documents/overview", keepAliveHome: true },
+  { path: "/events/embed", fullPath: "/dashboard/events/embed", Lazy: Lazy__dashboard_events_embed },
+  { path: "/events/settings", fullPath: "/dashboard/events/settings", Lazy: Lazy__dashboard_events_settings },
+  { path: "/events", fullPath: "/dashboard/events/overview", redirect: "/dashboard/events/overview" },
+  { path: "/events/statistics", fullPath: "/dashboard/events/statistics", Lazy: Lazy__dashboard_events_statistics },
+  { path: "/events/overview", fullPath: "/dashboard/events/overview", keepAliveHome: true },
+  { path: "/gallery/embed", fullPath: "/dashboard/gallery/embed", Lazy: Lazy__dashboard_gallery_embed },
+  { path: "/gallery/settings", fullPath: "/dashboard/gallery/settings", Lazy: Lazy__dashboard_gallery_settings },
+  { path: "/gallery", fullPath: "/dashboard/gallery/overview", redirect: "/dashboard/gallery/overview" },
+  { path: "/gallery/statistics", fullPath: "/dashboard/gallery/statistics", Lazy: Lazy__dashboard_gallery_statistics },
+  { path: "/gallery/overview", fullPath: "/dashboard/gallery/overview", keepAliveHome: true },
+  { path: "/insights", fullPath: "/dashboard/insights/overview", redirect: "/dashboard/insights/overview" },
+  { path: "/insights/statistics", fullPath: "/dashboard/insights/overview", redirect: "/dashboard/insights/overview" },
+  { path: "/insights/overview", fullPath: "/dashboard/insights/overview", keepAliveHome: true },
+  { path: "/inventory/purchase-orders", fullPath: "/dashboard/inventory/purchase-orders", Lazy: Lazy__dashboard_inventory_purchase_orders },
+  { path: "/inventory", fullPath: "/dashboard/inventory/overview", redirect: "/dashboard/inventory/overview" },
+  { path: "/inventory/statistics", fullPath: "/dashboard/inventory/statistics", Lazy: Lazy__dashboard_inventory_statistics },
+  { path: "/inventory/overview", fullPath: "/dashboard/inventory/overview", keepAliveHome: true },
+  { path: "/contacts/settings", fullPath: "/dashboard/contacts/settings", Lazy: Lazy__dashboard_contacts_settings },
+  { path: "/contacts/export", fullPath: "/dashboard/contacts/export", Lazy: Lazy__dashboard_contacts_export },
+  { path: "/contacts/messages", fullPath: "/dashboard/contacts/messages", keepAliveHome: true },
+  { path: "/contacts", fullPath: "/dashboard/contacts/messages?platform=all", redirect: "/dashboard/contacts/messages?platform=all" },
+  { path: "/contacts/statistics", fullPath: "/dashboard/contacts/statistics", Lazy: Lazy__dashboard_contacts_statistics },
+  { path: "/contacts/overview", fullPath: "/dashboard/contacts/overview", Lazy: Lazy__dashboard_contacts_overview },
+  { path: "/menu/embed", fullPath: "/dashboard/menu/embed", Lazy: Lazy__dashboard_menu_embed },
+  { path: "/menu/settings", fullPath: "/dashboard/menu/settings", Lazy: Lazy__dashboard_menu_settings },
   { path: "/menu/export", fullPath: "/dashboard/menu/export", Lazy: Lazy__dashboard_menu_export },
-  { path: "/menu", fullPath: "/dashboard/menu/uebersicht", redirect: "/dashboard/menu/uebersicht" },
-  { path: "/menu/statistiken", fullPath: "/dashboard/menu/statistiken", Lazy: Lazy__dashboard_menu_statistiken },
-  { path: "/menu/uebersicht", fullPath: "/dashboard/menu/uebersicht", keepAliveHome: true },
-  { path: "/mitarbeiter/arbeitszeiten", fullPath: "/dashboard/mitarbeiter/arbeitszeiten", Lazy: Lazy__dashboard_mitarbeiter_arbeitszeiten },
-  { path: "/mitarbeiter/dokumente", fullPath: "/dashboard/mitarbeiter/dokumente", Lazy: Lazy__dashboard_mitarbeiter_dokumente },
-  { path: "/mitarbeiter/einstellungen", fullPath: "/dashboard/mitarbeiter/einstellungen", Lazy: Lazy__dashboard_mitarbeiter_einstellungen },
-  { path: "/mitarbeiter/export", fullPath: "/dashboard/mitarbeiter/export", Lazy: Lazy__dashboard_mitarbeiter_export },
-  { path: "/mitarbeiter", fullPath: "/dashboard/mitarbeiter/uebersicht", redirect: "/dashboard/mitarbeiter/uebersicht" },
-  { path: "/mitarbeiter/schichtplan", fullPath: "/dashboard/mitarbeiter/schichtplan", Lazy: Lazy__dashboard_mitarbeiter_schichtplan },
-  { path: "/mitarbeiter/statistiken", fullPath: "/dashboard/mitarbeiter/statistiken", Lazy: Lazy__dashboard_mitarbeiter_statistiken },
-  { path: "/mitarbeiter/todos", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
-  { path: "/mitarbeiter/todos/protokoll", fullPath: "/dashboard/checklisten/protokoll", redirect: "/dashboard/checklisten/protokoll" },
-  { path: "/mitarbeiter/uebersicht", fullPath: "/dashboard/mitarbeiter/uebersicht", keepAliveHome: true },
-  { path: "/mitarbeiter/vertraege", fullPath: "/dashboard/mitarbeiter/vertraege", Lazy: Lazy__dashboard_mitarbeiter_vertraege },
+  { path: "/menu", fullPath: "/dashboard/menu/overview", redirect: "/dashboard/menu/overview" },
+  { path: "/menu/statistics", fullPath: "/dashboard/menu/statistics", Lazy: Lazy__dashboard_menu_statistics },
+  { path: "/menu/overview", fullPath: "/dashboard/menu/overview", keepAliveHome: true },
+  { path: "/staff/work-hours", fullPath: "/dashboard/staff/work-hours", Lazy: Lazy__dashboard_staff_work_hours },
+  { path: "/staff/documents", fullPath: "/dashboard/staff/documents", Lazy: Lazy__dashboard_staff_documents },
+  { path: "/staff/settings", fullPath: "/dashboard/staff/settings", Lazy: Lazy__dashboard_staff_settings },
+  { path: "/staff/export", fullPath: "/dashboard/staff/export", Lazy: Lazy__dashboard_staff_export },
+  { path: "/staff", fullPath: "/dashboard/staff/overview", redirect: "/dashboard/staff/overview" },
+  { path: "/staff/shift-plan", fullPath: "/dashboard/staff/shift-plan", Lazy: Lazy__dashboard_staff_shift_plan },
+  { path: "/staff/statistics", fullPath: "/dashboard/staff/statistics", Lazy: Lazy__dashboard_staff_statistics },
+  { path: "/staff/todos", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
+  { path: "/staff/todos/log", fullPath: "/dashboard/tasks/log", redirect: "/dashboard/tasks/log" },
+  { path: "/staff/overview", fullPath: "/dashboard/staff/overview", keepAliveHome: true },
+  { path: "/staff/contracts", fullPath: "/dashboard/staff/contracts", Lazy: Lazy__dashboard_staff_contracts },
   { path: "/news/autopilot", fullPath: "/dashboard/news/autopilot", Lazy: Lazy__dashboard_news_autopilot },
-  { path: "/news/einbinden", fullPath: "/dashboard/news/einbinden", Lazy: Lazy__dashboard_news_einbinden },
-  { path: "/news/einstellungen", fullPath: "/dashboard/news/einstellungen", Lazy: Lazy__dashboard_news_einstellungen },
-  { path: "/news", fullPath: "/dashboard/news/uebersicht", redirect: "/dashboard/news/uebersicht" },
-  { path: "/news/statistiken", fullPath: "/dashboard/news/statistiken", Lazy: Lazy__dashboard_news_statistiken },
-  { path: "/news/uebersicht", fullPath: "/dashboard/news/uebersicht", keepAliveHome: true },
+  { path: "/news/embed", fullPath: "/dashboard/news/embed", Lazy: Lazy__dashboard_news_embed },
+  { path: "/news/settings", fullPath: "/dashboard/news/settings", Lazy: Lazy__dashboard_news_settings },
+  { path: "/news", fullPath: "/dashboard/news/overview", redirect: "/dashboard/news/overview" },
+  { path: "/news/statistics", fullPath: "/dashboard/news/statistics", Lazy: Lazy__dashboard_news_statistics },
+  { path: "/news/overview", fullPath: "/dashboard/news/overview", keepAliveHome: true },
   { path: "/", fullPath: "/dashboard", keepAliveHome: true },
-  { path: "/pos/berichte", fullPath: "/dashboard/pos/berichte", Lazy: Lazy__dashboard_pos_berichte },
-  { path: "/pos/bestellungen", fullPath: "/dashboard/pos/bestellungen", Lazy: Lazy__dashboard_pos_bestellungen },
-  { path: "/pos/einstellungen/bestand-storno", fullPath: "/dashboard/pos/einstellungen/bestand-storno", Lazy: Lazy__dashboard_pos_einstellungen_bestand_storno },
-  { path: "/pos/einstellungen/drucker-routing", fullPath: "/dashboard/pos/einstellungen/drucker-routing", Lazy: Lazy__dashboard_pos_einstellungen_drucker_routing },
-  { path: "/pos/einstellungen/fiskal-zahlung", fullPath: "/dashboard/pos/einstellungen/fiskal-zahlung", Lazy: Lazy__dashboard_pos_einstellungen_fiskal_zahlung },
-  { path: "/pos/einstellungen/geraete-rechte", fullPath: "/dashboard/pos/einstellungen/geraete-rechte", Lazy: Lazy__dashboard_pos_einstellungen_geraete_rechte },
-  { path: "/pos/einstellungen/geraete", fullPath: "/dashboard/pos/einstellungen/geraete", Lazy: Lazy__dashboard_pos_einstellungen_geraete },
-  { path: "/pos/einstellungen/gutscheine", fullPath: "/dashboard/pos/einstellungen/gutscheine", Lazy: Lazy__dashboard_pos_einstellungen_gutscheine },
-  { path: "/pos/einstellungen/kueche", fullPath: "/dashboard/pos/einstellungen/kueche", Lazy: Lazy__dashboard_pos_einstellungen_kueche },
-  { path: "/pos/einstellungen", fullPath: "/dashboard/pos/einstellungen/fiskal-zahlung", redirect: "/dashboard/pos/einstellungen/fiskal-zahlung" },
-  { path: "/pos/gutscheine", fullPath: "/dashboard/pos/gutscheine", Lazy: Lazy__dashboard_pos_gutscheine },
-  { path: "/pos", fullPath: "/dashboard/pos/uebersicht", redirect: "/dashboard/pos/uebersicht" },
-  { path: "/pos/quittungen", fullPath: "/dashboard/pos/quittungen", Lazy: Lazy__dashboard_pos_quittungen },
-  { path: "/pos/statistiken", fullPath: "/dashboard/pos/statistiken", Lazy: Lazy__dashboard_pos_statistiken },
-  { path: "/pos/uebersicht", fullPath: "/dashboard/pos/uebersicht", keepAliveHome: true },
-  { path: "/profile/anmeldung", fullPath: "/dashboard/profile/anmeldung", Lazy: Lazy__dashboard_profile_anmeldung },
-  { path: "/profile/arbeitszeiten", fullPath: "/dashboard/profile/arbeitszeiten", Lazy: Lazy__dashboard_profile_arbeitszeiten },
-  { path: "/profile/benachrichtigungen", fullPath: "/dashboard/profile/benachrichtigungen", Lazy: Lazy__dashboard_profile_benachrichtigungen },
-  { path: "/profile/dienstplan", fullPath: "/dashboard/profile/dienstplan", Lazy: Lazy__dashboard_profile_dienstplan },
+  { path: "/pos/reports", fullPath: "/dashboard/pos/reports", Lazy: Lazy__dashboard_pos_reports },
+  { path: "/pos/orders", fullPath: "/dashboard/pos/orders", Lazy: Lazy__dashboard_pos_orders },
+  { path: "/pos/settings/inventory-void", fullPath: "/dashboard/pos/settings/inventory-void", Lazy: Lazy__dashboard_pos_settings_inventory_void },
+  { path: "/pos/settings/printer-routing", fullPath: "/dashboard/pos/settings/printer-routing", Lazy: Lazy__dashboard_pos_settings_printer_routing },
+  { path: "/pos/settings/fiscal-payment", fullPath: "/dashboard/pos/settings/fiscal-payment", Lazy: Lazy__dashboard_pos_settings_fiscal_payment },
+  { path: "/pos/settings/device-permissions", fullPath: "/dashboard/pos/settings/device-permissions", Lazy: Lazy__dashboard_pos_settings_device_permissions },
+  { path: "/pos/settings/devices", fullPath: "/dashboard/pos/settings/devices", Lazy: Lazy__dashboard_pos_settings_devices },
+  { path: "/pos/settings/gift-vouchers", fullPath: "/dashboard/pos/settings/gift-vouchers", Lazy: Lazy__dashboard_pos_settings_gift_vouchers },
+  { path: "/pos/settings/kitchen", fullPath: "/dashboard/pos/settings/kitchen", Lazy: Lazy__dashboard_pos_settings_kitchen },
+  { path: "/pos/settings", fullPath: "/dashboard/pos/settings/fiscal-payment", redirect: "/dashboard/pos/settings/fiscal-payment" },
+  { path: "/pos/gift-vouchers", fullPath: "/dashboard/pos/gift-vouchers", Lazy: Lazy__dashboard_pos_gift_vouchers },
+  { path: "/pos", fullPath: "/dashboard/pos/overview", redirect: "/dashboard/pos/overview" },
+  { path: "/pos/receipts", fullPath: "/dashboard/pos/receipts", Lazy: Lazy__dashboard_pos_receipts },
+  { path: "/pos/statistics", fullPath: "/dashboard/pos/statistics", Lazy: Lazy__dashboard_pos_statistics },
+  { path: "/pos/overview", fullPath: "/dashboard/pos/overview", keepAliveHome: true },
+  { path: "/profile/sign-in", fullPath: "/dashboard/profile/sign-in", Lazy: Lazy__dashboard_profile_sign_in },
+  { path: "/profile/work-hours", fullPath: "/dashboard/profile/work-hours", Lazy: Lazy__dashboard_profile_work_hours },
+  { path: "/profile/notifications", fullPath: "/dashboard/profile/notifications", Lazy: Lazy__dashboard_profile_notifications },
+  { path: "/profile/schedule", fullPath: "/dashboard/profile/schedule", Lazy: Lazy__dashboard_profile_schedule },
   { path: "/profile/display-pin", fullPath: "/dashboard/profile/display-pin", Lazy: Lazy__dashboard_profile_display_pin },
-  { path: "/profile/dokumente", fullPath: "/dashboard/profile/dokumente", Lazy: Lazy__dashboard_profile_dokumente },
-  { path: "/profile", fullPath: "/dashboard/profile/persoenliche-daten", redirect: "/dashboard/profile/persoenliche-daten" },
-  { path: "/profile/persoenliche-daten", fullPath: "/dashboard/profile/persoenliche-daten", Lazy: Lazy__dashboard_profile_persoenliche_daten },
-  { path: "/profile/verfuegbarkeit", fullPath: "/dashboard/profile/verfuegbarkeit", Lazy: Lazy__dashboard_profile_verfuegbarkeit },
-  { path: "/reservierungen/einbinden", fullPath: "/dashboard/reservierungen/einbinden", Lazy: Lazy__dashboard_reservierungen_einbinden },
-  { path: "/reservierungen/einstellungen", fullPath: "/dashboard/reservierungen/einstellungen", Lazy: Lazy__dashboard_reservierungen_einstellungen },
-  { path: "/reservierungen", fullPath: "/dashboard/reservierungen/uebersicht", redirect: "/dashboard/reservierungen/uebersicht" },
-  { path: "/reservierungen/protokoll", fullPath: "/dashboard/reservierungen/protokoll", Lazy: Lazy__dashboard_reservierungen_protokoll },
-  { path: "/reservierungen/statistiken", fullPath: "/dashboard/reservierungen/statistiken", Lazy: Lazy__dashboard_reservierungen_statistiken },
-  { path: "/reservierungen/tischplan", fullPath: "/dashboard/reservierungen/tischplan", Lazy: Lazy__dashboard_reservierungen_tischplan },
-  { path: "/reservierungen/uebersicht", fullPath: "/dashboard/reservierungen/uebersicht", keepAliveHome: true },
-  { path: "/settings/abo", fullPath: "/dashboard/settings/abo", Lazy: Lazy__dashboard_settings_abo },
+  { path: "/profile/documents", fullPath: "/dashboard/profile/documents", Lazy: Lazy__dashboard_profile_documents },
+  { path: "/profile", fullPath: "/dashboard/profile/personal", redirect: "/dashboard/profile/personal" },
+  { path: "/profile/personal", fullPath: "/dashboard/profile/personal", Lazy: Lazy__dashboard_profile_personal },
+  { path: "/profile/availability", fullPath: "/dashboard/profile/availability", Lazy: Lazy__dashboard_profile_availability },
+  { path: "/reservations/embed", fullPath: "/dashboard/reservations/embed", Lazy: Lazy__dashboard_reservations_embed },
+  { path: "/reservations/settings", fullPath: "/dashboard/reservations/settings", Lazy: Lazy__dashboard_reservations_settings },
+  { path: "/reservations", fullPath: "/dashboard/reservations/overview", redirect: "/dashboard/reservations/overview" },
+  { path: "/reservations/log", fullPath: "/dashboard/reservations/log", Lazy: Lazy__dashboard_reservations_log },
+  { path: "/reservations/statistics", fullPath: "/dashboard/reservations/statistics", Lazy: Lazy__dashboard_reservations_statistics },
+  { path: "/reservations/floor-plan", fullPath: "/dashboard/reservations/floor-plan", Lazy: Lazy__dashboard_reservations_floor_plan },
+  { path: "/reservations/overview", fullPath: "/dashboard/reservations/overview", keepAliveHome: true },
+  { path: "/settings/billing", fullPath: "/dashboard/settings/billing", Lazy: Lazy__dashboard_settings_billing },
   { path: "/settings/api", fullPath: "/dashboard/settings/api", Lazy: Lazy__dashboard_settings_api },
   { path: "/settings/branding", fullPath: "/dashboard/settings/restaurant", redirect: "/dashboard/settings/restaurant" },
   { path: "/settings/dashboard", fullPath: "/dashboard/settings/dashboard", Lazy: Lazy__dashboard_settings_dashboard },
   { path: "/settings/displays", fullPath: "/dashboard/settings/displays", Lazy: Lazy__dashboard_settings_displays },
-  { path: "/settings/eigenkontrolle/einstellungen", fullPath: "/dashboard/checklisten/einstellungen", redirect: "/dashboard/checklisten/einstellungen" },
-  { path: "/settings/eigenkontrolle/eintraege", fullPath: "/dashboard/checklisten/protokoll", redirect: "/dashboard/checklisten/protokoll" },
-  { path: "/settings/eigenkontrolle/geraete", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
-  { path: "/settings/eigenkontrolle", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
-  { path: "/settings/eigenkontrolle/protokoll", fullPath: "/dashboard/checklisten/protokoll", redirect: "/dashboard/checklisten/protokoll" },
-  { path: "/settings/eigenkontrolle/vorlagen", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
-  { path: "/settings/integrationen", fullPath: "/dashboard/settings/integrationen", Lazy: Lazy__dashboard_settings_integrationen },
-  { path: "/settings/kasse", fullPath: "/dashboard/pos/einstellungen/fiskal-zahlung", redirect: "/dashboard/pos/einstellungen/fiskal-zahlung" },
-  { path: "/settings/oeffnungszeiten/einbinden", fullPath: "/dashboard/settings/oeffnungszeiten/einbinden", Lazy: Lazy__dashboard_settings_oeffnungszeiten_einbinden },
-  { path: "/settings/oeffnungszeiten", fullPath: "/dashboard/settings/oeffnungszeiten", Lazy: Lazy__dashboard_settings_oeffnungszeiten },
+  { path: "/settings/eigenkontrolle/settings", fullPath: "/dashboard/tasks/settings", redirect: "/dashboard/tasks/settings" },
+  { path: "/settings/eigenkontrolle/entries", fullPath: "/dashboard/tasks/log", redirect: "/dashboard/tasks/log" },
+  { path: "/settings/eigenkontrolle/devices", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
+  { path: "/settings/eigenkontrolle", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
+  { path: "/settings/eigenkontrolle/log", fullPath: "/dashboard/tasks/log", redirect: "/dashboard/tasks/log" },
+  { path: "/settings/eigenkontrolle/templates", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
+  { path: "/settings/integrations", fullPath: "/dashboard/settings/integrations", Lazy: Lazy__dashboard_settings_integrations },
+  { path: "/settings/kasse", fullPath: "/dashboard/pos/settings/fiscal-payment", redirect: "/dashboard/pos/settings/fiscal-payment" },
+  { path: "/settings/opening-hours/embed", fullPath: "/dashboard/settings/opening-hours/embed", Lazy: Lazy__dashboard_settings_opening_hours_embed },
+  { path: "/settings/opening-hours", fullPath: "/dashboard/settings/opening-hours", Lazy: Lazy__dashboard_settings_opening_hours },
   { path: "/settings", fullPath: "/dashboard/settings/restaurant", redirect: "/dashboard/settings/restaurant" },
   { path: "/settings/restaurant", fullPath: "/dashboard/settings/restaurant", Lazy: Lazy__dashboard_settings_restaurant },
   { path: "/settings/rollen", fullPath: "/dashboard/settings/team", redirect: "/dashboard/settings/team" },
   { path: "/settings/team", fullPath: "/dashboard/settings/team", Lazy: Lazy__dashboard_settings_team },
   { path: "/changelog", fullPath: "/dashboard/changelog", Lazy: Lazy__dashboard_changelog },
-  { path: "/mitarbeiter/arbeitszeiten/beheben", fullPath: "/dashboard/mitarbeiter/arbeitszeiten/beheben", Lazy: Lazy__dashboard_mitarbeiter_arbeitszeiten_beheben },
-  { path: "/mitarbeiter/arbeitszeiten/abrechnung", fullPath: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung", Lazy: Lazy__dashboard_mitarbeiter_arbeitszeiten_abrechnung },
-  { path: "/checklisten/meine", fullPath: "/dashboard/checklisten/meine", Lazy: Lazy__dashboard_checklisten_meine },
-  { path: "/checklisten/nachrichten", fullPath: "/dashboard/checklisten/nachrichten", Lazy: Lazy__dashboard_checklisten_nachrichten },
-  { path: "/checklisten/eigenkontrolle", fullPath: "/dashboard/checklisten", redirect: "/dashboard/checklisten" },
+  { path: "/staff/work-hours/fix", fullPath: "/dashboard/staff/work-hours/fix", Lazy: Lazy__dashboard_staff_work_hours_fix },
+  { path: "/staff/work-hours/payroll", fullPath: "/dashboard/staff/work-hours/payroll", Lazy: Lazy__dashboard_staff_work_hours_payroll },
+  { path: "/tasks/mine", fullPath: "/dashboard/tasks/mine", Lazy: Lazy__dashboard_tasks_mine },
+  { path: "/tasks/messages", fullPath: "/dashboard/tasks/messages", Lazy: Lazy__dashboard_tasks_messages },
+  { path: "/tasks/eigenkontrolle", fullPath: "/dashboard/tasks", redirect: "/dashboard/tasks" },
 ];

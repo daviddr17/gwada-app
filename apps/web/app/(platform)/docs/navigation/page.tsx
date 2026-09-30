@@ -73,7 +73,7 @@ export default function DocsNavigationPage() {
         Der runde <strong>Plus-Button</strong> unten rechts (FAB) öffnet häufige
         Anlage-Dialoge — Reservierung, Gericht, Kontakt usw. Welche Aktionen
         erscheinen, stellst du unter{" "}
-        <Link href="/docs/handbuch/einstellungen">Einstellungen → Dashboard</Link> ein.
+        <Link href="/docs/handbook/settings">Einstellungen → Dashboard</Link> ein.
       </p>
 
       <h2>Listen & Tabellen</h2>
@@ -128,7 +128,7 @@ export default function DocsNavigationPage() {
           <strong>Avatar oben rechts</strong> → Meine Restaurants, Profil, Abmelden
         </li>
         <li>
-          <Link href="/docs/handbuch/profil">Profil</Link> — persönliche Einstellungen
+          <Link href="/docs/handbook/profile">Profil</Link> — persönliche Einstellungen
         </li>
       </ul>
 

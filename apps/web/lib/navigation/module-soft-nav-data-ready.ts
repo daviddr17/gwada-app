@@ -63,14 +63,14 @@ export function isModuleSoftNavDataReady(
     );
   }
 
-  if (path.startsWith("/dashboard/mitarbeiter")) {
+  if (path.startsWith("/dashboard/staff")) {
     return (
       queryClient.getQueryData(queryKeys.staff.list(restaurantId)) != null ||
       Boolean(peekStaffListQueryPlaceholder(restaurantId))
     );
   }
 
-  if (path.startsWith("/dashboard/reservierungen")) {
+  if (path.startsWith("/dashboard/reservations")) {
     const range = currentMonthReservationRange();
     return (
       queryClient.getQueryData(
@@ -84,11 +84,11 @@ export function isModuleSoftNavDataReady(
     );
   }
 
-  if (path.startsWith("/dashboard/kontakte")) {
+  if (path.startsWith("/dashboard/contacts")) {
     return Boolean(peekUnifiedInboxCache(restaurantId));
   }
 
-  if (path.startsWith("/dashboard/bewertungen")) {
+  if (path.startsWith("/dashboard/reviews")) {
     return Boolean(
       peekReviewsFeedSessionCache(
         restaurantId,
@@ -97,7 +97,7 @@ export function isModuleSoftNavDataReady(
     );
   }
 
-  if (path.startsWith("/dashboard/buchfuehrung")) {
+  if (path.startsWith("/dashboard/accounting")) {
     const key = accountingSalesListCacheKey({
       restaurantId,
       kind: "invoice",
@@ -120,15 +120,15 @@ export function isModuleSoftNavDataReady(
     return Boolean(peekEventsFeedCache(restaurantId));
   }
 
-  if (path.startsWith("/dashboard/galerie")) {
+  if (path.startsWith("/dashboard/gallery")) {
     return Boolean(peekGalleryFeedCache(restaurantId));
   }
 
-  if (path.startsWith("/dashboard/dokumente")) {
+  if (path.startsWith("/dashboard/documents")) {
     return Boolean(peekDocumentsListCache(restaurantId));
   }
 
-  if (path.startsWith("/dashboard/checklisten")) {
+  if (path.startsWith("/dashboard/tasks")) {
     return Boolean(peekStaffTodosCache(restaurantId));
   }
 

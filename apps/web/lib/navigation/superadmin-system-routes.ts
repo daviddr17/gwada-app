@@ -1,7 +1,7 @@
 /** Superadmin: technische System-Einstellungen */
 export const SUPERADMIN_SYSTEM_ROUTES = {
-  datenbank: "/superadmin/datenbank",
-  ladeStrategie: "/superadmin/lade-strategie",
+  datenbank: "/superadmin/database",
+  ladeStrategie: "/superadmin/load-strategy",
 } as const;
 
 export const SUPERADMIN_SYSTEM_NAV = [

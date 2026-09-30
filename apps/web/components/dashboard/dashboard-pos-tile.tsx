@@ -29,7 +29,7 @@ export function DashboardPosTile() {
             aria-hidden
           />
         }
-        href="/dashboard/pos/uebersicht"
+        href="/dashboard/pos/overview"
         linkLabel="Zum POS"
         ready={false}
         loading
@@ -57,7 +57,7 @@ function DashboardPosComingSoonTile() {
           aria-hidden
         />
       }
-      href="/dashboard/pos/uebersicht"
+      href="/dashboard/pos/overview"
       linkLabel="Zum POS"
       ready
       loading={false}
@@ -84,7 +84,7 @@ function DashboardPosLiveTile() {
           aria-hidden
         />
       }
-      href="/dashboard/pos/uebersicht"
+      href="/dashboard/pos/overview"
       linkLabel="Zum POS"
       ready={ready}
       loading={showSkeleton}
@@ -110,7 +110,7 @@ function DashboardPosLiveTile() {
         <DashboardCompactMetricPill
           label="Offene Tische"
           value={String(openSessions)}
-          href="/dashboard/pos/bestellungen"
+          href="/dashboard/pos/orders"
           highlight={openSessions > 0}
         />
       </DashboardCompactInlineMetrics>

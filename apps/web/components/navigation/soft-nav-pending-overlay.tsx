@@ -51,37 +51,37 @@ function skeletonForHref(href: string): ReactNode {
   const path = normalizeNavHref(href);
   if (path === "/dashboard") return <DashboardHomePendingSkeleton />;
   if (path.startsWith("/dashboard/menu")) return <MenuOverviewSkeleton />;
-  if (path.startsWith("/dashboard/mitarbeiter")) {
+  if (path.startsWith("/dashboard/staff")) {
     return <StaffOverviewTableSkeleton />;
   }
-  if (path.startsWith("/dashboard/reservierungen")) {
+  if (path.startsWith("/dashboard/reservations")) {
     return <ReservationsOverviewSkeleton />;
   }
   if (path.startsWith("/dashboard/inventory")) {
     return <InventoryScreenSkeleton />;
   }
-  if (path.startsWith("/dashboard/bewertungen")) {
+  if (path.startsWith("/dashboard/reviews")) {
     return <ReviewsScreenSkeleton />;
   }
-  if (path.startsWith("/dashboard/kontakte")) {
+  if (path.startsWith("/dashboard/contacts")) {
     return <ContactConversationsListSkeleton />;
   }
-  if (path.startsWith("/dashboard/dokumente")) {
+  if (path.startsWith("/dashboard/documents")) {
     return <DocumentsOverviewTableSkeleton />;
   }
-  if (path.startsWith("/dashboard/buchfuehrung")) {
+  if (path.startsWith("/dashboard/accounting")) {
     return <AccountingListScreenSkeleton columnCount={6} />;
   }
   if (path.startsWith("/dashboard/news")) return <NewsFeedSkeleton />;
   if (
-    path.startsWith("/dashboard/events/einstellungen") ||
-    path.startsWith("/dashboard/events/einbinden") ||
-    path.startsWith("/dashboard/events/statistiken")
+    path.startsWith("/dashboard/events/settings") ||
+    path.startsWith("/dashboard/events/embed") ||
+    path.startsWith("/dashboard/events/statistics")
   ) {
     return <GenericModulePendingSkeleton />;
   }
   if (path.startsWith("/dashboard/events")) return <EventsFeedSkeleton />;
-  if (path.startsWith("/dashboard/checklisten")) {
+  if (path.startsWith("/dashboard/tasks")) {
     return <StaffTodosTableSkeleton />;
   }
   return <GenericModulePendingSkeleton />;

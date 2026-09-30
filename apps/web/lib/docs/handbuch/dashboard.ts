@@ -158,6 +158,6 @@ export const dashboardGuide: UserGuidePage = {
   ],
   related: [
     { label: "Navigation in der App", href: "/docs/navigation" },
-    { label: "Einstellungen → Dashboard", href: "/docs/handbuch/einstellungen" },
+    { label: "Einstellungen → Dashboard", href: "/docs/handbook/settings" },
   ],
 };

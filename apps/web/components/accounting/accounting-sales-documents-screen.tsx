@@ -366,7 +366,7 @@ export function AccountingSalesDocumentsScreen({
     // Keep-alive: ?new=1 nur wenn dieses Buchführungs-Screen aktiv ist
     // (sonst öffnen Rechnungen/Angebote mit bei Dashboard-Shortcuts anderer Module).
     if (!keepAliveMayNavigate(active)) return;
-    if (!pathname.startsWith("/dashboard/buchfuehrung/")) return;
+    if (!pathname.startsWith("/dashboard/accounting/")) return;
     if (searchParams.get("new") === "1" && canManage) {
       setEditRow(null);
       setDrawerOpen(true);

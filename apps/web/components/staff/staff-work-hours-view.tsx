@@ -260,7 +260,7 @@ export function StaffWorkHoursView({
   >([]);
 
   useEffect(() => {
-    if (!pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten")) return;
+    if (!pathname.startsWith("/dashboard/staff/work-hours")) return;
     if (searchParams.get("new") !== "1") return;
     setEditEntry(null);
     setShiftClusterSegments([]);

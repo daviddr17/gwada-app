@@ -149,7 +149,7 @@ function patchNotificationSummaryMessagesLive(
     label: messagesModule?.label ?? "Nachrichten",
     href:
       messagesModule?.href ??
-      "/dashboard/kontakte/nachrichten?platform=all&read=unread",
+      "/dashboard/contacts/messages?platform=all&read=unread",
     items,
   };
 
@@ -182,7 +182,7 @@ export function patchNotificationSummaryFromInboundMessage(
       id: threadKey,
       title: name,
       subtitle: inboxPreviewSnippet(mirrored.body, mirrored.attachmentKind),
-      href: `/dashboard/kontakte/nachrichten?platform=all&contact=${encodeURIComponent(threadKey)}`,
+      href: `/dashboard/contacts/messages?platform=all&contact=${encodeURIComponent(threadKey)}`,
       at: message.created_at,
       meta: { contactId: threadKey, platform: msgPlatform },
     },
@@ -220,7 +220,7 @@ export function patchNotificationSummaryFromNotificationPayload(
       id: threadKey,
       title: name,
       subtitle: preview,
-      href: `/dashboard/kontakte/nachrichten?platform=all&contact=${encodeURIComponent(threadKey)}`,
+      href: `/dashboard/contacts/messages?platform=all&contact=${encodeURIComponent(threadKey)}`,
       at,
       meta: { contactId: threadKey, platform },
     },

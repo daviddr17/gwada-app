@@ -12,7 +12,7 @@ function pathWithoutQuery(href: string): string {
 }
 
 /**
- * Modul-Wurzel für App-Navigation, z. B. `/dashboard/kontakte` oder `/dashboard`.
+ * Modul-Wurzel für App-Navigation, z. B. `/dashboard/contacts` oder `/dashboard`.
  */
 export function appModuleRootFromPath(pathname: string): string {
   const path = normalizePath(pathWithoutQuery(pathname));

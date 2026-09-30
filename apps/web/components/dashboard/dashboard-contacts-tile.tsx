@@ -17,7 +17,7 @@ export function DashboardContactsTile() {
     <DashboardWidgetShell
       title="Kontakte"
       icon={<Users className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
-      href="/dashboard/kontakte/uebersicht"
+      href="/dashboard/contacts/overview"
       linkLabel="Zu Kontakte"
       ready={ready}
       loading={showSkeleton}

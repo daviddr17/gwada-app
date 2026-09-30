@@ -263,7 +263,7 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
     p.set("platform", "gwada");
     const q = p.toString();
     router.replace(
-      q ? `/dashboard/bewertungen/uebersicht?${q}` : "/dashboard/bewertungen/uebersicht",
+      q ? `/dashboard/reviews/overview?${q}` : "/dashboard/reviews/overview",
       { scroll: false },
     );
   }, [active, searchParams, router, pathname]);
@@ -445,8 +445,8 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
     const q = params.toString();
     router.replace(
       q
-        ? `/dashboard/bewertungen/uebersicht?${q}`
-        : "/dashboard/bewertungen/uebersicht",
+        ? `/dashboard/reviews/overview?${q}`
+        : "/dashboard/reviews/overview",
       { scroll: false },
     );
 
@@ -486,8 +486,8 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
       const q = params.toString();
       router.replace(
         q
-          ? `/dashboard/bewertungen/uebersicht?${q}`
-          : "/dashboard/bewertungen/uebersicht",
+          ? `/dashboard/reviews/overview?${q}`
+          : "/dashboard/reviews/overview",
       );
     }
   }, [
@@ -512,8 +512,8 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
     const q = params.toString();
     router.replace(
       q
-        ? `/dashboard/bewertungen/uebersicht?${q}`
-        : "/dashboard/bewertungen/uebersicht",
+        ? `/dashboard/reviews/overview?${q}`
+        : "/dashboard/reviews/overview",
     );
   };
 
@@ -1756,7 +1756,7 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
               hier manuell Einladungslinks (24 Stunden gültig). Automatik und Kanäle
               unter{" "}
               <a
-                href="/dashboard/reservierungen/einstellungen"
+                href="/dashboard/reservations/settings"
                 className="font-medium text-foreground underline-offset-4 hover:underline"
               >
                 Reservierungen → Einstellungen
@@ -2148,8 +2148,8 @@ export function ReviewsScreen({ active = true }: { active?: boolean }) {
               const q = params.toString();
               router.replace(
                 q
-                  ? `/dashboard/bewertungen/uebersicht?${q}`
-                  : "/dashboard/bewertungen/uebersicht?platform=gwada",
+                  ? `/dashboard/reviews/overview?${q}`
+                  : "/dashboard/reviews/overview?platform=gwada",
               );
             }
           }

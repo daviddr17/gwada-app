@@ -23,7 +23,7 @@ export function DashboardEventsTile() {
           aria-hidden
         />
       }
-      href="/dashboard/events/uebersicht"
+      href="/dashboard/events/overview"
       linkLabel="Zu Events"
       ready={ready}
       loading={showSkeleton}

@@ -132,7 +132,7 @@ export function LandingPage() {
               ·
             </span>
             <Link
-              href="/impressum"
+              href="/imprint"
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               Impressum
@@ -141,7 +141,7 @@ export function LandingPage() {
               ·
             </span>
             <Link
-              href="/datenschutz"
+              href="/privacy"
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               Datenschutz
@@ -150,7 +150,7 @@ export function LandingPage() {
               ·
             </span>
             <Link
-              href="/agb"
+              href="/terms"
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               AGB
@@ -159,7 +159,7 @@ export function LandingPage() {
               ·
             </span>
             <Link
-              href="/avv"
+              href="/dpa"
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               AVV

@@ -60,7 +60,7 @@ function normalizePath(pathname: string): string {
   return path || APP_ROUTES.dashboard;
 }
 
-/** `/dashboard/menu` ≡ Übersicht, `/dashboard/kontakte` ≡ Nachrichten, … */
+/** `/dashboard/menu` ≡ Übersicht, `/dashboard/contacts` ≡ Nachrichten, … */
 export function moduleHomeRootAlias(homePath: string): string | null {
   const parts = normalizePath(homePath).split("/").filter(Boolean);
   if (parts[0] !== "dashboard" || parts.length < 3) return null;
@@ -100,7 +100,7 @@ export function isWarmModuleHomePending(
 
 /**
  * Soft-Nav-Ziel erreicht — inkl. Home-Aliase
- * (`/dashboard/menu` Redirect → `/dashboard/menu/uebersicht`).
+ * (`/dashboard/menu` Redirect → `/dashboard/menu/overview`).
  * Unterrouten (Einstellungen, Statistiken, …) nur bei exaktem Pfad.
  */
 export function isSoftNavPendingArrived(

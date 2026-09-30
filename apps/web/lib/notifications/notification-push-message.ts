@@ -642,7 +642,7 @@ export function buildNotificationPushText(
         prefix,
         headline: c.personalReminder,
         subject: `${prefix}${c.reminder} — ${title}`,
-        href: "/dashboard/checklisten/meine",
+        href: "/dashboard/tasks/mine",
         details: detailLines([title, pickString(p.body)]),
       });
     }
@@ -653,7 +653,7 @@ export function buildNotificationPushText(
         prefix,
         headline: c.teamMessage,
         subject: `${prefix}${c.message} ${peer}`,
-        href: "/dashboard/checklisten/nachrichten",
+        href: "/dashboard/tasks/messages",
         details: detailLines([`${peer}: ${preview}`]),
       });
     }

@@ -100,7 +100,7 @@ import {
 
 const APP_HEADER_PX = 53; /* --app-chrome-header-h: p-2 + h-9 + p-2 + border */
 
-const MENU_BASE = "/dashboard/menu/uebersicht";
+const MENU_BASE = "/dashboard/menu/overview";
 
 export function MenuOverviewScreen({ active = true }: { active?: boolean }) {
   const router = useRouter();

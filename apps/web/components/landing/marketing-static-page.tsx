@@ -2,11 +2,11 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const LEGAL_NAV = [
-  { href: "/impressum", label: "Impressum" },
-  { href: "/datenschutz", label: "Datenschutz" },
-  { href: "/agb", label: "AGB" },
-  { href: "/avv", label: "AVV" },
-  { href: "/datenloeschung", label: "Datenlöschung" },
+  { href: "/imprint", label: "Impressum" },
+  { href: "/privacy", label: "Datenschutz" },
+  { href: "/terms", label: "AGB" },
+  { href: "/dpa", label: "AVV" },
+  { href: "/data-deletion", label: "Datenlöschung" },
 ] as const;
 
 type Props = {

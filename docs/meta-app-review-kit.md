@@ -35,9 +35,9 @@ Dieses Dokument ist zum **Kopieren in die Meta Developer Console** und für Scre
 | Feld | Wert |
 |------|------|
 | App Domains | `gwada.app` |
-| Privacy Policy URL | `https://gwada.app/datenschutz` |
-| Terms of Service URL | `https://gwada.app/agb` (falls vorhanden) bzw. Datenschutz + Impressum) |
-| User Data Deletion | `https://gwada.app/datenloeschung` |
+| Privacy Policy URL | `https://gwada.app/privacy` |
+| Terms of Service URL | `https://gwada.app/terms` (falls vorhanden) bzw. Datenschutz + Impressum) |
+| User Data Deletion | `https://gwada.app/data-deletion` |
 | Category | Business |
 | App Icon | Gwada-Logo |
 
@@ -147,8 +147,8 @@ Data use:
 Access tokens and Page/IG IDs are stored encrypted/server-side per restaurant
 workspace. Data is used only to provide the features above for that restaurant.
 Users can disconnect Meta in Settings. Account/data deletion instructions:
-https://gwada.app/datenloeschung
-Privacy policy: https://gwada.app/datenschutz
+https://gwada.app/data-deletion
+Privacy policy: https://gwada.app/privacy
 ```
 
 ---
@@ -435,8 +435,8 @@ Recommended path:
 
 Important:
 - Facebook Login is only used to connect Page/IG assets, not as Gwada account login.
-- Privacy: https://gwada.app/datenschutz
-- Data deletion: https://gwada.app/datenloeschung
+- Privacy: https://gwada.app/privacy
+- Data deletion: https://gwada.app/data-deletion
 
 If a permission screen appears during reconnect, accept all requested Page/Instagram
 permissions so messaging and publishing keep working.
@@ -455,10 +455,10 @@ Users can disconnect Facebook/Instagram under Settings → Integrations and revo
 the app under Facebook Settings → Apps and Websites.
 
 Data deletion instructions for users and Meta App Review:
-https://gwada.app/datenloeschung
+https://gwada.app/data-deletion
 
 Privacy policy:
-https://gwada.app/datenschutz
+https://gwada.app/privacy
 
 Operator contact: contact@gwada.app
 ```
@@ -516,7 +516,7 @@ Scope-Quelle im Code: `apps/web/lib/constants/integration-oauth-scopes.ts`
 
 ## 12. Offene Punkte (technisch, vor Review ideal)
 
-1. **Data Deletion Callback:** Seite `/datenloeschung` existiert; automatischer Meta-Callback-Endpoint ggf. noch prüfen/ergänzen, falls Meta ihn zwingend testet.  
+1. **Data Deletion Callback:** Seite `/data-deletion` existiert; automatischer Meta-Callback-Endpoint ggf. noch prüfen/ergänzen, falls Meta ihn zwingend testet.  
 2. **Business Verification:** oft Voraussetzung für Advanced Access auf Messaging/Insights.  
 3. **Testpasswort** und echte Demo-Page hier eintragen, bevor Submit.
 

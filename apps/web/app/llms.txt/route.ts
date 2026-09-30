@@ -19,10 +19,10 @@ Gwada (gwada.app) ist die SaaS-Plattform für Restaurants und Gastro-Betriebe in
 
 ## Legal
 
-- [Impressum](https://gwada.app/impressum)
-- [Datenschutz](https://gwada.app/datenschutz)
-- [AGB](https://gwada.app/agb)
-- [AVV](https://gwada.app/avv)
+- [Impressum](https://gwada.app/imprint)
+- [Datenschutz](https://gwada.app/privacy)
+- [AGB](https://gwada.app/terms)
+- [AVV](https://gwada.app/dpa)
 
 ## Optional
 

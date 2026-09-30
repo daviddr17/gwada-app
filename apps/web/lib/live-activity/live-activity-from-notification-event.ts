@@ -211,7 +211,7 @@ export function hrefForNotificationModule(
       referenceId,
     );
     if (reservationId) {
-      return `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(reservationId)}`;
+      return `/dashboard/reservations/overview?reservation=${encodeURIComponent(reservationId)}`;
     }
   }
 
@@ -242,7 +242,7 @@ export function hrefForNotificationModule(
   }
 
   if (module === "staff_shift_start" || module === "staff_shift_end") {
-    const base = defHref ?? "/dashboard/mitarbeiter/schichtplan";
+    const base = defHref ?? "/dashboard/staff/shift-plan";
     const iso =
       module === "staff_shift_start"
         ? pickString(payload.startsAt)

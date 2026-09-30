@@ -295,9 +295,9 @@ export function AppSidebar() {
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/allgemein")}
+                      isActive={pathname.startsWith("/superadmin/general")}
                       tooltip="Allgemein"
-                      render={<AppNavLink href="/superadmin/allgemein" />}
+                      render={<AppNavLink href="/superadmin/general" />}
                     >
                       <Settings2 />
                       <span>Allgemein</span>
@@ -328,10 +328,10 @@ export function AppSidebar() {
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       isActive={pathname.startsWith(
-                        "/superadmin/abonnements",
+                        "/superadmin/subscriptions",
                       )}
                       tooltip="Abonnements"
-                      render={<AppNavLink href="/superadmin/abonnements" />}
+                      render={<AppNavLink href="/superadmin/subscriptions" />}
                     >
                       <CreditCard />
                       <span>Abonnements</span>
@@ -339,9 +339,9 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/warteliste")}
+                      isActive={pathname.startsWith("/superadmin/waitlist")}
                       tooltip="Warteliste"
-                      render={<AppNavLink href="/superadmin/warteliste" />}
+                      render={<AppNavLink href="/superadmin/waitlist" />}
                     >
                       <Hourglass />
                       <span>Warteliste</span>
@@ -359,9 +359,9 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/integrationen")}
+                      isActive={pathname.startsWith("/superadmin/integrations")}
                       tooltip="Integrationen"
-                      render={<AppNavLink href="/superadmin/integrationen" />}
+                      render={<AppNavLink href="/superadmin/integrations" />}
                     >
                       <Plug />
                       <span>Integrationen</span>
@@ -435,10 +435,10 @@ export function AppSidebar() {
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       isActive={pathname.startsWith(
-                        "/superadmin/benachrichtigungen",
+                        "/superadmin/notifications",
                       )}
                       tooltip="Benachrichtigungen"
-                      render={<AppNavLink href="/superadmin/benachrichtigungen" />}
+                      render={<AppNavLink href="/superadmin/notifications" />}
                     >
                       <Bell />
                       <span>Benachrichtigungen</span>
@@ -569,13 +569,13 @@ export function AppSidebar() {
                 className={mobileFooterButtonClassName}
                 render={
                   <Link
-                    href="/superadmin/allgemein"
+                    href="/superadmin/general"
                     prefetch={false}
                     onClick={(e) => {
                       if (
                         assignCrossAppWorkspaceZone(
                           pathname,
-                          "/superadmin/allgemein",
+                          "/superadmin/general",
                         )
                       ) {
                         e.preventDefault();

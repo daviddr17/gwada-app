@@ -115,32 +115,32 @@ async function main() {
     await login(page);
 
     // Warm both keep-alive homes
-    await page.goto(`${BASE}/dashboard/kontakte/nachrichten?platform=all`, {
+    await page.goto(`${BASE}/dashboard/contacts/messages?platform=all`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(800);
-    await page.goto(`${BASE}/dashboard/reservierungen/uebersicht`, {
+    await page.goto(`${BASE}/dashboard/reservations/overview`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(800);
-    await page.goto(`${BASE}/dashboard/menu/uebersicht`, {
+    await page.goto(`${BASE}/dashboard/menu/overview`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(500);
 
     await softNavFromMenu(
       page,
-      "/dashboard/kontakte/nachrichten?platform=all",
+      "/dashboard/contacts/messages?platform=all",
     );
     console.log("OK menu closes → Nachrichten");
 
     // Dock during close animation must not reopen
-    await page.goto(`${BASE}/dashboard/menu/uebersicht`, {
+    await page.goto(`${BASE}/dashboard/menu/overview`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(400);
     await openMenu(page);
-    await tapMenuLink(page, "/dashboard/reservierungen/uebersicht");
+    await tapMenuLink(page, "/dashboard/reservations/overview");
     await page.waitForTimeout(30);
     const dock = page.locator(
       'button[aria-label="Menü öffnen"], button[aria-label="Menü schließen"]',
@@ -155,26 +155,26 @@ async function main() {
     await page.waitForURL(/\/reservierungen/, { timeout: 15_000 });
     console.log("OK dock does not reopen during close → Reservierungen");
 
-    await page.goto(`${BASE}/dashboard/menu/uebersicht`, {
+    await page.goto(`${BASE}/dashboard/menu/overview`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(400);
-    await softNavFromMenu(page, "/dashboard/reservierungen/uebersicht");
+    await softNavFromMenu(page, "/dashboard/reservations/overview");
     console.log("OK menu closes → Reservierungen");
 
-    await page.goto(`${BASE}/dashboard/menu/uebersicht`, {
+    await page.goto(`${BASE}/dashboard/menu/overview`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(400);
     await softNavFromMenu(
       page,
-      "/dashboard/kontakte/nachrichten?platform=all",
+      "/dashboard/contacts/messages?platform=all",
     );
     console.log("OK menu closes → Nachrichten (2)");
 
     // Warm ↔ warm: kein hängendes Menü, kein Modul-Flash-Stuck
     await openMenu(page);
-    await tapMenuLink(page, "/dashboard/reservierungen/uebersicht");
+    await tapMenuLink(page, "/dashboard/reservations/overview");
     await page.waitForURL(/\/reservierungen/, { timeout: 15_000 });
     await page.waitForFunction(
       () =>

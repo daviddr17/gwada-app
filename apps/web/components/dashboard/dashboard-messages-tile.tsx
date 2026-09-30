@@ -117,7 +117,7 @@ export function DashboardMessagesTile() {
             aria-hidden
           />
         }
-        href="/dashboard/kontakte/nachrichten?platform=all"
+        href="/dashboard/contacts/messages?platform=all"
         linkLabel="Zu Nachrichten"
         ready={ready}
         loading={showSkeleton}

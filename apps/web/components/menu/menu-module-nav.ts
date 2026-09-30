@@ -5,13 +5,13 @@ import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 /** Speisekarte-Subnav — Keep-alive Home + SPA-Unterseiten. */
 export const MENU_MODULE_NAV: readonly ModuleSubnavItem[] = [
   {
-    href: "/dashboard/menu/uebersicht",
+    href: "/dashboard/menu/overview",
     label: "Übersicht",
     matchMode: "exact",
     activeWhen: ["/dashboard/menu"],
   },
   {
-    href: "/dashboard/menu/statistiken",
+    href: "/dashboard/menu/statistics",
     label: "Statistiken",
     matchMode: "exact",
   },
@@ -21,12 +21,12 @@ export const MENU_MODULE_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
-    href: "/dashboard/menu/einbinden",
+    href: "/dashboard/menu/embed",
     label: "Einbinden",
     matchMode: "prefix",
   },
   {
-    href: "/dashboard/menu/einstellungen",
+    href: "/dashboard/menu/settings",
     label: "Einstellungen",
     matchMode: "exact",
   },

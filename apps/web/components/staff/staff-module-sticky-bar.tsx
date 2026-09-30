@@ -129,14 +129,14 @@ export function StaffModuleStickyBar() {
   );
 
   const allowsMultiStaff = useMemo(() => {
-    if (pathname.startsWith("/dashboard/mitarbeiter/vertraege")) return true;
-    if (pathname.startsWith("/dashboard/mitarbeiter/dokumente")) return true;
+    if (pathname.startsWith("/dashboard/staff/contracts")) return true;
+    if (pathname.startsWith("/dashboard/staff/documents")) return true;
     // Nur Kalender — Abrechnung/Beheben brauchen Einzelauswahl.
-    return pathname === "/dashboard/mitarbeiter/arbeitszeiten";
+    return pathname === "/dashboard/staff/work-hours";
   }, [pathname]);
 
   const includeInactiveStaff = pathname.startsWith(
-    "/dashboard/mitarbeiter/arbeitszeiten",
+    "/dashboard/staff/work-hours",
   );
   const filterDay = includeInactiveStaff ? localDayKey(new Date()) : "";
   const { contracts } = useStaffListQuery(

@@ -1,7 +1,7 @@
 import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const buchfuehrungGuide: UserGuidePage = {
-  slug: "buchfuehrung",
+  slug: "accounting",
   title: "Buchführung",
   description:
     "Rechnungen, Angebote, Belege, Kassenbuch, Lexware und Statistiken.",
@@ -80,14 +80,14 @@ export const buchfuehrungGuide: UserGuidePage = {
     "Fiskaly TSE (Kassensicherungsverordnung) ist unter Einstellungen → Kasse, nicht im Kassenbuch-Tab.",
   ],
   related: [
-    { label: "Integrationen → Lexware", href: "/docs/handbuch/integrationen" },
-    { label: "Kontakte", href: "/docs/handbuch/nachrichten" },
-    { label: "Einstellungen", href: "/docs/handbuch/einstellungen" },
+    { label: "Integrationen → Lexware", href: "/docs/handbook/integrations" },
+    { label: "Kontakte", href: "/docs/handbook/messages" },
+    { label: "Einstellungen", href: "/docs/handbook/settings" },
   ],
 };
 
 export const dokumenteGuide: UserGuidePage = {
-  slug: "dokumente",
+  slug: "documents",
   title: "Dokumente",
   description:
     "Zentrale Ablage für Verträge, Zertifikate und Unterlagen — mit Tags, Mitarbeiter-Zuordnung und Änderungsprotokoll.",
@@ -158,8 +158,8 @@ export const dokumenteGuide: UserGuidePage = {
     "URL-Parameter ?new=1 öffnet den Upload-Drawer direkt — nützlich für Bookmarks oder Schnellaktionen.",
   ],
   related: [
-    { label: "Mitarbeiter → Dokumente", href: "/docs/handbuch/mitarbeiter" },
-    { label: "Aufgaben", href: "/docs/handbuch/checklisten" },
-    { label: "Buchführung", href: "/docs/handbuch/buchfuehrung" },
+    { label: "Mitarbeiter → Dokumente", href: "/docs/handbook/staff" },
+    { label: "Aufgaben", href: "/docs/handbook/tasks" },
+    { label: "Buchführung", href: "/docs/handbook/accounting" },
   ],
 };

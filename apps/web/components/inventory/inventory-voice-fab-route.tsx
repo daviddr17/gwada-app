@@ -5,11 +5,11 @@ import { InventoryVoiceFab } from "@/components/inventory/inventory-voice-fab";
 import type { InventoryVoiceMode } from "@/lib/inventory/purchase-order-voice-apply";
 
 function inventoryVoiceModeFromPath(pathname: string): InventoryVoiceMode | null {
-  if (pathname.startsWith("/dashboard/inventory/bestellung")) {
+  if (pathname.startsWith("/dashboard/inventory/purchase-orders")) {
     return "order";
   }
   if (
-    pathname === "/dashboard/inventory/uebersicht" ||
+    pathname === "/dashboard/inventory/overview" ||
     pathname === "/dashboard/inventory"
   ) {
     return "stock";

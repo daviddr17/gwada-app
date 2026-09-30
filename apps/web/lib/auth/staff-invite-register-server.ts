@@ -66,7 +66,7 @@ export async function registerStaffInviteAccountServer(params: {
     };
   }
 
-  const nextPath = safeInternalPath(`/einladung/${encodeURIComponent(token)}`);
+  const nextPath = safeInternalPath(`/invitation/${encodeURIComponent(token)}`);
   const origin = params.origin.replace(/\/$/, "");
   const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
   const metadata = {

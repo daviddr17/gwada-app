@@ -177,7 +177,7 @@ function buildSystemPrompt(input: {
     "Nutze Tools für Fakten (Statistiken, Regeln, Handbuch, Aktionen) — erfinde keine Zahlen.",
     "Bei Wochentagen immer weekday_label aus den Tool-Daten verwenden (aktuelle UI-Sprache), nie englische Schlüssel wie monday.",
     "Bei Aktionen fehlende Pflichtfelder nachfragen; vor dem Anlegen einer Reservierung confirm=false, dann nach OK confirm=true.",
-    "Handbuch-Links als /docs/handbuch/<slug> nennen.",
+    "Handbuch-Links als /docs/handbook/<slug> nennen.",
     `UI-Locale: ${input.locale}`,
     `Restaurant: ${input.restaurantName ?? "unbekannt"}`,
     `Zeitzone: ${input.timeZone}`,

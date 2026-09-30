@@ -21,7 +21,7 @@ export function DashboardGalleryTile() {
       icon={
         <Images className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       }
-      href="/dashboard/galerie/uebersicht"
+      href="/dashboard/gallery/overview"
       linkLabel="Zur Galerie"
       ready={ready}
       loading={showSkeleton}

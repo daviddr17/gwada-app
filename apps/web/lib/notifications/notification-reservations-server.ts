@@ -199,7 +199,7 @@ export async function loadReservationNotificationItems(
         href:
           params.module === "events_inquiry"
             ? privateEventOverviewHref(r.id)
-            : `/dashboard/reservierungen/uebersicht?reservation=${r.id}`,
+            : `/dashboard/reservations/overview?reservation=${r.id}`,
         at:
           params.module === "reservations_cancellation"
             ? (r.updated_at ?? r.starts_at)

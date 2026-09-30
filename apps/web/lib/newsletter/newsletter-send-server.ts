@@ -254,7 +254,7 @@ export async function sendNewsletterTestEmail(params: {
   const branding = await fetchTransactionalEmailBranding(params.admin);
   const origin = resolveNewsletterOrigin(params.origin);
   const labels = unsubscribeLabels(localized.lang);
-  const unsubscribeUrl = `${origin}/newsletter/abmelden/preview`;
+  const unsubscribeUrl = `${origin}/newsletter/unsubscribe/preview`;
 
   const html = buildNewsletterEmailHtml({
     brandName: branding.appName || PLATFORM_NEWSLETTER_FROM_NAME,
@@ -378,7 +378,7 @@ export async function processNewsletterOutbox(params: {
       if (!localized) throw new Error("newsletter_missing");
 
       const labels = unsubscribeLabels(locale);
-      const unsubscribeUrl = `${origin}/newsletter/abmelden/${String(sub.unsubscribe_token)}`;
+      const unsubscribeUrl = `${origin}/newsletter/unsubscribe/${String(sub.unsubscribe_token)}`;
       const html = buildNewsletterEmailHtml({
         brandName: branding.appName || PLATFORM_NEWSLETTER_FROM_NAME,
         logoUrl: branding.logoUrl,
@@ -500,7 +500,7 @@ export async function buildNewsletterPreviewHtml(params: {
       subject: localized.subject,
       preheader: localized.preheader,
       blocks: localized.blocks,
-      unsubscribeUrl: `${origin}/newsletter/abmelden/preview`,
+      unsubscribeUrl: `${origin}/newsletter/unsubscribe/preview`,
       unsubscribeLabel: labels.label,
       footerNote: labels.footer,
       lang: localized.lang,

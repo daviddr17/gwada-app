@@ -21,14 +21,14 @@ export default function AvvPage() {
       title="Auftragsverarbeitungsvertrag (AVV)"
       description="Vereinbarung gemäß Art. 28 DSGVO zwischen dem Restaurant-Kunden (Verantwortlicher) und dem Anbieter von Gwada (Auftragsverarbeiter)."
       updatedLabel={o.documentsUpdatedLabel}
-      activePath="/avv"
+      activePath="/dpa"
     >
       <p>
         Dieser AVV gilt automatisch mit Nutzung von {o.productName}, soweit der
         Kunde personenbezogene Daten in der Plattform verarbeiten lässt, für die
         er Verantwortlicher ist. Er ergänzt die{" "}
-        <Link href="/agb">AGB</Link> und die{" "}
-        <Link href="/datenschutz">Datenschutzerklärung</Link>.
+        <Link href="/terms">AGB</Link> und die{" "}
+        <Link href="/privacy">Datenschutzerklärung</Link>.
       </p>
 
       <h2>1. Parteien</h2>
@@ -191,11 +191,11 @@ export default function AvvPage() {
       </p>
 
       <p>
-        <Link href="/impressum">Impressum</Link>
+        <Link href="/imprint">Impressum</Link>
         {" · "}
-        <Link href="/datenschutz">Datenschutz</Link>
+        <Link href="/privacy">Datenschutz</Link>
         {" · "}
-        <Link href="/agb">AGB</Link>
+        <Link href="/terms">AGB</Link>
       </p>
     </MarketingStaticPage>
   );

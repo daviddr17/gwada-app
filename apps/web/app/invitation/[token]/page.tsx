@@ -153,7 +153,7 @@ export default function StaffInvitePage() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const { showGoogle, showApple, showOAuthSection } = usePublicOAuthAvailability();
-  const inviteNextPath = `/einladung/${encodeURIComponent(token)}`;
+  const inviteNextPath = `/invitation/${encodeURIComponent(token)}`;
 
   useEffect(() => {
     if (!token) {

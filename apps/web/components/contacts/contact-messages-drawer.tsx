@@ -117,7 +117,7 @@ export function ContactMessagesDrawer({
               variant="outline"
               className={drawerFormFullWidthButtonClassName}
               render={
-                <a href={`/dashboard/kontakte/nachrichten?contact=${contactId}`} />
+                <a href={`/dashboard/contacts/messages?contact=${contactId}`} />
               }
               onClick={() => onOpenChange(false)}
             >

@@ -22,7 +22,7 @@ export function DashboardDocumentsTile() {
       icon={
         <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       }
-      href="/dashboard/dokumente/uebersicht"
+      href="/dashboard/documents/overview"
       linkLabel="Zu Dokumente"
       ready={ready}
       loading={showSkeleton}

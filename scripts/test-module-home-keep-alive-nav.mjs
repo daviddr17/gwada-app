@@ -7,26 +7,26 @@ import assert from "node:assert/strict";
 
 const MODULE_HOME_PATHS = {
   dashboard: "/dashboard",
-  reservierungen: "/dashboard/reservierungen/uebersicht",
-  nachrichten: "/dashboard/kontakte/nachrichten",
+  reservierungen: "/dashboard/reservations/overview",
+  nachrichten: "/dashboard/contacts/messages",
 };
 
 const SIDEBAR = [
   { id: "dashboard", href: "/dashboard" },
-  { id: "menu", href: "/dashboard/menu/uebersicht" },
-  { id: "inventory", href: "/dashboard/inventory/uebersicht" },
-  { id: "reservierungen", href: "/dashboard/reservierungen/uebersicht" },
-  { id: "pos", href: "/dashboard/pos/uebersicht" },
-  { id: "events", href: "/dashboard/events/uebersicht" },
-  { id: "kontakte", href: "/dashboard/kontakte/nachrichten?platform=all" },
-  { id: "news", href: "/dashboard/news/uebersicht" },
-  { id: "bewertungen", href: "/dashboard/bewertungen/uebersicht" },
-  { id: "insights", href: "/dashboard/insights/uebersicht" },
-  { id: "galerie", href: "/dashboard/galerie/uebersicht" },
-  { id: "buchfuehrung", href: "/dashboard/buchfuehrung/rechnungen" },
-  { id: "dokumente", href: "/dashboard/dokumente/uebersicht" },
-  { id: "checklisten", href: "/dashboard/checklisten" },
-  { id: "mitarbeiter", href: "/dashboard/mitarbeiter/uebersicht" },
+  { id: "menu", href: "/dashboard/menu/overview" },
+  { id: "inventory", href: "/dashboard/inventory/overview" },
+  { id: "reservierungen", href: "/dashboard/reservations/overview" },
+  { id: "pos", href: "/dashboard/pos/overview" },
+  { id: "events", href: "/dashboard/events/overview" },
+  { id: "kontakte", href: "/dashboard/contacts/messages?platform=all" },
+  { id: "news", href: "/dashboard/news/overview" },
+  { id: "bewertungen", href: "/dashboard/reviews/overview" },
+  { id: "insights", href: "/dashboard/insights/overview" },
+  { id: "galerie", href: "/dashboard/gallery/overview" },
+  { id: "buchfuehrung", href: "/dashboard/accounting/invoices" },
+  { id: "dokumente", href: "/dashboard/documents/overview" },
+  { id: "checklisten", href: "/dashboard/tasks" },
+  { id: "mitarbeiter", href: "/dashboard/staff/overview" },
 ];
 
 function normalizePath(pathname) {
@@ -56,14 +56,14 @@ function keepAliveOwnsPathname(active, pathname, id) {
 assert.equal(keepAliveMayNavigate(false), false);
 assert.equal(keepAliveMayNavigate(true), true);
 assert.equal(
-  matchHome("/dashboard/kontakte/nachrichten?platform=all"),
+  matchHome("/dashboard/contacts/messages?platform=all"),
   "nachrichten",
 );
 assert.equal(
-  matchHome("/dashboard/kontakte/nachrichten"),
+  matchHome("/dashboard/contacts/messages"),
   "nachrichten",
 );
-assert.equal(matchHome("/dashboard/menu/uebersicht"), null);
+assert.equal(matchHome("/dashboard/menu/overview"), null);
 assert.equal(SIDEBAR.length, 15);
 
 for (const mod of SIDEBAR) {

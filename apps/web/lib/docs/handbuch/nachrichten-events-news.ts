@@ -1,7 +1,7 @@
 import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const nachrichtenGuide: UserGuidePage = {
-  slug: "nachrichten",
+  slug: "messages",
   title: "Nachrichten & Kontakte",
   description:
     "Multi-Channel-Inbox, Kontaktverwaltung, Tags und Kanal-Einstellungen.",
@@ -107,8 +107,8 @@ export const nachrichtenGuide: UserGuidePage = {
     "WhatsApp und E-Mail müssen unter Integrationen verbunden sein, sonst bleiben die Chips leer.",
   ],
   related: [
-    { label: "Integrationen", href: "/docs/handbuch/integrationen" },
-    { label: "Reservierungen", href: "/docs/handbuch/reservierungen" },
+    { label: "Integrationen", href: "/docs/handbook/integrations" },
+    { label: "Reservierungen", href: "/docs/handbook/reservations" },
   ],
 };
 
@@ -222,7 +222,7 @@ export const eventsGuide: UserGuidePage = {
     },
     {
       heading: "Einbinden",
-      body: "Unter Einbinden gibt es zwei Snippets. Öffentliche Events: Feed unter /embed/events/[slug] — nur veröffentlichte Termine. Veranstaltungs-Anfrage: Formular unter /embed/veranstaltung/[slug] — Name, Firma, Wunschdatum, Personen, Anlass, optional Menü (Gerichte nach Personen), Buffet/Getränke, Nachricht. Auf dem öffentlichen Profil steckt dasselbe Formular im Events-Sheet unter dem Tab „Anfrage“. Anfragen erscheinen als unbestätigte private Veranstaltung in Events, nicht unter Reservierungen → Unbestätigt.",
+      body: "Unter Einbinden gibt es zwei Snippets. Öffentliche Events: Feed unter /embed/events/[slug] — nur veröffentlichte Termine. Veranstaltungs-Anfrage: Formular unter /embed/event-inquiry/[slug] — Name, Firma, Wunschdatum, Personen, Anlass, optional Menü (Gerichte nach Personen), Buffet/Getränke, Nachricht. Auf dem öffentlichen Profil steckt dasselbe Formular im Events-Sheet unter dem Tab „Anfrage“. Anfragen erscheinen als unbestätigte private Veranstaltung in Events, nicht unter Reservierungen → Unbestätigt.",
     },
   ],
   tips: [
@@ -233,9 +233,9 @@ export const eventsGuide: UserGuidePage = {
   ],
   related: [
     { label: "Events API", href: "/docs/api/events" },
-    { label: "Reservierungen", href: "/docs/handbuch/reservierungen" },
-    { label: "News (WhatsApp-Kanal)", href: "/docs/handbuch/news" },
-    { label: "Öffentliches Profil", href: "/docs/handbuch/oeffentliches-profil" },
+    { label: "Reservierungen", href: "/docs/handbook/reservations" },
+    { label: "News (WhatsApp-Kanal)", href: "/docs/handbook/news" },
+    { label: "Öffentliches Profil", href: "/docs/handbook/public-profile" },
   ],
 };
 
@@ -323,8 +323,8 @@ export const newsGuide: UserGuidePage = {
     "Externe Beiträge öffnest du oft „Auf … öffnen“ — Bearbeitung liegt dann bei der Plattform.",
   ],
   related: [
-    { label: "Integrationen", href: "/docs/handbuch/integrationen" },
-    { label: "Events", href: "/docs/handbuch/events" },
+    { label: "Integrationen", href: "/docs/handbook/integrations" },
+    { label: "Events", href: "/docs/handbook/events" },
     { label: "News API", href: "/docs/api/news" },
   ],
 };

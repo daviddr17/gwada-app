@@ -24,7 +24,7 @@ export function DashboardChecklistsTile() {
           aria-hidden
         />
       }
-      href="/dashboard/checklisten"
+      href="/dashboard/tasks"
       linkLabel="Zu Aufgaben"
       ready={ready}
       loading={showSkeleton}

@@ -93,7 +93,7 @@ export function ContactReservationsDrawer({
                     className="shrink-0 rounded-full"
                     render={
                       <Link
-                        href={`/dashboard/reservierungen/uebersicht?reservation=${r.id}`}
+                        href={`/dashboard/reservations/overview?reservation=${r.id}`}
                         prefetch
                       />
                     }

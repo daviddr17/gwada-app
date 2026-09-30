@@ -75,7 +75,7 @@ for (const target of TARGETS) {
   if (target.homeId === "nachrichten") {
     const effectsWithHardPath = effects.filter(
       (e) =>
-        e.body.includes("/dashboard/kontakte/nachrichten") &&
+        e.body.includes("/dashboard/contacts/messages") &&
         effectHasRouterNav(e.body),
     );
     for (const effect of effectsWithHardPath) {
@@ -110,20 +110,20 @@ const hrefMatches = [...sidebarSrc.matchAll(/href:\s*"([^"]+)"/g)].map(
   (m) => m[1],
 );
 const expected = [
-  "/dashboard/menu/uebersicht",
-  "/dashboard/inventory/uebersicht",
-  "/dashboard/reservierungen/uebersicht",
-  "/dashboard/pos/uebersicht",
-  "/dashboard/events/uebersicht",
-  "/dashboard/kontakte/nachrichten?platform=all",
-  "/dashboard/news/uebersicht",
-  "/dashboard/bewertungen/uebersicht",
-  "/dashboard/insights/uebersicht",
-  "/dashboard/galerie/uebersicht",
-  "/dashboard/buchfuehrung/rechnungen",
-  "/dashboard/dokumente/uebersicht",
-  "/dashboard/checklisten",
-  "/dashboard/mitarbeiter/uebersicht",
+  "/dashboard/menu/overview",
+  "/dashboard/inventory/overview",
+  "/dashboard/reservations/overview",
+  "/dashboard/pos/overview",
+  "/dashboard/events/overview",
+  "/dashboard/contacts/messages?platform=all",
+  "/dashboard/news/overview",
+  "/dashboard/reviews/overview",
+  "/dashboard/insights/overview",
+  "/dashboard/gallery/overview",
+  "/dashboard/accounting/invoices",
+  "/dashboard/documents/overview",
+  "/dashboard/tasks",
+  "/dashboard/staff/overview",
 ];
 if (hrefMatches.length !== expected.length) {
   failed = true;

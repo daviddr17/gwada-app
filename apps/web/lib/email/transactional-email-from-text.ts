@@ -50,7 +50,7 @@ function inferCtaLabel(labelLine: string, url: string): string {
   if (/reservierung.*ändern|ändern.*reservierung|✏️/.test(lower)) {
     return "Reservierung verwalten";
   }
-  if (/einladung|registrieren|beitreten/.test(lower)) {
+  if (/invitation|registrieren|beitreten/.test(lower)) {
     return "Einladung annehmen";
   }
   if (/passwort|zurücksetzen|reset/.test(lower)) {
@@ -59,7 +59,7 @@ function inferCtaLabel(labelLine: string, url: string): string {
   if (/anmelden|login|magic/.test(lower)) {
     return "Jetzt anmelden";
   }
-  if (/\/einladung\//i.test(url)) {
+  if (/\/invitation\//i.test(url)) {
     return "Einladung annehmen";
   }
   return "Link öffnen";

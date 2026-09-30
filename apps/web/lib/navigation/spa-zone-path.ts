@@ -1,5 +1,7 @@
 /** Zone SPA URL ↔ TanStack Router (basepath `/dashboard` | `/superadmin`). */
 
+import { canonicalizeAppHref } from "@/lib/navigation/english-app-paths";
+
 export type SpaZoneBase = "/dashboard" | "/superadmin";
 
 export function tanstackLocationToZonePath(
@@ -14,8 +16,11 @@ export function zoneHrefToTanstackTarget(
   base: SpaZoneBase,
   href: string,
 ): { to: string; search: Record<string, string> } {
-  const path = href.split("?")[0] ?? href;
-  const searchStr = href.includes("?") ? href.split("?")[1] : "";
+  const canonical = canonicalizeAppHref(href);
+  const path = canonical.split("?")[0]?.split("#")[0] ?? canonical;
+  const searchStr = canonical.includes("?")
+    ? (canonical.split("?")[1]?.split("#")[0] ?? "")
+    : "";
   const prefix = `${base}/`;
   const to =
     path === base

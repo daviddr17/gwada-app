@@ -21,20 +21,20 @@ const EMAIL = process.env.GWADA_E2E_EMAIL || "dreyer@techlion.de";
 
 const MODULES = [
   { id: "dashboard", href: "/dashboard", keepAlive: "dashboard" },
-  { id: "menu", href: "/dashboard/menu/uebersicht", keepAlive: "menu" },
-  { id: "inventory", href: "/dashboard/inventory/uebersicht", keepAlive: "inventory" },
-  { id: "reservierungen", href: "/dashboard/reservierungen/uebersicht", keepAlive: "reservierungen" },
-  { id: "pos", href: "/dashboard/pos/uebersicht", keepAlive: "pos" },
-  { id: "events", href: "/dashboard/events/uebersicht", keepAlive: "events" },
-  { id: "kontakte", href: "/dashboard/kontakte/nachrichten?platform=all", keepAlive: "nachrichten" },
-  { id: "news", href: "/dashboard/news/uebersicht", keepAlive: "news" },
-  { id: "bewertungen", href: "/dashboard/bewertungen/uebersicht", keepAlive: "bewertungen" },
-  { id: "insights", href: "/dashboard/insights/uebersicht", keepAlive: "insights" },
-  { id: "galerie", href: "/dashboard/galerie/uebersicht", keepAlive: "galerie" },
-  { id: "buchfuehrung", href: "/dashboard/buchfuehrung/rechnungen", keepAlive: "buchfuehrung" },
-  { id: "dokumente", href: "/dashboard/dokumente/uebersicht", keepAlive: "dokumente" },
-  { id: "checklisten", href: "/dashboard/checklisten", keepAlive: "checklisten" },
-  { id: "mitarbeiter", href: "/dashboard/mitarbeiter/uebersicht", keepAlive: "mitarbeiter" },
+  { id: "menu", href: "/dashboard/menu/overview", keepAlive: "menu" },
+  { id: "inventory", href: "/dashboard/inventory/overview", keepAlive: "inventory" },
+  { id: "reservierungen", href: "/dashboard/reservations/overview", keepAlive: "reservierungen" },
+  { id: "pos", href: "/dashboard/pos/overview", keepAlive: "pos" },
+  { id: "events", href: "/dashboard/events/overview", keepAlive: "events" },
+  { id: "kontakte", href: "/dashboard/contacts/messages?platform=all", keepAlive: "nachrichten" },
+  { id: "news", href: "/dashboard/news/overview", keepAlive: "news" },
+  { id: "bewertungen", href: "/dashboard/reviews/overview", keepAlive: "bewertungen" },
+  { id: "insights", href: "/dashboard/insights/overview", keepAlive: "insights" },
+  { id: "galerie", href: "/dashboard/gallery/overview", keepAlive: "galerie" },
+  { id: "buchfuehrung", href: "/dashboard/accounting/invoices", keepAlive: "buchfuehrung" },
+  { id: "dokumente", href: "/dashboard/documents/overview", keepAlive: "dokumente" },
+  { id: "checklisten", href: "/dashboard/tasks", keepAlive: "checklisten" },
+  { id: "mitarbeiter", href: "/dashboard/staff/overview", keepAlive: "mitarbeiter" },
 ];
 
 const consoleIssues = [];
@@ -486,12 +486,12 @@ console.log("Race: Events home then Einstellungen immediately");
   await clickModule(page, MODULES.find((m) => m.id === "events"));
   let clicked = { ok: false };
   for (let i = 0; i < 24 && !clicked.ok; i++) {
-    clicked = await clickVisibleHref(page, "/dashboard/events/einstellungen");
+    clicked = await clickVisibleHref(page, "/dashboard/events/settings");
     if (!clicked.ok) await page.waitForTimeout(50);
   }
   const landed = await page
     .waitForFunction(
-      () => location.pathname.startsWith("/dashboard/events/einstellungen"),
+      () => location.pathname.startsWith("/dashboard/events/settings"),
       null,
       { timeout: 20_000 },
     )
@@ -529,33 +529,33 @@ console.log("Race: Events home then Einstellungen immediately");
 const SETTINGS_PROBES = [
   {
     id: "events-settings",
-    home: "/dashboard/events/uebersicht",
-    href: "/dashboard/events/einstellungen",
+    home: "/dashboard/events/overview",
+    href: "/dashboard/events/settings",
     expectTitle: "Events",
     expectText: "Menüvorschläge",
   },
   {
     id: "news-settings",
-    home: "/dashboard/news/uebersicht",
-    href: "/dashboard/news/einstellungen",
+    home: "/dashboard/news/overview",
+    href: "/dashboard/news/settings",
     expectTitle: "News",
   },
   {
     id: "reservierungen-settings",
-    home: "/dashboard/reservierungen/uebersicht",
-    href: "/dashboard/reservierungen/einstellungen",
+    home: "/dashboard/reservations/overview",
+    href: "/dashboard/reservations/settings",
     expectTitle: "Reservierungen",
   },
   {
     id: "menu-settings",
-    home: "/dashboard/menu/uebersicht",
-    href: "/dashboard/menu/einstellungen",
+    home: "/dashboard/menu/overview",
+    href: "/dashboard/menu/settings",
     expectTitle: "Speisekarte",
   },
   {
     id: "mitarbeiter-settings",
-    home: "/dashboard/mitarbeiter/uebersicht",
-    href: "/dashboard/mitarbeiter/einstellungen",
+    home: "/dashboard/staff/overview",
+    href: "/dashboard/staff/settings",
     expectTitle: "Mitarbeiter",
   },
 ];

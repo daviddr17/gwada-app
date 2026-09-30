@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
   const origin = new URL(req.url).origin;
   const returnUrl =
-    body.returnUrl?.trim() || `${origin}/dashboard/settings/abo`;
+    body.returnUrl?.trim() || `${origin}/dashboard/settings/billing`;
 
   const result = await createBillingPortalSession({
     restaurantId,

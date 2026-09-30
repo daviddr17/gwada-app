@@ -195,7 +195,7 @@ export function SuperadminNewsletterEditorScreen({
           onClick={() =>
             router.push(
               isTemplate
-                ? "/superadmin/newsletter/vorlagen"
+                ? "/superadmin/newsletter/templates"
                 : "/superadmin/newsletter",
             )
           }

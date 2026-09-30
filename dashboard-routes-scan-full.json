@@ -8,7 +8,7 @@
   "routes": [
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/bewertungen/einbinden/page.tsx",
-      "route": "/dashboard/bewertungen/einbinden",
+      "route": "/dashboard/reviews/embed",
       "pageBehavior": "render",
       "component": "ReviewsEmbedPanel",
       "imports": [
@@ -43,19 +43,19 @@
           "moduleTitle": "Bewertungen",
           "subnav": [
             {
-              "href": "/dashboard/bewertungen/uebersicht",
+              "href": "/dashboard/reviews/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/bewertungen/statistiken",
+              "href": "/dashboard/reviews/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/bewertungen/einbinden",
+              "href": "/dashboard/reviews/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/bewertungen/einstellungen",
+              "href": "/dashboard/reviews/settings",
               "label": "Einstellungen"
             }
           ],
@@ -65,7 +65,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/bewertungen/einstellungen/page.tsx",
-      "route": "/dashboard/bewertungen/einstellungen",
+      "route": "/dashboard/reviews/settings",
       "pageBehavior": "render",
       "component": "ReviewsSettingsPanel",
       "imports": [
@@ -100,19 +100,19 @@
           "moduleTitle": "Bewertungen",
           "subnav": [
             {
-              "href": "/dashboard/bewertungen/uebersicht",
+              "href": "/dashboard/reviews/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/bewertungen/statistiken",
+              "href": "/dashboard/reviews/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/bewertungen/einbinden",
+              "href": "/dashboard/reviews/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/bewertungen/einstellungen",
+              "href": "/dashboard/reviews/settings",
               "label": "Einstellungen"
             }
           ],
@@ -122,10 +122,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/bewertungen/facebook/page.tsx",
-      "route": "/dashboard/bewertungen/facebook",
+      "route": "/dashboard/reviews/facebook",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/bewertungen/uebersicht?platform=facebook",
-      "redirectSource": "\"/dashboard/bewertungen/uebersicht?platform=facebook\"",
+      "redirectTarget": "/dashboard/reviews/overview?platform=facebook",
+      "redirectSource": "\"/dashboard/reviews/overview?platform=facebook\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -151,19 +151,19 @@
           "moduleTitle": "Bewertungen",
           "subnav": [
             {
-              "href": "/dashboard/bewertungen/uebersicht",
+              "href": "/dashboard/reviews/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/bewertungen/statistiken",
+              "href": "/dashboard/reviews/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/bewertungen/einbinden",
+              "href": "/dashboard/reviews/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/bewertungen/einstellungen",
+              "href": "/dashboard/reviews/settings",
               "label": "Einstellungen"
             }
           ],
@@ -173,10 +173,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/bewertungen/google/page.tsx",
-      "route": "/dashboard/bewertungen/google",
+      "route": "/dashboard/reviews/google",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/bewertungen/uebersicht?platform=google",
-      "redirectSource": "\"/dashboard/bewertungen/uebersicht?platform=google\"",
+      "redirectTarget": "/dashboard/reviews/overview?platform=google",
+      "redirectSource": "\"/dashboard/reviews/overview?platform=google\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -202,19 +202,19 @@
           "moduleTitle": "Bewertungen",
           "subnav": [
             {
-              "href": "/dashboard/bewertungen/uebersicht",
+              "href": "/dashboard/reviews/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/bewertungen/statistiken",
+              "href": "/dashboard/reviews/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/bewertungen/einbinden",
+              "href": "/dashboard/reviews/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/bewertungen/einstellungen",
+              "href": "/dashboard/reviews/settings",
               "label": "Einstellungen"
             }
           ],
@@ -224,10 +224,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/bewertungen/gwada/page.tsx",
-      "route": "/dashboard/bewertungen/gwada",
+      "route": "/dashboard/reviews/gwada",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/bewertungen/uebersicht?platform=gwada",
-      "redirectSource": "\"/dashboard/bewertungen/uebersicht?platform=gwada\"",
+      "redirectTarget": "/dashboard/reviews/overview?platform=gwada",
+      "redirectSource": "\"/dashboard/reviews/overview?platform=gwada\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -253,19 +253,19 @@
           "moduleTitle": "Bewertungen",
           "subnav": [
             {
-              "href": "/dashboard/bewertungen/uebersicht",
+              "href": "/dashboard/reviews/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/bewertungen/statistiken",
+              "href": "/dashboard/reviews/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/bewertungen/einbinden",
+              "href": "/dashboard/reviews/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/bewertungen/einstellungen",
+              "href": "/dashboard/reviews/settings",
               "label": "Einstellungen"
             }
           ],
@@ -275,10 +275,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/bewertungen/page.tsx",
-      "route": "/dashboard/bewertungen",
+      "route": "/dashboard/reviews",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/bewertungen/uebersicht",
-      "redirectSource": "\"/dashboard/bewertungen/uebersicht\"",
+      "redirectTarget": "/dashboard/reviews/overview",
+      "redirectSource": "\"/dashboard/reviews/overview\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -304,19 +304,19 @@
           "moduleTitle": "Bewertungen",
           "subnav": [
             {
-              "href": "/dashboard/bewertungen/uebersicht",
+              "href": "/dashboard/reviews/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/bewertungen/statistiken",
+              "href": "/dashboard/reviews/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/bewertungen/einbinden",
+              "href": "/dashboard/reviews/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/bewertungen/einstellungen",
+              "href": "/dashboard/reviews/settings",
               "label": "Einstellungen"
             }
           ],
@@ -326,7 +326,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/bewertungen/statistiken/page.tsx",
-      "route": "/dashboard/bewertungen/statistiken",
+      "route": "/dashboard/reviews/statistics",
       "pageBehavior": "render",
       "component": "ReviewsStatisticsScreen",
       "imports": [
@@ -361,19 +361,19 @@
           "moduleTitle": "Bewertungen",
           "subnav": [
             {
-              "href": "/dashboard/bewertungen/uebersicht",
+              "href": "/dashboard/reviews/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/bewertungen/statistiken",
+              "href": "/dashboard/reviews/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/bewertungen/einbinden",
+              "href": "/dashboard/reviews/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/bewertungen/einstellungen",
+              "href": "/dashboard/reviews/settings",
               "label": "Einstellungen"
             }
           ],
@@ -383,7 +383,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/bewertungen/uebersicht/page.tsx",
-      "route": "/dashboard/bewertungen/uebersicht",
+      "route": "/dashboard/reviews/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Bewertungen slot)",
       "layoutChrome": [
@@ -411,19 +411,19 @@
           "moduleTitle": "Bewertungen",
           "subnav": [
             {
-              "href": "/dashboard/bewertungen/uebersicht",
+              "href": "/dashboard/reviews/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/bewertungen/statistiken",
+              "href": "/dashboard/reviews/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/bewertungen/einbinden",
+              "href": "/dashboard/reviews/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/bewertungen/einstellungen",
+              "href": "/dashboard/reviews/settings",
               "label": "Einstellungen"
             }
           ],
@@ -433,7 +433,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/buchfuehrung/angebote/page.tsx",
-      "route": "/dashboard/buchfuehrung/angebote",
+      "route": "/dashboard/accounting/quotations",
       "pageBehavior": "render",
       "component": "Suspense",
       "imports": [
@@ -468,27 +468,27 @@
           "moduleTitle": "Buchführung",
           "subnav": [
             {
-              "href": "/dashboard/buchfuehrung/rechnungen",
+              "href": "/dashboard/accounting/invoices",
               "label": "Rechnungen"
             },
             {
-              "href": "/dashboard/buchfuehrung/angebote",
+              "href": "/dashboard/accounting/quotations",
               "label": "Angebote"
             },
             {
-              "href": "/dashboard/buchfuehrung/belege",
+              "href": "/dashboard/accounting/vouchers",
               "label": "Belege"
             },
             {
-              "href": "/dashboard/buchfuehrung/kasse",
+              "href": "/dashboard/accounting/cash-book",
               "label": "Kasse"
             },
             {
-              "href": "/dashboard/buchfuehrung/statistiken",
+              "href": "/dashboard/accounting/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/buchfuehrung/einstellungen",
+              "href": "/dashboard/accounting/settings",
               "label": "Einstellungen"
             }
           ],
@@ -498,7 +498,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/buchfuehrung/belege/page.tsx",
-      "route": "/dashboard/buchfuehrung/belege",
+      "route": "/dashboard/accounting/vouchers",
       "pageBehavior": "render",
       "component": "Suspense",
       "imports": [
@@ -533,27 +533,27 @@
           "moduleTitle": "Buchführung",
           "subnav": [
             {
-              "href": "/dashboard/buchfuehrung/rechnungen",
+              "href": "/dashboard/accounting/invoices",
               "label": "Rechnungen"
             },
             {
-              "href": "/dashboard/buchfuehrung/angebote",
+              "href": "/dashboard/accounting/quotations",
               "label": "Angebote"
             },
             {
-              "href": "/dashboard/buchfuehrung/belege",
+              "href": "/dashboard/accounting/vouchers",
               "label": "Belege"
             },
             {
-              "href": "/dashboard/buchfuehrung/kasse",
+              "href": "/dashboard/accounting/cash-book",
               "label": "Kasse"
             },
             {
-              "href": "/dashboard/buchfuehrung/statistiken",
+              "href": "/dashboard/accounting/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/buchfuehrung/einstellungen",
+              "href": "/dashboard/accounting/settings",
               "label": "Einstellungen"
             }
           ],
@@ -563,7 +563,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/buchfuehrung/einstellungen/page.tsx",
-      "route": "/dashboard/buchfuehrung/einstellungen",
+      "route": "/dashboard/accounting/settings",
       "pageBehavior": "render",
       "component": "AccountingSettingsForm",
       "imports": [
@@ -598,27 +598,27 @@
           "moduleTitle": "Buchführung",
           "subnav": [
             {
-              "href": "/dashboard/buchfuehrung/rechnungen",
+              "href": "/dashboard/accounting/invoices",
               "label": "Rechnungen"
             },
             {
-              "href": "/dashboard/buchfuehrung/angebote",
+              "href": "/dashboard/accounting/quotations",
               "label": "Angebote"
             },
             {
-              "href": "/dashboard/buchfuehrung/belege",
+              "href": "/dashboard/accounting/vouchers",
               "label": "Belege"
             },
             {
-              "href": "/dashboard/buchfuehrung/kasse",
+              "href": "/dashboard/accounting/cash-book",
               "label": "Kasse"
             },
             {
-              "href": "/dashboard/buchfuehrung/statistiken",
+              "href": "/dashboard/accounting/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/buchfuehrung/einstellungen",
+              "href": "/dashboard/accounting/settings",
               "label": "Einstellungen"
             }
           ],
@@ -628,7 +628,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/buchfuehrung/kasse/page.tsx",
-      "route": "/dashboard/buchfuehrung/kasse",
+      "route": "/dashboard/accounting/cash-book",
       "pageBehavior": "render",
       "component": "AccountingCashBookScreen",
       "imports": [
@@ -663,27 +663,27 @@
           "moduleTitle": "Buchführung",
           "subnav": [
             {
-              "href": "/dashboard/buchfuehrung/rechnungen",
+              "href": "/dashboard/accounting/invoices",
               "label": "Rechnungen"
             },
             {
-              "href": "/dashboard/buchfuehrung/angebote",
+              "href": "/dashboard/accounting/quotations",
               "label": "Angebote"
             },
             {
-              "href": "/dashboard/buchfuehrung/belege",
+              "href": "/dashboard/accounting/vouchers",
               "label": "Belege"
             },
             {
-              "href": "/dashboard/buchfuehrung/kasse",
+              "href": "/dashboard/accounting/cash-book",
               "label": "Kasse"
             },
             {
-              "href": "/dashboard/buchfuehrung/statistiken",
+              "href": "/dashboard/accounting/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/buchfuehrung/einstellungen",
+              "href": "/dashboard/accounting/settings",
               "label": "Einstellungen"
             }
           ],
@@ -693,10 +693,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/buchfuehrung/page.tsx",
-      "route": "/dashboard/buchfuehrung",
+      "route": "/dashboard/accounting",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/buchfuehrung/rechnungen",
-      "redirectSource": "\"/dashboard/buchfuehrung/rechnungen\"",
+      "redirectTarget": "/dashboard/accounting/invoices",
+      "redirectSource": "\"/dashboard/accounting/invoices\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -722,27 +722,27 @@
           "moduleTitle": "Buchführung",
           "subnav": [
             {
-              "href": "/dashboard/buchfuehrung/rechnungen",
+              "href": "/dashboard/accounting/invoices",
               "label": "Rechnungen"
             },
             {
-              "href": "/dashboard/buchfuehrung/angebote",
+              "href": "/dashboard/accounting/quotations",
               "label": "Angebote"
             },
             {
-              "href": "/dashboard/buchfuehrung/belege",
+              "href": "/dashboard/accounting/vouchers",
               "label": "Belege"
             },
             {
-              "href": "/dashboard/buchfuehrung/kasse",
+              "href": "/dashboard/accounting/cash-book",
               "label": "Kasse"
             },
             {
-              "href": "/dashboard/buchfuehrung/statistiken",
+              "href": "/dashboard/accounting/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/buchfuehrung/einstellungen",
+              "href": "/dashboard/accounting/settings",
               "label": "Einstellungen"
             }
           ],
@@ -752,7 +752,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/buchfuehrung/rechnungen/page.tsx",
-      "route": "/dashboard/buchfuehrung/rechnungen",
+      "route": "/dashboard/accounting/invoices",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Buchf slot)",
       "layoutChrome": [
@@ -780,27 +780,27 @@
           "moduleTitle": "Buchführung",
           "subnav": [
             {
-              "href": "/dashboard/buchfuehrung/rechnungen",
+              "href": "/dashboard/accounting/invoices",
               "label": "Rechnungen"
             },
             {
-              "href": "/dashboard/buchfuehrung/angebote",
+              "href": "/dashboard/accounting/quotations",
               "label": "Angebote"
             },
             {
-              "href": "/dashboard/buchfuehrung/belege",
+              "href": "/dashboard/accounting/vouchers",
               "label": "Belege"
             },
             {
-              "href": "/dashboard/buchfuehrung/kasse",
+              "href": "/dashboard/accounting/cash-book",
               "label": "Kasse"
             },
             {
-              "href": "/dashboard/buchfuehrung/statistiken",
+              "href": "/dashboard/accounting/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/buchfuehrung/einstellungen",
+              "href": "/dashboard/accounting/settings",
               "label": "Einstellungen"
             }
           ],
@@ -810,7 +810,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/buchfuehrung/statistiken/page.tsx",
-      "route": "/dashboard/buchfuehrung/statistiken",
+      "route": "/dashboard/accounting/statistics",
       "pageBehavior": "render",
       "component": "AccountingStatisticsScreen",
       "imports": [
@@ -845,27 +845,27 @@
           "moduleTitle": "Buchführung",
           "subnav": [
             {
-              "href": "/dashboard/buchfuehrung/rechnungen",
+              "href": "/dashboard/accounting/invoices",
               "label": "Rechnungen"
             },
             {
-              "href": "/dashboard/buchfuehrung/angebote",
+              "href": "/dashboard/accounting/quotations",
               "label": "Angebote"
             },
             {
-              "href": "/dashboard/buchfuehrung/belege",
+              "href": "/dashboard/accounting/vouchers",
               "label": "Belege"
             },
             {
-              "href": "/dashboard/buchfuehrung/kasse",
+              "href": "/dashboard/accounting/cash-book",
               "label": "Kasse"
             },
             {
-              "href": "/dashboard/buchfuehrung/statistiken",
+              "href": "/dashboard/accounting/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/buchfuehrung/einstellungen",
+              "href": "/dashboard/accounting/settings",
               "label": "Einstellungen"
             }
           ],
@@ -875,7 +875,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/checklisten/einstellungen/page.tsx",
-      "route": "/dashboard/checklisten/einstellungen",
+      "route": "/dashboard/tasks/settings",
       "pageBehavior": "render",
       "component": "ChecklistenSettingsScreen",
       "imports": [
@@ -915,9 +915,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/checklisten/eintraege/page.tsx",
-      "route": "/dashboard/checklisten/eintraege",
+      "route": "/dashboard/tasks/entries",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten/protokoll",
+      "redirectTarget": "/dashboard/tasks/log",
       "redirectSource": "CHECKLISTEN_ROUTES.protokoll",
       "layoutChrome": [
         {
@@ -949,9 +949,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/checklisten/geraete/page.tsx",
-      "route": "/dashboard/checklisten/geraete",
+      "route": "/dashboard/tasks/devices",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten",
+      "redirectTarget": "/dashboard/tasks",
       "redirectSource": "CHECKLISTEN_ROUTES.root",
       "layoutChrome": [
         {
@@ -983,7 +983,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/checklisten/page.tsx",
-      "route": "/dashboard/checklisten",
+      "route": "/dashboard/tasks",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Checklisten slot)",
       "layoutChrome": [
@@ -1016,7 +1016,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/checklisten/protokoll/page.tsx",
-      "route": "/dashboard/checklisten/protokoll",
+      "route": "/dashboard/tasks/log",
       "pageBehavior": "render",
       "component": "ChecklistProtocolScreen",
       "imports": [
@@ -1056,9 +1056,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/checklisten/todos/page.tsx",
-      "route": "/dashboard/checklisten/todos",
+      "route": "/dashboard/tasks/todos",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten",
+      "redirectTarget": "/dashboard/tasks",
       "redirectSource": "CHECKLISTEN_ROUTES.root",
       "layoutChrome": [
         {
@@ -1090,9 +1090,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/checklisten/vorlagen/page.tsx",
-      "route": "/dashboard/checklisten/vorlagen",
+      "route": "/dashboard/tasks/templates",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten",
+      "redirectTarget": "/dashboard/tasks",
       "redirectSource": "CHECKLISTEN_ROUTES.root",
       "layoutChrome": [
         {
@@ -1124,10 +1124,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/dokumente/page.tsx",
-      "route": "/dashboard/dokumente",
+      "route": "/dashboard/documents",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/dokumente/uebersicht",
-      "redirectSource": "\"/dashboard/dokumente/uebersicht\"",
+      "redirectTarget": "/dashboard/documents/overview",
+      "redirectSource": "\"/dashboard/documents/overview\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -1153,15 +1153,15 @@
           "moduleTitle": "Dokumente",
           "subnav": [
             {
-              "href": "/dashboard/dokumente/uebersicht",
+              "href": "/dashboard/documents/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/dokumente/statistiken",
+              "href": "/dashboard/documents/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/dokumente/protokoll",
+              "href": "/dashboard/documents/log",
               "label": "Protokoll"
             }
           ],
@@ -1171,7 +1171,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/dokumente/protokoll/page.tsx",
-      "route": "/dashboard/dokumente/protokoll",
+      "route": "/dashboard/documents/log",
       "pageBehavior": "render",
       "component": "DocumentsProtocolScreen",
       "imports": [
@@ -1206,15 +1206,15 @@
           "moduleTitle": "Dokumente",
           "subnav": [
             {
-              "href": "/dashboard/dokumente/uebersicht",
+              "href": "/dashboard/documents/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/dokumente/statistiken",
+              "href": "/dashboard/documents/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/dokumente/protokoll",
+              "href": "/dashboard/documents/log",
               "label": "Protokoll"
             }
           ],
@@ -1224,7 +1224,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/dokumente/statistiken/page.tsx",
-      "route": "/dashboard/dokumente/statistiken",
+      "route": "/dashboard/documents/statistics",
       "pageBehavior": "render",
       "component": "DocumentsStatisticsScreen",
       "imports": [
@@ -1259,15 +1259,15 @@
           "moduleTitle": "Dokumente",
           "subnav": [
             {
-              "href": "/dashboard/dokumente/uebersicht",
+              "href": "/dashboard/documents/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/dokumente/statistiken",
+              "href": "/dashboard/documents/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/dokumente/protokoll",
+              "href": "/dashboard/documents/log",
               "label": "Protokoll"
             }
           ],
@@ -1277,7 +1277,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/dokumente/uebersicht/page.tsx",
-      "route": "/dashboard/dokumente/uebersicht",
+      "route": "/dashboard/documents/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Dokumente slot)",
       "layoutChrome": [
@@ -1305,15 +1305,15 @@
           "moduleTitle": "Dokumente",
           "subnav": [
             {
-              "href": "/dashboard/dokumente/uebersicht",
+              "href": "/dashboard/documents/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/dokumente/statistiken",
+              "href": "/dashboard/documents/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/dokumente/protokoll",
+              "href": "/dashboard/documents/log",
               "label": "Protokoll"
             }
           ],
@@ -1323,7 +1323,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/events/einbinden/page.tsx",
-      "route": "/dashboard/events/einbinden",
+      "route": "/dashboard/events/embed",
       "pageBehavior": "render",
       "component": "EventsEmbedPanel",
       "imports": [
@@ -1358,19 +1358,19 @@
           "moduleTitle": "Events",
           "subnav": [
             {
-              "href": "/dashboard/events/uebersicht",
+              "href": "/dashboard/events/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/events/statistiken",
+              "href": "/dashboard/events/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/events/einbinden",
+              "href": "/dashboard/events/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/events/einstellungen",
+              "href": "/dashboard/events/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1380,7 +1380,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/events/einstellungen/page.tsx",
-      "route": "/dashboard/events/einstellungen",
+      "route": "/dashboard/events/settings",
       "pageBehavior": "render",
       "component": "EventsSettingsPanel",
       "imports": [
@@ -1415,19 +1415,19 @@
           "moduleTitle": "Events",
           "subnav": [
             {
-              "href": "/dashboard/events/uebersicht",
+              "href": "/dashboard/events/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/events/statistiken",
+              "href": "/dashboard/events/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/events/einbinden",
+              "href": "/dashboard/events/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/events/einstellungen",
+              "href": "/dashboard/events/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1439,8 +1439,8 @@
       "filePath": "apps/web/app/(platform)/(app)/dashboard/events/page.tsx",
       "route": "/dashboard/events",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/events/uebersicht",
-      "redirectSource": "\"/dashboard/events/uebersicht\"",
+      "redirectTarget": "/dashboard/events/overview",
+      "redirectSource": "\"/dashboard/events/overview\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -1466,19 +1466,19 @@
           "moduleTitle": "Events",
           "subnav": [
             {
-              "href": "/dashboard/events/uebersicht",
+              "href": "/dashboard/events/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/events/statistiken",
+              "href": "/dashboard/events/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/events/einbinden",
+              "href": "/dashboard/events/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/events/einstellungen",
+              "href": "/dashboard/events/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1488,7 +1488,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/events/statistiken/page.tsx",
-      "route": "/dashboard/events/statistiken",
+      "route": "/dashboard/events/statistics",
       "pageBehavior": "render",
       "component": "EventsStatisticsScreen",
       "imports": [
@@ -1523,19 +1523,19 @@
           "moduleTitle": "Events",
           "subnav": [
             {
-              "href": "/dashboard/events/uebersicht",
+              "href": "/dashboard/events/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/events/statistiken",
+              "href": "/dashboard/events/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/events/einbinden",
+              "href": "/dashboard/events/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/events/einstellungen",
+              "href": "/dashboard/events/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1545,7 +1545,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/events/uebersicht/page.tsx",
-      "route": "/dashboard/events/uebersicht",
+      "route": "/dashboard/events/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Events slot)",
       "layoutChrome": [
@@ -1573,19 +1573,19 @@
           "moduleTitle": "Events",
           "subnav": [
             {
-              "href": "/dashboard/events/uebersicht",
+              "href": "/dashboard/events/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/events/statistiken",
+              "href": "/dashboard/events/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/events/einbinden",
+              "href": "/dashboard/events/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/events/einstellungen",
+              "href": "/dashboard/events/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1595,7 +1595,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/galerie/einbinden/page.tsx",
-      "route": "/dashboard/galerie/einbinden",
+      "route": "/dashboard/gallery/embed",
       "pageBehavior": "render",
       "component": "GalleryEmbedPanel",
       "imports": [
@@ -1630,19 +1630,19 @@
           "moduleTitle": "Galerie",
           "subnav": [
             {
-              "href": "/dashboard/galerie/uebersicht",
+              "href": "/dashboard/gallery/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/galerie/statistiken",
+              "href": "/dashboard/gallery/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/galerie/einbinden",
+              "href": "/dashboard/gallery/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/galerie/einstellungen",
+              "href": "/dashboard/gallery/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1652,7 +1652,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/galerie/einstellungen/page.tsx",
-      "route": "/dashboard/galerie/einstellungen",
+      "route": "/dashboard/gallery/settings",
       "pageBehavior": "render",
       "component": "GallerySettingsPanel",
       "imports": [
@@ -1687,19 +1687,19 @@
           "moduleTitle": "Galerie",
           "subnav": [
             {
-              "href": "/dashboard/galerie/uebersicht",
+              "href": "/dashboard/gallery/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/galerie/statistiken",
+              "href": "/dashboard/gallery/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/galerie/einbinden",
+              "href": "/dashboard/gallery/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/galerie/einstellungen",
+              "href": "/dashboard/gallery/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1709,10 +1709,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/galerie/page.tsx",
-      "route": "/dashboard/galerie",
+      "route": "/dashboard/gallery",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/galerie/uebersicht",
-      "redirectSource": "\"/dashboard/galerie/uebersicht\"",
+      "redirectTarget": "/dashboard/gallery/overview",
+      "redirectSource": "\"/dashboard/gallery/overview\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -1738,19 +1738,19 @@
           "moduleTitle": "Galerie",
           "subnav": [
             {
-              "href": "/dashboard/galerie/uebersicht",
+              "href": "/dashboard/gallery/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/galerie/statistiken",
+              "href": "/dashboard/gallery/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/galerie/einbinden",
+              "href": "/dashboard/gallery/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/galerie/einstellungen",
+              "href": "/dashboard/gallery/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1760,7 +1760,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/galerie/statistiken/page.tsx",
-      "route": "/dashboard/galerie/statistiken",
+      "route": "/dashboard/gallery/statistics",
       "pageBehavior": "render",
       "component": "GalleryStatisticsScreen",
       "imports": [
@@ -1795,19 +1795,19 @@
           "moduleTitle": "Galerie",
           "subnav": [
             {
-              "href": "/dashboard/galerie/uebersicht",
+              "href": "/dashboard/gallery/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/galerie/statistiken",
+              "href": "/dashboard/gallery/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/galerie/einbinden",
+              "href": "/dashboard/gallery/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/galerie/einstellungen",
+              "href": "/dashboard/gallery/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1817,7 +1817,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/galerie/uebersicht/page.tsx",
-      "route": "/dashboard/galerie/uebersicht",
+      "route": "/dashboard/gallery/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Galerie slot)",
       "layoutChrome": [
@@ -1845,19 +1845,19 @@
           "moduleTitle": "Galerie",
           "subnav": [
             {
-              "href": "/dashboard/galerie/uebersicht",
+              "href": "/dashboard/gallery/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/galerie/statistiken",
+              "href": "/dashboard/gallery/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/galerie/einbinden",
+              "href": "/dashboard/gallery/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/galerie/einstellungen",
+              "href": "/dashboard/gallery/settings",
               "label": "Einstellungen"
             }
           ],
@@ -1869,7 +1869,7 @@
       "filePath": "apps/web/app/(platform)/(app)/dashboard/insights/page.tsx",
       "route": "/dashboard/insights",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/insights/uebersicht",
+      "redirectTarget": "/dashboard/insights/overview",
       "redirectSource": "APP_ROUTES.insights.overview",
       "layoutChrome": [
         {
@@ -1896,7 +1896,7 @@
           "moduleTitle": "Insights",
           "subnav": [
             {
-              "href": "/dashboard/insights/uebersicht",
+              "href": "/dashboard/insights/overview",
               "label": "Übersicht"
             }
           ],
@@ -1906,11 +1906,11 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/insights/statistiken/page.tsx",
-      "route": "/dashboard/insights/statistiken",
+      "route": "/dashboard/insights/statistics",
       "pageBehavior": "redirect",
       "redirectTarget": "qs",
       "redirectSource": "qs",
-      "redirectTargetAlt": "/dashboard/insights/uebersicht",
+      "redirectTargetAlt": "/dashboard/insights/overview",
       "redirectNote": "ternary redirect; preserves query params",
       "layoutChrome": [
         {
@@ -1937,7 +1937,7 @@
           "moduleTitle": "Insights",
           "subnav": [
             {
-              "href": "/dashboard/insights/uebersicht",
+              "href": "/dashboard/insights/overview",
               "label": "Übersicht"
             }
           ],
@@ -1947,7 +1947,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/insights/uebersicht/page.tsx",
-      "route": "/dashboard/insights/uebersicht",
+      "route": "/dashboard/insights/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Insights slot)",
       "layoutChrome": [
@@ -1975,7 +1975,7 @@
           "moduleTitle": "Insights",
           "subnav": [
             {
-              "href": "/dashboard/insights/uebersicht",
+              "href": "/dashboard/insights/overview",
               "label": "Übersicht"
             }
           ],
@@ -1985,7 +1985,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/inventory/bestellung/page.tsx",
-      "route": "/dashboard/inventory/bestellung",
+      "route": "/dashboard/inventory/purchase-orders",
       "pageBehavior": "render",
       "component": "PurchaseOrdersScreen",
       "imports": [
@@ -2020,15 +2020,15 @@
           "moduleTitle": "Bestand",
           "subnav": [
             {
-              "href": "/dashboard/inventory/uebersicht",
+              "href": "/dashboard/inventory/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/inventory/bestellung",
+              "href": "/dashboard/inventory/purchase-orders",
               "label": "Bestellung"
             },
             {
-              "href": "/dashboard/inventory/statistiken",
+              "href": "/dashboard/inventory/statistics",
               "label": "Statistiken"
             }
           ],
@@ -2040,8 +2040,8 @@
       "filePath": "apps/web/app/(platform)/(app)/dashboard/inventory/page.tsx",
       "route": "/dashboard/inventory",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/inventory/uebersicht",
-      "redirectSource": "\"/dashboard/inventory/uebersicht\"",
+      "redirectTarget": "/dashboard/inventory/overview",
+      "redirectSource": "\"/dashboard/inventory/overview\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -2067,15 +2067,15 @@
           "moduleTitle": "Bestand",
           "subnav": [
             {
-              "href": "/dashboard/inventory/uebersicht",
+              "href": "/dashboard/inventory/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/inventory/bestellung",
+              "href": "/dashboard/inventory/purchase-orders",
               "label": "Bestellung"
             },
             {
-              "href": "/dashboard/inventory/statistiken",
+              "href": "/dashboard/inventory/statistics",
               "label": "Statistiken"
             }
           ],
@@ -2085,7 +2085,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/inventory/statistiken/page.tsx",
-      "route": "/dashboard/inventory/statistiken",
+      "route": "/dashboard/inventory/statistics",
       "pageBehavior": "render",
       "component": "InventoryStatisticsScreen",
       "imports": [
@@ -2120,15 +2120,15 @@
           "moduleTitle": "Bestand",
           "subnav": [
             {
-              "href": "/dashboard/inventory/uebersicht",
+              "href": "/dashboard/inventory/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/inventory/bestellung",
+              "href": "/dashboard/inventory/purchase-orders",
               "label": "Bestellung"
             },
             {
-              "href": "/dashboard/inventory/statistiken",
+              "href": "/dashboard/inventory/statistics",
               "label": "Statistiken"
             }
           ],
@@ -2138,7 +2138,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/inventory/uebersicht/page.tsx",
-      "route": "/dashboard/inventory/uebersicht",
+      "route": "/dashboard/inventory/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Bestand slot)",
       "layoutChrome": [
@@ -2166,15 +2166,15 @@
           "moduleTitle": "Bestand",
           "subnav": [
             {
-              "href": "/dashboard/inventory/uebersicht",
+              "href": "/dashboard/inventory/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/inventory/bestellung",
+              "href": "/dashboard/inventory/purchase-orders",
               "label": "Bestellung"
             },
             {
-              "href": "/dashboard/inventory/statistiken",
+              "href": "/dashboard/inventory/statistics",
               "label": "Statistiken"
             }
           ],
@@ -2184,7 +2184,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/kontakte/einstellungen/page.tsx",
-      "route": "/dashboard/kontakte/einstellungen",
+      "route": "/dashboard/contacts/settings",
       "pageBehavior": "render",
       "component": "ContactSettingsForm",
       "imports": [
@@ -2223,7 +2223,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/kontakte/export/page.tsx",
-      "route": "/dashboard/kontakte/export",
+      "route": "/dashboard/contacts/export",
       "pageBehavior": "render",
       "component": "ContactsExportScreen",
       "imports": [
@@ -2262,7 +2262,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/kontakte/nachrichten/page.tsx",
-      "route": "/dashboard/kontakte/nachrichten",
+      "route": "/dashboard/contacts/messages",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Nachrichten slot)",
       "layoutChrome": [
@@ -2294,10 +2294,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/kontakte/page.tsx",
-      "route": "/dashboard/kontakte",
+      "route": "/dashboard/contacts",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/kontakte/nachrichten?platform=all",
-      "redirectSource": "\"/dashboard/kontakte/nachrichten?platform=all\"",
+      "redirectTarget": "/dashboard/contacts/messages?platform=all",
+      "redirectSource": "\"/dashboard/contacts/messages?platform=all\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -2327,7 +2327,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/kontakte/statistiken/page.tsx",
-      "route": "/dashboard/kontakte/statistiken",
+      "route": "/dashboard/contacts/statistics",
       "pageBehavior": "render",
       "component": "ContactsStatisticsScreen",
       "imports": [
@@ -2366,7 +2366,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/kontakte/uebersicht/page.tsx",
-      "route": "/dashboard/kontakte/uebersicht",
+      "route": "/dashboard/contacts/overview",
       "pageBehavior": "render",
       "component": "Suspense",
       "imports": [
@@ -2405,7 +2405,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/menu/einbinden/page.tsx",
-      "route": "/dashboard/menu/einbinden",
+      "route": "/dashboard/menu/embed",
       "pageBehavior": "render",
       "component": "MenuEmbedPanel",
       "imports": [
@@ -2440,11 +2440,11 @@
           "moduleTitle": "Speisekarte",
           "subnav": [
             {
-              "href": "/dashboard/menu/uebersicht",
+              "href": "/dashboard/menu/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/menu/statistiken",
+              "href": "/dashboard/menu/statistics",
               "label": "Statistiken"
             },
             {
@@ -2452,11 +2452,11 @@
               "label": "Export"
             },
             {
-              "href": "/dashboard/menu/einbinden",
+              "href": "/dashboard/menu/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/menu/einstellungen",
+              "href": "/dashboard/menu/settings",
               "label": "Einstellungen"
             }
           ],
@@ -2466,7 +2466,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/menu/einstellungen/page.tsx",
-      "route": "/dashboard/menu/einstellungen",
+      "route": "/dashboard/menu/settings",
       "pageBehavior": "render",
       "component": "MenuSettingsForm",
       "imports": [
@@ -2501,11 +2501,11 @@
           "moduleTitle": "Speisekarte",
           "subnav": [
             {
-              "href": "/dashboard/menu/uebersicht",
+              "href": "/dashboard/menu/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/menu/statistiken",
+              "href": "/dashboard/menu/statistics",
               "label": "Statistiken"
             },
             {
@@ -2513,11 +2513,11 @@
               "label": "Export"
             },
             {
-              "href": "/dashboard/menu/einbinden",
+              "href": "/dashboard/menu/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/menu/einstellungen",
+              "href": "/dashboard/menu/settings",
               "label": "Einstellungen"
             }
           ],
@@ -2562,11 +2562,11 @@
           "moduleTitle": "Speisekarte",
           "subnav": [
             {
-              "href": "/dashboard/menu/uebersicht",
+              "href": "/dashboard/menu/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/menu/statistiken",
+              "href": "/dashboard/menu/statistics",
               "label": "Statistiken"
             },
             {
@@ -2574,11 +2574,11 @@
               "label": "Export"
             },
             {
-              "href": "/dashboard/menu/einbinden",
+              "href": "/dashboard/menu/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/menu/einstellungen",
+              "href": "/dashboard/menu/settings",
               "label": "Einstellungen"
             }
           ],
@@ -2590,8 +2590,8 @@
       "filePath": "apps/web/app/(platform)/(app)/dashboard/menu/page.tsx",
       "route": "/dashboard/menu",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/menu/uebersicht",
-      "redirectSource": "\"/dashboard/menu/uebersicht\"",
+      "redirectTarget": "/dashboard/menu/overview",
+      "redirectSource": "\"/dashboard/menu/overview\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -2617,11 +2617,11 @@
           "moduleTitle": "Speisekarte",
           "subnav": [
             {
-              "href": "/dashboard/menu/uebersicht",
+              "href": "/dashboard/menu/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/menu/statistiken",
+              "href": "/dashboard/menu/statistics",
               "label": "Statistiken"
             },
             {
@@ -2629,11 +2629,11 @@
               "label": "Export"
             },
             {
-              "href": "/dashboard/menu/einbinden",
+              "href": "/dashboard/menu/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/menu/einstellungen",
+              "href": "/dashboard/menu/settings",
               "label": "Einstellungen"
             }
           ],
@@ -2643,7 +2643,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/menu/statistiken/page.tsx",
-      "route": "/dashboard/menu/statistiken",
+      "route": "/dashboard/menu/statistics",
       "pageBehavior": "render",
       "component": "MenuStatisticsScreen",
       "imports": [
@@ -2678,11 +2678,11 @@
           "moduleTitle": "Speisekarte",
           "subnav": [
             {
-              "href": "/dashboard/menu/uebersicht",
+              "href": "/dashboard/menu/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/menu/statistiken",
+              "href": "/dashboard/menu/statistics",
               "label": "Statistiken"
             },
             {
@@ -2690,11 +2690,11 @@
               "label": "Export"
             },
             {
-              "href": "/dashboard/menu/einbinden",
+              "href": "/dashboard/menu/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/menu/einstellungen",
+              "href": "/dashboard/menu/settings",
               "label": "Einstellungen"
             }
           ],
@@ -2704,7 +2704,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/menu/uebersicht/page.tsx",
-      "route": "/dashboard/menu/uebersicht",
+      "route": "/dashboard/menu/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Speisekarte slot)",
       "layoutChrome": [
@@ -2732,11 +2732,11 @@
           "moduleTitle": "Speisekarte",
           "subnav": [
             {
-              "href": "/dashboard/menu/uebersicht",
+              "href": "/dashboard/menu/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/menu/statistiken",
+              "href": "/dashboard/menu/statistics",
               "label": "Statistiken"
             },
             {
@@ -2744,11 +2744,11 @@
               "label": "Export"
             },
             {
-              "href": "/dashboard/menu/einbinden",
+              "href": "/dashboard/menu/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/menu/einstellungen",
+              "href": "/dashboard/menu/settings",
               "label": "Einstellungen"
             }
           ],
@@ -2758,7 +2758,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/arbeitszeiten/page.tsx",
-      "route": "/dashboard/mitarbeiter/arbeitszeiten",
+      "route": "/dashboard/staff/work-hours",
       "pageBehavior": "render",
       "component": "Suspense",
       "imports": [
@@ -2793,35 +2793,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -2833,7 +2833,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/dokumente/page.tsx",
-      "route": "/dashboard/mitarbeiter/dokumente",
+      "route": "/dashboard/staff/documents",
       "pageBehavior": "render",
       "component": "Suspense",
       "imports": [
@@ -2868,35 +2868,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -2908,7 +2908,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/einstellungen/page.tsx",
-      "route": "/dashboard/mitarbeiter/einstellungen",
+      "route": "/dashboard/staff/settings",
       "pageBehavior": "render",
       "component": "StaffSettingsForm",
       "imports": [
@@ -2943,35 +2943,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -2983,7 +2983,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/export/page.tsx",
-      "route": "/dashboard/mitarbeiter/export",
+      "route": "/dashboard/staff/export",
       "pageBehavior": "render",
       "component": "StaffExportScreen",
       "imports": [
@@ -3018,35 +3018,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3058,10 +3058,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/page.tsx",
-      "route": "/dashboard/mitarbeiter",
+      "route": "/dashboard/staff",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/mitarbeiter/uebersicht",
-      "redirectSource": "\"/dashboard/mitarbeiter/uebersicht\"",
+      "redirectTarget": "/dashboard/staff/overview",
+      "redirectSource": "\"/dashboard/staff/overview\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -3087,35 +3087,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3127,7 +3127,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/schichtplan/page.tsx",
-      "route": "/dashboard/mitarbeiter/schichtplan",
+      "route": "/dashboard/staff/shift-plan",
       "pageBehavior": "render",
       "component": "Suspense",
       "imports": [
@@ -3162,35 +3162,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3202,7 +3202,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/statistiken/page.tsx",
-      "route": "/dashboard/mitarbeiter/statistiken",
+      "route": "/dashboard/staff/statistics",
       "pageBehavior": "render",
       "component": "StaffStatisticsScreen",
       "imports": [
@@ -3237,35 +3237,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3277,9 +3277,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/todos/page.tsx",
-      "route": "/dashboard/mitarbeiter/todos",
+      "route": "/dashboard/staff/todos",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten",
+      "redirectTarget": "/dashboard/tasks",
       "redirectSource": "CHECKLISTEN_ROUTES.root",
       "layoutChrome": [
         {
@@ -3306,35 +3306,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3346,9 +3346,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/todos/protokoll/page.tsx",
-      "route": "/dashboard/mitarbeiter/todos/protokoll",
+      "route": "/dashboard/staff/todos/log",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten/protokoll",
+      "redirectTarget": "/dashboard/tasks/log",
       "redirectSource": "CHECKLISTEN_ROUTES.protokoll",
       "layoutChrome": [
         {
@@ -3375,35 +3375,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3415,7 +3415,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/uebersicht/page.tsx",
-      "route": "/dashboard/mitarbeiter/uebersicht",
+      "route": "/dashboard/staff/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Mitarbeiter slot)",
       "layoutChrome": [
@@ -3443,35 +3443,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3483,7 +3483,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/mitarbeiter/vertraege/page.tsx",
-      "route": "/dashboard/mitarbeiter/vertraege",
+      "route": "/dashboard/staff/contracts",
       "pageBehavior": "render",
       "component": "StaffContractsScreen",
       "imports": [
@@ -3518,35 +3518,35 @@
           "moduleTitle": "Mitarbeiter",
           "subnav": [
             {
-              "href": "/dashboard/mitarbeiter/uebersicht",
+              "href": "/dashboard/staff/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/mitarbeiter/arbeitszeiten",
+              "href": "/dashboard/staff/work-hours",
               "label": "Arbeitszeiten"
             },
             {
-              "href": "/dashboard/mitarbeiter/schichtplan",
+              "href": "/dashboard/staff/shift-plan",
               "label": "Schichtplan"
             },
             {
-              "href": "/dashboard/mitarbeiter/vertraege",
+              "href": "/dashboard/staff/contracts",
               "label": "Verträge"
             },
             {
-              "href": "/dashboard/mitarbeiter/dokumente",
+              "href": "/dashboard/staff/documents",
               "label": "Dokumente"
             },
             {
-              "href": "/dashboard/mitarbeiter/statistiken",
+              "href": "/dashboard/staff/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/mitarbeiter/export",
+              "href": "/dashboard/staff/export",
               "label": "Export"
             },
             {
-              "href": "/dashboard/mitarbeiter/einstellungen",
+              "href": "/dashboard/staff/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3593,7 +3593,7 @@
           "moduleTitle": "News",
           "subnav": [
             {
-              "href": "/dashboard/news/uebersicht",
+              "href": "/dashboard/news/overview",
               "label": "Übersicht"
             },
             {
@@ -3601,15 +3601,15 @@
               "label": "Autopilot"
             },
             {
-              "href": "/dashboard/news/statistiken",
+              "href": "/dashboard/news/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/news/einbinden",
+              "href": "/dashboard/news/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/news/einstellungen",
+              "href": "/dashboard/news/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3619,7 +3619,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/news/einbinden/page.tsx",
-      "route": "/dashboard/news/einbinden",
+      "route": "/dashboard/news/embed",
       "pageBehavior": "render",
       "component": "NewsEmbedPanel",
       "imports": [
@@ -3654,7 +3654,7 @@
           "moduleTitle": "News",
           "subnav": [
             {
-              "href": "/dashboard/news/uebersicht",
+              "href": "/dashboard/news/overview",
               "label": "Übersicht"
             },
             {
@@ -3662,15 +3662,15 @@
               "label": "Autopilot"
             },
             {
-              "href": "/dashboard/news/statistiken",
+              "href": "/dashboard/news/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/news/einbinden",
+              "href": "/dashboard/news/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/news/einstellungen",
+              "href": "/dashboard/news/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3680,7 +3680,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/news/einstellungen/page.tsx",
-      "route": "/dashboard/news/einstellungen",
+      "route": "/dashboard/news/settings",
       "pageBehavior": "render",
       "component": "NewsSettingsPanel",
       "imports": [
@@ -3715,7 +3715,7 @@
           "moduleTitle": "News",
           "subnav": [
             {
-              "href": "/dashboard/news/uebersicht",
+              "href": "/dashboard/news/overview",
               "label": "Übersicht"
             },
             {
@@ -3723,15 +3723,15 @@
               "label": "Autopilot"
             },
             {
-              "href": "/dashboard/news/statistiken",
+              "href": "/dashboard/news/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/news/einbinden",
+              "href": "/dashboard/news/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/news/einstellungen",
+              "href": "/dashboard/news/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3743,8 +3743,8 @@
       "filePath": "apps/web/app/(platform)/(app)/dashboard/news/page.tsx",
       "route": "/dashboard/news",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/news/uebersicht",
-      "redirectSource": "\"/dashboard/news/uebersicht\"",
+      "redirectTarget": "/dashboard/news/overview",
+      "redirectSource": "\"/dashboard/news/overview\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -3770,7 +3770,7 @@
           "moduleTitle": "News",
           "subnav": [
             {
-              "href": "/dashboard/news/uebersicht",
+              "href": "/dashboard/news/overview",
               "label": "Übersicht"
             },
             {
@@ -3778,15 +3778,15 @@
               "label": "Autopilot"
             },
             {
-              "href": "/dashboard/news/statistiken",
+              "href": "/dashboard/news/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/news/einbinden",
+              "href": "/dashboard/news/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/news/einstellungen",
+              "href": "/dashboard/news/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3796,7 +3796,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/news/statistiken/page.tsx",
-      "route": "/dashboard/news/statistiken",
+      "route": "/dashboard/news/statistics",
       "pageBehavior": "render",
       "component": "NewsStatisticsScreen",
       "imports": [
@@ -3831,7 +3831,7 @@
           "moduleTitle": "News",
           "subnav": [
             {
-              "href": "/dashboard/news/uebersicht",
+              "href": "/dashboard/news/overview",
               "label": "Übersicht"
             },
             {
@@ -3839,15 +3839,15 @@
               "label": "Autopilot"
             },
             {
-              "href": "/dashboard/news/statistiken",
+              "href": "/dashboard/news/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/news/einbinden",
+              "href": "/dashboard/news/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/news/einstellungen",
+              "href": "/dashboard/news/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3857,7 +3857,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/news/uebersicht/page.tsx",
-      "route": "/dashboard/news/uebersicht",
+      "route": "/dashboard/news/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (News slot)",
       "layoutChrome": [
@@ -3885,7 +3885,7 @@
           "moduleTitle": "News",
           "subnav": [
             {
-              "href": "/dashboard/news/uebersicht",
+              "href": "/dashboard/news/overview",
               "label": "Übersicht"
             },
             {
@@ -3893,15 +3893,15 @@
               "label": "Autopilot"
             },
             {
-              "href": "/dashboard/news/statistiken",
+              "href": "/dashboard/news/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/news/einbinden",
+              "href": "/dashboard/news/embed",
               "label": "Einbinden"
             },
             {
-              "href": "/dashboard/news/einstellungen",
+              "href": "/dashboard/news/settings",
               "label": "Einstellungen"
             }
           ],
@@ -3934,7 +3934,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/berichte/page.tsx",
-      "route": "/dashboard/pos/berichte",
+      "route": "/dashboard/pos/reports",
       "pageBehavior": "render",
       "component": "div",
       "imports": [
@@ -3969,31 +3969,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4004,7 +4004,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/bestellungen/page.tsx",
-      "route": "/dashboard/pos/bestellungen",
+      "route": "/dashboard/pos/orders",
       "pageBehavior": "render",
       "component": "div",
       "imports": [
@@ -4039,31 +4039,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4074,7 +4074,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/einstellungen/bestand-storno/page.tsx",
-      "route": "/dashboard/pos/einstellungen/bestand-storno",
+      "route": "/dashboard/pos/settings/inventory-void",
       "pageBehavior": "render",
       "component": "PosSettingsInventoryVoidScreen",
       "imports": [
@@ -4109,31 +4109,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4147,27 +4147,27 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/pos/einstellungen/fiskal-zahlung",
+              "href": "/dashboard/pos/settings/fiscal-payment",
               "label": "Fiskal & Zahlung"
             },
             {
-              "href": "/dashboard/pos/einstellungen/drucker-routing",
+              "href": "/dashboard/pos/settings/printer-routing",
               "label": "Drucker & Routing"
             },
             {
-              "href": "/dashboard/pos/einstellungen/kueche",
+              "href": "/dashboard/pos/settings/kitchen",
               "label": "Küche (KDS)"
             },
             {
-              "href": "/dashboard/pos/einstellungen/bestand-storno",
+              "href": "/dashboard/pos/settings/inventory-void",
               "label": "Bestand & Storno"
             },
             {
-              "href": "/dashboard/pos/einstellungen/gutscheine",
+              "href": "/dashboard/pos/settings/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/einstellungen/geraete-rechte",
+              "href": "/dashboard/pos/settings/device-permissions",
               "label": "Geräte & Rechte"
             }
           ],
@@ -4177,7 +4177,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/einstellungen/drucker-routing/page.tsx",
-      "route": "/dashboard/pos/einstellungen/drucker-routing",
+      "route": "/dashboard/pos/settings/printer-routing",
       "pageBehavior": "render",
       "component": "PosSettingsPrintersRoutingScreen",
       "imports": [
@@ -4212,31 +4212,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4250,27 +4250,27 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/pos/einstellungen/fiskal-zahlung",
+              "href": "/dashboard/pos/settings/fiscal-payment",
               "label": "Fiskal & Zahlung"
             },
             {
-              "href": "/dashboard/pos/einstellungen/drucker-routing",
+              "href": "/dashboard/pos/settings/printer-routing",
               "label": "Drucker & Routing"
             },
             {
-              "href": "/dashboard/pos/einstellungen/kueche",
+              "href": "/dashboard/pos/settings/kitchen",
               "label": "Küche (KDS)"
             },
             {
-              "href": "/dashboard/pos/einstellungen/bestand-storno",
+              "href": "/dashboard/pos/settings/inventory-void",
               "label": "Bestand & Storno"
             },
             {
-              "href": "/dashboard/pos/einstellungen/gutscheine",
+              "href": "/dashboard/pos/settings/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/einstellungen/geraete-rechte",
+              "href": "/dashboard/pos/settings/device-permissions",
               "label": "Geräte & Rechte"
             }
           ],
@@ -4280,7 +4280,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/einstellungen/fiskal-zahlung/page.tsx",
-      "route": "/dashboard/pos/einstellungen/fiskal-zahlung",
+      "route": "/dashboard/pos/settings/fiscal-payment",
       "pageBehavior": "render",
       "component": "PosSettingsFiscalPaymentScreen",
       "imports": [
@@ -4315,31 +4315,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4353,27 +4353,27 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/pos/einstellungen/fiskal-zahlung",
+              "href": "/dashboard/pos/settings/fiscal-payment",
               "label": "Fiskal & Zahlung"
             },
             {
-              "href": "/dashboard/pos/einstellungen/drucker-routing",
+              "href": "/dashboard/pos/settings/printer-routing",
               "label": "Drucker & Routing"
             },
             {
-              "href": "/dashboard/pos/einstellungen/kueche",
+              "href": "/dashboard/pos/settings/kitchen",
               "label": "Küche (KDS)"
             },
             {
-              "href": "/dashboard/pos/einstellungen/bestand-storno",
+              "href": "/dashboard/pos/settings/inventory-void",
               "label": "Bestand & Storno"
             },
             {
-              "href": "/dashboard/pos/einstellungen/gutscheine",
+              "href": "/dashboard/pos/settings/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/einstellungen/geraete-rechte",
+              "href": "/dashboard/pos/settings/device-permissions",
               "label": "Geräte & Rechte"
             }
           ],
@@ -4383,7 +4383,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/einstellungen/geraete-rechte/page.tsx",
-      "route": "/dashboard/pos/einstellungen/geraete-rechte",
+      "route": "/dashboard/pos/settings/device-permissions",
       "pageBehavior": "render",
       "component": "PosSettingsDevicesRightsScreen",
       "imports": [
@@ -4418,31 +4418,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4456,27 +4456,27 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/pos/einstellungen/fiskal-zahlung",
+              "href": "/dashboard/pos/settings/fiscal-payment",
               "label": "Fiskal & Zahlung"
             },
             {
-              "href": "/dashboard/pos/einstellungen/drucker-routing",
+              "href": "/dashboard/pos/settings/printer-routing",
               "label": "Drucker & Routing"
             },
             {
-              "href": "/dashboard/pos/einstellungen/kueche",
+              "href": "/dashboard/pos/settings/kitchen",
               "label": "Küche (KDS)"
             },
             {
-              "href": "/dashboard/pos/einstellungen/bestand-storno",
+              "href": "/dashboard/pos/settings/inventory-void",
               "label": "Bestand & Storno"
             },
             {
-              "href": "/dashboard/pos/einstellungen/gutscheine",
+              "href": "/dashboard/pos/settings/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/einstellungen/geraete-rechte",
+              "href": "/dashboard/pos/settings/device-permissions",
               "label": "Geräte & Rechte"
             }
           ],
@@ -4486,7 +4486,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/einstellungen/geraete/page.tsx",
-      "route": "/dashboard/pos/einstellungen/geraete",
+      "route": "/dashboard/pos/settings/devices",
       "pageBehavior": "render",
       "component": "RestaurantPosDevicesPanel",
       "imports": [
@@ -4521,31 +4521,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4559,27 +4559,27 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/pos/einstellungen/fiskal-zahlung",
+              "href": "/dashboard/pos/settings/fiscal-payment",
               "label": "Fiskal & Zahlung"
             },
             {
-              "href": "/dashboard/pos/einstellungen/drucker-routing",
+              "href": "/dashboard/pos/settings/printer-routing",
               "label": "Drucker & Routing"
             },
             {
-              "href": "/dashboard/pos/einstellungen/kueche",
+              "href": "/dashboard/pos/settings/kitchen",
               "label": "Küche (KDS)"
             },
             {
-              "href": "/dashboard/pos/einstellungen/bestand-storno",
+              "href": "/dashboard/pos/settings/inventory-void",
               "label": "Bestand & Storno"
             },
             {
-              "href": "/dashboard/pos/einstellungen/gutscheine",
+              "href": "/dashboard/pos/settings/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/einstellungen/geraete-rechte",
+              "href": "/dashboard/pos/settings/device-permissions",
               "label": "Geräte & Rechte"
             }
           ],
@@ -4589,7 +4589,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/einstellungen/gutscheine/page.tsx",
-      "route": "/dashboard/pos/einstellungen/gutscheine",
+      "route": "/dashboard/pos/settings/gift-vouchers",
       "pageBehavior": "render",
       "component": "PosSettingsGiftVouchersScreen",
       "imports": [
@@ -4624,31 +4624,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4662,27 +4662,27 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/pos/einstellungen/fiskal-zahlung",
+              "href": "/dashboard/pos/settings/fiscal-payment",
               "label": "Fiskal & Zahlung"
             },
             {
-              "href": "/dashboard/pos/einstellungen/drucker-routing",
+              "href": "/dashboard/pos/settings/printer-routing",
               "label": "Drucker & Routing"
             },
             {
-              "href": "/dashboard/pos/einstellungen/kueche",
+              "href": "/dashboard/pos/settings/kitchen",
               "label": "Küche (KDS)"
             },
             {
-              "href": "/dashboard/pos/einstellungen/bestand-storno",
+              "href": "/dashboard/pos/settings/inventory-void",
               "label": "Bestand & Storno"
             },
             {
-              "href": "/dashboard/pos/einstellungen/gutscheine",
+              "href": "/dashboard/pos/settings/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/einstellungen/geraete-rechte",
+              "href": "/dashboard/pos/settings/device-permissions",
               "label": "Geräte & Rechte"
             }
           ],
@@ -4692,7 +4692,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/einstellungen/kueche/page.tsx",
-      "route": "/dashboard/pos/einstellungen/kueche",
+      "route": "/dashboard/pos/settings/kitchen",
       "pageBehavior": "render",
       "component": "PosSettingsKitchenScreen",
       "imports": [
@@ -4727,31 +4727,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4765,27 +4765,27 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/pos/einstellungen/fiskal-zahlung",
+              "href": "/dashboard/pos/settings/fiscal-payment",
               "label": "Fiskal & Zahlung"
             },
             {
-              "href": "/dashboard/pos/einstellungen/drucker-routing",
+              "href": "/dashboard/pos/settings/printer-routing",
               "label": "Drucker & Routing"
             },
             {
-              "href": "/dashboard/pos/einstellungen/kueche",
+              "href": "/dashboard/pos/settings/kitchen",
               "label": "Küche (KDS)"
             },
             {
-              "href": "/dashboard/pos/einstellungen/bestand-storno",
+              "href": "/dashboard/pos/settings/inventory-void",
               "label": "Bestand & Storno"
             },
             {
-              "href": "/dashboard/pos/einstellungen/gutscheine",
+              "href": "/dashboard/pos/settings/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/einstellungen/geraete-rechte",
+              "href": "/dashboard/pos/settings/device-permissions",
               "label": "Geräte & Rechte"
             }
           ],
@@ -4795,9 +4795,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/einstellungen/page.tsx",
-      "route": "/dashboard/pos/einstellungen",
+      "route": "/dashboard/pos/settings",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/pos/einstellungen/fiskal-zahlung",
+      "redirectTarget": "/dashboard/pos/settings/fiscal-payment",
       "redirectSource": "APP_ROUTES.pos.settingsFiscalPayment",
       "layoutChrome": [
         {
@@ -4824,31 +4824,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4862,27 +4862,27 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/pos/einstellungen/fiskal-zahlung",
+              "href": "/dashboard/pos/settings/fiscal-payment",
               "label": "Fiskal & Zahlung"
             },
             {
-              "href": "/dashboard/pos/einstellungen/drucker-routing",
+              "href": "/dashboard/pos/settings/printer-routing",
               "label": "Drucker & Routing"
             },
             {
-              "href": "/dashboard/pos/einstellungen/kueche",
+              "href": "/dashboard/pos/settings/kitchen",
               "label": "Küche (KDS)"
             },
             {
-              "href": "/dashboard/pos/einstellungen/bestand-storno",
+              "href": "/dashboard/pos/settings/inventory-void",
               "label": "Bestand & Storno"
             },
             {
-              "href": "/dashboard/pos/einstellungen/gutscheine",
+              "href": "/dashboard/pos/settings/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/einstellungen/geraete-rechte",
+              "href": "/dashboard/pos/settings/device-permissions",
               "label": "Geräte & Rechte"
             }
           ],
@@ -4892,7 +4892,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/gutscheine/page.tsx",
-      "route": "/dashboard/pos/gutscheine",
+      "route": "/dashboard/pos/gift-vouchers",
       "pageBehavior": "render",
       "component": "div",
       "imports": [
@@ -4927,31 +4927,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -4964,7 +4964,7 @@
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/page.tsx",
       "route": "/dashboard/pos",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/pos/uebersicht",
+      "redirectTarget": "/dashboard/pos/overview",
       "redirectSource": "APP_ROUTES.pos.overview",
       "layoutChrome": [
         {
@@ -4991,31 +4991,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -5026,7 +5026,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/quittungen/page.tsx",
-      "route": "/dashboard/pos/quittungen",
+      "route": "/dashboard/pos/receipts",
       "pageBehavior": "render",
       "component": "div",
       "imports": [
@@ -5061,31 +5061,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -5096,7 +5096,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/statistiken/page.tsx",
-      "route": "/dashboard/pos/statistiken",
+      "route": "/dashboard/pos/statistics",
       "pageBehavior": "render",
       "component": "div",
       "imports": [
@@ -5131,31 +5131,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -5166,7 +5166,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/pos/uebersicht/page.tsx",
-      "route": "/dashboard/pos/uebersicht",
+      "route": "/dashboard/pos/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (POS slot)",
       "layoutChrome": [
@@ -5194,31 +5194,31 @@
           "moduleTitle": "POS",
           "subnav": [
             {
-              "href": "/dashboard/pos/uebersicht",
+              "href": "/dashboard/pos/overview",
               "label": "Übersicht"
             },
             {
-              "href": "/dashboard/pos/bestellungen",
+              "href": "/dashboard/pos/orders",
               "label": "Bestellungen"
             },
             {
-              "href": "/dashboard/pos/quittungen",
+              "href": "/dashboard/pos/receipts",
               "label": "Quittungen"
             },
             {
-              "href": "/dashboard/pos/gutscheine",
+              "href": "/dashboard/pos/gift-vouchers",
               "label": "Gutscheine"
             },
             {
-              "href": "/dashboard/pos/statistiken",
+              "href": "/dashboard/pos/statistics",
               "label": "Statistiken"
             },
             {
-              "href": "/dashboard/pos/berichte",
+              "href": "/dashboard/pos/reports",
               "label": "Berichte"
             },
             {
-              "href": "/dashboard/pos/einstellungen",
+              "href": "/dashboard/pos/settings",
               "label": "Einstellungen"
             }
           ],
@@ -5229,7 +5229,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/profile/anmeldung/page.tsx",
-      "route": "/dashboard/profile/anmeldung",
+      "route": "/dashboard/profile/sign-in",
       "pageBehavior": "render",
       "component": "Suspense",
       "imports": [
@@ -5308,7 +5308,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/profile/arbeitszeiten/page.tsx",
-      "route": "/dashboard/profile/arbeitszeiten",
+      "route": "/dashboard/profile/work-hours",
       "pageBehavior": "render",
       "component": "ProfileWorkHoursScreen",
       "imports": [
@@ -5347,7 +5347,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/profile/benachrichtigungen/page.tsx",
-      "route": "/dashboard/profile/benachrichtigungen",
+      "route": "/dashboard/profile/notifications",
       "pageBehavior": "render",
       "component": "NotificationPreferencesPanel",
       "imports": [
@@ -5386,7 +5386,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/profile/dienstplan/page.tsx",
-      "route": "/dashboard/profile/dienstplan",
+      "route": "/dashboard/profile/schedule",
       "pageBehavior": "render",
       "component": "ProfileShiftPlanScreen",
       "imports": [
@@ -5464,7 +5464,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/profile/dokumente/page.tsx",
-      "route": "/dashboard/profile/dokumente",
+      "route": "/dashboard/profile/documents",
       "pageBehavior": "render",
       "component": "ProfileDocumentsScreen",
       "imports": [
@@ -5505,7 +5505,7 @@
       "filePath": "apps/web/app/(platform)/(app)/dashboard/profile/page.tsx",
       "route": "/dashboard/profile",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/profile/persoenliche-daten",
+      "redirectTarget": "/dashboard/profile/personal",
       "redirectSource": "APP_ROUTES.profile.personal",
       "layoutChrome": [
         {
@@ -5536,7 +5536,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/profile/persoenliche-daten/page.tsx",
-      "route": "/dashboard/profile/persoenliche-daten",
+      "route": "/dashboard/profile/personal",
       "pageBehavior": "render",
       "component": "ProfilePersoenlicheDatenSkeleton",
       "imports": [
@@ -5607,7 +5607,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/profile/verfuegbarkeit/page.tsx",
-      "route": "/dashboard/profile/verfuegbarkeit",
+      "route": "/dashboard/profile/availability",
       "pageBehavior": "render",
       "component": "ProfileAvailabilityScreen",
       "imports": [
@@ -5646,7 +5646,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/reservierungen/einbinden/page.tsx",
-      "route": "/dashboard/reservierungen/einbinden",
+      "route": "/dashboard/reservations/embed",
       "pageBehavior": "render",
       "component": "ReservationEmbedPanel",
       "imports": [
@@ -5685,7 +5685,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/reservierungen/einstellungen/page.tsx",
-      "route": "/dashboard/reservierungen/einstellungen",
+      "route": "/dashboard/reservations/settings",
       "pageBehavior": "render",
       "component": "ReservationSettingsForm",
       "imports": [
@@ -5724,10 +5724,10 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/reservierungen/page.tsx",
-      "route": "/dashboard/reservierungen",
+      "route": "/dashboard/reservations",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/reservierungen/uebersicht",
-      "redirectSource": "\"/dashboard/reservierungen/uebersicht\"",
+      "redirectTarget": "/dashboard/reservations/overview",
+      "redirectSource": "\"/dashboard/reservations/overview\"",
       "layoutChrome": [
         {
           "layout": "apps/web/app/(platform)/(app)/layout.tsx",
@@ -5757,7 +5757,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/reservierungen/protokoll/page.tsx",
-      "route": "/dashboard/reservierungen/protokoll",
+      "route": "/dashboard/reservations/log",
       "pageBehavior": "render",
       "component": "ReservationsProtocolScreen",
       "imports": [
@@ -5796,7 +5796,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/reservierungen/statistiken/page.tsx",
-      "route": "/dashboard/reservierungen/statistiken",
+      "route": "/dashboard/reservations/statistics",
       "pageBehavior": "render",
       "component": "ReservationsStatisticsScreen",
       "imports": [
@@ -5835,7 +5835,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/reservierungen/tischplan/page.tsx",
-      "route": "/dashboard/reservierungen/tischplan",
+      "route": "/dashboard/reservations/floor-plan",
       "pageBehavior": "render",
       "component": "FloorPlanScreen",
       "imports": [
@@ -5874,7 +5874,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/reservierungen/uebersicht/page.tsx",
-      "route": "/dashboard/reservierungen/uebersicht",
+      "route": "/dashboard/reservations/overview",
       "pageBehavior": "null",
       "keepAliveNote": "UI in AppModuleHomeKeepAlives (Reservierungen slot)",
       "layoutChrome": [
@@ -5906,7 +5906,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/abo/page.tsx",
-      "route": "/dashboard/settings/abo",
+      "route": "/dashboard/settings/billing",
       "pageBehavior": "render",
       "component": "div",
       "imports": [
@@ -5957,11 +5957,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -5973,7 +5973,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6029,11 +6029,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6045,7 +6045,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6095,11 +6095,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6111,7 +6111,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6171,11 +6171,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6187,7 +6187,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6243,11 +6243,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6259,7 +6259,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6268,9 +6268,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/eigenkontrolle/einstellungen/page.tsx",
-      "route": "/dashboard/settings/eigenkontrolle/einstellungen",
+      "route": "/dashboard/settings/eigenkontrolle/settings",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten/einstellungen",
+      "redirectTarget": "/dashboard/tasks/settings",
       "redirectSource": "CHECKLISTEN_ROUTES.einstellungen",
       "layoutChrome": [
         {
@@ -6309,11 +6309,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6325,7 +6325,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6340,9 +6340,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/eigenkontrolle/eintraege/page.tsx",
-      "route": "/dashboard/settings/eigenkontrolle/eintraege",
+      "route": "/dashboard/settings/eigenkontrolle/entries",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten/protokoll",
+      "redirectTarget": "/dashboard/tasks/log",
       "redirectSource": "CHECKLISTEN_ROUTES.protokoll",
       "layoutChrome": [
         {
@@ -6381,11 +6381,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6397,7 +6397,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6412,9 +6412,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/eigenkontrolle/geraete/page.tsx",
-      "route": "/dashboard/settings/eigenkontrolle/geraete",
+      "route": "/dashboard/settings/eigenkontrolle/devices",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten",
+      "redirectTarget": "/dashboard/tasks",
       "redirectSource": "CHECKLISTEN_ROUTES.root",
       "layoutChrome": [
         {
@@ -6453,11 +6453,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6469,7 +6469,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6486,7 +6486,7 @@
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/eigenkontrolle/page.tsx",
       "route": "/dashboard/settings/eigenkontrolle",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten",
+      "redirectTarget": "/dashboard/tasks",
       "redirectSource": "CHECKLISTEN_ROUTES.root",
       "layoutChrome": [
         {
@@ -6525,11 +6525,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6541,7 +6541,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6556,9 +6556,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/eigenkontrolle/protokoll/page.tsx",
-      "route": "/dashboard/settings/eigenkontrolle/protokoll",
+      "route": "/dashboard/settings/eigenkontrolle/log",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten/protokoll",
+      "redirectTarget": "/dashboard/tasks/log",
       "redirectSource": "CHECKLISTEN_ROUTES.protokoll",
       "layoutChrome": [
         {
@@ -6597,11 +6597,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6613,7 +6613,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6628,9 +6628,9 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/eigenkontrolle/vorlagen/page.tsx",
-      "route": "/dashboard/settings/eigenkontrolle/vorlagen",
+      "route": "/dashboard/settings/eigenkontrolle/templates",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/checklisten",
+      "redirectTarget": "/dashboard/tasks",
       "redirectSource": "CHECKLISTEN_ROUTES.root",
       "layoutChrome": [
         {
@@ -6669,11 +6669,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6685,7 +6685,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6700,7 +6700,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/integrationen/page.tsx",
-      "route": "/dashboard/settings/integrationen",
+      "route": "/dashboard/settings/integrations",
       "pageBehavior": "redirect",
       "redirectTarget": "/login",
       "redirectSource": "\"/login\"",
@@ -6742,11 +6742,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6758,7 +6758,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6769,7 +6769,7 @@
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/kasse/page.tsx",
       "route": "/dashboard/settings/kasse",
       "pageBehavior": "redirect",
-      "redirectTarget": "/dashboard/pos/einstellungen/fiskal-zahlung",
+      "redirectTarget": "/dashboard/pos/settings/fiscal-payment",
       "redirectSource": "APP_ROUTES.pos.settingsFiscalPayment",
       "layoutChrome": [
         {
@@ -6808,11 +6808,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6824,7 +6824,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6833,7 +6833,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/oeffnungszeiten/einbinden/page.tsx",
-      "route": "/dashboard/settings/oeffnungszeiten/einbinden",
+      "route": "/dashboard/settings/opening-hours/embed",
       "pageBehavior": "render",
       "component": "OpeningHoursEmbedPanel",
       "imports": [
@@ -6880,11 +6880,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6896,7 +6896,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6908,11 +6908,11 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten/einbinden",
+              "href": "/dashboard/settings/opening-hours/embed",
               "label": "Einbinden"
             }
           ],
@@ -6922,7 +6922,7 @@
     },
     {
       "filePath": "apps/web/app/(platform)/(app)/dashboard/settings/oeffnungszeiten/page.tsx",
-      "route": "/dashboard/settings/oeffnungszeiten",
+      "route": "/dashboard/settings/opening-hours",
       "pageBehavior": "render",
       "component": "RestaurantSettingsPanel",
       "imports": [
@@ -6969,11 +6969,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -6985,7 +6985,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -6997,11 +6997,11 @@
           ],
           "subnav": [
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten/einbinden",
+              "href": "/dashboard/settings/opening-hours/embed",
               "label": "Einbinden"
             }
           ],
@@ -7052,11 +7052,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -7068,7 +7068,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -7124,11 +7124,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -7140,7 +7140,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -7190,11 +7190,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -7206,7 +7206,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]
@@ -7262,11 +7262,11 @@
               "label": "Team"
             },
             {
-              "href": "/dashboard/settings/oeffnungszeiten",
+              "href": "/dashboard/settings/opening-hours",
               "label": "Öffnungszeiten"
             },
             {
-              "href": "/dashboard/settings/integrationen",
+              "href": "/dashboard/settings/integrations",
               "label": "Integrationen"
             },
             {
@@ -7278,7 +7278,7 @@
               "label": "API"
             },
             {
-              "href": "/dashboard/settings/abo",
+              "href": "/dashboard/settings/billing",
               "label": "Abo"
             }
           ]

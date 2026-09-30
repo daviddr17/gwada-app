@@ -12,11 +12,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export async function loadProfilePushContact(
   admin: SupabaseClient,
   profileId: string,
-): Promise<{ phone: string | null; email: string | null }> {
+): Promise<{ phone: string | null; email: string | null; locale: string | null }> {
   const [{ data: profile }, { data: authUser }] = await Promise.all([
     admin
       .from("profiles")
-      .select("phone, notification_email")
+      .select("phone, notification_email, locale")
       .eq("id", profileId)
       .maybeSingle(),
     admin.auth.admin.getUserById(profileId),
@@ -24,6 +24,8 @@ export async function loadProfilePushContact(
 
   const phone =
     typeof profile?.phone === "string" ? profile.phone.trim() || null : null;
+  const locale =
+    typeof profile?.locale === "string" ? profile.locale.trim() || null : null;
   const notificationEmail =
     typeof profile?.notification_email === "string"
       ? profile.notification_email.trim() || null
@@ -32,7 +34,7 @@ export async function loadProfilePushContact(
   const email =
     resolveEffectiveNotificationEmail(notificationEmail, authEmail) || null;
 
-  return { phone, email };
+  return { phone, email, locale };
 }
 
 export async function sendNotificationPushWhatsapp(params: {
@@ -66,6 +68,7 @@ export async function sendNotificationPushEmail(params: {
   emailBodyHtml?: string | null;
   href?: string;
   platformCode?: string | null;
+  intro?: string | null;
   admin: SupabaseClient;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const delivery = await resolveEmailDeliveryForRestaurant(
@@ -98,7 +101,8 @@ export async function sendNotificationPushEmail(params: {
     subject: headline,
     text: emailText,
     headline,
-    intro: "Du hast eine neue Benachrichtigung in gwada.",
+    intro:
+      params.intro?.trim() || "Du hast eine neue Benachrichtigung in gwada.",
     bodyHtml,
   });
 }

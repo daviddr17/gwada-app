@@ -21,6 +21,7 @@ import {
   loadStaffInviteResponseNotificationItems,
 } from "@/lib/notifications/notification-staff-invite-server";
 import { loadStaffPermissionsGrantedNotificationItems } from "@/lib/notifications/notification-staff-permissions-server";
+import { moduleNoticeLabel } from "@/lib/notifications/staff-notification-copy";
 import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
@@ -841,7 +842,22 @@ export async function fetchNotificationSummaryServer(
   const built = await Promise.all(
     enabledModuleIds.map((moduleId) => MODULE_BUILDERS[moduleId](ctx)),
   );
-  const modules = built.filter((m) => m.count > 0);
+  const { data: profile } = await sb
+    .from("profiles")
+    .select("locale")
+    .eq("id", params.userId)
+    .maybeSingle();
+  const viewerLocale =
+    typeof profile?.locale === "string" ? profile.locale : null;
+  const modules = built.filter((m) => m.count > 0).map((mod) => ({
+    ...mod,
+    label: moduleNoticeLabel(mod.id, viewerLocale, "many"),
+    items: mod.items.map((item) =>
+      item.title === NOTIFICATION_MODULES[mod.id].label
+        ? { ...item, title: moduleNoticeLabel(mod.id, viewerLocale, "one") }
+        : item,
+    ),
+  }));
 
   const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
 

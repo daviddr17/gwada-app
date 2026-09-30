@@ -17,6 +17,16 @@ import {
   parsePoStatusLines,
 } from "@/lib/notifications/notification-po-status-copy";
 import { digestPushDetails } from "@/lib/notifications/notification-digest-server";
+import { APP_LOCALE_TO_PROFILE, normalizeAppLocale } from "@/i18n/config";
+import {
+  localizeInventoryUnitLabel,
+  resolveInventoryNotificationLocale,
+} from "@/lib/inventory/inventory-unit-label-for-locale";
+import {
+  moduleNoticeLabel,
+  staffNotificationCopy,
+  type StaffNotificationCopy,
+} from "@/lib/notifications/staff-notification-copy";
 
 function absoluteAppUrl(path: string): string {
   const base =
@@ -29,8 +39,15 @@ type NotificationEventRow = {
   payload: Record<string, unknown>;
 };
 
-function pushDateTimeFormatter(timeZone: string): Intl.DateTimeFormat {
-  return new Intl.DateTimeFormat("de-DE", {
+function intlTag(locale: string): string {
+  return APP_LOCALE_TO_PROFILE[normalizeAppLocale(locale)];
+}
+
+function pushDateTimeFormatter(
+  timeZone: string,
+  locale: string,
+): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(intlTag(locale), {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -41,8 +58,8 @@ function pushDateTimeFormatter(timeZone: string): Intl.DateTimeFormat {
   });
 }
 
-function pushTimeFormatter(timeZone: string): Intl.DateTimeFormat {
-  return new Intl.DateTimeFormat("de-DE", {
+function pushTimeFormatter(timeZone: string, locale: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(intlTag(locale), {
     hour: "2-digit",
     minute: "2-digit",
     timeZone,
@@ -57,27 +74,70 @@ function pickNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function formatPushDateTime(iso: unknown, timeZone?: string): string | null {
+function formatPushDateTime(
+  iso: unknown,
+  timeZone?: string,
+  locale = "de",
+): string | null {
   const raw = pickString(iso);
   if (!raw) return null;
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return null;
   const tz = timeZone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
-  return pushDateTimeFormatter(tz).format(date);
+  return pushDateTimeFormatter(tz, locale).format(date);
 }
 
-function formatPushTime(iso: unknown, timeZone?: string): string | null {
+function formatPushTime(
+  iso: unknown,
+  timeZone?: string,
+  locale = "de",
+): string | null {
   const raw = pickString(iso);
   if (!raw) return null;
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return null;
   const tz = timeZone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
-  return pushTimeFormatter(tz).format(date);
+  return pushTimeFormatter(tz, locale).format(date);
+}
+
+function clockLabel(value: string, copy: StaffNotificationCopy): string {
+  return `${value}${copy.clockSuffix}`;
 }
 
 function formatStockAmount(value: unknown): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   return String(value);
+}
+
+function pickQuantity(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value.trim().replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function formatQuantityForLocale(qty: number, locale: string): string {
+  const text = Number.isInteger(qty) ? String(qty) : String(qty);
+  return locale === "de" ? text.replace(".", ",") : text;
+}
+
+function quantityWithUnit(
+  qty: number,
+  unit: string,
+  locale: string,
+): string {
+  const shown = formatQuantityForLocale(qty, locale);
+  return unit ? `${shown} ${unit}` : shown;
+}
+
+function localizedUnit(
+  raw: string | null,
+  locale: string,
+): string {
+  if (!raw) return "";
+  return localizeInventoryUnitLabel(raw, locale);
 }
 
 function formatRatingStars(rating: number): string {
@@ -86,7 +146,7 @@ function formatRatingStars(rating: number): string {
   return `${"★".repeat(rounded)}${"☆".repeat(5 - rounded)}`;
 }
 
-function platformLabel(platform: unknown): string | null {
+function platformLabel(platform: unknown, locale: string): string | null {
   const code = pickString(platform)?.toLowerCase();
   if (!code) return null;
   const labels: Record<string, string> = {
@@ -94,7 +154,7 @@ function platformLabel(platform: unknown): string | null {
     google: "Google",
     facebook: "Facebook",
     whatsapp: "WhatsApp",
-    email: "E-Mail",
+    email: normalizeAppLocale(locale) === "de" ? "E-Mail" : "Email",
     instagram: "Instagram",
   };
   return labels[code] ?? code;
@@ -110,22 +170,28 @@ function detailLines(lines: Array<string | null | undefined | false>): string {
   return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
-function messageSenderDetailLines(payload: Record<string, unknown>): string[] {
-  const name = pickString(payload.contactName) ?? "Kontakt";
+function messageSenderDetailLines(
+  payload: Record<string, unknown>,
+  copy: StaffNotificationCopy,
+): string[] {
+  const name = pickString(payload.contactName) ?? copy.contact;
   const email = pickString(payload.senderEmail);
   const phone = pickString(payload.senderPhone);
-  const lines: string[] = [`Von: ${name}`];
+  const lines: string[] = [`${copy.from}: ${name}`];
   if (email && email.toLowerCase() !== name.toLowerCase()) {
-    lines.push(`E-Mail: ${email}`);
+    lines.push(`${copy.email}: ${email}`);
   }
   if (phone && senderPhoneDistinctFromName(name, phone)) {
-    lines.push(`Telefon: ${phone}`);
+    lines.push(`${copy.phone}: ${phone}`);
   }
   return lines;
 }
 
-function messagePushSubjectName(payload: Record<string, unknown>): string {
-  const name = pickString(payload.contactName) ?? "Kontakt";
+function messagePushSubjectName(
+  payload: Record<string, unknown>,
+  copy: StaffNotificationCopy,
+): string {
+  const name = pickString(payload.contactName) ?? copy.contact;
   const email = pickString(payload.senderEmail);
   const phone = pickString(payload.senderPhone);
   if (name !== "Kontakt" && name !== "WhatsApp" && name !== "E-Mail") {
@@ -175,28 +241,42 @@ function buildPushMessage(params: {
   };
 }
 
+const PEOPLE_LABEL: Record<string, string> = {
+  de: "Personen",
+  en: "People",
+  es: "Personas",
+  fr: "Personnes",
+  it: "Persone",
+  tr: "Kişi",
+  ar: "أشخاص",
+  zh: "人数",
+};
+
 function reservationDetails(
   payload: Record<string, unknown>,
-  timeZone?: string,
+  timeZone: string | undefined,
+  copy: StaffNotificationCopy,
+  locale: string,
 ): string {
-  const guest = pickString(payload.guestLabel) ?? "Gast";
+  const guest = pickString(payload.guestLabel) ?? copy.guest;
   const party = pickNumber(payload.partySize);
-  const when = formatPushDateTime(payload.startsAt, timeZone);
+  const when = formatPushDateTime(payload.startsAt, timeZone, locale);
   const number = pickNumber(payload.reservationNumber);
   const phone = pickString(payload.guestPhone);
   const email = pickString(payload.guestEmail);
   const notes = pickString(payload.notesPreview);
   const messagePreview = pickString(payload.messagePreview);
+  const people = PEOPLE_LABEL[normalizeAppLocale(locale)] ?? PEOPLE_LABEL.de;
 
   return detailLines([
-    `Gast: ${guest}`,
-    party != null ? `Personen: ${party}` : null,
-    when ? `Termin: ${when}` : null,
-    number != null ? `Reservierung Nr. ${number}` : null,
-    phone ? `Telefon: ${phone}` : null,
-    email ? `E-Mail: ${email}` : null,
-    notes ? `Hinweis: ${notes}` : null,
-    messagePreview ? `Nachricht: ${messagePreview}` : null,
+    `${copy.guest}: ${guest}`,
+    party != null ? `${people}: ${party}` : null,
+    when ? `${copy.appointment}: ${when}` : null,
+    number != null ? `${copy.reservationNo} ${number}` : null,
+    phone ? `${copy.phone}: ${phone}` : null,
+    email ? `${copy.email}: ${email}` : null,
+    notes ? `${copy.note}: ${notes}` : null,
+    messagePreview ? `${copy.message}: ${messagePreview}` : null,
   ]);
 }
 
@@ -204,7 +284,10 @@ export function buildNotificationPushText(
   event: NotificationEventRow,
   restaurantName: string | null,
   timeZone?: string,
+  locale?: string | null,
 ): NotificationPushMessageResult {
+  const unitLocale = resolveInventoryNotificationLocale(locale, null);
+  const c = staffNotificationCopy(unitLocale);
   const prefix = restaurantName ? `${restaurantName}: ` : "";
   const moduleDef = NOTIFICATION_MODULES[event.module];
   const href = absoluteAppUrl(moduleDef.href);
@@ -212,198 +295,203 @@ export function buildNotificationPushText(
 
   switch (event.module) {
     case "messages": {
-      const subjectName = messagePushSubjectName(p);
+      const subjectName = messagePushSubjectName(p, c);
       const platformCode = pickString(p.platform)?.toLowerCase() ?? null;
-      const platform = platformLabel(p.platform);
-      const when = formatPushDateTime(p.messageCreatedAt, timeZone);
+      const platform = platformLabel(p.platform, unitLocale);
+      const when = formatPushDateTime(p.messageCreatedAt, timeZone, unitLocale);
       const preview = quotePreview(p.preview);
       return buildPushMessage({
         prefix,
-        headline: "Neue Nachricht",
-        subject: `${prefix}Neue Nachricht — ${subjectName}`,
+        headline: c.newMessage,
+        subject: `${prefix}${c.newMessage} — ${subjectName}`,
         href,
         platformCode,
         details: detailLines([
-          ...messageSenderDetailLines(p),
-          platform ? `Kanal: ${platform}` : null,
-          when ? `Empfangen: ${when}` : null,
+          ...messageSenderDetailLines(p, c),
+          platform ? `${c.channel}: ${platform}` : null,
+          when ? `${c.received}: ${when}` : null,
           preview,
         ]),
       });
     }
     case "messages_follow_up": {
-      const contactName = pickString(p.contactName) ?? "Nachricht";
+      const contactName = pickString(p.contactName) ?? c.messageFallback;
       const reason = pickString(p.reason);
-      const when = formatPushDateTime(p.remindAt, timeZone);
+      const when = formatPushDateTime(p.remindAt, timeZone, unitLocale);
       const followHref = pickString(p.href);
       return buildPushMessage({
         prefix,
-        headline: "Später-Erinnerung fällig",
-        subject: `${prefix}Später — ${contactName}`,
+        headline: c.followUpDue,
+        subject: `${prefix}${c.later} — ${contactName}`,
         href: followHref
           ? absoluteAppUrl(followHref)
           : absoluteAppUrl(moduleDef.href),
         details: detailLines([
-          `Chat: ${contactName}`,
-          reason ? `Grund: ${reason}` : null,
-          when ? `Fällig: ${when}` : null,
+          `${c.chat}: ${contactName}`,
+          reason ? `${c.reason}: ${reason}` : null,
+          when ? `${c.due}: ${when}` : null,
         ]),
       });
     }
     case "reviews": {
-      const author = pickString(p.authorName) ?? "Gast";
+      const author = pickString(p.authorName) ?? c.guest;
       const rating = pickNumber(p.rating);
       const stars = rating != null && rating > 0 ? formatRatingStars(rating) : null;
-      const platform = platformLabel(p.platform);
-      const when = formatPushDateTime(p.reviewCreatedAt, timeZone);
+      const platform = platformLabel(p.platform, unitLocale);
+      const when = formatPushDateTime(p.reviewCreatedAt, timeZone, unitLocale);
       const preview = quotePreview(p.commentPreview);
       const ratingLine =
         stars != null
-          ? `Bewertung: ${stars}${rating != null ? ` (${Math.round(rating)}/5)` : ""}`
+          ? `${c.rating}: ${stars}${rating != null ? ` (${Math.round(rating)}/5)` : ""}`
           : null;
       return buildPushMessage({
         prefix,
-        headline: platform ? `Neue Bewertung (${platform})` : "Neue Bewertung",
-        subject: `${prefix}Neue Bewertung${rating != null && rating > 0 ? ` — ${Math.round(rating)}★` : ""}`,
+        headline: platform ? `${c.newReview} (${platform})` : c.newReview,
+        subject: `${prefix}${c.newReview}${rating != null && rating > 0 ? ` — ${Math.round(rating)}★` : ""}`,
         href,
         details: detailLines([
-          `Von: ${author}`,
+          `${c.from}: ${author}`,
           ratingLine,
-          when ? `Bewertet am: ${when}` : null,
+          when ? `${c.reviewedOn}: ${when}` : null,
           preview,
         ]),
       });
     }
     case "reservations_pending": {
-      const guest = pickString(p.guestLabel) ?? "Gast";
+      const guest = pickString(p.guestLabel) ?? c.guest;
       return buildPushMessage({
         prefix,
-        headline: "Neue unbestätigte Reservierung",
-        subject: `${prefix}Neue Reservierung — ${guest}`,
+        headline: c.newPendingReservation,
+        subject: `${prefix}${c.newReservation} — ${guest}`,
         href,
-        details: reservationDetails(p, timeZone),
+        details: reservationDetails(p, timeZone, c, unitLocale),
       });
     }
     case "reservations_change_request": {
-      const guest = pickString(p.guestLabel) ?? "Gast";
+      const guest = pickString(p.guestLabel) ?? c.guest;
       return buildPushMessage({
         prefix,
-        headline: "Änderungsanfrage zur Reservierung",
-        subject: `${prefix}Änderungsanfrage — ${guest}`,
+        headline: c.changeRequest,
+        subject: `${prefix}${c.changeRequestShort} — ${guest}`,
         href,
-        details: reservationDetails(p, timeZone),
+        details: reservationDetails(p, timeZone, c, unitLocale),
       });
     }
     case "reservations_cancellation": {
-      const guest = pickString(p.guestLabel) ?? "Gast";
+      const guest = pickString(p.guestLabel) ?? c.guest;
       return buildPushMessage({
         prefix,
-        headline: "Stornierung einer Reservierung",
-        subject: `${prefix}Stornierung — ${guest}`,
+        headline: c.cancellation,
+        subject: `${prefix}${c.cancellationShort} — ${guest}`,
         href,
-        details: reservationDetails(p, timeZone),
+        details: reservationDetails(p, timeZone, c, unitLocale),
       });
     }
     case "events_inquiry": {
-      const guest = pickString(p.guestLabel) ?? "Gast";
+      const guest = pickString(p.guestLabel) ?? c.guest;
       const company = pickString(p.guestCompany);
       return buildPushMessage({
         prefix,
-        headline: "Neue Veranstaltungs-Anfrage",
-        subject: `${prefix}Veranstaltungs-Anfrage — ${guest}`,
+        headline: c.eventInquiry,
+        subject: `${prefix}${c.eventInquiryShort} — ${guest}`,
         href,
         details: detailLines([
-          company ? `Firma: ${company}` : null,
-          reservationDetails(p, timeZone),
+          company ? `${c.company}: ${company}` : null,
+          reservationDetails(p, timeZone, c, unitLocale),
         ]),
       });
     }
     case "staff_shift_start": {
-      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const staffName = pickString(p.staffName) ?? c.staffFallback;
       const label = pickString(p.label);
-      const start = formatPushTime(p.startsAt, timeZone);
-      const end = formatPushTime(p.endsAt, timeZone);
+      const start = formatPushTime(p.startsAt, timeZone, unitLocale);
+      const end = formatPushTime(p.endsAt, timeZone, unitLocale);
       const timeRange =
-        start && end ? `${start}–${end} Uhr` : start ? `${start} Uhr` : null;
-      const startAtLabel = formatPushDateTime(p.startsAt, timeZone);
+        start && end ? clockLabel(`${start}–${end}`, c) : start ? clockLabel(start, c) : null;
+      const startAtLabel = formatPushDateTime(p.startsAt, timeZone, unitLocale);
       return buildPushMessage({
         prefix,
-        headline: "Schichtbeginn",
-        subject: `${prefix}Schichtbeginn — ${staffName}`,
+        headline: c.shiftStart,
+        subject: `${prefix}${c.shiftStart} — ${staffName}`,
         href,
         details: detailLines([
-          `Mitarbeiter: ${staffName}`,
-          label ? `Schicht: ${label}` : null,
-          timeRange ? `Zeit: ${timeRange}` : null,
-          startAtLabel ? `Beginn: ${startAtLabel}` : null,
+          `${c.staff}: ${staffName}`,
+          label ? `${c.shift}: ${label}` : null,
+          timeRange ? `${c.time}: ${timeRange}` : null,
+          startAtLabel ? `${c.start}: ${startAtLabel}` : null,
         ]),
       });
     }
     case "staff_shift_end": {
-      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const staffName = pickString(p.staffName) ?? c.staffFallback;
       const label = pickString(p.label);
-      const start = formatPushTime(p.startsAt, timeZone);
-      const end = formatPushTime(p.endsAt, timeZone);
+      const start = formatPushTime(p.startsAt, timeZone, unitLocale);
+      const end = formatPushTime(p.endsAt, timeZone, unitLocale);
       const timeRange =
-        start && end ? `${start}–${end} Uhr` : end ? `${end} Uhr` : null;
-      const endAtLabel = formatPushDateTime(p.endsAt, timeZone);
+        start && end ? clockLabel(`${start}–${end}`, c) : end ? clockLabel(end, c) : null;
+      const endAtLabel = formatPushDateTime(p.endsAt, timeZone, unitLocale);
       return buildPushMessage({
         prefix,
-        headline: "Schichtende",
-        subject: `${prefix}Schichtende — ${staffName}`,
+        headline: c.shiftEnd,
+        subject: `${prefix}${c.shiftEnd} — ${staffName}`,
         href,
         details: detailLines([
-          `Mitarbeiter: ${staffName}`,
-          label ? `Schicht: ${label}` : null,
-          timeRange ? `Geplant: ${timeRange}` : null,
-          endAtLabel ? `Ende: ${endAtLabel}` : null,
+          `${c.staff}: ${staffName}`,
+          label ? `${c.shift}: ${label}` : null,
+          timeRange ? `${c.planned}: ${timeRange}` : null,
+          endAtLabel ? `${c.end}: ${endAtLabel}` : null,
         ]),
       });
     }
     case "inventory_low_stock": {
-      const name = pickString(p.ingredientName) ?? "Zutat";
+      const name = pickString(p.ingredientName) ?? c.ingredientFallback;
       const stock = formatStockAmount(p.currentStock);
       const threshold = formatStockAmount(p.lowStockThreshold);
-      const unit = pickString(p.unit);
+      const unit = localizedUnit(pickString(p.unit), unitLocale);
       const unitText = unit ? ` ${unit}` : "";
       return buildPushMessage({
         prefix,
-        headline: "Niedrigbestand",
-        subject: `${prefix}Niedrigbestand — ${name}`,
+        headline: c.lowStock,
+        subject: `${prefix}${c.lowStock} — ${name}`,
         href,
         details: detailLines([
-          `Zutat: ${name}`,
-          `Bestand: ${stock}${unitText}`,
-          `Schwelle: ${threshold}${unitText}`,
+          `${c.ingredient}: ${name}`,
+          `${c.stock}: ${stock}${unitText}`,
+          `${c.threshold}: ${threshold}${unitText}`,
         ]),
       });
     }
     case "inventory_po_delivery_due": {
-      const supplier = pickString(p.supplierName) ?? "Lieferant";
+      const supplier = pickString(p.supplierName) ?? c.supplierFallback;
       const deliveryDate = pickString(p.deliveryDate);
       const kind = pickString(p.kind);
       const kindLabel =
-        kind === "overdue" ? "Überfällig" : "Lieferung heute";
+        kind === "overdue" ? c.overdue : c.deliveryToday;
       return buildPushMessage({
         prefix,
         headline: kindLabel,
         subject: `${prefix}${kindLabel} — ${supplier}`,
         href,
         details: detailLines([
-          `Lieferant: ${supplier}`,
-          deliveryDate ? `Lieferdatum: ${deliveryDate}` : null,
-          "Bitte Lieferung prüfen und Bestellung abschließen.",
+          `${c.supplier}: ${supplier}`,
+          deliveryDate ? `${c.deliveryDate}: ${deliveryDate}` : null,
+          c.checkDelivery,
         ]),
       });
     }
     case "inventory_po_ordered":
     case "inventory_po_closed": {
-      const supplier = pickString(p.supplierName) ?? "Lieferant";
+      const supplier = pickString(p.supplierName) ?? c.supplierFallback;
       const ordered = event.module === "inventory_po_ordered";
       const headline = ordered
-        ? "Bestellung aufgegeben"
-        : "Bestellung abgeschlossen";
-      const poLines = parsePoStatusLines(p.lines);
+        ? c.poOrdered
+        : c.poClosed;
+      const poLines = parsePoStatusLines(p.lines).map((line) => ({
+        ...line,
+        unitLabel: line.unitLabel
+          ? localizedUnit(line.unitLabel, unitLocale)
+          : null,
+      }));
       const poCopy = {
         module: event.module,
         supplierName: supplier,
@@ -426,86 +514,112 @@ export function buildNotificationPushText(
     case "digest_weekly_review": {
       return buildPushMessage({
         prefix,
-        headline: moduleDef.label,
-        subject: `${prefix}${moduleDef.label}`,
+        headline: moduleNoticeLabel(event.module, unitLocale),
+        subject: `${prefix}${moduleNoticeLabel(event.module, unitLocale)}`,
         href,
         details: digestPushDetails(p),
       });
     }
+    case "inventory_stock_activity": {
+      const name = pickString(p.ingredientName);
+      const unit = localizedUnit(
+        pickString(p.unitLabel) ?? pickString(p.unit),
+        unitLocale,
+      );
+      const from = pickQuantity(p.fromQuantity);
+      const to = pickQuantity(p.toQuantity);
+      const change =
+        from != null && to != null
+          ? `${quantityWithUnit(from, unit, unitLocale)} → ${quantityWithUnit(to, unit, unitLocale)}`
+          : to != null
+            ? quantityWithUnit(to, unit, unitLocale)
+            : from != null
+              ? quantityWithUnit(from, unit, unitLocale)
+              : null;
+      return buildPushMessage({
+        prefix,
+        headline: c.stockChange,
+        subject: `${prefix}${c.stockChange}${name ? ` — ${name}` : ""}`,
+        href,
+        details: detailLines([
+          name ? `${c.ingredient}: ${name}` : null,
+          change,
+        ]),
+      });
+    }
     case "inventory_po_activity":
-    case "inventory_stock_activity":
     case "reservations_activity":
       return buildPushMessage({
         prefix,
-        headline: moduleDef.label,
-        subject: `${prefix}${moduleDef.label}`,
+        headline: moduleNoticeLabel(event.module, unitLocale),
+        subject: `${prefix}${moduleNoticeLabel(event.module, unitLocale)}`,
         href,
         details: detailLines([]),
       });
     case "accounting_quotation": {
-      const title = pickString(p.title) ?? "Neues Angebot";
+      const title = pickString(p.title) ?? c.quoteFallback;
       const number = pickString(p.voucherNumber);
       const recipient = pickString(p.recipientLabel);
       const amount = pickString(p.amountLabel);
       return buildPushMessage({
         prefix,
-        headline: "Neues Angebot",
-        subject: `${prefix}Neues Angebot${number ? ` — ${number}` : ""}`,
+        headline: c.newQuote,
+        subject: `${prefix}${c.newQuote}${number ? ` — ${number}` : ""}`,
         href,
         details: detailLines([
-          `Titel: ${title}`,
-          number ? `Nummer: ${number}` : null,
-          recipient ? `Empfänger: ${recipient}` : null,
-          amount ? `Betrag: ${amount}` : null,
+          `${c.title}: ${title}`,
+          number ? `${c.number}: ${number}` : null,
+          recipient ? `${c.recipient}: ${recipient}` : null,
+          amount ? `${c.amount}: ${amount}` : null,
         ]),
       });
     }
     case "accounting_invoice": {
-      const title = pickString(p.title) ?? "Neue Rechnung";
+      const title = pickString(p.title) ?? c.invoiceFallback;
       const number = pickString(p.voucherNumber);
       const recipient = pickString(p.recipientLabel);
       const amount = pickString(p.amountLabel);
       return buildPushMessage({
         prefix,
-        headline: "Neue Rechnung",
-        subject: `${prefix}Neue Rechnung${number ? ` — ${number}` : ""}`,
+        headline: c.newInvoice,
+        subject: `${prefix}${c.newInvoice}${number ? ` — ${number}` : ""}`,
         href,
         details: detailLines([
-          `Titel: ${title}`,
-          number ? `Nummer: ${number}` : null,
-          recipient ? `Empfänger: ${recipient}` : null,
-          amount ? `Betrag: ${amount}` : null,
+          `${c.title}: ${title}`,
+          number ? `${c.number}: ${number}` : null,
+          recipient ? `${c.recipient}: ${recipient}` : null,
+          amount ? `${c.amount}: ${amount}` : null,
         ]),
       });
     }
     case "accounting_voucher": {
-      const contact = pickString(p.contactName) ?? "Beleg";
+      const contact = pickString(p.contactName) ?? c.voucherFallback;
       const number = pickString(p.voucherNumber);
       const amount = pickString(p.amountLabel);
       return buildPushMessage({
         prefix,
-        headline: "Neuer Beleg",
-        subject: `${prefix}Neuer Beleg${number ? ` — ${number}` : ""}`,
+        headline: c.newVoucher,
+        subject: `${prefix}${c.newVoucher}${number ? ` — ${number}` : ""}`,
         href,
         details: detailLines([
-          contact ? `Kontakt: ${contact}` : null,
-          number ? `Nummer: ${number}` : null,
-          amount ? `Betrag: ${amount}` : null,
+          contact ? `${c.contact}: ${contact}` : null,
+          number ? `${c.number}: ${number}` : null,
+          amount ? `${c.amount}: ${amount}` : null,
         ]),
       });
     }
     case "staff_todo_completed": {
-      const title = pickString(p.todoTitle) ?? "ToDo";
+      const title = pickString(p.todoTitle) ?? c.todoFallback;
       return buildPushMessage({
         prefix,
-        headline: "ToDo erledigt",
-        subject: `${prefix}ToDo erledigt — ${title}`,
+        headline: c.todoDone,
+        subject: `${prefix}${c.todoDone} — ${title}`,
         href,
-        details: detailLines([`Aufgabe: ${title}`]),
+        details: detailLines([`${c.task}: ${title}`]),
       });
     }
     case "staff_todo_deferred": {
-      const title = pickString(p.todoTitle) ?? "ToDo";
+      const title = pickString(p.todoTitle) ?? c.todoFallback;
       const details =
         p.details && typeof p.details === "object"
           ? (p.details as Record<string, unknown>)
@@ -513,73 +627,73 @@ export function buildNotificationPushText(
       const reason = pickString(details?.reason) ?? pickString(p.reason);
       return buildPushMessage({
         prefix,
-        headline: "ToDo verschoben",
-        subject: `${prefix}ToDo verschoben — ${title}`,
+        headline: c.todoDeferred,
+        subject: `${prefix}${c.todoDeferred} — ${title}`,
         href,
         details: detailLines([
-          `Aufgabe: ${title}`,
-          reason ? `Grund: ${reason}` : null,
+          `${c.task}: ${title}`,
+          reason ? `${c.reason}: ${reason}` : null,
         ]),
       });
     }
     case "personal_reminder": {
-      const title = pickString(p.title) ?? "Erinnerung";
+      const title = pickString(p.title) ?? c.reminder;
       return buildPushMessage({
         prefix,
-        headline: "Persönliche Erinnerung",
-        subject: `${prefix}Erinnerung — ${title}`,
+        headline: c.personalReminder,
+        subject: `${prefix}${c.reminder} — ${title}`,
         href: "/dashboard/tasks/mine",
         details: detailLines([title, pickString(p.body)]),
       });
     }
     case "staff_messages": {
-      const peer = pickString(p.peerName) ?? "Kollege";
-      const preview = pickString(p.preview) ?? "Neue Nachricht";
+      const peer = pickString(p.peerName) ?? c.colleague;
+      const preview = pickString(p.preview) ?? c.newMessageShort;
       return buildPushMessage({
         prefix,
-        headline: "Team-Nachricht",
-        subject: `${prefix}Nachricht von ${peer}`,
+        headline: c.teamMessage,
+        subject: `${prefix}${c.message} ${peer}`,
         href: "/dashboard/tasks/messages",
         details: detailLines([`${peer}: ${preview}`]),
       });
     }
     case "staff_contract_signed": {
-      const title = pickString(p.contractTitle) ?? "Arbeitsvertrag";
+      const title = pickString(p.contractTitle) ?? c.contractFallback;
       const revised = p.revised === true;
       const pending = p.pendingEmployeeSignature === true;
       return buildPushMessage({
         prefix,
         headline: pending
-          ? "Vertrag unterschreiben"
+          ? c.contractSign
           : revised
-            ? "Vertrag überarbeitet"
-            : "Neuer Arbeitsvertrag",
+            ? c.contractRevised
+            : c.newContract,
         subject: `${prefix}${
           pending
-            ? "Vertrag unterschreiben"
+            ? c.contractSign
             : revised
-              ? "Vertrag überarbeitet"
-              : "Neuer Arbeitsvertrag"
+              ? c.contractRevised
+              : c.newContract
         } — ${title}`,
         href: APP_ROUTES.profile.documents,
         details: detailLines([
           title,
           pending
-            ? "Bitte im Profil unter „Meine Dokumente“ unterschreiben."
-            : "Im Profil unter „Meine Dokumente“ einsehbar und herunterladbar.",
+            ? c.contractSignHint
+            : c.contractViewHint,
         ]),
       });
     }
     case "staff_document_assigned": {
-      const title = pickString(p.documentTitle) ?? "Dokument";
+      const title = pickString(p.documentTitle) ?? c.documentFallback;
       return buildPushMessage({
         prefix,
-        headline: "Neues Dokument",
-        subject: `${prefix}Neues Dokument — ${title}`,
+        headline: c.newDocument,
+        subject: `${prefix}${c.newDocument} — ${title}`,
         href: APP_ROUTES.profile.documents,
         details: detailLines([
           title,
-          "Im Profil unter „Meine Dokumente“ einsehbar und herunterladbar.",
+          c.contractViewHint,
         ]),
       });
     }
@@ -587,21 +701,21 @@ export function buildNotificationPushText(
       const time = pickString(p.requestedStartsAt);
       const end = pickString(p.requestedEndsAt);
       const entryType = pickString(p.entryType);
-      const fromLabel = formatPushTime(time, timeZone);
-      const toLabel = formatPushTime(end, timeZone);
+      const fromLabel = formatPushTime(time, timeZone, unitLocale);
+      const toLabel = formatPushTime(end, timeZone, unitLocale);
       return buildPushMessage({
         prefix,
-        headline: "Zeit nachtragen",
-        subject: `${prefix}Nachtragungs-Anfrage vom Display`,
+        headline: c.timeCorrection,
+        subject: `${prefix}${c.timeCorrectionSubject}`,
         href,
         details: detailLines([
-          entryType ? `Art: ${entryType}` : null,
+          entryType ? `${c.kind}: ${entryType}` : null,
           fromLabel && toLabel
-            ? `Zeitraum: ${fromLabel} – ${toLabel}`
+            ? `${c.period}: ${fromLabel} – ${toLabel}`
             : fromLabel
-              ? `Beginn: ${fromLabel}`
+              ? `${c.begin}: ${fromLabel}`
               : null,
-          "Bitte im Mitarbeiter-Dashboard prüfen und freigeben.",
+          c.pleaseApprove,
         ]),
       });
     }
@@ -609,7 +723,7 @@ export function buildNotificationPushText(
     case "staff_display_clock_out":
     case "staff_display_break_start":
     case "staff_display_break_end": {
-      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const staffName = pickString(p.staffName) ?? c.staffFallback;
       const at = pickString(p.at);
       const staffId = pickString(p.staffId);
       const autoClockOut =
@@ -619,41 +733,31 @@ export function buildNotificationPushText(
           ? `${moduleDef.href}?staff=${encodeURIComponent(staffId)}`
           : moduleDef.href,
       );
-      const atLabel = formatPushTime(at, timeZone);
+      const atLabel = formatPushTime(at, timeZone, unitLocale);
       const headline =
         event.module === "staff_display_clock_in"
-          ? "Display: Schicht gestartet"
+          ? c.displayClockIn
           : event.module === "staff_display_break_start"
-            ? "Display: Pause gestartet"
+            ? c.displayBreakStart
             : event.module === "staff_display_break_end"
-              ? "Display: Pause beendet"
+              ? c.displayBreakEnd
               : autoClockOut
-                ? "Display: Auto-Abmeldung"
-                : "Display: Schicht beendet";
-      const subjectBit =
-        event.module === "staff_display_clock_in"
-          ? "Schicht gestartet"
-          : event.module === "staff_display_break_start"
-            ? "Pause gestartet"
-            : event.module === "staff_display_break_end"
-              ? "Pause beendet"
-              : autoClockOut
-                ? "Auto-Abmeldung"
-                : "Schicht beendet";
+                ? c.displayAutoOut
+                : c.displayClockOut;
       return buildPushMessage({
         prefix,
         headline,
-        subject: `${prefix}Display: ${subjectBit} — ${staffName}`,
+        subject: `${prefix}${headline} — ${staffName}`,
         href: clockHref,
         details: detailLines([
           staffName,
-          autoClockOut ? "Hinweis: Auto-Abmeldung" : null,
-          atLabel ? `Uhrzeit: ${atLabel}` : null,
+          autoClockOut ? c.autoOutHint : null,
+          atLabel ? `${c.clockTime}: ${atLabel}` : null,
         ]),
       });
     }
     case "staff_invite_accepted": {
-      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const staffName = pickString(p.staffName) ?? c.staffFallback;
       const positionName = pickString(p.positionName);
       const actorGiven = pickString(p.actorGivenName) ?? "";
       const actorFamily = pickString(p.actorFamilyName) ?? "";
@@ -666,18 +770,18 @@ export function buildNotificationPushText(
       );
       return buildPushMessage({
         prefix,
-        headline: "Einladung angenommen",
-        subject: `${prefix}Einladung angenommen — ${staffName}`,
+        headline: c.inviteAccepted,
+        subject: `${prefix}${c.inviteAccepted} — ${staffName}`,
         href: inviteHref,
         details: detailLines([
-          `${actor} hat die Einladung angenommen.`,
-          `Mitarbeiter: ${staffName}`,
-          positionName ? `App-Rolle: ${positionName}` : null,
+          c.fillName(c.inviteAcceptedLine, actor),
+          `${c.staff}: ${staffName}`,
+          positionName ? `${c.appRole}: ${positionName}` : null,
         ]),
       });
     }
     case "staff_invite_declined": {
-      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const staffName = pickString(p.staffName) ?? c.staffFallback;
       const positionName = pickString(p.positionName);
       const actorGiven = pickString(p.actorGivenName) ?? "";
       const actorFamily = pickString(p.actorFamilyName) ?? "";
@@ -690,13 +794,13 @@ export function buildNotificationPushText(
       );
       return buildPushMessage({
         prefix,
-        headline: "Einladung abgelehnt",
-        subject: `${prefix}Einladung abgelehnt — ${staffName}`,
+        headline: c.inviteDeclined,
+        subject: `${prefix}${c.inviteDeclined} — ${staffName}`,
         href: inviteHref,
         details: detailLines([
-          `${actor} hat die Einladung abgelehnt.`,
-          `Mitarbeiter: ${staffName}`,
-          positionName ? `App-Rolle: ${positionName}` : null,
+          c.fillName(c.inviteDeclinedLine, actor),
+          `${c.staff}: ${staffName}`,
+          positionName ? `${c.appRole}: ${positionName}` : null,
         ]),
       });
     }
@@ -707,35 +811,35 @@ export function buildNotificationPushText(
       const positionName = pickString(p.positionName);
       const preview =
         labels.length === 0
-          ? "Neue Modul-Rechte"
+          ? c.newModuleRights
           : labels.length <= 3
             ? labels.join(", ")
             : `${labels.slice(0, 3).join(", ")} +${labels.length - 3}`;
       return buildPushMessage({
         prefix,
-        headline: "Neue Rechte freigeschaltet",
-        subject: `${prefix}Neue Rechte freigeschaltet`,
+        headline: c.newRights,
+        subject: `${prefix}${c.newRights}`,
         href: absoluteAppUrl(moduleDef.href),
         details: detailLines([
           preview,
-          positionName ? `Rolle: ${positionName}` : null,
-          "Öffne das Dashboard — deine neuen Möglichkeiten warten.",
+          positionName ? `${c.role}: ${positionName}` : null,
+          c.openDashboard,
         ]),
       });
     }
     case "changelog": {
-      const title = pickString(p.title) ?? "Changelog";
+      const title = pickString(p.title) ?? c.changelog;
       const version = pickString(p.version);
-      const when = formatPushDateTime(p.publishedAt, timeZone);
+      const when = formatPushDateTime(p.publishedAt, timeZone, unitLocale);
       return buildPushMessage({
         prefix: "",
-        headline: "Neu im Changelog",
-        subject: `Changelog: ${title}`,
+        headline: c.changelogNew,
+        subject: `${c.changelog}: ${title}`,
         href,
         details: detailLines([
-          `Titel: ${title}`,
-          version ? `Version: ${version}` : null,
-          when ? `Veröffentlicht: ${when}` : null,
+          `${c.title}: ${title}`,
+          version ? `${c.version}: ${version}` : null,
+          when ? `${c.published}: ${when}` : null,
         ]),
       });
     }

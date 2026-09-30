@@ -1,6 +1,8 @@
 import "server-only";
 
+import { localizeInventoryUnitLabel } from "@/lib/inventory/inventory-unit-label-for-locale";
 import { isIngredientLowStock } from "@/lib/inventory/low-stock";
+import { staffNotificationCopy } from "@/lib/notifications/staff-notification-copy";
 import {
   isSelfOriginatedNotification,
 } from "@/lib/notifications/notification-self-origin";
@@ -91,12 +93,24 @@ export async function loadInventoryLowStockBellSummary(
         ),
     );
 
+  const { data: profile } = await sb
+    .from("profiles")
+    .select("locale")
+    .eq("id", params.userId)
+    .maybeSingle();
+  const copy = staffNotificationCopy(
+    typeof profile?.locale === "string" ? profile.locale : null,
+  );
   const items = lowStock.slice(0, limit).map((ing) => {
-    const unitLabel = unitLabels.get(ing.unit) ?? ing.unit;
+    const rawUnit = unitLabels.get(ing.unit) ?? ing.unit;
+    const unitLabel = localizeInventoryUnitLabel(
+      rawUnit,
+      typeof profile?.locale === "string" ? profile.locale : null,
+    );
     return {
       id: ing.id,
       title: ing.name,
-      subtitle: `${ing.currentStock} ${unitLabel} (Schwelle ${ing.lowStockThreshold})`,
+      subtitle: `${ing.currentStock} ${unitLabel} (${copy.bellThreshold} ${ing.lowStockThreshold})`,
       href: "/dashboard/inventory/overview",
       at: ing.updatedAt,
       meta: { ingredientId: ing.id },

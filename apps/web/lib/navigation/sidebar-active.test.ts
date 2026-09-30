@@ -15,14 +15,14 @@ test("dashboard active on home path", () => {
 test("dashboard active while soft-nav back from module", () => {
   assert.equal(
     isSidebarDashboardActive(
-      "/dashboard/kontakte/nachrichten",
+      "/dashboard/contacts/messages",
       "/dashboard",
     ),
     true,
   );
   assert.equal(
     isSidebarModuleActive(
-      "/dashboard/kontakte/nachrichten",
+      "/dashboard/contacts/messages",
       "/dashboard",
       SIDEBAR_MODULE_DEFINITIONS.find((m) => m.id === "kontakte")!,
     ),
@@ -32,12 +32,12 @@ test("dashboard active while soft-nav back from module", () => {
 
 test("module active while soft-nav away from dashboard", () => {
   assert.equal(
-    isSidebarDashboardActive("/dashboard", "/dashboard/menu/uebersicht"),
+    isSidebarDashboardActive("/dashboard", "/dashboard/menu/overview"),
     false,
   );
   const menu = SIDEBAR_MODULE_DEFINITIONS.find((m) => m.id === "menu")!;
   assert.equal(
-    isSidebarModuleActive("/dashboard", "/dashboard/menu/uebersicht", menu),
+    isSidebarModuleActive("/dashboard", "/dashboard/menu/overview", menu),
     true,
   );
 });
@@ -46,11 +46,11 @@ test("only matching module active on module path", () => {
   const menu = SIDEBAR_MODULE_DEFINITIONS.find((m) => m.id === "menu")!;
   const kontakte = SIDEBAR_MODULE_DEFINITIONS.find((m) => m.id === "kontakte")!;
   assert.equal(
-    isSidebarModuleActive("/dashboard/menu/uebersicht", null, menu),
+    isSidebarModuleActive("/dashboard/menu/overview", null, menu),
     true,
   );
   assert.equal(
-    isSidebarModuleActive("/dashboard/menu/uebersicht", null, kontakte),
+    isSidebarModuleActive("/dashboard/menu/overview", null, kontakte),
     false,
   );
 });

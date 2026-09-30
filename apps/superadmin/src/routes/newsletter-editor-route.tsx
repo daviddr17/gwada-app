@@ -8,7 +8,7 @@ import { SuperadminChromeRoute } from "./with-chrome";
 const NEWSLETTER_NAV: readonly ModuleSubnavItem[] = [
   { href: "/superadmin/newsletter", label: "Übersicht", matchMode: "exact" },
   {
-    href: "/superadmin/newsletter/vorlagen",
+    href: "/superadmin/newsletter/templates",
     label: "Vorlagen",
     matchMode: "exact",
   },

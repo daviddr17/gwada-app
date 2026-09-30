@@ -2895,6 +2895,7 @@ export type Database = {
           guest_email: string | null
           guest_first_name: string
           guest_last_name: string
+          guest_locale: string | null
           guest_name: string | null
           guest_phone: string | null
           guest_pin: string
@@ -2935,6 +2936,7 @@ export type Database = {
           guest_email?: string | null
           guest_first_name: string
           guest_last_name: string
+          guest_locale?: string | null
           guest_name?: string | null
           guest_phone?: string | null
           guest_pin: string
@@ -2975,6 +2977,7 @@ export type Database = {
           guest_email?: string | null
           guest_first_name?: string
           guest_last_name?: string
+          guest_locale?: string | null
           guest_name?: string | null
           guest_phone?: string | null
           guest_pin?: string

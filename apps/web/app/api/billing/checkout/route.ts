@@ -41,10 +41,10 @@ export async function POST(req: Request) {
   const origin = new URL(req.url).origin;
   const successUrl =
     body.successUrl?.trim() ||
-    `${origin}/dashboard/settings/abo?checkout=success`;
+    `${origin}/dashboard/settings/billing?checkout=success`;
   const cancelUrl =
     body.cancelUrl?.trim() ||
-    `${origin}/dashboard/settings/abo?checkout=cancel`;
+    `${origin}/dashboard/settings/billing?checkout=cancel`;
 
   const {
     data: { user },

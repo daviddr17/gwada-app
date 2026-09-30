@@ -1,7 +1,7 @@
 import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const bewertungenGuide: UserGuidePage = {
-  slug: "bewertungen",
+  slug: "reviews",
   title: "Bewertungen",
   description:
     "Gästebewertungen sammeln, Plattformen verbinden und einbinden.",
@@ -35,7 +35,7 @@ export const bewertungenGuide: UserGuidePage = {
       table: {
         headers: ["Element", "Bedeutung"],
         rows: [
-          ["Bewertungslink erstellen", "Persönlicher Link für Gäste (/bewertung/[link])"],
+          ["Bewertungslink erstellen", "Persönlicher Link für Gäste (/review/[link])"],
           ["Einladung senden", "Link per WhatsApp, E-Mail oder QR-Code teilen"],
           ["Antworten", "Öffentliche Antwort auf Google/Facebook (wo unterstützt)"],
           ["Lesen/Gelesen", "Interner Gelesen-Status für Gwada-Bewertungen"],
@@ -58,8 +58,8 @@ export const bewertungenGuide: UserGuidePage = {
     "Im Reservierungsmodul zeigt ein Stern-Symbol, wenn der Gast bereits bewertet hat.",
   ],
   related: [
-    { label: "Integrationen", href: "/docs/handbuch/integrationen" },
-    { label: "Insights", href: "/docs/handbuch/insights" },
+    { label: "Integrationen", href: "/docs/handbook/integrations" },
+    { label: "Insights", href: "/docs/handbook/insights" },
     { label: "Bewertungen API", href: "/docs/api/reviews" },
   ],
 };
@@ -121,14 +121,14 @@ export const insightsGuide: UserGuidePage = {
     "Externe Plattformen haben kürzere max. Zeiträume (API-Limits der Anbieter).",
   ],
   related: [
-    { label: "Integrationen", href: "/docs/handbuch/integrationen" },
-    { label: "Bewertungen", href: "/docs/handbuch/bewertungen" },
-    { label: "Reservierungen", href: "/docs/handbuch/reservierungen" },
+    { label: "Integrationen", href: "/docs/handbook/integrations" },
+    { label: "Bewertungen", href: "/docs/handbook/reviews" },
+    { label: "Reservierungen", href: "/docs/handbook/reservations" },
   ],
 };
 
 export const galerieGuide: UserGuidePage = {
-  slug: "galerie",
+  slug: "gallery",
   title: "Galerie",
   description:
     "Fotos aus Gwada und verbundenen Plattformen — Highlights, Kategorien und Website-Einbindung.",
@@ -203,7 +203,7 @@ export const galerieGuide: UserGuidePage = {
   ],
   related: [
     { label: "Galerie API", href: "/docs/api/gallery" },
-    { label: "Integrationen", href: "/docs/handbuch/integrationen" },
-    { label: "Öffentliches Profil", href: "/docs/handbuch/oeffentliches-profil" },
+    { label: "Integrationen", href: "/docs/handbook/integrations" },
+    { label: "Öffentliches Profil", href: "/docs/handbook/public-profile" },
   ],
 };

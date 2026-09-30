@@ -8,7 +8,9 @@ import {
   NOTIFICATION_MODULES,
 } from "@/lib/notifications/notification-modules";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { localizeInventoryUnitLabel } from "@/lib/inventory/inventory-unit-label-for-locale";
 import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
+import { staffNotificationCopy } from "@/lib/notifications/staff-notification-copy";
 import { formatNotificationPayloadSummary } from "@/lib/superadmin/superadmin-notification-log";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
@@ -27,13 +29,22 @@ function staffNameFromPayload(payload: Record<string, unknown>): string | null {
   return pickString(payload.staffName) ?? guestFromPayload(payload);
 }
 
-function qtyUnitLabel(qty: number, unitLabel: string): string {
-  const u = unitLabel.trim();
-  const q = Number.isInteger(qty) ? String(qty) : String(qty).replace(".", ",");
+function qtyUnitLabel(qty: number, unitLabel: string, locale = "de"): string {
+  const u = localizeInventoryUnitLabel(unitLabel.trim(), locale);
+  const q =
+    normalizeDecimal(qty, locale);
   return u ? `${q} ${u}` : q;
 }
 
-function poActivityDescription(payload: Record<string, unknown>): string | null {
+function normalizeDecimal(qty: number, locale: string): string {
+  if (Number.isInteger(qty)) return String(qty);
+  return locale === "de" ? String(qty).replace(".", ",") : String(qty);
+}
+
+function poActivityDescription(
+  payload: Record<string, unknown>,
+  locale = "de",
+): string | null {
   const kind = pickString(payload.kind);
   const name = pickString(payload.ingredientName);
   const unit = pickString(payload.unitLabel) ?? "";
@@ -44,8 +55,8 @@ function poActivityDescription(payload: Record<string, unknown>): string | null 
       const qty = pickNumber(payload.quantity);
       if (name && qty != null) {
         return supplier
-          ? `„${name}“ · ${qtyUnitLabel(qty, unit)} · ${supplier}`
-          : `„${name}“ · ${qtyUnitLabel(qty, unit)}`;
+          ? `„${name}“ · ${qtyUnitLabel(qty, unit, locale)} · ${supplier}`
+          : `„${name}“ · ${qtyUnitLabel(qty, unit, locale)}`;
       }
       return name ? `„${name}“` : null;
     }
@@ -54,7 +65,7 @@ function poActivityDescription(payload: Record<string, unknown>): string | null 
       const to = pickNumber(payload.toQuantity);
       if (name && from != null && to != null) {
         if (to === 0) return `„${name}“ entfernt`;
-        return `„${name}“ · ${qtyUnitLabel(from, unit)} → ${qtyUnitLabel(to, unit)}`;
+        return `„${name}“ · ${qtyUnitLabel(from, unit, locale)} → ${qtyUnitLabel(to, unit, locale)}`;
       }
       return name ? `„${name}“` : null;
     }
@@ -76,7 +87,7 @@ function poActivityDescription(payload: Record<string, unknown>): string | null 
     case "delivery_reverted": {
       const qty = pickNumber(payload.quantity);
       if (name && qty != null) {
-        return `„${name}“ · ${qtyUnitLabel(qty, unit)}`;
+        return `„${name}“ · ${qtyUnitLabel(qty, unit, locale)}`;
       }
       return name ? `„${name}“` : null;
     }
@@ -106,7 +117,10 @@ function stockKindLabel(kind: string): string {
   }
 }
 
-function stockActivityDescription(payload: Record<string, unknown>): string | null {
+function stockActivityDescription(
+  payload: Record<string, unknown>,
+  locale = "de",
+): string | null {
   const kind = pickString(payload.kind);
   const name = pickString(payload.ingredientName);
   const unit = pickString(payload.unitLabel) ?? "";
@@ -114,7 +128,7 @@ function stockActivityDescription(payload: Record<string, unknown>): string | nu
   const to = pickNumber(payload.toQuantity);
 
   if (name && from != null && to != null) {
-    return `„${name}“ · ${qtyUnitLabel(from, unit)} → ${qtyUnitLabel(to, unit)}`;
+    return `„${name}“ · ${qtyUnitLabel(from, unit, locale)} → ${qtyUnitLabel(to, unit, locale)}`;
   }
   if (kind && name) {
     return `„${name}“ · ${stockKindLabel(kind)}`;
@@ -211,7 +225,7 @@ export function hrefForNotificationModule(
       referenceId,
     );
     if (reservationId) {
-      return `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(reservationId)}`;
+      return `/dashboard/reservations/overview?reservation=${encodeURIComponent(reservationId)}`;
     }
   }
 
@@ -242,7 +256,7 @@ export function hrefForNotificationModule(
   }
 
   if (module === "staff_shift_start" || module === "staff_shift_end") {
-    const base = defHref ?? "/dashboard/mitarbeiter/schichtplan";
+    const base = defHref ?? "/dashboard/staff/shift-plan";
     const iso =
       module === "staff_shift_start"
         ? pickString(payload.startsAt)
@@ -463,11 +477,14 @@ function clockRange(fromIso: string | null, toIso: string | null): string | null
   return from ?? to;
 }
 
-function amountQty(value: unknown, unit: string | null): string | null {
+function amountQty(
+  value: unknown,
+  unit: string | null,
+  locale = "de",
+): string | null {
   const qty = pickNumber(value);
   if (qty == null) return null;
-  const q = Number.isInteger(qty) ? String(qty) : String(qty).replace(".", ",");
-  return unit ? `${q} ${unit}` : q;
+  return qtyUnitLabel(qty, unit ?? "", locale);
 }
 
 function channelLabel(platform: string | null): string | null {
@@ -525,10 +542,14 @@ function reviewFeedDescription(payload: Record<string, unknown>): string | null 
   return head || null;
 }
 
-function lowStockFeedDescription(payload: Record<string, unknown>): string | null {
-  const name = pickString(payload.ingredientName) ?? "Zutat";
-  const left = amountQty(payload.currentStock, pickString(payload.unit));
-  return left ? `${name} · noch ${left}` : name;
+function lowStockFeedDescription(
+  payload: Record<string, unknown>,
+  locale = "de",
+): string | null {
+  const copy = staffNotificationCopy(locale);
+  const name = pickString(payload.ingredientName) ?? copy.ingredientFallback;
+  const left = amountQty(payload.currentStock, pickString(payload.unit), locale);
+  return left ? `${name} · ${copy.liveStill} ${left}` : name;
 }
 
 function deliveryDueFeedDescription(payload: Record<string, unknown>): string | null {
@@ -624,12 +645,13 @@ function staffMessageFeedDescription(payload: Record<string, unknown>): string |
 function feedDescriptionForModule(
   module: string,
   payload: Record<string, unknown>,
+  locale = "de",
 ): string | null | undefined {
   switch (module) {
     case "inventory_po_activity":
-      return poActivityDescription(payload);
+      return poActivityDescription(payload, locale);
     case "inventory_stock_activity":
-      return stockActivityDescription(payload);
+      return stockActivityDescription(payload, locale);
     case "reservations_activity":
       return reservationActivityDescription(payload);
     case "accounting_voucher":
@@ -658,7 +680,7 @@ function feedDescriptionForModule(
     case "reviews":
       return reviewFeedDescription(payload);
     case "inventory_low_stock":
-      return lowStockFeedDescription(payload);
+      return lowStockFeedDescription(payload, locale);
     case "inventory_po_delivery_due":
       return deliveryDueFeedDescription(payload);
     case "staff_todo_completed":
@@ -689,7 +711,9 @@ function feedTitleForModule(
   module: string,
   guest: string | null,
   payload?: Record<string, unknown>,
+  locale = "de",
 ): string {
+  const copy = staffNotificationCopy(locale);
   switch (module) {
     case "inventory_po_activity":
       return poActivityTitle(payload ?? {}, guest);
@@ -710,11 +734,11 @@ function feedTitleForModule(
     case "staff_shift_end":
       return guest ? `${guest} · Schichtende` : "Schichtende";
     case "inventory_low_stock":
-      return "Bestand niedrig";
+      return copy.liveLowStock;
     case "inventory_po_delivery_due":
-      return "Lieferung fällig";
+      return copy.liveDeliveryDue;
     case "reservations_pending":
-      return "Neue Reservierung";
+      return copy.liveNewReservation;
     case "reservations_change_request":
       return "Reservierungsänderung";
     case "reservations_cancellation":
@@ -735,7 +759,9 @@ export function liveActivityFromNotificationEvent(params: {
   module: string;
   payload: Record<string, unknown>;
   createdAt?: string | null;
+  locale?: string | null;
 }): Omit<LiveActivityItem, "id" | "at"> & { id?: string; at?: string } {
+  const locale = params.locale?.trim() || "de";
   const moduleId = isNotificationModuleId(params.module)
     ? params.module
     : null;
@@ -751,11 +777,12 @@ export function liveActivityFromNotificationEvent(params: {
     params.module,
     params.payload,
   );
-  const title = feedTitleForModule(params.module, guest, params.payload);
+  const title = feedTitleForModule(params.module, guest, params.payload, locale);
 
   const moduleDescription = feedDescriptionForModule(
     params.module,
     params.payload,
+    locale,
   );
 
   let description: string | null =

@@ -57,7 +57,7 @@ export function DashboardReservationsTile() {
           aria-hidden
         />
       }
-      href="/dashboard/reservierungen/uebersicht"
+      href="/dashboard/reservations/overview"
       linkLabel="Zur Übersicht"
       ready={ready}
       loading={showSkeleton}

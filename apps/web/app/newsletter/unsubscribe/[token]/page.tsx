@@ -73,7 +73,7 @@ export default function NewsletterAbmeldenPage() {
       ) : done || !optedIn ? (
         <p className="mt-6 text-sm text-foreground">
           Du bist abgemeldet{email ? ` (${email})` : ""}. Du kannst dich später
-          wieder unter /newsletter/anmelden anmelden.
+          wieder unter /newsletter/subscribe anmelden.
         </p>
       ) : (
         <div className="mt-6 space-y-4">

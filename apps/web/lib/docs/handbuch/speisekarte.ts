@@ -1,7 +1,7 @@
 import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const speisekarteGuide: UserGuidePage = {
-  slug: "speisekarte",
+  slug: "menu",
   title: "Speisekarte",
   description:
     "Gerichte, Kategorien, Preise, Allergene, Tageskarten und Einbindung.",
@@ -92,8 +92,8 @@ export const speisekarteGuide: UserGuidePage = {
     "Hauptkategorien sind optional, helfen aber bei großen Karten (Speisen / Getränke / Weine).",
   ],
   related: [
-    { label: "Bestand (Zutaten)", href: "/docs/handbuch/bestand" },
-    { label: "Öffentliches Profil", href: "/docs/handbuch/oeffentliches-profil" },
+    { label: "Bestand (Zutaten)", href: "/docs/handbook/inventory" },
+    { label: "Öffentliches Profil", href: "/docs/handbook/public-profile" },
     { label: "Speisekarte API", href: "/docs/api/menu" },
   ],
 };

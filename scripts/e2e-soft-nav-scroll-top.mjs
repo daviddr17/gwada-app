@@ -87,14 +87,14 @@ async function main() {
   try {
     await login(page);
 
-    await page.goto(`${BASE}/dashboard/menu/uebersicht`, {
+    await page.goto(`${BASE}/dashboard/menu/overview`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(800);
     await scrollRootTo(page, 420);
     assert.ok((await scrollRootTop(page)) >= 300, "menu should be scrolled");
 
-    await softNav(page, "/dashboard/inventory/uebersicht");
+    await softNav(page, "/dashboard/inventory/overview");
     await page.waitForTimeout(200);
     assert.equal(
       await scrollRootTop(page),
@@ -104,7 +104,7 @@ async function main() {
     console.log("OK menu → inventory scroll top");
 
     await scrollRootTo(page, 380);
-    await softNav(page, "/dashboard/mitarbeiter/uebersicht");
+    await softNav(page, "/dashboard/staff/overview");
     await page.waitForTimeout(200);
     assert.equal(
       await scrollRootTop(page),

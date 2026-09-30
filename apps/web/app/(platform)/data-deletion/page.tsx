@@ -18,7 +18,7 @@ export default function DatenloeschungPage() {
       title="Datenlöschung"
       description="Anleitung zur Löschung Ihres Gwada-Kontos sowie von über Meta (Facebook / Instagram) verbundenen Daten — u. a. für die Meta App Review."
       updatedLabel={o.documentsUpdatedLabel}
-      activePath="/datenloeschung"
+      activePath="/data-deletion"
     >
       <h2>1. Gwada-Konto und Restaurant-Workspace löschen</h2>
       <ol>
@@ -49,8 +49,8 @@ export default function DatenloeschungPage() {
         Wir bestätigen den Eingang und löschen bzw. anonymisieren die Daten
         innerhalb der gesetzlichen und vertraglichen Fristen, sofern keine
         Aufbewahrungspflichten entgegenstehen (siehe{" "}
-        <Link href="/datenschutz">Datenschutzerklärung</Link> und{" "}
-        <Link href="/avv">AVV</Link>).
+        <Link href="/privacy">Datenschutzerklärung</Link> und{" "}
+        <Link href="/dpa">AVV</Link>).
       </p>
 
       <h2>2. Meta-Verbindung (Facebook / Instagram) trennen</h2>
@@ -96,11 +96,11 @@ export default function DatenloeschungPage() {
       </p>
 
       <p>
-        <Link href="/datenschutz">Datenschutzerklärung</Link>
+        <Link href="/privacy">Datenschutzerklärung</Link>
         {" · "}
-        <Link href="/impressum">Impressum</Link>
+        <Link href="/imprint">Impressum</Link>
         {" · "}
-        <Link href="/agb">AGB</Link>
+        <Link href="/terms">AGB</Link>
       </p>
     </MarketingStaticPage>
   );

@@ -1,17 +1,17 @@
 /** Sidebar-Modul „Aufgaben“ (persönlich, Team-ToDos, Team-Chat, Protokoll). */
 export const CHECKLISTEN_ROUTES = {
-  root: "/dashboard/checklisten",
-  meine: "/dashboard/checklisten/meine",
-  team: "/dashboard/checklisten",
-  nachrichten: "/dashboard/checklisten/nachrichten",
+  root: "/dashboard/tasks",
+  meine: "/dashboard/tasks/mine",
+  team: "/dashboard/tasks",
+  nachrichten: "/dashboard/tasks/messages",
   /** Legacy bookmark — redirects to Team root. */
-  eigenkontrolle: "/dashboard/checklisten/eigenkontrolle",
-  todos: "/dashboard/checklisten/todos",
-  vorlagen: "/dashboard/checklisten/vorlagen",
-  geraete: "/dashboard/checklisten/geraete",
-  eintraege: "/dashboard/checklisten/eintraege",
-  protokoll: "/dashboard/checklisten/protokoll",
-  einstellungen: "/dashboard/checklisten/einstellungen",
+  eigenkontrolle: "/dashboard/tasks/eigenkontrolle",
+  todos: "/dashboard/tasks/todos",
+  vorlagen: "/dashboard/tasks/templates",
+  geraete: "/dashboard/tasks/devices",
+  eintraege: "/dashboard/tasks/entries",
+  protokoll: "/dashboard/tasks/log",
+  einstellungen: "/dashboard/tasks/settings",
 } as const;
 
 export const CHECKLISTEN_NAV = [

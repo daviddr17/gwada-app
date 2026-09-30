@@ -28,6 +28,7 @@ import {
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
+import { normalizeStoredGuestLocale } from "@/lib/notifications/notification-recipient-locale";
 import { STALE_WRITE_CONFLICT_MESSAGE } from "@/lib/data/stale-write-conflict";
 import { isValidPublicPartySize } from "@/lib/reservations/reservation-party-size";
 import {
@@ -383,6 +384,7 @@ export async function createPublicReservation(
       notify_email: body.notify_email,
       notify_whatsapp: body.notify_whatsapp,
       terms_accepted: body.terms_accepted,
+      guest_locale: normalizeStoredGuestLocale(body.guest_locale),
     })
     .select("id, reservation_number, guest_pin")
     .single();
@@ -631,6 +633,7 @@ export async function updatePublicReservation(
     notify_email: body.notify_email,
     notify_whatsapp: body.notify_whatsapp,
     terms_accepted: body.terms_accepted,
+    guest_locale: normalizeStoredGuestLocale(body.guest_locale),
   };
 
   const { data: versionRow } = await admin

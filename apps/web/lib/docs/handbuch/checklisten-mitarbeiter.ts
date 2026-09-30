@@ -1,7 +1,7 @@
 import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const checklistenGuide: UserGuidePage = {
-  slug: "checklisten",
+  slug: "tasks",
   title: "Aufgaben",
   description:
     "Persönliche Notizen, Team-ToDos, Team-Chat, HACCP und Protokoll.",
@@ -95,13 +95,13 @@ export const checklistenGuide: UserGuidePage = {
     "Compliance-Erfassungen am Display zählen in „Heute erfasst“.",
   ],
   related: [
-    { label: "Display → Checklisten", href: "/docs/handbuch/display" },
-    { label: "Mitarbeiter", href: "/docs/handbuch/mitarbeiter" },
+    { label: "Display → Checklisten", href: "/docs/handbook/display" },
+    { label: "Mitarbeiter", href: "/docs/handbook/staff" },
   ],
 };
 
 export const mitarbeiterGuide: UserGuidePage = {
-  slug: "mitarbeiter",
+  slug: "staff",
   title: "Mitarbeiter",
   description:
     "Team, Schichtplan, Verträge, Arbeitszeiten, Dokumente und Live-Status.",
@@ -175,8 +175,8 @@ export const mitarbeiterGuide: UserGuidePage = {
     "Display-PIN jeder Person unter Profil → Display-PIN.",
   ],
   related: [
-    { label: "Display → Zeiterfassung", href: "/docs/handbuch/display" },
-    { label: "Aufgaben", href: "/docs/handbuch/checklisten" },
-    { label: "Profil", href: "/docs/handbuch/profil" },
+    { label: "Display → Zeiterfassung", href: "/docs/handbook/display" },
+    { label: "Aufgaben", href: "/docs/handbook/tasks" },
+    { label: "Profil", href: "/docs/handbook/profile" },
   ],
 };

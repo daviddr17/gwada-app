@@ -8,6 +8,7 @@ import {
 } from "next/dist/client/components/navigation";
 import type { ReactNode } from "react";
 import { useSpaZoneNavigationOptional } from "@/lib/navigation/spa-zone-navigation-bridge";
+import { canonicalizeAppHref } from "@/lib/navigation/english-app-paths";
 import { isZoneSpaHref } from "@/lib/navigation/spa-zone-path";
 import { urlSearchParamsFromParsedSearch } from "@/lib/navigation/spa-plain-search";
 
@@ -34,19 +35,21 @@ export function useRouter() {
 
   return {
     push: (href: string) => {
-      if (!isZoneSpaHref(base, href)) {
-        window.location.assign(href);
+      const canonical = canonicalizeAppHref(href);
+      if (!isZoneSpaHref(base, canonical)) {
+        window.location.assign(canonical);
         return;
       }
-      const { to, search } = hrefToTarget(href);
+      const { to, search } = hrefToTarget(canonical);
       navigate({ to, search });
     },
     replace: (href: string) => {
-      if (!isZoneSpaHref(base, href)) {
-        window.location.assign(href);
+      const canonical = canonicalizeAppHref(href);
+      if (!isZoneSpaHref(base, canonical)) {
+        window.location.assign(canonical);
         return;
       }
-      const { to, search } = hrefToTarget(href);
+      const { to, search } = hrefToTarget(canonical);
       navigate({ to, search, replace: true });
     },
     back: () => window.history.back(),

@@ -192,7 +192,7 @@ async function main() {
 
     const inviteToken = await findPendingInviteToken(admin, restaurant.id, email);
     const nextPath = inviteToken
-      ? `/einladung/${encodeURIComponent(inviteToken)}`
+      ? `/invitation/${encodeURIComponent(inviteToken)}`
       : "/dashboard";
     const redirectTo = `${ORIGIN}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 

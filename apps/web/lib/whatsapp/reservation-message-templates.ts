@@ -9,4 +9,6 @@ export type ReservationMessageContext = {
   guestPin: string;
   restaurantName?: string;
   manageUrl?: string | null;
+  /** Guest language, else the restaurant language. */
+  locale?: string | null;
 };

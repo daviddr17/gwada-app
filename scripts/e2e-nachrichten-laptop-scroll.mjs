@@ -78,7 +78,7 @@ async function main() {
 
   try {
     await login(page);
-    await page.goto(`${BASE}/dashboard/kontakte/nachrichten?platform=all`, {
+    await page.goto(`${BASE}/dashboard/contacts/messages?platform=all`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForSelector('[data-module-home-keep-alive="nachrichten"]', {
@@ -106,7 +106,7 @@ async function main() {
       `1366x768 extra scroll ${laptop.scrollTopMax}px (client=${laptop.clientHeight} scroll=${laptop.scrollHeight})`,
     );
 
-    await page.goto(`${BASE}/dashboard/menu/uebersicht`, {
+    await page.goto(`${BASE}/dashboard/menu/overview`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(800);

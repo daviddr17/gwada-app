@@ -15,59 +15,59 @@ const KEEP_ALIVE_IMPORTS = {
     component: "DashboardHomeScreen",
     from: "@/components/dashboard/dashboard-home-screen",
   },
-  "/dashboard/menu/uebersicht": {
+  "/dashboard/menu/overview": {
     component: "MenuOverviewKeepAliveScreen",
     from: "@/components/menu/menu-overview-keep-alive-screen",
   },
-  "/dashboard/inventory/uebersicht": {
+  "/dashboard/inventory/overview": {
     component: "InventoryOverviewKeepAliveScreen",
     from: "@/components/inventory/inventory-overview-keep-alive-screen",
   },
-  "/dashboard/reservierungen/uebersicht": {
+  "/dashboard/reservations/overview": {
     component: "ReservationsOverviewKeepAliveScreen",
     from: "@/components/reservations/reservations-overview-keep-alive-screen",
   },
-  "/dashboard/pos/uebersicht": {
+  "/dashboard/pos/overview": {
     component: "PosOverviewKeepAliveScreen",
     from: "@/components/pos/pos-overview-keep-alive-screen",
   },
-  "/dashboard/events/uebersicht": {
+  "/dashboard/events/overview": {
     component: "EventsOverviewKeepAliveScreen",
     from: "@/components/events/events-overview-keep-alive-screen",
   },
-  "/dashboard/kontakte/nachrichten": {
+  "/dashboard/contacts/messages": {
     component: "ContactsMessagesKeepAliveScreen",
     from: "@/components/contacts/contacts-messages-keep-alive-screen",
   },
-  "/dashboard/news/uebersicht": {
+  "/dashboard/news/overview": {
     component: "NewsOverviewKeepAliveScreen",
     from: "@/components/news/news-overview-keep-alive-screen",
   },
-  "/dashboard/bewertungen/uebersicht": {
+  "/dashboard/reviews/overview": {
     component: "ReviewsOverviewKeepAliveScreen",
     from: "@/components/reviews/reviews-overview-keep-alive-screen",
   },
-  "/dashboard/insights/uebersicht": {
+  "/dashboard/insights/overview": {
     component: "InsightsOverviewKeepAliveScreen",
     from: "@/components/insights/insights-overview-keep-alive-screen",
   },
-  "/dashboard/galerie/uebersicht": {
+  "/dashboard/gallery/overview": {
     component: "GalleryOverviewKeepAliveScreen",
     from: "@/components/gallery/gallery-overview-keep-alive-screen",
   },
-  "/dashboard/buchfuehrung/rechnungen": {
+  "/dashboard/accounting/invoices": {
     component: "AccountingInvoicesKeepAliveScreen",
     from: "@/components/accounting/accounting-invoices-keep-alive-screen",
   },
-  "/dashboard/dokumente/uebersicht": {
+  "/dashboard/documents/overview": {
     component: "DocumentsOverviewKeepAliveScreen",
     from: "@/components/documents/documents-overview-keep-alive-screen",
   },
-  "/dashboard/checklisten": {
+  "/dashboard/tasks": {
     component: "ChecklistenHomeKeepAliveScreen",
     from: "@/components/checklisten/checklisten-home-keep-alive-screen",
   },
-  "/dashboard/mitarbeiter/uebersicht": {
+  "/dashboard/staff/overview": {
     component: "StaffOverviewKeepAliveScreen",
     from: "@/components/staff/staff-overview-keep-alive-screen",
   },
@@ -75,15 +75,15 @@ const KEEP_ALIVE_IMPORTS = {
 
 /** Page-default exports that the scan mis-resolves (inline pages / UI imports). */
 const MANUAL_PAGE_IMPORTS = {
-  "/dashboard/profile/persoenliche-daten": {
+  "/dashboard/profile/personal": {
     component: "ProfilePersoenlicheDatenScreen",
     from: "@/components/profile/profile-persoenliche-daten-screen",
   },
-  "/dashboard/profile/anmeldung": {
+  "/dashboard/profile/sign-in": {
     component: "ProfileAnmeldungScreen",
     from: "@/components/profile/profile-anmeldung-screen",
   },
-  "/dashboard/settings/integrationen": {
+  "/dashboard/settings/integrations": {
     component: "SettingsIntegrationenRoute",
     from: "../routes/settings-integrationen-route",
   },
@@ -92,7 +92,7 @@ const MANUAL_PAGE_IMPORTS = {
     component: "SettingsRestaurantRoute",
     from: "../routes/settings-restaurant-route",
   },
-  "/dashboard/settings/oeffnungszeiten": {
+  "/dashboard/settings/opening-hours": {
     component: "SettingsOeffnungszeitenRoute",
     from: "../routes/settings-oeffnungszeiten-route",
   },
@@ -100,10 +100,10 @@ const MANUAL_PAGE_IMPORTS = {
 
 const PROFILE_PREFIX = "/dashboard/profile/";
 const SETTINGS_PREFIX = "/dashboard/settings/";
-const STAFF_PREFIX = "/dashboard/mitarbeiter/";
-const STAFF_HOME = "/dashboard/mitarbeiter/uebersicht";
+const STAFF_PREFIX = "/dashboard/staff/";
+const STAFF_HOME = "/dashboard/staff/overview";
 const POS_PREFIX = "/dashboard/pos/";
-const POS_HOME = "/dashboard/pos/uebersicht";
+const POS_HOME = "/dashboard/pos/overview";
 const CHANGELOG_ROUTE = "/dashboard/changelog";
 
 /**
@@ -114,57 +114,57 @@ const MODULE_SUBPAGE_CHROME = [
   {
     key: "inventory",
     prefix: "/dashboard/inventory/",
-    homes: new Set(["/dashboard/inventory/uebersicht"]),
+    homes: new Set(["/dashboard/inventory/overview"]),
   },
   {
     key: "menu",
     prefix: "/dashboard/menu/",
-    homes: new Set(["/dashboard/menu/uebersicht"]),
+    homes: new Set(["/dashboard/menu/overview"]),
   },
   {
     key: "reservierungen",
-    prefix: "/dashboard/reservierungen/",
-    homes: new Set(["/dashboard/reservierungen/uebersicht"]),
+    prefix: "/dashboard/reservations/",
+    homes: new Set(["/dashboard/reservations/overview"]),
   },
   {
     key: "events",
     prefix: "/dashboard/events/",
-    homes: new Set(["/dashboard/events/uebersicht"]),
+    homes: new Set(["/dashboard/events/overview"]),
   },
   {
     key: "kontakte",
-    prefix: "/dashboard/kontakte/",
-    homes: new Set(["/dashboard/kontakte/nachrichten"]),
+    prefix: "/dashboard/contacts/",
+    homes: new Set(["/dashboard/contacts/messages"]),
   },
   {
     key: "news",
     prefix: "/dashboard/news/",
-    homes: new Set(["/dashboard/news/uebersicht"]),
+    homes: new Set(["/dashboard/news/overview"]),
   },
   {
     key: "bewertungen",
-    prefix: "/dashboard/bewertungen/",
-    homes: new Set(["/dashboard/bewertungen/uebersicht"]),
+    prefix: "/dashboard/reviews/",
+    homes: new Set(["/dashboard/reviews/overview"]),
   },
   {
     key: "galerie",
-    prefix: "/dashboard/galerie/",
-    homes: new Set(["/dashboard/galerie/uebersicht"]),
+    prefix: "/dashboard/gallery/",
+    homes: new Set(["/dashboard/gallery/overview"]),
   },
   {
     key: "buchfuehrung",
-    prefix: "/dashboard/buchfuehrung/",
-    homes: new Set(["/dashboard/buchfuehrung/rechnungen"]),
+    prefix: "/dashboard/accounting/",
+    homes: new Set(["/dashboard/accounting/invoices"]),
   },
   {
     key: "dokumente",
-    prefix: "/dashboard/dokumente/",
-    homes: new Set(["/dashboard/dokumente/uebersicht"]),
+    prefix: "/dashboard/documents/",
+    homes: new Set(["/dashboard/documents/overview"]),
   },
   {
     key: "checklisten",
-    prefix: "/dashboard/checklisten/",
-    homes: new Set(["/dashboard/checklisten"]),
+    prefix: "/dashboard/tasks/",
+    homes: new Set(["/dashboard/tasks"]),
   },
 ];
 
@@ -181,7 +181,7 @@ const EXTRA_ROUTE_ENTRIES = [
     ],
   },
   {
-    route: "/dashboard/mitarbeiter/arbeitszeiten/beheben",
+    route: "/dashboard/staff/work-hours/fix",
     pageBehavior: "render",
     imports: [
       {
@@ -191,7 +191,7 @@ const EXTRA_ROUTE_ENTRIES = [
     ],
   },
   {
-    route: "/dashboard/mitarbeiter/arbeitszeiten/abrechnung",
+    route: "/dashboard/staff/work-hours/payroll",
     pageBehavior: "render",
     imports: [
       {
@@ -201,7 +201,7 @@ const EXTRA_ROUTE_ENTRIES = [
     ],
   },
   {
-    route: "/dashboard/checklisten/meine",
+    route: "/dashboard/tasks/mine",
     pageBehavior: "render",
     imports: [
       {
@@ -211,7 +211,7 @@ const EXTRA_ROUTE_ENTRIES = [
     ],
   },
   {
-    route: "/dashboard/checklisten/nachrichten",
+    route: "/dashboard/tasks/messages",
     pageBehavior: "render",
     imports: [
       {
@@ -221,9 +221,9 @@ const EXTRA_ROUTE_ENTRIES = [
     ],
   },
   {
-    route: "/dashboard/checklisten/eigenkontrolle",
+    route: "/dashboard/tasks/eigenkontrolle",
     pageBehavior: "redirect",
-    redirectTarget: "/dashboard/checklisten",
+    redirectTarget: "/dashboard/tasks",
   },
 ];
 
@@ -242,7 +242,7 @@ function chromeWrapperFor(route) {
   if (
     route.startsWith(STAFF_PREFIX) &&
     route !== STAFF_HOME &&
-    route !== "/dashboard/mitarbeiter"
+    route !== "/dashboard/staff"
   ) {
     return "staff";
   }

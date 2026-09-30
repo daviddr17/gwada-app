@@ -13,6 +13,7 @@ export async function fetchLiveActivityFeed(params: {
   restaurantId: string;
   limit?: number;
   offset?: number;
+  locale?: string | null;
 }): Promise<{ items: LiveActivityItem[]; hasMore: boolean; total: number }> {
   const admin = createSupabaseAdminClient();
   if (!admin) {
@@ -45,6 +46,7 @@ export async function fetchLiveActivityFeed(params: {
       module: row.module as string,
       payload: (row.payload as Record<string, unknown>) ?? {},
       createdAt: row.created_at as string,
+      locale: params.locale,
     });
     return {
       id: mapped.id ?? `evt:${row.id}`,
@@ -86,10 +88,16 @@ export async function GET(req: Request) {
   const limit = Number(searchParams.get("limit"));
   const offset = Number(searchParams.get("offset"));
 
+  const { data: profile } = await auth.sb
+    .from("profiles")
+    .select("locale")
+    .eq("id", auth.userId)
+    .maybeSingle();
   const page = await fetchLiveActivityFeed({
     restaurantId: auth.restaurantId,
     limit: Number.isFinite(limit) ? limit : undefined,
     offset: Number.isFinite(offset) ? offset : undefined,
+    locale: typeof profile?.locale === "string" ? profile.locale : null,
   });
 
   return Response.json({

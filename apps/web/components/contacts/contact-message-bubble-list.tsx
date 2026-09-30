@@ -434,7 +434,7 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
               className="h-5 gap-0.5 px-1.5 text-[10px] font-normal"
               render={
                 <Link
-                  href={`/dashboard/reservierungen/uebersicht?reservation=${primary.reservation_id}`}
+                  href={`/dashboard/reservations/overview?reservation=${primary.reservation_id}`}
                   prefetch
                 />
               }

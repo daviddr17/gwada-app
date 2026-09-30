@@ -10,11 +10,11 @@ export const metadata: Metadata = {
 };
 
 const QUICK_START = [
-  { label: "Erste Schritte", href: "/docs/erste-schritte", text: "Anmeldung, Restaurant wählen, loslegen" },
+  { label: "Erste Schritte", href: "/docs/getting-started", text: "Anmeldung, Restaurant wählen, loslegen" },
   { label: "Navigation", href: "/docs/navigation", text: "Sidebar, Tabs, Filter, Bottom Sheets" },
-  { label: "Dashboard", href: "/docs/handbuch/dashboard", text: "Widgets, Heute-Briefing, Schnellaktionen" },
-  { label: "Integrationen", href: "/docs/handbuch/integrationen", text: "WhatsApp, Google, Meta, Lexware" },
-  { label: "Einstellungen", href: "/docs/handbuch/einstellungen", text: "Team, Displays, API" },
+  { label: "Dashboard", href: "/docs/handbook/dashboard", text: "Widgets, Heute-Briefing, Schnellaktionen" },
+  { label: "Integrationen", href: "/docs/handbook/integrations", text: "WhatsApp, Google, Meta, Lexware" },
+  { label: "Einstellungen", href: "/docs/handbook/settings", text: "Team, Displays, API" },
 ];
 
 export default function DocsPage() {
@@ -54,7 +54,7 @@ export default function DocsPage() {
       <ul>
         {USER_GUIDE_PAGES.map((page) => (
           <li key={page.slug}>
-            <Link href={`/docs/handbuch/${page.slug}`}>{page.title}</Link> —{" "}
+            <Link href={`/docs/handbook/${page.slug}`}>{page.title}</Link> —{" "}
             {page.description}
           </li>
         ))}

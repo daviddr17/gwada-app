@@ -14,7 +14,7 @@ export function hashStaffInviteToken(token: string): string {
 
 export function staffInviteUrl(origin: string, token: string): string {
   const base = origin.replace(/\/$/, "");
-  return `${base}/einladung/${encodeURIComponent(token)}`;
+  return `${base}/invitation/${encodeURIComponent(token)}`;
 }
 
 export async function createStaffInvite(

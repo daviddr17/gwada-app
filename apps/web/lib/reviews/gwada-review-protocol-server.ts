@@ -45,11 +45,11 @@ function messagesHref(contactId: string, platform: string): string {
     contact: contactId,
     platform: platform === "whatsapp" || platform === "email" ? platform : "gwada",
   });
-  return `/dashboard/kontakte/nachrichten?${params.toString()}`;
+  return `/dashboard/contacts/messages?${params.toString()}`;
 }
 
 function extractReviewTokenFromBody(body: string): string | null {
-  const match = body.match(/\/bewertung\/([A-Za-z0-9_-]+)/);
+  const match = body.match(/\/review\/([A-Za-z0-9_-]+)/);
   return match?.[1] ?? null;
 }
 
@@ -148,7 +148,7 @@ export async function loadGwadaReviewProtocol(
         description: guest
           ? `#${res.reservation_number} · ${guest}`
           : `Reservierung #${res.reservation_number}`,
-        href: `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(res.id as string)}`,
+        href: `/dashboard/reservations/overview?reservation=${encodeURIComponent(res.id as string)}`,
         hrefLabel: "Reservierung öffnen",
       });
     }
@@ -170,7 +170,7 @@ export async function loadGwadaReviewProtocol(
     .from("contact_messages")
     .select("id, platform, direction, created_at, sent_by, contact_id, reservation_id")
     .eq("restaurant_id", params.restaurantId)
-    .ilike("body", `%/bewertung/${token}%`)
+    .ilike("body", `%/review/${token}%`)
     .order("created_at", { ascending: true });
 
   const messageSentBy = new Map<string, string | null>();
@@ -294,7 +294,7 @@ export async function loadGwadaReviewsOverviewProtocol(
         .eq("restaurant_id", params.restaurantId)
         .eq("direction", "outbound")
         .neq("platform", "gwada")
-        .ilike("body", "%/bewertung/%")
+        .ilike("body", "%/review/%")
         .order("created_at", { ascending: false })
         .limit(OVERVIEW_MESSAGE_LIMIT),
     ]);
@@ -369,7 +369,7 @@ export async function loadGwadaReviewsOverviewProtocol(
           description: guest
             ? `#${res.reservation_number} · ${guest}`
             : `Reservierung #${res.reservation_number}`,
-          href: `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(res.id)}`,
+          href: `/dashboard/reservations/overview?reservation=${encodeURIComponent(res.id)}`,
           hrefLabel: "Reservierung öffnen",
         });
       }

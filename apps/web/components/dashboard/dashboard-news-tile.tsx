@@ -22,7 +22,7 @@ export function DashboardNewsTile() {
           aria-hidden
         />
       }
-      href="/dashboard/news/uebersicht"
+      href="/dashboard/news/overview"
       linkLabel="Zu News"
       ready={ready}
       loading={showSkeleton}

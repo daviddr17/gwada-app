@@ -42,7 +42,7 @@ export function ContactQuickActionsBar({
           className={contactQuickActionButtonClassName}
           onClick={() =>
             router.push(
-              `/dashboard/reservierungen/uebersicht?new=1&contact=${contact.id}`,
+              `/dashboard/reservations/overview?new=1&contact=${contact.id}`,
             )
           }
         >

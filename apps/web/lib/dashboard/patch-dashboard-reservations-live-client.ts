@@ -217,7 +217,7 @@ export function patchDashboardReservationSummaryFromInsert(
     partySize: insert.party_size,
     statusName: insert.statusName,
     statusCode: insert.statusCode,
-    href: `/dashboard/reservierungen/uebersicht?reservation=${insert.id}`,
+    href: `/dashboard/reservations/overview?reservation=${insert.id}`,
     unconfirmed: isUnconfirmedReservation(rowLike),
     internalNote: reservationInternalNoteText(insert.notes),
   };

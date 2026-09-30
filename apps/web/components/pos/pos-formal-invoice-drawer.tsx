@@ -279,7 +279,7 @@ export function PosFormalInvoiceDrawer({
                     className="rounded-xl"
                     onClick={() => {
                       window.open(
-                        `/dashboard/buchfuehrung/rechnungen?highlight=${encodeURIComponent(draft.existingInvoiceId!)}`,
+                        `/dashboard/accounting/invoices?highlight=${encodeURIComponent(draft.existingInvoiceId!)}`,
                         "_blank",
                         "noopener,noreferrer",
                       );

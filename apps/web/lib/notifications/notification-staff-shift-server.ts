@@ -181,7 +181,7 @@ function mapShiftToBellItem(
       kind === "start"
         ? `Beginn ${formatShiftTime(s.starts_at, timeZone)}`
         : `Ende ${formatShiftTime(s.ends_at, timeZone)}`,
-    href: "/dashboard/mitarbeiter/schichtplan",
+    href: "/dashboard/staff/shift-plan",
     at: kind === "start" ? s.starts_at : s.ends_at,
     meta: { shiftId: s.id, kind },
   };

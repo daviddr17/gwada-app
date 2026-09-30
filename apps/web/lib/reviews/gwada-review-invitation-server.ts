@@ -46,7 +46,7 @@ export function reviewInvitationPublicUrl(
   origin: string,
   token: string,
 ): string {
-  return `${origin.replace(/\/$/, "")}/bewertung/${token}`;
+  return `${origin.replace(/\/$/, "")}/review/${token}`;
 }
 
 export async function ensureGwadaReviewInvitation(
@@ -132,7 +132,7 @@ export function buildReviewRequestBlock(params: {
   const lines: string[] = ["", "⭐ Deine Bewertung hilft uns sehr:"];
 
   if (params.settings.includeGwada && params.invitationToken) {
-    const url = `${params.origin.replace(/\/$/, "")}/bewertung/${params.invitationToken}`;
+    const url = `${params.origin.replace(/\/$/, "")}/review/${params.invitationToken}`;
     lines.push(`Gwada: ${url}`);
   }
 

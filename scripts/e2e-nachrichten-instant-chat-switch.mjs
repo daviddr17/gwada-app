@@ -60,7 +60,7 @@ async function main() {
 
   try {
     await login(page);
-    await page.goto(`${BASE}/dashboard/kontakte/nachrichten?platform=all`, {
+    await page.goto(`${BASE}/dashboard/contacts/messages?platform=all`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForSelector('[data-module-home-keep-alive="nachrichten"]', {

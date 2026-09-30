@@ -14,6 +14,7 @@ import {
 } from "@/lib/observability/rsc-soft-nav-log";
 import { isPublicRestaurantProfilePath } from "@/lib/restaurant/reserved-restaurant-slugs";
 import { isSuperadminAppPath } from "@/lib/superadmin/superadmin-session";
+import { canonicalizeAppHref } from "@/lib/navigation/english-app-paths";
 
 function isAuthEntryPath(pathname: string): boolean {
   if (pathname === "/") return true;
@@ -27,11 +28,11 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/") return true;
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
   if (pathname === "/docs" || pathname.startsWith("/docs/")) return true;
-  if (pathname === "/impressum" || pathname.startsWith("/impressum/")) return true;
-  if (pathname === "/datenschutz" || pathname.startsWith("/datenschutz/")) return true;
-  if (pathname === "/agb" || pathname.startsWith("/agb/")) return true;
-  if (pathname === "/avv" || pathname.startsWith("/avv/")) return true;
-  if (pathname === "/datenloeschung" || pathname.startsWith("/datenloeschung/"))
+  if (pathname === "/imprint" || pathname.startsWith("/imprint/")) return true;
+  if (pathname === "/privacy" || pathname.startsWith("/privacy/")) return true;
+  if (pathname === "/terms" || pathname.startsWith("/terms/")) return true;
+  if (pathname === "/dpa" || pathname.startsWith("/dpa/")) return true;
+  if (pathname === "/data-deletion" || pathname.startsWith("/data-deletion/"))
     return true;
   if (pathname === "/auth/callback" || pathname.startsWith("/auth/")) return true;
   if (pathname.startsWith("/_next")) return true;
@@ -46,8 +47,8 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/api/")) return true;
   if (pathname.startsWith("/embed/")) return true;
   if (pathname.startsWith("/display/")) return true;
-  if (pathname.startsWith("/einladung/")) return true;
-  if (pathname.startsWith("/bewertung/")) return true;
+  if (pathname.startsWith("/invitation/")) return true;
+  if (pathname.startsWith("/review/")) return true;
   if (pathname.startsWith("/newsletter/")) return true;
   if (pathname.startsWith("/nachrichten/")) return true;
   if (pathname.startsWith("/sb")) return true;
@@ -79,6 +80,10 @@ function slimAuthenticatedCookieRequest(request: NextRequest): NextRequest {
 /** Auth & öffentliche Routen — Next.js 16: `proxy.ts` (ersetzt `middleware.ts`). */
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const canonical = canonicalizeAppHref(`${pathname}${search}`);
+  if (canonical !== `${pathname}${search}`) {
+    return NextResponse.redirect(new URL(canonical, request.url), 308);
+  }
 
   const anonKey = getSupabaseAnonKey();
 
@@ -100,21 +105,21 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/api/auth/") ||
     pathname === "/docs" ||
     pathname.startsWith("/docs/") ||
-    pathname === "/impressum" ||
-    pathname.startsWith("/impressum/") ||
-    pathname === "/datenschutz" ||
-    pathname.startsWith("/datenschutz/") ||
-    pathname === "/agb" ||
-    pathname.startsWith("/agb/") ||
-    pathname === "/avv" ||
-    pathname.startsWith("/avv/") ||
-    pathname === "/datenloeschung" ||
-    pathname.startsWith("/datenloeschung/") ||
+    pathname === "/imprint" ||
+    pathname.startsWith("/imprint/") ||
+    pathname === "/privacy" ||
+    pathname.startsWith("/privacy/") ||
+    pathname === "/terms" ||
+    pathname.startsWith("/terms/") ||
+    pathname === "/dpa" ||
+    pathname.startsWith("/dpa/") ||
+    pathname === "/data-deletion" ||
+    pathname.startsWith("/data-deletion/") ||
     pathname.startsWith("/embed/") ||
     pathname.startsWith("/display/") ||
     pathname.startsWith("/api/display/") ||
-    pathname.startsWith("/einladung/") ||
-    pathname.startsWith("/bewertung/") ||
+    pathname.startsWith("/invitation/") ||
+    pathname.startsWith("/review/") ||
     pathname.startsWith("/newsletter/") ||
     pathname.startsWith("/nachrichten/") ||
     isDashboardPwaAssetPath(pathname) ||

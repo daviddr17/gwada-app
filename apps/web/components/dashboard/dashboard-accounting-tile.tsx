@@ -21,7 +21,7 @@ export function DashboardAccountingTile() {
       icon={
         <Receipt className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       }
-      href="/dashboard/buchfuehrung/rechnungen"
+      href="/dashboard/accounting/invoices"
       linkLabel="Zur Buchführung"
       ready={ready}
       loading={showSkeleton}
@@ -31,7 +31,7 @@ export function DashboardAccountingTile() {
         <DashboardCompactMetricPill
           label="Offene Rechnungen"
           value={String(openInvoices)}
-          href="/dashboard/buchfuehrung/rechnungen"
+          href="/dashboard/accounting/invoices"
           highlight={openInvoices > 0}
         />
         <DashboardCompactMetricPill

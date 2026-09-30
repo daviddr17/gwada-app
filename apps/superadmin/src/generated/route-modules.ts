@@ -19,13 +19,13 @@ function chromeLazy(
 }
 
 const ALLGEMEIN_NAV: readonly ModuleSubnavItem[] = [
-  { href: "/superadmin/allgemein", label: "Allgemein", matchMode: "exact" },
+  { href: "/superadmin/general", label: "Allgemein", matchMode: "exact" },
 ];
 const USER_NAV: readonly ModuleSubnavItem[] = [
   { href: "/superadmin/users", label: "Übersicht", matchMode: "exact" },
   { href: "/superadmin/users/export", label: "Export", matchMode: "exact" },
   {
-    href: "/superadmin/users/statistiken",
+    href: "/superadmin/users/statistics",
     label: "Statistiken",
     matchMode: "prefix",
   },
@@ -38,38 +38,38 @@ const RESTAURANTS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
-    href: "/superadmin/restaurants/statistiken",
+    href: "/superadmin/restaurants/statistics",
     label: "Statistiken",
     matchMode: "prefix",
   },
 ];
 const ABONNEMENTS_NAV: readonly ModuleSubnavItem[] = [
-  { href: "/superadmin/abonnements", label: "Übersicht", matchMode: "exact" },
+  { href: "/superadmin/subscriptions", label: "Übersicht", matchMode: "exact" },
   {
-    href: "/superadmin/abonnements/zahlungen",
+    href: "/superadmin/subscriptions/payments",
     label: "Zahlungen",
     matchMode: "exact",
   },
   {
-    href: "/superadmin/abonnements/statistiken",
+    href: "/superadmin/subscriptions/statistics",
     label: "Statistiken",
     matchMode: "prefix",
   },
 ];
 const WARTELISTE_NAV: readonly ModuleSubnavItem[] = [
-  { href: "/superadmin/warteliste", label: "Übersicht", matchMode: "exact" },
+  { href: "/superadmin/waitlist", label: "Übersicht", matchMode: "exact" },
 ];
 const NEWSLETTER_NAV: readonly ModuleSubnavItem[] = [
   { href: "/superadmin/newsletter", label: "Übersicht", matchMode: "exact" },
   {
-    href: "/superadmin/newsletter/vorlagen",
+    href: "/superadmin/newsletter/templates",
     label: "Vorlagen",
     matchMode: "exact",
   },
 ];
 const INTEGRATIONEN_NAV: readonly ModuleSubnavItem[] = [
   {
-    href: "/superadmin/integrationen",
+    href: "/superadmin/integrations",
     label: "Übersicht",
     matchMode: "prefix",
   },
@@ -88,7 +88,7 @@ const CHANGELOG_NAV: readonly ModuleSubnavItem[] = [
 ];
 const BENACHRICHTIGUNGEN_NAV: readonly ModuleSubnavItem[] = [
   {
-    href: "/superadmin/benachrichtigungen",
+    href: "/superadmin/notifications",
     label: "Log",
     matchMode: "exact",
   },
@@ -221,8 +221,8 @@ export type SuperadminRouteEntry = {
 };
 
 export const SUPERADMIN_ROUTE_ENTRIES: SuperadminRouteEntry[] = [
-  { path: "/", fullPath: "/superadmin/allgemein", redirect: "/superadmin/allgemein" },
-  { path: "/allgemein", fullPath: "/superadmin/allgemein", Lazy: LazyAllgemein },
+  { path: "/", fullPath: "/superadmin/general", redirect: "/superadmin/general" },
+  { path: "/general", fullPath: "/superadmin/general", Lazy: LazyAllgemein },
   { path: "/users", fullPath: "/superadmin/users", Lazy: LazyUsers },
   {
     path: "/users/export",
@@ -230,8 +230,8 @@ export const SUPERADMIN_ROUTE_ENTRIES: SuperadminRouteEntry[] = [
     Lazy: LazyUsersExport,
   },
   {
-    path: "/users/statistiken",
-    fullPath: "/superadmin/users/statistiken",
+    path: "/users/statistics",
+    fullPath: "/superadmin/users/statistics",
     Lazy: LazyUsersStats,
   },
   {
@@ -245,28 +245,28 @@ export const SUPERADMIN_ROUTE_ENTRIES: SuperadminRouteEntry[] = [
     Lazy: LazyRestaurantsExport,
   },
   {
-    path: "/restaurants/statistiken",
-    fullPath: "/superadmin/restaurants/statistiken",
+    path: "/restaurants/statistics",
+    fullPath: "/superadmin/restaurants/statistics",
     Lazy: LazyRestaurantsStats,
   },
   {
-    path: "/abonnements",
-    fullPath: "/superadmin/abonnements",
+    path: "/subscriptions",
+    fullPath: "/superadmin/subscriptions",
     Lazy: LazyAbonnements,
   },
   {
-    path: "/abonnements/zahlungen",
-    fullPath: "/superadmin/abonnements/zahlungen",
+    path: "/subscriptions/payments",
+    fullPath: "/superadmin/subscriptions/payments",
     Lazy: LazyAbonnementsZahlungen,
   },
   {
-    path: "/abonnements/statistiken",
-    fullPath: "/superadmin/abonnements/statistiken",
+    path: "/subscriptions/statistics",
+    fullPath: "/superadmin/subscriptions/statistics",
     Lazy: LazyAbonnementsStats,
   },
   {
-    path: "/warteliste",
-    fullPath: "/superadmin/warteliste",
+    path: "/waitlist",
+    fullPath: "/superadmin/waitlist",
     Lazy: LazyWarteliste,
   },
   {
@@ -275,8 +275,8 @@ export const SUPERADMIN_ROUTE_ENTRIES: SuperadminRouteEntry[] = [
     Lazy: LazyNewsletter,
   },
   {
-    path: "/newsletter/vorlagen",
-    fullPath: "/superadmin/newsletter/vorlagen",
+    path: "/newsletter/templates",
+    fullPath: "/superadmin/newsletter/templates",
     Lazy: LazyNewsletterTemplates,
   },
   {
@@ -285,42 +285,42 @@ export const SUPERADMIN_ROUTE_ENTRIES: SuperadminRouteEntry[] = [
     Lazy: LazyNewsletterEditor,
   },
   {
-    path: "/integrationen",
-    fullPath: "/superadmin/integrationen",
+    path: "/integrations",
+    fullPath: "/superadmin/integrations",
     Lazy: LazyIntegrationen,
   },
   { path: "/waha", fullPath: "/superadmin/waha", Lazy: LazyWaha },
   { path: "/ops", fullPath: "/superadmin/ops", Lazy: LazyOps },
   {
-    path: "/datenbank",
-    fullPath: "/superadmin/datenbank",
+    path: "/database",
+    fullPath: "/superadmin/database",
     Lazy: LazyDatenbank,
   },
   {
-    path: "/lade-strategie",
-    fullPath: "/superadmin/lade-strategie",
+    path: "/load-strategy",
+    fullPath: "/superadmin/load-strategy",
     Lazy: LazyLadeStrategie,
   },
   { path: "/design", fullPath: "/superadmin/design", Lazy: LazyDesign },
   {
-    path: "/vorlagen",
-    fullPath: "/superadmin/vorlagen/vertragsvorlagen",
-    redirect: "/superadmin/vorlagen/vertragsvorlagen",
+    path: "/templates",
+    fullPath: "/superadmin/templates/contract-templates",
+    redirect: "/superadmin/templates/contract-templates",
   },
   {
-    path: "/vorlagen/checklisten",
-    fullPath: "/superadmin/vorlagen/vertragsvorlagen",
-    redirect: "/superadmin/vorlagen/vertragsvorlagen",
+    path: "/templates/tasks",
+    fullPath: "/superadmin/templates/contract-templates",
+    redirect: "/superadmin/templates/contract-templates",
   },
   {
-    path: "/vorlagen/vertragsvorlagen",
-    fullPath: "/superadmin/vorlagen/vertragsvorlagen",
+    path: "/templates/contract-templates",
+    fullPath: "/superadmin/templates/contract-templates",
     Lazy: LazyVertragsvorlagen,
   },
   {
-    path: "/vertragsvorlagen",
-    fullPath: "/superadmin/vorlagen/vertragsvorlagen",
-    redirect: "/superadmin/vorlagen/vertragsvorlagen",
+    path: "/contract-templates",
+    fullPath: "/superadmin/templates/contract-templates",
+    redirect: "/superadmin/templates/contract-templates",
   },
   {
     path: "/changelog",
@@ -328,8 +328,8 @@ export const SUPERADMIN_ROUTE_ENTRIES: SuperadminRouteEntry[] = [
     Lazy: LazyChangelog,
   },
   {
-    path: "/benachrichtigungen",
-    fullPath: "/superadmin/benachrichtigungen",
+    path: "/notifications",
+    fullPath: "/superadmin/notifications",
     Lazy: LazyBenachrichtigungen,
   },
 ];

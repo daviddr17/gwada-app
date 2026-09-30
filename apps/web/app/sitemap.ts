@@ -8,10 +8,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/",
     "/login",
     "/docs",
-    "/impressum",
-    "/datenschutz",
-    "/agb",
-    "/avv",
+    "/imprint",
+    "/privacy",
+    "/terms",
+    "/dpa",
     "/llms.txt",
   ] as const;
 

@@ -1667,7 +1667,7 @@ export function ReservationEditDrawer({
                   <Contact className="size-3.5 shrink-0" aria-hidden />
                   Verknüpft mit{" "}
                   <Link
-                    href={`/dashboard/kontakte/uebersicht?contact=${reservation.contact_id}`}
+                    href={`/dashboard/contacts/overview?contact=${reservation.contact_id}`}
                     className="font-medium text-foreground underline underline-offset-2"
                     onClick={(e) => e.stopPropagation()}
                   >

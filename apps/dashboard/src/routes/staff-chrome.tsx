@@ -18,10 +18,10 @@ import { cn } from "@/lib/utils";
 function needsStaffPickerPath(pathname: string | null): boolean {
   if (!pathname) return false;
   return (
-    pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
-    pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
-    pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten") ||
-    pathname.startsWith("/dashboard/mitarbeiter/export")
+    pathname.startsWith("/dashboard/staff/contracts") ||
+    pathname.startsWith("/dashboard/staff/documents") ||
+    pathname.startsWith("/dashboard/staff/work-hours") ||
+    pathname.startsWith("/dashboard/staff/export")
   );
 }
 

@@ -21,7 +21,7 @@ export default function DatenschutzPage() {
       title="Datenschutzerklärung"
       description={`Informationen zur Verarbeitung personenbezogener Daten bei Nutzung von ${o.productName} (${o.productUrl}).`}
       updatedLabel={o.documentsUpdatedLabel}
-      activePath="/datenschutz"
+      activePath="/privacy"
     >
       <h2>1. Verantwortlicher</h2>
       <p>
@@ -42,7 +42,7 @@ export default function DatenschutzPage() {
         verarbeiten, handeln sie in der Regel selbst als Verantwortliche für
         diese Daten. Wir stellen die technische Plattform bereit und verarbeiten
         solche Daten als Auftragsverarbeiter gemäß Art. 28 DSGVO — siehe{" "}
-        <Link href="/avv">AVV</Link>.
+        <Link href="/dpa">AVV</Link>.
       </p>
 
       <h2>2. Überblick: Welche Daten wir verarbeiten</h2>
@@ -188,7 +188,7 @@ export default function DatenschutzPage() {
         Rechtsgrundlage gegenüber Endnutzern der Restaurant-Kanäle liegt
         typischerweise beim Restaurant (Verantwortlicher). Unsere Verarbeitung
         für Kunden erfolgt auf Basis des Nutzungsvertrags und des{" "}
-        <Link href="/avv">AVV</Link>. Bei Meta-/Google-Login bzw. App-Verbindung
+        <Link href="/dpa">AVV</Link>. Bei Meta-/Google-Login bzw. App-Verbindung
         gelten zusätzlich die Bedingungen und Datenschutzhinweise der jeweiligen
         Anbieter.
       </p>
@@ -205,7 +205,7 @@ export default function DatenschutzPage() {
       </p>
       <p>
         Hinweise zur Löschung von über Meta verbundenen Daten:{" "}
-        <Link href="/datenloeschung">Datenlöschung</Link>.
+        <Link href="/data-deletion">Datenlöschung</Link>.
       </p>
 
       <h2>9. Speicherdauer</h2>
@@ -275,13 +275,13 @@ export default function DatenschutzPage() {
 
       <h2>16. Weitere Dokumente</h2>
       <p>
-        <Link href="/impressum">Impressum</Link>
+        <Link href="/imprint">Impressum</Link>
         {" · "}
-        <Link href="/agb">AGB</Link>
+        <Link href="/terms">AGB</Link>
         {" · "}
-        <Link href="/avv">AVV</Link>
+        <Link href="/dpa">AVV</Link>
         {" · "}
-        <Link href="/datenloeschung">Datenlöschung</Link>
+        <Link href="/data-deletion">Datenlöschung</Link>
       </p>
     </MarketingStaticPage>
   );

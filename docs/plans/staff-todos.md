@@ -12,10 +12,10 @@ Zentrale ToDos für das Restaurant — verwaltet im Dashboard, sichtbar im **Pro
 
 | Route | Inhalt |
 |-------|--------|
-| `/dashboard/mitarbeiter/todos` | Listen, Filter, Anlegen/Bearbeiten |
-| `/dashboard/mitarbeiter/todos/protokoll` | Audit-Log (filterbar) |
-| `/dashboard/mitarbeiter/todos?staff=<uuid>` | Nur ToDos für diesen Mitarbeiter |
-| `/dashboard/mitarbeiter/todos/einstellungen` | Restaurant-Defaults (später P1+) |
+| `/dashboard/staff/todos` | Listen, Filter, Anlegen/Bearbeiten |
+| `/dashboard/staff/todos/log` | Audit-Log (filterbar) |
+| `/dashboard/staff/todos?staff=<uuid>` | Nur ToDos für diesen Mitarbeiter |
+| `/dashboard/staff/todos/settings` | Restaurant-Defaults (später P1+) |
 
 **Modul-Chip:** „ToDo-Listen“ in `STAFF_NAV` (Mitarbeiter-Layout).
 

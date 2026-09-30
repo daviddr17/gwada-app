@@ -19,59 +19,59 @@ const MOBILE =
 
 const TARGETS = [
   { id: "dashboard", href: "/dashboard", expect: "/dashboard" },
-  { id: "menu", href: "/dashboard/menu/uebersicht", expect: "/dashboard/menu" },
+  { id: "menu", href: "/dashboard/menu/overview", expect: "/dashboard/menu" },
   {
     id: "inventory",
-    href: "/dashboard/inventory/uebersicht",
+    href: "/dashboard/inventory/overview",
     expect: "/dashboard/inventory",
   },
   {
     id: "reservierungen",
-    href: "/dashboard/reservierungen/uebersicht",
-    expect: "/dashboard/reservierungen",
+    href: "/dashboard/reservations/overview",
+    expect: "/dashboard/reservations",
   },
-  { id: "pos", href: "/dashboard/pos/uebersicht", expect: "/dashboard/pos" },
-  { id: "events", href: "/dashboard/events/uebersicht", expect: "/dashboard/events" },
+  { id: "pos", href: "/dashboard/pos/overview", expect: "/dashboard/pos" },
+  { id: "events", href: "/dashboard/events/overview", expect: "/dashboard/events" },
   {
     id: "kontakte",
-    href: "/dashboard/kontakte/nachrichten?platform=all",
-    expect: "/dashboard/kontakte/nachrichten",
+    href: "/dashboard/contacts/messages?platform=all",
+    expect: "/dashboard/contacts/messages",
   },
-  { id: "news", href: "/dashboard/news/uebersicht", expect: "/dashboard/news" },
+  { id: "news", href: "/dashboard/news/overview", expect: "/dashboard/news" },
   {
     id: "bewertungen",
-    href: "/dashboard/bewertungen/uebersicht",
-    expect: "/dashboard/bewertungen",
+    href: "/dashboard/reviews/overview",
+    expect: "/dashboard/reviews",
   },
   {
     id: "insights",
-    href: "/dashboard/insights/uebersicht",
+    href: "/dashboard/insights/overview",
     expect: "/dashboard/insights",
   },
   {
     id: "galerie",
-    href: "/dashboard/galerie/uebersicht",
-    expect: "/dashboard/galerie",
+    href: "/dashboard/gallery/overview",
+    expect: "/dashboard/gallery",
   },
   {
     id: "buchfuehrung",
-    href: "/dashboard/buchfuehrung/rechnungen",
-    expect: "/dashboard/buchfuehrung",
+    href: "/dashboard/accounting/invoices",
+    expect: "/dashboard/accounting",
   },
   {
     id: "dokumente",
-    href: "/dashboard/dokumente/uebersicht",
-    expect: "/dashboard/dokumente",
+    href: "/dashboard/documents/overview",
+    expect: "/dashboard/documents",
   },
   {
     id: "checklisten",
-    href: "/dashboard/checklisten",
-    expect: "/dashboard/checklisten",
+    href: "/dashboard/tasks",
+    expect: "/dashboard/tasks",
   },
   {
     id: "mitarbeiter",
-    href: "/dashboard/mitarbeiter/uebersicht",
-    expect: "/dashboard/mitarbeiter",
+    href: "/dashboard/staff/overview",
+    expect: "/dashboard/staff",
   },
 ];
 
@@ -115,7 +115,7 @@ async function login(page) {
 }
 
 async function warmNachrichten(page) {
-  await page.goto(`${BASE}/dashboard/kontakte/nachrichten?platform=all`, {
+  await page.goto(`${BASE}/dashboard/contacts/messages?platform=all`, {
     waitUntil: "domcontentloaded",
     timeout: 90_000,
   });
@@ -140,7 +140,7 @@ async function openMobileMenu(page) {
 
   await page.waitForFunction(() => {
     return Boolean(
-      document.querySelector('a[href="/dashboard/menu/uebersicht"]') ||
+      document.querySelector('a[href="/dashboard/menu/overview"]') ||
         document.querySelector('button[aria-label="Menü schließen"]'),
     );
   }, { timeout: 12_000 });

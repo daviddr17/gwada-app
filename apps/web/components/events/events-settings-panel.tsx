@@ -239,7 +239,7 @@ export function EventsSettingsPanel() {
                 size="sm"
                 className="rounded-xl"
                 render={
-                  <AppNavLink href="/dashboard/news/einstellungen" prefetch={false} />
+                  <AppNavLink href="/dashboard/news/settings" prefetch={false} />
                 }
                 nativeButton={false}
                 disabled={connectorsLoading}

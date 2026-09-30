@@ -43,7 +43,7 @@
       title: "Reservierung",
       minHeight: 420,
       path: function (slug) {
-        return "/embed/reservieren/" + encodeURIComponent(slug);
+        return "/embed/reserve/" + encodeURIComponent(slug);
       },
       available: true,
     },
@@ -51,7 +51,7 @@
       title: "Speisekarte",
       minHeight: 480,
       path: function (slug) {
-        return "/embed/speisekarte/" + encodeURIComponent(slug);
+        return "/embed/menu/" + encodeURIComponent(slug);
       },
       available: true,
     },
@@ -59,7 +59,7 @@
       title: "Bewertungen",
       minHeight: 520,
       path: function (slug) {
-        return "/embed/bewertungen/" + encodeURIComponent(slug);
+        return "/embed/reviews/" + encodeURIComponent(slug);
       },
       available: true,
     },
@@ -83,7 +83,7 @@
       title: "Veranstaltungs-Anfrage",
       minHeight: 520,
       path: function (slug) {
-        return "/embed/veranstaltung/" + encodeURIComponent(slug);
+        return "/embed/event-inquiry/" + encodeURIComponent(slug);
       },
       available: true,
     },
@@ -99,7 +99,7 @@
       title: "Öffnungszeiten",
       minHeight: 420,
       path: function (slug) {
-        return "/embed/oeffnungszeiten/" + encodeURIComponent(slug);
+        return "/embed/opening-hours/" + encodeURIComponent(slug);
       },
       available: true,
     },
@@ -107,7 +107,7 @@
       title: "Kontakt",
       minHeight: 360,
       path: function (slug) {
-        return "/embed/kontakt/" + encodeURIComponent(slug);
+        return "/embed/contact/" + encodeURIComponent(slug);
       },
       available: false,
     },

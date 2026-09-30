@@ -21,7 +21,7 @@ export default function AgbPage() {
       title="Allgemeine Geschäftsbedingungen"
       description={`Nutzungsbedingungen für die SaaS-Plattform ${o.productName}.`}
       updatedLabel={o.documentsUpdatedLabel}
-      activePath="/agb"
+      activePath="/terms"
     >
       <h2>§ 1 Geltungsbereich und Anbieter</h2>
       <p>
@@ -98,7 +98,7 @@ export default function AgbPage() {
           Der Kunde ist Verantwortlicher für personenbezogene Daten seiner
           Gäste und Mitarbeiter, die er in {o.productName} verarbeitet. Der
           Auftragsverarbeitungsvertrag (
-          <Link href="/avv">AVV</Link>) ist Bestandteil bei
+          <Link href="/dpa">AVV</Link>) ist Bestandteil bei
           Auftragsverarbeitung.
         </li>
         <li>
@@ -134,9 +134,9 @@ export default function AgbPage() {
       <h2>§ 8 Datenschutz</h2>
       <p>
         Informationen zur Verarbeitung personenbezogener Daten enthält die{" "}
-        <Link href="/datenschutz">Datenschutzerklärung</Link>. Für die
+        <Link href="/privacy">Datenschutzerklärung</Link>. Für die
         Verarbeitung von Kundendaten im Auftrag gilt der{" "}
-        <Link href="/avv">AVV</Link>.
+        <Link href="/dpa">AVV</Link>.
       </p>
 
       <h2>§ 9 Haftung</h2>
@@ -191,11 +191,11 @@ export default function AgbPage() {
       </p>
 
       <p>
-        <Link href="/impressum">Impressum</Link>
+        <Link href="/imprint">Impressum</Link>
         {" · "}
-        <Link href="/datenschutz">Datenschutz</Link>
+        <Link href="/privacy">Datenschutz</Link>
         {" · "}
-        <Link href="/avv">AVV</Link>
+        <Link href="/dpa">AVV</Link>
       </p>
     </MarketingStaticPage>
   );

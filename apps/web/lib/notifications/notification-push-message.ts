@@ -528,7 +528,7 @@ export function buildNotificationPushText(
         prefix,
         headline: "Persönliche Erinnerung",
         subject: `${prefix}Erinnerung — ${title}`,
-        href: "/dashboard/checklisten/meine",
+        href: "/dashboard/tasks/mine",
         details: detailLines([title, pickString(p.body)]),
       });
     }
@@ -539,7 +539,7 @@ export function buildNotificationPushText(
         prefix,
         headline: "Team-Nachricht",
         subject: `${prefix}Nachricht von ${peer}`,
-        href: "/dashboard/checklisten/nachrichten",
+        href: "/dashboard/tasks/messages",
         details: detailLines([`${peer}: ${preview}`]),
       });
     }

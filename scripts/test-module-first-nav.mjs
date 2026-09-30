@@ -21,20 +21,20 @@ const EMAIL = process.env.GWADA_E2E_EMAIL || "dreyer@techlion.de";
 const SETTLE_AFTER_KPI_MS = Number(process.env.GWADA_NAV_SETTLE_MS || 3500);
 
 const TARGETS = [
-  { id: "menu", href: "/dashboard/menu/uebersicht", keepAlive: "menu", title: "Speisekarte" },
-  { id: "inventory", href: "/dashboard/inventory/uebersicht", keepAlive: "inventory", title: "Bestand" },
-  { id: "reservierungen", href: "/dashboard/reservierungen/uebersicht", keepAlive: "reservierungen", title: "Reservierungen" },
-  { id: "pos", href: "/dashboard/pos/uebersicht", keepAlive: "pos", title: "POS" },
-  { id: "events", href: "/dashboard/events/uebersicht", keepAlive: "events", title: "Events" },
-  { id: "kontakte", href: "/dashboard/kontakte/nachrichten?platform=all", keepAlive: "nachrichten", title: "Nachrichten" },
-  { id: "news", href: "/dashboard/news/uebersicht", keepAlive: "news", title: "News" },
-  { id: "bewertungen", href: "/dashboard/bewertungen/uebersicht", keepAlive: "bewertungen", title: "Bewertungen" },
-  { id: "insights", href: "/dashboard/insights/uebersicht", keepAlive: "insights", title: "Insights" },
-  { id: "galerie", href: "/dashboard/galerie/uebersicht", keepAlive: "galerie", title: "Galerie" },
-  { id: "buchfuehrung", href: "/dashboard/buchfuehrung/rechnungen", keepAlive: "buchfuehrung", title: "Buchführung" },
-  { id: "dokumente", href: "/dashboard/dokumente/uebersicht", keepAlive: "dokumente", title: "Dokumente" },
-  { id: "checklisten", href: "/dashboard/checklisten", keepAlive: "checklisten", title: "Checklisten" },
-  { id: "mitarbeiter", href: "/dashboard/mitarbeiter/uebersicht", keepAlive: "mitarbeiter", title: "Mitarbeiter" },
+  { id: "menu", href: "/dashboard/menu/overview", keepAlive: "menu", title: "Speisekarte" },
+  { id: "inventory", href: "/dashboard/inventory/overview", keepAlive: "inventory", title: "Bestand" },
+  { id: "reservierungen", href: "/dashboard/reservations/overview", keepAlive: "reservierungen", title: "Reservierungen" },
+  { id: "pos", href: "/dashboard/pos/overview", keepAlive: "pos", title: "POS" },
+  { id: "events", href: "/dashboard/events/overview", keepAlive: "events", title: "Events" },
+  { id: "kontakte", href: "/dashboard/contacts/messages?platform=all", keepAlive: "nachrichten", title: "Nachrichten" },
+  { id: "news", href: "/dashboard/news/overview", keepAlive: "news", title: "News" },
+  { id: "bewertungen", href: "/dashboard/reviews/overview", keepAlive: "bewertungen", title: "Bewertungen" },
+  { id: "insights", href: "/dashboard/insights/overview", keepAlive: "insights", title: "Insights" },
+  { id: "galerie", href: "/dashboard/gallery/overview", keepAlive: "galerie", title: "Galerie" },
+  { id: "buchfuehrung", href: "/dashboard/accounting/invoices", keepAlive: "buchfuehrung", title: "Buchführung" },
+  { id: "dokumente", href: "/dashboard/documents/overview", keepAlive: "dokumente", title: "Dokumente" },
+  { id: "checklisten", href: "/dashboard/tasks", keepAlive: "checklisten", title: "Checklisten" },
+  { id: "mitarbeiter", href: "/dashboard/staff/overview", keepAlive: "mitarbeiter", title: "Mitarbeiter" },
 ];
 
 async function login(page) {

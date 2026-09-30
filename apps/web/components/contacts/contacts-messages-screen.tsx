@@ -357,8 +357,8 @@ function platformInferredFromContact(
 
 function isNachrichtenMessagesPath(pathname: string): boolean {
   return (
-    pathname === "/dashboard/kontakte/nachrichten" ||
-    pathname.startsWith("/dashboard/kontakte/nachrichten/")
+    pathname === "/dashboard/contacts/messages" ||
+    pathname.startsWith("/dashboard/contacts/messages/")
   );
 }
 
@@ -908,7 +908,7 @@ export function ContactsMessagesScreen({
       params.set("platform", next);
       if (contactParam) params.set("contact", contactParam);
       navigateNachrichten(
-        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+        `/dashboard/contacts/messages?${params.toString()}`,
       );
     }
   }, [
@@ -936,7 +936,7 @@ export function ContactsMessagesScreen({
       const params = new URLSearchParams(searchParams.toString());
       applyConversationReadFilterToSearchParams(params, filter);
       navigateNachrichten(
-        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+        `/dashboard/contacts/messages?${params.toString()}`,
       );
     },
     [navigateNachrichten, searchParams],
@@ -1687,7 +1687,7 @@ export function ContactsMessagesScreen({
     params.delete("contact");
     applyConversationReadFilterToSearchParams(params, readFilter);
     navigateNachrichten(
-      `/dashboard/kontakte/nachrichten?${params.toString()}`,
+      `/dashboard/contacts/messages?${params.toString()}`,
     );
   };
 
@@ -1738,7 +1738,7 @@ export function ContactsMessagesScreen({
       params.set("platform", INBOX_FILTER_ALL);
       params.set("contact", contactId);
       navigateNachrichten(
-        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+        `/dashboard/contacts/messages?${params.toString()}`,
       );
     },
     [restaurantId, navigateNachrichten],
@@ -1990,7 +1990,7 @@ export function ContactsMessagesScreen({
                 `E-Mail ist bereits bei „${existing.displayName}“ hinterlegt — bestehender Kontakt wird geöffnet.`,
               );
               navigateNachrichten(
-                `/dashboard/kontakte/nachrichten?platform=all&contact=${existing.contactId}`,
+                `/dashboard/contacts/messages?platform=all&contact=${existing.contactId}`,
               );
               return;
             }
@@ -2138,7 +2138,7 @@ export function ContactsMessagesScreen({
     // Desktop-Split: replace (weniger Soft-Nav-Latenz); Mobil: push für Zurück.
     startTransition(() => {
       navigateNachrichten(
-        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+        `/dashboard/contacts/messages?${params.toString()}`,
         "replace",
       );
     });
@@ -2199,7 +2199,7 @@ export function ContactsMessagesScreen({
       params.set("platform", inboxFilter);
       applyConversationReadFilterToSearchParams(params, readFilter);
       navigateNachrichten(
-        `/dashboard/kontakte/nachrichten?${params.toString()}`,
+        `/dashboard/contacts/messages?${params.toString()}`,
       );
     }
     restoreMobileInboxListScroll();
@@ -3813,7 +3813,7 @@ showReplyComposer ? (
               const platformParam =
                 pending.platform === "email" ? "email" : "all";
               navigateNachrichten(
-                `/dashboard/kontakte/nachrichten?platform=${platformParam}&contact=${detail.contactId}`,
+                `/dashboard/contacts/messages?platform=${platformParam}&contact=${detail.contactId}`,
               );
 
               if (pending.platform === "whatsapp") {

@@ -1,7 +1,7 @@
 import type { UserGuidePage } from "@/lib/docs/user-guide-content";
 
 export const bestandGuide: UserGuidePage = {
-  slug: "bestand",
+  slug: "inventory",
   title: "Bestand",
   description:
     "Zutaten, Lagerbestände, Bestelllisten, Stammdaten und Spracheingabe.",
@@ -91,7 +91,7 @@ export const bestandGuide: UserGuidePage = {
     "Das Bestandsprotokoll pro Zutat zeigt alle Buchungen chronologisch.",
   ],
   related: [
-    { label: "Speisekarte (Rezepte)", href: "/docs/handbuch/speisekarte" },
-    { label: "Display", href: "/docs/handbuch/display" },
+    { label: "Speisekarte (Rezepte)", href: "/docs/handbook/menu" },
+    { label: "Display", href: "/docs/handbook/display" },
   ],
 };

@@ -406,6 +406,8 @@ LIVE_SCHEMA_DRIFT_VERSIONS=(
   20260621150100
   20260624290000
   20260624300000
+  # Tabellen sind auf der App-DB schon da; die History stand auf dem anderen Postgres.
+  20260929190000
 )
 for version in "${LIVE_SCHEMA_DRIFT_VERSIONS[@]}"; do
   repair_migration_applied "${version}" || true

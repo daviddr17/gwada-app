@@ -4,13 +4,18 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   History,
   Loader2,
+  Mic,
   Plus,
   Send,
   Sparkles,
   X,
 } from "lucide-react";
 import { useLocale } from "next-intl";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { AssistantPendingAction } from "@/lib/assistant/assistant-actions";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { isSuperadminAppPath } from "@/lib/superadmin/superadmin-session";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,8 +53,38 @@ function newLocalId(prefix = "local") {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+type SpeechRec = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+function speechRecognitionCtor(): (new () => SpeechRec) | null {
+  if (typeof window === "undefined") return null;
+  const w = window as Window & {
+    SpeechRecognition?: new () => SpeechRec;
+    webkitSpeechRecognition?: new () => SpeechRec;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+function speakReply(text: string, lang: string) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = lang;
+  window.speechSynthesis.speak(utter);
+}
+
 export function DashboardAssistantMount() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const pathname = usePathname();
+  const zone = isSuperadminAppPath(pathname) ? "superadmin" : "restaurant";
   const locale = normalizeAppLocale(useLocale());
   const dateLocale = APP_LOCALE_TO_PROFILE[locale];
   const [mounted, setMounted] = useState(false);
@@ -62,6 +97,14 @@ export function DashboardAssistantMount() {
   const [sending, setSending] = useState(false);
   const [loadingThread, setLoadingThread] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<AssistantPendingAction | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [listening, setListening] = useState(false);
+  const canSpeakInput = speechRecognitionCtor() != null;
+  const voiceTurnRef = useRef(false);
+  const recognitionRef = useRef<SpeechRec | null>(null);
+  const confirmedRef = useRef(false);
+  const suppressCancelRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -196,14 +239,18 @@ export function DashboardAssistantMount() {
     setBootError(null);
   }, []);
 
-  const send = useCallback(async () => {
+  const send = useCallback(async (spoken?: string) => {
     if (!restaurantId || sending) return;
-    const text = input.trim();
+    const text = (spoken ?? input).trim();
     if (!text) return;
+    const fromVoice = typeof spoken === "string";
+    voiceTurnRef.current = fromVoice;
 
     setInput("");
     setSending(true);
     setBootError(null);
+    if (pendingAction) suppressCancelRef.current = true;
+    setPendingAction(null);
     const userLocal: ChatMessage = {
       id: newLocalId("msg"),
       role: "user",
@@ -227,6 +274,7 @@ export function DashboardAssistantMount() {
           restaurantId,
           threadId: threadId && !threadId.startsWith("thread-") ? threadId : null,
           message: text,
+          zone,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -235,6 +283,7 @@ export function DashboardAssistantMount() {
         error?: string;
         configured?: boolean;
         ephemeral?: boolean;
+        pendingAction?: AssistantPendingAction | null;
       };
 
       const reply =
@@ -269,6 +318,10 @@ export function DashboardAssistantMount() {
         withAssistant,
         titleFromAssistantMessage(text),
       );
+      if (json.pendingAction?.kind === "create_reservation") {
+        setPendingAction(json.pendingAction);
+      }
+      if (fromVoice) speakReply(reply, dateLocale);
       void loadThreads();
     } catch {
       const errMsg: ChatMessage = {
@@ -290,7 +343,91 @@ export function DashboardAssistantMount() {
     threadId,
     loadThreads,
     mirrorThreadLocal,
+    zone,
+    dateLocale,
+    pendingAction,
   ]);
+
+  const confirmPending = useCallback(async () => {
+    if (!restaurantId || !pendingAction) return;
+    setConfirming(true);
+    try {
+      const res = await fetch("/api/assistant/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId,
+          zone,
+          preview: pendingAction.preview,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        reply?: string;
+        error?: string;
+        ask?: string | null;
+      };
+      const reply = json.reply?.trim() || json.ask || json.error || "Nicht gespeichert.";
+      const next = [
+        ...messagesRef.current,
+        { id: newLocalId("msg"), role: "assistant" as const, content: reply },
+      ];
+      setMessages(next);
+      if (threadId) {
+        mirrorThreadLocal(threadId, next, titleFromAssistantMessage(reply));
+      }
+      if (!res.ok) throw new Error(reply);
+      confirmedRef.current = true;
+      setPendingAction(null);
+      if (voiceTurnRef.current) speakReply(reply, dateLocale);
+    } finally {
+      setConfirming(false);
+    }
+  }, [restaurantId, pendingAction, zone, threadId, mirrorThreadLocal, dateLocale]);
+
+  const cancelPending = useCallback(() => {
+    const reply = locale === "de" ? "Abgebrochen. Es wurde nichts gespeichert." : "Cancelled. Nothing was saved.";
+    const next = [
+      ...messagesRef.current,
+      { id: newLocalId("msg"), role: "assistant" as const, content: reply },
+    ];
+    setMessages(next);
+    if (threadId) mirrorThreadLocal(threadId, next, titleFromAssistantMessage(reply));
+    setPendingAction(null);
+    if (voiceTurnRef.current) speakReply(reply, dateLocale);
+  }, [locale, threadId, mirrorThreadLocal, dateLocale]);
+
+  const toggleVoice = useCallback(() => {
+    const Ctor = speechRecognitionCtor();
+    if (!Ctor || sending) return;
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setListening(false);
+      return;
+    }
+    const rec = new Ctor();
+    rec.lang = dateLocale;
+    rec.interimResults = false;
+    rec.continuous = false;
+    rec.onresult = (ev) => {
+      const transcript = ev.results?.[0]?.[0]?.transcript?.trim() ?? "";
+      if (transcript) void send(transcript);
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    recognitionRef.current = rec;
+    setListening(true);
+    try {
+      rec.start();
+    } catch {
+      setListening(false);
+    }
+  }, [dateLocale, listening, sending, send]);
+
+  useEffect(() => {
+    if (open) return;
+    window.speechSynthesis?.cancel();
+    recognitionRef.current?.stop();
+  }, [open]);
 
   if (!mounted || !ready || !restaurantId) return null;
 
@@ -375,9 +512,9 @@ export function DashboardAssistantMount() {
                       <li>„Wie lege ich Sonderöffnungszeiten an?“</li>
                     </ul>
                     <p className="pt-1 text-xs leading-relaxed">
-                      Offline: Stats, Öffnungszeiten &amp; Handbuch. Mit API-Key
-                      (Superadmin → Integrationen → Assistent) mehr Dialoge &amp;
-                      Aktionen.
+                      {zone === "superadmin"
+                        ? "Offline: Stats, Öffnungszeiten und Handbuch. Mit dem Schlüssel unter Integrationen mehr Dialoge und Aktionen."
+                        : "Offline: Stats, Öffnungszeiten und Handbuch. Mit eigenem Schlüssel unter Einstellungen → Integrationen mehr Dialoge und Aktionen."}
                     </p>
                   </div>
                 ) : null}
@@ -473,6 +610,20 @@ export function DashboardAssistantMount() {
                 }}
                 disabled={sending}
               />
+              {canSpeakInput ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={listening ? "default" : "outline"}
+                  className="size-10 shrink-0 rounded-full"
+                  aria-label={listening ? "Zuhören beenden" : "Sprechen"}
+                  aria-pressed={listening}
+                  disabled={sending}
+                  onClick={toggleVoice}
+                >
+                  <Mic className="size-4" />
+                </Button>
+              ) : null}
               <Button
                 type="submit"
                 size="icon"
@@ -515,5 +666,32 @@ export function DashboardAssistantMount() {
     </div>
   );
 
-  return createPortal(panel, document.body);
+  return createPortal(
+    <>
+      {panel}
+      <ConfirmDialog
+        open={pendingAction != null}
+        onOpenChange={(next) => {
+          if (next) return;
+          if (confirmedRef.current) {
+            confirmedRef.current = false;
+            return;
+          }
+          if (suppressCancelRef.current) {
+            suppressCancelRef.current = false;
+            return;
+          }
+          cancelPending();
+        }}
+        title={locale === "de" ? "So speichern?" : "Save this?"}
+        description={pendingAction?.summary}
+        confirmLabel={locale === "de" ? "Speichern" : "Save"}
+        cancelLabel={locale === "de" ? "Abbrechen" : "Cancel"}
+        destructive={false}
+        confirmDisabled={confirming}
+        onConfirm={confirmPending}
+      />
+    </>,
+    document.body,
+  );
 }

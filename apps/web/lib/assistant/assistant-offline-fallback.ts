@@ -14,8 +14,12 @@ import {
 import { weekdayLabelForLocale } from "@/lib/assistant/assistant-weekday-label";
 import { addDays, startOfWeekMonday } from "@/lib/staff/shift-schedule-range";
 
-export const ASSISTANT_API_KEY_HINT =
-  "Mehr Funktionen (freie Dialoge, Reservierungen anlegen, komplexere Fragen) mit API-Key unter Superadmin → Integrationen → Assistent (OpenAI / Grok).";
+export function assistantKeyHint(audience: "restaurant" | "superadmin"): string {
+  if (audience === "superadmin") {
+    return "Mehr Funktionen (freie Dialoge, Reservierungen anlegen, komplexere Fragen) mit API-Key unter Superadmin → Integrationen → Assistent (OpenAI / Grok).";
+  }
+  return "Mehr Funktionen (freie Dialoge, Reservierungen anlegen, komplexere Fragen) mit eigenem API-Key unter Einstellungen → Integrationen.";
+}
 
 function ymdInTz(date: Date, timeZone: string): string {
   try {
@@ -197,8 +201,11 @@ function wantsHelp(text: string): boolean {
   );
 }
 
-function appendApiKeyHint(body: string): string {
-  return `${body.trim()}\n\n—\n${ASSISTANT_API_KEY_HINT}`;
+function appendApiKeyHint(
+  body: string,
+  audience: "restaurant" | "superadmin",
+): string {
+  return `${body.trim()}\n\n—\n${assistantKeyHint(audience)}`;
 }
 
 function formatHandbookReply(raw: string): string {
@@ -358,15 +365,18 @@ export async function runAssistantOfflineFallback(input: {
   timeZone: string;
   restaurantName: string | null;
   locale?: AppLocale | string | null;
+  keyAudience?: "restaurant" | "superadmin";
 }): Promise<string> {
   const locale = normalizeAppLocale(input.locale ?? DEFAULT_APP_LOCALE);
+  const audience = input.keyAudience ?? "restaurant";
+  const hint = (body: string) => appendApiKeyHint(body, audience);
   const msg = input.userMessage.trim();
   if (!msg) {
-    return appendApiKeyHint("Schreib mir eine kurze Frage.");
+    return hint("Schreib mir eine kurze Frage.");
   }
 
   if (wantsHelp(msg)) {
-    return appendApiKeyHint(
+    return hint(
       [
         `Hallo${input.restaurantName ? ` — ${input.restaurantName}` : ""}! Offline kann ich u. a.:`,
         "• Reservierungszahlen (heute / nächste Woche / …)",
@@ -382,7 +392,7 @@ export async function runAssistantOfflineFallback(input: {
   }
 
   if (wantsCreateReservation(msg)) {
-    return appendApiKeyHint(
+    return hint(
       "Reservierungen anlegen geht im Offline-Modus nicht zuverlässig (fehlende Felder, Bestätigung). Mit API-Key kann ich das im Chat durchführen — oder du nutzt Reservierungen → Neu.",
     );
   }
@@ -395,17 +405,17 @@ export async function runAssistantOfflineFallback(input: {
       start_ymd: range.start_ymd,
       end_ymd: range.end_ymd,
     });
-    return appendApiKeyHint(formatStatsReply(raw, range.label));
+    return hint(formatStatsReply(raw, range.label));
   }
 
   if (wantsRules(msg)) {
     const raw = await toolGetRestaurantRules(input.ctx, { locale });
-    return appendApiKeyHint(formatRulesReply(raw, locale));
+    return hint(formatRulesReply(raw, locale));
   }
 
   if (wantsHandbook(msg)) {
     const raw = await toolSearchHandbook(input.ctx, { query: msg });
-    return appendApiKeyHint(formatHandbookReply(raw));
+    return hint(formatHandbookReply(raw));
   }
 
   // Soft fallback: try handbook, then help text
@@ -417,10 +427,10 @@ export async function runAssistantOfflineFallback(input: {
     parsed = {};
   }
   if (parsed.ok && Array.isArray(parsed.matches) && parsed.matches.length > 0) {
-    return appendApiKeyHint(formatHandbookReply(handbook));
+    return hint(formatHandbookReply(handbook));
   }
 
-  return appendApiKeyHint(
+  return hint(
     [
       "Das habe ich offline nicht eindeutig erkannt.",
       "Probier z. B.:",

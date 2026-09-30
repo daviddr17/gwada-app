@@ -10,18 +10,23 @@ import {
 } from "@/lib/reservations/reservation-guest-name";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { defaultStaffReservationStatusId } from "@/lib/supabase/reservations-db";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DEFAULT_APP_LOCALE,
   normalizeAppLocale,
+  type AppLocale,
 } from "@/i18n/config";
+import {
+  assistantAsk,
+  firstReservationQuestion,
+  resolveReadYmdRange,
+} from "@/lib/assistant/assistant-ask";
+import { reservationPreviewSummary } from "@/lib/assistant/assistant-actions";
+import { resolveAssistantTarget } from "@/lib/assistant/assistant-scope";
+import type { AssistantToolContext } from "@/lib/assistant/assistant-tool-context";
 import { weekdayLabelForLocale } from "@/lib/assistant/assistant-weekday-label";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type AssistantToolContext = {
-  restaurantId: string;
-  userId: string;
-  sb: SupabaseClient;
-};
+export type { AssistantToolContext } from "@/lib/assistant/assistant-tool-context";
 
 function pagePlainText(page: UserGuidePage): string {
   const parts: string[] = [
@@ -39,58 +44,83 @@ function pagePlainText(page: UserGuidePage): string {
   return parts.join("\n");
 }
 
-export async function toolCountReservations(
-  ctx: AssistantToolContext,
-  args: { start_ymd: string; end_ymd: string },
-): Promise<string> {
-  const auth = await authorizeModuleCrud(
-    ctx.restaurantId,
-    "reservations",
-    "read",
-  );
-  if (!auth.ok) {
-    return JSON.stringify({
-      ok: false,
-      error: "Keine Berechtigung, Reservierungen zu lesen.",
-    });
-  }
-
-  const start = args.start_ymd?.trim();
-  const end = args.end_ymd?.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
-    return JSON.stringify({
-      ok: false,
-      error: "start_ymd und end_ymd müssen YYYY-MM-DD sein.",
-    });
-  }
-
-  const timeZone = await fetchRestaurantTimezoneServer(ctx.sb, ctx.restaurantId);
-  let rangeStartIso: string;
-  let rangeEndExclusiveIso: string;
+export async function reservationRangeIso(
+  sb: SupabaseClient,
+  restaurantId: string,
+  start: string,
+  end: string,
+): Promise<{ startIso: string; endIso: string; timeZone: string } | { error: string }> {
+  const timeZone = await fetchRestaurantTimezoneServer(sb, restaurantId);
   try {
-    rangeStartIso = ymdHmToRestaurantIso(start, "00:00", timeZone);
+    const startIso = ymdHmToRestaurantIso(start, "00:00", timeZone);
     const endDate = new Date(`${end}T12:00:00Z`);
     endDate.setUTCDate(endDate.getUTCDate() + 1);
     const endExclusiveYmd = endDate.toISOString().slice(0, 10);
-    rangeEndExclusiveIso = ymdHmToRestaurantIso(
-      endExclusiveYmd,
-      "00:00",
-      timeZone,
-    );
+    const endIso = ymdHmToRestaurantIso(endExclusiveYmd, "00:00", timeZone);
+    return { startIso, endIso, timeZone };
   } catch {
-    return JSON.stringify({ ok: false, error: "Ungültiger Zeitraum." });
+    return { error: "Ungültiger Zeitraum." };
+  }
+}
+
+export async function toolCountReservations(
+  ctx: AssistantToolContext,
+  args: { start_ymd?: string; end_ymd?: string; date_ymd?: string; scope?: string; restaurant_name?: string },
+  locale: AppLocale = DEFAULT_APP_LOCALE,
+): Promise<string> {
+  const target = await resolveAssistantTarget(ctx, args, locale, "read");
+  if (target.kind === "ask") {
+    return JSON.stringify({ ok: false, ask: target.ask });
   }
 
-  const { data, error } = await ctx.sb
+  const timeZone = await fetchRestaurantTimezoneServer(
+    ctx.sb,
+    target.kind === "one" ? target.restaurantId : ctx.restaurantId,
+  );
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const range = resolveReadYmdRange({
+    today,
+    dateYmd: args.date_ymd,
+    startYmd: args.start_ymd,
+    endYmd: args.end_ymd,
+    locale,
+  });
+  if ("ask" in range) return JSON.stringify({ ok: false, ask: range.ask });
+
+  if (target.kind === "one" && !ctx.callerIsSuperadmin) {
+    const auth = await authorizeModuleCrud(target.restaurantId, "reservations", "read");
+    if (!auth.ok) {
+      return JSON.stringify({
+        ok: false,
+        error: "Keine Berechtigung, Reservierungen zu lesen.",
+      });
+    }
+  }
+
+  const bounds = await reservationRangeIso(
+    ctx.sb,
+    target.kind === "one" ? target.restaurantId : ctx.restaurantId,
+    range.start,
+    range.end,
+  );
+  if ("error" in bounds) {
+    return JSON.stringify({ ok: false, ask: assistantAsk(locale, "whichDate") });
+  }
+
+  let query = target.sb
     .from("reservations")
-    .select("id, party_size, starts_at, status_id")
-    .eq("restaurant_id", ctx.restaurantId)
-    .gte("starts_at", rangeStartIso)
-    .lt("starts_at", rangeEndExclusiveIso);
+    .select("party_size")
+    .gte("starts_at", bounds.startIso)
+    .lt("starts_at", bounds.endIso);
+  if (target.kind === "one") query = query.eq("restaurant_id", target.restaurantId);
 
-  if (error) {
-    return JSON.stringify({ ok: false, error: error.message });
-  }
+  const { data, error } = await query;
+  if (error) return JSON.stringify({ ok: false, error: error.message });
 
   const rows = data ?? [];
   const guests = rows.reduce(
@@ -100,9 +130,11 @@ export async function toolCountReservations(
 
   return JSON.stringify({
     ok: true,
-    start_ymd: start,
-    end_ymd: end,
-    time_zone: timeZone,
+    scope: target.kind,
+    restaurant_name: target.kind === "one" ? target.restaurantName : null,
+    start_ymd: range.start,
+    end_ymd: range.end,
+    time_zone: bounds.timeZone,
     reservation_count: rows.length,
     guest_count: guests,
   });
@@ -164,29 +196,40 @@ export async function toolSearchHandbook(
 
 export async function toolGetRestaurantRules(
   ctx: AssistantToolContext,
-  options?: { locale?: string | null },
+  options?: { locale?: string | null; scope?: string; restaurant_name?: string },
 ): Promise<string> {
-  const timeZone = await fetchRestaurantTimezoneServer(ctx.sb, ctx.restaurantId);
   const locale = normalizeAppLocale(options?.locale ?? DEFAULT_APP_LOCALE);
+  const target = await resolveAssistantTarget(
+    ctx,
+    { scope: options?.scope, restaurant_name: options?.restaurant_name },
+    locale,
+    "read",
+  );
+  if (target.kind === "ask") return JSON.stringify({ ok: false, ask: target.ask });
+  if (target.kind === "all") {
+    return JSON.stringify({ ok: false, ask: assistantAsk(locale, "whichRestaurant") });
+  }
+
+  const timeZone = await fetchRestaurantTimezoneServer(ctx.sb, target.restaurantId);
 
   const [{ data: hours }, { data: settings }, { data: restaurant }] =
     await Promise.all([
-      ctx.sb
+      target.sb
         .from("opening_hours")
         .select(
           "kind, weekday, exception_date, closed, opens_at, closes_at, schedule_role, note",
         )
-        .eq("restaurant_id", ctx.restaurantId)
+        .eq("restaurant_id", target.restaurantId)
         .eq("schedule_role", "business"),
-      ctx.sb
+      target.sb
         .from("restaurant_reservation_settings")
         .select("default_dwell_minutes, booking_lead_time_hours")
-        .eq("restaurant_id", ctx.restaurantId)
+        .eq("restaurant_id", target.restaurantId)
         .maybeSingle(),
-      ctx.sb
+      target.sb
         .from("restaurants")
         .select("name")
-        .eq("id", ctx.restaurantId)
+        .eq("id", target.restaurantId)
         .maybeSingle(),
     ]);
 
@@ -234,13 +277,18 @@ export async function toolCreateReservation(
     guest_phone?: string | null;
     notes?: string | null;
     confirm?: boolean;
+    scope?: string;
+    restaurant_name?: string;
   },
+  locale: AppLocale = DEFAULT_APP_LOCALE,
 ): Promise<string> {
-  const auth = await authorizeModuleCrud(
-    ctx.restaurantId,
-    "reservations",
-    "create",
-  );
+  const target = await resolveAssistantTarget(ctx, args, locale, "write");
+  if (target.kind === "ask") return JSON.stringify({ ok: false, ask: target.ask });
+  if (target.kind !== "one") {
+    return JSON.stringify({ ok: false, ask: assistantAsk(locale, "noWriteAll") });
+  }
+
+  const auth = await authorizeModuleCrud(target.restaurantId, "reservations", "create");
   if (!auth.ok) {
     return JSON.stringify({
       ok: false,
@@ -248,28 +296,22 @@ export async function toolCreateReservation(
     });
   }
 
-  const dateYmd = args.date_ymd?.trim() ?? "";
-  const timeHm = args.time_hm?.trim() ?? "";
-  const partySize = Number(args.party_size);
-  const firstName = normalizeReservationGuestFirstName(
-    args.guest_first_name ?? "",
-  );
-  const lastName = normalizeReservationGuestLastName(
-    args.guest_last_name ?? "",
-  );
-
-  const missing: string[] = [];
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateYmd)) missing.push("date_ymd");
-  if (!/^\d{1,2}:\d{2}$/.test(timeHm)) missing.push("time_hm");
-  if (!Number.isFinite(partySize) || partySize < 1) missing.push("party_size");
-  if (!firstName) missing.push("guest_first_name");
-
-  if (missing.length) {
+  const gap = firstReservationQuestion(args, locale);
+  if (gap) {
     return JSON.stringify({
       ok: false,
-      needs_fields: missing,
-      error: `Fehlende oder ungültige Felder: ${missing.join(", ")}`,
+      needs_fields: [gap.field],
+      ask: gap.ask,
     });
+  }
+
+  const dateYmd = args.date_ymd.trim();
+  const timeHm = args.time_hm.trim();
+  const partySize = Number(args.party_size);
+  const firstName = normalizeReservationGuestFirstName(args.guest_first_name ?? "");
+  const lastName = normalizeReservationGuestLastName(args.guest_last_name ?? "");
+  if (!firstName) {
+    return JSON.stringify({ ok: false, ask: assistantAsk(locale, "guest") });
   }
 
   const preview = {
@@ -280,6 +322,7 @@ export async function toolCreateReservation(
     guest_last_name: lastName || null,
     guest_phone: args.guest_phone?.trim() || null,
     notes: args.notes?.trim() || null,
+    restaurant_name: target.restaurantName,
   };
 
   if (!args.confirm) {
@@ -287,20 +330,19 @@ export async function toolCreateReservation(
       ok: true,
       status: "draft",
       preview,
-      message:
-        "Entwurf bereit. Frage den Nutzer um Bestätigung, dann erneut mit confirm=true aufrufen.",
+      message: reservationPreviewSummary(preview, locale),
     });
   }
 
-  const timeZone = await fetchRestaurantTimezoneServer(ctx.sb, ctx.restaurantId);
-  const { data: settings } = await ctx.sb
+  const timeZone = await fetchRestaurantTimezoneServer(target.sb, target.restaurantId);
+  const { data: settings } = await target.sb
     .from("restaurant_reservation_settings")
     .select("default_dwell_minutes")
-    .eq("restaurant_id", ctx.restaurantId)
+    .eq("restaurant_id", target.restaurantId)
     .maybeSingle();
   const dwell = settings?.default_dwell_minutes ?? 120;
 
-  const { data: statuses, error: statusErr } = await ctx.sb
+  const { data: statuses, error: statusErr } = await target.sb
     .from("reservation_statuses")
     .select("id, code, name, color_hex")
     .order("sort_order", { ascending: true });
@@ -327,10 +369,10 @@ export async function toolCreateReservation(
   }
   const endsIso = new Date(startMs + dwell * 60 * 1000).toISOString();
 
-  const { data: created, error: insErr } = await ctx.sb
+  const { data: created, error: insErr } = await target.sb
     .from("reservations")
     .insert({
-      restaurant_id: ctx.restaurantId,
+      restaurant_id: target.restaurantId,
       kind: "guest",
       guest_first_name: firstName,
       guest_last_name: lastName || "",

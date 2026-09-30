@@ -120,7 +120,7 @@ export function PlatformOpenaiFeatureCard({
   return (
     <SuperadminIntegrationPanel
       title="Assistent (OpenAI / Grok)"
-      description="API-Key für den Dashboard-Chatbot. OpenAI oder Grok (xAI) — der Key wird nur serverseitig genutzt und nie ins UI zurückgegeben."
+      description="Nur für den Assistenten im Superadmin. Restaurant-Chats nutzen diesen Schlüssel nicht. Jedes Restaurant hinterlegt seinen eigenen Schlüssel unter Einstellungen → Integrationen. Der Key bleibt auf dem Server."
       icon={<Sparkles className="size-5" aria-hidden />}
       accentColor={INTEGRATION_PANEL_ACCENT.openai}
       badges={

@@ -12,6 +12,7 @@ import { IntegrationenSettingsSkeleton } from "@/components/settings/integration
 import { WhatsappIntegrationCard } from "@/components/settings/whatsapp-integration-card";
 import { MollieIntegrationCard } from "@/components/settings/mollie-integration-card";
 import { AdyenIntegrationCard } from "@/components/settings/adyen-integration-card";
+import { AssistantIntegrationCard } from "@/components/settings/assistant-integration-card";
 import {
   SettingsIntegrationSaveProvider,
   useSettingsIntegrationSave,
@@ -76,6 +77,7 @@ function IntegrationenContent() {
         <Suspense fallback={null}>
           <AdyenIntegrationCard />
         </Suspense>
+        <AssistantIntegrationCard />
         {!anyEnabled ? (
           <p className="text-sm text-muted-foreground">
             Weitere Integrationen sind derzeit nicht freigeschaltet.
@@ -107,8 +109,7 @@ function IntegrationenContent() {
         {appleBusinessConnectEnabled ? <AppleBusinessConnectIntegrationCard /> : null}
       </div>
 
-      {emailEnabled || lexofficeEnabled || tripadvisorEnabled || appleBusinessConnectEnabled ? (
-        <SettingsStickySaveBar show={dirty}>
+      <SettingsStickySaveBar show={dirty}>
           <Button
             type="button"
             disabled={saving}
@@ -121,7 +122,6 @@ function IntegrationenContent() {
             {saving ? "Speichern…" : "Speichern"}
           </Button>
         </SettingsStickySaveBar>
-      ) : null}
     </>
   );
 }

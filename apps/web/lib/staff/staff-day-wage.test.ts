@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   computeStaffDayWageBreakdown,
+  staffHourlyRateCentsForWorkedHours,
   sumStaffWorkHoursForDay,
   sumTeamWorkHoursForDay,
 } from "./staff-day-wage.ts";
@@ -179,4 +180,34 @@ test("Heute-Widget-Stunden = Summe der Tageslohn-Zeilen", () => {
   });
 
   assert.ok(Math.abs(summary.todayWorkHours - wageHours) < 1e-9);
+});
+
+test("Stundenlohn der gearbeiteten Stunden, Festlohn hat keinen Satz", () => {
+  assert.equal(
+    staffHourlyRateCentsForWorkedHours(
+      [hourlyContract],
+      "s1",
+      "2026-09-15",
+    ),
+    1500,
+  );
+  const fixed = {
+    ...hourlyContract,
+    id: "c-fixed",
+    pay_type: "fixed" as const,
+    hourly_rate_cents: null,
+    fixed_salary_cents: 200_000,
+  };
+  assert.equal(
+    staffHourlyRateCentsForWorkedHours([fixed], "s1", "2026-09-15"),
+    null,
+  );
+  assert.equal(
+    staffHourlyRateCentsForWorkedHours(
+      [{ ...hourlyContract, hourly_rate_cents: null }],
+      "s1",
+      "2026-09-15",
+    ),
+    null,
+  );
 });

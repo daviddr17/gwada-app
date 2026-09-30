@@ -34,6 +34,8 @@ type StaffPayrollQuickSettleButtonProps = {
   staffName?: string;
   wageCents: number;
   payoutCents: number;
+  /** Saldo aus früheren Monaten. Fehlt er, zählt nur dieser Monat. */
+  carryCents?: number;
   periodYear: number;
   periodMonth: number;
   allowEdit?: boolean;
@@ -43,13 +45,14 @@ type StaffPayrollQuickSettleButtonProps = {
   className?: string;
 };
 
-/** Auszahlung in Höhe des offenen Lohn-Rests (voller Lohn wenn noch keine Auszahlung). */
+/** Auszahlung in Höhe des offenen Rests (Übertrag + Lohn − bereits gezahlt). */
 export function StaffPayrollQuickSettleButton({
   restaurantId,
   staffId,
   staffName,
   wageCents,
   payoutCents,
+  carryCents = 0,
   periodYear,
   periodMonth,
   allowEdit = true,
@@ -58,13 +61,18 @@ export function StaffPayrollQuickSettleButton({
   className,
 }: StaffPayrollQuickSettleButtonProps) {
   const [busy, setBusy] = useState(false);
-  const derived = derivePayrollSettlement({ wageCents, payoutCents });
+  const derived = derivePayrollSettlement({
+    wageCents,
+    payoutCents,
+    carryCents,
+  });
   const amountCents = derived.openCents;
-  const canSettle = allowEdit && wageCents > 0 && amountCents > 0;
+  const canSettle =
+    allowEdit && amountCents > 0 && (wageCents > 0 || carryCents !== 0);
   const isSettled =
-    wageCents > 0 &&
     amountCents === 0 &&
-    (derived.status === "paid" || derived.status === "overpaid");
+    (derived.status === "paid" || derived.status === "overpaid") &&
+    (wageCents > 0 || carryCents !== 0);
 
   const handleClick = useCallback(async () => {
     if (!canSettle || busy) return;

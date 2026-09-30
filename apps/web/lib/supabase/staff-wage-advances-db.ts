@@ -45,6 +45,8 @@ export async function fetchStaffWageAdvancesInRange(
   };
 }
 
+const WAGE_ADVANCE_PAGE = 1000;
+
 /** Alle Vorschüsse des Restaurants in einem paid_on-Zeitraum. */
 export async function fetchRestaurantWageAdvancesInRange(
   restaurantId: string,
@@ -52,19 +54,33 @@ export async function fetchRestaurantWageAdvancesInRange(
   paidOnToYmd: string,
 ): Promise<{ data: RestaurantStaffWageAdvanceRow[]; error: string | null }> {
   const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("restaurant_staff_wage_advances")
-    .select(WAGE_ADVANCE_SELECT)
-    .eq("restaurant_id", restaurantId)
-    .gte("paid_on", paidOnFromYmd)
-    .lte("paid_on", paidOnToYmd)
-    .order("paid_on", { ascending: false });
+  const rows: Record<string, unknown>[] = [];
+  let from = 0;
+  let previousFirstId: string | null = null;
 
-  if (error) return { data: [], error: error.message };
+  for (;;) {
+    const { data, error } = await supabase
+      .from("restaurant_staff_wage_advances")
+      .select(WAGE_ADVANCE_SELECT)
+      .eq("restaurant_id", restaurantId)
+      .gte("paid_on", paidOnFromYmd)
+      .lte("paid_on", paidOnToYmd)
+      .order("paid_on", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + WAGE_ADVANCE_PAGE - 1);
+
+    if (error) return { data: [], error: error.message };
+    const page = (data ?? []) as Record<string, unknown>[];
+    const firstId = page[0] ? String(page[0].id ?? "") : "";
+    if (firstId && firstId === previousFirstId) break;
+    previousFirstId = firstId || previousFirstId;
+    rows.push(...page);
+    if (page.length < WAGE_ADVANCE_PAGE) break;
+    from += WAGE_ADVANCE_PAGE;
+  }
+
   return {
-    data: (data ?? []).map((r) =>
-      mapWageAdvanceRow(r as Record<string, unknown>),
-    ),
+    data: rows.map((r) => mapWageAdvanceRow(r)),
     error: null,
   };
 }

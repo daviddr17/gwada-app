@@ -127,6 +127,22 @@ export function findStaffContractForDay(
   return [...matches].sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0]!;
 }
 
+/**
+ * Stundenlohn, mit dem gearbeitete Stunden an diesem Tag bewertet werden.
+ * Festlohn oder fehlender Satz → null (keine zweite Rate).
+ */
+export function staffHourlyRateCentsForWorkedHours(
+  contracts: readonly RestaurantStaffContractRow[],
+  staffId: string,
+  dayYmd: string,
+): number | null {
+  const contract = findStaffContractForDay(contracts, staffId, dayYmd);
+  if (!contract || isStaffFixedPayType(contract.pay_type)) return null;
+  const rate = contract.hourly_rate_cents;
+  if (rate == null || rate <= 0) return null;
+  return rate;
+}
+
 export function sumStaffWorkHoursForDay(
   entries: readonly RestaurantStaffWorkEntryRow[],
   staffId: string,

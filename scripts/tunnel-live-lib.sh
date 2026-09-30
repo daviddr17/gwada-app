@@ -62,9 +62,12 @@ gwada_resolve_container_ip() {
   name="$(gwada_resolve_app_db_container | tail -1)"
   name="${name//$'\r'/}"
   echo "App-DB-Container=${name}" >&2
-  gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
-    docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "${name}" \
-    | awk '{print $1}'
+  # Format-String muss im Remote-Skript stehen. Sonst frisst die Remote-Shell die {{ }}.
+  gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" bash -s -- "${name}" <<'REMOTE'
+set -euo pipefail
+name="$1"
+docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "${name}" | awk '{print $1}'
+REMOTE
 }
 
 gwada_tunnel_port_open() {

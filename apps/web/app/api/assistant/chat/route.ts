@@ -1,3 +1,4 @@
+import { pickAssistantLlm } from "@/lib/assistant/assistant-llm-source";
 import { runAssistantChatTurn } from "@/lib/assistant/assistant-chat-server";
 import {
   getAssistantThreadForUser,
@@ -9,7 +10,10 @@ import {
   type AssistantThreadRow,
 } from "@/lib/assistant/assistant-chat-db";
 import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboard-restaurant";
+import { fetchPlatformOpenaiConfigAdmin } from "@/lib/supabase/platform-openai-secrets-db";
+import { fetchRestaurantAssistantRuntime } from "@/lib/supabase/restaurant-assistant-key-db";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
+import { getSuperadminSession } from "@/lib/superadmin/superadmin-session";
 import { getLocale } from "next-intl/server";
 import { normalizeAppLocale } from "@/i18n/config";
 
@@ -30,6 +34,7 @@ export async function POST(req: Request) {
     restaurantId?: string;
     threadId?: string | null;
     message?: string;
+    zone?: string;
   };
 
   const message = body.message?.trim() ?? "";
@@ -110,17 +115,46 @@ export async function POST(req: Request) {
       getLocale().catch(() => "de"),
     ]);
 
+    const zone = body.zone === "superadmin" ? "superadmin" : "restaurant";
+    const superSession =
+      zone === "superadmin" ? await getSuperadminSession(auth.sb) : null;
+    const callerIsSuperadmin = superSession?.status === "ok";
+    const usePlatform = zone === "superadmin" && callerIsSuperadmin;
+    const platformConfig = usePlatform ? await fetchPlatformOpenaiConfigAdmin() : null;
+    const platform =
+      platformConfig?.enabled && platformConfig.apiKey
+        ? {
+            apiKey: platformConfig.apiKey,
+            model: platformConfig.model,
+            provider: platformConfig.provider,
+            ...(platformConfig.baseURL ? { baseURL: platformConfig.baseURL } : {}),
+          }
+        : null;
+    const restaurantLlm = usePlatform
+      ? null
+      : await fetchRestaurantAssistantRuntime(auth.restaurantId);
+    const llm = pickAssistantLlm({
+      zone,
+      callerIsSuperadmin,
+      platform,
+      restaurant: restaurantLlm,
+    });
+
     const result = await runAssistantChatTurn({
       ctx: {
         restaurantId: auth.restaurantId,
         userId: auth.userId,
         sb: auth.sb,
+        zone,
+        callerIsSuperadmin,
       },
       history,
       userMessage: message,
       restaurantName: restaurant?.name ?? null,
       timeZone,
       locale: normalizeAppLocale(localeRaw),
+      llm,
+      keyAudience: usePlatform ? "superadmin" : "restaurant",
     });
 
     if (!result.ok) {
@@ -142,6 +176,7 @@ export async function POST(req: Request) {
           reply: result.error,
           configured: result.configured,
           error: result.error,
+          pendingAction: null,
           ephemeral: !persist,
         },
         { status: result.status ?? 500 },
@@ -163,6 +198,7 @@ export async function POST(req: Request) {
           message: assistantMsg,
           configured: result.configured,
           mode: result.mode,
+          pendingAction: result.pendingAction,
           ephemeral: false,
         });
       } catch (e) {
@@ -176,6 +212,7 @@ export async function POST(req: Request) {
       reply: result.reply,
       configured: result.configured,
       mode: result.mode,
+      pendingAction: result.pendingAction,
       ephemeral: true,
     });
   } catch (e) {

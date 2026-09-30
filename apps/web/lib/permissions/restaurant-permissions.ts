@@ -36,6 +36,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "integrations.apple_business_connect",
   "integrations.mollie",
   "integrations.adyen",
+  "integrations.assistant",
   "settings.restaurant",
   "settings.opening_hours",
   "settings.branding",
@@ -213,6 +214,12 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "integrations.adyen",
       label: "Adyen verbinden",
       description: "Eigenes Adyen-Konto über das gehostete Onboarding verbinden.",
+      group: "integrationen",
+    },
+    {
+      key: "integrations.assistant",
+      label: "Assistent verbinden",
+      description: "Eigenen OpenAI- oder Grok-Schlüssel für den Assistenten hinterlegen.",
       group: "integrationen",
     },
     {

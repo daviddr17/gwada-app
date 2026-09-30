@@ -40,6 +40,8 @@ import {
   type ClaimedNotificationDelivery,
 } from "@/lib/notifications/notification-deliver-claim";
 import { buildNotificationPushText } from "@/lib/notifications/notification-push-message";
+import { staffNotificationCopy } from "@/lib/notifications/staff-notification-copy";
+import { resolveInventoryNotificationLocale } from "@/lib/inventory/inventory-unit-label-for-locale";
 import { actorProfileIdFromPayload } from "@/lib/notifications/notification-self-origin";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
@@ -493,11 +495,25 @@ function deliveryClaimedAtMs(delivery: DeliveryRow): number | null {
   return Number.isFinite(claimed) ? claimed : null;
 }
 
+async function fetchRestaurantDefaultLocale(
+  admin: SupabaseClient,
+  restaurantId: string,
+): Promise<string | null> {
+  const { data } = await admin
+    .from("restaurants")
+    .select("default_locale")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  const value = (data as { default_locale?: string } | null)?.default_locale;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 async function deliverOne(
   admin: SupabaseClient,
   delivery: DeliveryRow,
   restaurantNames: Map<string, string | null>,
   restaurantTimezones: Map<string, string>,
+  restaurantLocales: Map<string, string | null>,
 ): Promise<"sent" | "failed" | "skipped"> {
   const event = eventFromDeliveryJoin(delivery.notification_events);
   if (!event || !isNotificationModuleId(event.module)) {
@@ -511,6 +527,11 @@ async function deliverOne(
     restaurantNames.get(delivery.context_restaurant_id) ?? null;
   const timeZone =
     restaurantTimezones.get(delivery.context_restaurant_id) ?? undefined;
+  const contact = await loadProfilePushContact(admin, delivery.profile_id);
+  const locale = resolveInventoryNotificationLocale(
+    contact.locale,
+    restaurantLocales.get(delivery.context_restaurant_id) ?? null,
+  );
   const { text, subject, emailDetails, emailBodyHtml, href, platformCode } =
     buildNotificationPushText(
     {
@@ -519,9 +540,8 @@ async function deliverOne(
     },
     restaurantName,
     timeZone,
+    locale,
   );
-
-  const contact = await loadProfilePushContact(admin, delivery.profile_id);
 
   if (delivery.channel === "whatsapp") {
     if (!contact.phone) {
@@ -652,6 +672,7 @@ async function deliverOne(
     emailBodyHtml,
     href,
     platformCode,
+    intro: staffNotificationCopy(locale).emailIntro,
     admin,
   });
 
@@ -710,6 +731,7 @@ async function processPendingDeliveries(
 }> {
   const restaurantNames = new Map<string, string | null>();
   const restaurantTimezones = new Map<string, string>();
+  const restaurantLocales = new Map<string, string | null>();
   let processed = 0;
   let sent = 0;
   let failed = 0;
@@ -752,12 +774,19 @@ async function processPendingDeliveries(
           await fetchRestaurantTimezoneServer(admin, restaurantId),
         );
       }
+      if (!restaurantLocales.has(restaurantId)) {
+        restaurantLocales.set(
+          restaurantId,
+          await fetchRestaurantDefaultLocale(admin, restaurantId),
+        );
+      }
 
       const outcome = await deliverOne(
         admin,
         delivery,
         restaurantNames,
         restaurantTimezones,
+        restaurantLocales,
       );
       if (outcome === "sent") sent += 1;
       else if (outcome === "skipped") skipped += 1;
@@ -818,6 +847,7 @@ export async function runNotificationDeliverForEvent(
   const eventRow = event as NotificationEventRow;
   const restaurantNames = new Map<string, string | null>();
   const restaurantTimezones = new Map<string, string>();
+  const restaurantLocales = new Map<string, string | null>();
   let sent = 0;
   let failed = 0;
   let skipped = 0;
@@ -852,6 +882,12 @@ export async function runNotificationDeliverForEvent(
           await fetchRestaurantTimezoneServer(admin, restaurantId),
         );
       }
+      if (!restaurantLocales.has(restaurantId)) {
+        restaurantLocales.set(
+          restaurantId,
+          await fetchRestaurantDefaultLocale(admin, restaurantId),
+        );
+      }
 
       const outcome = await deliverOne(
         admin,
@@ -861,6 +897,7 @@ export async function runNotificationDeliverForEvent(
         },
         restaurantNames,
         restaurantTimezones,
+        restaurantLocales,
       );
       if (outcome === "sent") sent += 1;
       else if (outcome === "skipped") skipped += 1;

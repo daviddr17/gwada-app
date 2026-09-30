@@ -74,6 +74,8 @@ export type PublicReservationCreateBody = {
   notify_whatsapp: boolean;
   terms_accepted: boolean;
   website?: string;
+  /** Language selected in the booking form. */
+  guest_locale?: string | null;
 };
 
 export type PublicReservationUpdateBody = {
@@ -92,6 +94,7 @@ export type PublicReservationUpdateBody = {
   notify_whatsapp: boolean;
   terms_accepted: boolean;
   website?: string;
+  guest_locale?: string | null;
 };
 
 export function normalizeMinMinutesBeforeClosing(

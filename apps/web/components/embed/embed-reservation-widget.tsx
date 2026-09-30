@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Mail, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GuestPhoneCountrySelect } from "@/components/phone/guest-phone-country-select";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import {
   EmbedSlidingSegmentTabs,
@@ -240,6 +240,7 @@ function EmbedReservationWidgetBody({
 }) {
   const t = useTranslations("Embed");
   const tr = useTranslations("Embed.reservation");
+  const guestLocale = useLocale();
   const profileSheet = variant === "profileSheet";
   const [hostMode, setHostMode] = useState(false);
   const [internalTermsSheetOpen, setInternalTermsSheetOpen] = useState(false);
@@ -447,6 +448,7 @@ function EmbedReservationWidgetBody({
       terms_accepted: termsAccepted,
       website,
       slug: config.slug,
+      guest_locale: guestLocale,
     };
   };
 

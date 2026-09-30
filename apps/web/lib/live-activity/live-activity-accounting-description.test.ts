@@ -154,7 +154,7 @@ test("übrige Feed-Zeilen sind Klartext ohne IDs", () => {
         unit: "kg",
       },
       title: "Bestand niedrig",
-      description: "Tomaten · noch 0,5 kg",
+      description: "Tomaten · noch 0,5 Kilogramm (kg)",
     },
     {
       module: "inventory_po_delivery_due",

@@ -156,4 +156,4 @@ export const APP_ROUTES = {
   changelog: "/dashboard/changelog",
 } as const;
 
-export { LEGACY_MODULE_REDIRECTS } from "./english-app-paths.ts";
+export { LEGACY_MODULE_REDIRECTS } from "./english-app-paths";

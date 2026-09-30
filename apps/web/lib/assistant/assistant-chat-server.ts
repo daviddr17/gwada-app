@@ -194,7 +194,7 @@ async function runTool(
   ctx: AssistantToolContext,
   name: string,
   argsJson: string,
-  locale: string,
+  locale: AppLocale,
 ): Promise<string> {
   let args: Record<string, unknown> = {};
   try {

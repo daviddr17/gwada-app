@@ -111,7 +111,7 @@ function DashboardSpaInset() {
           className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div className={cn("flex h-full w-max min-w-full items-center gap-2 sm:gap-3", appChromeSafeStartClassName)}>
-            <div className="flex shrink-0 items-center gap-2">
+            <div data-app-chrome-title className="flex shrink-0 items-center gap-2">
               {chrome.title ? (
                 <h1 className="whitespace-nowrap text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
                   {chrome.title}

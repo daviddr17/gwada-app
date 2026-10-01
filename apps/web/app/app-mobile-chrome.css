@@ -27,9 +27,30 @@
     overflow: clip;
   }
 
+  /*
+   * overflow-x:auto zusammen mit overflow-y:clip wird zu overflow-y:hidden
+   * berechnet und ist auf iOS wieder ein Scrollport mit Kanten-Fade.
+   * Beide Achsen clip — langer Titel wird auf dem Handy mit Ellipse gekürzt.
+   */
   [data-app-chrome-header][data-ios-top-bar] [data-app-chrome-title-scroll] {
-    overflow-x: auto;
+    overflow-x: clip;
     overflow-y: clip;
+  }
+
+  [data-app-chrome-header][data-ios-top-bar] [data-app-chrome-title-scroll] > div {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  [data-app-chrome-header][data-ios-top-bar] [data-app-chrome-title] {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  [data-app-chrome-header][data-ios-top-bar] [data-app-chrome-title] h1 {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

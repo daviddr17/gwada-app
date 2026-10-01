@@ -6,6 +6,12 @@ import {
   viewerHasFullLiveFeedAccess,
   type LiveActivityFeedViewer,
 } from "@/lib/live-activity/live-activity-feed-access";
+import {
+  accountingProfileIdFromPayload,
+  asUuid,
+  personNameFromParts,
+  resolveAccountingUploaderName,
+} from "@/lib/live-activity/live-activity-accounting-uploader";
 import { LIVE_ACTIVITY_FEED_MODULES } from "@/lib/live-activity/live-activity-feed-modules";
 import { liveActivityFromNotificationEvent } from "@/lib/live-activity/live-activity-from-notification-event";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
@@ -28,6 +34,15 @@ const ACCOUNTING_FEED_MODULES = new Set([
   "accounting_quotation",
 ]);
 
+const ACCOUNTING_DOCUMENT_SOURCE: Record<
+  string,
+  { table: "accounting_vouchers" | "accounting_invoices" | "accounting_quotations"; kind: string }
+> = {
+  accounting_voucher: { table: "accounting_vouchers", kind: "voucher" },
+  accounting_invoice: { table: "accounting_invoices", kind: "invoice" },
+  accounting_quotation: { table: "accounting_quotations", kind: "quotation" },
+};
+
 type FeedEventRow = {
   id: string;
   module: string;
@@ -36,18 +51,13 @@ type FeedEventRow = {
   created_at: string;
 };
 
-function personName(
-  given: string | null | undefined,
-  family: string | null | undefined,
-  display?: string | null,
-): string | null {
-  const joined = [given, family]
-    .map((part) => (typeof part === "string" ? part.trim() : ""))
-    .filter(Boolean)
-    .join(" ");
-  if (joined) return joined;
-  const fallback = display?.trim() ?? "";
-  return fallback || null;
+function rememberName(
+  names: Map<string, string>,
+  profileId: string | null,
+  name: string | null,
+) {
+  if (!profileId || !name) return;
+  names.set(profileId, name);
 }
 
 async function loadUploaderNames(
@@ -56,56 +66,306 @@ async function loadUploaderNames(
   profileIds: string[],
 ): Promise<Map<string, string>> {
   const names = new Map<string, string>();
-  if (profileIds.length === 0) return names;
+  const ids = [...new Set(profileIds.map((id) => id.toLowerCase()))];
+  if (ids.length === 0) return names;
 
-  const [{ data: profileRows }, { data: staffRows }] = await Promise.all([
+  const [profiles, staff, employees] = await Promise.all([
     admin
       .from("profiles")
-      .select("id, given_name, family_name, display_name")
-      .in("id", profileIds),
+      .select("id, given_name, family_name, display_name, nickname")
+      .in("id", ids),
     admin
       .from("restaurant_staff")
       .select("profile_id, given_name, family_name")
       .eq("restaurant_id", restaurantId)
-      .in("profile_id", profileIds),
+      .in("profile_id", ids),
+    admin
+      .from("restaurant_employees")
+      .select("profile_id, staff_id")
+      .eq("restaurant_id", restaurantId)
+      .in("profile_id", ids),
   ]);
 
-  for (const raw of profileRows ?? []) {
+  if (profiles.error) {
+    console.warn("[live-activity-feed] uploader profiles", profiles.error.message);
+  }
+  if (staff.error) {
+    console.warn("[live-activity-feed] uploader staff", staff.error.message);
+  }
+  if (employees.error) {
+    console.warn(
+      "[live-activity-feed] uploader employees",
+      employees.error.message,
+    );
+  }
+
+  for (const raw of profiles.data ?? []) {
     const row = raw as {
       id: string;
       given_name: string | null;
       family_name: string | null;
       display_name: string | null;
+      nickname: string | null;
     };
-    const name = personName(row.given_name, row.family_name, row.display_name);
-    if (name) names.set(row.id, name);
+    rememberName(
+      names,
+      asUuid(row.id),
+      personNameFromParts(row.given_name, row.family_name, [
+        row.display_name,
+        row.nickname,
+      ]),
+    );
   }
 
-  for (const raw of staffRows ?? []) {
+  const staffIds = [
+    ...new Set(
+      (employees.data ?? [])
+        .map((raw) => asUuid((raw as { staff_id?: unknown }).staff_id))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const staffNameById = new Map<string, string>();
+  if (staffIds.length > 0) {
+    const linked = await admin
+      .from("restaurant_staff")
+      .select("id, given_name, family_name")
+      .eq("restaurant_id", restaurantId)
+      .in("id", staffIds);
+    if (linked.error) {
+      console.warn("[live-activity-feed] uploader linked staff", linked.error.message);
+    }
+    for (const raw of linked.data ?? []) {
+      const row = raw as {
+        id: string;
+        given_name: string | null;
+        family_name: string | null;
+      };
+      const id = asUuid(row.id);
+      const name = personNameFromParts(row.given_name, row.family_name);
+      if (id && name) staffNameById.set(id, name);
+    }
+  }
+
+  for (const raw of employees.data ?? []) {
+    const row = raw as { profile_id?: unknown; staff_id?: unknown };
+    const profileId = asUuid(row.profile_id);
+    const staffId = asUuid(row.staff_id);
+    if (!profileId || !staffId) continue;
+    rememberName(names, profileId, staffNameById.get(staffId) ?? null);
+  }
+
+  for (const raw of staff.data ?? []) {
     const row = raw as {
       profile_id: string | null;
       given_name: string | null;
       family_name: string | null;
     };
-    if (!row.profile_id) continue;
-    const name = personName(row.given_name, row.family_name);
-    if (name) names.set(row.profile_id, name);
+    rememberName(
+      names,
+      asUuid(row.profile_id),
+      personNameFromParts(row.given_name, row.family_name),
+    );
   }
 
   return names;
 }
 
+async function loadDocumentCreatedBy(
+  admin: SupabaseClient,
+  restaurantId: string,
+  rows: FeedEventRow[],
+): Promise<Map<string, string>> {
+  const byDocumentId = new Map<string, string>();
+  const idsByTable = new Map<
+    (typeof ACCOUNTING_DOCUMENT_SOURCE)[string]["table"],
+    string[]
+  >();
+
+  for (const row of rows) {
+    if (!ACCOUNTING_FEED_MODULES.has(row.module)) continue;
+    if (accountingProfileIdFromPayload(row.payload)) continue;
+    const documentId = asUuid(row.reference_id);
+    const source = ACCOUNTING_DOCUMENT_SOURCE[row.module];
+    if (!documentId || !source) continue;
+    const list = idsByTable.get(source.table) ?? [];
+    list.push(documentId);
+    idsByTable.set(source.table, list);
+  }
+
+  await Promise.all(
+    [...idsByTable.entries()].map(async ([table, ids]) => {
+      const { data, error } = await admin
+        .from(table)
+        .select("id, created_by")
+        .eq("restaurant_id", restaurantId)
+        .in("id", [...new Set(ids)]);
+      if (error) {
+        console.warn("[live-activity-feed] uploader document", table, error.message);
+        return;
+      }
+      for (const raw of data ?? []) {
+        const row = raw as { id?: unknown; created_by?: unknown };
+        const documentId = asUuid(row.id);
+        const createdBy = asUuid(row.created_by);
+        if (documentId && createdBy) byDocumentId.set(documentId, createdBy);
+      }
+    }),
+  );
+
+  return byDocumentId;
+}
+
+async function loadLogUploaders(
+  admin: SupabaseClient,
+  restaurantId: string,
+  rows: FeedEventRow[],
+): Promise<Map<string, { name: string | null; actorId: string | null }>> {
+  const byEventId = new Map<string, { name: string | null; actorId: string | null }>();
+  const idsByKind = new Map<string, string[]>();
+  const eventIdsByDocument = new Map<string, string[]>();
+
+  for (const row of rows) {
+    const source = ACCOUNTING_DOCUMENT_SOURCE[row.module];
+    const documentId = asUuid(row.reference_id);
+    if (!source || !documentId) continue;
+    const list = idsByKind.get(source.kind) ?? [];
+    list.push(documentId);
+    idsByKind.set(source.kind, list);
+    const key = `${source.kind}:${documentId}`;
+    const events = eventIdsByDocument.get(key) ?? [];
+    events.push(row.id);
+    eventIdsByDocument.set(key, events);
+  }
+
+  const chosen = new Map<
+    string,
+    { action: string; name: string | null; actorId: string | null }
+  >();
+
+  await Promise.all(
+    [...idsByKind.entries()].map(async ([kind, ids]) => {
+      const { data, error } = await admin
+        .from("accounting_document_log_entries")
+        .select("document_id, actor_user_id, action, details, created_at")
+        .eq("restaurant_id", restaurantId)
+        .eq("document_kind", kind)
+        .in("document_id", [...new Set(ids)])
+        .in("action", ["created", "attachment_uploaded"])
+        .order("created_at", { ascending: true });
+      if (error) {
+        console.warn("[live-activity-feed] uploader log", kind, error.message);
+        return;
+      }
+      for (const raw of data ?? []) {
+        const row = raw as {
+          document_id?: unknown;
+          actor_user_id?: unknown;
+          action?: unknown;
+          details?: unknown;
+        };
+        const documentId = asUuid(row.document_id);
+        const action = typeof row.action === "string" ? row.action : "";
+        const details =
+          row.details && typeof row.details === "object"
+            ? (row.details as Record<string, unknown>)
+            : {};
+        const name = personNameFromParts(
+          typeof details.actorGivenName === "string" ? details.actorGivenName : null,
+          typeof details.actorFamilyName === "string"
+            ? details.actorFamilyName
+            : null,
+        );
+        const actorId = asUuid(row.actor_user_id);
+        if (!documentId || (!name && !actorId)) continue;
+        const key = `${kind}:${documentId}`;
+        const current = chosen.get(key);
+        if (current?.action === "created" && action !== "created") continue;
+        chosen.set(key, { action, name, actorId });
+      }
+    }),
+  );
+
+  for (const [key, picked] of chosen) {
+    for (const eventId of eventIdsByDocument.get(key) ?? []) {
+      byEventId.set(eventId, { name: picked.name, actorId: picked.actorId });
+    }
+  }
+
+  return byEventId;
+}
+
+type AccountingUploaderIndex = {
+  profileIdByEvent: Map<string, string>;
+  logNameByEvent: Map<string, string>;
+  names: Map<string, string>;
+};
+
+async function buildAccountingUploaderIndex(
+  admin: SupabaseClient,
+  restaurantId: string,
+  rows: FeedEventRow[],
+): Promise<AccountingUploaderIndex> {
+  const accountingRows = rows.filter((row) =>
+    ACCOUNTING_FEED_MODULES.has(row.module),
+  );
+  const profileIdByEvent = new Map<string, string>();
+  const createdBy = await loadDocumentCreatedBy(admin, restaurantId, accountingRows);
+
+  for (const row of accountingRows) {
+    const fromPayload = accountingProfileIdFromPayload(row.payload);
+    const fromDocument = asUuid(row.reference_id)
+      ? createdBy.get(asUuid(row.reference_id) as string)
+      : undefined;
+    const profileId = fromPayload ?? fromDocument ?? null;
+    if (profileId) profileIdByEvent.set(row.id, profileId);
+  }
+
+  const names = await loadUploaderNames(admin, restaurantId, [
+    ...profileIdByEvent.values(),
+  ]);
+
+  const unnamed = accountingRows.filter((row) => {
+    return !resolveAccountingUploaderName({
+      payload: row.payload,
+      profileId: profileIdByEvent.get(row.id) ?? null,
+      namesByProfileId: names,
+    });
+  });
+  const logs =
+    unnamed.length > 0
+      ? await loadLogUploaders(admin, restaurantId, unnamed)
+      : new Map<string, { name: string | null; actorId: string | null }>();
+
+  const extraIds: string[] = [];
+  const logNameByEvent = new Map<string, string>();
+  for (const [eventId, log] of logs) {
+    if (log.name) logNameByEvent.set(eventId, log.name);
+    if (!log.actorId || profileIdByEvent.has(eventId)) continue;
+    profileIdByEvent.set(eventId, log.actorId);
+    if (!names.has(log.actorId)) extraIds.push(log.actorId);
+  }
+  if (extraIds.length > 0) {
+    const more = await loadUploaderNames(admin, restaurantId, extraIds);
+    for (const [id, name] of more) names.set(id, name);
+  }
+
+  return { profileIdByEvent, logNameByEvent, names };
+}
+
 function mapFeedRow(
   row: FeedEventRow,
   locale: string | null | undefined,
-  uploaderNames: Map<string, string>,
+  uploaders: AccountingUploaderIndex,
 ): LiveActivityItem {
   const payload = { ...row.payload };
   if (ACCOUNTING_FEED_MODULES.has(row.module)) {
-    const profileId = payload.createdByProfileId;
-    const known =
-      typeof profileId === "string" ? uploaderNames.get(profileId) : null;
-    if (known) payload.uploaderName = known;
+    const uploaderName = resolveAccountingUploaderName({
+      payload,
+      profileId: uploaders.profileIdByEvent.get(row.id) ?? null,
+      namesByProfileId: uploaders.names,
+      logName: uploaders.logNameByEvent.get(row.id) ?? null,
+    });
+    if (uploaderName) payload.uploaderName = uploaderName;
   }
   const mapped = liveActivityFromNotificationEvent({
     eventId: row.id,
@@ -251,23 +511,15 @@ export async function fetchLiveActivityFeed(params: {
     total = offset + rows.length + (hasMore ? 1 : 0);
   }
 
-  const uploaderIds = [
-    ...new Set(
-      rows
-        .filter((row) => ACCOUNTING_FEED_MODULES.has(row.module))
-        .map((row) => row.payload.createdByProfileId)
-        .filter((id): id is string => typeof id === "string" && id.length > 0),
-    ),
-  ];
-  const uploaderNames = await loadUploaderNames(
+  const uploaders = await buildAccountingUploaderIndex(
     admin,
     params.restaurantId,
-    uploaderIds,
+    rows,
   );
 
   return {
     ok: true,
-    items: rows.map((row) => mapFeedRow(row, params.locale, uploaderNames)),
+    items: rows.map((row) => mapFeedRow(row, params.locale, uploaders)),
     hasMore,
     total,
     viewer: params.viewer,

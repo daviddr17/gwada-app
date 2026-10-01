@@ -10,7 +10,10 @@ import {
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { localizeInventoryUnitLabel } from "@/lib/inventory/inventory-unit-label-for-locale";
 import { purchaseOrderStatusLabel } from "@/lib/inventory/purchase-order-status";
-import { staffNotificationCopy } from "@/lib/notifications/staff-notification-copy";
+import {
+  moduleNoticeLabel,
+  staffNotificationCopy,
+} from "@/lib/notifications/staff-notification-copy";
 import { formatNotificationPayloadSummary } from "@/lib/superadmin/superadmin-notification-log";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
@@ -707,6 +710,30 @@ function feedDescriptionForModule(
 }
 
 /** Human-readable Titel für den Live-Feed (nicht Settings-Labels der Glocke). */
+function accountingUploaderName(
+  payload: Record<string, unknown> | undefined,
+): string | null {
+  const name = pickString(payload?.uploaderName);
+  if (!name) return null;
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(name)
+  ) {
+    return null;
+  }
+  return name;
+}
+
+/** Wie „Lukas Dreyer · abgemeldet“: Name in der Titelzeile, Belegdaten darunter. */
+function accountingDocumentTitle(
+  module: "accounting_voucher" | "accounting_invoice" | "accounting_quotation",
+  payload: Record<string, unknown> | undefined,
+  locale: string,
+): string {
+  const label = moduleNoticeLabel(module, locale, "one");
+  const uploader = accountingUploaderName(payload);
+  return uploader ? `${uploader} · ${label}` : label;
+}
+
 function feedTitleForModule(
   module: string,
   guest: string | null,
@@ -745,6 +772,10 @@ function feedTitleForModule(
       return "Stornierung";
     case "messages":
       return guest ? `Nachricht · ${guest}` : "Neue Nachricht";
+    case "accounting_voucher":
+    case "accounting_invoice":
+    case "accounting_quotation":
+      return accountingDocumentTitle(module, payload, locale);
     default: {
       const moduleId = isNotificationModuleId(module) ? module : null;
       return moduleId ? NOTIFICATION_MODULES[moduleId].label : module;

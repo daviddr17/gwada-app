@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  liveActivityPayloadVisibleToViewer,
+  type LiveActivityFeedViewer,
+} from "@/lib/live-activity/live-activity-feed-access";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 
 const STORAGE_KEY_V2 = "gwada:live-activity-feed:v2";
@@ -17,7 +21,14 @@ type StoreState = {
 type Listener = () => void;
 
 let state: StoreState = { restaurantId: null, items: [] };
+let accessViewer: LiveActivityFeedViewer | null = null;
 const listeners = new Set<Listener>();
+
+const PERSONAL_ROW_MODULES = new Set([
+  "staff_contract_signed",
+  "staff_document_assigned",
+  "staff_permissions_granted",
+]);
 
 function emit() {
   for (const listener of listeners) listener();
@@ -69,11 +80,62 @@ function sortByAtDesc(items: LiveActivityItem[]): LiveActivityItem[] {
 
 export function ensureLiveActivityRestaurant(restaurantId: string) {
   if (state.restaurantId === restaurantId) return;
+  accessViewer = null;
   state = {
     restaurantId,
     items: readPersisted(restaurantId),
   };
   emit();
+}
+
+function moduleAllowed(module: string | undefined): boolean {
+  if (!accessViewer || !module) return true;
+  return accessViewer.modules.includes(
+    module as LiveActivityFeedViewer["modules"][number],
+  );
+}
+
+function keepCachedItem(row: LiveActivityItem): boolean {
+  if (!moduleAllowed(row.module)) return false;
+  if (!accessViewer || accessViewer.unrestricted || !row.module) return true;
+  if (PERSONAL_ROW_MODULES.has(row.module)) return false;
+  if (
+    accessViewer.shiftScope === "own" &&
+    (row.module === "staff_shift_start" || row.module === "staff_shift_end")
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Rechte aus der Feed-API. Cache ohne diese Module wird verworfen. */
+export function setLiveActivityAccess(
+  restaurantId: string,
+  viewer: LiveActivityFeedViewer,
+) {
+  ensureLiveActivityRestaurant(restaurantId);
+  accessViewer = viewer;
+  const next = state.items.filter(keepCachedItem);
+  if (next.length === state.items.length) return;
+  state = { restaurantId, items: next };
+  writePersisted(restaurantId, next);
+  emit();
+}
+
+export function isLiveActivityInsertVisible(
+  module: string,
+  payload: Record<string, unknown>,
+): boolean {
+  if (!accessViewer) return true;
+  if (!moduleAllowed(module)) return false;
+  return liveActivityPayloadVisibleToViewer({
+    module,
+    payload,
+    userId: accessViewer.userId,
+    viewerStaffId: accessViewer.viewerStaffId,
+    shiftScope: accessViewer.shiftScope,
+    unrestricted: accessViewer.unrestricted,
+  });
 }
 
 export function getLiveActivityItems(): LiveActivityItem[] {
@@ -93,6 +155,7 @@ export function recordLiveActivity(
   },
 ) {
   ensureLiveActivityRestaurant(restaurantId);
+  if (!moduleAllowed(item.module)) return;
   const next: LiveActivityItem = {
     id: item.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     kind: item.kind,
@@ -164,6 +227,7 @@ export function mergeLiveActivityItems(
   ensureLiveActivityRestaurant(restaurantId);
   const byId = new Map(state.items.map((row) => [row.id, row]));
   for (const row of items) {
+    if (!moduleAllowed(row.module)) continue;
     byId.set(row.id, row);
   }
 

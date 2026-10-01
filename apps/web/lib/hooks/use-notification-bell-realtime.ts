@@ -132,7 +132,10 @@ export function useNotificationBellRealtime() {
         };
         if (row.module && row.payload) {
           void import("@/lib/live-activity/live-activity-store").then(
-            async ({ recordLiveActivity }) => {
+            async ({ isLiveActivityInsertVisible, recordLiveActivity }) => {
+              if (!isLiveActivityInsertVisible(row.module!, row.payload!)) {
+                return;
+              }
               const { liveActivityFromNotificationEvent } = await import(
                 "@/lib/live-activity/live-activity-from-notification-event"
               );
@@ -147,6 +150,13 @@ export function useNotificationBellRealtime() {
                   locale: readViewerLocale(),
                 }),
               );
+              if (
+                row.module === "accounting_voucher" ||
+                row.module === "accounting_invoice" ||
+                row.module === "accounting_quotation"
+              ) {
+                refreshLiveActivity();
+              }
             },
           );
         }

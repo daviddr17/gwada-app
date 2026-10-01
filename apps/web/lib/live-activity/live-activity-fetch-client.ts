@@ -1,6 +1,10 @@
 "use client";
 
-import { mergeLiveActivityItems } from "@/lib/live-activity/live-activity-store";
+import type { LiveActivityFeedViewer } from "@/lib/live-activity/live-activity-feed-access";
+import {
+  mergeLiveActivityItems,
+  setLiveActivityAccess,
+} from "@/lib/live-activity/live-activity-store";
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 
 export const LIVE_ACTIVITY_PAGE_SIZE = 20;
@@ -9,6 +13,7 @@ export type LiveActivityFeedPage = {
   items: LiveActivityItem[];
   hasMore: boolean;
   total: number;
+  access: LiveActivityFeedViewer | null;
 };
 
 let inflightInitial: Promise<LiveActivityFeedPage | null> | null = null;
@@ -36,12 +41,16 @@ export async function fetchLiveActivityFeedPage(
       data?: LiveActivityItem[];
       hasMore?: boolean;
       total?: number;
+      access?: LiveActivityFeedViewer | null;
     };
     const items = body.data ?? [];
+    const access =
+      body.access && Array.isArray(body.access.modules) ? body.access : null;
     return {
       items,
       hasMore: Boolean(body.hasMore),
       total: typeof body.total === "number" ? body.total : items.length,
+      access,
     };
   } catch {
     return null;
@@ -62,6 +71,9 @@ export async function backfillLiveActivityFeed(
     limit: LIVE_ACTIVITY_PAGE_SIZE,
     offset: 0,
   }).then((page) => {
+    if (page?.access) {
+      setLiveActivityAccess(restaurantId, page.access);
+    }
     if (page?.items.length) {
       mergeLiveActivityItems(restaurantId, page.items);
     }

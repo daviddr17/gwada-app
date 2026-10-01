@@ -5,7 +5,20 @@ const PROFILE_ID_KEYS = [
   "createdByProfileId",
   "actorProfileId",
   "actorUserId",
+  "created_by_profile_id",
+  "actor_profile_id",
+  "actor_user_id",
 ] as const;
+
+/** Titel ohne Person — die Zeile bleibt „Beleg“, bis ein Name da ist. */
+const GENERIC_ACCOUNTING_TITLES = new Set([
+  "beleg",
+  "rechnung",
+  "angebot",
+  "neuer beleg",
+  "neue rechnung",
+  "neues angebot",
+]);
 
 /** Platzhalter aus Profil-Sync und Inhaber-Fallback, kein Personenname. */
 const PLACEHOLDER_NAMES = new Set(["user", "inhaber", "beleg", "empfänger"]);
@@ -55,6 +68,43 @@ export function accountingProfileIdFromPayload(
   for (const key of PROFILE_ID_KEYS) {
     const id = asUuid(payload[key]);
     if (id) return id;
+  }
+  return null;
+}
+
+export function isGenericAccountingFeedTitle(title: string): boolean {
+  return GENERIC_ACCOUNTING_TITLES.has(title.trim().toLowerCase());
+}
+
+/**
+ * Ein späterer Eintrag darf „Beleg“ durch „Vorname Nachname · Beleg“ ersetzen.
+ * Ein Eintrag ohne Person darf einen schon gezeigten Namen nicht wieder löschen.
+ */
+export function preferAccountingFeedTitle(current: string, incoming: string): string {
+  if (
+    isGenericAccountingFeedTitle(current) &&
+    !isGenericAccountingFeedTitle(incoming)
+  ) {
+    return incoming;
+  }
+  if (
+    !isGenericAccountingFeedTitle(current) &&
+    isGenericAccountingFeedTitle(incoming)
+  ) {
+    return current;
+  }
+  return incoming;
+}
+
+/** Erste Profil-Id, deren Name wirklich eine Person ist. */
+export function firstNamedProfileId(
+  candidates: ReadonlyArray<string | null | undefined>,
+  namesByProfileId: ReadonlyMap<string, string>,
+): string | null {
+  for (const raw of candidates) {
+    const id = asUuid(raw);
+    if (!id) continue;
+    if (usableUploaderName(namesByProfileId.get(id))) return id;
   }
   return null;
 }

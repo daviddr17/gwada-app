@@ -25,6 +25,7 @@ export function useLiveActivityFeed(): {
   loadingMore: boolean;
   markSeen: () => void;
   loadMore: () => Promise<void>;
+  refresh: () => Promise<void>;
   restaurantId: string | null;
 } {
   const { restaurantId } = useWorkspaceRestaurantUuid();
@@ -44,6 +45,14 @@ export function useLiveActivityFeed(): {
       setHasMore(page.hasMore);
       setNextOffset(page.items.length);
     })();
+  }, [restaurantId]);
+
+  const refresh = useCallback(async () => {
+    if (!restaurantId) return;
+    const page = await backfillLiveActivityFeed(restaurantId);
+    if (!page) return;
+    setHasMore(page.hasMore);
+    setNextOffset((prev) => Math.max(prev, page.items.length));
   }, [restaurantId]);
 
   const subscribe = useCallback(
@@ -102,6 +111,7 @@ export function useLiveActivityFeed(): {
     loadingMore,
     markSeen,
     loadMore,
+    refresh,
     restaurantId,
   };
 }

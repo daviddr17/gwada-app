@@ -8,6 +8,8 @@ import {
 import type { LiveActivityItem } from "@/lib/live-activity/live-activity-types";
 
 export const LIVE_ACTIVITY_PAGE_SIZE = 20;
+/** Erste Seite: genug Zeilen, dass der Handy-Verlauf nicht bei „Beleg“ hängen bleibt. */
+const LIVE_ACTIVITY_BACKFILL_LIMIT = 50;
 
 export type LiveActivityFeedPage = {
   items: LiveActivityItem[];
@@ -68,7 +70,7 @@ export async function backfillLiveActivityFeed(
 
   lastInitialKey = key;
   inflightInitial = fetchLiveActivityFeedPage(restaurantId, {
-    limit: LIVE_ACTIVITY_PAGE_SIZE,
+    limit: LIVE_ACTIVITY_BACKFILL_LIMIT,
     offset: 0,
   }).then((page) => {
     if (page?.access) {

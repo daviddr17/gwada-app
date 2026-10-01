@@ -4,6 +4,8 @@ import { test } from "node:test";
 import { liveActivityFromNotificationEvent } from "@/lib/live-activity/live-activity-from-notification-event";
 import {
   accountingProfileIdFromPayload,
+  firstNamedProfileId,
+  preferAccountingFeedTitle,
   resolveAccountingUploaderName,
 } from "@/lib/live-activity/live-activity-accounting-uploader";
 
@@ -73,4 +75,31 @@ test("Beleg-Titel nutzt den aufgelösten Namen und lässt Lücken leer", () => {
     },
   });
   assert.equal(missing.title, "Beleg");
+});
+
+test("Personenname ersetzt „Beleg“ und wird nicht wieder gelöscht", () => {
+  assert.equal(
+    preferAccountingFeedTitle("Beleg", "Lukas Dreyer · Beleg"),
+    "Lukas Dreyer · Beleg",
+  );
+  assert.equal(
+    preferAccountingFeedTitle("Lukas Dreyer · Beleg", "Beleg"),
+    "Lukas Dreyer · Beleg",
+  );
+  assert.equal(preferAccountingFeedTitle("Beleg", "Beleg"), "Beleg");
+});
+
+test("Uploader: created_by vor updated_by, sonst der nächste Name", () => {
+  const created = "11111111-1111-1111-1111-111111111111";
+  const updated = "22222222-2222-2222-2222-222222222222";
+  const names = new Map([
+    [created, "Lukas Dreyer"],
+    [updated, "David Dreyer"],
+  ]);
+  assert.equal(firstNamedProfileId([created, updated], names), created);
+  assert.equal(
+    firstNamedProfileId([created, updated], new Map([[updated, "David Dreyer"]])),
+    updated,
+  );
+  assert.equal(firstNamedProfileId([created], new Map()), null);
 });

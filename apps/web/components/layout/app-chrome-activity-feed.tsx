@@ -64,11 +64,14 @@ function ActivityRow({
   timeZone,
   nowMs,
   onNavigate,
+  wrapTitle,
 }: {
   item: LiveActivityItem;
   timeZone: string;
   nowMs: number;
   onNavigate: () => void;
+  /** Vollbild auf dem Handy: Name umbrechen, nicht auf „Beleg“ kürzen. */
+  wrapTitle: boolean;
 }) {
   const mod =
     item.module && isNotificationModuleId(item.module)
@@ -84,12 +87,17 @@ function ActivityRow({
         <Icon className="size-4" aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <p className="truncate text-[13px] font-semibold tracking-tight text-foreground">
+        <div className="flex items-start justify-between gap-2">
+          <p
+            className={cn(
+              "min-w-0 flex-1 text-[13px] font-semibold leading-snug tracking-tight text-foreground",
+              wrapTitle ? "break-words" : "truncate",
+            )}
+          >
             {item.title}
           </p>
           <time
-            className="shrink-0 text-[11px] tabular-nums text-muted-foreground"
+            className="shrink-0 pt-px text-[11px] tabular-nums text-muted-foreground"
             dateTime={item.at}
           >
             {when}
@@ -182,6 +190,7 @@ function LiveActivityPanel({
                 timeZone={timeZone}
                 nowMs={nowMs}
                 onNavigate={onNavigate}
+                wrapTitle={layout === "screen"}
               />
             ))}
           </ul>
@@ -230,7 +239,7 @@ export function AppChromeActivityFeed({
   const useMobileScreen = variant === "mobileNav" || isMobile;
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const timeZone = useRestaurantIanaTimezone(restaurantId);
-  const { items, hasUnseen, hasMore, loadingMore, markSeen, loadMore } =
+  const { items, hasUnseen, hasMore, loadingMore, markSeen, loadMore, refresh } =
     useLiveActivityFeed();
 
   React.useEffect(() => {
@@ -240,6 +249,11 @@ export function AppChromeActivityFeed({
   React.useEffect(() => {
     if (open) markSeen();
   }, [open, markSeen]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    void refresh();
+  }, [open, refresh]);
 
   React.useEffect(() => {
     if (!open) return;

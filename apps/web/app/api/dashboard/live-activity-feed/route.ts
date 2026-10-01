@@ -9,6 +9,7 @@ import {
 import {
   accountingProfileIdFromPayload,
   asUuid,
+  firstNamedProfileId,
   personNameFromParts,
   resolveAccountingUploaderName,
 } from "@/lib/live-activity/live-activity-accounting-uploader";
@@ -81,7 +82,7 @@ async function loadUploaderNames(
       .in("profile_id", ids),
     admin
       .from("restaurant_employees")
-      .select("profile_id, staff_id")
+      .select("id, profile_id, staff_id")
       .eq("restaurant_id", restaurantId)
       .in("profile_id", ids),
   ]);
@@ -117,14 +118,53 @@ async function loadUploaderNames(
     );
   }
 
+  const employeeRows = (employees.data ?? []).map((raw) => {
+    const row = raw as { id?: unknown; profile_id?: unknown; staff_id?: unknown };
+    return {
+      id: asUuid(row.id),
+      profileId: asUuid(row.profile_id),
+      staffId: asUuid(row.staff_id),
+    };
+  });
   const staffIds = [
     ...new Set(
-      (employees.data ?? [])
-        .map((raw) => asUuid((raw as { staff_id?: unknown }).staff_id))
+      employeeRows
+        .map((row) => row.staffId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const employeeIds = [
+    ...new Set(
+      employeeRows
+        .map((row) => row.id)
         .filter((id): id is string => Boolean(id)),
     ),
   ];
   const staffNameById = new Map<string, string>();
+  const staffNameByEmployeeId = new Map<string, string>();
+  if (employeeIds.length > 0) {
+    const linkedByEmployee = await admin
+      .from("restaurant_staff")
+      .select("employee_id, given_name, family_name")
+      .eq("restaurant_id", restaurantId)
+      .in("employee_id", employeeIds);
+    if (linkedByEmployee.error) {
+      console.warn(
+        "[live-activity-feed] uploader staff by employee",
+        linkedByEmployee.error.message,
+      );
+    }
+    for (const raw of linkedByEmployee.data ?? []) {
+      const row = raw as {
+        employee_id?: unknown;
+        given_name: string | null;
+        family_name: string | null;
+      };
+      const employeeId = asUuid(row.employee_id);
+      const name = personNameFromParts(row.given_name, row.family_name);
+      if (employeeId && name) staffNameByEmployeeId.set(employeeId, name);
+    }
+  }
   if (staffIds.length > 0) {
     const linked = await admin
       .from("restaurant_staff")
@@ -146,12 +186,11 @@ async function loadUploaderNames(
     }
   }
 
-  for (const raw of employees.data ?? []) {
-    const row = raw as { profile_id?: unknown; staff_id?: unknown };
-    const profileId = asUuid(row.profile_id);
-    const staffId = asUuid(row.staff_id);
-    if (!profileId || !staffId) continue;
-    rememberName(names, profileId, staffNameById.get(staffId) ?? null);
+  for (const row of employeeRows) {
+    if (!row.profileId) continue;
+    const fromEmployee = row.id ? staffNameByEmployeeId.get(row.id) ?? null : null;
+    const fromStaff = row.staffId ? staffNameById.get(row.staffId) ?? null : null;
+    rememberName(names, row.profileId, fromStaff ?? fromEmployee);
   }
 
   for (const raw of staff.data ?? []) {
@@ -170,12 +209,14 @@ async function loadUploaderNames(
   return names;
 }
 
-async function loadDocumentCreatedBy(
+type DocumentActors = { createdBy: string | null; updatedBy: string | null };
+
+async function loadDocumentActors(
   admin: SupabaseClient,
   restaurantId: string,
   rows: FeedEventRow[],
-): Promise<Map<string, string>> {
-  const byDocumentId = new Map<string, string>();
+): Promise<Map<string, DocumentActors>> {
+  const byDocumentId = new Map<string, DocumentActors>();
   const idsByTable = new Map<
     (typeof ACCOUNTING_DOCUMENT_SOURCE)[string]["table"],
     string[]
@@ -183,7 +224,6 @@ async function loadDocumentCreatedBy(
 
   for (const row of rows) {
     if (!ACCOUNTING_FEED_MODULES.has(row.module)) continue;
-    if (accountingProfileIdFromPayload(row.payload)) continue;
     const documentId = asUuid(row.reference_id);
     const source = ACCOUNTING_DOCUMENT_SOURCE[row.module];
     if (!documentId || !source) continue;
@@ -196,7 +236,7 @@ async function loadDocumentCreatedBy(
     [...idsByTable.entries()].map(async ([table, ids]) => {
       const { data, error } = await admin
         .from(table)
-        .select("id, created_by")
+        .select("id, created_by, updated_by")
         .eq("restaurant_id", restaurantId)
         .in("id", [...new Set(ids)]);
       if (error) {
@@ -204,10 +244,17 @@ async function loadDocumentCreatedBy(
         return;
       }
       for (const raw of data ?? []) {
-        const row = raw as { id?: unknown; created_by?: unknown };
+        const row = raw as {
+          id?: unknown;
+          created_by?: unknown;
+          updated_by?: unknown;
+        };
         const documentId = asUuid(row.id);
-        const createdBy = asUuid(row.created_by);
-        if (documentId && createdBy) byDocumentId.set(documentId, createdBy);
+        if (!documentId) continue;
+        byDocumentId.set(documentId, {
+          createdBy: asUuid(row.created_by),
+          updatedBy: asUuid(row.updated_by),
+        });
       }
     }),
   );
@@ -309,20 +356,27 @@ async function buildAccountingUploaderIndex(
     ACCOUNTING_FEED_MODULES.has(row.module),
   );
   const profileIdByEvent = new Map<string, string>();
-  const createdBy = await loadDocumentCreatedBy(admin, restaurantId, accountingRows);
+  const actors = await loadDocumentActors(admin, restaurantId, accountingRows);
+  const candidatesByEvent = new Map<string, Array<string | null>>();
 
   for (const row of accountingRows) {
-    const fromPayload = accountingProfileIdFromPayload(row.payload);
-    const fromDocument = asUuid(row.reference_id)
-      ? createdBy.get(asUuid(row.reference_id) as string)
-      : undefined;
-    const profileId = fromPayload ?? fromDocument ?? null;
-    if (profileId) profileIdByEvent.set(row.id, profileId);
+    const documentId = asUuid(row.reference_id);
+    const doc = documentId ? actors.get(documentId) : undefined;
+    candidatesByEvent.set(row.id, [
+      accountingProfileIdFromPayload(row.payload),
+      doc?.createdBy ?? null,
+      doc?.updatedBy ?? null,
+    ]);
   }
 
   const names = await loadUploaderNames(admin, restaurantId, [
-    ...profileIdByEvent.values(),
-  ]);
+    ...[...candidatesByEvent.values()].flat(),
+  ].filter((id): id is string => Boolean(id)));
+
+  for (const [eventId, candidates] of candidatesByEvent) {
+    const profileId = firstNamedProfileId(candidates, names);
+    if (profileId) profileIdByEvent.set(eventId, profileId);
+  }
 
   const unnamed = accountingRows.filter((row) => {
     return !resolveAccountingUploaderName({

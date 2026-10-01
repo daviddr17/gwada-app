@@ -1,7 +1,38 @@
 /*
  * Mobile Bottom-Chrome: Bottom-Nav, FABs, Sticky-Footer — unlayered.
  * PWA (standalone) vs Browser über CSS + html[data-display-mode].
+ *
+ * iOS 26 malt über den Viewport-Anfang einen weichen Scroll-Edge-Blur
+ * („oben verschwommen“), solange dort kein fixed/sticky Balken mit
+ * deckender Farbe liegt. Die Dashboard-Kopfzeile sitzt nur im Flex-Flow
+ * und ihr Titelstreifen ist overflow-x:auto — Safari rechnet overflow-y:hidden
+ * dann zu auto und fadet die Zeile zusätzlich von oben.
+ * Nur unter 768px, nur [data-ios-top-bar] (Dashboard-Shell). Desktop und
+ * die Bottom-Nav bleiben unverändert.
  */
+@media (max-width: 767px) {
+  [data-app-chrome-header][data-ios-top-bar] {
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    z-index: 30;
+    box-sizing: border-box;
+    height: calc(var(--app-chrome-header-h) + env(safe-area-inset-top, 0px));
+    min-height: calc(var(--app-chrome-header-h) + env(safe-area-inset-top, 0px));
+    max-height: none;
+    padding-top: env(safe-area-inset-top, 0px);
+    background-color: var(--app-chrome-fixed-zone);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    overflow: clip;
+  }
+
+  [data-app-chrome-header][data-ios-top-bar] [data-app-chrome-title-scroll] {
+    overflow-x: auto;
+    overflow-y: clip;
+  }
+}
+
 @media (max-width: 767px) {
   :root {
     --app-mobile-bottom-nav-bar: 3.5rem;
